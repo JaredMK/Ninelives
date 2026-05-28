@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0f1626" />
+<title>Nine Lives</title>
+<style>
+  /* ============================================================
+     THEME / TOKENS
+     ============================================================ */
+  :root {
+    --bg: #0f1626;
+    --bg-2: #16203a;
+    --panel: #1d2a4a;
+    --accent: #ffce54;
+    --accent-2: #5bd1ff;
+    --good: #4cd964;
+    --bad: #ff5b6e;
+    --text: #eef2ff;
+    --muted: #8ea0c9;
+    --card-face: #fbfcff;
+    --card-ink: #1b2440;
+    --card-red: #d6324a;
+    --radius: 14px;
+    --gap: clamp(6px, 2.4vw, 14px);
+    --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background: radial-gradient(120% 120% at 50% 0%, var(--bg-2) 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ============================================================
+     HEADER / HUD
+     ============================================================ */
+  header {
+    text-align: center;
+    padding: 14px 12px 6px;
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: clamp(20px, 6vw, 30px);
+    letter-spacing: 2px;
+    font-weight: 800;
+    background: linear-gradient(180deg, var(--accent) 0%, #ff9d4d 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  header p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .hud {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 12px 2px;
+  }
+
+  .stat {
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: var(--shadow);
+  }
+
+  .stat b {
+    font-size: 16px;
+    color: var(--accent-2);
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .stat .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--good);
+  }
+
+  /* ============================================================
+     BOARD
+     ============================================================ */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 10px;
+    gap: 14px;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--gap);
+    width: min(94vw, 430px);
+    aspect-ratio: 1 / 1;
+  }
+
+  /* ============================================================
+     PILE + CARD
+     ============================================================ */
+  .pile {
+    position: relative;
+    perspective: 700px;
+    cursor: pointer;
+  }
+
+  .card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius);
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.45, 0.05, 0.2, 1);
+    box-shadow: var(--shadow);
+  }
+
+  .card .face {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* front (face up) */
+  .card .front {
+    background: var(--card-face);
+    color: var(--card-ink);
+    padding: 8px;
+    justify-content: space-between;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+
+  .card .front.red { color: var(--card-red); }
+
+  .rank-top, .rank-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 0.95;
+    font-weight: 800;
+  }
+
+  .rank-top { align-self: flex-start; }
+  .rank-bottom { align-self: flex-end; transform: rotate(180deg); }
+
+  .rank-top .r, .rank-bottom .r { font-size: clamp(16px, 5.4vw, 26px); }
+  .rank-top .s, .rank-bottom .s { font-size: clamp(10px, 3.2vw, 15px); }
+
+  .card .pip {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(26px, 11vw, 54px);
+    opacity: 0.85;
+  }
+
+  /* back (face down / dead) */
+  .card .back {
+    background:
+      repeating-linear-gradient(45deg, #243a73 0 8px, #1d3060 8px 16px);
+    border: 2px solid #34508f;
+    transform: rotateY(180deg);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card .back .crest {
+    width: 60%;
+    height: 60%;
+    border-radius: 12px;
+    border: 2px dashed rgba(255,255,255,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(20px, 8vw, 34px);
+    color: rgba(255,255,255,0.6);
+  }
+
+  /* state: pile dead -> flip to show back */
+  .pile.dead .card { transform: rotateY(180deg); }
+  .pile.dead { cursor: default; }
+  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); filter: saturate(0.6) brightness(0.85); }
+
+  /* selected highlight */
+  .pile.selected .card {
+    box-shadow: 0 0 0 3px var(--accent), var(--shadow);
+  }
+
+  /* deal-in animation */
+  @keyframes dealIn {
+    from { opacity: 0; transform: translateY(-30px) scale(0.8); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pile.dealing { animation: dealIn 0.4s ease both; }
+
+  /* pulse feedback for correct/incorrect */
+  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(76,217,100,0.7);} 100%{box-shadow:0 0 0 14px rgba(76,217,100,0);} }
+  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(255,91,110,0.7);} 100%{box-shadow:0 0 0 14px rgba(255,91,110,0);} }
+  .pile.flash-good .card { animation: goodPulse 0.5s ease; }
+  .pile.flash-bad .card  { animation: badPulse 0.5s ease; }
+
+  /* ============================================================
+     ACTION SHEET (Higher / Lower)
+     ============================================================ */
+  .actions {
+    width: min(94vw, 430px);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    min-height: 56px;
+    align-items: stretch;
+  }
+
+  .actions.hidden { visibility: hidden; }
+
+  .btn {
+    border: none;
+    border-radius: var(--radius);
+    padding: 16px 8px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #0c1124;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.08s ease, filter 0.15s ease;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn.higher { background: linear-gradient(180deg, #7bf08a, var(--good)); }
+  .btn.lower  { background: linear-gradient(180deg, #ff8a97, var(--bad)); }
+  .btn .sub { display:block; font-size: 11px; font-weight: 600; opacity: 0.7; }
+
+  .hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    min-height: 18px;
+    padding: 0 12px;
+  }
+
+  /* ============================================================
+     OVERLAY (win / lose / start)
+     ============================================================ */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 10, 22, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 24px;
+    z-index: 50;
+    transition: opacity 0.3s ease;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay h2 { font-size: 34px; margin: 0 0 8px; }
+  .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
+  .overlay .big { font-size: 56px; margin-bottom: 6px; }
+  .overlay.win h2 { color: var(--good); }
+  .overlay.lose h2 { color: var(--bad); }
+
+  .play-btn {
+    background: linear-gradient(180deg, var(--accent), #ff9d4d);
+    color: #221500;
+    border: none;
+    border-radius: 999px;
+    padding: 16px 40px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+  .play-btn:active { transform: scale(0.97); }
+
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 0 10px;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>NINE LIVES</h1>
+    <p>Guess higher or lower. Survive the deck.</p>
+  </header>
+
+  <div class="hud">
+    <div class="stat" title="Cards left in draw deck">
+      🂠 Deck <b id="deckCount">0</b>
+    </div>
+    <div class="stat" title="Piles still alive">
+      <span class="dot"></span> Alive <b id="aliveCount">9</b>
+    </div>
+  </div>
+
+  <main>
+    <div class="board" id="board" aria-label="3 by 3 grid of card piles"></div>
+
+    <div class="hint" id="hint">Tap a pile to begin.</div>
+
+    <div class="actions hidden" id="actions">
+      <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next ≥ current</span></button>
+      <button class="btn lower" id="btnLower">LOWER<span class="sub">next ≤ current</span></button>
+    </div>
+  </main>
+
+  <footer>Ace high · suits don't matter · v1 prototype</footer>
+
+  <!-- Start / End overlay -->
+  <div class="overlay" id="overlay">
+    <div class="big" id="overlayIcon">🐱</div>
+    <h2 id="overlayTitle">Nine Lives</h2>
+    <p id="overlayMsg">
+      You have nine piles. Each turn, pick a pile and bet whether the next
+      card is higher or lower. Ties are safe. Empty the deck to win.
+    </p>
+    <button class="play-btn" id="playBtn">PLAY</button>
+  </div>
+
+<script>
+"use strict";
+/* ================================================================
+   NINE LIVES — mobile-first card survival prototype
+   ----------------------------------------------------------------
+   Architecture (intentionally decoupled for future expansion):
+
+     DeckManager  – owns the cards: shuffle, draw, remaining count
+     BoardState   – owns the 9 piles and their active/dead status
+     GameEngine   – owns the rules: turn flow, win/lose evaluation
+     UIRenderer   – owns the DOM: rendering + input wiring only
+
+   GameEngine emits events; UIRenderer subscribes and re-renders.
+   The engine never touches the DOM; the renderer never mutates
+   game state directly. This keeps future features (reward phase,
+   deck modification, shop) easy to slot in — see HOOKS at bottom.
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   DeckManager
+   Responsible only for the cards themselves.
+---------------------------------------------------------------- */
+const DeckManager = (() => {
+  // Rank value: Ace high. 2..10 = face value, J=11, Q=12, K=13, A=14.
+  const RANKS = [
+    { label: "2", value: 2 },  { label: "3", value: 3 },
+    { label: "4", value: 4 },  { label: "5", value: 5 },
+    { label: "6", value: 6 },  { label: "7", value: 7 },
+    { label: "8", value: 8 },  { label: "9", value: 9 },
+    { label: "10", value: 10 }, { label: "J", value: 11 },
+    { label: "Q", value: 12 }, { label: "K", value: 13 },
+    { label: "A", value: 14 },
+  ];
+  // Suits are purely cosmetic (rank is all that matters).
+  const SUITS = [
+    { symbol: "♠", red: false }, { symbol: "♥", red: true },
+    { symbol: "♦", red: true },  { symbol: "♣", red: false },
+  ];
+
+  function buildDeck() {
+    const deck = [];
+    let id = 0;
+    for (const s of SUITS) {
+      for (const r of RANKS) {
+        deck.push({ id: id++, label: r.label, value: r.value, suit: s.symbol, red: s.red });
+      }
+    }
+    return deck; // 52 cards
+  }
+
+  // Fisher–Yates shuffle (in place).
+  function shuffle(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  function create() {
+    let cards = shuffle(buildDeck());
+    return {
+      /** Remove and return the top card, or null if empty. */
+      draw() { return cards.length ? cards.shift() : null; },
+      /** How many cards remain in the draw deck. */
+      remaining() { return cards.length; },
+      isEmpty() { return cards.length === 0; },
+      // Exposed for future deck-modification hooks (see HOOKS).
+      _peekAll() { return cards.slice(); },
+      _inject(extraCards) { cards = shuffle(cards.concat(extraCards)); },
+    };
+  }
+
+  return { create, RANKS, SUITS };
+})();
+
+/* ----------------------------------------------------------------
+   BoardState
+   The 9 piles. Each pile: { topCard, dead, cards[] }.
+---------------------------------------------------------------- */
+const BoardState = (() => {
+  const SIZE = 9;
+
+  function create() {
+    const piles = [];
+    for (let i = 0; i < SIZE; i++) {
+      piles.push({ index: i, cards: [], dead: false });
+    }
+    return {
+      size: SIZE,
+      piles,
+      /** Place a starting/next card on a pile. */
+      push(index, card) { piles[index].cards.push(card); },
+      top(index) {
+        const c = piles[index].cards;
+        return c.length ? c[c.length - 1] : null;
+      },
+      isActive(index) { return !piles[index].dead; },
+      kill(index) { piles[index].dead = true; },
+      aliveCount() { return piles.filter(p => !p.dead).length; },
+      anyAlive() { return piles.some(p => !p.dead); },
+    };
+  }
+
+  return { create, SIZE };
+})();
+
+/* ----------------------------------------------------------------
+   GameEngine
+   Rules + flow. Pure logic — emits events, never touches DOM.
+---------------------------------------------------------------- */
+const GameEngine = (() => {
+  function create() {
+    let deck, board, status, listeners = [];
+    // status: "idle" | "playing" | "won" | "lost"
+
+    function emit(type, payload) {
+      for (const fn of listeners) fn(type, payload);
+    }
+
+    function start() {
+      deck = DeckManager.create();
+      board = BoardState.create();
+      status = "playing";
+      // Deal one face-up card into each of the 9 piles.
+      for (let i = 0; i < board.size; i++) {
+        board.push(i, deck.draw());
+      }
+      emit("dealt", { board, deck });
+    }
+
+    /**
+     * Resolve a guess on a pile.
+     * @param {number} index  pile index
+     * @param {"higher"|"lower"} guess
+     */
+    function guess(index, guess) {
+      if (status !== "playing") return;
+      if (!board.isActive(index)) return;
+      if (deck.isEmpty()) return;
+
+      const current = board.top(index);
+      const drawn = deck.draw();
+
+      // Ties are safe in BOTH directions (higher = >=, lower = <=).
+      const correct = guess === "higher"
+        ? drawn.value >= current.value
+        : drawn.value <= current.value;
+
+      if (correct) {
+        board.push(index, drawn);
+      } else {
+        board.kill(index);
+      }
+
+      emit("resolved", { index, guess, current, drawn, correct, board, deck });
+
+      evaluateEnd();
+    }
+
+    function evaluateEnd() {
+      if (status !== "playing") return;
+      if (deck.isEmpty()) {
+        // Survived to the end of the deck.
+        status = "won";
+        emit("won", { board, deck });
+        // FUTURE: HOOKS.onRoundComplete({ result: "win", board });
+      } else if (!board.anyAlive()) {
+        // All nine lives spent.
+        status = "lost";
+        emit("lost", { board, deck });
+        // FUTURE: HOOKS.onRoundComplete({ result: "loss", board });
+      }
+    }
+
+    return {
+      start,
+      guess,
+      onEvent(fn) { listeners.push(fn); },
+      getStatus() { return status; },
+      getBoard() { return board; },
+      getDeck() { return deck; },
+    };
+  }
+
+  return { create };
+})();
+
+/* ----------------------------------------------------------------
+   UIRenderer
+   DOM only. Subscribes to engine events and reflects state.
+   Also captures input (tap pile -> action sheet -> guess).
+   Designed so a swipe handler can be added later (see attachInput).
+---------------------------------------------------------------- */
+const UIRenderer = (() => {
+  const el = {
+    board: document.getElementById("board"),
+    deckCount: document.getElementById("deckCount"),
+    aliveCount: document.getElementById("aliveCount"),
+    actions: document.getElementById("actions"),
+    btnHigher: document.getElementById("btnHigher"),
+    btnLower: document.getElementById("btnLower"),
+    hint: document.getElementById("hint"),
+    overlay: document.getElementById("overlay"),
+    overlayIcon: document.getElementById("overlayIcon"),
+    overlayTitle: document.getElementById("overlayTitle"),
+    overlayMsg: document.getElementById("overlayMsg"),
+    playBtn: document.getElementById("playBtn"),
+  };
+
+  let engine = null;
+  let selected = null;        // currently selected pile index, or null
+  const pileEls = [];         // cached .pile elements by index
+
+  /* ---- card element factory ---- */
+  function buildPile(index) {
+    const pile = document.createElement("div");
+    pile.className = "pile dealing";
+    pile.dataset.index = index;
+    pile.style.animationDelay = (index * 0.05) + "s";
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    // FRONT (face up)
+    const front = document.createElement("div");
+    front.className = "face front";
+    front.innerHTML = `
+      <div class="rank-top"><span class="r"></span><span class="s"></span></div>
+      <div class="pip"></div>
+      <div class="rank-bottom"><span class="r"></span><span class="s"></span></div>`;
+
+    // BACK (face down / dead)
+    const back = document.createElement("div");
+    back.className = "face back";
+    back.innerHTML = `<div class="crest">✕</div>`;
+
+    card.appendChild(front);
+    card.appendChild(back);
+    pile.appendChild(card);
+    return pile;
+  }
+
+  function paintFront(pileEl, card) {
+    const front = pileEl.querySelector(".front");
+    front.classList.toggle("red", !!card.red);
+    pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
+      .forEach(n => n.textContent = card.label);
+    pileEl.querySelectorAll(".rank-top .s, .rank-bottom .s")
+      .forEach(n => n.textContent = card.suit);
+    pileEl.querySelector(".pip").textContent = card.suit;
+  }
+
+  /* ---- full (re)render of the board from state ---- */
+  function renderBoard(board, deck) {
+    for (let i = 0; i < board.size; i++) {
+      const pileEl = pileEls[i];
+      const top = board.top(i);
+      if (top) paintFront(pileEl, top);
+      pileEl.classList.toggle("dead", !board.isActive(i));
+    }
+    renderHud(board, deck);
+  }
+
+  function renderHud(board, deck) {
+    el.deckCount.textContent = deck.remaining();
+    el.aliveCount.textContent = board.aliveCount();
+  }
+
+  /* ---- selection / action sheet ---- */
+  function selectPile(index) {
+    if (!engine || engine.getStatus() !== "playing") return;
+    if (!engine.getBoard().isActive(index)) return;
+
+    if (selected === index) { clearSelection(); return; }
+
+    clearSelection();
+    selected = index;
+    pileEls[index].classList.add("selected");
+    el.actions.classList.remove("hidden");
+    const top = engine.getBoard().top(index);
+    el.hint.textContent = `Pile shows ${top.label}. Higher or lower?`;
+  }
+
+  function clearSelection() {
+    if (selected !== null && pileEls[selected]) {
+      pileEls[selected].classList.remove("selected");
+    }
+    selected = null;
+    el.actions.classList.add("hidden");
+  }
+
+  function submitGuess(guess) {
+    if (selected === null) return;
+    engine.guess(selected, guess);
+  }
+
+  /* ---- input wiring (tap now; swipe-ready later) ---- */
+  function attachInput() {
+    // Tap a pile to select it.
+    el.board.addEventListener("click", (e) => {
+      const pileEl = e.target.closest(".pile");
+      if (!pileEl) return;
+      selectPile(Number(pileEl.dataset.index));
+    });
+
+    el.btnHigher.addEventListener("click", () => submitGuess("higher"));
+    el.btnLower.addEventListener("click", () => submitGuess("lower"));
+
+    el.playBtn.addEventListener("click", () => newGame());
+
+    /* FUTURE HOOK: swipe support.
+       The structure above already isolates "selectPile" and
+       "submitGuess", so a swipe gesture on a pile can call:
+         selectPile(i); submitGuess(dy < 0 ? "higher" : "lower");
+       Add a pointerdown/pointerup pair here when desired. */
+  }
+
+  /* ---- event handling from the engine ---- */
+  function handleEvent(type, payload) {
+    switch (type) {
+      case "dealt":
+        renderBoard(payload.board, payload.deck);
+        el.hint.textContent = "Tap a pile, then choose Higher or Lower.";
+        break;
+
+      case "resolved": {
+        const pileEl = pileEls[payload.index];
+        // Show the drawn card landing on the pile (or its final face before flip).
+        paintFront(pileEl, payload.drawn);
+        renderHud(payload.board, payload.deck);
+
+        // Feedback flash.
+        const cls = payload.correct ? "flash-good" : "flash-bad";
+        pileEl.classList.add(cls);
+        setTimeout(() => pileEl.classList.remove(cls), 520);
+
+        // Flip to dead if wrong.
+        if (!payload.correct) pileEl.classList.add("dead");
+
+        clearSelection();
+        el.hint.textContent = payload.correct
+          ? `${payload.drawn.label} — safe! ${payload.board.aliveCount()} piles alive.`
+          : `${payload.drawn.label} — that pile is dead.`;
+        break;
+      }
+
+      case "won":
+        showOverlay("win", "🏆", "YOU SURVIVED",
+          `The deck is empty and ${payload.board.aliveCount()} of 9 piles lived. Well played.`);
+        break;
+
+      case "lost":
+        showOverlay("lose", "💀", "ALL LIVES LOST",
+          `Every pile died with ${payload.deck.remaining()} cards still in the deck. Try again.`);
+        break;
+    }
+  }
+
+  /* ---- overlay control ---- */
+  function showOverlay(kind, icon, title, msg) {
+    el.overlay.classList.remove("hidden", "win", "lose");
+    if (kind) el.overlay.classList.add(kind);
+    el.overlayIcon.textContent = icon;
+    el.overlayTitle.textContent = title;
+    el.overlayMsg.textContent = msg;
+    el.playBtn.textContent = kind ? "PLAY AGAIN" : "PLAY";
+  }
+
+  function hideOverlay() {
+    el.overlay.classList.add("hidden");
+  }
+
+  /* ---- new game / boot ---- */
+  function newGame() {
+    hideOverlay();
+    clearSelection();
+
+    // Fresh engine each run keeps state isolated (future: shop persistence).
+    engine = GameEngine.create();
+    engine.onEvent(handleEvent);
+
+    // Build pile elements once per run for clean deal animation.
+    el.board.innerHTML = "";
+    pileEls.length = 0;
+    for (let i = 0; i < BoardState.SIZE; i++) {
+      const pe = buildPile(i);
+      pileEls.push(pe);
+      el.board.appendChild(pe);
+    }
+
+    engine.start();
+  }
+
+  function init() {
+    attachInput();
+    // Build an empty board behind the start overlay so layout is stable.
+    for (let i = 0; i < BoardState.SIZE; i++) {
+      const pe = buildPile(i);
+      pe.classList.remove("dealing");
+      pileEls.push(pe);
+      el.board.appendChild(pe);
+    }
+  }
+
+  return { init, newGame };
+})();
+
+/* ----------------------------------------------------------------
+   FUTURE HOOKS  (intentionally inert in v1)
+   Wire these in later without touching engine internals:
+
+     HOOKS.onRoundComplete({ result, board })
+        → "reward phase after round": grant currency / cards.
+
+     HOOKS.modifyDeck(deckApi)
+        → "deck modification system": use deck._inject([...]) /
+          deck._peekAll() to add, remove, or upgrade cards.
+
+     HOOKS.openShop(meta)
+        → "shop system between runs": spend rewards before the
+          next GameEngine.create() call.
+
+   The engine already calls onRoundComplete at win/loss points
+   (commented out) so persistence can be layered above the run.
+---------------------------------------------------------------- */
+const HOOKS = {
+  onRoundComplete(/* { result, board } */) { /* not implemented in v1 */ },
+  modifyDeck(/* deckApi */) { /* not implemented in v1 */ },
+  openShop(/* meta */) { /* not implemented in v1 */ },
+};
+
+/* ---- boot ---- */
+UIRenderer.init();
+</script>
+</body>
+</html>
