@@ -212,10 +212,28 @@
     color: rgba(255,255,255,0.6);
   }
 
-  /* state: pile dead -> flip to show back */
-  .pile.dead .card { transform: rotateY(180deg); }
+  /* dead-pile marker: a red X drawn over the card that killed the pile */
+  .card .dead-mark {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(30px, 13vw, 64px);
+    font-weight: 800;
+    color: var(--bad);
+    background: rgba(12, 18, 32, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+    z-index: 2;
+  }
+
+  /* state: dead pile -> keep the killing card visible, dimmed, with an X */
   .pile.dead { cursor: default; }
-  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); filter: saturate(0.6) brightness(0.85); }
+  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); filter: saturate(0.55) brightness(0.82); }
+  .pile.dead .dead-mark { opacity: 1; }
 
   /* selected highlight */
   .pile.selected .card {
@@ -514,6 +532,8 @@ const GameEngine = (() => {
       if (correct) {
         board.push(index, drawn);
       } else {
+        // Show the card that killed the pile as its (final) top, then kill it.
+        board.push(index, drawn);
         board.kill(index);
       }
 
@@ -594,13 +614,19 @@ const UIRenderer = (() => {
       <div class="pip"></div>
       <div class="rank-bottom"><span class="r"></span><span class="s"></span></div>`;
 
-    // BACK (face down / dead)
+    // BACK (face down) — reserved for future face-down rendering, unused in v1.
     const back = document.createElement("div");
     back.className = "face back";
     back.innerHTML = `<div class="crest">✕</div>`;
 
+    // DEAD MARK — overlays the card that killed the pile (shown when dead).
+    const deadMark = document.createElement("div");
+    deadMark.className = "dead-mark";
+    deadMark.textContent = "✕";
+
     card.appendChild(front);
     card.appendChild(back);
+    card.appendChild(deadMark);
     pile.appendChild(card);
     return pile;
   }
@@ -699,7 +725,7 @@ const UIRenderer = (() => {
         pileEl.classList.add(cls);
         setTimeout(() => pileEl.classList.remove(cls), 520);
 
-        // Flip to dead if wrong.
+        // Mark dead if wrong (dims the drawn card and reveals the X overlay).
         if (!payload.correct) pileEl.classList.add("dead");
 
         clearSelection();
