@@ -259,8 +259,8 @@
   .actions {
     width: min(94vw, 430px);
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr 0.5fr 1fr;
+    gap: 10px;
     min-height: 56px;
     align-items: stretch;
   }
@@ -283,6 +283,15 @@
   .btn.higher { background: linear-gradient(180deg, #7bf08a, var(--good)); }
   .btn.lower  { background: linear-gradient(180deg, #ff8a97, var(--bad)); }
   .btn .sub { display:block; font-size: 11px; font-weight: 600; opacity: 0.7; }
+
+  /* "Same" is a smaller, secondary option wedged between higher/lower. */
+  .btn.same {
+    background: linear-gradient(180deg, #ffe08a, var(--accent));
+    padding: 10px 4px;
+    font-size: 13px;
+    align-self: center;
+  }
+  .btn.same .sub { font-size: 9px; }
 
   .hint {
     text-align: center;
@@ -362,8 +371,9 @@
     <div class="hint" id="hint">Tap a pile to begin.</div>
 
     <div class="actions hidden" id="actions">
-      <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next ≥ current</span></button>
-      <button class="btn lower" id="btnLower">LOWER<span class="sub">next ≤ current</span></button>
+      <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next &gt; current</span></button>
+      <button class="btn same" id="btnSame">SAME<span class="sub">exact</span></button>
+      <button class="btn lower" id="btnLower">LOWER<span class="sub">next &lt; current</span></button>
     </div>
   </main>
 
@@ -514,7 +524,7 @@ const GameEngine = (() => {
     /**
      * Resolve a guess on a pile.
      * @param {number} index  pile index
-     * @param {"higher"|"lower"} guess
+     * @param {"higher"|"lower"|"same"} guess
      */
     function guess(index, guess) {
       if (status !== "playing") return;
@@ -524,10 +534,11 @@ const GameEngine = (() => {
       const current = board.top(index);
       const drawn = deck.draw();
 
-      // Ties are safe in BOTH directions (higher = >=, lower = <=).
-      const correct = guess === "higher"
-        ? drawn.value >= current.value
-        : drawn.value <= current.value;
+      // Strict comparisons: an equal rank only wins on a "same" guess.
+      const correct =
+        guess === "higher" ? drawn.value > current.value :
+        guess === "lower"  ? drawn.value < current.value :
+                             drawn.value === current.value; // "same"
 
       if (correct) {
         board.push(index, drawn);
@@ -583,6 +594,7 @@ const UIRenderer = (() => {
     aliveCount: document.getElementById("aliveCount"),
     actions: document.getElementById("actions"),
     btnHigher: document.getElementById("btnHigher"),
+    btnSame: document.getElementById("btnSame"),
     btnLower: document.getElementById("btnLower"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
@@ -669,7 +681,7 @@ const UIRenderer = (() => {
     pileEls[index].classList.add("selected");
     el.actions.classList.remove("hidden");
     const top = engine.getBoard().top(index);
-    el.hint.textContent = `Pile shows ${top.label}. Higher or lower?`;
+    el.hint.textContent = `Pile shows ${top.label}. Higher, same, or lower?`;
   }
 
   function clearSelection() {
@@ -695,6 +707,7 @@ const UIRenderer = (() => {
     });
 
     el.btnHigher.addEventListener("click", () => submitGuess("higher"));
+    el.btnSame.addEventListener("click", () => submitGuess("same"));
     el.btnLower.addEventListener("click", () => submitGuess("lower"));
 
     el.playBtn.addEventListener("click", () => newGame());
@@ -711,7 +724,7 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt":
         renderBoard(payload.board, payload.deck);
-        el.hint.textContent = "Tap a pile, then choose Higher or Lower.";
+        el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
         break;
 
       case "resolved": {
