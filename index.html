@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f1729" />
+  <title>Nine Lives</title>
+  <style>
+    /* ============================================================
+       THEME / TOKENS
+       ============================================================ */
+    :root {
+      --bg-top: #16213e;
+      --bg-bottom: #0b1020;
+      --panel: rgba(255, 255, 255, 0.06);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --card-bg: #f7f7fb;
+      --card-ink: #1b1b27;
+      --card-red: #d23b4e;
+      --card-back: linear-gradient(135deg, #3a3f63 0%, #232745 100%);
+      --accent: #5ad1c2;
+      --accent-2: #f2b134;
+      --good: #4cd07d;
+      --bad: #e2576b;
+      --text: #eef1f7;
+      --text-dim: #9aa3bd;
+      --gap: clamp(6px, 2.2vw, 12px);
+      --radius: 12px;
+      --shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+      font-size: 16px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* Respect notches / home indicator on iOS */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    #app {
+      width: 100%;
+      max-width: 480px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 14px 18px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .title .paw { color: var(--accent); }
+    .title small {
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .stats {
+      display: flex;
+      gap: 8px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 6px 10px;
+      text-align: center;
+      min-width: 58px;
+    }
+    .stat .label {
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+    }
+    .stat .value {
+      font-size: 1.1rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    /* ---- Draw deck + message zone ---- */
+    .table-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .deck-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .deck-stack {
+      position: relative;
+      width: 64px;
+      height: 90px;
+    }
+    .deck-stack .layer {
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background: var(--card-back);
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: var(--shadow);
+    }
+    .deck-stack .layer::after {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border-radius: 6px;
+      border: 1.5px dashed rgba(255,255,255,0.18);
+    }
+    .deck-stack .layer:nth-child(1) { transform: translate(4px, 4px); opacity: 0.5; }
+    .deck-stack .layer:nth-child(2) { transform: translate(2px, 2px); opacity: 0.75; }
+    .deck-count-badge {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+
+    .message {
+      flex: 1;
+      min-height: 54px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      line-height: 1.3;
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+    .message.good { border-color: var(--good); background: rgba(76,208,125,0.12); }
+    .message.bad  { border-color: var(--bad);  background: rgba(226,87,107,0.12); }
+
+    /* ============================================================
+       BOARD (3x3)
+       ============================================================ */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--gap);
+      width: 100%;
+      align-content: center;
+      flex: 1;
+    }
+
+    .pile {
+      position: relative;
+      aspect-ratio: 2.5 / 3.5;
+      perspective: 700px;
+      cursor: pointer;
+    }
+    .pile:focus { outline: none; }
+    .pile:focus-visible .card-face { outline: 2px solid var(--accent); }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      transition: transform 0.35s ease, box-shadow 0.2s ease, opacity 0.25s ease;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    /* Front of card (active pile) */
+    .card-front {
+      background: var(--card-bg);
+      color: var(--card-ink);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 7px 8px;
+    }
+    .card-front .corner {
+      font-weight: 800;
+      line-height: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: clamp(0.85rem, 4.4vw, 1.15rem);
+    }
+    .card-front .corner.br {
+      align-self: flex-end;
+      transform: rotate(180deg);
+    }
+    .card-front .corner .suit { font-size: 0.72em; opacity: 0.85; }
+    .card-front .pip {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(1.6rem, 9vw, 2.4rem);
+      font-weight: 800;
+      opacity: 0.9;
+    }
+    .card-front.red { color: var(--card-red); }
+
+    /* Dead pile (face down) */
+    .pile.dead .card-face {
+      background: var(--card-back);
+      border: 1px solid rgba(255,255,255,0.12);
+      transform: rotateY(180deg);
+    }
+    .pile.dead {
+      cursor: default;
+      filter: saturate(0.6) brightness(0.85);
+    }
+    .card-back-art {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: rotateY(180deg);
+      backface-visibility: hidden;
+    }
+    .card-back-art span {
+      font-size: 1.8rem;
+      opacity: 0.45;
+    }
+    .pile:not(.dead) .card-back-art { display: none; }
+
+    /* Pile depth indicator (how many cards stacked) */
+    .pile .depth {
+      position: absolute;
+      top: 4px;
+      right: 5px;
+      font-size: 0.58rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+      padding: 1px 5px;
+      z-index: 3;
+    }
+    .pile.dead .depth { display: none; }
+
+    /* Selected pile highlight */
+    .pile.selected .card-face {
+      box-shadow: 0 0 0 3px var(--accent), var(--shadow);
+    }
+
+    /* Deal / flip animations */
+    @keyframes dealIn {
+      from { opacity: 0; transform: translateY(-22px) scale(0.9); }
+      to   { opacity: 1; transform: none; }
+    }
+    .pile.dealing .card-face { animation: dealIn 0.35s ease both; }
+
+    @keyframes pop {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+    .pile.placed .card-face { animation: pop 0.3s ease; }
+
+    /* ============================================================
+       HIGHER / LOWER CONTROLS (per-pile popover)
+       ============================================================ */
+    .choice {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 5;
+    }
+    .choice button {
+      flex: 1;
+      border: none;
+      border-radius: 9px;
+      font-weight: 800;
+      font-size: clamp(0.7rem, 3.6vw, 0.95rem);
+      color: #0b1020;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: var(--shadow);
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .choice button:active { transform: scale(0.95); }
+    .choice .higher { background: linear-gradient(160deg, #74e8a3, var(--good)); }
+    .choice .lower  { background: linear-gradient(160deg, #f3a0ad, var(--bad)); color: #2a0a10; }
+
+    /* ============================================================
+       FOOTER / RESET + OVERLAY
+       ============================================================ */
+    footer {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: filter 0.15s ease, transform 0.08s ease;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn.primary {
+      background: linear-gradient(160deg, var(--accent), #2f9d90);
+      color: #06201d;
+      border: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 9, 20, 0.82);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .overlay.show { opacity: 1; pointer-events: auto; }
+    .overlay .panel {
+      background: linear-gradient(180deg, #1c2540, #131a30);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 26px 24px;
+      width: min(86vw, 340px);
+      text-align: center;
+      box-shadow: var(--shadow);
+      transform: translateY(10px) scale(0.98);
+      transition: transform 0.3s ease;
+    }
+    .overlay.show .panel { transform: none; }
+    .overlay h2 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
+    .overlay h2.win { color: var(--good); }
+    .overlay h2.lose { color: var(--bad); }
+    .overlay p { color: var(--text-dim); margin: 0 0 18px; font-size: 0.92rem; line-height: 1.4; }
+
+    .hint {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="title">
+        <span class="paw">🐾</span>
+        <span>Nine Lives</span>
+        <small>survive the deck</small>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Deck</div>
+          <div class="value" id="deckCount">--</div>
+        </div>
+        <div class="stat">
+          <div class="label">Alive</div>
+          <div class="value" id="aliveCount">--</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="table-top">
+      <div class="deck-wrap">
+        <div class="deck-stack" id="deckStack" aria-hidden="true">
+          <div class="layer"></div>
+          <div class="layer"></div>
+          <div class="layer"></div>
+        </div>
+        <div class="deck-count-badge" id="deckBadge">52 left</div>
+      </div>
+      <div class="message" id="message">Tap a pile, then guess Higher or Lower.</div>
+    </div>
+
+    <div class="board" id="board" role="grid" aria-label="Nine card piles"></div>
+
+    <p class="hint">Ace is high · ties count as wrong · empty the deck to win</p>
+
+    <footer>
+      <button class="btn primary" id="newGameBtn">New Game</button>
+    </footer>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h2 id="overlayTitle">Game Over</h2>
+      <p id="overlayText"></p>
+      <button class="btn primary" id="overlayBtn">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+  /* =================================================================
+     NINE LIVES — a deck survival card game
+     -----------------------------------------------------------------
+     Architecture (intentionally decoupled for future expansion):
+
+       DeckManager  -> owns the cards: shuffle / draw / remaining count
+       BoardState   -> owns the 9 piles and their active/dead status
+       GameEngine   -> owns the rules: turn flow + win/lose logic
+       UIRenderer   -> owns the DOM: pure rendering from game state
+       Hooks        -> placeholder extension points (rewards/shop/etc.)
+
+     The engine never touches the DOM. The renderer never mutates game
+     state. Communication goes engine -> renderer via a render callback,
+     and renderer -> engine via the engine's public methods. This keeps
+     each layer independently testable and replaceable.
+     ================================================================= */
+
+  'use strict';
+
+  /* -----------------------------------------------------------------
+     DeckManager
+     Responsible only for the pool of cards. Knows nothing about piles
+     or rules. Cards are plain objects: { rank: 2..14, suit: '♠'... }.
+     Rank 14 = Ace (high). Suits are cosmetic only.
+  ----------------------------------------------------------------- */
+  class DeckManager {
+    static SUITS = ['♠', '♥', '♦', '♣'];
+    static RANK_LABELS = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+
+    constructor(rng = Math.random) {
+      this.rng = rng;
+      this.cards = [];
+    }
+
+    /** Build a fresh ordered 52-card deck. */
+    build() {
+      this.cards = [];
+      for (const suit of DeckManager.SUITS) {
+        for (let rank = 2; rank <= 14; rank++) {
+          this.cards.push({ rank, suit });
+        }
+      }
+      return this;
+    }
+
+    /** Fisher–Yates shuffle in place. */
+    shuffle() {
+      const c = this.cards;
+      for (let i = c.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rng() * (i + 1));
+        [c[i], c[j]] = [c[j], c[i]];
+      }
+      return this;
+    }
+
+    /** Remove and return the top card, or null if empty. */
+    draw() {
+      return this.cards.pop() ?? null;
+    }
+
+    get remaining() {
+      return this.cards.length;
+    }
+
+    /** Human-friendly label for a rank, e.g. 14 -> "A". */
+    static label(rank) {
+      return DeckManager.RANK_LABELS[rank] ?? String(rank);
+    }
+  }
+
+  /* -----------------------------------------------------------------
+     BoardState
+     Holds the 9 piles. Each pile tracks its stack of cards and whether
+     it is alive. Knows nothing about higher/lower rules.
+  ----------------------------------------------------------------- */
+  class BoardState {
+    static SIZE = 9;
+
+    constructor() {
+      this.piles = [];
+    }
+
+    /** Seed each pile with a single starting card. */
+    init(startingCards) {
+      this.piles = startingCards.map((card, i) => ({
+        id: i,
+        cards: [card],   // top of stack = last element
+        alive: true,
+      }));
+      return this;
+    }
+
+    pile(id) {
+      return this.piles[id];
+    }
+
+    topCard(id) {
+      const p = this.piles[id];
+      return p.cards[p.cards.length - 1];
+    }
+
+    isPlayable(id) {
+      const p = this.piles[id];
+      return !!p && p.alive;
+    }
+
+    placeCard(id, card) {
+      this.piles[id].cards.push(card);
+    }
+
+    kill(id) {
+      this.piles[id].alive = false;
+    }
+
+    get aliveCount() {
+      return this.piles.filter(p => p.alive).length;
+    }
+
+    get allDead() {
+      return this.aliveCount === 0;
+    }
+  }
+
+  /* -----------------------------------------------------------------
+     GameEngine
+     The rules layer. Coordinates DeckManager + BoardState, validates
+     moves, resolves higher/lower guesses, and decides win/lose.
+     Emits state changes through an onChange callback so the UI can
+     re-render without the engine knowing what the UI is.
+  ----------------------------------------------------------------- */
+  class GameEngine {
+    static STATUS = { PLAYING: 'playing', WON: 'won', LOST: 'lost' };
+
+    constructor({ onChange = () => {}, hooks = {}, rng = Math.random } = {}) {
+      this.onChange = onChange;
+      this.hooks = hooks;
+      this.rng = rng;
+      this.deck = new DeckManager(rng);
+      this.board = new BoardState();
+      this.status = GameEngine.STATUS.PLAYING;
+      this.lastEvent = null; // describes the most recent action for the UI
+    }
+
+    /** Start (or restart) a full game. */
+    newGame() {
+      this.deck.build().shuffle();
+      const opening = [];
+      for (let i = 0; i < BoardState.SIZE; i++) opening.push(this.deck.draw());
+      this.board.init(opening);
+      this.status = GameEngine.STATUS.PLAYING;
+      this.lastEvent = { type: 'deal' };
+      this._emit();
+      return this;
+    }
+
+    /**
+     * Resolve a guess on a pile.
+     * @param {number} pileId
+     * @param {'higher'|'lower'} guess
+     * @returns {boolean} whether the move was accepted
+     */
+    guess(pileId, guess) {
+      if (this.status !== GameEngine.STATUS.PLAYING) return false;
+      if (!this.board.isPlayable(pileId)) return false;
+      if (guess !== 'higher' && guess !== 'lower') return false;
+
+      const prevTop = this.board.topCard(pileId);
+      const drawn = this.deck.draw();
+      // Defensive: with win-on-empty checks this shouldn't happen mid-turn.
+      if (!drawn) { this._checkEndState(); return false; }
+
+      const correct = this._isCorrect(prevTop.rank, drawn.rank, guess);
+
+      if (correct) {
+        this.board.placeCard(pileId, drawn);
+      } else {
+        this.board.kill(pileId);
+      }
+
+      this.lastEvent = {
+        type: 'guess', pileId, guess, correct,
+        prevCard: prevTop, drawnCard: drawn,
+      };
+
+      this._checkEndState();
+      this._emit();
+      return true;
+    }
+
+    /**
+     * Compare drawn vs current under a guess.
+     * Ace high is already encoded in rank values (14). Ties are wrong:
+     * a tie is neither strictly higher nor lower.
+     */
+    _isCorrect(currentRank, drawnRank, guess) {
+      if (guess === 'higher') return drawnRank > currentRank;
+      return drawnRank < currentRank;
+    }
+
+    /** Decide win/lose. Loss takes priority over an emptied deck. */
+    _checkEndState() {
+      if (this.board.allDead) {
+        this.status = GameEngine.STATUS.LOST;
+        Hooks.onRunEnd?.(this, 'lost');
+      } else if (this.deck.remaining === 0) {
+        this.status = GameEngine.STATUS.WON;
+        // Future: reward phase fires here before the run formally closes.
+        Hooks.onRoundComplete?.(this);
+        Hooks.onRunEnd?.(this, 'won');
+      }
+    }
+
+    /** Snapshot used by the renderer. Read-only view of state. */
+    getState() {
+      return {
+        status: this.status,
+        deckRemaining: this.deck.remaining,
+        aliveCount: this.board.aliveCount,
+        piles: this.board.piles.map(p => ({
+          id: p.id,
+          alive: p.alive,
+          depth: p.cards.length,
+          top: p.cards[p.cards.length - 1],
+        })),
+        lastEvent: this.lastEvent,
+      };
+    }
+
+    _emit() {
+      this.onChange(this.getState());
+    }
+  }
+
+  /* -----------------------------------------------------------------
+     Hooks — future-feature extension points.
+     These are intentionally NOT implemented in v1. They exist so the
+     reward / deck-modification / shop systems can be layered in without
+     touching the engine's core flow. Wire real logic here later.
+  ----------------------------------------------------------------- */
+  const Hooks = {
+    // Fires when a round is cleared (deck emptied) — show rewards here.
+    onRoundComplete(/* engine */) { /* TODO: reward phase */ },
+
+    // Lets a future "deck modification system" alter the deck pre-shuffle.
+    // Return a modified card array, or undefined to leave it untouched.
+    modifyDeck(/* cards */) { /* TODO: deck modification system */ },
+
+    // Fires between runs — entry point for a shop system.
+    onRunEnd(/* engine, result */) { /* TODO: shop system between runs */ },
+  };
+
+  /* -----------------------------------------------------------------
+     UIRenderer
+     The only module that touches the DOM. It renders from a state
+     snapshot and translates user input into engine calls via the
+     supplied callbacks. It holds transient view state (which pile is
+     currently showing its Higher/Lower choice) but no game state.
+
+     Input model (mobile-first):
+       - Tap a pile  -> open its Higher/Lower choice buttons
+       - Tap a button-> commit the guess
+     A swipe gesture can be added later by calling onGuess() from a
+     touch handler; the hook point is marked below.
+  ----------------------------------------------------------------- */
+  class UIRenderer {
+    constructor(refs, { onGuess, onNewGame }) {
+      this.refs = refs;
+      this.onGuess = onGuess;
+      this.onNewGame = onNewGame;
+      this.selectedPile = null;  // view-only: which pile's choice is open
+      this.firstRender = true;
+
+      this.refs.newGameBtn.addEventListener('click', () => this.onNewGame());
+      this.refs.overlayBtn.addEventListener('click', () => this.onNewGame());
+    }
+
+    render(state) {
+      this._renderStats(state);
+      this._renderBoard(state);
+      this._renderMessage(state);
+      this._renderOverlay(state);
+      this.firstRender = false;
+    }
+
+    _renderStats(state) {
+      this.refs.deckCount.textContent = state.deckRemaining;
+      this.refs.aliveCount.textContent = state.aliveCount;
+      this.refs.deckBadge.textContent = state.deckRemaining + ' left';
+      this.refs.deckStack.style.opacity = state.deckRemaining === 0 ? 0.25 : 1;
+    }
+
+    _renderBoard(state) {
+      const board = this.refs.board;
+      const justDealt = state.lastEvent && state.lastEvent.type === 'deal';
+      // Rebuild on a fresh deal; otherwise patch in place to keep animations.
+      if (justDealt || board.childElementCount !== state.piles.length) {
+        board.innerHTML = '';
+        state.piles.forEach(p => board.appendChild(this._buildPile(p, justDealt)));
+      } else {
+        state.piles.forEach(p => this._updatePile(board.children[p.id], p, state));
+      }
+    }
+
+    _buildPile(p, dealing) {
+      const el = document.createElement('div');
+      el.className = 'pile';
+      el.dataset.id = p.id;
+      el.setAttribute('role', 'gridcell');
+      el.tabIndex = 0;
+      if (dealing) {
+        el.classList.add('dealing');
+        el.style.setProperty('--deal-delay', (p.id * 50) + 'ms');
+        el.querySelectorAll?.('.card-face');
+      }
+
+      el.innerHTML = `
+        <div class="card-face card-front"></div>
+        <div class="card-back-art"><span>🐾</span></div>
+        <div class="depth"></div>
+      `;
+      this._paintFace(el, p);
+
+      // --- Input handling -------------------------------------------------
+      el.addEventListener('click', () => this._onPileTap(p.id));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._onPileTap(p.id); }
+      });
+      // FUTURE: add swipe-up = higher / swipe-down = lower here by
+      // tracking touchstart/touchend and calling this.onGuess(id, dir).
+      return el;
+    }
+
+    _updatePile(el, p, state) {
+      // Reflect placed/dead transitions with a small animation.
+      const wasDead = el.classList.contains('dead');
+      this._paintFace(el, p);
+
+      if (!p.alive && !wasDead) {
+        el.classList.add('dead');
+        el.tabIndex = -1;
+      } else if (p.alive) {
+        el.classList.toggle('placed',
+          state.lastEvent && state.lastEvent.type === 'guess' &&
+          state.lastEvent.correct && state.lastEvent.pileId === p.id);
+      }
+    }
+
+    _paintFace(el, p) {
+      const front = el.querySelector('.card-front');
+      const depth = el.querySelector('.depth');
+      const card = p.top;
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      const rankLbl = DeckManager.label(card.rank);
+      front.classList.toggle('red', isRed);
+      front.innerHTML = `
+        <div class="corner tl"><span>${rankLbl}</span><span class="suit">${card.suit}</span></div>
+        <div class="pip">${rankLbl}</div>
+        <div class="corner br"><span>${rankLbl}</span><span class="suit">${card.suit}</span></div>
+      `;
+      depth.textContent = p.depth > 1 ? '×' + p.depth : '';
+      if (!p.alive) { el.classList.add('dead'); el.tabIndex = -1; }
+    }
+
+    /** Tap a pile -> toggle its Higher/Lower choice popover. */
+    _onPileTap(id) {
+      const el = this.refs.board.children[id];
+      if (!el || el.classList.contains('dead')) return;
+
+      if (this.selectedPile === id) { this._closeChoice(); return; }
+      this._closeChoice();
+      this.selectedPile = id;
+      el.classList.add('selected');
+
+      const choice = document.createElement('div');
+      choice.className = 'choice';
+      choice.innerHTML = `
+        <button class="higher" type="button">▲ Higher</button>
+        <button class="lower" type="button">▼ Lower</button>
+      `;
+      choice.querySelector('.higher').addEventListener('click', (e) => {
+        e.stopPropagation(); this._commit(id, 'higher');
+      });
+      choice.querySelector('.lower').addEventListener('click', (e) => {
+        e.stopPropagation(); this._commit(id, 'lower');
+      });
+      el.appendChild(choice);
+    }
+
+    _commit(id, guess) {
+      this._closeChoice();
+      this.onGuess(id, guess);
+    }
+
+    _closeChoice() {
+      if (this.selectedPile == null) return;
+      const el = this.refs.board.children[this.selectedPile];
+      if (el) {
+        el.classList.remove('selected');
+        el.querySelector('.choice')?.remove();
+      }
+      this.selectedPile = null;
+    }
+
+    _renderMessage(state) {
+      const m = this.refs.message;
+      m.classList.remove('good', 'bad');
+      const ev = state.lastEvent;
+      if (!ev || ev.type === 'deal') {
+        m.textContent = 'Tap a pile, then guess Higher or Lower.';
+        return;
+      }
+      if (ev.type === 'guess') {
+        const drew = DeckManager.label(ev.drawnCard.rank);
+        const prev = DeckManager.label(ev.prevCard.rank);
+        if (ev.correct) {
+          m.classList.add('good');
+          m.textContent = `✓ ${drew} is ${ev.guess} than ${prev}. Pile survives.`;
+        } else {
+          m.classList.add('bad');
+          m.textContent = `✗ ${drew} is not ${ev.guess} than ${prev}. Pile is dead.`;
+        }
+      }
+    }
+
+    _renderOverlay(state) {
+      const o = this.refs.overlay;
+      if (state.status === GameEngine.STATUS.PLAYING) {
+        o.classList.remove('show');
+        return;
+      }
+      const won = state.status === GameEngine.STATUS.WON;
+      this.refs.overlayTitle.textContent = won ? 'You Survived!' : 'Game Over';
+      this.refs.overlayTitle.className = won ? 'win' : 'lose';
+      this.refs.overlayText.textContent = won
+        ? `The deck is empty and ${state.aliveCount} pile${state.aliveCount === 1 ? '' : 's'} stood strong.`
+        : `All nine lives are gone with ${state.deckRemaining} card${state.deckRemaining === 1 ? '' : 's'} left in the deck.`;
+      o.classList.add('show');
+    }
+  }
+
+  /* -----------------------------------------------------------------
+     Bootstrap — wire the modules together.
+  ----------------------------------------------------------------- */
+  (function main() {
+    const refs = {
+      board: document.getElementById('board'),
+      deckCount: document.getElementById('deckCount'),
+      aliveCount: document.getElementById('aliveCount'),
+      deckBadge: document.getElementById('deckBadge'),
+      deckStack: document.getElementById('deckStack'),
+      message: document.getElementById('message'),
+      overlay: document.getElementById('overlay'),
+      overlayTitle: document.getElementById('overlayTitle'),
+      overlayText: document.getElementById('overlayText'),
+      overlayBtn: document.getElementById('overlayBtn'),
+      newGameBtn: document.getElementById('newGameBtn'),
+    };
+
+    let engine; // forward ref so the renderer can call into it
+
+    const renderer = new UIRenderer(refs, {
+      onGuess: (id, guess) => engine.guess(id, guess),
+      onNewGame: () => engine.newGame(),
+    });
+
+    engine = new GameEngine({
+      onChange: (state) => renderer.render(state),
+      hooks: Hooks,
+    });
+
+    engine.newGame();
+  })();
+  </script>
+</body>
+</html>
