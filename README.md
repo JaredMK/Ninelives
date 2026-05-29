@@ -11,7 +11,8 @@ dependencies — open `index.html` in any modern browser.
 - **Tap a pile**, then choose **Higher**, **Same**, or **Lower** for the next
   card. The next card is revealed and compared to that pile's top:
   - **Correct** → the card is placed on the pile (new top).
-  - **Wrong** → the pile dies (ties only win on a "Same" guess).
+  - **Wrong** → the pile dies. **A tie counts as wrong on a Higher or Lower
+    guess (it kills the pile); only a correct "Same" guess survives a tie.**
 - **Clear a run** by emptying the draw deck. A run ends in a win (deck empty)
   or a loss (all nine piles dead).
 
