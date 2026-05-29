@@ -586,16 +586,36 @@
     font-size: 14px;
     cursor: pointer;
   }
-  .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+  .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
 
-  .deck-breakdown { display: flex; flex-direction: column; gap: 5px; }
+  /* Scrubber readout — updates as a finger drags across the rank rows. */
+  .bd-scrub {
+    background: rgba(127, 209, 255, 0.10);
+    border: 1px solid rgba(127, 209, 255, 0.35);
+    border-radius: 10px;
+    padding: 7px 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .bd-scrub.hidden { display: none; }
+  .bd-scrub .sc-hi { color: var(--good); font-weight: 800; }
+  .bd-scrub .sc-lo { color: var(--bad); font-weight: 800; }
+
+  /* The rows are a drag surface: vertical drags scrub (don't scroll the
+     sheet), and the finger doesn't select text. */
+  .deck-breakdown { display: flex; flex-direction: column; gap: 5px; touch-action: none; user-select: none; -webkit-user-select: none; }
   .bd-row {
     display: grid;
     grid-template-columns: 26px 1fr 66px;
     align-items: center;
     gap: 8px;
+    padding: 1px 2px;
+    border-radius: 6px;
   }
   .bd-row.empty { opacity: 0.35; }
+  .bd-row.scrub-active { background: rgba(127, 209, 255, 0.18); outline: 1px solid rgba(127, 209, 255, 0.5); }
   .bd-rank { font-weight: 800; text-align: center; }
   .bd-bar {
     height: 8px;
@@ -825,6 +845,7 @@
         <button class="deck-modal-close" id="deckModalClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="deck-modal-total" id="deckModalTotal">—</div>
+      <div class="bd-scrub hidden" id="deckScrub"></div>
       <div class="deck-breakdown" id="deckBreakdown"></div>
     </div>
   </div>
@@ -858,7 +879,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.10.1";
+const APP_VERSION = "v0.10.2";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1575,6 +1596,10 @@ const DeckInspector = (() => {
   let getStats = () => ({ remaining: EMPTY, full: EMPTY });
   let canInspect = () => true;
   let holdTimer = null, holding = false, pointerActive = false;
+  // Scrubber state (tap-view only): the remaining composition currently shown,
+  // and whether a finger is dragging across the rank rows.
+  let lastRemaining = { total: 0, rows: [] };
+  let scrubbing = false;
 
   function init(opts) {
     refs = opts.refs;
@@ -1594,6 +1619,54 @@ const DeckInspector = (() => {
     refs.modalClose.addEventListener("click", closeFull);
     // Tap the backdrop (outside the panel) to dismiss.
     refs.modal.addEventListener("click", (e) => { if (e.target === refs.modal) closeFull(); });
+
+    // Scrubber: drag a finger across the rank rows to see how many remaining
+    // cards rank higher / lower than the rank under the finger. Scoped to the
+    // breakdown list, so it can't interfere with the deck-pill tap/hold
+    // gestures (a different element) or the × button (outside the list).
+    if (refs.breakdown) {
+      refs.breakdown.addEventListener("pointerdown", onScrubDown);
+      refs.breakdown.addEventListener("pointermove", onScrubMove);
+      refs.breakdown.addEventListener("pointerup", onScrubEnd);
+      refs.breakdown.addEventListener("pointercancel", onScrubEnd);
+    }
+  }
+
+  /* ---- scrubber (tap-view aggregate; counts only, no order) ---- */
+  function rowAt(e) {
+    const t = typeof document.elementFromPoint === "function"
+      ? document.elementFromPoint(e.clientX, e.clientY) : null;
+    return t && t.closest ? t.closest(".bd-row") : null;
+  }
+  function onScrubDown(e) { scrubbing = true; applyScrub(e); e.preventDefault(); }
+  function onScrubMove(e) { if (scrubbing) { applyScrub(e); e.preventDefault(); } }
+  function onScrubEnd() { scrubbing = false; }   // leave the last selection in place
+
+  function applyScrub(e) {
+    const row = rowAt(e);
+    if (!row || row.dataset.value === undefined) return;
+    highlightRank(Number(row.dataset.value), row);
+  }
+
+  /* Sum the REMAINING counts above/below the highlighted rank. Reads the same
+     composition already rendered — no deck recompute, no order revealed. */
+  function highlightRank(value, row) {
+    refs.breakdown.querySelectorAll(".scrub-active")
+      .forEach(n => n.classList.remove("scrub-active"));
+    row.classList.add("scrub-active");
+    let above = 0, below = 0;
+    for (const r of lastRemaining.rows) {
+      if (r.value > value) above += r.count;
+      else if (r.value < value) below += r.count;
+    }
+    const label = (row.querySelector(".bd-rank") || {}).textContent || value;
+    if (refs.scrub) {
+      refs.scrub.innerHTML =
+        "Remaining vs <b>" + label + "</b>: " +
+        '<span class="sc-hi">↑ ' + above + " higher</span> · " +
+        '<span class="sc-lo">↓ ' + below + " lower</span>";
+      refs.scrub.classList.remove("hidden");
+    }
   }
 
   function onDown() {
@@ -1628,6 +1701,9 @@ const DeckInspector = (() => {
   function renderFull(stats) {
     const rem = stats.remaining || EMPTY;
     const full = stats.full || EMPTY;
+    lastRemaining = rem;                    // the scrubber sums these counts
+    scrubbing = false;
+    if (refs.scrub) { refs.scrub.classList.add("hidden"); refs.scrub.innerHTML = ""; }
     refs.modalTotal.textContent =
       rem.total + " of " + full.total + " cards remaining · shown as remaining / full";
     refs.breakdown.innerHTML = "";
@@ -1638,6 +1714,7 @@ const DeckInspector = (() => {
       const pct = (remaining / total) * 100;
       const el = document.createElement("div");
       el.className = "bd-row" + (remaining === 0 ? " empty" : "");
+      el.dataset.value = row.value;         // rank value for the scrubber
       el.innerHTML =
         '<span class="bd-rank">' + row.label + '</span>' +
         '<span class="bd-bar"><span class="bd-fill" style="width:' + pct + '%"></span></span>' +
@@ -1701,6 +1778,7 @@ const UIRenderer = (() => {
     deckModal: document.getElementById("deckModal"),
     deckModalClose: document.getElementById("deckModalClose"),
     deckModalTotal: document.getElementById("deckModalTotal"),
+    deckScrub: document.getElementById("deckScrub"),
     deckBreakdown: document.getElementById("deckBreakdown"),
     deckQuick: document.getElementById("deckQuick"),
     deckQuickTotal: document.getElementById("deckQuickTotal"),
@@ -2418,7 +2496,7 @@ const UIRenderer = (() => {
       deckEl: el.deckStat,
       refs: {
         modal: el.deckModal, modalClose: el.deckModalClose,
-        modalTotal: el.deckModalTotal, breakdown: el.deckBreakdown,
+        modalTotal: el.deckModalTotal, scrub: el.deckScrub, breakdown: el.deckBreakdown,
         quick: el.deckQuick, quickTotal: el.deckQuickTotal, quickGrid: el.deckQuickGrid,
       },
       getStats: () => {
