@@ -341,15 +341,35 @@
   }
   .play-btn:active { transform: scale(0.97); }
 
-  /* Run End summary stats */
-  .run-summary {
+  /* Run progress + Run End / Campaign summary stats */
+  .run-progress {
+    color: var(--accent-2);
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-size: 12px;
+    margin: 0 0 16px;
+  }
+  .run-progress.hidden { display: none; }
+
+  .summary-block {
+    width: min(82vw, 320px);
+    margin: 0 0 16px;
+  }
+  .summary-block.hidden { display: none; }
+  .summary-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .summary-tiles {
     display: flex;
     gap: 10px;
     justify-content: center;
-    margin: 0 0 22px;
-    width: min(82vw, 300px);
   }
-  .run-summary.hidden { display: none; }
   .run-stat {
     flex: 1;
     background: var(--panel);
@@ -495,14 +515,31 @@
       card is higher, lower, or the same. A wrong guess (ties included)
       kills that pile. Empty the deck to win.
     </p>
-    <div class="run-summary hidden" id="runSummary">
-      <div class="run-stat">
-        <div class="run-stat-value" id="summaryCorrect">0</div>
-        <div class="run-stat-label">Correct Guesses</div>
+    <div class="run-progress hidden" id="runProgress">Run 1 of 3</div>
+    <div class="summary-block hidden" id="runSummary">
+      <div class="summary-label">This Run</div>
+      <div class="summary-tiles">
+        <div class="run-stat">
+          <div class="run-stat-value" id="summaryCorrect">0</div>
+          <div class="run-stat-label">Correct</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="summaryAlive">0</div>
+          <div class="run-stat-label">Piles Alive</div>
+        </div>
       </div>
-      <div class="run-stat">
-        <div class="run-stat-value" id="summaryAlive">0</div>
-        <div class="run-stat-label">Piles Alive</div>
+    </div>
+    <div class="summary-block hidden" id="campaignSummary">
+      <div class="summary-label">Campaign</div>
+      <div class="summary-tiles">
+        <div class="run-stat">
+          <div class="run-stat-value" id="summaryTotalCorrect">0</div>
+          <div class="run-stat-label">Total Correct</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="summaryRunsDone">0</div>
+          <div class="run-stat-label">Runs Done</div>
+        </div>
       </div>
     </div>
     <button class="play-btn" id="playBtn">PLAY</button>
@@ -531,7 +568,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.2.0";
+const APP_VERSION = "v0.3.0";
 
 /* ----------------------------------------------------------------
    Seeded RNG
@@ -799,6 +836,65 @@ const GameEngine = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   CampaignState
+   A campaign is a fixed sequence of runs (a "stage"). It owns ONLY
+   campaign-level data — which run we're on and cross-run totals — and
+   knows nothing about cards, piles, or the DOM. Per-run state lives in
+   the GameEngine and is thrown away each run; the campaign is the only
+   thing that persists between runs.
+---------------------------------------------------------------- */
+const CampaignState = (() => {
+  const MAX_RUNS_PER_STAGE = 3;
+
+  function create() {
+    let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE
+    let totalCorrectGuesses = 0;   // summed across every run this campaign
+    let runsCompleted = 0;         // how many runs have ended
+
+    return {
+      maxRunsPerStage: MAX_RUNS_PER_STAGE,
+      get currentRunIndex() { return currentRunIndex; },
+      get totalCorrectGuesses() { return totalCorrectGuesses; },
+      get runsCompleted() { return runsCompleted; },
+
+      /** Fold a finished run's stats into the campaign totals. */
+      recordRun(run) {
+        totalCorrectGuesses += run.correctGuesses;
+        runsCompleted += 1;
+      },
+
+      /** True once every run in the stage has been played. */
+      isComplete() { return runsCompleted >= MAX_RUNS_PER_STAGE; },
+
+      /** Advance to the next run (clamped at the final run). */
+      advance() {
+        if (currentRunIndex < MAX_RUNS_PER_STAGE) currentRunIndex += 1;
+      },
+
+      /** Wipe all campaign-level state back to a fresh stage. */
+      reset() {
+        currentRunIndex = 1;
+        totalCorrectGuesses = 0;
+        runsCompleted = 0;
+      },
+    };
+  }
+
+  return { create, MAX_RUNS_PER_STAGE };
+})();
+
+/* ----------------------------------------------------------------
+   applyRunScaling(runIndex)
+   Scaling hook — wired into run start but intentionally inert for now.
+   Later this will ramp difficulty per run (e.g. deck/pile tweaks) and
+   is where reward/difficulty systems will plug in. It must NOT change
+   any mechanics yet.
+---------------------------------------------------------------- */
+function applyRunScaling(runIndex) {
+  // TODO: per-run scaling. No-op in the campaign MVP.
+}
+
+/* ----------------------------------------------------------------
    UIRenderer
    DOM only. Subscribes to engine events and reflects state.
    Also captures input (tap pile -> action sheet -> guess).
@@ -818,9 +914,13 @@ const UIRenderer = (() => {
     overlayIcon: document.getElementById("overlayIcon"),
     overlayTitle: document.getElementById("overlayTitle"),
     overlayMsg: document.getElementById("overlayMsg"),
+    runProgress: document.getElementById("runProgress"),
     runSummary: document.getElementById("runSummary"),
     summaryCorrect: document.getElementById("summaryCorrect"),
     summaryAlive: document.getElementById("summaryAlive"),
+    campaignSummary: document.getElementById("campaignSummary"),
+    summaryTotalCorrect: document.getElementById("summaryTotalCorrect"),
+    summaryRunsDone: document.getElementById("summaryRunsDone"),
     playBtn: document.getElementById("playBtn"),
     buildTag: document.getElementById("buildTag"),
     // debug
@@ -837,6 +937,8 @@ const UIRenderer = (() => {
   };
 
   let engine = null;
+  let campaign = null;        // persists across runs (campaign-level only)
+  let overlayAction = null;   // what the single overlay button does right now
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
@@ -983,7 +1085,9 @@ const UIRenderer = (() => {
     el.btnSame.addEventListener("click", () => submitGuess("same"));
     el.btnLower.addEventListener("click", () => submitGuess("lower"));
 
-    el.playBtn.addEventListener("click", () => newGame());
+    // Single overlay button — its behavior depends on the current phase
+    // (start campaign / continue to next run / new campaign).
+    el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -996,7 +1100,7 @@ const UIRenderer = (() => {
     el.debugTrim.addEventListener("click", () => { engine && engine.debug.trimDeck(1); refreshDebug(); });
     el.debugWin.addEventListener("click", () => { engine && engine.debug.winNow(); });
     el.debugLose.addEventListener("click", () => { engine && engine.debug.loseNow(); });
-    el.debugNew.addEventListener("click", () => newGame());
+    el.debugNew.addEventListener("click", () => startCampaign());
 
     // Triple-tap the title to toggle debug mode (in addition to ?debug URL).
     let taps = 0, tapTimer = null;
@@ -1051,51 +1155,118 @@ const UIRenderer = (() => {
       }
 
       case "won":
-        showOverlay("win", "🏆", "YOU SURVIVED",
-          "The deck is empty — your piles held the line.",
-          { correct: payload.run.correctGuesses, alive: payload.board.aliveCount() });
+        onRunEnd("win", payload);
         break;
 
       case "lost":
-        showOverlay("lose", "💀", "ALL LIVES LOST",
-          `Every pile died with ${payload.deck.remaining()} cards still in the deck.`,
-          { correct: payload.run.correctGuesses, alive: payload.board.aliveCount() });
+        onRunEnd("loss", payload);
         break;
     }
   }
 
-  /* ---- overlay control ---- */
-  function showOverlay(kind, icon, title, msg, stats) {
+  /* ---- overlay control ----
+     One overlay drives every non-active phase (start, run complete,
+     campaign complete). Exactly one phase is shown at a time — the
+     board is only interactive while the overlay is hidden. */
+  function showOverlay(opts) {
     el.overlay.classList.remove("hidden", "win", "lose");
-    if (kind) el.overlay.classList.add(kind);
-    el.overlayIcon.textContent = icon;
-    el.overlayTitle.textContent = title;
-    el.overlayMsg.textContent = msg;
-    // Run End summary: correct guesses this run + piles left alive.
-    if (stats) {
-      el.summaryCorrect.textContent = stats.correct;
-      el.summaryAlive.textContent = stats.alive;
-      el.runSummary.classList.remove("hidden");
-    } else {
-      el.runSummary.classList.add("hidden");
+    if (opts.kind) el.overlay.classList.add(opts.kind);
+    el.overlayIcon.textContent = opts.icon;
+    el.overlayTitle.textContent = opts.title;
+    el.overlayMsg.textContent = opts.msg || "";
+
+    el.runProgress.textContent = opts.progress || "";
+    el.runProgress.classList.toggle("hidden", !opts.progress);
+
+    // "This Run" summary (correct guesses + piles remaining).
+    if (opts.runStats) {
+      el.summaryCorrect.textContent = opts.runStats.correct;
+      el.summaryAlive.textContent = opts.runStats.alive;
     }
-    el.playBtn.textContent = kind ? "RESTART RUN" : "PLAY";
+    el.runSummary.classList.toggle("hidden", !opts.runStats);
+
+    // Campaign-level summary (totals that persist across runs).
+    if (opts.campStats) {
+      el.summaryTotalCorrect.textContent = opts.campStats.totalCorrect;
+      el.summaryRunsDone.textContent =
+        opts.campStats.runsDone + " / " + campaign.maxRunsPerStage;
+    }
+    el.campaignSummary.classList.toggle("hidden", !opts.campStats);
+
+    el.playBtn.textContent = opts.btnLabel;
+    overlayAction = opts.action;
   }
 
   function hideOverlay() {
     el.overlay.classList.add("hidden");
   }
 
-  /* ---- new game / boot ---- */
-  function newGame() {
+  /* ---- phase screens ---- */
+  function showStartScreen() {
+    showOverlay({
+      icon: "🐱",
+      title: "NINE LIVES",
+      msg: "A " + campaign.maxRunsPerStage + "-run campaign. Pick a pile and bet "
+         + "whether the next card is higher, lower, or the same. Empty the deck "
+         + "to clear a run.",
+      progress: "Run 1 of " + campaign.maxRunsPerStage,
+      btnLabel: "START CAMPAIGN",
+      action: startCampaign,
+    });
+  }
+
+  function showRunComplete(won, runIndex, runStats, campStats) {
+    showOverlay({
+      kind: won ? "win" : "lose",
+      icon: won ? "🏆" : "💀",
+      title: won ? "RUN CLEARED" : "RUN FAILED",
+      msg: won ? "You emptied the deck." : "All nine piles fell.",
+      progress: "Run " + runIndex + " of " + campaign.maxRunsPerStage + " complete",
+      runStats,
+      campStats,
+      btnLabel: "CONTINUE",
+      action: continueCampaign,
+    });
+  }
+
+  function showCampaignComplete(runStats, campStats) {
+    showOverlay({
+      kind: "win",
+      icon: "🎉",
+      title: "CAMPAIGN COMPLETE",
+      msg: "All " + campaign.maxRunsPerStage + " runs played.",
+      runStats,
+      campStats,
+      btnLabel: "NEW CAMPAIGN",
+      action: startCampaign,
+    });
+  }
+
+  /* ---- campaign / run lifecycle ----
+     startCampaign -> resets campaign-level state, then runs the stage.
+     startRun      -> a full per-run reset (deck, piles, UI, engine).
+     onRunEnd      -> folds the run into campaign totals + shows a screen.
+     continueCampaign -> advances to the next run (or ends the campaign). */
+  function startCampaign() {
+    campaign.reset();
+    startRun();
+  }
+
+  function startRun() {
+    // Phase: -> Active run. Hide every overlay phase first.
     hideOverlay();
     clearSelection();
 
-    // Fresh engine each run keeps state isolated (future: shop persistence).
+    // Scaling hook (inert for now) — wired into run start by design.
+    applyRunScaling(campaign.currentRunIndex);
+
+    // Full per-run reset: a brand-new engine gives a fresh deck + piles
+    // and a fresh event subscription, so nothing leaks between runs.
     engine = GameEngine.create();
     engine.onEvent(handleEvent);
 
-    // Build pile elements once per run for clean deal animation.
+    // Rebuild pile elements every run for a clean deal animation; input
+    // is delegated on the board, so no per-pile handlers accumulate.
     el.board.innerHTML = "";
     pileEls.length = 0;
     for (let i = 0; i < BoardState.SIZE; i++) {
@@ -1107,11 +1278,44 @@ const UIRenderer = (() => {
     engine.start();
   }
 
+  function onRunEnd(result, payload) {
+    // Campaign-level stats are the ONLY thing that survives a run.
+    campaign.recordRun(payload.run);
+
+    const won = result === "win";
+    const runStats = {
+      correct: payload.run.correctGuesses,
+      alive: payload.board.aliveCount(),
+    };
+    const campStats = {
+      totalCorrect: campaign.totalCorrectGuesses,
+      runsDone: campaign.runsCompleted,
+    };
+
+    // Phase: -> Run complete, or Campaign complete after the final run.
+    if (campaign.isComplete()) {
+      showCampaignComplete(runStats, campStats);
+    } else {
+      showRunComplete(won, campaign.currentRunIndex, runStats, campStats);
+    }
+  }
+
+  function continueCampaign() {
+    // Guard: after the final run this button is "New Campaign" instead.
+    if (campaign.isComplete()) { startCampaign(); return; }
+    campaign.advance();
+    startRun();
+  }
+
   function init() {
     attachInput();
     // Stamp the build badge (and console) so the running version is obvious.
     el.buildTag.textContent = "build " + APP_VERSION;
     console.log("Nine Lives " + APP_VERSION);
+
+    // The campaign persists across runs; the engine is recreated per run.
+    campaign = CampaignState.create();
+
     // Build an empty board behind the start overlay so layout is stable.
     for (let i = 0; i < BoardState.SIZE; i++) {
       const pe = buildPile(i);
@@ -1119,11 +1323,15 @@ const UIRenderer = (() => {
       pileEls.push(pe);
       el.board.appendChild(pe);
     }
+
+    // Phase: Start. The overlay button kicks off the campaign.
+    showStartScreen();
+
     // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1).
     if (/[?&]debug\b/.test(location.search)) setDebug(true);
   }
 
-  return { init, newGame };
+  return { init };
 })();
 
 /* ----------------------------------------------------------------
