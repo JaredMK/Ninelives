@@ -507,7 +507,7 @@
     display: flex;
     gap: 2px;
     flex-wrap: wrap;
-    max-width: 68%;          /* leave the top-right corner for the count badge */
+    max-width: 80%;
     z-index: 3;
     pointer-events: none;
   }
@@ -516,10 +516,11 @@
     line-height: 1;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
   }
-  /* Card-count badge — top-RIGHT corner, opposite the sticker badges. */
+  /* Card-count badge — bottom-LEFT corner (sticker badges are top-left,
+     the rotated rank sits bottom-right, so this corner is clear). */
   .pile-count {
     position: absolute;
-    top: 3px; right: 3px;
+    bottom: 3px; left: 3px;
     min-width: 15px; height: 15px;
     padding: 0 3px;
     display: flex; align-items: center; justify-content: center;
@@ -1736,8 +1737,8 @@ const UIRenderer = (() => {
     badges.className = "pile-badges";
     pile.appendChild(badges);
 
-    // Card-count badge (how many cards are stacked here) — top-RIGHT corner,
-    // opposite the sticker badges so they never collide.
+    // Card-count badge (how many cards are stacked here) — bottom-LEFT corner,
+    // clear of the top-left sticker badges and the bottom-right rotated rank.
     const count = document.createElement("div");
     count.className = "pile-count";
     pile.appendChild(count);
