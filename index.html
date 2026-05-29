@@ -476,6 +476,118 @@
   .surgery-cancel { background: var(--panel); color: var(--text); }
 
   /* ============================================================
+     DECK INSPECTION (tap = full breakdown, hold = quick peek)
+     ============================================================ */
+  .deck-stat {
+    cursor: pointer;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  .deck-stat .deck-peek-ico { font-size: 10px; opacity: 0.5; margin-left: 1px; }
+  .deck-stat:active { filter: brightness(1.15); }
+
+  /* Full breakdown — a bottom sheet, thumb-friendly */
+  .deck-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 10, 22, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 60;
+  }
+  .deck-modal.hidden { display: none; }
+  .deck-modal-panel {
+    background: linear-gradient(180deg, #1b2542, #131b30);
+    border: 1px solid #2c3c66;
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    width: min(100%, 460px);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+  }
+  .deck-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+  }
+  .deck-modal-close {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+
+  .deck-breakdown { display: flex; flex-direction: column; gap: 5px; }
+  .bd-row {
+    display: grid;
+    grid-template-columns: 26px 1fr 66px;
+    align-items: center;
+    gap: 8px;
+  }
+  .bd-row.empty { opacity: 0.35; }
+  .bd-rank { font-weight: 800; text-align: center; }
+  .bd-bar {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .bd-fill { display: block; height: 100%; background: var(--accent-2); border-radius: 5px; }
+  .bd-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .bd-pct { color: var(--muted); font-weight: 600; font-size: 11px; }
+
+  /* Quick peek — floats, never intercepts input, vanishes on release */
+  .deck-quick {
+    position: fixed;
+    left: 50%;
+    top: 16%;
+    transform: translateX(-50%);
+    z-index: 61;
+    pointer-events: none;
+    background: rgba(13, 20, 38, 0.96);
+    border: 1px solid #34508f;
+    border-radius: 12px;
+    padding: 10px 12px;
+    width: min(88vw, 360px);
+    box-shadow: var(--shadow);
+  }
+  .deck-quick.hidden { display: none; }
+  .deck-quick-total {
+    font-weight: 800;
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--accent-2);
+    text-align: center;
+  }
+  .deck-quick-grid { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
+  .dq-cell {
+    background: var(--panel);
+    border-radius: 7px;
+    padding: 4px 7px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .dq-cell b { color: var(--accent); }
+
+  /* ============================================================
      DEBUG PANEL (hidden by default)
      ============================================================ */
   .debug {
@@ -550,8 +662,9 @@
   </header>
 
   <div class="hud">
-    <div class="stat" title="Cards left in draw deck">
-      🂠 Deck <b id="deckCount">0</b>
+    <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
+         title="Tap to inspect the remaining deck · hold for a quick peek">
+      🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
     </div>
     <div class="stat" title="Piles still alive">
       <span class="dot"></span> Alive <b id="aliveCount">9</b>
@@ -647,6 +760,24 @@
     </div>
   </div>
 
+  <!-- Deck inspection: full breakdown modal (tap) -->
+  <div class="deck-modal hidden" id="deckModal">
+    <div class="deck-modal-panel">
+      <div class="deck-modal-head">
+        <span>Remaining Deck</span>
+        <button class="deck-modal-close" id="deckModalClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="deck-modal-total" id="deckModalTotal">—</div>
+      <div class="deck-breakdown" id="deckBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- Deck inspection: lightweight quick peek (press & hold) -->
+  <div class="deck-quick hidden" id="deckQuick">
+    <div class="deck-quick-total" id="deckQuickTotal"></div>
+    <div class="deck-quick-grid" id="deckQuickGrid"></div>
+  </div>
+
 <script>
 "use strict";
 /* ================================================================
@@ -670,7 +801,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.5.0";
+const APP_VERSION = "v0.6.0";
 
 /* ----------------------------------------------------------------
    Seeded RNG
@@ -770,6 +901,12 @@ const DeckManager = (() => {
       /** How many cards remain in the draw deck. */
       remaining() { return cards.length; },
       isEmpty() { return cards.length === 0; },
+      /** Count of remaining cards per rank value (order-free, no leak). */
+      remainingCounts() {
+        const counts = {};
+        for (const c of cards) counts[c.value] = (counts[c.value] || 0) + 1;
+        return counts;
+      },
       /** Look at the next n cards without drawing them. */
       peek(n = 1) { return cards.slice(0, n); },
       // Exposed for future deck-modification hooks (see HOOKS).
@@ -789,6 +926,30 @@ const DeckManager = (() => {
   }
 
   return { create, buildStandardDeck, RANKS, SUITS };
+})();
+
+/* ----------------------------------------------------------------
+   DeckStats — deck statistics generator (pure, no DOM, no gameplay).
+   Turns an order-free { rankValue: count } map into a display-ready
+   breakdown: per-rank count + draw probability, plus the total. It
+   never sees or exposes card order, so it cannot leak the draw order.
+---------------------------------------------------------------- */
+const DeckStats = (() => {
+  function fromCounts(counts) {
+    let total = 0;
+    for (const v in counts) total += counts[v];
+    const rows = DeckManager.RANKS.map(r => {
+      const count = counts[r.value] || 0;
+      return {
+        value: r.value,
+        label: r.label,
+        count,
+        pct: total ? (count / total) * 100 : 0,  // chance of drawing this rank next
+      };
+    });
+    return { total, rows };
+  }
+  return { fromCounts };
 })();
 
 /* ----------------------------------------------------------------
@@ -1085,6 +1246,98 @@ function applyRunScaling(runIndex) {
 }
 
 /* ----------------------------------------------------------------
+   DeckInspector — deck inspection overlay + hold-gesture handler.
+   A self-contained UI module: it renders a full breakdown modal (tap)
+   and a lightweight quick-peek overlay (press & hold), driven entirely
+   by injected callbacks. It reads stats through getStats() and never
+   touches gameplay state, so it cannot pause or alter the game, reveal
+   draw order, or manipulate the deck — it is purely informational.
+---------------------------------------------------------------- */
+const DeckInspector = (() => {
+  const HOLD_MS = 180; // press longer than this = quick-peek; shorter = tap
+  let refs = null;
+  let getStats = () => ({ total: 0, rows: [] });
+  let canInspect = () => true;
+  let holdTimer = null, holding = false, pointerActive = false;
+
+  function init(opts) {
+    refs = opts.refs;
+    getStats = opts.getStats || getStats;
+    canInspect = opts.canInspect || canInspect;
+
+    const deckEl = opts.deckEl;
+    deckEl.addEventListener("pointerdown", onDown);
+    deckEl.addEventListener("pointerup", onUp);
+    deckEl.addEventListener("pointerleave", onCancel);
+    deckEl.addEventListener("pointercancel", onCancel);
+    deckEl.addEventListener("contextmenu", (e) => e.preventDefault());
+    deckEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (canInspect()) openFull(); }
+    });
+
+    refs.modalClose.addEventListener("click", closeFull);
+    // Tap the backdrop (outside the panel) to dismiss.
+    refs.modal.addEventListener("click", (e) => { if (e.target === refs.modal) closeFull(); });
+  }
+
+  function onDown() {
+    if (!canInspect()) return;
+    pointerActive = true; holding = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => { holding = true; showQuick(); }, HOLD_MS);
+  }
+  function onUp() {
+    if (!pointerActive) return;
+    pointerActive = false;
+    clearTimeout(holdTimer);
+    if (holding) { holding = false; hideQuick(); }   // was a hold-peek -> dismiss
+    else if (canInspect()) { openFull(); }           // was a quick tap -> full modal
+  }
+  function onCancel() {
+    if (!pointerActive) return;
+    pointerActive = false;
+    clearTimeout(holdTimer);
+    if (holding) { holding = false; hideQuick(); }
+  }
+
+  function openFull() { renderFull(getStats()); refs.modal.classList.remove("hidden"); }
+  function closeFull() { refs.modal.classList.add("hidden"); }
+  function showQuick() { renderQuick(getStats()); refs.quick.classList.remove("hidden"); }
+  function hideQuick() { refs.quick.classList.add("hidden"); }
+  function close() { closeFull(); hideQuick(); }     // force-dismiss (e.g., on run change)
+
+  function renderFull(stats) {
+    refs.modalTotal.textContent =
+      stats.total + (stats.total === 1 ? " card left" : " cards left");
+    refs.breakdown.innerHTML = "";
+    stats.rows.forEach(row => {
+      const el = document.createElement("div");
+      el.className = "bd-row" + (row.count === 0 ? " empty" : "");
+      el.innerHTML =
+        '<span class="bd-rank">' + row.label + '</span>' +
+        '<span class="bd-bar"><span class="bd-fill" style="width:' + row.pct + '%"></span></span>' +
+        '<span class="bd-num">' + row.count +
+          ' <span class="bd-pct">' + Math.round(row.pct) + '%</span></span>';
+      refs.breakdown.appendChild(el);
+    });
+  }
+
+  function renderQuick(stats) {
+    refs.quickTotal.textContent = stats.total + " cards left";
+    refs.quickGrid.innerHTML = "";
+    stats.rows.forEach(row => {
+      if (row.count === 0) return;          // compact: only ranks still present
+      const c = document.createElement("span");
+      c.className = "dq-cell";
+      c.innerHTML = "<b>" + row.label + "</b>×" + row.count;
+      refs.quickGrid.appendChild(c);
+    });
+  }
+
+  return { init, close };
+})();
+
+/* ----------------------------------------------------------------
    UIRenderer
    DOM only. Subscribes to engine events and reflects state.
    Also captures input (tap pile -> action sheet -> guess).
@@ -1113,6 +1366,15 @@ const UIRenderer = (() => {
     summaryRunsDone: document.getElementById("summaryRunsDone"),
     playBtn: document.getElementById("playBtn"),
     buildTag: document.getElementById("buildTag"),
+    // deck inspection
+    deckStat: document.getElementById("deckStat"),
+    deckModal: document.getElementById("deckModal"),
+    deckModalClose: document.getElementById("deckModalClose"),
+    deckModalTotal: document.getElementById("deckModalTotal"),
+    deckBreakdown: document.getElementById("deckBreakdown"),
+    deckQuick: document.getElementById("deckQuick"),
+    deckQuickTotal: document.getElementById("deckQuickTotal"),
+    deckQuickGrid: document.getElementById("deckQuickGrid"),
     // deck surgery
     surgeryOverlay: document.getElementById("surgeryOverlay"),
     surgeryMsg: document.getElementById("surgeryMsg"),
@@ -1473,6 +1735,7 @@ const UIRenderer = (() => {
   function startRun() {
     // Phase: -> Active run. Hide every overlay phase first.
     hideOverlay();
+    DeckInspector.close();
     clearSelection();
 
     // Scaling hook (inert for now) — wired into run start by design.
@@ -1498,6 +1761,7 @@ const UIRenderer = (() => {
   }
 
   function onRunEnd(result, payload) {
+    DeckInspector.close();   // no inspection overlays bleeding into end screens
     // Campaign-level stats are the ONLY thing that survives a run.
     campaign.recordRun(payload.run);
 
@@ -1665,6 +1929,22 @@ const UIRenderer = (() => {
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
+
+    // Deck inspection (informational only) — reads the live run deck's
+    // rank counts, never its order, and only while a run is active.
+    DeckInspector.init({
+      deckEl: el.deckStat,
+      refs: {
+        modal: el.deckModal, modalClose: el.deckModalClose,
+        modalTotal: el.deckModalTotal, breakdown: el.deckBreakdown,
+        quick: el.deckQuick, quickTotal: el.deckQuickTotal, quickGrid: el.deckQuickGrid,
+      },
+      getStats: () => {
+        const deck = engine && engine.getDeck();
+        return DeckStats.fromCounts(deck ? deck.remainingCounts() : {});
+      },
+      canInspect: () => !!engine && engine.getStatus() === "playing",
+    });
 
     // Build an empty board behind the start overlay so layout is stable.
     for (let i = 0; i < BoardState.SIZE; i++) {

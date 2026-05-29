@@ -60,6 +60,21 @@ plays a freshly shuffled **copy** (materialized from each card's
 `currentRank`), so playing never mutates the persistent deck, and surgery
 never touches the live run.
 
+## Deck inspection
+
+During an active run you can check what's **left to draw** — without learning
+the order — by interacting with the **Deck** pill in the HUD:
+
+- **Tap** → a bottom-sheet modal with the full breakdown: each rank's remaining
+  count, its **draw probability**, and the total cards left.
+- **Press & hold** → a lightweight quick-peek overlay (compact rank counts +
+  total) that vanishes the instant you release.
+
+Percentages are computed from the **current run deck only**. It's strictly
+informational: it never reveals draw order or upcoming cards, never lets you
+manipulate the deck, and never pauses or alters gameplay (counts are read from
+the live deck, sorted by rank, so order can't leak).
+
 ## Architecture
 
 Deliberately decoupled so it can grow into a full roguelike-style campaign.
@@ -71,6 +86,8 @@ The engine never touches the DOM; the renderer never mutates game state.
 | `BoardState` | The nine piles and their alive/dead status. |
 | `GameEngine` | The rules + a per-run state (phase, seed, correct/total guesses). Emits events. |
 | `CampaignState` | Campaign-level only: the persistent base deck (cards with identity + modification history), current run index, cross-run totals, and the per-card Deck Surgery operations. Persists between runs. |
+| `DeckStats` | Pure: turns an order-free rank-count map into a draw-probability breakdown. |
+| `DeckInspector` | Self-contained UI: the tap modal + hold quick-peek and their gesture handling. Reads stats via a callback; never touches gameplay. |
 | `UIRenderer` | DOM only: renders from events, drives the phase screens, captures input. |
 
 ### Phases
