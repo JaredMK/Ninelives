@@ -29,8 +29,29 @@ Start → Run 1 → Run Complete → Run 2 → Run Complete → Run 3 → Campai
 - After the third run the **Campaign Complete** screen shows the final totals
   and a **New Campaign** button.
 - Each run fully resets the deck, piles, UI, and engine — nothing leaks
-  between runs except campaign-level stats (total correct guesses, runs
-  completed).
+  between runs except campaign-level state (the persistent deck, total
+  correct guesses, runs completed).
+
+## Deck Surgery
+
+After **winning** a run (and before the next one starts), you get a **Deck
+Surgery** screen to make ONE small, permanent change to the campaign deck:
+
+| Operation | Effect | Limit |
+| --- | --- | --- |
+| **Increase** | One card of a rank goes up +1 rank | Ace (A) is the max |
+| **Decrease** | One card of a rank goes down −1 rank | 2 is the min |
+| **Randomize** | One card of a rank becomes a different random rank | — |
+
+Flow: **tap an operation → tap a rank → confirm** (or **Skip**). The screen
+shows the deck's composition by rank; invalid choices are greyed out and
+prevented. Changes apply to the persistent **base campaign deck** and carry
+into every future run. The deck stays 52 cards, so the game keeps its
+uncertainty — only the rank distribution shifts.
+
+The base campaign deck and the active run deck are kept separate: each run
+plays a freshly shuffled **copy**, so playing never mutates the persistent
+deck, and surgery never touches the live run.
 
 ## Architecture
 
@@ -42,7 +63,7 @@ The engine never touches the DOM; the renderer never mutates game state.
 | `DeckManager` | The card pool: build, seeded shuffle, draw, remaining count. |
 | `BoardState` | The nine piles and their alive/dead status. |
 | `GameEngine` | The rules + a per-run state (phase, seed, correct/total guesses). Emits events. |
-| `CampaignState` | Campaign-level only: current run index, cross-run totals. Persists between runs. |
+| `CampaignState` | Campaign-level only: the persistent base deck, current run index, cross-run totals, and the Deck Surgery operations. Persists between runs. |
 | `UIRenderer` | DOM only: renders from events, drives the phase screens, captures input. |
 
 ### Phases
@@ -53,6 +74,7 @@ overlay is hidden):
 - **Start** — campaign intro.
 - **Active run** — normal play.
 - **Run Complete** — per-run + campaign stats, Continue.
+- **Deck Surgery** — after a won run, one permanent deck edit before the next run.
 - **Campaign Complete** — final totals, New Campaign.
 
 ### Seeded shuffle
