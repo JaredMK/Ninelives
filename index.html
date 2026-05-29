@@ -530,7 +530,6 @@
     z-index: 3;
     pointer-events: none;
   }
-  .pile.dead .pile-count { display: none; }   /* dead piles show the ✕, not a count */
   /* A pile is a valid sticker target while a sticker is armed. */
   .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
 
@@ -859,7 +858,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.9.1";
+const APP_VERSION = "v0.9.2";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1747,7 +1746,8 @@ const UIRenderer = (() => {
 
   /* Show how many cards are stacked on a pile. Reads existing board state
      (piles[i].cards.length — the same value aliveCardCounts/the economy use);
-     computes nothing. Hidden on dead piles. */
+     computes nothing. Shown on dead piles too (the count includes the card
+     that killed the pile). */
   function renderPileCount(pileEl, count) {
     const badge = pileEl.querySelector(".pile-count");
     if (badge) badge.textContent = count;
