@@ -42,5 +42,23 @@ export function run() {
   r.ok(clubNow && clubNow.stickers.some(s => s.type === "tieSafe"),
     "dormant card kept its sticker until its suit entered");
 
+  // --- stageComposition (the deck-inspection "full" column) -------------
+  const sum = (m) => Object.values(m).reduce((a, b) => a + b, 0);
+  const c3 = CampaignState.create();
+  let comp = c3.stageComposition();
+  r.eq(sum(comp), 26, "Stage 1 full composition totals 26 cards");
+  r.ok([2, 3, 4, 14].every(v => comp[v] === 2), "Stage 1: every rank has 2 (2 suits)");
+
+  // Rank stickers shift the composition (current rank, not original).
+  const fiveId = c3.getCards().find(x => x.currentRank === 5 && (x.suit === "♠" || x.suit === "♥")).id;
+  c3.applySticker(fiveId, "rankUp");   // a 5 -> 6
+  comp = c3.stageComposition();
+  r.eq(comp[5], 1, "rankUp on a 5 drops rank-5 count to 1");
+  r.eq(comp[6], 3, "rankUp on a 5 raises rank-6 count to 3");
+  r.eq(sum(comp), 26, "composition still totals 26 after a rank sticker");
+
+  for (let i = 0; i < 6; i++) c3.advance();   // -> Stage 3
+  r.eq(sum(c3.stageComposition()), 52, "Stage 3 full composition totals 52 cards");
+
   return r.summary();
 }

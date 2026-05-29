@@ -821,7 +821,7 @@
   <div class="deck-modal hidden" id="deckModal">
     <div class="deck-modal-panel">
       <div class="deck-modal-head">
-        <span>Remaining Deck</span>
+        <span>Deck Composition</span>
         <button class="deck-modal-close" id="deckModalClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="deck-modal-total" id="deckModalTotal">—</div>
@@ -858,7 +858,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.10.0";
+const APP_VERSION = "v0.10.1";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1398,11 +1398,22 @@ const CampaignState = (() => {
         return this._copyCards().filter(c => active.has(c.suit));
       },
 
-      /** Card count per CURRENT rank value, 2..14. */
+      /** Card count per CURRENT rank value, 2..14 (whole 52-card base deck). */
       composition() {
         const counts = {};
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
         for (const c of baseDeck) counts[c.currentRank]++;
+        return counts;
+      },
+
+      /** Card count per CURRENT rank for THIS stage's active suits — i.e. the
+          full deck in play this stage (26/39/52), reflecting rank stickers.
+          The deck-inspection "full" column reads this; no order is exposed. */
+      stageComposition() {
+        const active = new Set(suitsForStage(currentStage));
+        const counts = {};
+        for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
+        for (const c of baseDeck) if (active.has(c.suit)) counts[c.currentRank]++;
         return counts;
       },
 
@@ -1560,7 +1571,8 @@ function applyRunScaling(runIndex) {
 const DeckInspector = (() => {
   const HOLD_MS = 180; // press longer than this = quick-peek; shorter = tap
   let refs = null;
-  let getStats = () => ({ total: 0, rows: [] });
+  const EMPTY = { total: 0, rows: [] };
+  let getStats = () => ({ remaining: EMPTY, full: EMPTY });
   let canInspect = () => true;
   let holdTimer = null, holding = false, pointerActive = false;
 
@@ -1610,26 +1622,37 @@ const DeckInspector = (() => {
   function hideQuick() { refs.quick.classList.add("hidden"); }
   function close() { closeFull(); hideQuick(); }     // force-dismiss (e.g., on run change)
 
+  /* Tap view: per-rank "remaining / full" so the player can compare what's
+     left against what exists in the current-stage deck. The bar fills to the
+     remaining share of that rank's full count. Counts only — never order. */
   function renderFull(stats) {
+    const rem = stats.remaining || EMPTY;
+    const full = stats.full || EMPTY;
     refs.modalTotal.textContent =
-      stats.total + (stats.total === 1 ? " card left" : " cards left");
+      rem.total + " of " + full.total + " cards remaining · shown as remaining / full";
     refs.breakdown.innerHTML = "";
-    stats.rows.forEach(row => {
+    rem.rows.forEach((row, i) => {
+      const total = (full.rows[i] && full.rows[i].count) || 0;
+      const remaining = row.count;
+      if (total === 0) return;              // rank not present in this stage's deck
+      const pct = (remaining / total) * 100;
       const el = document.createElement("div");
-      el.className = "bd-row" + (row.count === 0 ? " empty" : "");
+      el.className = "bd-row" + (remaining === 0 ? " empty" : "");
       el.innerHTML =
         '<span class="bd-rank">' + row.label + '</span>' +
-        '<span class="bd-bar"><span class="bd-fill" style="width:' + row.pct + '%"></span></span>' +
-        '<span class="bd-num">' + row.count +
-          ' <span class="bd-pct">' + Math.round(row.pct) + '%</span></span>';
+        '<span class="bd-bar"><span class="bd-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="bd-num">' + remaining +
+          ' <span class="bd-pct">/ ' + total + '</span></span>';
       refs.breakdown.appendChild(el);
     });
   }
 
+  /* Hold view: lightweight remaining-only breakdown (unchanged). */
   function renderQuick(stats) {
-    refs.quickTotal.textContent = stats.total + " cards left";
+    const rem = stats.remaining || EMPTY;
+    refs.quickTotal.textContent = rem.total + " cards left";
     refs.quickGrid.innerHTML = "";
-    stats.rows.forEach(row => {
+    rem.rows.forEach(row => {
       if (row.count === 0) return;          // compact: only ranks still present
       const c = document.createElement("span");
       c.className = "dq-cell";
@@ -2400,7 +2423,12 @@ const UIRenderer = (() => {
       },
       getStats: () => {
         const deck = engine && engine.getDeck();
-        return DeckStats.fromCounts(deck ? deck.remainingCounts() : {});
+        // Two order-free composition maps: what's left to draw, and the full
+        // current-stage deck (reflecting +1/−1 rank stickers). Counts only.
+        return {
+          remaining: DeckStats.fromCounts(deck ? deck.remainingCounts() : {}),
+          full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
+        };
       },
       canInspect: () => !!engine && engine.getStatus() === "playing",
     });
