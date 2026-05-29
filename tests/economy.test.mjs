@@ -1,50 +1,49 @@
-// Phase 1: coin payout formula + board helpers.
+// Coin payout: win bonus + alive piles × 2 + Extra Coin bonus. (The old
+// smallest-alive-pile term has been removed.) Plus the board helper that
+// counts alive top cards carrying the Extra Coin sticker.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
   const { Economy, BoardState } = loadGame();
   const r = makeRunner("economy.test.mjs");
-  const { WIN_BONUS, PER_MIN_ALIVE_PILE, PER_ALIVE_PILE } = Economy.COIN_CONFIG;
+  const { WIN_BONUS, PER_ALIVE_PILE, EXTRA_COIN_VALUE } = Economy.COIN_CONFIG;
+
+  r.ok(!("PER_MIN_ALIVE_PILE" in Economy.COIN_CONFIG), "smallest-pile coefficient is gone");
 
   // No coins on a loss.
-  r.eq(Economy.computeRunPayout({ won: false, aliveCount: 9, minAlivePileCards: 4 }), 0,
+  r.eq(Economy.computeRunPayout({ won: false, aliveCount: 9, extraCoinCards: 3 }), 0,
     "loss pays 0 coins");
 
-  // Win formula: WIN_BONUS + min*PER_MIN + alive*PER_ALIVE.
-  r.eq(
-    Economy.computeRunPayout({ won: true, aliveCount: 9, minAlivePileCards: 3 }),
-    WIN_BONUS + 3 * PER_MIN_ALIVE_PILE + 9 * PER_ALIVE_PILE,
-    "win pays bonus + min*coef + alive*coef"
-  );
+  // Win = WIN_BONUS + alive*PER_ALIVE_PILE + extraCoinCards*EXTRA_COIN_VALUE.
+  const stats = { won: true, aliveCount: 8, extraCoinCards: 3 };
+  r.eq(Economy.computeRunPayout(stats),
+    WIN_BONUS + 8 * PER_ALIVE_PILE + 3 * EXTRA_COIN_VALUE,
+    "win pays bonus + alive*coef + extraCoin*coef");
 
-  // Win with zero alive piles (deck emptied as the last pile died): min term
-  // must contribute 0 even if minAlivePileCards is Infinity/garbage.
-  r.eq(Economy.computeRunPayout({ won: true, aliveCount: 0, minAlivePileCards: Infinity }),
-    WIN_BONUS, "win with 0 alive piles pays only the win bonus");
-
-  // breakdown() itemizes the same formula; its total === computeRunPayout.
-  const stats = { won: true, aliveCount: 9, minAlivePileCards: 3 };
+  // Itemized breakdown matches; total === computeRunPayout.
   const bd = Economy.breakdown(stats);
   r.eq(bd.winBonus, WIN_BONUS, "breakdown win bonus");
-  r.eq(bd.minCards, 3, "breakdown smallest-pile card count");
-  r.eq(bd.minPileCoins, 3 * PER_MIN_ALIVE_PILE, "breakdown smallest-pile coins");
-  r.eq(bd.alivePiles, 9, "breakdown alive-pile count");
-  r.eq(bd.alivePileCoins, 9 * PER_ALIVE_PILE, "breakdown alive-pile coins");
+  r.eq(bd.alivePiles, 8, "breakdown alive-pile count");
+  r.eq(bd.alivePileCoins, 8 * PER_ALIVE_PILE, "breakdown alive-pile coins");
+  r.eq(bd.extraCoinCards, 3, "breakdown Extra Coin card count");
+  r.eq(bd.extraCoinBonus, 3 * EXTRA_COIN_VALUE, "breakdown Extra Coin bonus");
   r.eq(bd.total, Economy.computeRunPayout(stats), "breakdown total matches computeRunPayout");
-  const lost = Economy.breakdown({ won: false, aliveCount: 9, minAlivePileCards: 3 });
-  r.eq(lost.total, 0, "breakdown on a loss totals 0");
-  r.eq(lost.winBonus, 0, "breakdown on a loss has no win bonus");
+  r.ok(!("minPileCoins" in bd) && !("minCards" in bd), "breakdown no longer reports a smallest-pile term");
 
-  // BoardState per-pile helpers.
+  const lost = Economy.breakdown({ won: false, aliveCount: 9, extraCoinCards: 5 });
+  r.eq(lost.total, 0, "breakdown on a loss totals 0");
+  r.eq(lost.extraCoinBonus, 0, "no Extra Coin bonus on a loss");
+
+  // --- BoardState.aliveTopStickerCount -----------------------------------
+  const EC = { stickers: [{ type: "extraCoin" }] };
+  const PLAIN = { stickers: [] };
   const b = BoardState.create(4);
-  b.push(0, {}); b.push(0, {});            // pile 0: 2 cards
-  b.push(1, {});                           // pile 1: 1 card
-  b.push(2, {}); b.push(2, {}); b.push(2, {}); // pile 2: 3 cards
-  b.push(3, {}); b.kill(3);                // pile 3: dead
-  r.eq(JSON.stringify(b.aliveCardCounts()), JSON.stringify([2, 1, 3]),
-    "aliveCardCounts ignores dead piles");
-  r.eq(b.minAliveCards(), 1, "minAliveCards is the smallest alive pile");
-  r.eq(b.aliveCount(), 3, "aliveCount excludes the dead pile");
+  b.push(0, { ...EC });                          // pile 0: extraCoin on top -> counts
+  b.push(1, { ...PLAIN }); b.push(1, { ...EC });  // pile 1: extraCoin on top -> counts
+  b.push(2, { ...EC }); b.kill(2);                // pile 2: extraCoin top but DEAD -> excluded
+  b.push(3, { ...EC }); b.push(3, { ...PLAIN });  // pile 3: extraCoin buried, plain on top -> excluded
+  r.eq(b.aliveTopStickerCount("extraCoin"), 2,
+    "counts only alive piles whose TOP card carries the sticker");
 
   return r.summary();
 }

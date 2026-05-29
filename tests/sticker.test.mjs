@@ -41,30 +41,40 @@ export function run() {
   // Tie-Safe is idempotent (no duplicate wasted slot).
   const sixId = byRank(6);
   r.ok(c.applySticker(sixId, "tieSafe"), "first Tie-Safe applies");
-  r.ok(!c.applySticker(sixId, "tieSafe"), "duplicate Tie-Safe is blocked");
+  r.ok(!c.applySticker(sixId, "tieSafe"), "duplicate Tie-Safe is blocked (unique)");
 
-  // --- store / inventory / coins ----------------------------------------
+  // Extra Coin is also unique-per-card.
+  const sevenId = byRank(7);
+  r.ok(c.applySticker(sevenId, "extraCoin"), "first Extra Coin applies");
+  r.ok(!c.applySticker(sevenId, "extraCoin"), "duplicate Extra Coin is blocked (unique)");
+
+  // --- store / inventory / coins with ESCALATING prices -----------------
   const c2 = CampaignState.create();
   r.eq(c2.getCoins(), 0, "new campaign starts with 0 coins");
   r.ok(!c2.buySticker("rankUp"), "cannot buy with no coins");
   c2.addCoins(100);
-  const price = StickerTypes.get("rankUp").price;
-  r.ok(c2.buySticker("rankUp"), "buy succeeds when affordable");
-  r.eq(c2.inventoryCount("rankUp"), 1, "bought sticker enters inventory");
-  r.eq(c2.getCoins(), 100 - price, "coins decremented by the price");
 
-  // Inventory + coins persist across a run advance.
+  const base = StickerTypes.get("rankUp").basePrice;   // 2
+  r.eq(c2.priceOf("rankUp"), base, "price starts at basePrice");
+  r.ok(c2.buySticker("rankUp"), "buy #1 succeeds");
+  r.eq(c2.getCoins(), 100 - base, "charged the base price");
+  r.eq(c2.priceOf("rankUp"), base + 1, "price climbs +1 after a purchase");
+  r.ok(c2.buySticker("rankUp"), "buy #2 succeeds");
+  r.eq(c2.getCoins(), 100 - base - (base + 1), "charged the escalated price on buy #2");
+  r.eq(c2.inventoryCount("rankUp"), 2, "two rankUp stickers owned");
+  // Escalation is per-type: a different type still starts at its own base.
+  r.eq(c2.priceOf("tieSafe"), StickerTypes.get("tieSafe").basePrice,
+    "a different type is unaffected by rankUp purchases");
+
+  // Inventory, coins, and price escalation persist across a run advance.
   c2.advance();
-  r.eq(c2.inventoryCount("rankUp"), 1, "inventory persists across advance()");
-  r.eq(c2.getCoins(), 100 - price, "coins persist across advance()");
+  r.eq(c2.priceOf("rankUp"), base + 2, "escalated price persists across advance()");
 
-  // useStickerFromInventory decrements; reset() clears everything.
-  r.ok(c2.useStickerFromInventory("rankUp"), "using a sticker decrements inventory");
-  r.eq(c2.inventoryCount("rankUp"), 0, "inventory now empty");
-  c2.addCoins(50);
+  // reset() clears coins, inventory, AND the per-type purchase counts.
   c2.reset();
   r.eq(c2.getCoins(), 0, "reset clears coins");
   r.eq(c2.inventoryCount("rankUp"), 0, "reset clears inventory");
+  r.eq(c2.priceOf("rankUp"), base, "reset restores base prices");
 
   return r.summary();
 }

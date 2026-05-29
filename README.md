@@ -45,9 +45,8 @@ Start → S1R1 → … → S1R3 → S2R1 → … → S3R3 → Campaign Complete 
    any run lost ───────────────────────────→ Campaign Over (full wipe)
 ```
 
-- After a won, non-final run a **Run Cleared** screen (stage/run progress,
-  correct guesses, piles alive, coins earned) leads to the **Store**, then the
-  next run.
+- After a won, non-final run a **Run Cleared** intermission (stage/run progress
+  + the itemized coin breakdown only) leads to the **Store**, then the next run.
 - Clearing **Stage 3 Run 3** → **Campaign Complete** (campaign win).
 - **Campaign lifecycle — full wipe on any loss:** losing any run ends the
   campaign immediately. **New Campaign** resets *everything* to a vanilla
@@ -70,21 +69,24 @@ are config constants in the `Economy` module):
 
 ```
 coins = WIN_BONUS(5)
-      + (fewest cards among alive piles) × PER_MIN_ALIVE_PILE(5)
-      + (number of alive piles)         × PER_ALIVE_PILE(2)
+      + (number of alive piles)                    × PER_ALIVE_PILE(2)
+      + (alive top cards with the Extra Coin sticker) × EXTRA_COIN_VALUE(1)
 ```
 
 **Store** (between every run): spend coins on stickers, which go into your
-campaign inventory. **Stickers** attach to a *specific* card by its persistent
-id and ride with that card for the rest of the campaign attempt (until a loss
-wipes it) — they belong to the card, not the pile position. Starter types:
+campaign inventory. Each type has its own **base price that climbs +1 every
+time you buy that type** (tracked per type in `CampaignState`, reset on wipe).
+**Stickers** attach to a *specific* card by its persistent id and ride with
+that card for the rest of the campaign attempt (until a loss wipes it) — they
+belong to the card, not the pile position. Types:
 
-| Sticker | Effect | Blocked when |
-| --- | --- | --- |
-| **+1 Rank** | Permanently raises that card's rank by 1 | card is an Ace |
-| **−1 Rank** | Permanently lowers that card's rank by 1 | card is a 2 |
-| **Extra Heart** | The card survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks". Refreshes each run. | — |
-| **Tie-Safe** | The card survives a tie on *any* guess (not just Same) | already has Tie-Safe |
+| Sticker | Base | Effect | Blocked when |
+| --- | --- | --- | --- |
+| **+1 Rank** | 2 | Permanently raises that card's rank by 1 | card is an Ace |
+| **−1 Rank** | 2 | Permanently lowers that card's rank by 1 | card is a 2 |
+| **Tie-Safe** 🛡️ | 3 | The card survives a tie on *any* guess (not just Same) | already has Tie-Safe |
+| **Extra Heart** ❤️ | 8 | Survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks"; refreshes each run | — |
+| **Extra Coin** 💰 | 1 | At end of run, +1 coin if this card is alive on top of a pile | already has Extra Coin |
 
 **Applying** happens *in-run*: owned stickers appear in a tray; tap one to
 arm it, then tap a pile to apply it to that pile's **face-up top card**. Rank
@@ -144,7 +146,7 @@ overlay is hidden):
 
 - **Start** — campaign intro.
 - **Active run** — normal play.
-- **Run Cleared** — per-run + campaign stats, coins earned, Continue (won, non-final run).
+- **Run Cleared** — stage/run indicator + itemized coin breakdown, Continue (won, non-final run).
 - **Store** — between runs: spend coins on stickers, then Start Run.
 - **Campaign Complete** — cleared all 3 stages; final totals, New Campaign.
 - **Campaign Over** — after any loss; full wipe, New Campaign.

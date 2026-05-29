@@ -720,15 +720,15 @@
   </header>
 
   <div class="hud">
-    <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
-         title="Tap to inspect the remaining deck · hold for a quick peek">
-      🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
+    <div class="stat" title="Coins — earned on a win, spent in the store">
+      🪙 Coins <b id="coinCount">0</b>
     </div>
     <div class="stat" title="Piles still alive">
       <span class="dot"></span> Alive <b id="aliveCount">9</b>
     </div>
-    <div class="stat" title="Coins — earned on a win, spent in the store">
-      🪙 Coins <b id="coinCount">0</b>
+    <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
+         title="Tap to inspect the remaining deck · hold for a quick peek">
+      🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
     </div>
   </div>
 
@@ -858,7 +858,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.9.2";
+const APP_VERSION = "v0.10.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -870,13 +870,16 @@ const APP_VERSION = "v0.9.2";
 const STICKER_SLOTS_PER_CARD = 3;   // max stickers a single card can carry
 
 const StickerTypes = (() => {
+  // basePrice: starting store price (climbs +1 per purchase of that type —
+  // see CampaignState.priceOf). unique: at most one per card (no wasted slot).
   const TYPES = {
-    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, price: 6 },
-    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, price: 6 },
-    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", price: 8 },
-    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    price: 10 },
+    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 2 },
+    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 2 },
+    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 8 },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 3, unique: true },
+    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1, unique: true },
   };
-  const ORDER = ["rankUp", "rankDown", "extraHeart", "tieSafe"];
+  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -890,28 +893,26 @@ const StickerTypes = (() => {
 ---------------------------------------------------------------- */
 const Economy = (() => {
   const COIN_CONFIG = {
-    WIN_BONUS: 5,           // flat reward for clearing a run
-    PER_MIN_ALIVE_PILE: 5,  // × (fewest cards among alive piles)
-    PER_ALIVE_PILE: 2,      // × (number of alive piles)
+    WIN_BONUS: 5,         // flat reward for clearing a run
+    PER_ALIVE_PILE: 2,    // × (number of alive piles)
+    EXTRA_COIN_VALUE: 1,  // × (alive top cards carrying the Extra Coin sticker)
   };
-  /** stats: { won, aliveCount, minAlivePileCards }. Returns the itemized
-      payout so the UI can show where coins came from without recomputing.
+  /** stats: { won, aliveCount, extraCoinCards }. Returns the itemized payout
+      so the UI can show where coins came from without recomputing.
       computeRunPayout() is just breakdown().total — one source of truth. */
   function breakdown(stats, cfg = COIN_CONFIG) {
     const won = !!(stats && stats.won);
     const alivePiles = won ? (stats.aliveCount || 0) : 0;
-    // A win can occur with 0 alive piles (deck empties as the last pile
-    // dies), so the "min pile" term only counts when piles remain.
-    const minCards = alivePiles > 0 ? (stats.minAlivePileCards || 0) : 0;
+    const extraCoinCards = won ? (stats.extraCoinCards || 0) : 0;
     const winBonus = won ? cfg.WIN_BONUS : 0;
-    const minPileCoins = minCards * cfg.PER_MIN_ALIVE_PILE;
     const alivePileCoins = alivePiles * cfg.PER_ALIVE_PILE;
+    const extraCoinBonus = extraCoinCards * cfg.EXTRA_COIN_VALUE;
     return {
       won,
       winBonus,
-      minCards, perMin: cfg.PER_MIN_ALIVE_PILE, minPileCoins,
       alivePiles, perAlive: cfg.PER_ALIVE_PILE, alivePileCoins,
-      total: winBonus + minPileCoins + alivePileCoins,
+      extraCoinCards, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
+      total: winBonus + alivePileCoins + extraCoinBonus,
     };
   }
   /** Coins earned (the total of breakdown()). */
@@ -1118,12 +1119,13 @@ const BoardState = (() => {
       kill(index) { piles[index].dead = true; },
       aliveCount() { return piles.filter(p => !p.dead).length; },
       anyAlive() { return piles.some(p => !p.dead); },
-      /** Card counts of the still-alive piles (for the coin payout). */
-      aliveCardCounts() { return piles.filter(p => !p.dead).map(p => p.cards.length); },
-      /** Fewest cards among alive piles (0 if none alive). */
-      minAliveCards() {
-        const counts = piles.filter(p => !p.dead).map(p => p.cards.length);
-        return counts.length ? Math.min(...counts) : 0;
+      /** Number of ALIVE piles whose top card carries a sticker of `type`
+          (generic; the Extra Coin payout passes "extraCoin"). */
+      aliveTopStickerCount(type) {
+        return piles.filter(p => !p.dead).filter(p => {
+          const top = p.cards[p.cards.length - 1];
+          return top && top.stickers && top.stickers.some(s => s.type === type);
+        }).length;
       },
     };
   }
@@ -1335,6 +1337,7 @@ const CampaignState = (() => {
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
+    let purchaseCounts = {};       // { stickerTypeId: timesBought } — drives escalating price
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -1449,11 +1452,21 @@ const CampaignState = (() => {
       getInventory() { return { ...stickerInventory }; },
       inventoryCount(typeId) { return stickerInventory[typeId] || 0; },
 
+      /** Current price of a sticker type: basePrice + times already bought,
+          so each type escalates independently. */
+      priceOf(typeId) {
+        const t = StickerTypes.get(typeId);
+        return t ? t.basePrice + (purchaseCounts[typeId] || 0) : Infinity;
+      },
+
       /** Buy one sticker if affordable. Returns true on success. */
       buySticker(typeId) {
         const t = StickerTypes.get(typeId);
-        if (!t || coins < t.price) return false;
-        coins -= t.price;
+        if (!t) return false;
+        const price = this.priceOf(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        purchaseCounts[typeId] = (purchaseCounts[typeId] || 0) + 1;
         stickerInventory[typeId] = (stickerInventory[typeId] || 0) + 1;
         return true;
       },
@@ -1470,7 +1483,7 @@ const CampaignState = (() => {
          also bump currentRank + record a modification; behavior stickers are
          read by the engine via toCard(). Validation blocks wasted stickers
          (no +1 on an Ace, no -1 on a 2, no exceeding the slot cap, no
-         duplicate Tie-Safe). */
+         duplicate of a `unique` type like Tie-Safe / Extra Coin). */
       canApplySticker(card, typeId) {
         if (!card) return false;
         const t = StickerTypes.get(typeId);
@@ -1480,7 +1493,7 @@ const CampaignState = (() => {
           if (t.rankDelta > 0 && card.currentRank >= MAX_RANK) return false;
           if (t.rankDelta < 0 && card.currentRank <= MIN_RANK) return false;
         }
-        if (t.behavior === "tieSafe" && card.stickers.some(s => s.type === "tieSafe")) return false;
+        if (t.unique && card.stickers.some(s => s.type === typeId)) return false;
         return true;
       },
       canApplyStickerById(id, typeId) { return this.canApplySticker(findById(id), typeId); },
@@ -1517,6 +1530,7 @@ const CampaignState = (() => {
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         stickerInventory = {};
+        purchaseCounts = {};
       },
     };
   }
@@ -1745,17 +1759,17 @@ const UIRenderer = (() => {
   }
 
   /* Show how many cards are stacked on a pile. Reads existing board state
-     (piles[i].cards.length — the same value aliveCardCounts/the economy use);
-     computes nothing. Shown on dead piles too (the count includes the card
-     that killed the pile). */
+     (piles[i].cards.length); computes nothing. Shown on dead piles too (the
+     count includes the card that killed the pile). It's purely informational
+     now — no longer feeds any coin calculation. */
   function renderPileCount(pileEl, count) {
     const badge = pileEl.querySelector(".pile-count");
     if (badge) badge.textContent = count;
   }
 
   /* Render the sticker badges for a pile's top card: a heart per remaining
-     Extra Heart, a broken heart per spent one, a shield for Tie-Safe, and a
-     ± marker for rank stickers. */
+     Extra Heart, a broken heart per spent one, a shield for Tie-Safe, a coin
+     for Extra Coin, and a ± marker for rank stickers. */
   function renderStickerBadges(pileEl, card) {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
@@ -1764,7 +1778,8 @@ const UIRenderer = (() => {
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
     let html = "";
     for (let i = 0; i < heartTotal; i++) html += '<span class="badge">' + (i < heartsLeft ? "❤️" : "💔") + "</span>";
-    if (stickers.some(s => s.type === "tieSafe")) html += '<span class="badge">🛡️</span>';
+    if (stickers.some(s => s.type === "tieSafe"))   html += '<span class="badge">🛡️</span>';
+    if (stickers.some(s => s.type === "extraCoin")) html += '<span class="badge">💰</span>';
     const rankUps = stickers.filter(s => s.type === "rankUp").length;
     const rankDowns = stickers.filter(s => s.type === "rankDown").length;
     if (rankUps)   html += '<span class="badge">➕' + (rankUps > 1 ? rankUps : "") + "</span>";
@@ -2094,8 +2109,8 @@ const UIRenderer = (() => {
     return (
       '<div class="ocoins-head">🪙 Coins earned</div>' +
       row("Win bonus", "", "+" + b.winBonus) +
-      row("Smallest alive pile", "(" + b.minCards + " × " + b.perMin + ")", "+" + b.minPileCoins) +
       row("Alive piles", "(" + b.alivePiles + " × " + b.perAlive + ")", "+" + b.alivePileCoins) +
+      row("Extra Coin bonus", "(" + b.extraCoinCards + " × " + b.extraCoinValue + ")", "+" + b.extraCoinBonus) +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
     );
@@ -2159,16 +2174,16 @@ const UIRenderer = (() => {
     });
   }
 
-  // Shown only after a WON, non-final run (a loss ends the campaign).
-  function showRunComplete(runStats, campStats, coins) {
+  // Shown only after a WON, non-final run (a loss ends the campaign). This is
+  // the between-runs intermission: just the stage/run indicator and the coin
+  // breakdown — no "This Run" / "Campaign" totals.
+  function showRunComplete(coins) {
     showOverlay({
       kind: "win",
       icon: "🏆",
       title: "RUN CLEARED",
       msg: "You emptied the deck.",
       progress: stageRunLabel(" complete"),
-      runStats,
-      campStats,
       coins,
       btnLabel: "CONTINUE",
       action: continueCampaign,
@@ -2298,17 +2313,22 @@ const UIRenderer = (() => {
     const payout = Economy.breakdown({
       won: true,
       aliveCount,
-      minAlivePileCards: board.minAliveCards(),
+      // Alive top cards carrying the Extra Coin sticker (engine-side count).
+      extraCoinCards: board.aliveTopStickerCount("extraCoin"),
     });
     if (payout.total > 0) campaign.addCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
-    const campStats = {
-      totalCorrect: campaign.totalCorrectGuesses,
-      runsDone: campaign.runsCompleted,
-    };
 
-    if (campaign.isComplete()) showCampaignComplete(runStats, campStats, coins);
-    else showRunComplete(runStats, campStats, coins);
+    if (campaign.isComplete()) {
+      const campStats = {
+        totalCorrect: campaign.totalCorrectGuesses,
+        runsDone: campaign.runsCompleted,
+      };
+      showCampaignComplete(runStats, campStats, coins);
+    } else {
+      // Between-runs intermission: just stage/run + the coin breakdown.
+      showRunComplete(coins);
+    }
   }
 
   function continueCampaign() {
@@ -2337,7 +2357,8 @@ const UIRenderer = (() => {
     el.storeItems.innerHTML = "";
     StickerTypes.all().forEach(t => {
       const owned = campaign.inventoryCount(t.id);
-      const affordable = campaign.getCoins() >= t.price;
+      const price = campaign.priceOf(t.id);   // escalates per purchase
+      const affordable = campaign.getCoins() >= price;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "store-item" + (affordable ? "" : " disabled");
@@ -2345,7 +2366,7 @@ const UIRenderer = (() => {
       btn.innerHTML =
         '<span class="si-icon">' + t.icon + '</span>' +
         '<span class="si-label">' + t.label + '</span>' +
-        '<span class="si-price">🪙 ' + t.price + '</span>' +
+        '<span class="si-price">🪙 ' + price + '</span>' +
         (owned ? '<span class="si-owned">×' + owned + '</span>' : "");
       el.storeItems.appendChild(btn);
     });
