@@ -6,8 +6,8 @@ dependencies — open `index.html` in any modern browser.
 ## How to play
 
 - Standard 52-card deck. **Suits don't matter, only rank. Ace is high.**
-- Nine cards are dealt face-up into a 3×3 grid of piles; the rest form the
-  draw deck.
+- Cards are dealt face-up into a grid of piles (count/layout vary per run —
+  see Campaign); the rest form the draw deck.
 - **Tap a pile**, then choose **Higher**, **Same**, or **Lower** for the next
   card. The next card is revealed and compared to that pile's top:
   - **Correct** → the card is placed on the pile (new top).
@@ -17,7 +17,19 @@ dependencies — open `index.html` in any modern browser.
 
 ## Campaign
 
-A play-through is a **campaign**: a fixed sequence of **3 runs**.
+A play-through is a **campaign**: a fixed sequence of **3 runs**. Each run
+defines its own pile count and row layout (config-driven via `RUN_LAYOUTS`):
+
+| Run | Rows | Piles |
+| --- | --- | --- |
+| 1 | 3 · 4 · 3 | 10 |
+| 2 | 3 · 3 · 3 | 9 |
+| 3 | 3 · 2 · 3 | 8 |
+
+Cards are sized so 3 fill the width (a normal 3-card row, like Run 2, is
+edge-to-edge); shorter rows center and a 4-card row shrinks just enough to fit.
+The draw deck is always the full 52 cards — only the number dealt to piles
+changes with the layout.
 
 ```
 Start → Run 1 → Run Complete → Run 2 → Run Complete → Run 3 → Campaign Complete
