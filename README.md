@@ -35,23 +35,30 @@ Start → Run 1 → Run Complete → Run 2 → Run Complete → Run 3 → Campai
 ## Deck Surgery
 
 After **winning** a run (and before the next one starts), you get a **Deck
-Surgery** screen to make ONE small, permanent change to the campaign deck:
+Surgery** screen to permanently evolve ONE specific card in the campaign deck:
 
 | Operation | Effect | Limit |
 | --- | --- | --- |
-| **Increase** | One card of a rank goes up +1 rank | Ace (A) is the max |
-| **Decrease** | One card of a rank goes down −1 rank | 2 is the min |
-| **Randomize** | One card of a rank becomes a different random rank | — |
+| **Increase** | The chosen card goes up +1 rank | Ace (A) is the max |
+| **Decrease** | The chosen card goes down −1 rank | 2 is the min |
+| **Randomize** | The chosen card becomes a different random rank | — |
 
-Flow: **tap an operation → tap a rank → confirm** (or **Skip**). The screen
-shows the deck's composition by rank; invalid choices are greyed out and
-prevented. Changes apply to the persistent **base campaign deck** and carry
-into every future run. The deck stays 52 cards, so the game keeps its
-uncertainty — only the rank distribution shifts.
+Each card has a **persistent identity**: a stable id and suit, the rank it
+*started* as (`originalRank`), the rank it is *now* (`currentRank`), and a
+`modifications` history. Surgery edits a specific card instance — other cards
+of the same rank are untouched — and the change carries into every future run.
+
+Flow: **tap an operation → tap a card → confirm** (or **Skip**). The screen
+shows the actual deck as individual cards. Modified cards get a lightweight
+ring and a small **+ / − / ~** marker, plus their struck-through original
+rank — invalid choices for the chosen operation are greyed out and prevented.
+The deck stays 52 cards, so the game keeps its uncertainty; only individual
+ranks shift.
 
 The base campaign deck and the active run deck are kept separate: each run
-plays a freshly shuffled **copy**, so playing never mutates the persistent
-deck, and surgery never touches the live run.
+plays a freshly shuffled **copy** (materialized from each card's
+`currentRank`), so playing never mutates the persistent deck, and surgery
+never touches the live run.
 
 ## Architecture
 
@@ -63,7 +70,7 @@ The engine never touches the DOM; the renderer never mutates game state.
 | `DeckManager` | The card pool: build, seeded shuffle, draw, remaining count. |
 | `BoardState` | The nine piles and their alive/dead status. |
 | `GameEngine` | The rules + a per-run state (phase, seed, correct/total guesses). Emits events. |
-| `CampaignState` | Campaign-level only: the persistent base deck, current run index, cross-run totals, and the Deck Surgery operations. Persists between runs. |
+| `CampaignState` | Campaign-level only: the persistent base deck (cards with identity + modification history), current run index, cross-run totals, and the per-card Deck Surgery operations. Persists between runs. |
 | `UIRenderer` | DOM only: renders from events, drives the phase screens, captures input. |
 
 ### Phases

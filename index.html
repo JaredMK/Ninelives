@@ -402,33 +402,52 @@
   .overlay.surgery h2 { font-size: 26px; margin-top: 8px; }
   .overlay.surgery .big { font-size: 44px; margin-bottom: 2px; }
 
-  .composition {
+  /* The campaign deck, shown as individual cards (identity preserved). */
+  .deck-cards {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
-    width: min(94vw, 380px);
-    margin: 6px 0 16px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    width: min(96vw, 420px);
+    margin: 6px 0 12px;
   }
-  .rank-cell {
-    background: var(--panel);
-    border: 1px solid #2c3c66;
-    border-radius: 10px;
+  .card-chip {
+    position: relative;
+    background: var(--card-face);
+    color: var(--card-ink);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
     padding: 8px 2px;
-    color: var(--text);
+    min-height: 42px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
     cursor: default;
     transition: transform 0.08s ease;
   }
-  .rank-cell .rc-rank { font-size: 16px; font-weight: 800; }
-  .rank-cell .rc-count { font-size: 11px; color: var(--muted); font-weight: 700; }
-  .rank-cell.selectable { border-color: var(--accent-2); cursor: pointer; }
-  .rank-cell.selectable:active { transform: scale(0.94); }
-  .rank-cell.selected { background: var(--accent-2); color: #06203a; }
-  .rank-cell.selected .rc-count { color: #06203a; }
-  .rank-cell.disabled { opacity: 0.3; }
+  .card-chip .cc-main { font-size: 15px; font-weight: 800; display: inline-flex; align-items: baseline; gap: 1px; }
+  .card-chip .cc-main.red { color: var(--card-red); }
+  .card-chip .cc-suit { font-size: 11px; }
+  /* original rank (small, struck) — only on modified cards */
+  .card-chip .cc-orig {
+    position: absolute; top: 2px; left: 4px;
+    font-size: 8px; font-weight: 700; color: #9aa0b5; text-decoration: line-through;
+  }
+  /* subtle +/−/~ marker — only on modified cards */
+  .card-chip .cc-mark {
+    position: absolute; top: 1px; right: 3px;
+    font-size: 11px; font-weight: 900; line-height: 1;
+  }
+  /* lightweight ring distinguishes modified cards by direction of change */
+  .card-chip.up   { box-shadow: inset 0 0 0 2px var(--good); }
+  .card-chip.up   .cc-mark { color: var(--good); }
+  .card-chip.down { box-shadow: inset 0 0 0 2px var(--bad); }
+  .card-chip.down .cc-mark { color: var(--bad); }
+  .card-chip.rand { box-shadow: inset 0 0 0 2px var(--accent-2); }
+  .card-chip.rand .cc-mark { color: var(--accent-2); }
+  .card-chip.selectable { cursor: pointer; }
+  .card-chip.selectable:active { transform: scale(0.92); }
+  .card-chip.selected { outline: 3px solid var(--accent); outline-offset: -1px; }
+  .card-chip.disabled { opacity: 0.32; }
 
   .surgery-ops {
     display: grid;
@@ -447,7 +466,11 @@
     gap: 10px;
     align-items: center;
     justify-content: center;
-    width: min(94vw, 380px);
+    width: min(96vw, 420px);
+    position: sticky;
+    bottom: 0;
+    padding: 10px 0;
+    background: linear-gradient(to top, rgba(6, 10, 22, 0.96) 70%, rgba(6, 10, 22, 0));
   }
   .surgery-confirm.hidden { display: none; }
   .surgery-cancel { background: var(--panel); color: var(--text); }
@@ -610,14 +633,14 @@
   <div class="overlay surgery hidden" id="surgeryOverlay">
     <div class="big">🩺</div>
     <h2>DECK SURGERY</h2>
-    <p id="surgeryMsg">Choose one operation, then a rank.</p>
-    <div class="composition" id="deckComposition"></div>
+    <p id="surgeryMsg">Choose one operation, then a card.</p>
     <div class="surgery-ops" id="surgeryOps">
       <button class="btn surgery-op" data-op="increase" type="button">Increase ▲<span class="sub">+1 rank</span></button>
       <button class="btn surgery-op" data-op="decrease" type="button">Decrease ▼<span class="sub">−1 rank</span></button>
       <button class="btn surgery-op" data-op="randomize" type="button">Randomize ⤮<span class="sub">new rank</span></button>
       <button class="btn surgery-skip" data-op="skip" type="button">Skip<span class="sub">no change</span></button>
     </div>
+    <div class="deck-cards" id="deckCards"></div>
     <div class="surgery-confirm hidden" id="surgeryConfirm">
       <button class="btn surgery-cancel" id="surgeryCancelBtn" type="button">Cancel</button>
       <button class="play-btn" id="surgeryConfirmBtn" type="button">CONFIRM</button>
@@ -647,7 +670,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.4.0";
+const APP_VERSION = "v0.5.0";
 
 /* ----------------------------------------------------------------
    Seeded RNG
@@ -691,25 +714,32 @@ const DeckManager = (() => {
     { symbol: "♦", red: true },  { symbol: "♣", red: false },
   ];
 
-  // Build the standard 52-card deck as plain specs { id, value, suit }.
-  // This is the campaign's starting "base deck"; Deck Surgery edits a
-  // copy of these specs (in CampaignState), never the live run deck.
+  // Build the standard 52-card deck. Each card is a PERSISTENT identity:
+  // a stable id + suit, the rank it started as, the rank it is now, and a
+  // history of modifications. This is the campaign's "base deck"; Deck
+  // Surgery edits copies of these (in CampaignState), never the run deck.
   function buildStandardDeck() {
-    const specs = [];
+    const cards = [];
     let id = 0;
     for (const s of SUITS) {
       for (const r of RANKS) {
-        specs.push({ id: id++, value: r.value, suit: s.symbol });
+        cards.push({
+          id: id++,
+          suit: s.symbol,
+          originalRank: r.value,
+          currentRank: r.value,
+          modifications: [],
+        });
       }
     }
-    return specs; // 52 specs
+    return cards; // 52 cards
   }
 
-  // Materialize a playable card object from a { value, suit } spec.
-  function toCard(spec) {
-    const r = RANKS.find(r => r.value === spec.value) || RANKS[0];
-    const s = SUITS.find(s => s.symbol === spec.suit) || SUITS[0];
-    return { id: spec.id, label: r.label, value: r.value, suit: s.symbol, red: s.red };
+  // Materialize a playable card from a persistent card (uses currentRank).
+  function toCard(card) {
+    const r = RANKS.find(r => r.value === card.currentRank) || RANKS[0];
+    const s = SUITS.find(s => s.symbol === card.suit) || SUITS[0];
+    return { id: card.id, label: r.label, value: r.value, suit: s.symbol, red: s.red };
   }
 
   // Fisher–Yates shuffle (in place). Accepts a seeded rng so runs can
@@ -949,9 +979,9 @@ const CampaignState = (() => {
     let runsCompleted = 0;         // how many runs have ended
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT campaign deck
 
-    /** Find one card spec of the given rank value, or null. */
-    function findByValue(value) {
-      return baseDeck.find(c => c.value === value) || null;
+    /** Find the persistent card with the given id, or null. */
+    function findById(id) {
+      return baseDeck.find(c => c.id === id) || null;
     }
 
     return {
@@ -976,45 +1006,57 @@ const CampaignState = (() => {
 
       /* ---- persistent deck (the base campaign deck) ---- */
 
-      /** A defensive COPY of the base-deck specs for building a run. */
-      getDeck() { return baseDeck.map(c => ({ ...c })); },
+      // Defensive COPY (incl. a copied modifications array) so callers
+      // can read/build from the deck without mutating the persistent one.
+      _copyCards() {
+        return baseDeck.map(c => ({ ...c, modifications: c.modifications.slice() }));
+      },
+      /** A copy of the base deck for building a run. */
+      getDeck() { return this._copyCards(); },
+      /** A copy of the base deck for the surgery display. */
+      getCards() { return this._copyCards(); },
 
-      /** Card count per rank value, 2..14 — for the composition display. */
+      /** Card count per CURRENT rank value, 2..14. */
       composition() {
         const counts = {};
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
-        for (const c of baseDeck) counts[c.value]++;
+        for (const c of baseDeck) counts[c.currentRank]++;
         return counts;
       },
 
-      /* ---- Deck Surgery operations (permanent, validated) ----
-         Each returns true if applied, false if the operation was
-         invalid. They mutate ONLY the persistent base deck. */
+      /* ---- Deck Surgery operations (permanent, validated, per-card) ----
+         Each targets a SPECIFIC persistent card by id, records the change
+         in that card's modification history, and returns true if applied
+         or false if invalid. They mutate ONLY the base campaign deck. */
 
-      /** Increase one card of `value` by +1 rank (Ace is the max). */
-      increaseRank(value) {
-        if (value >= MAX_RANK) return false;
-        const card = findByValue(value);
-        if (!card) return false;
-        card.value = value + 1;
+      /** Increase a specific card by +1 rank (Ace is the max). */
+      increaseCard(id) {
+        const card = findById(id);
+        if (!card || card.currentRank >= MAX_RANK) return false;
+        const from = card.currentRank;
+        card.currentRank = from + 1;
+        card.modifications.push({ op: "increase", from, to: card.currentRank });
         return true;
       },
 
-      /** Decrease one card of `value` by -1 rank (2 is the min). */
-      decreaseRank(value) {
-        if (value <= MIN_RANK) return false;
-        const card = findByValue(value);
-        if (!card) return false;
-        card.value = value - 1;
+      /** Decrease a specific card by -1 rank (2 is the min). */
+      decreaseCard(id) {
+        const card = findById(id);
+        if (!card || card.currentRank <= MIN_RANK) return false;
+        const from = card.currentRank;
+        card.currentRank = from - 1;
+        card.modifications.push({ op: "decrease", from, to: card.currentRank });
         return true;
       },
 
-      /** Randomize one card of `value` into `toValue` (a different rank). */
-      randomizeRank(value, toValue) {
-        if (toValue < MIN_RANK || toValue > MAX_RANK || toValue === value) return false;
-        const card = findByValue(value);
-        if (!card) return false;
-        card.value = toValue;
+      /** Randomize a specific card into `toRank` (a different rank). */
+      randomizeCard(id, toRank) {
+        if (toRank < MIN_RANK || toRank > MAX_RANK) return false;
+        const card = findById(id);
+        if (!card || toRank === card.currentRank) return false;
+        const from = card.currentRank;
+        card.currentRank = toRank;
+        card.modifications.push({ op: "randomize", from, to: toRank });
         return true;
       },
 
@@ -1074,7 +1116,7 @@ const UIRenderer = (() => {
     // deck surgery
     surgeryOverlay: document.getElementById("surgeryOverlay"),
     surgeryMsg: document.getElementById("surgeryMsg"),
-    deckComposition: document.getElementById("deckComposition"),
+    deckCards: document.getElementById("deckCards"),
     surgeryOps: document.getElementById("surgeryOps"),
     surgeryConfirm: document.getElementById("surgeryConfirm"),
     surgeryConfirmBtn: document.getElementById("surgeryConfirmBtn"),
@@ -1101,9 +1143,9 @@ const UIRenderer = (() => {
   const pileEls = [];         // cached .pile elements by index
 
   // Deck Surgery selection state (reset each time the screen opens).
-  let surgeryOp = null;       // "increase" | "decrease" | "randomize"
-  let surgeryRank = null;     // selected source rank value
-  let surgeryTarget = null;   // destination rank (pre-rolled for randomize)
+  let surgeryOp = null;         // "increase" | "decrease" | "randomize"
+  let surgerySelectedId = null; // id of the specific card being operated on
+  let surgeryTarget = null;     // destination rank (pre-rolled for randomize)
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -1256,10 +1298,10 @@ const UIRenderer = (() => {
       const b = e.target.closest("[data-op]");
       if (b) chooseSurgeryOp(b.dataset.op);
     });
-    el.deckComposition.addEventListener("click", (e) => {
-      const cell = e.target.closest(".rank-cell");
-      if (cell && cell.classList.contains("selectable")) {
-        chooseSurgeryRank(Number(cell.dataset.value));
+    el.deckCards.addEventListener("click", (e) => {
+      const chip = e.target.closest(".card-chip");
+      if (chip && chip.classList.contains("selectable")) {
+        chooseSurgeryCard(Number(chip.dataset.id));
       }
     });
     el.surgeryConfirmBtn.addEventListener("click", confirmSurgery);
@@ -1491,101 +1533,122 @@ const UIRenderer = (() => {
     startRun();
   }
 
-  /* ---- Deck Surgery (permanent deck evolution between runs) ----
-     A won run unlocks ONE deck operation before the next run starts.
-     The operation edits the persistent campaign deck only; each run
-     deck is a fresh shuffled copy, so changes carry into every later
-     run. Flow: tap operation -> tap rank -> confirm. */
+  /* ---- Deck Surgery (permanent, per-card deck evolution between runs) ----
+     A won run unlocks ONE operation on a SPECIFIC card before the next
+     run starts. Operations edit the persistent campaign deck only; each
+     run deck is a fresh shuffled copy, so a card's evolution carries into
+     every later run. Flow: tap operation -> tap a card -> confirm. */
+  const SUIT_ORDER = {};
+  DeckManager.SUITS.forEach((s, i) => { SUIT_ORDER[s.symbol] = i; });
+
   function rankLabel(value) {
     const r = DeckManager.RANKS.find(r => r.value === value);
     return r ? r.label : String(value);
   }
-
-  function rankValidForOp(value, count, op) {
-    if (count <= 0) return false;                       // need an instance
-    if (op === "increase") return value < CampaignState.MAX_RANK;  // Ace is max
-    if (op === "decrease") return value > CampaignState.MIN_RANK;  // 2 is min
-    return true;                                        // randomize
+  function suitIsRed(suit) {
+    const s = DeckManager.SUITS.find(s => s.symbol === suit);
+    return !!(s && s.red);
+  }
+  function cardValidForOp(card, op) {
+    if (op === "increase") return card.currentRank < CampaignState.MAX_RANK; // Ace max
+    if (op === "decrease") return card.currentRank > CampaignState.MIN_RANK; // 2 min
+    return true;                                                             // randomize
   }
 
   function showDeckSurgery() {
     // Phase: -> Deck Surgery. Exactly one overlay is visible at a time.
-    surgeryOp = null; surgeryRank = null; surgeryTarget = null;
+    surgeryOp = null; surgerySelectedId = null; surgeryTarget = null;
     hideOverlay();
     el.surgeryConfirm.classList.add("hidden");
     el.surgeryOps.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
-    el.surgeryMsg.textContent = "Choose one operation, then a rank.";
-    renderComposition();
+    el.surgeryMsg.textContent = "Choose one operation, then a card.";
+    renderDeckCards();
     el.surgeryOverlay.classList.remove("hidden");
   }
 
-  function renderComposition() {
-    const counts = campaign.composition();
-    el.deckComposition.innerHTML = "";
-    DeckManager.RANKS.forEach(r => {
-      const count = counts[r.value] || 0;
-      const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = "rank-cell";
-      cell.dataset.value = r.value;
-      cell.innerHTML =
-        '<span class="rc-rank">' + r.label + '</span>' +
-        '<span class="rc-count">×' + count + '</span>';
+  function renderDeckCards() {
+    const cards = campaign.getCards().sort((a, b) =>
+      (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]) ||
+      (a.currentRank - b.currentRank) ||
+      (a.id - b.id));
+
+    el.deckCards.innerHTML = "";
+    cards.forEach(card => {
+      const net = card.currentRank - card.originalRank;
+      const modified = card.modifications.length > 0;
+      let markClass = "", markChar = "";
+      if (net > 0)       { markClass = "up";   markChar = "+"; }
+      else if (net < 0)  { markClass = "down"; markChar = "−"; }
+      else if (modified) { markClass = "rand"; markChar = "~"; } // back to start
+
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "card-chip" + (modified ? " modified" : "") + (markClass ? " " + markClass : "");
+      chip.dataset.id = card.id;
+      chip.innerHTML =
+        '<span class="cc-main' + (suitIsRed(card.suit) ? " red" : "") + '">' +
+          rankLabel(card.currentRank) + '<span class="cc-suit">' + card.suit + '</span>' +
+        '</span>' +
+        (modified ? '<span class="cc-orig">' + rankLabel(card.originalRank) + '</span>' : '') +
+        (markChar ? '<span class="cc-mark">' + markChar + '</span>' : '');
+
       if (surgeryOp) {
-        const ok = rankValidForOp(r.value, count, surgeryOp);
-        cell.classList.toggle("selectable", ok);
-        cell.classList.toggle("disabled", !ok);
-        if (surgeryRank === r.value) cell.classList.add("selected");
+        const ok = cardValidForOp(card, surgeryOp);
+        chip.classList.toggle("selectable", ok);
+        chip.classList.toggle("disabled", !ok);
+        if (surgerySelectedId === card.id) chip.classList.add("selected");
       }
-      el.deckComposition.appendChild(cell);
+      el.deckCards.appendChild(chip);
     });
   }
 
   function chooseSurgeryOp(op) {
     if (op === "skip") { closeSurgery(); advanceAndStart(); return; }
-    surgeryOp = op; surgeryRank = null; surgeryTarget = null;
+    surgeryOp = op; surgerySelectedId = null; surgeryTarget = null;
     el.surgeryConfirm.classList.add("hidden");
     el.surgeryOps.querySelectorAll(".btn").forEach(b =>
       b.classList.toggle("active", b.dataset.op === op));
     const verb = op === "increase" ? "increase (+1)"
                : op === "decrease" ? "decrease (−1)" : "randomize";
-    el.surgeryMsg.textContent = "Tap a rank to " + verb + ".";
-    renderComposition();
+    el.surgeryMsg.textContent = "Tap a card to " + verb + ".";
+    renderDeckCards();
   }
 
-  function chooseSurgeryRank(value) {
-    const count = campaign.composition()[value] || 0;
-    if (!surgeryOp || !rankValidForOp(value, count, surgeryOp)) return; // guard
-    surgeryRank = value;
+  function chooseSurgeryCard(id) {
+    const card = campaign.getCards().find(c => c.id === id);
+    if (!card || !surgeryOp || !cardValidForOp(card, surgeryOp)) return; // guard
+    surgerySelectedId = id;
+    const cur = card.currentRank;
+    const suit = card.suit;
     if (surgeryOp === "increase") {
-      surgeryTarget = value + 1;
+      surgeryTarget = cur + 1;
       el.surgeryMsg.textContent =
-        "Increase one " + rankLabel(value) + " → " + rankLabel(surgeryTarget) + "?";
+        "Increase " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
     } else if (surgeryOp === "decrease") {
-      surgeryTarget = value - 1;
+      surgeryTarget = cur - 1;
       el.surgeryMsg.textContent =
-        "Decrease one " + rankLabel(value) + " → " + rankLabel(surgeryTarget) + "?";
+        "Decrease " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
     } else { // randomize -> pre-roll a different destination rank
-      const others = DeckManager.RANKS.map(r => r.value).filter(v => v !== value);
+      const others = DeckManager.RANKS.map(r => r.value).filter(v => v !== cur);
       surgeryTarget = others[Math.floor(Math.random() * others.length)];
       el.surgeryMsg.textContent =
-        "Randomize one " + rankLabel(value) + " → " + rankLabel(surgeryTarget) + "?";
+        "Randomize " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
     }
     el.surgeryConfirm.classList.remove("hidden");
-    renderComposition();
+    renderDeckCards();
   }
 
   function cancelSurgerySelection() {
-    surgeryRank = null; surgeryTarget = null;
+    surgerySelectedId = null; surgeryTarget = null;
     el.surgeryConfirm.classList.add("hidden");
     if (surgeryOp) chooseSurgeryOp(surgeryOp); else showDeckSurgery();
   }
 
   function confirmSurgery() {
-    // Apply the validated operation to the PERSISTENT campaign deck.
-    if (surgeryOp === "increase") campaign.increaseRank(surgeryRank);
-    else if (surgeryOp === "decrease") campaign.decreaseRank(surgeryRank);
-    else if (surgeryOp === "randomize") campaign.randomizeRank(surgeryRank, surgeryTarget);
+    // Apply the validated operation to the SPECIFIC persistent card.
+    if (surgeryOp === "increase") campaign.increaseCard(surgerySelectedId);
+    else if (surgeryOp === "decrease") campaign.decreaseCard(surgerySelectedId);
+    else if (surgeryOp === "randomize") campaign.randomizeCard(surgerySelectedId, surgeryTarget);
     closeSurgery();
     advanceAndStart();
   }
