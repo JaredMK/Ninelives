@@ -450,8 +450,31 @@
   }
 
   /* Coins earned/total line on the run-complete overlay. */
-  .overlay-coins { font-size: 15px; font-weight: 700; color: var(--accent); margin: 2px 0 16px; }
+  /* Itemized coin breakdown on the run-complete / campaign screens. */
+  .overlay-coins {
+    width: min(82vw, 320px);
+    margin: 2px auto 16px;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+    font-size: 13px;
+  }
   .overlay-coins.hidden { display: none; }
+  .ocoins-head {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 700; margin-bottom: 6px;
+  }
+  .ocoins-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .ocoins-row .lbl { color: var(--text); }
+  .ocoins-row .dim { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .ocoins-row .val { font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .ocoins-sum {
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    margin-top: 4px; padding-top: 5px;
+  }
+  .ocoins-sum .lbl { font-weight: 800; }
+  .ocoins-balance { text-align: right; margin-top: 6px; font-size: 12px; color: var(--muted); }
 
   /* In-run sticker tray — owned stickers; tap to arm, then tap a pile. */
   .sticker-tray {
@@ -484,7 +507,7 @@
     display: flex;
     gap: 2px;
     flex-wrap: wrap;
-    max-width: 80%;
+    max-width: 68%;          /* leave the top-right corner for the count badge */
     z-index: 3;
     pointer-events: none;
   }
@@ -493,6 +516,20 @@
     line-height: 1;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
   }
+  /* Card-count badge — top-RIGHT corner, opposite the sticker badges. */
+  .pile-count {
+    position: absolute;
+    top: 3px; right: 3px;
+    min-width: 15px; height: 15px;
+    padding: 0 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; line-height: 1;
+    color: #fff; background: rgba(6, 10, 22, 0.66);
+    border-radius: 8px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .pile.dead .pile-count { display: none; }   /* dead piles show the ✕, not a count */
   /* A pile is a valid sticker target while a sticker is armed. */
   .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
 
@@ -821,7 +858,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.9.0";
+const APP_VERSION = "v0.9.1";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -857,18 +894,31 @@ const Economy = (() => {
     PER_MIN_ALIVE_PILE: 5,  // × (fewest cards among alive piles)
     PER_ALIVE_PILE: 2,      // × (number of alive piles)
   };
-  /** stats: { won, aliveCount, minAlivePileCards }. Returns coins earned. */
-  function computeRunPayout(stats, cfg = COIN_CONFIG) {
-    if (!stats || !stats.won) return 0;
-    const alive = stats.aliveCount || 0;
+  /** stats: { won, aliveCount, minAlivePileCards }. Returns the itemized
+      payout so the UI can show where coins came from without recomputing.
+      computeRunPayout() is just breakdown().total — one source of truth. */
+  function breakdown(stats, cfg = COIN_CONFIG) {
+    const won = !!(stats && stats.won);
+    const alivePiles = won ? (stats.aliveCount || 0) : 0;
     // A win can occur with 0 alive piles (deck empties as the last pile
     // dies), so the "min pile" term only counts when piles remain.
-    const minCards = alive > 0 ? (stats.minAlivePileCards || 0) : 0;
-    return cfg.WIN_BONUS
-      + minCards * cfg.PER_MIN_ALIVE_PILE
-      + alive * cfg.PER_ALIVE_PILE;
+    const minCards = alivePiles > 0 ? (stats.minAlivePileCards || 0) : 0;
+    const winBonus = won ? cfg.WIN_BONUS : 0;
+    const minPileCoins = minCards * cfg.PER_MIN_ALIVE_PILE;
+    const alivePileCoins = alivePiles * cfg.PER_ALIVE_PILE;
+    return {
+      won,
+      winBonus,
+      minCards, perMin: cfg.PER_MIN_ALIVE_PILE, minPileCoins,
+      alivePiles, perAlive: cfg.PER_ALIVE_PILE, alivePileCoins,
+      total: winBonus + minPileCoins + alivePileCoins,
+    };
   }
-  return { COIN_CONFIG, computeRunPayout };
+  /** Coins earned (the total of breakdown()). */
+  function computeRunPayout(stats, cfg = COIN_CONFIG) {
+    return breakdown(stats, cfg).total;
+  }
+  return { COIN_CONFIG, computeRunPayout, breakdown };
 })();
 
 /* ----------------------------------------------------------------
@@ -1681,11 +1731,25 @@ const UIRenderer = (() => {
     card.appendChild(deadMark);
     pile.appendChild(card);
 
-    // Sticker badges (hearts / shield / rank markers) for the top card.
+    // Sticker badges (hearts / shield / rank markers) — top-LEFT corner.
     const badges = document.createElement("div");
     badges.className = "pile-badges";
     pile.appendChild(badges);
+
+    // Card-count badge (how many cards are stacked here) — top-RIGHT corner,
+    // opposite the sticker badges so they never collide.
+    const count = document.createElement("div");
+    count.className = "pile-count";
+    pile.appendChild(count);
     return pile;
+  }
+
+  /* Show how many cards are stacked on a pile. Reads existing board state
+     (piles[i].cards.length — the same value aliveCardCounts/the economy use);
+     computes nothing. Hidden on dead piles. */
+  function renderPileCount(pileEl, count) {
+    const badge = pileEl.querySelector(".pile-count");
+    if (badge) badge.textContent = count;
   }
 
   /* Render the sticker badges for a pile's top card: a heart per remaining
@@ -1723,6 +1787,7 @@ const UIRenderer = (() => {
       const pileEl = pileEls[i];
       const top = board.top(i);
       if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+      renderPileCount(pileEl, board.piles[i].cards.length);
       pileEl.classList.toggle("dead", !board.isActive(i));
     }
     renderHud(board, deck);
@@ -1964,6 +2029,7 @@ const UIRenderer = (() => {
         // Show the drawn card landing on the pile (its new top, or final face).
         paintFront(pileEl, payload.drawn);
         renderStickerBadges(pileEl, payload.drawn);
+        renderPileCount(pileEl, payload.board.piles[payload.index].cards.length);
         renderHud(payload.board, payload.deck);
 
         // Feedback flash.
@@ -1988,6 +2054,7 @@ const UIRenderer = (() => {
         // spent (run-local), and the drawn card went back into the deck.
         const pileEl = pileEls[payload.index];
         renderStickerBadges(pileEl, payload.current);   // a heart is now 💔
+        renderPileCount(pileEl, payload.board.piles[payload.index].cards.length);
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
@@ -2012,6 +2079,27 @@ const UIRenderer = (() => {
      One overlay drives every non-active phase (start, run complete,
      campaign complete). Exactly one phase is shown at a time — the
      board is only interactive while the overlay is hidden. */
+  /* Format Economy's itemized payout for display. Pure formatting — every
+     number comes from opts.coins.breakdown (the Economy module's output);
+     the view multiplies/sums nothing. */
+  function coinBreakdownHtml(coins) {
+    const b = coins.breakdown;
+    if (!b) return '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>";
+    const row = (label, detail, value, extra) =>
+      '<div class="ocoins-row' + (extra ? " " + extra : "") + '">' +
+        '<span class="lbl">' + label + (detail ? ' <span class="dim">' + detail + "</span>" : "") + "</span>" +
+        '<span class="val">' + value + "</span>" +
+      "</div>";
+    return (
+      '<div class="ocoins-head">🪙 Coins earned</div>' +
+      row("Win bonus", "", "+" + b.winBonus) +
+      row("Smallest alive pile", "(" + b.minCards + " × " + b.perMin + ")", "+" + b.minPileCoins) +
+      row("Alive piles", "(" + b.alivePiles + " × " + b.perAlive + ")", "+" + b.alivePileCoins) +
+      row("Total", "", "+" + b.total, "ocoins-sum") +
+      '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
+    );
+  }
+
   function showOverlay(opts) {
     el.overlay.classList.remove("hidden", "win", "lose");
     if (opts.kind) el.overlay.classList.add(opts.kind);
@@ -2038,11 +2126,7 @@ const UIRenderer = (() => {
     el.campaignSummary.classList.toggle("hidden", !opts.campStats);
 
     // Coins earned this run + running balance (shown on run-complete).
-    if (opts.coins) {
-      el.overlayCoins.textContent =
-        (opts.coins.earned > 0 ? "+" + opts.coins.earned + " 🪙 earned · " : "") +
-        "🪙 " + opts.coins.balance + " total";
-    }
+    if (opts.coins) el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins);
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
 
     el.playBtn.textContent = opts.btnLabel;
@@ -2207,15 +2291,16 @@ const UIRenderer = (() => {
     }
 
     // WIN: fold into campaign totals, award coins (pure formula), and either
-    // finish the campaign (Stage 3 Run 3) or head to the store.
+    // finish the campaign (Stage 3 Run 3) or head to the store. The itemized
+    // breakdown comes straight from Economy — the view only formats it.
     campaign.recordRun(payload.run);
-    const earned = Economy.computeRunPayout({
+    const payout = Economy.breakdown({
       won: true,
       aliveCount,
       minAlivePileCards: board.minAliveCards(),
     });
-    if (earned > 0) campaign.addCoins(earned);
-    const coins = { earned, balance: campaign.getCoins() };
+    if (payout.total > 0) campaign.addCoins(payout.total);
+    const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
     const campStats = {
       totalCorrect: campaign.totalCorrectGuesses,
       runsDone: campaign.runsCompleted,
