@@ -144,9 +144,11 @@
     position: relative;
     perspective: 700px;
     cursor: pointer;
-    /* --row-cols (set per row, min 3) controls how many fit across,
-       keeping a square cell identical to the old 3×3 grid. */
-    width: calc((100% - (var(--row-cols, 3) - 1) * var(--gap)) / var(--row-cols, 3));
+    /* Every pile is the SAME size in every row/run: width is based on
+       --cols (set to the campaign's widest row), so a full row fills the
+       board and narrower rows just center with empty space at the sides.
+       aspect-ratio keeps them square. */
+    width: calc((100% - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
     aspect-ratio: 1 / 1;
   }
 
@@ -1793,18 +1795,25 @@ const UIRenderer = (() => {
     engine.start();
   }
 
+  /* Widest row across every run — drives the uniform pile size so a pile
+     is the same square in every row and every run (derived from the
+     layout config; doesn't modify it). */
+  const CAMPAIGN_MAX_COLS = Math.max(
+    ...CampaignState.RUN_LAYOUTS.map(rows => Math.max(...rows))
+  );
+
   /* Build the board as rows of piles from a layout (e.g. [3,4,3]). Pile
      indices stay sequential in reading order, matching engine pile ids.
-     A row sizes its cards to max(count, 3) columns, so only a 4+ row
-     shrinks while 2- and 3-card rows keep the standard size. */
+     All piles share one size (CAMPAIGN_MAX_COLS); rows narrower than that
+     center with empty space at the sides rather than stretching. */
   function buildBoard(rows, dealing = true) {
     el.board.innerHTML = "";
+    el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     pileEls.length = 0;
     let index = 0;
     rows.forEach(count => {
       const rowEl = document.createElement("div");
       rowEl.className = "board-row";
-      rowEl.style.setProperty("--row-cols", Math.max(count, 3));
       for (let k = 0; k < count; k++) {
         const pe = buildPile(index);
         if (!dealing) pe.classList.remove("dealing");
