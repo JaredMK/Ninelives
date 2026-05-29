@@ -45,33 +45,49 @@ Start → Run 1 → Run Complete → Run 2 → Run Complete → Run 3 → Campai
   between runs except campaign-level state (the persistent deck, total
   correct guesses, runs completed).
 
-## Deck Surgery
+## Coins, Store & Stickers
 
-After **winning** a run (and before the next one starts), you get a **Deck
-Surgery** screen to permanently evolve ONE specific card in the campaign deck:
+A Balatro-style economy: **earn coins → buy stickers in the store between
+rounds → apply them to cards during the next round.**
 
-| Operation | Effect | Limit |
+**Coins** are awarded on a **win** only (first-draft formula; all coefficients
+are config constants in the `Economy` module):
+
+```
+coins = WIN_BONUS(5)
+      + (fewest cards among alive piles) × PER_MIN_ALIVE_PILE(5)
+      + (number of alive piles)         × PER_ALIVE_PILE(2)
+```
+
+**Store** (between every round): spend coins on stickers, which go into your
+campaign inventory. **Stickers** attach to a *specific* card by its persistent
+id and ride with that card for the rest of the campaign — they belong to the
+card, not the pile position. Starter types:
+
+| Sticker | Effect | Blocked when |
 | --- | --- | --- |
-| **Increase** | The chosen card goes up +1 rank | Ace (A) is the max |
-| **Decrease** | The chosen card goes down −1 rank | 2 is the min |
-| **Randomize** | The chosen card becomes a different random rank | — |
+| **+1 Rank** | Permanently raises that card's rank by 1 | card is an Ace |
+| **−1 Rank** | Permanently lowers that card's rank by 1 | card is a 2 |
+| **Extra Heart** | The card survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks". Refreshes each run. | — |
+| **Tie-Safe** | The card survives a tie on *any* guess (not just Same) | already has Tie-Safe |
+
+**Applying** happens *in-round*: owned stickers appear in a tray; tap one to
+arm it, then tap a pile to apply it to that pile's **face-up top card**. Rank
+stickers take effect immediately; behavior stickers (Extra Heart / Tie-Safe)
+are read by the engine on the next guess. A card holds at most
+`STICKER_SLOTS_PER_CARD` (3) stickers; rank stickers stack toward the Ace/2
+caps and are blocked at the cap so none are wasted.
 
 Each card has a **persistent identity**: a stable id and suit, the rank it
-*started* as (`originalRank`), the rank it is *now* (`currentRank`), and a
-`modifications` history. Surgery edits a specific card instance — other cards
-of the same rank are untouched — and the change carries into every future run.
-
-Flow: **tap an operation → tap a card → confirm** (or **Skip**). The screen
-shows the actual deck as individual cards. Modified cards get a lightweight
-ring and a small **+ / − / ~** marker, plus their struck-through original
-rank — invalid choices for the chosen operation are greyed out and prevented.
-The deck stays 52 cards, so the game keeps its uncertainty; only individual
-ranks shift.
-
-The base campaign deck and the active run deck are kept separate: each run
-plays a freshly shuffled **copy** (materialized from each card's
-`currentRank`), so playing never mutates the persistent deck, and surgery
-never touches the live run.
+*started* as (`originalRank`), the rank it is *now* (`currentRank`), a
+`modifications` history, and its `stickers`. Edits target a specific card
+instance — other cards of the same rank are untouched — and carry into every
+future run. The base campaign deck and the active run deck are kept separate:
+each run plays a freshly shuffled **copy** (materialized from each card's
+`currentRank`, with behavior stickers projected onto run-local fields), so
+playing never mutates the persistent deck. The deck stays 52 cards and draw
+order is never revealed — Extra Heart's shuffle-back reinserts at a random
+position, so uncertainty is preserved.
 
 ## Deck inspection
 
@@ -98,7 +114,9 @@ The engine never touches the DOM; the renderer never mutates game state.
 | `DeckManager` | The card pool: build, seeded shuffle, draw, remaining count. |
 | `BoardState` | The nine piles and their alive/dead status. |
 | `GameEngine` | The rules + a per-run state (phase, seed, correct/total guesses). Emits events. |
-| `CampaignState` | Campaign-level only: the persistent base deck (cards with identity + modification history), current run index, cross-run totals, and the per-card Deck Surgery operations. Persists between runs. |
+| `CampaignState` | Campaign-level only: the persistent base deck (cards with identity + modification history + stickers), current run index, cross-run totals, coins, and the sticker inventory + application. Persists between runs. |
+| `Economy` | Pure: the win-only coin payout formula (config coefficients, no DOM, no state). |
+| `StickerTypes` | Data-driven sticker registry (id, label, kind, price, behavior) so sticker behavior isn't hardcoded inline. |
 | `DeckStats` | Pure: turns an order-free rank-count map into a draw-probability breakdown. |
 | `DeckInspector` | Self-contained UI: the tap modal + hold quick-peek and their gesture handling. Reads stats via a callback; never touches gameplay. |
 | `UIRenderer` | DOM only: renders from events, drives the phase screens, captures input. |
@@ -110,8 +128,8 @@ overlay is hidden):
 
 - **Start** — campaign intro.
 - **Active run** — normal play.
-- **Run Complete** — per-run + campaign stats, Continue.
-- **Deck Surgery** — after a won run, one permanent deck edit before the next run.
+- **Run Complete** — per-run + campaign stats, coins earned, Continue.
+- **Store** — between rounds: spend coins on stickers, then Start Round.
 - **Campaign Complete** — final totals, New Campaign.
 
 ### Seeded shuffle

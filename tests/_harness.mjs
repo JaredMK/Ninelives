@@ -66,7 +66,9 @@ export function loadGame() {
 
   const factory = new Function(
     ...Object.keys(sandbox),
-    code + "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState };"
+    code +
+      "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState," +
+      " Economy, StickerTypes, STICKER_SLOTS_PER_CARD };"
   );
   return factory(...Object.values(sandbox));
 }

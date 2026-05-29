@@ -408,88 +408,93 @@
   }
 
   /* ============================================================
-     DECK SURGERY
+     STORE + STICKERS
      ============================================================ */
-  .overlay.surgery {
-    justify-content: flex-start;
-    overflow-y: auto;
-    gap: 2px;
-  }
-  .overlay.surgery h2 { font-size: 26px; margin-top: 8px; }
-  .overlay.surgery .big { font-size: 44px; margin-bottom: 2px; }
+  .overlay.store { justify-content: flex-start; overflow-y: auto; gap: 4px; }
+  .overlay.store h2 { font-size: 26px; margin-top: 8px; }
+  .overlay.store .big { font-size: 44px; margin-bottom: 2px; }
 
-  /* The campaign deck, shown as individual cards (identity preserved). */
-  .deck-cards {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 5px;
-    width: min(96vw, 420px);
-    margin: 6px 0 12px;
-  }
-  .card-chip {
-    position: relative;
-    background: var(--card-face);
-    color: var(--card-ink);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 8px;
-    padding: 8px 2px;
-    min-height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: default;
-    transition: transform 0.08s ease;
-  }
-  .card-chip .cc-main { font-size: 15px; font-weight: 800; display: inline-flex; align-items: baseline; gap: 1px; }
-  .card-chip .cc-main.red { color: var(--card-red); }
-  .card-chip .cc-suit { font-size: 11px; }
-  /* original rank (small, struck) — only on modified cards */
-  .card-chip .cc-orig {
-    position: absolute; top: 2px; left: 4px;
-    font-size: 8px; font-weight: 700; color: #9aa0b5; text-decoration: line-through;
-  }
-  /* subtle +/−/~ marker — only on modified cards */
-  .card-chip .cc-mark {
-    position: absolute; top: 1px; right: 3px;
-    font-size: 11px; font-weight: 900; line-height: 1;
-  }
-  /* lightweight ring distinguishes modified cards by direction of change */
-  .card-chip.up   { box-shadow: inset 0 0 0 2px var(--good); }
-  .card-chip.up   .cc-mark { color: var(--good); }
-  .card-chip.down { box-shadow: inset 0 0 0 2px var(--bad); }
-  .card-chip.down .cc-mark { color: var(--bad); }
-  .card-chip.rand { box-shadow: inset 0 0 0 2px var(--accent-2); }
-  .card-chip.rand .cc-mark { color: var(--accent-2); }
-  .card-chip.selectable { cursor: pointer; }
-  .card-chip.selectable:active { transform: scale(0.92); }
-  .card-chip.selected { outline: 3px solid var(--accent); outline-offset: -1px; }
-  .card-chip.disabled { opacity: 0.32; }
+  .store-coins { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
+  .store-coins b { color: var(--accent); }
 
-  .surgery-ops {
+  .store-items {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    width: min(94vw, 380px);
-    margin-bottom: 14px;
-  }
-  .surgery-ops .btn { padding: 12px 8px; font-size: 14px; }
-  .surgery-ops .btn.active { outline: 3px solid #06203a; outline-offset: -3px; }
-  .surgery-op { background: linear-gradient(180deg, #8fd0ff, var(--accent-2)); }
-  .surgery-skip { background: var(--panel); color: var(--text); }
-
-  .surgery-confirm {
-    display: flex;
     gap: 10px;
-    align-items: center;
-    justify-content: center;
-    width: min(96vw, 420px);
-    position: sticky;
-    bottom: 0;
-    padding: 10px 0;
-    background: linear-gradient(to top, rgba(6, 10, 22, 0.96) 70%, rgba(6, 10, 22, 0));
+    width: min(94vw, 380px);
+    margin-bottom: 18px;
   }
-  .surgery-confirm.hidden { display: none; }
-  .surgery-cancel { background: var(--panel); color: var(--text); }
+  .store-item {
+    background: var(--panel);
+    color: var(--text);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    position: relative;
+    transition: transform 0.08s ease;
+  }
+  .store-item:active { transform: scale(0.95); }
+  .store-item.disabled { opacity: 0.4; pointer-events: none; }
+  .store-item .si-icon { font-size: 22px; }
+  .store-item .si-label { font-size: 13px; font-weight: 700; }
+  .store-item .si-price { font-size: 12px; color: var(--accent); font-weight: 800; }
+  .store-item .si-owned {
+    position: absolute; top: 6px; right: 8px;
+    font-size: 11px; font-weight: 800; color: var(--accent-2);
+  }
+
+  /* Coins earned/total line on the run-complete overlay. */
+  .overlay-coins { font-size: 15px; font-weight: 700; color: var(--accent); margin: 2px 0 16px; }
+  .overlay-coins.hidden { display: none; }
+
+  /* In-round sticker tray — owned stickers; tap to arm, then tap a pile. */
+  .sticker-tray {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 4px 0 2px;
+  }
+  .sticker-tray.hidden { display: none; }
+  .tray-sticker {
+    background: var(--panel);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+  .tray-sticker .ts-count { font-size: 12px; font-weight: 800; color: var(--accent-2); }
+  .tray-sticker.armed { border-color: var(--accent); transform: scale(1.05); }
+
+  /* Sticker badges shown on a pile's top card. */
+  .pile-badges {
+    position: absolute;
+    top: 3px; left: 3px;
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    max-width: 80%;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .pile-badges .badge {
+    font-size: 11px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  }
+  /* A pile is a valid sticker target while a sticker is armed. */
+  .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
 
   /* ============================================================
      DECK INSPECTION (tap = full breakdown, hold = quick peek)
@@ -685,12 +690,18 @@
     <div class="stat" title="Piles still alive">
       <span class="dot"></span> Alive <b id="aliveCount">9</b>
     </div>
+    <div class="stat" title="Coins — earned on a win, spent in the store">
+      🪙 Coins <b id="coinCount">0</b>
+    </div>
   </div>
 
   <main>
     <div class="board" id="board" aria-label="3 by 3 grid of card piles"></div>
 
     <div class="hint" id="hint">Tap a pile to begin.</div>
+
+    <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
+    <div class="sticker-tray hidden" id="stickerTray"></div>
 
     <div class="actions hidden" id="actions">
       <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next &gt; current</span></button>
@@ -755,25 +766,18 @@
         </div>
       </div>
     </div>
+    <div class="overlay-coins hidden" id="overlayCoins"></div>
     <button class="play-btn" id="playBtn">PLAY</button>
   </div>
 
-  <!-- Deck Surgery overlay — shown after a won run, before the next run -->
-  <div class="overlay surgery hidden" id="surgeryOverlay">
-    <div class="big">🩺</div>
-    <h2>DECK SURGERY</h2>
-    <p id="surgeryMsg">Choose one operation, then a card.</p>
-    <div class="surgery-ops" id="surgeryOps">
-      <button class="btn surgery-op" data-op="increase" type="button">Increase ▲<span class="sub">+1 rank</span></button>
-      <button class="btn surgery-op" data-op="decrease" type="button">Decrease ▼<span class="sub">−1 rank</span></button>
-      <button class="btn surgery-op" data-op="randomize" type="button">Randomize ⤮<span class="sub">new rank</span></button>
-      <button class="btn surgery-skip" data-op="skip" type="button">Skip<span class="sub">no change</span></button>
-    </div>
-    <div class="deck-cards" id="deckCards"></div>
-    <div class="surgery-confirm hidden" id="surgeryConfirm">
-      <button class="btn surgery-cancel" id="surgeryCancelBtn" type="button">Cancel</button>
-      <button class="play-btn" id="surgeryConfirmBtn" type="button">CONFIRM</button>
-    </div>
+  <!-- Store overlay — shown between rounds; spend coins on stickers -->
+  <div class="overlay store hidden" id="storeOverlay">
+    <div class="big">🛒</div>
+    <h2>STORE</h2>
+    <p id="storeMsg">Buy stickers now — apply them to cards during the next round.</p>
+    <div class="store-coins">🪙 <b id="storeCoins">0</b></div>
+    <div class="store-items" id="storeItems"></div>
+    <button class="play-btn" id="storeStartBtn" type="button">START ROUND</button>
   </div>
 
   <!-- Deck inspection: full breakdown modal (tap) -->
@@ -817,7 +821,55 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.7.1";
+const APP_VERSION = "v0.8.0";
+
+/* ----------------------------------------------------------------
+   Sticker economy — config + type registry (data-driven, no inline
+   behavior). Stickers attach to a SPECIFIC persistent card by id and
+   ride with it for the rest of the campaign.
+     kind "rank"     -> permanent rank change (also records a modification)
+     kind "behavior" -> the engine reads a flag off the card at resolve time
+---------------------------------------------------------------- */
+const STICKER_SLOTS_PER_CARD = 3;   // max stickers a single card can carry
+
+const StickerTypes = (() => {
+  const TYPES = {
+    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, price: 6 },
+    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, price: 6 },
+    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", price: 8 },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    price: 10 },
+  };
+  const ORDER = ["rankUp", "rankDown", "extraHeart", "tieSafe"];
+  return {
+    ids: ORDER,
+    get(id) { return TYPES[id] || null; },
+    all() { return ORDER.map(id => TYPES[id]); },
+  };
+})();
+
+/* ----------------------------------------------------------------
+   Economy — pure coin payout (no DOM, no state). Coins are awarded on
+   a WIN only; every coefficient is a named config constant.
+---------------------------------------------------------------- */
+const Economy = (() => {
+  const COIN_CONFIG = {
+    WIN_BONUS: 5,           // flat reward for clearing a run
+    PER_MIN_ALIVE_PILE: 5,  // × (fewest cards among alive piles)
+    PER_ALIVE_PILE: 2,      // × (number of alive piles)
+  };
+  /** stats: { won, aliveCount, minAlivePileCards }. Returns coins earned. */
+  function computeRunPayout(stats, cfg = COIN_CONFIG) {
+    if (!stats || !stats.won) return 0;
+    const alive = stats.aliveCount || 0;
+    // A win can occur with 0 alive piles (deck empties as the last pile
+    // dies), so the "min pile" term only counts when piles remain.
+    const minCards = alive > 0 ? (stats.minAlivePileCards || 0) : 0;
+    return cfg.WIN_BONUS
+      + minCards * cfg.PER_MIN_ALIVE_PILE
+      + alive * cfg.PER_ALIVE_PILE;
+  }
+  return { COIN_CONFIG, computeRunPayout };
+})();
 
 /* ----------------------------------------------------------------
    Seeded RNG
@@ -876,6 +928,7 @@ const DeckManager = (() => {
           originalRank: r.value,
           currentRank: r.value,
           modifications: [],
+          stickers: [],          // persistent upgrades; ride with this id
         });
       }
     }
@@ -883,10 +936,19 @@ const DeckManager = (() => {
   }
 
   // Materialize a playable card from a persistent card (uses currentRank).
+  // Behavior stickers are projected onto run-local fields the engine reads:
+  //   heartsRemaining (one per Extra Heart) and tieSafe. These reset on every
+  //   deal — so an Extra Heart spent mid-run "refreshes" next run.
   function toCard(card) {
     const r = RANKS.find(r => r.value === card.currentRank) || RANKS[0];
     const s = SUITS.find(s => s.symbol === card.suit) || SUITS[0];
-    return { id: card.id, label: r.label, value: r.value, suit: s.symbol, red: s.red };
+    const stickers = card.stickers || [];
+    return {
+      id: card.id, label: r.label, value: r.value, suit: s.symbol, red: s.red,
+      stickers: stickers.map(x => ({ ...x })),   // for rendering badges
+      heartsRemaining: stickers.filter(x => x.type === "extraHeart").length,
+      tieSafe: stickers.some(x => x.type === "tieSafe"),
+    };
   }
 
   // Fisher–Yates shuffle (in place). Accepts a seeded rng so runs can
@@ -903,7 +965,10 @@ const DeckManager = (() => {
   function cardForValue(value) {
     const r = RANKS.find(r => r.value === value) || RANKS[0];
     const s = SUITS[0];
-    return { id: -value, label: r.label, value: r.value, suit: s.symbol, red: s.red };
+    return {
+      id: -value, label: r.label, value: r.value, suit: s.symbol, red: s.red,
+      stickers: [], heartsRemaining: 0, tieSafe: false,
+    };
   }
 
   // Create a run deck from a list of base-deck specs. The specs are
@@ -925,6 +990,15 @@ const DeckManager = (() => {
       },
       /** Look at the next n cards without drawing them. */
       peek(n = 1) { return cards.slice(0, n); },
+      /** Shuffle a (previously drawn) card back into the deck at a random
+          position, using the seeded rng. Used by Extra Heart: the card you
+          guessed wrong on goes back into the deck, so you survive without
+          changing the deck's composition or revealing its order. */
+      returnCard(card) {
+        if (!card) return;
+        const i = Math.floor(rng() * (cards.length + 1));
+        cards.splice(i, 0, card);
+      },
       // Exposed for future deck-modification hooks (see HOOKS).
       _peekAll() { return cards.slice(); },
       _inject(extraCards) { cards = shuffle(cards.concat(extraCards), rng); },
@@ -994,6 +1068,13 @@ const BoardState = (() => {
       kill(index) { piles[index].dead = true; },
       aliveCount() { return piles.filter(p => !p.dead).length; },
       anyAlive() { return piles.some(p => !p.dead); },
+      /** Card counts of the still-alive piles (for the coin payout). */
+      aliveCardCounts() { return piles.filter(p => !p.dead).map(p => p.cards.length); },
+      /** Fewest cards among alive piles (0 if none alive). */
+      minAliveCards() {
+        const counts = piles.filter(p => !p.dead).map(p => p.cards.length);
+        return counts.length ? Math.min(...counts) : 0;
+      },
     };
   }
 
@@ -1057,23 +1138,34 @@ const GameEngine = (() => {
       const drawn = deck.draw();
 
       // Strict comparisons: an equal rank only wins on a "same" guess.
-      const correct =
+      const isTie = drawn.value === current.value;
+      let correct =
         guess === "higher" ? drawn.value > current.value :
         guess === "lower"  ? drawn.value < current.value :
                              drawn.value === current.value; // "same"
+      // Tie-Safe sticker: a tie counts as safe on ANY guess for this card.
+      if (isTie && current.tieSafe) correct = true;
 
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
 
       if (correct) {
         board.push(index, drawn);
+        emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
+      } else if (current.heartsRemaining > 0) {
+        // Extra Heart: break one heart (run-local — refreshes next run), the
+        // pile survives, and the wrongly-drawn card is shuffled back into the
+        // draw deck. The stickered card stays face-up; deck composition is
+        // unchanged. The drawn card is NOT pushed and the pile is NOT killed.
+        current.heartsRemaining -= 1;
+        deck.returnCard(drawn);
+        emit("heart-broken", { index, guess, current, drawn, board, deck, run });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
         board.kill(index);
+        emit("resolved", { index, guess, current, drawn, correct: false, board, deck, run });
       }
-
-      emit("resolved", { index, guess, current, drawn, correct, board, deck, run });
 
       evaluateEnd();
     }
@@ -1176,6 +1268,8 @@ const CampaignState = (() => {
     let totalCorrectGuesses = 0;   // summed across every run this campaign
     let runsCompleted = 0;         // how many runs have ended
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT campaign deck
+    let coins = 0;                 // spendable currency, persists across runs
+    let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -1208,7 +1302,11 @@ const CampaignState = (() => {
       // Defensive COPY (incl. a copied modifications array) so callers
       // can read/build from the deck without mutating the persistent one.
       _copyCards() {
-        return baseDeck.map(c => ({ ...c, modifications: c.modifications.slice() }));
+        return baseDeck.map(c => ({
+          ...c,
+          modifications: c.modifications.slice(),
+          stickers: c.stickers.map(s => ({ ...s })),
+        }));
       },
       /** A copy of the base deck for building a run. */
       getDeck() { return this._copyCards(); },
@@ -1259,12 +1357,76 @@ const CampaignState = (() => {
         return true;
       },
 
+      /* ---- coins (earned on a win, spent in the store) ---- */
+      get coins() { return coins; },
+      getCoins() { return coins; },
+      addCoins(n) { coins += n; return coins; },
+      spendCoins(n) { if (coins < n) return false; coins -= n; return true; },
+
+      /* ---- sticker inventory (bought between rounds, applied in-round) ---- */
+      getInventory() { return { ...stickerInventory }; },
+      inventoryCount(typeId) { return stickerInventory[typeId] || 0; },
+
+      /** Buy one sticker if affordable. Returns true on success. */
+      buySticker(typeId) {
+        const t = StickerTypes.get(typeId);
+        if (!t || coins < t.price) return false;
+        coins -= t.price;
+        stickerInventory[typeId] = (stickerInventory[typeId] || 0) + 1;
+        return true;
+      },
+
+      /** Remove one sticker from inventory (on apply). Returns true on success. */
+      useStickerFromInventory(typeId) {
+        if ((stickerInventory[typeId] || 0) <= 0) return false;
+        stickerInventory[typeId] -= 1;
+        return true;
+      },
+
+      /* ---- sticker application (permanent, per-card, validated) ----
+         Stickers attach to a SPECIFIC persistent card by id. Rank stickers
+         also bump currentRank + record a modification; behavior stickers are
+         read by the engine via toCard(). Validation blocks wasted stickers
+         (no +1 on an Ace, no -1 on a 2, no exceeding the slot cap, no
+         duplicate Tie-Safe). */
+      canApplySticker(card, typeId) {
+        if (!card) return false;
+        const t = StickerTypes.get(typeId);
+        if (!t) return false;
+        if ((card.stickers ? card.stickers.length : 0) >= STICKER_SLOTS_PER_CARD) return false;
+        if (t.kind === "rank") {
+          if (t.rankDelta > 0 && card.currentRank >= MAX_RANK) return false;
+          if (t.rankDelta < 0 && card.currentRank <= MIN_RANK) return false;
+        }
+        if (t.behavior === "tieSafe" && card.stickers.some(s => s.type === "tieSafe")) return false;
+        return true;
+      },
+      canApplyStickerById(id, typeId) { return this.canApplySticker(findById(id), typeId); },
+
+      /** Apply a sticker to a specific persistent card. Returns true if applied. */
+      applySticker(id, typeId) {
+        const card = findById(id);
+        if (!this.canApplySticker(card, typeId)) return false;
+        const t = StickerTypes.get(typeId);
+        if (t.kind === "rank") {
+          const from = card.currentRank;
+          card.currentRank = from + t.rankDelta;
+          card.modifications.push({
+            op: t.rankDelta > 0 ? "increase" : "decrease", from, to: card.currentRank,
+          });
+        }
+        card.stickers.push({ type: typeId });
+        return true;
+      },
+
       /** Wipe all campaign-level state, including the deck, to fresh. */
       reset() {
         currentRunIndex = 1;
         totalCorrectGuesses = 0;
         runsCompleted = 0;
         baseDeck = DeckManager.buildStandardDeck();
+        coins = 0;
+        stickerInventory = {};
       },
     };
   }
@@ -1386,6 +1548,8 @@ const UIRenderer = (() => {
     board: document.getElementById("board"),
     deckCount: document.getElementById("deckCount"),
     aliveCount: document.getElementById("aliveCount"),
+    coinCount: document.getElementById("coinCount"),
+    stickerTray: document.getElementById("stickerTray"),
     actions: document.getElementById("actions"),
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
@@ -1402,6 +1566,7 @@ const UIRenderer = (() => {
     campaignSummary: document.getElementById("campaignSummary"),
     summaryTotalCorrect: document.getElementById("summaryTotalCorrect"),
     summaryRunsDone: document.getElementById("summaryRunsDone"),
+    overlayCoins: document.getElementById("overlayCoins"),
     playBtn: document.getElementById("playBtn"),
     buildTag: document.getElementById("buildTag"),
     // deck inspection
@@ -1413,14 +1578,12 @@ const UIRenderer = (() => {
     deckQuick: document.getElementById("deckQuick"),
     deckQuickTotal: document.getElementById("deckQuickTotal"),
     deckQuickGrid: document.getElementById("deckQuickGrid"),
-    // deck surgery
-    surgeryOverlay: document.getElementById("surgeryOverlay"),
-    surgeryMsg: document.getElementById("surgeryMsg"),
-    deckCards: document.getElementById("deckCards"),
-    surgeryOps: document.getElementById("surgeryOps"),
-    surgeryConfirm: document.getElementById("surgeryConfirm"),
-    surgeryConfirmBtn: document.getElementById("surgeryConfirmBtn"),
-    surgeryCancelBtn: document.getElementById("surgeryCancelBtn"),
+    // store (between rounds)
+    storeOverlay: document.getElementById("storeOverlay"),
+    storeMsg: document.getElementById("storeMsg"),
+    storeCoins: document.getElementById("storeCoins"),
+    storeItems: document.getElementById("storeItems"),
+    storeStartBtn: document.getElementById("storeStartBtn"),
     // debug
     title: document.querySelector("header h1"),
     debugPanel: document.getElementById("debugPanel"),
@@ -1442,10 +1605,9 @@ const UIRenderer = (() => {
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
 
-  // Deck Surgery selection state (reset each time the screen opens).
-  let surgeryOp = null;         // "increase" | "decrease" | "randomize"
-  let surgerySelectedId = null; // id of the specific card being operated on
-  let surgeryTarget = null;     // destination rank (pre-rolled for randomize)
+  // In-round sticker application: the sticker type id currently "armed"
+  // (tap a sticker to arm it, then tap a pile to apply), or null.
+  let armedSticker = null;
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -1479,7 +1641,31 @@ const UIRenderer = (() => {
     card.appendChild(back);
     card.appendChild(deadMark);
     pile.appendChild(card);
+
+    // Sticker badges (hearts / shield / rank markers) for the top card.
+    const badges = document.createElement("div");
+    badges.className = "pile-badges";
+    pile.appendChild(badges);
     return pile;
+  }
+
+  /* Render the sticker badges for a pile's top card: a heart per remaining
+     Extra Heart, a broken heart per spent one, a shield for Tie-Safe, and a
+     ± marker for rank stickers. */
+  function renderStickerBadges(pileEl, card) {
+    const badges = pileEl.querySelector(".pile-badges");
+    if (!badges) return;
+    const stickers = (card && card.stickers) || [];
+    const heartTotal = stickers.filter(s => s.type === "extraHeart").length;
+    const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
+    let html = "";
+    for (let i = 0; i < heartTotal; i++) html += '<span class="badge">' + (i < heartsLeft ? "❤️" : "💔") + "</span>";
+    if (stickers.some(s => s.type === "tieSafe")) html += '<span class="badge">🛡️</span>';
+    const rankUps = stickers.filter(s => s.type === "rankUp").length;
+    const rankDowns = stickers.filter(s => s.type === "rankDown").length;
+    if (rankUps)   html += '<span class="badge">➕' + (rankUps > 1 ? rankUps : "") + "</span>";
+    if (rankDowns) html += '<span class="badge">➖' + (rankDowns > 1 ? rankDowns : "") + "</span>";
+    badges.innerHTML = html;
   }
 
   function paintFront(pileEl, card) {
@@ -1497,7 +1683,7 @@ const UIRenderer = (() => {
     for (let i = 0; i < board.size; i++) {
       const pileEl = pileEls[i];
       const top = board.top(i);
-      if (top) paintFront(pileEl, top);
+      if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
       pileEl.classList.toggle("dead", !board.isActive(i));
     }
     renderHud(board, deck);
@@ -1506,6 +1692,7 @@ const UIRenderer = (() => {
   function renderHud(board, deck) {
     el.deckCount.textContent = deck.remaining();
     el.aliveCount.textContent = board.aliveCount();
+    if (campaign) el.coinCount.textContent = campaign.getCoins();
   }
 
   /* ---- selection / action sheet ---- */
@@ -1534,6 +1721,87 @@ const UIRenderer = (() => {
   function submitGuess(guess) {
     if (selected === null) return;
     engine.guess(selected, guess);
+  }
+
+  /* ---- in-round sticker application ----
+     Buy stickers in the store; here you spend them on the face-up top card
+     of a pile. Tap a sticker to "arm" it, then tap a pile. */
+  function renderStickerTray() {
+    const playing = engine && engine.getStatus() === "playing";
+    const inv = campaign ? campaign.getInventory() : {};
+    const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    el.stickerTray.innerHTML = "";
+    if (!playing || owned.length === 0) {
+      el.stickerTray.classList.add("hidden");
+      if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
+      return;
+    }
+    el.stickerTray.classList.remove("hidden");
+    owned.forEach(t => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tray-sticker" + (armedSticker === t.id ? " armed" : "");
+      b.dataset.type = t.id;
+      b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
+      el.stickerTray.appendChild(b);
+    });
+  }
+
+  function armSticker(typeId) {
+    if (!engine || engine.getStatus() !== "playing") return;
+    if (campaign.inventoryCount(typeId) <= 0) return;
+    armedSticker = armedSticker === typeId ? null : typeId;
+    clearSelection();
+    el.board.classList.toggle("arming", !!armedSticker);
+    renderStickerTray();
+    const t = StickerTypes.get(armedSticker);
+    el.hint.textContent = t
+      ? "Tap a pile to apply " + t.icon + " " + t.label + " to its card."
+      : "Tap a pile, then choose Higher, Same, or Lower.";
+  }
+
+  function applyArmedSticker(index) {
+    const board = engine.getBoard();
+    if (!board.isActive(index)) return;
+    const top = board.top(index);
+    if (!top) return;
+    const typeId = armedSticker;
+    if (!campaign.canApplyStickerById(top.id, typeId)) {
+      const t = StickerTypes.get(typeId);
+      el.hint.textContent = "Can't apply " + (t ? t.label : "that") + " there.";
+      return;
+    }
+    // Persist to the campaign card, consume from inventory, and reflect the
+    // change on the LIVE board card so it takes effect this very run.
+    campaign.applySticker(top.id, typeId);
+    campaign.useStickerFromInventory(typeId);
+    applyStickerToBoardCard(top, typeId);
+
+    armedSticker = null;
+    el.board.classList.remove("arming");
+    paintFront(pileEls[index], top);
+    renderStickerBadges(pileEls[index], top);
+    renderStickerTray();
+    el.hint.textContent = "Sticker applied — tap a pile to play.";
+  }
+
+  /* Mirror an applied sticker onto the live run-deck/board card object so its
+     effect is immediate (rank stickers change value now; behavior stickers
+     arm their flags for this run). The persistent card is updated separately
+     via campaign.applySticker. */
+  function applyStickerToBoardCard(card, typeId) {
+    const t = StickerTypes.get(typeId);
+    if (t.kind === "rank") {
+      card.value += t.rankDelta;
+      const r = DeckManager.RANKS.find(r => r.value === card.value);
+      card.label = r ? r.label : String(card.value);
+    } else if (t.behavior === "extraHeart") {
+      card.heartsRemaining = (card.heartsRemaining || 0) + 1;
+    } else if (t.behavior === "tieSafe") {
+      card.tieSafe = true;
+    }
+    card.stickers = card.stickers || [];
+    card.stickers.push({ type: typeId });
   }
 
   /* ---- debug mode (toggle via ?debug URL or triple-tap title) ---- */
@@ -1578,11 +1846,19 @@ const UIRenderer = (() => {
 
   /* ---- input wiring (tap now; swipe-ready later) ---- */
   function attachInput() {
-    // Tap a pile to select it.
+    // Tap a pile: apply an armed sticker, or select it for a guess.
     el.board.addEventListener("click", (e) => {
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
-      selectPile(Number(pileEl.dataset.index));
+      const index = Number(pileEl.dataset.index);
+      if (armedSticker) applyArmedSticker(index);
+      else selectPile(index);
+    });
+
+    // Sticker tray: tap a sticker to arm/disarm it.
+    el.stickerTray.addEventListener("click", (e) => {
+      const b = e.target.closest(".tray-sticker");
+      if (b) armSticker(b.dataset.type);
     });
 
     el.btnHigher.addEventListener("click", () => submitGuess("higher"));
@@ -1593,19 +1869,12 @@ const UIRenderer = (() => {
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
 
-    // Deck Surgery wiring (tap operation -> tap rank -> confirm).
-    el.surgeryOps.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-op]");
-      if (b) chooseSurgeryOp(b.dataset.op);
+    // Store wiring (tap a sticker to buy; START ROUND to begin next round).
+    el.storeItems.addEventListener("click", (e) => {
+      const item = e.target.closest(".store-item");
+      if (item && !item.classList.contains("disabled")) buyStickerUI(item.dataset.type);
     });
-    el.deckCards.addEventListener("click", (e) => {
-      const chip = e.target.closest(".card-chip");
-      if (chip && chip.classList.contains("selectable")) {
-        chooseSurgeryCard(Number(chip.dataset.id));
-      }
-    });
-    el.surgeryConfirmBtn.addEventListener("click", confirmSurgery);
-    el.surgeryCancelBtn.addEventListener("click", cancelSurgerySelection);
+    el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceAndStart(); });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -1641,6 +1910,7 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt":
         renderBoard(payload.board, payload.deck);
+        renderStickerTray();
         el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
         refreshDebug();
         break;
@@ -1652,8 +1922,9 @@ const UIRenderer = (() => {
 
       case "resolved": {
         const pileEl = pileEls[payload.index];
-        // Show the drawn card landing on the pile (or its final face before flip).
+        // Show the drawn card landing on the pile (its new top, or final face).
         paintFront(pileEl, payload.drawn);
+        renderStickerBadges(pileEl, payload.drawn);
         renderHud(payload.board, payload.deck);
 
         // Feedback flash.
@@ -1665,9 +1936,25 @@ const UIRenderer = (() => {
         if (!payload.correct) pileEl.classList.add("dead");
 
         clearSelection();
+        renderStickerTray();
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} — safe! ${payload.board.aliveCount()} piles alive.`
           : `${payload.drawn.label} — that pile is dead.`;
+        refreshDebug();
+        break;
+      }
+
+      case "heart-broken": {
+        // Extra Heart absorbed a wrong guess: the top card stays, a heart is
+        // spent (run-local), and the drawn card went back into the deck.
+        const pileEl = pileEls[payload.index];
+        renderStickerBadges(pileEl, payload.current);   // a heart is now 💔
+        renderHud(payload.board, payload.deck);
+        pileEl.classList.add("flash-good");
+        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        clearSelection();
+        renderStickerTray();
+        el.hint.textContent = `💔 ${payload.current.label} survived — a heart broke!`;
         refreshDebug();
         break;
       }
@@ -1711,6 +1998,14 @@ const UIRenderer = (() => {
     }
     el.campaignSummary.classList.toggle("hidden", !opts.campStats);
 
+    // Coins earned this run + running balance (shown on run-complete).
+    if (opts.coins) {
+      el.overlayCoins.textContent =
+        (opts.coins.earned > 0 ? "+" + opts.coins.earned + " 🪙 earned · " : "") +
+        "🪙 " + opts.coins.balance + " total";
+    }
+    el.overlayCoins.classList.toggle("hidden", !opts.coins);
+
     el.playBtn.textContent = opts.btnLabel;
     overlayAction = opts.action;
   }
@@ -1733,21 +2028,22 @@ const UIRenderer = (() => {
     });
   }
 
-  function showRunComplete(won, runIndex, runStats, campStats) {
+  function showRunComplete(won, runIndex, runStats, campStats, coins) {
     showOverlay({
       kind: won ? "win" : "lose",
       icon: won ? "🏆" : "💀",
       title: won ? "RUN CLEARED" : "RUN FAILED",
-      msg: won ? "You emptied the deck." : "All nine piles fell.",
+      msg: won ? "You emptied the deck." : "Every pile fell.",
       progress: "Run " + runIndex + " of " + campaign.maxRunsPerStage + " complete",
       runStats,
       campStats,
+      coins,
       btnLabel: "CONTINUE",
       action: continueCampaign,
     });
   }
 
-  function showCampaignComplete(runStats, campStats) {
+  function showCampaignComplete(runStats, campStats, coins) {
     showOverlay({
       kind: "win",
       icon: "🎉",
@@ -1755,6 +2051,7 @@ const UIRenderer = (() => {
       msg: "All " + campaign.maxRunsPerStage + " runs played.",
       runStats,
       campStats,
+      coins,
       btnLabel: "NEW CAMPAIGN",
       action: startCampaign,
     });
@@ -1773,8 +2070,11 @@ const UIRenderer = (() => {
   function startRun() {
     // Phase: -> Active run. Hide every overlay phase first.
     hideOverlay();
+    closeStore();
     DeckInspector.close();
     clearSelection();
+    armedSticker = null;
+    el.board.classList.remove("arming");
 
     // Per-run layout config drives both the pile count and the row shape.
     const cfg = campaign.layoutForRun(campaign.currentRunIndex);
@@ -1831,11 +2131,20 @@ const UIRenderer = (() => {
     campaign.recordRun(payload.run);
 
     const won = result === "win";
-    lastRunWon = won;   // gates the Deck Surgery phase on Continue
-    const runStats = {
-      correct: payload.run.correctGuesses,
-      alive: payload.board.aliveCount(),
-    };
+    lastRunWon = won;
+    const board = payload.board;
+    const aliveCount = board.aliveCount();
+
+    // Coins: awarded on a win only (pure formula in the Economy module).
+    const earned = Economy.computeRunPayout({
+      won,
+      aliveCount,
+      minAlivePileCards: board.minAliveCards(),
+    });
+    if (earned > 0) campaign.addCoins(earned);
+    const coins = { earned, balance: campaign.getCoins() };
+
+    const runStats = { correct: payload.run.correctGuesses, alive: aliveCount };
     const campStats = {
       totalCorrect: campaign.totalCorrectGuesses,
       runsDone: campaign.runsCompleted,
@@ -1843,18 +2152,17 @@ const UIRenderer = (() => {
 
     // Phase: -> Run complete, or Campaign complete after the final run.
     if (campaign.isComplete()) {
-      showCampaignComplete(runStats, campStats);
+      showCampaignComplete(runStats, campStats, coins);
     } else {
-      showRunComplete(won, campaign.currentRunIndex, runStats, campStats);
+      showRunComplete(won, campaign.currentRunIndex, runStats, campStats, coins);
     }
   }
 
   function continueCampaign() {
     // Guard: after the final run this button is "New Campaign" instead.
     if (campaign.isComplete()) { startCampaign(); return; }
-    // A won run earns a Deck Surgery before the next run begins.
-    if (lastRunWon) { showDeckSurgery(); return; }
-    advanceAndStart();
+    // Between rounds: visit the store (spend coins on stickers), then begin.
+    showStore();
   }
 
   function advanceAndStart() {
@@ -1862,128 +2170,41 @@ const UIRenderer = (() => {
     startRun();
   }
 
-  /* ---- Deck Surgery (permanent, per-card deck evolution between runs) ----
-     A won run unlocks ONE operation on a SPECIFIC card before the next
-     run starts. Operations edit the persistent campaign deck only; each
-     run deck is a fresh shuffled copy, so a card's evolution carries into
-     every later run. Flow: tap operation -> tap a card -> confirm. */
-  const SUIT_ORDER = {};
-  DeckManager.SUITS.forEach((s, i) => { SUIT_ORDER[s.symbol] = i; });
-
-  function rankLabel(value) {
-    const r = DeckManager.RANKS.find(r => r.value === value);
-    return r ? r.label : String(value);
-  }
-  function suitIsRed(suit) {
-    const s = DeckManager.SUITS.find(s => s.symbol === suit);
-    return !!(s && s.red);
-  }
-  function cardValidForOp(card, op) {
-    if (op === "increase") return card.currentRank < CampaignState.MAX_RANK; // Ace max
-    if (op === "decrease") return card.currentRank > CampaignState.MIN_RANK; // 2 min
-    return true;                                                             // randomize
-  }
-
-  function showDeckSurgery() {
-    // Phase: -> Deck Surgery. Exactly one overlay is visible at a time.
-    surgeryOp = null; surgerySelectedId = null; surgeryTarget = null;
+  /* ---- Store (between rounds) ----
+     Spend coins on stickers; they go into the campaign inventory and are
+     applied to cards DURING the next round (see the in-round sticker tray).
+     Shown after every round so banked coins are always spendable. */
+  function showStore() {
     hideOverlay();
-    el.surgeryConfirm.classList.add("hidden");
-    el.surgeryOps.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
-    el.surgeryMsg.textContent = "Choose one operation, then a card.";
-    renderDeckCards();
-    el.surgeryOverlay.classList.remove("hidden");
+    renderStore();
+    el.storeOverlay.classList.remove("hidden");
   }
 
-  function renderDeckCards() {
-    const cards = campaign.getCards().sort((a, b) =>
-      (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]) ||
-      (a.currentRank - b.currentRank) ||
-      (a.id - b.id));
-
-    el.deckCards.innerHTML = "";
-    cards.forEach(card => {
-      const net = card.currentRank - card.originalRank;
-      const modified = card.modifications.length > 0;
-      let markClass = "", markChar = "";
-      if (net > 0)       { markClass = "up";   markChar = "+"; }
-      else if (net < 0)  { markClass = "down"; markChar = "−"; }
-      else if (modified) { markClass = "rand"; markChar = "~"; } // back to start
-
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "card-chip" + (modified ? " modified" : "") + (markClass ? " " + markClass : "");
-      chip.dataset.id = card.id;
-      chip.innerHTML =
-        '<span class="cc-main' + (suitIsRed(card.suit) ? " red" : "") + '">' +
-          rankLabel(card.currentRank) + '<span class="cc-suit">' + card.suit + '</span>' +
-        '</span>' +
-        (modified ? '<span class="cc-orig">' + rankLabel(card.originalRank) + '</span>' : '') +
-        (markChar ? '<span class="cc-mark">' + markChar + '</span>' : '');
-
-      if (surgeryOp) {
-        const ok = cardValidForOp(card, surgeryOp);
-        chip.classList.toggle("selectable", ok);
-        chip.classList.toggle("disabled", !ok);
-        if (surgerySelectedId === card.id) chip.classList.add("selected");
-      }
-      el.deckCards.appendChild(chip);
+  function renderStore() {
+    el.storeCoins.textContent = campaign.getCoins();
+    el.storeItems.innerHTML = "";
+    StickerTypes.all().forEach(t => {
+      const owned = campaign.inventoryCount(t.id);
+      const affordable = campaign.getCoins() >= t.price;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "store-item" + (affordable ? "" : " disabled");
+      btn.dataset.type = t.id;
+      btn.innerHTML =
+        '<span class="si-icon">' + t.icon + '</span>' +
+        '<span class="si-label">' + t.label + '</span>' +
+        '<span class="si-price">🪙 ' + t.price + '</span>' +
+        (owned ? '<span class="si-owned">×' + owned + '</span>' : "");
+      el.storeItems.appendChild(btn);
     });
   }
 
-  function chooseSurgeryOp(op) {
-    if (op === "skip") { closeSurgery(); advanceAndStart(); return; }
-    surgeryOp = op; surgerySelectedId = null; surgeryTarget = null;
-    el.surgeryConfirm.classList.add("hidden");
-    el.surgeryOps.querySelectorAll(".btn").forEach(b =>
-      b.classList.toggle("active", b.dataset.op === op));
-    const verb = op === "increase" ? "increase (+1)"
-               : op === "decrease" ? "decrease (−1)" : "randomize";
-    el.surgeryMsg.textContent = "Tap a card to " + verb + ".";
-    renderDeckCards();
+  function buyStickerUI(typeId) {
+    if (campaign.buySticker(typeId)) renderStore();
   }
 
-  function chooseSurgeryCard(id) {
-    const card = campaign.getCards().find(c => c.id === id);
-    if (!card || !surgeryOp || !cardValidForOp(card, surgeryOp)) return; // guard
-    surgerySelectedId = id;
-    const cur = card.currentRank;
-    const suit = card.suit;
-    if (surgeryOp === "increase") {
-      surgeryTarget = cur + 1;
-      el.surgeryMsg.textContent =
-        "Increase " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
-    } else if (surgeryOp === "decrease") {
-      surgeryTarget = cur - 1;
-      el.surgeryMsg.textContent =
-        "Decrease " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
-    } else { // randomize -> pre-roll a different destination rank
-      const others = DeckManager.RANKS.map(r => r.value).filter(v => v !== cur);
-      surgeryTarget = others[Math.floor(Math.random() * others.length)];
-      el.surgeryMsg.textContent =
-        "Randomize " + rankLabel(cur) + suit + " → " + rankLabel(surgeryTarget) + suit + "?";
-    }
-    el.surgeryConfirm.classList.remove("hidden");
-    renderDeckCards();
-  }
-
-  function cancelSurgerySelection() {
-    surgerySelectedId = null; surgeryTarget = null;
-    el.surgeryConfirm.classList.add("hidden");
-    if (surgeryOp) chooseSurgeryOp(surgeryOp); else showDeckSurgery();
-  }
-
-  function confirmSurgery() {
-    // Apply the validated operation to the SPECIFIC persistent card.
-    if (surgeryOp === "increase") campaign.increaseCard(surgerySelectedId);
-    else if (surgeryOp === "decrease") campaign.decreaseCard(surgerySelectedId);
-    else if (surgeryOp === "randomize") campaign.randomizeCard(surgerySelectedId, surgeryTarget);
-    closeSurgery();
-    advanceAndStart();
-  }
-
-  function closeSurgery() {
-    el.surgeryOverlay.classList.add("hidden");
+  function closeStore() {
+    el.storeOverlay.classList.add("hidden");
   }
 
   function init() {
