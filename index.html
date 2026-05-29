@@ -453,7 +453,7 @@
   .overlay-coins { font-size: 15px; font-weight: 700; color: var(--accent); margin: 2px 0 16px; }
   .overlay-coins.hidden { display: none; }
 
-  /* In-round sticker tray — owned stickers; tap to arm, then tap a pile. */
+  /* In-run sticker tray — owned stickers; tap to arm, then tap a pile. */
   .sticker-tray {
     display: flex;
     gap: 8px;
@@ -770,14 +770,14 @@
     <button class="play-btn" id="playBtn">PLAY</button>
   </div>
 
-  <!-- Store overlay — shown between rounds; spend coins on stickers -->
+  <!-- Store overlay — shown between runs; spend coins on stickers -->
   <div class="overlay store hidden" id="storeOverlay">
     <div class="big">🛒</div>
     <h2>STORE</h2>
-    <p id="storeMsg">Buy stickers now — apply them to cards during the next round.</p>
+    <p id="storeMsg">Buy stickers now — apply them to cards during the next run.</p>
     <div class="store-coins">🪙 <b id="storeCoins">0</b></div>
     <div class="store-items" id="storeItems"></div>
-    <button class="play-btn" id="storeStartBtn" type="button">START ROUND</button>
+    <button class="play-btn" id="storeStartBtn" type="button">START RUN</button>
   </div>
 
   <!-- Deck inspection: full breakdown modal (tap) -->
@@ -821,7 +821,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.8.0";
+const APP_VERSION = "v0.9.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1178,14 +1178,14 @@ const GameEngine = (() => {
         run.phase = "ended";
         run.result = "win";
         emit("won", { board, deck, run });
-        // FUTURE: HOOKS.onRoundComplete({ result: "win", board });
+        // FUTURE: HOOKS.onRunComplete({ result: "win", board });
       } else if (!board.anyAlive()) {
         // All nine lives spent. -> Run End phase.
         status = "lost";
         run.phase = "ended";
         run.result = "loss";
         emit("lost", { board, deck, run });
-        // FUTURE: HOOKS.onRoundComplete({ result: "loss", board });
+        // FUTURE: HOOKS.onRunComplete({ result: "loss", board });
       }
     }
 
@@ -1233,21 +1233,35 @@ const GameEngine = (() => {
 
 /* ----------------------------------------------------------------
    CampaignState
-   A campaign is a fixed sequence of runs (a "stage"). It owns ONLY
-   campaign-level data — which run we're on and cross-run totals — and
-   knows nothing about cards, piles, or the DOM. Per-run state lives in
-   the GameEngine and is thrown away each run; the campaign is the only
-   thing that persists between runs.
+   A campaign is 3 STAGES of 3 RUNS each (9 runs total). It owns ONLY
+   campaign-level data — which stage/run we're on, cross-run totals, the
+   persistent deck, coins, and stickers — and knows nothing about piles or
+   the DOM. Per-run state lives in the GameEngine and is thrown away each
+   run; the campaign is the only thing that persists between runs (and only
+   within one in-progress attempt — a loss wipes it; see reset()).
+
+   A stage's deck grows by suit count: Stage 1 = 2 suits (26 cards),
+   Stage 2 = 3 (39), Stage 3 = 4 (52). The persistent base deck always holds
+   all 52 card identities, so a card whose suit isn't in play yet sits
+   dormant WITH its stickers until its suit enters in a later stage.
 ---------------------------------------------------------------- */
 const CampaignState = (() => {
-  // Per-run layout config: each entry is the row sizes for that run.
-  // Pile count is just the sum of the rows — no special-cased numbers.
+  // Per-run layout config: each entry is the row sizes for that run. The
+  // same three layouts repeat every stage. Pile count is just the row sum.
   const RUN_LAYOUTS = [
     [3, 4, 3],  // Run 1 — 10 piles
     [3, 3, 3],  // Run 2 — 9 piles
     [3, 2, 3],  // Run 3 — 8 piles
   ];
   const MAX_RUNS_PER_STAGE = RUN_LAYOUTS.length;
+  const MAX_STAGES = 3;
+  const TOTAL_RUNS = MAX_STAGES * MAX_RUNS_PER_STAGE; // 9 = a full campaign
+
+  // Active suits enter in canonical SUITS order. Stage s (1-based) uses the
+  // first (s + 1) suits — Stage 1 starts on the fixed pair ♠ + ♥.
+  function suitsForStage(stage) {
+    return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
+  }
 
   /** Layout for a run index (1-based): rows + derived pile count + cols. */
   function layoutForRun(runIndex) {
@@ -1264,10 +1278,11 @@ const CampaignState = (() => {
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
 
   function create() {
-    let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE
+    let currentStage = 1;          // 1 .. MAX_STAGES
+    let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE (within the stage)
     let totalCorrectGuesses = 0;   // summed across every run this campaign
-    let runsCompleted = 0;         // how many runs have ended
-    let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT campaign deck
+    let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
+    let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
 
@@ -1278,8 +1293,11 @@ const CampaignState = (() => {
 
     return {
       maxRunsPerStage: MAX_RUNS_PER_STAGE,
+      maxStages: MAX_STAGES,
       layoutForRun,
+      get currentStage() { return currentStage; },
       get currentRunIndex() { return currentRunIndex; },
+      get activeSuitCount() { return currentStage + 1; },
       get totalCorrectGuesses() { return totalCorrectGuesses; },
       get runsCompleted() { return runsCompleted; },
 
@@ -1289,12 +1307,18 @@ const CampaignState = (() => {
         runsCompleted += 1;
       },
 
-      /** True once every run in the stage has been played. */
-      isComplete() { return runsCompleted >= MAX_RUNS_PER_STAGE; },
+      /** True once Stage 3 Run 3 (the whole campaign) has been completed. */
+      isComplete() { return runsCompleted >= TOTAL_RUNS; },
 
-      /** Advance to the next run (clamped at the final run). */
+      /** Advance to the next run: within the stage, then roll to the next
+          stage's Run 1. Clamps at the final run of the final stage. */
       advance() {
-        if (currentRunIndex < MAX_RUNS_PER_STAGE) currentRunIndex += 1;
+        if (currentRunIndex < MAX_RUNS_PER_STAGE) {
+          currentRunIndex += 1;
+        } else if (currentStage < MAX_STAGES) {
+          currentStage += 1;
+          currentRunIndex = 1;
+        }
       },
 
       /* ---- persistent deck (the base campaign deck) ---- */
@@ -1308,10 +1332,18 @@ const CampaignState = (() => {
           stickers: c.stickers.map(s => ({ ...s })),
         }));
       },
-      /** A copy of the base deck for building a run. */
+      /** A copy of the full 52-card base deck (all suits, dormant or not). */
       getDeck() { return this._copyCards(); },
-      /** A copy of the base deck for the surgery display. */
+      /** Same — used for sticker inspection across all card identities. */
       getCards() { return this._copyCards(); },
+
+      /** The deck to deal THIS run: base cards filtered to the current
+          stage's active suits. Stickers on dormant suits stay on the base
+          deck untouched until their suit enters in a later stage. */
+      getRunDeck() {
+        const active = new Set(suitsForStage(currentStage));
+        return this._copyCards().filter(c => active.has(c.suit));
+      },
 
       /** Card count per CURRENT rank value, 2..14. */
       composition() {
@@ -1363,7 +1395,7 @@ const CampaignState = (() => {
       addCoins(n) { coins += n; return coins; },
       spendCoins(n) { if (coins < n) return false; coins -= n; return true; },
 
-      /* ---- sticker inventory (bought between rounds, applied in-round) ---- */
+      /* ---- sticker inventory (bought between runs, applied in-run) ---- */
       getInventory() { return { ...stickerInventory }; },
       inventoryCount(typeId) { return stickerInventory[typeId] || 0; },
 
@@ -1419,8 +1451,16 @@ const CampaignState = (() => {
         return true;
       },
 
-      /** Wipe all campaign-level state, including the deck, to fresh. */
+      /* ---- the full wipe (THE tuning seam for loss harshness) ----
+         Returns the campaign to a vanilla Stage 1 / Run 1 state: a fresh
+         52-card deck (all stickers + modifications gone), zero coins, empty
+         inventory, stage and run reset. This is the ONLY place campaign
+         state is wiped; both "New Campaign" and a run loss funnel here. To
+         soften the loss penalty later (a checkpoint, partial carry, etc.),
+         change only this method and its single loss call site — nothing
+         else in the lifecycle depends on the wipe being total. */
       reset() {
+        currentStage = 1;
         currentRunIndex = 1;
         totalCorrectGuesses = 0;
         runsCompleted = 0;
@@ -1578,7 +1618,7 @@ const UIRenderer = (() => {
     deckQuick: document.getElementById("deckQuick"),
     deckQuickTotal: document.getElementById("deckQuickTotal"),
     deckQuickGrid: document.getElementById("deckQuickGrid"),
-    // store (between rounds)
+    // store (between runs)
     storeOverlay: document.getElementById("storeOverlay"),
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
@@ -1600,12 +1640,11 @@ const UIRenderer = (() => {
   let engine = null;
   let campaign = null;        // persists across runs (campaign-level only)
   let overlayAction = null;   // what the single overlay button does right now
-  let lastRunWon = false;     // did the most recent run end in a win?
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
 
-  // In-round sticker application: the sticker type id currently "armed"
+  // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
   let armedSticker = null;
 
@@ -1723,7 +1762,7 @@ const UIRenderer = (() => {
     engine.guess(selected, guess);
   }
 
-  /* ---- in-round sticker application ----
+  /* ---- in-run sticker application ----
      Buy stickers in the store; here you spend them on the face-up top card
      of a pile. Tap a sticker to "arm" it, then tap a pile. */
   function renderStickerTray() {
@@ -1869,7 +1908,7 @@ const UIRenderer = (() => {
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
 
-    // Store wiring (tap a sticker to buy; START ROUND to begin next round).
+    // Store wiring (tap a sticker to buy; START RUN to begin next run).
     el.storeItems.addEventListener("click", (e) => {
       const item = e.target.closest(".store-item");
       if (item && !item.classList.contains("disabled")) buyStickerUI(item.dataset.type);
@@ -2015,26 +2054,34 @@ const UIRenderer = (() => {
   }
 
   /* ---- phase screens ---- */
+  /** "Stage X of 3 · Run Y of 3" — shared progress label. */
+  function stageRunLabel(suffix) {
+    return "Stage " + campaign.currentStage + " of " + campaign.maxStages +
+           " · Run " + campaign.currentRunIndex + " of " + campaign.maxRunsPerStage +
+           (suffix || "");
+  }
+
   function showStartScreen() {
     showOverlay({
       icon: "🐱",
       title: "NINE LIVES",
-      msg: "A " + campaign.maxRunsPerStage + "-run campaign. Pick a pile and bet "
-         + "whether the next card is higher, lower, or the same. Empty the deck "
-         + "to clear a run.",
-      progress: "Run 1 of " + campaign.maxRunsPerStage,
+      msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
+         + " runs each). The deck grows by a suit each stage — but lose any run "
+         + "and the whole campaign wipes. Empty the deck to clear a run.",
+      progress: "Stage 1 of " + campaign.maxStages + " · Run 1 of " + campaign.maxRunsPerStage,
       btnLabel: "START CAMPAIGN",
       action: startCampaign,
     });
   }
 
-  function showRunComplete(won, runIndex, runStats, campStats, coins) {
+  // Shown only after a WON, non-final run (a loss ends the campaign).
+  function showRunComplete(runStats, campStats, coins) {
     showOverlay({
-      kind: won ? "win" : "lose",
-      icon: won ? "🏆" : "💀",
-      title: won ? "RUN CLEARED" : "RUN FAILED",
-      msg: won ? "You emptied the deck." : "Every pile fell.",
-      progress: "Run " + runIndex + " of " + campaign.maxRunsPerStage + " complete",
+      kind: "win",
+      icon: "🏆",
+      title: "RUN CLEARED",
+      msg: "You emptied the deck.",
+      progress: stageRunLabel(" complete"),
       runStats,
       campStats,
       coins,
@@ -2043,12 +2090,29 @@ const UIRenderer = (() => {
     });
   }
 
+  // Any run loss ends the whole campaign (shown before the wipe, so we can
+  // report how far you got). New Campaign -> startCampaign -> reset().
+  function showCampaignFailed(runStats) {
+    showOverlay({
+      kind: "lose",
+      icon: "💀",
+      title: "CAMPAIGN OVER",
+      msg: "A run fell — and losing any run wipes the whole campaign: deck, "
+         + "coins, and stickers all reset. Start fresh from Stage 1.",
+      progress: "Reached " + stageRunLabel(),
+      runStats,
+      btnLabel: "NEW CAMPAIGN",
+      action: startCampaign,
+    });
+  }
+
   function showCampaignComplete(runStats, campStats, coins) {
     showOverlay({
       kind: "win",
       icon: "🎉",
       title: "CAMPAIGN COMPLETE",
-      msg: "All " + campaign.maxRunsPerStage + " runs played.",
+      msg: "You cleared all " + campaign.maxStages + " stages — "
+         + (campaign.maxStages * campaign.maxRunsPerStage) + " runs!",
       runStats,
       campStats,
       coins,
@@ -2084,8 +2148,8 @@ const UIRenderer = (() => {
 
     // Full per-run reset: a brand-new engine gives a fresh deck + piles
     // and a fresh event subscription, so nothing leaks between runs. The
-    // run deck is a shuffled COPY of the persistent campaign deck.
-    engine = GameEngine.create(campaign.getDeck(), cfg.piles);
+    // run deck is a shuffled COPY of the current stage's active-suit cards.
+    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles);
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -2127,41 +2191,43 @@ const UIRenderer = (() => {
 
   function onRunEnd(result, payload) {
     DeckInspector.close();   // no inspection overlays bleeding into end screens
-    // Campaign-level stats are the ONLY thing that survives a run.
-    campaign.recordRun(payload.run);
 
     const won = result === "win";
-    lastRunWon = won;
     const board = payload.board;
     const aliveCount = board.aliveCount();
+    const runStats = { correct: payload.run.correctGuesses, alive: aliveCount };
 
-    // Coins: awarded on a win only (pure formula in the Economy module).
+    // LOSS ends the campaign. We deliberately do NOT record or advance: the
+    // failed screen reads the stage/run we died on, and "New Campaign" funnels
+    // through the single wipe (startCampaign -> campaign.reset). Nothing else
+    // here depends on the loss being fatal — soften it in reset() if needed.
+    if (!won) {
+      showCampaignFailed(runStats);
+      return;
+    }
+
+    // WIN: fold into campaign totals, award coins (pure formula), and either
+    // finish the campaign (Stage 3 Run 3) or head to the store.
+    campaign.recordRun(payload.run);
     const earned = Economy.computeRunPayout({
-      won,
+      won: true,
       aliveCount,
       minAlivePileCards: board.minAliveCards(),
     });
     if (earned > 0) campaign.addCoins(earned);
     const coins = { earned, balance: campaign.getCoins() };
-
-    const runStats = { correct: payload.run.correctGuesses, alive: aliveCount };
     const campStats = {
       totalCorrect: campaign.totalCorrectGuesses,
       runsDone: campaign.runsCompleted,
     };
 
-    // Phase: -> Run complete, or Campaign complete after the final run.
-    if (campaign.isComplete()) {
-      showCampaignComplete(runStats, campStats, coins);
-    } else {
-      showRunComplete(won, campaign.currentRunIndex, runStats, campStats, coins);
-    }
+    if (campaign.isComplete()) showCampaignComplete(runStats, campStats, coins);
+    else showRunComplete(runStats, campStats, coins);
   }
 
   function continueCampaign() {
-    // Guard: after the final run this button is "New Campaign" instead.
-    if (campaign.isComplete()) { startCampaign(); return; }
-    // Between rounds: visit the store (spend coins on stickers), then begin.
+    // Reached only after a won, non-final run: visit the store, then begin
+    // the next run (which may be the first run of the next stage).
     showStore();
   }
 
@@ -2170,10 +2236,10 @@ const UIRenderer = (() => {
     startRun();
   }
 
-  /* ---- Store (between rounds) ----
+  /* ---- Store (between runs) ----
      Spend coins on stickers; they go into the campaign inventory and are
-     applied to cards DURING the next round (see the in-round sticker tray).
-     Shown after every round so banked coins are always spendable. */
+     applied to cards DURING the next run (see the in-run sticker tray).
+     Shown after every run so banked coins are always spendable. */
   function showStore() {
     hideOverlay();
     renderStore();
@@ -2249,8 +2315,8 @@ const UIRenderer = (() => {
    FUTURE HOOKS  (intentionally inert in v1)
    Wire these in later without touching engine internals:
 
-     HOOKS.onRoundComplete({ result, board })
-        → "reward phase after round": grant currency / cards.
+     HOOKS.onRunComplete({ result, board })
+        → "reward phase after a run": grant currency / cards.
 
      HOOKS.modifyDeck(deckApi)
         → "deck modification system": use deck._inject([...]) /
@@ -2260,11 +2326,11 @@ const UIRenderer = (() => {
         → "shop system between runs": spend rewards before the
           next GameEngine.create() call.
 
-   The engine already calls onRoundComplete at win/loss points
+   The engine already calls onRunComplete at win/loss points
    (commented out) so persistence can be layered above the run.
 ---------------------------------------------------------------- */
 const HOOKS = {
-  onRoundComplete(/* { result, board } */) { /* not implemented in v1 */ },
+  onRunComplete(/* { result, board } */) { /* not implemented in v1 */ },
   modifyDeck(/* deckApi */) { /* not implemented in v1 */ },
   openShop(/* meta */) { /* not implemented in v1 */ },
 };

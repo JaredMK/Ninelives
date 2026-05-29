@@ -6,12 +6,18 @@ import { run as tieRule } from "./tie-rule.test.mjs";
 import { run as economy } from "./economy.test.mjs";
 import { run as sticker } from "./sticker.test.mjs";
 import { run as engineStickers } from "./engine-stickers.test.mjs";
+import { run as stage } from "./stage.test.mjs";
+import { run as progression } from "./progression.test.mjs";
+import { run as terminology } from "./terminology.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
   ["economy", economy],
   ["sticker", sticker],
   ["engine-stickers", engineStickers],
+  ["stage", stage],
+  ["progression", progression],
+  ["terminology", terminology],
 ];
 
 let pass = 0,

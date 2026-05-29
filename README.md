@@ -5,7 +5,8 @@ dependencies — open `index.html` in any modern browser.
 
 ## How to play
 
-- Standard 52-card deck. **Suits don't matter, only rank. Ace is high.**
+- A deck of **2–4 suits depending on the stage** (see Campaign). **Suits don't
+  matter for guessing, only rank. Ace is high.**
 - Cards are dealt face-up into a grid of piles (count/layout vary per run —
   see Campaign); the rest form the draw deck.
 - **Tap a pile**, then choose **Higher**, **Same**, or **Lower** for the next
@@ -14,41 +15,55 @@ dependencies — open `index.html` in any modern browser.
   - **Wrong** → the pile dies. **A tie counts as wrong on a Higher or Lower
     guess (it kills the pile); only a correct "Same" guess survives a tie.**
 - **Clear a run** by emptying the draw deck. A run ends in a win (deck empty)
-  or a loss (all nine piles dead).
+  or a loss (all its piles dead). **Losing any run ends — and wipes — the
+  whole campaign** (see Campaign).
 
 ## Campaign
 
-A play-through is a **campaign**: a fixed sequence of **3 runs**. Each run
-defines its own pile count and row layout (config-driven via `RUN_LAYOUTS`):
+A campaign is **3 stages of 3 runs each (9 runs)**. Each **stage** sets the
+deck size by suit count; each **run** within a stage uses a fixed pile layout
+(config-driven via `RUN_LAYOUTS`). The store appears **between runs**.
 
-| Run | Rows | Piles |
+| Stage | Suits | Deck |
+| --- | --- | --- |
+| 1 | ♠ ♥ | 26 cards |
+| 2 | ♠ ♥ ♦ | 39 cards |
+| 3 | ♠ ♥ ♦ ♣ | 52 cards |
+
+| Run (every stage) | Rows | Piles |
 | --- | --- | --- |
 | 1 | 3 · 4 · 3 | 10 |
 | 2 | 3 · 3 · 3 | 9 |
 | 3 | 3 · 2 · 3 | 8 |
 
-Cards are sized so 3 fill the width (a normal 3-card row, like Run 2, is
-edge-to-edge); shorter rows center and a 4-card row shrinks just enough to fit.
-The draw deck is always the full 52 cards — only the number dealt to piles
-changes with the layout.
+Suits enter in a fixed order (♠ ♥ → +♦ → +♣). A suit that isn't in play yet
+sits **dormant with its stickers intact** until its stage arrives. Cards are
+sized so 3 fill the width; shorter rows center and a 4-card row shrinks to fit.
 
 ```
-Start → Run 1 → Run Complete → Run 2 → Run Complete → Run 3 → Campaign Complete
+Start → S1R1 → … → S1R3 → S2R1 → … → S3R3 → Campaign Complete   (win)
+   any run lost ───────────────────────────→ Campaign Over (full wipe)
 ```
 
-- After every run a **Run Complete** screen shows the run result, correct
-  guesses, and piles remaining, plus campaign totals. A single **Continue**
-  button starts the next run with a full reset.
-- After the third run the **Campaign Complete** screen shows the final totals
-  and a **New Campaign** button.
-- Each run fully resets the deck, piles, UI, and engine — nothing leaks
-  between runs except campaign-level state (the persistent deck, total
-  correct guesses, runs completed).
+- After a won, non-final run a **Run Cleared** screen (stage/run progress,
+  correct guesses, piles alive, coins earned) leads to the **Store**, then the
+  next run.
+- Clearing **Stage 3 Run 3** → **Campaign Complete** (campaign win).
+- **Campaign lifecycle — full wipe on any loss:** losing any run ends the
+  campaign immediately. **New Campaign** resets *everything* to a vanilla
+  Stage 1 / Run 1 state: 26-card 2-suit deck, all stickers removed, all
+  modifications gone, coins zeroed, sticker inventory cleared. Nothing carries
+  across attempts; every campaign starts identical.
+- **Persistence is within one in-progress campaign only.** A card's stickers
+  persist run-to-run and stage-to-stage *within* an attempt, but a loss wipes
+  them. (The wipe is deliberately isolated to `CampaignState.reset()` and a
+  single loss call site, so it's easy to soften later — e.g. a checkpoint or
+  partial carry.)
 
 ## Coins, Store & Stickers
 
 A Balatro-style economy: **earn coins → buy stickers in the store between
-rounds → apply them to cards during the next round.**
+runs → apply them to cards during the next run.**
 
 **Coins** are awarded on a **win** only (first-draft formula; all coefficients
 are config constants in the `Economy` module):
@@ -59,10 +74,10 @@ coins = WIN_BONUS(5)
       + (number of alive piles)         × PER_ALIVE_PILE(2)
 ```
 
-**Store** (between every round): spend coins on stickers, which go into your
+**Store** (between every run): spend coins on stickers, which go into your
 campaign inventory. **Stickers** attach to a *specific* card by its persistent
-id and ride with that card for the rest of the campaign — they belong to the
-card, not the pile position. Starter types:
+id and ride with that card for the rest of the campaign attempt (until a loss
+wipes it) — they belong to the card, not the pile position. Starter types:
 
 | Sticker | Effect | Blocked when |
 | --- | --- | --- |
@@ -71,7 +86,7 @@ card, not the pile position. Starter types:
 | **Extra Heart** | The card survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks". Refreshes each run. | — |
 | **Tie-Safe** | The card survives a tie on *any* guess (not just Same) | already has Tie-Safe |
 
-**Applying** happens *in-round*: owned stickers appear in a tray; tap one to
+**Applying** happens *in-run*: owned stickers appear in a tray; tap one to
 arm it, then tap a pile to apply it to that pile's **face-up top card**. Rank
 stickers take effect immediately; behavior stickers (Extra Heart / Tie-Safe)
 are read by the engine on the next guess. A card holds at most
@@ -82,12 +97,13 @@ Each card has a **persistent identity**: a stable id and suit, the rank it
 *started* as (`originalRank`), the rank it is *now* (`currentRank`), a
 `modifications` history, and its `stickers`. Edits target a specific card
 instance — other cards of the same rank are untouched — and carry into every
-future run. The base campaign deck and the active run deck are kept separate:
-each run plays a freshly shuffled **copy** (materialized from each card's
-`currentRank`, with behavior stickers projected onto run-local fields), so
-playing never mutates the persistent deck. The deck stays 52 cards and draw
-order is never revealed — Extra Heart's shuffle-back reinserts at a random
-position, so uncertainty is preserved.
+later run of the same campaign. The base deck (all 52 identities) and the
+active run deck are kept separate: each run plays a freshly shuffled **copy**
+of the current stage's active suits (26/39/52 cards), materialized from each
+card's `currentRank` with behavior stickers projected onto run-local fields,
+so playing never mutates the persistent deck. Draw order is never revealed —
+Extra Heart's shuffle-back reinserts at a random position, so uncertainty is
+preserved.
 
 ## Deck inspection
 
@@ -112,9 +128,9 @@ The engine never touches the DOM; the renderer never mutates game state.
 | Module | Responsibility |
 | --- | --- |
 | `DeckManager` | The card pool: build, seeded shuffle, draw, remaining count. |
-| `BoardState` | The nine piles and their alive/dead status. |
+| `BoardState` | The piles (count varies per run) and their alive/dead status. |
 | `GameEngine` | The rules + a per-run state (phase, seed, correct/total guesses). Emits events. |
-| `CampaignState` | Campaign-level only: the persistent base deck (cards with identity + modification history + stickers), current run index, cross-run totals, coins, and the sticker inventory + application. Persists between runs. |
+| `CampaignState` | Campaign-level only: the persistent 52-card base deck (identity + modifications + stickers), current **stage** + run, stage→suit-count run-deck construction, cross-run totals, coins, sticker inventory + application, and the full-wipe `reset()`. Persists within one campaign attempt; wiped on loss. |
 | `Economy` | Pure: the win-only coin payout formula (config coefficients, no DOM, no state). |
 | `StickerTypes` | Data-driven sticker registry (id, label, kind, price, behavior) so sticker behavior isn't hardcoded inline. |
 | `DeckStats` | Pure: turns an order-free rank-count map into a draw-probability breakdown. |
@@ -128,9 +144,10 @@ overlay is hidden):
 
 - **Start** — campaign intro.
 - **Active run** — normal play.
-- **Run Complete** — per-run + campaign stats, coins earned, Continue.
-- **Store** — between rounds: spend coins on stickers, then Start Round.
-- **Campaign Complete** — final totals, New Campaign.
+- **Run Cleared** — per-run + campaign stats, coins earned, Continue (won, non-final run).
+- **Store** — between runs: spend coins on stickers, then Start Run.
+- **Campaign Complete** — cleared all 3 stages; final totals, New Campaign.
+- **Campaign Over** — after any loss; full wipe, New Campaign.
 
 ### Seeded shuffle
 
@@ -141,7 +158,7 @@ a given seed always produces the same deal. No seed UI is exposed yet.
 
 - `applyRunScaling(runIndex)` — called at the start of every run; the future
   home for per-run difficulty scaling. Currently a no-op.
-- `HOOKS.onRoundComplete / modifyDeck / openShop` — reserved for a future
+- `HOOKS.onRunComplete / modifyDeck / openShop` — reserved for a future
   reward / deck-modification / shop system.
 
 ### Build badge
