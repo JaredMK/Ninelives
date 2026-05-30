@@ -608,6 +608,13 @@
     background: var(--accent);
     color: #2a1a00;
   }
+  /* Anchored true-lowest pile: the board's smallest, but EXCLUDED from payout.
+     Grey fill with an orange ring — "lowest, but it doesn't count." */
+  .pile-count.min-anchored {
+    background: rgba(6, 10, 22, 0.66);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
   /* A pile is a valid sticker target while a sticker is armed. */
   .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
 
@@ -679,6 +686,7 @@
   }
   .bd-scrub.hidden { display: none; }
   .bd-scrub .sc-hi { color: var(--good); font-weight: 800; }
+  .bd-scrub .sc-eq { color: var(--accent-2); font-weight: 800; }
   .bd-scrub .sc-lo { color: var(--bad); font-weight: 800; }
 
   /* The rows are a drag surface: vertical drags scrub (don't scroll the
@@ -969,7 +977,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.13.0";
+const APP_VERSION = "v0.14.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -980,16 +988,18 @@ const APP_VERSION = "v0.13.0";
 ---------------------------------------------------------------- */
 const StickerTypes = (() => {
   // basePrice: starting store price (climbs +1 per purchase of that type —
-  // see CampaignState.priceOf). Cards may hold any number of stickers,
-  // including duplicates of the same type — no slot cap, no uniqueness.
+  // see CampaignState.priceOf). Every type now starts at 1 (uniform) and
+  // escalates independently. Cards may hold any number of stickers, including
+  // duplicates of the same type — no slot cap, no uniqueness.
   const TYPES = {
-    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 2 },
-    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 2 },
-    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 8 },
-    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 3 },
+    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 1 },
+    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 1 },
+    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 1 },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 1 },
     extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1 },
+    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     basePrice: 1 },
   };
-  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin"];
+  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin", "anchor"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1003,26 +1013,27 @@ const StickerTypes = (() => {
 ---------------------------------------------------------------- */
 const Economy = (() => {
   const COIN_CONFIG = {
-    // Payout = (alive piles) × (cards in the smallest alive pile) + Extra Coin
-    // bonus. The product has no coefficient; the only tunable is below.
-    EXTRA_COIN_VALUE: 1,  // + per Extra Coin sticker on an alive top card
+    // Payout = (alive piles) × (cards in the smallest NON-anchored alive pile)
+    // + Extra Coin bonus. The product has no coefficient; the only tunable is
+    // the Extra Coin unit value below.
+    EXTRA_COIN_VALUE: 1,  // × Extra Coin units (Σ stickers × that pile's cards)
   };
-  /** stats: { won, aliveCount, minAliveCards, extraCoinCards }. Returns the
+  /** stats: { won, aliveCount, minAliveCards, extraCoinUnits }. Returns the
       itemized payout so the UI can show where coins came from without
       recomputing. computeRunPayout() is just breakdown().total. */
   function breakdown(stats, cfg = COIN_CONFIG) {
     const won = !!(stats && stats.won);
     const alivePiles = won ? (stats.aliveCount || 0) : 0;
     const minPileCards = won ? (stats.minAliveCards || 0) : 0;
-    const extraCoinCards = won ? (stats.extraCoinCards || 0) : 0;
+    const extraCoinUnits = won ? (stats.extraCoinUnits || 0) : 0;
     // Product of alive piles and the smallest alive pile's card count. The
     // guard keeps it 0 (never NaN) when there are no alive piles.
     const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
-    const extraCoinBonus = extraCoinCards * cfg.EXTRA_COIN_VALUE;
+    const extraCoinBonus = extraCoinUnits * cfg.EXTRA_COIN_VALUE;
     return {
       won,
       alivePiles, minPileCards, product,
-      extraCoinCards, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
+      extraCoinUnits, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
       total: product + extraCoinBonus,
     };
   }
@@ -1230,10 +1241,17 @@ const BoardState = (() => {
       kill(index) { piles[index].dead = true; },
       aliveCount() { return piles.filter(p => !p.dead).length; },
       anyAlive() { return piles.some(p => !p.dead); },
-      /** Fewest cards in any ALIVE pile (dead piles excluded). 0 if none alive.
-          Reads piles[i].cards.length — the same source as the pile-count badge,
-          and the multiplier in the coin payout. */
-      minAliveCards() {
+      /** True if pile `index` is alive and its TOP card carries Anchor. Anchor
+          only counts while it's the current top (a later card buries it). */
+      isAnchored(index) {
+        const p = piles[index];
+        if (!p || p.dead) return false;
+        const top = p.cards[p.cards.length - 1];
+        return !!(top && top.stickers && top.stickers.some(s => s.type === "anchor"));
+      },
+      /** Smallest card count among ALL alive piles (anchors ignored). 0 if none.
+          Used by the HUD to mark the board's true-lowest anchored pile. */
+      trueMinAliveCards() {
         let min = Infinity;
         for (const p of piles) {
           if (p.dead) continue;
@@ -1241,18 +1259,38 @@ const BoardState = (() => {
         }
         return min === Infinity ? 0 : min;
       },
-      /** Number of ALIVE piles whose top card carries a sticker of `type`
-          (generic; the Extra Coin payout passes "extraCoin"). */
-      aliveTopStickerCount(type) {
-        // SUM the matching stickers across alive top cards, so a stack of N
-        // (e.g. N Extra Coin on one top) contributes N — not 1.
-        let n = 0;
+      /** The "smallest alive pile" value used in the payout: the minimum card
+          count among NON-anchored alive piles. Anchored piles are excluded so a
+          deliberately-small anchored pile can't drag the product down. Fallback:
+          if EVERY alive pile is anchored, revert to the true smallest (so they
+          all count). 0 if no piles are alive (guards the product to 0). */
+      minAliveCards() {
+        let minNonAnchored = Infinity, minAll = Infinity;
+        for (let i = 0; i < piles.length; i++) {
+          const p = piles[i];
+          if (p.dead) continue;
+          const len = p.cards.length;
+          if (len < minAll) minAll = len;
+          if (!this.isAnchored(i) && len < minNonAnchored) minNonAnchored = len;
+        }
+        if (minAll === Infinity) return 0;                       // no alive piles
+        return minNonAnchored === Infinity ? minAll : minNonAnchored;
+      },
+      /** Extra Coin payout UNITS: for each alive top card carrying Extra Coin,
+          (number of Extra Coin stickers on it) × (cards in that pile). Summed
+          across piles. So 2 stickers on a 6-card pile contribute 2 × 6 = 12.
+          Only alive top cards count (a buried/dead Extra Coin pays nothing). */
+      extraCoinUnits() {
+        let units = 0;
         for (const p of piles) {
           if (p.dead) continue;
           const top = p.cards[p.cards.length - 1];
-          if (top && top.stickers) n += top.stickers.filter(s => s.type === type).length;
+          if (top && top.stickers) {
+            const n = top.stickers.filter(s => s.type === "extraCoin").length;
+            if (n) units += n * p.cards.length;
+          }
         }
-        return n;
+        return units;
       },
     };
   }
@@ -1763,22 +1801,24 @@ const DeckInspector = (() => {
     highlightRank(Number(row.dataset.value), row);
   }
 
-  /* Sum the REMAINING counts above/below the highlighted rank. Reads the same
-     composition already rendered — no deck recompute, no order revealed. */
+  /* Sum the REMAINING counts above / equal-to / below the highlighted rank.
+     Reads the same composition already rendered — no recompute, no order. */
   function highlightRank(value, row) {
     refs.breakdown.querySelectorAll(".scrub-active")
       .forEach(n => n.classList.remove("scrub-active"));
     row.classList.add("scrub-active");
-    let above = 0, below = 0;
+    let above = 0, same = 0, below = 0;
     for (const r of lastRemaining.rows) {
       if (r.value > value) above += r.count;
       else if (r.value < value) below += r.count;
+      else same += r.count;
     }
     const label = (row.querySelector(".bd-rank") || {}).textContent || value;
     if (refs.scrub) {
       refs.scrub.innerHTML =
         "Remaining vs <b>" + label + "</b>: " +
         '<span class="sc-hi">↑ ' + above + " higher</span> · " +
+        '<span class="sc-eq">= ' + same + " same</span> · " +
         '<span class="sc-lo">↓ ' + below + " lower</span>";
       refs.scrub.classList.remove("hidden");
     }
@@ -1810,9 +1850,11 @@ const DeckInspector = (() => {
   function hideQuick() { refs.quick.classList.add("hidden"); }
   function close() { closeFull(); hideQuick(); }     // force-dismiss (e.g., on run change)
 
-  /* Tap view: per-rank "remaining / full" so the player can compare what's
-     left against what exists in the current-stage deck. The bar fills to the
-     remaining share of that rank's full count. Counts only — never order. */
+  /* Tap view: per-rank remaining count, one row for EVERY rank (2..A) even if
+     a rank's count is 0 (e.g. all 7s turned into 8s via +1 stickers). Bars are
+     ABSOLUTE counts on a SHARED scale — every bar is measured against the same
+     max (the largest full count of any rank this stage), so "1 remaining" is the
+     same length on every row. Counts only — never order. */
   function renderFull(stats) {
     const rem = stats.remaining || EMPTY;
     const full = stats.full || EMPTY;
@@ -1820,13 +1862,15 @@ const DeckInspector = (() => {
     scrubbing = false;
     if (refs.scrub) { refs.scrub.classList.add("hidden"); refs.scrub.innerHTML = ""; }
     refs.modalTotal.textContent =
-      rem.total + " of " + full.total + " cards remaining · shown as remaining / full";
+      rem.total + " of " + full.total + " cards remaining · bars to scale";
+    // Shared scale: the largest full count across all ranks (min 1 to avoid /0).
+    let scaleMax = 1;
+    full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
     refs.breakdown.innerHTML = "";
     rem.rows.forEach((row, i) => {
       const total = (full.rows[i] && full.rows[i].count) || 0;
       const remaining = row.count;
-      if (total === 0) return;              // rank not present in this stage's deck
-      const pct = (remaining / total) * 100;
+      const pct = (remaining / scaleMax) * 100;   // absolute, shared scale
       const el = document.createElement("div");
       el.className = "bd-row" + (remaining === 0 ? " empty" : "");
       el.dataset.value = row.value;         // rank value for the scrubber
@@ -1978,26 +2022,44 @@ const UIRenderer = (() => {
   }
 
   /* Paint every pile's card-count badge AND its limiting-pile highlight in one
-     pass. Reads existing board state (piles[i].cards.length, isActive); computes
-     nothing for the economy. The badge turns ORANGE on the pile(s) whose count
-     equals the current smallest ALIVE pile — every pile that ties the minimum.
-     Recomputed wholesale each call so a pile growing past the old minimum
-     reverts to grey and any new minimum lights up live. Dead piles never get
-     the orange class (their count still shows, as before). */
+     pass. Reads existing board state; computes nothing for the economy.
+       SOLID orange (.min)       — a counting limiting pile: its count equals the
+                                   payout minimum (smallest NON-anchored alive
+                                   pile). These actually drive the payout.
+       LINED orange (.min-anchored) — an anchored pile that is the board's true
+                                   lowest but is EXCLUDED from the payout: "this
+                                   is the smallest, but it doesn't count."
+       GREY — everything else.
+     Recomputed wholesale each call so it stays live. Fallback: if EVERY alive
+     pile is anchored, minAliveCards() reverts to the true smallest and those
+     piles count (solid), so no lined badges appear. Dead piles never highlight. */
   function paintPileCounts(board) {
-    const min = board.minAliveCards();   // same source as the top-bar factor
+    const payoutMin = board.minAliveCards();     // counts among non-anchored (or all, if all anchored)
+    const trueMin = board.trueMinAliveCards();   // smallest among ALL alive piles
+    // Is there at least one non-anchored alive pile? If not, we're in the
+    // fallback where anchored piles count (solid), never lined.
+    let anyNonAnchored = false;
+    for (let i = 0; i < board.size; i++) {
+      if (board.isActive(i) && !board.isAnchored(i)) { anyNonAnchored = true; break; }
+    }
     for (let i = 0; i < board.size; i++) {
       const badge = pileEls[i].querySelector(".pile-count");
       if (!badge) continue;
       const len = board.piles[i].cards.length;
       badge.textContent = len;
-      badge.classList.toggle("min", board.isActive(i) && min > 0 && len === min);
+      const alive = board.isActive(i);
+      const anchored = alive && board.isAnchored(i);
+      const counts = alive && (anyNonAnchored ? !anchored : true);
+      const isSolid = counts && payoutMin > 0 && len === payoutMin;
+      const isLined = anyNonAnchored && anchored && trueMin > 0 && len === trueMin && !isSolid;
+      badge.classList.toggle("min", isSolid);
+      badge.classList.toggle("min-anchored", isLined);
     }
   }
 
   /* Render the sticker badges for a pile's top card: a heart per remaining
      Extra Heart, a broken heart per spent one, a shield for Tie-Safe, a coin
-     for Extra Coin, and a ± marker for rank stickers. */
+     for Extra Coin, an anchor for Anchor, and a ± marker for rank stickers. */
   function renderStickerBadges(pileEl, card) {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
@@ -2015,6 +2077,7 @@ const UIRenderer = (() => {
       chip("💔", heartsBroken) +
       chip("🛡️", n("tieSafe")) +
       chip("💰", n("extraCoin")) +
+      chip("⚓", n("anchor")) +
       chip("➕", n("rankUp")) +
       chip("➖", n("rankDown"));
   }
@@ -2385,7 +2448,7 @@ const UIRenderer = (() => {
       row("Alive piles", "", b.alivePiles) +
       row("Smallest alive pile", "", b.minPileCards + " cards") +
       row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
-      row("Extra Coin bonus", "(" + b.extraCoinCards + " × " + b.extraCoinValue + ")", "+" + b.extraCoinBonus) +
+      row("Extra Coin bonus", "", "+" + b.extraCoinBonus) +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
     );
@@ -2596,11 +2659,11 @@ const UIRenderer = (() => {
     const payout = Economy.breakdown({
       won: true,
       aliveCount,
-      // Cards in the smallest alive pile — the payout multiplier (same source
-      // as the per-pile count badge: board.piles[i].cards.length).
+      // Smallest NON-anchored alive pile — the payout multiplier (engine-side,
+      // anchors excluded; same source as the orange HUD highlight).
       minAliveCards: board.minAliveCards(),
-      // Alive top cards carrying the Extra Coin sticker (engine-side count).
-      extraCoinCards: board.aliveTopStickerCount("extraCoin"),
+      // Extra Coin units: Σ (stickers on an alive top × that pile's card count).
+      extraCoinUnits: board.extraCoinUnits(),
     });
     if (payout.total > 0) campaign.addCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };

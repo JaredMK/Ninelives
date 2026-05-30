@@ -56,7 +56,7 @@ export function run() {
   r.ok(!c2.buySticker("rankUp"), "cannot buy with no coins");
   c2.addCoins(100);
 
-  const base = StickerTypes.get("rankUp").basePrice;   // 2
+  const base = StickerTypes.get("rankUp").basePrice;   // now 1 (uniform)
   r.eq(c2.priceOf("rankUp"), base, "price starts at basePrice");
   r.ok(c2.buySticker("rankUp"), "buy #1 succeeds");
   r.eq(c2.getCoins(), 100 - base, "charged the base price");
