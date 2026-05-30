@@ -68,10 +68,14 @@ runs → apply them to cards during the next run.**
 are config constants in the `Economy` module):
 
 ```
-coins = WIN_BONUS(5)
-      + (number of alive piles)                    × PER_ALIVE_PILE(2)
-      + (Extra Coin stickers on alive top cards)      × EXTRA_COIN_VALUE(1)
+coins = (number of alive piles) × (cards in the smallest alive pile)
+      + (Extra Coin stickers on alive top cards) × EXTRA_COIN_VALUE(1)
 ```
+
+The product has no coefficient (the only tunable is `EXTRA_COIN_VALUE`). Dead
+piles don't count toward the minimum, and with 0 alive piles the product is 0
+(guarded, never `NaN`). The run-complete screen itemizes it: alive piles,
+smallest alive pile, the `N × M` subtotal, the Extra Coin bonus, and the total.
 
 **Store** (between every run): spend coins on stickers, which go into your
 campaign inventory. Each type has its own **base price that climbs +1 every

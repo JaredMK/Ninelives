@@ -914,7 +914,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.11.0";
+const APP_VERSION = "v0.12.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -948,26 +948,27 @@ const StickerTypes = (() => {
 ---------------------------------------------------------------- */
 const Economy = (() => {
   const COIN_CONFIG = {
-    WIN_BONUS: 5,         // flat reward for clearing a run
-    PER_ALIVE_PILE: 2,    // × (number of alive piles)
-    EXTRA_COIN_VALUE: 1,  // × (alive top cards carrying the Extra Coin sticker)
+    // Payout = (alive piles) × (cards in the smallest alive pile) + Extra Coin
+    // bonus. The product has no coefficient; the only tunable is below.
+    EXTRA_COIN_VALUE: 1,  // + per Extra Coin sticker on an alive top card
   };
-  /** stats: { won, aliveCount, extraCoinCards }. Returns the itemized payout
-      so the UI can show where coins came from without recomputing.
-      computeRunPayout() is just breakdown().total — one source of truth. */
+  /** stats: { won, aliveCount, minAliveCards, extraCoinCards }. Returns the
+      itemized payout so the UI can show where coins came from without
+      recomputing. computeRunPayout() is just breakdown().total. */
   function breakdown(stats, cfg = COIN_CONFIG) {
     const won = !!(stats && stats.won);
     const alivePiles = won ? (stats.aliveCount || 0) : 0;
+    const minPileCards = won ? (stats.minAliveCards || 0) : 0;
     const extraCoinCards = won ? (stats.extraCoinCards || 0) : 0;
-    const winBonus = won ? cfg.WIN_BONUS : 0;
-    const alivePileCoins = alivePiles * cfg.PER_ALIVE_PILE;
+    // Product of alive piles and the smallest alive pile's card count. The
+    // guard keeps it 0 (never NaN) when there are no alive piles.
+    const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
     const extraCoinBonus = extraCoinCards * cfg.EXTRA_COIN_VALUE;
     return {
       won,
-      winBonus,
-      alivePiles, perAlive: cfg.PER_ALIVE_PILE, alivePileCoins,
+      alivePiles, minPileCards, product,
       extraCoinCards, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
-      total: winBonus + alivePileCoins + extraCoinBonus,
+      total: product + extraCoinBonus,
     };
   }
   /** Coins earned (the total of breakdown()). */
@@ -1174,6 +1175,17 @@ const BoardState = (() => {
       kill(index) { piles[index].dead = true; },
       aliveCount() { return piles.filter(p => !p.dead).length; },
       anyAlive() { return piles.some(p => !p.dead); },
+      /** Fewest cards in any ALIVE pile (dead piles excluded). 0 if none alive.
+          Reads piles[i].cards.length — the same source as the pile-count badge,
+          and the multiplier in the coin payout. */
+      minAliveCards() {
+        let min = Infinity;
+        for (const p of piles) {
+          if (p.dead) continue;
+          if (p.cards.length < min) min = p.cards.length;
+        }
+        return min === Infinity ? 0 : min;
+      },
       /** Number of ALIVE piles whose top card carries a sticker of `type`
           (generic; the Extra Coin payout passes "extraCoin"). */
       aliveTopStickerCount(type) {
@@ -2303,8 +2315,9 @@ const UIRenderer = (() => {
       "</div>";
     return (
       '<div class="ocoins-head">🪙 Coins earned</div>' +
-      row("Win bonus", "", "+" + b.winBonus) +
-      row("Alive piles", "(" + b.alivePiles + " × " + b.perAlive + ")", "+" + b.alivePileCoins) +
+      row("Alive piles", "", b.alivePiles) +
+      row("Smallest alive pile", "", b.minPileCards + " cards") +
+      row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
       row("Extra Coin bonus", "(" + b.extraCoinCards + " × " + b.extraCoinValue + ")", "+" + b.extraCoinBonus) +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
@@ -2516,6 +2529,9 @@ const UIRenderer = (() => {
     const payout = Economy.breakdown({
       won: true,
       aliveCount,
+      // Cards in the smallest alive pile — the payout multiplier (same source
+      // as the per-pile count badge: board.piles[i].cards.length).
+      minAliveCards: board.minAliveCards(),
       // Alive top cards carrying the Extra Coin sticker (engine-side count).
       extraCoinCards: board.aliveTopStickerCount("extraCoin"),
     });
