@@ -45,5 +45,23 @@ export function run() {
   r.eq(b.aliveTopStickerCount("extraCoin"), 2,
     "counts only alive piles whose TOP card carries the sticker");
 
+  // Regression guard (reported undercount): N separate alive piles each with
+  // an Extra-Coin TOP must each count -> +N bonus, and the run total includes
+  // it. Each card gets its OWN stickers array (guards against a shared-ref or
+  // boolean collapse). 2 -> +2, 3 -> +3.
+  [2, 3].forEach(n => {
+    const piles = n + 2;                       // plus a couple of plain piles
+    const bb = BoardState.create(piles);
+    for (let i = 0; i < piles; i++) {
+      bb.push(i, { stickers: i < n ? [{ type: "extraCoin" }] : [] });
+    }
+    r.eq(bb.aliveTopStickerCount("extraCoin"), n,
+      n + " separate alive Extra-Coin tops are each counted (not collapsed)");
+    const bd2 = Economy.breakdown({ won: true, aliveCount: bb.aliveCount(), extraCoinCards: n });
+    r.eq(bd2.extraCoinBonus, n * EXTRA_COIN_VALUE, n + " Extra-Coin tops -> +" + n + " bonus");
+    r.eq(bd2.total, WIN_BONUS + bb.aliveCount() * PER_ALIVE_PILE + n * EXTRA_COIN_VALUE,
+      "run total includes the full Extra-Coin bonus for " + n + " cards");
+  });
+
   return r.summary();
 }
