@@ -118,6 +118,45 @@
     background: var(--good);
   }
 
+  /* Primary top indicator: the two payout factors, e.g. "9 piles × 2 smallest".
+     No product is shown — just the factors with the × between them. */
+  .stat.factors {
+    padding: 5px 18px;
+    gap: 11px;
+    align-items: center;
+  }
+  .stat.factors .factor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.05;
+  }
+  .stat.factors b { font-size: 22px; font-weight: 800; min-width: 0; }
+  .stat.factors .factor-lbl {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stat.factors .factor-x {
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 9px;   /* optically center against the big numbers */
+  }
+  /* The smallest-pile factor is orange to tie it to the highlighted pile(s). */
+  .min-accent { color: var(--accent) !important; }
+
+  /* Deck counter row — below the board, right-aligned (reference info). */
+  .board-foot {
+    width: min(94vw, 430px);
+    margin: 6px auto 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .board-foot .deck-stat { font-size: 13px; padding: 6px 13px; }
+
   /* ============================================================
      BOARD
      ============================================================ */
@@ -563,6 +602,12 @@
     z-index: 3;
     pointer-events: none;
   }
+  /* Limiting pile(s): count equals the current smallest alive pile. Orange to
+     match the top-bar smallest-pile factor. Applied to every tying pile. */
+  .pile-count.min {
+    background: var(--accent);
+    color: #2a1a00;
+  }
   /* A pile is a valid sticker target while a sticker is armed. */
   .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
 
@@ -774,20 +819,30 @@
   </header>
 
   <div class="hud">
-    <div class="stat" title="Coins — earned on a win, spent in the store">
-      🪙 Coins <b id="coinCount">0</b>
-    </div>
-    <div class="stat" title="Piles still alive">
-      <span class="dot"></span> Alive <b id="aliveCount">9</b>
-    </div>
-    <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
-         title="Tap to inspect the remaining deck · hold for a quick peek">
-      🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
+    <div class="stat factors" title="Alive piles × cards in the smallest alive pile — your payout factors">
+      <div class="factor">
+        <b id="aliveCount">9</b>
+        <span class="factor-lbl">piles</span>
+      </div>
+      <span class="factor-x">×</span>
+      <div class="factor">
+        <b id="minPileCount" class="min-accent">1</b>
+        <span class="factor-lbl">smallest</span>
+      </div>
     </div>
   </div>
 
   <main>
     <div class="board" id="board" aria-label="3 by 3 grid of card piles"></div>
+
+    <!-- Deck counter: reference info, below the piles on the right. Keeps its
+         tap-to-inspect / hold-to-quick-view behavior and magnifier affordance. -->
+    <div class="board-foot">
+      <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
+           title="Tap to inspect the remaining deck · hold for a quick peek">
+        🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
+      </div>
+    </div>
 
     <div class="hint" id="hint">Tap a pile to begin.</div>
 
@@ -914,7 +969,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.12.0";
+const APP_VERSION = "v0.13.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1812,7 +1867,7 @@ const UIRenderer = (() => {
     board: document.getElementById("board"),
     deckCount: document.getElementById("deckCount"),
     aliveCount: document.getElementById("aliveCount"),
-    coinCount: document.getElementById("coinCount"),
+    minPileCount: document.getElementById("minPileCount"),
     stageRun: document.getElementById("stageRun"),
     stickerTray: document.getElementById("stickerTray"),
     actions: document.getElementById("actions"),
@@ -1922,13 +1977,22 @@ const UIRenderer = (() => {
     return pile;
   }
 
-  /* Show how many cards are stacked on a pile. Reads existing board state
-     (piles[i].cards.length); computes nothing. Shown on dead piles too (the
-     count includes the card that killed the pile). It's purely informational
-     now — no longer feeds any coin calculation. */
-  function renderPileCount(pileEl, count) {
-    const badge = pileEl.querySelector(".pile-count");
-    if (badge) badge.textContent = count;
+  /* Paint every pile's card-count badge AND its limiting-pile highlight in one
+     pass. Reads existing board state (piles[i].cards.length, isActive); computes
+     nothing for the economy. The badge turns ORANGE on the pile(s) whose count
+     equals the current smallest ALIVE pile — every pile that ties the minimum.
+     Recomputed wholesale each call so a pile growing past the old minimum
+     reverts to grey and any new minimum lights up live. Dead piles never get
+     the orange class (their count still shows, as before). */
+  function paintPileCounts(board) {
+    const min = board.minAliveCards();   // same source as the top-bar factor
+    for (let i = 0; i < board.size; i++) {
+      const badge = pileEls[i].querySelector(".pile-count");
+      if (!badge) continue;
+      const len = board.piles[i].cards.length;
+      badge.textContent = len;
+      badge.classList.toggle("min", board.isActive(i) && min > 0 && len === min);
+    }
   }
 
   /* Render the sticker badges for a pile's top card: a heart per remaining
@@ -1971,24 +2035,27 @@ const UIRenderer = (() => {
       const pileEl = pileEls[i];
       const top = board.top(i);
       if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
-      renderPileCount(pileEl, board.piles[i].cards.length);
       pileEl.classList.toggle("dead", !board.isActive(i));
     }
+    paintPileCounts(board);   // counts + live limiting-pile (orange) highlight
     renderHud(board, deck);
   }
 
   function renderHud(board, deck) {
     el.deckCount.textContent = deck.remaining();
+    // Top-bar factors: alive piles × smallest alive pile — the SAME source the
+    // Economy module reads for the payout product. No recomputation here.
     el.aliveCount.textContent = board.aliveCount();
-    if (campaign) el.coinCount.textContent = campaign.getCoins();
-    updateStageRun();
+    el.minPileCount.textContent = board.minAliveCards();
+    updateStageRun();   // coins live beside the Stage · Run pill now
   }
 
   /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
   function updateStageRun() {
     if (campaign) {
       el.stageRun.textContent =
-        "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+        "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex +
+        " · 🪙 " + campaign.getCoins();
     }
   }
 
@@ -2252,7 +2319,7 @@ const UIRenderer = (() => {
         // Show the drawn card landing on the pile (its new top, or final face).
         paintFront(pileEl, payload.drawn);
         renderStickerBadges(pileEl, payload.drawn);
-        renderPileCount(pileEl, payload.board.piles[payload.index].cards.length);
+        paintPileCounts(payload.board);   // repaint all so the orange min stays live
         renderHud(payload.board, payload.deck);
 
         // Feedback flash.
@@ -2277,7 +2344,7 @@ const UIRenderer = (() => {
         // spent (run-local), and the drawn card went back into the deck.
         const pileEl = pileEls[payload.index];
         renderStickerBadges(pileEl, payload.current);   // a heart is now 💔
-        renderPileCount(pileEl, payload.board.piles[payload.index].cards.length);
+        paintPileCounts(payload.board);   // repaint all so the orange min stays live
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);

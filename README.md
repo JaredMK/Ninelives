@@ -153,8 +153,17 @@ Exactly one phase is shown at a time (the board is interactive only while the
 overlay is hidden):
 
 - **Start** — campaign intro.
-- **Active run** — normal play. A persistent `Stage X · Run Y` indicator shows
-  in the header, and the sticker tray is active only during the pre-play window.
+- **Active run** — normal play. The top bar shows the two payout factors as
+  `alive piles × smallest alive pile` (e.g. `9 × 1`), labelled and with the
+  smallest-pile number in orange to tie it to the highlighted pile(s); the
+  product itself is not shown. A persistent `Stage X · Run Y · 🪙 coins` pill
+  sits in the header, and the sticker tray is active only during the pre-play
+  window. The deck counter lives below the piles on the right (tap to inspect,
+  hold for a quick peek). Each pile shows a card-count badge; the limiting
+  pile(s) — those whose count equals the current smallest alive pile — are
+  orange (all of them if several tie), updating live as counts change. Both
+  factors read `board.aliveCount()` / `board.minAliveCards()`, the same source
+  the Economy module uses for the payout product.
 - **Run Cleared** — stage/run indicator + itemized coin breakdown, Continue
   (won, non-final run). **Hold** anywhere on this screen to peek the final board.
 - **Store** — between runs: spend coins on stickers, then Start Run.
