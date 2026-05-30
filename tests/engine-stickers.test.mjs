@@ -67,5 +67,30 @@ export function run() {
     r.eq(e2.getBoard().top(0).heartsRemaining, 1, "heart refreshed for run 2");
   }
 
+  // --- stacked Extra Hearts: each grants one survival, decrement independently
+  {
+    const specs = DeckManager.buildStandardDeck();
+    specs.forEach(c => { c.stickers.push({ type: "extraHeart" }); c.stickers.push({ type: "extraHeart" }); });
+    const e = GameEngine.create(specs, 9);
+    e.start();
+    r.eq(e.getBoard().top(0).heartsRemaining, 2, "two Extra Hearts -> heartsRemaining 2");
+    const top = e.getBoard().top(0).value;
+    e.debug.setNextCard(top); e.guess(0, "higher");   // wrong -> break 1
+    r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 1, "1st wrong: survive, 1 heart left");
+    e.debug.setNextCard(e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> break 2
+    r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 0, "2nd wrong: survive, 0 hearts left");
+    e.debug.setNextCard(e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> die
+    r.ok(!e.getBoard().isActive(0), "3rd wrong with no hearts: pile dies");
+  }
+
+  // --- sticker window: closes on the first guess of the run --------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    e.start();
+    r.ok(e.canApplyStickers(), "window OPEN after deal");
+    e.guess(0, "higher");
+    r.ok(!e.canApplyStickers(), "window CLOSED after the first guess");
+  }
+
   return r.summary();
 }

@@ -45,6 +45,13 @@ export function run() {
   r.eq(b.aliveTopStickerCount("extraCoin"), 2,
     "counts only alive piles whose TOP card carries the sticker");
 
+  // Stacked Extra Coin on a single alive top: N stickers -> +N (no cap).
+  const b2 = BoardState.create(2);
+  b2.push(0, { stickers: [{ type: "extraCoin" }, { type: "extraCoin" }, { type: "extraCoin" }] });
+  b2.push(1, { stickers: [{ type: "extraCoin" }] });
+  r.eq(b2.aliveTopStickerCount("extraCoin"), 4,
+    "sums stacked Extra Coin across tops (3 + 1 = 4)");
+
   // Regression guard (reported undercount): N separate alive piles each with
   // an Extra-Coin TOP must each count -> +N bonus, and the run total includes
   // it. Each card gets its OWN stickers array (guards against a shared-ref or

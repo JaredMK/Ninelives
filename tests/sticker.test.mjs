@@ -3,7 +3,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { DeckManager, CampaignState, StickerTypes, STICKER_SLOTS_PER_CARD } = loadGame();
+  const { DeckManager, CampaignState, StickerTypes } = loadGame();
   const r = makeRunner("sticker.test.mjs");
 
   // Persistent cards carry an empty stickers array.
@@ -30,23 +30,25 @@ export function run() {
   r.ok(!c.applySticker(byRank(14), "rankUp"), "rankUp blocked on an Ace");
   r.ok(!c.applySticker(byRank(2), "rankDown"), "rankDown blocked on a 2");
 
-  // Slot cap: a card can hold at most STICKER_SLOTS_PER_CARD stickers.
+  // No slot cap: a card holds any number of stickers (incl. duplicates).
   const fiveId = byRank(5);
-  for (let i = 0; i < STICKER_SLOTS_PER_CARD; i++) c.applySticker(fiveId, "extraHeart");
-  r.ok(!c.applySticker(fiveId, "extraHeart"),
-    "slot cap blocks more than " + STICKER_SLOTS_PER_CARD + " stickers");
-  r.eq(c.getCards().find(x => x.id === fiveId).stickers.length, STICKER_SLOTS_PER_CARD,
-    "card holds exactly the slot-cap number of stickers");
+  for (let i = 0; i < 6; i++) r.ok(c.applySticker(fiveId, "extraHeart"), "Extra Heart #" + (i + 1) + " applies (no cap)");
+  r.eq(c.getCards().find(x => x.id === fiveId).stickers.length, 6, "card holds all 6 stickers (no cap)");
 
-  // Tie-Safe is idempotent (no duplicate wasted slot).
+  // Duplicates of Tie-Safe / Extra Coin are allowed now (uniqueness removed).
   const sixId = byRank(6);
   r.ok(c.applySticker(sixId, "tieSafe"), "first Tie-Safe applies");
-  r.ok(!c.applySticker(sixId, "tieSafe"), "duplicate Tie-Safe is blocked (unique)");
-
-  // Extra Coin is also unique-per-card.
+  r.ok(c.applySticker(sixId, "tieSafe"), "duplicate Tie-Safe now allowed");
   const sevenId = byRank(7);
   r.ok(c.applySticker(sevenId, "extraCoin"), "first Extra Coin applies");
-  r.ok(!c.applySticker(sevenId, "extraCoin"), "duplicate Extra Coin is blocked (unique)");
+  r.ok(c.applySticker(sevenId, "extraCoin"), "duplicate Extra Coin now allowed");
+
+  // Stacked rank stickers clamp at the Ace boundary (can't exceed it).
+  const queenId = byRank(12);                 // Q (12)
+  r.ok(c.applySticker(queenId, "rankUp"), "Q -> K");
+  r.ok(c.applySticker(queenId, "rankUp"), "K -> A");
+  r.ok(!c.applySticker(queenId, "rankUp"), "A blocks further +1 (clamped)");
+  r.eq(c.getCards().find(x => x.id === queenId).currentRank, 14, "stacked +1 clamps at Ace (14)");
 
   // --- store / inventory / coins with ESCALATING prices -----------------
   const c2 = CampaignState.create();

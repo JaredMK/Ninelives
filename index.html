@@ -73,6 +73,19 @@
     font-size: 12px;
     color: var(--muted);
   }
+  .stage-run {
+    margin: 5px auto 0;
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 3px 12px;
+    box-shadow: var(--shadow);
+  }
 
   .hud {
     display: flex;
@@ -336,6 +349,17 @@
     transition: opacity 0.3s ease;
   }
   .overlay.hidden { opacity: 0; pointer-events: none; }
+  /* Hold-to-peek: fade the overlay to reveal the final board underneath. It
+     keeps capturing the pointer (no pointer-events:none) so release restores. */
+  .overlay.peek { opacity: 0; transition: opacity 0.12s ease; }
+
+  .peek-hint {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.8;
+  }
+  .peek-hint.hidden { display: none; }
 
   .overlay h2 { font-size: 34px; margin: 0 0 8px; }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
@@ -515,6 +539,15 @@
     font-size: 11px;
     line-height: 1;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+    display: inline-flex;
+    align-items: flex-start;
+  }
+  .pile-badges .bcount {
+    font-size: 8px;
+    font-weight: 800;
+    color: #fff;
+    margin-left: -1px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
   }
   /* Card-count badge — bottom-LEFT corner (sticker badges are top-left,
      the rotated rank sits bottom-right, so this corner is clear). */
@@ -737,6 +770,7 @@
   <header>
     <h1>NINE LIVES</h1>
     <p>Guess higher or lower. Survive the deck.</p>
+    <div class="stage-run" id="stageRun">Stage 1 · Run 1</div>
   </header>
 
   <div class="hud">
@@ -825,6 +859,7 @@
     </div>
     <div class="overlay-coins hidden" id="overlayCoins"></div>
     <button class="play-btn" id="playBtn">PLAY</button>
+    <div class="peek-hint hidden" id="peekHint">👁 Hold anywhere to peek the board</div>
   </div>
 
   <!-- Store overlay — shown between runs; spend coins on stickers -->
@@ -879,7 +914,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.10.2";
+const APP_VERSION = "v0.11.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -888,17 +923,16 @@ const APP_VERSION = "v0.10.2";
      kind "rank"     -> permanent rank change (also records a modification)
      kind "behavior" -> the engine reads a flag off the card at resolve time
 ---------------------------------------------------------------- */
-const STICKER_SLOTS_PER_CARD = 3;   // max stickers a single card can carry
-
 const StickerTypes = (() => {
   // basePrice: starting store price (climbs +1 per purchase of that type —
-  // see CampaignState.priceOf). unique: at most one per card (no wasted slot).
+  // see CampaignState.priceOf). Cards may hold any number of stickers,
+  // including duplicates of the same type — no slot cap, no uniqueness.
   const TYPES = {
     rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 2 },
     rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 2 },
     extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 8 },
-    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 3, unique: true },
-    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1, unique: true },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 3 },
+    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1 },
   };
   const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin"];
   return {
@@ -1143,10 +1177,15 @@ const BoardState = (() => {
       /** Number of ALIVE piles whose top card carries a sticker of `type`
           (generic; the Extra Coin payout passes "extraCoin"). */
       aliveTopStickerCount(type) {
-        return piles.filter(p => !p.dead).filter(p => {
+        // SUM the matching stickers across alive top cards, so a stack of N
+        // (e.g. N Extra Coin on one top) contributes N — not 1.
+        let n = 0;
+        for (const p of piles) {
+          if (p.dead) continue;
           const top = p.cards[p.cards.length - 1];
-          return top && top.stickers && top.stickers.some(s => s.type === type);
-        }).length;
+          if (top && top.stickers) n += top.stickers.filter(s => s.type === type).length;
+        }
+        return n;
       },
     };
   }
@@ -1183,6 +1222,10 @@ const GameEngine = (() => {
         result: null,        // "win" | "loss" once ended
         correctGuesses: 0,
         totalGuesses: 0,
+        // Sticker application window: open from the deal until the first
+        // guess of the run, then closed for the rest of the run. Explicit
+        // state (not inferred) so the UI can gate on it.
+        stickerWindow: true,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1206,6 +1249,10 @@ const GameEngine = (() => {
       if (status !== "playing") return;
       if (!board.isActive(index)) return;
       if (deck.isEmpty()) return;
+
+      // The first guess permanently closes the sticker-application window
+      // for this run (anti-exploit: no end-of-run sticker saves).
+      run.stickerWindow = false;
 
       const current = board.top(index);
       const drawn = deck.draw();
@@ -1294,6 +1341,8 @@ const GameEngine = (() => {
       guess,
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
+      /** True only during the pre-play window (after deal, before 1st guess). */
+      canApplyStickers() { return status === "playing" && !!run && run.stickerWindow === true; },
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
@@ -1513,19 +1562,18 @@ const CampaignState = (() => {
       /* ---- sticker application (permanent, per-card, validated) ----
          Stickers attach to a SPECIFIC persistent card by id. Rank stickers
          also bump currentRank + record a modification; behavior stickers are
-         read by the engine via toCard(). Validation blocks wasted stickers
-         (no +1 on an Ace, no -1 on a 2, no exceeding the slot cap, no
-         duplicate of a `unique` type like Tie-Safe / Extra Coin). */
+         read by the engine via toCard(). No slot cap and no uniqueness — a
+         card may hold any number of stickers, including duplicates. The only
+         block is at a rank boundary: no +1 on an Ace, no -1 on a 2 (so stacked
+         rank stickers clamp instead of being wasted). */
       canApplySticker(card, typeId) {
         if (!card) return false;
         const t = StickerTypes.get(typeId);
         if (!t) return false;
-        if ((card.stickers ? card.stickers.length : 0) >= STICKER_SLOTS_PER_CARD) return false;
         if (t.kind === "rank") {
           if (t.rankDelta > 0 && card.currentRank >= MAX_RANK) return false;
           if (t.rankDelta < 0 && card.currentRank <= MIN_RANK) return false;
         }
-        if (t.unique && card.stickers.some(s => s.type === typeId)) return false;
         return true;
       },
       canApplyStickerById(id, typeId) { return this.canApplySticker(findById(id), typeId); },
@@ -1753,6 +1801,7 @@ const UIRenderer = (() => {
     deckCount: document.getElementById("deckCount"),
     aliveCount: document.getElementById("aliveCount"),
     coinCount: document.getElementById("coinCount"),
+    stageRun: document.getElementById("stageRun"),
     stickerTray: document.getElementById("stickerTray"),
     actions: document.getElementById("actions"),
     btnHigher: document.getElementById("btnHigher"),
@@ -1771,6 +1820,7 @@ const UIRenderer = (() => {
     summaryTotalCorrect: document.getElementById("summaryTotalCorrect"),
     summaryRunsDone: document.getElementById("summaryRunsDone"),
     overlayCoins: document.getElementById("overlayCoins"),
+    peekHint: document.getElementById("peekHint"),
     playBtn: document.getElementById("playBtn"),
     buildTag: document.getElementById("buildTag"),
     // deck inspection
@@ -1805,6 +1855,7 @@ const UIRenderer = (() => {
   let engine = null;
   let campaign = null;        // persists across runs (campaign-level only)
   let overlayAction = null;   // what the single overlay button does right now
+  let overlayPeekable = false; // run-complete screens allow hold-to-peek the board
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
@@ -1875,17 +1926,21 @@ const UIRenderer = (() => {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
-    const heartTotal = stickers.filter(s => s.type === "extraHeart").length;
+    const n = (type) => stickers.filter(s => s.type === type).length;
+    // One compact chip per kind with a small ×count when stacked, so any
+    // number of stickers stays inside the pile (no per-sticker overflow).
+    const chip = (icon, count) =>
+      count > 0 ? '<span class="badge">' + icon +
+        (count > 1 ? '<span class="bcount">' + count + "</span>" : "") + "</span>" : "";
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
-    let html = "";
-    for (let i = 0; i < heartTotal; i++) html += '<span class="badge">' + (i < heartsLeft ? "❤️" : "💔") + "</span>";
-    if (stickers.some(s => s.type === "tieSafe"))   html += '<span class="badge">🛡️</span>';
-    if (stickers.some(s => s.type === "extraCoin")) html += '<span class="badge">💰</span>';
-    const rankUps = stickers.filter(s => s.type === "rankUp").length;
-    const rankDowns = stickers.filter(s => s.type === "rankDown").length;
-    if (rankUps)   html += '<span class="badge">➕' + (rankUps > 1 ? rankUps : "") + "</span>";
-    if (rankDowns) html += '<span class="badge">➖' + (rankDowns > 1 ? rankDowns : "") + "</span>";
-    badges.innerHTML = html;
+    const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
+    badges.innerHTML =
+      chip("❤️", heartsLeft) +
+      chip("💔", heartsBroken) +
+      chip("🛡️", n("tieSafe")) +
+      chip("💰", n("extraCoin")) +
+      chip("➕", n("rankUp")) +
+      chip("➖", n("rankDown"));
   }
 
   function paintFront(pileEl, card) {
@@ -1914,6 +1969,15 @@ const UIRenderer = (() => {
     el.deckCount.textContent = deck.remaining();
     el.aliveCount.textContent = board.aliveCount();
     if (campaign) el.coinCount.textContent = campaign.getCoins();
+    updateStageRun();
+  }
+
+  /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
+  function updateStageRun() {
+    if (campaign) {
+      el.stageRun.textContent =
+        "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+    }
   }
 
   /* ---- selection / action sheet ---- */
@@ -1948,11 +2012,13 @@ const UIRenderer = (() => {
      Buy stickers in the store; here you spend them on the face-up top card
      of a pile. Tap a sticker to "arm" it, then tap a pile. */
   function renderStickerTray() {
-    const playing = engine && engine.getStatus() === "playing";
+    // The tray is only active during the pre-play window (until the first
+    // guess). Owned stickers persist in inventory for the next run's window.
+    const open = engine && engine.canApplyStickers();
     const inv = campaign ? campaign.getInventory() : {};
     const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
     el.stickerTray.innerHTML = "";
-    if (!playing || owned.length === 0) {
+    if (!open || owned.length === 0) {
       el.stickerTray.classList.add("hidden");
       if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
       return;
@@ -1969,7 +2035,7 @@ const UIRenderer = (() => {
   }
 
   function armSticker(typeId) {
-    if (!engine || engine.getStatus() !== "playing") return;
+    if (!engine || !engine.canApplyStickers()) return;
     if (campaign.inventoryCount(typeId) <= 0) return;
     armedSticker = armedSticker === typeId ? null : typeId;
     clearSelection();
@@ -1982,6 +2048,14 @@ const UIRenderer = (() => {
   }
 
   function applyArmedSticker(index) {
+    // Hard gate: applications are only allowed in the pre-play window.
+    if (!engine.canApplyStickers()) {
+      armedSticker = null;
+      el.board.classList.remove("arming");
+      renderStickerTray();
+      el.hint.textContent = "Sticker window closed — apply before your first guess.";
+      return;
+    }
     const board = engine.getBoard();
     if (!board.isActive(index)) return;
     const top = board.top(index);
@@ -2090,6 +2164,22 @@ const UIRenderer = (() => {
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
 
+    // Hold-to-peek the final board on run-complete screens: pressing the
+    // overlay (anywhere except the button) fades it away to reveal the board
+    // underneath; releasing restores it. Read-only — never mutates state.
+    const peekOn = (e) => {
+      if (!overlayPeekable) return;
+      if (e.target.closest(".play-btn")) return;   // let the button work
+      e.preventDefault();
+      try { el.overlay.setPointerCapture(e.pointerId); } catch (_) {}
+      el.overlay.classList.add("peek");
+    };
+    const peekOff = () => el.overlay.classList.remove("peek");
+    el.overlay.addEventListener("pointerdown", peekOn);
+    el.overlay.addEventListener("pointerup", peekOff);
+    el.overlay.addEventListener("pointercancel", peekOff);
+    el.overlay.addEventListener("pointerleave", peekOff);
+
     // Store wiring (tap a sticker to buy; START RUN to begin next run).
     el.storeItems.addEventListener("click", (e) => {
       const item = e.target.closest(".store-item");
@@ -2129,12 +2219,16 @@ const UIRenderer = (() => {
   /* ---- event handling from the engine ---- */
   function handleEvent(type, payload) {
     switch (type) {
-      case "dealt":
+      case "dealt": {
         renderBoard(payload.board, payload.deck);
         renderStickerTray();
-        el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
+        const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
+        el.hint.textContent = hasStickers
+          ? "Apply stickers now — the window closes on your first guess."
+          : "Tap a pile, then choose Higher, Same, or Lower.";
         refreshDebug();
         break;
+      }
 
       case "debug-refresh":
         renderHud(payload.board, payload.deck);
@@ -2246,6 +2340,11 @@ const UIRenderer = (() => {
     if (opts.coins) el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins);
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
 
+    // Hold-to-peek the final board (run-complete / campaign screens only).
+    overlayPeekable = !!opts.peek;
+    el.overlay.classList.remove("peek");
+    el.peekHint.classList.toggle("hidden", !opts.peek);
+
     el.playBtn.textContent = opts.btnLabel;
     overlayAction = opts.action;
   }
@@ -2286,6 +2385,7 @@ const UIRenderer = (() => {
       msg: "You emptied the deck.",
       progress: stageRunLabel(" complete"),
       coins,
+      peek: true,
       btnLabel: "CONTINUE",
       action: continueCampaign,
     });
@@ -2302,6 +2402,7 @@ const UIRenderer = (() => {
          + "coins, and stickers all reset. Start fresh from Stage 1.",
       progress: "Reached " + stageRunLabel(),
       runStats,
+      peek: true,
       btnLabel: "NEW CAMPAIGN",
       action: startCampaign,
     });
@@ -2317,6 +2418,7 @@ const UIRenderer = (() => {
       runStats,
       campStats,
       coins,
+      peek: true,
       btnLabel: "NEW CAMPAIGN",
       action: startCampaign,
     });
@@ -2489,6 +2591,7 @@ const UIRenderer = (() => {
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
+    updateStageRun();
 
     // Deck inspection (informational only) — reads the live run deck's
     // rank counts, never its order, and only while a run is active.

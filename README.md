@@ -70,7 +70,7 @@ are config constants in the `Economy` module):
 ```
 coins = WIN_BONUS(5)
       + (number of alive piles)                    × PER_ALIVE_PILE(2)
-      + (alive top cards with the Extra Coin sticker) × EXTRA_COIN_VALUE(1)
+      + (Extra Coin stickers on alive top cards)      × EXTRA_COIN_VALUE(1)
 ```
 
 **Store** (between every run): spend coins on stickers, which go into your
@@ -84,16 +84,20 @@ belong to the card, not the pile position. Types:
 | --- | --- | --- | --- |
 | **+1 Rank** | 2 | Permanently raises that card's rank by 1 | card is an Ace |
 | **−1 Rank** | 2 | Permanently lowers that card's rank by 1 | card is a 2 |
-| **Tie-Safe** 🛡️ | 3 | The card survives a tie on *any* guess (not just Same) | already has Tie-Safe |
+| **Tie-Safe** 🛡️ | 3 | The card survives a tie on *any* guess (not just Same) | — |
 | **Extra Heart** ❤️ | 8 | Survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks"; refreshes each run | — |
-| **Extra Coin** 💰 | 1 | At end of run, +1 coin if this card is alive on top of a pile | already has Extra Coin |
+| **Extra Coin** 💰 | 1 | At end of run, +1 coin if this card is alive on top of a pile | — |
 
-**Applying** happens *in-run*: owned stickers appear in a tray; tap one to
-arm it, then tap a pile to apply it to that pile's **face-up top card**. Rank
-stickers take effect immediately; behavior stickers (Extra Heart / Tie-Safe)
-are read by the engine on the next guess. A card holds at most
-`STICKER_SLOTS_PER_CARD` (3) stickers; rank stickers stack toward the Ace/2
-caps and are blocked at the cap so none are wasted.
+**Applying** happens during a **pre-play window** each run: right after the
+deal you may apply owned stickers to any pile's **face-up top card** (arm one
+from the tray, then tap a pile). The window **closes on your first guess**
+(`run.stickerWindow` flips false) — no end-of-run sticker saves. Unspent
+stickers stay in inventory for the next run's window. Rank stickers take
+effect immediately; behavior stickers are read by the engine on the next
+guess. There is **no per-card limit** — a card may hold any number of
+stickers, including duplicates (stacked Extra Coin/Heart each pay/save N,
+stacked ±1 clamp at the Ace/2 boundary). The only block is at that boundary:
+no +1 on an Ace, no −1 on a 2.
 
 Each card has a **persistent identity**: a stable id and suit, the rank it
 *started* as (`originalRank`), the rank it is *now* (`currentRank`), a
@@ -145,8 +149,10 @@ Exactly one phase is shown at a time (the board is interactive only while the
 overlay is hidden):
 
 - **Start** — campaign intro.
-- **Active run** — normal play.
-- **Run Cleared** — stage/run indicator + itemized coin breakdown, Continue (won, non-final run).
+- **Active run** — normal play. A persistent `Stage X · Run Y` indicator shows
+  in the header, and the sticker tray is active only during the pre-play window.
+- **Run Cleared** — stage/run indicator + itemized coin breakdown, Continue
+  (won, non-final run). **Hold** anywhere on this screen to peek the final board.
 - **Store** — between runs: spend coins on stickers, then Start Run.
 - **Campaign Complete** — cleared all 3 stages; final totals, New Campaign.
 - **Campaign Over** — after any loss; full wipe, New Campaign.
