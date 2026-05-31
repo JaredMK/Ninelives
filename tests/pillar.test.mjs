@@ -15,8 +15,8 @@ export function run() {
     r.ok(!!g, "registry has columnGuardian");
     r.eq(g.kind, "scoring", "columnGuardian is a scoring Pillar");
     r.eq(g.effect, "columnAllAlive", "columnGuardian effect key");
-    r.eq(g.value, 10, "columnGuardian pays 10");
-    r.eq(g.basePrice, 1, "columnGuardian base price 1");
+    r.eq(g.value, 5, "columnGuardian pays 5");
+    r.eq(g.price, 12, "columnGuardian fixed price 12");
     r.eq(PillarTypes.get("nope"), null, "unknown Pillar id → null");
     r.ok(PillarTypes.all().length === PillarTypes.ids.length, "all() matches ids");
   }
@@ -45,37 +45,56 @@ export function run() {
     r.ok(!c.setColumnPillar(0, "ghost"), "unknown Pillar id rejected");
   }
 
-  // --- Buy = placement (no inventory); escalating price; replace-when-full
+  // --- Buy = placement (no inventory); FIXED price; replace-when-full -----
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    r.eq(c.priceOfPillar("columnGuardian"), 5, "first price = PILLAR_BASE_PRICE (5)");
+    r.eq(c.priceOfPillar("columnGuardian"), 12, "fixed Pillar price (Column Guardian = 12)");
     r.ok(c.buyPillar("columnGuardian", 0), "buy onto column 0");
     r.eq(c.columnPillar(0), "columnGuardian", "purchase placed it on the column");
-    r.eq(c.priceOfPillar("columnGuardian"), 6, "price climbs +1 after a buy");
-    r.eq(c.getCoins(), 95, "spent the first price (5)");
+    r.eq(c.priceOfPillar("columnGuardian"), 12, "price does NOT escalate after a buy");
+    r.eq(c.getCoins(), 88, "spent the fixed price (12)");
 
     // Buying onto an occupied column overwrites it (the replace path).
     r.ok(c.buyPillar("columnGuardian", 0), "buy again onto the same column");
     r.eq(c.pillarCount(), 1, "replace keeps the slot count at one");
-    r.eq(c.getCoins(), 89, "spent the escalated price (6)");
+    r.eq(c.getCoins(), 76, "second buy also cost the fixed 12 (no escalation)");
 
-    // Every Pillar type shares the same base price.
-    r.eq(c.priceOfPillar("spadeBounty"), 5, "all Pillar types start at base 5");
+    // Per-type fixed prices.
+    r.eq(c.priceOfPillar("spadeBounty"), 8, "Suit Bounty = 8");
+    r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
+    r.eq(c.priceOfPillar("eightTribute"), 15, "8 Tribute = 15");
+    r.eq(c.priceOfPillar("sameTribute"), 15, "Same Tribute = 15");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");
     r.ok(!c.buyPillar("columnGuardian", 9), "can't buy onto a bad column");
   }
 
-  // --- reset() wipes the Pillar binding + purchase counts ---------------
+  // --- Fixed sticker prices --------------------------------------------
+  {
+    const c = CampaignState.create();
+    r.eq(c.priceOf("rankUp"), 3, "+1 Rank = 3");
+    r.eq(c.priceOf("changeSuitRandom"), 1, "Change to Random Suit = 1");
+    r.eq(c.priceOf("changeSuitSpade"), 3, "Change to ♠ = 3");
+    r.eq(c.priceOf("changeSuitHeart"), 3, "Change to ♥ = 3");
+    r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
+    r.eq(c.priceOf("extraCoin"), 6, "Extra Coin = 6");
+    r.eq(c.priceOf("extraHeart"), 7, "Extra Heart = 7");
+    r.eq(c.priceOf("anchor"), 4, "Anchor = 4 (kept)");
+    // Buying never changes a price.
+    c.addCoins(100); c.buySticker("rankUp"); c.buySticker("rankUp");
+    r.eq(c.priceOf("rankUp"), 3, "sticker price stays fixed after buying");
+  }
+
+  // --- reset() wipes the Pillar binding (prices are fixed regardless) ----
   {
     const c = CampaignState.create();
     c.addCoins(50);
     c.buyPillar("columnGuardian", 2);
     c.reset();
     r.eq(c.pillarCount(), 0, "reset clears the column binding");
-    r.eq(c.priceOfPillar("columnGuardian"), 5, "reset clears escalating price (back to base 5)");
+    r.eq(c.priceOfPillar("columnGuardian"), 12, "Pillar price is fixed at 12");
   }
 
   // --- Engine pile→column mapping (fill DOWN each column) ----------------
@@ -100,7 +119,7 @@ export function run() {
     win.start();
     win.startRun(["columnGuardian", null, null]);
     win.debug.winNow();   // empty the deck → win, every pile still alive
-    r.eq(payload.pillarPayout.bonus, 10, "all-alive column pays +10");
+    r.eq(payload.pillarPayout.bonus, 5, "all-alive column pays +5");
     r.eq(payload.pillarPayout.lines.length, 1, "one itemized Pillar line");
 
     // Same setup but kill a pile in column 0 → no payout for that column.
@@ -146,7 +165,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 7, "all Pillars registered (incl. 8 Tribute)");
+    r.eq(PillarTypes.all().length, 8, "all Pillars registered (incl. 8 Tribute + Same Tribute)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -305,29 +324,85 @@ export function run() {
     r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
   }
 
-  // --- Phase 5: Change Suit sticker (Suit Bounty enabler) ---------------
+  // --- Same Tribute: burns on a SURVIVED TIE (correct Same OR shield-saved) ---
   {
-    r.ok(!!StickerTypes.get("changeSuit"), "registry has the Change Suit sticker");
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let resolved = null;
+    e.onEvent((t, p) => { if (t === "resolved") resolved = p; });
+    e.start();
+    e.startRun(["sameTribute", null, null]);   // column 0 (cap 2)
+    const deck0 = e.getDeck().remaining();
+    const len0 = e.getBoard().piles[0].cards.length;
 
+    // (a) a correctly-called Same guess (drawn ties the showing card).
+    const a = e.getBoard().top(0); a.value = 7;
+    e.debug.setNextCard(7);
+    e.guess(0, "same");
+    r.eq(e.getRun().sameTributesUsed[0], 1, "fires on a correct Same guess");
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "pile gains the Same card + a buried tribute");
+    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
+    r.eq(Object.keys(resolved).sort().join(","), "board,correct,current,deck,drawn,guess,index,run",
+      "resolved payload carries no tributed-card field (no order leak)");
+
+    // (b) a tie SAVED by the card's Tie-Safe (guessed higher) — also counts.
+    const b = e.getBoard().top(1); b.value = 7; b.tieSafe = true;
+    e.debug.setNextCard(7);
+    e.guess(1, "higher");
+    r.ok(e.getBoard().isActive(1), "Tie-Safe saved the tie (pile survives)");
+    r.eq(e.getRun().sameTributesUsed[0], 2, "ALSO fires on a shield-saved tie (cap now reached)");
+
+    // (c) cap: a third survived tie does not burn.
+    const c2 = e.getBoard().top(2); c2.value = 7;
+    e.debug.setNextCard(7);
+    e.guess(2, "same");
+    r.eq(e.getRun().sameTributesUsed[0], 2, "capped at 2 per column per run");
+    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap survived tie adds only the drawn card");
+  }
+
+  // --- Same Tribute does NOT fire on a non-tie win or an off-column tie ---
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start();
+    e.startRun(["sameTribute", null, null]);
+    const a = e.getBoard().top(0); a.value = 5;
+    const deck0 = e.getDeck().remaining();
+    e.debug.setNextCard(9);
+    e.guess(0, "higher");   // 9 > 5, correct but NOT a tie
+    r.eq(e.getRun().sameTributesUsed[0], 0, "no burn on a non-tie correct guess");
+    r.eq(e.getDeck().remaining(), deck0 - 1, "only the drawn card leaves the deck");
+
+    // A survived tie in a column WITHOUT the Pillar burns nothing.
+    const d = e.getBoard().top(3); d.value = 7;   // pile 3 = column 1 (no Pillar)
+    e.debug.setNextCard(7);
+    e.guess(3, "same");
+    r.eq(e.getRun().sameTributesUsed[1], 0, "a survived tie in a non-tribute column doesn't burn");
+  }
+
+  // --- Suit-change stickers (Defined + Random; Suit Bounty enablers) -----
+  {
+    r.ok(!!StickerTypes.get("changeSuitSpade") && !!StickerTypes.get("changeSuitHeart"),
+      "registry has the Defined-suit stickers (♠, ♥)");
+    r.ok(!!StickerTypes.get("changeSuitRandom"), "registry has the Random-suit sticker");
+    r.eq(StickerTypes.get("changeSuit"), null, "old cycle Change Suit is removed");
+
+    // Defined suit: set a ♦ card to ♥ (rank untouched).
     const c = CampaignState.create();
-    const id = c.getCards().find(x => x.suit === "♠").id;   // any ♠ card
-    r.ok(c.applySticker(id, "changeSuit"), "apply Change Suit to a ♠ card");
+    const card = c.getCards().find(x => x.suit === "♦");
+    const id = card.id, rank0 = card.currentRank;
+    r.ok(c.applySticker(id, "changeSuitHeart"), "apply Change to ♥ to a ♦ card");
     const after = c.getCards().find(x => x.id === id);
-    r.eq(after.suit, "♥", "Change Suit advances ♠ → ♥");
+    r.eq(after.suit, "♥", "Defined-suit sets ♦ → ♥");
+    r.eq(after.currentRank, rank0, "rank/value is untouched by a suit change");
     r.ok(after.modifications.some(m => m.op === "changeSuit"), "records a changeSuit modification");
-    r.ok(after.stickers.some(s => s.type === "changeSuit"), "the sticker rides on the card");
-    r.eq(after.currentRank, c.getCards().find(x => x.id === id).originalRank ?? after.currentRank,
-      "rank/value is untouched by a suit change");
+    // Flows into the run deck the engine deals from (a Heart Bounty would see it).
+    // ♥ is active in Stage 1, so it appears in the run deck.
+    r.eq(c.getRunDeck().find(x => x.id === id).suit, "♥", "changed suit materializes in the run deck");
 
-    // The changed suit flows into the run deck the engine deals from, so a
-    // matching Suit Bounty Pillar will see it (bounty reads the dealt suit).
-    r.eq(c.getRunDeck().find(x => x.id === id).suit, "♥",
-      "changed suit materializes in the run deck");
-
-    // Four steps cycle a card all the way around back to its start.
-    const id2 = c.getCards().find(x => x.suit === "♣").id;
-    c.applySticker(id2, "changeSuit");   // ♣ → ♠
-    r.eq(c.getCards().find(x => x.id === id2).suit, "♠", "Change Suit wraps ♣ → ♠");
+    // Random suit: changes to a DIFFERENT valid suit.
+    const sid = c.getCards().find(x => x.suit === "♠").id;
+    c.applySticker(sid, "changeSuitRandom");
+    const rnd = c.getCards().find(x => x.id === sid).suit;
+    r.ok(["♠", "♥", "♦", "♣"].includes(rnd) && rnd !== "♠", "Random suit picks a different valid suit");
   }
 
   // --- Debug grant: free sticker to inventory, no coins / no escalation --

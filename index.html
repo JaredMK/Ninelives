@@ -1253,7 +1253,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.19.0";
+const APP_VERSION = "v0.20.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1263,32 +1263,35 @@ const APP_VERSION = "v0.19.0";
      kind "behavior" -> the engine reads a flag off the card at resolve time
 ---------------------------------------------------------------- */
 const StickerTypes = (() => {
-  // basePrice: starting store price (climbs +1 per purchase of that type —
-  // see CampaignState.priceOf). Every type now starts at 1 (uniform) and
-  // escalates independently. Cards may hold any number of stickers, including
+  // `price`: FIXED store price (no per-purchase escalation — buying never
+  // raises any price). Cards may hold any number of stickers, including
   // duplicates of the same type — no slot cap, no uniqueness.
   // `description` is the single source of truth for the store help popup —
   // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
-    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 1,
+    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, price: 3,
                   description: "Permanently raise this card's rank by 1. Can't go above an Ace." },
-    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 1,
+    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, price: 3,
                   description: "Permanently lower this card's rank by 1. Can't go below a 2." },
-    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 1,
-                  description: "Absorbs one wrong guess on this card: the pile survives and the drawn card is reshuffled back in. Refreshes every run." },
-    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 1,
+    changeSuitRandom: { id: "changeSuitRandom", label: "Change to Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", price: 1,
+                  description: "Permanently change this card's suit to a random DIFFERENT suit. Rank is unchanged." },
+    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", price: 3,
+                  description: "Permanently change this card's suit to ♠ (Spades). Rank is unchanged. Feeds the Spade Bounty Pillar." },
+    changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", price: 3,
+                  description: "Permanently change this card's suit to ♥ (Hearts). Rank is unchanged. Feeds the Heart Bounty Pillar." },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    price: 4,
                   description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
-    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1,
+    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  price: 6,
                   description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
-    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     basePrice: 1,
+    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", price: 7,
+                  description: "Absorbs one wrong guess on this card: the pile survives and the drawn card is reshuffled back in. Refreshes every run." },
+    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     price: 4,
                   description: "While this card is the top of its pile, that pile is excluded from the smallest-alive-pile payout factor, so a tiny pile can't drag your coins down." },
-    // Permanently advance a card's SUIT one step (♠→♥→♦→♣→♠). Pure composition
-    // (rank/value untouched); the enabler for Suit Bounty Pillars. Apply again
-    // to keep cycling toward a target suit.
-    changeSuit: { id: "changeSuit", label: "Change Suit", icon: "🔄", kind: "behavior", behavior: "changeSuit", basePrice: 1,
-                  description: "Permanently change this card's suit one step around ♠→♥→♦→♣→♠. Rank is unchanged. Feeds Suit Bounty Pillars." },
   };
-  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin", "anchor", "changeSuit"];
+  // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
+  // cheap gamble. The old cycle-style Change Suit has been removed.
+  const ORDER = ["rankUp", "rankDown", "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
+    "tieSafe", "extraCoin", "extraHeart", "anchor"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1305,9 +1308,7 @@ const StickerTypes = (() => {
      kind:   "scoring" | "guess" | "composition" — which engine hook reads it
      effect: the behavior key the engine dispatches on
      value:  effect coefficient (e.g. flat coin bonus), where relevant
-   Pillar store pricing is NOT per-entry — every Pillar starts at the shared
-   CampaignState.PILLAR_BASE_PRICE config constant and climbs +1 per buy (see
-   priceOfPillar). The legacy per-entry basePrice is unused for Pillars.
+     price:  FIXED store price (no per-purchase escalation)
    Pillars live in the 3 column slots (one per column); there is no
    separate inventory — see CampaignState.columnPillars. Phase 1 ships a
    single scoring Pillar end to end; more land in later phases.
@@ -1321,47 +1322,56 @@ const PillarTypes = (() => {
   // `description` is the single source of truth for the store help popup —
   // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
-    columnGuardian: {
-      id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
-      kind: "scoring", effect: "columnAllAlive", value: 10, basePrice: 1,
-      description: "At run end, pays +10 coins if every pile in this column survived.",
-    },
-    columnTieSafe: {
-      id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
-      kind: "guess", effect: "columnTieSafe", basePrice: 1,
-      description: "Every pile in this column survives a tie on any guess (a column-wide Tie-Safe).",
-    },
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
-      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, basePrice: 1,
+      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, price: 8,
       description: "+1 coin for each correct guess made while a ♠ card is showing on a pile in this column.",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Bounty", icon: "♥️",
-      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, basePrice: 1,
+      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, price: 8,
       description: "+1 coin for each correct guess made while a ♥ card is showing on a pile in this column.",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
-      kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, basePrice: 1,
+      kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, price: 8,
       description: "+1 coin for each correct guess made while a ♦ card is showing on a pile in this column.",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bounty", icon: "♣️",
-      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, basePrice: 1,
+      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, price: 8,
       description: "+1 coin for each correct guess made while a ♣ card is showing on a pile in this column.",
+    },
+    columnTieSafe: {
+      id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
+      kind: "guess", effect: "columnTieSafe", price: 12,
+      description: "Every pile in this column survives a tie on any guess (a column-wide Tie-Safe).",
+    },
+    columnGuardian: {
+      id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
+      kind: "scoring", effect: "columnAllAlive", value: 5, price: 12,
+      description: "At run end, pays +5 coins if every pile in this column survived.",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
       // deck's BOTTOM card under that pile (hidden). Caps at `cap` per column
       // per run. Pure composition shift — no order is ever revealed.
       id: "eightTribute", label: "8 Tribute", icon: "8️⃣",
-      kind: "composition", effect: "eightTribute", cap: 2, basePrice: 1,
+      kind: "composition", effect: "eightTribute", cap: 2, price: 15,
       description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Up to 2 times per run.",
     },
+    sameTribute: {
+      // When a pile in this column SURVIVES A TIE — a correctly-called Same
+      // guess OR a tie saved by Tie-Safe / Column Tie-Safe — pull the deck's
+      // BOTTOM card under that pile (hidden). Same composition mechanic, cap,
+      // and no-reveal guardrail as 8 Tribute.
+      id: "sameTribute", label: "Same Tribute", icon: "⚖️",
+      kind: "composition", effect: "sameTribute", cap: 2, price: 15,
+      description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — a card from the bottom of the deck is buried under that pile (hidden). Up to 2 times per run.",
+    },
   };
-  const ORDER = ["columnGuardian", "columnTieSafe",
-    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty", "eightTribute"];
+  const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
+    "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1724,6 +1734,24 @@ const GameEngine = (() => {
       return map;
     }
 
+    /** Composition Tribute Pillars (8 Tribute / Same Tribute): on a qualifying
+        surviving resolution, move the deck's BOTTOM card to the BOTTOM of this
+        pile, hidden, capped per column per run. The card never appears in any
+        event payload — composition shifts, draw order is never revealed. */
+    function maybeTribute(index, pillar, drawn, isTie) {
+      if (!pillar || !run.pileColumns) return;
+      const fires =
+        (pillar.effect === "eightTribute" && drawn.value === 8) ||
+        (pillar.effect === "sameTribute" && isTie === true);
+      if (!fires) return;
+      const used = pillar.effect === "eightTribute" ? run.eightTributesUsed : run.sameTributesUsed;
+      const col = run.pileColumns[index];
+      if (used && used[col] < pillar.cap && !deck.isEmpty()) {
+        board.pushBottom(index, deck.drawFromBottom());
+        used[col] += 1;
+      }
+    }
+
     /** Itemized Pillar payout for the current board state (scoring Pillars
         only). Pure read over run.pillars + run.pileColumns + board — no DOM,
         no mutation. Returns { bonus, lines:[{label, detail, amount}] }. The UI
@@ -1785,8 +1813,10 @@ const GameEngine = (() => {
         // Per-column tally of qualifying correct guesses for a Suit Bounty
         // Pillar (accrued during play, paid out at run end).
         suitBountyHits: cols ? new Array(cols.length).fill(0) : null,
-        // Per-column count of 8 Tributes spent this run (capped per Pillar).
+        // Per-column counts of Tribute burns spent this run (capped per Pillar).
+        // A column holds at most one Pillar, so only the relevant counter moves.
         eightTributesUsed: cols ? new Array(cols.length).fill(0) : null,
+        sameTributesUsed: cols ? new Array(cols.length).fill(0) : null,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1856,18 +1886,14 @@ const GameEngine = (() => {
 
       if (correct) {
         board.push(index, drawn);
-        // 8 Tribute: a drawn 8 landing as the new top of a surviving pile
-        // pulls a card from the deck's BOTTOM and buries it under this pile —
-        // never revealed. Capped per column per run. The card object is moved
-        // straight from deck to pile; it is deliberately NOT placed on the
-        // emitted payload (no order/identity leak).
-        if (pillar && pillar.effect === "eightTribute" && drawn.value === 8 && run.eightTributesUsed) {
-          const col = run.pileColumns[index];
-          if (run.eightTributesUsed[col] < pillar.cap && !deck.isEmpty()) {
-            board.pushBottom(index, deck.drawFromBottom());
-            run.eightTributesUsed[col] += 1;
-          }
-        }
+        // Tribute Pillars: on a qualifying SURVIVING resolution, pull a card
+        // from the deck's BOTTOM and bury it under this pile — never revealed.
+        // 8 Tribute fires when the landed card is an 8; Same Tribute fires when
+        // the pile survived a TIE (a correct Same guess, or a tie saved by
+        // Tie-Safe / Column Tie-Safe — both arrive here as isTie && correct).
+        // Capped per column per run; the card is moved straight deck→pile and is
+        // deliberately NOT placed on the emitted payload (no order/identity leak).
+        maybeTribute(index, pillar, drawn, isTie);
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
@@ -2012,9 +2038,6 @@ const CampaignState = (() => {
 
   const MIN_RANK = 2;   // 2 is the floor for Decrease
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
-  // Config: starting store price for EVERY Pillar type (climbs +1 per purchase
-  // of that type — see priceOfPillar). One knob for all Pillars.
-  const PILLAR_BASE_PRICE = 5;
 
   function create() {
     let currentStage = 1;          // 1 .. MAX_STAGES
@@ -2024,15 +2047,12 @@ const CampaignState = (() => {
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
-    let purchaseCounts = {};       // { stickerTypeId: timesBought } — drives escalating price
     // Pillar binding: one slot per board column (index 0..COLUMN_SLOTS-1), each
     // holding a Pillar type id or null. This is the WHOLE Pillar holding — no
     // inventory. Bindings PERSIST across runs (you don't reassign each run) and
     // are rearrangeable in the pre-run phase (see swap/set below); a run
-    // snapshots them at Start Run. pillarPurchaseCounts drives escalating price,
-    // mirroring stickers.
+    // snapshots them at Start Run.
     let columnPillars = new Array(COLUMN_SLOTS).fill(null);
-    let pillarPurchaseCounts = {}; // { pillarTypeId: timesBought }
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -2158,21 +2178,20 @@ const CampaignState = (() => {
       getInventory() { return { ...stickerInventory }; },
       inventoryCount(typeId) { return stickerInventory[typeId] || 0; },
 
-      /** Current price of a sticker type: basePrice + times already bought,
-          so each type escalates independently. */
+      /** FIXED price of a sticker type (no per-purchase escalation). */
       priceOf(typeId) {
         const t = StickerTypes.get(typeId);
-        return t ? t.basePrice + (purchaseCounts[typeId] || 0) : Infinity;
+        return t ? t.price : Infinity;
       },
 
-      /** Buy one sticker if affordable. Returns true on success. */
+      /** Buy one sticker if affordable. Returns true on success. Price is fixed
+          (buying never raises it or any other price). */
       buySticker(typeId) {
         const t = StickerTypes.get(typeId);
         if (!t) return false;
         const price = this.priceOf(typeId);
         if (coins < price) return false;
         coins -= price;
-        purchaseCounts[typeId] = (purchaseCounts[typeId] || 0) + 1;
         stickerInventory[typeId] = (stickerInventory[typeId] || 0) + 1;
         return true;
       },
@@ -2223,12 +2242,10 @@ const CampaignState = (() => {
         return true;
       },
 
-      /** Current price of a Pillar type: the shared PILLAR_BASE_PRICE config
-          constant + times already bought, so all Pillars start at the same base
-          and each type escalates independently (+1 per purchase). */
+      /** FIXED price of a Pillar type (no per-purchase escalation). */
       priceOfPillar(typeId) {
         const t = PillarTypes.get(typeId);
-        return t ? PILLAR_BASE_PRICE + (pillarPurchaseCounts[typeId] || 0) : Infinity;
+        return t ? t.price : Infinity;
       },
 
       /** Buy a Pillar and place it on column `col`, if affordable and in range.
@@ -2242,7 +2259,6 @@ const CampaignState = (() => {
         const price = this.priceOfPillar(typeId);
         if (coins < price) return false;
         coins -= price;
-        pillarPurchaseCounts[typeId] = (pillarPurchaseCounts[typeId] || 0) + 1;
         columnPillars[col] = typeId;
         return true;
       },
@@ -2277,12 +2293,16 @@ const CampaignState = (() => {
           card.modifications.push({
             op: t.rankDelta > 0 ? "increase" : "decrease", from, to: card.currentRank,
           });
-        } else if (t.behavior === "changeSuit") {
-          // Advance the suit one step around ♠→♥→♦→♣→♠ (rank untouched).
-          const order = DeckManager.SUITS.map(s => s.symbol);
+        } else if (t.behavior === "changeSuitTo") {
+          // Set the suit to a specific target (rank untouched).
           const from = card.suit;
-          const i = order.indexOf(from);
-          card.suit = order[(i + 1) % order.length];
+          card.suit = t.suit;
+          card.modifications.push({ op: "changeSuit", from, to: card.suit });
+        } else if (t.behavior === "changeSuitRandom") {
+          // Change to a random DIFFERENT suit (rank untouched).
+          const others = DeckManager.SUITS.map(s => s.symbol).filter(s => s !== card.suit);
+          const from = card.suit;
+          card.suit = others[Math.floor(Math.random() * others.length)];
           card.modifications.push({ op: "changeSuit", from, to: card.suit });
         }
         card.stickers.push({ type: typeId });
@@ -2305,9 +2325,7 @@ const CampaignState = (() => {
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         stickerInventory = {};
-        purchaseCounts = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
-        pillarPurchaseCounts = {};
       },
     };
   }
@@ -2883,14 +2901,16 @@ const UIRenderer = (() => {
       card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
       card.tieSafe = true;
-    } else if (t.behavior === "changeSuit") {
-      // Cycle the live card's suit (and its red/black color) so the change —
-      // and any Suit Bounty it now qualifies for — takes effect this run.
-      const order = DeckManager.SUITS;
-      const i = order.findIndex(s => s.symbol === card.suit);
-      const next = order[(i + 1) % order.length];
-      card.suit = next.symbol;
-      card.red = next.red;
+    } else if (t.behavior === "changeSuitTo" || t.behavior === "changeSuitRandom") {
+      // The new suit was already decided on the PERSISTENT card by
+      // campaign.applySticker (random pick happens there). Mirror that exact
+      // suit (and its red/black color) onto the live card so the change — and
+      // any Suit Bounty it now qualifies for — takes effect this run.
+      const persisted = campaign.getCards().find(c => c.id === card.id);
+      const sym = persisted ? persisted.suit : card.suit;
+      const s = DeckManager.SUITS.find(x => x.symbol === sym) || DeckManager.SUITS[0];
+      card.suit = s.symbol;
+      card.red = s.red;
     }
     card.stickers = card.stickers || [];
     card.stickers.push({ type: typeId });

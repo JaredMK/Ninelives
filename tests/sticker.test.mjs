@@ -50,33 +50,33 @@ export function run() {
   r.ok(!c.applySticker(queenId, "rankUp"), "A blocks further +1 (clamped)");
   r.eq(c.getCards().find(x => x.id === queenId).currentRank, 14, "stacked +1 clamps at Ace (14)");
 
-  // --- store / inventory / coins with ESCALATING prices -----------------
+  // --- store / inventory / coins with FIXED prices (no escalation) ------
   const c2 = CampaignState.create();
   r.eq(c2.getCoins(), 0, "new campaign starts with 0 coins");
   r.ok(!c2.buySticker("rankUp"), "cannot buy with no coins");
   c2.addCoins(100);
 
-  const base = StickerTypes.get("rankUp").basePrice;   // now 1 (uniform)
-  r.eq(c2.priceOf("rankUp"), base, "price starts at basePrice");
+  const price = StickerTypes.get("rankUp").price;   // fixed (3)
+  r.eq(c2.priceOf("rankUp"), price, "price = the fixed registry price");
   r.ok(c2.buySticker("rankUp"), "buy #1 succeeds");
-  r.eq(c2.getCoins(), 100 - base, "charged the base price");
-  r.eq(c2.priceOf("rankUp"), base + 1, "price climbs +1 after a purchase");
+  r.eq(c2.getCoins(), 100 - price, "charged the fixed price");
+  r.eq(c2.priceOf("rankUp"), price, "price does NOT climb after a purchase");
   r.ok(c2.buySticker("rankUp"), "buy #2 succeeds");
-  r.eq(c2.getCoins(), 100 - base - (base + 1), "charged the escalated price on buy #2");
+  r.eq(c2.getCoins(), 100 - 2 * price, "charged the same fixed price on buy #2");
   r.eq(c2.inventoryCount("rankUp"), 2, "two rankUp stickers owned");
-  // Escalation is per-type: a different type still starts at its own base.
-  r.eq(c2.priceOf("tieSafe"), StickerTypes.get("tieSafe").basePrice,
-    "a different type is unaffected by rankUp purchases");
+  // Prices are independent + fixed: another type is unaffected.
+  r.eq(c2.priceOf("tieSafe"), StickerTypes.get("tieSafe").price,
+    "a different type keeps its own fixed price");
 
-  // Inventory, coins, and price escalation persist across a run advance.
+  // Inventory and coins persist across a run advance; price stays fixed.
   c2.advance();
-  r.eq(c2.priceOf("rankUp"), base + 2, "escalated price persists across advance()");
+  r.eq(c2.priceOf("rankUp"), price, "price stays fixed across advance()");
 
-  // reset() clears coins, inventory, AND the per-type purchase counts.
+  // reset() clears coins + inventory; prices are fixed regardless.
   c2.reset();
   r.eq(c2.getCoins(), 0, "reset clears coins");
   r.eq(c2.inventoryCount("rankUp"), 0, "reset clears inventory");
-  r.eq(c2.priceOf("rankUp"), base, "reset restores base prices");
+  r.eq(c2.priceOf("rankUp"), price, "price unchanged after reset (fixed)");
 
   return r.summary();
 }
