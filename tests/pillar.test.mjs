@@ -6,7 +6,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { PillarTypes, CampaignState, GameEngine, DeckManager, Economy } = loadGame();
+  const { PillarTypes, CampaignState, GameEngine, DeckManager, BoardState, Economy } = loadGame();
   const r = makeRunner("pillar.test.mjs");
 
   // --- Registry shape ---------------------------------------------------
@@ -143,7 +143,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 6, "six Pillars now in the registry");
+    r.eq(PillarTypes.all().length, 7, "all Pillars registered (incl. Ace Tribute)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -213,6 +213,93 @@ export function run() {
     e.debug.winNow();
     r.eq(payload.pillarPayout.bonus, 0, "Column Tie-Safe pays no coins itself");
     r.eq(payload.pillarPayout.lines.length, 0, "guess-kind Pillar adds no breakdown line");
+  }
+
+  // --- Phase 4: low-level deck/board bottom ops --------------------------
+  {
+    const d = DeckManager.create(DeckManager.buildStandardDeck());
+    const before = d.remaining();
+    const bottom = d.drawFromBottom();
+    r.ok(!!bottom, "drawFromBottom returns a card");
+    r.eq(d.remaining(), before - 1, "drawFromBottom removes one card");
+
+    const b = BoardState.create(2);
+    b.push(0, { value: 9 });
+    b.pushBottom(0, { value: 2 });
+    r.eq(b.piles[0].cards.length, 2, "pushBottom adds a card to the pile");
+    r.eq(b.piles[0].cards[0].value, 2, "pushBottom seats the card at the BOTTOM");
+    r.eq(b.top(0).value, 9, "pushBottom leaves the top untouched");
+
+    const empty = DeckManager.create([]);
+    r.eq(empty.drawFromBottom(), null, "drawFromBottom on an empty deck → null");
+  }
+
+  // --- Ace Tribute: a drawn Ace buries a deck-bottom card (capped) -------
+  // Force a correct guess that lands an Ace: set the showing card low, force
+  // the next draw to an Ace (rank 14), guess HIGHER.
+  const landAce = (e, index) => {
+    const top = e.getBoard().top(index); top.value = 5;
+    e.debug.setNextCard(14);
+    e.guess(index, "higher");
+  };
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start();
+    e.startRun(["aceTribute", null, null]);   // column 0 only (cap 2)
+
+    const pileLenBefore = e.getBoard().piles[0].cards.length;   // 1 (the deal)
+    const deckBefore = e.getDeck().remaining();
+    landAce(e, 0);
+    r.eq(e.getRun().aceTributesUsed[0], 1, "Ace on the Tribute column triggers once");
+    // Pile gained the Ace (top) + a buried tribute card = +2; deck lost both.
+    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 2, "pile gains Ace + a buried card");
+    r.eq(e.getDeck().remaining(), deckBefore - 2, "deck loses the Ace and the tributed card");
+
+    landAce(e, 1);   // pile 1 is also column 0
+    r.eq(e.getRun().aceTributesUsed[0], 2, "second Ace hits the cap");
+    landAce(e, 2);   // pile 2, column 0 — over the cap now
+    r.eq(e.getRun().aceTributesUsed[0], 2, "capped at 2 per column per run");
+    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap Ace adds only itself (no tribute)");
+  }
+
+  // --- Ace on a non-Tribute column does nothing -------------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start();
+    e.startRun([null, null, null]);
+    const deckBefore = e.getDeck().remaining();
+    landAce(e, 0);
+    r.eq(e.getRun().aceTributesUsed[0], 0, "no Pillar → no tribute");
+    r.eq(e.getDeck().remaining(), deckBefore - 1, "only the drawn Ace leaves the deck");
+    r.eq(e.getBoard().piles[0].cards.length, 2, "pile gains only the Ace");
+  }
+
+  // --- Guardrail: the buried card is never revealed in any event --------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let resolved = null;
+    e.onEvent((t, p) => { if (t === "resolved") resolved = p; });
+    e.start();
+    e.startRun(["aceTribute", null, null]);
+    landAce(e, 0);
+    r.ok(resolved && !("tributed" in resolved) && !("tribute" in resolved),
+      "resolved event exposes no tributed-card field");
+    const keys = Object.keys(resolved).sort().join(",");
+    r.eq(keys, "board,correct,current,deck,drawn,guess,index,run",
+      "resolved payload carries only its known fields (no order leak)");
+  }
+
+  // --- Deck-empty edge: tribute is skipped, no crash --------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start();
+    e.startRun(["aceTribute", null, null]);
+    const top = e.getBoard().top(0); top.value = 5;
+    e.debug.setNextCard(14);   // an Ace on top of the deck
+    e.debug.trimDeck(1);       // ...and it's the ONLY card left
+    e.guess(0, "higher");      // draws the Ace → deck empty → tribute skipped
+    r.eq(e.getRun().aceTributesUsed[0], 0, "no tribute when the deck is empty");
+    r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
   }
 
   return r.summary();

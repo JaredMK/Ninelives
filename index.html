@@ -1150,9 +1150,16 @@ const PillarTypes = (() => {
       id: "clubBounty", label: "Club Bounty", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, basePrice: 1,
     },
+    aceTribute: {
+      // When a drawn Ace lands as a new top on a pile in this column, pull the
+      // deck's BOTTOM card under that pile (hidden). Caps at `cap` per column
+      // per run. Pure composition shift — no order is ever revealed.
+      id: "aceTribute", label: "Ace Tribute", icon: "🂡",
+      kind: "composition", effect: "aceTribute", cap: 2, basePrice: 1,
+    },
   };
   const ORDER = ["columnGuardian", "columnTieSafe",
-    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty"];
+    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty", "aceTribute"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1312,6 +1319,12 @@ const DeckManager = (() => {
     return {
       /** Remove and return the top card, or null if empty. */
       draw() { return cards.length ? cards.shift() : null; },
+      /** Remove and return the BOTTOM card, or null if empty. Used by the Ace
+          Tribute Pillar to move a card from the deck's bottom to a pile's
+          bottom. The card is handed to the engine to re-seat WITHOUT ever being
+          revealed (no order/identity is surfaced), so the no-look-ahead rule
+          holds — composition shifts, order stays hidden. */
+      drawFromBottom() { return cards.length ? cards.pop() : null; },
       /** How many cards remain in the draw deck. */
       remaining() { return cards.length; },
       isEmpty() { return cards.length === 0; },
@@ -1393,6 +1406,9 @@ const BoardState = (() => {
       piles,
       /** Place a starting/next card on a pile. */
       push(index, card) { piles[index].cards.push(card); },
+      /** Insert a card at the BOTTOM of a pile (under everything). Used by Ace
+          Tribute: the tributed card is buried face-down, never shown. */
+      pushBottom(index, card) { if (card) piles[index].cards.unshift(card); },
       top(index) {
         const c = piles[index].cards;
         return c.length ? c[c.length - 1] : null;
@@ -1567,6 +1583,8 @@ const GameEngine = (() => {
         // Per-column tally of qualifying correct guesses for a Suit Bounty
         // Pillar (accrued during play, paid out at run end).
         suitBountyHits: cols ? new Array(cols.length).fill(0) : null,
+        // Per-column count of Ace Tributes spent this run (capped per Pillar).
+        aceTributesUsed: cols ? new Array(cols.length).fill(0) : null,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1636,6 +1654,18 @@ const GameEngine = (() => {
 
       if (correct) {
         board.push(index, drawn);
+        // Ace Tribute: a drawn Ace landing as the new top of a surviving pile
+        // pulls a card from the deck's BOTTOM and buries it under this pile —
+        // never revealed. Capped per column per run. The card object is moved
+        // straight from deck to pile; it is deliberately NOT placed on the
+        // emitted payload (no order/identity leak).
+        if (pillar && pillar.effect === "aceTribute" && drawn.value === 14 && run.aceTributesUsed) {
+          const col = run.pileColumns[index];
+          if (run.aceTributesUsed[col] < pillar.cap && !deck.isEmpty()) {
+            board.pushBottom(index, deck.drawFromBottom());
+            run.aceTributesUsed[col] += 1;
+          }
+        }
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
