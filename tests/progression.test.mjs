@@ -6,6 +6,29 @@ export function run() {
   const { CampaignState } = loadGame();
   const r = makeRunner("progression.test.mjs");
 
+  // --- per-run layout: three COLUMNS, counts unchanged from the rows -----
+  // layoutForRun returns the column sizes for that run. The counts must match
+  // the historical row layout exactly (only the orientation changed); `piles`
+  // is their sum and `rows` is the tallest column (vertical span).
+  const lc = CampaignState.create();
+  const expectCols = [
+    { run: 1, cols: [3, 4, 3], piles: 10, rows: 4 },
+    { run: 2, cols: [3, 3, 3], piles: 9,  rows: 3 },
+    { run: 3, cols: [3, 2, 3], piles: 8,  rows: 3 },
+  ];
+  for (const e of expectCols) {
+    const L = lc.layoutForRun(e.run);
+    r.eq(JSON.stringify(L.cols), JSON.stringify(e.cols),
+      "Run " + e.run + " columns are " + e.cols.join(","));
+    r.eq(L.piles, e.piles, "Run " + e.run + " has " + e.piles + " piles (count unchanged)");
+    r.eq(L.rows, e.rows, "Run " + e.run + " tallest column = " + e.rows);
+    // Symmetric outer columns, balanced layout (outer columns equal).
+    r.eq(L.cols[0], L.cols[2], "Run " + e.run + " outer columns are symmetric");
+  }
+  // runIndex clamps to the valid range (presentation never indexes out of bounds).
+  r.eq(JSON.stringify(lc.layoutForRun(0).cols), JSON.stringify([3, 4, 3]), "run 0 clamps to Run 1");
+  r.eq(JSON.stringify(lc.layoutForRun(99).cols), JSON.stringify([3, 2, 3]), "run 99 clamps to Run 3");
+
   // --- advance walks 1.1 -> 1.2 -> 1.3 -> 2.1 -> ... -> 3.3 -------------
   const c = CampaignState.create();
   const seen = [];

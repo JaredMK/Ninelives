@@ -171,22 +171,42 @@
     gap: 14px;
   }
 
-  /* Per-run layout: rows stacked + centered, so uneven rows center. Each
-     row's card size is based on max(cardsInRow, 3) columns — so 2- and
-     3-card rows keep the standard size and only a 4-card row shrinks. */
+  /* Per-run layout: three side-by-side COLUMNS, vertically centered against
+     each other so uneven columns stagger-center (the 3-pile outer columns
+     center against a taller 4-pile middle in Run 1; the 2-pile middle centers
+     against the 3-pile outers in Run 3). Every pile is the SAME square in
+     every run (uniform) — its size is the smaller of a width-derived and a
+     height-derived value, so the board always fits the viewport both ways. */
   .board {
+    /* WIDTH-derived edge: the board width split into --cols columns minus the
+       gaps (identical to the old row layout). --cols is the campaign's tallest
+       column (4), so this matches the original pile size on roomy phones. */
+    --pile-w: calc((min(94vw, 430px) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
+    /* HEIGHT-derived cap: the tallest column is --cols piles tall (Run 1 = 4).
+       Reserve the surrounding chrome (header, HUD, deck/hint/sticker/actions)
+       so even that 4-tall board fits without scrolling on short viewports.
+       vh first as a fallback; dvh (dynamic viewport) where supported. */
+    --board-reserve: 22.5rem;   /* ~360px of fixed chrome above/below the board */
+    --pile-h: calc((100vh  - var(--board-reserve) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
+    --pile-h: calc((100dvh - var(--board-reserve) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
+    /* Uniform pile size = the smaller of the two. Roomy phones: width governs
+       (full size, unchanged). Short phones: height governs and piles shrink a
+       touch — uniformly across all runs — so nothing ever scrolls. */
+    --pile-size: min(var(--pile-w), var(--pile-h));
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row;
+    justify-content: center;   /* center the column group horizontally */
+    align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
     width: min(94vw, 430px);
     margin: 0 auto;
   }
-  .board-row {
+  .board-col {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     gap: var(--gap);
-    width: 100%;
+    width: var(--pile-size);
   }
 
   /* ============================================================
@@ -196,11 +216,10 @@
     position: relative;
     perspective: 700px;
     cursor: pointer;
-    /* Every pile is the SAME size in every row/run: width is based on
-       --cols (set to the campaign's widest row), so a full row fills the
-       board and narrower rows just center with empty space at the sides.
-       aspect-ratio keeps them square. */
-    width: calc((100% - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
+    /* Every pile is the SAME square in every column/run: it fills its column,
+       whose width is --pile-size (the board width / --cols). aspect-ratio
+       keeps it square. */
+    width: 100%;
     aspect-ratio: 1 / 1;
   }
 
@@ -841,7 +860,7 @@
   </div>
 
   <main>
-    <div class="board" id="board" aria-label="3 by 3 grid of card piles"></div>
+    <div class="board" id="board" aria-label="Three columns of card piles"></div>
 
     <!-- Deck counter: reference info, below the piles on the right. Keeps its
          tap-to-inspect / hold-to-quick-view behavior and magnifier affordance. -->
@@ -1473,12 +1492,14 @@ const GameEngine = (() => {
    dormant WITH its stickers until its suit enters in a later stage.
 ---------------------------------------------------------------- */
 const CampaignState = (() => {
-  // Per-run layout config: each entry is the row sizes for that run. The
-  // same three layouts repeat every stage. Pile count is just the row sum.
+  // Per-run layout config: each entry is the COLUMN sizes for that run (three
+  // side-by-side columns). The same three layouts repeat every stage. Pile
+  // count is just the column sum — counts are unchanged from the old row
+  // layout, only the orientation (columns instead of rows) differs.
   const RUN_LAYOUTS = [
-    [3, 4, 3],  // Run 1 — 10 piles
-    [3, 3, 3],  // Run 2 — 9 piles
-    [3, 2, 3],  // Run 3 — 8 piles
+    [3, 4, 3],  // Run 1 — 10 piles (columns of 3, 4, 3; tall middle)
+    [3, 3, 3],  // Run 2 — 9 piles  (three even columns)
+    [3, 2, 3],  // Run 3 — 8 piles  (columns of 3, 2, 3; short middle)
   ];
   const MAX_RUNS_PER_STAGE = RUN_LAYOUTS.length;
   const MAX_STAGES = 3;
@@ -1490,14 +1511,17 @@ const CampaignState = (() => {
     return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
   }
 
-  /** Layout for a run index (1-based): rows + derived pile count + cols. */
+  /** Layout for a run index (1-based): column sizes + derived pile count.
+      `cols` is the column-size array; `piles` is their sum; `rows` is the
+      tallest column (the vertical span). Kept as plain data — the renderer
+      maps it to grid positions; engine/pile-assignment never sees it. */
   function layoutForRun(runIndex) {
     const i = Math.min(Math.max(runIndex, 1), RUN_LAYOUTS.length) - 1;
-    const rows = RUN_LAYOUTS[i].slice();
+    const cols = RUN_LAYOUTS[i].slice();
     return {
-      rows,
-      piles: rows.reduce((a, b) => a + b, 0),
-      cols: Math.max(...rows),
+      cols,
+      piles: cols.reduce((a, b) => a + b, 0),
+      rows: Math.max(...cols),
     };
   }
 
@@ -2600,38 +2624,43 @@ const UIRenderer = (() => {
 
     // Rebuild pile elements every run for a clean deal animation; input
     // is delegated on the board, so no per-pile handlers accumulate.
-    buildBoard(cfg.rows);
+    buildBoard(cfg.cols);
 
     engine.start();
   }
 
-  /* Widest row across every run — drives the uniform pile size so a pile
-     is the same square in every row and every run (derived from the
-     layout config; doesn't modify it). */
+  /* Largest single-column pile count across every run (4, from Run 1's middle
+     column) — drives the uniform pile size so a pile is the same square in
+     every column and every run. The board reserves this many --cols slots of
+     width and centers fewer/narrower columns within it. Derived from the
+     layout config; doesn't modify it. */
   const CAMPAIGN_MAX_COLS = Math.max(
-    ...CampaignState.RUN_LAYOUTS.map(rows => Math.max(...rows))
+    ...CampaignState.RUN_LAYOUTS.map(cols => Math.max(...cols))
   );
 
-  /* Build the board as rows of piles from a layout (e.g. [3,4,3]). Pile
-     indices stay sequential in reading order, matching engine pile ids.
-     All piles share one size (CAMPAIGN_MAX_COLS); rows narrower than that
-     center with empty space at the sides rather than stretching. */
-  function buildBoard(rows, dealing = true) {
+  /* Build the board as three side-by-side COLUMNS of piles from a layout
+     (e.g. [3,4,3] = columns of 3, 4, 3). Fill order is DOWN each column in
+     turn: column 1 top→bottom (indices 0,1,2), then column 2, then column 3.
+     Pile indices stay sequential in this order and map 1:1 to engine pile ids
+     (engine/assignment unchanged — this only arranges the same piles). All
+     piles share one size (CAMPAIGN_MAX_COLS); shorter columns center
+     vertically against the tallest via the board's align-items: center. */
+  function buildBoard(cols, dealing = true) {
     el.board.innerHTML = "";
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     pileEls.length = 0;
     let index = 0;
-    rows.forEach(count => {
-      const rowEl = document.createElement("div");
-      rowEl.className = "board-row";
+    cols.forEach(count => {
+      const colEl = document.createElement("div");
+      colEl.className = "board-col";
       for (let k = 0; k < count; k++) {
         const pe = buildPile(index);
         if (!dealing) pe.classList.remove("dealing");
         pileEls.push(pe);
-        rowEl.appendChild(pe);
+        colEl.appendChild(pe);
         index++;
       }
-      el.board.appendChild(rowEl);
+      el.board.appendChild(colEl);
     });
   }
 
@@ -2761,7 +2790,7 @@ const UIRenderer = (() => {
     });
 
     // Build a static board (run 1's layout) behind the start overlay.
-    buildBoard(campaign.layoutForRun(1).rows, false);
+    buildBoard(campaign.layoutForRun(1).cols, false);
 
     // Phase: Start. The overlay button kicks off the campaign.
     showStartScreen();
