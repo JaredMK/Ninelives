@@ -550,6 +550,57 @@
     position: absolute; top: 6px; right: 8px;
     font-size: 11px; font-weight: 800; color: var(--accent-2);
   }
+  .store-item.armed { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Store section divider label (Stickers / Pillars). */
+  .store-section {
+    width: min(94vw, 380px);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 800;
+    text-align: left; margin: 2px 0 6px;
+  }
+
+  /* Pillar column-slot chips in the store: the 3 column slots ARE the holding
+     (no inventory). Tap a Pillar above, then a slot to place/replace; or tap a
+     filled slot then another to swap. */
+  .pillar-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: min(94vw, 380px);
+    margin-bottom: 16px;
+  }
+  .pillar-slot {
+    background: var(--panel);
+    color: var(--text);
+    border: 2px dashed rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 8px 4px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    cursor: pointer; box-shadow: var(--shadow);
+    transition: transform 0.08s ease;
+  }
+  .pillar-slot:active { transform: scale(0.95); }
+  .pillar-slot.filled { border-style: solid; border-color: transparent; }
+  .pillar-slot.armed { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .pillar-slot.placing { border-color: var(--accent); }
+  .pillar-slot .ps-col { font-size: 10px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .pillar-slot .ps-icon { font-size: 20px; line-height: 1.1; }
+  .pillar-slot .ps-name { font-size: 10px; font-weight: 700; text-align: center; }
+  .pillar-slot .ps-empty { font-size: 18px; color: var(--muted); }
+
+  /* Live, read-only Pillar marker on the active column (top-right of the
+     column's first pile). Absolutely positioned — no layout/height impact, so
+     it can't disturb the no-scroll board fit. */
+  .col-pillar-badge {
+    position: absolute;
+    top: 3px; right: 3px;
+    font-size: 13px;
+    z-index: 3;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+  }
+  .col-pillar-badge.hidden { display: none; }
 
   /* Coins earned/total line on the run-complete overlay. */
   /* Itemized coin breakdown on the run-complete / campaign screens. */
@@ -974,7 +1025,11 @@
     <h2>STORE</h2>
     <p id="storeMsg">Buy stickers now — apply them to cards during the next run.</p>
     <div class="store-coins">🪙 <b id="storeCoins">0</b></div>
+    <div class="store-section">Stickers — apply to cards next run</div>
     <div class="store-items" id="storeItems"></div>
+    <div class="store-section">Pillars — column powers (kept between runs)</div>
+    <div class="store-items" id="storePillars"></div>
+    <div class="pillar-slots" id="pillarSlots"></div>
     <button class="play-btn" id="storeStartBtn" type="button">START RUN</button>
   </div>
 
@@ -2177,6 +2232,8 @@ const UIRenderer = (() => {
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
+    storePillars: document.getElementById("storePillars"),
+    pillarSlots: document.getElementById("pillarSlots"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     // debug
     title: document.querySelector("header h1"),
@@ -2202,6 +2259,13 @@ const UIRenderer = (() => {
   // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
   let armedSticker = null;
+
+  // Store Pillar management (both live in the store; the column slots ARE the
+  // holding — no inventory). armedPillarBuy: a Pillar type armed for purchase
+  // (tap a slot to place/replace). armedSlotMove: a filled slot armed for a
+  // rearrange (tap another slot to swap). Mutually exclusive.
+  let armedPillarBuy = null;
+  let armedSlotMove = null;
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -2598,6 +2662,16 @@ const UIRenderer = (() => {
       const item = e.target.closest(".store-item");
       if (item && !item.classList.contains("disabled")) buyStickerUI(item.dataset.type);
     });
+    // Pillar catalogue: tap to arm a purchase.
+    el.storePillars.addEventListener("click", (e) => {
+      const item = e.target.closest(".store-item");
+      if (item && !item.classList.contains("disabled")) armPillarBuy(item.dataset.pillar);
+    });
+    // Column slots: place an armed purchase, or arm/swap for a rearrange.
+    el.pillarSlots.addEventListener("click", (e) => {
+      const chip = e.target.closest(".pillar-slot");
+      if (chip) tapPillarSlot(Number(chip.dataset.col));
+    });
     el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceAndStart(); });
 
     // Debug tools.
@@ -2917,7 +2991,34 @@ const UIRenderer = (() => {
       }
       el.board.appendChild(colEl);
     });
+    paintColumnPillars(cols);     // read-only active-Pillar markers per column
     fitBoard();   // size piles to the actually-available space (see below)
+  }
+
+  /* Mark each column's bound Pillar on the top pile of that column — a
+     read-only badge so the active column powers are visible during play.
+     Absolutely positioned (see CSS): adds no height, so the board fit is
+     untouched. Columns map 1:1 to the campaign's column slots (always 3). */
+  function paintColumnPillars(cols) {
+    if (!campaign) return;
+    const binding = campaign.getColumnPillars();
+    let index = 0;
+    cols.forEach((count, col) => {
+      const firstPile = pileEls[index];
+      if (firstPile) {
+        let badge = firstPile.querySelector(".col-pillar-badge");
+        if (!badge) {
+          badge = document.createElement("div");
+          badge.className = "col-pillar-badge";
+          firstPile.appendChild(badge);
+        }
+        const t = binding[col] ? PillarTypes.get(binding[col]) : null;
+        badge.textContent = t ? t.icon : "";
+        badge.title = t ? t.label : "";
+        badge.classList.toggle("hidden", !t);
+      }
+      index += count;
+    });
   }
 
   /* Size the uniform pile so the WHOLE play screen (stat bar + pile grid +
@@ -3072,13 +3173,102 @@ const UIRenderer = (() => {
         (owned ? '<span class="si-owned">×' + owned + '</span>' : "");
       el.storeItems.appendChild(btn);
     });
+    renderPillarStore();
+  }
+
+  /* Pillars in the store: the catalogue (buy = arm, then tap a column slot to
+     place) plus the 3 column slots (the whole holding — no inventory). A slot
+     tap either places the armed purchase, or arms/swaps for a rearrange. */
+  function renderPillarStore() {
+    el.storePillars.innerHTML = "";
+    PillarTypes.all().forEach(t => {
+      const price = campaign.priceOfPillar(t.id);
+      const affordable = campaign.getCoins() >= price;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "store-item" +
+        (affordable ? "" : " disabled") +
+        (armedPillarBuy === t.id ? " armed" : "");
+      btn.dataset.pillar = t.id;
+      btn.innerHTML =
+        '<span class="si-icon">' + t.icon + '</span>' +
+        '<span class="si-label">' + t.label + '</span>' +
+        '<span class="si-price">🪙 ' + price + '</span>';
+      el.storePillars.appendChild(btn);
+    });
+
+    el.pillarSlots.innerHTML = "";
+    const binding = campaign.getColumnPillars();
+    binding.forEach((pid, col) => {
+      const t = pid ? PillarTypes.get(pid) : null;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "pillar-slot" +
+        (t ? " filled" : "") +
+        (armedSlotMove === col ? " armed" : "") +
+        (armedPillarBuy ? " placing" : "");
+      chip.dataset.col = col;
+      chip.innerHTML =
+        '<span class="ps-col">Col ' + (col + 1) + '</span>' +
+        (t ? '<span class="ps-icon">' + t.icon + '</span>' +
+             '<span class="ps-name">' + t.label + '</span>'
+           : '<span class="ps-empty">＋</span>');
+      el.pillarSlots.appendChild(chip);
+    });
   }
 
   function buyStickerUI(typeId) {
     if (campaign.buySticker(typeId)) renderStore();
   }
 
+  /* Tap a Pillar in the catalogue: arm it for purchase (if affordable), or
+     toggle it off. Arming a purchase clears any pending slot-move. */
+  function armPillarBuy(typeId) {
+    const price = campaign.priceOfPillar(typeId);
+    if (campaign.getCoins() < price) {
+      el.storeMsg.textContent = "Not enough coins for that Pillar.";
+      return;
+    }
+    armedSlotMove = null;
+    armedPillarBuy = armedPillarBuy === typeId ? null : typeId;
+    el.storeMsg.textContent = armedPillarBuy
+      ? "Tap a column slot to place this Pillar (replaces what's there)."
+      : "Buy stickers and Pillars, then press Start Run.";
+    renderStore();
+  }
+
+  /* Tap a column slot. With a Pillar armed for purchase: buy + place it here
+     (overwrites any current Pillar — no refund). Otherwise this is a
+     rearrange: arm a filled slot, then tap another slot to swap them. */
+  function tapPillarSlot(col) {
+    if (armedPillarBuy) {
+      if (campaign.buyPillar(armedPillarBuy, col)) {
+        armedPillarBuy = null;
+        el.storeMsg.textContent = "Pillar placed on Column " + (col + 1) + ".";
+      }
+      renderStore();
+      return;
+    }
+    if (armedSlotMove === null) {
+      // Arm a filled slot for moving; tapping an empty slot does nothing.
+      if (campaign.columnPillar(col)) {
+        armedSlotMove = col;
+        el.storeMsg.textContent = "Tap another column to swap, or tap again to cancel.";
+      }
+    } else if (armedSlotMove === col) {
+      armedSlotMove = null;
+      el.storeMsg.textContent = "Buy stickers and Pillars, then press Start Run.";
+    } else {
+      campaign.swapColumnPillars(armedSlotMove, col);
+      armedSlotMove = null;
+      el.storeMsg.textContent = "Pillars rearranged.";
+    }
+    renderStore();
+  }
+
   function closeStore() {
+    armedPillarBuy = null;
+    armedSlotMove = null;
     el.storeOverlay.classList.add("hidden");
   }
 
