@@ -143,7 +143,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 7, "all Pillars registered (incl. Ace Tribute)");
+    r.eq(PillarTypes.all().length, 7, "all Pillars registered (incl. 8 Tribute)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -234,44 +234,44 @@ export function run() {
     r.eq(empty.drawFromBottom(), null, "drawFromBottom on an empty deck → null");
   }
 
-  // --- Ace Tribute: a drawn Ace buries a deck-bottom card (capped) -------
-  // Force a correct guess that lands an Ace: set the showing card low, force
-  // the next draw to an Ace (rank 14), guess HIGHER.
-  const landAce = (e, index) => {
+  // --- 8 Tribute: a drawn 8 buries a deck-bottom card (capped) -----------
+  // Force a correct guess that lands an 8: set the showing card low, force
+  // the next draw to an 8 (rank 8), guess HIGHER.
+  const landEight = (e, index) => {
     const top = e.getBoard().top(index); top.value = 5;
-    e.debug.setNextCard(14);
+    e.debug.setNextCard(8);
     e.guess(index, "higher");
   };
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
-    e.startRun(["aceTribute", null, null]);   // column 0 only (cap 2)
+    e.startRun(["eightTribute", null, null]);   // column 0 only (cap 2)
 
     const pileLenBefore = e.getBoard().piles[0].cards.length;   // 1 (the deal)
     const deckBefore = e.getDeck().remaining();
-    landAce(e, 0);
-    r.eq(e.getRun().aceTributesUsed[0], 1, "Ace on the Tribute column triggers once");
-    // Pile gained the Ace (top) + a buried tribute card = +2; deck lost both.
-    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 2, "pile gains Ace + a buried card");
-    r.eq(e.getDeck().remaining(), deckBefore - 2, "deck loses the Ace and the tributed card");
+    landEight(e, 0);
+    r.eq(e.getRun().eightTributesUsed[0], 1, "8 on the Tribute column triggers once");
+    // Pile gained the 8 (top) + a buried tribute card = +2; deck lost both.
+    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 2, "pile gains 8 + a buried card");
+    r.eq(e.getDeck().remaining(), deckBefore - 2, "deck loses the 8 and the tributed card");
 
-    landAce(e, 1);   // pile 1 is also column 0
-    r.eq(e.getRun().aceTributesUsed[0], 2, "second Ace hits the cap");
-    landAce(e, 2);   // pile 2, column 0 — over the cap now
-    r.eq(e.getRun().aceTributesUsed[0], 2, "capped at 2 per column per run");
-    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap Ace adds only itself (no tribute)");
+    landEight(e, 1);   // pile 1 is also column 0
+    r.eq(e.getRun().eightTributesUsed[0], 2, "second 8 hits the cap");
+    landEight(e, 2);   // pile 2, column 0 — over the cap now
+    r.eq(e.getRun().eightTributesUsed[0], 2, "capped at 2 per column per run");
+    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap 8 adds only itself (no tribute)");
   }
 
-  // --- Ace on a non-Tribute column does nothing -------------------------
+  // --- 8 on a non-Tribute column does nothing ---------------------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
     e.startRun([null, null, null]);
     const deckBefore = e.getDeck().remaining();
-    landAce(e, 0);
-    r.eq(e.getRun().aceTributesUsed[0], 0, "no Pillar → no tribute");
-    r.eq(e.getDeck().remaining(), deckBefore - 1, "only the drawn Ace leaves the deck");
-    r.eq(e.getBoard().piles[0].cards.length, 2, "pile gains only the Ace");
+    landEight(e, 0);
+    r.eq(e.getRun().eightTributesUsed[0], 0, "no Pillar → no tribute");
+    r.eq(e.getDeck().remaining(), deckBefore - 1, "only the drawn 8 leaves the deck");
+    r.eq(e.getBoard().piles[0].cards.length, 2, "pile gains only the 8");
   }
 
   // --- Guardrail: the buried card is never revealed in any event --------
@@ -280,8 +280,8 @@ export function run() {
     let resolved = null;
     e.onEvent((t, p) => { if (t === "resolved") resolved = p; });
     e.start();
-    e.startRun(["aceTribute", null, null]);
-    landAce(e, 0);
+    e.startRun(["eightTribute", null, null]);
+    landEight(e, 0);
     r.ok(resolved && !("tributed" in resolved) && !("tribute" in resolved),
       "resolved event exposes no tributed-card field");
     const keys = Object.keys(resolved).sort().join(",");
@@ -293,12 +293,12 @@ export function run() {
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
-    e.startRun(["aceTribute", null, null]);
+    e.startRun(["eightTribute", null, null]);
     const top = e.getBoard().top(0); top.value = 5;
-    e.debug.setNextCard(14);   // an Ace on top of the deck
+    e.debug.setNextCard(8);    // an 8 on top of the deck
     e.debug.trimDeck(1);       // ...and it's the ONLY card left
-    e.guess(0, "higher");      // draws the Ace → deck empty → tribute skipped
-    r.eq(e.getRun().aceTributesUsed[0], 0, "no tribute when the deck is empty");
+    e.guess(0, "higher");      // draws the 8 → deck empty → tribute skipped
+    r.eq(e.getRun().eightTributesUsed[0], 0, "no tribute when the deck is empty");
     r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
   }
 

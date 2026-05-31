@@ -1123,7 +1123,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.16.0";
+const APP_VERSION = "v0.17.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1219,17 +1219,17 @@ const PillarTypes = (() => {
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, basePrice: 1,
       description: "+1 coin for each correct guess made while a ♣ card is showing on a pile in this column.",
     },
-    aceTribute: {
-      // When a drawn Ace lands as a new top on a pile in this column, pull the
+    eightTribute: {
+      // When a drawn 8 lands as a new top on a pile in this column, pull the
       // deck's BOTTOM card under that pile (hidden). Caps at `cap` per column
       // per run. Pure composition shift — no order is ever revealed.
-      id: "aceTribute", label: "Ace Tribute", icon: "🂡",
-      kind: "composition", effect: "aceTribute", cap: 2, basePrice: 1,
-      description: "When a drawn Ace lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Up to 2 times per run.",
+      id: "eightTribute", label: "8 Tribute", icon: "8️⃣",
+      kind: "composition", effect: "eightTribute", cap: 2, basePrice: 1,
+      description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Up to 2 times per run.",
     },
   };
   const ORDER = ["columnGuardian", "columnTieSafe",
-    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty", "aceTribute"];
+    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty", "eightTribute"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1653,8 +1653,8 @@ const GameEngine = (() => {
         // Per-column tally of qualifying correct guesses for a Suit Bounty
         // Pillar (accrued during play, paid out at run end).
         suitBountyHits: cols ? new Array(cols.length).fill(0) : null,
-        // Per-column count of Ace Tributes spent this run (capped per Pillar).
-        aceTributesUsed: cols ? new Array(cols.length).fill(0) : null,
+        // Per-column count of 8 Tributes spent this run (capped per Pillar).
+        eightTributesUsed: cols ? new Array(cols.length).fill(0) : null,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1724,16 +1724,16 @@ const GameEngine = (() => {
 
       if (correct) {
         board.push(index, drawn);
-        // Ace Tribute: a drawn Ace landing as the new top of a surviving pile
+        // 8 Tribute: a drawn 8 landing as the new top of a surviving pile
         // pulls a card from the deck's BOTTOM and buries it under this pile —
         // never revealed. Capped per column per run. The card object is moved
         // straight from deck to pile; it is deliberately NOT placed on the
         // emitted payload (no order/identity leak).
-        if (pillar && pillar.effect === "aceTribute" && drawn.value === 14 && run.aceTributesUsed) {
+        if (pillar && pillar.effect === "eightTribute" && drawn.value === 8 && run.eightTributesUsed) {
           const col = run.pileColumns[index];
-          if (run.aceTributesUsed[col] < pillar.cap && !deck.isEmpty()) {
+          if (run.eightTributesUsed[col] < pillar.cap && !deck.isEmpty()) {
             board.pushBottom(index, deck.drawFromBottom());
-            run.aceTributesUsed[col] += 1;
+            run.eightTributesUsed[col] += 1;
           }
         }
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
