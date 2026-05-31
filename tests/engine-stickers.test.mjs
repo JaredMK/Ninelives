@@ -18,6 +18,7 @@ export function run() {
   {
     const e = GameEngine.create(specsWith("tieSafe"), 9);
     e.start();
+    e.startRun();   // explicit Start Run begins active play (guessing gated on it)
     const top = e.getBoard().top(0).value;
     e.debug.setNextCard(top);   // force a tie
     e.guess(0, "higher");       // would normally die on a tie
@@ -30,6 +31,7 @@ export function run() {
     let heartBroken = 0;
     e.onEvent((t) => { if (t === "heart-broken") heartBroken++; });
     e.start();
+    e.startRun();
 
     const board = e.getBoard();
     const topCard = board.top(0);
@@ -58,6 +60,7 @@ export function run() {
     const specs = specsWith("extraHeart");
     const e1 = GameEngine.create(specs, 9);
     e1.start();
+    e1.startRun();
     e1.debug.setNextCard(e1.getBoard().top(0).value);
     e1.guess(0, "higher");                       // spend the heart in run 1
     r.eq(e1.getBoard().top(0).heartsRemaining, 0, "heart spent in run 1");
@@ -73,6 +76,7 @@ export function run() {
     specs.forEach(c => { c.stickers.push({ type: "extraHeart" }); c.stickers.push({ type: "extraHeart" }); });
     const e = GameEngine.create(specs, 9);
     e.start();
+    e.startRun();
     r.eq(e.getBoard().top(0).heartsRemaining, 2, "two Extra Hearts -> heartsRemaining 2");
     const top = e.getBoard().top(0).value;
     e.debug.setNextCard(top); e.guess(0, "higher");   // wrong -> break 1
@@ -83,13 +87,38 @@ export function run() {
     r.ok(!e.getBoard().isActive(0), "3rd wrong with no hearts: pile dies");
   }
 
-  // --- sticker window: closes on the first guess of the run --------------
+  // --- sticker window: explicit Start Run trigger ------------------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
     e.start();
-    r.ok(e.canApplyStickers(), "window OPEN after deal");
+    r.ok(e.canApplyStickers(), "window OPEN after deal (sticker phase)");
+    r.ok(!e.isRunStarted(), "run not started until Start Run");
+
+    // Guessing is gated on Start Run: a guess before it is a no-op.
+    const topVal = e.getBoard().top(0).value;
+    const remBefore = e.getDeck().remaining();
     e.guess(0, "higher");
-    r.ok(!e.canApplyStickers(), "window CLOSED after the first guess");
+    r.eq(e.getDeck().remaining(), remBefore, "guess before Start Run draws nothing (no-op)");
+    r.ok(e.canApplyStickers(), "window still OPEN — a pre-start guess didn't close it");
+
+    e.startRun();
+    r.ok(e.isRunStarted(), "isRunStarted true after Start Run");
+    r.ok(!e.canApplyStickers(), "window CLOSED by Start Run");
+
+    // startRun is idempotent and guessing now works.
+    e.startRun();
+    r.ok(e.isRunStarted() && !e.canApplyStickers(), "startRun is idempotent");
+    e.guess(0, "higher");
+    r.ok(e.getDeck().remaining() < remBefore, "guessing works after Start Run");
+  }
+
+  // --- a fresh run re-opens the sticker phase ----------------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    e.start(); e.startRun();
+    r.ok(!e.canApplyStickers(), "window closed mid-run");
+    e.start();   // next run deals fresh
+    r.ok(e.canApplyStickers() && !e.isRunStarted(), "new run re-opens the sticker phase");
   }
 
   return r.summary();

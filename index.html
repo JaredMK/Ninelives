@@ -454,6 +454,10 @@
     box-shadow: var(--shadow);
   }
   .play-btn:active { transform: scale(0.97); }
+  /* In-board Start Run button (sticker phase). Sized like the guess row so the
+     layout doesn't jump when it's swapped for the buttons. */
+  .play-btn.start-run { padding: 14px 40px; font-size: 17px; }
+  .play-btn.start-run.hidden { display: none; }
 
   /* Run progress + Run End / Campaign summary stats */
   .run-progress {
@@ -891,6 +895,10 @@
 
     <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
     <div class="sticker-tray hidden" id="stickerTray"></div>
+
+    <!-- Sticker phase: press to end sticker application and begin active play.
+         Shown until pressed each run; mutually exclusive with the guess buttons. -->
+    <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
 
     <div class="actions hidden" id="actions">
       <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next &gt; current</span></button>
@@ -1362,9 +1370,11 @@ const GameEngine = (() => {
         result: null,        // "win" | "loss" once ended
         correctGuesses: 0,
         totalGuesses: 0,
-        // Sticker application window: open from the deal until the first
-        // guess of the run, then closed for the rest of the run. Explicit
-        // state (not inferred) so the UI can gate on it.
+        // Explicit run-phase flags (not inferred from whether a guess has
+        // happened). The run deals into the STICKER phase: started=false and
+        // the sticker window open. startRun() flips both. The UI gates the
+        // Start Run button / guess buttons on `started`.
+        started: false,
         stickerWindow: true,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
@@ -1375,9 +1385,21 @@ const GameEngine = (() => {
       for (let i = 0; i < board.size; i++) {
         board.push(i, deck.draw());
       }
-      // --- Active Play phase begins ----------------------------------
-      run.phase = "active";
+      // --- Sticker phase: dealt, awaiting Start Run ------------------
+      // phase stays "start" until startRun(); active play hasn't begun.
       emit("dealt", { board, deck, run });
+    }
+
+    /** End the sticker phase and begin active play. Idempotent; only valid
+        while playing and not already started. Closes the sticker window
+        (anti-exploit: no mid/late-run sticker saves) and emits "run-started"
+        so the UI can swap the Start Run button for the guess buttons. */
+    function startRun() {
+      if (status !== "playing" || !run || run.started) return;
+      run.started = true;
+      run.stickerWindow = false;
+      run.phase = "active";
+      emit("run-started", { board, deck, run });
     }
 
     /**
@@ -1387,12 +1409,9 @@ const GameEngine = (() => {
      */
     function guess(index, guess) {
       if (status !== "playing") return;
+      if (!run || !run.started) return;   // no guessing during the sticker phase
       if (!board.isActive(index)) return;
       if (deck.isEmpty()) return;
-
-      // The first guess permanently closes the sticker-application window
-      // for this run (anti-exploit: no end-of-run sticker saves).
-      run.stickerWindow = false;
 
       const current = board.top(index);
       const drawn = deck.draw();
@@ -1478,11 +1497,14 @@ const GameEngine = (() => {
 
     return {
       start,
+      startRun,
       guess,
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
-      /** True only during the pre-play window (after deal, before 1st guess). */
+      /** True only during the sticker phase (after deal, before Start Run). */
       canApplyStickers() { return status === "playing" && !!run && run.stickerWindow === true; },
+      /** True once Start Run has been pressed (active play has begun). */
+      isRunStarted() { return !!run && run.started === true; },
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
@@ -1958,6 +1980,7 @@ const UIRenderer = (() => {
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
     btnLower: document.getElementById("btnLower"),
+    startRunBtn: document.getElementById("startRunBtn"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
     overlayIcon: document.getElementById("overlayIcon"),
@@ -2165,6 +2188,7 @@ const UIRenderer = (() => {
   /* ---- selection / action sheet ---- */
   function selectPile(index) {
     if (!engine || engine.getStatus() !== "playing") return;
+    if (!engine.isRunStarted()) return;   // no guessing until Start Run is pressed
     if (!engine.getBoard().isActive(index)) return;
 
     if (selected === index) { clearSelection(); return; }
@@ -2188,6 +2212,32 @@ const UIRenderer = (() => {
   function submitGuess(guess) {
     if (selected === null) return;
     engine.guess(selected, guess);
+  }
+
+  /* ---- run phase display (sticker phase <-> active play) ----
+     Sticker phase: Start Run button shown, guess buttons hidden, stickers
+     applicable. Active play: Start Run hidden, guess buttons available. The
+     two button groups are mutually exclusive so the layout never shows both. */
+  function showStickerPhase() {
+    clearSelection();                         // also hides #actions
+    el.startRunBtn.classList.remove("hidden");
+    renderStickerTray();                      // shows owned stickers (if any)
+    const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
+    el.hint.textContent = hasStickers
+      ? "Apply stickers, then press Start Run."
+      : "Read the board, then press Start Run.";
+  }
+
+  function showActivePhase() {
+    el.startRunBtn.classList.add("hidden");
+    renderStickerTray();                      // window closed -> tray hides itself
+    if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
+    el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
+    if (pileEls.length) fitBoard();           // reclaim the Start Run row's space
+  }
+
+  function startRunUI() {
+    if (engine) engine.startRun();
   }
 
   /* ---- in-run sticker application ----
@@ -2228,7 +2278,7 @@ const UIRenderer = (() => {
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
       ? "Tap a pile to apply " + t.icon + " " + t.label + " to its card."
-      : "Tap a pile, then choose Higher, Same, or Lower.";
+      : "Apply stickers, then press Start Run.";
   }
 
   function applyArmedSticker(index) {
@@ -2237,7 +2287,7 @@ const UIRenderer = (() => {
       armedSticker = null;
       el.board.classList.remove("arming");
       renderStickerTray();
-      el.hint.textContent = "Sticker window closed — apply before your first guess.";
+      el.hint.textContent = "Sticker window closed — the run has started.";
       return;
     }
     const board = engine.getBoard();
@@ -2261,7 +2311,7 @@ const UIRenderer = (() => {
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
     renderStickerTray();
-    el.hint.textContent = "Sticker applied — tap a pile to play.";
+    el.hint.textContent = "Sticker applied — apply more or press Start Run.";
   }
 
   /* Mirror an applied sticker onto the live run-deck/board card object so its
@@ -2344,6 +2394,9 @@ const UIRenderer = (() => {
       else selectPile(index);
     });
 
+    // Start Run: ends the sticker phase and begins active play.
+    el.startRunBtn.addEventListener("click", startRunUI);
+
     // Sticker tray: tap a sticker to arm/disarm it.
     el.stickerTray.addEventListener("click", (e) => {
       const b = e.target.closest(".tray-sticker");
@@ -2415,11 +2468,13 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
-        renderStickerTray();
-        const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
-        el.hint.textContent = hasStickers
-          ? "Apply stickers now — the window closes on your first guess."
-          : "Tap a pile, then choose Higher, Same, or Lower.";
+        showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
+        refreshDebug();
+        break;
+      }
+
+      case "run-started": {
+        showActivePhase();    // hide Start Run, reveal guessing
         refreshDebug();
         break;
       }
@@ -2730,8 +2785,13 @@ const UIRenderer = (() => {
     const hud = document.querySelector(".hud");
     const foot = main.querySelector(".board-foot");
     const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
-    // main's visible children: board, board-foot, hint, [tray], actions.
-    const belowH = oh(foot) + oh(el.hint) + oh(el.actions) + (trayVisible ? oh(el.stickerTray) : 0);
+    // The control row is either the guess buttons (active) or the Start Run
+    // button (sticker phase) — mutually exclusive. Reserve the LARGER of the
+    // two so the board size is stable across the phase swap (no re-fit jump).
+    // .actions uses visibility:hidden (keeps its box) so it always measures.
+    const controlH = Math.max(oh(el.actions), oh(el.startRunBtn));
+    // main's visible children: board, board-foot, hint, [tray], control-row.
+    const belowH = oh(foot) + oh(el.hint) + controlH + (trayVisible ? oh(el.stickerTray) : 0);
     const visibleChildren = 4 + (trayVisible ? 1 : 0);     // includes the board
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 

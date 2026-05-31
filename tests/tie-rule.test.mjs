@@ -16,6 +16,7 @@ export function run() {
   const fresh = () => {
     const engine = GameEngine.create(DeckManager.buildStandardDeck(), 9);
     engine.start();
+    engine.startRun();   // begin active play (guessing is gated on Start Run)
     return engine;
   };
 
