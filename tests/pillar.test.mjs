@@ -6,7 +6,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { PillarTypes, CampaignState, GameEngine, DeckManager, BoardState, Economy } = loadGame();
+  const { PillarTypes, StickerTypes, CampaignState, GameEngine, DeckManager, BoardState, Economy } = loadGame();
   const r = makeRunner("pillar.test.mjs");
 
   // --- Registry shape ---------------------------------------------------
@@ -300,6 +300,31 @@ export function run() {
     e.guess(0, "higher");      // draws the Ace → deck empty → tribute skipped
     r.eq(e.getRun().aceTributesUsed[0], 0, "no tribute when the deck is empty");
     r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
+  }
+
+  // --- Phase 5: Change Suit sticker (Suit Bounty enabler) ---------------
+  {
+    r.ok(!!StickerTypes.get("changeSuit"), "registry has the Change Suit sticker");
+
+    const c = CampaignState.create();
+    const id = c.getCards().find(x => x.suit === "♠").id;   // any ♠ card
+    r.ok(c.applySticker(id, "changeSuit"), "apply Change Suit to a ♠ card");
+    const after = c.getCards().find(x => x.id === id);
+    r.eq(after.suit, "♥", "Change Suit advances ♠ → ♥");
+    r.ok(after.modifications.some(m => m.op === "changeSuit"), "records a changeSuit modification");
+    r.ok(after.stickers.some(s => s.type === "changeSuit"), "the sticker rides on the card");
+    r.eq(after.currentRank, c.getCards().find(x => x.id === id).originalRank ?? after.currentRank,
+      "rank/value is untouched by a suit change");
+
+    // The changed suit flows into the run deck the engine deals from, so a
+    // matching Suit Bounty Pillar will see it (bounty reads the dealt suit).
+    r.eq(c.getRunDeck().find(x => x.id === id).suit, "♥",
+      "changed suit materializes in the run deck");
+
+    // Four steps cycle a card all the way around back to its start.
+    const id2 = c.getCards().find(x => x.suit === "♣").id;
+    c.applySticker(id2, "changeSuit");   // ♣ → ♠
+    r.eq(c.getCards().find(x => x.id === id2).suit, "♠", "Change Suit wraps ♣ → ♠");
   }
 
   return r.summary();

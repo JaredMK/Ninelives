@@ -1096,8 +1096,12 @@ const StickerTypes = (() => {
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 1 },
     extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1 },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     basePrice: 1 },
+    // Permanently advance a card's SUIT one step (♠→♥→♦→♣→♠). Pure composition
+    // (rank/value untouched); the enabler for Suit Bounty Pillars. Apply again
+    // to keep cycling toward a target suit.
+    changeSuit: { id: "changeSuit", label: "Change Suit", icon: "🔄", kind: "behavior", behavior: "changeSuit", basePrice: 1 },
   };
-  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin", "anchor"];
+  const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin", "anchor", "changeSuit"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -2062,6 +2066,13 @@ const CampaignState = (() => {
           card.modifications.push({
             op: t.rankDelta > 0 ? "increase" : "decrease", from, to: card.currentRank,
           });
+        } else if (t.behavior === "changeSuit") {
+          // Advance the suit one step around ♠→♥→♦→♣→♠ (rank untouched).
+          const order = DeckManager.SUITS.map(s => s.symbol);
+          const from = card.suit;
+          const i = order.indexOf(from);
+          card.suit = order[(i + 1) % order.length];
+          card.modifications.push({ op: "changeSuit", from, to: card.suit });
         }
         card.stickers.push({ type: typeId });
         return true;
@@ -2646,6 +2657,14 @@ const UIRenderer = (() => {
       card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
       card.tieSafe = true;
+    } else if (t.behavior === "changeSuit") {
+      // Cycle the live card's suit (and its red/black color) so the change —
+      // and any Suit Bounty it now qualifies for — takes effect this run.
+      const order = DeckManager.SUITS;
+      const i = order.findIndex(s => s.symbol === card.suit);
+      const next = order[(i + 1) % order.length];
+      card.suit = next.symbol;
+      card.red = next.red;
     }
     card.stickers = card.stickers || [];
     card.stickers.push({ type: typeId });
