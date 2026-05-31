@@ -1253,7 +1253,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.20.0";
+const APP_VERSION = "v0.20.1";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2692,9 +2692,13 @@ const UIRenderer = (() => {
     }
   }
 
-  /* Render the sticker badges for a pile's top card: a heart per remaining
-     Extra Heart, a broken heart per spent one, a shield for Tie-Safe, a coin
-     for Extra Coin, an anchor for Anchor, and a ± marker for rank stickers. */
+  /* Render the sticker badges for a pile's top card. DATA-DRIVEN: every sticker
+     type in the registry gets a badge from its own icon, so ALL stickers show a
+     persistent marker — ongoing (+1, Tie-Safe, Extra Coin, Anchor) AND one-time
+     transformations (Change Suit, random or defined). The badge rides with the
+     card's persistent identity (card.stickers), so it survives across runs, the
+     pre-run phase, and re-renders. Extra Heart is the one special case: its
+     chip splits into hearts remaining (❤️) + broken/consumed (💔). */
   function renderStickerBadges(pileEl, card) {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
@@ -2705,16 +2709,17 @@ const UIRenderer = (() => {
     const chip = (icon, count) =>
       count > 0 ? '<span class="badge">' + icon +
         (count > 1 ? '<span class="bcount">' + count + "</span>" : "") + "</span>" : "";
+    // Extra Heart is dynamic — split into remaining vs broken.
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
     const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
-    badges.innerHTML =
-      chip("❤️", heartsLeft) +
-      chip("💔", heartsBroken) +
-      chip("🛡️", n("tieSafe")) +
-      chip("💰", n("extraCoin")) +
-      chip("⚓", n("anchor")) +
-      chip("➕", n("rankUp")) +
-      chip("➖", n("rankDown"));
+    let html = chip("❤️", heartsLeft) + chip("💔", heartsBroken);
+    // Every OTHER registered sticker type renders one chip from its registry
+    // icon — uniform display, and new types appear automatically.
+    for (const t of StickerTypes.all()) {
+      if (t.id === "extraHeart") continue;   // handled above
+      html += chip(t.icon, n(t.id));
+    }
+    badges.innerHTML = html;
   }
 
   function paintFront(pileEl, card) {

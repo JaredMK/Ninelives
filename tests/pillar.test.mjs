@@ -394,15 +394,24 @@ export function run() {
     r.eq(after.suit, "♥", "Defined-suit sets ♦ → ♥");
     r.eq(after.currentRank, rank0, "rank/value is untouched by a suit change");
     r.ok(after.modifications.some(m => m.op === "changeSuit"), "records a changeSuit modification");
+    // Uniform data model: the one-time suit sticker rides in card.stickers like
+    // any ongoing sticker, so the badge renderer (which reads card.stickers)
+    // shows it. This is the root-cause guard for the missing-badge bug.
+    r.eq(after.stickers.filter(s => s.type === "changeSuitHeart").length, 1,
+      "suit-change sticker is recorded in card.stickers (persistent identity)");
     // Flows into the run deck the engine deals from (a Heart Bounty would see it).
     // ♥ is active in Stage 1, so it appears in the run deck.
-    r.eq(c.getRunDeck().find(x => x.id === id).suit, "♥", "changed suit materializes in the run deck");
+    const dealt = c.getRunDeck().find(x => x.id === id);
+    r.eq(dealt.suit, "♥", "changed suit materializes in the run deck");
+    r.ok(dealt.stickers.some(s => s.type === "changeSuitHeart"),
+      "the suit-change sticker rides into the dealt run deck (badge survives a later deal)");
 
-    // Random suit: changes to a DIFFERENT valid suit.
+    // Random suit: changes to a DIFFERENT valid suit, and records its sticker.
     const sid = c.getCards().find(x => x.suit === "♠").id;
     c.applySticker(sid, "changeSuitRandom");
-    const rnd = c.getCards().find(x => x.id === sid).suit;
-    r.ok(["♠", "♥", "♦", "♣"].includes(rnd) && rnd !== "♠", "Random suit picks a different valid suit");
+    const sCard = c.getCards().find(x => x.id === sid);
+    r.ok(["♠", "♥", "♦", "♣"].includes(sCard.suit) && sCard.suit !== "♠", "Random suit picks a different valid suit");
+    r.ok(sCard.stickers.some(s => s.type === "changeSuitRandom"), "Random-suit sticker is recorded for its badge");
   }
 
   // --- Debug grant: free sticker to inventory, no coins / no escalation --
