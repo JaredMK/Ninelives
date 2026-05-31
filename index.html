@@ -85,7 +85,34 @@
     border-radius: 999px;
     padding: 3px 12px;
     box-shadow: var(--shadow);
+    cursor: pointer;            /* tap to open the sticker inventory popup */
+    user-select: none; -webkit-user-select: none;
   }
+  .stage-run:active { transform: scale(0.97); }
+
+  /* In-play sticker inventory popup (tap-to-open, tap-out / × to close). */
+  .inv-popup {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6, 10, 22, 0.55);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  .inv-popup.hidden { display: none; }
+  .inv-card {
+    width: min(86vw, 320px);
+    background: rgba(13, 20, 38, 0.98);
+    border: 1px solid #34508f; border-radius: 14px;
+    padding: 14px; box-shadow: var(--shadow);
+  }
+  .inv-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 14px; color: var(--accent-2); margin-bottom: 10px;
+  }
+  .inv-close {
+    background: none; border: none; color: var(--text);
+    font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
+  }
+  .inv-card-body { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 
   .hud {
     display: flex;
@@ -178,6 +205,14 @@
      every run (uniform) — its size is the smaller of a width-derived and a
      height-derived value, so the board always fits the viewport both ways and
      grows to use the available space. */
+  /* Off-screen probe whose height equals 100svh in px (the SMALL viewport).
+     Stable across scroll + Safari chrome toggles; fitBoard measures it. */
+  #svhProbe {
+    position: fixed; top: 0; left: 0;
+    width: 0; height: 100svh;
+    visibility: hidden; pointer-events: none; z-index: -1;
+  }
+
   .board {
     /* WIDTH-derived edge: the board width split into the 3 COLUMNS minus the
        2 inter-column gaps. (The board only ever has three columns, so divide
@@ -185,11 +220,12 @@
     --pile-w: calc((min(96vw, 460px) - 2 * var(--gap)) / 3);
     /* HEIGHT-derived cap: the tallest column is 4 piles tall (Run 1). Reserve
        the surrounding chrome (header, HUD, deck/hint/sticker/actions) so even
-       that 4-tall board fits without scrolling on short viewports. dvh second
-       so it wins where supported (handles mobile browser toolbars). */
+       that 4-tall board fits without scrolling on short viewports. svh (the
+       SMALL viewport — dynamic toolbars shown) so the size is STABLE: it does
+       not change when mobile Safari's URL bar / banner show or hide. */
     --board-reserve: 22rem;   /* fixed chrome above/below the board */
     --pile-h: calc((100vh  - var(--board-reserve) - 3 * var(--gap)) / 4);
-    --pile-h: calc((100dvh - var(--board-reserve) - 3 * var(--gap)) / 4);
+    --pile-h: calc((100svh - var(--board-reserve) - 3 * var(--gap)) / 4);
     /* Uniform pile size = the smaller of the two. Roomy phones: height governs
        and piles grow to fill the vertical space (columns widen to match, using
        the horizontal space too). Tight phones: still the smaller value, so the
@@ -540,6 +576,19 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   }
   .store-coins b { color: var(--accent); }
+  .sc-coins { font-size: 18px; }
+
+  /* Compact owned-sticker inventory (counts per type). Shared chip style is
+     reused by the in-play inventory popup. */
+  .sc-inv { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 6px; }
+  .inv-chip {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--panel); border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 12px; font-weight: 700;
+  }
+  .inv-chip .ic-n { color: var(--accent-2); font-weight: 800; }
+  .inv-empty { font-size: 12px; font-weight: 600; color: var(--muted); }
 
   .store-items {
     display: grid;
@@ -1007,6 +1056,10 @@
 </style>
 </head>
 <body>
+  <!-- Stable small-viewport probe: its height is 100svh in px, which does NOT
+       change when Safari's chrome shows/hides. fitBoard reads it instead of
+       innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
+  <div id="svhProbe" aria-hidden="true"></div>
   <header>
     <h1>NINE LIVES</h1>
     <p>Guess higher or lower. Survive the deck.</p>
@@ -1130,7 +1183,10 @@
     <div class="big">🛒</div>
     <h2>STORE</h2>
     <p id="storeMsg">Buy stickers now — apply them to cards during the next run.</p>
-    <div class="store-coins">🪙 <b id="storeCoins">0</b></div>
+    <div class="store-coins">
+      <div class="sc-coins">🪙 <b id="storeCoins">0</b></div>
+      <div class="sc-inv" id="storeInv"></div>
+    </div>
     <div class="store-section">Stickers — apply to cards next run</div>
     <div class="store-items" id="storeItems"></div>
     <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select a sticker to buy</button>
@@ -1162,6 +1218,18 @@
   <!-- Store item help: revealed while holding an item's "?" (press & hold) -->
   <div class="item-help hidden" id="itemHelp"></div>
 
+  <!-- In-play sticker inventory: opened by TAPPING the coin indicator; dismiss
+       by tapping the backdrop or the ×. -->
+  <div class="inv-popup hidden" id="invPopup">
+    <div class="inv-card">
+      <div class="inv-card-head">
+        <span>🎟️ Sticker Inventory</span>
+        <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="inv-card-body" id="invBody"></div>
+    </div>
+  </div>
+
 <script>
 "use strict";
 /* ================================================================
@@ -1185,7 +1253,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.18.0";
+const APP_VERSION = "v0.19.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2433,6 +2501,7 @@ const DeckInspector = (() => {
 const UIRenderer = (() => {
   const el = {
     board: document.getElementById("board"),
+    svhProbe: document.getElementById("svhProbe"),
     deckCount: document.getElementById("deckCount"),
     aliveCount: document.getElementById("aliveCount"),
     minPileCount: document.getElementById("minPileCount"),
@@ -2473,12 +2542,16 @@ const UIRenderer = (() => {
     storeOverlay: document.getElementById("storeOverlay"),
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
+    storeInv: document.getElementById("storeInv"),
     storeItems: document.getElementById("storeItems"),
     buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     itemHelp: document.getElementById("itemHelp"),
+    invPopup: document.getElementById("invPopup"),
+    invBody: document.getElementById("invBody"),
+    invClose: document.getElementById("invClose"),
     // debug
     title: document.querySelector("header h1"),
     debugPanel: document.getElementById("debugPanel"),
@@ -2907,15 +2980,28 @@ const UIRenderer = (() => {
 
   /* ---- input wiring (tap now; swipe-ready later) ---- */
   function attachInput() {
-    // Re-fit the board to the new viewport on rotate / resize (debounced to a
-    // frame so rapid resize events don't thrash layout).
-    let fitRaf = 0;
-    const refit = () => {
+    // Re-fit the board ONLY on a genuine viewport change — a rotation or real
+    // window resize — never on scroll or when Safari's chrome shows/hides. We
+    // gate on stable dimensions: innerWidth (unchanged by vertical chrome) and
+    // the svh probe (unchanged by chrome). A 'resize' fired by chrome toggling
+    // leaves both equal, so we skip it and the pile size stays put.
+    let fitRaf = 0, lastVW = 0, lastVH = 0;
+    const refitIfChanged = () => {
+      const w = (typeof window !== "undefined" && window.innerWidth)
+        || (document.documentElement && document.documentElement.clientWidth) || 0;
+      const h = stableViewportH();
+      if (w === lastVW && h === lastVH) return;   // scroll / chrome toggle → ignore
+      lastVW = w; lastVH = h;
       cancelAnimationFrame(fitRaf);
       fitRaf = requestAnimationFrame(() => { if (pileEls.length) fitBoard(); });
     };
-    window.addEventListener("resize", refit);
-    window.addEventListener("orientationchange", refit);
+    window.addEventListener("resize", refitIfChanged);
+    // Orientation change can report stale dimensions momentarily; force a fresh
+    // measurement after it settles (and immediately, via the gate).
+    window.addEventListener("orientationchange", () => {
+      refitIfChanged();
+      setTimeout(() => { lastVW = lastVH = 0; refitIfChanged(); }, 300);
+    });
 
     // Tap a pile: apply an armed sticker, or select it for a guess.
     el.board.addEventListener("click", (e) => {
@@ -2928,6 +3014,14 @@ const UIRenderer = (() => {
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
+
+    // Tap the coin indicator (top of screen) to open the sticker inventory
+    // popup; tap the backdrop or the × to dismiss.
+    el.stageRun.addEventListener("click", openInvPopup);
+    el.invClose.addEventListener("click", closeInvPopup);
+    el.invPopup.addEventListener("click", (e) => {
+      if (e.target === el.invPopup) closeInvPopup();   // backdrop tap only
+    });
 
     // Sticker tray: tap a sticker to arm/disarm it.
     el.stickerTray.addEventListener("click", (e) => {
@@ -3370,6 +3464,19 @@ const UIRenderer = (() => {
      AFTER layout — but main is center-justified, so those positions moved WITH
      the board, feeding an inflated budget back in and oversizing the board.
      Measuring only board-independent heights removes that feedback loop. */
+
+  /* The stable viewport height (px) used for sizing: the svh probe (100svh),
+     which represents the SMALL viewport with Safari's chrome shown. It does not
+     change on scroll or when the URL bar / banner toggle, so pile size holds.
+     Fallbacks (layout viewport, then innerHeight) only where svh is unsupported
+     and the probe reports 0. */
+  function stableViewportH() {
+    const probe = el.svhProbe && el.svhProbe.offsetHeight;
+    if (probe > 0) return probe;
+    return (document.documentElement && document.documentElement.clientHeight)
+        || (typeof window !== "undefined" && window.innerHeight) || 0;
+  }
+
   function fitBoard() {
     if (typeof getComputedStyle !== "function" ||
         typeof el.board.getBoundingClientRect !== "function") return;
@@ -3377,10 +3484,12 @@ const UIRenderer = (() => {
     if (!main) return;
     const oh = (node) => (node && node.offsetHeight) || 0;
 
-    // Viewport height — visualViewport tracks mobile browser toolbars best.
-    const vh = (typeof window !== "undefined" && window.visualViewport && window.visualViewport.height)
-      || (typeof window !== "undefined" && window.innerHeight)
-      || (document.documentElement && document.documentElement.clientHeight) || 0;
+    // STABLE viewport height = the svh probe (100svh in px). Unlike
+    // visualViewport.height / innerHeight, it does NOT shrink/grow when Safari's
+    // URL bar or bottom banner appear/disappear, nor on scroll — so pile size is
+    // fixed for a device/orientation and never jumps. Falls back to the layout
+    // viewport (then innerHeight) only where svh is unsupported.
+    const vh = stableViewportH();
     if (!(vh > 0)) return;
 
     const gapPx = parseFloat(getComputedStyle(el.board).gap) || 12;
@@ -3501,8 +3610,21 @@ const UIRenderer = (() => {
     el.storeOverlay.classList.remove("hidden");
   }
 
+  /* Compact HTML for the player's owned-sticker inventory (counts per type),
+     read from the SAME campaign inventory the store buys into. Shared by the
+     store header and the in-play inventory popup. */
+  function inventoryHtml(emptyLabel) {
+    const inv = campaign ? campaign.getInventory() : {};
+    const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "No stickers yet") + "</span>";
+    return owned.map(t =>
+      '<span class="inv-chip">' + t.icon + ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
+    ).join("");
+  }
+
   function renderStore() {
     el.storeCoins.textContent = campaign.getCoins();
+    el.storeInv.innerHTML = inventoryHtml("No stickers owned yet");
     el.storeItems.innerHTML = "";
     StickerTypes.all().forEach(t => {
       const owned = campaign.inventoryCount(t.id);
@@ -3680,6 +3802,15 @@ const UIRenderer = (() => {
     el.itemHelp.classList.remove("hidden");
   }
   function hideItemHelp() { el.itemHelp.classList.add("hidden"); }
+
+  /* In-play sticker inventory popup — opened by TAPPING the coin indicator,
+     dismissed by tapping the backdrop or the ×. Reads the same campaign
+     inventory the store uses (via inventoryHtml). */
+  function openInvPopup() {
+    el.invBody.innerHTML = inventoryHtml("No stickers in inventory");
+    el.invPopup.classList.remove("hidden");
+  }
+  function closeInvPopup() { el.invPopup.classList.add("hidden"); }
 
   function init() {
     attachInput();
