@@ -24,7 +24,7 @@
     --card-ink: #1b2440;
     --card-red: #d6324a;
     --radius: 14px;
-    --gap: clamp(6px, 2.4vw, 14px);
+    --gap: clamp(8px, 2.6vw, 16px);
     --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   }
 
@@ -176,29 +176,31 @@
      center against a taller 4-pile middle in Run 1; the 2-pile middle centers
      against the 3-pile outers in Run 3). Every pile is the SAME square in
      every run (uniform) — its size is the smaller of a width-derived and a
-     height-derived value, so the board always fits the viewport both ways. */
+     height-derived value, so the board always fits the viewport both ways and
+     grows to use the available space. */
   .board {
-    /* WIDTH-derived edge: the board width split into --cols columns minus the
-       gaps (identical to the old row layout). --cols is the campaign's tallest
-       column (4), so this matches the original pile size on roomy phones. */
-    --pile-w: calc((min(94vw, 430px) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
-    /* HEIGHT-derived cap: the tallest column is --cols piles tall (Run 1 = 4).
-       Reserve the surrounding chrome (header, HUD, deck/hint/sticker/actions)
-       so even that 4-tall board fits without scrolling on short viewports.
-       vh first as a fallback; dvh (dynamic viewport) where supported. */
-    --board-reserve: 22.5rem;   /* ~360px of fixed chrome above/below the board */
-    --pile-h: calc((100vh  - var(--board-reserve) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
-    --pile-h: calc((100dvh - var(--board-reserve) - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4));
-    /* Uniform pile size = the smaller of the two. Roomy phones: width governs
-       (full size, unchanged). Short phones: height governs and piles shrink a
-       touch — uniformly across all runs — so nothing ever scrolls. */
+    /* WIDTH-derived edge: the board width split into the 3 COLUMNS minus the
+       2 inter-column gaps. (The board only ever has three columns, so divide
+       by 3 — not by the tallest-column count — to actually use the width.) */
+    --pile-w: calc((min(96vw, 460px) - 2 * var(--gap)) / 3);
+    /* HEIGHT-derived cap: the tallest column is 4 piles tall (Run 1). Reserve
+       the surrounding chrome (header, HUD, deck/hint/sticker/actions) so even
+       that 4-tall board fits without scrolling on short viewports. dvh second
+       so it wins where supported (handles mobile browser toolbars). */
+    --board-reserve: 22rem;   /* fixed chrome above/below the board */
+    --pile-h: calc((100vh  - var(--board-reserve) - 3 * var(--gap)) / 4);
+    --pile-h: calc((100dvh - var(--board-reserve) - 3 * var(--gap)) / 4);
+    /* Uniform pile size = the smaller of the two. Roomy phones: height governs
+       and piles grow to fill the vertical space (columns widen to match, using
+       the horizontal space too). Tight phones: still the smaller value, so the
+       4-tall Run 1 never scrolls. */
     --pile-size: min(var(--pile-w), var(--pile-h));
     display: flex;
     flex-direction: row;
     justify-content: center;   /* center the column group horizontally */
     align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
-    width: min(94vw, 430px);
+    width: min(96vw, 460px);
     margin: 0 auto;
   }
   .board-col {
@@ -217,8 +219,9 @@
     perspective: 700px;
     cursor: pointer;
     /* Every pile is the SAME square in every column/run: it fills its column,
-       whose width is --pile-size (the board width / --cols). aspect-ratio
-       keeps it square. */
+       whose width is --pile-size. aspect-ratio keeps it square. Card-face type
+       (rank indices + center suit) is sized in terms of --pile-size below, so
+       the glyphs scale WITH the pile and never collide as piles grow. */
     width: 100%;
     aspect-ratio: 1 / 1;
   }
@@ -244,11 +247,15 @@
     overflow: hidden;
   }
 
-  /* front (face up) */
+  /* front (face up). Card-face type scales with the pile (--pile-size, with a
+     430px fallback when it's not set) so the rank indices and the center suit
+     stay in proportion at any pile size. Padding is also pile-relative, giving
+     the corner ranks clear margin from the edge. */
   .card .front {
     background: var(--card-face);
     color: var(--card-ink);
-    padding: 8px;
+    --ps: var(--pile-size, 88px);
+    padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
     border: 1px solid rgba(0,0,0,0.08);
   }
@@ -259,22 +266,31 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    line-height: 0.95;
+    line-height: 0.92;
     font-weight: 800;
   }
 
   .rank-top { align-self: flex-start; }
   .rank-bottom { align-self: flex-end; transform: rotate(180deg); }
 
-  .rank-top .r, .rank-bottom .r { font-size: clamp(16px, 5.4vw, 26px); }
-  .rank-top .s, .rank-bottom .s { font-size: clamp(10px, 3.2vw, 15px); }
+  /* Corner index: rank ~21% of the pile, suit glyph ~13%, hugging the corner.
+     Sized so even the widest rank ("10", ~1.2x a single glyph) clears the
+     centered pip horizontally with margin. */
+  .rank-top .r, .rank-bottom .r { font-size: calc(var(--ps) * 0.21); }
+  .rank-top .s, .rank-bottom .s { font-size: calc(var(--ps) * 0.13); }
 
+  /* Center suit: 32% of the pile (was an unbounded ~11vw that overran the
+     corners). The corner indices hug left/right; this centered pip leaves a
+     clear band (~3%+ of the pile even against the two-digit "10") on each side,
+     so it never collides as piles scale up. */
   .card .pip {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    font-size: clamp(26px, 11vw, 54px);
-    opacity: 0.85;
+    font-size: calc(var(--ps) * 0.32);
+    line-height: 1;
+    opacity: 0.8;
+    pointer-events: none;
   }
 
   /* back (face down / dead) */
@@ -2187,6 +2203,7 @@ const UIRenderer = (() => {
     if (!open || owned.length === 0) {
       el.stickerTray.classList.add("hidden");
       if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
+      if (pileEls.length) fitBoard();   // tray hidden -> reclaim its space
       return;
     }
     el.stickerTray.classList.remove("hidden");
@@ -2198,6 +2215,7 @@ const UIRenderer = (() => {
       b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
       el.stickerTray.appendChild(b);
     });
+    if (pileEls.length) fitBoard();     // tray shown -> shrink to keep Run 1 fitting
   }
 
   function armSticker(typeId) {
@@ -2307,6 +2325,16 @@ const UIRenderer = (() => {
 
   /* ---- input wiring (tap now; swipe-ready later) ---- */
   function attachInput() {
+    // Re-fit the board to the new viewport on rotate / resize (debounced to a
+    // frame so rapid resize events don't thrash layout).
+    let fitRaf = 0;
+    const refit = () => {
+      cancelAnimationFrame(fitRaf);
+      fitRaf = requestAnimationFrame(() => { if (pileEls.length) fitBoard(); });
+    };
+    window.addEventListener("resize", refit);
+    window.addEventListener("orientationchange", refit);
+
     // Tap a pile: apply an armed sticker, or select it for a guess.
     el.board.addEventListener("click", (e) => {
       const pileEl = e.target.closest(".pile");
@@ -2662,6 +2690,50 @@ const UIRenderer = (() => {
       }
       el.board.appendChild(colEl);
     });
+    fitBoard();   // size piles to the actually-available space (see below)
+  }
+
+  /* Size the uniform pile to the space actually available, so the board grows
+     to fill the screen yet the tallest run (4-pile column) never scrolls.
+     Presentation only — measures the live layout and sets --pile-size; the CSS
+     min(--pile-w, --pile-h) calc remains the fallback before this runs.
+
+     The limiting column is always 4 piles tall (CAMPAIGN_MAX_COLS), regardless
+     of which run is showing, so the pile size stays uniform across runs and a
+     later 4-tall run can't suddenly overflow. We measure rather than assume the
+     chrome height because the sticker tray, notch insets and browser toolbars
+     all change it. */
+  function fitBoard() {
+    // Defensive: only run in a real browser with a laid-out board. If these
+    // APIs/measurements aren't available (headless test load, pre-layout call),
+    // bail and let the CSS min(--pile-w, --pile-h) calc stand as the fallback.
+    if (typeof getComputedStyle !== "function" ||
+        typeof el.board.getBoundingClientRect !== "function") return;
+    const main = el.board.closest && el.board.closest("main");
+    if (!main) return;
+    const gapPx = parseFloat(getComputedStyle(el.board).gap) || 12;
+    // Vertical budget: from the board's top to the top of the actions row
+    // (or the bottom of <main> if actions are hidden), minus a small breathing
+    // margin. This already accounts for the HUD above and the tray/hint below.
+    const boardTop = el.board.getBoundingClientRect().top;
+    const actionsTop = el.actions.getBoundingClientRect().top;
+    const mainBottom = main.getBoundingClientRect().bottom;
+    const floor = (el.actions.offsetParent && actionsTop > boardTop)
+      ? actionsTop : mainBottom;
+    const availH = floor - boardTop - 8;                 // 8px breathing room
+    const boardW = el.board.clientWidth;
+    if (!(availH > 0) || !(boardW > 0)) return;          // not laid out yet
+    const tall = CAMPAIGN_MAX_COLS;                      // 4 (limiting column)
+    const byHeight = (availH - (tall - 1) * gapPx) / tall;
+    // Horizontal budget: the board width split into the 3 columns.
+    const byWidth = (boardW - 2 * gapPx) / 3;
+    // Use the smaller so the 4-tall Run 1 always fits without scrolling — the
+    // priority on small phones. The 36px floor only guards against a degenerate
+    // measurement (e.g. debug panel + sticker tray both open on a tiny phone);
+    // in normal play height yields 70px+ piles. No-scroll wins over the 44px
+    // tap ideal in that extreme, since the whole card is the tap target.
+    const size = Math.max(36, Math.min(byWidth, byHeight));
+    el.board.style.setProperty("--pile-size", size + "px");
   }
 
   function onRunEnd(result, payload) {
