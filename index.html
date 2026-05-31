@@ -2693,45 +2693,59 @@ const UIRenderer = (() => {
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
-  /* Size the uniform pile to the space actually available, so the board grows
-     to fill the screen yet the tallest run (4-pile column) never scrolls.
-     Presentation only — measures the live layout and sets --pile-size; the CSS
-     min(--pile-w, --pile-h) calc remains the fallback before this runs.
+  /* Size the uniform pile so the WHOLE play screen (stat bar + pile grid +
+     guess buttons) fits one viewport with no scrolling — the tallest run
+     (Run 1, 4-pile middle column) is the limiting case. Presentation only:
+     measures the live layout and sets --pile-size; the CSS min(--pile-w,
+     --pile-h) calc is the pre-measurement fallback.
 
-     The limiting column is always 4 piles tall (CAMPAIGN_MAX_COLS), regardless
-     of which run is showing, so the pile size stays uniform across runs and a
-     later 4-tall run can't suddenly overflow. We measure rather than assume the
-     chrome height because the sticker tray, notch insets and browser toolbars
-     all change it. */
+     The available height is derived from things that DON'T change with pile
+     size (viewport, header, HUD, deck-foot, hint, actions, fixed paddings).
+     The previous version read boardTop / actionsTop from getBoundingClientRect
+     AFTER layout — but main is center-justified, so those positions moved WITH
+     the board, feeding an inflated budget back in and oversizing the board.
+     Measuring only board-independent heights removes that feedback loop. */
   function fitBoard() {
-    // Defensive: only run in a real browser with a laid-out board. If these
-    // APIs/measurements aren't available (headless test load, pre-layout call),
-    // bail and let the CSS min(--pile-w, --pile-h) calc stand as the fallback.
     if (typeof getComputedStyle !== "function" ||
         typeof el.board.getBoundingClientRect !== "function") return;
     const main = el.board.closest && el.board.closest("main");
     if (!main) return;
+    const oh = (node) => (node && node.offsetHeight) || 0;
+
+    // Viewport height — visualViewport tracks mobile browser toolbars best.
+    const vh = (typeof window !== "undefined" && window.visualViewport && window.visualViewport.height)
+      || (typeof window !== "undefined" && window.innerHeight)
+      || (document.documentElement && document.documentElement.clientHeight) || 0;
+    if (!(vh > 0)) return;
+
     const gapPx = parseFloat(getComputedStyle(el.board).gap) || 12;
-    // Vertical budget: from the board's top to the top of the actions row
-    // (or the bottom of <main> if actions are hidden), minus a small breathing
-    // margin. This already accounts for the HUD above and the tray/hint below.
-    const boardTop = el.board.getBoundingClientRect().top;
-    const actionsTop = el.actions.getBoundingClientRect().top;
-    const mainBottom = main.getBoundingClientRect().bottom;
-    const floor = (el.actions.offsetParent && actionsTop > boardTop)
-      ? actionsTop : mainBottom;
-    const availH = floor - boardTop - 8;                 // 8px breathing room
-    const boardW = el.board.clientWidth;
-    if (!(availH > 0) || !(boardW > 0)) return;          // not laid out yet
-    const tall = CAMPAIGN_MAX_COLS;                      // 4 (limiting column)
+    const ms = getComputedStyle(main);
+    const mainGap = parseFloat(ms.rowGap || ms.gap) || 0;
+    const mainPadV = (parseFloat(ms.paddingTop) || 0) + (parseFloat(ms.paddingBottom) || 0);
+    const bs = getComputedStyle(document.body);
+    const bodyPadV = (parseFloat(bs.paddingTop) || 0) + (parseFloat(bs.paddingBottom) || 0);
+
+    // Everything that ISN'T the board, all board-independent:
+    const header = document.querySelector("header");
+    const hud = document.querySelector(".hud");
+    const foot = main.querySelector(".board-foot");
+    const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
+    // main's visible children: board, board-foot, hint, [tray], actions.
+    const belowH = oh(foot) + oh(el.hint) + oh(el.actions) + (trayVisible ? oh(el.stickerTray) : 0);
+    const visibleChildren = 4 + (trayVisible ? 1 : 0);     // includes the board
+    const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
+
+    // 16px breathing margin: no-scroll is the priority, so trade a little board
+    // size for a safety buffer against sub-pixel rounding and toolbar/notch slop.
+    const availH = vh - bodyPadV - oh(header) - oh(hud) - mainPadV - belowH - mainGaps - 16;
+    const boardW = el.board.clientWidth;                    // fixed (min(96vw,460))
+    if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
+
+    const tall = CAMPAIGN_MAX_COLS;                         // 4 (Run 1 middle col)
     const byHeight = (availH - (tall - 1) * gapPx) / tall;
-    // Horizontal budget: the board width split into the 3 columns.
-    const byWidth = (boardW - 2 * gapPx) / 3;
-    // Use the smaller so the 4-tall Run 1 always fits without scrolling — the
-    // priority on small phones. The 36px floor only guards against a degenerate
-    // measurement (e.g. debug panel + sticker tray both open on a tiny phone);
-    // in normal play height yields 70px+ piles. No-scroll wins over the 44px
-    // tap ideal in that extreme, since the whole card is the tap target.
+    const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns
+    // Smaller of the two so the board overflows NEITHER dimension; no-scroll
+    // is the priority. 36px floor only guards a degenerate measurement.
     const size = Math.max(36, Math.min(byWidth, byHeight));
     el.board.style.setProperty("--pile-size", size + "px");
   }
