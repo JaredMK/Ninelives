@@ -557,96 +557,83 @@
   /* ============================================================
      STORE + STICKERS
      ============================================================ */
-  .overlay.store { justify-content: flex-start; overflow-y: auto; gap: 4px; }
-  .overlay.store h2 { font-size: 26px; margin-top: 8px; }
-  .overlay.store .big { font-size: 44px; margin-bottom: 2px; }
+  /* Compact shop: everything (sticky header, 4 sticker slots, Buy, 2 Pillar
+     slots, column chips, reroll, start) targets ONE no-scroll phone screen.
+     overflow-y:auto is only a safety net for unusually short viewports. */
+  .overlay.store { justify-content: flex-start; overflow-y: auto; gap: 5px; padding: 12px; }
 
-  /* Coin balance: pinned to the top of the scrolling shop so it's always
-     visible. Opaque background + blur hides items scrolling underneath it. */
+  /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
     position: sticky; top: 0; z-index: 6;
     width: min(94vw, 380px);
-    font-size: 18px; font-weight: 800;
     text-align: center;
-    padding: 10px 0;
-    margin: 0 0 8px;
+    padding: 6px 0 8px;
+    margin: 0;
     background: rgba(8, 13, 28, 0.96);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   }
   .store-coins b { color: var(--accent); }
-  .sc-coins { font-size: 18px; }
+  .sc-coins { font-size: 18px; font-weight: 800; }
 
   /* Compact owned-sticker inventory (counts per type). Shared chip style is
      reused by the in-play inventory popup. */
-  .sc-inv { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 6px; }
+  .sc-inv { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 5px; }
   .inv-chip {
     display: inline-flex; align-items: center; gap: 2px;
     background: var(--panel); border-radius: 999px;
-    padding: 3px 8px;
-    font-size: 12px; font-weight: 700;
+    padding: 2px 7px;
+    font-size: 11px; font-weight: 700;
   }
   .inv-chip .ic-n { color: var(--accent-2); font-weight: 800; }
-  .inv-empty { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .inv-empty { font-size: 11px; font-weight: 600; color: var(--muted); }
 
-  .store-items {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    width: min(94vw, 380px);
-    margin-bottom: 18px;
+  /* Offered-item rows: 4 sticker tiles / 2 Pillar tiles, centered + compact. */
+  .store-tiles {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 6px; width: min(94vw, 380px);
   }
-  .store-item {
-    background: var(--panel);
-    color: var(--text);
-    border: none;
-    border-radius: 12px;
-    padding: 12px 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    cursor: pointer;
-    box-shadow: var(--shadow);
+  .store-tile {
     position: relative;
+    width: 66px; height: 62px;
+    background: var(--panel); color: var(--text); border: none; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    cursor: pointer; box-shadow: var(--shadow);
     transition: transform 0.08s ease;
   }
-  .store-item:active { transform: scale(0.95); }
-  .store-item.disabled { opacity: 0.4; pointer-events: none; }
-  /* A sticker tapped (selected) but not yet confirmed via the Buy button. */
-  .store-item.selected {
-    outline: 2px solid var(--accent-2); outline-offset: 1px;
-    background: #1b2748;
-  }
-  /* Sticker purchase confirm button — enabled only when one is selected. */
-  .buy-confirm {
-    width: min(94vw, 380px);
-    margin: 0 0 14px;
-    padding: 11px 12px;
-    border: none; border-radius: 12px;
-    background: var(--accent); color: #08101f;
-    font-size: 14px; font-weight: 800;
-    cursor: pointer; box-shadow: var(--shadow);
+  .store-tile:active { transform: scale(0.94); }
+  .store-tile.disabled { opacity: 0.4; pointer-events: none; }
+  /* Selected (sticker, awaiting Buy) or armed (Pillar, awaiting a column). */
+  .store-tile.selected { outline: 2px solid var(--accent-2); outline-offset: 1px; background: #1b2748; }
+  /* Empty/sold placeholder — keeps the grid from jumping. */
+  .store-tile.empty { background: transparent; border: 1px dashed rgba(255,255,255,0.18); box-shadow: none; pointer-events: none; }
+  .store-tile .ti-icon { font-size: 24px; line-height: 1; }
+  .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--accent); }
+  .store-tile .tile-sold { color: var(--muted); font-size: 16px; }
+
+  /* Buy-confirm (select → Buy) + Reroll buttons — compact, same footprint. */
+  .buy-confirm, .reroll-btn {
+    width: min(94vw, 380px); padding: 8px 12px;
+    border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow);
     transition: transform 0.08s ease, opacity 0.15s ease;
   }
-  .buy-confirm:active { transform: scale(0.97); }
-  .buy-confirm:disabled { opacity: 0.45; background: var(--panel); color: var(--muted); cursor: default; }
-  .store-item .si-icon { font-size: 22px; }
-  .store-item .si-label { font-size: 13px; font-weight: 700; }
-  .store-item .si-price { font-size: 12px; color: var(--accent); font-weight: 800; }
-  .store-item .si-owned {
-    position: absolute; top: 6px; right: 8px;
-    font-size: 11px; font-weight: 800; color: var(--accent-2);
-  }
-  .store-item.armed { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .buy-confirm { background: var(--accent); color: #08101f; }
+  .reroll-btn { background: #2a3a63; color: var(--text); }
+  .buy-confirm:active, .reroll-btn:active { transform: scale(0.98); }
+  .buy-confirm:disabled, .reroll-btn:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
+
+  /* Transient store hint + a compact Start button so the page fits. */
+  .store-msg { width: min(94vw, 380px); min-height: 14px; font-size: 11px; color: var(--muted); text-align: center; }
+  .play-btn.store-start { margin-top: 2px; padding: 11px 28px; }
 
   /* Store section divider label (Stickers / Pillars). */
   .store-section {
     width: min(94vw, 380px);
-    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--muted); font-weight: 800;
-    text-align: left; margin: 2px 0 6px;
+    text-align: left; margin: 2px 0 0;
   }
 
   /* Pillar column-slot chips in the store: the 3 column slots ARE the holding
@@ -655,28 +642,28 @@
   .pillar-slots {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 6px;
     width: min(94vw, 380px);
-    margin-bottom: 16px;
   }
   .pillar-slot {
     background: var(--panel);
     color: var(--text);
     border: 2px dashed rgba(255,255,255,0.18);
-    border-radius: 12px;
-    padding: 8px 4px;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    border-radius: 10px;
+    padding: 5px 3px;
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
     cursor: pointer; box-shadow: var(--shadow);
     transition: transform 0.08s ease;
   }
   .pillar-slot:active { transform: scale(0.95); }
   .pillar-slot.filled { border-style: solid; border-color: transparent; }
   .pillar-slot.armed { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  /* When a Pillar is armed, the chips are the place-here targets. */
   .pillar-slot.placing { border-color: var(--accent); }
-  .pillar-slot .ps-col { font-size: 10px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-  .pillar-slot .ps-icon { font-size: 20px; line-height: 1.1; }
-  .pillar-slot .ps-name { font-size: 10px; font-weight: 700; text-align: center; }
-  .pillar-slot .ps-empty { font-size: 18px; color: var(--muted); }
+  .pillar-slot .ps-col { font-size: 9px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .pillar-slot .ps-icon { font-size: 18px; line-height: 1.1; }
+  .pillar-slot .ps-name { font-size: 9px; font-weight: 700; text-align: center; }
+  .pillar-slot .ps-empty { font-size: 16px; color: var(--muted); }
 
   /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
      with a cell per column so each icon is centered over its column AND all
@@ -1178,22 +1165,22 @@
     <div class="peek-hint hidden" id="peekHint">👁 Hold anywhere to peek the board</div>
   </div>
 
-  <!-- Store overlay — shown between runs; spend coins on stickers -->
+  <!-- Store overlay — shown between runs. Limited random offering (4 stickers
+       + 2 Pillars) with a reroll; designed to fit one screen with no scroll. -->
   <div class="overlay store hidden" id="storeOverlay">
-    <div class="big">🛒</div>
-    <h2>STORE</h2>
-    <p id="storeMsg">Buy stickers now — apply them to cards during the next run.</p>
     <div class="store-coins">
-      <div class="sc-coins">🪙 <b id="storeCoins">0</b></div>
+      <div class="sc-coins">🛒 🪙 <b id="storeCoins">0</b></div>
       <div class="sc-inv" id="storeInv"></div>
     </div>
     <div class="store-section">Stickers — apply to cards next run</div>
-    <div class="store-items" id="storeItems"></div>
+    <div class="store-tiles" id="storeItems"></div>
     <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select a sticker to buy</button>
-    <div class="store-section">Pillars — column powers (kept between runs)</div>
-    <div class="store-items" id="storePillars"></div>
+    <div class="store-section">Pillars — pick one, then a column</div>
+    <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
-    <button class="play-btn" id="storeStartBtn" type="button">START RUN</button>
+    <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
+    <div class="store-msg" id="storeMsg"></div>
+    <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
   </div>
 
   <!-- Deck inspection: full breakdown modal (tap) -->
@@ -1253,7 +1240,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.20.1";
+const APP_VERSION = "v0.21.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2039,6 +2026,40 @@ const CampaignState = (() => {
   const MIN_RANK = 2;   // 2 is the floor for Decrease
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
 
+  /* ---- Store offering (Balatro-style limited random roll) ----------------
+     Each store visit offers a small RANDOM selection drawn from the full
+     registries: STORE_STICKER_SLOTS stickers + STORE_PILLAR_SLOTS Pillars.
+     Buying empties only that slot (the rest stay). A reroll replaces ALL slots
+     and costs REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit;
+     it resets to base when the store re-opens for a new run. */
+  const STORE_STICKER_SLOTS = 4;
+  const STORE_PILLAR_SLOTS = 2;
+  const REROLL_BASE_COST = 3;
+  const REROLL_STEP = 1;
+
+  /** Pick `n` ids from a registry list, WITH replacement (dupes allowed), by
+      weight. Weights are uniform now (each type's optional `weight`, default 1);
+      structured so rarity weights can be added later without a rewrite. */
+  function rollIds(types, n, rng = Math.random) {
+    const pool = types.map(t => ({ id: t.id, weight: t.weight || 1 }));
+    const total = pool.reduce((a, x) => a + x.weight, 0) || 1;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      let r = rng() * total, chosen = pool[pool.length - 1].id;
+      for (const x of pool) { if ((r -= x.weight) < 0) { chosen = x.id; break; } }
+      out.push(chosen);
+    }
+    return out;
+  }
+  /** A fresh offering: random sticker + Pillar slots, reroll cost at base. */
+  function freshOffer() {
+    return {
+      stickers: rollIds(StickerTypes.all(), STORE_STICKER_SLOTS),
+      pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS),
+      rerollCost: REROLL_BASE_COST,
+    };
+  }
+
   function create() {
     let currentStage = 1;          // 1 .. MAX_STAGES
     let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE (within the stage)
@@ -2053,6 +2074,10 @@ const CampaignState = (() => {
     // are rearrangeable in the pre-run phase (see swap/set below); a run
     // snapshots them at Start Run.
     let columnPillars = new Array(COLUMN_SLOTS).fill(null);
+    // Current store offering (Balatro-style). Persists across store re-renders
+    // (so a re-render can't re-roll for free); regenerated on each store open;
+    // wiped on reset(). null until the first store opens.
+    let storeOffer = null;
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -2263,6 +2288,46 @@ const CampaignState = (() => {
         return true;
       },
 
+      /* ---- store offering (limited random roll; see freshOffer) ---------- */
+      /** (Re)open the store for a new visit: a fresh random offer at base
+          reroll cost. Call once when the store opens for a run. */
+      openStore() { storeOffer = freshOffer(); return storeOffer; },
+      /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
+          or null. The UI renders FROM this — it never re-rolls on its own, so a
+          re-render restores the same items (no free reroll via refresh). */
+      getStoreOffer() { return storeOffer; },
+      storeRerollCost() { return storeOffer ? storeOffer.rerollCost : Infinity; },
+      canReroll() { return !!storeOffer && coins >= storeOffer.rerollCost; },
+      /** Reroll ALL offered slots for the current cost; cost then climbs by
+          REROLL_STEP. Returns true if it happened (affordable). */
+      rerollStore() {
+        if (!storeOffer || coins < storeOffer.rerollCost) return false;
+        coins -= storeOffer.rerollCost;
+        const f = freshOffer();
+        storeOffer.stickers = f.stickers;
+        storeOffer.pillars = f.pillars;
+        storeOffer.rerollCost += REROLL_STEP;
+        return true;
+      },
+      /** Buy the offered sticker in slot `i` (to inventory); empties that slot
+          only, leaving the rest. Returns true on success. */
+      buyOfferedSticker(i) {
+        if (!storeOffer) return false;
+        const id = storeOffer.stickers[i];
+        if (!id || !this.buySticker(id)) return false;
+        storeOffer.stickers[i] = null;
+        return true;
+      },
+      /** Buy the offered Pillar in slot `i` and place it on column `col`;
+          empties that slot only. Returns true on success. */
+      buyOfferedPillar(i, col) {
+        if (!storeOffer) return false;
+        const id = storeOffer.pillars[i];
+        if (!id || !this.buyPillar(id, col)) return false;
+        storeOffer.pillars[i] = null;
+        return true;
+      },
+
       /* ---- sticker application (permanent, per-card, validated) ----
          Stickers attach to a SPECIFIC persistent card by id. Rank stickers
          also bump currentRank + record a modification; behavior stickers are
@@ -2326,6 +2391,7 @@ const CampaignState = (() => {
         coins = 0;
         stickerInventory = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
+        storeOffer = null;
       },
     };
   }
@@ -2565,6 +2631,7 @@ const UIRenderer = (() => {
     buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
+    rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     itemHelp: document.getElementById("itemHelp"),
     invPopup: document.getElementById("invPopup"),
@@ -2599,16 +2666,14 @@ const UIRenderer = (() => {
   // (tap a sticker to arm it, then tap a pile to apply), or null.
   let armedSticker = null;
 
-  // Store Pillar management (both live in the store; the column slots ARE the
-  // holding — no inventory). armedPillarBuy: a Pillar type armed for purchase
-  // (tap a slot to place/replace). armedSlotMove: a filled slot armed for a
-  // rearrange (tap another slot to swap). Mutually exclusive.
-  let armedPillarBuy = null;
+  // Store selection state, all keyed to the current offering's SLOTS:
+  //   selectedStickerSlot — offered sticker slot awaiting the Buy button.
+  //   armedPillarSlot     — offered Pillar slot armed; tap a column to place.
+  //   armedSlotMove       — a filled board column armed for a rearrange/swap.
+  // Mutually exclusive (selecting/arming one clears the others).
+  let selectedStickerSlot = null;
+  let armedPillarSlot = null;
   let armedSlotMove = null;
-
-  // Sticker purchase is two-step: tap a sticker to SELECT it (highlight), then
-  // tap the Buy button to confirm. selectedSticker holds the pending type id.
-  let selectedSticker = null;
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -3078,42 +3143,42 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
-    // Store wiring. Stickers are two-step: tap SELECTS (highlight), the Buy
-    // button confirms. A tap on the "?" help icon is neither select nor buy —
-    // bail so holding it can't select or purchase.
+    // Store wiring. Stickers are two-step: tap an offered slot SELECTS it, the
+    // Buy button confirms. A tap on the "?" help icon is neither select nor buy.
     el.storeItems.addEventListener("click", (e) => {
       if (e.target.closest(".si-help")) return;
-      const item = e.target.closest(".store-item");
-      if (item && !item.classList.contains("disabled")) selectStickerUI(item.dataset.type);
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("disabled")) selectStickerUI(Number(tile.dataset.slot));
     });
     el.buyStickerBtn.addEventListener("click", confirmBuySticker);
-    // Tapping "elsewhere" in the shop (not an item, the Buy button, or a slot)
+    // Tapping "elsewhere" in the shop (not a tile / Buy / Reroll / column chip)
     // deselects the pending sticker.
     el.storeOverlay.addEventListener("click", (e) => {
-      if (e.target.closest(".store-item, #buyStickerBtn, .pillar-slot")) return;
-      if (selectedSticker) { selectedSticker = null; renderStore(); }
+      if (e.target.closest(".store-tile, #buyStickerBtn, #rerollBtn, .pillar-slot")) return;
+      if (selectedStickerSlot != null) { selectedStickerSlot = null; renderStore(); }
     });
-    // Pillar catalogue: tap to arm a purchase ("?" excluded, as above).
+    // Offered Pillars: tap a slot to arm it ("?" excluded, as above).
     el.storePillars.addEventListener("click", (e) => {
       if (e.target.closest(".si-help")) return;
-      const item = e.target.closest(".store-item");
-      if (item && !item.classList.contains("disabled")) armPillarBuy(item.dataset.pillar);
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("disabled")) armPillarSlotUI(Number(tile.dataset.pslot));
     });
-    // Press-and-hold a store item's "?" to peek its description; release to
+    el.rerollBtn.addEventListener("click", rerollUI);
+    // Press-and-hold an offered tile's "?" to peek its description; release to
     // dismiss — same hold gesture as the deck quick-peek. Delegated on both
-    // catalogues; the global pointerup/cancel below hides it on release.
+    // offer rows; the global pointerup/cancel below hides it on release.
     const helpDown = (e) => {
       const help = e.target.closest(".si-help");
       if (!help) return;
-      e.preventDefault();            // don't let the hold become a buy
+      e.preventDefault();            // don't let the hold become a select/buy
       e.stopPropagation();
-      showItemHelp(help.closest(".store-item"));
+      showItemHelp(help.closest(".store-tile"));
     };
     el.storeItems.addEventListener("pointerdown", helpDown);
     el.storePillars.addEventListener("pointerdown", helpDown);
     window.addEventListener("pointerup", hideItemHelp);
     window.addEventListener("pointercancel", hideItemHelp);
-    // Column slots: place an armed purchase, or arm/swap for a rearrange.
+    // Column chips: place an armed offered Pillar, or arm/swap for a rearrange.
     el.pillarSlots.addEventListener("click", (e) => {
       const chip = e.target.closest(".pillar-slot");
       if (chip) tapPillarSlot(Number(chip.dataset.col));
@@ -3631,6 +3696,9 @@ const UIRenderer = (() => {
      Shown after every run so banked coins are always spendable. */
   function showStore() {
     hideOverlay();
+    campaign.openStore();   // ONE fresh random roll per visit (reroll cost → base)
+    selectedStickerSlot = null; armedPillarSlot = null; armedSlotMove = null;
+    el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
   }
@@ -3647,70 +3715,75 @@ const UIRenderer = (() => {
     ).join("");
   }
 
-  function renderStore() {
-    el.storeCoins.textContent = campaign.getCoins();
-    el.storeInv.innerHTML = inventoryHtml("No stickers owned yet");
-    el.storeItems.innerHTML = "";
-    StickerTypes.all().forEach(t => {
-      const owned = campaign.inventoryCount(t.id);
-      const price = campaign.priceOf(t.id);   // escalates per purchase
-      const affordable = campaign.getCoins() >= price;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "store-item" + (affordable ? "" : " disabled") +
-        (selectedSticker === t.id ? " selected" : "");
-      btn.dataset.type = t.id;
-      btn.innerHTML =
-        '<span class="si-help" aria-label="What does this do?">?</span>' +
-        '<span class="si-icon">' + t.icon + '</span>' +
-        '<span class="si-label">' + t.label + '</span>' +
-        '<span class="si-price">🪙 ' + price + '</span>' +
-        (owned ? '<span class="si-owned">×' + owned + '</span>' : "");
-      el.storeItems.appendChild(btn);
-    });
-    updateBuyButton();
-    renderPillarStore();
+  /* One compact offered tile (sticker or Pillar). `kind` is "sticker"|"pillar";
+     a null id renders the empty/sold placeholder so the grid never jumps. */
+  function offerTile(id, slot, kind, selected) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    if (!id) {
+      btn.className = "store-tile empty";
+      btn.disabled = true;
+      btn.innerHTML = '<span class="tile-sold">—</span>';
+      return btn;
+    }
+    const t = kind === "pillar" ? PillarTypes.get(id) : StickerTypes.get(id);
+    const price = kind === "pillar" ? campaign.priceOfPillar(id) : campaign.priceOf(id);
+    const affordable = campaign.getCoins() >= price;
+    btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
+    btn.dataset[kind === "pillar" ? "pslot" : "slot"] = slot;
+    btn.dataset[kind === "pillar" ? "pillar" : "type"] = id;   // for the help popup
+    btn.innerHTML =
+      '<span class="si-help" aria-label="What does this do?">?</span>' +
+      '<span class="ti-icon">' + t.icon + '</span>' +
+      '<span class="ti-price">🪙' + price + '</span>';
+    return btn;
   }
 
-  /* The Buy confirm button reflects the current sticker selection: disabled
-     with a prompt when nothing's selected, otherwise showing what will be
-     bought and its (escalating) price. */
+  function renderStore() {
+    const offer = campaign.getStoreOffer();
+    el.storeCoins.textContent = campaign.getCoins();
+    el.storeInv.innerHTML = inventoryHtml("No stickers owned yet");
+    // 4 sticker slots (select → Buy).
+    el.storeItems.innerHTML = "";
+    (offer ? offer.stickers : []).forEach((id, slot) =>
+      el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
+    updateBuyButton();
+    renderPillarStore();
+    updateRerollButton();
+  }
+
+  /* The Buy confirm button reflects the current sticker-slot selection. */
   function updateBuyButton() {
-    const t = selectedSticker ? StickerTypes.get(selectedSticker) : null;
+    const offer = campaign.getStoreOffer();
+    const id = (offer && selectedStickerSlot != null) ? offer.stickers[selectedStickerSlot] : null;
+    const t = id ? StickerTypes.get(id) : null;
     if (!t) {
       el.buyStickerBtn.disabled = true;
       el.buyStickerBtn.textContent = "Select a sticker to buy";
       return;
     }
-    const price = campaign.priceOf(selectedSticker);
+    const price = campaign.priceOf(id);
     const afford = campaign.getCoins() >= price;
     el.buyStickerBtn.disabled = !afford;
     el.buyStickerBtn.textContent =
-      (afford ? "Buy " : "Need 🪙 " + price + " for ") + t.icon + " " + t.label +
-      (afford ? " · 🪙 " + price : "");
+      (afford ? "Buy " : "Need 🪙" + price + " · ") + t.icon + " " + t.label + (afford ? " · 🪙" + price : "");
   }
 
-  /* Pillars in the store: the catalogue (buy = arm, then tap a column slot to
-     place) plus the 3 column slots (the whole holding — no inventory). A slot
-     tap either places the armed purchase, or arms/swaps for a rearrange. */
+  function updateRerollButton() {
+    const cost = campaign.storeRerollCost();
+    el.rerollBtn.disabled = !campaign.canReroll();
+    el.rerollBtn.textContent = "🎲 Reroll · 🪙" + cost;
+  }
+
+  /* Offered Pillars (2 slots) + the 3 board-column chips (placement/rearrange).
+     Arm an offered Pillar, then tap a column to place it there (buying empties
+     the offered slot). With nothing armed, tap a filled column then another to
+     swap them. */
   function renderPillarStore() {
+    const offer = campaign.getStoreOffer();
     el.storePillars.innerHTML = "";
-    PillarTypes.all().forEach(t => {
-      const price = campaign.priceOfPillar(t.id);
-      const affordable = campaign.getCoins() >= price;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "store-item" +
-        (affordable ? "" : " disabled") +
-        (armedPillarBuy === t.id ? " armed" : "");
-      btn.dataset.pillar = t.id;
-      btn.innerHTML =
-        '<span class="si-help" aria-label="What does this do?">?</span>' +
-        '<span class="si-icon">' + t.icon + '</span>' +
-        '<span class="si-label">' + t.label + '</span>' +
-        '<span class="si-price">🪙 ' + price + '</span>';
-      el.storePillars.appendChild(btn);
-    });
+    (offer ? offer.pillars : []).forEach((id, slot) =>
+      el.storePillars.appendChild(offerTile(id, slot, "pillar", armedPillarSlot === slot)));
 
     el.pillarSlots.innerHTML = "";
     const binding = campaign.getColumnPillars();
@@ -3721,7 +3794,7 @@ const UIRenderer = (() => {
       chip.className = "pillar-slot" +
         (t ? " filled" : "") +
         (armedSlotMove === col ? " armed" : "") +
-        (armedPillarBuy ? " placing" : "");
+        (armedPillarSlot != null ? " placing" : "");
       chip.dataset.col = col;
       chip.innerHTML =
         '<span class="ps-col">Col ' + (col + 1) + '</span>' +
@@ -3732,69 +3805,69 @@ const UIRenderer = (() => {
     });
   }
 
-  /* Tap a sticker to SELECT it (highlight) — does NOT buy. Tapping the same one
-     deselects; tapping a different one reselects. Confirm with the Buy button.
-     Selecting a sticker clears any pending Pillar arm ("tapping another item"). */
-  function selectStickerUI(typeId) {
-    selectedSticker = selectedSticker === typeId ? null : typeId;
-    armedPillarBuy = null;
+  /* Tap an offered sticker SLOT to select it (highlight) — does NOT buy.
+     Toggle off by re-tapping; clears any pending Pillar arm. */
+  function selectStickerUI(slot) {
+    selectedStickerSlot = selectedStickerSlot === slot ? null : slot;
+    armedPillarSlot = null;
     armedSlotMove = null;
-    el.storeMsg.textContent = selectedSticker
+    el.storeMsg.textContent = selectedStickerSlot != null
       ? "Tap Buy to confirm, or tap the sticker again to deselect."
-      : "Buy stickers and Pillars, then press Start Run.";
+      : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
 
-  /* Confirm the selected sticker purchase (the only place a sticker is bought). */
+  /* Confirm buying the selected offered sticker (the only place it's bought).
+     Empties just that slot; the rest of the offer stays. */
   function confirmBuySticker() {
-    if (!selectedSticker) return;
-    if (campaign.buySticker(selectedSticker)) {
-      selectedSticker = null;
+    if (selectedStickerSlot == null) return;
+    if (campaign.buyOfferedSticker(selectedStickerSlot)) {
+      selectedStickerSlot = null;
       el.storeMsg.textContent = "Sticker bought — apply it during the next run.";
     }
     renderStore();
   }
 
-  /* Tap a Pillar in the catalogue: arm it for purchase (if affordable), or
-     toggle it off. Arming a purchase clears any pending slot-move AND any
-     sticker selection ("tapping another item"). */
-  function armPillarBuy(typeId) {
-    const price = campaign.priceOfPillar(typeId);
-    if (campaign.getCoins() < price) {
+  /* Tap an offered Pillar SLOT to arm it (then tap a column to place). Toggle
+     off by re-tapping; clears any sticker selection / slot-move. */
+  function armPillarSlotUI(slot) {
+    const offer = campaign.getStoreOffer();
+    const id = offer ? offer.pillars[slot] : null;
+    if (!id) return;
+    if (campaign.getCoins() < campaign.priceOfPillar(id)) {
       el.storeMsg.textContent = "Not enough coins for that Pillar.";
       return;
     }
-    selectedSticker = null;
+    selectedStickerSlot = null;
     armedSlotMove = null;
-    armedPillarBuy = armedPillarBuy === typeId ? null : typeId;
-    el.storeMsg.textContent = armedPillarBuy
-      ? "Tap a column slot to place this Pillar (replaces what's there)."
-      : "Buy stickers and Pillars, then press Start Run.";
+    armedPillarSlot = armedPillarSlot === slot ? null : slot;
+    el.storeMsg.textContent = armedPillarSlot != null
+      ? "Tap a column to place this Pillar (replaces what's there)."
+      : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
 
-  /* Tap a column slot. With a Pillar armed for purchase: buy + place it here
-     (overwrites any current Pillar — no refund). Otherwise this is a
-     rearrange: arm a filled slot, then tap another slot to swap them. */
+  /* Tap a board-column chip. With an offered Pillar armed: buy it + place here
+     (empties the offered slot, overwrites the column — no refund). Otherwise a
+     rearrange: arm a filled column, then tap another to swap. */
   function tapPillarSlot(col) {
-    selectedSticker = null;   // touching the Pillar area deselects a sticker
-    if (armedPillarBuy) {
-      if (campaign.buyPillar(armedPillarBuy, col)) {
-        armedPillarBuy = null;
+    selectedStickerSlot = null;   // touching the Pillar area deselects a sticker
+    if (armedPillarSlot != null) {
+      if (campaign.buyOfferedPillar(armedPillarSlot, col)) {
+        armedPillarSlot = null;
         el.storeMsg.textContent = "Pillar placed on Column " + (col + 1) + ".";
       }
       renderStore();
       return;
     }
     if (armedSlotMove === null) {
-      // Arm a filled slot for moving; tapping an empty slot does nothing.
       if (campaign.columnPillar(col)) {
         armedSlotMove = col;
         el.storeMsg.textContent = "Tap another column to swap, or tap again to cancel.";
       }
     } else if (armedSlotMove === col) {
       armedSlotMove = null;
-      el.storeMsg.textContent = "Buy stickers and Pillars, then press Start Run.";
+      el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
     } else {
       campaign.swapColumnPillars(armedSlotMove, col);
       armedSlotMove = null;
@@ -3803,10 +3876,19 @@ const UIRenderer = (() => {
     renderStore();
   }
 
+  /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
+  function rerollUI() {
+    if (campaign.rerollStore()) {
+      selectedStickerSlot = null; armedPillarSlot = null;
+      el.storeMsg.textContent = "Rerolled the offer.";
+      renderStore();
+    }
+  }
+
   function closeStore() {
-    armedPillarBuy = null;
+    selectedStickerSlot = null;
+    armedPillarSlot = null;
     armedSlotMove = null;
-    selectedSticker = null;
     hideItemHelp();
     el.storeOverlay.classList.add("hidden");
   }

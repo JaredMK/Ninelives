@@ -10,6 +10,7 @@ import { run as stage } from "./stage.test.mjs";
 import { run as progression } from "./progression.test.mjs";
 import { run as terminology } from "./terminology.test.mjs";
 import { run as pillar } from "./pillar.test.mjs";
+import { run as storeOffer } from "./store-offer.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -20,6 +21,7 @@ const SUITES = [
   ["progression", progression],
   ["terminology", terminology],
   ["pillar", pillar],
+  ["store-offer", storeOffer],
 ];
 
 let pass = 0,
