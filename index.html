@@ -592,15 +592,60 @@
   /* Live, read-only Pillar marker on the active column (top-right of the
      column's first pile). Absolutely positioned — no layout/height impact, so
      it can't disturb the no-scroll board fit. */
-  .col-pillar-badge {
-    position: absolute;
-    top: 3px; right: 3px;
-    font-size: 13px;
-    z-index: 3;
-    pointer-events: none;
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+  /* Active-Pillar indicator: a small pill centered directly ABOVE each column.
+     It's the first child of every .board-col, so it sits over that column and
+     stays centered across runs/heights. Collapsed (display:none) when the run
+     has no Pillars at all; reserved (fixed height) on EVERY column when any are
+     present, so all piles still line up. fitBoard subtracts this header height,
+     so even Run 1's 4-tall middle column stays on one no-scroll screen. */
+  .col-pillar-head { display: none; }
+  .board.has-pillars .col-pillar-head {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 20px;
   }
-  .col-pillar-badge.hidden { display: none; }
+  .cph-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 18px; padding: 0 7px;
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid #34508f;
+    border-radius: 999px;
+    font-size: 12px; line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  }
+
+  /* "?" help affordance on each store item + the press-and-hold popup it
+     reveals. The popup mirrors the deck quick-peek: fixed, centered, width
+     clamped to the viewport so it never overflows a phone edge. */
+  .si-help {
+    position: absolute; top: 6px; left: 7px;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--muted);
+    font-size: 11px; font-weight: 800; line-height: 1;
+    cursor: help;
+    touch-action: none;   /* a hold won't start a scroll / cancel the peek */
+    z-index: 4;
+  }
+  .si-help:active { background: var(--accent); color: #fff; }
+  .item-help {
+    position: fixed;
+    left: 50%; top: 14%;
+    transform: translateX(-50%);
+    z-index: 62;
+    pointer-events: none;
+    width: min(90vw, 320px);
+    background: rgba(13, 20, 38, 0.97);
+    border: 1px solid #34508f;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    text-align: left;
+  }
+  .item-help.hidden { display: none; }
+  .item-help .ih-title { font-weight: 800; font-size: 14px; margin-bottom: 5px; color: var(--accent-2); }
+  .item-help .ih-body { font-size: 13px; line-height: 1.45; color: var(--text); }
 
   /* Coins earned/total line on the run-complete overlay. */
   /* Itemized coin breakdown on the run-complete / campaign screens. */
@@ -1052,6 +1097,9 @@
     <div class="deck-quick-grid" id="deckQuickGrid"></div>
   </div>
 
+  <!-- Store item help: revealed while holding an item's "?" (press & hold) -->
+  <div class="item-help hidden" id="itemHelp"></div>
+
 <script>
 "use strict";
 /* ================================================================
@@ -1075,7 +1123,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.15.0";
+const APP_VERSION = "v0.16.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1089,17 +1137,26 @@ const StickerTypes = (() => {
   // see CampaignState.priceOf). Every type now starts at 1 (uniform) and
   // escalates independently. Cards may hold any number of stickers, including
   // duplicates of the same type — no slot cap, no uniqueness.
+  // `description` is the single source of truth for the store help popup —
+  // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
-    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 1 },
-    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 1 },
-    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 1 },
-    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 1 },
-    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1 },
-    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     basePrice: 1 },
+    rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, basePrice: 1,
+                  description: "Permanently raise this card's rank by 1. Can't go above an Ace." },
+    rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, basePrice: 1,
+                  description: "Permanently lower this card's rank by 1. Can't go below a 2." },
+    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", basePrice: 1,
+                  description: "Absorbs one wrong guess on this card: the pile survives and the drawn card is reshuffled back in. Refreshes every run." },
+    tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    basePrice: 1,
+                  description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
+    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  basePrice: 1,
+                  description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
+    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     basePrice: 1,
+                  description: "While this card is the top of its pile, that pile is excluded from the smallest-alive-pile payout factor, so a tiny pile can't drag your coins down." },
     // Permanently advance a card's SUIT one step (♠→♥→♦→♣→♠). Pure composition
     // (rank/value untouched); the enabler for Suit Bounty Pillars. Apply again
     // to keep cycling toward a target suit.
-    changeSuit: { id: "changeSuit", label: "Change Suit", icon: "🔄", kind: "behavior", behavior: "changeSuit", basePrice: 1 },
+    changeSuit: { id: "changeSuit", label: "Change Suit", icon: "🔄", kind: "behavior", behavior: "changeSuit", basePrice: 1,
+                  description: "Permanently change this card's suit one step around ♠→♥→♦→♣→♠. Rank is unchanged. Feeds Suit Bounty Pillars." },
   };
   const ORDER = ["rankUp", "rankDown", "tieSafe", "extraHeart", "extraCoin", "anchor", "changeSuit"];
   return {
@@ -1129,30 +1186,38 @@ const PillarTypes = (() => {
   // the bare symbol. A Bounty pays `value` coins per CORRECT guess made on a
   // pile in its column WHILE a card of that suit is showing (the card you
   // guess against — Phase 5's Change-Suit sticker can manufacture these).
+  // `description` is the single source of truth for the store help popup —
+  // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
     columnGuardian: {
       id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 10, basePrice: 1,
+      description: "At run end, pays +10 coins if every pile in this column survived.",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
       kind: "guess", effect: "columnTieSafe", basePrice: 1,
+      description: "Every pile in this column survives a tie on any guess (a column-wide Tie-Safe).",
     },
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, basePrice: 1,
+      description: "+1 coin for each correct guess made while a ♠ card is showing on a pile in this column.",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Bounty", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, basePrice: 1,
+      description: "+1 coin for each correct guess made while a ♥ card is showing on a pile in this column.",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, basePrice: 1,
+      description: "+1 coin for each correct guess made while a ♦ card is showing on a pile in this column.",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bounty", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, basePrice: 1,
+      description: "+1 coin for each correct guess made while a ♣ card is showing on a pile in this column.",
     },
     aceTribute: {
       // When a drawn Ace lands as a new top on a pile in this column, pull the
@@ -1160,6 +1225,7 @@ const PillarTypes = (() => {
       // per run. Pure composition shift — no order is ever revealed.
       id: "aceTribute", label: "Ace Tribute", icon: "🂡",
       kind: "composition", effect: "aceTribute", cap: 2, basePrice: 1,
+      description: "When a drawn Ace lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Up to 2 times per run.",
     },
   };
   const ORDER = ["columnGuardian", "columnTieSafe",
@@ -2334,6 +2400,7 @@ const UIRenderer = (() => {
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
     storeStartBtn: document.getElementById("storeStartBtn"),
+    itemHelp: document.getElementById("itemHelp"),
     // debug
     title: document.querySelector("header h1"),
     debugPanel: document.getElementById("debugPanel"),
@@ -2764,16 +2831,33 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
-    // Store wiring (tap a sticker to buy; START RUN to begin next run).
+    // Store wiring (tap a sticker to buy; START RUN to begin next run). A tap on
+    // the "?" help icon is NOT a buy — bail so holding it can't purchase.
     el.storeItems.addEventListener("click", (e) => {
+      if (e.target.closest(".si-help")) return;
       const item = e.target.closest(".store-item");
       if (item && !item.classList.contains("disabled")) buyStickerUI(item.dataset.type);
     });
-    // Pillar catalogue: tap to arm a purchase.
+    // Pillar catalogue: tap to arm a purchase ("?" excluded, as above).
     el.storePillars.addEventListener("click", (e) => {
+      if (e.target.closest(".si-help")) return;
       const item = e.target.closest(".store-item");
       if (item && !item.classList.contains("disabled")) armPillarBuy(item.dataset.pillar);
     });
+    // Press-and-hold a store item's "?" to peek its description; release to
+    // dismiss — same hold gesture as the deck quick-peek. Delegated on both
+    // catalogues; the global pointerup/cancel below hides it on release.
+    const helpDown = (e) => {
+      const help = e.target.closest(".si-help");
+      if (!help) return;
+      e.preventDefault();            // don't let the hold become a buy
+      e.stopPropagation();
+      showItemHelp(help.closest(".store-item"));
+    };
+    el.storeItems.addEventListener("pointerdown", helpDown);
+    el.storePillars.addEventListener("pointerdown", helpDown);
+    window.addEventListener("pointerup", hideItemHelp);
+    window.addEventListener("pointercancel", hideItemHelp);
     // Column slots: place an armed purchase, or arm/swap for a rearrange.
     el.pillarSlots.addEventListener("click", (e) => {
       const chip = e.target.closest(".pillar-slot");
@@ -3089,6 +3173,10 @@ const UIRenderer = (() => {
     cols.forEach(count => {
       const colEl = document.createElement("div");
       colEl.className = "board-col";
+      // Pillar indicator slot — first child, so it renders ABOVE the column.
+      const head = document.createElement("div");
+      head.className = "col-pillar-head";
+      colEl.appendChild(head);
       for (let k = 0; k < count; k++) {
         const pe = buildPile(index);
         if (!dealing) pe.classList.remove("dealing");
@@ -3102,29 +3190,26 @@ const UIRenderer = (() => {
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
-  /* Mark each column's bound Pillar on the top pile of that column — a
-     read-only badge so the active column powers are visible during play.
-     Absolutely positioned (see CSS): adds no height, so the board fit is
-     untouched. Columns map 1:1 to the campaign's column slots (always 3). */
+  /* Show each column's bound Pillar as a small pill centered ABOVE that column
+     (the .col-pillar-head slot built into every .board-col). Empty columns show
+     nothing. `has-pillars` on the board reserves the header row on all columns
+     when any Pillar is present (so piles stay aligned) and collapses it when
+     none are — fitBoard accounts for the reserved height either way. Columns
+     map 1:1 to the campaign's column slots (always 3). */
   function paintColumnPillars(cols) {
     if (!campaign) return;
     const binding = campaign.getColumnPillars();
-    let index = 0;
+    const hasAny = cols.some((_, col) => !!binding[col]);
+    el.board.classList.toggle("has-pillars", hasAny);
+    const colEls = el.board.querySelectorAll(".board-col");
     cols.forEach((count, col) => {
-      const firstPile = pileEls[index];
-      if (firstPile) {
-        let badge = firstPile.querySelector(".col-pillar-badge");
-        if (!badge) {
-          badge = document.createElement("div");
-          badge.className = "col-pillar-badge";
-          firstPile.appendChild(badge);
-        }
-        const t = binding[col] ? PillarTypes.get(binding[col]) : null;
-        badge.textContent = t ? t.icon : "";
-        badge.title = t ? t.label : "";
-        badge.classList.toggle("hidden", !t);
-      }
-      index += count;
+      const colEl = colEls[col];
+      if (!colEl) return;
+      const head = colEl.querySelector(".col-pillar-head");
+      if (!head) return;
+      const t = binding[col] ? PillarTypes.get(binding[col]) : null;
+      head.innerHTML = t ? '<span class="cph-pill">' + t.icon + '</span>' : "";
+      head.title = t ? t.label : "";
     });
   }
 
@@ -3182,7 +3267,16 @@ const UIRenderer = (() => {
     if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
 
     const tall = CAMPAIGN_MAX_COLS;                         // 4 (Run 1 middle col)
-    const byHeight = (availH - (tall - 1) * gapPx) / tall;
+    // When the Pillar indicator row is shown, every column reserves one header
+    // (height + a board-col gap above the first pile). Subtract it from the
+    // pile budget so the tallest column (header + 4 piles + gaps) still fits one
+    // no-scroll screen. Collapsed runs (no Pillars) keep the original budget.
+    let headH = 0, headGap = 0;
+    if (el.board.classList.contains("has-pillars")) {
+      headH = oh(el.board.querySelector(".col-pillar-head"));
+      headGap = gapPx;
+    }
+    const byHeight = (availH - headH - headGap - (tall - 1) * gapPx) / tall;
     const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns
     // Smaller of the two so the board overflows NEITHER dimension; no-scroll
     // is the priority. 36px floor only guards a degenerate measurement.
@@ -3274,6 +3368,7 @@ const UIRenderer = (() => {
       btn.className = "store-item" + (affordable ? "" : " disabled");
       btn.dataset.type = t.id;
       btn.innerHTML =
+        '<span class="si-help" aria-label="What does this do?">?</span>' +
         '<span class="si-icon">' + t.icon + '</span>' +
         '<span class="si-label">' + t.label + '</span>' +
         '<span class="si-price">🪙 ' + price + '</span>' +
@@ -3298,6 +3393,7 @@ const UIRenderer = (() => {
         (armedPillarBuy === t.id ? " armed" : "");
       btn.dataset.pillar = t.id;
       btn.innerHTML =
+        '<span class="si-help" aria-label="What does this do?">?</span>' +
         '<span class="si-icon">' + t.icon + '</span>' +
         '<span class="si-label">' + t.label + '</span>' +
         '<span class="si-price">🪙 ' + price + '</span>';
@@ -3376,8 +3472,26 @@ const UIRenderer = (() => {
   function closeStore() {
     armedPillarBuy = null;
     armedSlotMove = null;
+    hideItemHelp();
     el.storeOverlay.classList.add("hidden");
   }
+
+  /* Store item help (press-and-hold the "?"). Text is read from the registry's
+     `description` field — never hardcoded here — so it lives in one place. The
+     popup is centered + viewport-clamped (see .item-help CSS) so it can't
+     overflow a phone edge, and is pointer-events:none so it never blocks input. */
+  function showItemHelp(itemEl) {
+    if (!itemEl) return;
+    const t = itemEl.dataset.type ? StickerTypes.get(itemEl.dataset.type)
+            : itemEl.dataset.pillar ? PillarTypes.get(itemEl.dataset.pillar)
+            : null;
+    if (!t) return;
+    el.itemHelp.innerHTML =
+      '<div class="ih-title">' + t.icon + " " + t.label + '</div>' +
+      '<div class="ih-body">' + (t.description || "") + "</div>";
+    el.itemHelp.classList.remove("hidden");
+  }
+  function hideItemHelp() { el.itemHelp.classList.add("hidden"); }
 
   function init() {
     attachInput();

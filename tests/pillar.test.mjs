@@ -327,5 +327,15 @@ export function run() {
     r.eq(c.getCards().find(x => x.id === id2).suit, "♠", "Change Suit wraps ♣ → ♠");
   }
 
+  // --- Store help text lives in the registry (single source) ------------
+  // The store "?" help popup reads `description` straight from the registry,
+  // so every sticker and Pillar must carry non-empty text.
+  {
+    const missing = [];
+    StickerTypes.all().forEach(t => { if (!t.description || !t.description.trim()) missing.push("sticker:" + t.id); });
+    PillarTypes.all().forEach(t => { if (!t.description || !t.description.trim()) missing.push("pillar:" + t.id); });
+    r.eq(missing.join(",") || "none", "none", "every sticker & Pillar has a description for the help popup");
+  }
+
   return r.summary();
 }
