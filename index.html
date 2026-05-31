@@ -1120,13 +1120,39 @@ const StickerTypes = (() => {
    single scoring Pillar end to end; more land in later phases.
 ---------------------------------------------------------------- */
 const PillarTypes = (() => {
+  // suit-Bounty `suit` matches DeckManager.SUITS symbols (plain "♠♥♦♣"); the
+  // icon may carry an emoji variation selector for display, but matching uses
+  // the bare symbol. A Bounty pays `value` coins per CORRECT guess made on a
+  // pile in its column WHILE a card of that suit is showing (the card you
+  // guess against — Phase 5's Change-Suit sticker can manufacture these).
   const TYPES = {
     columnGuardian: {
       id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 10, basePrice: 1,
     },
+    columnTieSafe: {
+      id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
+      kind: "guess", effect: "columnTieSafe", basePrice: 1,
+    },
+    spadeBounty: {
+      id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
+      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, basePrice: 1,
+    },
+    heartBounty: {
+      id: "heartBounty", label: "Heart Bounty", icon: "♥️",
+      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, basePrice: 1,
+    },
+    diamondBounty: {
+      id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
+      kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, basePrice: 1,
+    },
+    clubBounty: {
+      id: "clubBounty", label: "Club Bounty", icon: "♣️",
+      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, basePrice: 1,
+    },
   };
-  const ORDER = ["columnGuardian"];
+  const ORDER = ["columnGuardian", "columnTieSafe",
+    "spadeBounty", "heartBounty", "diamondBounty", "clubBounty"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1458,6 +1484,16 @@ const GameEngine = (() => {
       for (const fn of listeners) fn(type, payload);
     }
 
+    /** The Pillar bound to the column that pile `index` sits in (or null).
+        Reads the locked run binding — valid once startRun has snapshotted it. */
+    function pillarForPile(index) {
+      if (!run || !run.pillars || !run.pileColumns) return null;
+      const col = run.pileColumns[index];
+      if (col == null) return null;
+      const pid = run.pillars[col];
+      return pid ? PillarTypes.get(pid) : null;
+    }
+
     /** Map each pile index to its column. Piles fill DOWN each column in turn
         (column 0 gets the first cols[0] piles, then column 1, ...), matching
         the renderer's fill order, so e.g. [3,4,3] → [0,0,0,1,1,1,1,2,2,2]. */
@@ -1493,6 +1529,14 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
           }
+        } else if (t.effect === "suitBounty") {
+          // value coins per qualifying correct guess tallied during the run.
+          const hits = run.suitBountyHits ? (run.suitBountyHits[col] || 0) : 0;
+          const amount = hits * t.value;
+          if (amount > 0) {
+            bonus += amount;
+            lines.push({ label: t.label, detail: hits + " × " + t.suit, amount });
+          }
         }
       }
       return { bonus, lines };
@@ -1520,6 +1564,9 @@ const GameEngine = (() => {
         cols,
         pileColumns: cols ? buildPileColumns(cols, pileCount) : null,
         pillars: null,
+        // Per-column tally of qualifying correct guesses for a Suit Bounty
+        // Pillar (accrued during play, paid out at run end).
+        suitBountyHits: cols ? new Array(cols.length).fill(0) : null,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1563,6 +1610,7 @@ const GameEngine = (() => {
 
       const current = board.top(index);
       const drawn = deck.draw();
+      const pillar = pillarForPile(index);   // column Pillar (or null)
 
       // Strict comparisons: an equal rank only wins on a "same" guess.
       const isTie = drawn.value === current.value;
@@ -1570,11 +1618,21 @@ const GameEngine = (() => {
         guess === "higher" ? drawn.value > current.value :
         guess === "lower"  ? drawn.value < current.value :
                              drawn.value === current.value; // "same"
-      // Tie-Safe sticker: a tie counts as safe on ANY guess for this card.
-      if (isTie && current.tieSafe) correct = true;
+      // Tie-Safe: a tie counts as safe on ANY guess — from the card's own
+      // Tie-Safe sticker OR a Column Tie-Safe Pillar covering its column.
+      const tieSafe = current.tieSafe || (pillar && pillar.effect === "columnTieSafe");
+      if (isTie && tieSafe) correct = true;
 
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
+
+      // Suit Bounty: a correct guess made while a matching-suit card is showing
+      // (the card guessed against) earns the column its bounty, tallied here and
+      // paid at run end. One Pillar per column, so this can't double-count.
+      if (correct && pillar && pillar.effect === "suitBounty" && current.suit === pillar.suit
+          && run.suitBountyHits) {
+        run.suitBountyHits[run.pileColumns[index]] += 1;
+      }
 
       if (correct) {
         board.push(index, drawn);

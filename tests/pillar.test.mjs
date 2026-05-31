@@ -138,5 +138,82 @@ export function run() {
     r.eq(lost.total, 0, "loss pays nothing");
   }
 
+  // --- Phase 3 registry additions --------------------------------------
+  {
+    r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
+    r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
+    r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
+    r.eq(PillarTypes.all().length, 6, "six Pillars now in the registry");
+  }
+
+  // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start();
+    e.startRun(["columnTieSafe", null, null]);   // column 0 only
+
+    // Pile 0 is in column 0 (covered); pile 3 is in column 1 (not). Force a
+    // tie on each by drawing the showing card's rank and guessing HIGHER.
+    const t0 = e.getBoard().top(0); t0.value = 7;
+    e.debug.setNextCard(7);
+    e.guess(0, "higher");
+    r.ok(e.getBoard().isActive(0), "tie in the Column Tie-Safe column survives");
+
+    const t3 = e.getBoard().top(3); t3.value = 7;
+    e.debug.setNextCard(7);
+    e.guess(3, "higher");
+    r.ok(!e.getBoard().isActive(3), "tie in an uncovered column still dies");
+  }
+
+  // --- Suit Bounty: +1 per correct guess off a matching-suit top ---------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start();
+    e.startRun(["spadeBounty", null, null]);   // column 0 earns on ♠ tops
+
+    // Pile 0 (col 0): a ♠ showing + a correct HIGHER guess → one bounty hit.
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9);
+    e.guess(0, "higher");
+    r.eq(e.getRun().suitBountyHits[0], 1, "correct guess off a ♠ top tallies a hit");
+
+    // Pile 1 (also col 0) but a ♥ showing → no hit (suit mismatch).
+    const b = e.getBoard().top(1); b.value = 5; b.suit = "♥";
+    e.debug.setNextCard(9);
+    e.guess(1, "higher");
+    r.eq(e.getRun().suitBountyHits[0], 1, "wrong suit doesn't tally");
+
+    // Pile 3 (col 1, no Pillar) with a ♠ showing → no hit (wrong column).
+    const c = e.getBoard().top(3); c.value = 5; c.suit = "♠";
+    e.debug.setNextCard(9);
+    e.guess(3, "higher");
+    r.eq(e.getRun().suitBountyHits[1], 0, "♠ in an unbountied column doesn't tally");
+
+    // A WRONG guess off a ♠ top doesn't tally (only correct guesses count).
+    const d = e.getBoard().top(2); d.value = 9; d.suit = "♠";
+    e.debug.setNextCard(2);
+    e.guess(2, "higher");   // 2 < 9 → wrong
+    r.eq(e.getRun().suitBountyHits[0], 1, "a wrong guess earns no bounty");
+
+    e.debug.winNow();
+    r.eq(payload.pillarPayout.bonus, 1, "Suit Bounty pays its tallied coins at win");
+    r.eq(payload.pillarPayout.lines.length, 1, "one Suit Bounty line");
+    r.eq(payload.pillarPayout.lines[0].amount, 1, "bounty line shows +1");
+  }
+
+  // --- A guess-kind Pillar never produces a payout line ------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start();
+    e.startRun(["columnTieSafe", null, null]);
+    e.debug.winNow();
+    r.eq(payload.pillarPayout.bonus, 0, "Column Tie-Safe pays no coins itself");
+    r.eq(payload.pillarPayout.lines.length, 0, "guess-kind Pillar adds no breakdown line");
+  }
+
   return r.summary();
 }
