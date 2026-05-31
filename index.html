@@ -196,12 +196,21 @@
        4-tall Run 1 never scrolls. */
     --pile-size: min(var(--pile-w), var(--pile-h));
     display: flex;
+    flex-direction: column;        /* Pillar row on top, then the column grid */
+    align-items: center;
+    gap: var(--gap);
+    width: min(96vw, 460px);
+    margin: 0 auto;
+  }
+  /* The columns themselves — the old board row, now a child of .board so a
+     single Pillar-indicator row can sit level above ALL columns. */
+  .board-grid {
+    display: flex;
     flex-direction: row;
     justify-content: center;   /* center the column group horizontally */
     align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
-    width: min(96vw, 460px);
-    margin: 0 auto;
+    width: 100%;
   }
   .board-col {
     display: flex;
@@ -516,7 +525,20 @@
   .overlay.store h2 { font-size: 26px; margin-top: 8px; }
   .overlay.store .big { font-size: 44px; margin-bottom: 2px; }
 
-  .store-coins { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
+  /* Coin balance: pinned to the top of the scrolling shop so it's always
+     visible. Opaque background + blur hides items scrolling underneath it. */
+  .store-coins {
+    position: sticky; top: 0; z-index: 6;
+    width: min(94vw, 380px);
+    font-size: 18px; font-weight: 800;
+    text-align: center;
+    padding: 10px 0;
+    margin: 0 0 8px;
+    background: rgba(8, 13, 28, 0.96);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  }
   .store-coins b { color: var(--accent); }
 
   .store-items {
@@ -543,6 +565,24 @@
   }
   .store-item:active { transform: scale(0.95); }
   .store-item.disabled { opacity: 0.4; pointer-events: none; }
+  /* A sticker tapped (selected) but not yet confirmed via the Buy button. */
+  .store-item.selected {
+    outline: 2px solid var(--accent-2); outline-offset: 1px;
+    background: #1b2748;
+  }
+  /* Sticker purchase confirm button — enabled only when one is selected. */
+  .buy-confirm {
+    width: min(94vw, 380px);
+    margin: 0 0 14px;
+    padding: 11px 12px;
+    border: none; border-radius: 12px;
+    background: var(--accent); color: #08101f;
+    font-size: 14px; font-weight: 800;
+    cursor: pointer; box-shadow: var(--shadow);
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  .buy-confirm:active { transform: scale(0.97); }
+  .buy-confirm:disabled { opacity: 0.45; background: var(--panel); color: var(--muted); cursor: default; }
   .store-item .si-icon { font-size: 22px; }
   .store-item .si-label { font-size: 13px; font-weight: 700; }
   .store-item .si-price { font-size: 12px; color: var(--accent); font-weight: 800; }
@@ -589,19 +629,21 @@
   .pillar-slot .ps-name { font-size: 10px; font-weight: 700; text-align: center; }
   .pillar-slot .ps-empty { font-size: 18px; color: var(--muted); }
 
-  /* Live, read-only Pillar marker on the active column (top-right of the
-     column's first pile). Absolutely positioned — no layout/height impact, so
-     it can't disturb the no-scroll board fit. */
-  /* Active-Pillar indicator: a small pill centered directly ABOVE each column.
-     It's the first child of every .board-col, so it sits over that column and
-     stays centered across runs/heights. Collapsed (display:none) when the run
-     has no Pillars at all; reserved (fixed height) on EVERY column when any are
-     present, so all piles still line up. fitBoard subtracts this header height,
-     so even Run 1's 4-tall middle column stays on one no-scroll screen. */
-  .col-pillar-head { display: none; }
-  .board.has-pillars .col-pillar-head {
+  /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
+     with a cell per column so each icon is centered over its column AND all
+     icons are level (the columns below stay vertically centered, so shorter
+     columns simply show a gap between their icon and their top card). The row
+     collapses (display:none) when the run has no Pillars; fitBoard subtracts its
+     height when present, so even Run 1's 4-tall column stays on one no-scroll
+     screen. Cell widths/gaps mirror the column grid, so cells track columns. */
+  .board-pillars { display: none; }
+  .board.has-pillars .board-pillars {
+    display: flex; justify-content: center; align-items: center;
+    gap: var(--gap); width: 100%; height: 20px;
+  }
+  .bp-cell {
+    width: var(--pile-size);
     display: flex; align-items: center; justify-content: center;
-    width: 100%; height: 20px;
   }
   .cph-pill {
     display: inline-flex; align-items: center; justify-content: center;
@@ -937,6 +979,16 @@
   .debug-tools { display: flex; flex-wrap: wrap; gap: 5px; }
   .debug-tools .debug-btn { flex: 1 1 28%; }
 
+  /* Grant rows: a type dropdown + an "add" button (debug only). */
+  .debug-grant { display: flex; gap: 5px; margin-top: 5px; }
+  .debug-sel {
+    flex: 1 1 auto; min-width: 0;
+    background: var(--panel); color: var(--text);
+    border: 1px solid #34508f; border-radius: 8px;
+    padding: 6px 8px; font-size: 12px;
+  }
+  .debug-grant .debug-btn { flex: 0 0 auto; }
+
   .debug-peek {
     margin-top: 8px;
     min-height: 14px;
@@ -1018,6 +1070,15 @@
       <button class="debug-btn" id="debugLose">lose now</button>
       <button class="debug-btn" id="debugNew">new game</button>
     </div>
+    <div class="debug-sub">grant (free) →</div>
+    <div class="debug-grant">
+      <select class="debug-sel" id="debugStickerSel"></select>
+      <button class="debug-btn" id="debugAddSticker">+ sticker</button>
+    </div>
+    <div class="debug-grant">
+      <select class="debug-sel" id="debugPillarSel"></select>
+      <button class="debug-btn" id="debugAddPillar">+ pillar</button>
+    </div>
     <div class="debug-peek" id="debugPeekOut"></div>
   </div>
 
@@ -1072,6 +1133,7 @@
     <div class="store-coins">🪙 <b id="storeCoins">0</b></div>
     <div class="store-section">Stickers — apply to cards next run</div>
     <div class="store-items" id="storeItems"></div>
+    <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select a sticker to buy</button>
     <div class="store-section">Pillars — column powers (kept between runs)</div>
     <div class="store-items" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
@@ -1123,7 +1185,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.17.0";
+const APP_VERSION = "v0.18.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1175,7 +1237,9 @@ const StickerTypes = (() => {
      kind:   "scoring" | "guess" | "composition" — which engine hook reads it
      effect: the behavior key the engine dispatches on
      value:  effect coefficient (e.g. flat coin bonus), where relevant
-     basePrice: store price floor (climbs +1 per buy — see priceOfPillar)
+   Pillar store pricing is NOT per-entry — every Pillar starts at the shared
+   CampaignState.PILLAR_BASE_PRICE config constant and climbs +1 per buy (see
+   priceOfPillar). The legacy per-entry basePrice is unused for Pillars.
    Pillars live in the 3 column slots (one per column); there is no
    separate inventory — see CampaignState.columnPillars. Phase 1 ships a
    single scoring Pillar end to end; more land in later phases.
@@ -1880,6 +1944,9 @@ const CampaignState = (() => {
 
   const MIN_RANK = 2;   // 2 is the floor for Decrease
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
+  // Config: starting store price for EVERY Pillar type (climbs +1 per purchase
+  // of that type — see priceOfPillar). One knob for all Pillars.
+  const PILLAR_BASE_PRICE = 5;
 
   function create() {
     let currentStage = 1;          // 1 .. MAX_STAGES
@@ -2049,6 +2116,15 @@ const CampaignState = (() => {
         return true;
       },
 
+      /** DEBUG ONLY: grant one sticker to inventory free (no coins, no price
+          escalation). Used by the debug panel for testing; not part of the
+          normal economy. Returns true if the type exists. */
+      debugGrantSticker(typeId) {
+        if (!StickerTypes.get(typeId)) return false;
+        stickerInventory[typeId] = (stickerInventory[typeId] || 0) + 1;
+        return true;
+      },
+
       /* ---- Pillars (column modifiers — bound to columns, not cards) ----
          The COLUMN_SLOTS column slots are the only place a Pillar lives; there
          is no inventory. Bindings persist between runs and are edited in the
@@ -2079,11 +2155,12 @@ const CampaignState = (() => {
         return true;
       },
 
-      /** Current price of a Pillar type: basePrice + times already bought, so
-          each type escalates independently (same scheme as stickers). */
+      /** Current price of a Pillar type: the shared PILLAR_BASE_PRICE config
+          constant + times already bought, so all Pillars start at the same base
+          and each type escalates independently (+1 per purchase). */
       priceOfPillar(typeId) {
         const t = PillarTypes.get(typeId);
-        return t ? t.basePrice + (pillarPurchaseCounts[typeId] || 0) : Infinity;
+        return t ? PILLAR_BASE_PRICE + (pillarPurchaseCounts[typeId] || 0) : Infinity;
       },
 
       /** Buy a Pillar and place it on column `col`, if affordable and in range.
@@ -2397,6 +2474,7 @@ const UIRenderer = (() => {
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
+    buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
     storeStartBtn: document.getElementById("storeStartBtn"),
@@ -2411,6 +2489,10 @@ const UIRenderer = (() => {
     debugWin: document.getElementById("debugWin"),
     debugLose: document.getElementById("debugLose"),
     debugNew: document.getElementById("debugNew"),
+    debugStickerSel: document.getElementById("debugStickerSel"),
+    debugAddSticker: document.getElementById("debugAddSticker"),
+    debugPillarSel: document.getElementById("debugPillarSel"),
+    debugAddPillar: document.getElementById("debugAddPillar"),
     debugPeekOut: document.getElementById("debugPeekOut"),
   };
 
@@ -2432,6 +2514,10 @@ const UIRenderer = (() => {
   // rearrange (tap another slot to swap). Mutually exclusive.
   let armedPillarBuy = null;
   let armedSlotMove = null;
+
+  // Sticker purchase is two-step: tap a sticker to SELECT it (highlight), then
+  // tap the Buy button to confirm. selectedSticker holds the pending type id.
+  let selectedSticker = null;
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -2768,11 +2854,53 @@ const UIRenderer = (() => {
     });
   }
 
+  /* Populate the debug grant dropdowns from the registries (every sticker and
+     every Pillar). Built once, lazily, when debug is first shown. */
+  function buildDebugGrants() {
+    const fill = (sel, items) => {
+      sel.innerHTML = "";
+      items.forEach(t => {
+        const o = document.createElement("option");
+        o.value = t.id;
+        o.textContent = t.icon + " " + t.label;
+        sel.appendChild(o);
+      });
+    };
+    fill(el.debugStickerSel, StickerTypes.all());
+    fill(el.debugPillarSel, PillarTypes.all());
+  }
+
+  /* DEBUG: grant the selected sticker straight to inventory (free). Reflects
+     into the live store / sticker tray if either is currently showing. */
+  function debugAddSelectedSticker() {
+    const id = el.debugStickerSel.value;
+    if (!id || !campaign) return;
+    campaign.debugGrantSticker(id);
+    if (!el.storeOverlay.classList.contains("hidden")) renderStore();
+    renderStickerTray();
+    el.debugPeekOut.textContent = "granted sticker: " + id;
+  }
+
+  /* DEBUG: grant the selected Pillar by placing it (free) on the first empty
+     column slot, or column 1 if all are full. Pillars have no inventory — they
+     live on columns — so this binds it the same way a purchase would. */
+  function debugAddSelectedPillar() {
+    const id = el.debugPillarSel.value;
+    if (!id || !campaign) return;
+    const empty = campaign.firstEmptyColumn();
+    const col = empty >= 0 ? empty : 0;
+    campaign.setColumnPillar(col, id);
+    if (!el.storeOverlay.classList.contains("hidden")) renderStore();
+    if (pileEls.length) paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    el.debugPeekOut.textContent = "granted pillar: " + id + " → column " + (col + 1);
+  }
+
   function setDebug(on) {
     debugOn = on;
     el.debugPanel.classList.toggle("hidden", !on);
     if (on) {
       if (!el.debugRanks.children.length) buildDebugRanks();
+      if (!el.debugStickerSel.children.length) buildDebugGrants();
       refreshDebug();
     }
   }
@@ -2831,12 +2959,20 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
-    // Store wiring (tap a sticker to buy; START RUN to begin next run). A tap on
-    // the "?" help icon is NOT a buy — bail so holding it can't purchase.
+    // Store wiring. Stickers are two-step: tap SELECTS (highlight), the Buy
+    // button confirms. A tap on the "?" help icon is neither select nor buy —
+    // bail so holding it can't select or purchase.
     el.storeItems.addEventListener("click", (e) => {
       if (e.target.closest(".si-help")) return;
       const item = e.target.closest(".store-item");
-      if (item && !item.classList.contains("disabled")) buyStickerUI(item.dataset.type);
+      if (item && !item.classList.contains("disabled")) selectStickerUI(item.dataset.type);
+    });
+    el.buyStickerBtn.addEventListener("click", confirmBuySticker);
+    // Tapping "elsewhere" in the shop (not an item, the Buy button, or a slot)
+    // deselects the pending sticker.
+    el.storeOverlay.addEventListener("click", (e) => {
+      if (e.target.closest(".store-item, #buyStickerBtn, .pillar-slot")) return;
+      if (selectedSticker) { selectedSticker = null; renderStore(); }
     });
     // Pillar catalogue: tap to arm a purchase ("?" excluded, as above).
     el.storePillars.addEventListener("click", (e) => {
@@ -2877,6 +3013,8 @@ const UIRenderer = (() => {
     el.debugWin.addEventListener("click", () => { engine && engine.debug.winNow(); });
     el.debugLose.addEventListener("click", () => { engine && engine.debug.loseNow(); });
     el.debugNew.addEventListener("click", () => startCampaign());
+    el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
+    el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
 
     // Triple-tap the title to toggle debug mode (in addition to ?debug URL).
     let taps = 0, tapTimer = null;
@@ -3169,14 +3307,23 @@ const UIRenderer = (() => {
     el.board.innerHTML = "";
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     pileEls.length = 0;
+    // Single Pillar-indicator row across the top — one cell per column, so all
+    // icons sit on one level line (see .board-pillars CSS).
+    const pillarRow = document.createElement("div");
+    pillarRow.className = "board-pillars";
+    for (let c = 0; c < cols.length; c++) {
+      const cell = document.createElement("div");
+      cell.className = "bp-cell";
+      pillarRow.appendChild(cell);
+    }
+    el.board.appendChild(pillarRow);
+    // The column grid (the actual piles).
+    const grid = document.createElement("div");
+    grid.className = "board-grid";
     let index = 0;
     cols.forEach(count => {
       const colEl = document.createElement("div");
       colEl.className = "board-col";
-      // Pillar indicator slot — first child, so it renders ABOVE the column.
-      const head = document.createElement("div");
-      head.className = "col-pillar-head";
-      colEl.appendChild(head);
       for (let k = 0; k < count; k++) {
         const pe = buildPile(index);
         if (!dealing) pe.classList.remove("dealing");
@@ -3184,32 +3331,30 @@ const UIRenderer = (() => {
         colEl.appendChild(pe);
         index++;
       }
-      el.board.appendChild(colEl);
+      grid.appendChild(colEl);
     });
-    paintColumnPillars(cols);     // read-only active-Pillar markers per column
+    el.board.appendChild(grid);
+    paintColumnPillars(cols);     // fill the indicator row from the binding
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
-  /* Show each column's bound Pillar as a small pill centered ABOVE that column
-     (the .col-pillar-head slot built into every .board-col). Empty columns show
-     nothing. `has-pillars` on the board reserves the header row on all columns
-     when any Pillar is present (so piles stay aligned) and collapses it when
-     none are — fitBoard accounts for the reserved height either way. Columns
-     map 1:1 to the campaign's column slots (always 3). */
+  /* Fill the single top Pillar-indicator row from the column binding: cell `col`
+     shows that column's Pillar (centered over it) or nothing. `has-pillars` on
+     the board reveals/reserves the row when any Pillar is present and collapses
+     it when none are — fitBoard accounts for the reserved height either way.
+     Columns map 1:1 to the campaign's column slots (always 3). */
   function paintColumnPillars(cols) {
     if (!campaign) return;
     const binding = campaign.getColumnPillars();
     const hasAny = cols.some((_, col) => !!binding[col]);
     el.board.classList.toggle("has-pillars", hasAny);
-    const colEls = el.board.querySelectorAll(".board-col");
+    const cells = el.board.querySelectorAll(".bp-cell");
     cols.forEach((count, col) => {
-      const colEl = colEls[col];
-      if (!colEl) return;
-      const head = colEl.querySelector(".col-pillar-head");
-      if (!head) return;
+      const cell = cells[col];
+      if (!cell) return;
       const t = binding[col] ? PillarTypes.get(binding[col]) : null;
-      head.innerHTML = t ? '<span class="cph-pill">' + t.icon + '</span>' : "";
-      head.title = t ? t.label : "";
+      cell.innerHTML = t ? '<span class="cph-pill">' + t.icon + '</span>' : "";
+      cell.title = t ? t.label : "";
     });
   }
 
@@ -3267,13 +3412,13 @@ const UIRenderer = (() => {
     if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
 
     const tall = CAMPAIGN_MAX_COLS;                         // 4 (Run 1 middle col)
-    // When the Pillar indicator row is shown, every column reserves one header
-    // (height + a board-col gap above the first pile). Subtract it from the
-    // pile budget so the tallest column (header + 4 piles + gaps) still fits one
+    // When the Pillar indicator row is shown it sits ABOVE the column grid
+    // (its height + one board flex-column gap). Subtract it from the pile
+    // budget so the tallest column (row + 4 piles + gaps) still fits one
     // no-scroll screen. Collapsed runs (no Pillars) keep the original budget.
     let headH = 0, headGap = 0;
     if (el.board.classList.contains("has-pillars")) {
-      headH = oh(el.board.querySelector(".col-pillar-head"));
+      headH = oh(el.board.querySelector(".board-pillars"));
       headGap = gapPx;
     }
     const byHeight = (availH - headH - headGap - (tall - 1) * gapPx) / tall;
@@ -3365,7 +3510,8 @@ const UIRenderer = (() => {
       const affordable = campaign.getCoins() >= price;
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "store-item" + (affordable ? "" : " disabled");
+      btn.className = "store-item" + (affordable ? "" : " disabled") +
+        (selectedSticker === t.id ? " selected" : "");
       btn.dataset.type = t.id;
       btn.innerHTML =
         '<span class="si-help" aria-label="What does this do?">?</span>' +
@@ -3375,7 +3521,26 @@ const UIRenderer = (() => {
         (owned ? '<span class="si-owned">×' + owned + '</span>' : "");
       el.storeItems.appendChild(btn);
     });
+    updateBuyButton();
     renderPillarStore();
+  }
+
+  /* The Buy confirm button reflects the current sticker selection: disabled
+     with a prompt when nothing's selected, otherwise showing what will be
+     bought and its (escalating) price. */
+  function updateBuyButton() {
+    const t = selectedSticker ? StickerTypes.get(selectedSticker) : null;
+    if (!t) {
+      el.buyStickerBtn.disabled = true;
+      el.buyStickerBtn.textContent = "Select a sticker to buy";
+      return;
+    }
+    const price = campaign.priceOf(selectedSticker);
+    const afford = campaign.getCoins() >= price;
+    el.buyStickerBtn.disabled = !afford;
+    el.buyStickerBtn.textContent =
+      (afford ? "Buy " : "Need 🪙 " + price + " for ") + t.icon + " " + t.label +
+      (afford ? " · 🪙 " + price : "");
   }
 
   /* Pillars in the store: the catalogue (buy = arm, then tap a column slot to
@@ -3420,18 +3585,39 @@ const UIRenderer = (() => {
     });
   }
 
-  function buyStickerUI(typeId) {
-    if (campaign.buySticker(typeId)) renderStore();
+  /* Tap a sticker to SELECT it (highlight) — does NOT buy. Tapping the same one
+     deselects; tapping a different one reselects. Confirm with the Buy button.
+     Selecting a sticker clears any pending Pillar arm ("tapping another item"). */
+  function selectStickerUI(typeId) {
+    selectedSticker = selectedSticker === typeId ? null : typeId;
+    armedPillarBuy = null;
+    armedSlotMove = null;
+    el.storeMsg.textContent = selectedSticker
+      ? "Tap Buy to confirm, or tap the sticker again to deselect."
+      : "Buy stickers and Pillars, then press Start Run.";
+    renderStore();
+  }
+
+  /* Confirm the selected sticker purchase (the only place a sticker is bought). */
+  function confirmBuySticker() {
+    if (!selectedSticker) return;
+    if (campaign.buySticker(selectedSticker)) {
+      selectedSticker = null;
+      el.storeMsg.textContent = "Sticker bought — apply it during the next run.";
+    }
+    renderStore();
   }
 
   /* Tap a Pillar in the catalogue: arm it for purchase (if affordable), or
-     toggle it off. Arming a purchase clears any pending slot-move. */
+     toggle it off. Arming a purchase clears any pending slot-move AND any
+     sticker selection ("tapping another item"). */
   function armPillarBuy(typeId) {
     const price = campaign.priceOfPillar(typeId);
     if (campaign.getCoins() < price) {
       el.storeMsg.textContent = "Not enough coins for that Pillar.";
       return;
     }
+    selectedSticker = null;
     armedSlotMove = null;
     armedPillarBuy = armedPillarBuy === typeId ? null : typeId;
     el.storeMsg.textContent = armedPillarBuy
@@ -3444,6 +3630,7 @@ const UIRenderer = (() => {
      (overwrites any current Pillar — no refund). Otherwise this is a
      rearrange: arm a filled slot, then tap another slot to swap them. */
   function tapPillarSlot(col) {
+    selectedSticker = null;   // touching the Pillar area deselects a sticker
     if (armedPillarBuy) {
       if (campaign.buyPillar(armedPillarBuy, col)) {
         armedPillarBuy = null;
@@ -3472,6 +3659,7 @@ const UIRenderer = (() => {
   function closeStore() {
     armedPillarBuy = null;
     armedSlotMove = null;
+    selectedSticker = null;
     hideItemHelp();
     el.storeOverlay.classList.add("hidden");
   }

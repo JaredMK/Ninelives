@@ -49,16 +49,19 @@ export function run() {
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    r.eq(c.priceOfPillar("columnGuardian"), 1, "first price = basePrice");
+    r.eq(c.priceOfPillar("columnGuardian"), 5, "first price = PILLAR_BASE_PRICE (5)");
     r.ok(c.buyPillar("columnGuardian", 0), "buy onto column 0");
     r.eq(c.columnPillar(0), "columnGuardian", "purchase placed it on the column");
-    r.eq(c.priceOfPillar("columnGuardian"), 2, "price climbs +1 after a buy");
-    r.eq(c.getCoins(), 99, "spent the first price");
+    r.eq(c.priceOfPillar("columnGuardian"), 6, "price climbs +1 after a buy");
+    r.eq(c.getCoins(), 95, "spent the first price (5)");
 
     // Buying onto an occupied column overwrites it (the replace path).
     r.ok(c.buyPillar("columnGuardian", 0), "buy again onto the same column");
     r.eq(c.pillarCount(), 1, "replace keeps the slot count at one");
-    r.eq(c.getCoins(), 97, "spent the escalated price (2)");
+    r.eq(c.getCoins(), 89, "spent the escalated price (6)");
+
+    // Every Pillar type shares the same base price.
+    r.eq(c.priceOfPillar("spadeBounty"), 5, "all Pillar types start at base 5");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");
@@ -72,7 +75,7 @@ export function run() {
     c.buyPillar("columnGuardian", 2);
     c.reset();
     r.eq(c.pillarCount(), 0, "reset clears the column binding");
-    r.eq(c.priceOfPillar("columnGuardian"), 1, "reset clears escalating price");
+    r.eq(c.priceOfPillar("columnGuardian"), 5, "reset clears escalating price (back to base 5)");
   }
 
   // --- Engine pile→column mapping (fill DOWN each column) ----------------
@@ -325,6 +328,17 @@ export function run() {
     const id2 = c.getCards().find(x => x.suit === "♣").id;
     c.applySticker(id2, "changeSuit");   // ♣ → ♠
     r.eq(c.getCards().find(x => x.id === id2).suit, "♠", "Change Suit wraps ♣ → ♠");
+  }
+
+  // --- Debug grant: free sticker to inventory, no coins / no escalation --
+  {
+    const c = CampaignState.create();
+    const before = c.priceOf("tieSafe");
+    r.ok(c.debugGrantSticker("tieSafe"), "debugGrantSticker adds the sticker");
+    r.eq(c.inventoryCount("tieSafe"), 1, "granted sticker lands in inventory");
+    r.eq(c.getCoins(), 0, "grant spends no coins");
+    r.eq(c.priceOf("tieSafe"), before, "grant doesn't escalate the price");
+    r.ok(!c.debugGrantSticker("nope"), "unknown sticker id rejected");
   }
 
   // --- Store help text lives in the registry (single source) ------------
