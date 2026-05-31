@@ -9,6 +9,7 @@ import { run as engineStickers } from "./engine-stickers.test.mjs";
 import { run as stage } from "./stage.test.mjs";
 import { run as progression } from "./progression.test.mjs";
 import { run as terminology } from "./terminology.test.mjs";
+import { run as pillar } from "./pillar.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -18,6 +19,7 @@ const SUITES = [
   ["stage", stage],
   ["progression", progression],
   ["terminology", terminology],
+  ["pillar", pillar],
 ];
 
 let pass = 0,

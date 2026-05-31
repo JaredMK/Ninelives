@@ -1051,6 +1051,35 @@ const StickerTypes = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   PillarTypes — the data-driven registry for COLUMN modifiers
+   ("Pillars"). A Pillar binds to a board COLUMN (not a card) and its
+   effect applies to every pile in that column for the run. Mirrors
+   StickerTypes: pure data, no inline behavior — the engine switches on
+   `effect`, exactly as it reads sticker flags. Each entry declares:
+     kind:   "scoring" | "guess" | "composition" — which engine hook reads it
+     effect: the behavior key the engine dispatches on
+     value:  effect coefficient (e.g. flat coin bonus), where relevant
+     basePrice: store price floor (climbs +1 per buy — see priceOfPillar)
+   Pillars live in the 3 column slots (one per column); there is no
+   separate inventory — see CampaignState.columnPillars. Phase 1 ships a
+   single scoring Pillar end to end; more land in later phases.
+---------------------------------------------------------------- */
+const PillarTypes = (() => {
+  const TYPES = {
+    columnGuardian: {
+      id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
+      kind: "scoring", effect: "columnAllAlive", value: 10, basePrice: 1,
+    },
+  };
+  const ORDER = ["columnGuardian"];
+  return {
+    ids: ORDER,
+    get(id) { return TYPES[id] || null; },
+    all() { return ORDER.map(id => TYPES[id]); },
+  };
+})();
+
+/* ----------------------------------------------------------------
    Economy — pure coin payout (no DOM, no state). Coins are awarded on
    a WIN only; every coefficient is a named config constant.
 ---------------------------------------------------------------- */
@@ -1061,14 +1090,20 @@ const Economy = (() => {
     // the Extra Coin unit value below.
     EXTRA_COIN_VALUE: 1,  // × Extra Coin units (Σ stickers × that pile's cards)
   };
-  /** stats: { won, aliveCount, minAliveCards, extraCoinUnits }. Returns the
-      itemized payout so the UI can show where coins came from without
-      recomputing. computeRunPayout() is just breakdown().total. */
+  /** stats: { won, aliveCount, minAliveCards, extraCoinUnits, pillarBonus,
+      pillarLines }. Returns the itemized payout so the UI can show where coins
+      came from without recomputing. computeRunPayout() is just breakdown().total.
+      pillarBonus/pillarLines are optional (absent → 0 / []), so callers that
+      don't compute Pillar payout stay backward-compatible. */
   function breakdown(stats, cfg = COIN_CONFIG) {
     const won = !!(stats && stats.won);
     const alivePiles = won ? (stats.aliveCount || 0) : 0;
     const minPileCards = won ? (stats.minAliveCards || 0) : 0;
     const extraCoinUnits = won ? (stats.extraCoinUnits || 0) : 0;
+    // Pillar contributions are computed by the engine (column-aware) and passed
+    // in already itemized; Economy just folds them into the total.
+    const pillarBonus = won ? (stats.pillarBonus || 0) : 0;
+    const pillarLines = won ? (stats.pillarLines || []) : [];
     // Product of alive piles and the smallest alive pile's card count. The
     // guard keeps it 0 (never NaN) when there are no alive piles.
     const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
@@ -1077,7 +1112,8 @@ const Economy = (() => {
       won,
       alivePiles, minPileCards, product,
       extraCoinUnits, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
-      total: product + extraCoinBonus,
+      pillarBonus, pillarLines,
+      total: product + extraCoinBonus + pillarBonus,
     };
   }
   /** Coins earned (the total of breakdown()). */
@@ -1349,7 +1385,13 @@ const GameEngine = (() => {
   // deckSpecs: the campaign base-deck specs to build this run's deck from.
   // pileCount: how many piles this run uses (presentation/layout is the
   //            renderer's concern; the engine only needs the count).
-  function create(deckSpecs, pileCount) {
+  // runConfig: optional per-run layout/modifier data. `cols` is the column-size
+  //            array (e.g. [3,4,3]); it teaches the otherwise column-agnostic
+  //            engine which piles belong to which COLUMN, so Pillars (column
+  //            modifiers) can be evaluated. Omitted/empty → no column info and
+  //            no Pillar effects (existing callers are unaffected).
+  function create(deckSpecs, pileCount, runConfig = {}) {
+    const cols = Array.isArray(runConfig.cols) ? runConfig.cols.slice() : null;
     let deck, board, status, run, listeners = [];
     // status: "idle" | "playing" | "won" | "lost"
     // run:    formal run-state wrapper — phase ("start" | "active" |
@@ -1359,6 +1401,46 @@ const GameEngine = (() => {
 
     function emit(type, payload) {
       for (const fn of listeners) fn(type, payload);
+    }
+
+    /** Map each pile index to its column. Piles fill DOWN each column in turn
+        (column 0 gets the first cols[0] piles, then column 1, ...), matching
+        the renderer's fill order, so e.g. [3,4,3] → [0,0,0,1,1,1,1,2,2,2]. */
+    function buildPileColumns(colSizes, count) {
+      const map = new Array(count).fill(0);
+      let p = 0;
+      for (let c = 0; c < colSizes.length && p < count; c++) {
+        for (let k = 0; k < colSizes[c] && p < count; k++) map[p++] = c;
+      }
+      return map;
+    }
+
+    /** Itemized Pillar payout for the current board state (scoring Pillars
+        only). Pure read over run.pillars + run.pileColumns + board — no DOM,
+        no mutation. Returns { bonus, lines:[{label, detail, amount}] }. The UI
+        feeds this straight into Economy.breakdown so coins stay one formula. */
+    function computePillarPayout() {
+      const lines = [];
+      let bonus = 0;
+      if (!run || !run.pillars || !run.pileColumns || !run.cols) return { bonus, lines };
+      for (let col = 0; col < run.cols.length; col++) {
+        const pid = run.pillars[col];
+        if (!pid) continue;
+        const t = PillarTypes.get(pid);
+        if (!t || t.kind !== "scoring") continue;
+        if (t.effect === "columnAllAlive") {
+          // +value if EVERY pile in this column survived to run end.
+          const idxs = [];
+          for (let i = 0; i < run.pileColumns.length; i++)
+            if (run.pileColumns[i] === col) idxs.push(i);
+          const allAlive = idxs.length > 0 && idxs.every(i => board.isActive(i));
+          if (allAlive) {
+            bonus += t.value;
+            lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
+          }
+        }
+      }
+      return { bonus, lines };
     }
 
     function start() {
@@ -1376,6 +1458,13 @@ const GameEngine = (() => {
         // Start Run button / guess buttons on `started`.
         started: false,
         stickerWindow: true,
+        // Column layout + Pillar binding for this run. `cols` is the column
+        // sizes; `pileColumns[i]` maps pile i → its column index; `pillars` is
+        // the per-column Pillar binding (set/locked at startRun). All null when
+        // no layout was supplied (column-agnostic legacy/test runs).
+        cols,
+        pileColumns: cols ? buildPileColumns(cols, pileCount) : null,
+        pillars: null,
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -1394,11 +1483,15 @@ const GameEngine = (() => {
         while playing and not already started. Closes the sticker window
         (anti-exploit: no mid/late-run sticker saves) and emits "run-started"
         so the UI can swap the Start Run button for the guess buttons. */
-    function startRun() {
+    function startRun(pillars) {
       if (status !== "playing" || !run || run.started) return;
       run.started = true;
       run.stickerWindow = false;
       run.phase = "active";
+      // Lock the per-column Pillar binding for the run (snapshot — later edits
+      // to the campaign binding can't affect a run in progress). A plain copy
+      // of the 3-slot array (column index → Pillar id | null).
+      run.pillars = Array.isArray(pillars) ? pillars.slice() : null;
       emit("run-started", { board, deck, run });
     }
 
@@ -1456,7 +1549,9 @@ const GameEngine = (() => {
         status = "won";
         run.phase = "ended";
         run.result = "win";
-        emit("won", { board, deck, run });
+        // Column Pillars score at run end (win only). Itemized here so the UI
+        // never recomputes column membership.
+        emit("won", { board, deck, run, pillarPayout: computePillarPayout() });
         // FUTURE: HOOKS.onRunComplete({ result: "win", board });
       } else if (!board.anyAlive()) {
         // All nine lives spent. -> Run End phase.
@@ -1508,6 +1603,8 @@ const GameEngine = (() => {
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
+      /** Itemized scoring-Pillar payout for the current board (see "won"). */
+      pillarPayout() { return computePillarPayout(); },
       debug,
     };
   }
@@ -1541,6 +1638,11 @@ const CampaignState = (() => {
   ];
   const MAX_RUNS_PER_STAGE = RUN_LAYOUTS.length;
   const MAX_STAGES = 3;
+  // Every run has the same number of COLUMNS (only the pile-per-column counts
+  // change), so the campaign has a fixed set of column "slots" for Pillars.
+  // These slots ARE the Pillar holding — there is no separate inventory; you
+  // can hold at most one Pillar per column (buying a 4th forces a replace).
+  const COLUMN_SLOTS = RUN_LAYOUTS[0].length;
   const TOTAL_RUNS = MAX_STAGES * MAX_RUNS_PER_STAGE; // 9 = a full campaign
 
   // Active suits enter in canonical SUITS order. Stage s (1-based) uses the
@@ -1575,6 +1677,14 @@ const CampaignState = (() => {
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
     let purchaseCounts = {};       // { stickerTypeId: timesBought } — drives escalating price
+    // Pillar binding: one slot per board column (index 0..COLUMN_SLOTS-1), each
+    // holding a Pillar type id or null. This is the WHOLE Pillar holding — no
+    // inventory. Bindings PERSIST across runs (you don't reassign each run) and
+    // are rearrangeable in the pre-run phase (see swap/set below); a run
+    // snapshots them at Start Run. pillarPurchaseCounts drives escalating price,
+    // mirroring stickers.
+    let columnPillars = new Array(COLUMN_SLOTS).fill(null);
+    let pillarPurchaseCounts = {}; // { pillarTypeId: timesBought }
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -1726,6 +1836,59 @@ const CampaignState = (() => {
         return true;
       },
 
+      /* ---- Pillars (column modifiers — bound to columns, not cards) ----
+         The COLUMN_SLOTS column slots are the only place a Pillar lives; there
+         is no inventory. Bindings persist between runs and are edited in the
+         pre-run phase; a run reads them via getColumnPillars() at Start Run. */
+      get columnSlots() { return COLUMN_SLOTS; },
+      /** A copy of the column→Pillar binding (index = column, value = id|null). */
+      getColumnPillars() { return columnPillars.slice(); },
+      /** Pillar id on a given column (or null). */
+      columnPillar(col) { return columnPillars[col] || null; },
+      /** How many columns currently hold a Pillar. */
+      pillarCount() { return columnPillars.filter(Boolean).length; },
+      /** Index of the first empty column slot, or -1 if all are full. */
+      firstEmptyColumn() { return columnPillars.indexOf(null); },
+
+      /** Set (or clear, with null) the Pillar on a column. The raw setter used
+          by buy/clear; returns false on an out-of-range column. No cost. */
+      setColumnPillar(col, typeId) {
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        if (typeId !== null && !PillarTypes.get(typeId)) return false;
+        columnPillars[col] = typeId;
+        return true;
+      },
+      /** Swap the Pillars on two columns — the pre-run "rearrange" primitive
+          (moves bindings without minting or losing any). No cost. */
+      swapColumnPillars(a, b) {
+        if (a < 0 || a >= COLUMN_SLOTS || b < 0 || b >= COLUMN_SLOTS) return false;
+        const t = columnPillars[a]; columnPillars[a] = columnPillars[b]; columnPillars[b] = t;
+        return true;
+      },
+
+      /** Current price of a Pillar type: basePrice + times already bought, so
+          each type escalates independently (same scheme as stickers). */
+      priceOfPillar(typeId) {
+        const t = PillarTypes.get(typeId);
+        return t ? t.basePrice + (pillarPurchaseCounts[typeId] || 0) : Infinity;
+      },
+
+      /** Buy a Pillar and place it on column `col`, if affordable and in range.
+          With no inventory, a purchase IS a placement: it overwrites whatever
+          Pillar sat on that column (the "replace when full" path). Returns true
+          on success. */
+      buyPillar(typeId, col) {
+        const t = PillarTypes.get(typeId);
+        if (!t) return false;
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        const price = this.priceOfPillar(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        pillarPurchaseCounts[typeId] = (pillarPurchaseCounts[typeId] || 0) + 1;
+        columnPillars[col] = typeId;
+        return true;
+      },
+
       /* ---- sticker application (permanent, per-card, validated) ----
          Stickers attach to a SPECIFIC persistent card by id. Rank stickers
          also bump currentRank + record a modification; behavior stickers are
@@ -1778,11 +1941,13 @@ const CampaignState = (() => {
         coins = 0;
         stickerInventory = {};
         purchaseCounts = {};
+        columnPillars = new Array(COLUMN_SLOTS).fill(null);
+        pillarPurchaseCounts = {};
       },
     };
   }
 
-  return { create, layoutForRun, RUN_LAYOUTS, MAX_RUNS_PER_STAGE, MIN_RANK, MAX_RANK };
+  return { create, layoutForRun, RUN_LAYOUTS, MAX_RUNS_PER_STAGE, COLUMN_SLOTS, MIN_RANK, MAX_RANK };
 })();
 
 /* ----------------------------------------------------------------
@@ -2237,7 +2402,8 @@ const UIRenderer = (() => {
   }
 
   function startRunUI() {
-    if (engine) engine.startRun();
+    // Lock in the current column→Pillar binding for the run as play begins.
+    if (engine) engine.startRun(campaign.getColumnPillars());
   }
 
   /* ---- in-run sticker application ----
@@ -2556,6 +2722,9 @@ const UIRenderer = (() => {
       row("Smallest alive pile", "", b.minPileCards + " cards") +
       row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
       row("Extra Coin bonus", "", "+" + b.extraCoinBonus) +
+      // One row per scoring Pillar that paid out this run (omitted when none).
+      (b.pillarLines || []).map(p =>
+        row("🏛️ " + p.label, p.detail || "", "+" + p.amount)).join("") +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
     );
@@ -2702,7 +2871,10 @@ const UIRenderer = (() => {
     // Full per-run reset: a brand-new engine gives a fresh deck + piles
     // and a fresh event subscription, so nothing leaks between runs. The
     // run deck is a shuffled COPY of the current stage's active-suit cards.
-    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles);
+    // Pass the column layout so the engine can resolve Pillars (column
+    // modifiers); the per-column Pillar binding is snapshotted later, at
+    // Start Run, after the pre-run assignment phase.
+    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles, { cols: cfg.cols });
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -2831,6 +3003,9 @@ const UIRenderer = (() => {
     // finish the campaign (Stage 3 Run 3) or head to the store. The itemized
     // breakdown comes straight from Economy — the view only formats it.
     campaign.recordRun(payload.run);
+    // Column Pillars are scored engine-side (column-aware) and arrive itemized
+    // on the win payload; default to nothing for legacy/no-layout runs.
+    const pp = payload.pillarPayout || { bonus: 0, lines: [] };
     const payout = Economy.breakdown({
       won: true,
       aliveCount,
@@ -2839,6 +3014,9 @@ const UIRenderer = (() => {
       minAliveCards: board.minAliveCards(),
       // Extra Coin units: Σ (stickers on an alive top × that pile's card count).
       extraCoinUnits: board.extraCoinUnits(),
+      // Pillar payout (itemized) folded straight into the coin total.
+      pillarBonus: pp.bonus,
+      pillarLines: pp.lines,
     });
     if (payout.total > 0) campaign.addCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
