@@ -33,6 +33,11 @@
   html, body {
     margin: 0;
     height: 100%;
+    /* Lock the play surface: the layout already fits one screen, so the page
+       must never scroll or rubber-band on a drag. Overlays that need to scroll
+       (store, debug, deck) are position:fixed and contain their own overscroll. */
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body {
@@ -43,7 +48,12 @@
     flex-direction: column;
     min-height: 100%;
     min-height: 100dvh;
-    overflow-x: hidden;
+    /* manipulation = taps/holds/pan still work, but double-tap-to-zoom (and the
+       legacy 300ms delay) are off. touch-action's effective value is the
+       ancestor intersection, so this propagates to the whole tree — children
+       that opt into a gesture (e.g. the deck scrubber's touch-action:none, the
+       overlays' pan-scroll) still win for their own behavior. */
+    touch-action: manipulation;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     user-select: none;
     -webkit-user-select: none;
@@ -577,7 +587,7 @@
   /* Compact shop: everything (sticky header, 4 sticker slots, Buy, 2 Pillar
      slots, column chips, reroll, start) targets ONE no-scroll phone screen.
      overflow-y:auto is only a safety net for unusually short viewports. */
-  .overlay.store { justify-content: flex-start; overflow-y: auto; gap: 5px; padding: 12px; }
+  .overlay.store { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; gap: 5px; padding: 12px; }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
@@ -880,6 +890,7 @@
     width: min(100%, 460px);
     max-height: 80vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
     box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
   }
@@ -984,16 +995,41 @@
   /* ============================================================
      DEBUG PANEL (hidden by default)
      ============================================================ */
-  .debug {
+  /* Debug lives in a floating overlay opened by a small corner toggle, so it
+     never takes layout space or fights the play-surface scroll-lock. */
+  .debug-toggle {
+    position: fixed; left: 8px; bottom: 8px; z-index: 78;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(13, 20, 38, 0.7); border: 1px solid #3a4d80;
+    color: var(--accent-2); font-size: 16px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; opacity: 0.45;
+    touch-action: manipulation;
+  }
+  .debug-toggle:active { transform: scale(0.92); opacity: 0.9; }
+
+  .debug-overlay {
+    position: fixed; inset: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6, 10, 22, 0.55);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    padding: 16px;
+  }
+  .debug-overlay.hidden { display: none; }
+  .debug-panel {
     width: min(94vw, 430px);
-    margin: 4px auto 12px;
-    padding: 10px 12px 12px;
-    border: 1px dashed #3a4d80;
-    border-radius: 12px;
-    background: rgba(13, 20, 38, 0.7);
+    max-height: 80svh; max-height: 80vh;
+    display: flex; flex-direction: column;
+    border: 1px dashed #3a4d80; border-radius: 14px;
+    background: rgba(13, 20, 38, 0.98); box-shadow: var(--shadow);
     font-size: 12px;
   }
-  .debug.hidden { display: none; }
+  /* Internal scroll so debug content never needs the (locked) page to scroll. */
+  .debug-body {
+    overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch; touch-action: pan-y;
+    padding: 10px 12px 12px;
+  }
 
   .debug-head {
     display: flex;
@@ -1002,9 +1038,15 @@
     color: var(--accent-2);
     font-weight: 800;
     letter-spacing: 1px;
-    margin-bottom: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .debug-head b { color: var(--accent); }
+  .debug-close {
+    background: none; border: none; color: var(--text);
+    font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
+    touch-action: manipulation;
+  }
 
   .debug-sub { color: var(--muted); margin-bottom: 6px; }
 
@@ -1112,31 +1154,38 @@
     </div>
   </main>
 
-  <!-- Debug panel: hidden unless ?debug is in the URL or you triple-tap the title. -->
-  <div class="debug hidden" id="debugPanel">
-    <div class="debug-head">
-      <span>🐞 DEBUG</span>
-      <span>next draw: <b id="debugNext">—</b></span>
+  <!-- Debug: a small corner toggle opens a floating, self-scrolling overlay.
+       Also openable via ?debug in the URL or a triple-tap on the title. -->
+  <button class="debug-toggle" id="debugToggle" type="button" aria-label="Toggle debug">🐞</button>
+  <div class="debug-overlay hidden" id="debugOverlay">
+    <div class="debug-panel">
+      <div class="debug-head">
+        <span>🐞 DEBUG</span>
+        <button class="debug-close" id="debugClose" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="debug-body">
+        <div class="debug-sub">next draw: <b id="debugNext">—</b></div>
+        <div class="debug-sub">force next card →</div>
+        <div class="debug-ranks" id="debugRanks"></div>
+        <div class="debug-tools">
+          <button class="debug-btn" id="debugPeek">peek 6</button>
+          <button class="debug-btn" id="debugTrim">deck → 1</button>
+          <button class="debug-btn" id="debugWin">win now</button>
+          <button class="debug-btn" id="debugLose">lose now</button>
+          <button class="debug-btn" id="debugNew">new game</button>
+        </div>
+        <div class="debug-sub">grant (free) →</div>
+        <div class="debug-grant">
+          <select class="debug-sel" id="debugStickerSel"></select>
+          <button class="debug-btn" id="debugAddSticker">+ sticker</button>
+        </div>
+        <div class="debug-grant">
+          <select class="debug-sel" id="debugPillarSel"></select>
+          <button class="debug-btn" id="debugAddPillar">+ pillar</button>
+        </div>
+        <div class="debug-peek" id="debugPeekOut"></div>
+      </div>
     </div>
-    <div class="debug-sub">force next card →</div>
-    <div class="debug-ranks" id="debugRanks"></div>
-    <div class="debug-tools">
-      <button class="debug-btn" id="debugPeek">peek 6</button>
-      <button class="debug-btn" id="debugTrim">deck → 1</button>
-      <button class="debug-btn" id="debugWin">win now</button>
-      <button class="debug-btn" id="debugLose">lose now</button>
-      <button class="debug-btn" id="debugNew">new game</button>
-    </div>
-    <div class="debug-sub">grant (free) →</div>
-    <div class="debug-grant">
-      <select class="debug-sel" id="debugStickerSel"></select>
-      <button class="debug-btn" id="debugAddSticker">+ sticker</button>
-    </div>
-    <div class="debug-grant">
-      <select class="debug-sel" id="debugPillarSel"></select>
-      <button class="debug-btn" id="debugAddPillar">+ pillar</button>
-    </div>
-    <div class="debug-peek" id="debugPeekOut"></div>
   </div>
 
   <footer>Ace high · suits don't matter · <span id="buildTag">build</span></footer>
@@ -1248,7 +1297,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.22.0";
+const APP_VERSION = "v0.23.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2663,7 +2712,9 @@ const UIRenderer = (() => {
     invClose: document.getElementById("invClose"),
     // debug
     title: document.querySelector("header h1"),
-    debugPanel: document.getElementById("debugPanel"),
+    debugOverlay: document.getElementById("debugOverlay"),
+    debugToggle: document.getElementById("debugToggle"),
+    debugClose: document.getElementById("debugClose"),
     debugNext: document.getElementById("debugNext"),
     debugRanks: document.getElementById("debugRanks"),
     debugPeek: document.getElementById("debugPeek"),
@@ -3084,7 +3135,7 @@ const UIRenderer = (() => {
 
   function setDebug(on) {
     debugOn = on;
-    el.debugPanel.classList.toggle("hidden", !on);
+    el.debugOverlay.classList.toggle("hidden", !on);
     if (on) {
       if (!el.debugRanks.children.length) buildDebugRanks();
       if (!el.debugStickerSel.children.length) buildDebugGrants();
@@ -3223,6 +3274,13 @@ const UIRenderer = (() => {
     el.debugNew.addEventListener("click", () => startCampaign());
     el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
+
+    // Corner toggle opens/closes the debug overlay; × and a backdrop tap close.
+    el.debugToggle.addEventListener("click", () => setDebug(!debugOn));
+    el.debugClose.addEventListener("click", () => setDebug(false));
+    el.debugOverlay.addEventListener("click", (e) => {
+      if (e.target === el.debugOverlay) setDebug(false);   // backdrop only
+    });
 
     // Triple-tap the title to toggle debug mode (in addition to ?debug URL).
     let taps = 0, tapTimer = null;
