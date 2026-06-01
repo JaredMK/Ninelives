@@ -718,9 +718,9 @@
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
   }
 
-  /* "?" help affordance on each store item + the press-and-hold popup it
-     reveals. The popup mirrors the deck quick-peek: fixed, centered, width
-     clamped to the viewport so it never overflows a phone edge. */
+  /* "?" help affordance on each store item + the tap-to-toggle popup it
+     reveals. Tap the "?" to open, tap off (anywhere else) to dismiss; the
+     popup is fixed + width/height clamped so it never overflows a phone edge. */
   .si-help {
     position: absolute; top: 6px; left: 7px;
     width: 18px; height: 18px;
@@ -729,19 +729,25 @@
     background: rgba(255, 255, 255, 0.12);
     color: var(--muted);
     font-size: 11px; font-weight: 800; line-height: 1;
-    cursor: help;
-    touch-action: none;   /* a hold won't start a scroll / cancel the peek */
+    cursor: pointer;
+    touch-action: manipulation;   /* tap to toggle the help popup */
     z-index: 4;
   }
   .si-help:active { background: var(--accent); color: #fff; }
+  /* Tap-to-toggle help popup. Bottom-anchored so it never covers the tiles'
+     "?" icons (so tapping a different "?" can switch directly); pointer-events
+     auto so a tap ON it keeps it open and never falls through to a buy. Width
+     and max-height clamp it on-screen. */
   .item-help {
     position: fixed;
-    left: 50%; top: 14%;
+    left: 50%; top: auto;
+    bottom: max(14px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
     z-index: 62;
-    pointer-events: none;
-    width: min(90vw, 320px);
-    background: rgba(13, 20, 38, 0.97);
+    pointer-events: auto;
+    width: min(92vw, 340px);
+    max-height: 42vh; overflow-y: auto; overscroll-behavior: contain;
+    background: rgba(13, 20, 38, 0.98);
     border: 1px solid #34508f;
     border-radius: 12px;
     padding: 12px 14px;
@@ -1297,7 +1303,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.23.0";
+const APP_VERSION = "v0.24.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2749,6 +2755,9 @@ const UIRenderer = (() => {
   let selectedStickerSlot = null;
   let armedPillarSlot = null;
   let armedSlotMove = null;
+  // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
+  // Tap a "?" to toggle; tap anything else (swallowed) to dismiss.
+  let openHelpKey = null;
 
   /* ---- card element factory ---- */
   function buildPile(index) {
@@ -3218,10 +3227,27 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
+    // TAP-OFF-TO-CLOSE (capture phase, so it runs BEFORE the select/buy
+    // handlers): while a help popup is open, any tap that isn't on a "?" just
+    // dismisses the popup and is swallowed — so the dismiss tap can't buy or
+    // select the item underneath. Taps on a "?" pass through to toggle/switch;
+    // taps on the popup itself never reach here (it's outside this overlay).
+    el.storeOverlay.addEventListener("click", (e) => {
+      if (openHelpKey == null) return;            // nothing open → normal flow
+      if (e.target.closest(".si-help")) return;   // a "?" → let it toggle/switch
+      closeItemHelp();
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+    // A tap on the popup keeps it open (and never falls through to a purchase).
+    el.itemHelp.addEventListener("click", (e) => e.stopPropagation());
+
     // Store wiring. Stickers are two-step: tap an offered slot SELECTS it, the
-    // Buy button confirms. A tap on the "?" help icon is neither select nor buy.
+    // Buy button confirms. Tapping the "?" toggles that item's help popup —
+    // never a select or buy.
     el.storeItems.addEventListener("click", (e) => {
-      if (e.target.closest(".si-help")) return;
+      const help = e.target.closest(".si-help");
+      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("disabled")) selectStickerUI(Number(tile.dataset.slot));
     });
@@ -3232,27 +3258,14 @@ const UIRenderer = (() => {
       if (e.target.closest(".store-tile, #buyStickerBtn, #rerollBtn, .pillar-slot")) return;
       if (selectedStickerSlot != null) { selectedStickerSlot = null; renderStore(); }
     });
-    // Offered Pillars: tap a slot to arm it ("?" excluded, as above).
+    // Offered Pillars: tap a slot to arm it; tapping the "?" toggles help.
     el.storePillars.addEventListener("click", (e) => {
-      if (e.target.closest(".si-help")) return;
+      const help = e.target.closest(".si-help");
+      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("disabled")) armPillarSlotUI(Number(tile.dataset.pslot));
     });
     el.rerollBtn.addEventListener("click", rerollUI);
-    // Press-and-hold an offered tile's "?" to peek its description; release to
-    // dismiss — same hold gesture as the deck quick-peek. Delegated on both
-    // offer rows; the global pointerup/cancel below hides it on release.
-    const helpDown = (e) => {
-      const help = e.target.closest(".si-help");
-      if (!help) return;
-      e.preventDefault();            // don't let the hold become a select/buy
-      e.stopPropagation();
-      showItemHelp(help.closest(".store-tile"));
-    };
-    el.storeItems.addEventListener("pointerdown", helpDown);
-    el.storePillars.addEventListener("pointerdown", helpDown);
-    window.addEventListener("pointerup", hideItemHelp);
-    window.addEventListener("pointercancel", hideItemHelp);
     // Column chips: place an armed offered Pillar, or arm/swap for a rearrange.
     el.pillarSlots.addEventListener("click", (e) => {
       const chip = e.target.closest(".pillar-slot");
@@ -3795,6 +3808,7 @@ const UIRenderer = (() => {
     hideOverlay();
     campaign.openStore();   // ONE fresh random roll per visit (reroll cost → base)
     selectedStickerSlot = null; armedPillarSlot = null; armedSlotMove = null;
+    closeItemHelp();
     el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
@@ -3986,14 +4000,14 @@ const UIRenderer = (() => {
     selectedStickerSlot = null;
     armedPillarSlot = null;
     armedSlotMove = null;
-    hideItemHelp();
+    closeItemHelp();
     el.storeOverlay.classList.add("hidden");
   }
 
-  /* Store item help (press-and-hold the "?"). Text is read from the registry's
+  /* Store item help (tap-to-toggle the "?"). Text is read from the registry's
      `description` field — never hardcoded here — so it lives in one place. The
-     popup is centered + viewport-clamped (see .item-help CSS) so it can't
-     overflow a phone edge, and is pointer-events:none so it never blocks input. */
+     popup is viewport-clamped (see .item-help CSS) so it can't overflow a phone
+     edge; see toggleItemHelp / the tap-off-to-close handler for the gesture. */
   function showItemHelp(itemEl) {
     if (!itemEl) return;
     const t = itemEl.dataset.type ? StickerTypes.get(itemEl.dataset.type)
@@ -4006,6 +4020,22 @@ const UIRenderer = (() => {
     el.itemHelp.classList.remove("hidden");
   }
   function hideItemHelp() { el.itemHelp.classList.add("hidden"); }
+  function closeItemHelp() { hideItemHelp(); openHelpKey = null; }
+
+  /* A stable key per offered tile (row + slot) so re-renders don't confuse the
+     toggle, and duplicate item types in different slots stay distinct. */
+  function helpKeyOf(tile) {
+    return tile.dataset.slot != null ? "s" + tile.dataset.slot : "p" + tile.dataset.pslot;
+  }
+  /* Tap a "?": open this tile's help, switch to it if another was open, or
+     close it if it was already this one (tap-again-to-close). */
+  function toggleItemHelp(tile) {
+    if (!tile) return;
+    const key = helpKeyOf(tile);
+    if (openHelpKey === key) { closeItemHelp(); return; }
+    showItemHelp(tile);
+    openHelpKey = key;
+  }
 
   /* In-play sticker inventory popup — opened by TAPPING the coin indicator,
      dismissed by tapping the backdrop or the ×. Reads the same campaign
