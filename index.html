@@ -554,6 +554,23 @@
     margin-top: 4px;
   }
 
+  /* End-of-campaign "Ending Pillars" — one tidy row per column. */
+  .end-pillars { margin-top: 12px; }
+  .end-pillars .summary-label { margin-bottom: 5px; }
+  .ep-cols {
+    display: flex; flex-direction: column; gap: 4px;
+    background: var(--panel); border-radius: 12px;
+    padding: 8px 10px; box-shadow: var(--shadow);
+  }
+  .ep-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ep-col {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 800;
+  }
+  .ep-val { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; }
+  .ep-val.empty { color: var(--muted); font-weight: 600; }
+  .ep-val .ep-icon { font-size: 15px; }
+
   /* ============================================================
      STORE + STICKERS
      ============================================================ */
@@ -1134,30 +1151,21 @@
       kills that pile. Empty the deck to win.
     </p>
     <div class="run-progress hidden" id="runProgress">Run 1 of 3</div>
-    <div class="summary-block hidden" id="runSummary">
-      <div class="summary-label">This Run</div>
+    <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
+    <div class="summary-block hidden" id="endSummary">
       <div class="summary-tiles">
         <div class="run-stat">
-          <div class="run-stat-value" id="summaryCorrect">0</div>
-          <div class="run-stat-label">Correct</div>
+          <div class="run-stat-value" id="endCards">0</div>
+          <div class="run-stat-label">Cards Flipped</div>
         </div>
         <div class="run-stat">
-          <div class="run-stat-value" id="summaryAlive">0</div>
-          <div class="run-stat-label">Piles Alive</div>
+          <div class="run-stat-value" id="endCoins">0</div>
+          <div class="run-stat-label">Coins Earned</div>
         </div>
       </div>
-    </div>
-    <div class="summary-block hidden" id="campaignSummary">
-      <div class="summary-label">Campaign</div>
-      <div class="summary-tiles">
-        <div class="run-stat">
-          <div class="run-stat-value" id="summaryTotalCorrect">0</div>
-          <div class="run-stat-label">Total Correct</div>
-        </div>
-        <div class="run-stat">
-          <div class="run-stat-value" id="summaryRunsDone">0</div>
-          <div class="run-stat-label">Runs Done</div>
-        </div>
+      <div class="end-pillars">
+        <div class="summary-label">Ending Pillars</div>
+        <div class="ep-cols" id="endPillars"></div>
       </div>
     </div>
     <div class="overlay-coins hidden" id="overlayCoins"></div>
@@ -1240,7 +1248,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.21.0";
+const APP_VERSION = "v0.22.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2063,8 +2071,14 @@ const CampaignState = (() => {
   function create() {
     let currentStage = 1;          // 1 .. MAX_STAGES
     let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE (within the stage)
-    let totalCorrectGuesses = 0;   // summed across every run this campaign
+    let totalCorrectGuesses = 0;   // summed across every WON run this campaign
     let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
+    // Cumulative campaign stats for the end screen (reset with everything else):
+    //   totalCardsFlipped — correct guesses (cards drawn-and-survived) across
+    //     ALL runs played, including the final losing run.
+    //   totalCoinsEarned  — GROSS coins earned (before spending), all runs.
+    let totalCardsFlipped = 0;
+    let totalCoinsEarned = 0;
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
@@ -2093,12 +2107,18 @@ const CampaignState = (() => {
       get activeSuitCount() { return currentStage + 1; },
       get totalCorrectGuesses() { return totalCorrectGuesses; },
       get runsCompleted() { return runsCompleted; },
+      get totalCardsFlipped() { return totalCardsFlipped; },
+      get totalCoinsEarned() { return totalCoinsEarned; },
 
-      /** Fold a finished run's stats into the campaign totals. */
+      /** Fold a finished WON run's stats into the campaign totals. */
       recordRun(run) {
         totalCorrectGuesses += run.correctGuesses;
         runsCompleted += 1;
       },
+
+      /** Tally cards flipped (correct guesses) for ANY run end — win or loss —
+          so the end screen counts the final losing run too. */
+      addCardsFlipped(n) { totalCardsFlipped += (n || 0); },
 
       /** True once Stage 3 Run 3 (the whole campaign) has been completed. */
       isComplete() { return runsCompleted >= TOTAL_RUNS; },
@@ -2197,6 +2217,10 @@ const CampaignState = (() => {
       get coins() { return coins; },
       getCoins() { return coins; },
       addCoins(n) { coins += n; return coins; },
+      /** Award earned coins: adds to the balance AND the gross-earned total
+          (for the end screen). Use this for run payouts; addCoins is for
+          non-earned credits (e.g. debug) that shouldn't count as earnings. */
+      earnCoins(n) { coins += n; totalCoinsEarned += n; return coins; },
       spendCoins(n) { if (coins < n) return false; coins -= n; return true; },
 
       /* ---- sticker inventory (bought between runs, applied in-run) ---- */
@@ -2387,6 +2411,8 @@ const CampaignState = (() => {
         currentRunIndex = 1;
         totalCorrectGuesses = 0;
         runsCompleted = 0;
+        totalCardsFlipped = 0;
+        totalCoinsEarned = 0;
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         stickerInventory = {};
@@ -2602,12 +2628,10 @@ const UIRenderer = (() => {
     overlayTitle: document.getElementById("overlayTitle"),
     overlayMsg: document.getElementById("overlayMsg"),
     runProgress: document.getElementById("runProgress"),
-    runSummary: document.getElementById("runSummary"),
-    summaryCorrect: document.getElementById("summaryCorrect"),
-    summaryAlive: document.getElementById("summaryAlive"),
-    campaignSummary: document.getElementById("campaignSummary"),
-    summaryTotalCorrect: document.getElementById("summaryTotalCorrect"),
-    summaryRunsDone: document.getElementById("summaryRunsDone"),
+    endSummary: document.getElementById("endSummary"),
+    endCards: document.getElementById("endCards"),
+    endCoins: document.getElementById("endCoins"),
+    endPillars: document.getElementById("endPillars"),
     overlayCoins: document.getElementById("overlayCoins"),
     peekHint: document.getElementById("peekHint"),
     playBtn: document.getElementById("playBtn"),
@@ -3327,20 +3351,14 @@ const UIRenderer = (() => {
     el.runProgress.textContent = opts.progress || "";
     el.runProgress.classList.toggle("hidden", !opts.progress);
 
-    // "This Run" summary (correct guesses + piles remaining).
-    if (opts.runStats) {
-      el.summaryCorrect.textContent = opts.runStats.correct;
-      el.summaryAlive.textContent = opts.runStats.alive;
+    // End-of-campaign stats: cumulative cards flipped + gross coins earned, and
+    // the Pillars the player finished with, by column.
+    if (opts.endStats) {
+      el.endCards.textContent = opts.endStats.cardsFlipped;
+      el.endCoins.textContent = "🪙 " + opts.endStats.coinsEarned;
+      el.endPillars.innerHTML = endPillarsHtml(opts.endStats.pillars);
     }
-    el.runSummary.classList.toggle("hidden", !opts.runStats);
-
-    // Campaign-level summary (totals that persist across runs).
-    if (opts.campStats) {
-      el.summaryTotalCorrect.textContent = opts.campStats.totalCorrect;
-      el.summaryRunsDone.textContent =
-        opts.campStats.runsDone + " / " + campaign.maxRunsPerStage;
-    }
-    el.campaignSummary.classList.toggle("hidden", !opts.campStats);
+    el.endSummary.classList.toggle("hidden", !opts.endStats);
 
     // Coins earned this run + running balance (shown on run-complete).
     if (opts.coins) el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins);
@@ -3360,6 +3378,22 @@ const UIRenderer = (() => {
   }
 
   /* ---- phase screens ---- */
+  /** Concise "Stage X · Run Y" for the end screen (no "of N"). */
+  function stageRunShort() {
+    return "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+  }
+
+  /** The ending Pillars, by column: one row per column showing its Pillar (icon
+      + label) or "—" when empty. Reads campaign.getColumnPillars(). */
+  function endPillarsHtml(pillars) {
+    return (pillars || []).map((id, col) => {
+      const t = id ? PillarTypes.get(id) : null;
+      const val = t ? '<span class="ep-icon">' + t.icon + "</span> " + t.label : "—";
+      return '<div class="ep-row"><span class="ep-col">Col ' + (col + 1) + "</span>" +
+             '<span class="ep-val' + (t ? "" : " empty") + '">' + val + "</span></div>";
+    }).join("");
+  }
+
   /** "Stage X of 3 · Run Y of 3" — shared progress label. */
   function stageRunLabel(suffix) {
     return "Stage " + campaign.currentStage + " of " + campaign.maxStages +
@@ -3397,33 +3431,39 @@ const UIRenderer = (() => {
     });
   }
 
+  /** Cumulative end-of-campaign stats, read from existing campaign state. */
+  function endStats() {
+    return {
+      cardsFlipped: campaign.totalCardsFlipped,
+      coinsEarned: campaign.totalCoinsEarned,
+      pillars: campaign.getColumnPillars(),
+    };
+  }
+
   // Any run loss ends the whole campaign (shown before the wipe, so we can
   // report how far you got). New Campaign -> startCampaign -> reset().
-  function showCampaignFailed(runStats) {
+  function showCampaignFailed() {
     showOverlay({
       kind: "lose",
       icon: "💀",
       title: "CAMPAIGN OVER",
-      msg: "A run fell — and losing any run wipes the whole campaign: deck, "
-         + "coins, and stickers all reset. Start fresh from Stage 1.",
-      progress: "Reached " + stageRunLabel(),
-      runStats,
+      msg: "A run fell — the whole campaign resets. Start fresh from Stage 1.",
+      progress: "Reached " + stageRunShort(),
+      endStats: endStats(),
       peek: true,
       btnLabel: "NEW CAMPAIGN",
       action: startCampaign,
     });
   }
 
-  function showCampaignComplete(runStats, campStats, coins) {
+  function showCampaignComplete() {
     showOverlay({
       kind: "win",
       icon: "🎉",
       title: "CAMPAIGN COMPLETE",
-      msg: "You cleared all " + campaign.maxStages + " stages — "
-         + (campaign.maxStages * campaign.maxRunsPerStage) + " runs!",
-      runStats,
-      campStats,
-      coins,
+      msg: "You cleared all " + (campaign.maxStages * campaign.maxRunsPerStage) + " runs!",
+      progress: stageRunShort(),
+      endStats: endStats(),
       peek: true,
       btnLabel: "NEW CAMPAIGN",
       action: startCampaign,
@@ -3634,14 +3674,17 @@ const UIRenderer = (() => {
     const won = result === "win";
     const board = payload.board;
     const aliveCount = board.aliveCount();
-    const runStats = { correct: payload.run.correctGuesses, alive: aliveCount };
+
+    // Cards flipped (correct guesses) are tallied for EVERY run end — including
+    // the final losing run — so the end screen reflects all runs played.
+    campaign.addCardsFlipped(payload.run.correctGuesses);
 
     // LOSS ends the campaign. We deliberately do NOT record or advance: the
     // failed screen reads the stage/run we died on, and "New Campaign" funnels
     // through the single wipe (startCampaign -> campaign.reset). Nothing else
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
-      showCampaignFailed(runStats);
+      showCampaignFailed();
       return;
     }
 
@@ -3664,15 +3707,11 @@ const UIRenderer = (() => {
       pillarBonus: pp.bonus,
       pillarLines: pp.lines,
     });
-    if (payout.total > 0) campaign.addCoins(payout.total);
+    if (payout.total > 0) campaign.earnCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
 
     if (campaign.isComplete()) {
-      const campStats = {
-        totalCorrect: campaign.totalCorrectGuesses,
-        runsDone: campaign.runsCompleted,
-      };
-      showCampaignComplete(runStats, campStats, coins);
+      showCampaignComplete();
     } else {
       // Between-runs intermission: just stage/run + the coin breakdown.
       showRunComplete(coins);

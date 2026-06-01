@@ -59,6 +59,30 @@ export function run() {
   for (let i = 0; i < 5; i++) c2.advance();   // move into stage 2/3
   r.ok(c2.currentStage > 1 || c2.currentRunIndex > 1, "campaign progressed before reset");
 
+  // --- end-screen cumulative counters ----------------------------------
+  {
+    const c4 = CampaignState.create();
+    r.eq(c4.totalCardsFlipped, 0, "cards-flipped starts at 0");
+    r.eq(c4.totalCoinsEarned, 0, "coins-earned starts at 0");
+    // Cards flipped accrue every run end (incl. a loss), independent of win-only recordRun.
+    c4.addCardsFlipped(4); c4.addCardsFlipped(7);
+    r.eq(c4.totalCardsFlipped, 11, "addCardsFlipped accumulates across runs");
+    // earnCoins bumps the balance AND the gross-earned total.
+    c4.earnCoins(10);
+    r.eq(c4.getCoins(), 10, "earnCoins credits the balance");
+    r.eq(c4.totalCoinsEarned, 10, "earnCoins tracks gross earned");
+    // Spending lowers the balance but NOT gross earned.
+    c4.spendCoins(6);
+    r.eq(c4.getCoins(), 4, "spending lowers the balance");
+    r.eq(c4.totalCoinsEarned, 10, "gross earned is unaffected by spending");
+    // addCoins (non-earned, e.g. debug) does NOT count toward earnings.
+    c4.addCoins(100);
+    r.eq(c4.totalCoinsEarned, 10, "addCoins doesn't inflate gross earned");
+    c4.reset();
+    r.eq(c4.totalCardsFlipped, 0, "reset wipes cards flipped");
+    r.eq(c4.totalCoinsEarned, 0, "reset wipes coins earned");
+  }
+
   c2.reset();
   r.eq(c2.currentStage, 1, "reset -> Stage 1");
   r.eq(c2.currentRunIndex, 1, "reset -> Run 1");
