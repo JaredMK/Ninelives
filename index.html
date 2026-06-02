@@ -112,7 +112,7 @@
     justify-content: center;
     gap: 10px;
     flex-wrap: wrap;
-    padding: 8px 12px 2px;
+    padding: 3px 12px 1px;
   }
 
   .stat {
@@ -141,8 +141,8 @@
   /* Primary top indicator: the two payout factors, e.g. "9 piles × 2 smallest".
      No product is shown — just the factors with the × between them. */
   .stat.factors {
-    padding: 5px 18px;
-    gap: 11px;
+    padding: 3px 14px;
+    gap: 9px;
     align-items: center;
   }
   .stat.factors .factor {
@@ -151,7 +151,7 @@
     align-items: center;
     line-height: 1.05;
   }
-  .stat.factors b { font-size: 22px; font-weight: 800; min-width: 0; }
+  .stat.factors b { font-size: 18px; font-weight: 800; min-width: 0; }
   .stat.factors .factor-lbl {
     font-size: 8px;
     font-weight: 700;
@@ -161,9 +161,9 @@
   }
   .stat.factors .factor-x {
     color: var(--muted);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
-    margin-bottom: 9px;   /* optically center against the big numbers */
+    margin-bottom: 7px;   /* optically center against the big numbers */
   }
   /* The smallest-pile factor is orange to tie it to the highlighted pile(s). */
   .min-accent { color: var(--accent) !important; }
@@ -182,13 +182,13 @@
     align-items: center;
     gap: 8px;
   }
-  .board-foot .deck-stat { font-size: 13px; padding: 6px 13px; }
-  /* Graph toggle (📊) — sits in its own thin row directly above the strip. */
+  /* Deck + Graph controls row — one row below the guess buttons, above the graph. */
   .strip-toggle-row {
     width: min(99vw, 680px);
     margin: 3px auto 0;
-    display: flex; justify-content: center;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
   }
+  .strip-toggle-row .deck-stat { font-size: 12px; padding: 4px 12px; height: 22px; display: inline-flex; align-items: center; }
   .deck-strip-toggle {
     background: var(--panel); color: var(--text);
     border: 1px solid #34508f; border-radius: 999px;
@@ -216,7 +216,7 @@
   .deck-strip.hidden { display: none; }
   .ds-bars {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; height: 64px;
+    gap: 2px; height: 88px;
   }
   .ds-bar {
     flex: 1 1 0; min-width: 0;
@@ -282,7 +282,7 @@
     /* HEIGHT-derived: the tallest column is 4 piles tall (Run 1). Reserve the
        surrounding chrome so that 4-tall board fits without scrolling. svh keeps
        it stable across Safari's toolbar show/hide. */
-    --board-reserve: 22rem;   /* fixed chrome above/below the board */
+    --board-reserve: 16rem;   /* fixed chrome above/below the board (pre-measure fallback) */
     --pile-h: calc((100vh  - var(--board-reserve) - 3 * var(--gap)) / 4);
     --pile-h: calc((100svh - var(--board-reserve) - 3 * var(--gap)) / 4);
     /* Piles are RECTANGULAR and fill their cell: width = the column width (full
@@ -511,15 +511,8 @@
     align-self: center;
   }
 
-  .hint {
-    text-align: center;
-    color: var(--muted);
-    font-size: 11px;
-    min-height: 14px; line-height: 14px;
-    padding: 0 12px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    width: min(99vw, 680px); margin: 0 auto;
-  }
+  /* Move-feedback line removed from the layout (kept in the DOM for JS writes). */
+  .hint { display: none; }
 
   /* ============================================================
      OVERLAY (win / lose / start)
@@ -1322,16 +1315,9 @@
   <main>
     <div class="board" id="board" aria-label="Three columns of card piles"></div>
 
-    <!-- Deck counter: reference info, below the piles on the right. Keeps its
-         tap-to-inspect / hold-to-quick-view behavior and magnifier affordance. -->
-    <div class="board-foot">
-      <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
-           title="Tap to inspect the remaining deck · hold for a quick peek">
-        🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
-      </div>
-    </div>
-
-    <div class="hint" id="hint">Tap a pile to begin.</div>
+    <!-- Move-feedback line: removed from the layout (kept hidden so existing JS
+         can still write to it without consuming vertical space). -->
+    <div class="hint" id="hint" aria-hidden="true">Tap a pile to begin.</div>
 
     <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
     <div class="sticker-tray hidden" id="stickerTray"></div>
@@ -1347,9 +1333,12 @@
       <button class="btn lower" id="btnLower">LOWER</button>
     </div>
 
-    <!-- Graph toggle: sits directly above the composition strip. Always visible
-         (so the strip can be turned back on after hiding). -->
+    <!-- Deck + Graph controls together on one row, below the guess buttons. -->
     <div class="strip-toggle-row">
+      <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
+           title="Tap to inspect the remaining deck · hold for a quick peek">
+        🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
+      </div>
       <button class="deck-strip-toggle" id="deckStripToggle" type="button"
               title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph">📊 Graph</button>
     </div>
@@ -1539,7 +1528,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.40.0";
+const APP_VERSION = "v0.41.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4844,7 +4833,6 @@ const UIRenderer = (() => {
     // Everything that ISN'T the board, all board-independent:
     const header = document.querySelector("header");
     const hud = document.querySelector(".hud");
-    const foot = main.querySelector(".board-foot");
     const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
     // The control row is either the guess buttons (active) or the Start Run
     // button (sticker phase) — mutually exclusive. Reserve the LARGER of the
@@ -4854,14 +4842,14 @@ const UIRenderer = (() => {
     // The always-on composition strip (when shown) is another main child below
     // the board; reserve its height so Run 1's 4-tall column still fits no-scroll.
     const stripVisible = el.deckStrip && !el.deckStrip.classList.contains("hidden");
-    // The graph toggle row is always shown (so the strip can be re-enabled).
-    const toggleRowH = oh(el.stripToggleRow);
-    // main's visible children: board, board-foot, hint, [tray], control-row,
-    // toggle-row, [strip].
-    const belowH = oh(foot) + oh(el.hint) + controlH + toggleRowH
+    // The Deck + Graph controls row is always shown (so the strip can be re-enabled).
+    const bottomRowH = oh(el.stripToggleRow);
+    // main's visible children (the board-foot + hint rows were removed): board,
+    // control-row, bottom-row, [tray], [strip].
+    const belowH = controlH + bottomRowH
       + (trayVisible ? oh(el.stickerTray) : 0)
       + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 5 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // includes the board + toggle row
+    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // board + control row + bottom row
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
