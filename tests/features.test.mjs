@@ -162,7 +162,7 @@ export function run() {
     const l3 = e.getBoard().piles[3].cards.length;
     landHigher(e, 3);   // middle column — fires
     r.eq(e.getBoard().piles[3].cards.length, l3 + 2, "Center Tribute buries 1 in the middle column");
-    r.eq(e.getRun().bonusCoins, -1, "Center Tribute costs 1 bonus coin in the middle column");
+    r.eq(e.getRun().bonusCoins, 0, "Center Tribute has no coin cost");
   }
 
   // --- Double Tribute Pillar: buries TWO on a survived tie --------------

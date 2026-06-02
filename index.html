@@ -708,6 +708,39 @@
   .pillar-slot .ps-name { font-size: 9px; font-weight: 700; text-align: center; }
   .pillar-slot .ps-empty { font-size: 16px; color: var(--muted); }
 
+  /* Trash-Pillar control — appears only when a filled column is armed. */
+  .trash-pillar-btn {
+    margin: 3px auto 0; align-self: center;
+    background: rgba(235,87,87,0.14); color: #ff8f8f;
+    border: 1px solid #6e2b2b; border-radius: 999px;
+    padding: 6px 14px; font-size: 12px; font-weight: 800; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .trash-pillar-btn.hidden { display: none; }
+  .trash-pillar-btn:active { transform: scale(0.96); }
+
+  /* Confirmation dialog (Trash Pillar) — a modal above the store. */
+  .confirm-overlay {
+    position: fixed; inset: 0; z-index: 70;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6,10,22,0.62);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    padding: 20px;
+  }
+  .confirm-overlay.hidden { display: none; }
+  .confirm-panel {
+    width: min(90vw, 340px); background: var(--panel);
+    border: 1px solid #34508f; border-radius: 14px; box-shadow: var(--shadow);
+    padding: 18px 16px; text-align: center;
+  }
+  .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
+  .confirm-msg b { color: var(--accent-2); }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
+  .confirm-cancel { background: #243154; color: var(--text); }
+  .confirm-danger { background: #c0392b; color: #fff; }
+  .confirm-actions button:active { transform: scale(0.97); }
+
   /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
      with a cell per column so each icon is centered over its column AND all
      icons are level (the columns below stay vertically centered, so shorter
@@ -1333,9 +1366,22 @@
     <div class="store-section">Pillars — pick one, then a column</div>
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
+    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pillar</button>
     <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
+  </div>
+
+  <!-- Trash-Pillar confirmation — destroys the column's Pillar permanently
+       (no refund, no return to inventory). Guards against an accidental tap. -->
+  <div class="confirm-overlay hidden" id="trashConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="trashConfirmMsg">Trash this Pillar?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="trashCancelBtn" type="button">Cancel</button>
+        <button class="confirm-danger" id="trashOkBtn" type="button">Trash</button>
+      </div>
+    </div>
   </div>
 
   <!-- Deck inspection: full breakdown modal (tap) -->
@@ -1399,7 +1445,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.34.0";
+const APP_VERSION = "v0.35.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1451,8 +1497,8 @@ const StickerTypes = (() => {
                   description: "When this card is drawn and lands on a surviving pile, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
     twoTribute: { id: "twoTribute", label: "Tribute II",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
                   description: "When this card is drawn and lands on a surviving pile, bury 2 cards from the deck under it (hidden) and pay 4 bonus coins." },
-    centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, centerOnly: true, tier: "rare", price: 5,
-                  description: "When this card is drawn and lands on a surviving pile in the MIDDLE column, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
+    centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
+                  description: "When a card lands on a surviving pile in the middle column, buries 1 deck-bottom card under it (hidden). No coin cost." },
     deathBounty: { id: "deathBounty", label: "Death Bounty", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
                   description: "If this card is drawn and its wrong guess KILLS the pile, gain 2 bonus coins anyway — a consolation that still pays into your coin total." },
     heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
@@ -3302,6 +3348,11 @@ const UIRenderer = (() => {
     buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
+    trashPillarBtn: document.getElementById("trashPillarBtn"),
+    trashConfirm: document.getElementById("trashConfirm"),
+    trashConfirmMsg: document.getElementById("trashConfirmMsg"),
+    trashCancelBtn: document.getElementById("trashCancelBtn"),
+    trashOkBtn: document.getElementById("trashOkBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     itemHelp: document.getElementById("itemHelp"),
@@ -3353,6 +3404,7 @@ const UIRenderer = (() => {
   let selectedStickerSlot = null;
   let armedPillarSlot = null;
   let armedSlotMove = null;
+  let trashPendingCol = null;   // column awaiting trash confirmation, or null
   // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
   // Tap a "?" to toggle; tap anything else (swallowed) to dismiss.
   let openHelpKey = null;
@@ -4012,6 +4064,32 @@ const UIRenderer = (() => {
       if (chip) tapPillarSlot(Number(chip.dataset.col));
     });
     el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceAndStart(); });
+
+    // Trash a Pillar: open a confirm dialog for the armed column's Pillar.
+    el.trashPillarBtn.addEventListener("click", () => {
+      if (armedSlotMove == null) return;
+      const pid = campaign.columnPillar(armedSlotMove);
+      const t = pid ? PillarTypes.get(pid) : null;
+      if (!t) return;
+      trashPendingCol = armedSlotMove;
+      el.trashConfirmMsg.innerHTML = "Trash <b>" + t.label + "</b>? This permanently removes it — no refund.";
+      el.trashConfirm.classList.remove("hidden");
+    });
+    el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
+    el.trashConfirm.addEventListener("click", (e) => { if (e.target === el.trashConfirm) closeTrashConfirm(); });
+    el.trashOkBtn.addEventListener("click", () => {
+      if (trashPendingCol != null && campaign) {
+        const pid = campaign.columnPillar(trashPendingCol);
+        const t = pid ? PillarTypes.get(pid) : null;
+        campaign.setColumnPillar(trashPendingCol, null);   // permanent — no refund, no inventory
+        if (engine) engine.logAction("Store: trashed Pillar " + ((t && t.label) || pid) + " from column " + (trashPendingCol + 1));
+        el.storeMsg.textContent = "Pillar trashed — column " + (trashPendingCol + 1) + " is now empty.";
+      }
+      closeTrashConfirm();
+      armedSlotMove = null;
+      renderStore();   // re-renders + persists the removal (survives a refresh)
+      refreshDebug();
+    });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -4745,6 +4823,15 @@ const UIRenderer = (() => {
            : '<span class="ps-empty">＋</span>');
       el.pillarSlots.appendChild(chip);
     });
+
+    // Trash control: shown only while a FILLED column is armed (so trashing
+    // takes a deliberate select-then-trash-then-confirm, never an accidental tap).
+    const armedPid = armedSlotMove != null ? campaign.columnPillar(armedSlotMove) : null;
+    el.trashPillarBtn.classList.toggle("hidden", !armedPid);
+    if (armedPid) {
+      const t = PillarTypes.get(armedPid);
+      el.trashPillarBtn.textContent = "🗑 Trash " + ((t && t.label) || "Pillar");
+    }
   }
 
   /* Tap an offered sticker SLOT to select it (highlight) — does NOT buy.
@@ -4815,7 +4902,7 @@ const UIRenderer = (() => {
     if (armedSlotMove === null) {
       if (campaign.columnPillar(col)) {
         armedSlotMove = col;
-        el.storeMsg.textContent = "Tap another column to swap, or tap again to cancel.";
+        el.storeMsg.textContent = "Tap another column to swap, 🗑 Trash to remove it, or tap again to cancel.";
       }
     } else if (armedSlotMove === col) {
       armedSlotMove = null;
@@ -4839,10 +4926,16 @@ const UIRenderer = (() => {
     }
   }
 
+  function closeTrashConfirm() {
+    el.trashConfirm.classList.add("hidden");
+    trashPendingCol = null;
+  }
+
   function closeStore() {
     selectedStickerSlot = null;
     armedPillarSlot = null;
     armedSlotMove = null;
+    closeTrashConfirm();
     closeItemHelp();
     el.storeOverlay.classList.add("hidden");
   }
