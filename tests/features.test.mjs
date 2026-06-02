@@ -210,6 +210,47 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "in-column non-♥ top blocks the bonus");
   }
 
+  // --- Suit Bounty pays LIVE during play (not at run end) ---------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start(); e.startRun(["spadeBounty", null, null]);
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9); e.guess(0, "higher");   // correct ♠ guess → +1 live
+    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as it resolves");
+    e.debug.winNow();
+    r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
+  }
+
+  // --- Tracker reconciles: live tally + end-of-run bonuses == summary ----
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start();
+    e.startRun(["spadeBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9); e.guess(0, "higher");          // one ♠ bounty → +1 live
+    r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
+    e.debug.winNow();                                      // all piles alive → Guardian +5
+
+    // Rebuild the run-complete summary exactly as onRunEnd does.
+    const board = payload.board, pp = payload.pillarPayout;
+    const eventBonus = payload.run.bonusCoins;             // live part (Suit Bounty = 1)
+    const bd = Economy.breakdown({
+      won: true, aliveCount: board.aliveCount(), minAliveCards: board.minAliveCards(),
+      extraCoinUnits: board.extraCoinUnits(), pillarBonus: pp.bonus, pillarLines: pp.lines,
+      eventBonus, eventLines: [],
+    });
+    r.eq(pp.bonus, 5, "Column Guardian (col 3 all-alive) pays +5 at run end");
+    // The HUD's folded final value is exactly (total − product) = the summary's
+    // total bonus, and equals live + Guardian + Extra Coin.
+    const finalTracker = bd.total - bd.product;
+    r.eq(finalTracker, eventBonus + pp.bonus + bd.extraCoinBonus, "final tracker = live + Guardian + Extra Coin");
+    r.eq(finalTracker, 6, "final bonus reconciles to the summary: 1 live + 5 Guardian = 6");
+  }
+
   // --- Economy folds the live bonus into the total ----------------------
   {
     const withEvent = Economy.breakdown({

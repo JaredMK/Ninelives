@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.26.0";
+const APP_VERSION = "v0.27.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1383,7 +1383,7 @@ const StickerTypes = (() => {
     extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 6,
                   description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
     middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 6,
-                  description: "When this card is drawn and lands on a pile in the MIDDLE column, immediately gain 2 bonus coins." },
+                  description: "When this card is drawn and lands on a SURVIVING pile in the middle column (a correct guess), immediately gain 2 bonus coins." },
     gainCoin:   { id: "gainCoin",   label: "Lucky Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "rare", price: 5,
                   description: "When this card is drawn and lands on a SURVIVING pile, immediately gain 1 bonus coin." },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "uncommon", price: 4,
@@ -1987,15 +1987,9 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
           }
-        } else if (t.effect === "suitBounty") {
-          // value coins per qualifying correct guess tallied during the run.
-          const hits = run.suitBountyHits ? (run.suitBountyHits[col] || 0) : 0;
-          const amount = hits * t.value;
-          if (amount > 0) {
-            bonus += amount;
-            lines.push({ label: t.label, detail: hits + " × " + t.suit, amount });
-          }
         }
+        // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
+        // the bonus tally (see guess()), so adding it again here would double it.
       }
       return { bonus, lines };
     }
@@ -2032,9 +2026,11 @@ const GameEngine = (() => {
         sameTributesUsed: cols ? new Array(cols.length).fill(0) : null,
         sameValueTributesUsed: cols ? new Array(cols.length).fill(0) : null,
         // Live bonus-coin tally: starts at 0, moves the instant a bonus coin is
-        // earned or spent during play (Middle Reward, Lucky Coin, Tribute costs,
-        // All Hearts). The HUD shows it live; the payout folds it in at run end.
-        // bonusEvents itemizes it (label → running amount) for the breakdown.
+        // earned or spent during play (Suit Bounty, Middle Reward, Lucky Coin,
+        // Tribute costs, All Hearts). bonusCoins == Σ bonusEvents during play;
+        // at run end the UI folds in the end-of-run bonuses (Extra Coin, Column
+        // Guardian) so the tracker's final value equals the summary's total
+        // bonus. bonusEvents itemizes the live part (label → running amount).
         bonusCoins: 0,
         bonusEvents: {},
       };
@@ -2097,11 +2093,13 @@ const GameEngine = (() => {
       if (correct) run.correctGuesses++;
 
       // Suit Bounty: a correct guess made while a matching-suit card is showing
-      // (the card guessed against) earns the column its bounty, tallied here and
-      // paid at run end. One Pillar per column, so this can't double-count.
+      // (the card guessed against) earns the column its bounty. Paid LIVE into
+      // the bonus tally as it resolves (and tallied in suitBountyHits for the
+      // itemized "N × suit" count). One Pillar per column, so no double-count.
       if (correct && pillar && pillar.effect === "suitBounty" && current.suit === pillar.suit
           && run.suitBountyHits) {
         run.suitBountyHits[run.pileColumns[index]] += 1;
+        addBonus(pillar.label, pillar.value || 0);
       }
 
       if (correct) {
@@ -4019,8 +4017,9 @@ const UIRenderer = (() => {
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
     // on the win payload; default to nothing for legacy/no-layout runs.
     const pp = payload.pillarPayout || { bonus: 0, lines: [] };
-    // Live in-run bonus coins accrued during play (Middle Reward, Lucky Coin,
-    // Tribute costs, All Hearts), itemized straight from the run's tally.
+    // Live in-run bonus coins accrued during play (Suit Bounty, Middle Reward,
+    // Lucky Coin, Tribute costs, All Hearts), itemized straight from the run's
+    // tally. run.bonusCoins == Σ bonusEvents during play.
     const run = payload.run || {};
     const eventLines = Object.entries(run.bonusEvents || {})
       .map(([label, amount]) => ({ label, amount }));
@@ -4040,6 +4039,14 @@ const UIRenderer = (() => {
     });
     if (payout.total > 0) campaign.earnCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
+
+    // Fold the end-of-run bonuses (Extra Coin, Column Guardian) into the live
+    // bonus tracker so its FINAL value equals the summary's total bonus
+    // (everything except the piles × smallest product). This is what the player
+    // sees if they hold-to-peek the board behind the run-complete screen, so it
+    // must reconcile exactly. Display-only — payout above is already computed.
+    run.bonusCoins = payout.total - payout.product;
+    renderHud(board, payload.deck);
 
     if (campaign.isComplete()) {
       showCampaignComplete();
