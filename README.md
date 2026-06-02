@@ -125,6 +125,11 @@ is the single source of truth for each one's in-store help text. Highlights
 | **Lucky Coin** 🍀 | +1 bonus coin when it lands on a surviving pile |
 | **Tribute I / II** 🪦 ⚰️ | On a surviving landing, bury 1 / 2 deck cards under the pile; costs 1 / 4 bonus coins |
 | **Center Tribute** 🗿 | Tribute I, but only in the middle column |
+| **Death Bounty** 💀 | If this card is drawn and its wrong guess kills the pile, +2 bonus coins anyway |
+| **Heavy** 🧱 | Counts as 2 toward pile size everywhere (payout factor, Extra Coin, badge) — even buried |
+| **Collector** 🧲 | At run end (alive on top), +1 per other sticker on it |
+| **Compound** 📈 | Banks (correct guesses against it − 1) across the campaign; pays it if alive on top; resets on loss |
+| **Wallflower** 🌼 | +10 at run end if you never guessed on the pile (burns underneath don't disqualify) |
 
 **Pillars** are column modifiers (bought in the store, one per column slot,
 bindings persist between runs) whose effect applies to every pile in their
@@ -132,8 +137,13 @@ column for the run — see `PillarTypes`. They include the four **Suit Bounties*
 (+1 per correct guess off a matching-suit top), **Column Tie-Safe**, **Column
 Guardian** (+5 if the whole column survives), **8 Tribute** / **Same Tribute**
 (bury a deck card on a drawn 8 / a survived tie — now **uncapped**), **Double
-Tribute** 🏺 (buries *two* on a survived tie), and **All Hearts** 💗 (board-wide
-+5 each post-draw check where every alive pile shows a ♥).
+Tribute** 🏺 (buries *two* on a survived tie), **All Hearts** 💗 (column-wide +5
+each post-draw check where every alive pile in the column shows a ♥), **Envy**
+💚 / **Symmetry** 🪞 (end-of-run column-neighbour bonuses, with wraparound),
+**Streak Bank** 🏦 / **Streak Tribute** 🔥 (consecutive in-column correct
+guesses pay / bury), **Second Wind** 🌬️ (revive the first pile to die in the
+column each run), and **Greedy** 🤑 (+30 if its column survives and it's the
+*only* Pillar on the board).
 
 **Applying** happens during a **pre-play window** each run: right after the
 deal you may apply owned stickers to any pile's **face-up top card** (arm one
