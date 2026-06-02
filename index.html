@@ -252,6 +252,7 @@
     gap: var(--gap);
     width: min(96vw, 460px);
     margin: 0 auto;
+    -webkit-touch-callout: none;   /* press-and-hold to peek shouldn't pop the iOS callout */
   }
   /* The columns themselves — the old board row, now a child of .board so a
      single Pillar-indicator row can sit level above ALL columns. */
@@ -996,6 +997,26 @@
     box-shadow: var(--shadow);
   }
   .deck-quick.hidden { display: none; }
+
+  /* Card / Pillar hold-to-peek info — floats like the deck quick-view and never
+     intercepts input (so release is detected on the board and dismisses it). */
+  .peek-info {
+    position: fixed; left: 50%; top: 15%; transform: translateX(-50%);
+    z-index: 64; pointer-events: none;
+    width: min(92vw, 360px); max-height: 66vh; overflow: hidden;
+    background: rgba(13, 20, 38, 0.98); border: 1px solid #34508f;
+    border-radius: 12px; box-shadow: var(--shadow);
+    padding: 11px 13px; font-size: 13px; color: var(--text);
+  }
+  .peek-info.hidden { display: none; }
+  .peek-info .pk-head { font-weight: 800; font-size: 14px; margin-bottom: 7px; color: var(--accent-2); }
+  .peek-info .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  .peek-info .pk-item:first-of-type { border-top: none; }
+  .peek-info .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
+  .peek-info .pk-name { font-weight: 700; }
+  .peek-info .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
+  .peek-info .pk-state { color: #f2c94c; font-size: 11.5px; margin-top: 3px; }
+  .peek-info .pk-empty { color: var(--muted); font-style: italic; }
   .deck-quick-total {
     font-weight: 800;
     font-size: 13px;
@@ -1336,6 +1357,10 @@
     <div class="deck-quick-grid" id="deckQuickGrid"></div>
   </div>
 
+  <!-- Card / Pillar info: revealed while press-and-holding a pile or a Pillar
+       indicator during play; dismissed on release. Reads registry descriptions. -->
+  <div class="peek-info hidden" id="peekInfo"></div>
+
   <!-- Store item help: revealed while holding an item's "?" (press & hold) -->
   <div class="item-help hidden" id="itemHelp"></div>
 
@@ -1374,7 +1399,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.33.0";
+const APP_VERSION = "v0.34.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -3302,6 +3327,7 @@ const UIRenderer = (() => {
     debugCoin10: document.getElementById("debugCoin10"),
     debugCoin50: document.getElementById("debugCoin50"),
     debugCoin100: document.getElementById("debugCoin100"),
+    peekInfo: document.getElementById("peekInfo"),
     debugVer: document.getElementById("debugVer"),
     debugLog: document.getElementById("debugLog"),
     debugPeekOut: document.getElementById("debugPeekOut"),
@@ -3496,6 +3522,59 @@ const UIRenderer = (() => {
         " · 🪙 " + campaign.getCoins();
     }
   }
+
+  /* ---- hold-to-peek info popup (cards + Pillars) ----
+     Presentation only: descriptions come straight from the registries (same
+     text as the store help). Opens on press-and-hold, dismisses on release;
+     the popup is pointer-events:none so it never intercepts the board's release
+     and never triggers pile selection / a guess / sticker application. */
+  function escHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function cardPeekHtml(card) {
+    if (!card) return '<div class="pk-empty">No card here.</div>';
+    const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
+    const stickers = card.stickers || [];
+    if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
+    const counts = {};
+    stickers.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
+    let body = "";
+    StickerTypes.all().forEach(t => {
+      const n = counts[t.id];
+      if (!n) return;
+      let state = "";
+      if (t.id === "extraHeart") state = "Hearts remaining: " + (card.heartsRemaining || 0) + " of " + n;
+      else if (t.id === "suitImmunity") state = "Charge: " + (card.spadeImmunity ? "ready" : "spent");
+      else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
+      body +=
+        '<div class="pk-item"><span class="pk-ic">' + t.icon + "</span><span>" +
+          '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
+          '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
+          (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
+        "</span></div>";
+    });
+    return head + body;
+  }
+  function pillarPeekHtml(col) {
+    const binding = campaign ? campaign.getColumnPillars() : [];
+    const pid = binding[col];
+    if (!pid) return '<div class="pk-head">Column ' + (col + 1) + '</div><div class="pk-empty">No Pillar on this column.</div>';
+    const t = PillarTypes.get(pid);
+    if (!t) return '<div class="pk-empty">Unknown Pillar.</div>';
+    return '<div class="pk-head">' + t.icon + " " + escHtml(t.label) + "</div>" +
+      '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
+      '<div class="pk-state">Applies to column ' + (col + 1) + "</div>";
+  }
+  function openCardPeek(index) {
+    if (!engine) return;
+    el.peekInfo.innerHTML = cardPeekHtml(engine.getBoard().top(index));
+    el.peekInfo.classList.remove("hidden");
+  }
+  function openPillarPeek(col) {
+    el.peekInfo.innerHTML = pillarPeekHtml(col);
+    el.peekInfo.classList.remove("hidden");
+  }
+  function closePeekInfo() { el.peekInfo.classList.add("hidden"); }
 
   /* ---- selection / action sheet ---- */
   function selectPile(index) {
@@ -3808,8 +3887,38 @@ const UIRenderer = (() => {
       setTimeout(() => { lastVW = lastVH = 0; refitIfChanged(); }, 300);
     });
 
-    // Tap a pile: apply an armed sticker, or select it for a guess.
+    // Hold-to-peek: press-and-hold a pile (top card) or a Pillar indicator to
+    // reveal its info; release dismisses it. Matches the deck quick-view gesture.
+    // A hold suppresses the ensuing click so it never selects / guesses / applies.
+    const PEEK_HOLD_MS = 180;
+    let peekTimer = null, peeking = false, suppressPileClick = false;
+    el.board.addEventListener("pointerdown", (e) => {
+      suppressPileClick = false;
+      clearTimeout(peekTimer);
+      peeking = false;
+      const cell = e.target.closest(".bp-cell");
+      const pileEl = cell ? null : e.target.closest(".pile");
+      if (!cell && !pileEl) return;
+      if (cell) {
+        const col = Number(cell.dataset.col);
+        peekTimer = setTimeout(() => { peeking = true; openPillarPeek(col); }, PEEK_HOLD_MS);
+      } else {
+        const index = Number(pileEl.dataset.index);
+        peekTimer = setTimeout(() => { peeking = true; openCardPeek(index); }, PEEK_HOLD_MS);
+      }
+    });
+    const endPeek = () => {
+      clearTimeout(peekTimer);
+      if (peeking) { peeking = false; suppressPileClick = true; closePeekInfo(); }
+    };
+    el.board.addEventListener("pointerup", endPeek);
+    el.board.addEventListener("pointerleave", endPeek);
+    el.board.addEventListener("pointercancel", endPeek);
+
+    // Tap a pile: apply an armed sticker, or select it for a guess. A hold that
+    // just opened the peek sets suppressPileClick, so the release won't act.
     el.board.addEventListener("click", (e) => {
+      if (suppressPileClick) { suppressPileClick = false; return; }
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
       const index = Number(pileEl.dataset.index);
@@ -4298,6 +4407,7 @@ const UIRenderer = (() => {
     for (let c = 0; c < cols.length; c++) {
       const cell = document.createElement("div");
       cell.className = "bp-cell";
+      cell.dataset.col = c;   // for the hold-to-peek Pillar info popup
       pillarRow.appendChild(cell);
     }
     el.board.appendChild(pillarRow);
