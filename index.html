@@ -1750,6 +1750,45 @@ const PillarTypes = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   PackTypes — the data-driven registry for CARD PACKS and STICKER PACKS,
+   a third store section. Buying a pack reveals `size` random items; the
+   player keeps `keep` of them (card-pack picks go to the pending pack tray
+   for pre-run deck replacement; sticker-pack picks go straight to the normal
+   sticker inventory). Pure data — the buy/reveal/pick logic lives in
+   CampaignState; the store UI reads these fields. Fixed price, no escalation.
+---------------------------------------------------------------- */
+const PackTypes = (() => {
+  const TYPES = {
+    cardPack3: {
+      id: "cardPack3", label: "3-Card Pack", icon: "🎴", kind: "card",
+      size: 3, keep: 1, price: 10,
+      description: "Reveals 3 random cards — keep 1 in your pack tray to replace a dealt card before a run. The rest are discarded.",
+    },
+    cardPack5: {
+      id: "cardPack5", label: "5-Card Pack", icon: "🎴", kind: "card",
+      size: 5, keep: 1, price: 15,
+      description: "Reveals 5 random cards — keep 1 in your pack tray to replace a dealt card before a run. The rest are discarded.",
+    },
+    stickerPack3: {
+      id: "stickerPack3", label: "3-Sticker Pack", icon: "📦", kind: "sticker",
+      size: 3, keep: 1, price: 3,
+      description: "Reveals 3 random stickers — keep 1 (straight to your inventory). The rest are discarded.",
+    },
+    stickerPack5: {
+      id: "stickerPack5", label: "5-Sticker Pack", icon: "📦", kind: "sticker",
+      size: 5, keep: 2, price: 5,
+      description: "Reveals 5 random stickers — keep 2 (straight to your inventory). The rest are discarded.",
+    },
+  };
+  const ORDER = ["cardPack3", "cardPack5", "stickerPack3", "stickerPack5"];
+  return {
+    ids: ORDER,
+    get(id) { return TYPES[id] || null; },
+    all() { return ORDER.map(id => TYPES[id]); },
+  };
+})();
+
+/* ----------------------------------------------------------------
    Economy — pure coin payout (no DOM, no state). Coins are awarded on
    a WIN only; every coefficient is a named config constant.
 ---------------------------------------------------------------- */
@@ -2738,6 +2777,56 @@ const CampaignState = (() => {
     }
     return out;
   }
+
+  // Pack tray cap: at most this many pending CARD-pack picks held at once.
+  const PACK_TRAY_CAP = 2;
+  // All suit symbols (for the default — unrestricted — Change-Suit Random pick).
+  const ALL_SUITS = DeckManager.SUITS.map(s => s.symbol);
+
+  /** Sticker types whose required suit (if any) is currently in play — so a
+      rolled sticker never depends on a not-yet-present suit. (Only Change-to-♠/♥
+      carry a suit today, and both are always in play, so nothing is excluded
+      yet; the filter keeps it correct if ♦/♣-targeting stickers are ever added.) */
+  function stickerPoolForSuits(suitsInPlay) {
+    return StickerTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
+  }
+
+  /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
+      deck cards) and pack-card generation. opts.rng seeds the random rank/suit
+      picks (deterministic for tests); opts.suits limits Change-Suit Random to a
+      suit set (in-play suits for pack cards; all suits for normal application).
+      Returns false (without attaching) if a rank sticker is at its boundary. */
+  function applyStickerToCard(card, typeId, opts) {
+    opts = opts || {};
+    const rng = opts.rng || Math.random;
+    const suits = opts.suits || ALL_SUITS;
+    const t = StickerTypes.get(typeId);
+    if (!t) return false;
+    if (t.kind === "rank") {
+      if (t.rankDelta > 0 && card.currentRank >= MAX_RANK) return false;
+      if (t.rankDelta < 0 && card.currentRank <= MIN_RANK) return false;
+      const from = card.currentRank;
+      card.currentRank = Math.max(MIN_RANK, Math.min(MAX_RANK, from + t.rankDelta));
+      card.modifications.push({ op: t.rankDelta > 0 ? "increase" : "decrease", from, to: card.currentRank });
+    } else if (t.behavior === "randomFixedValue") {
+      const from = card.currentRank;
+      card.currentRank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
+      card.modifications.push({ op: "randomRank", from, to: card.currentRank });
+    } else if (t.behavior === "changeSuitTo") {
+      const from = card.suit; card.suit = t.suit;
+      card.modifications.push({ op: "changeSuit", from, to: card.suit });
+    } else if (t.behavior === "changeSuitRandom") {
+      const others = suits.filter(s => s !== card.suit);
+      if (others.length) {
+        const from = card.suit;
+        card.suit = others[Math.floor(rng() * others.length)];
+        card.modifications.push({ op: "changeSuit", from, to: card.suit });
+      }
+    }
+    card.stickers.push({ type: typeId });
+    return true;
+  }
+
   /** A fresh offering: random sticker + Pillar slots, reroll cost at base. */
   function freshOffer() {
     return {
@@ -2771,6 +2860,11 @@ const CampaignState = (() => {
     // (so a re-render can't re-roll for free); regenerated on each store open;
     // wiped on reset(). null until the first store opens.
     let storeOffer = null;
+    // Card Packs: pending CARD-pack picks (≤ PACK_TRAY_CAP), held until used to
+    // replace a dealt card in the pre-run phase. Persists across runs; wiped on
+    // loss. nextCardId mints unique ids for pack cards (base deck is ids 0..51).
+    let packTray = [];
+    let nextCardId = 52;
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -3050,37 +3144,83 @@ const CampaignState = (() => {
       },
       canApplyStickerById(id, typeId) { return this.canApplySticker(findById(id), typeId); },
 
-      /** Apply a sticker to a specific persistent card. Returns true if applied. */
+      /** Apply a sticker to a specific persistent card. Returns true if applied.
+          Delegates to the shared applyStickerToCard (Change-Suit Random spans all
+          suits here, matching the original behavior). */
       applySticker(id, typeId) {
         const card = findById(id);
         if (!this.canApplySticker(card, typeId)) return false;
-        const t = StickerTypes.get(typeId);
-        if (t.kind === "rank") {
-          const from = card.currentRank;
-          // Clamp to [MIN_RANK, MAX_RANK] so a ±2 near a boundary lands on the
-          // edge (e.g. +2 on a King → Ace) instead of overshooting.
-          card.currentRank = Math.max(MIN_RANK, Math.min(MAX_RANK, from + t.rankDelta));
-          card.modifications.push({
-            op: t.rankDelta > 0 ? "increase" : "decrease", from, to: card.currentRank,
-          });
-        } else if (t.behavior === "randomFixedValue") {
-          // One-time gamble: set the rank to a random value in [MIN_RANK, MAX_RANK].
-          const from = card.currentRank;
-          card.currentRank = MIN_RANK + Math.floor(Math.random() * (MAX_RANK - MIN_RANK + 1));
-          card.modifications.push({ op: "randomRank", from, to: card.currentRank });
-        } else if (t.behavior === "changeSuitTo") {
-          // Set the suit to a specific target (rank untouched).
-          const from = card.suit;
-          card.suit = t.suit;
-          card.modifications.push({ op: "changeSuit", from, to: card.suit });
-        } else if (t.behavior === "changeSuitRandom") {
-          // Change to a random DIFFERENT suit (rank untouched).
-          const others = DeckManager.SUITS.map(s => s.symbol).filter(s => s !== card.suit);
-          const from = card.suit;
-          card.suit = others[Math.floor(Math.random() * others.length)];
-          card.modifications.push({ op: "changeSuit", from, to: card.suit });
+        return applyStickerToCard(card, typeId);
+      },
+
+      /* ---- Card Packs & Sticker Packs (reveal / pick / pending tray) ----
+         Reveal logic is pure + rng-injectable (DOM-free, testable). Card packs
+         reveal CARD objects; sticker packs reveal STICKER ids. Both roll their
+         stickers rarity-weighted + suit-locked (see stickerPoolForSuits). */
+
+      /** Generate ONE fresh pack card: a unique id, a random rank (2–A), a
+          random IN-PLAY suit, and a rolled sticker set (20% one / 4% two / 76%
+          none), each rolled rarity-weighted + suit-locked and applied to the
+          card (rank/suit stickers mutate it; Change-Suit Random stays in-play). */
+      genPackCard(rng = Math.random) {
+        const suits = suitsForStage(currentStage);
+        const suit = suits[Math.floor(rng() * suits.length)];
+        const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
+        const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
+        const roll = rng();
+        const n = roll < 0.04 ? 2 : roll < 0.24 ? 1 : 0;   // 4% two, 20% one, 76% none
+        const pool = stickerPoolForSuits(suits);
+        for (let k = 0; k < n; k++) {
+          const sid = rollIds(pool, 1, rng)[0];
+          applyStickerToCard(card, sid, { rng, suits });
         }
-        card.stickers.push({ type: typeId });
+        return card;
+      },
+
+      /** Reveal a pack's items. Card pack → array of `size` card objects.
+          Sticker pack → array of `size` sticker ids (rarity-weighted, suit-locked,
+          dupes allowed — like the store roll). */
+      revealPack(packId, rng = Math.random) {
+        const t = PackTypes.get(packId);
+        if (!t) return [];
+        if (t.kind === "card") {
+          const out = [];
+          for (let i = 0; i < t.size; i++) out.push(this.genPackCard(rng));
+          return out;
+        }
+        return rollIds(stickerPoolForSuits(suitsForStage(currentStage)), t.size, rng);
+      },
+
+      /* ---- pending pack tray (card-pack picks) ---- */
+      packTrayCap: PACK_TRAY_CAP,
+      packTrayCount() { return packTray.length; },
+      getPackTray() {
+        return packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) }));
+      },
+      /** Hold a revealed CARD-pack pick. { ok:true } on success, or
+          { ok:false, full:true } when the tray is already at the cap (the UI then
+          makes the player discard one first). */
+      addPackCard(card) {
+        if (!card) return { ok: false };
+        if (packTray.length >= PACK_TRAY_CAP) return { ok: false, full: true };
+        packTray.push(card);
+        return { ok: true };
+      },
+      discardPackCard(index) {
+        if (index >= 0 && index < packTray.length) { packTray.splice(index, 1); return true; }
+        return false;
+      },
+      /** Take a held pack card OUT of the tray (used by a pre-run replacement). */
+      takePackCard(index) {
+        if (index >= 0 && index < packTray.length) return packTray.splice(index, 1)[0];
+        return null;
+      },
+
+      /** Keep a revealed STICKER-pack pick: straight into the normal inventory
+          (no cost — the pack was already paid for; applied like any owned sticker). */
+      addStickerToInventory(id) {
+        if (!StickerTypes.get(id)) return false;
+        stickerInventory[id] = (stickerInventory[id] || 0) + 1;
         return true;
       },
 
@@ -3111,6 +3251,8 @@ const CampaignState = (() => {
         stickerInventory = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
         storeOffer = null;
+        packTray = [];
+        nextCardId = 52;
       },
 
       /* ---- persistence (save/resume) ----
@@ -3129,6 +3271,8 @@ const CampaignState = (() => {
           columnPillars: columnPillars.slice(),
           storeOffer: storeOffer ? JSON.parse(JSON.stringify(storeOffer)) : null,
           baseDeck: this._copyCards(),
+          packTray: packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) })),
+          nextCardId,
         };
       },
 
@@ -3156,6 +3300,14 @@ const CampaignState = (() => {
           modifications: (c.modifications || []).slice(),
           stickers: (c.stickers || []).map(x => ({ ...x })),
         }));
+        // Card Packs (default for saves written before packs existed).
+        packTray = Array.isArray(s.packTray)
+          ? s.packTray.map(c => ({ ...c, modifications: (c.modifications || []).slice(), stickers: (c.stickers || []).map(x => ({ ...x })) }))
+          : [];
+        const maxBaseId = baseDeck.reduce((m, c) => Math.max(m, c.id), 51);
+        const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
+        nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
+          ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
         return true;
       },
     };
