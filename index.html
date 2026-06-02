@@ -1445,7 +1445,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.35.0";
+const APP_VERSION = "v0.36.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1550,22 +1550,22 @@ const PillarTypes = (() => {
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin for each correct guess made while a ♠ card is showing on a pile in this column.",
+      description: "+1 coin each time a ♠ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Bounty", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin for each correct guess made while a ♥ card is showing on a pile in this column.",
+      description: "+1 coin each time a ♥ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin for each correct guess made while a ♦ card is showing on a pile in this column.",
+      description: "+1 coin each time a ♦ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bounty", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin for each correct guess made while a ♣ card is showing on a pile in this column.",
+      description: "+1 coin each time a ♣ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
@@ -2414,11 +2414,11 @@ const GameEngine = (() => {
         run.compoundUpdates[current.id] = current.compoundHits;
       }
 
-      // Suit Bounty: a correct guess made while a matching-suit card is showing
-      // (the card guessed against) earns the column its bounty. Paid LIVE into
-      // the bonus tally as it resolves (and tallied in suitBountyHits for the
-      // itemized "N × suit" count). One Pillar per column, so no double-count.
-      if (correct && pillar && pillar.effect === "suitBounty" && current.suit === pillar.suit
+      // Suit Bounty: when a matching-suit card LANDS on a surviving pile in this
+      // column (a correct guess that places the drawn card on top), earn the
+      // column its bounty. Paid LIVE into the bonus tally as it resolves (and
+      // tallied in suitBountyHits). One Pillar per column, so no double-count.
+      if (correct && pillar && pillar.effect === "suitBounty" && drawn.suit === pillar.suit
           && run.suitBountyHits) {
         run.suitBountyHits[run.pileColumns[index]] += 1;
         addBonus(pillar.label, pillar.value || 0);
