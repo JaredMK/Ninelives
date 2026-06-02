@@ -175,8 +175,8 @@
 
   /* Deck counter row — below the board, right-aligned (reference info). */
   .board-foot {
-    width: min(94vw, 430px);
-    margin: 6px auto 0;
+    width: min(99vw, 680px);
+    margin: 4px auto 0;
     display: flex;
     justify-content: flex-end;
     align-items: center;
@@ -185,7 +185,7 @@
   .board-foot .deck-stat { font-size: 13px; padding: 6px 13px; }
   /* Graph toggle (📊) — sits in its own thin row directly above the strip. */
   .strip-toggle-row {
-    width: min(96vw, 460px);
+    width: min(99vw, 680px);
     margin: 3px auto 0;
     display: flex; justify-content: center;
   }
@@ -207,7 +207,7 @@
      ============================================================ */
   .deck-strip {
     position: relative;
-    width: min(96vw, 460px);
+    width: min(99vw, 680px);
     margin: 4px auto 0;
     padding: 3px 4px 0;
     touch-action: none;            /* drag scrubs, never scrolls the locked page */
@@ -216,7 +216,7 @@
   .deck-strip.hidden { display: none; }
   .ds-bars {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; height: 92px;
+    gap: 2px; height: 64px;
   }
   .ds-bar {
     flex: 1 1 0; min-width: 0;
@@ -275,28 +275,29 @@
   }
 
   .board {
-    /* WIDTH-derived edge: the board width split into the 3 COLUMNS minus the
-       2 inter-column gaps. (The board only ever has three columns, so divide
-       by 3 — not by the tallest-column count — to actually use the width.) */
-    --pile-w: calc((min(96vw, 460px) - 2 * var(--gap)) / 3);
-    /* HEIGHT-derived cap: the tallest column is 4 piles tall (Run 1). Reserve
-       the surrounding chrome (header, HUD, deck/hint/sticker/actions) so even
-       that 4-tall board fits without scrolling on short viewports. svh (the
-       SMALL viewport — dynamic toolbars shown) so the size is STABLE: it does
-       not change when mobile Safari's URL bar / banner show or hide. */
+    /* WIDTH-derived: the FULL screen width split into the 3 COLUMNS minus the
+       2 inter-column gaps, so the cards span the whole width (was capped at
+       460px, which left big side margins). */
+    --pile-w: calc((min(99vw, 680px) - 2 * var(--gap)) / 3);
+    /* HEIGHT-derived: the tallest column is 4 piles tall (Run 1). Reserve the
+       surrounding chrome so that 4-tall board fits without scrolling. svh keeps
+       it stable across Safari's toolbar show/hide. */
     --board-reserve: 22rem;   /* fixed chrome above/below the board */
     --pile-h: calc((100vh  - var(--board-reserve) - 3 * var(--gap)) / 4);
     --pile-h: calc((100svh - var(--board-reserve) - 3 * var(--gap)) / 4);
-    /* Uniform pile size = the smaller of the two. Roomy phones: height governs
-       and piles grow to fill the vertical space (columns widen to match, using
-       the horizontal space too). Tight phones: still the smaller value, so the
-       4-tall Run 1 never scrolls. */
-    --pile-size: min(var(--pile-w), var(--pile-h));
+    /* Piles are RECTANGULAR and fill their cell: width = the column width (full
+       width / 3), height = the per-row budget — so the cards use the full width
+       AND the full vertical budget. fitBoard live-measures and overrides these;
+       the calcs above are the pre-measurement fallback. --pile-size (the smaller
+       of the two) only scales the card-face type so glyphs never overflow. */
+    --pile-w-fit: var(--pile-w);
+    --pile-h-fit: var(--pile-h);
+    --pile-size: min(var(--pile-w-fit), var(--pile-h-fit));
     display: flex;
     flex-direction: column;        /* Pillar row on top, then the column grid */
     align-items: center;
     gap: var(--gap);
-    width: min(96vw, 460px);
+    width: min(99vw, 680px);
     margin: 0 auto;
     -webkit-touch-callout: none;   /* press-and-hold shouldn't pop the iOS callout */
     touch-action: none;            /* deliver vertical drag-to-guess as pointer events, not a page pan */
@@ -306,7 +307,7 @@
   .board-grid {
     display: flex;
     flex-direction: row;
-    justify-content: center;   /* center the column group horizontally */
+    justify-content: center;   /* the 3 columns + gaps already fill the width */
     align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
     width: 100%;
@@ -316,7 +317,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--gap);
-    width: var(--pile-size);
+    width: var(--pile-w-fit);
   }
 
   /* ============================================================
@@ -326,12 +327,11 @@
     position: relative;
     perspective: 700px;
     cursor: pointer;
-    /* Every pile is the SAME square in every column/run: it fills its column,
-       whose width is --pile-size. aspect-ratio keeps it square. Card-face type
-       (rank indices + center suit) is sized in terms of --pile-size below, so
-       the glyphs scale WITH the pile and never collide as piles grow. */
+    /* Fill the cell: full column width × the per-row height budget. Card-face
+       type scales with --pile-size (the smaller dimension) so glyphs never
+       collide as piles grow. */
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: var(--pile-h-fit);
   }
 
   .card {
@@ -468,11 +468,11 @@
      ACTION SHEET (Higher / Lower)
      ============================================================ */
   .actions {
-    width: min(96vw, 460px);
+    width: min(99vw, 680px);
     display: grid;
-    grid-template-columns: 42px 1fr 0.62fr 1fr;   /* ? · HIGHER · SAME · LOWER */
+    grid-template-columns: 38px 1fr 0.6fr 1fr;   /* ? · HIGHER · SAME · LOWER */
     gap: 8px;
-    min-height: 40px;
+    min-height: 34px;
     align-items: stretch;
   }
 
@@ -481,10 +481,10 @@
   .btn {
     border: none;
     border-radius: var(--radius);
-    padding: 9px 6px;          /* shorter than before */
-    font-size: 15px;
+    padding: 6px 6px;          /* short, thumb-row along the bottom */
+    font-size: 14px;
     font-weight: 800;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     color: #0c1124;
     box-shadow: var(--shadow);
     cursor: pointer;
@@ -514,9 +514,11 @@
   .hint {
     text-align: center;
     color: var(--muted);
-    font-size: 13px;
-    min-height: 18px;
+    font-size: 11px;
+    min-height: 14px; line-height: 14px;
     padding: 0 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    width: min(99vw, 680px); margin: 0 auto;
   }
 
   /* ============================================================
@@ -808,7 +810,7 @@
     gap: var(--gap); width: 100%; height: 20px;
   }
   .bp-cell {
-    width: var(--pile-size);
+    width: var(--pile-w-fit);
     display: flex; align-items: center; justify-content: center;
   }
   .cph-pill {
@@ -1537,7 +1539,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.39.0";
+const APP_VERSION = "v0.40.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4879,11 +4881,17 @@ const UIRenderer = (() => {
       headGap = gapPx;
     }
     const byHeight = (availH - headH - headGap - (tall - 1) * gapPx) / tall;
-    const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns
-    // Smaller of the two so the board overflows NEITHER dimension; no-scroll
-    // is the priority. 36px floor only guards a degenerate measurement.
-    const size = Math.max(36, Math.min(byWidth, byHeight));
-    el.board.style.setProperty("--pile-size", size + "px");
+    const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns fill the board width
+    // RECTANGULAR fill: width = the full column width, height = the per-row
+    // budget. The board width already equals the viewport (min 99vw), so the
+    // columns span the whole screen; the height budget keeps Run 1 no-scroll.
+    // 36px floors only guard a degenerate (pre-layout) measurement.
+    const w = Math.max(36, byWidth);
+    const h = Math.max(36, byHeight);
+    el.board.style.setProperty("--pile-w-fit", w + "px");
+    el.board.style.setProperty("--pile-h-fit", h + "px");
+    // Card-face type scales with the smaller dimension so glyphs never overflow.
+    el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
   }
 
   function onRunEnd(result, payload) {
