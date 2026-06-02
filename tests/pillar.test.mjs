@@ -76,10 +76,10 @@ export function run() {
     const c = CampaignState.create();
     r.eq(c.priceOf("rankUp"), 3, "+1 Rank = 3");
     r.eq(c.priceOf("changeSuitRandom"), 1, "Change to Random Suit = 1");
-    r.eq(c.priceOf("changeSuitSpade"), 3, "Change to ♠ = 3");
-    r.eq(c.priceOf("changeSuitHeart"), 3, "Change to ♥ = 3");
+    r.eq(c.priceOf("changeSuitSpade"), 2, "Change to ♠ = 2");
+    r.eq(c.priceOf("changeSuitHeart"), 2, "Change to ♥ = 2");
     r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
-    r.eq(c.priceOf("extraCoin"), 6, "Extra Coin = 6");
+    r.eq(c.priceOf("extraCoin"), 3, "Extra Coin = 3");
     r.eq(c.priceOf("extraHeart"), 7, "Extra Heart = 7");
     r.eq(c.priceOf("anchor"), 4, "Anchor = 4 (kept)");
     // Buying never changes a price.
