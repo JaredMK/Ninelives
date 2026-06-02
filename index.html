@@ -196,8 +196,65 @@
     margin: 6px auto 0;
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
   }
   .board-foot .deck-stat { font-size: 13px; padding: 6px 13px; }
+  /* Toggle for the always-on composition strip (📊). Dimmed when the strip is off. */
+  .deck-strip-toggle {
+    background: var(--panel); color: var(--text);
+    border: 1px solid #34508f; border-radius: 999px;
+    width: 34px; height: 32px; font-size: 15px; line-height: 1;
+    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
+  }
+  .deck-strip-toggle.off { opacity: 0.4; }
+  .deck-strip-toggle:active { transform: scale(0.94); }
+
+  /* ============================================================
+     DECK COMPOSITION STRIP — thin always-on bar graph at the bottom.
+     Vertical bar per rank 2→A: grey = total (this stage), blue = remaining,
+     both on a shared absolute scale (set inline). Compact so it never forces
+     a scroll; the scrubber readout is an absolute overlay (adds no height).
+     ============================================================ */
+  .deck-strip {
+    position: relative;
+    width: min(96vw, 460px);
+    margin: 4px auto 0;
+    padding: 3px 4px 0;
+    touch-action: none;            /* drag scrubs, never scrolls the locked page */
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .deck-strip.hidden { display: none; }
+  .ds-bars {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 2px; height: 44px;
+  }
+  .ds-bar {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center;
+    height: 100%;
+  }
+  .ds-track {
+    position: relative; width: 100%; flex: 1 1 auto;
+    border-radius: 2px 2px 0 0; overflow: hidden;
+  }
+  .ds-grey, .ds-blue { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 2px 2px 0 0; }
+  .ds-grey { background: rgba(255,255,255,0.14); }
+  .ds-blue { background: var(--accent-2); }
+  .ds-bar.ds-active .ds-grey { background: rgba(255,255,255,0.28); }
+  .ds-bar.ds-active .ds-blue { background: #ffd166; }
+  .ds-rank { font-size: 8px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+  .ds-bar.ds-active .ds-rank { color: var(--text); }
+  /* Scrubber readout — absolute overlay so it never changes the strip's height. */
+  .ds-scrub {
+    position: absolute; left: 0; right: 0; bottom: 100%;
+    margin-bottom: 2px; text-align: center;
+    font-size: 11px; font-weight: 700; color: var(--text);
+    background: rgba(13,20,38,0.96); border: 1px solid #34508f; border-radius: 8px;
+    padding: 3px 6px; pointer-events: none;
+  }
+  .ds-scrub.hidden { display: none; }
+  .ds-scrub .sc-hi { color: #56cca0; } .ds-scrub .sc-eq { color: #cfd6e6; } .ds-scrub .sc-lo { color: #eb8f8f; }
 
   /* ============================================================
      BOARD
@@ -1258,6 +1315,8 @@
            title="Tap to inspect the remaining deck · hold for a quick peek">
         🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
       </div>
+      <button class="deck-strip-toggle" id="deckStripToggle" type="button"
+              title="Show/hide the deck composition strip" aria-label="Toggle deck composition strip">📊</button>
     </div>
 
     <div class="hint" id="hint">Tap a pile to begin.</div>
@@ -1273,6 +1332,15 @@
       <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next &gt; current</span></button>
       <button class="btn same" id="btnSame">SAME<span class="sub">exact</span></button>
       <button class="btn lower" id="btnLower">LOWER<span class="sub">next &lt; current</span></button>
+    </div>
+
+    <!-- Always-on deck composition strip: remaining (blue) vs total (grey) per
+         rank 2→A, on a shared absolute scale. Drag to scrub higher/same/lower.
+         Toggle via the 📊 button. Presentation only — reads the same counts as
+         the Deck Composition modal; never reveals draw order. -->
+    <div class="deck-strip" id="deckStrip">
+      <div class="ds-scrub hidden" id="deckStripScrub"></div>
+      <div class="ds-bars" id="deckStripBars"></div>
     </div>
   </main>
 
@@ -1445,7 +1513,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.37.0";
+const APP_VERSION = "v0.38.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -3112,6 +3180,15 @@ const SaveStore = (() => {
       if (!available) return;
       try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
     },
+    /* UI prefs (separate from the campaign save; survive a loss/refresh). */
+    getPref(key) {
+      if (!available) return null;
+      try { return localStorage.getItem("ninelives.pref." + key); } catch (e) { return null; }
+    },
+    setPref(key, val) {
+      if (!available) return;
+      try { localStorage.setItem("ninelives.pref." + key, val); } catch (e) { /* ignore */ }
+    },
   };
 })();
 
@@ -3337,6 +3414,11 @@ const UIRenderer = (() => {
     deckQuick: document.getElementById("deckQuick"),
     deckQuickTotal: document.getElementById("deckQuickTotal"),
     deckQuickGrid: document.getElementById("deckQuickGrid"),
+    // deck composition strip (always-on)
+    deckStrip: document.getElementById("deckStrip"),
+    deckStripBars: document.getElementById("deckStripBars"),
+    deckStripScrub: document.getElementById("deckStripScrub"),
+    deckStripToggle: document.getElementById("deckStripToggle"),
     // store (between runs)
     storeOverlay: document.getElementById("storeOverlay"),
     storeMsg: document.getElementById("storeMsg"),
@@ -3389,6 +3471,9 @@ const UIRenderer = (() => {
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
+  let deckStripOn = true;     // always-on composition strip visible? (persisted)
+  let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
+  let stripScrubbing = false;
 
   // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
@@ -3562,6 +3647,82 @@ const UIRenderer = (() => {
       el.bonusCoins.classList.toggle("bonus-neg", bonus < 0);
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
+    renderDeckStrip();  // keep the always-on composition strip in sync
+  }
+
+  /* ---- deck composition strip (always-on companion to the modal) ----
+     Reads the SAME counts the modal uses — remaining (blue) vs this stage's
+     total (grey) per rank, on a shared absolute scale (max total). Presentation
+     only; never reveals draw order. */
+  function deckStripStats() {
+    const deck = engine && engine.getDeck();
+    return {
+      remaining: DeckStats.fromCounts(deck ? deck.remainingCounts() : {}),
+      full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
+    };
+  }
+  function renderDeckStrip() {
+    if (!el.deckStrip || !deckStripOn) return;
+    const { remaining, full } = deckStripStats();
+    stripRemaining = remaining;                 // the scrubber sums these
+    let scaleMax = 1;
+    full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
+    el.deckStripBars.innerHTML = remaining.rows.map((row, i) => {
+      const total = (full.rows[i] && full.rows[i].count) || 0;
+      const greyPct = (total / scaleMax) * 100;            // absolute, shared scale
+      const bluePct = (row.count / scaleMax) * 100;        // remaining, same scale
+      return '<div class="ds-bar" data-value="' + row.value + '">' +
+        '<div class="ds-track">' +
+          '<div class="ds-grey" style="height:' + greyPct + '%"></div>' +
+          '<div class="ds-blue" style="height:' + bluePct + '%"></div>' +
+        "</div>" +
+        '<div class="ds-rank">' + row.label + "</div></div>";
+    }).join("");
+  }
+
+  /* Strip scrubber: drag to see how many REMAINING cards are higher / same /
+     lower than the rank under the finger. Counts only — never order. Clears on
+     release. touch-action:none on the strip keeps the drag off the scroll-lock. */
+  function stripBarAt(e) {
+    const t = typeof document.elementFromPoint === "function"
+      ? document.elementFromPoint(e.clientX, e.clientY) : null;
+    return t && t.closest ? t.closest(".ds-bar") : null;
+  }
+  function stripScrubApply(e) {
+    const bar = stripBarAt(e);
+    if (!bar || bar.dataset.value === undefined) return;
+    const value = Number(bar.dataset.value);
+    el.deckStripBars.querySelectorAll(".ds-active").forEach(n => n.classList.remove("ds-active"));
+    bar.classList.add("ds-active");
+    let above = 0, same = 0, below = 0;
+    for (const r of stripRemaining.rows) {
+      if (r.value > value) above += r.count;
+      else if (r.value < value) below += r.count;
+      else same += r.count;
+    }
+    const label = (bar.querySelector(".ds-rank") || {}).textContent || value;
+    el.deckStripScrub.innerHTML = "<b>" + label + "</b> · " +
+      '<span class="sc-hi">↑' + above + " higher</span> · " +
+      '<span class="sc-eq">=' + same + " same</span> · " +
+      '<span class="sc-lo">↓' + below + " lower</span>";
+    el.deckStripScrub.classList.remove("hidden");
+  }
+  function stripScrubEnd() {
+    if (!stripScrubbing) return;
+    stripScrubbing = false;
+    el.deckStripScrub.classList.add("hidden");
+    el.deckStripBars.querySelectorAll(".ds-active").forEach(n => n.classList.remove("ds-active"));
+  }
+
+  /* Apply the toggle's on/off state: show/hide the strip, reflow the board to
+     reclaim/cede the space, persist the choice. */
+  function applyDeckStrip(on) {
+    deckStripOn = on;
+    el.deckStrip.classList.toggle("hidden", !on);
+    el.deckStripToggle.classList.toggle("off", !on);
+    SaveStore.setPref("deckStrip", on ? "1" : "0");
+    if (on) renderDeckStrip();
+    if (pileEls.length) fitBoard();   // board grows (off) / shrinks (on) cleanly
   }
 
   /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
@@ -3978,6 +4139,14 @@ const UIRenderer = (() => {
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
+
+    // Deck composition strip: toggle on/off, and drag to scrub higher/same/lower.
+    el.deckStripToggle.addEventListener("click", () => applyDeckStrip(!deckStripOn));
+    el.deckStrip.addEventListener("pointerdown", (e) => { stripScrubbing = true; stripScrubApply(e); e.preventDefault(); });
+    el.deckStrip.addEventListener("pointermove", (e) => { if (stripScrubbing) { stripScrubApply(e); e.preventDefault(); } });
+    el.deckStrip.addEventListener("pointerup", stripScrubEnd);
+    el.deckStrip.addEventListener("pointerleave", stripScrubEnd);
+    el.deckStrip.addEventListener("pointercancel", stripScrubEnd);
 
     // Tap the coin indicator (top of screen) to open the sticker inventory
     // popup; tap the backdrop or the × to dismiss.
@@ -4585,9 +4754,14 @@ const UIRenderer = (() => {
     // two so the board size is stable across the phase swap (no re-fit jump).
     // .actions uses visibility:hidden (keeps its box) so it always measures.
     const controlH = Math.max(oh(el.actions), oh(el.startRunBtn));
-    // main's visible children: board, board-foot, hint, [tray], control-row.
-    const belowH = oh(foot) + oh(el.hint) + controlH + (trayVisible ? oh(el.stickerTray) : 0);
-    const visibleChildren = 4 + (trayVisible ? 1 : 0);     // includes the board
+    // The always-on composition strip (when shown) is another main child below
+    // the board; reserve its height so Run 1's 4-tall column still fits no-scroll.
+    const stripVisible = el.deckStrip && !el.deckStrip.classList.contains("hidden");
+    // main's visible children: board, board-foot, hint, [tray], control-row, [strip].
+    const belowH = oh(foot) + oh(el.hint) + controlH
+      + (trayVisible ? oh(el.stickerTray) : 0)
+      + (stripVisible ? oh(el.deckStrip) : 0);
+    const visibleChildren = 4 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // includes the board
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
@@ -4986,6 +5160,13 @@ const UIRenderer = (() => {
     el.buildTag.textContent = "build " + APP_VERSION;
     if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
     console.log("Nine Lives " + APP_VERSION);
+
+    // Restore the deck-strip toggle pref (default ON) before the first board is
+    // built, so fitBoard reserves the strip's space from the start. No fitBoard
+    // here — buildBoard runs it. Off only when the saved pref is explicitly "0".
+    deckStripOn = SaveStore.getPref("deckStrip") !== "0";
+    el.deckStrip.classList.toggle("hidden", !deckStripOn);
+    el.deckStripToggle.classList.toggle("off", !deckStripOn);
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
