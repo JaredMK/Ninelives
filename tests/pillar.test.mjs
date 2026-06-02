@@ -219,10 +219,13 @@ export function run() {
     e.guess(2, "higher");   // 2 < 9 → wrong
     r.eq(e.getRun().suitBountyHits[0], 1, "a wrong guess earns no bounty");
 
+    // Suit Bounty is paid LIVE into the bonus tally as it resolves (not at run
+    // end via pillarPayout) — one ♠ hit → +1 in the live bonus.
+    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty pays into the live bonus tally during play");
+
     e.debug.winNow();
-    r.eq(payload.pillarPayout.bonus, 1, "Suit Bounty pays its tallied coins at win");
-    r.eq(payload.pillarPayout.lines.length, 1, "one Suit Bounty line");
-    r.eq(payload.pillarPayout.lines[0].amount, 1, "bounty line shows +1");
+    r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
+    r.eq(payload.pillarPayout.lines.length, 0, "no Suit Bounty line in the run-end Pillar payout");
   }
 
   // --- A guess-kind Pillar never produces a payout line ------------------

@@ -180,21 +180,75 @@ export function run() {
     r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
   }
 
-  // --- All Hearts Pillar: +5 when every alive pile shows a ♥ ------------
+  // --- All Hearts Pillar: +5 when every alive pile IN ITS COLUMN shows ♥ ----
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 3, { cols: [1, 1, 1] });
-    e.start(); e.startRun(["allHeartsCoin", null, null]);
+    e.start(); e.startRun(["allHeartsCoin", null, null]);   // Pillar on column 0
     const b = e.getBoard();
-    b.kill(1); b.kill(2);                 // only pile 0 alive
+    // Column 1 (pile 1) shows a non-heart and stays ALIVE — it must NOT block
+    // column 0's bonus (column-scoped, not board-wide).
+    b.top(1).suit = "♠";
     b.top(0).value = 5;
     const d = e.debug.setNextCard(9); d.suit = "♥";
-    e.guess(0, "higher");                 // pile 0 now shows a ♥
-    r.ok(b.isActive(0), "pile 0 survived");
-    r.eq(e.getRun().bonusCoins, 5, "All Hearts pays +5 when every alive top is a ♥");
+    e.guess(0, "higher");                 // pile 0 (col 0) now shows a ♥
+    r.ok(b.isActive(0) && b.isActive(1), "both piles still alive");
+    r.eq(e.getRun().bonusCoins, 5, "All Hearts pays +5: its column is all-♥ (other columns ignored)");
 
     const d2 = e.debug.setNextCard(10); d2.suit = "♠";
-    e.guess(0, "higher");                 // top is now a ♠ — condition broken
-    r.eq(e.getRun().bonusCoins, 5, "no extra pay when an alive top is not a ♥");
+    e.guess(0, "higher");                 // col 0's own top is now a ♠
+    r.eq(e.getRun().bonusCoins, 5, "no pay when a pile IN the Pillar's column isn't a ♥");
+  }
+  {
+    // The Pillar's column must be ALL hearts: a non-heart alive top in-column blocks it.
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 6, { cols: [2, 2, 2] });
+    e.start(); e.startRun(["allHeartsCoin", null, null]);   // column 0 = piles 0,1
+    const b = e.getBoard();
+    b.top(1).suit = "♠";                  // pile 1 is in column 0, not a ♥
+    b.top(0).value = 5;
+    const d = e.debug.setNextCard(9); d.suit = "♥";
+    e.guess(0, "higher");                 // pile 0 ♥, but pile 1 (same column) is ♠
+    r.eq(e.getRun().bonusCoins, 0, "in-column non-♥ top blocks the bonus");
+  }
+
+  // --- Suit Bounty pays LIVE during play (not at run end) ---------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start(); e.startRun(["spadeBounty", null, null]);
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9); e.guess(0, "higher");   // correct ♠ guess → +1 live
+    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as it resolves");
+    e.debug.winNow();
+    r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
+  }
+
+  // --- Tracker reconciles: live tally + end-of-run bonuses == summary ----
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let payload = null;
+    e.onEvent((t, p) => { if (t === "won") payload = p; });
+    e.start();
+    e.startRun(["spadeBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9); e.guess(0, "higher");          // one ♠ bounty → +1 live
+    r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
+    e.debug.winNow();                                      // all piles alive → Guardian +5
+
+    // Rebuild the run-complete summary exactly as onRunEnd does.
+    const board = payload.board, pp = payload.pillarPayout;
+    const eventBonus = payload.run.bonusCoins;             // live part (Suit Bounty = 1)
+    const bd = Economy.breakdown({
+      won: true, aliveCount: board.aliveCount(), minAliveCards: board.minAliveCards(),
+      extraCoinUnits: board.extraCoinUnits(), pillarBonus: pp.bonus, pillarLines: pp.lines,
+      eventBonus, eventLines: [],
+    });
+    r.eq(pp.bonus, 5, "Column Guardian (col 3 all-alive) pays +5 at run end");
+    // The HUD's folded final value is exactly (total − product) = the summary's
+    // total bonus, and equals live + Guardian + Extra Coin.
+    const finalTracker = bd.total - bd.product;
+    r.eq(finalTracker, eventBonus + pp.bonus + bd.extraCoinBonus, "final tracker = live + Guardian + Extra Coin");
+    r.eq(finalTracker, 6, "final bonus reconciles to the summary: 1 live + 5 Guardian = 6");
   }
 
   // --- Economy folds the live bonus into the total ----------------------
