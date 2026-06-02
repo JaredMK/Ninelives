@@ -58,5 +58,22 @@ export function run() {
     r.eq(c.currentRunIndex, run0, "a rejected restore leaves the run untouched");
   }
 
+  // --- Trashing a Pillar removes it permanently and persists ------------
+  {
+    const c = CampaignState.create();
+    c.addCoins(100);
+    c.buyPillar("columnGuardian", 1);
+    r.eq(c.columnPillar(1), "columnGuardian", "Pillar bound to column 1");
+    const coinsBefore = c.getCoins();
+    c.setColumnPillar(1, null);   // the trash action (UI confirms first); no refund
+    r.eq(c.columnPillar(1), null, "trash leaves the column EMPTY (not replaced)");
+    r.eq(c.pillarCount(), 0, "trashed Pillar is gone");
+    r.eq(c.getCoins(), coinsBefore, "trashing gives no coin refund");
+    // The removal survives a save/restore (doesn't come back next run).
+    const c2 = CampaignState.create();
+    c2.restore(JSON.parse(JSON.stringify(c.serialize())));
+    r.eq(c2.columnPillar(1), null, "the trashed column stays empty after save/restore");
+  }
+
   return r.summary();
 }
