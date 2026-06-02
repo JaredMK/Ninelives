@@ -44,7 +44,7 @@ export function run() {
     r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Tribute II costs 4 bonus coins");
     r.eq(StickerTypes.get("centerTribute").price, 5, "Center Tribute price 5");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
-    r.eq(PillarTypes.get("sameValueTribute").price, 15, "Double Tribute price 15");
+    r.eq(PillarTypes.get("sameValueTribute").price, 22, "Double Tribute price 22");
     r.eq(PillarTypes.get("sameValueTribute").tributeCount, 2, "Double Tribute buries 2");
     r.eq(PillarTypes.get("allHeartsCoin").price, 10, "All Hearts price 10");
     r.eq(PillarTypes.get("allHeartsCoin").value, 5, "All Hearts pays 5");
