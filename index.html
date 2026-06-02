@@ -1019,7 +1019,9 @@
   /* Debug lives in a floating overlay opened by a small corner toggle, so it
      never takes layout space or fights the play-surface scroll-lock. */
   .debug-toggle {
-    position: fixed; left: 8px; bottom: 8px; z-index: 78;
+    /* Above EVERY other overlay (store/inv/run-complete all sit ≤ 62) so the
+       toggle is reachable from any screen, including the store. */
+    position: fixed; left: 8px; bottom: 8px; z-index: 90;
     width: 34px; height: 34px; border-radius: 50%;
     background: rgba(13, 20, 38, 0.7); border: 1px solid #3a4d80;
     color: var(--accent-2); font-size: 16px; line-height: 1;
@@ -1030,7 +1032,7 @@
   .debug-toggle:active { transform: scale(0.92); opacity: 0.9; }
 
   .debug-overlay {
-    position: fixed; inset: 0; z-index: 80;
+    position: fixed; inset: 0; z-index: 95;
     display: flex; align-items: center; justify-content: center;
     background: rgba(6, 10, 22, 0.55);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
@@ -1111,6 +1113,16 @@
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     word-break: break-word;
+  }
+  /* Build version, pinned at the bottom of the debug panel. */
+  .debug-ver {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed #3a4d80;
+    text-align: center;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.5px;
   }
 
   footer {
@@ -1209,7 +1221,14 @@
           <select class="debug-sel" id="debugPillarSel"></select>
           <button class="debug-btn" id="debugAddPillar">+ pillar</button>
         </div>
+        <div class="debug-sub">add coins (free) →</div>
+        <div class="debug-tools">
+          <button class="debug-btn" id="debugCoin10">+10 🪙</button>
+          <button class="debug-btn" id="debugCoin50">+50 🪙</button>
+          <button class="debug-btn" id="debugCoin100">+100 🪙</button>
+        </div>
         <div class="debug-peek" id="debugPeekOut"></div>
+        <div class="debug-ver" id="debugVer">build —</div>
       </div>
     </div>
   </div>
@@ -1323,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.25.0";
+const APP_VERSION = "v0.26.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2906,6 +2925,10 @@ const UIRenderer = (() => {
     debugAddSticker: document.getElementById("debugAddSticker"),
     debugPillarSel: document.getElementById("debugPillarSel"),
     debugAddPillar: document.getElementById("debugAddPillar"),
+    debugCoin10: document.getElementById("debugCoin10"),
+    debugCoin50: document.getElementById("debugCoin50"),
+    debugCoin100: document.getElementById("debugCoin100"),
+    debugVer: document.getElementById("debugVer"),
     debugPeekOut: document.getElementById("debugPeekOut"),
   };
 
@@ -3336,6 +3359,16 @@ const UIRenderer = (() => {
     el.debugPeekOut.textContent = "granted pillar: " + id + " → column " + (col + 1);
   }
 
+  /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
+     coin display is showing — the store header or the in-game Stage·Run pill. */
+  function debugAddCoins(n) {
+    if (!campaign) return;
+    campaign.addCoins(n);
+    if (!el.storeOverlay.classList.contains("hidden")) renderStore();
+    updateStageRun();
+    el.debugPeekOut.textContent = "added " + n + " coins → balance " + campaign.getCoins();
+  }
+
   function setDebug(on) {
     debugOn = on;
     el.debugOverlay.classList.toggle("hidden", !on);
@@ -3481,6 +3514,9 @@ const UIRenderer = (() => {
     el.debugNew.addEventListener("click", () => startCampaign());
     el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
+    el.debugCoin10.addEventListener("click", () => debugAddCoins(10));
+    el.debugCoin50.addEventListener("click", () => debugAddCoins(50));
+    el.debugCoin100.addEventListener("click", () => debugAddCoins(100));
 
     // Corner toggle opens/closes the debug overlay; × and a backdrop tap close.
     el.debugToggle.addEventListener("click", () => setDebug(!debugOn));
@@ -4273,6 +4309,7 @@ const UIRenderer = (() => {
     attachInput();
     // Stamp the build badge (and console) so the running version is obvious.
     el.buildTag.textContent = "build " + APP_VERSION;
+    if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
     console.log("Nine Lives " + APP_VERSION);
 
     // The campaign persists across runs; the engine is recreated per run.
