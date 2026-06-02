@@ -226,36 +226,42 @@ export function run() {
     r.eq(b.pileSize(0), 3, "two Heavies on one card → counts as 3");
   }
 
-  // --- Collector: +1 per OTHER sticker, only if alive on top ------------
+  // --- Collector: pays +1 per OTHER sticker the moment its card LANDS -----
   {
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
-    e.getBoard().top(0).stickers = [{ type: "collector" }, { type: "rankUp" }, { type: "tieSafe" }];
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 2, "Collector: +1 per OTHER sticker (2 others → +2)");
+    e.getBoard().top(0).value = 5;
+    const d = e.debug.setNextCard(9);
+    d.stickers = [{ type: "collector" }, { type: "rankUp" }, { type: "tieSafe" }];
+    e.guess(0, "higher");   // lands on a surviving pile
+    r.eq(e.getRun().bonusCoins, 2, "Collector pays +1 per other sticker on landing (2 others → +2)");
   }
   {
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
-    e.getBoard().top(0).stickers = [{ type: "collector" }];
-    e.debug.winNow();
+    e.getBoard().top(0).value = 5;
+    const d = e.debug.setNextCard(9); d.stickers = [{ type: "collector" }];
+    e.guess(0, "higher");
     r.eq(e.getRun().bonusCoins, 0, "Collector with no other stickers pays 0 (doesn't count itself)");
   }
   {
+    // A Collector card on a WRONG guess doesn't land on a surviving pile → no pay.
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
-    e.getBoard().top(1).stickers = [{ type: "collector" }, { type: "rankUp" }];
-    e.getBoard().kill(1);
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 0, "Collector on a DEAD pile pays nothing");
+    e.getBoard().top(0).value = 9;
+    const d = e.debug.setNextCard(2); d.stickers = [{ type: "collector" }, { type: "rankUp" }];
+    e.guess(0, "higher");   // 2 < 9 → wrong, pile dies, nothing lands
+    r.eq(e.getRun().bonusCoins, 0, "Collector pays nothing when its card doesn't land (wrong guess)");
   }
   {
+    // Stacked Collectors pay per instance: 2 collectors + 1 other → 2 × (3−1) = 4.
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
-    e.getBoard().top(0).stickers = [{ type: "collector" }, { type: "rankUp" }];
-    e.getBoard().push(0, { stickers: [], value: 5 });   // bury the Collector under a plain top
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 0, "a BURIED Collector (not on top) pays nothing");
+    e.getBoard().top(0).value = 5;
+    const d = e.debug.setNextCard(9);
+    d.stickers = [{ type: "collector" }, { type: "collector" }, { type: "rankUp" }];
+    e.guess(0, "higher");
+    r.eq(e.getRun().bonusCoins, 4, "two Collectors each count the other two stickers → +4");
   }
 
   // --- Compound: N increments per correct guess; pays (N − 1) on top -----
