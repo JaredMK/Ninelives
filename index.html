@@ -1944,21 +1944,24 @@ const GameEngine = (() => {
       }
     }
 
-    /** All Hearts Pillar (board-wide, live): if it's bound to any column and
-        EVERY alive pile shows a ♥ on top, pay its value once per resolution. */
+    /** All Hearts Pillar (column-scoped, live): for each column the Pillar is
+        bound to, if every ALIVE pile IN THAT COLUMN shows a ♥ on top, pay its
+        value once per resolution. Other columns are irrelevant — same
+        column-scoping the other column Pillars use. */
     function maybeAllHearts() {
-      if (!run || !run.pillars) return;
-      const pid = run.pillars.find(p => p === "allHeartsCoin");
-      if (!pid) return;
+      if (!run || !run.pillars || !run.pileColumns) return;
       const t = PillarTypes.get("allHeartsCoin");
-      let anyAlive = false;
-      for (let i = 0; i < board.size; i++) {
-        if (!board.isActive(i)) continue;
-        anyAlive = true;
-        const top = board.top(i);
-        if (!top || top.suit !== "♥") return;   // a non-heart alive top → no pay
+      for (let col = 0; col < run.pillars.length; col++) {
+        if (run.pillars[col] !== "allHeartsCoin") continue;
+        let anyAlive = false, allHearts = true;
+        for (let i = 0; i < run.pileColumns.length; i++) {
+          if (run.pileColumns[i] !== col || !board.isActive(i)) continue;
+          anyAlive = true;
+          const top = board.top(i);
+          if (!top || top.suit !== "♥") { allHearts = false; break; }
+        }
+        if (anyAlive && allHearts) addBonus("All Hearts", t.value || 0);
       }
-      if (anyAlive) addBonus("All Hearts", t.value || 0);
     }
 
     /** Itemized Pillar payout for the current board state (scoring Pillars

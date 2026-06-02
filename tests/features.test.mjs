@@ -180,21 +180,34 @@ export function run() {
     r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
   }
 
-  // --- All Hearts Pillar: +5 when every alive pile shows a ♥ ------------
+  // --- All Hearts Pillar: +5 when every alive pile IN ITS COLUMN shows ♥ ----
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 3, { cols: [1, 1, 1] });
-    e.start(); e.startRun(["allHeartsCoin", null, null]);
+    e.start(); e.startRun(["allHeartsCoin", null, null]);   // Pillar on column 0
     const b = e.getBoard();
-    b.kill(1); b.kill(2);                 // only pile 0 alive
+    // Column 1 (pile 1) shows a non-heart and stays ALIVE — it must NOT block
+    // column 0's bonus (column-scoped, not board-wide).
+    b.top(1).suit = "♠";
     b.top(0).value = 5;
     const d = e.debug.setNextCard(9); d.suit = "♥";
-    e.guess(0, "higher");                 // pile 0 now shows a ♥
-    r.ok(b.isActive(0), "pile 0 survived");
-    r.eq(e.getRun().bonusCoins, 5, "All Hearts pays +5 when every alive top is a ♥");
+    e.guess(0, "higher");                 // pile 0 (col 0) now shows a ♥
+    r.ok(b.isActive(0) && b.isActive(1), "both piles still alive");
+    r.eq(e.getRun().bonusCoins, 5, "All Hearts pays +5: its column is all-♥ (other columns ignored)");
 
     const d2 = e.debug.setNextCard(10); d2.suit = "♠";
-    e.guess(0, "higher");                 // top is now a ♠ — condition broken
-    r.eq(e.getRun().bonusCoins, 5, "no extra pay when an alive top is not a ♥");
+    e.guess(0, "higher");                 // col 0's own top is now a ♠
+    r.eq(e.getRun().bonusCoins, 5, "no pay when a pile IN the Pillar's column isn't a ♥");
+  }
+  {
+    // The Pillar's column must be ALL hearts: a non-heart alive top in-column blocks it.
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 6, { cols: [2, 2, 2] });
+    e.start(); e.startRun(["allHeartsCoin", null, null]);   // column 0 = piles 0,1
+    const b = e.getBoard();
+    b.top(1).suit = "♠";                  // pile 1 is in column 0, not a ♥
+    b.top(0).value = 5;
+    const d = e.debug.setNextCard(9); d.suit = "♥";
+    e.guess(0, "higher");                 // pile 0 ♥, but pile 1 (same column) is ♠
+    r.eq(e.getRun().bonusCoins, 0, "in-column non-♥ top blocks the bonus");
   }
 
   // --- Economy folds the live bonus into the total ----------------------
