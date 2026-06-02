@@ -70,27 +70,60 @@ are config constants in the `Economy` module):
 ```
 coins = (number of alive piles) × (cards in the smallest alive pile)
       + (Extra Coin stickers on alive top cards) × EXTRA_COIN_VALUE(1)
+      + scoring-Pillar bonuses (Suit Bounty, Column Guardian)
+      + live bonus coins (the in-run tally, may be negative; clamped so the total never drops below 0)
 ```
 
 The product has no coefficient (the only tunable is `EXTRA_COIN_VALUE`). Dead
 piles don't count toward the minimum, and with 0 alive piles the product is 0
 (guarded, never `NaN`). The run-complete screen itemizes it: alive piles,
-smallest alive pile, the `N × M` subtotal, the Extra Coin bonus, and the total.
+smallest alive pile, the `N × M` subtotal, the Extra Coin bonus, each scoring
+Pillar that paid, every live-bonus line, and the total.
 
-**Store** (between every run): spend coins on stickers, which go into your
-campaign inventory. Each type has its own **base price that climbs +1 every
-time you buy that type** (tracked per type in `CampaignState`, reset on wipe).
+**Live bonus coins** are tracked *during* the run — the HUD shows a running
+`+ N bonus` tally beside the payout factors (gold when positive, red when a
+Tribute cost has pulled it negative), starting at 0 each run. Effects move it
+the instant they fire: **Middle Reward** (+2 when a carrying card lands in the
+middle column), **Lucky Coin** (+1 when a carrying card lands on a surviving
+pile), the **Tribute** stickers (a coin cost), and the **All Hearts** Pillar
+(+5, board-wide, every post-draw check where every alive pile shows a ♥).
+
+**Store** (between every run): a Balatro-style limited random offering (a few
+sticker slots + Pillar slots, with a reroll) drawn from the registries. Prices
+are **fixed** per type (buying never raises any price). Each offer is weighted
+by **rarity tier** — Common (weight 100), Uncommon (50), Rare (20) — shown as a
+colored letter badge on each store tile. Tiers only bias how often a type is
+*offered*; they don't change its price.
+
 **Stickers** attach to a *specific* card by its persistent id and ride with
 that card for the rest of the campaign attempt (until a loss wipes it) — they
-belong to the card, not the pile position. Types:
+belong to the card, not the pile position. The registry's `description` field
+is the single source of truth for each one's in-store help text. Highlights
+(see `StickerTypes` for the full set and exact prices):
 
-| Sticker | Base | Effect | Blocked when |
-| --- | --- | --- | --- |
-| **+1 Rank** | 2 | Permanently raises that card's rank by 1 | card is an Ace |
-| **−1 Rank** | 2 | Permanently lowers that card's rank by 1 | card is a 2 |
-| **Tie-Safe** 🛡️ | 3 | The card survives a tie on *any* guess (not just Same) | — |
-| **Extra Heart** ❤️ | 8 | Survives one wrong guess this run — the wrongly-drawn card is shuffled back into the deck and the heart "breaks"; refreshes each run | — |
-| **Extra Coin** 💰 | 1 | At end of run, +1 coin if this card is alive on top of a pile | — |
+| Sticker | Effect |
+| --- | --- |
+| **±1 / ±2 Rank** | Permanently shift the card's rank (clamps at Ace / 2) |
+| **Random Rank** 🎰 | Set the card's rank to a random rank (2–Ace) |
+| **Change Suit** (♠ / ♥ / random) | Repaint the suit (feeds Suit Bounties) |
+| **Tie-Safe** 🛡️ | The card survives a tie on *any* guess |
+| **Spade Guard** 🪬 | Once per run: while showing, a ♠ wrong guess is absorbed (the ♠ is reshuffled in) |
+| **Extra Heart** ❤️ | Absorbs one wrong guess this run; the drawn card is reshuffled in; refreshes each run |
+| **Extra Coin** 💰 | On a win, pays bonus coins equal to its pile's card count |
+| **Anchor** ⚓ | Excludes its pile from the smallest-pile payout factor |
+| **Middle Reward** 🎯 | +2 bonus coins when it lands in the middle column |
+| **Lucky Coin** 🍀 | +1 bonus coin when it lands on a surviving pile |
+| **Tribute I / II** 🪦 ⚰️ | On a surviving landing, bury 1 / 2 deck cards under the pile; costs 1 / 4 bonus coins |
+| **Center Tribute** 🗿 | Tribute I, but only in the middle column |
+
+**Pillars** are column modifiers (bought in the store, one per column slot,
+bindings persist between runs) whose effect applies to every pile in their
+column for the run — see `PillarTypes`. They include the four **Suit Bounties**
+(+1 per correct guess off a matching-suit top), **Column Tie-Safe**, **Column
+Guardian** (+5 if the whole column survives), **8 Tribute** / **Same Tribute**
+(bury a deck card on a drawn 8 / a survived tie — now **uncapped**), **Double
+Tribute** 🏺 (buries *two* on a survived tie), and **All Hearts** 💗 (board-wide
++5 each post-draw check where every alive pile shows a ♥).
 
 **Applying** happens during a **pre-play window** each run: right after the
 deal you may apply owned stickers to any pile's **face-up top card** (arm one

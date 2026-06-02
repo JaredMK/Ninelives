@@ -11,6 +11,7 @@ import { run as progression } from "./progression.test.mjs";
 import { run as terminology } from "./terminology.test.mjs";
 import { run as pillar } from "./pillar.test.mjs";
 import { run as storeOffer } from "./store-offer.test.mjs";
+import { run as features } from "./features.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -22,6 +23,7 @@ const SUITES = [
   ["terminology", terminology],
   ["pillar", pillar],
   ["store-offer", storeOffer],
+  ["features", features],
 ];
 
 let pass = 0,
