@@ -165,7 +165,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 8, "all Pillars registered (incl. 8 Tribute + Same Tribute)");
+    r.eq(PillarTypes.all().length, 10, "all Pillars registered (incl. Double Tribute + All Hearts)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -267,7 +267,7 @@ export function run() {
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
-    e.startRun(["eightTribute", null, null]);   // column 0 only (cap 2)
+    e.startRun(["eightTribute", null, null]);   // column 0 only (uncapped)
 
     const pileLenBefore = e.getBoard().piles[0].cards.length;   // 1 (the deal)
     const deckBefore = e.getDeck().remaining();
@@ -278,10 +278,10 @@ export function run() {
     r.eq(e.getDeck().remaining(), deckBefore - 2, "deck loses the 8 and the tributed card");
 
     landEight(e, 1);   // pile 1 is also column 0
-    r.eq(e.getRun().eightTributesUsed[0], 2, "second 8 hits the cap");
-    landEight(e, 2);   // pile 2, column 0 — over the cap now
-    r.eq(e.getRun().eightTributesUsed[0], 2, "capped at 2 per column per run");
-    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap 8 adds only itself (no tribute)");
+    r.eq(e.getRun().eightTributesUsed[0], 2, "second 8 fires again (uncapped)");
+    landEight(e, 2);   // pile 2, column 0 — still fires (no cap)
+    r.eq(e.getRun().eightTributesUsed[0], 3, "third 8 fires too — caps removed");
+    r.eq(e.getBoard().piles[2].cards.length, 3, "third 8 still gets its buried tribute (1 deal + 8 + tribute)");
   }
 
   // --- 8 on a non-Tribute column does nothing ---------------------------
@@ -351,12 +351,12 @@ export function run() {
     r.ok(e.getBoard().isActive(1), "Tie-Safe saved the tie (pile survives)");
     r.eq(e.getRun().sameTributesUsed[0], 2, "ALSO fires on a shield-saved tie (cap now reached)");
 
-    // (c) cap: a third survived tie does not burn.
+    // (c) uncapped: a third survived tie buries again.
     const c2 = e.getBoard().top(2); c2.value = 7;
     e.debug.setNextCard(7);
     e.guess(2, "same");
-    r.eq(e.getRun().sameTributesUsed[0], 2, "capped at 2 per column per run");
-    r.eq(e.getBoard().piles[2].cards.length, 2, "over-cap survived tie adds only the drawn card");
+    r.eq(e.getRun().sameTributesUsed[0], 3, "third survived tie fires too — caps removed");
+    r.eq(e.getBoard().piles[2].cards.length, 3, "survived tie still buries (1 deal + Same card + tribute)");
   }
 
   // --- Same Tribute does NOT fire on a non-tie win or an off-column tie ---
