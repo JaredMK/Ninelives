@@ -337,12 +337,13 @@ export function run() {
     e.startRun(["spadeBounty", null, null]);
     r.ok(log.some(en => /Start Run/.test(en.title)), "logbook: 'Start Run' entry");
 
-    // A correct ♠ guess on pile 1 (column 1 holds Spade Bounty).
-    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
-    e.debug.setNextCard(9); e.guess(0, "higher");
+    // Land a ♠ on pile 1 (column 0 holds Spade Bounty) via a correct guess.
+    e.getBoard().top(0).value = 5;
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";
+    e.guess(0, "higher");
     const turn = log[log.length - 1];
     r.ok(/Guess HIGHER on pile 1/.test(turn.title), "logbook: turn titled with the action + pile/column");
-    r.ok(turn.lines.some(l => /drew 9/.test(l)), "logbook: logs the drawn (already-revealed) card");
+    r.ok(turn.lines.some(l => /drew 9♠/.test(l)), "logbook: logs the drawn (already-revealed) card");
     r.ok(turn.lines.some(l => /Spade Bounty/.test(l) && /\+1 coin/.test(l)), "logbook: Pillar coin effect logged");
     r.ok(turn.lines.some(l => /pile survived/.test(l)), "logbook: pile outcome logged");
     r.ok(turn.lines.some(l => /Coins this turn/.test(l)), "logbook: per-turn coins footer");

@@ -187,40 +187,40 @@ export function run() {
     r.ok(!e.getBoard().isActive(3), "tie in an uncovered column still dies");
   }
 
-  // --- Suit Bounty: +1 per correct guess off a matching-suit top ---------
+  // --- Suit Bounty: +1 each time a matching-suit card LANDS in the column --
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     let payload = null;
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start();
-    e.startRun(["spadeBounty", null, null]);   // column 0 earns on ♠ tops
+    e.startRun(["spadeBounty", null, null]);   // column 0 earns when a ♠ lands
 
-    // Pile 0 (col 0): a ♠ showing + a correct HIGHER guess → one bounty hit.
-    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
-    e.debug.setNextCard(9);
+    // Pile 0 (col 0): land a ♠ via a correct HIGHER guess → one bounty hit.
+    e.getBoard().top(0).value = 5;
+    const d0 = e.debug.setNextCard(9); d0.suit = "♠";
     e.guess(0, "higher");
-    r.eq(e.getRun().suitBountyHits[0], 1, "correct guess off a ♠ top tallies a hit");
+    r.eq(e.getRun().suitBountyHits[0], 1, "a ♠ landing on the Bounty column tallies a hit");
 
-    // Pile 1 (also col 0) but a ♥ showing → no hit (suit mismatch).
-    const b = e.getBoard().top(1); b.value = 5; b.suit = "♥";
-    e.debug.setNextCard(9);
+    // Pile 1 (also col 0): land a ♥ → no hit (suit mismatch).
+    e.getBoard().top(1).value = 5;
+    const d1 = e.debug.setNextCard(9); d1.suit = "♥";
     e.guess(1, "higher");
-    r.eq(e.getRun().suitBountyHits[0], 1, "wrong suit doesn't tally");
+    r.eq(e.getRun().suitBountyHits[0], 1, "a non-♠ landing doesn't tally");
 
-    // Pile 3 (col 1, no Pillar) with a ♠ showing → no hit (wrong column).
-    const c = e.getBoard().top(3); c.value = 5; c.suit = "♠";
-    e.debug.setNextCard(9);
+    // Pile 3 (col 1, no Pillar): land a ♠ → no hit (wrong column).
+    e.getBoard().top(3).value = 5;
+    const d3 = e.debug.setNextCard(9); d3.suit = "♠";
     e.guess(3, "higher");
-    r.eq(e.getRun().suitBountyHits[1], 0, "♠ in an unbountied column doesn't tally");
+    r.eq(e.getRun().suitBountyHits[1], 0, "a ♠ landing in an unbountied column doesn't tally");
 
-    // A WRONG guess off a ♠ top doesn't tally (only correct guesses count).
-    const d = e.getBoard().top(2); d.value = 9; d.suit = "♠";
-    e.debug.setNextCard(2);
-    e.guess(2, "higher");   // 2 < 9 → wrong
-    r.eq(e.getRun().suitBountyHits[0], 1, "a wrong guess earns no bounty");
+    // A WRONG guess (the card doesn't LAND on a surviving pile) → no bounty.
+    e.getBoard().top(2).value = 9;
+    const d2 = e.debug.setNextCard(2); d2.suit = "♠";
+    e.guess(2, "higher");   // 2 < 9 → wrong, pile dies
+    r.eq(e.getRun().suitBountyHits[0], 1, "a ♠ on a wrong guess (pile dies) earns no bounty");
 
     // Suit Bounty is paid LIVE into the bonus tally as it resolves (not at run
-    // end via pillarPayout) — one ♠ hit → +1 in the live bonus.
+    // end via pillarPayout) — one ♠ landing → +1 in the live bonus.
     r.eq(e.getRun().bonusCoins, 1, "Suit Bounty pays into the live bonus tally during play");
 
     e.debug.winNow();

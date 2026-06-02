@@ -216,9 +216,10 @@ export function run() {
     let payload = null;
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start(); e.startRun(["spadeBounty", null, null]);
-    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
-    e.debug.setNextCard(9); e.guess(0, "higher");   // correct ♠ guess → +1 live
-    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as it resolves");
+    e.getBoard().top(0).value = 5;
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";   // a ♠ LANDS on the column
+    e.guess(0, "higher");
+    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as a ♠ lands");
     e.debug.winNow();
     r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
   }
@@ -230,8 +231,9 @@ export function run() {
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start();
     e.startRun(["spadeBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
-    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
-    e.debug.setNextCard(9); e.guess(0, "higher");          // one ♠ bounty → +1 live
+    e.getBoard().top(0).value = 5;
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";    // one ♠ lands → +1 live
+    e.guess(0, "higher");
     r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
     e.debug.winNow();                                      // all piles alive → Guardian +5
 
