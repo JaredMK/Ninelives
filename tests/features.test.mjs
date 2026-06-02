@@ -34,15 +34,15 @@ export function run() {
   {
     r.eq(StickerTypes.get("rankUp2").rankDelta, +2, "+2 Rank delta");
     r.eq(StickerTypes.get("rankDown2").rankDelta, -2, "−2 Rank delta");
-    r.eq(StickerTypes.get("rankUp2").price, 6, "+2 Rank price 6");
-    r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank price 4");
-    r.eq(StickerTypes.get("suitImmunity").price, 6, "Spade Guard price 6");
+    r.eq(StickerTypes.get("rankUp2").price, 4, "+2 Rank price 4");
+    r.eq(StickerTypes.get("randomFixedValue").price, 3, "Random Rank price 3");
+    r.eq(StickerTypes.get("suitImmunity").price, 4, "Spade Guard price 4");
     r.eq(StickerTypes.get("middleColumnReward").value, 2, "Middle Reward pays 2");
     r.eq(StickerTypes.get("gainCoin").value, 1, "Lucky Coin pays 1");
-    r.eq(StickerTypes.get("oneTribute").price, 5, "Tribute I price 5");
+    r.eq(StickerTypes.get("oneTribute").price, 6, "Tribute I price 6");
     r.eq(StickerTypes.get("twoTribute").price, 8, "Tribute II price 8");
     r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Tribute II costs 4 bonus coins");
-    r.eq(StickerTypes.get("centerTribute").price, 6, "Center Tribute price 6");
+    r.eq(StickerTypes.get("centerTribute").price, 5, "Center Tribute price 5");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
     r.eq(PillarTypes.get("sameValueTribute").price, 15, "Double Tribute price 15");
     r.eq(PillarTypes.get("sameValueTribute").tributeCount, 2, "Double Tribute buries 2");

@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.28.0";
+const APP_VERSION = "v0.29.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1364,37 +1364,37 @@ const StickerTypes = (() => {
                   description: "Permanently raise this card's rank by 1. Can't go above an Ace." },
     rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common", price: 3,
                   description: "Permanently lower this card's rank by 1. Can't go below a 2." },
-    rankUp2:    { id: "rankUp2",    label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: +2, tier: "uncommon", price: 6,
+    rankUp2:    { id: "rankUp2",    label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: +2, tier: "uncommon", price: 4,
                   description: "Permanently raise this card's rank by 2. Clamps at an Ace (a +2 on a King lands on Ace)." },
-    rankDown2:  { id: "rankDown2",  label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 6,
+    rankDown2:  { id: "rankDown2",  label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 4,
                   description: "Permanently lower this card's rank by 2. Clamps at a 2 (a −2 on a 3 lands on 2)." },
-    randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 4,
+    randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
                   description: "Permanently set this card's rank to a RANDOM rank (2 through Ace). Suit is unchanged — a one-time gamble." },
     changeSuitRandom: { id: "changeSuitRandom", label: "Change to Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
                   description: "Permanently change this card's suit to a random DIFFERENT suit. Rank is unchanged." },
-    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 3,
+    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
                   description: "Permanently change this card's suit to ♠ (Spades). Rank is unchanged. Feeds the Spade Bounty Pillar." },
-    changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 3,
+    changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
                   description: "Permanently change this card's suit to ♥ (Hearts). Rank is unchanged. Feeds the Heart Bounty Pillar." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
-    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 6,
+    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 4,
                   description: "Once per run: while this card is showing on top, if the drawn card is a ♠ the pile survives a wrong guess (the drawn ♠ is reshuffled back in)." },
-    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 6,
+    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
-    middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 6,
+    middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
                   description: "When this card is drawn and lands on a SURVIVING pile in the middle column (a correct guess), immediately gain 2 bonus coins." },
-    gainCoin:   { id: "gainCoin",   label: "Lucky Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "rare", price: 5,
+    gainCoin:   { id: "gainCoin",   label: "Lucky Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
                   description: "When this card is drawn and lands on a SURVIVING pile, immediately gain 1 bonus coin." },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "uncommon", price: 4,
                   description: "While this card is the top of its pile, that pile is excluded from the smallest-alive-pile payout factor, so a tiny pile can't drag your coins down." },
     extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
                   description: "Absorbs one wrong guess on this card: the pile survives and the drawn card is reshuffled back in. Refreshes every run." },
-    oneTribute: { id: "oneTribute", label: "Tribute I",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 5,
+    oneTribute: { id: "oneTribute", label: "Tribute I",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 6,
                   description: "When this card is drawn and lands on a surviving pile, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
     twoTribute: { id: "twoTribute", label: "Tribute II",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
                   description: "When this card is drawn and lands on a surviving pile, bury 2 cards from the deck under it (hidden) and pay 4 bonus coins." },
-    centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, centerOnly: true, tier: "rare", price: 6,
+    centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, centerOnly: true, tier: "rare", price: 5,
                   description: "When this card is drawn and lands on a surviving pile in the MIDDLE column, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
   };
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
