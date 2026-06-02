@@ -1114,6 +1114,36 @@
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     word-break: break-word;
   }
+  /* Logbook — the main scrollable content of the debug panel. Its OWN internal
+     scroll so the controls above stay put; newest turn at the top. */
+  .debug-log {
+    margin-top: 4px;
+    max-height: 46vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid #2a3a64;
+    border-radius: 8px;
+    padding: 4px;
+  }
+  .debug-log .dl-empty { color: var(--muted); padding: 6px; font-style: italic; }
+  .debug-log .dl-entry {
+    padding: 5px 4px 6px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .debug-log .dl-entry:first-child { border-top: none; }
+  .debug-log .dl-title {
+    font-weight: 800; font-size: 12px; color: var(--accent-2);
+    margin-bottom: 2px;
+  }
+  .debug-log .dl-line {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; line-height: 1.45; color: #cfd6e6;
+    padding-left: 12px; border-left: 2px solid #2a3a64; margin-left: 2px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
   /* Build version, pinned at the bottom of the debug panel. */
   .debug-ver {
     margin-top: 10px;
@@ -1228,6 +1258,8 @@
           <button class="debug-btn" id="debugCoin100">+100 🪙</button>
         </div>
         <div class="debug-peek" id="debugPeekOut"></div>
+        <div class="debug-sub">logbook (this run · newest first) →</div>
+        <div class="debug-log" id="debugLog"></div>
         <div class="debug-ver" id="debugVer">build —</div>
       </div>
     </div>
@@ -1342,7 +1374,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.32.0";
+const APP_VERSION = "v0.33.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1912,6 +1944,9 @@ const GameEngine = (() => {
   function create(deckSpecs, pileCount, runConfig = {}) {
     const cols = Array.isArray(runConfig.cols) ? runConfig.cols.slice() : null;
     let deck, board, status, run, listeners = [];
+    // currentEntry: the log entry that in-flight cascade lines append to (set
+    // while a guess or the run-end settle is resolving). Debug-only ground truth.
+    let currentEntry = null;
     // status: "idle" | "playing" | "won" | "lost"
     // run:    formal run-state wrapper — phase ("start" | "active" |
     //         "ended"), the run's seed, and summary stats. Kept beside
@@ -1944,16 +1979,33 @@ const GameEngine = (() => {
       return map;
     }
 
+    /* ---- Debug logbook (ground-truth event log; no gameplay impact) ----
+       Lines are appended at the exact sites where effects execute, so the log
+       is what actually happened — not a reconstruction. NO-REVELATION: only
+       already-shown (drawn) cards are named; hidden moves are counts only. */
+    function logBegin(title) {
+      currentEntry = { title, lines: [] };
+      if (run && run.log) run.log.push(currentEntry);
+      return currentEntry;
+    }
+    function logLine(text) { if (currentEntry) currentEntry.lines.push(text); }
+    /** Append a complete standalone entry (system / UI actions). */
+    function logAction(title, lines) {
+      if (run && run.log) run.log.push({ title, lines: Array.isArray(lines) ? lines.slice() : [] });
+    }
+    const cardName = (c) => c ? (c.label + c.suit) : "?";
+
     /** Bury `count` cards from the deck's BOTTOM under pile `index` (hidden).
         Stops early if the deck empties. Returns how many were actually buried.
         The cards never appear in any event payload — composition shifts only,
-        draw order is never revealed. */
-    function buryTribute(index, count) {
+        draw order is never revealed. `source` is a label for the debug log. */
+    function buryTribute(index, count, source) {
       let buried = 0;
       for (let k = 0; k < count && !deck.isEmpty(); k++) {
         board.pushBottom(index, deck.drawFromBottom());
         buried++;
       }
+      if (buried > 0) logLine((source ? source + ": " : "") + buried + " card" + (buried > 1 ? "s" : "") + " buried, deck −" + buried);
       return buried;
     }
 
@@ -1963,6 +2015,7 @@ const GameEngine = (() => {
       if (!run || !amount) return;
       run.bonusCoins += amount;
       run.bonusEvents[label] = (run.bonusEvents[label] || 0) + amount;
+      logLine((amount >= 0 ? "+" : "") + amount + " coin — " + label);
     }
 
     /** Second Wind: recycle a dying pile's cards (and the killing card) back into
@@ -1973,6 +2026,7 @@ const GameEngine = (() => {
       for (const c of removed) deck.returnCard(c);  // random positions, never shown
       deck.returnCard(killingCard);                 // the card that would've killed it
       board.push(index, deck.draw());               // one new top (pile size = 1)
+      logLine("Second Wind: pile revived (1 fresh card); " + (removed.length + 1) + " cards recycled into the deck (hidden)");
     }
 
     /** End-of-run STICKER bonuses (win only), added to the live tally so the
@@ -2008,11 +2062,11 @@ const GameEngine = (() => {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
       if (pillar.effect === "eightTribute" && drawn.value === 8) {
-        if (buryTribute(index, 1) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
+        if (buryTribute(index, 1, pillar.label) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
       } else if (pillar.effect === "sameTribute" && isTie === true) {
-        if (buryTribute(index, 1) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
+        if (buryTribute(index, 1, pillar.label) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
       } else if (pillar.effect === "sameValueTribute" && isTie === true) {
-        if (buryTribute(index, pillar.tributeCount || 2) > 0 && run.sameValueTributesUsed)
+        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0 && run.sameValueTributesUsed)
           run.sameValueTributesUsed[col] += 1;
       }
     }
@@ -2034,7 +2088,7 @@ const GameEngine = (() => {
         const t = StickerTypes.get(s.type);
         if (!t || t.behavior !== "tribute") continue;
         if (t.centerOnly && (center == null || col !== center)) continue;
-        buryTribute(index, t.tributeCount || 1);
+        buryTribute(index, t.tributeCount || 1, t.label);
         if (t.coinCost) addBonus("Tribute cost", -t.coinCost);
       }
     }
@@ -2187,7 +2241,11 @@ const GameEngine = (() => {
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
+        // Debug logbook: ground-truth, per-turn event log for this run. Reset
+        // here every run. Dev tooling only — never read by game logic.
+        log: [],
       };
+      currentEntry = null;
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
       board = BoardState.create(pileCount);
@@ -2196,6 +2254,7 @@ const GameEngine = (() => {
       for (let i = 0; i < board.size; i++) {
         board.push(i, deck.draw());
       }
+      logAction("Run dealt — " + board.size + " piles, " + deck.remaining() + " cards in deck");
       // --- Sticker phase: dealt, awaiting Start Run ------------------
       // phase stays "start" until startRun(); active play hasn't begun.
       emit("dealt", { board, deck, run });
@@ -2214,6 +2273,10 @@ const GameEngine = (() => {
       // to the campaign binding can't affect a run in progress). A plain copy
       // of the 3-slot array (column index → Pillar id | null).
       run.pillars = Array.isArray(pillars) ? pillars.slice() : null;
+      const bound = (run.pillars || [])
+        .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
+        .filter(Boolean);
+      logAction("Start Run", bound.length ? ["Pillars: " + bound.join(", ")] : ["No Pillars bound"]);
       emit("run-started", { board, deck, run });
     }
 
@@ -2252,6 +2315,11 @@ const GameEngine = (() => {
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
+      // --- Debug logbook: open this turn's entry; cascade lines append below.
+      const bonusBefore = run.bonusCoins;
+      logBegin("Guess " + guess.toUpperCase() + " on pile " + (index + 1) + (col != null ? " (column " + (col + 1) + ")" : ""));
+      logLine("drew " + cardName(drawn) + " — " + (correct ? (isTie ? "tie (safe)" : "correct") : "wrong"));
+
       // Streaks (Streak Bank / Streak Tribute): a guess in ANY other column
       // resets those columns' streaks; this column grows on a correct guess and
       // resets on a wrong one. The payout/tribute fires only if this column holds
@@ -2262,7 +2330,7 @@ const GameEngine = (() => {
           run.colStreak[col] += 1;
           const s = run.colStreak[col];
           if (pillar && pillar.effect === "streakBank" && s >= 3) addBonus(pillar.label, pillar.value || 1);
-          if (pillar && pillar.effect === "streakTribute" && s >= 4) buryTribute(index, 1);
+          if (pillar && pillar.effect === "streakTribute" && s >= 4) buryTribute(index, 1, pillar.label);
         } else {
           run.colStreak[col] = 0;
         }
@@ -2300,6 +2368,7 @@ const GameEngine = (() => {
         // Tributes (bury card(s) + charge bonus coins). Both feed the live tally.
         maybeLandingBonus(index, drawn);
         maybeStickerTribute(index, drawn);
+        logLine("→ pile survived (" + board.piles[index].cards.length + " cards)");
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
       } else if (current.spadeImmunity && drawn.suit === "♠") {
         // Spade Guard: a ♠ drawn against a guarded showing card is absorbed once
@@ -2307,6 +2376,7 @@ const GameEngine = (() => {
         // is spent (run-local — refreshes next run). The drawn card is NOT pushed.
         current.spadeImmunity = false;
         deck.returnCard(drawn);
+        logLine("Spade Guard consumed — pile survived (♠ returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
@@ -2315,6 +2385,7 @@ const GameEngine = (() => {
         // unchanged. The drawn card is NOT pushed and the pile is NOT killed.
         current.heartsRemaining -= 1;
         deck.returnCard(drawn);
+        logLine("Extra Heart consumed — pile survived (card returned to the deck)");
         emit("heart-broken", { index, guess, current, drawn, board, deck, run });
       } else if (pillar && pillar.effect === "secondWind" && run.secondWindUsed && col != null && !run.secondWindUsed[col]) {
         // Second Wind: the first pile to die in this column each run revives once.
@@ -2328,6 +2399,7 @@ const GameEngine = (() => {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
         board.kill(index);
+        logLine("→ pile died");
         // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
         const db = drawn.stickers ? drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
         if (db > 0) { const t = StickerTypes.get("deathBounty"); addBonus("Death Bounty", db * ((t && t.value) || 0)); }
@@ -2337,6 +2409,10 @@ const GameEngine = (() => {
       // All Hearts Pillar: a board-wide, post-draw check (after the resolution
       // above settled the tops), paid live every qualifying time.
       maybeAllHearts();
+      // Close the turn's log entry with a coins summary (newest entry at top).
+      const net = run.bonusCoins - bonusBefore;
+      logLine("Coins this turn: " + (net >= 0 ? "+" : "") + net + " → bonus tally " + run.bonusCoins);
+      currentEntry = null;
       evaluateEnd();
     }
 
@@ -2349,16 +2425,24 @@ const GameEngine = (() => {
         run.result = "win";
         // End-of-run STICKER bonuses (Collector / Compound / Wallflower) fold into
         // the live tally first, so the tracker reconciles with the summary.
-        settleEndStickerBonuses();
+        logBegin("RUN WON — end-of-run bonuses");
+        settleEndStickerBonuses();   // addBonus lines land in this entry
         // Column Pillars score at run end (win only). Itemized here so the UI
         // never recomputes column membership.
-        emit("won", { board, deck, run, pillarPayout: computePillarPayout() });
+        const pp = computePillarPayout();
+        for (const ln of pp.lines) logLine(ln.label + ": +" + ln.amount + (ln.detail ? " (" + ln.detail + ")" : ""));
+        const extra = board.extraCoinUnits();
+        if (extra > 0) logLine("Extra Coin: +" + extra);
+        logLine("Bonus total: live " + run.bonusCoins + " + Pillars " + pp.bonus + " + Extra Coin " + extra + " = " + (run.bonusCoins + pp.bonus + extra));
+        currentEntry = null;
+        emit("won", { board, deck, run, pillarPayout: pp });
         // FUTURE: HOOKS.onRunComplete({ result: "win", board });
       } else if (!board.anyAlive()) {
         // All nine lives spent. -> Run End phase.
         status = "lost";
         run.phase = "ended";
         run.result = "loss";
+        logAction("RUN LOST — all piles in play are dead (no payout)");
         emit("lost", { board, deck, run });
         // FUTURE: HOOKS.onRunComplete({ result: "loss", board });
       }
@@ -2404,6 +2488,9 @@ const GameEngine = (() => {
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
+      /** Debug logbook: append a standalone entry for a non-engine action
+          (sticker applied, store buy/reroll). Ground-truth, no gameplay impact. */
+      logAction(title, lines) { logAction(title, lines); },
       /** Itemized scoring-Pillar payout for the current board (see "won"). */
       pillarPayout() { return computePillarPayout(); },
       debug,
@@ -3216,6 +3303,7 @@ const UIRenderer = (() => {
     debugCoin50: document.getElementById("debugCoin50"),
     debugCoin100: document.getElementById("debugCoin100"),
     debugVer: document.getElementById("debugVer"),
+    debugLog: document.getElementById("debugLog"),
     debugPeekOut: document.getElementById("debugPeekOut"),
   };
 
@@ -3538,6 +3626,9 @@ const UIRenderer = (() => {
     renderStickerTray();
     el.hint.textContent = "Sticker applied — apply more or press Start Run.";
     persistCampaign("run");   // the sticker is a permanent campaign change
+    const st = StickerTypes.get(typeId);
+    engine.logAction("Applied sticker: " + ((st && st.label) || typeId) + " → pile " + (index + 1));
+    refreshDebug();
   }
 
   /* Mirror an applied sticker onto the live run-deck/board card object so its
@@ -3610,6 +3701,25 @@ const UIRenderer = (() => {
     el.debugRanks.querySelectorAll(".armed").forEach(n => {
       if (n.textContent !== (next && next.label)) n.classList.remove("armed");
     });
+    renderDebugLog();
+  }
+
+  /* Render the debug logbook (newest turn at top). Reads the engine's
+     ground-truth run.log; pure display, never reconstructs anything. */
+  function renderDebugLog() {
+    if (!el.debugLog) return;
+    const r = engine && engine.getRun();
+    const log = (r && r.log) || [];
+    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (!log.length) {
+      el.debugLog.innerHTML = '<div class="dl-empty">No events yet this run.</div>';
+      return;
+    }
+    el.debugLog.innerHTML = log.slice().reverse().map(entry => {
+      const lines = (entry.lines || []).map(l => '<div class="dl-line">' + esc(l) + "</div>").join("");
+      return '<div class="dl-entry"><div class="dl-title">' + esc(entry.title) + "</div>" + lines + "</div>";
+    }).join("");
+    el.debugLog.scrollTop = 0;   // newest entry is at the top — keep it in view
   }
 
   /* Populate the debug grant dropdowns from the registries (every sticker and
@@ -4543,11 +4653,16 @@ const UIRenderer = (() => {
      Empties just that slot; the rest of the offer stays. */
   function confirmBuySticker() {
     if (selectedStickerSlot == null) return;
+    const offer = campaign.getStoreOffer();
+    const id = offer ? offer.stickers[selectedStickerSlot] : null;
     if (campaign.buyOfferedSticker(selectedStickerSlot)) {
+      const st = id ? StickerTypes.get(id) : null;
+      if (engine) engine.logAction("Store: bought sticker " + ((st && st.label) || id));
       selectedStickerSlot = null;
       el.storeMsg.textContent = "Sticker bought — apply it during the next run.";
     }
     renderStore();
+    refreshDebug();
   }
 
   /* Tap an offered Pillar SLOT to arm it (then tap a column to place). Toggle
@@ -4575,11 +4690,16 @@ const UIRenderer = (() => {
   function tapPillarSlot(col) {
     selectedStickerSlot = null;   // touching the Pillar area deselects a sticker
     if (armedPillarSlot != null) {
+      const offer = campaign.getStoreOffer();
+      const pid = offer ? offer.pillars[armedPillarSlot] : null;
       if (campaign.buyOfferedPillar(armedPillarSlot, col)) {
+        const pt = pid ? PillarTypes.get(pid) : null;
+        if (engine) engine.logAction("Store: bought Pillar " + ((pt && pt.label) || pid) + " → column " + (col + 1));
         armedPillarSlot = null;
         el.storeMsg.textContent = "Pillar placed on Column " + (col + 1) + ".";
       }
       renderStore();
+      refreshDebug();
       return;
     }
     if (armedSlotMove === null) {
@@ -4603,7 +4723,9 @@ const UIRenderer = (() => {
     if (campaign.rerollStore()) {
       selectedStickerSlot = null; armedPillarSlot = null;
       el.storeMsg.textContent = "Rerolled the offer.";
+      if (engine) engine.logAction("Store: rerolled the offer");
       renderStore();
+      refreshDebug();
     }
   }
 

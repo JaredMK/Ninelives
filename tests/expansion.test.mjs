@@ -328,5 +328,39 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "a guessed-on pile pays no Wallflower even if its card survives on top");
   }
 
+  // ===== Debug logbook (ground-truth event log) ==========================
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start();
+    const log = e.getRun().log;
+    r.ok(log.length >= 1 && /Run dealt/.test(log[0].title), "logbook: 'Run dealt' entry at run start");
+    e.startRun(["spadeBounty", null, null]);
+    r.ok(log.some(en => /Start Run/.test(en.title)), "logbook: 'Start Run' entry");
+
+    // A correct ♠ guess on pile 1 (column 1 holds Spade Bounty).
+    const a = e.getBoard().top(0); a.value = 5; a.suit = "♠";
+    e.debug.setNextCard(9); e.guess(0, "higher");
+    const turn = log[log.length - 1];
+    r.ok(/Guess HIGHER on pile 1/.test(turn.title), "logbook: turn titled with the action + pile/column");
+    r.ok(turn.lines.some(l => /drew 9/.test(l)), "logbook: logs the drawn (already-revealed) card");
+    r.ok(turn.lines.some(l => /Spade Bounty/.test(l) && /\+1 coin/.test(l)), "logbook: Pillar coin effect logged");
+    r.ok(turn.lines.some(l => /pile survived/.test(l)), "logbook: pile outcome logged");
+    r.ok(turn.lines.some(l => /Coins this turn/.test(l)), "logbook: per-turn coins footer");
+
+    e.start();   // a fresh run resets the log
+    r.ok(e.getRun().log.length === 1 && /Run dealt/.test(e.getRun().log[0].title), "logbook: resets each run");
+  }
+  {
+    // No-revelation: a buried tribute logs a COUNT only — never a card identity.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun(["eightTribute", null, null]);
+    e.getBoard().top(0).value = 5;
+    e.debug.setNextCard(8); e.guess(0, "higher");   // an 8 lands → tribute buries 1
+    const turn = e.getRun().log[e.getRun().log.length - 1];
+    const buryLine = turn.lines.find(l => /buried/.test(l));
+    r.ok(!!buryLine && /deck −1/.test(buryLine), "logbook: tribute logs a buried count + deck delta");
+    r.ok(!/[♠♥♦♣]/.test(buryLine), "logbook: buried card is counts-only — no suit/identity leaked");
+  }
+
   return r.summary();
 }
