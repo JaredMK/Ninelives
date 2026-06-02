@@ -16,7 +16,7 @@ export function run() {
     r.eq(g.kind, "scoring", "columnGuardian is a scoring Pillar");
     r.eq(g.effect, "columnAllAlive", "columnGuardian effect key");
     r.eq(g.value, 5, "columnGuardian pays 5");
-    r.eq(g.price, 12, "columnGuardian fixed price 12");
+    r.eq(g.price, 5, "columnGuardian fixed price 5");
     r.eq(PillarTypes.get("nope"), null, "unknown Pillar id → null");
     r.ok(PillarTypes.all().length === PillarTypes.ids.length, "all() matches ids");
   }
@@ -49,21 +49,21 @@ export function run() {
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    r.eq(c.priceOfPillar("columnGuardian"), 12, "fixed Pillar price (Column Guardian = 12)");
+    r.eq(c.priceOfPillar("columnGuardian"), 5, "fixed Pillar price (Column Guardian = 5)");
     r.ok(c.buyPillar("columnGuardian", 0), "buy onto column 0");
     r.eq(c.columnPillar(0), "columnGuardian", "purchase placed it on the column");
-    r.eq(c.priceOfPillar("columnGuardian"), 12, "price does NOT escalate after a buy");
-    r.eq(c.getCoins(), 88, "spent the fixed price (12)");
+    r.eq(c.priceOfPillar("columnGuardian"), 5, "price does NOT escalate after a buy");
+    r.eq(c.getCoins(), 95, "spent the fixed price (5)");
 
     // Buying onto an occupied column overwrites it (the replace path).
     r.ok(c.buyPillar("columnGuardian", 0), "buy again onto the same column");
     r.eq(c.pillarCount(), 1, "replace keeps the slot count at one");
-    r.eq(c.getCoins(), 76, "second buy also cost the fixed 12 (no escalation)");
+    r.eq(c.getCoins(), 90, "second buy also cost the fixed 5 (no escalation)");
 
     // Per-type fixed prices.
-    r.eq(c.priceOfPillar("spadeBounty"), 8, "Suit Bounty = 8");
+    r.eq(c.priceOfPillar("spadeBounty"), 6, "Suit Bounty = 6");
     r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
-    r.eq(c.priceOfPillar("eightTribute"), 15, "8 Tribute = 15");
+    r.eq(c.priceOfPillar("eightTribute"), 8, "8 Tribute = 8");
     r.eq(c.priceOfPillar("sameTribute"), 15, "Same Tribute = 15");
 
     const broke = CampaignState.create();   // no coins
@@ -94,7 +94,7 @@ export function run() {
     c.buyPillar("columnGuardian", 2);
     c.reset();
     r.eq(c.pillarCount(), 0, "reset clears the column binding");
-    r.eq(c.priceOfPillar("columnGuardian"), 12, "Pillar price is fixed at 12");
+    r.eq(c.priceOfPillar("columnGuardian"), 5, "Pillar price is fixed at 5");
   }
 
   // --- Engine pile→column mapping (fill DOWN each column) ----------------

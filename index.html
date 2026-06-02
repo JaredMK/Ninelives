@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.30.0";
+const APP_VERSION = "v0.31.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1435,22 +1435,22 @@ const PillarTypes = (() => {
   const TYPES = {
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
-      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 8,
+      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
       description: "+1 coin for each correct guess made while a ♠ card is showing on a pile in this column.",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Bounty", icon: "♥️",
-      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 8,
+      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
       description: "+1 coin for each correct guess made while a ♥ card is showing on a pile in this column.",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
-      kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 8,
+      kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
       description: "+1 coin for each correct guess made while a ♦ card is showing on a pile in this column.",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bounty", icon: "♣️",
-      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 8,
+      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
       description: "+1 coin for each correct guess made while a ♣ card is showing on a pile in this column.",
     },
     columnTieSafe: {
@@ -1460,7 +1460,7 @@ const PillarTypes = (() => {
     },
     columnGuardian: {
       id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
-      kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 12,
+      kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 5,
       description: "At run end, pays +5 coins if every pile in this column survived.",
     },
     eightTribute: {
@@ -1468,7 +1468,7 @@ const PillarTypes = (() => {
       // deck's BOTTOM card under that pile (hidden). Uncapped — fires every time
       // (bounded only by the draw deck). Pure composition shift — no reveal.
       id: "eightTribute", label: "8 Tribute", icon: "8️⃣",
-      kind: "composition", effect: "eightTribute", tier: "rare", price: 15,
+      kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
       description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Every time.",
     },
     sameTribute: {
@@ -1482,7 +1482,7 @@ const PillarTypes = (() => {
     sameValueTribute: {
       // Like Same Tribute, but buries TWO cards on a survived tie. Uncapped.
       id: "sameValueTribute", label: "Double Tribute", icon: "🏺",
-      kind: "composition", effect: "sameValueTribute", tributeCount: 2, tier: "rare", price: 15,
+      kind: "composition", effect: "sameValueTribute", tributeCount: 2, tier: "rare", price: 22,
       description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — TWO cards from the bottom of the deck are buried under that pile (hidden). Every time.",
     },
     allHeartsCoin: {
