@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.27.0";
+const APP_VERSION = "v0.28.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2667,10 +2667,92 @@ const CampaignState = (() => {
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
         storeOffer = null;
       },
+
+      /* ---- persistence (save/resume) ----
+         A plain, JSON-safe snapshot of ALL campaign-level state — the only
+         thing that persists between runs. Storage-agnostic: the UI hands this
+         to whatever SaveStore is wired (localStorage now, server/cloud later).
+         `schema` guards against restoring an incompatible older save. */
+      serialize() {
+        return {
+          schema: 1,
+          currentStage, currentRunIndex,
+          totalCorrectGuesses, runsCompleted,
+          totalCardsFlipped, totalCoinsEarned,
+          coins,
+          stickerInventory: { ...stickerInventory },
+          columnPillars: columnPillars.slice(),
+          storeOffer: storeOffer ? JSON.parse(JSON.stringify(storeOffer)) : null,
+          baseDeck: this._copyCards(),
+        };
+      },
+
+      /** Restore from a serialize() snapshot. Returns true on success; false
+          (leaving state untouched) if the snapshot is missing/incompatible —
+          callers then fall back to a fresh campaign. */
+      restore(s) {
+        if (!s || s.schema !== 1) return false;
+        if (!Array.isArray(s.baseDeck) || s.baseDeck.length !== 52) return false;
+        if (!(s.currentStage >= 1 && s.currentStage <= MAX_STAGES)) return false;
+        if (!(s.currentRunIndex >= 1 && s.currentRunIndex <= MAX_RUNS_PER_STAGE)) return false;
+        currentStage = s.currentStage;
+        currentRunIndex = s.currentRunIndex;
+        totalCorrectGuesses = s.totalCorrectGuesses || 0;
+        runsCompleted = s.runsCompleted || 0;
+        totalCardsFlipped = s.totalCardsFlipped || 0;
+        totalCoinsEarned = s.totalCoinsEarned || 0;
+        coins = s.coins || 0;
+        stickerInventory = { ...(s.stickerInventory || {}) };
+        columnPillars = Array.isArray(s.columnPillars)
+          ? s.columnPillars.slice() : new Array(COLUMN_SLOTS).fill(null);
+        storeOffer = s.storeOffer || null;
+        baseDeck = s.baseDeck.map(c => ({
+          ...c,
+          modifications: (c.modifications || []).slice(),
+          stickers: (c.stickers || []).map(x => ({ ...x })),
+        }));
+        return true;
+      },
     };
   }
 
   return { create, layoutForRun, RUN_LAYOUTS, MAX_RUNS_PER_STAGE, COLUMN_SLOTS, MIN_RANK, MAX_RANK };
+})();
+
+/* ----------------------------------------------------------------
+   SaveStore — the persistence ADAPTER. The game only ever calls
+   load()/save()/clear(); it never touches storage directly. Today this is
+   browser localStorage (per-device, survives refresh). To move to a real
+   server/cloud save later (e.g. Supabase, per-user), swap ONLY this module —
+   no gameplay code changes. Degrades to a silent no-op anywhere localStorage
+   is unavailable (private mode, Node test sandbox), so it can never throw.
+---------------------------------------------------------------- */
+const SaveStore = (() => {
+  const KEY = "ninelives.save.v1";
+  const available = (() => {
+    try {
+      if (typeof localStorage === "undefined") return false;
+      const k = "__nl_probe__";
+      localStorage.setItem(k, "1"); localStorage.removeItem(k);
+      return true;
+    } catch (e) { return false; }
+  })();
+  return {
+    available,
+    load() {
+      if (!available) return null;
+      try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; }
+      catch (e) { return null; }
+    },
+    save(state) {
+      if (!available) return;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* quota/serialize — ignore */ }
+    },
+    clear() {
+      if (!available) return;
+      try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    },
+  };
 })();
 
 /* ----------------------------------------------------------------
@@ -3245,6 +3327,7 @@ const UIRenderer = (() => {
     renderStickerBadges(pileEls[index], top);
     renderStickerTray();
     el.hint.textContent = "Sticker applied — apply more or press Start Run.";
+    persistCampaign("run");   // the sticker is a permanent campaign change
   }
 
   /* Mirror an applied sticker onto the live run-deck/board card object so its
@@ -3797,7 +3880,21 @@ const UIRenderer = (() => {
      startRun      -> a full per-run reset (deck, piles, UI, engine).
      onRunEnd      -> folds the run into campaign totals + shows a screen.
      continueCampaign -> advances to the next run (or ends the campaign). */
+  /* ---- save / resume (between-runs persistence via SaveStore) ----
+     persistCampaign(phase) snapshots the campaign + where to resume:
+       "run"   → re-deal the current run's sticker phase on next load
+       "store" → re-open the between-runs store on next load
+     A mid-run refresh resumes at the current run's sticker phase (we don't
+     persist live board/deck) — the documented "between-runs only" behavior.
+     clearSave() wipes it (new campaign, loss, or campaign complete). */
+  function persistCampaign(phase) {
+    if (!campaign) return;
+    SaveStore.save({ schema: 1, phase, campaign: campaign.serialize() });
+  }
+  function clearSave() { SaveStore.clear(); }
+
   function startCampaign() {
+    clearSave();          // a fresh campaign supersedes any saved one
     campaign.reset();
     startRun();
   }
@@ -3831,6 +3928,8 @@ const UIRenderer = (() => {
     buildBoard(cfg.cols);
 
     engine.start();
+    // Checkpoint the run start: a refresh now resumes this run's sticker phase.
+    persistCampaign("run");
   }
 
   /* Largest single-column pile count across every run (4, from Run 1's middle
@@ -4006,6 +4105,7 @@ const UIRenderer = (() => {
     // through the single wipe (startCampaign -> campaign.reset). Nothing else
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
+      clearSave();   // a loss wipes the campaign — no resume of a dead run
       showCampaignFailed();
       return;
     }
@@ -4049,9 +4149,12 @@ const UIRenderer = (() => {
     renderHud(board, payload.deck);
 
     if (campaign.isComplete()) {
+      clearSave();   // campaign finished — nothing left to resume
       showCampaignComplete();
     } else {
       // Between-runs intermission: just stage/run + the coin breakdown.
+      // Checkpoint with the won coins folded in; a refresh resumes at the store.
+      persistCampaign("store");
       showRunComplete(coins);
     }
   }
@@ -4071,9 +4174,11 @@ const UIRenderer = (() => {
      Spend coins on stickers; they go into the campaign inventory and are
      applied to cards DURING the next run (see the in-run sticker tray).
      Shown after every run so banked coins are always spendable. */
-  function showStore() {
+  function showStore(fresh = true) {
     hideOverlay();
-    campaign.openStore();   // ONE fresh random roll per visit (reroll cost → base)
+    // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
+    // offer so a refresh while shopping can't hand out a free reroll.
+    if (fresh || !campaign.getStoreOffer()) campaign.openStore();
     selectedStickerSlot = null; armedPillarSlot = null; armedSlotMove = null;
     closeItemHelp();
     el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
@@ -4130,6 +4235,10 @@ const UIRenderer = (() => {
     updateBuyButton();
     renderPillarStore();
     updateRerollButton();
+    // Checkpoint store state (coins, inventory, Pillars, current offer) so a
+    // refresh while shopping keeps every purchase. renderStore() runs after
+    // each store action, so this captures buys / rerolls / Pillar moves.
+    persistCampaign("store");
   }
 
   /* The Buy confirm button reflects the current sticker-slot selection. */
@@ -4347,11 +4456,29 @@ const UIRenderer = (() => {
       canInspect: () => !!engine && engine.getStatus() === "playing",
     });
 
-    // Build a static board (run 1's layout) behind the start overlay.
-    buildBoard(campaign.layoutForRun(1).cols, false);
+    // Resume a saved in-progress campaign if one exists (between-runs save).
+    // A valid, not-yet-complete snapshot drops the player straight back into
+    // their run's sticker phase ("run") or the between-runs store ("store").
+    const saved = SaveStore.load();
+    let resumed = false;
+    if (saved && saved.campaign && campaign.restore(saved.campaign) && !campaign.isComplete()) {
+      resumed = true;
+    } else if (saved) {
+      clearSave();   // missing/incompatible/finished — discard it
+    }
+    updateStageRun();   // reflect restored stage/run/coins
 
-    // Phase: Start. The overlay button kicks off the campaign.
-    showStartScreen();
+    if (resumed) {
+      // Resume directly — no Start screen. Build the current run's board first
+      // so it's the backdrop whether we land in the store or the sticker phase.
+      buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
+      if (saved.phase === "store") showStore(false);   // keep the saved offer
+      else startRun();                                 // re-deal the current run
+    } else {
+      // Fresh: static run-1 board behind the Start overlay.
+      buildBoard(campaign.layoutForRun(1).cols, false);
+      showStartScreen();
+    }
 
     // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1).
     if (/[?&]debug\b/.test(location.search)) setDebug(true);

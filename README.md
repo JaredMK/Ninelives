@@ -58,6 +58,16 @@ Start → S1R1 → … → S1R3 → S2R1 → … → S3R3 → Campaign Complete 
   them. (The wipe is deliberately isolated to `CampaignState.reset()` and a
   single loss call site, so it's easy to soften later — e.g. a checkpoint or
   partial carry.)
+- **Save & resume (between runs).** The campaign-level state — stage/run
+  position, coins, sticker inventory, the 52-card deck with its stickers +
+  modifications, Pillars, and the current store offer — is saved after each
+  change and restored on refresh, so a reload drops you back into your run's
+  sticker phase or the store. It is cleared on a loss and on campaign
+  completion (the "loss wipes everything" rule still holds). Per the
+  between-runs scope, a refresh *mid-run* re-deals the current run (live board
+  state isn't persisted). Storage goes through a single `SaveStore` adapter
+  (browser `localStorage` today); swapping it for a server/cloud per-user save
+  later is a one-module change — no gameplay code touches storage directly.
 
 ## Coins, Store & Stickers
 
