@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.29.0";
+const APP_VERSION = "v0.30.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1486,11 +1486,12 @@ const PillarTypes = (() => {
       description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — TWO cards from the bottom of the deck are buried under that pile (hidden). Every time.",
     },
     allHeartsCoin: {
-      // Live, board-wide bonus: after any resolution, if EVERY alive pile shows
-      // a ♥ on top, pay +5 bonus coins. Evaluated per post-draw check, uncapped.
+      // Live, column-scoped bonus: after any resolution, if every alive pile in
+      // this column shows a ♥ on top, pay +5 bonus coins. Per post-draw check,
+      // uncapped. (Engine evaluates it per-column — see maybeAllHearts.)
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
       kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
-      description: "After any guess resolves, if EVERY alive pile across the whole board is showing a ♥ on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
+      description: "After any guess resolves, if every ALIVE pile in THIS COLUMN is showing a ♥ on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
     },
   };
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
