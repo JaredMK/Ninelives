@@ -64,27 +64,10 @@
      ============================================================ */
   header {
     text-align: center;
-    padding: 14px 12px 6px;
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: clamp(20px, 6vw, 30px);
-    letter-spacing: 2px;
-    font-weight: 800;
-    background: linear-gradient(180deg, var(--accent) 0%, #ff9d4d 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  header p {
-    margin: 2px 0 0;
-    font-size: 12px;
-    color: var(--muted);
+    padding: 6px 12px 2px;
   }
   .stage-run {
-    margin: 5px auto 0;
+    margin: 0 auto;
     display: inline-block;
     font-size: 11px;
     font-weight: 800;
@@ -200,14 +183,20 @@
     gap: 8px;
   }
   .board-foot .deck-stat { font-size: 13px; padding: 6px 13px; }
-  /* Toggle for the always-on composition strip (📊). Dimmed when the strip is off. */
+  /* Graph toggle (📊) — sits in its own thin row directly above the strip. */
+  .strip-toggle-row {
+    width: min(96vw, 460px);
+    margin: 3px auto 0;
+    display: flex; justify-content: center;
+  }
   .deck-strip-toggle {
     background: var(--panel); color: var(--text);
     border: 1px solid #34508f; border-radius: 999px;
-    width: 34px; height: 32px; font-size: 15px; line-height: 1;
+    height: 22px; padding: 0 12px; font-size: 11px; font-weight: 800; line-height: 1;
+    letter-spacing: 0.4px;
     cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
   }
-  .deck-strip-toggle.off { opacity: 0.4; }
+  .deck-strip-toggle.off { opacity: 0.45; }
   .deck-strip-toggle:active { transform: scale(0.94); }
 
   /* ============================================================
@@ -227,7 +216,7 @@
   .deck-strip.hidden { display: none; }
   .ds-bars {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; height: 44px;
+    gap: 2px; height: 92px;
   }
   .ds-bar {
     flex: 1 1 0; min-width: 0;
@@ -243,7 +232,7 @@
   .ds-blue { background: var(--accent-2); }
   .ds-bar.ds-active .ds-grey { background: rgba(255,255,255,0.28); }
   .ds-bar.ds-active .ds-blue { background: #ffd166; }
-  .ds-rank { font-size: 8px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+  .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* Scrubber readout — absolute overlay so it never changes the strip's height. */
   .ds-scrub {
@@ -309,7 +298,8 @@
     gap: var(--gap);
     width: min(96vw, 460px);
     margin: 0 auto;
-    -webkit-touch-callout: none;   /* press-and-hold to peek shouldn't pop the iOS callout */
+    -webkit-touch-callout: none;   /* press-and-hold shouldn't pop the iOS callout */
+    touch-action: none;            /* deliver vertical drag-to-guess as pointer events, not a page pan */
   }
   /* The columns themselves — the old board row, now a child of .board so a
      single Pillar-indicator row can sit level above ALL columns. */
@@ -478,11 +468,11 @@
      ACTION SHEET (Higher / Lower)
      ============================================================ */
   .actions {
-    width: min(94vw, 430px);
+    width: min(96vw, 460px);
     display: grid;
-    grid-template-columns: 1fr 0.5fr 1fr;
-    gap: 10px;
-    min-height: 56px;
+    grid-template-columns: 42px 1fr 0.62fr 1fr;   /* ? · HIGHER · SAME · LOWER */
+    gap: 8px;
+    min-height: 40px;
     align-items: stretch;
   }
 
@@ -491,28 +481,35 @@
   .btn {
     border: none;
     border-radius: var(--radius);
-    padding: 16px 8px;
-    font-size: 17px;
+    padding: 9px 6px;          /* shorter than before */
+    font-size: 15px;
     font-weight: 800;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     color: #0c1124;
     box-shadow: var(--shadow);
     cursor: pointer;
-    transition: transform 0.08s ease, filter 0.15s ease;
+    transition: transform 0.08s ease, filter 0.15s ease, opacity 0.12s ease;
   }
   .btn:active { transform: scale(0.96); }
   .btn.higher { background: linear-gradient(180deg, #7bf08a, var(--good)); }
   .btn.lower  { background: linear-gradient(180deg, #ff8a97, var(--bad)); }
-  .btn .sub { display:block; font-size: 11px; font-weight: 600; opacity: 0.7; }
+  /* Greyed during a drag-guess to show which guess is armed (non-chosen dim). */
+  .btn.dim { opacity: 0.28; filter: grayscale(0.85); }
+
+  /* "?" card-info button — small, secondary; disabled until a pile is selected. */
+  .btn.info {
+    background: var(--panel); color: var(--accent-2);
+    border: 1px solid #34508f; font-size: 19px; padding: 0;
+  }
+  .btn.info:disabled { opacity: 0.32; cursor: default; }
 
   /* "Same" is a smaller, secondary option wedged between higher/lower. */
   .btn.same {
     background: linear-gradient(180deg, #ffe08a, var(--accent));
-    padding: 10px 4px;
-    font-size: 13px;
+    padding: 7px 3px;
+    font-size: 12px;
     align-self: center;
   }
-  .btn.same .sub { font-size: 9px; }
 
   .hint {
     text-align: center;
@@ -1099,14 +1096,31 @@
     padding: 11px 13px; font-size: 13px; color: var(--text);
   }
   .peek-info.hidden { display: none; }
-  .peek-info .pk-head { font-weight: 800; font-size: 14px; margin-bottom: 7px; color: var(--accent-2); }
-  .peek-info .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); }
-  .peek-info .pk-item:first-of-type { border-top: none; }
-  .peek-info .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
-  .peek-info .pk-name { font-weight: 700; }
-  .peek-info .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
-  .peek-info .pk-state { color: #f2c94c; font-size: 11.5px; margin-top: 3px; }
-  .peek-info .pk-empty { color: var(--muted); font-style: italic; }
+
+  /* Card-info popup ("?" button): a tap-dismissable modal reusing the .pk-* look.
+     Backdrop captures taps so tapping off closes it. */
+  .card-info {
+    position: fixed; inset: 0; z-index: 64;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6,10,22,0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    padding: 18px;
+  }
+  .card-info.hidden { display: none; }
+  .card-info-panel {
+    width: min(92vw, 360px); max-height: 76vh; overflow-y: auto; overscroll-behavior: contain;
+    background: rgba(13,20,38,0.99); border: 1px solid #34508f;
+    border-radius: 12px; box-shadow: var(--shadow);
+    padding: 13px 14px; font-size: 13px; color: var(--text);
+  }
+
+  .peek-info .pk-head, .card-info-panel .pk-head { font-weight: 800; font-size: 14px; margin-bottom: 7px; color: var(--accent-2); }
+  .peek-info .pk-item, .card-info-panel .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  .peek-info .pk-item:first-of-type, .card-info-panel .pk-item:first-of-type { border-top: none; }
+  .peek-info .pk-ic, .card-info-panel .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
+  .peek-info .pk-name, .card-info-panel .pk-name { font-weight: 700; }
+  .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
+  .peek-info .pk-state, .card-info-panel .pk-state { color: #f2c94c; font-size: 11.5px; margin-top: 3px; }
+  .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
   .deck-quick-total {
     font-weight: 800;
     font-size: 13px;
@@ -1281,8 +1295,6 @@
        innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
   <div id="svhProbe" aria-hidden="true"></div>
   <header>
-    <h1>NINE LIVES</h1>
-    <p>Guess higher or lower. Survive the deck.</p>
     <div class="stage-run" id="stageRun">Stage 1 · Run 1</div>
   </header>
 
@@ -1315,8 +1327,6 @@
            title="Tap to inspect the remaining deck · hold for a quick peek">
         🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
       </div>
-      <button class="deck-strip-toggle" id="deckStripToggle" type="button"
-              title="Show/hide the deck composition strip" aria-label="Toggle deck composition strip">📊</button>
     </div>
 
     <div class="hint" id="hint">Tap a pile to begin.</div>
@@ -1329,20 +1339,34 @@
     <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
 
     <div class="actions hidden" id="actions">
-      <button class="btn higher" id="btnHigher">HIGHER<span class="sub">next &gt; current</span></button>
-      <button class="btn same" id="btnSame">SAME<span class="sub">exact</span></button>
-      <button class="btn lower" id="btnLower">LOWER<span class="sub">next &lt; current</span></button>
+      <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
+      <button class="btn higher" id="btnHigher">HIGHER</button>
+      <button class="btn same" id="btnSame">SAME</button>
+      <button class="btn lower" id="btnLower">LOWER</button>
+    </div>
+
+    <!-- Graph toggle: sits directly above the composition strip. Always visible
+         (so the strip can be turned back on after hiding). -->
+    <div class="strip-toggle-row">
+      <button class="deck-strip-toggle" id="deckStripToggle" type="button"
+              title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph">📊 Graph</button>
     </div>
 
     <!-- Always-on deck composition strip: remaining (blue) vs total (grey) per
          rank 2→A, on a shared absolute scale. Drag to scrub higher/same/lower.
-         Toggle via the 📊 button. Presentation only — reads the same counts as
-         the Deck Composition modal; never reveals draw order. -->
+         Presentation only — reads the same counts as the Deck Composition modal;
+         never reveals draw order. -->
     <div class="deck-strip" id="deckStrip">
       <div class="ds-scrub hidden" id="deckStripScrub"></div>
       <div class="ds-bars" id="deckStripBars"></div>
     </div>
   </main>
+
+  <!-- Card info popup ("?" button): the selected pile's top card — description
+       + its stickers (registry text) + persistent state. Tap off to close. -->
+  <div class="card-info hidden" id="cardInfo">
+    <div class="card-info-panel" id="cardInfoPanel"></div>
+  </div>
 
   <!-- Debug: a small corner toggle opens a floating, self-scrolling overlay.
        Also openable via ?debug in the URL or a triple-tap on the title. -->
@@ -1513,7 +1537,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.38.0";
+const APP_VERSION = "v0.39.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -3386,9 +3410,13 @@ const UIRenderer = (() => {
     stageRun: document.getElementById("stageRun"),
     stickerTray: document.getElementById("stickerTray"),
     actions: document.getElementById("actions"),
+    btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
     btnLower: document.getElementById("btnLower"),
+    cardInfo: document.getElementById("cardInfo"),
+    cardInfoPanel: document.getElementById("cardInfoPanel"),
+    stripToggleRow: document.querySelector(".strip-toggle-row"),
     startRunBtn: document.getElementById("startRunBtn"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
@@ -3788,19 +3816,25 @@ const UIRenderer = (() => {
   function closePeekInfo() { el.peekInfo.classList.add("hidden"); }
 
   /* ---- selection / action sheet ---- */
+  /* Force-select a pile (no toggle): show the action row + enable the "?" info
+     button. Used by both tap-select and the drag-guess gesture. */
+  function showPileSelected(index) {
+    if (selected !== null && selected !== index && pileEls[selected]) {
+      pileEls[selected].classList.remove("selected");
+    }
+    selected = index;
+    pileEls[index].classList.add("selected");
+    el.actions.classList.remove("hidden");
+    if (el.btnInfo) el.btnInfo.disabled = false;
+    const top = engine.getBoard().top(index);
+    el.hint.textContent = `Pile shows ${top.label}. Drag up = Higher, down = Lower, or tap a button.`;
+  }
   function selectPile(index) {
     if (!engine || engine.getStatus() !== "playing") return;
     if (!engine.isRunStarted()) return;   // no guessing until Start Run is pressed
     if (!engine.getBoard().isActive(index)) return;
-
-    if (selected === index) { clearSelection(); return; }
-
-    clearSelection();
-    selected = index;
-    pileEls[index].classList.add("selected");
-    el.actions.classList.remove("hidden");
-    const top = engine.getBoard().top(index);
-    el.hint.textContent = `Pile shows ${top.label}. Higher, same, or lower?`;
+    if (selected === index) { clearSelection(); return; }   // tap the selected pile again = deselect
+    showPileSelected(index);
   }
 
   function clearSelection() {
@@ -3809,7 +3843,18 @@ const UIRenderer = (() => {
     }
     selected = null;
     el.actions.classList.add("hidden");
+    if (el.btnInfo) el.btnInfo.disabled = true;
+    closeCardInfo();
   }
+
+  /* ---- card-info popup ("?" button): the selected card's description +
+     stickers (registry text) + persistent state. Tap off to close. ---- */
+  function openCardInfo() {
+    if (selected === null || !engine) return;
+    el.cardInfoPanel.innerHTML = cardPeekHtml(engine.getBoard().top(selected));
+    el.cardInfo.classList.remove("hidden");
+  }
+  function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
 
   function submitGuess(guess) {
     if (selected === null) return;
@@ -4098,36 +4143,80 @@ const UIRenderer = (() => {
       setTimeout(() => { lastVW = lastVH = 0; refitIfChanged(); }, 300);
     });
 
-    // Hold-to-peek: press-and-hold a pile (top card) or a Pillar indicator to
-    // reveal its info; release dismisses it. Matches the deck quick-view gesture.
-    // A hold suppresses the ensuing click so it never selects / guesses / applies.
-    const PEEK_HOLD_MS = 180;
+    // ---- Board gestures ----
+    // (a) Hold a Pillar INDICATOR to peek its info (release dismisses).
+    // (b) During active play, DRAG a pile up/down to guess Higher/Lower in one
+    //     motion (release commits; centre dead-zone cancels). A drag suppresses
+    //     the ensuing click so it never also selects. A plain TAP still selects.
+    // Card info during play is via select-pile → "?" (no card hold-peek).
+    const PEEK_HOLD_MS = 180;     // Pillar-indicator hold threshold
+    const TAP_SLOP = 8;           // movement under this = a tap (selects)
+    const DRAG_THRESH = 26;       // vertical travel to arm a guess
     let peekTimer = null, peeking = false, suppressPileClick = false;
+    let pileDrag = null;          // { index, startY, armed, moved }
+
+    function setDragGreying(armed) {
+      el.btnHigher.classList.toggle("dim", armed === "lower");
+      el.btnLower.classList.toggle("dim", armed === "higher");
+      el.btnSame.classList.toggle("dim", armed === "higher" || armed === "lower");
+    }
+    function clearDragGreying() {
+      el.btnHigher.classList.remove("dim");
+      el.btnLower.classList.remove("dim");
+      el.btnSame.classList.remove("dim");
+    }
+
     el.board.addEventListener("pointerdown", (e) => {
       suppressPileClick = false;
       clearTimeout(peekTimer);
       peeking = false;
+      pileDrag = null;
       const cell = e.target.closest(".bp-cell");
-      const pileEl = cell ? null : e.target.closest(".pile");
-      if (!cell && !pileEl) return;
-      if (cell) {
+      if (cell) {   // Pillar-indicator hold-to-peek
         const col = Number(cell.dataset.col);
         peekTimer = setTimeout(() => { peeking = true; openPillarPeek(col); }, PEEK_HOLD_MS);
-      } else {
+        return;
+      }
+      const pileEl = e.target.closest(".pile");
+      if (!pileEl) return;
+      // Drag-to-guess only during active play; otherwise let the click handle
+      // tap-select (active) or sticker apply (sticker phase).
+      if (engine && engine.isRunStarted() && engine.getStatus() === "playing") {
         const index = Number(pileEl.dataset.index);
-        peekTimer = setTimeout(() => { peeking = true; openCardPeek(index); }, PEEK_HOLD_MS);
+        if (engine.getBoard().isActive(index)) pileDrag = { index, startY: e.clientY, armed: null, moved: false };
       }
     });
+
+    el.board.addEventListener("pointermove", (e) => {
+      if (!pileDrag) return;
+      const dy = pileDrag.startY - e.clientY;          // up = positive
+      if (Math.abs(dy) > TAP_SLOP) {
+        if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); }  // reveal buttons for feedback
+        const armed = dy >= DRAG_THRESH ? "higher" : dy <= -DRAG_THRESH ? "lower" : null;
+        if (armed !== pileDrag.armed) { pileDrag.armed = armed; setDragGreying(armed); }
+        e.preventDefault();
+      }
+    });
+
     const endPeek = () => {
       clearTimeout(peekTimer);
       if (peeking) { peeking = false; suppressPileClick = true; closePeekInfo(); }
+      if (pileDrag) {
+        clearDragGreying();
+        if (pileDrag.moved) {
+          suppressPileClick = true;   // it was a drag, not a tap
+          if (pileDrag.armed) engine.guess(pileDrag.index, pileDrag.armed);   // commit Higher/Lower
+          // else: released in the dead-zone → cancel (pile stays selected, no guess)
+        }
+        pileDrag = null;
+      }
     };
     el.board.addEventListener("pointerup", endPeek);
     el.board.addEventListener("pointerleave", endPeek);
     el.board.addEventListener("pointercancel", endPeek);
 
-    // Tap a pile: apply an armed sticker, or select it for a guess. A hold that
-    // just opened the peek sets suppressPileClick, so the release won't act.
+    // Tap a pile: apply an armed sticker (sticker phase) or select it (active).
+    // A drag/peek sets suppressPileClick so the release doesn't also act.
     el.board.addEventListener("click", (e) => {
       if (suppressPileClick) { suppressPileClick = false; return; }
       const pileEl = e.target.closest(".pile");
@@ -4136,6 +4225,10 @@ const UIRenderer = (() => {
       if (armedSticker) applyArmedSticker(index);
       else selectPile(index);
     });
+
+    // "?" card-info button (enabled once a pile is selected) + tap-off to close.
+    el.btnInfo.addEventListener("click", openCardInfo);
+    el.cardInfo.addEventListener("click", (e) => { if (e.target === el.cardInfo) closeCardInfo(); });
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
@@ -4283,9 +4376,11 @@ const UIRenderer = (() => {
       if (e.target === el.debugOverlay) setDebug(false);   // backdrop only
     });
 
-    // Triple-tap the title to toggle debug mode (in addition to ?debug URL).
+    // Triple-tap the title to toggle debug mode (in addition to ?debug URL and
+    // the 🐞 corner toggle). The title was removed from the play screen, so this
+    // only attaches if the element exists.
     let taps = 0, tapTimer = null;
-    el.title.addEventListener("click", () => {
+    if (el.title) el.title.addEventListener("click", () => {
       taps++;
       clearTimeout(tapTimer);
       tapTimer = setTimeout(() => { taps = 0; }, 600);
@@ -4757,11 +4852,14 @@ const UIRenderer = (() => {
     // The always-on composition strip (when shown) is another main child below
     // the board; reserve its height so Run 1's 4-tall column still fits no-scroll.
     const stripVisible = el.deckStrip && !el.deckStrip.classList.contains("hidden");
-    // main's visible children: board, board-foot, hint, [tray], control-row, [strip].
-    const belowH = oh(foot) + oh(el.hint) + controlH
+    // The graph toggle row is always shown (so the strip can be re-enabled).
+    const toggleRowH = oh(el.stripToggleRow);
+    // main's visible children: board, board-foot, hint, [tray], control-row,
+    // toggle-row, [strip].
+    const belowH = oh(foot) + oh(el.hint) + controlH + toggleRowH
       + (trayVisible ? oh(el.stickerTray) : 0)
       + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 4 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // includes the board
+    const visibleChildren = 5 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // includes the board + toggle row
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
