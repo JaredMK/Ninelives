@@ -1342,7 +1342,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.31.0";
+const APP_VERSION = "v0.32.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1396,13 +1396,24 @@ const StickerTypes = (() => {
                   description: "When this card is drawn and lands on a surviving pile, bury 2 cards from the deck under it (hidden) and pay 4 bonus coins." },
     centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, centerOnly: true, tier: "rare", price: 5,
                   description: "When this card is drawn and lands on a surviving pile in the MIDDLE column, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
+    deathBounty: { id: "deathBounty", label: "Death Bounty", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
+                  description: "If this card is drawn and its wrong guess KILLS the pile, gain 2 bonus coins anyway — a consolation that still pays into your coin total." },
+    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
+                  description: "This card counts as 2 toward pile size everywhere — the alive × smallest factor, Extra Coin payouts, and the count badge — even while buried." },
+    collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
+                  description: "At run end, if this card is alive on top of its pile, +1 coin for each OTHER sticker on it (it doesn't count itself)." },
+    compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
+                  description: "Banks value across the whole campaign: +1 for each correct guess made against this card after the first. At run end, if it's alive on top, pays that banked amount. Resets on a campaign loss." },
+    wallflower: { id: "wallflower", label: "Wallflower",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
+                  description: "At run end, +10 coins if you NEVER guessed on this pile (its starter card is still the untouched top). Tribute/burn cards buried underneath don't disqualify it — only guessing on the pile does." },
   };
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
     "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
     "tieSafe", "suitImmunity", "extraCoin", "middleColumnReward", "gainCoin",
-    "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute"];
+    "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
+    "deathBounty", "heavy", "collector", "compound", "wallflower"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1493,10 +1504,56 @@ const PillarTypes = (() => {
       kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
       description: "After any guess resolves, if every ALIVE pile in THIS COLUMN is showing a ♥ on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
     },
+    envy: {
+      // End-of-run: +1 per alive pile in the column to the LEFT (wraparound:
+      // left-of-leftmost = rightmost). Scored in computePillarPayout.
+      id: "envy", label: "Envy", icon: "💚",
+      kind: "scoring", effect: "envyLeft", tier: "uncommon", price: 6,
+      description: "At run end, +1 coin for each alive pile in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
+    },
+    symmetry: {
+      // End-of-run: +value if this column's alive count equals the RIGHT
+      // column's (wraparound: right-of-rightmost = leftmost).
+      id: "symmetry", label: "Symmetry", icon: "🪞",
+      kind: "scoring", effect: "symmetryRight", value: 6, tier: "rare", price: 7,
+      description: "At run end, +6 coins if this column has the same number of alive piles as the column to its RIGHT (the rightmost column wraps to the leftmost).",
+    },
+    streakBank: {
+      // During-run (live): consecutive correct guesses on THIS column's piles
+      // pay +1 from the 3rd in a row onward. A wrong in-column guess — or ANY
+      // guess in another column — resets the streak. Paid via addBonus.
+      id: "streakBank", label: "Streak Bank", icon: "🏦",
+      kind: "live", effect: "streakBank", value: 1, tier: "rare", price: 8,
+      description: "Consecutive correct guesses on piles in this column pay +1 bonus coin each, starting from the 3rd in a row. The streak resets on a wrong guess in this column, or on any guess in another column.",
+    },
+    streakTribute: {
+      // Composition: from the 4th consecutive correct guess in this column
+      // onward, bury a deck-bottom card under the pile. Uncapped, no reveal.
+      id: "streakTribute", label: "Streak Tribute", icon: "🔥",
+      kind: "composition", effect: "streakTribute", tier: "rare", price: 10,
+      description: "From the 4th consecutive correct guess in this column onward, a card from the bottom of the deck is buried under that pile (hidden). The streak resets on a wrong guess in this column, or on any guess in another column.",
+    },
+    secondWind: {
+      // Guess-time: the FIRST pile to die in this column each run revives once
+      // with a single fresh top card; its old cards (and the killing card) are
+      // reshuffled into the deck with no reveal, stickers intact.
+      id: "secondWind", label: "Second Wind", icon: "🌬️",
+      kind: "guess", effect: "secondWind", tier: "rare", price: 7,
+      description: "The first pile to die in this column each run revives once with one new card on top. Its previous cards are shuffled back into the draw deck (hidden), and the revived 1-card pile counts as alive — which can lower your smallest-pile factor.",
+    },
+    greedy: {
+      // End-of-run: +value if every pile in this column is alive AND this is the
+      // ONLY Pillar anywhere on the board (a second Pillar — even another Greedy
+      // — disqualifies it).
+      id: "greedy", label: "Greedy", icon: "🤑",
+      kind: "scoring", effect: "greedy", value: 30, tier: "rare", price: 10,
+      description: "At run end, +30 coins if every pile in this column is alive AND no other Pillar exists anywhere on the board (Greedy may be the only Pillar in play — any second Pillar disqualifies it).",
+    },
   };
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
-    "sameValueTribute", "allHeartsCoin"];
+    "sameValueTribute", "allHeartsCoin",
+    "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -1614,6 +1671,7 @@ const DeckManager = (() => {
           currentRank: r.value,
           modifications: [],
           stickers: [],          // persistent upgrades; ride with this id
+          compoundHits: 0,       // Compound sticker: lifetime correct guesses vs this card
         });
       }
     }
@@ -1636,6 +1694,9 @@ const DeckManager = (() => {
       // Spade Guard: a once-per-run charge to survive a wrong guess when the
       // drawn card is ♠. Re-projected on every deal, so it refreshes each run.
       spadeImmunity: stickers.some(x => x.type === "suitImmunity"),
+      // Compound: lifetime count of correct guesses made against this identity
+      // (persisted on the campaign card). Pays (compoundHits − 1) if alive on top.
+      compoundHits: card.compoundHits || 0,
     };
   }
 
@@ -1749,14 +1810,26 @@ const BoardState = (() => {
     for (let i = 0; i < size; i++) {
       piles.push({ index: i, cards: [], dead: false });
     }
+    // Heavy: a card counts as (1 + number of Heavy stickers) toward pile size,
+    // everywhere pile size is read (and even while buried). sizeOf weights a
+    // pile's whole stack; the physical count is still piles[i].cards.length.
+    const cardWeight = (c) =>
+      1 + (c && c.stickers ? c.stickers.filter(s => s.type === "heavy").length : 0);
+    const sizeOf = (p) => p.cards.reduce((n, c) => n + cardWeight(c), 0);
     return {
       size,
       piles,
+      /** Weighted pile size (Heavy counts double). The single source for every
+          pile-size read — payout factors, Extra Coin, and the count badge. */
+      pileSize(index) { return sizeOf(piles[index]); },
       /** Place a starting/next card on a pile. */
       push(index, card) { piles[index].cards.push(card); },
       /** Insert a card at the BOTTOM of a pile (under everything). Used by Ace
           Tribute: the tributed card is buried face-down, never shown. */
       pushBottom(index, card) { if (card) piles[index].cards.unshift(card); },
+      /** Remove and return ALL of a pile's cards, leaving it empty but ALIVE.
+          Used by Second Wind to recycle a dying pile's cards (no reveal). */
+      drain(index) { const c = piles[index].cards; piles[index].cards = []; return c; },
       top(index) {
         const c = piles[index].cards;
         return c.length ? c[c.length - 1] : null;
@@ -1779,7 +1852,8 @@ const BoardState = (() => {
         let min = Infinity;
         for (const p of piles) {
           if (p.dead) continue;
-          if (p.cards.length < min) min = p.cards.length;
+          const s = sizeOf(p);
+          if (s < min) min = s;
         }
         return min === Infinity ? 0 : min;
       },
@@ -1793,7 +1867,7 @@ const BoardState = (() => {
         for (let i = 0; i < piles.length; i++) {
           const p = piles[i];
           if (p.dead) continue;
-          const len = p.cards.length;
+          const len = sizeOf(p);
           if (len < minAll) minAll = len;
           if (!this.isAnchored(i) && len < minNonAnchored) minNonAnchored = len;
         }
@@ -1811,7 +1885,7 @@ const BoardState = (() => {
           const top = p.cards[p.cards.length - 1];
           if (top && top.stickers) {
             const n = top.stickers.filter(s => s.type === "extraCoin").length;
-            if (n) units += n * p.cards.length;
+            if (n) units += n * sizeOf(p);
           }
         }
         return units;
@@ -1889,6 +1963,42 @@ const GameEngine = (() => {
       if (!run || !amount) return;
       run.bonusCoins += amount;
       run.bonusEvents[label] = (run.bonusEvents[label] || 0) + amount;
+    }
+
+    /** Second Wind: recycle a dying pile's cards (and the killing card) back into
+        the draw deck at random positions — no reveal, stickers/identity intact —
+        then deal one fresh card as the pile's only top. The pile stays alive. */
+    function reviveSecondWind(index, killingCard) {
+      const removed = board.drain(index);          // empties the pile, keeps it alive
+      for (const c of removed) deck.returnCard(c);  // random positions, never shown
+      deck.returnCard(killingCard);                 // the card that would've killed it
+      board.push(index, deck.draw());               // one new top (pile size = 1)
+    }
+
+    /** End-of-run STICKER bonuses (win only), added to the live tally so the
+        tracker + run-complete breakdown reconcile. Reads alive top cards:
+          Collector  — per Collector instance, +1 for each OTHER sticker on it
+          Compound   — (lifetime correct guesses − 1), floored at 0
+          Wallflower — +value if the pile was NEVER guessed on (untouched top) */
+    function settleEndStickerBonuses() {
+      for (let i = 0; i < board.size; i++) {
+        if (!board.isActive(i)) continue;
+        const top = board.top(i);
+        if (!top || !top.stickers) continue;
+        const collectors = top.stickers.filter(s => s.type === "collector").length;
+        if (collectors > 0) {
+          const amt = collectors * Math.max(0, top.stickers.length - 1);
+          if (amt > 0) addBonus("Collector", amt);
+        }
+        if (top.stickers.some(s => s.type === "compound")) {
+          const n = Math.max(0, (top.compoundHits || 0) - 1);
+          if (n > 0) addBonus("Compound", n);
+        }
+        if (top.stickers.some(s => s.type === "wallflower") && run.pileGuessed && !run.pileGuessed[i]) {
+          const wt = StickerTypes.get("wallflower");
+          addBonus("Wallflower", (wt && wt.value) || 0);
+        }
+      }
     }
 
     /** Composition Tribute Pillars (8 / Same / Double): on a qualifying
@@ -1973,6 +2083,15 @@ const GameEngine = (() => {
       const lines = [];
       let bonus = 0;
       if (!run || !run.pillars || !run.pileColumns || !run.cols) return { bonus, lines };
+      const nCols = run.cols.length;
+      const colIdxs = (c) => {
+        const a = [];
+        for (let i = 0; i < run.pileColumns.length; i++) if (run.pileColumns[i] === c) a.push(i);
+        return a;
+      };
+      const aliveInCol = (c) => colIdxs(c).filter(i => board.isActive(i)).length;
+      const allAliveInCol = (c) => { const a = colIdxs(c); return a.length > 0 && a.every(i => board.isActive(i)); };
+      const pillarsOnBoard = run.pillars.filter(Boolean).length;
       for (let col = 0; col < run.cols.length; col++) {
         const pid = run.pillars[col];
         if (!pid) continue;
@@ -1987,6 +2106,29 @@ const GameEngine = (() => {
           if (allAlive) {
             bonus += t.value;
             lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
+          }
+        } else if (t.effect === "envyLeft") {
+          // +1 per alive pile in the column to the LEFT (wraparound: col 0 → last).
+          const left = (col - 1 + nCols) % nCols;
+          const n = aliveInCol(left);
+          if (n > 0) {
+            bonus += n;
+            lines.push({ label: t.label, detail: n + " alive in col " + (left + 1), amount: n });
+          }
+        } else if (t.effect === "symmetryRight") {
+          // +value if this column's alive count equals the RIGHT column's
+          // (wraparound: last column → col 0).
+          const right = (col + 1) % nCols;
+          if (aliveInCol(col) === aliveInCol(right)) {
+            bonus += t.value;
+            lines.push({ label: t.label, detail: "cols " + (col + 1) + " & " + (right + 1) + " match", amount: t.value });
+          }
+        } else if (t.effect === "greedy") {
+          // +value only if this column fully survived AND it's the SOLE Pillar on
+          // the board (a second Pillar anywhere — even another Greedy — voids it).
+          if (pillarsOnBoard === 1 && allAliveInCol(col)) {
+            bonus += t.value;
+            lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value });
           }
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
@@ -2034,6 +2176,17 @@ const GameEngine = (() => {
         // bonus. bonusEvents itemizes the live part (label → running amount).
         bonusCoins: 0,
         bonusEvents: {},
+        // Per-column consecutive-correct-guess streak (Streak Bank / Streak
+        // Tribute). Any guess in another column, or a wrong in-column guess,
+        // resets it — so at most one column carries a live streak at a time.
+        colStreak: cols ? new Array(cols.length).fill(0) : null,
+        // Per-column "Second Wind already spent this run" flags.
+        secondWindUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Per-PILE "was ever guessed on" flags (for Wallflower). Sized at deal.
+        pileGuessed: new Array(pileCount).fill(false),
+        // Compound: { cardId: newHits } accrued this run, written back to the
+        // persistent card on a win so N survives to future runs.
+        compoundUpdates: {},
       };
       // A shuffled COPY of the campaign deck — deterministic per seed.
       deck = DeckManager.create(deckSpecs, makeRng(seed));
@@ -2093,6 +2246,35 @@ const GameEngine = (() => {
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
 
+      // Wallflower: ANY guess on a pile permanently disqualifies it (its top is
+      // no longer the untouched starter card).
+      if (run.pileGuessed) run.pileGuessed[index] = true;
+
+      const col = run.pileColumns ? run.pileColumns[index] : null;
+
+      // Streaks (Streak Bank / Streak Tribute): a guess in ANY other column
+      // resets those columns' streaks; this column grows on a correct guess and
+      // resets on a wrong one. The payout/tribute fires only if this column holds
+      // the relevant Pillar (Bank from the 3rd in a row, Tribute from the 4th).
+      if (run.colStreak && col != null) {
+        for (let c = 0; c < run.colStreak.length; c++) if (c !== col) run.colStreak[c] = 0;
+        if (correct) {
+          run.colStreak[col] += 1;
+          const s = run.colStreak[col];
+          if (pillar && pillar.effect === "streakBank" && s >= 3) addBonus(pillar.label, pillar.value || 1);
+          if (pillar && pillar.effect === "streakTribute" && s >= 4) buryTribute(index, 1);
+        } else {
+          run.colStreak[col] = 0;
+        }
+      }
+
+      // Compound: a correct guess against a Compound card banks +1 on its
+      // persistent identity (written back on a win). Pays (hits − 1) if alive on top.
+      if (correct && current.stickers && current.stickers.some(s => s.type === "compound")) {
+        current.compoundHits = (current.compoundHits || 0) + 1;
+        run.compoundUpdates[current.id] = current.compoundHits;
+      }
+
       // Suit Bounty: a correct guess made while a matching-suit card is showing
       // (the card guessed against) earns the column its bounty. Paid LIVE into
       // the bonus tally as it resolves (and tallied in suitBountyHits for the
@@ -2134,10 +2316,21 @@ const GameEngine = (() => {
         current.heartsRemaining -= 1;
         deck.returnCard(drawn);
         emit("heart-broken", { index, guess, current, drawn, board, deck, run });
+      } else if (pillar && pillar.effect === "secondWind" && run.secondWindUsed && col != null && !run.secondWindUsed[col]) {
+        // Second Wind: the first pile to die in this column each run revives once.
+        // Its cards AND the killing card are reshuffled back into the deck (no
+        // reveal, stickers intact) and one fresh card is dealt as the new top.
+        // The revived 1-card pile is alive immediately (can lower "smallest").
+        run.secondWindUsed[col] = true;
+        reviveSecondWind(index, drawn);
+        emit("second-wind", { index, guess, current, board, deck, run });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
         board.kill(index);
+        // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
+        const db = drawn.stickers ? drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
+        if (db > 0) { const t = StickerTypes.get("deathBounty"); addBonus("Death Bounty", db * ((t && t.value) || 0)); }
         emit("resolved", { index, guess, current, drawn, correct: false, board, deck, run });
       }
 
@@ -2154,6 +2347,9 @@ const GameEngine = (() => {
         status = "won";
         run.phase = "ended";
         run.result = "win";
+        // End-of-run STICKER bonuses (Collector / Compound / Wallflower) fold into
+        // the live tally first, so the tracker reconciles with the summary.
+        settleEndStickerBonuses();
         // Column Pillars score at run end (win only). Itemized here so the UI
         // never recomputes column membership.
         emit("won", { board, deck, run, pillarPayout: computePillarPayout() });
@@ -2647,6 +2843,13 @@ const CampaignState = (() => {
         return true;
       },
 
+      /** Compound: persist a card's lifetime correct-guess count on its identity
+          (called on a win so N carries to future runs; reset() wipes it). */
+      setCompoundHits(id, n) {
+        const card = findById(id);
+        if (card) card.compoundHits = n;
+      },
+
       /* ---- the full wipe (THE tuning seam for loss harshness) ----
          Returns the campaign to a vanilla Stage 1 / Run 1 state: a fresh
          52-card deck (all stickers + modifications gone), zero coins, empty
@@ -3110,7 +3313,7 @@ const UIRenderer = (() => {
     for (let i = 0; i < board.size; i++) {
       const badge = pileEls[i].querySelector(".pile-count");
       if (!badge) continue;
-      const len = board.piles[i].cards.length;
+      const len = board.pileSize(i);   // weighted (Heavy counts as 2) — matches the payout reads
       badge.textContent = len;
       const alive = board.isActive(i);
       const anchored = alive && board.isAnchored(i);
@@ -3146,8 +3349,14 @@ const UIRenderer = (() => {
     // Every OTHER registered sticker type renders one chip from its registry
     // icon — uniform display, and new types appear automatically.
     for (const t of StickerTypes.all()) {
-      if (t.id === "extraHeart") continue;   // handled above
+      if (t.id === "extraHeart" || t.id === "compound") continue;   // handled specially
       html += chip(t.icon, n(t.id));
+    }
+    // Compound shows its BANKED value (lifetime correct guesses − 1, min 0) so
+    // the player watches it grow — not a plain stack count.
+    if (n("compound") > 0) {
+      const banked = Math.max(0, (card.compoundHits || 0) - 1);
+      html += '<span class="badge">📈<span class="bcount">' + banked + "</span></span>";
     }
     badges.innerHTML = html;
   }
@@ -3704,6 +3913,25 @@ const UIRenderer = (() => {
         break;
       }
 
+      case "second-wind": {
+        // The pile revived: its old cards went back into the deck (hidden) and a
+        // single fresh top was dealt. Repaint the pile from its new top.
+        const idx = payload.index;
+        const pileEl = pileEls[idx];
+        const top = payload.board.top(idx);
+        if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+        pileEl.classList.remove("dead");
+        paintPileCounts(payload.board);
+        renderHud(payload.board, payload.deck);
+        pileEl.classList.add("flash-good");
+        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        clearSelection();
+        renderStickerTray();
+        el.hint.textContent = "🌬️ Second Wind — that pile revived with a fresh card!";
+        refreshDebug();
+        break;
+      }
+
       case "won":
         onRunEnd("win", payload);
         break;
@@ -4115,6 +4343,10 @@ const UIRenderer = (() => {
     // finish the campaign (Stage 3 Run 3) or head to the store. The itemized
     // breakdown comes straight from Economy — the view only formats it.
     campaign.recordRun(payload.run);
+    // Compound: persist this run's banked correct-guess counts onto the card
+    // identities so N carries into future runs (a loss wipes it via reset()).
+    const cu = (payload.run && payload.run.compoundUpdates) || {};
+    for (const id in cu) campaign.setCompoundHits(Number(id), cu[id]);
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
     // on the win payload; default to nothing for legacy/no-layout runs.
     const pp = payload.pillarPayout || { bonus: 0, lines: [] };
