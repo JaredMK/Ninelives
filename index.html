@@ -1994,7 +1994,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.55 · cinematic";
+const APP_VERSION = "v0.56 · fix";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -5371,6 +5371,9 @@ const UIRenderer = (() => {
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
         lastAliveCount = payload.board.aliveCount();
         renderConstellation();
+        // Redraw once the staggered deal-in has settled so the links align to
+        // the resting node centres (not the mid-drop positions).
+        setTimeout(renderConstellation, 950);
         refreshDebug();
         break;
       }
@@ -5810,6 +5813,11 @@ const UIRenderer = (() => {
     opts = opts || {};
     net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
     const board = engine.getBoard();
+    // The board doesn't exist until engine.start(); fitBoard() (and thus this)
+    // runs once during buildBoard() BEFORE the deal, so bail out until it does.
+    // (Without this, board.isActive/pileSize throw and abort the whole deal —
+    // which is why cards rendered blank and the network never drew.)
+    if (!board) return;
     const center = (i) => {
       const r = pileEls[i].getBoundingClientRect();
       return { x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top };
@@ -5833,8 +5841,9 @@ const UIRenderer = (() => {
   function linkMarkup(a, b, strength) {
     const s = Math.max(1, Math.min(5, strength || 1));
     const len = Math.hypot(b.x - a.x, b.y - a.y);
-    const core = 0.9 + s * 0.5;
-    const op = (0.24 + s * 0.10).toFixed(2);
+    // Clearly visible even at strength 1, then layering up with size.
+    const core = 1.4 + s * 0.55;
+    const op = Math.min(0.95, 0.5 + s * 0.10).toFixed(2);
     const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
     let m = "";
     if (s >= 3) m += '<path d="' + d + '" class="lk-glow" stroke-width="' + (core + 6).toFixed(1) + '"/>';
