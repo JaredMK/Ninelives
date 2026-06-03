@@ -1929,7 +1929,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.53 · network";
+const APP_VERSION = "v0.54 · suits";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1959,20 +1959,20 @@ const StickerTypes = (() => {
                   description: "Permanently set this card's rank to a RANDOM rank (2 through Ace). Suit is unchanged — a one-time gamble." },
     changeSuitRandom: { id: "changeSuitRandom", label: "Change to Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
                   description: "Permanently change this card's suit to a random DIFFERENT suit. Rank is unchanged." },
-    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
-                  description: "Permanently change this card's suit to ♠ (Spades). Rank is unchanged. Feeds the Spade Bounty Pillar." },
-    changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
-                  description: "Permanently change this card's suit to ♥ (Hearts). Rank is unchanged. Feeds the Heart Bounty Pillar." },
+    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to Star",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
+                  description: "Permanently change this card's suit to the Star. Rank is unchanged. Feeds the Star Bounty Pillar." },
+    changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to Sun",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
+                  description: "Permanently change this card's suit to the Sun. Rank is unchanged. Feeds the Sun Bounty Pillar." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
-    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♠ the pile survives a wrong guess (the drawn ♠ is reshuffled back in)." },
-    heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♥ the pile survives a wrong guess (the drawn ♥ is reshuffled back in)." },
-    diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♦ the pile survives a wrong guess (the drawn ♦ is reshuffled back in)." },
-    clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♣ the pile survives a wrong guess (the drawn ♣ is reshuffled back in)." },
+    suitImmunity: { id: "suitImmunity", label: "Star Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a Star the pile survives a wrong guess (the drawn Star is reshuffled back in)." },
+    heartGuard: { id: "heartGuard", label: "Sun Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a Sun the pile survives a wrong guess (the drawn Sun is reshuffled back in)." },
+    diamondGuard: { id: "diamondGuard", label: "Moon Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a Moon the pile survives a wrong guess (the drawn Moon is reshuffled back in)." },
+    clubGuard: { id: "clubGuard", label: "Planet Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a Planet the pile survives a wrong guess (the drawn Planet is reshuffled back in)." },
     extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
     middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
@@ -2039,24 +2039,24 @@ const PillarTypes = (() => {
   // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
     spadeBounty: {
-      id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
+      id: "spadeBounty", label: "Star Bounty", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♠ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 coin each time a Star card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     heartBounty: {
-      id: "heartBounty", label: "Heart Bounty", icon: "♥️",
+      id: "heartBounty", label: "Sun Bounty", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♥ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 coin each time a Sun card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     diamondBounty: {
-      id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
+      id: "diamondBounty", label: "Moon Bounty", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♦ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 coin each time a Moon card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     clubBounty: {
-      id: "clubBounty", label: "Club Bounty", icon: "♣️",
+      id: "clubBounty", label: "Planet Bounty", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♣ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 coin each time a Planet card LANDS on a surviving pile in this column (a correct guess placing it on top).",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
@@ -2094,9 +2094,9 @@ const PillarTypes = (() => {
       // Live, column-scoped bonus: after any resolution, if every alive pile in
       // this column shows a ♥ on top, pay +5 bonus coins. Per post-draw check,
       // uncapped. (Engine evaluates it per-column — see maybeAllHearts.)
-      id: "allHeartsCoin", label: "All Hearts", icon: "💗",
+      id: "allHeartsCoin", label: "All Suns", icon: "💗",
       kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
-      description: "After any guess resolves, if every ALIVE pile in THIS COLUMN is showing a ♥ on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
+      description: "After any guess resolves, if every ALIVE pile in THIS COLUMN is showing a Sun on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
     },
     envy: {
       // End-of-run: +1 per alive pile in the column to the LEFT (wraparound:
@@ -4421,9 +4421,13 @@ const UIRenderer = (() => {
     front.classList.toggle("red", !!card.red);
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
+    // Suit → celestial archetype SVG (Star/Sun/Moon/Planet). The engine still
+    // keys off card.suit ("♠/♥/♦/♣"); this only changes what's drawn. Inherits
+    // the front's ink/red colour, so red suits stay red.
+    const suitSvg = Icons.suit(card.suit);
     pileEl.querySelectorAll(".rank-top .s, .rank-bottom .s")
-      .forEach(n => n.textContent = card.suit);
-    pileEl.querySelector(".pip").textContent = card.suit;
+      .forEach(n => n.innerHTML = suitSvg);
+    pileEl.querySelector(".pip").innerHTML = suitSvg;
   }
 
   /* ---- full (re)render of the board from state ---- */
@@ -4550,7 +4554,7 @@ const UIRenderer = (() => {
   }
   function cardPeekHtml(card) {
     if (!card) return '<div class="pk-empty">No card here.</div>';
-    const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
+    const head = '<div class="pk-head">Card ' + escHtml(card.label) + " " + Icons.suit(card.suit) + "</div>";
     const stickers = card.stickers || [];
     if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
     const counts = {};
@@ -6089,7 +6093,7 @@ const UIRenderer = (() => {
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? Icons.glyph(t.id) : ""; }).join("");
     return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
-      '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
+      '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + Icons.suit(s.symbol) + '</div>' +
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
   }
 
@@ -6244,7 +6248,7 @@ const UIRenderer = (() => {
   function packItemInfoHtml(st, i) {
     if (st.kind === "card") {
       const c = st.items[i];
-      const title = escHtml(miniRankLabel(c) + " " + c.suit);
+      const title = escHtml(miniRankLabel(c)) + " " + Icons.suit(c.suit);
       const stk = c.stickers || [];
       const body = stk.length === 0
         ? "A plain card — no stickers."
