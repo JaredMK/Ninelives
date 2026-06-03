@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural — Muted, Links Forward</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0809;color:#fff;font-family:-apple-system,sans-serif;padding:16px 10px 50px;}
+  h1{font-size:15px;text-align:center;font-weight:600;margin-bottom:3px;letter-spacing:1px;}
+  .sub{text-align:center;font-size:10px;opacity:.45;margin-bottom:18px;max-width:340px;margin-left:auto;margin-right:auto;}
+
+  .stage{
+    position:relative;max-width:382px;margin:0 auto;border-radius:24px;overflow:hidden;padding:16px 10px 22px;
+    background:radial-gradient(circle at 30% 25%,rgba(120,60,80,.20),transparent 44%),
+               radial-gradient(circle at 75% 70%,rgba(80,60,110,.18),transparent 46%),
+               radial-gradient(ellipse at 50% 50%,#1c151a,#0e0a0d 60%,#0a070a);
+  }
+  /* LAYER 1: background veins — very faint, blurred, cool/dark, static, NO pulses */
+  .veins{position:absolute;inset:0;z-index:1;filter:blur(2.5px);opacity:.5;}
+  /* LAYER 2: ambient tissue blobs, even further back */
+  .haze{position:absolute;inset:0;z-index:0;}
+  .blob{position:absolute;border-radius:50%;filter:blur(24px);opacity:.18;}
+
+  .title{position:relative;z-index:6;text-align:center;font-family:'Josefin Sans';font-weight:600;font-size:22px;letter-spacing:4px;color:#e8cdd8;text-shadow:0 0 12px rgba(190,120,150,.4);margin-bottom:2px;}
+  .hud{position:relative;z-index:6;text-align:center;font-size:9px;letter-spacing:2px;color:#bfa3b4;font-family:'Chakra Petch';font-weight:600;margin-bottom:8px;}
+
+  .netwrap{position:relative;width:100%;height:400px;}
+  /* LAYER 3: the real connections — crisp, bright, on top, WITH signal */
+  svg.net{position:absolute;inset:0;width:100%;height:100%;z-index:3;}
+  .cards{position:absolute;inset:0;z-index:4;}
+
+  .card{position:absolute;transform:translate(-50%,-50%);width:80px;height:86px;border-radius:24px;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 42%,#faf8f7,#ece7ea 50%,#d4ccd2);
+    box-shadow:0 0 10px rgba(190,110,140,.25),0 0 0 1px rgba(255,255,255,.45),0 6px 14px rgba(0,0,0,.55);
+    animation:breathe 4.5s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.01)}}
+  .card .rank{font-family:'Chakra Petch';font-weight:700;font-size:27px;color:#1c1418;position:relative;z-index:2;}
+  .card .s{position:absolute;top:7px;left:8px;width:15px;height:15px;}
+  .card .s2{position:absolute;bottom:7px;right:8px;width:12px;height:12px;transform:rotate(180deg);opacity:.55;}
+  .card .size{position:absolute;bottom:6px;left:7px;width:16px;height:16px;border-radius:50%;background:#241a20;color:#dcb8c8;border:1px solid #a85f76;font-family:'Chakra Petch';font-weight:700;font-size:9px;display:flex;align-items:center;justify-content:center;}
+  .card.limit{box-shadow:0 0 0 2px #e0973c,0 0 18px rgba(224,151,60,.5),0 6px 14px rgba(0,0,0,.55);}
+  .red .s,.red .s2{color:#b5566f;} .ink .s,.ink .s2{color:#2c2430;}
+
+  .note{font-size:10px;opacity:.4;text-align:center;margin-top:12px;line-height:1.6;max-width:360px;margin:12px auto 0;}
+</style>
+</head>
+<body>
+<h1>NEURAL · MUTED — links forward</h1>
+<div class="sub">Background veins pushed way back (faint, blurred, no signal). Pile connections bright, crisp, on top, with traveling pulses.</div>
+
+<div class="stage">
+  <div class="haze" id="haze"></div>
+  <svg class="veins" viewBox="0 0 382 460" preserveAspectRatio="xMidYMid slice">
+    <g stroke="#6a4a5a" stroke-width="1.4" fill="none" stroke-linecap="round">
+      <path d="M-10 100 C90 70 130 190 230 160 C320 134 360 180 410 160"/>
+      <path d="M-10 270 C100 240 150 340 260 310 C350 286 380 310 410 340"/>
+      <path d="M55 -10 C35 110 105 165 85 285 C66 385 105 445 75 505"/>
+      <path d="M315 -10 C335 120 275 180 305 300 C329 400 295 460 335 505"/>
+      <path d="M-10 190 C120 175 200 230 300 210 C360 198 390 210 410 220"/>
+    </g>
+  </svg>
+
+  <div class="title">CORTEX</div>
+  <div class="hud">STAGE 1 · RUN 2 · 9 LINKED · WEAKEST 1</div>
+
+  <div class="netwrap">
+    <svg class="net" id="net" viewBox="0 0 382 400" preserveAspectRatio="none"></svg>
+    <div class="cards" id="cards"></div>
+  </div>
+</div>
+
+<div class="note">Three depth layers: (1) blurred haze blobs, (2) faint static veins = pure texture, (3) bright pulsing connections = the real links you read. Motion + brightness make the links unmistakably foreground.</div>
+
+<script>
+  const shapes={
+    heart:'<path fill="currentColor" d="M24 42 C8 30 4 20 10 13 C15 7 22 9 24 15 C26 9 33 7 38 13 C44 20 40 30 24 42 Z"/>',
+    diamond:'<path fill="currentColor" d="M24 4 L40 24 L24 44 L8 24 Z"/>',
+    club:'<path fill="currentColor" d="M24 6 a8 8 0 0 1 6 13 a8 8 0 1 1 -3 9 l2 8 h-10 l2 -8 a8 8 0 1 1 -3 -9 a8 8 0 0 1 6 -13 Z"/>',
+    spade:'<path fill="currentColor" d="M24 5 C24 5 6 19 6 30 a8 8 0 0 0 14 5 l-2 7 h12 l-2 -7 a8 8 0 0 0 14 -5 C42 19 24 5 24 5 Z"/>'
+  };
+  const piles=[
+    {x:70,y:58,rank:'A',shape:'heart',cls:'red',size:1,r:0,c:0},
+    {x:191,y:58,rank:'6',shape:'spade',cls:'ink',size:3,r:0,c:1},
+    {x:312,y:58,rank:'K',shape:'diamond',cls:'red',size:2,r:0,c:2},
+    {x:70,y:198,rank:'4',shape:'club',cls:'ink',size:1,r:1,c:0},
+    {x:191,y:198,rank:'9',shape:'heart',cls:'red',size:4,r:1,c:1},
+    {x:312,y:198,rank:'5',shape:'spade',cls:'ink',size:1,r:1,c:2},
+    {x:70,y:338,rank:'Q',shape:'diamond',cls:'red',size:2,r:2,c:0},
+    {x:191,y:338,rank:'8',shape:'club',cls:'ink',size:1,r:2,c:1},
+    {x:312,y:338,rank:'10',shape:'heart',cls:'red',size:2,r:2,c:2},
+  ];
+  const minSize=Math.min(...piles.map(p=>p.size));
+  const links=[];
+  for(let i=0;i<piles.length;i++)for(let j=i+1;j<piles.length;j++){const a=piles[i],b=piles[j];if(Math.abs(a.r-b.r)<=1&&Math.abs(a.c-b.c)<=1)links.push([i,j]);}
+
+  let svg='<defs><filter id="glow"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+  links.forEach(([a,b])=>{
+    const pa=piles[a],pb=piles[b];const w=Math.min(pa.size,pb.size);const diag=(pa.r!==pb.r&&pa.c!==pb.c);
+    // FOREGROUND links: brighter color, higher opacity, crisp
+    const thick=(diag?1.8:2.8)+w*2.2;
+    const op=(diag?.4:.6)+w*.08;
+    svg+=`<line x1="${pa.x}" y1="${pa.y}" x2="${pb.x}" y2="${pb.y}" stroke="#e88bb0" stroke-width="${thick}" stroke-linecap="round" opacity="${op}" filter="url(#glow)"/>`;
+    const n=Math.min(w,2);
+    for(let k=0;k<n;k++){
+      svg+=`<circle r="${2+w*.35}" fill="#ffe0ee"><animateMotion dur="${(2.4-w*.13).toFixed(2)}s" begin="${(k*.7).toFixed(2)}s" repeatCount="indefinite" path="M${pa.x} ${pa.y} L${pb.x} ${pb.y}"/></circle>`;
+    }
+  });
+  document.getElementById('net').innerHTML=svg;
+
+  const W=382,H=400,wrap=document.getElementById('cards');
+  piles.forEach(p=>{const isMin=p.size===minSize;const el=document.createElement('div');el.className='card '+p.cls+(isMin?' limit':'');
+    el.style.left=(p.x/W*100)+'%';el.style.top=(p.y/H*100)+'%';
+    el.innerHTML=`<span class="rank">${p.rank}</span><svg class="s" viewBox="0 0 48 48">${shapes[p.shape]}</svg><svg class="s2" viewBox="0 0 48 48">${shapes[p.shape]}</svg><span class="size">${p.size}</span>`;
+    wrap.appendChild(el);});
+
+  const haze=document.getElementById('haze');
+  [['#7a3a55',60,'18%','20%'],['#5a3a7a',80,'70%','60%'],['#7a4a3a',70,'45%','85%']].forEach(([c,s,l,t])=>{
+    const b=document.createElement('div');b.className='blob';b.style.background=c;b.style.width=s+'px';b.style.height=s+'px';b.style.left=l;b.style.top=t;haze.appendChild(b);
+  });
+</script>
+</body>
+</html>

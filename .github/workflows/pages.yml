@@ -2,28 +2,24 @@ name: Deploy to GitHub Pages
 
 # Publishes the static site to GitHub Pages as ONE Pages site with two paths:
 #   /            -> the LIVE game  (branch claude/mobile-card-game-prototype-86Yx7)
-#   /preview/    -> the redesign   (branch constellation-redesign)
+#   /neural/     -> the neural redesign (branch neural-redesign)
 #
 # The site ROOT is ALWAYS rebuilt from the live branch, regardless of which
-# branch triggered the run. That means the redesign branch can never change what
-# the live URL serves — it only ever populates /preview/. A live deploy keeps
-# /preview/ in place; a redesign push refreshes /preview/ while re-sourcing root
-# from live. (Pages keeps the last good deploy if any run fails, so a broken
-# preview can never take the live game down.)
+# branch triggered the run, so the neural branch can never change what the live
+# URL serves — it only ever populates /neural/. (Pages keeps the last good
+# deploy if a run fails, so a broken preview can never take the live game down.)
 on:
   push:
     branches:
-      - claude/mobile-card-game-prototype-86Yx7   # live  -> root (and refreshes /preview)
-      - constellation-redesign                     # redesign -> /preview (root re-sourced from live)
+      - claude/mobile-card-game-prototype-86Yx7   # live  -> root
+      - neural-redesign                            # redesign -> /neural (root re-sourced from live)
   workflow_dispatch:
 
-# Permissions required for the GitHub Pages deployment.
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment; let in-progress finish.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -43,32 +39,29 @@ jobs:
           ref: claude/mobile-card-game-prototype-86Yx7
           path: live
 
-      # /preview/ = the redesign branch. Non-fatal: a live deploy must never be
-      # blocked by a problem fetching the preview.
-      - name: Checkout REDESIGN (/preview)
+      # /neural/ = the neural-redesign branch. Non-fatal: a live deploy must
+      # never be blocked by a problem fetching the preview.
+      - name: Checkout REDESIGN (/neural)
         id: redesign
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          ref: constellation-redesign
+          ref: neural-redesign
           path: redesign
 
-      - name: Assemble site (live at root, redesign under /preview)
+      - name: Assemble site (live at root, neural redesign under /neural)
         run: |
           mkdir -p _site
           rsync -a --exclude='.git' live/ _site/
           if [ -f redesign/index.html ]; then
-            mkdir -p _site/preview
-            rsync -a --exclude='.git' redesign/ _site/preview/
-            echo "Assembled: root = live, /preview = constellation-redesign"
+            mkdir -p _site/neural
+            rsync -a --exclude='.git' redesign/ _site/neural/
+            echo "Assembled: root = live, /neural = neural-redesign"
           else
-            echo "Redesign checkout unavailable — deploying live only (preview unchanged)."
+            echo "Redesign checkout unavailable — deploying live only."
           fi
 
       - name: Configure Pages
-        # Pages must be enabled once in Settings -> Pages -> Source:
-        # "GitHub Actions". The Actions token here is not permitted to
-        # create the Pages site itself, so enablement is left off.
         uses: actions/configure-pages@v5
 
       - name: Upload site artifact
