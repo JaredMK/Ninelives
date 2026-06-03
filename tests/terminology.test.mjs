@@ -15,7 +15,10 @@ export function run() {
     const offenders = text
       .split("\n")
       .map((line, i) => [i + 1, line])
-      .filter(([, line]) => /\brounds?\b/i.test(line.replace(/Math\.round/g, "")));
+      // Strip allowed false positives: Math.round, and SVG stroke "round"
+      // line-cap/line-join keywords (used by the custom icon set).
+      .filter(([, line]) => /\brounds?\b/i.test(
+        line.replace(/Math\.round/g, "").replace(/(?:linecap|linejoin)="round"/g, "")));
     r.ok(offenders.length === 0,
       file + ' has no stray "round"' +
       (offenders.length ? " (line " + offenders.map(([n]) => n).join(", ") + ")" : ""));
