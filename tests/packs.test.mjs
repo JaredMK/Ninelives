@@ -164,12 +164,9 @@ export function run() {
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    // Find a seeded offer that puts a pack in slot 0 (packs appear by chance).
-    let offer = null;
-    for (let seed = 1; seed < 80; seed++) {
-      c.openStore(rngFrom(seed));
-      if (c.getStoreOffer().packs[0]) { offer = c.getStoreOffer(); break; }
-    }
+    // Both pack slots are always filled now, so slot 0 always holds a pack.
+    c.openStore(rngFrom(1));
+    const offer = c.getStoreOffer();
     r.ok(offer && offer.packs[0], "store offer rolls a pack into the section");
     const packId = offer.packs[0];
     const t = PackTypes.get(packId);
@@ -183,28 +180,23 @@ export function run() {
     r.ok(!c.buyOfferedPack(0, rngFrom(1)), "can't buy an already-empty pack slot");
 
     const broke = CampaignState.create();
-    let bslot = -1, bid = null;
-    for (let seed = 1; seed < 80; seed++) {
-      broke.openStore(rngFrom(seed));
-      const k = broke.getStoreOffer().packs.findIndex(Boolean);
-      if (k >= 0) { bslot = k; bid = broke.getStoreOffer().packs[k]; break; }
-    }
-    r.ok(bslot >= 0, "found a pack to test the broke case");
-    r.ok(!broke.buyOfferedPack(bslot, rngFrom(2)), "can't buy a pack with no coins");
+    broke.openStore(rngFrom(2));   // slot 0 is always a pack now
+    r.ok(broke.getStoreOffer().packs[0], "broke offer still has a pack in slot 0");
+    r.ok(!broke.buyOfferedPack(0, rngFrom(2)), "can't buy a pack with no coins");
   }
 
-  // --- Random appearance: some visits have no packs ---------------------
+  // --- Both pack slots are always filled (no empty visits) --------------
   {
     const c = CampaignState.create();
-    let sawEmptyVisit = false, sawPackVisit = false;
+    let allFull = true, varied = new Set();
     for (let seed = 1; seed <= 40; seed++) {
       c.openStore(rngFrom(seed));
       const packs = c.getStoreOffer().packs;
-      if (packs.every(p => p == null)) sawEmptyVisit = true;
-      if (packs.some(Boolean)) sawPackVisit = true;
+      if (packs.length !== 2 || !packs.every(Boolean)) allFull = false;
+      varied.add(packs.join(","));
     }
-    r.ok(sawPackVisit, "packs appear on some visits");
-    r.ok(sawEmptyVisit, "packs are absent on some visits (random appearance)");
+    r.ok(allFull, "every visit fills both pack slots (no empty/absent visits)");
+    r.ok(varied.size > 1, "pack slots re-roll across visits (fresh each open)");
   }
 
   // ===== Phase 3: permanent deck replacement =============================

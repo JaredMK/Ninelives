@@ -5,10 +5,11 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, StickerTypes, PillarTypes } = loadGame();
+  const { CampaignState, StickerTypes, PillarTypes, PackTypes } = loadGame();
   const r = makeRunner("store-offer.test.mjs");
   const stickerIds = new Set(StickerTypes.ids);
   const pillarIds = new Set(PillarTypes.ids);
+  const packIds = new Set(PackTypes.ids);
 
   // --- Shape of a fresh offer -------------------------------------------
   {
@@ -17,9 +18,29 @@ export function run() {
     const offer = c.openStore();
     r.eq(offer.stickers.length, 4, "offer has 4 sticker slots");
     r.eq(offer.pillars.length, 2, "offer has 2 Pillar slots");
+    r.eq(offer.packs.length, 2, "offer has 2 pack slots");
     r.ok(offer.stickers.every(id => stickerIds.has(id)), "all offered stickers are real registry ids");
     r.ok(offer.pillars.every(id => pillarIds.has(id)), "all offered Pillars are real registry ids");
+    // Both pack slots are ALWAYS filled with a real pack id (never null/empty).
+    r.ok(offer.packs.every(id => packIds.has(id)), "both pack slots are filled with real pack ids (always 2)");
     r.eq(offer.rerollCost, 3, "reroll cost starts at 3");
+  }
+
+  // --- Packs re-roll on every store open (not stale across visits) -------
+  {
+    // Each open rolls 2 packs from the 4-type pool. Across many opens we must
+    // see BOTH that every open is full (2 real ids) and that the roll actually
+    // varies — proving it regenerates per open rather than caching one result.
+    const c = CampaignState.create();
+    const seen = new Set();
+    let allFull = true;
+    for (let i = 0; i < 40; i++) {
+      const o = c.openStore();
+      if (o.packs.length !== 2 || !o.packs.every(id => packIds.has(id))) allFull = false;
+      seen.add(o.packs.join(","));
+    }
+    r.ok(allFull, "every store open offers exactly 2 filled pack slots");
+    r.ok(seen.size > 1, "pack slots re-roll across opens (the offering isn't stale)");
   }
 
   // --- Persistence: reading the offer never re-rolls (no free reroll) ----
@@ -83,6 +104,7 @@ export function run() {
     const before = c.getCoins();
     r.ok(c.rerollStore(), "reroll #1");
     r.ok(c.getStoreOffer().stickers.every(id => id !== null), "reroll refills ALL slots (none empty)");
+    r.ok(c.getStoreOffer().packs.every(id => packIds.has(id)), "reroll refills the pack slots too (all sections together)");
     r.eq(c.getCoins(), before - 3, "reroll #1 charged 3");
     r.eq(c.storeRerollCost(), 4, "cost climbs to 4");
     r.ok(c.rerollStore(), "reroll #2");
