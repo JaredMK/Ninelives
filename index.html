@@ -360,6 +360,29 @@
        collide as piles grow. */
     width: 100%;
     height: var(--pile-h-fit);
+    /* Phase 2 — each pile is a node suspended in space: a slow, low-amplitude
+       drift (transform-only, so layout/no-scroll is untouched). Per-pile delay
+       + duration (set in JS) keep the field from breathing in unison. */
+    animation: nodeFloat var(--fdur, 8s) ease-in-out var(--fd, 0s) infinite alternate;
+  }
+  /* Soft starlight aura behind each node — a faint, breathing halo that reads as
+     "alive/suspended". Sits behind the card, never intercepts input. */
+  .pile::before {
+    content: "";
+    position: absolute; inset: -7%;
+    border-radius: 26px;
+    background: radial-gradient(closest-side, rgba(158, 198, 255, 0.18), transparent 76%);
+    z-index: -1; pointer-events: none;
+    animation: nodePulse var(--pdur, 5.5s) ease-in-out var(--fd, 0s) infinite alternate;
+  }
+  @keyframes nodeFloat {
+    from { transform: translate3d(0, calc(var(--fa, 3.5px) * -1), 0) rotate(-0.25deg); }
+    to   { transform: translate3d(0, var(--fa, 3.5px), 0) rotate(0.25deg); }
+  }
+  @keyframes nodePulse { from { opacity: 0.3; } to { opacity: 0.62; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pile { animation: none !important; }
+    .pile::before { animation: none !important; opacity: 0.42; }
   }
 
   .card {
@@ -388,14 +411,20 @@
      stay in proportion at any pile size. Padding is also pile-relative, giving
      the corner ranks clear margin from the edge. */
   .card .front {
-    background: var(--card-face);
+    /* Crafted celestial material: a soft cool-white gradient (not a flat slab),
+       a faint starlight rim, and an inner top-highlight + lower shade so the
+       card reads as a polished object. Ink stays dark for full legibility. */
+    background: linear-gradient(162deg, #ffffff 0%, var(--card-face) 46%, #e9edfa 100%);
     color: var(--card-ink);
     /* Card rank/suit/pip glyphs stay on the ORIGINAL stack — unchanged. */
     font-family: var(--font-rank);
     --ps: var(--pile-size, 88px);
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
-    border: 1px solid rgba(0,0,0,0.08);
+    border: 1px solid rgba(126, 152, 208, 0.30);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 -38% 30% -30% rgba(96, 118, 184, 0.12);
   }
 
   .card .front.red { color: var(--card-red); }
@@ -431,29 +460,23 @@
     pointer-events: none;
   }
 
-  /* back (face down / dead) */
+  /* back (face down) — a deep void panel with a starlight crest. */
   .card .back {
     background:
-      repeating-linear-gradient(45deg, #243a73 0 8px, #1d3060 8px 16px);
-    border: 2px solid #34508f;
+      radial-gradient(120% 90% at 50% 0%, #1a2547 0%, #0f1733 70%);
+    border: 1px solid rgba(158, 198, 255, 0.25);
     transform: rotateY(180deg);
     align-items: center;
     justify-content: center;
   }
-
   .card .back .crest {
-    width: 60%;
-    height: 60%;
-    border-radius: 12px;
-    border: 2px dashed rgba(255,255,255,0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(20px, 8vw, 34px);
-    color: rgba(255,255,255,0.6);
+    width: 56%; height: 56%;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(180, 205, 255, 0.55);
   }
+  .card .back .crest .ic { width: 100%; height: 100%; }
 
-  /* dead-pile marker: a red X drawn over the card that killed the pile */
+  /* dead-pile marker: a collapsed-star mark over the card that killed the pile */
   .card .dead-mark {
     position: absolute;
     inset: 0;
@@ -461,36 +484,41 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(30px, 13vw, 64px);
-    font-weight: 800;
     color: var(--bad);
-    background: rgba(12, 18, 32, 0.5);
+    background: rgba(7, 10, 22, 0.52);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.45s ease;
     z-index: 2;
   }
+  .card .dead-mark .ic { width: clamp(26px, 11vw, 52px); height: clamp(26px, 11vw, 52px); opacity: 0.92; }
 
-  /* state: dead pile -> keep the killing card visible, dimmed, with an X */
-  .pile.dead { cursor: default; }
-  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); filter: saturate(0.55) brightness(0.82); }
+  /* state: dead pile -> the node collapses: drained of light, cooled, dimmed. */
+  .pile.dead { cursor: default; animation: none; }
+  .pile.dead::before { animation: none; opacity: 0.05; }
+  .pile.dead .card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    filter: saturate(0.32) brightness(0.62) contrast(0.95);
+    transition: filter 0.6s ease;
+  }
   .pile.dead .dead-mark { opacity: 1; }
 
-  /* selected highlight */
+  /* selected highlight — a ring of starlight gold + a soft halo. */
   .pile.selected .card {
-    box-shadow: 0 0 0 3px var(--accent), var(--shadow);
+    box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(231, 201, 135, 0.45), var(--shadow);
   }
 
-  /* deal-in animation */
+  /* deal-in animation (rides on the card) */
   @keyframes dealIn {
-    from { opacity: 0; transform: translateY(-30px) scale(0.8); }
+    from { opacity: 0; transform: translateY(-22px) scale(0.86); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
-  .pile.dealing { animation: dealIn 0.4s ease both; }
+  /* Deal-in rides on the CARD (the pile itself is busy with the float). */
+  .pile.dealing .card { animation: dealIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
   /* pulse feedback for correct/incorrect */
-  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(76,217,100,0.7);} 100%{box-shadow:0 0 0 14px rgba(76,217,100,0);} }
-  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(255,91,110,0.7);} 100%{box-shadow:0 0 0 14px rgba(255,91,110,0);} }
+  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(111,211,166,0.7);} 100%{box-shadow:0 0 0 15px rgba(111,211,166,0);} }
+  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(239,113,136,0.7);} 100%{box-shadow:0 0 0 15px rgba(239,113,136,0);} }
   .pile.flash-good .card { animation: goodPulse 0.5s ease; }
   .pile.flash-bad .card  { animation: badPulse 0.5s ease; }
 
@@ -1870,7 +1898,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.51 · icons";
+const APP_VERSION = "v0.52 · nodes";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4231,10 +4259,19 @@ const UIRenderer = (() => {
     const pile = document.createElement("div");
     pile.className = "pile dealing";
     pile.dataset.index = index;
-    pile.style.animationDelay = (index * 0.05) + "s";
+    // Per-node float character: desynced phase + varied duration/amplitude so
+    // the field drifts organically rather than breathing in lockstep.
+    pile.style.setProperty("--fdur", (7 + (index % 4) * 0.9).toFixed(2) + "s");
+    pile.style.setProperty("--fd", (-((index * 1.7) % 9)).toFixed(2) + "s");
+    pile.style.setProperty("--fa", (3 + (index % 3) * 0.8).toFixed(2) + "px");
+    pile.style.setProperty("--pdur", (5 + (index % 5) * 0.7).toFixed(2) + "s");
 
     const card = document.createElement("div");
     card.className = "card";
+    card.style.animationDelay = (index * 0.045) + "s";   // staggered deal-in
+    // Drop the deal-in once it lands so later flash/feedback animations can't
+    // retrigger it (and the card's transform is freed).
+    card.addEventListener("animationend", () => pile.classList.remove("dealing"), { once: true });
 
     // FRONT (face up)
     const front = document.createElement("div");
@@ -4247,12 +4284,12 @@ const UIRenderer = (() => {
     // BACK (face down) — reserved for future face-down rendering, unused in v1.
     const back = document.createElement("div");
     back.className = "face back";
-    back.innerHTML = `<div class="crest">✕</div>`;
+    back.innerHTML = `<div class="crest">${Icons.glyph("start")}</div>`;
 
     // DEAD MARK — overlays the card that killed the pile (shown when dead).
     const deadMark = document.createElement("div");
     deadMark.className = "dead-mark";
-    deadMark.textContent = "✕";
+    deadMark.innerHTML = Icons.glyph("close");
 
     card.appendChild(front);
     card.appendChild(back);
