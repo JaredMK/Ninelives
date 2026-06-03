@@ -474,27 +474,33 @@
     color: rgba(255,255,255,0.6);
   }
 
-  /* dead-pile marker: a red X drawn over the card that killed the pile */
+  /* dead-pile marker: a cold, faint scar over the card that killed the pile */
   .card .dead-mark {
     position: absolute;
     inset: 0;
-    border-radius: var(--radius);
+    border-radius: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(30px, 13vw, 64px);
-    font-weight: 800;
-    color: var(--bad);
-    background: rgba(12, 18, 32, 0.5);
+    font-size: clamp(26px, 12vw, 56px);
+    font-weight: 600;
+    color: rgba(176, 150, 165, 0.42);
+    background: rgba(10, 7, 9, 0.55);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.45s ease;
     z-index: 2;
   }
 
-  /* state: dead pile -> a cold, receded scar (death/sever animated in Phase 5) */
+  /* state: dead pile -> a cold, receded scar; it stops breathing and severs its
+     links (surviving neighbours re-link across it — see refreshNetwork). */
   .pile.dead { cursor: default; }
-  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.5); filter: saturate(0.2) brightness(0.5); opacity: 0.9; }
+  .pile.dead .card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.55);
+    filter: saturate(0.12) brightness(0.42) contrast(0.95);
+    transition: filter 0.6s ease;
+  }
+  .pile.dead .card .front { animation: none; }
   .pile.dead .dead-mark { opacity: 1; }
 
   /* limiting pile(s): equal to the current smallest alive pile → amber ring/glow
@@ -1819,7 +1825,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.53 · neural-4";
+const APP_VERSION = "v0.54 · neural-5";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
