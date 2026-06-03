@@ -1664,7 +1664,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.45.0";
+const APP_VERSION = "v0.46.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2900,8 +2900,7 @@ const CampaignState = (() => {
      it resets to base when the store re-opens for a new run. */
   const STORE_STICKER_SLOTS = 4;
   const STORE_PILLAR_SLOTS = 2;
-  const STORE_PACK_SLOTS = 2;          // pack section slots
-  const PACK_APPEAR_CHANCE = 0.5;      // per slot: chance it holds a pack (else empty)
+  const STORE_PACK_SLOTS = 2;          // pack section slots — always filled
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
 
@@ -2972,23 +2971,16 @@ const CampaignState = (() => {
     return true;
   }
 
-  /** Roll the pack section: each slot independently holds a random pack (equal
-      weight among pack types) or nothing — so packs appear by chance, not every
-      visit. Returns an array of pack ids / null per slot. */
-  function rollPacks(n, rng = Math.random) {
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      out.push(rng() < PACK_APPEAR_CHANCE ? rollIds(PackTypes.all(), 1, rng)[0] : null);
-    }
-    return out;
-  }
-
-  /** A fresh offering: random sticker + Pillar + Pack slots, reroll cost at base. */
+  /** A fresh offering: random sticker + Pillar + Pack slots, reroll cost at base.
+      All three sections roll the same way — rollIds fills EVERY slot from the
+      full pool by rarity weight (packs carry no tier today, so equal-weighted;
+      a future pack `tier`/`weight` would bias it automatically). The pack slots
+      re-roll on every fresh store open and every reroll, just like the others. */
   function freshOffer(rng = Math.random) {
     return {
       stickers: rollIds(StickerTypes.all(), STORE_STICKER_SLOTS, rng),
       pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
-      packs: rollPacks(STORE_PACK_SLOTS, rng),
+      packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
     };
   }
