@@ -4,28 +4,47 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#0f1626" />
+<meta name="theme-color" content="#05060f" />
 <title>Nine Lives</title>
+<!-- Celestial type system: Cormorant Garamond (refined display, for titles) +
+     Jost (clean geometric text, for UI/gameplay copy). Card/board rank glyphs
+     stay on the original system stack (see --font-rank) so they're unchanged. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
      THEME / TOKENS
      ============================================================ */
   :root {
-    --bg: #0f1626;
-    --bg-2: #16203a;
-    --panel: #1d2a4a;
-    --accent: #ffce54;
-    --accent-2: #5bd1ff;
-    --good: #4cd964;
-    --bad: #ff5b6e;
-    --text: #eef2ff;
-    --muted: #8ea0c9;
+    /* ---- Celestial palette ----------------------------------------------
+       Deep void tones with luminous "starlight" accents (refined, not neon).
+       Names are unchanged so the existing chrome inherits the new palette. */
+    --bg: #05060f;          /* deep void base */
+    --bg-2: #0a1226;        /* faintly lifted horizon */
+    --panel: #121a33;       /* floating chrome on the void */
+    --accent: #e7c987;      /* warm starlight gold (primary) */
+    --accent-2: #9ec6ff;    /* cool starlight azure (secondary) */
+    --good: #6fd3a6;        /* aurora — survival/gain */
+    --bad: #ef7188;         /* ember rose — loss */
+    --text: #e9edfb;        /* starlight white */
+    --muted: #8b98bf;       /* dusted blue-grey */
+    /* Card faces stay EXACTLY as today — legibility is non-negotiable. */
     --card-face: #fbfcff;
     --card-ink: #1b2440;
     --card-red: #d6324a;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
-    --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    --shadow: 0 8px 26px rgba(2, 4, 12, 0.5);
+    /* ---- Type system ----------------------------------------------------- */
+    --font-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --font-text: "Jost", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    /* The ORIGINAL stack — card ranks/suits/pips + deck-strip glyphs are pinned
+       to this so board information renders identically to today. */
+    --font-rank: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Starlight tints for ambient layers + chrome edges. */
+    --star: #f4f7ff;
+    --edge: rgba(158, 198, 255, 0.12);
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -39,11 +58,18 @@
     overflow: hidden;
     overscroll-behavior: none;
   }
+  /* The void base lives on <html> so the fixed #sky (z-index:-1, root stacking
+     context) paints ABOVE it; <body> stays transparent so the sky shows through
+     behind the game. */
+  html { background: var(--bg); }
 
   body {
-    background: radial-gradient(120% 120% at 50% 0%, var(--bg-2) 0%, var(--bg) 60%);
+    /* Transparent so the fixed #sky layer (painted on <html>, z-index:-1) shows
+       through behind all game content. */
+    background: transparent;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
     min-height: 100%;
@@ -70,14 +96,15 @@
     margin: 0 auto;
     display: inline-block;
     font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.6px;
+    font-weight: 600;
+    letter-spacing: 1.4px;      /* star-chart label spacing */
     text-transform: uppercase;
     color: var(--accent-2);
     background: var(--panel);
     border-radius: 999px;
-    padding: 3px 12px;
+    padding: 3px 13px;
     box-shadow: var(--shadow);
+    border: 1px solid var(--edge);
     cursor: pointer;            /* tap to open the sticker inventory popup */
     user-select: none; -webkit-user-select: none;
   }
@@ -124,6 +151,7 @@
     align-items: center;
     gap: 7px;
     box-shadow: var(--shadow);
+    border: 1px solid var(--edge);   /* starlight hairline lifts it off the void */
   }
 
   .stat b {
@@ -232,7 +260,7 @@
   .ds-blue { background: var(--accent-2); }
   .ds-bar.ds-active .ds-grey { background: rgba(255,255,255,0.28); }
   .ds-bar.ds-active .ds-blue { background: #ffd166; }
-  .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+  .ds-rank { font-family: var(--font-rank); font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* Scrubber readout — absolute overlay so it never changes the strip's height. */
   .ds-scrub {
@@ -362,6 +390,8 @@
   .card .front {
     background: var(--card-face);
     color: var(--card-ink);
+    /* Card rank/suit/pip glyphs stay on the ORIGINAL stack — unchanged. */
+    font-family: var(--font-rank);
     --ps: var(--pile-size, 88px);
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
@@ -520,7 +550,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(6, 10, 22, 0.82);
+    background: rgba(5, 6, 15, 0.86);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     display: flex;
@@ -545,7 +575,16 @@
   }
   .peek-hint.hidden { display: none; }
 
-  .overlay h2 { font-size: 34px; margin: 0 0 8px; }
+  .overlay h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 40px;
+    letter-spacing: 1.5px;
+    margin: 0 0 8px;
+    color: var(--text);
+    /* faint starlight bloom — readable, not glowy */
+    text-shadow: 0 0 24px rgba(158, 198, 255, 0.28), 0 1px 0 rgba(0, 0, 0, 0.35);
+  }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
   .overlay .big { font-size: 56px; margin-bottom: 6px; }
   .overlay.win h2 { color: var(--good); }
@@ -860,6 +899,7 @@
   .mini-card {
     position: relative; width: 52px; height: 70px; border-radius: 7px;
     background: var(--card-face); color: var(--card-ink);
+    font-family: var(--font-rank);   /* card glyphs unchanged */
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
   }
@@ -1144,7 +1184,7 @@
   }
   .bd-row.empty { opacity: 0.35; }
   .bd-row.scrub-active { background: rgba(127, 209, 255, 0.18); outline: 1px solid rgba(127, 209, 255, 0.5); }
-  .bd-rank { font-weight: 800; text-align: center; }
+  .bd-rank { font-family: var(--font-rank); font-weight: 800; text-align: center; }
   .bd-bar {
     height: 8px;
     background: rgba(255, 255, 255, 0.08);
@@ -1227,6 +1267,7 @@
     padding: 4px 7px;
     font-size: 12px;
     font-weight: 700;
+    font-family: var(--font-rank);   /* rank glyphs unchanged */
   }
   .dq-cell b { color: var(--accent); }
 
@@ -1379,6 +1420,114 @@
     padding: 6px 0 10px;
     opacity: 0.6;
   }
+
+  /* ============================================================
+     CELESTIAL ATMOSPHERE  (#sky)
+     A fixed, non-interactive backdrop painted behind ALL content. Built only
+     from compositor-friendly properties (transform + opacity) so it stays
+     smooth on mobile Safari and never affects layout or input. It sits at
+     z-index:-1: above the body's base colour, below every game surface, so it
+     can never obscure card faces, ranks, badges, or the deck strip.
+     ============================================================ */
+  #sky {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    isolation: isolate;           /* contain blend modes to this layer */
+    /* The deep-space gradient: a faint lifted horizon falling into the void. */
+    background:
+      radial-gradient(135% 100% at 50% -12%, #11183a 0%, #0a1024 34%, var(--bg) 64%),
+      radial-gradient(80% 60% at 82% 8%, rgba(48, 36, 92, 0.55), transparent 60%);
+  }
+  #sky > * { position: absolute; inset: 0; }
+
+  /* --- Nebula: a few broad, soft clouds, screen-blended so they read as faint
+     luminous gas rather than flat fills. Drifts + breathes very slowly. --- */
+  .sky-neb {
+    inset: -28%;
+    background:
+      radial-gradient(38% 34% at 24% 30%, rgba(124, 92, 196, 0.22), transparent 70%),
+      radial-gradient(44% 40% at 78% 64%, rgba(54, 122, 184, 0.20), transparent 72%),
+      radial-gradient(30% 26% at 62% 16%, rgba(196, 142, 98, 0.10), transparent 70%),
+      radial-gradient(52% 50% at 50% 104%, rgba(40, 72, 150, 0.18), transparent 75%);
+    mix-blend-mode: screen;
+    will-change: transform;
+    animation: neb-drift 200s ease-in-out infinite alternate;
+  }
+  @keyframes neb-drift {
+    from { transform: translate3d(-1.5%, -1%, 0) scale(1.02); }
+    to   { transform: translate3d(2%, 1.2%, 0) scale(1.08); }
+  }
+
+  /* --- Star fields: three tiled layers at different depths. Tiling a handful
+     of radial-gradient points is far cheaper than thousands of box-shadows and
+     stays crisp on retina. Different tile sizes hide the repeat; different
+     drift speeds give parallax; gentle opacity pulses read as twinkle. --- */
+  .sky-stars { inset: -30%; background-repeat: repeat; will-change: transform, opacity; }
+  .sky-stars--far {
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(244,247,255,.7), transparent 60%),
+      radial-gradient(1px 1px at 27% 62%, rgba(244,247,255,.5), transparent 60%),
+      radial-gradient(1px 1px at 41% 33%, rgba(244,247,255,.6), transparent 60%),
+      radial-gradient(1px 1px at 58% 78%, rgba(244,247,255,.45), transparent 60%),
+      radial-gradient(1px 1px at 69% 12%, rgba(244,247,255,.6), transparent 60%),
+      radial-gradient(1px 1px at 83% 52%, rgba(244,247,255,.5), transparent 60%),
+      radial-gradient(1px 1px at 90% 86%, rgba(244,247,255,.55), transparent 60%),
+      radial-gradient(1px 1px at 7% 84%, rgba(244,247,255,.45), transparent 60%);
+    background-size: 300px 300px;
+    animation: drift-a 300s linear infinite alternate, tw-far 9s ease-in-out infinite;
+  }
+  .sky-stars--mid {
+    background-image:
+      radial-gradient(1.2px 1.2px at 18% 44%, rgba(244,247,255,.85), transparent 60%),
+      radial-gradient(1.2px 1.2px at 36% 12%, rgba(206,226,255,.8), transparent 60%),
+      radial-gradient(1.2px 1.2px at 52% 67%, rgba(244,247,255,.8), transparent 60%),
+      radial-gradient(1.2px 1.2px at 64% 28%, rgba(244,247,255,.75), transparent 60%),
+      radial-gradient(1.2px 1.2px at 79% 82%, rgba(231,201,135,.7), transparent 60%),
+      radial-gradient(1.2px 1.2px at 88% 38%, rgba(244,247,255,.8), transparent 60%),
+      radial-gradient(1.2px 1.2px at 9% 71%, rgba(244,247,255,.7), transparent 60%);
+    background-size: 430px 430px;
+    animation: drift-b 220s linear infinite alternate, tw-mid 7s ease-in-out infinite;
+  }
+  .sky-stars--near {
+    background-image:
+      radial-gradient(2px 2px at 22% 36%, rgba(255,255,255,.95), rgba(158,198,255,.22) 38%, transparent 70%),
+      radial-gradient(1.6px 1.6px at 47% 18%, rgba(255,255,255,.9), transparent 62%),
+      radial-gradient(2.2px 2.2px at 71% 58%, rgba(255,255,255,.95), rgba(231,201,135,.22) 40%, transparent 72%),
+      radial-gradient(1.6px 1.6px at 84% 24%, rgba(231,201,135,.85), transparent 62%),
+      radial-gradient(1.6px 1.6px at 33% 80%, rgba(255,255,255,.85), transparent 62%);
+    background-size: 560px 560px;
+    animation: drift-a 160s linear infinite alternate, tw-near 11s ease-in-out infinite;
+  }
+  @keyframes drift-a { from { transform: translate3d(0,0,0); } to { transform: translate3d(-2.4%, 1.6%, 0); } }
+  @keyframes drift-b { from { transform: translate3d(0,0,0); } to { transform: translate3d(2.2%, -1.4%, 0); } }
+  /* Twinkle = a restrained collective shimmer; offset periods keep the layers
+     out of sync so it never pulses as one flat block. */
+  @keyframes tw-far  { 0%,100% { opacity: .5; }  50% { opacity: .68; } }
+  @keyframes tw-mid  { 0%,100% { opacity: .62; } 55% { opacity: .85; } }
+  @keyframes tw-near { 0%,100% { opacity: .7; }  45% { opacity: 1; } }
+
+  /* --- Film grain: a static fractal-noise tile (inline SVG, no network) at a
+     whisper of opacity to kill banding and add texture. --- */
+  .sky-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+  }
+
+  /* --- Vignette: keeps the centre (where the board lives) clean and pulls the
+     edges into depth. --- */
+  .sky-vignette {
+    background: radial-gradient(125% 100% at 50% 40%, transparent 52%, rgba(2, 3, 9, 0.6) 100%);
+  }
+
+  /* Respect reduced-motion: hold the atmosphere perfectly still. */
+  @media (prefers-reduced-motion: reduce) {
+    .sky-neb, .sky-stars { animation: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1386,6 +1535,20 @@
        change when Safari's chrome shows/hides. fitBoard reads it instead of
        innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
   <div id="svhProbe" aria-hidden="true"></div>
+
+  <!-- Celestial atmosphere: a fixed, pointer-events:none layer painted BEHIND
+       all content (z-index:-1). Pure CSS — layered nebula, three parallax star
+       fields with gentle twinkle, film grain, and a vignette. It never touches
+       layout (position:fixed) or input, so gameplay is unaffected. -->
+  <div id="sky" aria-hidden="true">
+    <div class="sky-neb"></div>
+    <div class="sky-stars sky-stars--far"></div>
+    <div class="sky-stars sky-stars--mid"></div>
+    <div class="sky-stars sky-stars--near"></div>
+    <div class="sky-grain"></div>
+    <div class="sky-vignette"></div>
+  </div>
+
   <header>
     <div class="stage-run" id="stageRun">Stage 1 · Run 1</div>
   </header>
@@ -1684,7 +1847,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.49.0";
+const APP_VERSION = "v0.50.0 · constellation";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4611,6 +4774,11 @@ const UIRenderer = (() => {
       refitIfChanged();
       setTimeout(() => { lastVW = lastVH = 0; refitIfChanged(); }, 300);
     });
+    // The UI web font (Jost) can swap in after the first measurement, nudging
+    // chrome text metrics; re-fit once it's ready so the no-scroll budget holds.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (pileEls.length) fitBoard(); });
+    }
 
     // ---- Board gestures ----
     // (a) Hold a Pillar INDICATOR to peek its info (release dismisses).
