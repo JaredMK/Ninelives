@@ -568,6 +568,25 @@
      layout doesn't jump when it's swapped for the buttons. */
   .play-btn.start-run { padding: 14px 40px; font-size: 17px; }
   .play-btn.start-run.hidden { display: none; }
+  /* Redeal (pre-run reshuffle). Secondary look — muted, outlined — so it reads
+     as the optional/paid action next to the primary Start Run. */
+  .play-btn.redeal {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    box-shadow: none;
+    padding: 10px 22px;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+  .play-btn.redeal.hidden { display: none; }
+  .play-btn.redeal:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #6b6b6b;
+    color: #9a9a9a;
+  }
+  .play-btn.redeal:disabled:active { transform: none; }
 
   /* Run progress + Run End / Campaign summary stats */
   .run-progress {
@@ -1382,6 +1401,11 @@
          Shown until pressed each run; mutually exclusive with the guess buttons. -->
     <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
 
+    <!-- Redeal (pre-run only): pay to reshuffle the WHOLE deck and deal a fresh
+         starting board. Applied stickers ride with the deck (same cards, new
+         shuffle). Cost rises 5→6→7… per redeal this phase. -->
+    <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
+
     <div class="actions hidden" id="actions">
       <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
       <button class="btn higher" id="btnHigher">HIGHER</button>
@@ -1535,6 +1559,20 @@
     </div>
   </div>
 
+  <!-- Redeal confirmation — reshuffles the WHOLE deck and deals a fresh
+       starting board. Applied stickers/replacements ride with the deck. Only
+       prompted once a sticker/replacement was applied this phase (otherwise the
+       redeal fires immediately). -->
+  <div class="confirm-overlay hidden" id="redealConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="redealConfirmMsg">Redeal?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="redealCancelBtn" type="button">Cancel</button>
+        <button class="confirm-danger" id="redealOkBtn" type="button">Redeal</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Trash-Pillar confirmation — destroys the column's Pillar permanently
        (no refund, no return to inventory). Guards against an accidental tap. -->
   <div class="confirm-overlay hidden" id="trashConfirm">
@@ -1608,7 +1646,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.43.0";
+const APP_VERSION = "v0.44.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2462,9 +2500,15 @@ const GameEngine = (() => {
       return { bonus, lines };
     }
 
-    function start() {
+    function start(seedOverride) {
       // --- Run Start phase: new seed, seeded shuffle, deal -----------
-      const seed = generateSeed();
+      // `seedOverride` lets a caller re-deal a known board: resume (replay the
+      // saved board after a refresh) and Redeal (a fresh RANDOM seed reshuffles
+      // the whole deck into a new starting board). Without it, a new run rolls
+      // a fresh seed. The shuffle order itself is never surfaced — only the
+      // seed travels, so uncertainty is preserved.
+      const seed = (seedOverride === undefined || seedOverride === null)
+        ? generateSeed() : seedOverride;
       run = {
         phase: "start",
         seed,
@@ -2756,6 +2800,9 @@ const GameEngine = (() => {
       canApplyStickers() { return status === "playing" && !!run && run.stickerWindow === true; },
       /** True once Start Run has been pressed (active play has begun). */
       isRunStarted() { return !!run && run.started === true; },
+      /** The seed that produced the current deal — persist it to replay the
+          exact same starting board on resume (no free redeal via refresh). */
+      getSeed() { return run ? run.seed : null; },
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
@@ -3690,6 +3737,7 @@ const UIRenderer = (() => {
     cardInfoPanel: document.getElementById("cardInfoPanel"),
     stripToggleRow: document.querySelector(".strip-toggle-row"),
     startRunBtn: document.getElementById("startRunBtn"),
+    redealBtn: document.getElementById("redealBtn"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
     overlayIcon: document.getElementById("overlayIcon"),
@@ -3743,6 +3791,10 @@ const UIRenderer = (() => {
     trashConfirmMsg: document.getElementById("trashConfirmMsg"),
     trashCancelBtn: document.getElementById("trashCancelBtn"),
     trashOkBtn: document.getElementById("trashOkBtn"),
+    redealConfirm: document.getElementById("redealConfirm"),
+    redealConfirmMsg: document.getElementById("redealConfirmMsg"),
+    redealCancelBtn: document.getElementById("redealCancelBtn"),
+    redealOkBtn: document.getElementById("redealOkBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     itemHelp: document.getElementById("itemHelp"),
@@ -3788,6 +3840,18 @@ const UIRenderer = (() => {
   // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
   let armedSticker = null;
+
+  // Redeal (pre-run reshuffle). `redealCost` is the price of the NEXT redeal
+  // this phase; it starts at REDEAL_BASE_COST and rises REDEAL_STEP per redeal,
+  // resetting to base each new run's pre-run phase (set in startRun, restored
+  // on resume). Persisted in the "run" save blob so a refresh can't reset it
+  // (no free redeal). `appliedThisPhase` tracks whether a sticker/replacement
+  // was applied since the last deal, to warn before a reshuffle re-deals on top
+  // of those (Rule B: the applications stay; only the starting board changes).
+  const REDEAL_BASE_COST = 5;
+  const REDEAL_STEP = 1;
+  let redealCost = REDEAL_BASE_COST;
+  let appliedThisPhase = false;
 
   // Store selection state, all keyed to the current offering's SLOTS:
   //   selectedStickerSlot — offered sticker slot awaiting the Buy button.
@@ -4155,6 +4219,7 @@ const UIRenderer = (() => {
     el.startRunBtn.classList.remove("hidden");
     renderStickerTray();                      // shows owned stickers (if any)
     renderPackTray();                         // shows held pack cards (if any)
+    renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     el.hint.textContent = hasStickers
       ? "Apply stickers, then press Start Run."
@@ -4165,9 +4230,65 @@ const UIRenderer = (() => {
     el.startRunBtn.classList.add("hidden");
     renderStickerTray();                      // window closed -> tray hides itself
     renderPackTray();                         // window closed -> pack tray hides itself
+    renderRedealBtn();                        // window closed -> redeal hides itself
     if (armedSticker || armedPack != null) { armedSticker = null; armedPack = null; el.board.classList.remove("arming"); }
     el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
     if (pileEls.length) fitBoard();           // reclaim the Start Run row's space
+  }
+
+  /* ---- redeal (pre-run reshuffle) ----
+     Shown only during the pre-run window. Reshuffles the WHOLE deck into a
+     fresh starting board (new top card on every pile). Rule B: applied
+     stickers/replacements stay on their cards — the redeal re-snapshots the
+     current campaign deck (via startRun's engine recreation), so applications
+     ride into the new shuffle and are never lost. Cost rises 5→6→7… per redeal
+     this phase; disabled/greyed when unaffordable. */
+  function renderRedealBtn() {
+    if (!el.redealBtn) return;
+    const open = engine && engine.canApplyStickers();
+    if (!open) { el.redealBtn.classList.add("hidden"); return; }
+    el.redealBtn.classList.remove("hidden");
+    const coins = campaign ? campaign.getCoins() : 0;
+    const afford = coins >= redealCost;
+    el.redealBtn.disabled = !afford;
+    el.redealBtn.textContent = "REDEAL · " + redealCost + " 🪙";
+    el.redealBtn.title = afford
+      ? "Reshuffle the whole deck for " + redealCost + " coins (applied stickers stay)."
+      : "Need " + redealCost + " coins to redeal (you have " + coins + ").";
+  }
+
+  function requestRedeal() {
+    if (!engine || !engine.canApplyStickers()) return;
+    if (!campaign || campaign.getCoins() < redealCost) return;
+    // Warn before reshuffling on top of work already done this phase. The
+    // applications themselves are kept (Rule B) — only the starting board is
+    // re-rolled — but the prompt makes that explicit so it isn't a surprise.
+    if (appliedThisPhase) {
+      el.redealConfirmMsg.textContent =
+        "Redeal for " + redealCost + " coins? Your applied stickers stay on their "
+        + "cards — only the starting board is reshuffled.";
+      el.redealConfirm.classList.remove("hidden");
+      return;
+    }
+    doRedeal();
+  }
+
+  function closeRedealConfirm() { el.redealConfirm.classList.add("hidden"); }
+
+  function doRedeal() {
+    closeRedealConfirm();
+    if (!engine || !engine.canApplyStickers()) return;
+    if (!campaign || !campaign.spendCoins(redealCost)) return;
+    engine.logAction("Redeal", ["Reshuffled the deck for " + redealCost + " coins"]);
+    redealCost += REDEAL_STEP;                // next redeal this phase costs more
+    appliedThisPhase = false;                 // fresh board; nothing applied to it yet
+    updateStageRun();                         // reflect the coin spend in the HUD
+    // Re-deal from the CURRENT campaign deck with a fresh RANDOM seed. startRun()
+    // rebuilds the engine off campaign.getRunDeck(), so any stickers/replacements
+    // applied so far are baked into the new shuffle (Rule B), and a brand-new
+    // seed genuinely re-randomizes draw order. Pass redealCost through so the
+    // re-deal persists the escalated price (no reset via the new "dealt" event).
+    startRun(undefined, redealCost);
   }
 
   function startRunUI() {
@@ -4241,6 +4362,7 @@ const UIRenderer = (() => {
     campaign.useStickerFromInventory(typeId);
     applyStickerToBoardCard(top, typeId);
 
+    appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
     armedSticker = null;
     el.board.classList.remove("arming");
     paintFront(pileEls[index], top);
@@ -4538,6 +4660,12 @@ const UIRenderer = (() => {
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
+
+    // Redeal: pay to reshuffle the whole deck into a fresh pre-run board.
+    el.redealBtn.addEventListener("click", requestRedeal);
+    el.redealCancelBtn.addEventListener("click", closeRedealConfirm);
+    el.redealOkBtn.addEventListener("click", doRedeal);
+    el.redealConfirm.addEventListener("click", (e) => { if (e.target === el.redealConfirm) closeRedealConfirm(); });
 
     // Deck composition strip: toggle on/off, and drag to scrub higher/same/lower.
     el.deckStripToggle.addEventListener("click", () => applyDeckStrip(!deckStripOn));
@@ -4990,7 +5118,17 @@ const UIRenderer = (() => {
      clearSave() wipes it (new campaign, loss, or campaign complete). */
   function persistCampaign(phase) {
     if (!campaign) return;
-    SaveStore.save({ schema: 1, phase, campaign: campaign.serialize() });
+    const blob = { schema: 1, phase, campaign: campaign.serialize() };
+    // For an in-progress run, also checkpoint the deal: the seed replays the
+    // EXACT starting board on resume (so a refresh can't be used to fish for a
+    // better board — that's what Redeal costs coins for) and the redeal price +
+    // applied flag carry the pre-run phase state across the refresh.
+    if (phase === "run" && engine) {
+      blob.runSeed = engine.getSeed();
+      blob.redealCost = redealCost;
+      blob.appliedThisPhase = appliedThisPhase;
+    }
+    SaveStore.save(blob);
   }
   function clearSave() { SaveStore.clear(); }
 
@@ -5000,7 +5138,17 @@ const UIRenderer = (() => {
     startRun();
   }
 
-  function startRun() {
+  /**
+   * Full per-run reset (deck, piles, UI, engine), then deal into the pre-run
+   * phase.
+   * @param {number} [seedOverride]      replay a known board (resume); omit for
+   *                                     a fresh random deal (new run / redeal).
+   * @param {number} [redealCostOverride] carry the pre-run redeal price across
+   *                                     a re-deal (redeal, resume); omit to
+   *                                     reset the price to base (a NEW run's
+   *                                     pre-run phase always starts at 5).
+   */
+  function startRun(seedOverride, redealCostOverride) {
     // Phase: -> Active run. Hide every overlay phase first.
     hideOverlay();
     closeStore();
@@ -5008,6 +5156,12 @@ const UIRenderer = (() => {
     clearSelection();
     armedSticker = null;
     el.board.classList.remove("arming");
+
+    // Reset (or restore) the pre-run redeal price + applied flag for this deal.
+    // A fresh run resets to base; a redeal/resume carries the escalated price.
+    redealCost = (typeof redealCostOverride === "number")
+      ? redealCostOverride : REDEAL_BASE_COST;
+    appliedThisPhase = false;
 
     // Per-run layout config drives both the pile count and the row shape.
     const cfg = campaign.layoutForRun(campaign.currentRunIndex);
@@ -5018,6 +5172,9 @@ const UIRenderer = (() => {
     // Full per-run reset: a brand-new engine gives a fresh deck + piles
     // and a fresh event subscription, so nothing leaks between runs. The
     // run deck is a shuffled COPY of the current stage's active-suit cards.
+    // Re-snapshotting getRunDeck() here is also what makes Redeal "Rule B"
+    // work: any stickers/replacements applied this phase are already baked into
+    // the campaign deck, so they ride into the fresh shuffle automatically.
     // Pass the column layout so the engine can resolve Pillars (column
     // modifiers); the per-column Pillar binding is snapshotted later, at
     // Start Run, after the pre-run assignment phase.
@@ -5028,8 +5185,9 @@ const UIRenderer = (() => {
     // is delegated on the board, so no per-pile handlers accumulate.
     buildBoard(cfg.cols);
 
-    engine.start();
-    // Checkpoint the run start: a refresh now resumes this run's sticker phase.
+    engine.start(seedOverride);
+    // Checkpoint the run start: a refresh now resumes this run's sticker phase
+    // with the same board + redeal price.
     persistCampaign("run");
   }
 
@@ -5516,6 +5674,7 @@ const UIRenderer = (() => {
       renderStickerBadges(pileEls[st.pileIndex], top);
     }
     if (engine) engine.logAction("Replaced the dealt card on pile " + (st.pileIndex + 1) + " with a pack card");
+    appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
     armedPack = null;
     el.board.classList.toggle("arming", !!armedSticker);
     renderPackTray();
@@ -5793,7 +5952,16 @@ const UIRenderer = (() => {
       // so it's the backdrop whether we land in the store or the sticker phase.
       buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
       if (saved.phase === "store") showStore(false);   // keep the saved offer
-      else startRun();                                 // re-deal the current run
+      else {
+        // Re-deal the EXACT same pre-run board using the saved seed, and
+        // restore the redeal price so a refresh isn't a free redeal. (Validate
+        // the saved values; fall back to a fresh deal/base price if absent.)
+        const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
+        const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
+        startRun(seed, cost);
+        // Restore the "applied this phase" warning flag (startRun reset it).
+        if (saved.appliedThisPhase) { appliedThisPhase = true; }
+      }
     } else {
       // Fresh: static run-1 board behind the Start overlay.
       buildBoard(campaign.layoutForRun(1).cols, false);

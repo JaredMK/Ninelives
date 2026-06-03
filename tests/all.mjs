@@ -15,6 +15,7 @@ import { run as features } from "./features.test.mjs";
 import { run as persistence } from "./persistence.test.mjs";
 import { run as expansion } from "./expansion.test.mjs";
 import { run as packs } from "./packs.test.mjs";
+import { run as redeal } from "./redeal.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -30,6 +31,7 @@ const SUITES = [
   ["persistence", persistence],
   ["expansion", expansion],
   ["packs", packs],
+  ["redeal", redeal],
 ];
 
 let pass = 0,
