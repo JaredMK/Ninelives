@@ -160,5 +160,101 @@ export function run() {
     r.eq(packKeys, baseKeys, "pack card carries the same identity fields as a deck card");
   }
 
+  // ===== Phase 2: store roll + buy/reveal =================================
+  {
+    const c = CampaignState.create();
+    c.addCoins(100);
+    // Find a seeded offer that puts a pack in slot 0 (packs appear by chance).
+    let offer = null;
+    for (let seed = 1; seed < 80; seed++) {
+      c.openStore(rngFrom(seed));
+      if (c.getStoreOffer().packs[0]) { offer = c.getStoreOffer(); break; }
+    }
+    r.ok(offer && offer.packs[0], "store offer rolls a pack into the section");
+    const packId = offer.packs[0];
+    const t = PackTypes.get(packId);
+    const before = c.getCoins();
+    const result = c.buyOfferedPack(0, rngFrom(99));
+    r.ok(result && result.packId === packId, "buyOfferedPack reveals the bought pack");
+    r.eq(result.items.length, t.size, "reveals `size` items");
+    r.eq(result.keep, t.keep, "carries the keep count");
+    r.eq(c.getStoreOffer().packs[0], null, "buying empties only that pack slot");
+    r.eq(c.getCoins(), before - t.price, "charged the fixed pack price (no escalation)");
+    r.ok(!c.buyOfferedPack(0, rngFrom(1)), "can't buy an already-empty pack slot");
+
+    const broke = CampaignState.create();
+    let bslot = -1, bid = null;
+    for (let seed = 1; seed < 80; seed++) {
+      broke.openStore(rngFrom(seed));
+      const k = broke.getStoreOffer().packs.findIndex(Boolean);
+      if (k >= 0) { bslot = k; bid = broke.getStoreOffer().packs[k]; break; }
+    }
+    r.ok(bslot >= 0, "found a pack to test the broke case");
+    r.ok(!broke.buyOfferedPack(bslot, rngFrom(2)), "can't buy a pack with no coins");
+  }
+
+  // --- Random appearance: some visits have no packs ---------------------
+  {
+    const c = CampaignState.create();
+    let sawEmptyVisit = false, sawPackVisit = false;
+    for (let seed = 1; seed <= 40; seed++) {
+      c.openStore(rngFrom(seed));
+      const packs = c.getStoreOffer().packs;
+      if (packs.every(p => p == null)) sawEmptyVisit = true;
+      if (packs.some(Boolean)) sawPackVisit = true;
+    }
+    r.ok(sawPackVisit, "packs appear on some visits");
+    r.ok(sawEmptyVisit, "packs are absent on some visits (random appearance)");
+  }
+
+  // ===== Phase 3: permanent deck replacement =============================
+  {
+    const c = CampaignState.create();
+    const [pick] = c.revealPack("cardPack3", rngFrom(5));
+    c.addPackCard(pick);
+    const dealt = c.getCards().find(x => x.suit === "♠");   // an in-play card
+    c.applySticker(dealt.id, "tieSafe");                    // build it up, to verify destruction
+    r.eq(c.getCards().length, 52, "deck starts at 52");
+    const ret = c.replaceDeckCard(dealt.id, 0);
+    r.ok(ret && ret.id === pick.id, "replaceDeckCard returns the inserted pack card");
+    r.eq(c.getCards().length, 52, "deck stays 52 after replacement");
+    r.ok(!c.getCards().some(x => x.id === dealt.id), "the replaced card (and its stickers) is gone forever");
+    r.ok(c.getCards().some(x => x.id === pick.id), "the pack card is now a deck card");
+    r.eq(c.packTrayCount(), 0, "the used pack card left the tray");
+
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(JSON.parse(JSON.stringify(c.serialize()))), "save/restore accepts the post-replace deck");
+    r.eq(c2.getCards().length, 52, "restored deck still 52");
+    r.ok(c2.getCards().some(x => x.id === pick.id), "the replacement persists across save/restore");
+    r.ok(!c.replaceDeckCard(99999, 0), "replacing an unknown card id fails safely");
+  }
+
+  // ===== Phase 4: suit-locking across stages =============================
+  {
+    const c = CampaignState.create();
+    const stages = [
+      { advances: 0, ok: ["♠", "♥"] },
+      { advances: 3, ok: ["♠", "♥", "♦"] },
+      { advances: 6, ok: ["♠", "♥", "♦", "♣"] },
+    ];
+    let fresh = CampaignState.create();
+    let totalAdv = 0;
+    for (const st of stages) {
+      while (totalAdv < st.advances) { fresh.advance(); totalAdv++; }
+      const allowed = new Set(st.ok);
+      let cardsOk = true, cardStickersOk = true, packStickersOk = true;
+      for (let i = 0; i < 200; i++) {
+        const card = fresh.genPackCard(rngFrom(1000 + i));
+        if (!allowed.has(card.suit)) cardsOk = false;
+        if (!card.stickers.every(s => { const t = StickerTypes.get(s.type); return !t.suit || allowed.has(t.suit); })) cardStickersOk = false;
+      }
+      const ids = fresh.revealPack("stickerPack5", rngFrom(2000 + st.advances));
+      if (!ids.every(id => { const t = StickerTypes.get(id); return !t.suit || allowed.has(t.suit); })) packStickersOk = false;
+      r.ok(cardsOk, "Stage " + fresh.currentStage + ": pack-card suits stay in play");
+      r.ok(cardStickersOk, "Stage " + fresh.currentStage + ": on-card stickers never require an out-of-play suit");
+      r.ok(packStickersOk, "Stage " + fresh.currentStage + ": sticker-pack stickers never require an out-of-play suit");
+    }
+  }
+
   return r.summary();
 }

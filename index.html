@@ -784,11 +784,61 @@
   }
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
   .confirm-msg b { color: var(--accent-2); }
+  .confirm-msg .warn-stickers { color: #eb8f8f; font-size: 12px; display: inline-block; margin-top: 6px; }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
   .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
   .confirm-cancel { background: #243154; color: var(--text); }
   .confirm-danger { background: #c0392b; color: #fff; }
   .confirm-actions button:active { transform: scale(0.97); }
+
+  /* ---- Pack reveal modal + mini-cards (shared by reveal + pre-run tray) ---- */
+  .pack-panel {
+    width: min(94vw, 420px); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--panel); border: 1px solid #34508f; border-radius: 14px;
+    box-shadow: var(--shadow); padding: 16px 14px; text-align: center;
+  }
+  .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
+  .pack-items { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .pack-msg { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 14px; line-height: 1.4; }
+  .pack-item { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; }
+  .pack-item:active { transform: scale(0.95); }
+  .pack-item.dim { opacity: 0.3; }
+  .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+  /* Sticker chip (revealed sticker-pack item). */
+  .pk-sticker {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    width: 64px; padding: 8px 4px; border-radius: 10px;
+    background: rgba(255,255,255,0.06); border: 1px solid #34508f;
+  }
+  .pk-sticker .pks-ic { font-size: 22px; line-height: 1; }
+  .pk-sticker .pks-name { font-size: 9px; font-weight: 700; color: var(--text); line-height: 1.1; }
+
+  /* Mini playing card (revealed card-pack item + held pack-tray cards). */
+  .mini-card {
+    position: relative; width: 52px; height: 70px; border-radius: 7px;
+    background: var(--card-face); color: var(--card-ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
+  }
+  .mini-card.red { color: var(--card-red); }
+  .mini-card .mc-rank { font-size: 19px; line-height: 1; }
+  .mini-card .mc-suit { font-size: 16px; line-height: 1.1; }
+  .mini-card .mc-badges {
+    position: absolute; top: 2px; right: 2px; font-size: 9px; line-height: 1;
+    display: flex; gap: 1px; max-width: 70%; flex-wrap: wrap; justify-content: flex-end;
+  }
+
+  /* Pre-run pack tray: held pack cards to apply as deck replacements. */
+  .pack-tray {
+    display: flex; gap: 8px; justify-content: center; align-items: center;
+    flex-wrap: wrap; margin: 0 auto; padding: 2px 0;
+  }
+  .pack-tray.hidden { display: none; }
+  .pack-tray .pt-card { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; position: relative; }
+  .pack-tray .pt-card:active { transform: scale(0.95); }
+  .pack-tray .pt-card.armed .mini-card { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pack-tray .pt-label { font-size: 8px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
      with a cell per column so each icon is centered over its column AND all
@@ -1324,6 +1374,10 @@
     <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
     <div class="sticker-tray hidden" id="stickerTray"></div>
 
+    <!-- Held pack cards (pre-run): arm one, then tap a pile to PERMANENTLY
+         replace that dealt card (confirmation required). -->
+    <div class="pack-tray hidden" id="packTrayEl"></div>
+
     <!-- Sticker phase: press to end sticker application and begin active play.
          Shown until pressed each run; mutually exclusive with the guess buttons. -->
     <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
@@ -1452,9 +1506,33 @@
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
     <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pillar</button>
+    <div class="store-section">Packs — buy to reveal, then pick</div>
+    <div class="store-tiles" id="storePacks"></div>
     <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
+  </div>
+
+  <!-- Pack reveal: shown after buying a pack. The player picks from the revealed
+       items (card pack → keep 1 to the tray; sticker pack → keep 1 or 2 to the
+       inventory). Forced pick (the pack was paid for); unchosen are discarded. -->
+  <div class="confirm-overlay hidden" id="packReveal">
+    <div class="pack-panel">
+      <div class="pack-title" id="packTitle">Pick one</div>
+      <div class="pack-items" id="packItems"></div>
+      <div class="pack-msg" id="packMsg"></div>
+    </div>
+  </div>
+
+  <!-- Pre-run deck replacement confirmation (a permanent campaign-deck change). -->
+  <div class="confirm-overlay hidden" id="packReplaceConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="packReplaceMsg">Replace this card?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="packReplaceCancel" type="button">Cancel</button>
+        <button class="confirm-danger" id="packReplaceOk" type="button">Replace</button>
+      </div>
+    </div>
   </div>
 
   <!-- Trash-Pillar confirmation — destroys the column's Pillar permanently
@@ -1530,7 +1608,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.42.0";
+const APP_VERSION = "v0.43.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2757,6 +2835,8 @@ const CampaignState = (() => {
      it resets to base when the store re-opens for a new run. */
   const STORE_STICKER_SLOTS = 4;
   const STORE_PILLAR_SLOTS = 2;
+  const STORE_PACK_SLOTS = 2;          // pack section slots
+  const PACK_APPEAR_CHANCE = 0.5;      // per slot: chance it holds a pack (else empty)
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
 
@@ -2827,11 +2907,23 @@ const CampaignState = (() => {
     return true;
   }
 
-  /** A fresh offering: random sticker + Pillar slots, reroll cost at base. */
-  function freshOffer() {
+  /** Roll the pack section: each slot independently holds a random pack (equal
+      weight among pack types) or nothing — so packs appear by chance, not every
+      visit. Returns an array of pack ids / null per slot. */
+  function rollPacks(n, rng = Math.random) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push(rng() < PACK_APPEAR_CHANCE ? rollIds(PackTypes.all(), 1, rng)[0] : null);
+    }
+    return out;
+  }
+
+  /** A fresh offering: random sticker + Pillar + Pack slots, reroll cost at base. */
+  function freshOffer(rng = Math.random) {
     return {
-      stickers: rollIds(StickerTypes.all(), STORE_STICKER_SLOTS),
-      pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS),
+      stickers: rollIds(StickerTypes.all(), STORE_STICKER_SLOTS, rng),
+      pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
+      packs: rollPacks(STORE_PACK_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
     };
   }
@@ -3088,7 +3180,7 @@ const CampaignState = (() => {
       /* ---- store offering (limited random roll; see freshOffer) ---------- */
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
-      openStore() { storeOffer = freshOffer(); return storeOffer; },
+      openStore(rng) { storeOffer = freshOffer(rng); return storeOffer; },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
           or null. The UI renders FROM this — it never re-rolls on its own, so a
           re-render restores the same items (no free reroll via refresh). */
@@ -3103,6 +3195,7 @@ const CampaignState = (() => {
         const f = freshOffer();
         storeOffer.stickers = f.stickers;
         storeOffer.pillars = f.pillars;
+        storeOffer.packs = f.packs;
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
@@ -3123,6 +3216,25 @@ const CampaignState = (() => {
         if (!id || !this.buyPillar(id, col)) return false;
         storeOffer.pillars[i] = null;
         return true;
+      },
+
+      /** Fixed price of a pack type. */
+      priceOfPack(packId) { const t = PackTypes.get(packId); return t ? t.price : Infinity; },
+
+      /** Buy + OPEN the offered pack in slot `i`: charges the fixed price, empties
+          the slot, and reveals its items. Returns { packId, kind, keep, items } on
+          success (items are card objects for card packs, sticker ids for sticker
+          packs — the UI shows them and the player picks), or null on failure. The
+          picked item(s) are then committed via addPackCard / addStickerToInventory. */
+      buyOfferedPack(i, rng) {
+        if (!storeOffer || !storeOffer.packs) return null;
+        const packId = storeOffer.packs[i];
+        const t = packId ? PackTypes.get(packId) : null;
+        if (!t) return null;
+        if (coins < t.price) return null;
+        coins -= t.price;
+        storeOffer.packs[i] = null;
+        return { packId, kind: t.kind, keep: t.keep, items: this.revealPack(packId, rng) };
       },
 
       /* ---- sticker application (permanent, per-card, validated) ----
@@ -3229,6 +3341,21 @@ const CampaignState = (() => {
       setCompoundHits(id, n) {
         const card = findById(id);
         if (card) card.compoundHits = n;
+      },
+
+      /** PERMANENT deck replacement (pre-run, via a held pack card): remove the
+          card `dealtId` from the campaign deck (its stickers gone forever) and put
+          the tray's pack card in its place, keeping the deck at 52. The pack card
+          leaves the tray. Returns the inserted pack card (for the live board), or
+          null on failure. */
+      replaceDeckCard(dealtId, trayIndex) {
+        const di = baseDeck.findIndex(c => c.id === dealtId);
+        if (di < 0) return null;
+        if (trayIndex < 0 || trayIndex >= packTray.length) return null;
+        const packCard = packTray.splice(trayIndex, 1)[0];
+        baseDeck.splice(di, 1);          // remove the replaced identity (+ its stickers) forever
+        baseDeck.push(packCard);         // deck stays 52
+        return packCard;
       },
 
       /* ---- the full wipe (THE tuning seam for loss harshness) ----
@@ -3602,6 +3729,16 @@ const UIRenderer = (() => {
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
     trashPillarBtn: document.getElementById("trashPillarBtn"),
+    storePacks: document.getElementById("storePacks"),
+    packReveal: document.getElementById("packReveal"),
+    packTitle: document.getElementById("packTitle"),
+    packItems: document.getElementById("packItems"),
+    packMsg: document.getElementById("packMsg"),
+    packReplaceConfirm: document.getElementById("packReplaceConfirm"),
+    packReplaceMsg: document.getElementById("packReplaceMsg"),
+    packReplaceCancel: document.getElementById("packReplaceCancel"),
+    packReplaceOk: document.getElementById("packReplaceOk"),
+    packTrayEl: document.getElementById("packTrayEl"),
     trashConfirm: document.getElementById("trashConfirm"),
     trashConfirmMsg: document.getElementById("trashConfirmMsg"),
     trashCancelBtn: document.getElementById("trashCancelBtn"),
@@ -3661,6 +3798,9 @@ const UIRenderer = (() => {
   let armedPillarSlot = null;
   let armedSlotMove = null;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
+  let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
+  let packRevealState = null;   // in-progress buy→reveal→pick, or null
+  let packReplaceState = null;  // pending replacement awaiting confirmation, or null
   // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
   // Tap a "?" to toggle; tap anything else (swallowed) to dismiss.
   let openHelpKey = null;
@@ -4014,6 +4154,7 @@ const UIRenderer = (() => {
     clearSelection();                         // also hides #actions
     el.startRunBtn.classList.remove("hidden");
     renderStickerTray();                      // shows owned stickers (if any)
+    renderPackTray();                         // shows held pack cards (if any)
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     el.hint.textContent = hasStickers
       ? "Apply stickers, then press Start Run."
@@ -4023,7 +4164,8 @@ const UIRenderer = (() => {
   function showActivePhase() {
     el.startRunBtn.classList.add("hidden");
     renderStickerTray();                      // window closed -> tray hides itself
-    if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
+    renderPackTray();                         // window closed -> pack tray hides itself
+    if (armedSticker || armedPack != null) { armedSticker = null; armedPack = null; el.board.classList.remove("arming"); }
     el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
     if (pileEls.length) fitBoard();           // reclaim the Start Run row's space
   }
@@ -4368,12 +4510,31 @@ const UIRenderer = (() => {
       if (!pileEl) return;
       const index = Number(pileEl.dataset.index);
       if (armedSticker) applyArmedSticker(index);
+      else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else selectPile(index);
     });
 
     // "?" card-info button (enabled once a pile is selected) + tap-off to close.
     el.btnInfo.addEventListener("click", openCardInfo);
     el.cardInfo.addEventListener("click", (e) => { if (e.target === el.cardInfo) closeCardInfo(); });
+
+    // Pre-run pack tray: tap a held pack card to arm/disarm it for replacement.
+    el.packTrayEl.addEventListener("click", (e) => {
+      const b = e.target.closest(".pt-card");
+      if (b) armPack(Number(b.dataset.tray));
+    });
+    // Pack reveal modal: pick a revealed item (or, when the tray is full, a held
+    // card to discard). Forced pick — no backdrop dismiss.
+    el.packItems.addEventListener("click", (e) => {
+      const pick = e.target.closest("[data-pick]");
+      if (pick) { packPick(Number(pick.dataset.pick)); return; }
+      const held = e.target.closest("[data-held]");
+      if (held) packDiscardHeld(Number(held.dataset.held));
+    });
+    // Replace confirmation.
+    el.packReplaceCancel.addEventListener("click", closePackReplace);
+    el.packReplaceOk.addEventListener("click", doReplace);
+    el.packReplaceConfirm.addEventListener("click", (e) => { if (e.target === el.packReplaceConfirm) closePackReplace(); });
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
@@ -4461,6 +4622,13 @@ const UIRenderer = (() => {
       if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("disabled")) armPillarSlotUI(Number(tile.dataset.pslot));
+    });
+    // Offered Packs: tap a tile to buy + open it; tapping the "?" toggles help.
+    el.storePacks.addEventListener("click", (e) => {
+      const help = e.target.closest(".si-help");
+      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("disabled")) buyPackUI(Number(tile.dataset.packslot));
     });
     el.rerollBtn.addEventListener("click", rerollUI);
     // Column chips: place an armed offered Pillar, or arm/swap for a rearrange.
@@ -4988,6 +5156,7 @@ const UIRenderer = (() => {
     const header = document.querySelector("header");
     const hud = document.querySelector(".hud");
     const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
+    const packTrayVisible = el.packTrayEl && !el.packTrayEl.classList.contains("hidden");
     // The control row is either the guess buttons (active) or the Start Run
     // button (sticker phase) — mutually exclusive. Reserve the LARGER of the
     // two so the board size is stable across the phase swap (no re-fit jump).
@@ -4999,11 +5168,12 @@ const UIRenderer = (() => {
     // The Deck + Graph controls row is always shown (so the strip can be re-enabled).
     const bottomRowH = oh(el.stripToggleRow);
     // main's visible children (the board-foot + hint rows were removed): board,
-    // control-row, bottom-row, [tray], [strip].
+    // control-row, bottom-row, [sticker tray], [pack tray], [strip].
     const belowH = controlH + bottomRowH
       + (trayVisible ? oh(el.stickerTray) : 0)
+      + (packTrayVisible ? oh(el.packTrayEl) : 0)
       + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (stripVisible ? 1 : 0);  // board + control row + bottom row
+    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
@@ -5160,16 +5330,18 @@ const UIRenderer = (() => {
       btn.innerHTML = '<span class="tile-sold">—</span>';
       return btn;
     }
-    const t = kind === "pillar" ? PillarTypes.get(id) : StickerTypes.get(id);
-    const price = kind === "pillar" ? campaign.priceOfPillar(id) : campaign.priceOf(id);
+    const t = kind === "pillar" ? PillarTypes.get(id) : kind === "pack" ? PackTypes.get(id) : StickerTypes.get(id);
+    const price = kind === "pillar" ? campaign.priceOfPillar(id) : kind === "pack" ? campaign.priceOfPack(id) : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
-    btn.dataset[kind === "pillar" ? "pslot" : "slot"] = slot;
-    btn.dataset[kind === "pillar" ? "pillar" : "type"] = id;   // for the help popup
-    const tier = t.tier || "common";
+    btn.dataset[kind === "pillar" ? "pslot" : kind === "pack" ? "packslot" : "slot"] = slot;
+    btn.dataset[kind === "pillar" ? "pillar" : kind === "pack" ? "pack" : "type"] = id;   // for the help popup
+    // Packs have no rarity tier; stickers/Pillars show their tier badge.
+    const tierChip = (kind === "pack") ? ""
+      : '<span class="ti-tier tier-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '">' + (t.tier || "common").charAt(0).toUpperCase() + '</span>';
     btn.innerHTML =
       '<span class="si-help" aria-label="What does this do?">?</span>' +
-      '<span class="ti-tier tier-' + tier + '" title="' + tier + '">' + tier.charAt(0).toUpperCase() + '</span>' +
+      tierChip +
       '<span class="ti-icon">' + t.icon + '</span>' +
       '<span class="ti-price">🪙' + price + '</span>';
     return btn;
@@ -5185,11 +5357,169 @@ const UIRenderer = (() => {
       el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
     updateBuyButton();
     renderPillarStore();
+    renderPackStore();
     updateRerollButton();
-    // Checkpoint store state (coins, inventory, Pillars, current offer) so a
-    // refresh while shopping keeps every purchase. renderStore() runs after
+    // Checkpoint store state (coins, inventory, Pillars, packs, current offer) so
+    // a refresh while shopping keeps every purchase. renderStore() runs after
     // each store action, so this captures buys / rerolls / Pillar moves.
     persistCampaign("store");
+  }
+
+  /* ============================================================
+     Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
+     pre-run pack tray + permanent deck-replacement confirm.
+     ============================================================ */
+  function miniRankLabel(card) {
+    const v = card.currentRank != null ? card.currentRank : card.value;
+    const r = DeckManager.RANKS.find(x => x.value === v);
+    return r ? r.label : String(v);
+  }
+  function miniCardHtml(card) {
+    const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
+    const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? t.icon : ""; }).join("");
+    return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
+      '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
+      (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
+  }
+
+  function renderPackStore() {
+    const offer = campaign.getStoreOffer();
+    el.storePacks.innerHTML = "";
+    (offer && offer.packs ? offer.packs : []).forEach((id, slot) =>
+      el.storePacks.appendChild(offerTile(id, slot, "pack", false)));
+  }
+
+  /* Tap a pack tile → buy + open (charges the fixed price), then reveal. */
+  function buyPackUI(slot) {
+    const result = campaign.buyOfferedPack(slot, Math.random);
+    if (!result) return;   // unaffordable / empty slot
+    if (engine) engine.logAction("Store: opened " + ((PackTypes.get(result.packId) || {}).label || result.packId));
+    renderStore();         // empties the slot, updates coins (+persist)
+    openPackReveal(result);
+  }
+
+  /* ---- reveal → pick modal (both pack families) ---- */
+  function openPackReveal(result) {
+    packRevealState = { kind: result.kind, keep: result.keep, items: result.items, chosen: [], mode: "pick", pending: null };
+    el.packReveal.classList.remove("hidden");
+    renderPackReveal();
+  }
+  function closePackReveal() { packRevealState = null; el.packReveal.classList.add("hidden"); el.packItems.innerHTML = ""; }
+
+  function renderPackReveal() {
+    const st = packRevealState; if (!st) return;
+    if (st.kind === "card" && st.mode === "discard") {
+      el.packTitle.textContent = "Pack tray full (" + campaign.packTrayCap + ")";
+      el.packItems.innerHTML = campaign.getPackTray().map((c, i) =>
+        '<button class="pack-item" data-held="' + i + '">' + miniCardHtml(c) + "</button>").join("");
+      el.packMsg.textContent = "Tap a held card to discard — your new pick is then kept.";
+      return;
+    }
+    if (st.kind === "card") {
+      el.packTitle.textContent = "Pick 1 card to keep";
+      el.packItems.innerHTML = st.items.map((c, i) =>
+        '<button class="pack-item" data-pick="' + i + '">' + miniCardHtml(c) + "</button>").join("");
+      el.packMsg.textContent = "The rest are discarded.";
+      return;
+    }
+    el.packTitle.textContent = "Pick " + st.keep + " sticker" + (st.keep > 1 ? "s" : "") + " to keep";
+    el.packItems.innerHTML = st.items.map((id, i) => {
+      const t = StickerTypes.get(id);
+      const chosen = st.chosen.indexOf(i) !== -1;
+      return '<button class="pack-item' + (chosen ? " chosen" : "") + '" data-pick="' + i + '">' +
+        '<div class="pk-sticker"><span class="pks-ic">' + (t ? t.icon : "?") + '</span>' +
+        '<span class="pks-name">' + escHtml(t ? t.label : id) + "</span></div></button>";
+    }).join("");
+    el.packMsg.textContent = "Chosen " + st.chosen.length + " / " + st.keep + " — the rest are discarded.";
+  }
+
+  function packPick(i) {
+    const st = packRevealState; if (!st || st.mode === "discard") return;
+    if (st.kind === "card") {
+      const res = campaign.addPackCard(st.items[i]);
+      if (res.ok) { closePackReveal(); renderStore(); }
+      else if (res.full) { st.mode = "discard"; st.pending = st.items[i]; renderPackReveal(); }
+      return;
+    }
+    const at = st.chosen.indexOf(i);
+    if (at !== -1) st.chosen.splice(at, 1); else st.chosen.push(i);
+    if (st.chosen.length >= st.keep) {
+      st.chosen.slice(0, st.keep).forEach(idx => campaign.addStickerToInventory(st.items[idx]));
+      closePackReveal(); renderStore();
+    } else { renderPackReveal(); }
+  }
+  function packDiscardHeld(heldIndex) {
+    const st = packRevealState; if (!st || st.mode !== "discard") return;
+    campaign.discardPackCard(heldIndex);
+    campaign.addPackCard(st.pending);
+    closePackReveal(); renderStore();
+  }
+
+  /* ---- pre-run pack tray (held pack cards → deck replacement) ---- */
+  function renderPackTray() {
+    const open = engine && engine.canApplyStickers();
+    const tray = campaign ? campaign.getPackTray() : [];
+    el.packTrayEl.innerHTML = "";
+    if (!open || tray.length === 0) {
+      el.packTrayEl.classList.add("hidden");
+      if (armedPack != null) { armedPack = null; el.board.classList.toggle("arming", !!armedSticker); }
+      if (pileEls.length) fitBoard();
+      return;
+    }
+    el.packTrayEl.classList.remove("hidden");
+    tray.forEach((c, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pt-card" + (armedPack === i ? " armed" : "");
+      b.dataset.tray = i;
+      b.innerHTML = miniCardHtml(c) + '<div class="pt-label">replace</div>';
+      el.packTrayEl.appendChild(b);
+    });
+    if (pileEls.length) fitBoard();
+  }
+
+  function armPack(index) {
+    if (!engine || !engine.canApplyStickers()) return;
+    if (index < 0 || index >= campaign.packTrayCount()) return;
+    armedPack = armedPack === index ? null : index;
+    if (armedPack != null && armedSticker) { armedSticker = null; }   // mutually exclusive
+    el.board.classList.toggle("arming", armedPack != null || !!armedSticker);
+    renderStickerTray();
+    renderPackTray();
+  }
+
+  function attemptReplace(pileIndex) {
+    if (armedPack == null || !engine || !engine.canApplyStickers()) return;
+    const top = engine.getBoard().top(pileIndex);
+    if (!top) return;
+    const dealtName = top.label + top.suit;
+    const packName = miniRankLabel(campaign.getPackTray()[armedPack]) + campaign.getPackTray()[armedPack].suit;
+    const nSt = (top.stickers || []).length;
+    packReplaceState = { pileIndex, dealtId: top.id, trayIndex: armedPack };
+    el.packReplaceMsg.innerHTML =
+      "Permanently replace <b>" + escHtml(dealtName) + "</b> with <b>" + escHtml(packName) + "</b> in your deck?" +
+      (nSt > 0 ? '<br><span class="warn-stickers">⚠ ' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + " — destroyed forever.</span>" : "");
+    el.packReplaceConfirm.classList.remove("hidden");
+  }
+  function closePackReplace() { packReplaceState = null; el.packReplaceConfirm.classList.add("hidden"); }
+  function doReplace() {
+    const st = packReplaceState;
+    if (!st) return;
+    const packCard = campaign.replaceDeckCard(st.dealtId, st.trayIndex);
+    closePackReplace();
+    if (!packCard) return;
+    // Mirror onto the live board so THIS run uses the new card.
+    const top = engine.getBoard().top(st.pileIndex);
+    if (top) {
+      Object.assign(top, DeckManager.toCard(packCard));
+      paintFront(pileEls[st.pileIndex], top);
+      renderStickerBadges(pileEls[st.pileIndex], top);
+    }
+    if (engine) engine.logAction("Replaced the dealt card on pile " + (st.pileIndex + 1) + " with a pack card");
+    armedPack = null;
+    el.board.classList.toggle("arming", !!armedSticker);
+    renderPackTray();
+    persistCampaign("run");
   }
 
   /* The Buy confirm button reflects the current sticker-slot selection. */
@@ -5356,6 +5686,8 @@ const UIRenderer = (() => {
     armedPillarSlot = null;
     armedSlotMove = null;
     closeTrashConfirm();
+    closePackReveal();
+    closePackReplace();
     closeItemHelp();
     el.storeOverlay.classList.add("hidden");
   }
@@ -5368,6 +5700,7 @@ const UIRenderer = (() => {
     if (!itemEl) return;
     const t = itemEl.dataset.type ? StickerTypes.get(itemEl.dataset.type)
             : itemEl.dataset.pillar ? PillarTypes.get(itemEl.dataset.pillar)
+            : itemEl.dataset.pack ? PackTypes.get(itemEl.dataset.pack)
             : null;
     if (!t) return;
     el.itemHelp.innerHTML =
@@ -5381,7 +5714,9 @@ const UIRenderer = (() => {
   /* A stable key per offered tile (row + slot) so re-renders don't confuse the
      toggle, and duplicate item types in different slots stay distinct. */
   function helpKeyOf(tile) {
-    return tile.dataset.slot != null ? "s" + tile.dataset.slot : "p" + tile.dataset.pslot;
+    if (tile.dataset.slot != null) return "s" + tile.dataset.slot;
+    if (tile.dataset.pslot != null) return "p" + tile.dataset.pslot;
+    return "k" + tile.dataset.packslot;
   }
   /* Tap a "?": open this tile's help, switch to it if another was open, or
      close it if it was already this one (tap-again-to-close). */
