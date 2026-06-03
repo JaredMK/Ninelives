@@ -546,6 +546,35 @@
   .pile.flash-bad .card  { animation: badPulse 0.5s ease; }
 
   /* ============================================================
+     WIN CINEMATIC  (on a run win, as it resolves into the payout)
+     Beat 1: surviving card faces recede toward transparent, so the nodes +
+     network become the focus. Beat 2: the limiting node (smallest alive pile,
+     .limit) glows strongest. Beat 3 (JS): every connection collapses DOWN to the
+     limiting node's level — the network is only as strong as its weakest node.
+     ============================================================ */
+  .board.win-cine .pile:not(.dead) .card .front {
+    animation: faceRecede 0.85s ease forwards;
+  }
+  @keyframes faceRecede { to { opacity: 0.12; } }
+  /* nodes keep (and the limiting node intensifies) their glow as faces fade */
+  .board.win-cine .pile:not(.dead) .card {
+    box-shadow: 0 0 12px rgba(232, 139, 176, 0.45), 0 0 0 1px rgba(255,255,255,0.3);
+    transition: box-shadow 0.6s ease;
+  }
+  .board.win-cine .pile.limit .card {
+    box-shadow: 0 0 0 2px var(--amber), 0 0 26px rgba(224, 151, 60, 0.7);
+    animation: limitGlow 1.5s ease-in-out 0.6s infinite alternate;
+  }
+  @keyframes limitGlow {
+    from { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(224, 151, 60, 0.5); }
+    to   { box-shadow: 0 0 0 3px var(--amber), 0 0 36px rgba(224, 151, 60, 0.9); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .board.win-cine .pile:not(.dead) .card .front { animation: none; opacity: 0.14; }
+    .board.win-cine .pile.limit .card { animation: none; }
+  }
+
+  /* ============================================================
      ACTION SHEET (Higher / Lower)
      ============================================================ */
   .actions {
@@ -1840,7 +1869,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.55 · neural-LOS";
+const APP_VERSION = "v0.56 · neural-LOS2-win";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -5486,6 +5515,7 @@ const UIRenderer = (() => {
      vertically against the tallest via the board's align-items: center. */
   function buildBoard(cols, dealing = true) {
     el.board.innerHTML = "";
+    el.board.classList.remove("win-cine");   // clear any win-cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     pileEls.length = 0;
     // Single Pillar-indicator row across the top — one cell per column, so all
@@ -5529,29 +5559,29 @@ const UIRenderer = (() => {
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
-  /* Does segment (x0,y0)->(x1,y1) intersect the axis-aligned box? Liang–Barsky. */
-  function segHitsBox(x0, y0, x1, y1, bx0, by0, bx1, by1) {
-    let t0 = 0, t1 = 1; const dx = x1 - x0, dy = y1 - y0;
-    const clip = (p, q) => {
-      if (p === 0) return q >= 0;            // parallel: inside the slab?
-      const r = q / p;
-      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
-      else { if (r < t0) return false; if (r < t1) t1 = r; }
-      return true;
-    };
-    if (clip(-dx, x0 - bx0) && clip(dx, bx1 - x0) && clip(-dy, y0 - by0) && clip(dy, by1 - y0)) return t0 <= t1;
-    return false;
+  /* Line-of-sight blocker test: does live card `k` (centre cx,cy) obstruct the
+     segment a->b? It blocks only when its CENTRE projects strictly BETWEEN the
+     endpoints AND lies within `rad` of the segment. Using the centre (not the
+     padded box) is what lets a genuine clear diagonal pass in a tight grid while
+     still blocking a card that actually sits in the path. */
+  function cardBlocks(ax, ay, bx, by, cx, cy, rad) {
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+    if (!len2) return false;
+    const t = ((cx - ax) * dx + (cy - ay) * dy) / len2;
+    if (t <= 0.06 || t >= 0.94) return false;     // not between the endpoints
+    const px = ax + t * dx, py = ay + t * dy;
+    return Math.hypot(cx - px, cy - py) < rad;
   }
 
   /* (Re)draw the connection network using a LINE-OF-SIGHT rule (presentation
-     only; game adjacency unchanged). Two live cards connect iff the straight
-     segment between their centres is not blocked by any OTHER live card's box
-     (expanded by a small grazing margin). This is NOT nearest-neighbour: a card
-     may link to both a near and a far card if both sightlines are clear. Each
-     link's thickness/brightness is gated by the WEAKER pile (min size). New
-     edges (vs the previous draw) fade in; edges are tagged so a dying pile's can
-     be severed before the reform (see refreshNetwork). */
-  function renderNetwork() {
+     only; game adjacency unchanged). Two live cards connect iff no OTHER live
+     card sits in the straight path between their centres (centre-distance test
+     above). NOT nearest-neighbour: a card may link to both a near and a far card
+     if both sightlines are clear. Each link's thickness/brightness is gated by
+     the WEAKER pile (min size) — unless `forceStrength` is given (the win
+     cinematic collapses every link to the limiting node's level). New edges fade
+     in; edges are tagged so a dying pile's can be severed before the reform. */
+  function renderNetwork(forceStrength) {
     const net = networkEl; if (!net || !engine) return;
     const grid = net.parentNode; if (!grid) return;
     const board = engine.getBoard();
@@ -5560,19 +5590,20 @@ const UIRenderer = (() => {
     if (!gr.width || !gr.height) return;
     net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
 
-    // Live nodes: centre + a (margined) bounding box in grid-pixel space. The
-    // margin makes a line that merely grazes past a card count as blocked.
+    // Live node centres (grid-pixel space) + the shared blocking radius from the
+    // actual card size (all piles are the same size).
+    let rad = 60;
+    for (let i = 0; i < pileEls.length; i++) {
+      if (!board.isActive(i)) continue;
+      const r0 = pileEls[i].getBoundingClientRect();
+      rad = 0.65 * Math.min(r0.width, r0.height);
+      break;
+    }
     const nodes = [];
     for (let i = 0; i < pileEls.length; i++) {
       if (!board.isActive(i)) continue;
       const r = pileEls[i].getBoundingClientRect();
-      const m = Math.min(r.width, r.height) * 0.16;
-      nodes.push({
-        i,
-        x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top,
-        x0: r.left - gr.left - m, y0: r.top - gr.top - m,
-        x1: r.right - gr.left + m, y1: r.bottom - gr.top + m,
-      });
+      nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
     }
     if (nodes.length < 2) { net.innerHTML = ""; lastNetKeys = new Set(); return; }
 
@@ -5583,13 +5614,14 @@ const UIRenderer = (() => {
         let blocked = false;
         for (let k = 0; k < nodes.length && !blocked; k++) {
           if (k === a || k === b) continue;
-          if (segHitsBox(nodes[a].x, nodes[a].y, nodes[b].x, nodes[b].y,
-                nodes[k].x0, nodes[k].y0, nodes[k].x1, nodes[k].y1)) blocked = true;
+          if (cardBlocks(nodes[a].x, nodes[a].y, nodes[b].x, nodes[b].y, nodes[k].x, nodes[k].y, rad)) blocked = true;
         }
         if (blocked) continue;
         const dx = Math.abs(nodes[b].x - nodes[a].x), dy = Math.abs(nodes[b].y - nodes[a].y);
         const diag = Math.min(dx, dy) / Math.max(dx, dy, 1) > 0.4;
-        const w = Math.max(1, Math.min(5, Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
+        const w = Math.max(1, Math.min(5, (typeof forceStrength === "number")
+          ? forceStrength
+          : Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
         const key = nodes[a].i + "-" + nodes[b].i;
         keys.add(key);
         const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
@@ -5770,6 +5802,35 @@ const UIRenderer = (() => {
     renderNetwork();
   }
 
+  /* ---- win cinematic: reveal the limiting node ----
+     On a run WIN, before the score panel: (1) the surviving card faces recede so
+     the nodes + network are the focus; (2) the limiting node (smallest alive
+     pile, mirrors the scoring gate) glows strongest; (3) every connection
+     collapses DOWN to that weakest node's level — the network is only as strong
+     as its weakest surviving node. Presentation only — reads board.minAliveCards
+     (the same smallest-alive value the payout uses); changes no state. Skips
+     straight to the score under prefers-reduced-motion. */
+  function playWinCinematic(board, done) {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !el.board || !pileEls.length || !networkEl) { done(); return; }
+    clearSelection();
+    paintPileCounts(board);                 // ensure .limit is current on the smallest alive pile
+    renderNetwork();                         // make sure the live network is showing
+    el.board.classList.add("win-cine");      // beats 1+2 (CSS): faces recede, limiting node glows
+    const minSize = Math.max(1, Math.min(5, board.minAliveCards() || 1));   // the weakest node's level
+    // Beat 3: collapse every connection DOWN to the limiting node's level.
+    setTimeout(() => {
+      if (!networkEl) return;
+      networkEl.style.transition = "opacity 0.3s ease";
+      networkEl.style.opacity = "0.15";
+      setTimeout(() => {
+        renderNetwork(minSize);              // force ALL links to the weakest size
+        if (networkEl) networkEl.style.opacity = "";
+      }, 280);
+    }, 1500);
+    setTimeout(done, 2550);                  // then resolve into the payout
+  }
+
   function onRunEnd(result, payload) {
     DeckInspector.close();   // no inspection overlays bleeding into end screens
 
@@ -5835,12 +5896,12 @@ const UIRenderer = (() => {
 
     if (campaign.isComplete()) {
       clearSave();   // campaign finished — nothing left to resume
-      showCampaignComplete();
+      playWinCinematic(board, showCampaignComplete);
     } else {
       // Between-runs intermission: just stage/run + the coin breakdown.
       // Checkpoint with the won coins folded in; a refresh resumes at the store.
       persistCampaign("store");
-      showRunComplete(coins);
+      playWinCinematic(board, () => showRunComplete(coins));
     }
   }
 
