@@ -1,10 +1,20 @@
 name: Deploy to GitHub Pages
 
-# Publishes the static site (index.html at repo root) to GitHub Pages.
+# Publishes the static site to GitHub Pages as ONE Pages site with two paths:
+#   /            -> the LIVE game  (branch claude/mobile-card-game-prototype-86Yx7)
+#   /preview/    -> the redesign   (branch constellation-redesign)
+#
+# The site ROOT is ALWAYS rebuilt from the live branch, regardless of which
+# branch triggered the run. That means the redesign branch can never change what
+# the live URL serves — it only ever populates /preview/. A live deploy keeps
+# /preview/ in place; a redesign push refreshes /preview/ while re-sourcing root
+# from live. (Pages keeps the last good deploy if any run fails, so a broken
+# preview can never take the live game down.)
 on:
   push:
     branches:
-      - claude/mobile-card-game-prototype-86Yx7
+      - claude/mobile-card-game-prototype-86Yx7   # live  -> root (and refreshes /preview)
+      - constellation-redesign                     # redesign -> /preview (root re-sourced from live)
   workflow_dispatch:
 
 # Permissions required for the GitHub Pages deployment.
@@ -25,8 +35,35 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      # Site ROOT = the live game. Pinned to the live branch so the live URL is
+      # never affected by whatever triggered this run.
+      - name: Checkout LIVE (site root)
         uses: actions/checkout@v4
+        with:
+          ref: claude/mobile-card-game-prototype-86Yx7
+          path: live
+
+      # /preview/ = the redesign branch. Non-fatal: a live deploy must never be
+      # blocked by a problem fetching the preview.
+      - name: Checkout REDESIGN (/preview)
+        id: redesign
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: constellation-redesign
+          path: redesign
+
+      - name: Assemble site (live at root, redesign under /preview)
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' live/ _site/
+          if [ -f redesign/index.html ]; then
+            mkdir -p _site/preview
+            rsync -a --exclude='.git' redesign/ _site/preview/
+            echo "Assembled: root = live, /preview = constellation-redesign"
+          else
+            echo "Redesign checkout unavailable — deploying live only (preview unchanged)."
+          fi
 
       - name: Configure Pages
         # Pages must be enabled once in Settings -> Pages -> Source:
@@ -37,7 +74,7 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
