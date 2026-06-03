@@ -819,6 +819,16 @@
   .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
   .pack-items { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
   .pack-msg { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 14px; line-height: 1.4; }
+  /* Read-only "view deck composition" aid on the card-pick screen. */
+  .pack-deck-btn {
+    margin-top: 12px; width: 100%;
+    background: transparent; color: var(--accent-2);
+    border: 1px solid #34508f; border-radius: 10px;
+    padding: 9px 12px; font-size: 13px; font-weight: 700;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .pack-deck-btn:active { transform: scale(0.98); }
+  .pack-deck-btn.hidden { display: none; }
   .pack-item { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; }
   .pack-item:active { transform: scale(0.95); }
   .pack-item.dim { opacity: 0.3; }
@@ -1054,7 +1064,10 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    z-index: 60;
+    /* Above the pick/confirm overlays (z-index 70) so the read-only deck
+       composition can be opened ON TOP of the pack-pick screen and dismissed
+       back to it. It's a tap-modal meant to sit above everything but debug. */
+    z-index: 80;
   }
   .deck-modal.hidden { display: none; }
   .deck-modal-panel {
@@ -1530,8 +1543,9 @@
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
     <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pillar</button>
-    <div class="store-section">Packs — buy to reveal, then pick</div>
+    <div class="store-section">Packs — select, Buy to reveal, then pick</div>
     <div class="store-tiles" id="storePacks"></div>
+    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a pack to buy</button>
     <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
@@ -1545,6 +1559,10 @@
       <div class="pack-title" id="packTitle">Pick one</div>
       <div class="pack-items" id="packItems"></div>
       <div class="pack-msg" id="packMsg"></div>
+      <!-- Card-pick aid: open the read-only deck composition (same detailed
+           remaining/full breakdown as the deck pill) to inform the pick.
+           Hidden for sticker packs; counts only, never draw order. -->
+      <button class="pack-deck-btn hidden" id="packDeckBtn" type="button">🂠 View deck composition</button>
     </div>
   </div>
 
@@ -1646,7 +1664,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.44.0";
+const APP_VERSION = "v0.45.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -3709,7 +3727,7 @@ const DeckInspector = (() => {
     });
   }
 
-  return { init, close };
+  return { init, close, openFull };
 })();
 
 /* ----------------------------------------------------------------
@@ -3778,10 +3796,12 @@ const UIRenderer = (() => {
     pillarSlots: document.getElementById("pillarSlots"),
     trashPillarBtn: document.getElementById("trashPillarBtn"),
     storePacks: document.getElementById("storePacks"),
+    buyPackBtn: document.getElementById("buyPackBtn"),
     packReveal: document.getElementById("packReveal"),
     packTitle: document.getElementById("packTitle"),
     packItems: document.getElementById("packItems"),
     packMsg: document.getElementById("packMsg"),
+    packDeckBtn: document.getElementById("packDeckBtn"),
     packReplaceConfirm: document.getElementById("packReplaceConfirm"),
     packReplaceMsg: document.getElementById("packReplaceMsg"),
     packReplaceCancel: document.getElementById("packReplaceCancel"),
@@ -3855,10 +3875,12 @@ const UIRenderer = (() => {
 
   // Store selection state, all keyed to the current offering's SLOTS:
   //   selectedStickerSlot — offered sticker slot awaiting the Buy button.
+  //   selectedPackSlot    — offered pack slot awaiting the Buy button.
   //   armedPillarSlot     — offered Pillar slot armed; tap a column to place.
   //   armedSlotMove       — a filled board column armed for a rearrange/swap.
   // Mutually exclusive (selecting/arming one clears the others).
   let selectedStickerSlot = null;
+  let selectedPackSlot = null;
   let armedPillarSlot = null;
   let armedSlotMove = null;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
@@ -4739,10 +4761,12 @@ const UIRenderer = (() => {
     });
     el.buyStickerBtn.addEventListener("click", confirmBuySticker);
     // Tapping "elsewhere" in the shop (not a tile / Buy / Reroll / column chip)
-    // deselects the pending sticker.
+    // deselects the pending sticker or pack.
     el.storeOverlay.addEventListener("click", (e) => {
-      if (e.target.closest(".store-tile, #buyStickerBtn, #rerollBtn, .pillar-slot")) return;
-      if (selectedStickerSlot != null) { selectedStickerSlot = null; renderStore(); }
+      if (e.target.closest(".store-tile, #buyStickerBtn, #buyPackBtn, #rerollBtn, .pillar-slot")) return;
+      if (selectedStickerSlot != null || selectedPackSlot != null) {
+        selectedStickerSlot = null; selectedPackSlot = null; renderStore();
+      }
     });
     // Offered Pillars: tap a slot to arm it; tapping the "?" toggles help.
     el.storePillars.addEventListener("click", (e) => {
@@ -4751,13 +4775,17 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("disabled")) armPillarSlotUI(Number(tile.dataset.pslot));
     });
-    // Offered Packs: tap a tile to buy + open it; tapping the "?" toggles help.
+    // Offered Packs are two-step like stickers: tap a tile to SELECT it, the
+    // Buy button opens it. Tapping the "?" toggles help (never a select/buy).
     el.storePacks.addEventListener("click", (e) => {
       const help = e.target.closest(".si-help");
       if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("disabled")) buyPackUI(Number(tile.dataset.packslot));
+      if (tile && !tile.classList.contains("disabled")) selectPackUI(Number(tile.dataset.packslot));
     });
+    el.buyPackBtn.addEventListener("click", confirmBuyPack);
+    // Pick screen: open the read-only deck composition to inform the choice.
+    el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
     el.rerollBtn.addEventListener("click", rerollUI);
     // Column chips: place an armed offered Pillar, or arm/swap for a rearrange.
     el.pillarSlots.addEventListener("click", (e) => {
@@ -5458,7 +5486,7 @@ const UIRenderer = (() => {
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
-    selectedStickerSlot = null; armedPillarSlot = null; armedSlotMove = null;
+    selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedSlotMove = null;
     closeItemHelp();
     el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
     renderStore();
@@ -5544,13 +5572,50 @@ const UIRenderer = (() => {
     const offer = campaign.getStoreOffer();
     el.storePacks.innerHTML = "";
     (offer && offer.packs ? offer.packs : []).forEach((id, slot) =>
-      el.storePacks.appendChild(offerTile(id, slot, "pack", false)));
+      el.storePacks.appendChild(offerTile(id, slot, "pack", selectedPackSlot === slot)));
+    updatePackBuyButton();
   }
 
-  /* Tap a pack tile → buy + open (charges the fixed price), then reveal. */
-  function buyPackUI(slot) {
+  /* The pack Buy button reflects the current pack-slot selection (mirrors the
+     sticker Buy button). Disabled with a prompt until a pack is selected. */
+  function updatePackBuyButton() {
+    const offer = campaign.getStoreOffer();
+    const id = (offer && selectedPackSlot != null) ? offer.packs[selectedPackSlot] : null;
+    const t = id ? PackTypes.get(id) : null;
+    if (!t) {
+      el.buyPackBtn.disabled = true;
+      el.buyPackBtn.textContent = "Select a pack to buy";
+      return;
+    }
+    const price = campaign.priceOfPack(id);
+    const afford = campaign.getCoins() >= price;
+    el.buyPackBtn.disabled = !afford;
+    el.buyPackBtn.textContent =
+      (afford ? "Buy " : "Need 🪙" + price + " · ") + t.icon + " " + t.label + (afford ? " · 🪙" + price : "");
+  }
+
+  /* Tap an offered pack SLOT to select it (highlight) — does NOT buy. Toggle off
+     by re-tapping; clears any pending sticker/Pillar selection (mutually
+     exclusive). The Buy button confirms the purchase. */
+  function selectPackUI(slot) {
+    selectedPackSlot = selectedPackSlot === slot ? null : slot;
+    selectedStickerSlot = null;
+    armedPillarSlot = null;
+    armedSlotMove = null;
+    el.storeMsg.textContent = selectedPackSlot != null
+      ? "Tap Buy to open this pack, or tap it again to deselect."
+      : "Buy from the offer, reroll, then press Start Run.";
+    renderStore();
+  }
+
+  /* Confirm buying the selected offered pack (the only place a pack is bought):
+     charges the fixed price, empties the slot, then opens the reveal/pick. */
+  function confirmBuyPack() {
+    if (selectedPackSlot == null) return;
+    const slot = selectedPackSlot;
     const result = campaign.buyOfferedPack(slot, Math.random);
     if (!result) return;   // unaffordable / empty slot
+    selectedPackSlot = null;
     if (engine) engine.logAction("Store: opened " + ((PackTypes.get(result.packId) || {}).label || result.packId));
     renderStore();         // empties the slot, updates coins (+persist)
     openPackReveal(result);
@@ -5566,6 +5631,10 @@ const UIRenderer = (() => {
 
   function renderPackReveal() {
     const st = packRevealState; if (!st) return;
+    // The deck-composition aid is only useful when picking a CARD (a sticker
+    // pick doesn't depend on deck composition). Show it for both the pick and
+    // the full-tray discard step of a card pack.
+    if (el.packDeckBtn) el.packDeckBtn.classList.toggle("hidden", st.kind !== "card");
     if (st.kind === "card" && st.mode === "discard") {
       el.packTitle.textContent = "Pack tray full (" + campaign.packTrayCap + ")";
       el.packItems.innerHTML = campaign.getPackTray().map((c, i) =>
@@ -5747,6 +5816,7 @@ const UIRenderer = (() => {
      Toggle off by re-tapping; clears any pending Pillar arm. */
   function selectStickerUI(slot) {
     selectedStickerSlot = selectedStickerSlot === slot ? null : slot;
+    selectedPackSlot = null;
     armedPillarSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedStickerSlot != null
@@ -5782,6 +5852,7 @@ const UIRenderer = (() => {
       return;
     }
     selectedStickerSlot = null;
+    selectedPackSlot = null;
     armedSlotMove = null;
     armedPillarSlot = armedPillarSlot === slot ? null : slot;
     el.storeMsg.textContent = armedPillarSlot != null
@@ -5794,7 +5865,8 @@ const UIRenderer = (() => {
      (empties the offered slot, overwrites the column — no refund). Otherwise a
      rearrange: arm a filled column, then tap another to swap. */
   function tapPillarSlot(col) {
-    selectedStickerSlot = null;   // touching the Pillar area deselects a sticker
+    selectedStickerSlot = null;   // touching the Pillar area deselects a sticker/pack
+    selectedPackSlot = null;
     if (armedPillarSlot != null) {
       const offer = campaign.getStoreOffer();
       const pid = offer ? offer.pillars[armedPillarSlot] : null;
@@ -5924,13 +5996,19 @@ const UIRenderer = (() => {
         quick: el.deckQuick, quickTotal: el.deckQuickTotal, quickGrid: el.deckQuickGrid,
       },
       getStats: () => {
-        const deck = engine && engine.getDeck();
         // Two order-free composition maps: what's left to draw, and the full
         // current-stage deck (reflecting +1/−1 rank stickers). Counts only.
-        return {
-          remaining: DeckStats.fromCounts(deck ? deck.remainingCounts() : {}),
-          full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
-        };
+        const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
+        // During active play, "remaining" is the live run deck. Between runs
+        // (e.g. opened from the pack-pick screen in the store, where there's no
+        // run in progress) there's no draw underway, so show the whole current
+        // deck as remaining — the player's deck, in full — instead of a stale
+        // or empty run deck. Order is never exposed either way.
+        const playing = engine && engine.getStatus() === "playing";
+        const remaining = playing
+          ? DeckStats.fromCounts(engine.getDeck().remainingCounts())
+          : full;
+        return { remaining, full };
       },
       canInspect: () => !!engine && engine.getStatus() === "playing",
     });
