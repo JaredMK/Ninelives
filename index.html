@@ -27,11 +27,10 @@
     --bad: #e06b80;         /* muted rose-red — loss/wrong */
     --text: #f0e6ec;        /* warm near-white */
     --muted: #bfa3b4;       /* muted mauve */
-    /* Card faces stay EXACTLY as-is this phase — the light-core restyle is
-       Phase 2. (Spec: cards unchanged in Phase 1.) */
-    --card-face: #fbfcff;
-    --card-ink: #1b2440;
-    --card-red: #d6324a;
+    /* Phase 2 — neural cards: light face, dark muted two-color suits. */
+    --card-face: #faf8f7;
+    --card-ink: #2c2430;
+    --card-red: #b5566f;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
     --shadow: 0 8px 24px rgba(4, 2, 6, 0.5);
@@ -357,16 +356,20 @@
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: var(--radius);
+    border-radius: 22px;                 /* generous organic corners */
     transform-style: preserve-3d;
     transition: transform 0.45s cubic-bezier(0.45, 0.05, 0.2, 1);
-    box-shadow: var(--shadow);
+    /* soft outer glow (warm rose) + crisp light rim + depth */
+    box-shadow:
+      0 0 12px rgba(190, 110, 140, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.45),
+      0 6px 16px rgba(4, 2, 6, 0.55);
   }
 
   .card .face {
     position: absolute;
     inset: 0;
-    border-radius: var(--radius);
+    border-radius: 22px;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     display: flex;
@@ -379,17 +382,26 @@
      stay in proportion at any pile size. Padding is also pile-relative, giving
      the corner ranks clear margin from the edge. */
   .card .front {
-    background: var(--card-face);
+    /* Light-core: a luminous centre fading to a soft edge. */
+    background: radial-gradient(ellipse at 50% 42%, #faf8f7, #ece7ea 50%, #d4ccd2);
     color: var(--card-ink);
     /* Ranks/suits on Chakra Petch — clean + technical, fully legible. */
     font-family: var(--font-text);
     --ps: var(--pile-size, 88px);
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
-    border: 1px solid rgba(0,0,0,0.08);
+    border: none;
+    /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
+    animation: cardBreathe 4.5s ease-in-out var(--bd, 0s) infinite;
+    transform-origin: 50% 50%;
   }
+  @keyframes cardBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
+  @media (prefers-reduced-motion: reduce) { .card .front { animation: none !important; } }
 
   .card .front.red { color: var(--card-red); }
+  /* Classic suit symbols, drawn crisp; inherit the front's ink/red colour. */
+  .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
+  .card .pip .suit-svg { opacity: 0.9; }
 
   .rank-top, .rank-bottom {
     display: flex;
@@ -462,14 +474,23 @@
     z-index: 2;
   }
 
-  /* state: dead pile -> keep the killing card visible, dimmed, with an X */
+  /* state: dead pile -> a cold, receded scar (death/sever animated in Phase 5) */
   .pile.dead { cursor: default; }
-  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.4); filter: saturate(0.55) brightness(0.82); }
+  .pile.dead .card { box-shadow: 0 2px 8px rgba(0,0,0,0.5); filter: saturate(0.2) brightness(0.5); opacity: 0.9; }
   .pile.dead .dead-mark { opacity: 1; }
 
-  /* selected highlight */
+  /* limiting pile(s): equal to the current smallest alive pile → amber ring/glow
+     (replaces the suit glow), reinforcing the bottleneck the score hinges on. */
+  .pile.limit .card {
+    box-shadow:
+      0 0 0 2px var(--amber),
+      0 0 18px rgba(224, 151, 60, 0.5),
+      0 6px 16px rgba(4, 2, 6, 0.55);
+  }
+
+  /* selected highlight (wins over the limit ring during input) */
   .pile.selected .card {
-    box-shadow: 0 0 0 3px var(--accent), var(--shadow);
+    box-shadow: 0 0 0 3px var(--accent), 0 0 20px rgba(232, 139, 176, 0.45), 0 6px 16px rgba(4, 2, 6, 0.55);
   }
 
   /* deal-in animation */
@@ -480,8 +501,8 @@
   .pile.dealing { animation: dealIn 0.4s ease both; }
 
   /* pulse feedback for correct/incorrect */
-  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(76,217,100,0.7);} 100%{box-shadow:0 0 0 14px rgba(76,217,100,0);} }
-  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(255,91,110,0.7);} 100%{box-shadow:0 0 0 14px rgba(255,91,110,0);} }
+  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(132,200,154,0.7);} 100%{box-shadow:0 0 0 15px rgba(132,200,154,0);} }
+  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(224,107,128,0.75);} 100%{box-shadow:0 0 0 15px rgba(224,107,128,0);} }
   .pile.flash-good .card { animation: goodPulse 0.5s ease; }
   .pile.flash-bad .card  { animation: badPulse 0.5s ease; }
 
@@ -1059,28 +1080,30 @@
      the rotated rank sits bottom-right, so this corner is clear). */
   .pile-count {
     position: absolute;
-    bottom: 3px; left: 3px;
-    min-width: 15px; height: 15px;
+    bottom: 4px; left: 4px;
+    min-width: 16px; height: 16px;
     padding: 0 3px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 9px; font-weight: 800; line-height: 1;
-    color: #fff; background: rgba(6, 10, 22, 0.66);
+    font-family: var(--font-text);
+    font-size: 9px; font-weight: 700; line-height: 1;
+    color: #dcb8c8; background: #241a20;
+    border: 1px solid #a85f76;
     border-radius: 8px;
     z-index: 3;
     pointer-events: none;
   }
-  /* Limiting pile(s): count equals the current smallest alive pile. Orange to
-     match the top-bar smallest-pile factor. Applied to every tying pile. */
+  /* Limiting pile(s): count equals the current smallest alive pile → amber pill
+     (pairs with the card's amber ring). Applied to every tying pile. */
   .pile-count.min {
-    background: var(--accent);
-    color: #2a1a00;
+    color: #1c1206; background: var(--amber);
+    border-color: var(--amber);
   }
-  /* Anchored true-lowest pile: the board's smallest, but EXCLUDED from payout.
-     Grey fill with an orange ring — "lowest, but it doesn't count." */
+  /* Anchored true-lowest pile: the board's smallest, but EXCLUDED from payout —
+     dark pill with an amber ring: "lowest, but it doesn't count." */
   .pile-count.min-anchored {
-    background: rgba(6, 10, 22, 0.66);
-    color: var(--accent);
-    box-shadow: inset 0 0 0 2px var(--accent);
+    background: #241a20;
+    color: var(--amber);
+    border-color: var(--amber);
   }
   /* A pile is a valid sticker target while a sticker is armed. */
   .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
@@ -1778,7 +1801,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.50 · neural-1";
+const APP_VERSION = "v0.51 · neural-2";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4027,6 +4050,7 @@ const UIRenderer = (() => {
     pile.className = "pile dealing";
     pile.dataset.index = index;
     pile.style.animationDelay = (index * 0.05) + "s";
+    pile.style.setProperty("--bd", (index * 0.37).toFixed(2) + "s");   // breathe desync
 
     const card = document.createElement("div");
     card.className = "card";
@@ -4100,6 +4124,8 @@ const UIRenderer = (() => {
       const isLined = anyNonAnchored && anchored && trueMin > 0 && len === trueMin && !isSolid;
       badge.classList.toggle("min", isSolid);
       badge.classList.toggle("min-anchored", isLined);
+      // The limiting pile's CARD gets the amber ring (Phase 2).
+      pileEls[i].classList.toggle("limit", isSolid);
     }
   }
 
@@ -4139,14 +4165,29 @@ const UIRenderer = (() => {
     badges.innerHTML = html;
   }
 
+  /* Classic suit symbols as crisp SVG (heart/diamond/club/spade). Presentation
+     only — the engine still keys off card.suit ("♠/♥/♦/♣"); this only changes
+     what's drawn. `fill:currentColor` inherits the front's ink/red colour. */
+  const SUIT_PATHS = {
+    "♥": "M24 42 C8 30 4 20 10 13 C15 7 22 9 24 15 C26 9 33 7 38 13 C44 20 40 30 24 42 Z",
+    "♦": "M24 4 L40 24 L24 44 L8 24 Z",
+    "♣": "M24 6 a8 8 0 0 1 6 13 a8 8 0 1 1 -3 9 l2 8 h-10 l2 -8 a8 8 0 1 1 -3 -9 a8 8 0 0 1 6 -13 Z",
+    "♠": "M24 5 C24 5 6 19 6 30 a8 8 0 0 0 14 5 l-2 7 h12 l-2 -7 a8 8 0 0 0 14 -5 C42 19 24 5 24 5 Z",
+  };
+  function suitGlyph(sym) {
+    const d = SUIT_PATHS[sym];
+    return d ? ('<svg class="suit-svg" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="' + d + '"/></svg>') : sym;
+  }
+
   function paintFront(pileEl, card) {
     const front = pileEl.querySelector(".front");
     front.classList.toggle("red", !!card.red);
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
+    const svg = suitGlyph(card.suit);
     pileEl.querySelectorAll(".rank-top .s, .rank-bottom .s")
-      .forEach(n => n.textContent = card.suit);
-    pileEl.querySelector(".pip").textContent = card.suit;
+      .forEach(n => n.innerHTML = svg);
+    pileEl.querySelector(".pip").innerHTML = svg;
   }
 
   /* ---- full (re)render of the board from state ---- */
