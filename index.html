@@ -4,28 +4,43 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#0f1626" />
+<meta name="theme-color" content="#0e0a0d" />
 <title>Nine Lives</title>
+<!-- Neural type system: Josefin Sans (soft organic display, for titles) +
+     Chakra Petch (clean technical, for ranks/gameplay text). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
      THEME / TOKENS
      ============================================================ */
   :root {
-    --bg: #0f1626;
-    --bg-2: #16203a;
-    --panel: #1d2a4a;
-    --accent: #ffce54;
-    --accent-2: #5bd1ff;
-    --good: #4cd964;
-    --bad: #ff5b6e;
-    --text: #eef2ff;
-    --muted: #8ea0c9;
+    /* ---- Neural palette (muted, warm-organic — NOT techno-neon) ----------
+       Names unchanged so the existing chrome inherits the new palette. */
+    --bg: #0e0a0d;          /* deep plum-charcoal base */
+    --bg-2: #1c151a;        /* lifted tissue centre */
+    --panel: #23171c;       /* floating chrome on the tissue */
+    --accent: #e88bb0;      /* neural rose (primary, = connection colour) */
+    --accent-2: #e8a6c2;    /* light rose (secondary highlights/stats) */
+    --good: #84c89a;        /* muted sage — survival/correct */
+    --bad: #e06b80;         /* muted rose-red — loss/wrong */
+    --text: #f0e6ec;        /* warm near-white */
+    --muted: #bfa3b4;       /* muted mauve */
+    /* Card faces stay EXACTLY as-is this phase — the light-core restyle is
+       Phase 2. (Spec: cards unchanged in Phase 1.) */
     --card-face: #fbfcff;
     --card-ink: #1b2440;
     --card-red: #d6324a;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
-    --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    --shadow: 0 8px 24px rgba(4, 2, 6, 0.5);
+    /* ---- Type system ----------------------------------------------------- */
+    --font-display: "Josefin Sans", "Gill Sans", "Optima", sans-serif;
+    --font-text: "Chakra Petch", "SF Mono", "Segoe UI", system-ui, sans-serif;
+    /* Reserved accents for later phases. */
+    --amber: #e0973c;       /* limiting-pile accent (Phase 2) */
+    --edge: rgba(232, 139, 176, 0.14);   /* warm starlight-rose hairline */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -39,11 +54,15 @@
     overflow: hidden;
     overscroll-behavior: none;
   }
+  /* The plum base lives on <html> so the fixed #tissue layer (z-index:-1) paints
+     ABOVE it; <body> stays transparent so the tissue shows through behind play. */
+  html { background: var(--bg); }
 
   body {
-    background: radial-gradient(120% 120% at 50% 0%, var(--bg-2) 0%, var(--bg) 60%);
+    background: transparent;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
     min-height: 100%;
@@ -362,6 +381,8 @@
   .card .front {
     background: var(--card-face);
     color: var(--card-ink);
+    /* Ranks/suits on Chakra Petch — clean + technical, fully legible. */
+    font-family: var(--font-text);
     --ps: var(--pile-size, 88px);
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
@@ -545,7 +566,15 @@
   }
   .peek-hint.hidden { display: none; }
 
-  .overlay h2 { font-size: 34px; margin: 0 0 8px; }
+  .overlay h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 38px;
+    letter-spacing: 3px;
+    margin: 0 0 8px;
+    color: var(--text);
+    text-shadow: 0 0 16px rgba(232, 139, 176, 0.35);
+  }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
   .overlay .big { font-size: 56px; margin-bottom: 6px; }
   .overlay.win h2 { color: var(--good); }
@@ -1379,6 +1408,47 @@
     padding: 6px 0 10px;
     opacity: 0.6;
   }
+
+  /* ============================================================
+     NEURAL ATMOSPHERE  (#tissue — Phase 1)
+     Warm organic tissue painted behind all content. Compositor-friendly
+     (transform/opacity only) for mobile Safari; z-index:-1 so it sits above the
+     <html> base colour and below every game surface — it can never obscure a
+     card or affect layout. ============================================================ */
+  #tissue {
+    position: fixed; inset: 0;
+    z-index: -1; pointer-events: none; overflow: hidden;
+    --vein: #6a4a5a;
+    /* deep muted-plum radial base (warm tissue, not space) */
+    background:
+      radial-gradient(circle at 28% 22%, rgba(120, 60, 80, 0.20), transparent 46%),
+      radial-gradient(circle at 78% 72%, rgba(80, 60, 110, 0.18), transparent 48%),
+      radial-gradient(ellipse at 50% 45%, var(--bg-2), var(--bg) 60%, #0a070a);
+  }
+  /* Layer A — soft warm haze blobs, drifting very slowly. */
+  #tissue .haze { position: absolute; inset: 0; }
+  #tissue .blob {
+    position: absolute; border-radius: 50%;
+    filter: blur(46px); opacity: 0.20;
+    will-change: transform;
+  }
+  #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #7a3a55; animation: hazeDrift 34s ease-in-out infinite alternate; }
+  #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #5a3a7a; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
+  #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #7a4a3a; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
+  @keyframes hazeDrift {
+    from { transform: translate3d(-3%, -2%, 0) scale(1); }
+    to   { transform: translate3d(4%, 3%, 0) scale(1.12); }
+  }
+  /* Layer B — faint, heavily-blurred, STATIC dark-rose veins (pure texture).
+     Stroke colour/cap set in CSS (SVG presentation attrs don't support var()). */
+  #tissue .veins {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    filter: blur(2.5px); opacity: 0.5;
+  }
+  #tissue .veins path { stroke: var(--vein); stroke-linecap: round; }
+  @media (prefers-reduced-motion: reduce) {
+    #tissue .blob { animation: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1386,6 +1456,30 @@
        change when Safari's chrome shows/hides. fitBoard reads it instead of
        innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
   <div id="svhProbe" aria-hidden="true"></div>
+
+  <!-- Neural atmosphere (Phase 1): a fixed, pointer-events:none tissue layer
+       painted BEHIND all content (z-index:-1). Layer A = drifting warm haze
+       blobs; Layer B = faint, heavily-blurred, STATIC dark-rose veins (pure
+       texture, no signal — the live signal pulses come later on Layer C). It
+       never touches layout or input. -->
+  <div id="tissue" aria-hidden="true">
+    <div class="haze">
+      <span class="blob b1"></span>
+      <span class="blob b2"></span>
+      <span class="blob b3"></span>
+    </div>
+    <svg class="veins" viewBox="0 0 390 760" preserveAspectRatio="xMidYMid slice">
+      <g stroke-width="1.5" fill="none">
+        <path d="M-12 150 C120 110 170 290 320 250 C430 220 470 280 520 250"/>
+        <path d="M-12 430 C130 390 200 540 360 500 C470 472 500 510 540 560"/>
+        <path d="M60 -12 C36 180 130 270 100 470 C76 640 130 730 90 840"/>
+        <path d="M330 -12 C356 200 270 300 312 500 C346 670 300 770 350 840"/>
+        <path d="M-12 300 C150 280 270 370 410 340 C490 322 520 340 540 352"/>
+        <path d="M-12 600 C150 580 250 650 400 628 C500 612 520 626 540 632"/>
+      </g>
+    </svg>
+  </div>
+
   <header>
     <div class="stage-run" id="stageRun">Stage 1 · Run 1</div>
   </header>
@@ -1684,7 +1778,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.49.0";
+const APP_VERSION = "v0.50 · neural-1";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4611,6 +4705,12 @@ const UIRenderer = (() => {
       refitIfChanged();
       setTimeout(() => { lastVW = lastVH = 0; refitIfChanged(); }, 300);
     });
+    // The new fonts (Josefin/Chakra Petch) can swap in after the first measure,
+    // nudging chrome metrics; re-fit once they're ready so the no-scroll budget
+    // for Run 1's 4-tall column always holds.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (pileEls.length) fitBoard(); });
+    }
 
     // ---- Board gestures ----
     // (a) Hold a Pillar INDICATOR to peek its info (release dismisses).
