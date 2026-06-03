@@ -1610,6 +1610,71 @@
     .lk { animation: none !important; }
     .lk-spark { display: none; }
   }
+
+  /* ============================================================
+     END-OF-RUN CINEMATIC  (Phase 5)
+     A short, performant sequence: a quiet beat, dead nodes/links dissolve to
+     stardust, card faces dissolve leaving only the surviving celestial symbols
+     floating, the network collapses to the limiting node's layer count, and the
+     survivors glow (a full ignite on a win) before the score panel arrives.
+     ============================================================ */
+  .board.cine { transition: filter 0.5s ease; filter: brightness(0.9) saturate(0.88); }
+  .board.cine-win { filter: brightness(1.06) saturate(1.05); }
+
+  /* dead node collapses into dust */
+  .pile.cine-dead .card { animation: cineDissolve 0.85s ease forwards; }
+  .pile.cine-dead::before { opacity: 0 !important; transition: opacity 0.5s ease; }
+  @keyframes cineDissolve {
+    0%   { opacity: 1; }
+    100% { opacity: 0; transform: scale(0.72) translateY(10px); filter: blur(3px) brightness(1.5); }
+  }
+
+  /* alive node: the card material + indices dissolve; the celestial emblem
+     remains, enlarged and glowing, floating with its node. */
+  .pile.cine-alive .front {
+    background: transparent !important; border-color: transparent !important;
+    box-shadow: none !important;
+    transition: background 0.7s ease, border-color 0.7s ease, box-shadow 0.7s ease;
+  }
+  .pile.cine-alive .rank-top,
+  .pile.cine-alive .rank-bottom { opacity: 0; transition: opacity 0.6s ease; }
+  .pile.cine-alive .pip {
+    opacity: 1 !important;
+    transform: translate(-50%, -50%) scale(1.5);
+    transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), filter 0.85s ease;
+    filter: drop-shadow(0 0 7px rgba(158, 198, 255, 0.75));
+  }
+  .board.cine-win .pile.cine-alive .pip {
+    filter: drop-shadow(0 0 10px rgba(231, 201, 135, 0.9)) drop-shadow(0 0 20px rgba(158, 198, 255, 0.55));
+    animation: emblemGlow 1.7s ease-in-out infinite alternate;
+  }
+  @keyframes emblemGlow {
+    from { transform: translate(-50%, -50%) scale(1.44); }
+    to   { transform: translate(-50%, -50%) scale(1.62); }
+  }
+
+  /* network glow during the collapse / ignite */
+  #constellation.cine { filter: drop-shadow(0 0 4px rgba(158, 198, 255, 0.5)); transition: filter 0.5s ease; }
+  .board.cine-win #constellation.cine { filter: drop-shadow(0 0 7px rgba(231, 201, 135, 0.7)); }
+
+  /* stardust — a light scatter of drifting motes during the dissolve */
+  .cine-dust { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: visible; }
+  .cine-dust .dust {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: radial-gradient(circle, #f4f7ff 0%, rgba(158,198,255,0.6) 60%, transparent 75%);
+    opacity: 0;
+    animation: dustRise var(--dd, 1.6s) ease-out var(--ddl, 0s) forwards;
+  }
+  .board.cine-win .cine-dust .dust { background: radial-gradient(circle, #fff4d6 0%, rgba(231,201,135,0.6) 60%, transparent 75%); }
+  @keyframes dustRise {
+    0%   { opacity: 0; transform: translate(0,0) scale(0.5); }
+    18%  { opacity: 0.95; }
+    100% { opacity: 0; transform: translate(var(--dx, 0), var(--dy, -26px)) scale(1.1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pile.cine-dead .card, .cine-dust .dust { animation: none !important; }
+    .board.cine-win .pile.cine-alive .pip { animation: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1929,7 +1994,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.54 · suits";
+const APP_VERSION = "v0.55 · cinematic";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -5679,6 +5744,7 @@ const UIRenderer = (() => {
      vertically against the tallest via the board's align-items: center. */
   function buildBoard(cols, dealing = true) {
     el.board.innerHTML = "";
+    el.board.classList.remove("cine", "cine-win");   // clear any end-of-run cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     pileEls.length = 0;
     // Single Pillar-indicator row across the top — one cell per column, so all
@@ -5736,11 +5802,12 @@ const UIRenderer = (() => {
      scale with the WEAKER connected pile's card count (1 → faint starlight,
      5+ → layered luminous pathway carrying sparks). Reads geometry live from the
      DOM and size/alive from the engine board; never mutates state. */
-  function renderConstellation() {
+  function renderConstellation(opts) {
     const net = constellationEl; if (!net || !engine) return;
     const grid = net.parentNode; if (!grid) return;
     const gr = grid.getBoundingClientRect();
     if (!gr.width || !gr.height) return;
+    opts = opts || {};
     net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
     const board = engine.getBoard();
     const center = (i) => {
@@ -5751,8 +5818,12 @@ const UIRenderer = (() => {
     for (const group of (constellationCols || [])) {
       const alive = group.filter(i => board.isActive(i));
       for (let k = 0; k < alive.length - 1; k++) {
-        out += linkMarkup(center(alive[k]), center(alive[k + 1]),
-          Math.min(board.pileSize(alive[k]), board.pileSize(alive[k + 1])));
+        // Normally the weaker of the two piles; the cinematic forces every
+        // surviving link to the limiting node's strength (uniform collapse).
+        const strength = (typeof opts.forceStrength === "number")
+          ? opts.forceStrength
+          : Math.min(board.pileSize(alive[k]), board.pileSize(alive[k + 1]));
+        out += linkMarkup(center(alive[k]), center(alive[k + 1]), strength);
       }
     }
     net.innerHTML = out;
@@ -5921,6 +5992,62 @@ const UIRenderer = (() => {
     renderConstellation();
   }
 
+  /* ---- Phase 5: end-of-run cinematic ----
+     A short board sequence before the score panel: a quiet beat → dead nodes &
+     links dissolve to stardust → card faces dissolve, leaving only the surviving
+     celestial symbols floating → the network collapses to the limiting node's
+     layer count and glows (a full ignite on a win). Calls `done()` to reveal the
+     score. Falls straight through (no delay) under prefers-reduced-motion. */
+  function playEndCinematic(won, board, done) {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !el.board || !pileEls.length) { done(); return; }
+    clearSelection();
+    el.board.classList.add("cine");
+    if (won) el.board.classList.add("cine-win");
+    setTimeout(() => {
+      // Dead piles dissolve; alive piles keep only their glowing emblem. Track
+      // the smallest surviving pile — the network's limiting node.
+      let minAlive = Infinity;
+      for (let i = 0; i < pileEls.length; i++) {
+        if (board.isActive(i)) {
+          pileEls[i].classList.add("cine-alive");
+          minAlive = Math.min(minAlive, board.pileSize(i));
+        } else {
+          pileEls[i].classList.add("cine-dead");
+        }
+      }
+      spawnStardust(won ? 28 : 18, won);
+      if (constellationEl) {
+        constellationEl.classList.add("cine");
+        const force = (minAlive === Infinity) ? 0 : Math.max(1, Math.min(5, minAlive));
+        setTimeout(() => renderConstellation({ forceStrength: force }), 220);
+      }
+    }, 280);
+    setTimeout(done, won ? 1750 : 1450);
+  }
+
+  /* A light scatter of drifting motes over the board during the dissolve. */
+  function spawnStardust(count, win) {
+    if (!el.board) return;
+    const layer = document.createElement("div");
+    layer.className = "cine-dust";
+    for (let i = 0; i < count; i++) {
+      const d = document.createElement("span");
+      d.className = "dust";
+      d.style.left = (8 + Math.random() * 84) + "%";
+      d.style.top = (12 + Math.random() * 76) + "%";
+      const ang = Math.random() * Math.PI * 2;
+      const dist = (18 + Math.random() * 34) * (win ? 1 : 0.55);
+      d.style.setProperty("--dx", (Math.cos(ang) * dist).toFixed(0) + "px");
+      d.style.setProperty("--dy", (-(20 + Math.random() * 42)).toFixed(0) + "px");
+      d.style.setProperty("--dd", (1.2 + Math.random() * 1.1).toFixed(2) + "s");
+      d.style.setProperty("--ddl", (Math.random() * 0.5).toFixed(2) + "s");
+      layer.appendChild(d);
+    }
+    el.board.appendChild(layer);
+    setTimeout(() => layer.remove(), 2800);
+  }
+
   function onRunEnd(result, payload) {
     DeckInspector.close();   // no inspection overlays bleeding into end screens
 
@@ -5938,7 +6065,7 @@ const UIRenderer = (() => {
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
       clearSave();   // a loss wipes the campaign — no resume of a dead run
-      showCampaignFailed();
+      playEndCinematic(false, board, showCampaignFailed);
       return;
     }
 
@@ -5986,12 +6113,12 @@ const UIRenderer = (() => {
 
     if (campaign.isComplete()) {
       clearSave();   // campaign finished — nothing left to resume
-      showCampaignComplete();
+      playEndCinematic(true, board, showCampaignComplete);
     } else {
       // Between-runs intermission: just stage/run + the coin breakdown.
       // Checkpoint with the won coins folded in; a refresh resumes at the store.
       persistCampaign("store");
-      showRunComplete(coins);
+      playEndCinematic(true, board, () => showRunComplete(coins));
     }
   }
 
