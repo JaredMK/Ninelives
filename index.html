@@ -347,7 +347,16 @@
   }
   #network .lk { stroke: var(--accent); fill: none; stroke-linecap: round; }
   #network .pulse { fill: #ffe0ee; }
-  @media (prefers-reduced-motion: reduce) { #network .pulse { display: none; } }
+  /* a brand-new connection (a sightline that just opened) fades in */
+  #network .edge.forming { animation: edgeForm 0.55s ease both; }
+  @keyframes edgeForm { from { opacity: 0; } to { opacity: 1; } }
+  /* a dying pile's connections dissolve out before the reform */
+  #network .edge.severing { opacity: 0; transition: opacity 0.45s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    #network .pulse { display: none; }
+    #network .edge.forming { animation: none; }
+    #network .edge.severing { transition: none; }
+  }
   .board-col {
     display: flex;
     flex-direction: column;
@@ -492,16 +501,22 @@
     z-index: 2;
   }
 
-  /* state: dead pile -> a cold, receded scar; it stops breathing and severs its
-     links (surviving neighbours re-link across it — see refreshNetwork). */
+  /* state: dead pile -> the card AND its connections DISSOLVE away (no scar).
+     The pile keeps its layout box (opacity/transform don't reflow), so other
+     cards stay put; once the dead card is gone it no longer blocks line-of-sight
+     and survivors re-link across the cleared space (see refreshNetwork). */
   .pile.dead { cursor: default; }
-  .pile.dead .card {
-    box-shadow: 0 2px 10px rgba(0,0,0,0.55);
-    filter: saturate(0.12) brightness(0.42) contrast(0.95);
-    transition: filter 0.6s ease;
+  .pile.dead .card { animation: cardDissolve 0.6s ease forwards; }
+  .pile.dead .card .front { animation: none; }   /* stop breathing as it dissolves */
+  .pile.dead .pile-count, .pile.dead .pile-badges { opacity: 0; transition: opacity 0.5s ease; }
+  .pile.dead .dead-mark { display: none; }
+  @keyframes cardDissolve {
+    from { opacity: 1; }
+    to   { opacity: 0; transform: scale(0.78); filter: blur(3px); }
   }
-  .pile.dead .card .front { animation: none; }
-  .pile.dead .dead-mark { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .pile.dead .card { animation: none; opacity: 0; }
+  }
 
   /* limiting pile(s): equal to the current smallest alive pile → amber ring/glow
      (replaces the suit glow), reinforcing the bottleneck the score hinges on. */
@@ -1825,7 +1840,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.54 · neural-5";
+const APP_VERSION = "v0.55 · neural-LOS";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4031,6 +4046,7 @@ const UIRenderer = (() => {
   const pileEls = [];         // cached .pile elements by index
   let networkEl = null;       // the per-board SVG connection layer (Phase 3)
   let networkPulses = true;   // signal pulses on links (Phase 4)
+  let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
@@ -5507,20 +5523,35 @@ const UIRenderer = (() => {
     net.setAttribute("preserveAspectRatio", "none");
     grid.appendChild(net);
     networkEl = net;
+    lastNetKeys = new Set();       // fresh board → the first draw fades its links in
     el.board.appendChild(grid);
     paintColumnPillars(cols);     // fill the indicator row from the binding
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
-  /* (Re)draw the connection network. Reads geometry from the DOM and size/alive
-     from the engine board; never mutates state. Adjacency is the "nearest ALIVE
-     pile in each of 8 directions" within a distance cap — so it forms the full
-     visual mesh at run start AND automatically bridges across a dead pile (its
-     surviving neighbours reconnect). Each link's thickness/brightness is gated
-     by the WEAKER of the two piles (min size), so every link is minimum at the
-     start and a link thickens only as its weaker endpoint grows. VISUAL ONLY —
-     game adjacency is unchanged. */
-  function renderNetwork(opts) {
+  /* Does segment (x0,y0)->(x1,y1) intersect the axis-aligned box? Liang–Barsky. */
+  function segHitsBox(x0, y0, x1, y1, bx0, by0, bx1, by1) {
+    let t0 = 0, t1 = 1; const dx = x1 - x0, dy = y1 - y0;
+    const clip = (p, q) => {
+      if (p === 0) return q >= 0;            // parallel: inside the slab?
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+      else { if (r < t0) return false; if (r < t1) t1 = r; }
+      return true;
+    };
+    if (clip(-dx, x0 - bx0) && clip(dx, bx1 - x0) && clip(-dy, y0 - by0) && clip(dy, by1 - y0)) return t0 <= t1;
+    return false;
+  }
+
+  /* (Re)draw the connection network using a LINE-OF-SIGHT rule (presentation
+     only; game adjacency unchanged). Two live cards connect iff the straight
+     segment between their centres is not blocked by any OTHER live card's box
+     (expanded by a small grazing margin). This is NOT nearest-neighbour: a card
+     may link to both a near and a far card if both sightlines are clear. Each
+     link's thickness/brightness is gated by the WEAKER pile (min size). New
+     edges (vs the previous draw) fade in; edges are tagged so a dying pile's can
+     be severed before the reform (see refreshNetwork). */
+  function renderNetwork() {
     const net = networkEl; if (!net || !engine) return;
     const grid = net.parentNode; if (!grid) return;
     const board = engine.getBoard();
@@ -5528,53 +5559,46 @@ const UIRenderer = (() => {
     const gr = grid.getBoundingClientRect();
     if (!gr.width || !gr.height) return;
     net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
-    opts = opts || {};
-    const withPulses = networkPulses;
 
-    // Centres of ALIVE piles, in grid-pixel space.
+    // Live nodes: centre + a (margined) bounding box in grid-pixel space. The
+    // margin makes a line that merely grazes past a card count as blocked.
     const nodes = [];
     for (let i = 0; i < pileEls.length; i++) {
       if (!board.isActive(i)) continue;
       const r = pileEls[i].getBoundingClientRect();
-      nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
+      const m = Math.min(r.width, r.height) * 0.16;
+      nodes.push({
+        i,
+        x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top,
+        x0: r.left - gr.left - m, y0: r.top - gr.top - m,
+        x1: r.right - gr.left + m, y1: r.bottom - gr.top + m,
+      });
     }
-    if (nodes.length < 2) { net.innerHTML = ""; return; }
+    if (nodes.length < 2) { net.innerHTML = ""; lastNetKeys = new Set(); return; }
 
-    // Pitch = smallest centre-to-centre distance among live nodes.
-    let pitch = Infinity;
-    for (let a = 0; a < nodes.length; a++)
-      for (let b = a + 1; b < nodes.length; b++) {
-        const d = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y);
-        if (d < pitch) pitch = d;
-      }
-    if (!isFinite(pitch) || pitch <= 0) pitch = 100;
-    const cap = pitch * 2.7;                  // don't bridge across more than ~2 cells
-
-    // For each node, keep the nearest live node in each of 8 direction sectors.
-    const edges = new Map();                  // "i-j" -> {a,b,diag}
-    for (let a = 0; a < nodes.length; a++) {
-      const best = {};                        // sector -> {j, d}
-      for (let b = 0; b < nodes.length; b++) {
-        if (a === b) continue;
-        const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y;
-        const d = Math.hypot(dx, dy);
-        if (d > cap) continue;
-        const sector = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
-        if (!best[sector] || d < best[sector].d) best[sector] = { j: b, d, diag: sector % 2 === 1 };
-      }
-      for (const s in best) {
-        const j = best[s].j;
-        const key = nodes[a].i < nodes[j].i ? nodes[a].i + "-" + nodes[j].i : nodes[j].i + "-" + nodes[a].i;
-        if (!edges.has(key)) edges.set(key, { a: nodes[a], b: nodes[j], diag: best[s].diag });
-      }
-    }
-
+    const keys = new Set();
     let out = "";
-    edges.forEach(e => {
-      const w = Math.max(1, Math.min(5, Math.min(board.pileSize(e.a.i), board.pileSize(e.b.i))));
-      out += linkMarkup(e.a, e.b, w, e.diag, withPulses);
-    });
+    for (let a = 0; a < nodes.length; a++) {
+      for (let b = a + 1; b < nodes.length; b++) {
+        let blocked = false;
+        for (let k = 0; k < nodes.length && !blocked; k++) {
+          if (k === a || k === b) continue;
+          if (segHitsBox(nodes[a].x, nodes[a].y, nodes[b].x, nodes[b].y,
+                nodes[k].x0, nodes[k].y0, nodes[k].x1, nodes[k].y1)) blocked = true;
+        }
+        if (blocked) continue;
+        const dx = Math.abs(nodes[b].x - nodes[a].x), dy = Math.abs(nodes[b].y - nodes[a].y);
+        const diag = Math.min(dx, dy) / Math.max(dx, dy, 1) > 0.4;
+        const w = Math.max(1, Math.min(5, Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
+        const key = nodes[a].i + "-" + nodes[b].i;
+        keys.add(key);
+        const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
+        out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i + '">' +
+          linkMarkup(nodes[a], nodes[b], w, diag, networkPulses) + "</g>";
+      }
+    }
     net.innerHTML = out;
+    lastNetKeys = keys;
   }
 
   /* One connection between two node centres, layered by `strength` (1..5). */
@@ -5598,20 +5622,26 @@ const UIRenderer = (() => {
   }
 
   /* Redraw the network after a board change. When a pile DIED (alive count
-     dropped), dip the layer and redraw so its links visibly dissolve and the
-     surviving neighbours re-form a direct bridge; otherwise just redraw (link
-     strengths track the new sizes). The reconnection itself is automatic — the
-     adjacency is "nearest ALIVE pile", so dead piles drop out and survivors
-     re-link. (The dip is the Phase 5 sever cue.) */
+     dropped), FADE OUT just that pile's links (in sync with the card dissolving)
+     and then reform: once the dead card is gone it no longer blocks line-of-
+     sight, so renderNetwork draws new bridges across the cleared space (new
+     edges fade in). Otherwise just redraw (link strengths track the new sizes;
+     the edge set is stable so nothing blinks). The reconnection is automatic —
+     dead piles are excluded as both endpoints AND blockers. */
   function refreshNetwork(board) {
     const b = board || (engine && engine.getBoard());
     const alive = b ? b.aliveCount() : 0;
     const died = (lastAliveCount != null && alive < lastAliveCount);
     lastAliveCount = alive;
-    if (died && networkEl) {
-      networkEl.style.transition = "opacity 0.22s ease";
-      networkEl.style.opacity = "0.12";
-      setTimeout(() => { renderNetwork(); if (networkEl) networkEl.style.opacity = ""; }, 200);
+    if (died && networkEl && b) {
+      const dead = {};
+      for (let i = 0; i < pileEls.length; i++) if (!b.isActive(i)) dead[i] = true;
+      networkEl.querySelectorAll("g.edge").forEach(g => {
+        if (dead[+g.getAttribute("data-a")] || dead[+g.getAttribute("data-b")]) g.classList.add("severing");
+      });
+      // After the sever fade (and the card dissolve) complete, reform with the
+      // dead pile removed → its surviving neighbours link across the gap.
+      setTimeout(() => renderNetwork(), 470);
     } else {
       renderNetwork();
     }
