@@ -134,5 +134,34 @@ export function run() {
     r.ok(!c.canReroll(), "can't reroll after a wipe");
   }
 
+  // --- Suit-lock: suited stickers only roll once their suit is in play ---
+  // ♦/♣ Suit Guards must not be offered before their stage introduces that
+  // suit; ♠/♥ guards are always available (Stage 1's base pair). Many opens:
+  // an out-of-play guard appearing even once is a lock failure (0 probability).
+  {
+    const sample = (c, n) => {
+      const seen = new Set();
+      for (let i = 0; i < n; i++) c.openStore().stickers.forEach(id => seen.add(id));
+      return seen;
+    };
+    const s1 = sample(CampaignState.create(), 300);          // Stage 1: ♠ ♥
+    r.ok(s1.has("suitImmunity") && s1.has("heartGuard"), "Stage 1 offers the ♠ and ♥ guards");
+    r.ok(!s1.has("diamondGuard"), "Stage 1 NEVER offers the ♦ guard (suit not in play)");
+    r.ok(!s1.has("clubGuard"), "Stage 1 NEVER offers the ♣ guard (suit not in play)");
+
+    const c2 = CampaignState.create();
+    for (let i = 0; i < 3; i++) c2.advance();                 // → Stage 2: ♠ ♥ ♦
+    r.eq(c2.currentStage, 2, "advanced to Stage 2");
+    const s2 = sample(c2, 300);
+    r.ok(s2.has("diamondGuard"), "Stage 2 offers the ♦ guard (its suit is now in play)");
+    r.ok(!s2.has("clubGuard"), "Stage 2 still NEVER offers the ♣ guard");
+
+    const c3 = CampaignState.create();
+    for (let i = 0; i < 6; i++) c3.advance();                 // → Stage 3: ♠ ♥ ♦ ♣
+    r.eq(c3.currentStage, 3, "advanced to Stage 3");
+    const s3 = sample(c3, 300);
+    r.ok(s3.has("clubGuard"), "Stage 3 offers the ♣ guard (all four suits in play)");
+  }
+
   return r.summary();
 }
