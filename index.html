@@ -1579,6 +1579,37 @@
   .sc-coins [data-ic] { vertical-align: -0.12em; }
   .deck-peek-ico { display: inline-flex; }
   .deck-modal-close { display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ============================================================
+     CONSTELLATION NETWORK  (Phase 3)
+     An SVG layer drawn behind the cards, connecting vertically-adjacent ALIVE
+     piles within a column. Stroke layers + particle density scale with the
+     WEAKER pile's size, so a pathway visibly strengthens as both nodes grow.
+     Pointer-events:none; behind the cards (z-index), so it never touches input
+     or obscures any card information. ============================================================ */
+  .board-grid { position: relative; isolation: isolate; }
+  .pile { z-index: 1; }                 /* nodes sit above the network */
+  #constellation {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; overflow: visible;
+    color: var(--accent-2);
+  }
+  .lk path { fill: none; stroke-linecap: round; }
+  .lk-core { stroke: var(--accent-2); }
+  .lk-halo { stroke: var(--accent-2); opacity: 0.12; }
+  .lk-glow { stroke: var(--accent-2); opacity: 0.06; }
+  .lk-s4 .lk-core, .lk-s5 .lk-core { stroke: #d6e6ff; }   /* strongest read as bright starlight */
+  .lk-spark { fill: #eef4ff; }
+  /* A faint collective shimmer keeps pathways alive without motion noise. */
+  .lk { animation: linkShimmer 4.5s ease-in-out infinite alternate; transform-origin: center; }
+  @keyframes linkShimmer { from { opacity: 0.72; } to { opacity: 1; } }
+  /* Sever + re-form: the layer dips while the network is redrawn on a death. */
+  #constellation { transition: opacity 0.22s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .lk { animation: none !important; }
+    .lk-spark { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -1898,7 +1929,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.52 · nodes";
+const APP_VERSION = "v0.53 · network";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4215,6 +4246,9 @@ const UIRenderer = (() => {
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
+  let constellationEl = null; // the per-board SVG network layer (Phase 3)
+  let constellationCols = null; // column → ordered pile-index groups
+  let lastAliveCount = null;  // to detect a death (sever-and-reform the network)
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -5266,12 +5300,15 @@ const UIRenderer = (() => {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
+        lastAliveCount = payload.board.aliveCount();
+        renderConstellation();
         refreshDebug();
         break;
       }
 
       case "run-started": {
         showActivePhase();    // hide Start Run, reveal guessing
+        renderConstellation();
         refreshDebug();
         break;
       }
@@ -5296,6 +5333,7 @@ const UIRenderer = (() => {
 
         // Mark dead if wrong (dims the drawn card and reveals the X overlay).
         if (!payload.correct) pileEl.classList.add("dead");
+        refreshConstellation(payload.board);   // re-strengthen, or sever-and-reform on a death
 
         clearSelection();
         renderStickerTray();
@@ -5315,6 +5353,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        refreshConstellation(payload.board);
         clearSelection();
         renderStickerTray();
         el.hint.textContent = `${payload.current.label} survived — a heart broke!`;
@@ -5332,9 +5371,10 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        refreshConstellation(payload.board);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `🪬 ${payload.current.label} survived — a ${payload.drawn.suit} was guarded!`;
+        el.hint.textContent = `${payload.current.label} survived — its guard held!`;
         refreshDebug();
         break;
       }
@@ -5664,9 +5704,94 @@ const UIRenderer = (() => {
       }
       grid.appendChild(colEl);
     });
+    // Constellation layer (Phase 3): an SVG behind the cards that links adjacent
+    // alive piles. Built per board so it matches this run's columns.
+    const net = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    net.setAttribute("id", "constellation");
+    net.setAttribute("aria-hidden", "true");
+    net.setAttribute("preserveAspectRatio", "none");
+    grid.appendChild(net);
+    constellationEl = net;
+    constellationCols = colGroups(cols);
     el.board.appendChild(grid);
     paintColumnPillars(cols);     // fill the indicator row from the binding
     fitBoard();   // size piles to the actually-available space (see below)
+  }
+
+  /* Column → ordered pile-index groups (fill order is down each column), used to
+     find vertical neighbours for the constellation network. */
+  function colGroups(cols) {
+    const groups = []; let idx = 0;
+    for (const n of cols) { const a = []; for (let k = 0; k < n; k++) a.push(idx++); groups.push(a); }
+    return groups;
+  }
+
+  /* (Re)draw the constellation: within each column, connect consecutive ALIVE
+     piles — so a dead pile is skipped and its living neighbours link directly
+     (the "re-link" behaviour). Each link's stroke layers + particle density
+     scale with the WEAKER connected pile's card count (1 → faint starlight,
+     5+ → layered luminous pathway carrying sparks). Reads geometry live from the
+     DOM and size/alive from the engine board; never mutates state. */
+  function renderConstellation() {
+    const net = constellationEl; if (!net || !engine) return;
+    const grid = net.parentNode; if (!grid) return;
+    const gr = grid.getBoundingClientRect();
+    if (!gr.width || !gr.height) return;
+    net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
+    const board = engine.getBoard();
+    const center = (i) => {
+      const r = pileEls[i].getBoundingClientRect();
+      return { x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top };
+    };
+    let out = "";
+    for (const group of (constellationCols || [])) {
+      const alive = group.filter(i => board.isActive(i));
+      for (let k = 0; k < alive.length - 1; k++) {
+        out += linkMarkup(center(alive[k]), center(alive[k + 1]),
+          Math.min(board.pileSize(alive[k]), board.pileSize(alive[k + 1])));
+      }
+    }
+    net.innerHTML = out;
+  }
+
+  /* One pathway between two node centres, layered by `strength` (1..5+). */
+  function linkMarkup(a, b, strength) {
+    const s = Math.max(1, Math.min(5, strength || 1));
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const core = 0.9 + s * 0.5;
+    const op = (0.24 + s * 0.10).toFixed(2);
+    const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
+    let m = "";
+    if (s >= 3) m += '<path d="' + d + '" class="lk-glow" stroke-width="' + (core + 6).toFixed(1) + '"/>';
+    if (s >= 2) m += '<path d="' + d + '" class="lk-halo" stroke-width="' + (core + 2.6).toFixed(1) + '"/>';
+    m += '<path d="' + d + '" class="lk-core" stroke-width="' + core.toFixed(2) + '" style="opacity:' + op + '"/>';
+    if (s >= 3) {                                  // sparks travel along strong pathways
+      const count = s >= 5 ? 3 : 2;
+      const dur = (len / 26 + 2).toFixed(1);
+      for (let p = 0; p < count; p++) {
+        m += '<circle r="' + (1.1 + s * 0.12).toFixed(1) + '" class="lk-spark">' +
+          '<animateMotion dur="' + dur + 's" begin="' + (p * dur / count).toFixed(2) +
+          's" repeatCount="indefinite" path="' + d + '"/></circle>';
+      }
+    }
+    return '<g class="lk lk-s' + Math.round(s) + '">' + m + "</g>";
+  }
+
+  /* Redraw the network after a board change. When a pile DIED (alive count
+     dropped), dip the layer and redraw so its links visibly dissolve and the
+     surviving neighbours re-form a direct pathway. Otherwise just redraw (link
+     strengths track the new sizes). */
+  function refreshConstellation(board) {
+    const b = board || (engine && engine.getBoard());
+    const alive = b ? b.aliveCount() : 0;
+    const died = (lastAliveCount != null && alive < lastAliveCount);
+    lastAliveCount = alive;
+    if (died && constellationEl) {
+      constellationEl.style.opacity = "0.12";
+      setTimeout(() => { renderConstellation(); if (constellationEl) constellationEl.style.opacity = ""; }, 200);
+    } else {
+      renderConstellation();
+    }
   }
 
   /* Fill the single top Pillar-indicator row from the column binding: cell `col`
@@ -5788,6 +5913,8 @@ const UIRenderer = (() => {
     el.board.style.setProperty("--pile-h-fit", h + "px");
     // Card-face type scales with the smaller dimension so glyphs never overflow.
     el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
+    // Realign the constellation to the freshly-sized nodes.
+    renderConstellation();
   }
 
   function onRunEnd(result, payload) {

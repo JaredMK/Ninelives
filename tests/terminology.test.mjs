@@ -18,7 +18,7 @@ export function run() {
       // Strip allowed false positives: Math.round, and SVG stroke "round"
       // line-cap/line-join keywords (used by the custom icon set).
       .filter(([, line]) => /\brounds?\b/i.test(
-        line.replace(/Math\.round/g, "").replace(/(?:linecap|linejoin)="round"/g, "")));
+        line.replace(/Math\.round/g, "").replace(/(?:linecap|linejoin)\s*[:=]\s*"?round"?/gi, "")));
     r.ok(offenders.length === 0,
       file + ' has no stray "round"' +
       (offenders.length ? " (line " + offenders.map(([n]) => n).join(", ") + ")" : ""));

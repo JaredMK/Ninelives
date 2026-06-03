@@ -44,6 +44,7 @@ export function loadGame() {
     querySelector: () => node(),
     querySelectorAll: () => [],
     createElement: () => node(),
+    createElementNS: () => node(),
     addEventListener: () => {},
     body: node(),
   };
