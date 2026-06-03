@@ -1684,7 +1684,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.48.0";
+const APP_VERSION = "v0.49.0";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -1720,8 +1720,14 @@ const StickerTypes = (() => {
                   description: "Permanently change this card's suit to ♥ (Hearts). Rank is unchanged. Feeds the Heart Bounty Pillar." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
-    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 4,
+    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
                   description: "Once per run: while this card is showing on top, if the drawn card is a ♠ the pile survives a wrong guess (the drawn ♠ is reshuffled back in)." },
+    heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a ♥ the pile survives a wrong guess (the drawn ♥ is reshuffled back in)." },
+    diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a ♦ the pile survives a wrong guess (the drawn ♦ is reshuffled back in)." },
+    clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
+                  description: "Once per run: while this card is showing on top, if the drawn card is a ♣ the pile survives a wrong guess (the drawn ♣ is reshuffled back in)." },
     extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
     middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
@@ -1753,7 +1759,8 @@ const StickerTypes = (() => {
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
     "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
-    "tieSafe", "suitImmunity", "extraCoin", "middleColumnReward", "gainCoin",
+    "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
+    "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
     "deathBounty", "heavy", "collector", "compound", "wallflower"];
   return {
@@ -2072,9 +2079,18 @@ const DeckManager = (() => {
       stickers: stickers.map(x => ({ ...x })),   // for rendering badges
       heartsRemaining: stickers.filter(x => x.type === "extraHeart").length,
       tieSafe: stickers.some(x => x.type === "tieSafe"),
-      // Spade Guard: a once-per-run charge to survive a wrong guess when the
-      // drawn card is ♠. Re-projected on every deal, so it refreshes each run.
-      spadeImmunity: stickers.some(x => x.type === "suitImmunity"),
+      // Suit Guard: a once-per-run charge to survive a wrong guess when the
+      // drawn card matches a guarded suit. One charge per guarded suit (a card
+      // can hold guards for several suits; duplicate guards of one suit don't
+      // stack). Re-projected on every deal, so each charge refreshes per run.
+      suitGuards: (() => {
+        const g = {};
+        for (const x of stickers) {
+          const t = StickerTypes.get(x.type);
+          if (t && t.behavior === "suitImmunity" && t.suit) g[t.suit] = true;
+        }
+        return g;
+      })(),
       // Compound: lifetime count of correct guesses made against this identity
       // (persisted on the campaign card). Pays (compoundHits − 1) if alive on top.
       compoundHits: card.compoundHits || 0,
@@ -2723,13 +2739,14 @@ const GameEngine = (() => {
         maybeStickerTribute(index, drawn);
         logLine("→ pile survived (" + board.piles[index].cards.length + " cards)");
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
-      } else if (current.spadeImmunity && drawn.suit === "♠") {
-        // Spade Guard: a ♠ drawn against a guarded showing card is absorbed once
-        // per run. The pile survives, the ♠ is reshuffled back in, and the charge
-        // is spent (run-local — refreshes next run). The drawn card is NOT pushed.
-        current.spadeImmunity = false;
+      } else if (current.suitGuards && current.suitGuards[drawn.suit]) {
+        // Suit Guard: a drawn card of a guarded suit is absorbed once per run.
+        // The pile survives, the drawn card is reshuffled back in, and that
+        // suit's charge is spent (run-local — refreshes next run). Other suits'
+        // guards on the same card are untouched. The drawn card is NOT pushed.
+        current.suitGuards[drawn.suit] = false;
         deck.returnCard(drawn);
-        logLine("Spade Guard consumed — pile survived (♠ returned to the deck)");
+        logLine("Suit Guard consumed — pile survived (" + drawn.suit + " returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
@@ -2948,9 +2965,10 @@ const CampaignState = (() => {
   const ALL_SUITS = DeckManager.SUITS.map(s => s.symbol);
 
   /** Sticker types whose required suit (if any) is currently in play — so a
-      rolled sticker never depends on a not-yet-present suit. (Only Change-to-♠/♥
-      carry a suit today, and both are always in play, so nothing is excluded
-      yet; the filter keeps it correct if ♦/♣-targeting stickers are ever added.) */
+      rolled sticker never depends on a not-yet-present suit. Carriers of a
+      `suit`: Change-to-♠/♥ (always in play) and the four Suit Guards (♦/♣ guards
+      are excluded until their stage introduces that suit). Used by the store
+      roll AND the pack / pack-card sticker rolls, so the lock is uniform. */
   function stickerPoolForSuits(suitsInPlay) {
     return StickerTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
@@ -2996,9 +3014,12 @@ const CampaignState = (() => {
       full pool by rarity weight (packs carry no tier today, so equal-weighted;
       a future pack `tier`/`weight` would bias it automatically). The pack slots
       re-roll on every fresh store open and every reroll, just like the others. */
-  function freshOffer(rng = Math.random) {
+  function freshOffer(rng = Math.random, stickerPool) {
     return {
-      stickers: rollIds(StickerTypes.all(), STORE_STICKER_SLOTS, rng),
+      // stickerPool is the suit-locked pool for the current stage (so e.g. ♦/♣
+      // Suit Guards can't be offered before their suit is in play). Callers pass
+      // it; defaults to the full set for any suit-agnostic use.
+      stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
       pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
       packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
@@ -3257,7 +3278,7 @@ const CampaignState = (() => {
       /* ---- store offering (limited random roll; see freshOffer) ---------- */
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
-      openStore(rng) { storeOffer = freshOffer(rng); return storeOffer; },
+      openStore(rng) { storeOffer = freshOffer(rng, stickerPoolForSuits(suitsForStage(currentStage))); return storeOffer; },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
           or null. The UI renders FROM this — it never re-rolls on its own, so a
           re-render restores the same items (no free reroll via refresh). */
@@ -3269,7 +3290,7 @@ const CampaignState = (() => {
       rerollStore() {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
-        const f = freshOffer();
+        const f = freshOffer(Math.random, stickerPoolForSuits(suitsForStage(currentStage)));
         storeOffer.stickers = f.stickers;
         storeOffer.pillars = f.pillars;
         storeOffer.packs = f.packs;
@@ -4169,7 +4190,7 @@ const UIRenderer = (() => {
       if (!n) return;
       let state = "";
       if (t.id === "extraHeart") state = "Hearts remaining: " + (card.heartsRemaining || 0) + " of " + n;
-      else if (t.id === "suitImmunity") state = "Charge: " + (card.spadeImmunity ? "ready" : "spent");
+      else if (t.behavior === "suitImmunity") state = "Charge: " + ((card.suitGuards && card.suitGuards[t.suit]) ? "ready" : "spent");
       else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
       body +=
         '<div class="pk-item"><span class="pk-ic">' + t.icon + "</span><span>" +
@@ -4433,7 +4454,9 @@ const UIRenderer = (() => {
         card.label = r ? r.label : String(card.value);
       }
     } else if (t.behavior === "suitImmunity") {
-      card.spadeImmunity = true;
+      // Arm this suit's guard on the live card so it's honored THIS run too.
+      card.suitGuards = card.suitGuards || {};
+      if (t.suit) card.suitGuards[t.suit] = true;
     } else if (t.behavior === "extraHeart") {
       card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
@@ -4958,8 +4981,9 @@ const UIRenderer = (() => {
       }
 
       case "guarded": {
-        // Spade Guard absorbed a wrong guess (the drawn ♠): the top card stays,
-        // the once-per-run charge is spent, and the ♠ went back into the deck.
+        // Suit Guard absorbed a wrong guess (the drawn card's suit): the top
+        // card stays, that suit's once-per-run charge is spent, and the drawn
+        // card went back into the deck.
         const pileEl = pileEls[payload.index];
         renderStickerBadges(pileEl, payload.current);
         paintPileCounts(payload.board);
@@ -4968,7 +4992,7 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `🪬 ${payload.current.label} survived — a ♠ was guarded!`;
+        el.hint.textContent = `🪬 ${payload.current.label} survived — a ${payload.drawn.suit} was guarded!`;
         refreshDebug();
         break;
       }

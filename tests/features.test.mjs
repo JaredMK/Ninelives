@@ -75,35 +75,66 @@ export function run() {
     r.ok(after.stickers.some(s => s.type === "randomFixedValue"), "Random Rank sticker recorded for its badge");
   }
 
-  // --- Spade Guard: absorbs one ♠ wrong guess per run -------------------
+  // --- Suit Guard family: one guard sticker per base suit ---------------
+  // The four guards share ONE behavior ("suitImmunity"), each locked to its
+  // suit. Spade is the original; ♥/♦/♣ are siblings. Same tier + price = a
+  // uniform family. Drive each suit through the shared engine path.
   {
-    const e = GameEngine.create(specsWith("suitImmunity"), 9);
-    e.start(); e.startRun();
-    const b = e.getBoard();
-    r.ok(b.top(0).spadeImmunity, "suitImmunity projects the spadeImmunity charge");
+    const SUIT_GUARDS = [
+      ["suitImmunity", "♠"], ["heartGuard", "♥"],
+      ["diamondGuard", "♦"], ["clubGuard", "♣"],
+    ];
+    SUIT_GUARDS.forEach(([id, suit]) => {
+      const t = StickerTypes.get(id);
+      r.eq(t && t.behavior, "suitImmunity", id + " reuses the shared suitImmunity behavior");
+      r.eq(t && t.suit, suit, id + " is locked to " + suit);
+      r.eq(t && t.tier, "uncommon", id + " tier matches the family (uncommon)");
+      r.eq(t && t.price, 4, id + " price matches the family (4)");
 
-    const before = e.getDeck().remaining();
-    b.top(0).value = 10;
-    const d = e.debug.setNextCard(3); d.suit = "♠";   // a ♠ that loses on HIGHER
-    e.guess(0, "higher");
-    r.ok(b.isActive(0), "Spade Guard: a ♠ wrong guess is absorbed, pile survives");
-    r.ok(!b.top(0).spadeImmunity, "the guard charge is spent");
-    r.eq(b.top(0).value, 10, "showing card unchanged (drawn ♠ not pushed)");
-    r.eq(e.getDeck().remaining(), before, "drawn ♠ returned to the deck");
+      const e = GameEngine.create(specsWith(id), 9);
+      e.start(); e.startRun();
+      const b = e.getBoard();
+      r.ok(b.top(0).suitGuards && b.top(0).suitGuards[suit], id + " projects a " + suit + " charge");
 
-    const d2 = e.debug.setNextCard(3); d2.suit = "♠";
-    e.guess(0, "higher");
-    r.ok(!b.isActive(0), "with the charge spent, the next ♠ wrong guess kills");
+      const before = e.getDeck().remaining();
+      b.top(0).value = 10;
+      const d = e.debug.setNextCard(3); d.suit = suit;   // that suit, loses on HIGHER
+      e.guess(0, "higher");
+      r.ok(b.isActive(0), id + ": a " + suit + " wrong guess is absorbed, pile survives");
+      r.ok(!b.top(0).suitGuards[suit], id + ": the " + suit + " charge is spent");
+      r.eq(b.top(0).value, 10, id + ": showing card unchanged (drawn card not pushed)");
+      r.eq(e.getDeck().remaining(), before, id + ": drawn " + suit + " returned to the deck");
+
+      const d2 = e.debug.setNextCard(3); d2.suit = suit;
+      e.guess(0, "higher");
+      r.ok(!b.isActive(0), id + ": with the charge spent, the next " + suit + " wrong guess kills");
+    });
   }
   {
-    // A non-♠ wrong guess is NOT guarded.
-    const e = GameEngine.create(specsWith("suitImmunity"), 9);
+    // A guard ignores OTHER suits: a Heart Guard doesn't stop a ♠ wrong guess.
+    const e = GameEngine.create(specsWith("heartGuard"), 9);
     e.start(); e.startRun();
     const b = e.getBoard();
     b.top(1).value = 10;
-    const d = e.debug.setNextCard(3); d.suit = "♥";
+    const d = e.debug.setNextCard(3); d.suit = "♠";
     e.guess(1, "higher");
-    r.ok(!b.isActive(1), "Spade Guard ignores non-♠ wrong guesses (pile dies)");
+    r.ok(!b.isActive(1), "Heart Guard ignores a non-♥ (♠) wrong guess (pile dies)");
+  }
+  {
+    // Two guards on one card → independent per-suit charges.
+    const specs = DeckManager.buildStandardDeck();
+    specs.forEach(c => { c.stickers.push({ type: "suitImmunity" }); c.stickers.push({ type: "heartGuard" }); });
+    const e = GameEngine.create(specs, 9);
+    e.start(); e.startRun();
+    const b = e.getBoard();
+    b.top(0).value = 10;
+    const ds = e.debug.setNextCard(3); ds.suit = "♠";
+    e.guess(0, "higher");
+    r.ok(b.isActive(0) && !b.top(0).suitGuards["♠"], "spent the ♠ charge");
+    r.ok(b.top(0).suitGuards["♥"], "the ♥ charge is still ready (independent)");
+    const dh = e.debug.setNextCard(3); dh.suit = "♥";
+    e.guess(0, "higher");
+    r.ok(b.isActive(0) && !b.top(0).suitGuards["♥"], "then the ♥ charge absorbs a ♥ wrong guess");
   }
   {
     // Refreshes next run (re-projected on each deal).
@@ -113,10 +144,10 @@ export function run() {
     e1.getBoard().top(0).value = 10;
     const d = e1.debug.setNextCard(3); d.suit = "♠";
     e1.guess(0, "higher");
-    r.ok(!e1.getBoard().top(0).spadeImmunity, "charge spent in run 1");
+    r.ok(!e1.getBoard().top(0).suitGuards["♠"], "charge spent in run 1");
     const e2 = GameEngine.create(specs, 9);
     e2.start();
-    r.ok(e2.getBoard().top(0).spadeImmunity, "Spade Guard refreshed for run 2");
+    r.ok(e2.getBoard().top(0).suitGuards["♠"], "Suit Guard refreshed for run 2");
   }
 
   // --- Lucky Coin: +1 on a surviving landing ----------------------------
