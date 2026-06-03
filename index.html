@@ -329,7 +329,25 @@
     align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
     width: 100%;
+    position: relative;        /* anchors the #network layer */
+    isolation: isolate;        /* contain its stacking (network below nodes) */
   }
+  .pile { z-index: 1; }        /* nodes sit above the connection network */
+
+  /* ============================================================
+     CONNECTION NETWORK  (Layer C — Phase 3/4)
+     Foreground SVG mesh linking adjacent ALIVE piles. Crisp and bright, on top
+     of the background veins but BEHIND the cards (z-index), pointer-events:none
+     so it never touches input or obscures card information. Thickness/brightness
+     is gated by the WEAKER connected pile (see renderNetwork). ============== */
+  #network {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; overflow: visible;
+  }
+  #network .lk { stroke: var(--accent); fill: none; stroke-linecap: round; }
+  #network .pulse { fill: #ffe0ee; }
+  @media (prefers-reduced-motion: reduce) { #network .pulse { display: none; } }
   .board-col {
     display: flex;
     flex-direction: column;
@@ -1801,7 +1819,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.51 · neural-2";
+const APP_VERSION = "v0.52 · neural-3";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4005,6 +4023,9 @@ const UIRenderer = (() => {
   let selected = null;        // currently selected pile index, or null
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
+  let networkEl = null;       // the per-board SVG connection layer (Phase 3)
+  let networkPulses = false;  // signal pulses on links (enabled in Phase 4)
+  let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -5065,12 +5086,18 @@ const UIRenderer = (() => {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
+        lastAliveCount = payload.board.aliveCount();
+        renderNetwork();
+        // Redraw once the staggered deal-in settles so links align to the
+        // resting node centres.
+        setTimeout(renderNetwork, 700);
         refreshDebug();
         break;
       }
 
       case "run-started": {
         showActivePhase();    // hide Start Run, reveal guessing
+        renderNetwork();
         refreshDebug();
         break;
       }
@@ -5095,6 +5122,7 @@ const UIRenderer = (() => {
 
         // Mark dead if wrong (dims the drawn card and reveals the X overlay).
         if (!payload.correct) pileEl.classList.add("dead");
+        refreshNetwork(payload.board);   // re-strengthen, or sever-and-reform on a death
 
         clearSelection();
         renderStickerTray();
@@ -5114,6 +5142,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
         el.hint.textContent = `💔 ${payload.current.label} survived — a heart broke!`;
@@ -5131,6 +5160,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
         el.hint.textContent = `🪬 ${payload.current.label} survived — a ${payload.drawn.suit} was guarded!`;
@@ -5463,9 +5493,122 @@ const UIRenderer = (() => {
       }
       grid.appendChild(colEl);
     });
+    // Connection network layer (Phase 3): an SVG behind the cards that links
+    // adjacent alive piles. Built per board so it matches this run's columns.
+    const net = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    net.setAttribute("id", "network");
+    net.setAttribute("aria-hidden", "true");
+    net.setAttribute("preserveAspectRatio", "none");
+    grid.appendChild(net);
+    networkEl = net;
     el.board.appendChild(grid);
     paintColumnPillars(cols);     // fill the indicator row from the binding
     fitBoard();   // size piles to the actually-available space (see below)
+  }
+
+  /* (Re)draw the connection network. Reads geometry from the DOM and size/alive
+     from the engine board; never mutates state. Adjacency is the "nearest ALIVE
+     pile in each of 8 directions" within a distance cap — so it forms the full
+     visual mesh at run start AND automatically bridges across a dead pile (its
+     surviving neighbours reconnect). Each link's thickness/brightness is gated
+     by the WEAKER of the two piles (min size), so every link is minimum at the
+     start and a link thickens only as its weaker endpoint grows. VISUAL ONLY —
+     game adjacency is unchanged. */
+  function renderNetwork(opts) {
+    const net = networkEl; if (!net || !engine) return;
+    const grid = net.parentNode; if (!grid) return;
+    const board = engine.getBoard();
+    if (!board) return;                       // board only exists after start()
+    const gr = grid.getBoundingClientRect();
+    if (!gr.width || !gr.height) return;
+    net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
+    opts = opts || {};
+    const withPulses = networkPulses;
+
+    // Centres of ALIVE piles, in grid-pixel space.
+    const nodes = [];
+    for (let i = 0; i < pileEls.length; i++) {
+      if (!board.isActive(i)) continue;
+      const r = pileEls[i].getBoundingClientRect();
+      nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
+    }
+    if (nodes.length < 2) { net.innerHTML = ""; return; }
+
+    // Pitch = smallest centre-to-centre distance among live nodes.
+    let pitch = Infinity;
+    for (let a = 0; a < nodes.length; a++)
+      for (let b = a + 1; b < nodes.length; b++) {
+        const d = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y);
+        if (d < pitch) pitch = d;
+      }
+    if (!isFinite(pitch) || pitch <= 0) pitch = 100;
+    const cap = pitch * 2.7;                  // don't bridge across more than ~2 cells
+
+    // For each node, keep the nearest live node in each of 8 direction sectors.
+    const edges = new Map();                  // "i-j" -> {a,b,diag}
+    for (let a = 0; a < nodes.length; a++) {
+      const best = {};                        // sector -> {j, d}
+      for (let b = 0; b < nodes.length; b++) {
+        if (a === b) continue;
+        const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y;
+        const d = Math.hypot(dx, dy);
+        if (d > cap) continue;
+        const sector = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+        if (!best[sector] || d < best[sector].d) best[sector] = { j: b, d, diag: sector % 2 === 1 };
+      }
+      for (const s in best) {
+        const j = best[s].j;
+        const key = nodes[a].i < nodes[j].i ? nodes[a].i + "-" + nodes[j].i : nodes[j].i + "-" + nodes[a].i;
+        if (!edges.has(key)) edges.set(key, { a: nodes[a], b: nodes[j], diag: best[s].diag });
+      }
+    }
+
+    let out = "";
+    edges.forEach(e => {
+      const w = Math.max(1, Math.min(5, Math.min(board.pileSize(e.a.i), board.pileSize(e.b.i))));
+      out += linkMarkup(e.a, e.b, w, e.diag, withPulses);
+    });
+    net.innerHTML = out;
+  }
+
+  /* One connection between two node centres, layered by `strength` (1..5). */
+  function linkMarkup(a, b, w, diag, withPulses) {
+    const core = (diag ? 1.1 : 1.7) + w * 1.25;
+    const op = Math.min(0.95, (diag ? 0.42 : 0.58) + w * 0.07).toFixed(2);
+    const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
+    let m = "";
+    if (w >= 2) m += '<path d="' + d + '" class="lk" stroke-width="' + (core + 4).toFixed(1) + '" opacity="' + (0.10 + w * 0.03).toFixed(2) + '"/>';
+    m += '<path d="' + d + '" class="lk" stroke-width="' + core.toFixed(2) + '" opacity="' + op + '"/>';
+    if (withPulses && w >= 2) {                // signal pulses (Phase 4) — thicker links carry more/faster
+      const count = w >= 4 ? 3 : 2;
+      const dur = Math.max(1.1, 2.5 - w * 0.18).toFixed(2);
+      for (let k = 0; k < count; k++) {
+        m += '<circle r="' + (1.6 + w * 0.3).toFixed(1) + '" class="pulse">' +
+          '<animateMotion dur="' + dur + 's" begin="' + (k * dur / count).toFixed(2) +
+          's" repeatCount="indefinite" path="' + d + '"/></circle>';
+      }
+    }
+    return m;
+  }
+
+  /* Redraw the network after a board change. When a pile DIED (alive count
+     dropped), dip the layer and redraw so its links visibly dissolve and the
+     surviving neighbours re-form a direct bridge; otherwise just redraw (link
+     strengths track the new sizes). The reconnection itself is automatic — the
+     adjacency is "nearest ALIVE pile", so dead piles drop out and survivors
+     re-link. (The dip is the Phase 5 sever cue.) */
+  function refreshNetwork(board) {
+    const b = board || (engine && engine.getBoard());
+    const alive = b ? b.aliveCount() : 0;
+    const died = (lastAliveCount != null && alive < lastAliveCount);
+    lastAliveCount = alive;
+    if (died && networkEl) {
+      networkEl.style.transition = "opacity 0.22s ease";
+      networkEl.style.opacity = "0.12";
+      setTimeout(() => { renderNetwork(); if (networkEl) networkEl.style.opacity = ""; }, 200);
+    } else {
+      renderNetwork();
+    }
   }
 
   /* Fill the single top Pillar-indicator row from the column binding: cell `col`
@@ -5587,6 +5730,8 @@ const UIRenderer = (() => {
     el.board.style.setProperty("--pile-h-fit", h + "px");
     // Card-face type scales with the smaller dimension so glyphs never overflow.
     el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
+    // Realign the connection network to the freshly-sized nodes.
+    renderNetwork();
   }
 
   function onRunEnd(result, payload) {
