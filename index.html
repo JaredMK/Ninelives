@@ -1180,6 +1180,12 @@
     font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
   }
   .mini-card.red { color: var(--card-red); }
+  /* Balatro-style deck grid (modal): every stage card; faded = already drawn. */
+  .deck-cards { display: grid; grid-template-columns: repeat(auto-fill, 52px);
+    gap: 7px; justify-content: center; padding: 2px; }
+  .deck-card { display: flex; }
+  .deck-card.drawn { opacity: 0.26; filter: grayscale(0.45); }
+  .deck-card.drawn .mini-card { box-shadow: none; }
   .mini-card .mc-rank { font-size: 19px; line-height: 1; }
   .mini-card .mc-suit { font-size: 16px; line-height: 1.1; }
   .mini-card .mc-badges {
@@ -1453,7 +1459,7 @@
 
   /* The rows are a drag surface: vertical drags scrub (don't scroll the
      sheet), and the finger doesn't select text. */
-  .deck-breakdown { display: flex; flex-direction: column; gap: 5px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .deck-breakdown { display: flex; flex-direction: column; gap: 5px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
   .bd-row {
     display: grid;
     grid-template-columns: 26px 1fr 66px;
@@ -2208,7 +2214,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.73 · store-help";
+const APP_VERSION = "v0.74 · deck-inspector";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4343,6 +4349,8 @@ const DeckInspector = (() => {
   let refs = null;
   const EMPTY = { total: 0, rows: [] };
   let getStats = () => ({ remaining: EMPTY, full: EMPTY });
+  let getCards = () => ({ cards: [], remaining: null });   // Balatro-style card list
+  let renderCard = () => "";                                // card -> mini-card HTML
   let canInspect = () => true;
   let holdTimer = null, holding = false, pointerActive = false;
   // Scrubber state (tap-view only): the remaining composition currently shown,
@@ -4353,6 +4361,8 @@ const DeckInspector = (() => {
   function init(opts) {
     refs = opts.refs;
     getStats = opts.getStats || getStats;
+    getCards = opts.getCards || getCards;
+    renderCard = opts.renderCard || renderCard;
     canInspect = opts.canInspect || canInspect;
 
     const deckEl = opts.deckEl;
@@ -4387,7 +4397,7 @@ const DeckInspector = (() => {
       ? document.elementFromPoint(e.clientX, e.clientY) : null;
     return t && t.closest ? t.closest(".bd-row") : null;
   }
-  function onScrubDown(e) { scrubbing = true; applyScrub(e); e.preventDefault(); }
+  function onScrubDown(e) { if (!rowAt(e)) return; scrubbing = true; applyScrub(e); e.preventDefault(); }
   function onScrubMove(e) { if (scrubbing) { applyScrub(e); e.preventDefault(); } }
   function onScrubEnd() { scrubbing = false; }   // leave the last selection in place
 
@@ -4440,7 +4450,7 @@ const DeckInspector = (() => {
     if (holding) { holding = false; hideQuick(); }
   }
 
-  function openFull() { renderFull(getStats()); refs.modal.classList.remove("hidden"); }
+  function openFull() { renderFull(); refs.modal.classList.remove("hidden"); }
   function closeFull() { refs.modal.classList.add("hidden"); }
   function showQuick() { renderQuick(getStats()); refs.quick.classList.remove("hidden"); }
   function hideQuick() { refs.quick.classList.add("hidden"); }
@@ -4451,32 +4461,26 @@ const DeckInspector = (() => {
      ABSOLUTE counts on a SHARED scale — every bar is measured against the same
      max (the largest full count of any rank this stage), so "1 remaining" is the
      same length on every row. Counts only — never order. */
-  function renderFull(stats) {
-    const rem = stats.remaining || EMPTY;
-    const full = stats.full || EMPTY;
-    lastRemaining = rem;                    // the scrubber sums these counts
+  // Suit display order for the grid (matches the card-face two-colour split).
+  const SUIT_ORDER = { "♠": 0, "♥": 1, "♣": 2, "♦": 3 };
+  /* Balatro-style deck view: every card of the current stage, rank AND suit,
+     grouped by suit then rank. Cards still in the draw pile read full; already-
+     drawn cards are faded. Stickers/Imprints show on each card. Read-only and
+     order-agnostic — it never reveals the draw sequence, only membership. */
+  function renderFull() {
+    const data = getCards() || { cards: [], remaining: null };
+    const cards = (data.cards || []).slice().sort((a, b) =>
+      (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]) || (a.currentRank - b.currentRank));
+    const remSet = data.remaining;   // Set of remaining ids, or null = all remaining
+    const isRem = (c) => remSet ? remSet.has(c.id) : true;
+    const remCount = cards.filter(isRem).length;
     scrubbing = false;
     if (refs.scrub) { refs.scrub.classList.add("hidden"); refs.scrub.innerHTML = ""; }
     refs.modalTotal.textContent =
-      rem.total + " of " + full.total + " cards remaining · bars to scale";
-    // Shared scale: the largest full count across all ranks (min 1 to avoid /0).
-    let scaleMax = 1;
-    full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
-    refs.breakdown.innerHTML = "";
-    rem.rows.forEach((row, i) => {
-      const total = (full.rows[i] && full.rows[i].count) || 0;
-      const remaining = row.count;
-      const pct = (remaining / scaleMax) * 100;   // absolute, shared scale
-      const el = document.createElement("div");
-      el.className = "bd-row" + (remaining === 0 ? " empty" : "");
-      el.dataset.value = row.value;         // rank value for the scrubber
-      el.innerHTML =
-        '<span class="bd-rank">' + row.label + '</span>' +
-        '<span class="bd-bar"><span class="bd-fill" style="width:' + pct + '%"></span></span>' +
-        '<span class="bd-num">' + remaining +
-          ' <span class="bd-pct">/ ' + total + '</span></span>';
-      refs.breakdown.appendChild(el);
-    });
+      remCount + " of " + cards.length + " cards in play · faded = already drawn";
+    refs.breakdown.innerHTML = '<div class="deck-cards">' +
+      cards.map(c => '<div class="deck-card' + (isRem(c) ? "" : " drawn") + '">' + renderCard(c) + "</div>").join("") +
+      "</div>";
   }
 
   /* Hold view: lightweight remaining-only breakdown (unchanged). */
@@ -7404,6 +7408,17 @@ const UIRenderer = (() => {
           : full;
         return { remaining, full };
       },
+      // Balatro-style card list: every card of the current stage (rank+suit+
+      // Imprints), with the set of ids still in the draw pile. Order-free.
+      getCards: () => {
+        const cards = campaign ? campaign.getRunDeck() : [];
+        const playing = engine && engine.getStatus() === "playing";
+        const remaining = playing
+          ? new Set(engine.getDeck()._peekAll().map(c => c.id))
+          : null;   // not playing → treat the whole deck as remaining
+        return { cards, remaining };
+      },
+      renderCard: (c) => miniCardHtml(c),
       canInspect: () => !!engine && engine.getStatus() === "playing",
     });
 
