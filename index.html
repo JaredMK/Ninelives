@@ -1905,7 +1905,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.60 · neural-polish";
+const APP_VERSION = "v0.61 · neural-pings";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5686,7 +5686,7 @@ const UIRenderer = (() => {
         const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
         out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i +
           '" data-bow="' + bow.toFixed(4) + '">' +
-          linkMarkup(nodes[a], nodes[b], w, diag, bow) + "</g>";
+          linkMarkup(nodes[a], nodes[b], w, diag, bow, key) + "</g>";
       }
     }
     net.innerHTML = out;
@@ -5723,6 +5723,11 @@ const UIRenderer = (() => {
     for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
     return ((((h % 1000) + 1000) % 1000) / 1000 - 0.5) * 0.24;   // ~[-0.12,0.12] × length
   }
+  function edgeRand(key, salt) {                // deterministic, stable [0,1) per edge+salt
+    let h = (2166136261 ^ salt) >>> 0;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return ((h >>> 0) % 10000) / 10000;
+  }
   function synapseControl(ax, ay, bx, by, bow) {
     const mx = (ax + bx) / 2, my = (ay + by) / 2, dx = bx - ax, dy = by - ay;
     const len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;   // unit normal
@@ -5744,7 +5749,7 @@ const UIRenderer = (() => {
      spindle's mid-width (maxW), the endpoint bulge radius, and the pulse
      count/speed all scale with `w`. Pulses are plain circles (no SMIL) ridden
      along the CURVED centreline by the drift loop via cx/cy each frame. */
-  function linkMarkup(a, b, w, diag, bow) {
+  function linkMarkup(a, b, w, diag, bow, key) {
     const maxW = (diag ? 0.8 : 1.0) + w * 0.55;          // half-width at the middle (strength-gated)
     const fill = Math.min(0.9, 0.4 + w * 0.08).toFixed(2);
     const bulgeR = (0.8 + w * 0.32).toFixed(2);          // synaptic bulge size (strength-gated)
@@ -5762,17 +5767,20 @@ const UIRenderer = (() => {
       m += '<circle class="lk-bulge" data-t="' + t + '" r="' + bulgeR + '" fill-opacity="' + fill +
         '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '"/>';
     }
-    if (networkPulses) {                                  // signal pulses — thicker links carry more/faster
-      const count = w >= 4 ? 3 : w >= 2 ? 2 : 1;           // per-direction count (strength-gated)
-      const sp = (0.32 + w * 0.05).toFixed(3);
+    if (networkPulses) {                                  // signal pulses
+      const count = w;                                     // # pings = the smaller pile (min size)
+      // Base speed slowed 20%, then a per-edge ±10% jitter + a per-edge phase
+      // offset so edges don't all fire in lock-step (more organic firing).
+      const sp = ((0.32 + w * 0.05) * 0.8 * (0.90 + edgeRand(key, 13) * 0.20)).toFixed(3);
+      const phase = edgeRand(key, 7);                      // per-edge start offset (desync)
       const r = (1.5 + w * 0.28).toFixed(1);
       // Fire in BOTH directions so the synapse reads as actively signalling:
       // `count` dots travel A→B and `count` travel B→A (the reverse set offset a
       // half-phase so the two streams interleave rather than overlap).
       for (let dir = 0; dir < 2; dir++) {
         for (let k = 0; k < count; k++) {
-          const of = (k + (dir ? 0.5 : 0)) / count;
-          const t0 = dir ? 1 - (of % 1) : of;             // B→A walks the curve in reverse
+          const of = ((k + (dir ? 0.5 : 0)) / count + phase) % 1;
+          const t0 = dir ? 1 - of : of;                   // B→A walks the curve in reverse
           const p = bezPt(a.x, a.y, c, b.x, b.y, t0);
           m += '<circle class="pulse" r="' + r + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
             '" data-sp="' + sp + '" data-of="' + of.toFixed(3) + '" data-dir="' + (dir ? -1 : 1) + '"/>';
