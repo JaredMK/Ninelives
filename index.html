@@ -40,6 +40,10 @@
     /* Reserved accents for later phases. */
     --amber: #e0973c;       /* limiting-pile accent (Phase 2) */
     --edge: rgba(232, 139, 176, 0.14);   /* warm starlight-rose hairline */
+    --edge-2: rgba(232, 139, 176, 0.28); /* stronger rose border for panels/chrome */
+    --panel-2: #2a1f26;     /* raised inner surface (inputs, secondary buttons) */
+    --sel: rgba(232, 139, 176, 0.16);    /* warm selection fill */
+    --danger: #b5435a;      /* deep rose-red for destructive actions */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -111,8 +115,8 @@
   .inv-popup.hidden { display: none; }
   .inv-card {
     width: min(86vw, 320px);
-    background: rgba(13, 20, 38, 0.98);
-    border: 1px solid #34508f; border-radius: 14px;
+    background: rgba(35, 23, 28, 0.98);
+    border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 14px; box-shadow: var(--shadow);
   }
   .inv-card-head {
@@ -187,8 +191,8 @@
   .min-accent { color: var(--accent) !important; }
   /* Live bonus-coin tally: gold while positive, red when a Tribute cost has
      pulled it negative. The "+" separator mirrors the "×" between factors. */
-  .bonus-accent { color: #f2c94c !important; }
-  .bonus-accent.bonus-neg { color: #eb5757 !important; }
+  .bonus-accent { color: var(--amber) !important; }
+  .bonus-accent.bonus-neg { color: var(--bad) !important; }
   .stat.factors .factor-plus { font-size: 15px; }
 
   /* Deck counter row — below the board, right-aligned (reference info). */
@@ -209,7 +213,7 @@
   .strip-toggle-row .deck-stat { font-size: 12px; padding: 4px 12px; height: 22px; display: inline-flex; align-items: center; }
   .deck-strip-toggle {
     background: var(--panel); color: var(--text);
-    border: 1px solid #34508f; border-radius: 999px;
+    border: 1px solid var(--edge-2); border-radius: 999px;
     height: 22px; padding: 0 12px; font-size: 11px; font-weight: 800; line-height: 1;
     letter-spacing: 0.4px;
     cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
@@ -249,7 +253,7 @@
   .ds-grey { background: rgba(255,255,255,0.14); }
   .ds-blue { background: var(--accent-2); }
   .ds-bar.ds-active .ds-grey { background: rgba(255,255,255,0.28); }
-  .ds-bar.ds-active .ds-blue { background: #ffd166; }
+  .ds-bar.ds-active .ds-blue { background: var(--amber); }
   .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* Scrubber readout — absolute overlay so it never changes the strip's height. */
@@ -257,11 +261,11 @@
     position: absolute; left: 0; right: 0; bottom: 100%;
     margin-bottom: 2px; text-align: center;
     font-size: 11px; font-weight: 700; color: var(--text);
-    background: rgba(13,20,38,0.96); border: 1px solid #34508f; border-radius: 8px;
+    background: rgba(35,23,28,0.96); border: 1px solid var(--edge-2); border-radius: 8px;
     padding: 3px 6px; pointer-events: none;
   }
   .ds-scrub.hidden { display: none; }
-  .ds-scrub .sc-hi { color: #56cca0; } .ds-scrub .sc-eq { color: #cfd6e6; } .ds-scrub .sc-lo { color: #eb8f8f; }
+  .ds-scrub .sc-hi { color: var(--good); } .ds-scrub .sc-eq { color: var(--text); } .ds-scrub .sc-lo { color: var(--bad); }
 
   /* ============================================================
      BOARD
@@ -512,8 +516,8 @@
   /* back (face down / dead) */
   .card .back {
     background:
-      repeating-linear-gradient(45deg, #243a73 0 8px, #1d3060 8px 16px);
-    border: 2px solid #34508f;
+      repeating-linear-gradient(45deg, var(--panel-2) 0 8px, #1d3060 8px 16px);
+    border: 2px solid var(--edge-2);
     transform: rotateY(180deg);
     align-items: center;
     justify-content: center;
@@ -664,7 +668,7 @@
   /* "?" card-info button — small, secondary; disabled until a pile is selected. */
   .btn.info {
     background: var(--panel); color: var(--accent-2);
-    border: 1px solid #34508f; font-size: 19px; padding: 0;
+    border: 1px solid var(--edge-2); font-size: 19px; padding: 0;
   }
   .btn.info:disabled { opacity: 0.32; cursor: default; }
 
@@ -843,7 +847,7 @@
     text-align: center;
     padding: 6px 0 8px;
     margin: 0;
-    background: rgba(8, 13, 28, 0.96);
+    background: rgba(22, 15, 20, 0.96);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.10);
@@ -879,7 +883,7 @@
   .store-tile:active { transform: scale(0.94); }
   .store-tile.disabled { opacity: 0.4; pointer-events: none; }
   /* Selected (sticker, awaiting Buy) or armed (Pillar, awaiting a column). */
-  .store-tile.selected { outline: 2px solid var(--accent-2); outline-offset: 1px; background: #1b2748; }
+  .store-tile.selected { outline: 2px solid var(--accent-2); outline-offset: 1px; background: var(--sel); }
   /* Empty/sold placeholder — keeps the grid from jumping. */
   .store-tile.empty { background: transparent; border: 1px dashed rgba(255,255,255,0.18); box-shadow: none; pointer-events: none; }
   .store-tile .ti-icon { font-size: 24px; line-height: 1; }
@@ -891,9 +895,9 @@
     width: 12px; height: 12px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
   }
-  .store-tile .tier-common   { color: #cfd6e6; background: rgba(207,214,230,0.18); }
-  .store-tile .tier-uncommon { color: #56cca0; background: rgba(86,204,160,0.18); }
-  .store-tile .tier-rare     { color: #c792ea; background: rgba(199,146,234,0.20); }
+  .store-tile .tier-common   { color: var(--text); background: rgba(207,214,230,0.18); }
+  .store-tile .tier-uncommon { color: var(--good); background: rgba(86,204,160,0.18); }
+  .store-tile .tier-rare     { color: var(--accent-2); background: rgba(199,146,234,0.20); }
   .store-tile .tile-sold { color: var(--muted); font-size: 16px; }
 
   /* Buy-confirm (select → Buy) + Reroll buttons — compact, same footprint. */
@@ -904,7 +908,7 @@
     transition: transform 0.08s ease, opacity 0.15s ease;
   }
   .buy-confirm { background: var(--accent); color: #08101f; }
-  .reroll-btn { background: #2a3a63; color: var(--text); }
+  .reroll-btn { background: var(--panel-2); color: var(--text); }
   .buy-confirm:active, .reroll-btn:active { transform: scale(0.98); }
   .buy-confirm:disabled, .reroll-btn:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
   .buy-confirm.hidden { display: none; }   /* hide the pack Confirm in the discard step */
@@ -972,22 +976,22 @@
   .confirm-overlay.hidden { display: none; }
   .confirm-panel {
     width: min(90vw, 340px); background: var(--panel);
-    border: 1px solid #34508f; border-radius: 14px; box-shadow: var(--shadow);
+    border: 1px solid var(--edge-2); border-radius: 14px; box-shadow: var(--shadow);
     padding: 18px 16px; text-align: center;
   }
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
   .confirm-msg b { color: var(--accent-2); }
-  .confirm-msg .warn-stickers { color: #eb8f8f; font-size: 12px; display: inline-block; margin-top: 6px; }
+  .confirm-msg .warn-stickers { color: var(--bad); font-size: 12px; display: inline-block; margin-top: 6px; }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
   .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
-  .confirm-cancel { background: #243154; color: var(--text); }
-  .confirm-danger { background: #c0392b; color: #fff; }
+  .confirm-cancel { background: var(--panel-2); color: var(--text); }
+  .confirm-danger { background: var(--danger); color: #fff; }
   .confirm-actions button:active { transform: scale(0.97); }
 
   /* ---- Pack reveal modal + mini-cards (shared by reveal + pre-run tray) ---- */
   .pack-panel {
     width: min(94vw, 420px); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
-    background: var(--panel); border: 1px solid #34508f; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 14px;
     box-shadow: var(--shadow); padding: 16px 14px; text-align: center;
   }
   .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
@@ -997,7 +1001,7 @@
   .pack-deck-btn {
     margin-top: 12px; width: 100%;
     background: transparent; color: var(--accent-2);
-    border: 1px solid #34508f; border-radius: 10px;
+    border: 1px solid var(--edge-2); border-radius: 10px;
     padding: 9px 12px; font-size: 13px; font-weight: 700;
     cursor: pointer; touch-action: manipulation;
   }
@@ -1016,7 +1020,7 @@
      dark sticker chip; tucked into the top-left corner away from the badges. */
   .pack-item .pk-info {
     top: 3px; left: 3px; width: 16px; height: 16px;
-    background: rgba(13, 20, 38, 0.9); color: #cfe0ff; font-size: 10px;
+    background: rgba(35, 23, 28, 0.9); color: var(--text); font-size: 10px;
   }
   .pack-item .pk-info:active { background: var(--accent); color: #fff; }
 
@@ -1024,7 +1028,7 @@
   .pk-sticker {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     width: 64px; padding: 8px 4px; border-radius: 10px;
-    background: rgba(255,255,255,0.06); border: 1px solid #34508f;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--edge-2);
   }
   .pk-sticker .pks-ic { font-size: 22px; line-height: 1; }
   .pk-sticker .pks-name { font-size: 9px; font-weight: 700; color: var(--text); line-height: 1.1; }
@@ -1075,7 +1079,7 @@
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 22px; height: 18px; padding: 0 7px;
     background: rgba(255, 255, 255, 0.10);
-    border: 1px solid #34508f;
+    border: 1px solid var(--edge-2);
     border-radius: 999px;
     font-size: 12px; line-height: 1;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
@@ -1110,8 +1114,8 @@
     pointer-events: auto;
     width: min(92vw, 340px);
     max-height: 42vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(13, 20, 38, 0.98);
-    border: 1px solid #34508f;
+    background: rgba(35, 23, 28, 0.98);
+    border: 1px solid var(--edge-2);
     border-radius: 12px;
     padding: 12px 14px;
     box-shadow: var(--shadow);
@@ -1261,8 +1265,8 @@
   }
   .deck-modal.hidden { display: none; }
   .deck-modal-panel {
-    background: linear-gradient(180deg, #1b2542, #131b30);
-    border: 1px solid #2c3c66;
+    background: linear-gradient(180deg, #23171c, #160f14);
+    border: 1px solid var(--edge-2);
     border-bottom: none;
     border-radius: 16px 16px 0 0;
     width: min(100%, 460px);
@@ -1294,8 +1298,8 @@
 
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
-    background: rgba(127, 209, 255, 0.10);
-    border: 1px solid rgba(127, 209, 255, 0.35);
+    background: rgba(232, 139, 176, 0.10);
+    border: 1px solid rgba(232, 139, 176, 0.35);
     border-radius: 10px;
     padding: 7px 10px;
     margin-bottom: 10px;
@@ -1320,7 +1324,7 @@
     border-radius: 6px;
   }
   .bd-row.empty { opacity: 0.35; }
-  .bd-row.scrub-active { background: rgba(127, 209, 255, 0.18); outline: 1px solid rgba(127, 209, 255, 0.5); }
+  .bd-row.scrub-active { background: rgba(232, 139, 176, 0.18); outline: 1px solid rgba(232, 139, 176, 0.5); }
   .bd-rank { font-weight: 800; text-align: center; }
   .bd-bar {
     height: 8px;
@@ -1345,8 +1349,8 @@
     transform: translateX(-50%);
     z-index: 61;
     pointer-events: none;
-    background: rgba(13, 20, 38, 0.96);
-    border: 1px solid #34508f;
+    background: rgba(35, 23, 28, 0.96);
+    border: 1px solid var(--edge-2);
     border-radius: 12px;
     padding: 10px 12px;
     width: min(88vw, 360px);
@@ -1360,7 +1364,7 @@
     position: fixed; left: 50%; top: 15%; transform: translateX(-50%);
     z-index: 64; pointer-events: none;
     width: min(92vw, 360px); max-height: 66vh; overflow: hidden;
-    background: rgba(13, 20, 38, 0.98); border: 1px solid #34508f;
+    background: rgba(35, 23, 28, 0.98); border: 1px solid var(--edge-2);
     border-radius: 12px; box-shadow: var(--shadow);
     padding: 11px 13px; font-size: 13px; color: var(--text);
   }
@@ -1377,7 +1381,7 @@
   .card-info.hidden { display: none; }
   .card-info-panel {
     width: min(92vw, 360px); max-height: 76vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(13,20,38,0.99); border: 1px solid #34508f;
+    background: rgba(35,23,28,0.99); border: 1px solid var(--edge-2);
     border-radius: 12px; box-shadow: var(--shadow);
     padding: 13px 14px; font-size: 13px; color: var(--text);
   }
@@ -1388,7 +1392,7 @@
   .peek-info .pk-ic, .card-info-panel .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
   .peek-info .pk-name, .card-info-panel .pk-name { font-weight: 700; }
   .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
-  .peek-info .pk-state, .card-info-panel .pk-state { color: #f2c94c; font-size: 11.5px; margin-top: 3px; }
+  .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 11.5px; margin-top: 3px; }
   .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
   .deck-quick-total {
     font-weight: 800;
@@ -1417,7 +1421,7 @@
        toggle is reachable from any screen, including the store. */
     position: fixed; left: 8px; bottom: 8px; z-index: 90;
     width: 34px; height: 34px; border-radius: 50%;
-    background: rgba(13, 20, 38, 0.7); border: 1px solid #3a4d80;
+    background: rgba(35, 23, 28, 0.7); border: 1px solid var(--edge-2);
     color: var(--accent-2); font-size: 16px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; opacity: 0.45;
@@ -1437,8 +1441,8 @@
     width: min(94vw, 430px);
     max-height: 80svh; max-height: 80vh;
     display: flex; flex-direction: column;
-    border: 1px dashed #3a4d80; border-radius: 14px;
-    background: rgba(13, 20, 38, 0.98); box-shadow: var(--shadow);
+    border: 1px dashed var(--edge-2); border-radius: 14px;
+    background: rgba(35, 23, 28, 0.98); box-shadow: var(--shadow);
     font-size: 12px;
   }
   /* Internal scroll so debug content never needs the (locked) page to scroll. */
@@ -1475,9 +1479,9 @@
   }
 
   .debug-btn {
-    background: #243a73;
+    background: var(--panel-2);
     color: var(--text);
-    border: 1px solid #34508f;
+    border: 1px solid var(--edge-2);
     border-radius: 8px;
     padding: 9px 4px;
     font-size: 12px;
@@ -1496,7 +1500,7 @@
   .debug-sel {
     flex: 1 1 auto; min-width: 0;
     background: var(--panel); color: var(--text);
-    border: 1px solid #34508f; border-radius: 8px;
+    border: 1px solid var(--edge-2); border-radius: 8px;
     padding: 6px 8px; font-size: 12px;
   }
   .debug-grant .debug-btn { flex: 0 0 auto; }
@@ -1517,7 +1521,7 @@
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     background: rgba(0,0,0,0.22);
-    border: 1px solid #2a3a64;
+    border: 1px solid var(--panel-2);
     border-radius: 8px;
     padding: 4px;
   }
@@ -1533,8 +1537,8 @@
   }
   .debug-log .dl-line {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px; line-height: 1.45; color: #cfd6e6;
-    padding-left: 12px; border-left: 2px solid #2a3a64; margin-left: 2px;
+    font-size: 11px; line-height: 1.45; color: var(--text);
+    padding-left: 12px; border-left: 2px solid var(--panel-2); margin-left: 2px;
     white-space: pre-wrap; word-break: break-word;
   }
 
@@ -1542,7 +1546,7 @@
   .debug-ver {
     margin-top: 10px;
     padding-top: 8px;
-    border-top: 1px dashed #3a4d80;
+    border-top: 1px dashed var(--edge-2);
     text-align: center;
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -2021,7 +2025,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.67 · mnesis-naming";
+const APP_VERSION = "v0.68 · theme-sweep";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
