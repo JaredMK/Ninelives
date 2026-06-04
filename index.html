@@ -466,6 +466,18 @@
   .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
   .card .pip .suit-svg { opacity: 0.9; }
 
+  /* Currency coin icon — a <use> of the shared #icon-coin symbol. Sized in `em`
+     so it tracks each container's font-size exactly like the old 🪙 emoji did
+     (drop-in at every coin site; no layout shift). overflow:visible lets the
+     outer glow bloom past the box without taking layout space. Scales crisp from
+     badge (~11px) to hero sizes for the future iOS/Steam builds. */
+  .coin-ico {
+    width: 1.15em; height: 1.15em;
+    vertical-align: -0.2em;
+    overflow: visible;
+    flex: none;
+  }
+
   .rank-top, .rank-bottom {
     display: flex;
     flex-direction: column;
@@ -1593,6 +1605,101 @@
        innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
   <div id="svhProbe" aria-hidden="true"></div>
 
+  <!-- ============================================================
+       SHARED ICON SPRITE  (portable SVG; ships unchanged to iOS/Steam)
+       A single hidden master SVG holding the reusable depth/glow recipe in
+       <defs> plus icon <symbol>s. Every on-screen icon is a tiny
+       <svg><use href="#icon-…"></svg> that REFERENCES these defs, so a future
+       sticker/pillar reuses the same bevel + glow with its own gradient/glyph.
+       Generic, colour-agnostic filters: icon-glow (blooms the shape's own
+       colour) and icon-bevel (inner top highlight + inner bottom shadow + soft
+       drop shadow). Colour lives only in the gradients (icon-face-orange /
+       icon-rim-orange) — currency owns the orange family (--amber #e0973c). -->
+  <svg class="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false"
+       xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <defs>
+      <!-- GENERIC: outer bloom of the shape's own colour (reusable, any hue). -->
+      <filter id="icon-glow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="b"/>
+        <feMerge>
+          <feMergeNode in="b"/>
+          <feMergeNode in="b"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <!-- GENERIC: depth on a filled disc — inner top highlight, inner bottom
+           shadow, and a soft drop shadow. Alpha-driven, so it's colour-agnostic. -->
+      <filter id="icon-bevel" x="-40%" y="-40%" width="180%" height="180%">
+        <!-- soft drop shadow under the disc -->
+        <feDropShadow dx="0" dy="2.2" stdDeviation="2.6" flood-color="#1a0d00" flood-opacity="0.55"/>
+        <!-- inner BOTTOM shadow: shrink + push up, subtract from the shape -->
+        <feOffset in="SourceAlpha" dx="0" dy="3.5" result="lo"/>
+        <feGaussianBlur in="lo" stdDeviation="3" result="lob"/>
+        <feComposite in="lob" in2="SourceAlpha" operator="out" result="ishadow"/>
+        <feFlood flood-color="#5e2f00" flood-opacity="0.55"/>
+        <feComposite in2="ishadow" operator="in" result="ishadowC"/>
+        <!-- inner TOP highlight: shrink + push down, subtract -->
+        <feOffset in="SourceAlpha" dx="0" dy="-3.2" result="hi"/>
+        <feGaussianBlur in="hi" stdDeviation="2.4" result="hib"/>
+        <feComposite in="hib" in2="SourceAlpha" operator="out" result="ihi"/>
+        <feFlood flood-color="#fff3df" flood-opacity="0.8"/>
+        <feComposite in2="ihi" operator="in" result="ihiC"/>
+        <!-- stack: drop shadow (implicit) → source → inner shadow → inner highlight -->
+        <feMerge>
+          <feMergeNode in="SourceGraphic"/>
+          <feMergeNode in="ishadowC"/>
+          <feMergeNode in="ihiC"/>
+        </feMerge>
+      </filter>
+      <!-- COIN palette: light top-left → base amber → deep orange bottom-right. -->
+      <radialGradient id="icon-face-orange" cx="38%" cy="32%" r="78%">
+        <stop offset="0%"  stop-color="#ffe0ab"/>
+        <stop offset="34%" stop-color="#f3ac4e"/>
+        <stop offset="72%" stop-color="#e0973c"/>
+        <stop offset="100%" stop-color="#b3661a"/>
+      </radialGradient>
+      <linearGradient id="icon-rim-orange" x1="22%" y1="6%" x2="80%" y2="96%">
+        <stop offset="0%"  stop-color="#ffd089"/>
+        <stop offset="50%" stop-color="#c97f2f" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#7a4310"/>
+      </linearGradient>
+    </defs>
+
+    <!-- The dopamine coin: abstract orange disc + a stylised neurotransmitter
+         motif (rounded nodes joined by thin synapse lines) in near-white. -->
+    <symbol id="icon-coin" viewBox="0 0 100 100" overflow="visible">
+      <!-- OUTER BLOOM: a base-colour disc BEHIND the face, blurred by the generic
+           icon-glow. The bloom takes the icon's base colour (orange here) — a
+           sticker/pillar reuses this exact pattern with its own base colour. The
+           white glyph sits on top and is deliberately NOT part of the bloom. -->
+      <circle cx="50" cy="50" r="39" fill="#e0973c" filter="url(#icon-glow)"/>
+      <!-- face (gradient) with bevel depth (inner highlight/shadow + drop shadow) -->
+      <circle cx="50" cy="50" r="40" fill="url(#icon-face-orange)" filter="url(#icon-bevel)"/>
+      <!-- defined rim -->
+      <circle cx="50" cy="50" r="40" fill="none" stroke="url(#icon-rim-orange)" stroke-width="3"/>
+      <circle cx="50" cy="50" r="36.5" fill="none" stroke="#7a4310" stroke-opacity="0.35" stroke-width="1.2"/>
+      <!-- neurotransmitter motif: synapse lines first, then rounded nodes on top -->
+      <g stroke="#fff7ee" stroke-width="3" stroke-linecap="round" stroke-opacity="0.78" fill="none">
+        <path d="M38 38 L60 33"/>
+        <path d="M38 38 L43 60"/>
+        <path d="M60 33 L65 58"/>
+        <path d="M43 60 L65 58"/>
+      </g>
+      <g fill="#fffaf3">
+        <circle cx="38" cy="38" r="6.4"/>
+        <circle cx="60" cy="33" r="5"/>
+        <circle cx="43" cy="60" r="5"/>
+        <circle cx="65" cy="58" r="6.4"/>
+      </g>
+      <!-- tiny specular highlights on the two larger nodes -->
+      <g fill="#ffffff" opacity="0.85">
+        <circle cx="36" cy="36" r="1.9"/>
+        <circle cx="63" cy="56" r="1.9"/>
+      </g>
+    </symbol>
+  </svg>
+
+
   <!-- Neural atmosphere (Phase 1): a fixed, pointer-events:none tissue layer
        painted BEHIND all content (z-index:-1). Layer A = drifting warm haze
        blobs; Layer B = faint, heavily-blurred, STATIC dark-rose veins (pure
@@ -1726,9 +1833,9 @@
         </div>
         <div class="debug-sub">add coins (free) →</div>
         <div class="debug-tools">
-          <button class="debug-btn" id="debugCoin10">+10 🪙</button>
-          <button class="debug-btn" id="debugCoin50">+50 🪙</button>
-          <button class="debug-btn" id="debugCoin100">+100 🪙</button>
+          <button class="debug-btn" id="debugCoin10">+10 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
+          <button class="debug-btn" id="debugCoin50">+50 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
+          <button class="debug-btn" id="debugCoin100">+100 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
         </div>
         <div class="debug-peek" id="debugPeekOut"></div>
         <div class="debug-sub">logbook (this run · newest first) →</div>
@@ -1776,7 +1883,7 @@
        + 2 Pillars) with a reroll; designed to fit one screen with no scroll. -->
   <div class="overlay store hidden" id="storeOverlay">
     <div class="store-coins">
-      <div class="sc-coins">🛒 🪙 <b id="storeCoins">0</b></div>
+      <div class="sc-coins">🛒 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
       <div class="sc-inv" id="storeInv"></div>
     </div>
     <div class="store-section">Stickers — apply to cards next run</div>
@@ -1914,7 +2021,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.65 · neural-pings4";
+const APP_VERSION = "v0.66 · coin-icon";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4313,6 +4420,13 @@ const UIRenderer = (() => {
     return d ? ('<svg class="suit-svg" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="' + d + '"/></svg>') : sym;
   }
 
+  /* Currency coin: a <use> of the shared #icon-coin symbol (see the icon sprite
+     in <body>). Drop-in replacement for the old 🪙 emoji at every coin site;
+     sizes itself in `em` via .coin-ico. xlink:href kept alongside href for
+     older iOS Safari. */
+  const COIN_SVG =
+    '<svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg>';
+
   function paintFront(pileEl, card) {
     const front = pileEl.querySelector(".front");
     front.classList.toggle("red", !!card.red);
@@ -4436,9 +4550,9 @@ const UIRenderer = (() => {
   /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
   function updateStageRun() {
     if (campaign) {
-      el.stageRun.textContent =
+      el.stageRun.innerHTML =
         "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex +
-        " · 🪙 " + campaign.getCoins();
+        " · " + COIN_SVG + " " + campaign.getCoins();
     }
   }
 
@@ -4582,7 +4696,7 @@ const UIRenderer = (() => {
     const coins = campaign ? campaign.getCoins() : 0;
     const afford = coins >= redealCost;
     el.redealBtn.disabled = !afford;
-    el.redealBtn.textContent = "REDEAL · " + redealCost + " 🪙";
+    el.redealBtn.innerHTML = "REDEAL · " + redealCost + " " + COIN_SVG;
     el.redealBtn.title = afford
       ? "Reshuffle the whole deck for " + redealCost + " coins (applied stickers stay)."
       : "Need " + redealCost + " coins to redeal (you have " + coins + ").";
@@ -5323,14 +5437,14 @@ const UIRenderer = (() => {
      the view multiplies/sums nothing. */
   function coinBreakdownHtml(coins) {
     const b = coins.breakdown;
-    if (!b) return '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>";
+    if (!b) return '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>";
     const row = (label, detail, value, extra) =>
       '<div class="ocoins-row' + (extra ? " " + extra : "") + '">' +
         '<span class="lbl">' + label + (detail ? ' <span class="dim">' + detail + "</span>" : "") + "</span>" +
         '<span class="val">' + value + "</span>" +
       "</div>";
     return (
-      '<div class="ocoins-head">🪙 Coins earned</div>' +
+      '<div class="ocoins-head">' + COIN_SVG + ' Coins earned</div>' +
       row("Alive piles", "", b.alivePiles) +
       row("Smallest alive pile", "", b.minPileCards + " cards") +
       row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
@@ -5343,7 +5457,7 @@ const UIRenderer = (() => {
       (b.eventLines || []).map(p =>
         row(p.label, "", (p.amount >= 0 ? "+" : "") + p.amount)).join("") +
       row("Total", "", "+" + b.total, "ocoins-sum") +
-      '<div class="ocoins-balance">🪙 ' + coins.balance + " total</div>"
+      '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>"
     );
   }
 
@@ -5361,7 +5475,7 @@ const UIRenderer = (() => {
     // the Pillars the player finished with, by column.
     if (opts.endStats) {
       el.endCards.textContent = opts.endStats.cardsFlipped;
-      el.endCoins.textContent = "🪙 " + opts.endStats.coinsEarned;
+      el.endCoins.innerHTML = COIN_SVG + " " + opts.endStats.coinsEarned;
       el.endPillars.innerHTML = endPillarsHtml(opts.endStats.pillars);
     }
     el.endSummary.classList.toggle("hidden", !opts.endStats);
@@ -6168,7 +6282,7 @@ const UIRenderer = (() => {
       '<span class="si-help" aria-label="What does this do?">?</span>' +
       tierChip +
       '<span class="ti-icon">' + t.icon + '</span>' +
-      '<span class="ti-price">🪙' + price + '</span>';
+      '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
   }
 
@@ -6229,8 +6343,8 @@ const UIRenderer = (() => {
     const price = campaign.priceOfPack(id);
     const afford = campaign.getCoins() >= price;
     el.buyPackBtn.disabled = !afford;
-    el.buyPackBtn.textContent =
-      (afford ? "Buy " : "Need 🪙" + price + " · ") + t.icon + " " + t.label + (afford ? " · 🪙" + price : "");
+    el.buyPackBtn.innerHTML =
+      (afford ? "Buy " : "Need " + COIN_SVG + price + " · ") + t.icon + " " + t.label + (afford ? " · " + COIN_SVG + price : "");
   }
 
   /* Tap an offered pack SLOT to select it (highlight) — does NOT buy. Toggle off
@@ -6461,14 +6575,14 @@ const UIRenderer = (() => {
     const price = campaign.priceOf(id);
     const afford = campaign.getCoins() >= price;
     el.buyStickerBtn.disabled = !afford;
-    el.buyStickerBtn.textContent =
-      (afford ? "Buy " : "Need 🪙" + price + " · ") + t.icon + " " + t.label + (afford ? " · 🪙" + price : "");
+    el.buyStickerBtn.innerHTML =
+      (afford ? "Buy " : "Need " + COIN_SVG + price + " · ") + t.icon + " " + t.label + (afford ? " · " + COIN_SVG + price : "");
   }
 
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
-    el.rerollBtn.textContent = "🎲 Reroll · 🪙" + cost;
+    el.rerollBtn.innerHTML = "🎲 Reroll · " + COIN_SVG + cost;
   }
 
   /* Offered Pillars (2 slots) + the 3 board-column chips (placement/rearrange).
