@@ -383,15 +383,28 @@
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 22px;                 /* generous organic corners */
+    border-radius: 22px;
     transform-style: preserve-3d;
-    transition: transform 0.45s cubic-bezier(0.45, 0.05, 0.2, 1);
-    /* soft outer glow (warm rose) + crisp light rim + depth */
+    /* No rim/border — a soft suit-colour halo (per-card --glow) + depth only, so
+       the card has no crisp cutout; its edge feathers into the field (see the
+       .front mask) and it reads as emerging from the tissue. */
     box-shadow:
-      0 0 12px rgba(190, 110, 140, 0.28),
-      0 0 0 1px rgba(255, 255, 255, 0.45),
-      0 6px 16px rgba(4, 2, 6, 0.55);
+      0 0 22px 2px var(--glow, rgba(190, 110, 140, 0.42)),
+      0 6px 18px rgba(4, 2, 6, 0.5);
+    /* Gentle, independent floating drift (per-card vars) — runs together with
+       the breathing scale on .front. Small, so cards never detach from links. */
+    animation: cardDrift var(--drift-dur, 8s) ease-in-out var(--drift-delay, 0s) infinite;
+    transform-origin: 50% 50%;
   }
+  @keyframes cardDrift {
+    0%   { transform: translate(0, 0); }
+    20%  { transform: translate(var(--dx1, 0), var(--dy1, 0)); }
+    40%  { transform: translate(var(--dx2, 0), var(--dy2, 0)); }
+    60%  { transform: translate(var(--dx3, 0), var(--dy3, 0)); }
+    80%  { transform: translate(var(--dx4, 0), var(--dy4, 0)); }
+    100% { transform: translate(0, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .card { animation: none !important; } }
 
   .card .face {
     position: absolute;
@@ -409,8 +422,9 @@
      stay in proportion at any pile size. Padding is also pile-relative, giving
      the corner ranks clear margin from the edge. */
   .card .front {
-    /* Light-core: a luminous centre fading to a soft edge. */
-    background: radial-gradient(ellipse at 50% 42%, #faf8f7, #ece7ea 50%, #d4ccd2);
+    /* Warm off-white centred on #F4F0EE — a touch lighter at the centre fading
+       slightly deeper toward the edge (subtle depth, not stark white). */
+    background: radial-gradient(125% 100% at 50% 42%, #F8F5F3 0%, #F4F0EE 52%, #EBE3DF 100%);
     color: var(--card-ink);
     /* Ranks/suits on Chakra Petch — clean + technical, fully legible. */
     font-family: var(--font-text);
@@ -418,6 +432,18 @@
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
     border: none;
+    /* Feather all four edges uniformly (~7%) so the face dissolves into the
+       field — no crisp cutout. The opaque centre (>~7%) keeps the rank/suit
+       fully legible; the corner indices sit at ~9% padding, inside the opaque
+       zone. */
+    -webkit-mask:
+      linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%),
+      linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask:
+      linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%),
+      linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
+    mask-composite: intersect;
     /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
     animation: cardBreathe 4.5s ease-in-out var(--bd, 0s) infinite;
     transform-origin: 50% 50%;
@@ -1869,7 +1895,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.56 · neural-LOS2-win";
+const APP_VERSION = "v0.57 · neural-cards";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4077,6 +4103,8 @@ const UIRenderer = (() => {
   let networkPulses = true;   // signal pulses on links (Phase 4)
   let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
+  let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
+  let driftRAF = null, driftLast = 0;  // rAF loop keeping links attached to drifting cards
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -4123,6 +4151,16 @@ const UIRenderer = (() => {
     pile.dataset.index = index;
     pile.style.animationDelay = (index * 0.05) + "s";
     pile.style.setProperty("--bd", (index * 0.37).toFixed(2) + "s");   // breathe desync
+    // Per-card floating drift: random small waypoints + duration + phase so each
+    // card bobs independently (never in unison). Small amplitude (~4px) keeps
+    // cards from overlapping or detaching from their connections.
+    const rnd = (a, b) => (a + Math.random() * (b - a));
+    for (let p = 1; p <= 4; p++) {
+      pile.style.setProperty("--dx" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
+      pile.style.setProperty("--dy" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
+    }
+    pile.style.setProperty("--drift-dur", rnd(6.5, 11).toFixed(1) + "s");
+    pile.style.setProperty("--drift-delay", (-rnd(0, 11)).toFixed(1) + "s");
 
     const card = document.createElement("div");
     card.className = "card";
@@ -4254,6 +4292,10 @@ const UIRenderer = (() => {
   function paintFront(pileEl, card) {
     const front = pileEl.querySelector(".front");
     front.classList.toggle("red", !!card.red);
+    // Soft halo in the muted SUIT colour (red suits → rose; black suits → a
+    // muted plum, since a literal-dark glow wouldn't read on the dark field).
+    const cardEl = pileEl.querySelector(".card");
+    if (cardEl) cardEl.style.setProperty("--glow", card.red ? "rgba(196,112,142,0.5)" : "rgba(150,124,170,0.42)");
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
     const svg = suitGlyph(card.suit);
@@ -5517,6 +5559,7 @@ const UIRenderer = (() => {
     el.board.innerHTML = "";
     el.board.classList.remove("win-cine");   // clear any win-cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
+    netEdges = [];                            // drop stale edge refs from the old board
     pileEls.length = 0;
     // Single Pillar-indicator row across the top — one cell per column, so all
     // icons sit on one level line (see .board-pillars CSS).
@@ -5626,31 +5669,85 @@ const UIRenderer = (() => {
         keys.add(key);
         const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
         out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i + '">' +
-          linkMarkup(nodes[a], nodes[b], w, diag, networkPulses) + "</g>";
+          linkMarkup(nodes[a], nodes[b], w, diag) + "</g>";
       }
     }
     net.innerHTML = out;
     lastNetKeys = keys;
+
+    // Record edge element refs so the drift loop can move endpoints + pulses to
+    // the cards' LIVE (drifting) centres every frame — keeping the network
+    // attached to the floating cards.
+    netEdges = [];
+    net.querySelectorAll("g.edge").forEach(g => {
+      const pulses = [];
+      g.querySelectorAll(".pulse").forEach(el =>
+        pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0 }));
+      netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, lines: g.querySelectorAll(".lk"), pulses });
+    });
+    startDriftSync();
   }
 
-  /* One connection between two node centres, layered by `strength` (1..5). */
-  function linkMarkup(a, b, w, diag, withPulses) {
+  /* One connection between two node centres, layered by `strength` (1..5). Pulses
+     are plain circles (no SMIL) so the drift loop can ride them along the live,
+     drifting line via cx/cy each frame. */
+  function linkMarkup(a, b, w, diag) {
     const core = (diag ? 1.1 : 1.7) + w * 1.25;
     const op = Math.min(0.95, (diag ? 0.42 : 0.58) + w * 0.07).toFixed(2);
     const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
     let m = "";
     if (w >= 2) m += '<path d="' + d + '" class="lk" stroke-width="' + (core + 4).toFixed(1) + '" opacity="' + (0.10 + w * 0.03).toFixed(2) + '"/>';
     m += '<path d="' + d + '" class="lk" stroke-width="' + core.toFixed(2) + '" opacity="' + op + '"/>';
-    if (withPulses) {                          // signal pulses (Phase 4) — thicker links carry more/faster
+    if (networkPulses) {                       // signal pulses — thicker links carry more/faster
       const count = w >= 4 ? 3 : w >= 2 ? 2 : 1;
-      const dur = Math.max(1.1, 2.6 - w * 0.2).toFixed(2);
+      const sp = (0.32 + w * 0.05).toFixed(3);
       for (let k = 0; k < count; k++) {
-        m += '<circle r="' + (1.6 + w * 0.3).toFixed(1) + '" class="pulse">' +
-          '<animateMotion dur="' + dur + 's" begin="' + (k * dur / count).toFixed(2) +
-          's" repeatCount="indefinite" path="' + d + '"/></circle>';
+        m += '<circle r="' + (1.6 + w * 0.3).toFixed(1) + '" class="pulse" cx="' + a.x.toFixed(1) +
+          '" cy="' + a.y.toFixed(1) + '" data-sp="' + sp + '" data-of="' + (k / count).toFixed(3) + '"/>';
       }
     }
     return m;
+  }
+
+  /* Drift sync loop: each frame, read every live card's CURRENT (drifting)
+     centre and move its connections' endpoints + travelling pulses to match, so
+     the network stays attached to the floating cards. Throttled to ~30fps;
+     paused when the tab is hidden; skipped entirely under reduced-motion (no
+     drift to follow). Reads then writes (no layout thrash). */
+  function startDriftSync() {
+    if (driftRAF != null) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const step = (t) => {
+      driftRAF = requestAnimationFrame(step);
+      if (document.hidden) return;
+      if (t - driftLast < 28) return;          // ~30fps
+      driftLast = t;
+      syncNetworkToDrift(t);
+    };
+    driftRAF = requestAnimationFrame(step);
+  }
+  function syncNetworkToDrift(t) {
+    const net = networkEl; if (!net || !netEdges.length) return;
+    const grid = net.parentNode; if (!grid) return;
+    const gr = grid.getBoundingClientRect();
+    // Read all live centres first (one layout flush), then write SVG attrs.
+    const ctr = [];
+    for (let i = 0; i < pileEls.length; i++) {
+      const r = pileEls[i].getBoundingClientRect();
+      ctr[i] = { x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top };
+    }
+    const now = t / 1000;
+    for (const e of netEdges) {
+      const a = ctr[e.a], b = ctr[e.b];
+      if (!a || !b) continue;
+      const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
+      for (const ln of e.lines) ln.setAttribute("d", d);
+      for (const p of e.pulses) {
+        const ph = ((now * p.sp) + p.of) % 1;
+        p.el.setAttribute("cx", (a.x + (b.x - a.x) * ph).toFixed(1));
+        p.el.setAttribute("cy", (a.y + (b.y - a.y) * ph).toFixed(1));
+      }
+    }
   }
 
   /* Redraw the network after a board change. When a pile DIED (alive count
