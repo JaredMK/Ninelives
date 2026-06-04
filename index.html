@@ -1905,7 +1905,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.61 · neural-pings";
+const APP_VERSION = "v0.62 · neural-pings2";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5769,9 +5769,10 @@ const UIRenderer = (() => {
     }
     if (networkPulses) {                                  // signal pulses
       const count = w;                                     // # pings = the smaller pile (min size)
-      // Base speed slowed 20%, then a per-edge ±10% jitter + a per-edge phase
-      // offset so edges don't all fire in lock-step (more organic firing).
-      const sp = ((0.32 + w * 0.05) * 0.8 * (0.90 + edgeRand(key, 13) * 0.20)).toFixed(3);
+      // Base speed slowed 20% then a further 30% (×0.56 net), then a per-edge
+      // ±10% jitter + a per-edge phase offset so edges don't all fire in
+      // lock-step (more organic firing).
+      const sp = ((0.32 + w * 0.05) * 0.56 * (0.90 + edgeRand(key, 13) * 0.20)).toFixed(3);
       const phase = edgeRand(key, 7);                      // per-edge start offset (desync)
       const r = (1.5 + w * 0.28).toFixed(1);
       // Fire in BOTH directions so the synapse reads as actively signalling:
