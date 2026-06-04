@@ -345,7 +345,10 @@
     width: 100%; height: 100%;
     z-index: 0; pointer-events: none; overflow: visible;
   }
-  #network .lk { stroke: var(--accent); fill: none; stroke-linecap: round; }
+  /* synapses are FILLED spindle/lens shapes (thin at the nodes, full in the
+     middle) rather than stroked lines, with a small bulge at each endpoint. */
+  #network .lk { fill: var(--accent); stroke: none; }
+  #network .lk-bulge { fill: var(--accent); }
   #network .pulse { fill: #ffe0ee; }
   /* a brand-new connection (a sightline that just opened) fades in */
   #network .edge.forming { animation: edgeForm 0.55s ease both; }
@@ -1890,7 +1893,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.58 · neural-cards2";
+const APP_VERSION = "v0.59 · neural-synapse";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -5662,9 +5665,11 @@ const UIRenderer = (() => {
           : Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
         const key = nodes[a].i + "-" + nodes[b].i;
         keys.add(key);
+        const bow = edgeBow(key);
         const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
-        out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i + '">' +
-          linkMarkup(nodes[a], nodes[b], w, diag) + "</g>";
+        out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i +
+          '" data-bow="' + bow.toFixed(4) + '">' +
+          linkMarkup(nodes[a], nodes[b], w, diag, bow) + "</g>";
       }
     }
     net.innerHTML = out;
@@ -5675,33 +5680,97 @@ const UIRenderer = (() => {
     // attached to the floating cards.
     netEdges = [];
     net.querySelectorAll("g.edge").forEach(g => {
+      const paths = [];
+      g.querySelectorAll(".lk").forEach(el => paths.push({ el, mw: parseFloat(el.dataset.mw) || 1 }));
+      const bulges = [];
+      g.querySelectorAll(".lk-bulge").forEach(el => bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12 }));
       const pulses = [];
       g.querySelectorAll(".pulse").forEach(el =>
         pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0 }));
-      netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, lines: g.querySelectorAll(".lk"), pulses });
+      netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, bow: parseFloat(g.dataset.bow) || 0, paths, bulges, pulses });
     });
     startDriftSync();
   }
 
-  /* One connection between two node centres, layered by `strength` (1..5). Pulses
-     are plain circles (no SMIL) so the drift loop can ride them along the live,
-     drifting line via cx/cy each frame. */
-  function linkMarkup(a, b, w, diag) {
-    const core = (diag ? 1.1 : 1.7) + w * 1.25;
-    const op = Math.min(0.95, (diag ? 0.42 : 0.58) + w * 0.07).toFixed(2);
-    const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
+  /* ---- Synapse (organic spindle) geometry helpers -------------------------
+     A connection is drawn as a CURVED, TAPERED lens: thin where it meets each
+     node, fullest in the middle, with a slight per-edge perpendicular bow. The
+     filled lens is two quadratic curves (A→B via an outer control, B→A via an
+     inner control) offset ±maxW around a bowed centreline control point. The
+     pulses and endpoint bulges ride that same bowed centreline. None of this
+     touches the strength rule — `w` (min of the two pile sizes) still drives
+     maxW, the bulge radius, and the pulse count/speed. */
+  function edgeBow(key) {                       // deterministic, stable bow per edge
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+    return ((((h % 1000) + 1000) % 1000) / 1000 - 0.5) * 0.24;   // ~[-0.12,0.12] × length
+  }
+  function synapseControl(ax, ay, bx, by, bow) {
+    const mx = (ax + bx) / 2, my = (ay + by) / 2, dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;   // unit normal
+    return { cx: mx + nx * bow * len, cy: my + ny * bow * len, nx, ny };  // bowed centreline control
+  }
+  function lensPath(ax, ay, bx, by, c, mw) {    // filled spindle of half-width mw at the middle
+    const cox = c.cx + c.nx * mw, coy = c.cy + c.ny * mw;
+    const cix = c.cx - c.nx * mw, ciy = c.cy - c.ny * mw;
+    return "M" + ax.toFixed(1) + " " + ay.toFixed(1) +
+      "Q" + cox.toFixed(1) + " " + coy.toFixed(1) + " " + bx.toFixed(1) + " " + by.toFixed(1) +
+      "Q" + cix.toFixed(1) + " " + ciy.toFixed(1) + " " + ax.toFixed(1) + " " + ay.toFixed(1) + "Z";
+  }
+  function bezPt(ax, ay, c, bx, by, t) {        // point on the bowed centreline (curved path)
+    const u = 1 - t;
+    return { x: u * u * ax + 2 * u * t * c.cx + t * t * bx, y: u * u * ay + 2 * u * t * c.cy + t * t * by };
+  }
+
+  /* One connection between two node centres, layered by `strength` (1..5). The
+     spindle's mid-width (maxW), the endpoint bulge radius, and the pulse
+     count/speed all scale with `w`. Pulses are plain circles (no SMIL) ridden
+     along the CURVED centreline by the drift loop via cx/cy each frame. */
+  function linkMarkup(a, b, w, diag, bow) {
+    const maxW = (diag ? 0.8 : 1.0) + w * 0.55;          // half-width at the middle (strength-gated)
+    const fill = Math.min(0.9, 0.4 + w * 0.08).toFixed(2);
+    const bulgeR = (0.8 + w * 0.32).toFixed(2);          // synaptic bulge size (strength-gated)
+    const c = synapseControl(a.x, a.y, b.x, b.y, bow);
     let m = "";
-    if (w >= 2) m += '<path d="' + d + '" class="lk" stroke-width="' + (core + 4).toFixed(1) + '" opacity="' + (0.10 + w * 0.03).toFixed(2) + '"/>';
-    m += '<path d="' + d + '" class="lk" stroke-width="' + core.toFixed(2) + '" opacity="' + op + '"/>';
-    if (networkPulses) {                       // signal pulses — thicker links carry more/faster
+    if (w >= 2) {                                         // faint outer halo lens for stronger links
+      const hw = maxW + 1.6;
+      m += '<path class="lk" data-mw="' + hw.toFixed(2) + '" fill-opacity="' + (0.10 + w * 0.025).toFixed(2) +
+        '" d="' + lensPath(a.x, a.y, b.x, b.y, c, hw) + '"/>';
+    }
+    m += '<path class="lk" data-mw="' + maxW.toFixed(2) + '" fill-opacity="' + fill +
+      '" d="' + lensPath(a.x, a.y, b.x, b.y, c, maxW) + '"/>';
+    for (const t of [0.12, 0.88]) {                       // small bulge inset from each node
+      const p = bezPt(a.x, a.y, c, b.x, b.y, t);
+      m += '<circle class="lk-bulge" data-t="' + t + '" r="' + bulgeR + '" fill-opacity="' + fill +
+        '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '"/>';
+    }
+    if (networkPulses) {                                  // signal pulses — thicker links carry more/faster
       const count = w >= 4 ? 3 : w >= 2 ? 2 : 1;
       const sp = (0.32 + w * 0.05).toFixed(3);
       for (let k = 0; k < count; k++) {
-        m += '<circle r="' + (1.6 + w * 0.3).toFixed(1) + '" class="pulse" cx="' + a.x.toFixed(1) +
-          '" cy="' + a.y.toFixed(1) + '" data-sp="' + sp + '" data-of="' + (k / count).toFixed(3) + '"/>';
+        const p = bezPt(a.x, a.y, c, b.x, b.y, k / count);
+        m += '<circle class="pulse" r="' + (1.5 + w * 0.28).toFixed(1) + '" cx="' + p.x.toFixed(1) +
+          '" cy="' + p.y.toFixed(1) + '" data-sp="' + sp + '" data-of="' + (k / count).toFixed(3) + '"/>';
       }
     }
     return m;
+  }
+
+  /* Re-place an edge's spindle, bulges and pulses for the given live endpoints
+     (used at render time and every drift frame). Re-derives the bowed centreline
+     so the curve, bulges and travelling dots all stay attached to the cards. */
+  function applyEdge(e, ax, ay, bx, by, now) {
+    const c = synapseControl(ax, ay, bx, by, e.bow);
+    for (const p of e.paths) p.el.setAttribute("d", lensPath(ax, ay, bx, by, c, p.mw));
+    for (const bg of e.bulges) {
+      const pt = bezPt(ax, ay, c, bx, by, bg.t);
+      bg.el.setAttribute("cx", pt.x.toFixed(1)); bg.el.setAttribute("cy", pt.y.toFixed(1));
+    }
+    for (const p of e.pulses) {
+      const ph = ((now * p.sp) + p.of) % 1;
+      const pt = bezPt(ax, ay, c, bx, by, ph);
+      p.el.setAttribute("cx", pt.x.toFixed(1)); p.el.setAttribute("cy", pt.y.toFixed(1));
+    }
   }
 
   /* Drift sync loop: each frame, read every live card's CURRENT (drifting)
@@ -5735,13 +5804,7 @@ const UIRenderer = (() => {
     for (const e of netEdges) {
       const a = ctr[e.a], b = ctr[e.b];
       if (!a || !b) continue;
-      const d = "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "L" + b.x.toFixed(1) + " " + b.y.toFixed(1);
-      for (const ln of e.lines) ln.setAttribute("d", d);
-      for (const p of e.pulses) {
-        const ph = ((now * p.sp) + p.of) % 1;
-        p.el.setAttribute("cx", (a.x + (b.x - a.x) * ph).toFixed(1));
-        p.el.setAttribute("cy", (a.y + (b.y - a.y) * ph).toFixed(1));
-      }
+      applyEdge(e, a.x, a.y, b.x, b.y, now);   // spindle + bulges + curved-path pulses
     }
   }
 
