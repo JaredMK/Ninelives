@@ -482,6 +482,16 @@
     flex: none;
   }
 
+  /* Neural glyph icons (Imprints/Pathways/Caches + chrome). Sized in `em` so
+     each container's font-size controls scale; fill:currentColor lets them take
+     the container's colour (suit glyphs carry their own red/ink fill). */
+  .ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; fill: currentColor; flex: none; }
+  .ico.spent { opacity: 0.4; }
+  /* Glyph colour by surface: rose on dark chrome, dark ink on the light cards. */
+  .ti-icon, .ts-icon, .ps-icon, .pks-ic, .pk-ic, .ep-icon, .cph-pill, .ih-title,
+  .inv-chip, .tray-sticker, .pk-head, .pk-sticker { color: var(--accent-2); }
+  .pile-badges .badge { color: var(--card-ink); }
+
   .rank-top, .rank-bottom {
     display: flex;
     flex-direction: column;
@@ -1784,10 +1794,10 @@
     <div class="strip-toggle-row">
       <div class="stat deck-stat" id="deckStat" role="button" tabindex="0"
            title="Tap to inspect the remaining deck · hold for a quick peek">
-        🂠 Deck <b id="deckCount">0</b> <span class="deck-peek-ico">🔍</span>
+        <span class="ico-slot" data-ico="deck"></span> Deck <b id="deckCount">0</b> <span class="deck-peek-ico ico-slot" data-ico="search"></span>
       </div>
       <button class="deck-strip-toggle" id="deckStripToggle" type="button"
-              title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph">📊 Graph</button>
+              title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph"><span class="ico-slot" data-ico="graph"></span> Graph</button>
     </div>
 
     <!-- Always-on deck composition strip: remaining (blue) vs total (grey) per
@@ -1853,7 +1863,7 @@
 
   <!-- Start / End overlay -->
   <div class="overlay" id="overlay">
-    <div class="big" id="overlayIcon">🐱</div>
+    <div class="big" id="overlayIcon"><span class="ico-slot" data-ico="logo"></span></div>
     <h2 id="overlayTitle">Mnesis</h2>
     <p id="overlayMsg">
       Read the network. Each turn, pick a pile and call the next card
@@ -1880,14 +1890,14 @@
     </div>
     <div class="overlay-coins hidden" id="overlayCoins"></div>
     <button class="play-btn" id="playBtn">PLAY</button>
-    <div class="peek-hint hidden" id="peekHint">👁 Hold anywhere to peek the board</div>
+    <div class="peek-hint hidden" id="peekHint"><span class="ico-slot" data-ico="eye"></span> Hold anywhere to peek the board</div>
   </div>
 
   <!-- Store overlay — shown between runs. Limited random offering (4 stickers
        + 2 Pillars) with a reroll; designed to fit one screen with no scroll. -->
   <div class="overlay store hidden" id="storeOverlay">
     <div class="store-coins">
-      <div class="sc-coins">🛒 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
+      <div class="sc-coins"><span class="ico-slot" data-ico="store"></span> <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
       <div class="sc-inv" id="storeInv"></div>
     </div>
     <div class="store-section">Imprints — apply to cards next run</div>
@@ -1896,11 +1906,11 @@
     <div class="store-section">Pathways — pick one, then a column</div>
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
-    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pathway</button>
+    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button"><span class="ico-slot" data-ico="trash"></span> Trash this Pathway</button>
     <div class="store-section">Caches — select, open to reveal, then pick</div>
     <div class="store-tiles" id="storePacks"></div>
     <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a Cache to buy</button>
-    <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
+    <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
   </div>
@@ -1916,7 +1926,7 @@
       <!-- Card-pick aid: open the read-only deck composition (same detailed
            remaining/full breakdown as the deck pill) to inform the pick.
            Hidden for sticker packs; counts only, never draw order. -->
-      <button class="pack-deck-btn hidden" id="packDeckBtn" type="button">🂠 View deck composition</button>
+      <button class="pack-deck-btn hidden" id="packDeckBtn" type="button"><span class="ico-slot" data-ico="deck"></span> View deck composition</button>
       <!-- Finalize the pick(s). Disabled until exactly `keep` items are selected
            (1 for most packs, 2 for the 5-sticker pack). Tapping an item selects
            it; the per-item "?" only opens info, never selects. -->
@@ -1995,7 +2005,7 @@
   <div class="inv-popup hidden" id="invPopup">
     <div class="inv-card">
       <div class="inv-card-head">
-        <span>🎟️ Imprint Stash</span>
+        <span><span class="ico-slot" data-ico="stash"></span> Imprint Stash</span>
         <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
       </div>
       <div class="inv-card-body" id="invBody"></div>
@@ -2025,12 +2035,107 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.68 · theme-sweep";
+const APP_VERSION = "v0.69 · neural-icons";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
    the run-complete / payout summary overlay appears. Tunable. */
 const RUN_SUMMARY_DELAY_MS = 3750;
+
+/* ----------------------------------------------------------------
+   ICON SYSTEM — every player-facing glyph is a monoline neural SVG
+   (no emoji). One viewBox 0..24 sprite of paths; glyph(name) wraps a
+   path set in an <svg class="ico">. Element icons are mapped from their
+   registry id via ELEM_GLYPH and baked onto each type's `icon` field at
+   load. fill:currentColor lets glyphs take their container's colour;
+   suit glyphs carry their own red/ink fill.
+---------------------------------------------------------------- */
+const SUITP = {
+  spade: "M12 3C12 3 4 9 4 14a4 4 0 0 0 7 2l-1 4h4l-1-4a4 4 0 0 0 7-2c0-5-8-11-8-11z",
+  heart: "M12 21C5 16 3 11 6 8c2-2 5.2-1 6 2 .8-3 4-4 6-2 3 3 1 8-6 13z",
+  diamond: "M12 3l7 9-7 9-7-9z",
+  club: "M12 3a3.6 3.6 0 0 1 2.7 6A3.6 3.6 0 1 1 14 15.5l1 5.5H9l1-5.5A3.6 3.6 0 1 1 9.3 9 3.6 3.6 0 0 1 12 3z",
+};
+const SUIT_FILL = { spade: "currentColor", club: "currentColor", heart: "var(--card-red)", diamond: "var(--card-red)" };
+function suitPath(s, scale) {
+  const p = '<path d="' + SUITP[s] + '" fill="' + SUIT_FILL[s] + '"/>';
+  if (!scale) return p;
+  const off = (24 - 24 * scale) / 2;
+  return '<g transform="translate(' + off.toFixed(1) + " " + off.toFixed(1) + ") scale(" + scale + ')">' + p + "</g>";
+}
+const SLASH = '<path d="M5 19L19 5" stroke="var(--bad)" stroke-width="2.4" stroke-linecap="round"/>';
+const CUP = '<path d="M4.5 14a7.5 7.5 0 0 0 15 0" fill="none" stroke="currentColor" stroke-width="2"/>';
+const ENC = '<path d="M12 3v8" stroke="currentColor" stroke-width="2"/><path d="M8 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="16" width="14" height="3" rx="1.5"/>';
+const T = (s, x) => '<text x="' + (x || 12) + '" y="16.5" text-anchor="middle" font-size="12.5" font-weight="800" font-family="Chakra Petch, sans-serif" fill="currentColor">' + s + "</text>";
+const GLYPHS = {
+  dot: '<circle cx="12" cy="12" r="4"/>',
+  // rank editors — crisp SVG numerals
+  rankup: T("+1"), rankdown: T("−1"), rankup2: T("+2"), rankdown2: T("−2"),
+  die: '<rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="15" cy="15" r="1.5"/>',
+  swirl: '<path d="M12 4a8 8 0 1 1-8 8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8a4 4 0 1 0 4 4" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // suits
+  spade: suitPath("spade"), heart: suitPath("heart"), diamond: suitPath("diamond"), club: suitPath("club"),
+  // suit inhibitors (suit + block slash) and receptors (suit + cup)
+  inh_spade: suitPath("spade", 0.7) + SLASH, inh_heart: suitPath("heart", 0.7) + SLASH,
+  inh_diamond: suitPath("diamond", 0.7) + SLASH, inh_club: suitPath("club", 0.7) + SLASH,
+  rcpt_spade: suitPath("spade", 0.62) + CUP, rcpt_heart: suitPath("heart", 0.62) + CUP,
+  rcpt_diamond: suitPath("diamond", 0.62) + CUP, rcpt_club: suitPath("club", 0.62) + CUP,
+  tie: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 10h6M9 13.5h6" stroke="currentColor" stroke-width="2"/>',
+  yield: '<path d="M12 3v8" stroke="currentColor" stroke-width="2"/><path d="M8 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="2.6"/>',
+  focus: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3"/>',
+  spark: '<path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/>',
+  anchor: '<circle cx="12" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.2V20M6 13a6 6 0 0 0 12 0M8.5 10.5h7" fill="none" stroke="currentColor" stroke-width="2"/>',
+  buffer: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4L16 9.5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  encode: ENC,
+  encode2: ENC + '<rect x="5" y="20.5" width="14" height="2.4" rx="1.2"/>',
+  encode_center: ENC + '<circle cx="20" cy="6" r="2"/>',
+  encode8: ENC + T("8", 20).replace('font-size="12.5"', 'font-size="8"').replace('y="16.5"', 'y="8"'),
+  encode_tie: ENC + '<path d="M16 5h6M16 8h6" stroke="currentColor" stroke-width="1.6"/>',
+  streak_encode: ENC + '<path d="M16 5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  lastspark: '<path d="M11 2l1.7 6 6 1.7-6 1.7L11 17l-1.7-5.6L3.7 9.7 9.3 8z"/><circle cx="19" cy="19" r="2" opacity="0.5"/>',
+  dense: '<rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1" fill="var(--panel)"/>',
+  hub: '<g stroke="currentColor" stroke-width="1.6"><path d="M12 9V4.5M12 15v4.5M9 12H4.5M15 12h4.5"/></g><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4.5" r="1.7"/><circle cx="12" cy="19.5" r="1.7"/><circle cx="4.5" cy="12" r="1.7"/><circle cx="19.5" cy="12" r="1.7"/>',
+  potentiation: '<path d="M4 18l5-5 4 3 7-8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8h4v4" fill="none" stroke="currentColor" stroke-width="2"/>',
+  dormant: '<path d="M17 13a5.5 5.5 0 1 1-6-7.6 4.4 4.4 0 0 0 6 7.6z"/>',
+  guardian: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/>',
+  envy: '<path d="M14 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  symmetry: '<path d="M12 4v16" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><path d="M10 7L4 12l6 5zM14 7l6 5-6 5z"/>',
+  streak: '<path d="M5 6l4 6-4 6M11 6l4 6-4 6M17 6l3 6-3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  wind: '<path d="M3 9h12a3 3 0 1 0-3-3M3 14h14a3 3 0 1 1-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  greedy: '<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  cardstack: '<rect x="7" y="3.5" width="11" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="6.5" width="11" height="15" rx="2" fill="var(--panel)" stroke="currentColor" stroke-width="2"/>',
+  cache: '<path d="M12 3l8 4-8 4-8-4z"/><path d="M4 7v10l8 4 8-4V7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v10" stroke="currentColor" stroke-width="2"/>',
+  // chrome
+  logo: '<g stroke="currentColor" stroke-width="1.6"><path d="M6 17V8l6 5 6-5v9"/></g><circle cx="6" cy="8" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="12" cy="13" r="2"/>',
+  win: '<circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2 2M16.4 16.4l2 2M18.4 5.6l-2 2M5.6 18.4l2-2"/></g>',
+  loss: '<circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.5 7.5l9 9" stroke="currentColor" stroke-width="2"/>',
+  complete: '<path d="M12 2l2.6 6.6L21 10l-5 4.4L17.6 21 12 17.3 6.4 21 8 14.4 3 10l6.4-1.4z"/>',
+  store: '<path d="M5 8h14l-1.4 11H6.4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 8a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2"/>',
+  trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  reroll: '<path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 2.5V8h-5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  search: '<circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  graph: '<rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="17" rx="1"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6"/>',
+  stash: '<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8" fill="none" stroke="currentColor" stroke-width="2"/>',
+  menu: '<g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></g>',
+};
+const ELEM_GLYPH = {
+  rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
+  randomFixedValue: "die", changeSuitRandom: "swirl", changeSuitSpade: "spade", changeSuitHeart: "heart",
+  tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
+  extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
+  oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
+  heavy: "dense", collector: "hub", compound: "potentiation", wallflower: "dormant",
+  spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
+  columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
+  sameValueTribute: "encode2", allHeartsCoin: "heart", envy: "envy", symmetry: "symmetry",
+  streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
+  cardPack3: "cardstack", cardPack5: "cardstack", stickerPack3: "cache", stickerPack5: "cache",
+};
+function glyph(name, cls) {
+  const g = GLYPHS[name] || GLYPHS.dot;
+  return '<svg class="ico' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" aria-hidden="true">' + g + "</svg>";
+}
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -2101,6 +2206,8 @@ const StickerTypes = (() => {
     wallflower: { id: "wallflower", label: "Dormant",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
                   description: "At run end, +10 dopamine if you never called on this pile — its starter card still sits untouched on top. Cards buried beneath don't disqualify it; only calling on the pile does." },
   };
+  // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
+  for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
@@ -2245,6 +2352,7 @@ const PillarTypes = (() => {
       description: "At run end, +30 dopamine if every pile in this column is alive AND no other Pathway exists anywhere on the board (any second Pathway disqualifies it).",
     },
   };
+  for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
     "sameValueTribute", "allHeartsCoin",
@@ -2287,6 +2395,7 @@ const PackTypes = (() => {
       description: "Surfaces 5 random Imprints — keep 2, straight to your stash. The rest fade.",
     },
   };
+  for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   const ORDER = ["cardPack3", "cardPack5", "stickerPack3", "stickerPack5"];
   return {
     ids: ORDER,
@@ -4394,7 +4503,7 @@ const UIRenderer = (() => {
     // Extra Heart is dynamic — split into remaining vs broken.
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
     const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
-    let html = chip("❤️", heartsLeft) + chip("💔", heartsBroken);
+    let html = chip(glyph("buffer"), heartsLeft) + chip(glyph("buffer", "spent"), heartsBroken);
     // Every OTHER registered sticker type renders one chip from its registry
     // icon — uniform display, and new types appear automatically.
     for (const t of StickerTypes.all()) {
@@ -4405,7 +4514,7 @@ const UIRenderer = (() => {
     // the player watches it grow — not a plain stack count.
     if (n("compound") > 0) {
       const banked = Math.max(0, (card.compoundHits || 0) - 1);
-      html += '<span class="badge">📈<span class="bcount">' + banked + "</span></span>";
+      html += '<span class="badge">' + glyph("potentiation") + '<span class="bcount">' + banked + "</span></span>";
     }
     badges.innerHTML = html;
   }
@@ -4782,7 +4891,7 @@ const UIRenderer = (() => {
     renderStickerTray();
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
-      ? "Tap a pile to apply " + t.icon + " " + t.label + " to its card."
+      ? "Tap a pile to apply " + t.label + " to its card."
       : "Apply Imprints, then press Start Run.";
   }
 
@@ -4925,7 +5034,7 @@ const UIRenderer = (() => {
       items.forEach(t => {
         const o = document.createElement("option");
         o.value = t.id;
-        o.textContent = t.icon + " " + t.label;
+        o.textContent = t.label;
         sel.appendChild(o);
       });
     };
@@ -5380,7 +5489,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `💔 ${payload.current.label} held on — a Buffer soaked the hit.`;
+        el.hint.textContent = `${payload.current.label} held on — a Buffer soaked the hit.`;
         refreshDebug();
         break;
       }
@@ -5398,7 +5507,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `🪬 ${payload.current.label} held on — the ${payload.drawn.suit} Inhibitor fired.`;
+        el.hint.textContent = `${payload.current.label} held on — the ${payload.drawn.suit} Inhibitor fired.`;
         refreshDebug();
         break;
       }
@@ -5417,7 +5526,7 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = "🌬️ Second Wind — that pile revived with a fresh card!";
+        el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
         break;
       }
@@ -5455,7 +5564,7 @@ const UIRenderer = (() => {
       row("Yield bonus", "", "+" + b.extraCoinBonus) +
       // One row per scoring Pillar that paid out this run (omitted when none).
       (b.pillarLines || []).map(p =>
-        row("🏛️ " + p.label, p.detail || "", "+" + p.amount)).join("") +
+        row(glyph("guardian") + " " + p.label, p.detail || "", "+" + p.amount)).join("") +
       // Live in-run bonus coins, itemized (Middle Reward, Lucky Coin, All Hearts,
       // and any Tribute cost — which shows as a negative).
       (b.eventLines || []).map(p =>
@@ -5468,7 +5577,7 @@ const UIRenderer = (() => {
   function showOverlay(opts) {
     el.overlay.classList.remove("hidden", "win", "lose");
     if (opts.kind) el.overlay.classList.add(opts.kind);
-    el.overlayIcon.textContent = opts.icon;
+    el.overlayIcon.innerHTML = opts.icon;
     el.overlayTitle.textContent = opts.title;
     el.overlayMsg.textContent = opts.msg || "";
 
@@ -5527,7 +5636,7 @@ const UIRenderer = (() => {
 
   function showStartScreen() {
     showOverlay({
-      icon: "🐱",
+      icon: glyph("logo"),
       title: "MNESIS",
       msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
          + " runs each). The deck grows by a suit each stage — but lose a single run "
@@ -5544,7 +5653,7 @@ const UIRenderer = (() => {
   function showRunComplete(coins) {
     showOverlay({
       kind: "win",
-      icon: "🏆",
+      icon: glyph("win"),
       title: "RUN CLEARED",
       msg: "The deck is empty. The run holds.",
       progress: stageRunLabel(" complete"),
@@ -5569,7 +5678,7 @@ const UIRenderer = (() => {
   function showCampaignFailed() {
     showOverlay({
       kind: "lose",
-      icon: "💀",
+      icon: glyph("loss"),
       title: "MIND WIPED",
       msg: "A run slipped away — the mind resets. Start fresh from Stage 1.",
       progress: "Reached " + stageRunShort(),
@@ -5583,7 +5692,7 @@ const UIRenderer = (() => {
   function showCampaignComplete() {
     showOverlay({
       kind: "win",
-      icon: "🎉",
+      icon: glyph("complete"),
       title: "FULLY RECALLED",
       msg: "You held every memory to the end — all " + (campaign.maxStages * campaign.maxRunsPerStage) + " runs cleared.",
       progress: stageRunShort(),
@@ -6484,7 +6593,7 @@ const UIRenderer = (() => {
       return { title, body };
     }
     const t = StickerTypes.get(st.items[i]);
-    return { title: t ? escHtml(t.icon + " " + t.label) : escHtml(String(st.items[i])),
+    return { title: t ? (t.icon + " " + escHtml(t.label)) : escHtml(String(st.items[i])),
              body: t ? escHtml(t.description || "") : "" };
   }
   function togglePackItemInfo(i) {
@@ -6541,7 +6650,7 @@ const UIRenderer = (() => {
     packReplaceState = { pileIndex, dealtId: top.id, trayIndex: armedPack };
     el.packReplaceMsg.innerHTML =
       "Permanently replace <b>" + escHtml(dealtName) + "</b> with <b>" + escHtml(packName) + "</b> in your deck?" +
-      (nSt > 0 ? '<br><span class="warn-stickers">⚠ ' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + " — destroyed forever.</span>" : "");
+      (nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + " — destroyed forever.</span>" : "");
     el.packReplaceConfirm.classList.remove("hidden");
   }
   function closePackReplace() { packReplaceState = null; el.packReplaceConfirm.classList.add("hidden"); }
@@ -6586,7 +6695,7 @@ const UIRenderer = (() => {
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
-    el.rerollBtn.innerHTML = "🎲 Reroll · " + COIN_SVG + cost;
+    el.rerollBtn.innerHTML = glyph("reroll") + " Reroll · " + COIN_SVG + cost;
   }
 
   /* Offered Pillars (2 slots) + the 3 board-column chips (placement/rearrange).
@@ -6624,7 +6733,7 @@ const UIRenderer = (() => {
     el.trashPillarBtn.classList.toggle("hidden", !armedPid);
     if (armedPid) {
       const t = PillarTypes.get(armedPid);
-      el.trashPillarBtn.textContent = "🗑 Trash " + ((t && t.label) || "Pathway");
+      el.trashPillarBtn.innerHTML = glyph("trash") + " Trash " + ((t && t.label) || "Pathway");
     }
   }
 
@@ -6699,7 +6808,7 @@ const UIRenderer = (() => {
     if (armedSlotMove === null) {
       if (campaign.columnPillar(col)) {
         armedSlotMove = col;
-        el.storeMsg.textContent = "Tap another column to swap, 🗑 Trash to remove it, or tap again to cancel.";
+        el.storeMsg.textContent = "Tap another column to swap, Trash to remove it, or tap again to cancel.";
       }
     } else if (armedSlotMove === col) {
       armedSlotMove = null;
@@ -6786,6 +6895,8 @@ const UIRenderer = (() => {
 
   function init() {
     attachInput();
+    // Fill static icon slots from the shared glyph set (no emoji in markup).
+    document.querySelectorAll("[data-ico]").forEach(n => { n.innerHTML = glyph(n.dataset.ico); });
     // Stamp the build badge (and console) so the running version is obvious.
     el.buildTag.textContent = "build " + APP_VERSION;
     if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
