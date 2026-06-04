@@ -445,7 +445,7 @@
       linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
     mask-composite: intersect;
     /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
-    animation: cardBreathe 4.5s ease-in-out var(--bd, 0s) infinite;
+    animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
     transform-origin: 50% 50%;
   }
   @keyframes cardBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
@@ -544,16 +544,11 @@
     .pile.dead .card { animation: none; opacity: 0; }
   }
 
-  /* limiting pile(s): equal to the current smallest alive pile → amber ring/glow
-     (replaces the suit glow), reinforcing the bottleneck the score hinges on. */
-  .pile.limit .card {
-    box-shadow:
-      0 0 0 2px var(--amber),
-      0 0 18px rgba(224, 151, 60, 0.5),
-      0 6px 16px rgba(4, 2, 6, 0.55);
-  }
+  /* Limiting pile(s) during play are shown ONLY by the amber count circle
+     (.pile-count.min) — no ring around the card. (The win cinematic still
+     highlights the limiting node; see .board.win-cine .pile.limit.) */
 
-  /* selected highlight (wins over the limit ring during input) */
+  /* selected highlight */
   .pile.selected .card {
     box-shadow: 0 0 0 3px var(--accent), 0 0 20px rgba(232, 139, 176, 0.45), 0 6px 16px rgba(4, 2, 6, 0.55);
   }
@@ -1895,7 +1890,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.57 · neural-cards";
+const APP_VERSION = "v0.58 · neural-cards2";
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -4159,8 +4154,8 @@ const UIRenderer = (() => {
       pile.style.setProperty("--dx" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
       pile.style.setProperty("--dy" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
     }
-    pile.style.setProperty("--drift-dur", rnd(6.5, 11).toFixed(1) + "s");
-    pile.style.setProperty("--drift-delay", (-rnd(0, 11)).toFixed(1) + "s");
+    pile.style.setProperty("--drift-dur", rnd(13, 22).toFixed(1) + "s");   // ~50% slower
+    pile.style.setProperty("--drift-delay", (-rnd(0, 22)).toFixed(1) + "s");
 
     const card = document.createElement("div");
     card.className = "card";
