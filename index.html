@@ -785,6 +785,8 @@
     color: var(--muted); margin-top: 3px; }
   /* Manual */
   .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
+  .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
+    border-left: 2px solid var(--accent); padding-left: 10px; }
   .manual-body h4 {
     font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
     color: var(--accent-2); margin: 14px 0 4px;
@@ -1877,15 +1879,15 @@
   </header>
 
   <div class="hud">
-    <div class="stat factors" title="Alive piles × cards in the smallest alive pile — your payout factors">
+    <div class="stat factors" title="Active neurons × the weakest neuron's encoding — your dopamine factors">
       <div class="factor">
         <b id="aliveCount">9</b>
-        <span class="factor-lbl">piles</span>
+        <span class="factor-lbl">neurons</span>
       </div>
       <span class="factor-x">×</span>
       <div class="factor">
         <b id="minPileCount" class="min-accent">1</b>
-        <span class="factor-lbl">smallest</span>
+        <span class="factor-lbl">weakest</span>
       </div>
       <span class="factor-x factor-plus">+</span>
       <div class="factor" title="Bonus dopamine earned (or spent) so far this run">
@@ -1900,7 +1902,7 @@
 
     <!-- Move-feedback line: removed from the layout (kept hidden so existing JS
          can still write to it without consuming vertical space). -->
-    <div class="hint" id="hint" aria-hidden="true">Tap a pile to begin.</div>
+    <div class="hint" id="hint" aria-hidden="true">Tap a neuron to begin.</div>
 
     <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
     <div class="sticker-tray hidden" id="stickerTray"></div>
@@ -2002,9 +2004,10 @@
     <div class="big" id="overlayIcon"><span class="ico-slot" data-ico="logo"></span></div>
     <h2 id="overlayTitle">Mnesis</h2>
     <p id="overlayMsg">
-      Read the network. Each turn, pick a pile and call the next card
-      higher, lower, or the same. Miss — or tie a higher/lower call — and
-      that pile goes dark. Empty the deck to clear the run.
+      Encode memories onto your neurons. Pick a neuron and encode the next
+      memory — higher, lower, or the same. Encode right and the neuron
+      strengthens; mis-encode (a tie counts as a miss) and the neuron dies.
+      Encode the whole deck to clear the run.
     </p>
     <div class="run-progress hidden" id="runProgress">Run 1 of 3</div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
@@ -2012,7 +2015,7 @@
       <div class="summary-tiles">
         <div class="run-stat">
           <div class="run-stat-value" id="endCards">0</div>
-          <div class="run-stat-label">Cards Flipped</div>
+          <div class="run-stat-label">Memories Encoded</div>
         </div>
         <div class="run-stat">
           <div class="run-stat-value" id="endCoins">0</div>
@@ -2020,7 +2023,7 @@
         </div>
       </div>
       <div class="end-pillars">
-        <div class="summary-label">Ending Pillars</div>
+        <div class="summary-label">Ending Pathways</div>
         <div class="ep-cols" id="endPillars"></div>
       </div>
     </div>
@@ -2039,16 +2042,16 @@
     <!-- Auto-description: shows the selected item's name + effect (registry
          source), so the player always sees what they're buying without scrolling. -->
     <div class="store-desc" id="storeDesc"></div>
-    <div class="store-section">Imprints — apply to cards next run</div>
+    <div class="store-section">Imprints — change how a memory encodes</div>
     <div class="store-tiles" id="storeItems"></div>
     <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select an Imprint to buy</button>
-    <div class="store-section">Pathways — pick one, then a column</div>
+    <div class="store-section">Pathways — bind one across a column of neurons</div>
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
     <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button"><span class="ico-slot" data-ico="trash"></span> Trash this Pathway</button>
-    <div class="store-section">Caches — select, open to reveal, then pick</div>
+    <div class="store-section">Memory Swaps &amp; Imprint Packs — open, then pick</div>
     <div class="store-tiles" id="storePacks"></div>
-    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a Cache to buy</button>
+    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a Swap or Pack to buy</button>
     <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
@@ -2065,7 +2068,7 @@
       <!-- Card-pick aid: open the read-only deck composition (same detailed
            remaining/full breakdown as the deck pill) to inform the pick.
            Hidden for sticker packs; counts only, never draw order. -->
-      <button class="pack-deck-btn hidden" id="packDeckBtn" type="button"><span class="ico-slot" data-ico="deck"></span> View deck composition</button>
+      <button class="pack-deck-btn hidden" id="packDeckBtn" type="button"><span class="ico-slot" data-ico="deck"></span> View memories in play</button>
       <!-- Finalize the pick(s). Disabled until exactly `keep` items are selected
            (1 for most packs, 2 for the 5-sticker pack). Tapping an item selects
            it; the per-item "?" only opens info, never selects. -->
@@ -2117,7 +2120,7 @@
   <div class="deck-modal hidden" id="deckModal">
     <div class="deck-modal-panel">
       <div class="deck-modal-head">
-        <span>Deck Composition</span>
+        <span>Memories in the Deck</span>
         <button class="deck-modal-close" id="deckModalClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="deck-modal-total" id="deckModalTotal">—</div>
@@ -2214,7 +2217,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.75 · consistency-sweep";
+const APP_VERSION = "v0.76 · fiction-vocabulary";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2333,57 +2336,57 @@ const StickerTypes = (() => {
   // weight how often a type is OFFERED (see TIER_WEIGHTS); price is independent.
   const TYPES = {
     rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, tier: "common", price: 3,
-                  description: "Permanently raise this card's rank by 1. Stops at an Ace." },
+                  description: "Permanently raise this memory's rank by 1. Stops at an Ace." },
     rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common", price: 3,
-                  description: "Permanently lower this card's rank by 1. Stops at a 2." },
+                  description: "Permanently lower this memory's rank by 1. Stops at a 2." },
     rankUp2:    { id: "rankUp2",    label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: +2, tier: "uncommon", price: 4,
-                  description: "Permanently raise this card's rank by 2, stopping at an Ace (a +2 on a King lands on Ace)." },
+                  description: "Permanently raise this memory's rank by 2, stopping at an Ace (a +2 on a King lands on Ace)." },
     rankDown2:  { id: "rankDown2",  label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 4,
-                  description: "Permanently lower this card's rank by 2, stopping at a 2 (a −2 on a 3 lands on 2)." },
+                  description: "Permanently lower this memory's rank by 2, stopping at a 2 (a −2 on a 3 lands on 2)." },
     randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
-                  description: "Permanently set this card to a random rank, 2 through Ace. The suit stays — one roll, no take-backs." },
+                  description: "Permanently set this memory to a random rank, 2 through Ace. The suit stays — one roll, no take-backs." },
     changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
-                  description: "Permanently change this card's suit to a random different one. The rank stays." },
+                  description: "Permanently change this memory's suit to a random different one. The rank stays." },
     changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
-                  description: "Permanently turn this card into a ♠. The rank stays — feeds the Spade Receptor." },
+                  description: "Permanently turn this memory into a ♠. The rank stays — feeds the Spade Receptor." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
-                  description: "Permanently turn this card into a ♥. The rank stays — feeds the Heart Receptor." },
+                  description: "Permanently turn this memory into a ♥. The rank stays — feeds the Heart Receptor." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
-                  description: "If a drawn card ties this card's rank, the pile survives on any call instead of dying." },
+                  description: "If a drawn memory ties this memory's rank, the neuron survives any encode instead of dying." },
     suitImmunity: { id: "suitImmunity", label: "Spade Inhibitor", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "Once a run, while this card is on top: a drawn ♠ is shrugged off — the pile survives a wrong call and the ♠ is reshuffled back in." },
+                  description: "Once a run, while this memory is active: a drawn ♠ is shrugged off — the neuron survives a mis-encode and the ♠ is reshuffled back in." },
     heartGuard: { id: "heartGuard", label: "Heart Inhibitor", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "Once a run, while this card is on top: a drawn ♥ is shrugged off — the pile survives a wrong call and the ♥ is reshuffled back in." },
+                  description: "Once a run, while this memory is active: a drawn ♥ is shrugged off — the neuron survives a mis-encode and the ♥ is reshuffled back in." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Inhibitor", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "Once a run, while this card is on top: a drawn ♦ is shrugged off — the pile survives a wrong call and the ♦ is reshuffled back in." },
+                  description: "Once a run, while this memory is active: a drawn ♦ is shrugged off — the neuron survives a mis-encode and the ♦ is reshuffled back in." },
     clubGuard: { id: "clubGuard", label: "Club Inhibitor", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "Once a run, while this card is on top: a drawn ♣ is shrugged off — the pile survives a wrong call and the ♣ is reshuffled back in." },
+                  description: "Once a run, while this memory is active: a drawn ♣ is shrugged off — the neuron survives a mis-encode and the ♣ is reshuffled back in." },
     extraCoin:  { id: "extraCoin",  label: "Yield",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
-                  description: "On a win, while this card tops its pile, it pays dopamine equal to the pile's card count." },
+                  description: "While this memory is active on its neuron, clearing the run pays dopamine equal to the neuron's memory count." },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
-                  description: "Land this card on a surviving pile in the middle column (a correct call) and gain 2 dopamine on the spot." },
+                  description: "Encode this memory onto a surviving neuron in the middle column and gain 2 dopamine on the spot." },
     gainCoin:   { id: "gainCoin",   label: "Spark",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
-                  description: "Land this card on a surviving pile and gain 1 dopamine on the spot." },
+                  description: "Encode this memory onto a surviving neuron and gain 1 dopamine on the spot." },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "uncommon", price: 4,
-                  description: "While this card tops its pile, that pile is left out of the smallest-pile payout factor — a tiny pile can't drag your dopamine down." },
+                  description: "While this memory is active on its neuron, that neuron is left out of the weakest-neuron payout factor — a tiny neuron can't drag your dopamine down." },
     extraHeart: { id: "extraHeart", label: "Buffer", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
-                  description: "Soaks up one wrong call on this card: the pile survives and the drawn card is reshuffled back in. Refreshes each run." },
+                  description: "Soaks up one mis-encode on this memory: the neuron survives and the drawn memory is reshuffled back in. Refreshes each run." },
     oneTribute: { id: "oneTribute", label: "Encode I",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 6,
-                  description: "Land this card on a surviving pile to bury 1 card from the deck beneath it (hidden) and pay 1 dopamine." },
+                  description: "Encode this memory onto a surviving neuron to bury 1 memory from the deck beneath it (hidden) and pay 1 dopamine." },
     twoTribute: { id: "twoTribute", label: "Encode II",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
-                  description: "Land this card on a surviving pile to bury 2 cards from the deck beneath it (hidden) and pay 4 dopamine." },
+                  description: "Encode this memory onto a surviving neuron to bury 2 memories from the deck beneath it (hidden) and pay 4 dopamine." },
     centerTribute: { id: "centerTribute", label: "Center Encode", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
-                  description: "When a card lands on a surviving pile in the middle column, bury 1 deck-bottom card beneath it (hidden). No cost." },
+                  description: "When a memory encodes onto a surviving neuron in the middle column, bury 1 memory from the bottom of the deck beneath it (hidden). No cost." },
     deathBounty: { id: "deathBounty", label: "Last Spark", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
-                  description: "If this card's wrong call kills the pile, you still pocket 2 dopamine — a parting payout." },
+                  description: "If mis-encoding this memory kills the neuron, you still pocket 2 dopamine — a parting spark." },
     heavy:      { id: "heavy",      label: "Dense",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
-                  description: "This card counts as 2 toward pile size everywhere — the alive × smallest factor, Yield payouts, and the count badge — even when buried." },
+                  description: "This memory counts as 2 toward neuron strength everywhere — the active × weakest factor, Yield payouts, and the count badge — even when buried." },
     collector:  { id: "collector",  label: "Hub",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
-                  description: "Land this card on a surviving pile and gain 1 dopamine for every other Imprint on it (it doesn't count itself)." },
+                  description: "Encode this memory onto a surviving neuron and gain 1 dopamine for every other Imprint on it (it doesn't count itself)." },
     compound:   { id: "compound",   label: "Potentiation",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Strengthens across the whole campaign: +1 for every correct call on this card after the first. At run end, if it's alive on top, it pays that banked total. A campaign loss resets it." },
+                  description: "Strengthens across the whole campaign: +1 for every correct encode onto this memory after the first. At run end, if it's still active on top, it pays that banked total. A mind-wipe resets it." },
     wallflower: { id: "wallflower", label: "Dormant",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
-                  description: "At run end, +10 dopamine if you never called on this pile — its starter card still sits untouched on top. Cards buried beneath don't disqualify it; only calling on the pile does." },
+                  description: "At run end, +10 dopamine if you never encoded onto this neuron — its starter memory still sits untouched on top. Memories buried beneath don't disqualify it; only encoding on the neuron does." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -2428,32 +2431,32 @@ const PillarTypes = (() => {
     spadeBounty: {
       id: "spadeBounty", label: "Spade Receptor", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
-      description: "+1 dopamine each time a ♠ lands on a surviving pile in this column (a correct call placing it on top).",
+      description: "+1 dopamine each time a ♠ encodes onto a surviving neuron in this column (a correct encode placing it on top).",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Receptor", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
-      description: "+1 dopamine each time a ♥ lands on a surviving pile in this column (a correct call placing it on top).",
+      description: "+1 dopamine each time a ♥ encodes onto a surviving neuron in this column (a correct encode placing it on top).",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Receptor", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
-      description: "+1 dopamine each time a ♦ lands on a surviving pile in this column (a correct call placing it on top).",
+      description: "+1 dopamine each time a ♦ encodes onto a surviving neuron in this column (a correct encode placing it on top).",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Receptor", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
-      description: "+1 dopamine each time a ♣ lands on a surviving pile in this column (a correct call placing it on top).",
+      description: "+1 dopamine each time a ♣ encodes onto a surviving neuron in this column (a correct encode placing it on top).",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
       kind: "guess", effect: "columnTieSafe", tier: "rare", price: 12,
-      description: "Every pile in this column survives a tie on any call — a column-wide Tie-Safe.",
+      description: "Every neuron in this column survives a tie on any encode — a column-wide Tie-Safe.",
     },
     columnGuardian: {
       id: "columnGuardian", label: "Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 5,
-      description: "At run end, +5 dopamine if every pile in this column survived.",
+      description: "At run end, +5 dopamine if every neuron in this column survived.",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
@@ -2461,7 +2464,7 @@ const PillarTypes = (() => {
       // (bounded only by the draw deck). Pure composition shift — no reveal.
       id: "eightTribute", label: "8 Encode", icon: "8️⃣",
       kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
-      description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried beneath that pile (hidden). Every time.",
+      description: "When a drawn 8 encodes onto a surviving neuron in this column, a memory from the bottom of the deck is buried beneath it (hidden). Every time.",
     },
     sameTribute: {
       // When a pile in this column SURVIVES A TIE — a correctly-called Same
@@ -2469,13 +2472,13 @@ const PillarTypes = (() => {
       // BOTTOM card under that pile (hidden). Uncapped; same no-reveal guardrail.
       id: "sameTribute", label: "Tie Encode", icon: "⚖️",
       kind: "composition", effect: "sameTribute", tier: "rare", price: 15,
-      description: "When a pile in this column survives a tie — a correct Same call, or a tie saved by Tie-Safe — a card from the bottom of the deck is buried beneath that pile (hidden). Every time.",
+      description: "When a neuron in this column survives a tie — a correct Same encode, or a tie saved by Tie-Safe — a memory from the bottom of the deck is buried beneath it (hidden). Every time.",
     },
     sameValueTribute: {
       // Like Same Tribute, but buries TWO cards on a survived tie. Uncapped.
       id: "sameValueTribute", label: "Double Encode", icon: "🏺",
       kind: "composition", effect: "sameValueTribute", tributeCount: 2, tier: "rare", price: 22,
-      description: "When a pile in this column survives a tie — a correct Same call, or a tie saved by Tie-Safe — two cards from the bottom of the deck are buried beneath that pile (hidden). Every time.",
+      description: "When a neuron in this column survives a tie — a correct Same encode, or a tie saved by Tie-Safe — two memories from the bottom of the deck are buried beneath it (hidden). Every time.",
     },
     allHeartsCoin: {
       // Live, column-scoped bonus: after any resolution, if every alive pile in
@@ -2483,21 +2486,21 @@ const PillarTypes = (() => {
       // uncapped. (Engine evaluates it per-column — see maybeAllHearts.)
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
       kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
-      description: "After any call resolves, if every alive pile in this column shows a ♥ on top, gain 5 dopamine. Checked every time, uncapped.",
+      description: "After any encode resolves, if every active neuron in this column shows a ♥ on top, gain 5 dopamine. Checked every time, uncapped.",
     },
     envy: {
       // End-of-run: +1 per alive pile in the column to the LEFT (wraparound:
       // left-of-leftmost = rightmost). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "envyLeft", tier: "uncommon", price: 6,
-      description: "At run end, +1 dopamine for each alive pile in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
+      description: "At run end, +1 dopamine for each active neuron in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
       // column's (wraparound: right-of-rightmost = leftmost).
       id: "symmetry", label: "Symmetry", icon: "🪞",
       kind: "scoring", effect: "symmetryRight", value: 6, tier: "rare", price: 7,
-      description: "At run end, +6 dopamine if this column has the same number of alive piles as the column to its RIGHT (the rightmost column wraps to the leftmost).",
+      description: "At run end, +6 dopamine if this column has the same number of active neurons as the column to its RIGHT (the rightmost column wraps to the leftmost).",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -2505,14 +2508,14 @@ const PillarTypes = (() => {
       // guess in another column — resets the streak. Paid via addBonus.
       id: "streakBank", label: "Streak Bank", icon: "🏦",
       kind: "live", effect: "streakBank", value: 1, tier: "rare", price: 8,
-      description: "Consecutive correct calls on piles in this column pay +1 dopamine each, from the 3rd in a row onward. The streak resets on a wrong call in this column, or any call in another column.",
+      description: "Consecutive correct encodes on neurons in this column pay +1 dopamine each, from the 3rd in a row onward. The streak resets on a mis-encode in this column, or any encode in another column.",
     },
     streakTribute: {
       // Composition: from the 4th consecutive correct guess in this column
       // onward, bury a deck-bottom card under the pile. Uncapped, no reveal.
       id: "streakTribute", label: "Streak Encode", icon: "🔥",
       kind: "composition", effect: "streakTribute", tier: "rare", price: 10,
-      description: "From the 4th consecutive correct call in this column onward, a card from the bottom of the deck is buried beneath that pile (hidden). The streak resets on a wrong call in this column, or any call in another column.",
+      description: "From the 4th consecutive correct encode in this column onward, a memory from the bottom of the deck is buried beneath that neuron (hidden). The streak resets on a mis-encode in this column, or any encode in another column.",
     },
     secondWind: {
       // Guess-time: the FIRST pile to die in this column each run revives once
@@ -2520,7 +2523,7 @@ const PillarTypes = (() => {
       // reshuffled into the deck with no reveal, stickers intact.
       id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 7,
-      description: "The first pile to die in this column each run revives once with one new card on top. Its previous cards are shuffled back into the deck (hidden), and the revived 1-card pile counts as alive — which can lower your smallest-pile factor.",
+      description: "The first neuron to die in this column each run revives once with one fresh memory on top. Its previous memories are shuffled back into the deck (hidden), and the revived 1-memory neuron counts as active — which can lower your weakest-neuron factor.",
     },
     greedy: {
       // End-of-run: +value if every pile in this column is alive AND this is the
@@ -2528,7 +2531,7 @@ const PillarTypes = (() => {
       // — disqualifies it).
       id: "greedy", label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 30, tier: "rare", price: 10,
-      description: "At run end, +30 dopamine if every pile in this column is alive AND no other Pathway exists anywhere on the board (any second Pathway disqualifies it).",
+      description: "At run end, +30 dopamine if every neuron in this column is active AND no other Pathway exists anywhere on the network (any second Pathway disqualifies it).",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -2554,22 +2557,22 @@ const PillarTypes = (() => {
 const PackTypes = (() => {
   const TYPES = {
     cardPack3: {
-      id: "cardPack3", label: "Memory Cache · 3", icon: "🎴", kind: "card",
+      id: "cardPack3", label: "Memory Swap · 3", icon: "🎴", kind: "card",
       size: 3, keep: 1, price: 10,
-      description: "Surfaces 3 random cards — keep 1 in your cache tray to swap in for a dealt card before a run. The rest fade.",
+      description: "Surfaces 3 random memories — keep 1 to swap into your deck before a run, replacing a memory of your choice. The rest fade.",
     },
     cardPack5: {
-      id: "cardPack5", label: "Memory Cache · 5", icon: "🎴", kind: "card",
+      id: "cardPack5", label: "Memory Swap · 5", icon: "🎴", kind: "card",
       size: 5, keep: 1, price: 15,
-      description: "Surfaces 5 random cards — keep 1 in your cache tray to swap in for a dealt card before a run. The rest fade.",
+      description: "Surfaces 5 random memories — keep 1 to swap into your deck before a run, replacing a memory of your choice. The rest fade.",
     },
     stickerPack3: {
-      id: "stickerPack3", label: "Imprint Cache · 3", icon: "📦", kind: "sticker",
+      id: "stickerPack3", label: "Imprint Pack · 3", icon: "📦", kind: "sticker",
       size: 3, keep: 1, price: 3,
       description: "Surfaces 3 random Imprints — keep 1, straight to your stash. The rest fade.",
     },
     stickerPack5: {
-      id: "stickerPack5", label: "Imprint Cache · 5", icon: "📦", kind: "sticker",
+      id: "stickerPack5", label: "Imprint Pack · 5", icon: "📦", kind: "sticker",
       size: 5, keep: 2, price: 5,
       description: "Surfaces 5 random Imprints — keep 2, straight to your stash. The rest fade.",
     },
@@ -3279,7 +3282,7 @@ const GameEngine = (() => {
       const bound = (run.pillars || [])
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
-      logAction("Start Run", bound.length ? ["Pillars: " + bound.join(", ")] : ["No Pillars bound"]);
+      logAction("Start Run", bound.length ? ["Pathways: " + bound.join(", ")] : ["No Pathways bound"]);
       emit("run-started", { board, deck, run });
     }
 
@@ -4477,7 +4480,7 @@ const DeckInspector = (() => {
     scrubbing = false;
     if (refs.scrub) { refs.scrub.classList.add("hidden"); refs.scrub.innerHTML = ""; }
     refs.modalTotal.textContent =
-      remCount + " of " + cards.length + " cards in play · faded = already drawn";
+      remCount + " of " + cards.length + " memories in play · faded = already encoded";
     refs.breakdown.innerHTML = '<div class="deck-cards">' +
       cards.map(c => '<div class="deck-card' + (isRem(c) ? "" : " drawn") + '">' + renderCard(c) + "</div>").join("") +
       "</div>";
@@ -4486,7 +4489,7 @@ const DeckInspector = (() => {
   /* Hold view: lightweight remaining-only breakdown (unchanged). */
   function renderQuick(stats) {
     const rem = stats.remaining || EMPTY;
-    refs.quickTotal.textContent = rem.total + " cards left";
+    refs.quickTotal.textContent = rem.total + " memories left";
     refs.quickGrid.innerHTML = "";
     rem.rows.forEach(row => {
       if (row.count === 0) return;          // compact: only ranks still present
@@ -4978,7 +4981,7 @@ const UIRenderer = (() => {
     if (!card) return '<div class="pk-empty">No card here.</div>';
     const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
     const stickers = card.stickers || [];
-    if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
+    if (!stickers.length) return head + '<div class="pk-empty">No Imprints on this memory.</div>';
     const counts = {};
     stickers.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
     let body = "";
@@ -5001,9 +5004,9 @@ const UIRenderer = (() => {
   function pillarPeekHtml(col) {
     const binding = campaign ? campaign.getColumnPillars() : [];
     const pid = binding[col];
-    if (!pid) return '<div class="pk-head">Column ' + (col + 1) + '</div><div class="pk-empty">No Pillar on this column.</div>';
+    if (!pid) return '<div class="pk-head">Column ' + (col + 1) + '</div><div class="pk-empty">No Pathway on this column.</div>';
     const t = PillarTypes.get(pid);
-    if (!t) return '<div class="pk-empty">Unknown Pillar.</div>';
+    if (!t) return '<div class="pk-empty">Unknown Pathway.</div>';
     return '<div class="pk-head">' + t.icon + " " + escHtml(t.label) + "</div>" +
       '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
       '<div class="pk-state">Applies to column ' + (col + 1) + "</div>";
@@ -5079,7 +5082,7 @@ const UIRenderer = (() => {
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     el.hint.textContent = hasStickers
       ? "Apply Imprints, then press Start Run."
-      : "Read the board, then press Start Run.";
+      : "Read the network, then press Start Run.";
   }
 
   function showActivePhase() {
@@ -5088,7 +5091,7 @@ const UIRenderer = (() => {
     renderPackTray();                         // window closed -> pack tray hides itself
     renderRedealBtn();                        // window closed -> redeal hides itself
     if (armedSticker || armedPack != null) { armedSticker = null; armedPack = null; el.board.classList.remove("arming"); }
-    el.hint.textContent = "Tap a pile, then choose Higher, Same, or Lower.";
+    el.hint.textContent = "Tap a neuron, then encode: Higher, Same, or Lower.";
     if (pileEls.length) fitBoard();           // reclaim the Start Run row's space
   }
 
@@ -5189,7 +5192,7 @@ const UIRenderer = (() => {
     renderStickerTray();
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
-      ? "Tap a pile to apply " + t.label + " to its card."
+      ? "Tap a neuron to apply " + t.label + " to its memory."
       : "Apply Imprints, then press Start Run.";
   }
 
@@ -5772,8 +5775,8 @@ const UIRenderer = (() => {
         clearSelection();
         renderStickerTray();
         el.hint.textContent = payload.correct
-          ? `${payload.drawn.label} — safe! ${payload.board.aliveCount()} piles alive.`
-          : `${payload.drawn.label} — that pile is dead.`;
+          ? `${payload.drawn.label} encoded — ${payload.board.aliveCount()} neurons alive.`
+          : `${payload.drawn.label} mis-encoded — the neuron died.`;
         refreshDebug();
         break;
       }
@@ -5830,7 +5833,7 @@ const UIRenderer = (() => {
         clearSelection();
         renderStickerTray();
         Sound.good();
-        el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
+        el.hint.textContent = "Second Wind — that neuron revived with a fresh memory!";
         refreshDebug();
         break;
       }
@@ -5862,9 +5865,9 @@ const UIRenderer = (() => {
       "</div>";
     return (
       '<div class="ocoins-head">' + COIN_SVG + ' Dopamine earned</div>' +
-      row("Alive piles", "", b.alivePiles) +
-      row("Smallest alive pile", "", b.minPileCards + " cards") +
-      row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
+      row("Active neurons", "", b.alivePiles) +
+      row("Weakest neuron", "encoded " + b.minPileCards, "") +
+      row("Network reward", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
       row("Yield bonus", "", "+" + b.extraCoinBonus) +
       // One row per scoring Pillar that paid out this run (omitted when none).
       (b.pillarLines || []).map(p =>
@@ -5951,7 +5954,7 @@ const UIRenderer = (() => {
       title: "MNESIS",
       msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
          + " runs each). The deck grows by a suit each stage — but lose a single run "
-         + "and the whole mind wipes. Empty the deck to clear a run.",
+         + "and the whole mind wipes. Encode every memory to clear a run.",
       progress: "Stage 1 of " + campaign.maxStages + " · Run 1 of " + campaign.maxRunsPerStage,
       btnLabel: "START CAMPAIGN",
       action: startCampaign,
@@ -5967,7 +5970,7 @@ const UIRenderer = (() => {
       kind: "win",
       icon: glyph("win"),
       title: "RUN CLEARED",
-      msg: "The deck is empty. The run holds.",
+      msg: "Every memory encoded. The network holds.",
       progress: stageRunLabel(" complete"),
       coins,
       peek: true,
@@ -6692,7 +6695,7 @@ const UIRenderer = (() => {
   function inventoryHtml(emptyLabel) {
     const inv = campaign ? campaign.getInventory() : {};
     const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
-    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "No stickers yet") + "</span>";
+    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "No Imprints yet") + "</span>";
     return owned.map(t =>
       '<span class="inv-chip">' + t.icon + ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
     ).join("");
@@ -6734,7 +6737,7 @@ const UIRenderer = (() => {
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: t.description } : null;
   }
   /* Store auto-description: reflects the current selection (Imprint / Pathway /
-     Cache) automatically — pick a tile and its effect shows here, no scrolling. */
+     Memory Swap) automatically — pick a tile and its effect shows, no scrolling. */
   function renderStoreDesc() {
     if (!el.storeDesc) return;
     const offer = campaign.getStoreOffer();
@@ -6803,7 +6806,7 @@ const UIRenderer = (() => {
     const t = id ? PackTypes.get(id) : null;
     if (!t) {
       el.buyPackBtn.disabled = true;
-      el.buyPackBtn.textContent = "Select a Cache to buy";
+      el.buyPackBtn.textContent = "Select a Swap or Pack to buy";
       return;
     }
     const price = campaign.priceOfPack(id);
@@ -6822,7 +6825,7 @@ const UIRenderer = (() => {
     armedPillarSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedPackSlot != null
-      ? "Tap Buy to open this Cache, or tap it again to deselect."
+      ? "Tap Buy to open it, or tap it again to deselect."
       : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
@@ -6872,10 +6875,10 @@ const UIRenderer = (() => {
     if (st.kind === "card" && st.mode === "discard") {
       // Forced discard step (tray at cap): pick one held card to drop. No
       // multi-select / Confirm here — it's a single immediate choice.
-      el.packTitle.textContent = "Cache tray full (" + campaign.packTrayCap + ")";
+      el.packTitle.textContent = "Swap tray full (" + campaign.packTrayCap + ")";
       el.packItems.innerHTML = campaign.getPackTray().map((c, i) =>
         packItemButton(miniCardHtml(c), "data-held", i, false, false)).join("");
-      el.packMsg.textContent = "Tap a held card to discard — your new pick is then kept.";
+      el.packMsg.textContent = "Tap a held memory to discard — your new pick is then kept.";
       el.packConfirmBtn.classList.add("hidden");
       return;
     }
@@ -6887,7 +6890,7 @@ const UIRenderer = (() => {
             '<span class="pks-name">' + escHtml(t ? t.label : st.items[i]) + "</span></div>"; })();
     el.packItems.innerHTML = st.items.map((_, i) =>
       packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1, true)).join("");
-    const noun = st.kind === "card" ? "card" : "Imprint";
+    const noun = st.kind === "card" ? "memory" : "Imprint";
     el.packTitle.textContent = "Pick " + st.keep + " " + noun + (st.keep > 1 ? "s" : "") + " to keep";
     el.packMsg.textContent = "Selected " + st.chosen.length + " / " + st.keep + " — the rest are discarded.";
     el.packConfirmBtn.disabled = st.chosen.length !== st.keep;
@@ -6939,7 +6942,7 @@ const UIRenderer = (() => {
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];
       const body = stk.length === 0
-        ? "A plain card — no Imprints."
+        ? "A plain memory — no Imprints."
         : stk.map(s => { const t = StickerTypes.get(s.type);
             return t ? ("<b>" + t.icon + " " + escHtml(t.label) + "</b> — " + escHtml(t.description || "")) : ""; })
             .filter(Boolean).join("<br><br>");
@@ -6977,7 +6980,7 @@ const UIRenderer = (() => {
       b.type = "button";
       b.className = "pt-card" + (armedPack === i ? " armed" : "");
       b.dataset.tray = i;
-      b.innerHTML = miniCardHtml(c) + '<div class="pt-label">replace</div>';
+      b.innerHTML = miniCardHtml(c) + '<div class="pt-label">swap</div>';
       el.packTrayEl.appendChild(b);
     });
     if (pileEls.length) fitBoard();
@@ -7002,8 +7005,8 @@ const UIRenderer = (() => {
     const nSt = (top.stickers || []).length;
     packReplaceState = { pileIndex, dealtId: top.id, trayIndex: armedPack };
     el.packReplaceMsg.innerHTML =
-      "Permanently replace <b>" + escHtml(dealtName) + "</b> with <b>" + escHtml(packName) + "</b> in your deck?" +
-      (nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + " — destroyed forever.</span>" : "");
+      "Permanently swap <b>" + escHtml(dealtName) + "</b> for <b>" + escHtml(packName) + "</b> in your deck?" +
+      (nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " Imprint" + (nSt > 1 ? "s" : "") + " — destroyed forever.</span>" : "");
     el.packReplaceConfirm.classList.remove("hidden");
   }
   function closePackReplace() { packReplaceState = null; el.packReplaceConfirm.classList.add("hidden"); }
@@ -7329,7 +7332,7 @@ const UIRenderer = (() => {
       [wr + "%", "Win rate"], [far, "Furthest reached"],
       [s.runsCleared, "Runs cleared"], [s.bestRunDopamine, "Best run"],
       [s.bestCampaignDopamine, "Best campaign"], [s.lifetimeDopamine, "Lifetime dopamine"],
-      [s.lifetimeCardsFlipped, "Cards flipped"],
+      [s.lifetimeCardsFlipped, "Memories encoded"],
     ];
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
@@ -7341,25 +7344,31 @@ const UIRenderer = (() => {
   function showManual() {
     const mi = (ico, name) => '<span class="mi">' + glyph(ico) + name + "</span>";
     el.manualBody.innerHTML =
-      "<h4>The goal</h4><p>Each <b>run</b>, empty the deck to clear it. Clear every run of a " +
-        "stage to advance; clear all stages to win the campaign. But lose a single run and the " +
-        "whole mind wipes — back to Stage 1.</p>" +
-      "<h4>A turn</h4><p>Tap a pile, then call the next card <b>Higher</b>, <b>Same</b>, or " +
-        "<b>Lower</b> than the card on top. Right, and the drawn card lands on the pile (it grows). " +
-        "Wrong — or a tie on a Higher/Lower call — and that pile goes dark. Aces are high; suits " +
-        "don't affect the call.</p>" +
-      "<h4>The network</h4><p>Living pile is a node; lines are the synapses between neighbours. A " +
-        "link's weight follows the <b>smaller</b> of its two piles, so thin links mark your weak " +
-        "points. When a pile dies its links dissolve and the survivors reconnect across the gap.</p>" +
-      "<h4>Dopamine</h4><p>Clear a run and you earn dopamine: <b>alive piles × the smallest alive " +
-        "pile</b>, plus any bonuses. Spend it in the store between runs.</p>" +
-      "<h4>The store</h4><p>Between runs, buy " + mi("dot", "Imprints") + " (stick to a card and ride " +
-        "with it), " + mi("guardian", "Pathways") + " (bind to a whole column), and " +
-        mi("cache", "Caches") + " (open for random cards or Imprints). Select an item to read exactly " +
-        "what it does; confirm to buy. Pathways also ask you to pick a column.</p>" +
-      "<h4>Scoring at a glance</h4><p>More alive piles and a larger <i>smallest</i> pile both raise " +
-        "the base payout — so spreading growth beats over-stacking one pile. Imprints and Pathways " +
-        "layer bonuses on top.</p>";
+      "<p class=\"manual-lede\">You encode memories onto neurons to build an efficient neural " +
+        "network. Encode a memory right and its neuron strengthens; encode one wrong and the " +
+        "neuron dies. The better you keep the network alive and balanced, the more dopamine it " +
+        "rewards.</p>" +
+      "<h4>Encoding a memory</h4><p>Tap a <b>neuron</b>, then encode the next <b>memory</b> — is it " +
+        "<b>Higher</b>, <b>Same</b>, or <b>Lower</b> than the memory on top? Encode right and the " +
+        "memory joins the neuron (it grows stronger). Encode wrong — or tie when you went Higher " +
+        "or Lower — and the neuron dies. Aces are high; suits don't affect the encoding.</p>" +
+      "<h4>The run</h4><p>Encode the whole <b>deck</b> of memories to clear a run. Clear every run " +
+        "of a stage to advance; clear all stages to complete the network. But let one run fall and " +
+        "the whole mind wipes — back to Stage 1.</p>" +
+      "<h4>The network</h4><p>Each living neuron is a node; the synapses between neighbours light up " +
+        "as they fire. A synapse is only as strong as the <b>weaker</b> of the two neurons it joins, " +
+        "so thin links mark your weak points. When a neuron dies, its synapses dissolve and the " +
+        "survivors reconnect across the gap.</p>" +
+      "<h4>Dopamine &amp; reward</h4><p>A network is only as strong as its weakest-encoded neuron. " +
+        "Clearing a run rewards <b>active neurons × your weakest neuron's encoding</b>, plus bonuses " +
+        "— so keeping every neuron alive and evenly encoded beats over-stacking one. Spend dopamine " +
+        "in the store between runs.</p>" +
+      "<h4>Upgrades</h4><p>Between runs, buy " + mi("dot", "Imprints") + " — they attach to a memory " +
+        "and change how it encodes (raise its rank, guard its neuron, pay dopamine, and more). " +
+        mi("guardian", "Pathways") + " bind across a whole column of neurons, granting that pathway " +
+        "a property. " + mi("cache", "Memory Swaps") + " let you swap a memory in your deck for a " +
+        "different one, and " + mi("cache", "Imprint Packs") + " hand you Imprints in bulk. Select " +
+        "any item to read exactly what it does, then confirm to buy.</p>";
     el.manualOverlay.classList.remove("hidden");
   }
   function closeManual() { el.manualOverlay.classList.add("hidden"); }
