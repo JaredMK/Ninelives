@@ -703,6 +703,111 @@
   .hint { display: none; }
 
   /* ============================================================
+     MAIN MENU · SHEETS (stats / manual / in-game menu) · MENU BUTTON
+     ============================================================ */
+  .menu-screen {
+    position: fixed; inset: 0; z-index: 1400;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 24px;
+    background:
+      radial-gradient(120% 90% at 50% 18%, rgba(120,60,80,0.20), transparent 55%),
+      radial-gradient(110% 80% at 50% 100%, rgba(80,60,110,0.18), transparent 55%),
+      rgba(10, 7, 10, 0.92);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  .menu-screen.hidden { display: none; }
+  .menu-mark { color: var(--accent); font-size: 46px; line-height: 1;
+    filter: drop-shadow(0 0 14px rgba(232,139,176,0.5)); }
+  .menu-title {
+    font-family: var(--font-display); font-weight: 700; font-size: 54px;
+    letter-spacing: 8px; color: #f0d9e4; margin: 2px 0 0;
+    text-shadow: 0 0 22px rgba(232,139,176,0.45);
+  }
+  .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 14px; }
+  .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(82vw, 300px); }
+  .menu-item {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 13px 18px;
+    font-family: var(--font-text); font-size: 15px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text); background: var(--panel);
+    border: 1px solid var(--edge-2); border-radius: 14px;
+    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+  }
+  .menu-item:active { transform: scale(0.98); }
+  .menu-item.primary { color: #1c1206; border: none;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
+  .menu-item.danger { color: var(--danger); border-color: var(--danger); }
+  .menu-item .ico { font-size: 18px; }
+  .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: 16px; opacity: 0.7; }
+
+  /* Bottom-sheet panels (stats / manual / in-game menu). */
+  .sheet-overlay {
+    position: fixed; inset: 0; z-index: 1600;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(6, 4, 8, 0.66);
+  }
+  .sheet-overlay.hidden { display: none; }
+  .sheet-panel {
+    width: min(100%, 460px); max-height: 86vh; overflow-y: auto;
+    background: linear-gradient(180deg, var(--bg-2), var(--panel));
+    border: 1px solid var(--edge-2); border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 30px rgba(4,2,6,0.6);
+    padding: 14px 16px 22px;
+  }
+  .menu-sheet { padding-bottom: 16px; }
+  .sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--font-display); font-weight: 700; font-size: 18px;
+    letter-spacing: 1px; color: var(--accent-2); margin-bottom: 12px;
+  }
+  .sheet-close {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--edge-2); font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  .sheet-reset {
+    margin-top: 14px; width: 100%; padding: 9px;
+    background: transparent; color: var(--danger);
+    border: 1px solid var(--danger); border-radius: 10px;
+    font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-tile {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 12px;
+    padding: 10px 12px; text-align: center;
+  }
+  .stat-tile .sv { font-family: var(--font-display); font-weight: 700; font-size: 22px;
+    color: var(--accent-2); line-height: 1.1; }
+  .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--muted); margin-top: 3px; }
+  /* Manual */
+  .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
+  .manual-body h4 {
+    font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
+    color: var(--accent-2); margin: 14px 0 4px;
+  }
+  .manual-body h4:first-child { margin-top: 0; }
+  .manual-body p { margin: 0 0 6px; color: var(--text); }
+  .manual-body .mi { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-2); font-weight: 700; }
+  .manual-body .ico { font-size: 15px; }
+
+  /* In-game menu button (corner). */
+  .menu-btn {
+    position: fixed; top: 8px; left: 8px; z-index: 30;
+    width: 30px; height: 30px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--edge-2); box-shadow: var(--shadow);
+    cursor: pointer; touch-action: manipulation;
+  }
+  .menu-btn .ico { font-size: 17px; }
+  .menu-btn.hidden { display: none; }
+  .menu-btn:active { transform: scale(0.92); }
+
+  /* ============================================================
      OVERLAY (win / lose / start)
      ============================================================ */
   .overlay {
@@ -2022,6 +2127,46 @@
     </div>
   </div>
 
+  <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
+  <div class="menu-screen hidden" id="mainMenu">
+    <div class="menu-mark"><span class="ico-slot" data-ico="logo"></span></div>
+    <h1 class="menu-title">MNESIS</h1>
+    <div class="menu-tagline">a living-network memory game</div>
+    <div class="menu-buttons" id="menuButtons"></div>
+    <div class="menu-foot" id="menuFoot"></div>
+  </div>
+
+  <!-- Stats (lifetime record across games). Reached from the main menu. -->
+  <div class="sheet-overlay hidden" id="statsOverlay">
+    <div class="sheet-panel">
+      <div class="sheet-head"><span>Lifetime Stats</span>
+        <button class="sheet-close" id="statsClose" type="button" aria-label="Close">×</button></div>
+      <div class="stats-grid" id="statsGrid"></div>
+      <button class="sheet-reset" id="statsReset" type="button">Reset stats</button>
+    </div>
+  </div>
+
+  <!-- How to Play (manual). Reached from the main menu and the in-game menu. -->
+  <div class="sheet-overlay hidden" id="manualOverlay">
+    <div class="sheet-panel">
+      <div class="sheet-head"><span>How to Play</span>
+        <button class="sheet-close" id="manualClose" type="button" aria-label="Close">×</button></div>
+      <div class="manual-body" id="manualBody"></div>
+    </div>
+  </div>
+
+  <!-- In-game menu (pause). Opened by the corner menu button during a run. -->
+  <div class="sheet-overlay hidden" id="gameMenu">
+    <div class="sheet-panel menu-sheet">
+      <div class="sheet-head"><span>Menu</span>
+        <button class="sheet-close" id="gameMenuClose" type="button" aria-label="Close">×</button></div>
+      <div class="menu-buttons" id="gameMenuButtons"></div>
+    </div>
+  </div>
+
+  <!-- In-game menu button (corner). -->
+  <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu"><span class="ico-slot" data-ico="menu"></span></button>
+
 <script>
 "use strict";
 /* ================================================================
@@ -2045,7 +2190,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.71 · stage-run-badge";
+const APP_VERSION = "v0.72 · menus-stats-sound";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4052,6 +4197,111 @@ const SaveStore = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   Stats — lifetime player record across games. The ONLY new persistent
+   system. Stored under its OWN localStorage key, completely separate from
+   the campaign save (so the per-campaign wipe never touches it) and from
+   gameplay state (it only READS run/campaign results at end-of-run hooks
+   and writes its own counters — it never influences play). Degrades to a
+   silent no-op where localStorage is unavailable.
+---------------------------------------------------------------- */
+const Stats = (() => {
+  const KEY = "mnesis.stats.v1";
+  const DEF = {
+    gamesPlayed: 0, campaignsWon: 0, runsCleared: 0,
+    bestRunDopamine: 0, bestCampaignDopamine: 0,
+    lifetimeDopamine: 0, lifetimeCardsFlipped: 0,
+    furthestStage: 0, furthestRun: 0,
+  };
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  function get() {
+    if (!ok()) return { ...DEF };
+    try { return { ...DEF, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
+    catch (e) { return { ...DEF }; }
+  }
+  function put(s) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* ignore */ } }
+  // Rank a Stage·Run position for "furthest reached" (Stage dominates Run).
+  const rank = (st, rn) => st * 100 + rn;
+  return {
+    get,
+    /** A new campaign was started. */
+    startGame() { const s = get(); s.gamesPlayed++; put(s); },
+    /** A run was cleared (won). `dopamine` = that run's payout total. */
+    runCleared(dopamine, stage, run) {
+      const s = get();
+      s.runsCleared++;
+      s.lifetimeDopamine += Math.max(0, dopamine || 0);
+      s.bestRunDopamine = Math.max(s.bestRunDopamine, dopamine || 0);
+      if (rank(stage, run) > rank(s.furthestStage, s.furthestRun)) { s.furthestStage = stage; s.furthestRun = run; }
+      put(s);
+    },
+    /** A campaign ended. `won` = cleared all runs. */
+    campaignEnded(won, stage, run, cardsFlipped, campaignDopamine) {
+      const s = get();
+      if (won) s.campaignsWon++;
+      s.lifetimeCardsFlipped = Math.max(s.lifetimeCardsFlipped, 0) + 0; // (cards counted per-run below)
+      s.bestCampaignDopamine = Math.max(s.bestCampaignDopamine, campaignDopamine || 0);
+      if (rank(stage, run) > rank(s.furthestStage, s.furthestRun)) { s.furthestStage = stage; s.furthestRun = run; }
+      put(s);
+    },
+    /** Add to the lifetime cards-flipped tally (called once per campaign end). */
+    addCardsFlipped(n) { const s = get(); s.lifetimeCardsFlipped += Math.max(0, n || 0); put(s); },
+    reset() { put({ ...DEF }); },
+  };
+})();
+
+/* ----------------------------------------------------------------
+   Sound — tiny WebAudio cues for key actions. Subtle, synthesized (no
+   asset files), feature-detected, and fully gated by a saved on/off pref.
+   Never blocks gameplay: any failure (no AudioContext, autoplay policy)
+   degrades to silence. Purely presentation — triggered from UI events.
+---------------------------------------------------------------- */
+const Sound = (() => {
+  let ctx = null;
+  let enabled = (typeof SaveStore !== "undefined" && SaveStore.getPref("sound")) !== "0";
+  function ac() {
+    if (!enabled) return null;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!ctx) ctx = new AC();
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    } catch (e) { return null; }
+  }
+  function blip(freq, dur, type, gain, at) {
+    const c = ac(); if (!c) return;
+    try {
+      const t = (at || c.currentTime), d = dur || 0.12;
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+      o.connect(g); g.connect(c.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain || 0.05, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.start(t); o.stop(t + d + 0.02);
+    } catch (e) { /* ignore */ }
+  }
+  function chord(notes) {
+    const c = ac(); if (!c) return;
+    const base = c.currentTime;
+    notes.forEach(([f, d, off, ty, g]) => blip(f, d, ty, g, base + (off || 0)));
+  }
+  const API = {
+    isOn: () => !!enabled,
+    setOn(on) { enabled = !!on; if (typeof SaveStore !== "undefined") SaveStore.setPref("sound", on ? "1" : "0"); if (on) blip(660, 0.09, "sine", 0.05); },
+    toggle() { API.setOn(!enabled); return API.isOn(); },
+    tap() { blip(440, 0.05, "sine", 0.035); },
+    place() { blip(320, 0.07, "triangle", 0.05); },
+    good() { chord([[523, 0.09, 0, "sine", 0.055], [784, 0.12, 0.07, "sine", 0.05]]); },
+    bad() { blip(150, 0.22, "sawtooth", 0.06); },
+    purchase() { chord([[700, 0.07, 0, "square", 0.04], [1047, 0.1, 0.06, "square", 0.035]]); },
+    death() { chord([[210, 0.18, 0, "sawtooth", 0.06], [120, 0.28, 0.09, "sawtooth", 0.05]]); },
+    runClear() { chord([[523, 0.12, 0, "sine", 0.05], [659, 0.12, 0.11, "sine", 0.05], [784, 0.12, 0.22, "sine", 0.05], [1047, 0.22, 0.33, "sine", 0.05]]); },
+  };
+  return API;
+})();
+
+/* ----------------------------------------------------------------
    applyRunScaling(runIndex)
    Scaling hook — wired into run start but intentionally inert for now.
    Later this will ramp difficulty per run (e.g. deck/pile tweaks) and
@@ -4243,6 +4493,20 @@ const UIRenderer = (() => {
     minPileCount: document.getElementById("minPileCount"),
     bonusCoins: document.getElementById("bonusCoins"),
     stageRun: document.getElementById("stageRun"),
+    mainMenu: document.getElementById("mainMenu"),
+    menuButtons: document.getElementById("menuButtons"),
+    menuFoot: document.getElementById("menuFoot"),
+    menuBtn: document.getElementById("menuBtn"),
+    statsOverlay: document.getElementById("statsOverlay"),
+    statsGrid: document.getElementById("statsGrid"),
+    statsClose: document.getElementById("statsClose"),
+    statsReset: document.getElementById("statsReset"),
+    manualOverlay: document.getElementById("manualOverlay"),
+    manualBody: document.getElementById("manualBody"),
+    manualClose: document.getElementById("manualClose"),
+    gameMenu: document.getElementById("gameMenu"),
+    gameMenuButtons: document.getElementById("gameMenuButtons"),
+    gameMenuClose: document.getElementById("gameMenuClose"),
     stickerTray: document.getElementById("stickerTray"),
     actions: document.getElementById("actions"),
     btnInfo: document.getElementById("btnInfo"),
@@ -4774,6 +5038,7 @@ const UIRenderer = (() => {
   function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
 
   function submitGuess(guess) {
+    Sound.tap();
     if (selected === null) return;
     engine.guess(selected, guess);
   }
@@ -5440,6 +5705,7 @@ const UIRenderer = (() => {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
         if (el.stageRun) el.stageRun.classList.remove("off");   // in-game → show badge
+        if (el.menuBtn) el.menuBtn.classList.remove("hidden");
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
         lastAliveCount = payload.board.aliveCount();
         renderNetwork();
@@ -5470,10 +5736,11 @@ const UIRenderer = (() => {
         paintPileCounts(payload.board);   // repaint all so the orange min stays live
         renderHud(payload.board, payload.deck);
 
-        // Feedback flash.
+        // Feedback flash + sound.
         const cls = payload.correct ? "flash-good" : "flash-bad";
         pileEl.classList.add(cls);
         setTimeout(() => pileEl.classList.remove(cls), 520);
+        if (payload.correct) { Sound.good(); } else { Sound.death(); }
 
         // Mark dead if wrong (dims the drawn card and reveals the X overlay).
         if (!payload.correct) pileEl.classList.add("dead");
@@ -5500,6 +5767,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
+        Sound.good();
         el.hint.textContent = `${payload.current.label} held on — a Buffer soaked the hit.`;
         refreshDebug();
         break;
@@ -5518,6 +5786,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
+        Sound.good();
         el.hint.textContent = `${payload.current.label} held on — the ${payload.drawn.suit} Inhibitor fired.`;
         refreshDebug();
         break;
@@ -5537,6 +5806,7 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
         renderStickerTray();
+        Sound.good();
         el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
         break;
@@ -5588,8 +5858,9 @@ const UIRenderer = (() => {
   function showOverlay(opts) {
     el.overlay.classList.remove("hidden", "win", "lose");
     // The start/win/lose overlay carries its own progress line, so hide the
-    // floating Stage·Run badge while it's up (and on the main menu).
+    // floating Stage·Run badge and the menu button while it's up.
     if (el.stageRun) el.stageRun.classList.add("off");
+    if (el.menuBtn) el.menuBtn.classList.add("hidden");
     if (opts.kind) el.overlay.classList.add(opts.kind);
     el.overlayIcon.innerHTML = opts.icon;
     el.overlayTitle.textContent = opts.title;
@@ -5622,8 +5893,9 @@ const UIRenderer = (() => {
 
   function hideOverlay() {
     el.overlay.classList.add("hidden");
-    // Back to an in-game screen → reveal the Stage·Run badge.
+    // Back to an in-game screen → reveal the Stage·Run badge + menu button.
     if (el.stageRun) el.stageRun.classList.remove("off");
+    if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
   }
 
   /* ---- phase screens ---- */
@@ -5667,6 +5939,7 @@ const UIRenderer = (() => {
   // the between-runs intermission: just the stage/run indicator and the coin
   // breakdown — no "This Run" / "Campaign" totals.
   function showRunComplete(coins) {
+    Sound.runClear();
     showOverlay({
       kind: "win",
       icon: glyph("win"),
@@ -5692,6 +5965,7 @@ const UIRenderer = (() => {
   // Any run loss ends the whole campaign (shown before the wipe, so we can
   // report how far you got). New Campaign -> startCampaign -> reset().
   function showCampaignFailed() {
+    Sound.death();
     showOverlay({
       kind: "lose",
       icon: glyph("loss"),
@@ -5706,6 +5980,7 @@ const UIRenderer = (() => {
   }
 
   function showCampaignComplete() {
+    Sound.runClear();
     showOverlay({
       kind: "win",
       icon: glyph("complete"),
@@ -5749,6 +6024,7 @@ const UIRenderer = (() => {
 
   function startCampaign() {
     clearSave();          // a fresh campaign supersedes any saved one
+    Stats.startGame();    // lifetime: count this as a game played (isolated store)
     campaign.reset();
     startRun();
   }
@@ -6292,6 +6568,10 @@ const UIRenderer = (() => {
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
       clearSave();   // a loss wipes the campaign — no resume of a dead run
+      // Lifetime stats (isolated store): record how far this game got.
+      Stats.addCardsFlipped(campaign.totalCardsFlipped);
+      Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
+        campaign.totalCardsFlipped, campaign.totalCoinsEarned);
       showCampaignFailed();
       return;
     }
@@ -6330,6 +6610,9 @@ const UIRenderer = (() => {
     if (payout.total > 0) campaign.earnCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
 
+    // Lifetime stats (isolated store): this run was cleared.
+    Stats.runCleared(payout.total, campaign.currentStage, campaign.currentRunIndex);
+
     // Fold the end-of-run bonuses (Extra Coin, Column Guardian) into the live
     // bonus tracker so its FINAL value equals the summary's total bonus
     // (everything except the piles × smallest product). This is what the player
@@ -6340,6 +6623,9 @@ const UIRenderer = (() => {
 
     if (campaign.isComplete()) {
       clearSave();   // campaign finished — nothing left to resume
+      Stats.addCardsFlipped(campaign.totalCardsFlipped);
+      Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
+        campaign.totalCardsFlipped, campaign.totalCoinsEarned);
       playWinCinematic(board, showCampaignComplete);
     } else {
       // Between-runs intermission: just stage/run + the coin breakdown.
@@ -6778,6 +7064,7 @@ const UIRenderer = (() => {
       const st = id ? StickerTypes.get(id) : null;
       if (engine) engine.logAction("Store: bought Imprint " + ((st && st.label) || id));
       selectedStickerSlot = null;
+      Sound.purchase();
       el.storeMsg.textContent = "Imprint bought — apply it during the next run.";
     }
     renderStore();
@@ -6817,6 +7104,7 @@ const UIRenderer = (() => {
         const pt = pid ? PillarTypes.get(pid) : null;
         if (engine) engine.logAction("Store: bought Pathway " + ((pt && pt.label) || pid) + " → column " + (col + 1));
         armedPillarSlot = null;
+        Sound.purchase();
         el.storeMsg.textContent = "Pathway placed on Column " + (col + 1) + ".";
       }
       renderStore();
@@ -6911,6 +7199,122 @@ const UIRenderer = (() => {
   }
   function closeInvPopup() { el.invPopup.classList.add("hidden"); }
 
+  /* ============================================================
+     MENUS & SCREENS — main menu (§7), in-game menu (§8), Stats (§9),
+     How to Play (§12). All presentation; standard menu actions route
+     through EXISTING game flows (no new gameplay/state logic).
+     ============================================================ */
+  let savedSnapshot = null;   // last loaded save snapshot, for "Continue"
+
+  function buildMenu(container, items) {
+    container.innerHTML = "";
+    items.forEach(it => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "menu-item" + (it.cls ? " " + it.cls : "");
+      b.innerHTML = (it.ico ? glyph(it.ico) : "") + "<span>" + it.label + "</span>";
+      b.addEventListener("click", () => { Sound.tap(); it.action(); });
+      container.appendChild(b);
+    });
+  }
+
+  function showMainMenu(canContinue) {
+    el.stageRun.classList.add("off");
+    el.menuBtn.classList.add("hidden");
+    el.overlay.classList.add("hidden");
+    const items = [];
+    if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
+    items.push({ label: canContinue ? "New Campaign" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
+      action: () => { hideMainMenu(); startCampaign(); } });
+    items.push({ label: "How to Play", ico: "search", action: showManual });
+    items.push({ label: "Stats", ico: "graph", action: showStats });
+    items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
+    buildMenu(el.menuButtons, items);
+    el.menuFoot.textContent = "build " + APP_VERSION;
+    el.mainMenu.classList.remove("hidden");
+  }
+  function hideMainMenu() { el.mainMenu.classList.add("hidden"); el.menuBtn.classList.remove("hidden"); }
+
+  function resumeSavedGame() {
+    const saved = savedSnapshot;
+    if (!saved) { startCampaign(); return; }
+    el.stageRun.classList.remove("off"); el.menuBtn.classList.remove("hidden");
+    buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
+    if (saved.phase === "store") showStore(false);
+    else {
+      const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
+      const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
+      startRun(seed, cost);
+      if (saved.appliedThisPhase) appliedThisPhase = true;
+    }
+  }
+
+  /* ---- in-game menu (pause) ---- */
+  function showGameMenu() {
+    buildMenu(el.gameMenuButtons, [
+      { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
+      { label: "How to Play", ico: "search", action: showManual },
+      { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
+      { label: "New Campaign", ico: "spark", action: () => { closeGameMenu(); startCampaign(); } },
+      { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
+    ]);
+    el.gameMenu.classList.remove("hidden");
+  }
+  function closeGameMenu() { el.gameMenu.classList.add("hidden"); }
+  function quitToMenu() {
+    closeGameMenu();
+    // Navigational only: the existing checkpoint (sticker phase / store) stays in
+    // localStorage, so "Continue" resumes it. No game state is mutated here.
+    savedSnapshot = SaveStore.load();
+    const canContinue = !!(savedSnapshot && savedSnapshot.campaign);
+    showMainMenu(canContinue);
+  }
+
+  /* ---- Stats screen (§9) ---- */
+  function showStats() {
+    const s = Stats.get();
+    const wr = s.gamesPlayed ? Math.round(100 * s.campaignsWon / s.gamesPlayed) : 0;
+    const far = s.furthestStage ? ("S" + s.furthestStage + " · R" + s.furthestRun) : "—";
+    const tiles = [
+      [s.gamesPlayed, "Games played"], [s.campaignsWon, "Campaigns won"],
+      [wr + "%", "Win rate"], [far, "Furthest reached"],
+      [s.runsCleared, "Runs cleared"], [s.bestRunDopamine, "Best run"],
+      [s.bestCampaignDopamine, "Best campaign"], [s.lifetimeDopamine, "Lifetime dopamine"],
+      [s.lifetimeCardsFlipped, "Cards flipped"],
+    ];
+    el.statsGrid.innerHTML = tiles.map(([v, l]) =>
+      '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
+    el.statsOverlay.classList.remove("hidden");
+  }
+  function closeStats() { el.statsOverlay.classList.add("hidden"); }
+
+  /* ---- How to Play (§12) ---- */
+  function showManual() {
+    const mi = (ico, name) => '<span class="mi">' + glyph(ico) + name + "</span>";
+    el.manualBody.innerHTML =
+      "<h4>The goal</h4><p>Each <b>run</b>, empty the deck to clear it. Clear every run of a " +
+        "stage to advance; clear all stages to win the campaign. But lose a single run and the " +
+        "whole mind wipes — back to Stage 1.</p>" +
+      "<h4>A turn</h4><p>Tap a pile, then call the next card <b>Higher</b>, <b>Same</b>, or " +
+        "<b>Lower</b> than the card on top. Right, and the drawn card lands on the pile (it grows). " +
+        "Wrong — or a tie on a Higher/Lower call — and that pile goes dark. Aces are high; suits " +
+        "don't affect the call.</p>" +
+      "<h4>The network</h4><p>Living pile is a node; lines are the synapses between neighbours. A " +
+        "link's weight follows the <b>smaller</b> of its two piles, so thin links mark your weak " +
+        "points. When a pile dies its links dissolve and the survivors reconnect across the gap.</p>" +
+      "<h4>Dopamine</h4><p>Clear a run and you earn dopamine: <b>alive piles × the smallest alive " +
+        "pile</b>, plus any bonuses. Spend it in the store between runs.</p>" +
+      "<h4>The store</h4><p>Between runs, buy " + mi("dot", "Imprints") + " (stick to a card and ride " +
+        "with it), " + mi("guardian", "Pathways") + " (bind to a whole column), and " +
+        mi("cache", "Caches") + " (open for random cards or Imprints). Select an item to read exactly " +
+        "what it does; confirm to buy. Pathways also ask you to pick a column.</p>" +
+      "<h4>Scoring at a glance</h4><p>More alive piles and a larger <i>smallest</i> pile both raise " +
+        "the base payout — so spreading growth beats over-stacking one pile. Imprints and Pathways " +
+        "layer bonuses on top.</p>";
+    el.manualOverlay.classList.remove("hidden");
+  }
+  function closeManual() { el.manualOverlay.classList.add("hidden"); }
+
   function init() {
     attachInput();
     // Fill static icon slots from the shared glyph set (no emoji in markup).
@@ -6958,38 +7362,30 @@ const UIRenderer = (() => {
       canInspect: () => !!engine && engine.getStatus() === "playing",
     });
 
-    // Resume a saved in-progress campaign if one exists (between-runs save).
-    // A valid, not-yet-complete snapshot drops the player straight back into
-    // their run's sticker phase ("run") or the between-runs store ("store").
+    // Wire the menus/sheets (§7/§8/§9/§12) and the corner menu button.
+    el.menuBtn.addEventListener("click", () => { Sound.tap(); showGameMenu(); });
+    el.statsClose.addEventListener("click", closeStats);
+    el.statsReset.addEventListener("click", () => { Stats.reset(); showStats(); });
+    el.manualClose.addEventListener("click", closeManual);
+    el.gameMenuClose.addEventListener("click", closeGameMenu);
+    // Tap the dim backdrop (the overlay itself, not its panel) to dismiss.
+    el.statsOverlay.addEventListener("click", e => { if (e.target === el.statsOverlay) closeStats(); });
+    el.manualOverlay.addEventListener("click", e => { if (e.target === el.manualOverlay) closeManual(); });
+    el.gameMenu.addEventListener("click", e => { if (e.target === el.gameMenu) closeGameMenu(); });
+
+    // Launch into the MAIN MENU. A valid, not-yet-complete save enables
+    // "Continue"; "New Campaign" starts fresh. The board is built as a quiet
+    // backdrop behind the menu.
     const saved = SaveStore.load();
-    let resumed = false;
+    let canContinue = false;
     if (saved && saved.campaign && campaign.restore(saved.campaign) && !campaign.isComplete()) {
-      resumed = true;
+      canContinue = true; savedSnapshot = saved;
     } else if (saved) {
       clearSave();   // missing/incompatible/finished — discard it
     }
     updateStageRun();   // reflect restored stage/run/coins
-
-    if (resumed) {
-      // Resume directly — no Start screen. Build the current run's board first
-      // so it's the backdrop whether we land in the store or the sticker phase.
-      buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
-      if (saved.phase === "store") showStore(false);   // keep the saved offer
-      else {
-        // Re-deal the EXACT same pre-run board using the saved seed, and
-        // restore the redeal price so a refresh isn't a free redeal. (Validate
-        // the saved values; fall back to a fresh deal/base price if absent.)
-        const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
-        const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
-        startRun(seed, cost);
-        // Restore the "applied this phase" warning flag (startRun reset it).
-        if (saved.appliedThisPhase) { appliedThisPhase = true; }
-      }
-    } else {
-      // Fresh: static run-1 board behind the Start overlay.
-      buildBoard(campaign.layoutForRun(1).cols, false);
-      showStartScreen();
-    }
+    buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
+    showMainMenu(canContinue);
 
     // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1).
     if (/[?&]debug\b/.test(location.search)) setDebug(true);
