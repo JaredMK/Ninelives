@@ -566,8 +566,17 @@
   /* pulse feedback for correct/incorrect */
   @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(132,200,154,0.7);} 100%{box-shadow:0 0 0 15px rgba(132,200,154,0);} }
   @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(224,107,128,0.75);} 100%{box-shadow:0 0 0 15px rgba(224,107,128,0);} }
-  .pile.flash-good .card { animation: goodPulse 0.5s ease; }
-  .pile.flash-bad .card  { animation: badPulse 0.5s ease; }
+  /* The ripple rides a dedicated overlay (::after) rather than .card itself: the
+     card's `animation` slot is owned by the perpetual cardDrift float, and CSS
+     `animation` is not additive — flashing on .card would REPLACE cardDrift and
+     drop its transform, snapping the card to centre and back (the guess twitch).
+     The overlay shares the card's box + radius and rides along with its drift. */
+  .card::after {
+    content: ""; position: absolute; inset: 0; border-radius: 22px;
+    pointer-events: none;
+  }
+  .pile.flash-good .card::after { animation: goodPulse 0.5s ease; }
+  .pile.flash-bad .card::after  { animation: badPulse 0.5s ease; }
 
   /* ============================================================
      WIN CINEMATIC  (on a run win, as it resolves into the payout)
@@ -585,13 +594,16 @@
     box-shadow: 0 0 12px rgba(232, 139, 176, 0.45), 0 0 0 1px rgba(255,255,255,0.3);
     transition: box-shadow 0.6s ease;
   }
+  /* The limiting node flashes amber briefly (~1s), then DISSOLVES back to the
+     soft node glow — the highlight does not persist after the win moment. */
   .board.win-cine .pile.limit .card {
-    box-shadow: 0 0 0 2px var(--amber), 0 0 26px rgba(224, 151, 60, 0.7);
-    animation: limitGlow 1.5s ease-in-out 0.6s infinite alternate;
+    animation: limitFlash 1.8s ease-in-out 0.6s forwards;
   }
-  @keyframes limitGlow {
-    from { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(224, 151, 60, 0.5); }
-    to   { box-shadow: 0 0 0 3px var(--amber), 0 0 36px rgba(224, 151, 60, 0.9); }
+  @keyframes limitFlash {
+    0%   { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(224, 151, 60, 0.5); }
+    30%  { box-shadow: 0 0 0 3px var(--amber), 0 0 34px rgba(224, 151, 60, 0.92); }
+    65%  { box-shadow: 0 0 0 3px var(--amber), 0 0 30px rgba(224, 151, 60, 0.82); }
+    100% { box-shadow: 0 0 12px rgba(232, 139, 176, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.3); }
   }
   @media (prefers-reduced-motion: reduce) {
     .board.win-cine .pile:not(.dead) .card .front { animation: none; opacity: 0.14; }
@@ -1893,7 +1905,12 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.59 · neural-synapse";
+const APP_VERSION = "v0.60 · neural-polish";
+
+/* Beat held after a run win — while the win cinematic plays out (faces recede,
+   limiting node flashes, connections collapse to the weakest level) — before
+   the run-complete / payout summary overlay appears. Tunable. */
+const RUN_SUMMARY_DELAY_MS = 3750;
 
 /* ----------------------------------------------------------------
    Sticker economy — config + type registry (data-driven, no inline
@@ -5686,7 +5703,8 @@ const UIRenderer = (() => {
       g.querySelectorAll(".lk-bulge").forEach(el => bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12 }));
       const pulses = [];
       g.querySelectorAll(".pulse").forEach(el =>
-        pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0 }));
+        pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0,
+          dir: parseFloat(el.dataset.dir) || 1 }));
       netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, bow: parseFloat(g.dataset.bow) || 0, paths, bulges, pulses });
     });
     startDriftSync();
@@ -5745,12 +5763,20 @@ const UIRenderer = (() => {
         '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '"/>';
     }
     if (networkPulses) {                                  // signal pulses — thicker links carry more/faster
-      const count = w >= 4 ? 3 : w >= 2 ? 2 : 1;
+      const count = w >= 4 ? 3 : w >= 2 ? 2 : 1;           // per-direction count (strength-gated)
       const sp = (0.32 + w * 0.05).toFixed(3);
-      for (let k = 0; k < count; k++) {
-        const p = bezPt(a.x, a.y, c, b.x, b.y, k / count);
-        m += '<circle class="pulse" r="' + (1.5 + w * 0.28).toFixed(1) + '" cx="' + p.x.toFixed(1) +
-          '" cy="' + p.y.toFixed(1) + '" data-sp="' + sp + '" data-of="' + (k / count).toFixed(3) + '"/>';
+      const r = (1.5 + w * 0.28).toFixed(1);
+      // Fire in BOTH directions so the synapse reads as actively signalling:
+      // `count` dots travel A→B and `count` travel B→A (the reverse set offset a
+      // half-phase so the two streams interleave rather than overlap).
+      for (let dir = 0; dir < 2; dir++) {
+        for (let k = 0; k < count; k++) {
+          const of = (k + (dir ? 0.5 : 0)) / count;
+          const t0 = dir ? 1 - (of % 1) : of;             // B→A walks the curve in reverse
+          const p = bezPt(a.x, a.y, c, b.x, b.y, t0);
+          m += '<circle class="pulse" r="' + r + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+            '" data-sp="' + sp + '" data-of="' + of.toFixed(3) + '" data-dir="' + (dir ? -1 : 1) + '"/>';
+        }
       }
     }
     return m;
@@ -5768,7 +5794,8 @@ const UIRenderer = (() => {
     }
     for (const p of e.pulses) {
       const ph = ((now * p.sp) + p.of) % 1;
-      const pt = bezPt(ax, ay, c, bx, by, ph);
+      const tt = p.dir < 0 ? 1 - ph : ph;          // direction along the curved path
+      const pt = bezPt(ax, ay, c, bx, by, tt);
       p.el.setAttribute("cx", pt.x.toFixed(1)); p.el.setAttribute("cy", pt.y.toFixed(1));
     }
   }
@@ -5983,7 +6010,7 @@ const UIRenderer = (() => {
         if (networkEl) networkEl.style.opacity = "";
       }, 280);
     }, 1500);
-    setTimeout(done, 2550);                  // then resolve into the payout
+    setTimeout(done, RUN_SUMMARY_DELAY_MS);  // then resolve into the payout
   }
 
   function onRunEnd(result, payload) {
