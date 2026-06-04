@@ -343,16 +343,16 @@ export function run() {
     e.startRun(["spadeBounty", null, null]);
     r.ok(log.some(en => /Start Run/.test(en.title)), "logbook: 'Start Run' entry");
 
-    // Land a ♠ on pile 1 (column 0 holds Spade Bounty) via a correct guess.
+    // Land a ♠ on pile 1 (column 0 holds the Spade Receptor) via a correct guess.
     e.getBoard().top(0).value = 5;
     const dsb = e.debug.setNextCard(9); dsb.suit = "♠";
     e.guess(0, "higher");
     const turn = log[log.length - 1];
     r.ok(/Guess HIGHER on pile 1/.test(turn.title), "logbook: turn titled with the action + pile/column");
     r.ok(turn.lines.some(l => /drew 9♠/.test(l)), "logbook: logs the drawn (already-revealed) card");
-    r.ok(turn.lines.some(l => /Spade Bounty/.test(l) && /\+1 coin/.test(l)), "logbook: Pillar coin effect logged");
+    r.ok(turn.lines.some(l => /Spade Receptor/.test(l) && /\+1 dopamine/.test(l)), "logbook: Pathway dopamine effect logged");
     r.ok(turn.lines.some(l => /pile survived/.test(l)), "logbook: pile outcome logged");
-    r.ok(turn.lines.some(l => /Coins this turn/.test(l)), "logbook: per-turn coins footer");
+    r.ok(turn.lines.some(l => /Dopamine this turn/.test(l)), "logbook: per-turn dopamine footer");
 
     e.start();   // a fresh run resets the log
     r.ok(e.getRun().log.length === 1 && /Run dealt/.test(e.getRun().log[0].title), "logbook: resets each run");

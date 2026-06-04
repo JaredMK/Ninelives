@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#0e0a0d" />
-<title>Nine Lives</title>
+<title>Mnesis</title>
 <!-- Neural type system: Josefin Sans (soft organic display, for titles) +
      Chakra Petch (clean technical, for ranks/gameplay text). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1739,7 +1739,7 @@
         <span class="factor-lbl">smallest</span>
       </div>
       <span class="factor-x factor-plus">+</span>
-      <div class="factor" title="Bonus coins earned (or spent) so far this run">
+      <div class="factor" title="Bonus dopamine earned (or spent) so far this run">
         <b id="bonusCoins" class="bonus-accent">0</b>
         <span class="factor-lbl">bonus</span>
       </div>
@@ -1825,13 +1825,13 @@
         <div class="debug-sub">grant (free) →</div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugStickerSel"></select>
-          <button class="debug-btn" id="debugAddSticker">+ sticker</button>
+          <button class="debug-btn" id="debugAddSticker">+ Imprint</button>
         </div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugPillarSel"></select>
-          <button class="debug-btn" id="debugAddPillar">+ pillar</button>
+          <button class="debug-btn" id="debugAddPillar">+ Pathway</button>
         </div>
-        <div class="debug-sub">add coins (free) →</div>
+        <div class="debug-sub">add dopamine (free) →</div>
         <div class="debug-tools">
           <button class="debug-btn" id="debugCoin10">+10 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
           <button class="debug-btn" id="debugCoin50">+50 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
@@ -1850,11 +1850,11 @@
   <!-- Start / End overlay -->
   <div class="overlay" id="overlay">
     <div class="big" id="overlayIcon">🐱</div>
-    <h2 id="overlayTitle">Nine Lives</h2>
+    <h2 id="overlayTitle">Mnesis</h2>
     <p id="overlayMsg">
-      You have nine piles. Each turn, pick a pile and bet whether the next
-      card is higher, lower, or the same. A wrong guess (ties included)
-      kills that pile. Empty the deck to win.
+      Read the network. Each turn, pick a pile and call the next card
+      higher, lower, or the same. Miss — or tie a higher/lower call — and
+      that pile goes dark. Empty the deck to clear the run.
     </p>
     <div class="run-progress hidden" id="runProgress">Run 1 of 3</div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
@@ -1866,7 +1866,7 @@
         </div>
         <div class="run-stat">
           <div class="run-stat-value" id="endCoins">0</div>
-          <div class="run-stat-label">Coins Earned</div>
+          <div class="run-stat-label">Dopamine</div>
         </div>
       </div>
       <div class="end-pillars">
@@ -1886,16 +1886,16 @@
       <div class="sc-coins">🛒 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
       <div class="sc-inv" id="storeInv"></div>
     </div>
-    <div class="store-section">Stickers — apply to cards next run</div>
+    <div class="store-section">Imprints — apply to cards next run</div>
     <div class="store-tiles" id="storeItems"></div>
-    <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select a sticker to buy</button>
-    <div class="store-section">Pillars — pick one, then a column</div>
+    <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select an Imprint to buy</button>
+    <div class="store-section">Pathways — pick one, then a column</div>
     <div class="store-tiles" id="storePillars"></div>
     <div class="pillar-slots" id="pillarSlots"></div>
-    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pillar</button>
-    <div class="store-section">Packs — select, Buy to reveal, then pick</div>
+    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button">🗑 Trash this Pathway</button>
+    <div class="store-section">Caches — select, open to reveal, then pick</div>
     <div class="store-tiles" id="storePacks"></div>
-    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a pack to buy</button>
+    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a Cache to buy</button>
     <button class="reroll-btn" id="rerollBtn" type="button">🎲 Reroll</button>
     <div class="store-msg" id="storeMsg"></div>
     <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
@@ -1952,7 +1952,7 @@
        (no refund, no return to inventory). Guards against an accidental tap. -->
   <div class="confirm-overlay hidden" id="trashConfirm">
     <div class="confirm-panel">
-      <div class="confirm-msg" id="trashConfirmMsg">Trash this Pillar?</div>
+      <div class="confirm-msg" id="trashConfirmMsg">Trash this Pathway?</div>
       <div class="confirm-actions">
         <button class="confirm-cancel" id="trashCancelBtn" type="button">Cancel</button>
         <button class="confirm-danger" id="trashOkBtn" type="button">Trash</button>
@@ -1991,7 +1991,7 @@
   <div class="inv-popup hidden" id="invPopup">
     <div class="inv-card">
       <div class="inv-card-head">
-        <span>🎟️ Sticker Inventory</span>
+        <span>🎟️ Imprint Stash</span>
         <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
       </div>
       <div class="inv-card-body" id="invBody"></div>
@@ -2001,7 +2001,7 @@
 <script>
 "use strict";
 /* ================================================================
-   NINE LIVES — mobile-first card survival prototype
+   MNESIS — mobile-first card survival prototype
    ----------------------------------------------------------------
    Architecture (intentionally decoupled for future expansion):
 
@@ -2021,7 +2021,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.66 · coin-icon";
+const APP_VERSION = "v0.67 · mnesis-naming";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2045,57 +2045,57 @@ const StickerTypes = (() => {
   // weight how often a type is OFFERED (see TIER_WEIGHTS); price is independent.
   const TYPES = {
     rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, tier: "common", price: 3,
-                  description: "Permanently raise this card's rank by 1. Can't go above an Ace." },
+                  description: "Permanently raise this card's rank by 1. Stops at an Ace." },
     rankDown:   { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common", price: 3,
-                  description: "Permanently lower this card's rank by 1. Can't go below a 2." },
+                  description: "Permanently lower this card's rank by 1. Stops at a 2." },
     rankUp2:    { id: "rankUp2",    label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: +2, tier: "uncommon", price: 4,
-                  description: "Permanently raise this card's rank by 2. Clamps at an Ace (a +2 on a King lands on Ace)." },
+                  description: "Permanently raise this card's rank by 2, stopping at an Ace (a +2 on a King lands on Ace)." },
     rankDown2:  { id: "rankDown2",  label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 4,
-                  description: "Permanently lower this card's rank by 2. Clamps at a 2 (a −2 on a 3 lands on 2)." },
+                  description: "Permanently lower this card's rank by 2, stopping at a 2 (a −2 on a 3 lands on 2)." },
     randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
-                  description: "Permanently set this card's rank to a RANDOM rank (2 through Ace). Suit is unchanged — a one-time gamble." },
-    changeSuitRandom: { id: "changeSuitRandom", label: "Change to Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
-                  description: "Permanently change this card's suit to a random DIFFERENT suit. Rank is unchanged." },
+                  description: "Permanently set this card to a random rank, 2 through Ace. The suit stays — one roll, no take-backs." },
+    changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
+                  description: "Permanently change this card's suit to a random different one. The rank stays." },
     changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
-                  description: "Permanently change this card's suit to ♠ (Spades). Rank is unchanged. Feeds the Spade Bounty Pillar." },
+                  description: "Permanently turn this card into a ♠. The rank stays — feeds the Spade Receptor." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
-                  description: "Permanently change this card's suit to ♥ (Hearts). Rank is unchanged. Feeds the Heart Bounty Pillar." },
+                  description: "Permanently turn this card into a ♥. The rank stays — feeds the Heart Receptor." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
-                  description: "If a drawn card ties this card's rank, the pile survives on any guess instead of dying." },
-    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♠ the pile survives a wrong guess (the drawn ♠ is reshuffled back in)." },
-    heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♥ the pile survives a wrong guess (the drawn ♥ is reshuffled back in)." },
-    diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♦ the pile survives a wrong guess (the drawn ♦ is reshuffled back in)." },
-    clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "Once per run: while this card is showing on top, if the drawn card is a ♣ the pile survives a wrong guess (the drawn ♣ is reshuffled back in)." },
-    extraCoin:  { id: "extraCoin",  label: "Extra Coin",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
-                  description: "On a win, while this card is the alive top of its pile, it pays bonus coins equal to that pile's card count." },
-    middleColumnReward: { id: "middleColumnReward", label: "Middle Reward", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
-                  description: "When this card is drawn and lands on a SURVIVING pile in the middle column (a correct guess), immediately gain 2 bonus coins." },
-    gainCoin:   { id: "gainCoin",   label: "Lucky Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
-                  description: "When this card is drawn and lands on a SURVIVING pile, immediately gain 1 bonus coin." },
+                  description: "If a drawn card ties this card's rank, the pile survives on any call instead of dying." },
+    suitImmunity: { id: "suitImmunity", label: "Spade Inhibitor", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
+                  description: "Once a run, while this card is on top: a drawn ♠ is shrugged off — the pile survives a wrong call and the ♠ is reshuffled back in." },
+    heartGuard: { id: "heartGuard", label: "Heart Inhibitor", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
+                  description: "Once a run, while this card is on top: a drawn ♥ is shrugged off — the pile survives a wrong call and the ♥ is reshuffled back in." },
+    diamondGuard: { id: "diamondGuard", label: "Diamond Inhibitor", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
+                  description: "Once a run, while this card is on top: a drawn ♦ is shrugged off — the pile survives a wrong call and the ♦ is reshuffled back in." },
+    clubGuard: { id: "clubGuard", label: "Club Inhibitor", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
+                  description: "Once a run, while this card is on top: a drawn ♣ is shrugged off — the pile survives a wrong call and the ♣ is reshuffled back in." },
+    extraCoin:  { id: "extraCoin",  label: "Yield",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
+                  description: "On a win, while this card tops its pile, it pays dopamine equal to the pile's card count." },
+    middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
+                  description: "Land this card on a surviving pile in the middle column (a correct call) and gain 2 dopamine on the spot." },
+    gainCoin:   { id: "gainCoin",   label: "Spark",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
+                  description: "Land this card on a surviving pile and gain 1 dopamine on the spot." },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "uncommon", price: 4,
-                  description: "While this card is the top of its pile, that pile is excluded from the smallest-alive-pile payout factor, so a tiny pile can't drag your coins down." },
-    extraHeart: { id: "extraHeart", label: "Extra Heart", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
-                  description: "Absorbs one wrong guess on this card: the pile survives and the drawn card is reshuffled back in. Refreshes every run." },
-    oneTribute: { id: "oneTribute", label: "Tribute I",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 6,
-                  description: "When this card is drawn and lands on a surviving pile, bury 1 card from the deck under it (hidden) and pay 1 bonus coin." },
-    twoTribute: { id: "twoTribute", label: "Tribute II",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
-                  description: "When this card is drawn and lands on a surviving pile, bury 2 cards from the deck under it (hidden) and pay 4 bonus coins." },
-    centerTribute: { id: "centerTribute", label: "Center Tribute", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
-                  description: "When a card lands on a surviving pile in the middle column, buries 1 deck-bottom card under it (hidden). No coin cost." },
-    deathBounty: { id: "deathBounty", label: "Death Bounty", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
-                  description: "If this card is drawn and its wrong guess KILLS the pile, gain 2 bonus coins anyway — a consolation that still pays into your coin total." },
-    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
-                  description: "This card counts as 2 toward pile size everywhere — the alive × smallest factor, Extra Coin payouts, and the count badge — even while buried." },
-    collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
-                  description: "When this card is drawn and lands on a surviving pile, immediately +1 coin for each OTHER sticker on it (it doesn't count itself)." },
-    compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Banks value across the whole campaign: +1 for each correct guess made against this card after the first. At run end, if it's alive on top, pays that banked amount. Resets on a campaign loss." },
-    wallflower: { id: "wallflower", label: "Wallflower",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
-                  description: "At run end, +10 coins if you NEVER guessed on this pile (its starter card is still the untouched top). Tribute/burn cards buried underneath don't disqualify it — only guessing on the pile does." },
+                  description: "While this card tops its pile, that pile is left out of the smallest-pile payout factor — a tiny pile can't drag your dopamine down." },
+    extraHeart: { id: "extraHeart", label: "Buffer", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
+                  description: "Soaks up one wrong call on this card: the pile survives and the drawn card is reshuffled back in. Refreshes each run." },
+    oneTribute: { id: "oneTribute", label: "Encode I",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 6,
+                  description: "Land this card on a surviving pile to bury 1 card from the deck beneath it (hidden) and pay 1 dopamine." },
+    twoTribute: { id: "twoTribute", label: "Encode II",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
+                  description: "Land this card on a surviving pile to bury 2 cards from the deck beneath it (hidden) and pay 4 dopamine." },
+    centerTribute: { id: "centerTribute", label: "Center Encode", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
+                  description: "When a card lands on a surviving pile in the middle column, bury 1 deck-bottom card beneath it (hidden). No cost." },
+    deathBounty: { id: "deathBounty", label: "Last Spark", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
+                  description: "If this card's wrong call kills the pile, you still pocket 2 dopamine — a parting payout." },
+    heavy:      { id: "heavy",      label: "Dense",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
+                  description: "This card counts as 2 toward pile size everywhere — the alive × smallest factor, Yield payouts, and the count badge — even when buried." },
+    collector:  { id: "collector",  label: "Hub",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
+                  description: "Land this card on a surviving pile and gain 1 dopamine for every other Imprint on it (it doesn't count itself)." },
+    compound:   { id: "compound",   label: "Potentiation",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
+                  description: "Strengthens across the whole campaign: +1 for every correct call on this card after the first. At run end, if it's alive on top, it pays that banked total. A campaign loss resets it." },
+    wallflower: { id: "wallflower", label: "Dormant",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
+                  description: "At run end, +10 dopamine if you never called on this pile — its starter card still sits untouched on top. Cards buried beneath don't disqualify it; only calling on the pile does." },
   };
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
@@ -2136,56 +2136,56 @@ const PillarTypes = (() => {
   // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   const TYPES = {
     spadeBounty: {
-      id: "spadeBounty", label: "Spade Bounty", icon: "♠️",
+      id: "spadeBounty", label: "Spade Receptor", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♠ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 dopamine each time a ♠ lands on a surviving pile in this column (a correct call placing it on top).",
     },
     heartBounty: {
-      id: "heartBounty", label: "Heart Bounty", icon: "♥️",
+      id: "heartBounty", label: "Heart Receptor", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♥ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 dopamine each time a ♥ lands on a surviving pile in this column (a correct call placing it on top).",
     },
     diamondBounty: {
-      id: "diamondBounty", label: "Diamond Bounty", icon: "♦️",
+      id: "diamondBounty", label: "Diamond Receptor", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♦ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 dopamine each time a ♦ lands on a surviving pile in this column (a correct call placing it on top).",
     },
     clubBounty: {
-      id: "clubBounty", label: "Club Bounty", icon: "♣️",
+      id: "clubBounty", label: "Club Receptor", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin each time a ♣ card LANDS on a surviving pile in this column (a correct guess placing it on top).",
+      description: "+1 dopamine each time a ♣ lands on a surviving pile in this column (a correct call placing it on top).",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
       kind: "guess", effect: "columnTieSafe", tier: "rare", price: 12,
-      description: "Every pile in this column survives a tie on any guess (a column-wide Tie-Safe).",
+      description: "Every pile in this column survives a tie on any call — a column-wide Tie-Safe.",
     },
     columnGuardian: {
-      id: "columnGuardian", label: "Column Guardian", icon: "🏛️",
+      id: "columnGuardian", label: "Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 5,
-      description: "At run end, pays +5 coins if every pile in this column survived.",
+      description: "At run end, +5 dopamine if every pile in this column survived.",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
       // deck's BOTTOM card under that pile (hidden). Uncapped — fires every time
       // (bounded only by the draw deck). Pure composition shift — no reveal.
-      id: "eightTribute", label: "8 Tribute", icon: "8️⃣",
+      id: "eightTribute", label: "8 Encode", icon: "8️⃣",
       kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
-      description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried under that pile (hidden). Every time.",
+      description: "When a drawn 8 lands on a surviving pile in this column, a card from the bottom of the deck is buried beneath that pile (hidden). Every time.",
     },
     sameTribute: {
       // When a pile in this column SURVIVES A TIE — a correctly-called Same
       // guess OR a tie saved by Tie-Safe / Column Tie-Safe — pull the deck's
       // BOTTOM card under that pile (hidden). Uncapped; same no-reveal guardrail.
-      id: "sameTribute", label: "Same Tribute", icon: "⚖️",
+      id: "sameTribute", label: "Tie Encode", icon: "⚖️",
       kind: "composition", effect: "sameTribute", tier: "rare", price: 15,
-      description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — a card from the bottom of the deck is buried under that pile (hidden). Every time.",
+      description: "When a pile in this column survives a tie — a correct Same call, or a tie saved by Tie-Safe — a card from the bottom of the deck is buried beneath that pile (hidden). Every time.",
     },
     sameValueTribute: {
       // Like Same Tribute, but buries TWO cards on a survived tie. Uncapped.
-      id: "sameValueTribute", label: "Double Tribute", icon: "🏺",
+      id: "sameValueTribute", label: "Double Encode", icon: "🏺",
       kind: "composition", effect: "sameValueTribute", tributeCount: 2, tier: "rare", price: 22,
-      description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — TWO cards from the bottom of the deck are buried under that pile (hidden). Every time.",
+      description: "When a pile in this column survives a tie — a correct Same call, or a tie saved by Tie-Safe — two cards from the bottom of the deck are buried beneath that pile (hidden). Every time.",
     },
     allHeartsCoin: {
       // Live, column-scoped bonus: after any resolution, if every alive pile in
@@ -2193,21 +2193,21 @@ const PillarTypes = (() => {
       // uncapped. (Engine evaluates it per-column — see maybeAllHearts.)
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
       kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
-      description: "After any guess resolves, if every ALIVE pile in THIS COLUMN is showing a ♥ on top, immediately gain 5 bonus coins. Checked every time, uncapped.",
+      description: "After any call resolves, if every alive pile in this column shows a ♥ on top, gain 5 dopamine. Checked every time, uncapped.",
     },
     envy: {
       // End-of-run: +1 per alive pile in the column to the LEFT (wraparound:
       // left-of-leftmost = rightmost). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "envyLeft", tier: "uncommon", price: 6,
-      description: "At run end, +1 coin for each alive pile in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
+      description: "At run end, +1 dopamine for each alive pile in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
       // column's (wraparound: right-of-rightmost = leftmost).
       id: "symmetry", label: "Symmetry", icon: "🪞",
       kind: "scoring", effect: "symmetryRight", value: 6, tier: "rare", price: 7,
-      description: "At run end, +6 coins if this column has the same number of alive piles as the column to its RIGHT (the rightmost column wraps to the leftmost).",
+      description: "At run end, +6 dopamine if this column has the same number of alive piles as the column to its RIGHT (the rightmost column wraps to the leftmost).",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -2215,14 +2215,14 @@ const PillarTypes = (() => {
       // guess in another column — resets the streak. Paid via addBonus.
       id: "streakBank", label: "Streak Bank", icon: "🏦",
       kind: "live", effect: "streakBank", value: 1, tier: "rare", price: 8,
-      description: "Consecutive correct guesses on piles in this column pay +1 bonus coin each, starting from the 3rd in a row. The streak resets on a wrong guess in this column, or on any guess in another column.",
+      description: "Consecutive correct calls on piles in this column pay +1 dopamine each, from the 3rd in a row onward. The streak resets on a wrong call in this column, or any call in another column.",
     },
     streakTribute: {
       // Composition: from the 4th consecutive correct guess in this column
       // onward, bury a deck-bottom card under the pile. Uncapped, no reveal.
-      id: "streakTribute", label: "Streak Tribute", icon: "🔥",
+      id: "streakTribute", label: "Streak Encode", icon: "🔥",
       kind: "composition", effect: "streakTribute", tier: "rare", price: 10,
-      description: "From the 4th consecutive correct guess in this column onward, a card from the bottom of the deck is buried under that pile (hidden). The streak resets on a wrong guess in this column, or on any guess in another column.",
+      description: "From the 4th consecutive correct call in this column onward, a card from the bottom of the deck is buried beneath that pile (hidden). The streak resets on a wrong call in this column, or any call in another column.",
     },
     secondWind: {
       // Guess-time: the FIRST pile to die in this column each run revives once
@@ -2230,7 +2230,7 @@ const PillarTypes = (() => {
       // reshuffled into the deck with no reveal, stickers intact.
       id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 7,
-      description: "The first pile to die in this column each run revives once with one new card on top. Its previous cards are shuffled back into the draw deck (hidden), and the revived 1-card pile counts as alive — which can lower your smallest-pile factor.",
+      description: "The first pile to die in this column each run revives once with one new card on top. Its previous cards are shuffled back into the deck (hidden), and the revived 1-card pile counts as alive — which can lower your smallest-pile factor.",
     },
     greedy: {
       // End-of-run: +value if every pile in this column is alive AND this is the
@@ -2238,7 +2238,7 @@ const PillarTypes = (() => {
       // — disqualifies it).
       id: "greedy", label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 30, tier: "rare", price: 10,
-      description: "At run end, +30 coins if every pile in this column is alive AND no other Pillar exists anywhere on the board (Greedy may be the only Pillar in play — any second Pillar disqualifies it).",
+      description: "At run end, +30 dopamine if every pile in this column is alive AND no other Pathway exists anywhere on the board (any second Pathway disqualifies it).",
     },
   };
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
@@ -2263,24 +2263,24 @@ const PillarTypes = (() => {
 const PackTypes = (() => {
   const TYPES = {
     cardPack3: {
-      id: "cardPack3", label: "3-Card Pack", icon: "🎴", kind: "card",
+      id: "cardPack3", label: "Memory Cache · 3", icon: "🎴", kind: "card",
       size: 3, keep: 1, price: 10,
-      description: "Reveals 3 random cards — keep 1 in your pack tray to replace a dealt card before a run. The rest are discarded.",
+      description: "Surfaces 3 random cards — keep 1 in your cache tray to swap in for a dealt card before a run. The rest fade.",
     },
     cardPack5: {
-      id: "cardPack5", label: "5-Card Pack", icon: "🎴", kind: "card",
+      id: "cardPack5", label: "Memory Cache · 5", icon: "🎴", kind: "card",
       size: 5, keep: 1, price: 15,
-      description: "Reveals 5 random cards — keep 1 in your pack tray to replace a dealt card before a run. The rest are discarded.",
+      description: "Surfaces 5 random cards — keep 1 in your cache tray to swap in for a dealt card before a run. The rest fade.",
     },
     stickerPack3: {
-      id: "stickerPack3", label: "3-Sticker Pack", icon: "📦", kind: "sticker",
+      id: "stickerPack3", label: "Imprint Cache · 3", icon: "📦", kind: "sticker",
       size: 3, keep: 1, price: 3,
-      description: "Reveals 3 random stickers — keep 1 (straight to your inventory). The rest are discarded.",
+      description: "Surfaces 3 random Imprints — keep 1, straight to your stash. The rest fade.",
     },
     stickerPack5: {
-      id: "stickerPack5", label: "5-Sticker Pack", icon: "📦", kind: "sticker",
+      id: "stickerPack5", label: "Imprint Cache · 5", icon: "📦", kind: "sticker",
       size: 5, keep: 2, price: 5,
-      description: "Reveals 5 random stickers — keep 2 (straight to your inventory). The rest are discarded.",
+      description: "Surfaces 5 random Imprints — keep 2, straight to your stash. The rest fade.",
     },
   };
   const ORDER = ["cardPack3", "cardPack5", "stickerPack3", "stickerPack5"];
@@ -2722,7 +2722,7 @@ const GameEngine = (() => {
       if (!run || !amount) return;
       run.bonusCoins += amount;
       run.bonusEvents[label] = (run.bonusEvents[label] || 0) + amount;
-      logLine((amount >= 0 ? "+" : "") + amount + " coin — " + label);
+      logLine((amount >= 0 ? "+" : "") + amount + " dopamine — " + label);
     }
 
     /** Second Wind: recycle a dying pile's cards (and the killing card) back into
@@ -2748,11 +2748,11 @@ const GameEngine = (() => {
         if (!top || !top.stickers) continue;
         if (top.stickers.some(s => s.type === "compound")) {
           const n = Math.max(0, (top.compoundHits || 0) - 1);
-          if (n > 0) addBonus("Compound", n);
+          if (n > 0) addBonus("Potentiation", n);
         }
         if (top.stickers.some(s => s.type === "wallflower") && run.pileGuessed && !run.pileGuessed[i]) {
           const wt = StickerTypes.get("wallflower");
-          addBonus("Wallflower", (wt && wt.value) || 0);
+          addBonus("Dormant", (wt && wt.value) || 0);
         }
       }
     }
@@ -2791,7 +2791,7 @@ const GameEngine = (() => {
         if (!t || t.behavior !== "tribute") continue;
         if (t.centerOnly && (center == null || col !== center)) continue;
         buryTribute(index, t.tributeCount || 1, t.label);
-        if (t.coinCost) addBonus("Tribute cost", -t.coinCost);
+        if (t.coinCost) addBonus("Encode cost", -t.coinCost);
       }
     }
 
@@ -2807,10 +2807,10 @@ const GameEngine = (() => {
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t) continue;
-        if (t.behavior === "middleColumnReward" && center != null && col === center) addBonus("Middle Reward", t.value || 0);
-        else if (t.behavior === "gainCoin") addBonus("Lucky Coin", t.value || 0);
-        // Collector pays per instance: +1 for each OTHER sticker on this card.
-        else if (t.behavior === "collector") addBonus("Collector", (t.value || 1) * Math.max(0, stickers.length - 1));
+        if (t.behavior === "middleColumnReward" && center != null && col === center) addBonus("Focus", t.value || 0);
+        else if (t.behavior === "gainCoin") addBonus("Spark", t.value || 0);
+        // Hub pays per instance: +1 for each OTHER Imprint on this card.
+        else if (t.behavior === "collector") addBonus("Hub", (t.value || 1) * Math.max(0, stickers.length - 1));
       }
     }
 
@@ -2887,7 +2887,7 @@ const GameEngine = (() => {
           // the board (a second Pillar anywhere — even another Greedy — voids it).
           if (pillarsOnBoard === 1 && allAliveInCol(col)) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value });
+            lines.push({ label: t.label, detail: "sole Pathway, column survived", amount: t.value });
           }
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
@@ -3088,7 +3088,7 @@ const GameEngine = (() => {
         // guards on the same card are untouched. The drawn card is NOT pushed.
         current.suitGuards[drawn.suit] = false;
         deck.returnCard(drawn);
-        logLine("Suit Guard consumed — pile survived (" + drawn.suit + " returned to the deck)");
+        logLine("Inhibitor consumed — pile survived (" + drawn.suit + " returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
@@ -3097,7 +3097,7 @@ const GameEngine = (() => {
         // unchanged. The drawn card is NOT pushed and the pile is NOT killed.
         current.heartsRemaining -= 1;
         deck.returnCard(drawn);
-        logLine("Extra Heart consumed — pile survived (card returned to the deck)");
+        logLine("Buffer consumed — pile survived (card returned to the deck)");
         emit("heart-broken", { index, guess, current, drawn, board, deck, run });
       } else if (pillar && pillar.effect === "secondWind" && run.secondWindUsed && col != null && !run.secondWindUsed[col]) {
         // Second Wind: the first pile to die in this column each run revives once.
@@ -3114,7 +3114,7 @@ const GameEngine = (() => {
         logLine("→ pile died");
         // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
         const db = drawn.stickers ? drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
-        if (db > 0) { const t = StickerTypes.get("deathBounty"); addBonus("Death Bounty", db * ((t && t.value) || 0)); }
+        if (db > 0) { const t = StickerTypes.get("deathBounty"); addBonus("Last Spark", db * ((t && t.value) || 0)); }
         emit("resolved", { index, guess, current, drawn, correct: false, board, deck, run });
       }
 
@@ -3123,7 +3123,7 @@ const GameEngine = (() => {
       maybeAllHearts();
       // Close the turn's log entry with a coins summary (newest entry at top).
       const net = run.bonusCoins - bonusBefore;
-      logLine("Coins this turn: " + (net >= 0 ? "+" : "") + net + " → bonus tally " + run.bonusCoins);
+      logLine("Dopamine this turn: " + (net >= 0 ? "+" : "") + net + " → bonus tally " + run.bonusCoins);
       currentEntry = null;
       evaluateEnd();
     }
@@ -3144,8 +3144,8 @@ const GameEngine = (() => {
         const pp = computePillarPayout();
         for (const ln of pp.lines) logLine(ln.label + ": +" + ln.amount + (ln.detail ? " (" + ln.detail + ")" : ""));
         const extra = board.extraCoinUnits();
-        if (extra > 0) logLine("Extra Coin: +" + extra);
-        logLine("Bonus total: live " + run.bonusCoins + " + Pillars " + pp.bonus + " + Extra Coin " + extra + " = " + (run.bonusCoins + pp.bonus + extra));
+        if (extra > 0) logLine("Yield: +" + extra);
+        logLine("Bonus total: live " + run.bonusCoins + " + Pathways " + pp.bonus + " + Yield " + extra + " = " + (run.bonusCoins + pp.bonus + extra));
         currentEntry = null;
         emit("won", { board, deck, run, pillarPayout: pp });
         // FUTURE: HOOKS.onRunComplete({ result: "win", board });
@@ -4576,9 +4576,9 @@ const UIRenderer = (() => {
       const n = counts[t.id];
       if (!n) return;
       let state = "";
-      if (t.id === "extraHeart") state = "Hearts remaining: " + (card.heartsRemaining || 0) + " of " + n;
+      if (t.id === "extraHeart") state = "Buffers remaining: " + (card.heartsRemaining || 0) + " of " + n;
       else if (t.behavior === "suitImmunity") state = "Charge: " + ((card.suitGuards && card.suitGuards[t.suit]) ? "ready" : "spent");
-      else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
+      else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " dopamine";
       body +=
         '<div class="pk-item"><span class="pk-ic">' + t.icon + "</span><span>" +
           '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
@@ -4667,7 +4667,7 @@ const UIRenderer = (() => {
     renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     el.hint.textContent = hasStickers
-      ? "Apply stickers, then press Start Run."
+      ? "Apply Imprints, then press Start Run."
       : "Read the board, then press Start Run.";
   }
 
@@ -4698,8 +4698,8 @@ const UIRenderer = (() => {
     el.redealBtn.disabled = !afford;
     el.redealBtn.innerHTML = "REDEAL · " + redealCost + " " + COIN_SVG;
     el.redealBtn.title = afford
-      ? "Reshuffle the whole deck for " + redealCost + " coins (applied stickers stay)."
-      : "Need " + redealCost + " coins to redeal (you have " + coins + ").";
+      ? "Reshuffle the whole deck for " + redealCost + " dopamine (applied Imprints stay)."
+      : "Need " + redealCost + " dopamine to redeal (you have " + coins + ").";
   }
 
   function requestRedeal() {
@@ -4710,7 +4710,7 @@ const UIRenderer = (() => {
     // re-rolled — but the prompt makes that explicit so it isn't a surprise.
     if (appliedThisPhase) {
       el.redealConfirmMsg.textContent =
-        "Redeal for " + redealCost + " coins? Your applied stickers stay on their "
+        "Redeal for " + redealCost + " dopamine? Your applied Imprints stay on their "
         + "cards — only the starting board is reshuffled.";
       el.redealConfirm.classList.remove("hidden");
       return;
@@ -4724,7 +4724,7 @@ const UIRenderer = (() => {
     closeRedealConfirm();
     if (!engine || !engine.canApplyStickers()) return;
     if (!campaign || !campaign.spendCoins(redealCost)) return;
-    engine.logAction("Redeal", ["Reshuffled the deck for " + redealCost + " coins"]);
+    engine.logAction("Redeal", ["Reshuffled the deck for " + redealCost + " dopamine"]);
     redealCost += REDEAL_STEP;                // next redeal this phase costs more
     appliedThisPhase = false;                 // fresh board; nothing applied to it yet
     updateStageRun();                         // reflect the coin spend in the HUD
@@ -4779,7 +4779,7 @@ const UIRenderer = (() => {
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
       ? "Tap a pile to apply " + t.icon + " " + t.label + " to its card."
-      : "Apply stickers, then press Start Run.";
+      : "Apply Imprints, then press Start Run.";
   }
 
   function applyArmedSticker(index) {
@@ -4788,7 +4788,7 @@ const UIRenderer = (() => {
       armedSticker = null;
       el.board.classList.remove("arming");
       renderStickerTray();
-      el.hint.textContent = "Sticker window closed — the run has started.";
+      el.hint.textContent = "Imprint window closed — the run has started.";
       return;
     }
     const board = engine.getBoard();
@@ -4813,10 +4813,10 @@ const UIRenderer = (() => {
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
     renderStickerTray();
-    el.hint.textContent = "Sticker applied — apply more or press Start Run.";
+    el.hint.textContent = "Imprint applied — apply more or press Start Run.";
     persistCampaign("run");   // the sticker is a permanent campaign change
     const st = StickerTypes.get(typeId);
-    engine.logAction("Applied sticker: " + ((st && st.label) || typeId) + " → pile " + (index + 1));
+    engine.logAction("Applied Imprint: " + ((st && st.label) || typeId) + " → pile " + (index + 1));
     refreshDebug();
   }
 
@@ -4937,7 +4937,7 @@ const UIRenderer = (() => {
     campaign.debugGrantSticker(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     renderStickerTray();
-    el.debugPeekOut.textContent = "granted sticker: " + id;
+    el.debugPeekOut.textContent = "granted Imprint: " + id;
   }
 
   /* DEBUG: grant the selected Pillar by placing it (free) on the first empty
@@ -4951,7 +4951,7 @@ const UIRenderer = (() => {
     campaign.setColumnPillar(col, id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     if (pileEls.length) paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
-    el.debugPeekOut.textContent = "granted pillar: " + id + " → column " + (col + 1);
+    el.debugPeekOut.textContent = "granted Pathway: " + id + " → column " + (col + 1);
   }
 
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
@@ -4961,7 +4961,7 @@ const UIRenderer = (() => {
     campaign.addCoins(n);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     updateStageRun();
-    el.debugPeekOut.textContent = "added " + n + " coins → balance " + campaign.getCoins();
+    el.debugPeekOut.textContent = "added " + n + " dopamine → balance " + campaign.getCoins();
   }
 
   function setDebug(on) {
@@ -5259,8 +5259,8 @@ const UIRenderer = (() => {
         const pid = campaign.columnPillar(trashPendingCol);
         const t = pid ? PillarTypes.get(pid) : null;
         campaign.setColumnPillar(trashPendingCol, null);   // permanent — no refund, no inventory
-        if (engine) engine.logAction("Store: trashed Pillar " + ((t && t.label) || pid) + " from column " + (trashPendingCol + 1));
-        el.storeMsg.textContent = "Pillar trashed — column " + (trashPendingCol + 1) + " is now empty.";
+        if (engine) engine.logAction("Store: trashed Pathway " + ((t && t.label) || pid) + " from column " + (trashPendingCol + 1));
+        el.storeMsg.textContent = "Pathway trashed — column " + (trashPendingCol + 1) + " is now empty.";
       }
       closeTrashConfirm();
       armedSlotMove = null;
@@ -5376,7 +5376,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `💔 ${payload.current.label} survived — a heart broke!`;
+        el.hint.textContent = `💔 ${payload.current.label} held on — a Buffer soaked the hit.`;
         refreshDebug();
         break;
       }
@@ -5394,7 +5394,7 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         clearSelection();
         renderStickerTray();
-        el.hint.textContent = `🪬 ${payload.current.label} survived — a ${payload.drawn.suit} was guarded!`;
+        el.hint.textContent = `🪬 ${payload.current.label} held on — the ${payload.drawn.suit} Inhibitor fired.`;
         refreshDebug();
         break;
       }
@@ -5444,11 +5444,11 @@ const UIRenderer = (() => {
         '<span class="val">' + value + "</span>" +
       "</div>";
     return (
-      '<div class="ocoins-head">' + COIN_SVG + ' Coins earned</div>' +
+      '<div class="ocoins-head">' + COIN_SVG + ' Dopamine earned</div>' +
       row("Alive piles", "", b.alivePiles) +
       row("Smallest alive pile", "", b.minPileCards + " cards") +
       row("Subtotal", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
-      row("Extra Coin bonus", "", "+" + b.extraCoinBonus) +
+      row("Yield bonus", "", "+" + b.extraCoinBonus) +
       // One row per scoring Pillar that paid out this run (omitted when none).
       (b.pillarLines || []).map(p =>
         row("🏛️ " + p.label, p.detail || "", "+" + p.amount)).join("") +
@@ -5524,10 +5524,10 @@ const UIRenderer = (() => {
   function showStartScreen() {
     showOverlay({
       icon: "🐱",
-      title: "NINE LIVES",
+      title: "MNESIS",
       msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
-         + " runs each). The deck grows by a suit each stage — but lose any run "
-         + "and the whole campaign wipes. Empty the deck to clear a run.",
+         + " runs each). The deck grows by a suit each stage — but lose a single run "
+         + "and the whole mind wipes. Empty the deck to clear a run.",
       progress: "Stage 1 of " + campaign.maxStages + " · Run 1 of " + campaign.maxRunsPerStage,
       btnLabel: "START CAMPAIGN",
       action: startCampaign,
@@ -5542,7 +5542,7 @@ const UIRenderer = (() => {
       kind: "win",
       icon: "🏆",
       title: "RUN CLEARED",
-      msg: "You emptied the deck.",
+      msg: "The deck is empty. The run holds.",
       progress: stageRunLabel(" complete"),
       coins,
       peek: true,
@@ -5566,8 +5566,8 @@ const UIRenderer = (() => {
     showOverlay({
       kind: "lose",
       icon: "💀",
-      title: "CAMPAIGN OVER",
-      msg: "A run fell — the whole campaign resets. Start fresh from Stage 1.",
+      title: "MIND WIPED",
+      msg: "A run slipped away — the mind resets. Start fresh from Stage 1.",
       progress: "Reached " + stageRunShort(),
       endStats: endStats(),
       peek: true,
@@ -5580,8 +5580,8 @@ const UIRenderer = (() => {
     showOverlay({
       kind: "win",
       icon: "🎉",
-      title: "CAMPAIGN COMPLETE",
-      msg: "You cleared all " + (campaign.maxStages * campaign.maxRunsPerStage) + " runs!",
+      title: "FULLY RECALLED",
+      msg: "You held every memory to the end — all " + (campaign.maxStages * campaign.maxRunsPerStage) + " runs cleared.",
       progress: stageRunShort(),
       endStats: endStats(),
       peek: true,
@@ -6289,7 +6289,7 @@ const UIRenderer = (() => {
   function renderStore() {
     const offer = campaign.getStoreOffer();
     el.storeCoins.textContent = campaign.getCoins();
-    el.storeInv.innerHTML = inventoryHtml("No stickers owned yet");
+    el.storeInv.innerHTML = inventoryHtml("No Imprints owned yet");
     // 4 sticker slots (select → Buy).
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
@@ -6337,7 +6337,7 @@ const UIRenderer = (() => {
     const t = id ? PackTypes.get(id) : null;
     if (!t) {
       el.buyPackBtn.disabled = true;
-      el.buyPackBtn.textContent = "Select a pack to buy";
+      el.buyPackBtn.textContent = "Select a Cache to buy";
       return;
     }
     const price = campaign.priceOfPack(id);
@@ -6356,7 +6356,7 @@ const UIRenderer = (() => {
     armedPillarSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedPackSlot != null
-      ? "Tap Buy to open this pack, or tap it again to deselect."
+      ? "Tap Buy to open this Cache, or tap it again to deselect."
       : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
@@ -6406,7 +6406,7 @@ const UIRenderer = (() => {
     if (st.kind === "card" && st.mode === "discard") {
       // Forced discard step (tray at cap): pick one held card to drop. No
       // multi-select / Confirm here — it's a single immediate choice.
-      el.packTitle.textContent = "Pack tray full (" + campaign.packTrayCap + ")";
+      el.packTitle.textContent = "Cache tray full (" + campaign.packTrayCap + ")";
       el.packItems.innerHTML = campaign.getPackTray().map((c, i) =>
         packItemButton(miniCardHtml(c), "data-held", i, false, false)).join("");
       el.packMsg.textContent = "Tap a held card to discard — your new pick is then kept.";
@@ -6421,7 +6421,7 @@ const UIRenderer = (() => {
             '<span class="pks-name">' + escHtml(t ? t.label : st.items[i]) + "</span></div>"; })();
     el.packItems.innerHTML = st.items.map((_, i) =>
       packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1, true)).join("");
-    const noun = st.kind === "card" ? "card" : "sticker";
+    const noun = st.kind === "card" ? "card" : "Imprint";
     el.packTitle.textContent = "Pick " + st.keep + " " + noun + (st.keep > 1 ? "s" : "") + " to keep";
     el.packMsg.textContent = "Selected " + st.chosen.length + " / " + st.keep + " — the rest are discarded.";
     el.packConfirmBtn.disabled = st.chosen.length !== st.keep;
@@ -6473,7 +6473,7 @@ const UIRenderer = (() => {
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];
       const body = stk.length === 0
-        ? "A plain card — no stickers."
+        ? "A plain card — no Imprints."
         : stk.map(s => { const t = StickerTypes.get(s.type);
             return t ? ("<b>" + t.icon + " " + escHtml(t.label) + "</b> — " + escHtml(t.description || "")) : ""; })
             .filter(Boolean).join("<br><br>");
@@ -6569,7 +6569,7 @@ const UIRenderer = (() => {
     const t = id ? StickerTypes.get(id) : null;
     if (!t) {
       el.buyStickerBtn.disabled = true;
-      el.buyStickerBtn.textContent = "Select a sticker to buy";
+      el.buyStickerBtn.textContent = "Select an Imprint to buy";
       return;
     }
     const price = campaign.priceOf(id);
@@ -6620,7 +6620,7 @@ const UIRenderer = (() => {
     el.trashPillarBtn.classList.toggle("hidden", !armedPid);
     if (armedPid) {
       const t = PillarTypes.get(armedPid);
-      el.trashPillarBtn.textContent = "🗑 Trash " + ((t && t.label) || "Pillar");
+      el.trashPillarBtn.textContent = "🗑 Trash " + ((t && t.label) || "Pathway");
     }
   }
 
@@ -6632,7 +6632,7 @@ const UIRenderer = (() => {
     armedPillarSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedStickerSlot != null
-      ? "Tap Buy to confirm, or tap the sticker again to deselect."
+      ? "Tap Buy to confirm, or tap the Imprint again to deselect."
       : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
@@ -6645,9 +6645,9 @@ const UIRenderer = (() => {
     const id = offer ? offer.stickers[selectedStickerSlot] : null;
     if (campaign.buyOfferedSticker(selectedStickerSlot)) {
       const st = id ? StickerTypes.get(id) : null;
-      if (engine) engine.logAction("Store: bought sticker " + ((st && st.label) || id));
+      if (engine) engine.logAction("Store: bought Imprint " + ((st && st.label) || id));
       selectedStickerSlot = null;
-      el.storeMsg.textContent = "Sticker bought — apply it during the next run.";
+      el.storeMsg.textContent = "Imprint bought — apply it during the next run.";
     }
     renderStore();
     refreshDebug();
@@ -6660,7 +6660,7 @@ const UIRenderer = (() => {
     const id = offer ? offer.pillars[slot] : null;
     if (!id) return;
     if (campaign.getCoins() < campaign.priceOfPillar(id)) {
-      el.storeMsg.textContent = "Not enough coins for that Pillar.";
+      el.storeMsg.textContent = "Not enough dopamine for that Pathway.";
       return;
     }
     selectedStickerSlot = null;
@@ -6668,7 +6668,7 @@ const UIRenderer = (() => {
     armedSlotMove = null;
     armedPillarSlot = armedPillarSlot === slot ? null : slot;
     el.storeMsg.textContent = armedPillarSlot != null
-      ? "Tap a column to place this Pillar (replaces what's there)."
+      ? "Tap a column to place this Pathway (replaces what's there)."
       : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
@@ -6684,9 +6684,9 @@ const UIRenderer = (() => {
       const pid = offer ? offer.pillars[armedPillarSlot] : null;
       if (campaign.buyOfferedPillar(armedPillarSlot, col)) {
         const pt = pid ? PillarTypes.get(pid) : null;
-        if (engine) engine.logAction("Store: bought Pillar " + ((pt && pt.label) || pid) + " → column " + (col + 1));
+        if (engine) engine.logAction("Store: bought Pathway " + ((pt && pt.label) || pid) + " → column " + (col + 1));
         armedPillarSlot = null;
-        el.storeMsg.textContent = "Pillar placed on Column " + (col + 1) + ".";
+        el.storeMsg.textContent = "Pathway placed on Column " + (col + 1) + ".";
       }
       renderStore();
       refreshDebug();
@@ -6703,7 +6703,7 @@ const UIRenderer = (() => {
     } else {
       campaign.swapColumnPillars(armedSlotMove, col);
       armedSlotMove = null;
-      el.storeMsg.textContent = "Pillars rearranged.";
+      el.storeMsg.textContent = "Pathways rearranged.";
     }
     renderStore();
   }
@@ -6775,7 +6775,7 @@ const UIRenderer = (() => {
      dismissed by tapping the backdrop or the ×. Reads the same campaign
      inventory the store uses (via inventoryHtml). */
   function openInvPopup() {
-    el.invBody.innerHTML = inventoryHtml("No stickers in inventory");
+    el.invBody.innerHTML = inventoryHtml("No Imprints in your stash");
     el.invPopup.classList.remove("hidden");
   }
   function closeInvPopup() { el.invPopup.classList.add("hidden"); }
@@ -6785,7 +6785,7 @@ const UIRenderer = (() => {
     // Stamp the build badge (and console) so the running version is obvious.
     el.buildTag.textContent = "build " + APP_VERSION;
     if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
-    console.log("Nine Lives " + APP_VERSION);
+    console.log("Mnesis " + APP_VERSION);
 
     // Restore the deck-strip toggle pref (default ON) before the first board is
     // built, so fitBoard reserves the strip's space from the start. No fitBoard
