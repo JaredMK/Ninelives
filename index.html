@@ -87,23 +87,29 @@
   header {
     text-align: center;
     padding: 6px 12px 2px;
+    min-height: 30px;           /* reserve the badge's space (it's fixed-position) */
   }
+  /* Stage·Run badge — fixed top-centre, layered ABOVE in-game overlays so it
+     shows on the board, the store, and every mid-game modal. Hidden on the main
+     menu and the start/win/lose overlays (they carry their own progress text). */
   .stage-run {
-    margin: 0 auto;
-    display: inline-block;
+    position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
+    z-index: 1500;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.6px;
     text-transform: uppercase;
     color: var(--accent-2);
     background: var(--panel);
+    border: 1px solid var(--edge);
     border-radius: 999px;
-    padding: 3px 12px;
+    padding: 4px 14px;
     box-shadow: var(--shadow);
-    cursor: pointer;            /* tap to open the sticker inventory popup */
+    cursor: pointer;            /* tap to open the Imprint stash */
     user-select: none; -webkit-user-select: none;
   }
-  .stage-run:active { transform: scale(0.97); }
+  .stage-run.off { display: none; }
+  .stage-run:active { transform: translateX(-50%) scale(0.97); }
 
   /* In-play sticker inventory popup (tap-to-open, tap-out / × to close). */
   .inv-popup {
@@ -851,11 +857,11 @@
   /* Compact shop: everything (sticky header, 4 sticker slots, Buy, 2 Pillar
      slots, column chips, reroll, start) targets ONE no-scroll phone screen.
      overflow-y:auto is only a safety net for unusually short viewports. */
-  .overlay.store { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; gap: 5px; padding: 12px; }
+  .overlay.store { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; gap: 5px; padding: 40px 12px 12px; }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
-    position: sticky; top: 0; z-index: 6;
+    position: sticky; top: 34px; z-index: 6;
     width: min(94vw, 380px);
     text-align: center;
     padding: 6px 0 8px;
@@ -2039,7 +2045,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.70 · deck-graph-controls";
+const APP_VERSION = "v0.71 · stage-run-badge";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5433,6 +5439,7 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
+        if (el.stageRun) el.stageRun.classList.remove("off");   // in-game → show badge
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
         lastAliveCount = payload.board.aliveCount();
         renderNetwork();
@@ -5580,6 +5587,9 @@ const UIRenderer = (() => {
 
   function showOverlay(opts) {
     el.overlay.classList.remove("hidden", "win", "lose");
+    // The start/win/lose overlay carries its own progress line, so hide the
+    // floating Stage·Run badge while it's up (and on the main menu).
+    if (el.stageRun) el.stageRun.classList.add("off");
     if (opts.kind) el.overlay.classList.add(opts.kind);
     el.overlayIcon.innerHTML = opts.icon;
     el.overlayTitle.textContent = opts.title;
@@ -5612,6 +5622,8 @@ const UIRenderer = (() => {
 
   function hideOverlay() {
     el.overlay.classList.add("hidden");
+    // Back to an in-game screen → reveal the Stage·Run badge.
+    if (el.stageRun) el.stageRun.classList.remove("off");
   }
 
   /* ---- phase screens ---- */
@@ -6354,6 +6366,7 @@ const UIRenderer = (() => {
      Shown after every run so banked coins are always spendable. */
   function showStore(fresh = true) {
     hideOverlay();
+    updateStageRun();   // keep the floating Stage·Run badge current in the store
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
