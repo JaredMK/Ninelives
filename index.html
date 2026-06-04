@@ -992,13 +992,14 @@
   .inv-empty { font-size: 11px; font-weight: 600; color: var(--muted); }
 
   /* Offered-item rows: 4 sticker tiles / 2 Pillar tiles, centered + compact. */
+  /* Tiles stay on ONE row: no wrap, shrink-to-fit, capped at the natural size. */
   .store-tiles {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 6px; width: min(94vw, 380px);
+    display: flex; flex-wrap: nowrap; justify-content: center;
+    gap: 6px; width: min(96vw, 400px);
   }
   .store-tile {
     position: relative;
-    width: 66px; height: 62px;
+    flex: 1 1 0; min-width: 0; max-width: 72px; height: 62px;
     background: var(--panel); color: var(--text); border: none; border-radius: 10px;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     cursor: pointer; box-shadow: var(--shadow);
@@ -1119,7 +1120,21 @@
     box-shadow: var(--shadow); padding: 16px 14px; text-align: center;
   }
   .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
-  .pack-items { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .pack-items { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; }
+  .pack-items > * { flex: 1 1 0; min-width: 0; }
+  /* Store auto-description panel — always-visible, fixed slot (no layout jump). */
+  .store-desc {
+    width: min(96vw, 400px); min-height: 46px;
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 10px;
+    padding: 7px 11px; text-align: left;
+  }
+  .store-desc .sd-empty { color: var(--muted); font-size: 11px; }
+  .store-desc .sd-title { color: var(--accent-2); font-weight: 800; font-size: 13px;
+    display: flex; align-items: center; gap: 5px; }
+  .store-desc .sd-title .ico { font-size: 16px; }
+  .store-desc .sd-tier { color: var(--muted); font-weight: 700; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-left: auto; }
+  .store-desc .sd-desc { color: var(--text); font-size: 11px; line-height: 1.4; margin-top: 3px; }
   .pack-msg { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 14px; line-height: 1.4; }
   /* Read-only "view deck composition" aid on the card-pick screen. */
   .pack-deck-btn {
@@ -2015,6 +2030,9 @@
       <div class="sc-coins"><span class="ico-slot" data-ico="store"></span> <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
       <div class="sc-inv" id="storeInv"></div>
     </div>
+    <!-- Auto-description: shows the selected item's name + effect (registry
+         source), so the player always sees what they're buying without scrolling. -->
+    <div class="store-desc" id="storeDesc"></div>
     <div class="store-section">Imprints — apply to cards next run</div>
     <div class="store-tiles" id="storeItems"></div>
     <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select an Imprint to buy</button>
@@ -2190,7 +2208,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.72 · menus-stats-sound";
+const APP_VERSION = "v0.73 · store-help";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4552,6 +4570,7 @@ const UIRenderer = (() => {
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
     storeInv: document.getElementById("storeInv"),
+    storeDesc: document.getElementById("storeDesc"),
     storeItems: document.getElementById("storeItems"),
     buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
@@ -6703,10 +6722,36 @@ const UIRenderer = (() => {
     return btn;
   }
 
+  /* Shared description source for any element (Imprint / Pathway / Cache):
+     reads straight from the registries — the SAME text the help popups use. */
+  function describeItem(kind, id) {
+    const reg = kind === "pillar" ? PillarTypes : kind === "pack" ? PackTypes : StickerTypes;
+    const t = id ? reg.get(id) : null;
+    return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: t.description } : null;
+  }
+  /* Store auto-description: reflects the current selection (Imprint / Pathway /
+     Cache) automatically — pick a tile and its effect shows here, no scrolling. */
+  function renderStoreDesc() {
+    if (!el.storeDesc) return;
+    const offer = campaign.getStoreOffer();
+    let item = null;
+    if (offer) {
+      if (selectedStickerSlot != null) item = describeItem("sticker", offer.stickers[selectedStickerSlot]);
+      else if (armedPillarSlot != null) item = describeItem("pillar", offer.pillars[armedPillarSlot]);
+      else if (selectedPackSlot != null) item = describeItem("pack", offer.packs[selectedPackSlot]);
+    }
+    if (!item) { el.storeDesc.innerHTML = '<span class="sd-empty">Select an item to see what it does.</span>'; return; }
+    el.storeDesc.innerHTML =
+      '<div class="sd-title">' + item.icon + " " + escHtml(item.label) +
+        (item.tier ? '<span class="sd-tier">' + item.tier + "</span>" : "") + "</div>" +
+      '<div class="sd-desc">' + escHtml(item.desc || "") + "</div>";
+  }
+
   function renderStore() {
     const offer = campaign.getStoreOffer();
     el.storeCoins.textContent = campaign.getCoins();
     el.storeInv.innerHTML = inventoryHtml("No Imprints owned yet");
+    renderStoreDesc();   // keep the auto-description in sync with the selection
     // 4 sticker slots (select → Buy).
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
