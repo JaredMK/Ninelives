@@ -20,28 +20,28 @@
        Names unchanged so the existing chrome inherits the new palette. */
     --bg: #0e0a0d;          /* deep plum-charcoal base */
     --bg-2: #1c151a;        /* lifted tissue centre */
-    --panel: #23171c;       /* floating chrome on the tissue */
+    --panel: #2A2430;       /* matte lighter-slate chrome (no glow) */
     --accent: #e88bb0;      /* neural rose (primary, = connection colour) */
     --accent-2: #e8a6c2;    /* light rose (secondary highlights/stats) */
     --good: #84c89a;        /* muted sage — survival/correct */
     --bad: #e06b80;         /* muted rose-red — loss/wrong */
     --text: #f0e6ec;        /* warm near-white */
     --muted: #bfa3b4;       /* muted mauve */
-    /* Phase 2 — neural cards: light face, dark muted two-color suits. */
-    --card-face: #faf8f7;
+    /* Matte cards: solid off-white face, dark two-color suits, crisp edge. */
+    --card-face: #F1ECE6;
     --card-ink: #2c2430;
     --card-red: #b5566f;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
-    --shadow: 0 8px 24px rgba(4, 2, 6, 0.5);
+    --shadow: 0 6px 18px rgba(2, 1, 4, 0.55);
     /* ---- Type system ----------------------------------------------------- */
     --font-display: "Josefin Sans", "Gill Sans", "Optima", sans-serif;
     --font-text: "Chakra Petch", "SF Mono", "Segoe UI", system-ui, sans-serif;
     /* Reserved accents for later phases. */
     --amber: #e0973c;       /* limiting-pile accent (Phase 2) */
-    --edge: rgba(232, 139, 176, 0.14);   /* warm starlight-rose hairline */
-    --edge-2: rgba(232, 139, 176, 0.28); /* stronger rose border for panels/chrome */
-    --panel-2: #2a1f26;     /* raised inner surface (inputs, secondary buttons) */
+    --edge: rgba(74, 66, 80, 0.55);      /* matte slate hairline */
+    --edge-2: #4A4250;                   /* defined slate border for panels/chrome */
+    --panel-2: #332C3A;     /* raised inner surface (inputs, secondary buttons) */
     --sel: rgba(232, 139, 176, 0.16);    /* warm selection fill */
     --danger: #b5435a;      /* deep rose-red for destructive actions */
     --pathway: #a98cd8;     /* Pathway identity (muted violet) */
@@ -410,12 +410,10 @@
     height: 90%;
     border-radius: 22px;
     transform-style: preserve-3d;
-    /* No rim/border — a soft suit-colour halo (per-card --glow) + depth only, so
-       the card has no crisp cutout; its edge feathers into the field (see the
-       .front mask) and it reads as emerging from the tissue. */
-    box-shadow:
-      0 0 22px 2px var(--glow, rgba(190, 110, 140, 0.42)),
-      0 6px 18px rgba(4, 2, 6, 0.5);
+    /* MATTE: no neon/glow. A defined crisp edge (border on the face) + a subtle
+       drop shadow for separation from the dark board. Glow lives only on the
+       connection network now. */
+    box-shadow: 0 4px 10px rgba(2, 1, 4, 0.55);
     /* Gentle, independent floating drift (per-card vars) — runs together with
        the breathing scale on .front. Small, so cards never detach from links. */
     animation: cardDrift var(--drift-dur, 8s) ease-in-out var(--drift-delay, 0s) infinite;
@@ -447,28 +445,18 @@
      stay in proportion at any pile size. Padding is also pile-relative, giving
      the corner ranks clear margin from the edge. */
   .card .front {
-    /* Warm off-white centred on #F4F0EE — a touch lighter at the centre fading
-       slightly deeper toward the edge (subtle depth, not stark white). */
-    background: radial-gradient(125% 100% at 50% 42%, #F8F5F3 0%, #F4F0EE 52%, #EBE3DF 100%);
+    /* MATTE solid off-white face — flat, no glow, no feathered edge. */
+    background: var(--card-face);
     color: var(--card-ink);
     /* Ranks/suits on Chakra Petch — clean + technical, fully legible. */
     font-family: var(--font-text);
     --ps: calc(var(--pile-size, 88px) * 0.9);   /* type tracks the 90% card */
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
-    border: none;
-    /* Feather all four edges uniformly (~7%) so the face dissolves into the
-       field — no crisp cutout. The opaque centre (>~7%) keeps the rank/suit
-       fully legible; the corner indices sit at ~9% padding, inside the opaque
-       zone. */
-    -webkit-mask:
-      linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%),
-      linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
-    -webkit-mask-composite: source-in;
-    mask:
-      linear-gradient(to right, transparent 0, #000 7%, #000 93%, transparent 100%),
-      linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
-    mask-composite: intersect;
+    /* Defined crisp edge: a dark hairline + a faint top highlight for a matte,
+       printed-card feel (replaces the old feathered/glowing halo). */
+    border: 1px solid rgba(26, 18, 24, 0.32);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
     /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
     animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
     transform-origin: 50% 50%;
@@ -597,7 +585,7 @@
 
   /* selected highlight */
   .pile.selected .card {
-    box-shadow: 0 0 0 3px var(--accent), 0 0 20px rgba(232, 139, 176, 0.45), 0 6px 16px rgba(4, 2, 6, 0.55);
+    box-shadow: 0 0 0 3px var(--accent), 0 4px 12px rgba(2, 1, 4, 0.6);   /* crisp ring, no blur halo */
   }
 
   /* deal-in animation */
@@ -2282,7 +2270,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.79 · store-pathway-synapse";
+const APP_VERSION = "v0.80 · matte-restyle";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
