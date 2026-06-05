@@ -1033,6 +1033,8 @@
   .z-imp  .store-tile .ti-icon { color: var(--accent-2); }
   .z-path .store-tile .ti-icon { color: #c4a8ec; }
   .z-swap .store-tile .ti-icon { color: #8fd9d6; }
+  /* Pathway tiles show the shared synapse+icon banner (fits the tile width). */
+  .store-tile .ti-syn { width: 100%; height: 26px; margin-top: 2px; display: block; }
   .store-tile .ti-name { font-size: 10px; font-weight: 700; line-height: 1.1; color: var(--text);
     min-height: 22px; display: flex; align-items: center; text-align: center; }
   .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--amber);
@@ -2280,7 +2282,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.78 · pathway-synapse";
+const APP_VERSION = "v0.79 · store-pathway-synapse";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6836,9 +6838,15 @@ const UIRenderer = (() => {
     // Packs have no rarity tier; Imprints/Pathways show their tier badge.
     const tierChip = (kind === "pack") ? ""
       : '<span class="ti-tier tier-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '">' + (t.tier || "common").charAt(0).toUpperCase() + '</span>';
+    // Pathways render the SAME synapse+icon banner as when equipped on the board
+    // (shared pathwayBannerHtml) so players recognise them before buying;
+    // Imprints/Memory Swaps keep their plain glyph.
+    const iconHtml = (kind === "pillar")
+      ? '<span class="ti-syn">' + pathwayBannerHtml(t) + '</span>'
+      : '<span class="ti-icon">' + t.icon + '</span>';
     btn.innerHTML =
       tierChip +
-      '<span class="ti-icon">' + t.icon + '</span>' +
+      iconHtml +
       '<span class="ti-name">' + escHtml(t.label) + '</span>' +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
