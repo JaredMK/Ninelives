@@ -212,25 +212,41 @@
     align-items: center;
     gap: 8px;
   }
-  /* Deck + Graph controls — icon-only cluster pinned to the top-right corner,
-     OUT of the column flow so the board and bottom graph reclaim the row. */
+  /* Graph toggle — icon-only, pinned to the top-right corner (out of flow). */
   .strip-toggle-row {
     position: fixed; top: 8px; right: 8px; z-index: 30;
     display: flex; align-items: center; gap: 6px;
   }
-  .strip-toggle-row .deck-stat,
   .deck-strip-toggle {
-    display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+    display: inline-flex; align-items: center; justify-content: center;
     height: 30px; min-width: 30px; padding: 0 7px;
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--edge-2); border-radius: 999px;
-    font-size: 13px; font-weight: 800; line-height: 1;
     cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
   }
-  .strip-toggle-row .deck-stat .ico, .deck-strip-toggle .ico { font-size: 16px; }
-  .strip-toggle-row .deck-stat .cc-num { color: var(--text); font-size: 12px; }
+  .deck-strip-toggle .ico { font-size: 16px; }
   .deck-strip-toggle.off { opacity: 0.45; }
-  .deck-strip-toggle:active, .strip-toggle-row .deck-stat:active { transform: scale(0.94); }
+  .deck-strip-toggle:active { transform: scale(0.94); }
+
+  /* The DECK — face-down card-stack docked bottom-right, just above the graph. */
+  .deck-dock { display: flex; justify-content: flex-end; align-items: center; padding: 0 6px; }
+  .deck-stack { display: inline-flex; align-items: center; gap: 9px;
+    cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .deck-stack:active { transform: scale(0.97); }
+  .deck-pile { position: relative; width: 36px; height: 48px; flex: none; }
+  .deck-pile .ds-back {
+    position: absolute; width: 32px; height: 46px; border-radius: 6px;
+    background: repeating-linear-gradient(135deg, #322a3c 0 5px, #281f30 5px 10px);
+    border: 1px solid var(--edge-2); box-shadow: 0 1px 3px rgba(0,0,0,0.55);
+  }
+  .deck-pile .ds-back:nth-child(1) { left: 0; top: 2px; }
+  .deck-pile .ds-back:nth-child(2) { left: 2px; top: 1px; }
+  .deck-pile .ds-back.ds-top { left: 4px; top: 0;
+    background: repeating-linear-gradient(135deg, #3a3146 0 5px, #2f2538 5px 10px);
+    border-color: var(--pathway); }
+  .deck-count { display: flex; flex-direction: column; align-items: flex-start; line-height: 0.95; }
+  .deck-count b { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--text); }
+  .deck-count .ds-lbl { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
 
   /* ============================================================
      DECK COMPOSITION STRIP — thin always-on bar graph at the bottom.
@@ -1978,15 +1994,21 @@
       <button class="btn lower" id="btnLower">LOWER</button>
     </div>
 
-    <!-- Deck + Graph controls — a compact icon-only cluster pinned to the top-
-         right corner (out of the column flow, so the board + graph get the room). -->
+    <!-- Graph toggle — small icon-only control pinned to the top-right corner. -->
     <div class="strip-toggle-row">
-      <div class="deck-stat" id="deckStat" role="button" tabindex="0"
-           title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-        <span class="ico-slot" data-ico="deck"></span><b id="deckCount" class="cc-num">0</b>
-      </div>
       <button class="deck-strip-toggle" id="deckStripToggle" type="button"
               title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph"><span class="ico-slot" data-ico="graph"></span></button>
+    </div>
+
+    <!-- The DECK: a face-down card-stack docked bottom-right, just above the
+         graph, with the remaining count. Reads instantly as "the deck, N left".
+         Tap to inspect · hold for a quick peek (same wiring as before). -->
+    <div class="deck-dock">
+      <div class="deck-stack" id="deckStat" role="button" tabindex="0"
+           title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
+        <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span></span>
+        <span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span>
+      </div>
     </div>
 
     <!-- Always-on deck composition strip: remaining (blue) vs total (grey) per
@@ -2288,7 +2310,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.82 · imprint-place-help";
+const APP_VERSION = "v0.83 · deck-bottom-right";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6641,6 +6663,9 @@ const UIRenderer = (() => {
     // two so the board size is stable across the phase swap (no re-fit jump).
     // .actions uses visibility:hidden (keeps its box) so it always measures.
     const controlH = Math.max(oh(el.actions), oh(el.startRunBtn));
+    // The deck dock (face-down stack + count) sits above the graph, always shown.
+    const deckDock = main.querySelector(".deck-dock");
+    const deckDockH = deckDock ? oh(deckDock) : 0;
     // The always-on composition strip (when shown) is another main child below
     // the board; reserve its height so Run 1's 4-tall column still fits no-scroll.
     const stripVisible = el.deckStrip && !el.deckStrip.classList.contains("hidden");
@@ -6649,12 +6674,12 @@ const UIRenderer = (() => {
     const bottomRowH = 0;
     // main's visible in-flow children: board, control-row, [sticker tray],
     // [pack tray], [strip].
-    const belowH = controlH + bottomRowH
+    const belowH = controlH + bottomRowH + deckDockH
       + (trayVisible ? oh(el.stickerTray) : 0)
       + (trayHelpVisible ? oh(el.trayHelp) : 0)
       + (packTrayVisible ? oh(el.packTrayEl) : 0)
       + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 2 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
+    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
