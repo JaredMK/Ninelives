@@ -87,9 +87,9 @@
      HEADER / HUD
      ============================================================ */
   header {
-    text-align: center;
-    padding: 6px 12px 2px;
-    min-height: 30px;           /* reserve the badge's space (it's fixed-position) */
+    /* The badge is fixed (out of flow) and hidden on the play screen, so the
+       header contributes ~0 height — the slim .hud bar is the top line now. */
+    padding: 0; min-height: 0;
   }
   /* Stage·Run badge — fixed top-centre, layered ABOVE in-game overlays so it
      shows on the board, the store, and every mid-game modal. Hidden on the main
@@ -137,71 +137,33 @@
   }
   .inv-card-body { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 
+  /* Layout 4 — one slim HUD line: Stage·Run · score expression · dopamine. */
   .hud {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 3px 12px 1px;
-  }
-
-  .stat {
-    background: var(--panel);
-    border-radius: 999px;
-    padding: 7px 14px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: min(98vw, 460px); margin: 4px auto 0; padding: 5px 13px;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px;
     box-shadow: var(--shadow);
   }
-
-  .stat b {
-    font-size: 16px;
-    color: var(--accent-2);
-    min-width: 18px;
-    text-align: center;
+  .hud .hud-sr {
+    color: var(--accent-2); font-size: 10.5px; font-weight: 800;
+    letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
   }
-
-  .stat .dot {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: var(--good);
+  .hud .hud-score {
+    color: var(--text); display: inline-flex; align-items: baseline; gap: 1px;
+    white-space: nowrap; font-weight: 700;
   }
-
-  /* Primary top indicator: the two payout factors, e.g. "9 piles × 2 smallest".
-     No product is shown — just the factors with the × between them. */
-  .stat.factors {
-    padding: 3px 14px;
-    gap: 9px;
-    align-items: center;
+  .hud .hud-score b { font-size: 15px; font-weight: 800; }
+  .hud .hud-score .hl { font-size: 8.5px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
+  .hud .hud-score .hx { color: var(--muted); font-size: 12px; margin: 0 1px; }
+  .hud .hud-dop {
+    color: var(--amber); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
   }
-  .stat.factors .factor {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 1.05;
-  }
-  .stat.factors b { font-size: 18px; font-weight: 800; min-width: 0; }
-  .stat.factors .factor-lbl {
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .stat.factors .factor-x {
-    color: var(--muted);
-    font-size: 14px;
-    font-weight: 700;
-    margin-bottom: 7px;   /* optically center against the big numbers */
-  }
-  /* The smallest-pile factor is orange to tie it to the highlighted pile(s). */
-  .min-accent { color: var(--accent) !important; }
-  /* Live bonus-coin tally: gold while positive, red when a Tribute cost has
-     pulled it negative. The "+" separator mirrors the "×" between factors. */
-  .bonus-accent { color: var(--amber) !important; }
+  .hud .hud-dop b { font-size: 15px; font-weight: 800; }
+  .hud .hud-dop .coin-ico { font-size: 13px; }
+  /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
+  .min-accent { color: var(--amber) !important; }
+  .bonus-accent { color: var(--accent-2) !important; margin-left: 4px; }
   .bonus-accent.bonus-neg { color: var(--bad) !important; }
-  .stat.factors .factor-plus { font-size: 15px; }
 
   /* Deck counter row — below the board, right-aligned (reference info). */
   .board-foot {
@@ -213,24 +175,18 @@
     gap: 8px;
   }
   /* Graph toggle — icon-only, pinned to the top-right corner (out of flow). */
-  .strip-toggle-row {
-    position: fixed; top: 8px; right: 8px; z-index: 30;
-    display: flex; align-items: center; gap: 6px;
+  /* Layout 4 bottom band — the always-visible histogram fills the left, the
+     face-down deck + count sits at the right; one shared row at the bottom. */
+  .bottom-band {
+    display: flex; align-items: flex-end; gap: 10px;
+    width: min(99vw, 540px); margin: 0 auto;
+    background: rgba(20, 14, 22, 0.5);
+    border: 1px solid var(--edge-2); border-radius: 14px;
+    padding: 5px 9px;
   }
-  .deck-strip-toggle {
-    display: inline-flex; align-items: center; justify-content: center;
-    height: 30px; min-width: 30px; padding: 0 7px;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 999px;
-    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
-  }
-  .deck-strip-toggle .ico { font-size: 16px; }
-  .deck-strip-toggle.off { opacity: 0.45; }
-  .deck-strip-toggle:active { transform: scale(0.94); }
 
-  /* The DECK — face-down card-stack docked bottom-right, just above the graph. */
-  .deck-dock { display: flex; justify-content: flex-end; align-items: center; padding: 0 6px; }
-  .deck-stack { display: inline-flex; align-items: center; gap: 9px;
+  /* The DECK — face-down card-stack + count, bottom-right of the band. */
+  .deck-stack { flex: none; display: inline-flex; align-items: center; gap: 8px;
     cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .deck-stack:active { transform: scale(0.97); }
   .deck-pile { position: relative; width: 36px; height: 48px; flex: none; }
@@ -256,16 +212,16 @@
      ============================================================ */
   .deck-strip {
     position: relative;
-    width: min(100%, 680px);
-    margin: 4px auto 0;
-    padding: 3px 4px 0;
+    flex: 1 1 auto; min-width: 0;   /* fills the left of the bottom band */
+    margin: 0;
+    padding: 0;
     touch-action: none;            /* drag scrubs, never scrolls the locked page */
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
   .deck-strip.hidden { display: none; }
   .ds-bars {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; height: 112px;   /* taller now the controls row was reclaimed */
+    gap: 2px; height: 54px;        /* slim — fits the one-row bottom band */
   }
   .ds-bar {
     flex: 1 1 0; min-width: 0;
@@ -1957,26 +1913,22 @@
   </div>
 
   <header>
-    <div class="stage-run" id="stageRun">Stage 1 · Run 1</div>
+    <!-- Global Stage·Run badge — shown over the STORE/modals only (the play
+         screen carries Stage·Run in its own slim HUD bar below). Fixed, so it
+         contributes ~0 height to the top. -->
+    <div class="stage-run off" id="stageRun">Stage 1 · Run 1</div>
   </header>
 
-  <div class="hud">
-    <div class="stat factors" title="Active neurons × the weakest neuron's encoding — your dopamine factors">
-      <div class="factor">
-        <b id="aliveCount">9</b>
-        <span class="factor-lbl">neurons</span>
-      </div>
-      <span class="factor-x">×</span>
-      <div class="factor">
-        <b id="minPileCount" class="min-accent">1</b>
-        <span class="factor-lbl">weakest</span>
-      </div>
-      <span class="factor-x factor-plus">+</span>
-      <div class="factor" title="Bonus dopamine earned (or spent) so far this run">
-        <b id="bonusCoins" class="bonus-accent">0</b>
-        <span class="factor-lbl">bonus</span>
-      </div>
-    </div>
+  <!-- Layout 4: a single slim HUD line — Stage·Run · score expression · dopamine. -->
+  <div class="hud" title="Active neurons × the weakest neuron's encoding + bonus — your dopamine factors">
+    <span class="hud-sr" id="hudStageRun">Stage 1 · Run 1</span>
+    <span class="hud-score">
+      <b id="aliveCount">9</b><span class="hl">N</span>
+      <span class="hx">×</span>
+      <b id="minPileCount" class="min-accent">1</b><span class="hl">W</span>
+      <b id="bonusCoins" class="bonus-accent">+0</b>
+    </span>
+    <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
   <main>
@@ -2015,30 +1967,24 @@
       <button class="btn lower" id="btnLower">LOWER</button>
     </div>
 
-    <!-- Graph toggle — small icon-only control pinned to the top-right corner. -->
-    <div class="strip-toggle-row">
-      <button class="deck-strip-toggle" id="deckStripToggle" type="button"
-              title="Show/hide the deck composition graph" aria-label="Toggle deck composition graph"><span class="ico-slot" data-ico="graph"></span></button>
-    </div>
-
-    <!-- The DECK: a face-down card-stack docked bottom-right, just above the
-         graph, with the remaining count. Reads instantly as "the deck, N left".
-         Tap to inspect · hold for a quick peek (same wiring as before). -->
-    <div class="deck-dock">
+    <!-- Layout 4 bottom band (one row): the always-visible rank histogram fills
+         the left; the face-down deck + remaining-count sits at the right. Both
+         live in this single band so the board above gets the freed space. -->
+    <div class="bottom-band">
+      <!-- Always-on deck composition strip: remaining vs total per rank 2→A.
+           Drag to scrub. Presentation only — reads the same counts as the modal;
+           never reveals draw order. (Now permanently visible — no toggle.) -->
+      <div class="deck-strip" id="deckStrip">
+        <div class="ds-scrub hidden" id="deckStripScrub"></div>
+        <div class="ds-bars" id="deckStripBars"></div>
+      </div>
+      <!-- The DECK: a face-down card-stack + remaining count, bottom-right beside
+           the histogram. Tap to inspect · hold for a quick peek (wiring unchanged). -->
       <div class="deck-stack" id="deckStat" role="button" tabindex="0"
            title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
         <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span></span>
         <span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span>
       </div>
-    </div>
-
-    <!-- Always-on deck composition strip: remaining (blue) vs total (grey) per
-         rank 2→A, on a shared absolute scale. Drag to scrub higher/same/lower.
-         Presentation only — reads the same counts as the Deck Composition modal;
-         never reveals draw order. -->
-    <div class="deck-strip" id="deckStrip">
-      <div class="ds-scrub hidden" id="deckStripScrub"></div>
-      <div class="ds-bars" id="deckStripBars"></div>
     </div>
   </main>
 
@@ -2331,7 +2277,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.85 · matte-sweep";
+const APP_VERSION = "v0.86 · layout-4";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4631,6 +4577,8 @@ const UIRenderer = (() => {
     aliveCount: document.getElementById("aliveCount"),
     minPileCount: document.getElementById("minPileCount"),
     bonusCoins: document.getElementById("bonusCoins"),
+    hudStageRun: document.getElementById("hudStageRun"),
+    hudDopamine: document.getElementById("hudDopamine"),
     stageRun: document.getElementById("stageRun"),
     mainMenu: document.getElementById("mainMenu"),
     menuButtons: document.getElementById("menuButtons"),
@@ -4657,7 +4605,6 @@ const UIRenderer = (() => {
     btnLower: document.getElementById("btnLower"),
     cardInfo: document.getElementById("cardInfo"),
     cardInfoPanel: document.getElementById("cardInfoPanel"),
-    stripToggleRow: document.querySelector(".strip-toggle-row"),
     startRunBtn: document.getElementById("startRunBtn"),
     redealBtn: document.getElementById("redealBtn"),
     hint: document.getElementById("hint"),
@@ -4688,7 +4635,6 @@ const UIRenderer = (() => {
     deckStrip: document.getElementById("deckStrip"),
     deckStripBars: document.getElementById("deckStripBars"),
     deckStripScrub: document.getElementById("deckStripScrub"),
-    deckStripToggle: document.getElementById("deckStripToggle"),
     // store (between runs)
     storeOverlay: document.getElementById("storeOverlay"),
     storeMsg: document.getElementById("storeMsg"),
@@ -5066,22 +5012,18 @@ const UIRenderer = (() => {
 
   /* Apply the toggle's on/off state: show/hide the strip, reflow the board to
      reclaim/cede the space, persist the choice. */
-  function applyDeckStrip(on) {
-    deckStripOn = on;
-    el.deckStrip.classList.toggle("hidden", !on);
-    el.deckStripToggle.classList.toggle("off", !on);
-    SaveStore.setPref("deckStrip", on ? "1" : "0");
-    if (on) renderDeckStrip();
-    if (pileEls.length) fitBoard();   // board grows (off) / shrinks (on) cleanly
-  }
+  /* The histogram is permanently visible in Layout 4 (no toggle). */
 
   /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
   function updateStageRun() {
-    if (campaign) {
-      el.stageRun.innerHTML =
-        "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex +
-        " · " + COIN_SVG + " " + campaign.getCoins();
-    }
+    if (!campaign) return;
+    const sr = "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+    const dop = campaign.getCoins();
+    // Slim HUD bar (play screen).
+    if (el.hudStageRun) el.hudStageRun.textContent = sr;
+    if (el.hudDopamine) el.hudDopamine.textContent = dop;
+    // Global fixed badge (shown over the store/modals only).
+    el.stageRun.innerHTML = sr + " · " + COIN_SVG + " " + dop;
   }
 
   /* ---- hold-to-peek info popup (cards + Pillars) ----
@@ -5690,8 +5632,7 @@ const UIRenderer = (() => {
     el.redealOkBtn.addEventListener("click", doRedeal);
     el.redealConfirm.addEventListener("click", (e) => { if (e.target === el.redealConfirm) closeRedealConfirm(); });
 
-    // Deck composition strip: toggle on/off, and drag to scrub higher/same/lower.
-    el.deckStripToggle.addEventListener("click", () => applyDeckStrip(!deckStripOn));
+    // Deck composition histogram (always visible): drag to scrub higher/same/lower.
     el.deckStrip.addEventListener("pointerdown", (e) => { stripScrubbing = true; stripScrubApply(e); e.preventDefault(); });
     el.deckStrip.addEventListener("pointermove", (e) => { if (stripScrubbing) { stripScrubApply(e); e.preventDefault(); } });
     el.deckStrip.addEventListener("pointerup", stripScrubEnd);
@@ -5847,7 +5788,8 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt": {
         renderBoard(payload.board, payload.deck);
-        if (el.stageRun) el.stageRun.classList.remove("off");   // in-game → show badge
+        // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
+        if (el.stageRun) el.stageRun.classList.add("off");
         if (el.menuBtn) el.menuBtn.classList.remove("hidden");
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
         lastAliveCount = payload.board.aliveCount();
@@ -6056,8 +5998,8 @@ const UIRenderer = (() => {
 
   function hideOverlay() {
     el.overlay.classList.add("hidden");
-    // Back to an in-game screen → reveal the Stage·Run badge + menu button.
-    if (el.stageRun) el.stageRun.classList.remove("off");
+    // Back to an in-game screen. The play board keeps the badge OFF (its HUD bar
+    // shows Stage·Run); the store turns the badge on explicitly (see showStore).
     if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
   }
 
@@ -6701,23 +6643,17 @@ const UIRenderer = (() => {
     // two so the board size is stable across the phase swap (no re-fit jump).
     // .actions uses visibility:hidden (keeps its box) so it always measures.
     const controlH = Math.max(oh(el.actions), oh(el.startRunBtn));
-    // The deck dock (face-down stack + count) sits above the graph, always shown.
-    const deckDock = main.querySelector(".deck-dock");
-    const deckDockH = deckDock ? oh(deckDock) : 0;
-    // The always-on composition strip (when shown) is another main child below
-    // the board; reserve its height so Run 1's 4-tall column still fits no-scroll.
-    const stripVisible = el.deckStrip && !el.deckStrip.classList.contains("hidden");
-    // Deck + Graph controls are now a FIXED corner cluster (out of the column
-    // flow), so they no longer reserve a row — the board/graph reclaim it.
-    const bottomRowH = 0;
-    // main's visible in-flow children: board, control-row, [sticker tray],
-    // [pack tray], [strip].
-    const belowH = controlH + bottomRowH + deckDockH
+    // Layout 4: the bottom band (histogram + face-down deck) is one always-shown
+    // main child below the board — reserve its height as a single unit.
+    const bottomBand = main.querySelector(".bottom-band");
+    const bottomBandH = bottomBand ? oh(bottomBand) : 0;
+    // main's visible in-flow children: board, control-row, bottom-band,
+    // [sticker tray], [tray help], [pack tray].
+    const belowH = controlH + bottomBandH
       + (trayVisible ? oh(el.stickerTray) : 0)
       + (trayHelpVisible ? oh(el.trayHelp) : 0)
-      + (packTrayVisible ? oh(el.packTrayEl) : 0)
-      + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
+      + (packTrayVisible ? oh(el.packTrayEl) : 0);
+    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
@@ -6882,7 +6818,8 @@ const UIRenderer = (() => {
      Shown after every run so banked coins are always spendable. */
   function showStore(fresh = true) {
     hideOverlay();
-    updateStageRun();   // keep the floating Stage·Run badge current in the store
+    updateStageRun();
+    if (el.stageRun) el.stageRun.classList.remove("off");   // badge shows over the store
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
@@ -7579,12 +7516,9 @@ const UIRenderer = (() => {
     if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
     console.log("Mnesis " + APP_VERSION);
 
-    // Restore the deck-strip toggle pref (default ON) before the first board is
-    // built, so fitBoard reserves the strip's space from the start. No fitBoard
-    // here — buildBoard runs it. Off only when the saved pref is explicitly "0".
-    deckStripOn = SaveStore.getPref("deckStrip") !== "0";
-    el.deckStrip.classList.toggle("hidden", !deckStripOn);
-    el.deckStripToggle.classList.toggle("off", !deckStripOn);
+    // Layout 4: the histogram is permanently visible (no toggle).
+    deckStripOn = true;
+    el.deckStrip.classList.remove("hidden");
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
