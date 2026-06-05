@@ -627,6 +627,27 @@
   .pile.flash-good .card::after { animation: goodPulse 0.5s ease; }
   .pile.flash-bad .card::after  { animation: badPulse 0.5s ease; }
 
+  /* §5 — a drawn memory FLIPS onto its neuron (encoding). Runs on .front so it
+     doesn't fight the card's perpetual drift; ends flat (= breathing base) so
+     cardBreathe resumes cleanly when the class is removed. */
+  @keyframes cardLand {
+    0%   { transform: rotateX(-82deg); opacity: 0.25; }
+    62%  { transform: rotateX(7deg);   opacity: 1; }
+    100% { transform: rotateX(0deg);   opacity: 1; }
+  }
+  .card.landing .front { animation: cardLand 0.34s ease both; }
+  /* A clear DEATH FLASH before the dissolve, so the kill registers first. */
+  @keyframes deathFlash {
+    0%   { background: rgba(255,120,140,0);    box-shadow: 0 0 0 0 rgba(224,107,128,0); }
+    22%  { background: rgba(255,120,140,0.52); box-shadow: 0 0 0 5px rgba(224,107,128,0.9); }
+    100% { background: rgba(255,120,140,0);    box-shadow: 0 0 0 16px rgba(224,107,128,0); }
+  }
+  .pile.death-flash .card::after { animation: deathFlash 0.32s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .card.landing .front { animation: none; }
+    .pile.death-flash .card::after { animation: none; }
+  }
+
   /* ============================================================
      WIN CINEMATIC  (on a run win, as it resolves into the payout)
      Beat 1: surviving card faces recede toward transparent, so the nodes +
@@ -2310,7 +2331,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.83 · deck-bottom-right";
+const APP_VERSION = "v0.84 · draw-death-feedback";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5855,21 +5876,41 @@ const UIRenderer = (() => {
 
       case "resolved": {
         const pileEl = pileEls[payload.index];
-        // Show the drawn card landing on the pile (its new top, or final face).
+        const cardEl = pileEl.querySelector(".card");
+        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // Show the drawn memory landing on the neuron (its new top, or final face).
         paintFront(pileEl, payload.drawn);
         renderStickerBadges(pileEl, payload.drawn);
         paintPileCounts(payload.board);   // repaint all so the orange min stays live
         renderHud(payload.board, payload.deck);
 
-        // Feedback flash + sound.
-        const cls = payload.correct ? "flash-good" : "flash-bad";
-        pileEl.classList.add(cls);
-        setTimeout(() => pileEl.classList.remove(cls), 520);
-        if (payload.correct) { Sound.good(); } else { Sound.death(); }
+        // §5: the drawn memory FLIPS onto the neuron (encoding).
+        if (!reduce && cardEl) {
+          cardEl.classList.add("landing");
+          setTimeout(() => cardEl.classList.remove("landing"), 360);
+        }
 
-        // Mark dead if wrong (dims the drawn card and reveals the X overlay).
-        if (!payload.correct) pileEl.classList.add("dead");
-        refreshNetwork(payload.board);   // re-strengthen, or sever-and-reform on a death
+        if (payload.correct) {
+          // Encoded: a quick "good" pulse, re-strengthen the network now.
+          pileEl.classList.add("flash-good");
+          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          Sound.good();
+          refreshNetwork(payload.board);
+        } else {
+          // Mis-encoded → the neuron dies. Order: flip/resolve → DEATH FLASH →
+          // dissolve → reconnect, so the player registers the death first.
+          Sound.death();
+          const flashAt = reduce ? 0 : 340;        // after the flip settles
+          const dieAt = reduce ? 0 : flashAt + 300;
+          if (!reduce) setTimeout(() => {
+            pileEl.classList.add("death-flash");
+            setTimeout(() => pileEl.classList.remove("death-flash"), 340);
+          }, flashAt);
+          setTimeout(() => {
+            pileEl.classList.add("dead");           // dissolve
+            refreshNetwork(payload.board);          // sever + reform across the gap
+          }, dieAt);
+        }
 
         clearSelection();
         renderStickerTray();
