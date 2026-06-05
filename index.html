@@ -44,6 +44,8 @@
     --panel-2: #2a1f26;     /* raised inner surface (inputs, secondary buttons) */
     --sel: rgba(232, 139, 176, 0.16);    /* warm selection fill */
     --danger: #b5435a;      /* deep rose-red for destructive actions */
+    --pathway: #a98cd8;     /* Pathway identity (muted violet) */
+    --pathway-2: #c4a8ec;   /* lighter violet for accents/icons */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -1237,21 +1239,41 @@
   .board-pillars { display: none; }
   .board.has-pillars .board-pillars {
     display: flex; justify-content: center; align-items: center;
-    gap: var(--gap); width: 100%; height: 20px;
+    gap: var(--gap); width: 100%; height: 26px;
   }
   .bp-cell {
-    width: var(--pile-w-fit);
+    width: var(--pile-w-fit); height: 24px; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  /* Equipped Pathway = a wavy tapered SYNAPSE banner (same language as the
+     board's connection network) in violet, with travelling dots both ways and
+     the Pathway's own icon riding on a dark halo at the centre (instant ID). */
+  .cph-banner {
+    position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(169,140,216,0.24), rgba(169,140,216,0.10));
+    border: 1px solid rgba(196,168,236,0.45);
+    box-shadow: 0 0 11px rgba(169,140,216,0.26), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+  .cph-banner.empty {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.10);
+    box-shadow: none;
+  }
+  .cph-syn { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .cph-syn .syn-ribbon { fill: var(--pathway-2); opacity: 0.55; }
+  .cph-syn .syn-dot { fill: #fff0ff; }
+  .cph-ico {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 18px; height: 18px; font-size: 13px; color: #f4ecf3;
     display: flex; align-items: center; justify-content: center;
   }
-  .cph-pill {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 22px; height: 18px; padding: 0 7px;
-    background: rgba(255, 255, 255, 0.10);
-    border: 1px solid var(--edge-2);
-    border-radius: 999px;
-    font-size: 12px; line-height: 1;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  .cph-ico .cph-halo {
+    position: absolute; inset: -2px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(12,8,16,0.88) 52%, rgba(12,8,16,0) 80%);
   }
+  .cph-ico .ico { position: relative; }
+  @media (prefers-reduced-motion: reduce) { .cph-syn .syn-dot { display: none; } }
 
   /* "?" help affordance on each store item + the tap-to-toggle popup it
      reveals. Tap the "?" to open, tap off (anywhere else) to dismiss; the
@@ -2258,7 +2280,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.77 · store-redesign";
+const APP_VERSION = "v0.78 · pathway-synapse";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5471,6 +5493,7 @@ const UIRenderer = (() => {
     const TAP_SLOP = 8;           // movement under this = a tap (selects)
     const DRAG_THRESH = 26;       // vertical travel to arm a guess
     let peekTimer = null, peeking = false, suppressPileClick = false;
+    let peekTapCol = null;   // a Pathway banner whose peek is open via a quick TAP
     let pileDrag = null;          // { index, startY, armed, moved }
 
     function setDragGreying(armed) {
@@ -5537,6 +5560,16 @@ const UIRenderer = (() => {
     // A drag/peek sets suppressPileClick so the release doesn't also act.
     el.board.addEventListener("click", (e) => {
       if (suppressPileClick) { suppressPileClick = false; return; }
+      // Tap a Pathway banner → toggle its description via the standard peek
+      // popup (a hold still peeks-while-held). Read-only; no state change.
+      const bpCell = e.target.closest(".bp-cell");
+      if (bpCell) {
+        const col = Number(bpCell.dataset.col);
+        if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
+        else { openPillarPeek(col); peekTapCol = col; }
+        return;
+      }
+      if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }   // tap-off closes it
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
       const index = Number(pileEl.dataset.index);
@@ -6444,11 +6477,73 @@ const UIRenderer = (() => {
     }
   }
 
-  /* Fill the single top Pillar-indicator row from the column binding: cell `col`
-     shows that column's Pillar (centered over it) or nothing. `has-pillars` on
-     the board reveals/reserves the row when any Pillar is present and collapses
-     it when none are — fitBoard accounts for the reserved height either way.
-     Columns map 1:1 to the campaign's column slots (always 3). */
+  /* ---- Pathway synapse banner ----
+     A wavy, tapered "spindle" synapse spanning the banner (viewBox 0..120 ×
+     0..34, stretched to the column width), built from a Catmull-Rom centreline
+     with a sine taper — the same ribbon language as the board's connection
+     network. Two dots travel it (one each direction). The Pathway's icon rides
+     the centre on a dark halo. Each Pathway gets a deterministic curve so they
+     read a little distinct, but the icon is the primary identifier. */
+  const SYN_SHAPES = {
+    arc:    [[4,17],[40,10],[80,10],[116,17]],
+    dwave:  [[4,17],[26,9],[48,23],[72,9],[94,23],[116,17]],
+    dip:    [[4,13],[40,13],[60,25],[80,13],[116,13]],
+    ripple: [[4,17],[24,12],[44,21],[64,12],[84,21],[104,12],[116,17]],
+    spike:  [[4,19],[44,19],[58,5],[72,27],[116,17]],
+    loops:  [[4,17],[26,8],[44,19],[60,10],[76,19],[94,8],[116,17]],
+  };
+  const SYN_KEYS = Object.keys(SYN_SHAPES);
+  function synShapeFor(id) {
+    let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return SYN_KEYS[((h % SYN_KEYS.length) + SYN_KEYS.length) % SYN_KEYS.length];
+  }
+  function synSpindle(shape) {
+    const pts = SYN_SHAPES[shape] || SYN_SHAPES.arc, maxW = 4.4;
+    const cr = (p0, p1, p2, p3, t) => { const t2 = t * t, t3 = t2 * t; return [
+      0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+      0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)]; };
+    const center = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+      for (let s = 0; s < 12; s++) center.push(cr(p0, p1, p2, p3, s / 12));
+    }
+    center.push(pts[pts.length - 1]);
+    const top = [], bot = [];
+    for (let i = 0; i < center.length; i++) {
+      const t = i / (center.length - 1), cur = center[i];
+      const nxt = center[Math.min(i + 1, center.length - 1)], prv = center[Math.max(i - 1, 0)];
+      const tx = nxt[0] - prv[0], ty = nxt[1] - prv[1], tl = Math.hypot(tx, ty) || 1;
+      const px = -ty / tl, py = tx / tl, w = Math.sin(t * Math.PI) * maxW + 0.6;
+      top.push([cur[0] + px * w, cur[1] + py * w]); bot.push([cur[0] - px * w, cur[1] - py * w]);
+    }
+    let d = "M" + top[0][0].toFixed(1) + " " + top[0][1].toFixed(1);
+    top.forEach(p => d += " L" + p[0].toFixed(1) + " " + p[1].toFixed(1));
+    bot.reverse().forEach(p => d += " L" + p[0].toFixed(1) + " " + p[1].toFixed(1));
+    d += " Z";
+    let cd = "M" + center[0][0].toFixed(1) + " " + center[0][1].toFixed(1);
+    center.forEach(p => cd += " L" + p[0].toFixed(1) + " " + p[1].toFixed(1));
+    return { d, cd };
+  }
+  function pathwayBannerHtml(t) {
+    const sp = synSpindle(synShapeFor(t.id));
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dots = reduce ? "" :
+      '<circle class="syn-dot" r="1.8"><animateMotion dur="2.6s" repeatCount="indefinite" path="' + sp.cd + '"/></circle>' +
+      '<circle class="syn-dot" r="1.8" opacity="0.75"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear" path="' + sp.cd + '"/></circle>';
+    return '<div class="cph-banner">' +
+        '<svg class="cph-syn" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">' +
+          '<path class="syn-ribbon" d="' + sp.d + '"/>' + dots +
+        '</svg>' +
+        '<span class="cph-ico"><span class="cph-halo"></span>' + glyph(ELEM_GLYPH[t.id] || "guardian") + '</span>' +
+      '</div>';
+  }
+
+  /* Fill the single top Pathway-indicator row from the column binding: cell
+     `col` shows that column's Pathway as a synapse banner (centred over it), or
+     a dashed placeholder for alignment. `has-pillars` reveals/reserves the row
+     when any Pathway is present and collapses it when none are — fitBoard
+     accounts for the reserved height either way. Columns map 1:1 to the
+     campaign's column slots (always 3). */
   function paintColumnPillars(cols) {
     if (!campaign) return;
     const binding = campaign.getColumnPillars();
@@ -6459,7 +6554,7 @@ const UIRenderer = (() => {
       const cell = cells[col];
       if (!cell) return;
       const t = binding[col] ? PillarTypes.get(binding[col]) : null;
-      cell.innerHTML = t ? '<span class="cph-pill">' + t.icon + '</span>' : "";
+      cell.innerHTML = t ? pathwayBannerHtml(t) : '<div class="cph-banner empty"></div>';
       cell.title = t ? t.label : "";
     });
   }
