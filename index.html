@@ -505,8 +505,9 @@
   /* Corner index: rank ~21% of the pile, suit glyph ~13%, hugging the corner.
      Sized so even the widest rank ("10", ~1.2x a single glyph) clears the
      centered pip horizontally with margin. */
-  .rank-top .r, .rank-bottom .r { font-size: calc(var(--ps) * 0.21); }
-  .rank-top .s, .rank-bottom .s { font-size: calc(var(--ps) * 0.13); }
+  /* Rank is the single most important read — make it large + bold. */
+  .rank-top .r, .rank-bottom .r { font-size: calc(var(--ps) * 0.30); font-weight: 800; }
+  .rank-top .s, .rank-bottom .s { font-size: calc(var(--ps) * 0.155); }
 
   /* Center suit: 32% of the pile (was an unbounded ~11vw that overran the
      corners). The corner indices hug left/right; this centered pip leaves a
@@ -516,7 +517,7 @@
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    font-size: calc(var(--ps) * 0.32);
+    font-size: calc(var(--ps) * 0.28);
     line-height: 1;
     opacity: 0.8;
     pointer-events: none;
@@ -1370,19 +1371,19 @@
     z-index: 3;
     pointer-events: none;
   }
+  /* Imprint badges — substantially larger so they're identifiable at a glance. */
   .pile-badges .badge {
-    font-size: 11px;
+    font-size: calc(var(--pile-size, 88px) * 0.22);
     line-height: 1;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
     display: inline-flex;
     align-items: flex-start;
   }
   .pile-badges .bcount {
-    font-size: 8px;
+    font-size: calc(var(--pile-size, 88px) * 0.12);
     font-weight: 800;
-    color: #fff;
-    margin-left: -1px;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+    color: var(--card-ink);
+    margin-left: 0;
   }
   /* Card-count badge — bottom-LEFT corner (sticker badges are top-right,
      the rotated rank sits bottom-right, so this corner is clear). */
@@ -1390,14 +1391,14 @@
     position: absolute;
     /* +5% to follow the card, which is inset 5% inside the cell (90%, centred) */
     bottom: calc(5% + 4px); left: calc(5% + 4px);
-    min-width: 16px; height: 16px;
-    padding: 0 3px;
+    min-width: calc(var(--pile-size, 88px) * 0.28); height: calc(var(--pile-size, 88px) * 0.28);
+    padding: 0 calc(var(--pile-size, 88px) * 0.05);
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-text);
-    font-size: 9px; font-weight: 700; line-height: 1;
-    color: #dcb8c8; background: #241a20;
-    border: 1px solid #a85f76;
-    border-radius: 8px;
+    font-size: calc(var(--pile-size, 88px) * 0.17); font-weight: 800; line-height: 1;
+    color: #f5e0e9; background: #2a1d24;
+    border: 1.5px solid #c07088;
+    border-radius: 9px;
     z-index: 3;
     pointer-events: none;
   }
@@ -2270,7 +2271,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.80 · matte-restyle";
+const APP_VERSION = "v0.81 · bigger-numbers";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
