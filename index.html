@@ -1342,6 +1342,17 @@
     margin: 4px 0 2px;
   }
   .sticker-tray.hidden { display: none; }
+  /* Fixed help slot under the Imprint tray (mirrors the store's help slot). */
+  .tray-help {
+    width: min(96vw, 400px); margin: 2px auto 0;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 12px;
+    padding: 7px 11px; text-align: center;
+  }
+  .tray-help.hidden { display: none; }
+  .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: 13px;
+    color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; }
+  .tray-help .th-title .ico { font-size: 16px; }
+  .tray-help .th-desc { display: block; font-size: 11px; line-height: 1.4; color: var(--text); margin-top: 2px; }
   .tray-sticker {
     background: var(--panel);
     border: 2px solid transparent;
@@ -1940,6 +1951,12 @@
 
     <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
     <div class="sticker-tray hidden" id="stickerTray"></div>
+    <!-- Fixed help slot for the Imprint tray: arming an Imprint fills it with the
+         Imprint's name + effect (same pattern as the store's help slot). -->
+    <div class="tray-help hidden" id="trayHelp">
+      <span class="th-title" id="thTitle"></span>
+      <span class="th-desc" id="thDesc"></span>
+    </div>
 
     <!-- Held pack cards (pre-run): arm one, then tap a pile to PERMANENTLY
          replace that dealt card (confirmation required). -->
@@ -2271,7 +2288,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.81 · bigger-numbers";
+const APP_VERSION = "v0.82 · imprint-place-help";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4587,6 +4604,9 @@ const UIRenderer = (() => {
     gameMenuButtons: document.getElementById("gameMenuButtons"),
     gameMenuClose: document.getElementById("gameMenuClose"),
     stickerTray: document.getElementById("stickerTray"),
+    trayHelp: document.getElementById("trayHelp"),
+    thTitle: document.getElementById("thTitle"),
+    thDesc: document.getElementById("thDesc"),
     actions: document.getElementById("actions"),
     btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
@@ -5210,6 +5230,17 @@ const UIRenderer = (() => {
     if (engine) engine.startRun(campaign.getColumnPillars());
   }
 
+  /* Fixed help slot for the Imprint tray: while an Imprint is armed, show its
+     name + effect (same description source as the store help). */
+  function renderTrayHelp() {
+    if (!el.trayHelp) return;
+    const t = armedSticker ? StickerTypes.get(armedSticker) : null;
+    if (!t) { el.trayHelp.classList.add("hidden"); return; }
+    el.thTitle.innerHTML = t.icon + " " + escHtml(t.label);
+    el.thDesc.textContent = t.description || "";
+    el.trayHelp.classList.remove("hidden");
+  }
+
   /* ---- in-run sticker application ----
      Buy stickers in the store; here you spend them on the face-up top card
      of a pile. Tap a sticker to "arm" it, then tap a pile. */
@@ -5223,6 +5254,7 @@ const UIRenderer = (() => {
     if (!open || owned.length === 0) {
       el.stickerTray.classList.add("hidden");
       if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
+      renderTrayHelp();   // nothing armed/tray closed → hide the help slot
       if (pileEls.length) fitBoard();   // tray hidden -> reclaim its space
       return;
     }
@@ -5235,6 +5267,7 @@ const UIRenderer = (() => {
       b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
       el.stickerTray.appendChild(b);
     });
+    renderTrayHelp();                   // reflect the armed Imprint (or hide)
     if (pileEls.length) fitBoard();     // tray shown -> shrink to keep Run 1 fitting
   }
 
@@ -6601,6 +6634,7 @@ const UIRenderer = (() => {
     const header = document.querySelector("header");
     const hud = document.querySelector(".hud");
     const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
+    const trayHelpVisible = el.trayHelp && !el.trayHelp.classList.contains("hidden");
     const packTrayVisible = el.packTrayEl && !el.packTrayEl.classList.contains("hidden");
     // The control row is either the guess buttons (active) or the Start Run
     // button (sticker phase) — mutually exclusive. Reserve the LARGER of the
@@ -6617,9 +6651,10 @@ const UIRenderer = (() => {
     // [pack tray], [strip].
     const belowH = controlH + bottomRowH
       + (trayVisible ? oh(el.stickerTray) : 0)
+      + (trayHelpVisible ? oh(el.trayHelp) : 0)
       + (packTrayVisible ? oh(el.packTrayEl) : 0)
       + (stripVisible ? oh(el.deckStrip) : 0);
-    const visibleChildren = 2 + (trayVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
+    const visibleChildren = 2 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0) + (stripVisible ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
