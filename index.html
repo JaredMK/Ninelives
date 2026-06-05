@@ -964,7 +964,7 @@
   /* Compact shop: everything (sticky header, 4 sticker slots, Buy, 2 Pillar
      slots, column chips, reroll, start) targets ONE no-scroll phone screen.
      overflow-y:auto is only a safety net for unusually short viewports. */
-  .overlay.store { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; gap: 5px; padding: 40px 12px 12px; }
+  .overlay.store { justify-content: flex-start; align-items: center; overflow-y: auto; overscroll-behavior: contain; gap: 9px; padding: 40px 12px 6px; }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
@@ -993,104 +993,125 @@
   .inv-chip .ic-n { color: var(--accent-2); font-weight: 800; }
   .inv-empty { font-size: 11px; font-weight: 600; color: var(--muted); }
 
-  /* Offered-item rows: 4 sticker tiles / 2 Pillar tiles, centered + compact. */
-  /* Tiles stay on ONE row: no wrap, shrink-to-fit, capped at the natural size. */
-  .store-tiles {
-    display: flex; flex-wrap: nowrap; justify-content: center;
-    gap: 6px; width: min(96vw, 400px);
-  }
+  /* ============================================================
+     STORE — three colour/shape-coded zones + one fixed help slot.
+     ============================================================ */
+  .store-balance { font-size: 12px; color: var(--muted); text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .store-balance b { color: var(--amber); font-size: 16px; font-weight: 800; }
+  .store-balance .coin-ico { font-size: 14px; }
+
+  /* Category zone: its own tint, border, and header colour — tell them apart at a glance. */
+  .zone { width: min(96vw, 400px); border-radius: 16px; padding: 10px 10px 11px; border: 1px solid; }
+  .zone-h { display: flex; align-items: center; gap: 7px; font-family: var(--font-display);
+    font-weight: 700; font-size: 13px; letter-spacing: 2px; margin-bottom: 8px; }
+  .zone-h .ico { font-size: 16px; }
+  .zone-h .tag { font-family: var(--font-text); font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
+    opacity: 0.6; margin-left: auto; text-transform: none; }
+  .z-imp  { background: linear-gradient(160deg, rgba(232,139,176,0.08), rgba(232,139,176,0.02)); border-color: rgba(232,139,176,0.30); }
+  .z-imp  .zone-h { color: var(--accent-2); }
+  .z-path { background: linear-gradient(160deg, rgba(160,116,214,0.10), rgba(160,116,214,0.03)); border-color: rgba(160,116,214,0.34); }
+  .z-path .zone-h { color: #c4a8ec; }
+  .z-swap { background: linear-gradient(160deg, rgba(86,196,196,0.09), rgba(86,196,196,0.03)); border-color: rgba(86,196,196,0.30); }
+  .z-swap .zone-h { color: #8fd9d6; }
+
+  /* Tile row — stays on ONE row, shrink-to-fit (5-item offers never wrap). */
+  .store-row { display: flex; flex-wrap: nowrap; gap: 7px; }
   .store-tile {
-    position: relative;
-    flex: 1 1 0; min-width: 0; max-width: 72px; height: 62px;
-    background: var(--panel); color: var(--text); border: none; border-radius: 10px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    cursor: pointer; box-shadow: var(--shadow);
-    transition: transform 0.08s ease;
+    position: relative; flex: 1 1 0; min-width: 0;
+    background: rgba(28,18,26,0.72); color: var(--text);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: 13px;
+    padding: 9px 5px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; box-shadow: var(--shadow); transition: transform 0.1s ease, box-shadow 0.1s ease;
   }
-  .store-tile:active { transform: scale(0.94); }
-  .store-tile.disabled { opacity: 0.4; pointer-events: none; }
-  /* Selected (sticker, awaiting Buy) or armed (Pillar, awaiting a column). */
-  .store-tile.selected { outline: 2px solid var(--accent-2); outline-offset: 1px; background: var(--sel); }
-  /* Empty/sold placeholder — keeps the grid from jumping. */
-  .store-tile.empty { background: transparent; border: 1px dashed rgba(255,255,255,0.18); box-shadow: none; pointer-events: none; }
-  .store-tile .ti-icon { font-size: 24px; line-height: 1; }
-  .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--accent); }
-  /* Rarity badge, top-left corner: a single letter colored by tier. */
-  .store-tile .ti-tier {
-    position: absolute; top: 2px; left: 3px;
-    font-size: 9px; font-weight: 800; line-height: 1;
-    width: 12px; height: 12px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .store-tile .tier-common   { color: var(--text); background: rgba(207,214,230,0.18); }
-  .store-tile .tier-uncommon { color: var(--good); background: rgba(86,204,160,0.18); }
-  .store-tile .tier-rare     { color: var(--accent-2); background: rgba(199,146,234,0.20); }
-  .store-tile .tile-sold { color: var(--muted); font-size: 16px; }
+  .store-tile:active { transform: scale(0.96); }
+  .store-tile.disabled { opacity: 0.45; }   /* unaffordable: dimmed, still tappable for help */
+  .store-tile.empty { visibility: hidden; pointer-events: none; }
+  .store-tile .ti-icon { font-size: 26px; line-height: 1; margin-top: 2px; }
+  .z-imp  .store-tile .ti-icon { color: var(--accent-2); }
+  .z-path .store-tile .ti-icon { color: #c4a8ec; }
+  .z-swap .store-tile .ti-icon { color: #8fd9d6; }
+  .store-tile .ti-name { font-size: 10px; font-weight: 700; line-height: 1.1; color: var(--text);
+    min-height: 22px; display: flex; align-items: center; text-align: center; }
+  .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--amber);
+    display: inline-flex; align-items: center; gap: 3px; }
+  .store-tile .ti-price .coin-ico { font-size: 11px; }
+  .store-tile.selected { transform: translateY(-2px); }
+  .z-imp  .store-tile.selected { border-color: var(--accent);  box-shadow: 0 0 14px rgba(232,139,176,0.40); }
+  .z-path .store-tile.selected { border-color: #a98cd8;        box-shadow: 0 0 14px rgba(160,116,214,0.45); }
+  .z-swap .store-tile.selected { border-color: #5fbfc0;        box-shadow: 0 0 14px rgba(86,196,196,0.40); }
+  /* Rarity badge (top-left). */
+  .store-tile .ti-tier { position: absolute; top: 4px; left: 5px; font-size: 8px; font-weight: 800;
+    width: 14px; height: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .store-tile .tier-common   { color: var(--muted); background: rgba(191,163,180,0.20); }
+  .store-tile .tier-uncommon { color: var(--good);  background: rgba(132,200,154,0.18); }
+  .store-tile .tier-rare     { color: var(--amber); background: rgba(224,151,60,0.20); }
 
-  /* Buy-confirm (select → Buy) + Reroll buttons — compact, same footprint. */
-  .buy-confirm, .reroll-btn {
-    width: min(94vw, 380px); padding: 8px 12px;
-    border: none; border-radius: 10px;
-    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow);
-    transition: transform 0.08s ease, opacity 0.15s ease;
-  }
-  .buy-confirm { background: var(--accent); color: #1c1206; }
-  .reroll-btn { background: var(--panel-2); color: var(--text); }
-  .buy-confirm:active, .reroll-btn:active { transform: scale(0.98); }
-  .buy-confirm:disabled, .reroll-btn:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
-  .buy-confirm.hidden { display: none; }   /* hide the pack Confirm in the discard step */
-
-  /* Transient store hint + a compact Start button so the page fits. */
-  .store-msg { width: min(94vw, 380px); min-height: 14px; font-size: 11px; color: var(--muted); text-align: center; }
-  .play-btn.store-start { margin-top: 2px; padding: 11px 28px; }
-
-  /* Store section divider label (Stickers / Pillars). */
-  .store-section {
-    width: min(94vw, 380px);
-    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
-    color: var(--muted); font-weight: 800;
-    text-align: left; margin: 2px 0 0;
-  }
-
-  /* Pillar column-slot chips in the store: the 3 column slots ARE the holding
-     (no inventory). Tap a Pillar above, then a slot to place/replace; or tap a
-     filled slot then another to swap. */
-  .pillar-slots {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    width: min(94vw, 380px);
-  }
-  .pillar-slot {
-    background: var(--panel);
-    color: var(--text);
-    border: 2px dashed rgba(255,255,255,0.18);
-    border-radius: 10px;
-    padding: 5px 3px;
-    display: flex; flex-direction: column; align-items: center; gap: 1px;
-    cursor: pointer; box-shadow: var(--shadow);
-    transition: transform 0.08s ease;
-  }
-  .pillar-slot:active { transform: scale(0.95); }
-  .pillar-slot.filled { border-style: solid; border-color: transparent; }
-  .pillar-slot.armed { outline: 2px solid var(--accent-2); outline-offset: 1px; }
-  /* When a Pillar is armed, the chips are the place-here targets. */
-  .pillar-slot.placing { border-color: var(--accent); }
+  /* Pathway column chooser (inside the Pathways zone). */
+  .pillar-slots { display: flex; gap: 7px; margin-top: 8px; }
+  .pillar-slot { flex: 1 1 0; min-width: 0;
+    background: rgba(28,18,26,0.55); color: var(--text);
+    border: 1px dashed rgba(160,116,214,0.45); border-radius: 11px;
+    padding: 8px 3px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    cursor: pointer; transition: transform 0.08s ease; }
+  .pillar-slot:active { transform: scale(0.96); }
+  .pillar-slot.filled { border-style: solid; border-color: rgba(160,116,214,0.5); }
+  .pillar-slot.armed { outline: 2px solid #c4a8ec; outline-offset: 1px; }
+  .pillar-slot.placing { border-style: solid; border-color: #c4a8ec; background: rgba(160,116,214,0.12); }
   .pillar-slot .ps-col { font-size: 9px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-  .pillar-slot .ps-icon { font-size: 18px; line-height: 1.1; }
-  .pillar-slot .ps-name { font-size: 9px; font-weight: 700; text-align: center; }
-  .pillar-slot .ps-empty { font-size: 16px; color: var(--muted); }
+  .pillar-slot .ps-icon { font-size: 17px; line-height: 1.1; color: #c4a8ec; }
+  .pillar-slot .ps-name { font-size: 9px; font-weight: 700; text-align: center; line-height: 1.1; }
+  .pillar-slot .ps-empty { font-size: 15px; color: var(--muted); }
 
-  /* Trash-Pillar control — appears only when a filled column is armed. */
-  .trash-pillar-btn {
-    margin: 3px auto 0; align-self: center;
-    background: rgba(235,87,87,0.14); color: #ff8f8f;
-    border: 1px solid #6e2b2b; border-radius: 999px;
-    padding: 6px 14px; font-size: 12px; font-weight: 800; cursor: pointer;
-    touch-action: manipulation;
-  }
+  /* Trash-Pathway control (in the Pathways zone, only when a column is armed). */
+  .trash-pillar-btn { margin: 8px auto 0; align-self: center;
+    background: rgba(181,67,90,0.16); color: var(--bad);
+    border: 1px solid var(--danger); border-radius: 999px;
+    padding: 6px 14px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
   .trash-pillar-btn.hidden { display: none; }
   .trash-pillar-btn:active { transform: scale(0.96); }
+
+  /* Sticky footer: the one fixed help slot + the action row. */
+  .store-foot { position: sticky; bottom: 0; width: min(96vw, 400px);
+    display: flex; flex-direction: column; gap: 8px; padding-top: 8px;
+    background: linear-gradient(to top, var(--bg) 72%, transparent); }
+  .store-help { background: rgba(20,12,18,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
+    padding: 10px 13px; min-height: 58px; }
+  .store-help .sh-row { display: flex; align-items: center; gap: 8px; }
+  .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: 14px;
+    letter-spacing: 0.4px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+  .store-help .sh-title .ico { font-size: 17px; flex: none; }
+  .store-help .sh-tier { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .store-help.empty .sh-title { color: var(--muted); font-family: var(--font-text); font-weight: 600; font-size: 12px; }
+  .store-help .sh-desc { font-size: 11.5px; line-height: 1.45; color: var(--text); margin-top: 4px; }
+  .store-help.empty .sh-desc { color: var(--muted); opacity: 0.65; }
+  .store-help .sh-col { font-size: 11px; font-weight: 700; color: #c4a8ec; margin-top: 5px; }
+  .store-help .sh-col.hidden, .store-help .sh-buy.hidden { display: none; }
+  .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
+    color: #1c1206; border: none; border-radius: 999px; padding: 8px 16px;
+    font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .sh-buy .coin-ico { font-size: 12px; }
+  .sh-buy:disabled { background: var(--panel-2); color: var(--muted); cursor: default; }
+  .sh-buy:active { transform: scale(0.97); }
+  #storeMsg { display: none; }   /* legacy feedback line kept for existing writes; not shown */
+
+  /* Pack-reveal Confirm button (still used by the reveal modal). */
+  .buy-confirm { width: min(94vw, 380px); padding: 8px 12px; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow);
+    background: var(--accent); color: #1c1206; transition: transform 0.08s ease, opacity 0.15s ease; }
+  .buy-confirm:active { transform: scale(0.98); }
+  .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
+  .buy-confirm.hidden { display: none; }
+
+  /* Bottom action row (Reroll + Start). */
+  .store-actions { display: flex; gap: 9px; }
+  .reroll-btn { flex: 1; background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--edge-2); border-radius: 999px; padding: 12px; font-size: 13px; font-weight: 700;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; touch-action: manipulation; }
+  .reroll-btn .ico { font-size: 15px; }
+  .reroll-btn:disabled { opacity: 0.4; color: var(--muted); cursor: default; }
+  .reroll-btn:active { transform: scale(0.98); }
+  .play-btn.store-start { flex: 1.4; margin: 0; padding: 12px 18px; font-size: 15px; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
   .confirm-overlay {
@@ -2032,29 +2053,49 @@
     <div class="peek-hint hidden" id="peekHint"><span class="ico-slot" data-ico="eye"></span> Hold anywhere to peek the board</div>
   </div>
 
-  <!-- Store overlay — shown between runs. Limited random offering (4 stickers
-       + 2 Pillars) with a reroll; designed to fit one screen with no scroll. -->
+  <!-- Store overlay — shown between runs. Three colour/shape-coded zones, one
+       fixed help slot at the bottom that fills on selection (no per-item "?"). -->
   <div class="overlay store hidden" id="storeOverlay">
-    <div class="store-coins">
-      <div class="sc-coins"><span class="ico-slot" data-ico="store"></span> <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="storeCoins">0</b></div>
-      <div class="sc-inv" id="storeInv"></div>
+    <div class="store-balance">Dopamine to spend: <b id="storeCoins">0</b>
+      <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></div>
+
+    <div class="zone z-imp">
+      <div class="zone-h"><span class="ico-slot" data-ico="dot"></span> IMPRINTS
+        <span class="tag">change how a memory encodes</span></div>
+      <div class="store-row" id="storeItems"></div>
     </div>
-    <!-- Auto-description: shows the selected item's name + effect (registry
-         source), so the player always sees what they're buying without scrolling. -->
-    <div class="store-desc" id="storeDesc"></div>
-    <div class="store-section">Imprints — change how a memory encodes</div>
-    <div class="store-tiles" id="storeItems"></div>
-    <button class="buy-confirm" id="buyStickerBtn" type="button" disabled>Select an Imprint to buy</button>
-    <div class="store-section">Pathways — bind one across a column of neurons</div>
-    <div class="store-tiles" id="storePillars"></div>
-    <div class="pillar-slots" id="pillarSlots"></div>
-    <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button"><span class="ico-slot" data-ico="trash"></span> Trash this Pathway</button>
-    <div class="store-section">Memory Swaps &amp; Imprint Packs — open, then pick</div>
-    <div class="store-tiles" id="storePacks"></div>
-    <button class="buy-confirm" id="buyPackBtn" type="button" disabled>Select a Swap or Pack to buy</button>
-    <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
+
+    <div class="zone z-path">
+      <div class="zone-h"><span class="ico-slot" data-ico="guardian"></span> PATHWAYS
+        <span class="tag">pick one, then a column</span></div>
+      <div class="store-row" id="storePillars"></div>
+      <div class="pillar-slots" id="pillarSlots"></div>
+      <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button"><span class="ico-slot" data-ico="trash"></span> Trash this Pathway</button>
+    </div>
+
+    <div class="zone z-swap">
+      <div class="zone-h"><span class="ico-slot" data-ico="cache"></span> MEMORY SWAPS
+        <span class="tag">open, reveal, then pick</span></div>
+      <div class="store-row" id="storePacks"></div>
+    </div>
+
     <div class="store-msg" id="storeMsg"></div>
-    <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
+
+    <!-- one fixed help slot + actions, pinned to the bottom -->
+    <div class="store-foot">
+      <div class="store-help empty" id="storeHelp">
+        <div class="sh-row">
+          <span class="sh-title" id="shTitle">Tap any item to see what it does</span>
+          <button class="sh-buy hidden" id="shBuy" type="button">Buy</button>
+        </div>
+        <div class="sh-desc" id="shDesc">Select an Imprint, Pathway, or Memory Swap to read it here.</div>
+        <div class="sh-col hidden" id="shCol">Choose a column below ↓</div>
+      </div>
+      <div class="store-actions">
+        <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
+        <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
+      </div>
+    </div>
   </div>
 
   <!-- Pack reveal: shown after buying a pack. The player picks from the revealed
@@ -2217,7 +2258,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.76 · fiction-vocabulary";
+const APP_VERSION = "v0.77 · store-redesign";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4576,15 +4617,16 @@ const UIRenderer = (() => {
     storeOverlay: document.getElementById("storeOverlay"),
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
-    storeInv: document.getElementById("storeInv"),
-    storeDesc: document.getElementById("storeDesc"),
     storeItems: document.getElementById("storeItems"),
-    buyStickerBtn: document.getElementById("buyStickerBtn"),
     storePillars: document.getElementById("storePillars"),
     pillarSlots: document.getElementById("pillarSlots"),
     trashPillarBtn: document.getElementById("trashPillarBtn"),
     storePacks: document.getElementById("storePacks"),
-    buyPackBtn: document.getElementById("buyPackBtn"),
+    storeHelp: document.getElementById("storeHelp"),
+    shTitle: document.getElementById("shTitle"),
+    shBuy: document.getElementById("shBuy"),
+    shDesc: document.getElementById("shDesc"),
+    shCol: document.getElementById("shCol"),
     packReveal: document.getElementById("packReveal"),
     packTitle: document.getElementById("packTitle"),
     packItems: document.getElementById("packItems"),
@@ -5597,55 +5639,33 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
-    // TAP-OFF-TO-CLOSE (capture phase, so it runs BEFORE the select/buy
-    // handlers): while a help popup is open, any tap that isn't on a "?" just
-    // dismisses the popup and is swallowed — so the dismiss tap can't buy or
-    // select the item underneath. Taps on a "?" pass through to toggle/switch;
-    // taps on the popup itself never reach here (it's outside this overlay).
-    el.storeOverlay.addEventListener("click", (e) => {
-      if (openHelpKey == null) return;            // nothing open → normal flow
-      if (e.target.closest(".si-help")) return;   // a "?" → let it toggle/switch
-      closeItemHelp();
-      e.stopPropagation();
-      e.preventDefault();
-    }, true);
-    // A tap on the popup keeps it open (and never falls through to a purchase).
-    el.itemHelp.addEventListener("click", (e) => e.stopPropagation());
-
-    // Store wiring. Stickers are two-step: tap an offered slot SELECTS it, the
-    // Buy button confirms. Tapping the "?" toggles that item's help popup —
-    // never a select or buy.
+    // Store wiring (unified): tap any item to SELECT it — its name, effect, and
+    // Buy action fill the single fixed help slot at the bottom. No "?" buttons.
     el.storeItems.addEventListener("click", (e) => {
-      const help = e.target.closest(".si-help");
-      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("disabled")) selectStickerUI(Number(tile.dataset.slot));
+      if (tile && !tile.classList.contains("empty")) selectStickerUI(Number(tile.dataset.slot));
     });
-    el.buyStickerBtn.addEventListener("click", confirmBuySticker);
-    // Tapping "elsewhere" in the shop (not a tile / Buy / Reroll / column chip)
-    // deselects the pending sticker or pack.
+    el.storePillars.addEventListener("click", (e) => {
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("empty")) armPillarSlotUI(Number(tile.dataset.pslot));
+    });
+    el.storePacks.addEventListener("click", (e) => {
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("empty")) selectPackUI(Number(tile.dataset.packslot));
+    });
+    // The one Buy button lives in the help slot; it confirms whatever is selected
+    // (Imprints and Memory Swaps; Pathways buy by tapping a column instead).
+    el.shBuy.addEventListener("click", () => {
+      if (el.shBuy.dataset.kind === "sticker") confirmBuySticker();
+      else confirmBuyPack();
+    });
+    // Tap empty space in the shop (not a tile / footer / column chip) to deselect.
     el.storeOverlay.addEventListener("click", (e) => {
-      if (e.target.closest(".store-tile, #buyStickerBtn, #buyPackBtn, #rerollBtn, .pillar-slot")) return;
-      if (selectedStickerSlot != null || selectedPackSlot != null) {
-        selectedStickerSlot = null; selectedPackSlot = null; renderStore();
+      if (e.target.closest(".store-tile, .store-foot, .pillar-slot, .trash-pillar-btn")) return;
+      if (selectedStickerSlot != null || selectedPackSlot != null || armedPillarSlot != null) {
+        selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; renderStore();
       }
     });
-    // Offered Pillars: tap a slot to arm it; tapping the "?" toggles help.
-    el.storePillars.addEventListener("click", (e) => {
-      const help = e.target.closest(".si-help");
-      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("disabled")) armPillarSlotUI(Number(tile.dataset.pslot));
-    });
-    // Offered Packs are two-step like stickers: tap a tile to SELECT it, the
-    // Buy button opens it. Tapping the "?" toggles help (never a select/buy).
-    el.storePacks.addEventListener("click", (e) => {
-      const help = e.target.closest(".si-help");
-      if (help) { toggleItemHelp(help.closest(".store-tile")); e.stopPropagation(); return; }
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("disabled")) selectPackUI(Number(tile.dataset.packslot));
-    });
-    el.buyPackBtn.addEventListener("click", confirmBuyPack);
     // Pick screen: open the read-only deck composition to inform the choice.
     el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
     el.rerollBtn.addEventListener("click", rerollUI);
@@ -6717,16 +6737,21 @@ const UIRenderer = (() => {
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
     btn.dataset[kind === "pillar" ? "pslot" : kind === "pack" ? "packslot" : "slot"] = slot;
-    btn.dataset[kind === "pillar" ? "pillar" : kind === "pack" ? "pack" : "type"] = id;   // for the help popup
-    // Packs have no rarity tier; stickers/Pillars show their tier badge.
+    btn.dataset[kind === "pillar" ? "pillar" : kind === "pack" ? "pack" : "type"] = id;
+    // Packs have no rarity tier; Imprints/Pathways show their tier badge.
     const tierChip = (kind === "pack") ? ""
       : '<span class="ti-tier tier-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '">' + (t.tier || "common").charAt(0).toUpperCase() + '</span>';
     btn.innerHTML =
-      '<span class="si-help" aria-label="What does this do?">?</span>' +
       tierChip +
       '<span class="ti-icon">' + t.icon + '</span>' +
+      '<span class="ti-name">' + escHtml(t.label) + '</span>' +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
+  }
+  /* Pad an offered row to `n` slots with invisible placeholders so every tile
+     keeps a consistent size across zones (matches the redesign layout). */
+  function padRow(container, n) {
+    for (let i = container.children.length; i < n; i++) container.appendChild(offerTile(null, i, "sticker", false));
   }
 
   /* Shared description source for any element (Imprint / Pathway / Cache):
@@ -6736,40 +6761,59 @@ const UIRenderer = (() => {
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: t.description } : null;
   }
-  /* Store auto-description: reflects the current selection (Imprint / Pathway /
-     Memory Swap) automatically — pick a tile and its effect shows, no scrolling. */
-  function renderStoreDesc() {
-    if (!el.storeDesc) return;
+  /* The ONE fixed help slot: reflects the current selection (Imprint / Pathway /
+     Memory Swap) with its name, tier, effect, and the Buy action. Pathways show
+     "choose a column" instead of Buy (the column chooser lives in their zone).
+     This is the single, consistent way the player learns + buys anything. */
+  function renderStoreHelp() {
+    if (!el.storeHelp) return;
     const offer = campaign.getStoreOffer();
-    let item = null;
+    let kind = null, id = null, price = 0;
     if (offer) {
-      if (selectedStickerSlot != null) item = describeItem("sticker", offer.stickers[selectedStickerSlot]);
-      else if (armedPillarSlot != null) item = describeItem("pillar", offer.pillars[armedPillarSlot]);
-      else if (selectedPackSlot != null) item = describeItem("pack", offer.packs[selectedPackSlot]);
+      if (selectedStickerSlot != null) { kind = "sticker"; id = offer.stickers[selectedStickerSlot]; price = campaign.priceOf(id); }
+      else if (armedPillarSlot != null) { kind = "pillar"; id = offer.pillars[armedPillarSlot]; price = campaign.priceOfPillar(id); }
+      else if (selectedPackSlot != null) { kind = "pack"; id = offer.packs[selectedPackSlot]; price = campaign.priceOfPack(id); }
     }
-    if (!item) { el.storeDesc.innerHTML = '<span class="sd-empty">Select an item to see what it does.</span>'; return; }
-    el.storeDesc.innerHTML =
-      '<div class="sd-title">' + item.icon + " " + escHtml(item.label) +
-        (item.tier ? '<span class="sd-tier">' + item.tier + "</span>" : "") + "</div>" +
-      '<div class="sd-desc">' + escHtml(item.desc || "") + "</div>";
+    const t = id ? describeItem(kind, id) : null;
+    if (!t) {
+      el.storeHelp.classList.add("empty");
+      el.shTitle.textContent = "Tap any item to see what it does";
+      el.shDesc.textContent = "Select an Imprint, Pathway, or Memory Swap to read it here.";
+      el.shBuy.classList.add("hidden");
+      el.shCol.classList.add("hidden");
+      return;
+    }
+    const afford = campaign.getCoins() >= price;
+    el.storeHelp.classList.remove("empty");
+    el.shTitle.innerHTML = t.icon + " " + escHtml(t.label) +
+      (t.tier ? ' <span class="sh-tier">' + t.tier + "</span>" : "");
+    el.shDesc.textContent = t.desc || "";
+    if (kind === "pillar") {
+      el.shBuy.classList.add("hidden");
+      el.shCol.classList.remove("hidden");
+      el.shCol.textContent = afford ? "Choose a column below ↓" : ("Need " + price + " dopamine");
+    } else {
+      el.shCol.classList.add("hidden");
+      el.shBuy.classList.remove("hidden");
+      el.shBuy.disabled = !afford;
+      el.shBuy.dataset.kind = kind;
+      el.shBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
+    }
   }
 
   function renderStore() {
     const offer = campaign.getStoreOffer();
     el.storeCoins.textContent = campaign.getCoins();
-    el.storeInv.innerHTML = inventoryHtml("No Imprints owned yet");
-    renderStoreDesc();   // keep the auto-description in sync with the selection
-    // 4 sticker slots (select → Buy).
+    // Imprint offer (4 slots), padded to a full row of consistent tiles.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
       el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
-    updateBuyButton();
+    padRow(el.storeItems, 4);
     renderPillarStore();
     renderPackStore();
     updateRerollButton();
-    // Checkpoint store state (coins, inventory, Pillars, packs, current offer) so
-    // a refresh while shopping keeps every purchase. renderStore() runs after
-    // each store action, so this captures buys / rerolls / Pillar moves.
+    renderStoreHelp();   // the fixed help slot tracks the selection
+    // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
 
@@ -6795,25 +6839,7 @@ const UIRenderer = (() => {
     el.storePacks.innerHTML = "";
     (offer && offer.packs ? offer.packs : []).forEach((id, slot) =>
       el.storePacks.appendChild(offerTile(id, slot, "pack", selectedPackSlot === slot)));
-    updatePackBuyButton();
-  }
-
-  /* The pack Buy button reflects the current pack-slot selection (mirrors the
-     sticker Buy button). Disabled with a prompt until a pack is selected. */
-  function updatePackBuyButton() {
-    const offer = campaign.getStoreOffer();
-    const id = (offer && selectedPackSlot != null) ? offer.packs[selectedPackSlot] : null;
-    const t = id ? PackTypes.get(id) : null;
-    if (!t) {
-      el.buyPackBtn.disabled = true;
-      el.buyPackBtn.textContent = "Select a Swap or Pack to buy";
-      return;
-    }
-    const price = campaign.priceOfPack(id);
-    const afford = campaign.getCoins() >= price;
-    el.buyPackBtn.disabled = !afford;
-    el.buyPackBtn.innerHTML =
-      (afford ? "Buy " : "Need " + COIN_SVG + price + " · ") + t.icon + " " + t.label + (afford ? " · " + COIN_SVG + price : "");
+    padRow(el.storePacks, 4);
   }
 
   /* Tap an offered pack SLOT to select it (highlight) — does NOT buy. Toggle off
@@ -7032,22 +7058,6 @@ const UIRenderer = (() => {
   }
 
   /* The Buy confirm button reflects the current sticker-slot selection. */
-  function updateBuyButton() {
-    const offer = campaign.getStoreOffer();
-    const id = (offer && selectedStickerSlot != null) ? offer.stickers[selectedStickerSlot] : null;
-    const t = id ? StickerTypes.get(id) : null;
-    if (!t) {
-      el.buyStickerBtn.disabled = true;
-      el.buyStickerBtn.textContent = "Select an Imprint to buy";
-      return;
-    }
-    const price = campaign.priceOf(id);
-    const afford = campaign.getCoins() >= price;
-    el.buyStickerBtn.disabled = !afford;
-    el.buyStickerBtn.innerHTML =
-      (afford ? "Buy " : "Need " + COIN_SVG + price + " · ") + t.icon + " " + t.label + (afford ? " · " + COIN_SVG + price : "");
-  }
-
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
@@ -7063,6 +7073,7 @@ const UIRenderer = (() => {
     el.storePillars.innerHTML = "";
     (offer ? offer.pillars : []).forEach((id, slot) =>
       el.storePillars.appendChild(offerTile(id, slot, "pillar", armedPillarSlot === slot)));
+    padRow(el.storePillars, 4);
 
     el.pillarSlots.innerHTML = "";
     const binding = campaign.getColumnPillars();
@@ -7128,11 +7139,7 @@ const UIRenderer = (() => {
   function armPillarSlotUI(slot) {
     const offer = campaign.getStoreOffer();
     const id = offer ? offer.pillars[slot] : null;
-    if (!id) return;
-    if (campaign.getCoins() < campaign.priceOfPillar(id)) {
-      el.storeMsg.textContent = "Not enough dopamine for that Pathway.";
-      return;
-    }
+    if (!id) return;   // affordability is shown in the help slot (Buy by tapping a column)
     selectedStickerSlot = null;
     selectedPackSlot = null;
     armedSlotMove = null;
