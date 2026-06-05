@@ -542,7 +542,7 @@
   /* back (face down / dead) */
   .card .back {
     background:
-      repeating-linear-gradient(45deg, var(--panel-2) 0 8px, #1d3060 8px 16px);
+      repeating-linear-gradient(45deg, var(--panel-2) 0 8px, #2f2538 8px 16px);
     border: 2px solid var(--edge-2);
     transform: rotateY(180deg);
     align-items: center;
@@ -745,11 +745,11 @@
   }
   .menu-screen.hidden { display: none; }
   .menu-mark { color: var(--accent); font-size: 46px; line-height: 1;
-    filter: drop-shadow(0 0 14px rgba(232,139,176,0.5)); }
+    filter: drop-shadow(0 2px 5px rgba(2,1,4,0.6)); }
   .menu-title {
     font-family: var(--font-display); font-weight: 700; font-size: 54px;
     letter-spacing: 8px; color: #f0d9e4; margin: 2px 0 0;
-    text-shadow: 0 0 22px rgba(232,139,176,0.45);
+    text-shadow: 0 2px 8px rgba(2,1,4,0.6);
   }
   .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
     text-transform: uppercase; margin-bottom: 14px; }
@@ -875,7 +875,7 @@
     letter-spacing: 3px;
     margin: 0 0 8px;
     color: var(--text);
-    text-shadow: 0 0 16px rgba(232, 139, 176, 0.35);
+    text-shadow: 0 2px 8px rgba(2, 1, 4, 0.6);
   }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
   .overlay .big { font-size: 56px; margin-bottom: 6px; }
@@ -1067,9 +1067,9 @@
     display: inline-flex; align-items: center; gap: 3px; }
   .store-tile .ti-price .coin-ico { font-size: 11px; }
   .store-tile.selected { transform: translateY(-2px); }
-  .z-imp  .store-tile.selected { border-color: var(--accent);  box-shadow: 0 0 14px rgba(232,139,176,0.40); }
-  .z-path .store-tile.selected { border-color: #a98cd8;        box-shadow: 0 0 14px rgba(160,116,214,0.45); }
-  .z-swap .store-tile.selected { border-color: #5fbfc0;        box-shadow: 0 0 14px rgba(86,196,196,0.40); }
+  .z-imp  .store-tile.selected { border-color: var(--accent);  box-shadow: 0 0 0 2px var(--accent); }
+  .z-path .store-tile.selected { border-color: #a98cd8;        box-shadow: 0 0 0 2px #a98cd8; }
+  .z-swap .store-tile.selected { border-color: #5fbfc0;        box-shadow: 0 0 0 2px #5fbfc0; }
   /* Rarity badge (top-left). */
   .store-tile .ti-tier { position: absolute; top: 4px; left: 5px; font-size: 8px; font-weight: 800;
     width: 14px; height: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
@@ -2331,7 +2331,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.84 · draw-death-feedback";
+const APP_VERSION = "v0.85 · matte-sweep";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4961,10 +4961,7 @@ const UIRenderer = (() => {
   function paintFront(pileEl, card) {
     const front = pileEl.querySelector(".front");
     front.classList.toggle("red", !!card.red);
-    // Soft halo in the muted SUIT colour (red suits → rose; black suits → a
-    // muted plum, since a literal-dark glow wouldn't read on the dark field).
-    const cardEl = pileEl.querySelector(".card");
-    if (cardEl) cardEl.style.setProperty("--glow", card.red ? "rgba(196,112,142,0.5)" : "rgba(150,124,170,0.42)");
+    // (Matte cards: the old per-card --glow halo was removed — no setter needed.)
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
     const svg = suitGlyph(card.suit);
