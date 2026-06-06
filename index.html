@@ -2299,7 +2299,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.87 · stable-board";
+const APP_VERSION = "v0.88 · store-dopamine-sync";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6947,7 +6947,12 @@ const UIRenderer = (() => {
 
   function renderStore() {
     const offer = campaign.getStoreOffer();
+    // Single source of truth (campaign.getCoins()) → render BOTH dopamine
+    // displays together every time the store re-renders (after any buy / reroll /
+    // pillar placement / trash), so the top HUD badge and the "dopamine to spend"
+    // counter can never drift apart.
     el.storeCoins.textContent = campaign.getCoins();
+    updateStageRun();   // refresh the top HUD Stage·Run badge + dopamine counter
     // Imprint offer (4 slots), padded to a full row of consistent tiles.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
