@@ -46,6 +46,9 @@
     --danger: #b5435a;      /* deep rose-red for destructive actions */
     --pathway: #a98cd8;     /* Pathway identity (muted violet) */
     --pathway-2: #c4a8ec;   /* lighter violet for accents/icons */
+    /* Fixed play-screen regions (stable board: never recomputed per-action). */
+    --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
+    --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory ↔ histogram band */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -177,15 +180,35 @@
   /* Graph toggle — icon-only, pinned to the top-right corner (out of flow). */
   /* Layout 4 bottom band — the always-visible histogram fills the left, the
      face-down deck + count sits at the right; one shared row at the bottom. */
-  .bottom-band {
-    display: flex; align-items: flex-end; gap: 10px;
-    width: min(99vw, 540px); margin: 0 auto;
-    background: rgba(20, 14, 22, 0.5);
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    padding: 5px 9px;
+  /* Control row — FIXED height so Start↔guess never reflows the board. */
+  .play-controls {
+    width: min(100%, 680px); margin: 0 auto;
+    height: var(--controls-h, 52px);
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 8px; overflow: hidden;
   }
 
-  /* The DECK — face-down card-stack + count, bottom-right of the band. */
+  /* FIXED-height bottom region — contents swap by phase, size stays constant. */
+  .bottom-region {
+    display: flex; align-items: flex-end; gap: 10px;
+    width: min(99vw, 540px); margin: 0 auto;
+    height: var(--bottom-h, 102px);
+    background: rgba(20, 14, 22, 0.5);
+    border: 1px solid var(--edge-2); border-radius: 14px;
+    padding: 6px 9px;
+  }
+  /* Left area holds the setup inventory and the histogram, overlaid + swapped. */
+  .br-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
+  .br-main > .setup-inv, .br-main > .deck-strip { position: absolute; inset: 0; }
+  .bottom-region.setup .deck-strip { display: none; }   /* before Start: histogram hidden */
+  .bottom-region.run   .setup-inv  { display: none; }   /* after Start: inventory hidden */
+  /* Setup inventory — scrolls within the fixed region if it overflows. */
+  .setup-inv {
+    display: flex; flex-direction: column; gap: 5px;
+    overflow-y: auto; overscroll-behavior: contain; align-items: center;
+  }
+
+  /* The DECK — face-down card-stack + count, bottom-right of the region. */
   .deck-stack { flex: none; display: inline-flex; align-items: center; gap: 8px;
     cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .deck-stack:active { transform: scale(0.97); }
@@ -212,16 +235,15 @@
      ============================================================ */
   .deck-strip {
     position: relative;
-    flex: 1 1 auto; min-width: 0;   /* fills the left of the bottom band */
-    margin: 0;
-    padding: 0;
+    min-width: 0; margin: 0; padding: 0;
+    display: flex; flex-direction: column; justify-content: flex-end;
     touch-action: none;            /* drag scrubs, never scrolls the locked page */
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
   .deck-strip.hidden { display: none; }
   .ds-bars {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; height: 54px;        /* slim — fits the one-row bottom band */
+    gap: 2px; flex: 1 1 auto;       /* fills the fixed bottom-region height */
   }
   .ds-bar {
     flex: 1 1 0; min-width: 0;
@@ -1330,9 +1352,10 @@
   .sticker-tray {
     display: flex;
     gap: 8px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 4px 0 2px;
+    justify-content: flex-start;
+    flex-wrap: nowrap;            /* one compact row; scrolls inside the fixed region */
+    overflow-x: auto; overscroll-behavior: contain;
+    max-width: 100%; margin: 0; padding: 1px;
   }
   .sticker-tray.hidden { display: none; }
   /* Fixed help slot under the Imprint tray (mirrors the store's help slot). */
@@ -1938,48 +1961,47 @@
          can still write to it without consuming vertical space). -->
     <div class="hint" id="hint" aria-hidden="true">Tap a neuron to begin.</div>
 
-    <!-- Owned stickers; tap one to "arm" it, then tap a pile's top card. -->
-    <div class="sticker-tray hidden" id="stickerTray"></div>
-    <!-- Fixed help slot for the Imprint tray: arming an Imprint fills it with the
-         Imprint's name + effect (same pattern as the store's help slot). -->
-    <div class="tray-help hidden" id="trayHelp">
-      <span class="th-title" id="thTitle"></span>
-      <span class="th-desc" id="thDesc"></span>
-    </div>
-
-    <!-- Held pack cards (pre-run): arm one, then tap a pile to PERMANENTLY
-         replace that dealt card (confirmation required). -->
-    <div class="pack-tray hidden" id="packTrayEl"></div>
-
-    <!-- Sticker phase: press to end sticker application and begin active play.
-         Shown until pressed each run; mutually exclusive with the guess buttons. -->
-    <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
-
-    <!-- Redeal (pre-run only): pay to reshuffle the WHOLE deck and deal a fresh
-         starting board. Applied stickers ride with the deck (same cards, new
-         shuffle). Cost rises 5→6→7… per redeal this phase. -->
-    <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
-
-    <div class="actions hidden" id="actions">
-      <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
-      <button class="btn higher" id="btnHigher">HIGHER</button>
-      <button class="btn same" id="btnSame">SAME</button>
-      <button class="btn lower" id="btnLower">LOWER</button>
-    </div>
-
-    <!-- Layout 4 bottom band (one row): the always-visible rank histogram fills
-         the left; the face-down deck + remaining-count sits at the right. Both
-         live in this single band so the board above gets the freed space. -->
-    <div class="bottom-band">
-      <!-- Always-on deck composition strip: remaining vs total per rank 2→A.
-           Drag to scrub. Presentation only — reads the same counts as the modal;
-           never reveals draw order. (Now permanently visible — no toggle.) -->
-      <div class="deck-strip" id="deckStrip">
-        <div class="ds-scrub hidden" id="deckStripScrub"></div>
-        <div class="ds-bars" id="deckStripBars"></div>
+    <!-- Control row (FIXED height): Start Run (+ Redeal) during setup, the guess
+         buttons during the run — mutually exclusive, reserved at a constant
+         height so the board never reflows across the Start transition. -->
+    <div class="play-controls" id="playControls">
+      <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
+      <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
+      <div class="actions hidden" id="actions">
+        <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
+        <button class="btn higher" id="btnHigher">HIGHER</button>
+        <button class="btn same" id="btnSame">SAME</button>
+        <button class="btn lower" id="btnLower">LOWER</button>
       </div>
-      <!-- The DECK: a face-down card-stack + remaining count, bottom-right beside
-           the histogram. Tap to inspect · hold for a quick peek (wiring unchanged). -->
+    </div>
+
+    <!-- FIXED-height bottom region. Its contents swap by PHASE but its size does
+         NOT, so the board region above is stable through inventory changes,
+         imprint placement, memory swaps, and clicking Start:
+           setup phase → the setup inventory (Imprints to place, memories to swap)
+           run phase   → the rank histogram
+         The face-down deck + remaining count stays bottom-right in BOTH. -->
+    <div class="bottom-region setup" id="bottomRegion">
+      <div class="br-main">
+        <!-- Setup inventory (before Start). Scrolls within the fixed region if
+             it has a lot of items — never resizes the region or the board. -->
+        <div class="setup-inv" id="setupInv">
+          <div class="sticker-tray hidden" id="stickerTray"></div>
+          <div class="pack-tray hidden" id="packTrayEl"></div>
+          <div class="tray-help hidden" id="trayHelp">
+            <span class="th-title" id="thTitle"></span>
+            <span class="th-desc" id="thDesc"></span>
+          </div>
+        </div>
+        <!-- Rank histogram (after Start). Always reads the same counts as the
+             deck modal; never reveals draw order. -->
+        <div class="deck-strip" id="deckStrip">
+          <div class="ds-scrub hidden" id="deckStripScrub"></div>
+          <div class="ds-bars" id="deckStripBars"></div>
+        </div>
+      </div>
+      <!-- The DECK: face-down card-stack + remaining count — bottom-right in both
+           phases. Tap to inspect · hold for a quick peek (wiring unchanged). -->
       <div class="deck-stack" id="deckStat" role="button" tabindex="0"
            title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
         <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span></span>
@@ -2277,7 +2299,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.86 · layout-4";
+const APP_VERSION = "v0.87 · stable-board";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4594,6 +4616,7 @@ const UIRenderer = (() => {
     gameMenu: document.getElementById("gameMenu"),
     gameMenuButtons: document.getElementById("gameMenuButtons"),
     gameMenuClose: document.getElementById("gameMenuClose"),
+    bottomRegion: document.getElementById("bottomRegion"),
     stickerTray: document.getElementById("stickerTray"),
     trayHelp: document.getElementById("trayHelp"),
     thTitle: document.getElementById("thTitle"),
@@ -5132,6 +5155,8 @@ const UIRenderer = (() => {
      two button groups are mutually exclusive so the layout never shows both. */
   function showStickerPhase() {
     clearSelection();                         // also hides #actions
+    // Bottom region shows the setup inventory (histogram hidden) — same height.
+    if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
     el.startRunBtn.classList.remove("hidden");
     renderStickerTray();                      // shows owned stickers (if any)
     renderPackTray();                         // shows held pack cards (if any)
@@ -5144,12 +5169,14 @@ const UIRenderer = (() => {
 
   function showActivePhase() {
     el.startRunBtn.classList.add("hidden");
+    // Bottom region swaps to the histogram (same fixed height → board stays put).
+    if (el.bottomRegion) { el.bottomRegion.classList.add("run"); el.bottomRegion.classList.remove("setup"); }
     renderStickerTray();                      // window closed -> tray hides itself
     renderPackTray();                         // window closed -> pack tray hides itself
     renderRedealBtn();                        // window closed -> redeal hides itself
     if (armedSticker || armedPack != null) { armedSticker = null; armedPack = null; el.board.classList.remove("arming"); }
     el.hint.textContent = "Tap a neuron, then encode: Higher, Same, or Lower.";
-    if (pileEls.length) fitBoard();           // reclaim the Start Run row's space
+    // No fitBoard here — the board region is fixed and does not reflow on Start.
   }
 
   /* ---- redeal (pre-run reshuffle) ----
@@ -5237,8 +5264,7 @@ const UIRenderer = (() => {
       el.stickerTray.classList.add("hidden");
       if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
       renderTrayHelp();   // nothing armed/tray closed → hide the help slot
-      if (pileEls.length) fitBoard();   // tray hidden -> reclaim its space
-      return;
+      return;             // (no fitBoard — the tray lives inside the fixed region)
     }
     el.stickerTray.classList.remove("hidden");
     owned.forEach(t => {
@@ -5250,7 +5276,8 @@ const UIRenderer = (() => {
       el.stickerTray.appendChild(b);
     });
     renderTrayHelp();                   // reflect the armed Imprint (or hide)
-    if (pileEls.length) fitBoard();     // tray shown -> shrink to keep Run 1 fitting
+    // No fitBoard — the tray lives inside the fixed bottom region; the board
+    // size is fixed and must not recompute on inventory changes.
   }
 
   function armSticker(typeId) {
@@ -6632,28 +6659,18 @@ const UIRenderer = (() => {
     const bs = getComputedStyle(document.body);
     const bodyPadV = (parseFloat(bs.paddingTop) || 0) + (parseFloat(bs.paddingBottom) || 0);
 
-    // Everything that ISN'T the board, all board-independent:
+    // Everything that ISN'T the board, all board-independent AND of FIXED height,
+    // so the board size never recomputes on inventory / imprint / swap / Start:
     const header = document.querySelector("header");
     const hud = document.querySelector(".hud");
-    const trayVisible = el.stickerTray && !el.stickerTray.classList.contains("hidden");
-    const trayHelpVisible = el.trayHelp && !el.trayHelp.classList.contains("hidden");
-    const packTrayVisible = el.packTrayEl && !el.packTrayEl.classList.contains("hidden");
-    // The control row is either the guess buttons (active) or the Start Run
-    // button (sticker phase) — mutually exclusive. Reserve the LARGER of the
-    // two so the board size is stable across the phase swap (no re-fit jump).
-    // .actions uses visibility:hidden (keeps its box) so it always measures.
-    const controlH = Math.max(oh(el.actions), oh(el.startRunBtn));
-    // Layout 4: the bottom band (histogram + face-down deck) is one always-shown
-    // main child below the board — reserve its height as a single unit.
-    const bottomBand = main.querySelector(".bottom-band");
-    const bottomBandH = bottomBand ? oh(bottomBand) : 0;
-    // main's visible in-flow children: board, control-row, bottom-band,
-    // [sticker tray], [tray help], [pack tray].
-    const belowH = controlH + bottomBandH
-      + (trayVisible ? oh(el.stickerTray) : 0)
-      + (trayHelpVisible ? oh(el.trayHelp) : 0)
-      + (packTrayVisible ? oh(el.packTrayEl) : 0);
-    const visibleChildren = 3 + (trayVisible ? 1 : 0) + (trayHelpVisible ? 1 : 0) + (packTrayVisible ? 1 : 0);
+    // Control row + bottom region are both fixed-height containers (their CONTENTS
+    // swap by phase, their SIZE does not), so the reservation below is constant.
+    const controls = main.querySelector(".play-controls");
+    const controlH = controls ? oh(controls) : 0;
+    const bottomRegionH = el.bottomRegion ? oh(el.bottomRegion) : 0;
+    const belowH = controlH + bottomRegionH;
+    // main's in-flow children below the board: control row, bottom region.
+    const visibleChildren = 3;   // board + controls + bottom region
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // 16px breathing margin: no-scroll is the priority, so trade a little board
@@ -7124,8 +7141,7 @@ const UIRenderer = (() => {
     if (!open || tray.length === 0) {
       el.packTrayEl.classList.add("hidden");
       if (armedPack != null) { armedPack = null; el.board.classList.toggle("arming", !!armedSticker); }
-      if (pileEls.length) fitBoard();
-      return;
+      return;             // (no fitBoard — pack tray lives inside the fixed region)
     }
     el.packTrayEl.classList.remove("hidden");
     tray.forEach((c, i) => {
@@ -7136,7 +7152,7 @@ const UIRenderer = (() => {
       b.innerHTML = miniCardHtml(c) + '<div class="pt-label">swap</div>';
       el.packTrayEl.appendChild(b);
     });
-    if (pileEls.length) fitBoard();
+    // No fitBoard — the board size is fixed; the pack tray is inside the region.
   }
 
   function armPack(index) {
