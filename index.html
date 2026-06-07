@@ -458,6 +458,18 @@
   @keyframes cardBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
   @media (prefers-reduced-motion: reduce) { .card .front { animation: none !important; } }
 
+  /* Card-anchored overlay holding the size/imprint badges: inside .card so it
+     inherits the float (drift translate), with its OWN breathing scale phase-
+     synced to the front (same --bd), so the badges stay locked to the card as it
+     drifts and breathes. overflow:visible so corner badges aren't clipped. */
+  .card-fx {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
+    transform-origin: 50% 50%;
+  }
+  .pile.dead .card-fx { animation: none; }   /* stop breathing as the card dissolves */
+  @media (prefers-reduced-motion: reduce) { .card-fx { animation: none !important; } }
+
   .card .front.red { color: var(--card-red); }
   /* Classic suit symbols, drawn crisp; inherit the front's ink/red colour. */
   .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
@@ -1388,8 +1400,9 @@
      mirrored rank (bottom-right). Right-anchored so extra badges grow leftward. */
   .pile-badges {
     position: absolute;
-    /* +5% to follow the card, which is inset 5% inside the cell (90%, centred) */
-    top: calc(5% + 3px); right: calc(5% + 3px);
+    /* Anchored to the card overlay (.card-fx = card bounds), so it drifts +
+       breathes with the card. Small fixed inset from the card's top-right. */
+    top: 3px; right: 3px;
     display: flex;
     gap: 2px;
     flex-wrap: wrap;
@@ -1416,8 +1429,9 @@
      the rotated rank sits bottom-right, so this corner is clear). */
   .pile-count {
     position: absolute;
-    /* +5% to follow the card, which is inset 5% inside the cell (90%, centred) */
-    bottom: calc(5% + 4px); left: calc(5% + 4px);
+    /* Anchored to the card overlay (.card-fx); small fixed inset from the
+       card's bottom-left, so it drifts + breathes locked to the card. */
+    bottom: 4px; left: 4px;
     min-width: calc(var(--pile-size, 88px) * 0.28); height: calc(var(--pile-size, 88px) * 0.28);
     padding: 0 calc(var(--pile-size, 88px) * 0.05);
     display: flex; align-items: center; justify-content: center;
@@ -2299,7 +2313,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.88 · store-dopamine-sync";
+const APP_VERSION = "v0.89 · badge-anchor-thicker-links";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4817,18 +4831,28 @@ const UIRenderer = (() => {
     card.appendChild(front);
     card.appendChild(back);
     card.appendChild(deadMark);
-    pile.appendChild(card);
 
-    // Sticker badges (hearts / shield / rank markers) — top-LEFT corner.
+    // Card-anchored overlay: the badges live INSIDE the card so they drift with
+    // its float (inherited translate) and breathe with it (the overlay's own
+    // scale animation, phase-synced to the front via --bd) — staying locked to
+    // their position on the card at all times. overflow:visible so the corner
+    // badges aren't clipped by the card's rounded edge.
+    const fx = document.createElement("div");
+    fx.className = "card-fx";
+
+    // Sticker badges (hearts / shield / rank markers) — top-RIGHT corner.
     const badges = document.createElement("div");
     badges.className = "pile-badges";
-    pile.appendChild(badges);
+    fx.appendChild(badges);
 
     // Card-count badge (how many cards are stacked here) — bottom-LEFT corner,
-    // clear of the top-left sticker badges and the bottom-right rotated rank.
+    // clear of the top-right sticker badges and the bottom-right rotated rank.
     const count = document.createElement("div");
     count.className = "pile-count";
-    pile.appendChild(count);
+    fx.appendChild(count);
+
+    card.appendChild(fx);
+    pile.appendChild(card);
     return pile;
   }
 
@@ -6410,9 +6434,15 @@ const UIRenderer = (() => {
      count/speed all scale with `w`. Pulses are plain circles (no SMIL) ridden
      along the CURVED centreline by the drift loop via cx/cy each frame. */
   function linkMarkup(a, b, w, diag, bow, key) {
-    const maxW = (diag ? 0.8 : 1.0) + w * 0.55;          // half-width at the middle (strength-gated)
+    // Half-width at the middle, gated by `w` (the smaller connected pile, 1..5 —
+    // the RULE is unchanged; computed in renderNetwork). Amplified + ACCELERATING
+    // response so links thicken dramatically as both piles grow: w=1 stays the
+    // minimum (all equal at run start), then each size step adds more than the
+    // last (linear + quadratic term).
+    const g = w - 1;
+    const maxW = (diag ? 0.8 : 1.0) + g * 1.0 + g * g * 0.16;
     const fill = Math.min(0.9, 0.4 + w * 0.08).toFixed(2);
-    const bulgeR = (0.8 + w * 0.32).toFixed(2);          // synaptic bulge size (strength-gated)
+    const bulgeR = (0.6 + maxW * 0.42).toFixed(2);       // synaptic bulge tracks the thicker spindle
     const c = synapseControl(a.x, a.y, b.x, b.y, bow);
     let m = "";
     if (w >= 2) {                                         // faint outer halo lens for stronger links
