@@ -2313,7 +2313,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.89 · badge-anchor-thicker-links";
+const APP_VERSION = "v0.90 · heavy-badge-repaint";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5347,6 +5347,12 @@ const UIRenderer = (() => {
     el.board.classList.remove("arming");
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
+    // Repaint the size badge + HUD from the (already-correct) weighted pile size,
+    // so a just-applied Heavy/Dense immediately shows its +count. The size badge
+    // reads board.pileSize() — Heavy counts as 2 there — it just wasn't repainted
+    // after an in-run application until now.
+    paintPileCounts(board);
+    renderHud(board, engine.getDeck());
     renderStickerTray();
     el.hint.textContent = "Imprint applied — apply more or press Start Run.";
     persistCampaign("run");   // the sticker is a permanent campaign change
