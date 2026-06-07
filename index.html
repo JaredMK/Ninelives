@@ -2313,7 +2313,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.92 · plain-language";
+const APP_VERSION = "v0.93 · suit-gate-fix";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3709,6 +3709,15 @@ const CampaignState = (() => {
     return StickerTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
 
+  /** Pillar types whose required suit (if any) is currently in play — the same
+      lock as stickers, applied to the Pillar roll. Carriers of a `suit`: the
+      four suit Bonus pillars (Spade/Heart always in play; Diamond/Club are
+      excluded until their stage introduces that suit). Used by the store roll so
+      a suit-locked Pillar can never be offered before its suit exists. */
+  function pillarPoolForSuits(suitsInPlay) {
+    return PillarTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
+  }
+
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
       deck cards) and pack-card generation. opts.rng seeds the random rank/suit
       picks (deterministic for tests); opts.suits limits Change-Suit Random to a
@@ -3750,13 +3759,14 @@ const CampaignState = (() => {
       full pool by rarity weight (packs carry no tier today, so equal-weighted;
       a future pack `tier`/`weight` would bias it automatically). The pack slots
       re-roll on every fresh store open and every reroll, just like the others. */
-  function freshOffer(rng = Math.random, stickerPool) {
+  function freshOffer(rng = Math.random, stickerPool, pillarPool) {
     return {
-      // stickerPool is the suit-locked pool for the current stage (so e.g. ♦/♣
-      // Suit Guards can't be offered before their suit is in play). Callers pass
-      // it; defaults to the full set for any suit-agnostic use.
+      // stickerPool / pillarPool are the suit-locked pools for the current stage
+      // (so e.g. ♦/♣ Suit Guards and ♦/♣ Bonus Pillars can't be offered before
+      // their suit is in play). Callers pass them; each defaults to the full set
+      // for any suit-agnostic use.
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
-      pillars: rollIds(PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
+      pillars: rollIds(pillarPool || PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
       packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
     };
@@ -4014,7 +4024,11 @@ const CampaignState = (() => {
       /* ---- store offering (limited random roll; see freshOffer) ---------- */
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
-      openStore(rng) { storeOffer = freshOffer(rng, stickerPoolForSuits(suitsForStage(currentStage))); return storeOffer; },
+      openStore(rng) {
+        const suits = suitsForStage(currentStage);
+        storeOffer = freshOffer(rng, stickerPoolForSuits(suits), pillarPoolForSuits(suits));
+        return storeOffer;
+      },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
           or null. The UI renders FROM this — it never re-rolls on its own, so a
           re-render restores the same items (no free reroll via refresh). */
@@ -4026,7 +4040,8 @@ const CampaignState = (() => {
       rerollStore() {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
-        const f = freshOffer(Math.random, stickerPoolForSuits(suitsForStage(currentStage)));
+        const suits = suitsForStage(currentStage);
+        const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits));
         storeOffer.stickers = f.stickers;
         storeOffer.pillars = f.pillars;
         storeOffer.packs = f.packs;

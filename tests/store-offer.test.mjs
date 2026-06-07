@@ -163,5 +163,45 @@ export function run() {
     r.ok(s3.has("clubGuard"), "Stage 3 offers the ♣ guard (all four suits in play)");
   }
 
+  // --- Suit-lock: suited PILLARS only roll once their suit is in play -----
+  // The four suit Bonus pillars carry a `suit`; ♦/♣ Bonus must not be offered
+  // before their stage introduces that suit (the diamond-receptor leak). ♠/♥
+  // Bonus are always available. Many opens; any out-of-play appearance fails.
+  {
+    const sampleP = (c, n) => {
+      const seen = new Set();
+      for (let i = 0; i < n; i++) c.openStore().pillars.forEach(id => seen.add(id));
+      return seen;
+    };
+    const p1 = sampleP(CampaignState.create(), 400);          // Stage 1: ♠ ♥
+    r.ok(p1.has("spadeBounty") && p1.has("heartBounty"), "Stage 1 offers the ♠ and ♥ Bonus pillars");
+    r.ok(!p1.has("diamondBounty"), "Stage 1 NEVER offers the ♦ Bonus pillar (suit not in play)");
+    r.ok(!p1.has("clubBounty"), "Stage 1 NEVER offers the ♣ Bonus pillar (suit not in play)");
+
+    const cp2 = CampaignState.create();
+    for (let i = 0; i < 4; i++) cp2.advance();                 // → Stage 2: ♠ ♥ ♦
+    const p2 = sampleP(cp2, 400);
+    r.ok(p2.has("diamondBounty"), "Stage 2 offers the ♦ Bonus pillar (its suit is now in play)");
+    r.ok(!p2.has("clubBounty"), "Stage 2 still NEVER offers the ♣ Bonus pillar");
+
+    const cp3 = CampaignState.create();
+    for (let i = 0; i < 8; i++) cp3.advance();                 // → Stage 3: ♠ ♥ ♦ ♣
+    const p3 = sampleP(cp3, 400);
+    r.ok(p3.has("clubBounty"), "Stage 3 offers the ♣ Bonus pillar (all four suits in play)");
+
+    // Reroll obeys the same lock (it shares freshOffer's pillar pool).
+    const cr = CampaignState.create();
+    cr.addCoins(10000);
+    cr.openStore();
+    const rerollSeen = new Set();
+    for (let i = 0; i < 400 && cr.canReroll(); i++) {
+      cr.getStoreOffer().pillars.forEach(id => rerollSeen.add(id));
+      cr.rerollStore();
+      cr.addCoins(10000);   // keep rerolls affordable
+    }
+    r.ok(!rerollSeen.has("diamondBounty") && !rerollSeen.has("clubBounty"),
+      "Stage 1 rerolls never surface a ♦/♣ Bonus pillar either");
+  }
+
   return r.summary();
 }
