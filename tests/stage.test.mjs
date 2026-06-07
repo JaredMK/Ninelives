@@ -18,7 +18,7 @@ export function run() {
   ];
   for (const e of expect) {
     // advance into the target stage (advance walks runs then rolls stages)
-    while (c.currentStage < e.stage) { c.advance(); c.advance(); c.advance(); }
+    while (c.currentStage < e.stage) c.advance();   // step to the first run of the target stage
     const deck = c.getRunDeck();
     r.eq(c.currentStage, e.stage, "reached stage " + e.stage);
     r.eq(c.activeSuitCount, e.stage + 1, "stage " + e.stage + " has " + (e.stage + 1) + " suits");
@@ -35,8 +35,8 @@ export function run() {
   const clubId = c2.getCards().find(x => x.suit === "♣").id;
   r.ok(c2.applySticker(clubId, "tieSafe"), "sticker a dormant ♣ card in Stage 1");
   r.ok(!c2.getRunDeck().some(x => x.id === clubId), "♣ card absent from Stage 1 run deck");
-  // Advance to Stage 3 (6 advances: 1.1->1.2->1.3->2.1->2.2->2.3->3.1).
-  for (let i = 0; i < 6; i++) c2.advance();
+  // Advance to Stage 3 (8 advances now that each stage is 4 runs).
+  for (let i = 0; i < 8; i++) c2.advance();
   const clubNow = c2.getRunDeck().find(x => x.id === clubId);
   r.ok(!!clubNow, "♣ card present once Stage 3 enters its suit");
   r.ok(clubNow && clubNow.stickers.some(s => s.type === "tieSafe"),
@@ -57,7 +57,7 @@ export function run() {
   r.eq(comp[6], 3, "rankUp on a 5 raises rank-6 count to 3");
   r.eq(sum(comp), 26, "composition still totals 26 after a rank sticker");
 
-  for (let i = 0; i < 6; i++) c3.advance();   // -> Stage 3
+  for (let i = 0; i < 8; i++) c3.advance();   // -> Stage 3 (4 runs/stage)
   r.eq(sum(c3.stageComposition()), 52, "Stage 3 full composition totals 52 cards");
 
   return r.summary();

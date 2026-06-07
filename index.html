@@ -2313,7 +2313,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.90 · heavy-badge-repaint";
+const APP_VERSION = "v0.91 · fourth-run";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3608,7 +3608,7 @@ const GameEngine = (() => {
 
 /* ----------------------------------------------------------------
    CampaignState
-   A campaign is 3 STAGES of 3 RUNS each (9 runs total). It owns ONLY
+   A campaign is 3 STAGES of 4 RUNS each (12 runs total). It owns ONLY
    campaign-level data — which stage/run we're on, cross-run totals, the
    persistent deck, coins, and stickers — and knows nothing about piles or
    the DOM. Per-run state lives in the GameEngine and is thrown away each
@@ -3622,22 +3622,25 @@ const GameEngine = (() => {
 ---------------------------------------------------------------- */
 const CampaignState = (() => {
   // Per-run layout config: each entry is the COLUMN sizes for that run (three
-  // side-by-side columns). The same three layouts repeat every stage. Pile
-  // count is just the column sum — counts are unchanged from the old row
-  // layout, only the orientation (columns instead of rows) differs.
+  // side-by-side columns). The same FOUR layouts repeat every stage. Pile count
+  // is just the column sum. Run 1 is an easier warmup (more piles → an extra
+  // shop visit before the difficulty ramps); the rest are the historical runs,
+  // shifted down one. Still 3 columns, and the tallest column is still 4, so the
+  // fixed board sizing is unchanged (the warmup is wider in piles, not columns).
   const RUN_LAYOUTS = [
-    [3, 4, 3],  // Run 1 — 10 piles (columns of 3, 4, 3; tall middle)
-    [3, 3, 3],  // Run 2 — 9 piles  (three even columns)
-    [3, 2, 3],  // Run 3 — 8 piles  (columns of 3, 2, 3; short middle)
+    [4, 3, 4],  // Run 1 — 11 piles (columns of 4, 3, 4; warmup, tall sides)
+    [3, 4, 3],  // Run 2 — 10 piles (columns of 3, 4, 3; tall middle)
+    [3, 3, 3],  // Run 3 — 9 piles  (three even columns)
+    [3, 2, 3],  // Run 4 — 8 piles  (columns of 3, 2, 3; short middle)
   ];
-  const MAX_RUNS_PER_STAGE = RUN_LAYOUTS.length;
+  const MAX_RUNS_PER_STAGE = RUN_LAYOUTS.length;   // 4
   const MAX_STAGES = 3;
   // Every run has the same number of COLUMNS (only the pile-per-column counts
   // change), so the campaign has a fixed set of column "slots" for Pillars.
   // These slots ARE the Pillar holding — there is no separate inventory; you
   // can hold at most one Pillar per column (buying a 4th forces a replace).
   const COLUMN_SLOTS = RUN_LAYOUTS[0].length;
-  const TOTAL_RUNS = MAX_STAGES * MAX_RUNS_PER_STAGE; // 9 = a full campaign
+  const TOTAL_RUNS = MAX_STAGES * MAX_RUNS_PER_STAGE; // 12 = a full campaign (3 × 4)
 
   // Active suits enter in canonical SUITS order. Stage s (1-based) uses the
   // first (s + 1) suits — Stage 1 starts on the fixed pair ♠ + ♥.

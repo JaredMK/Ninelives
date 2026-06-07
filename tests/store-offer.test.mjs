@@ -150,14 +150,14 @@ export function run() {
     r.ok(!s1.has("clubGuard"), "Stage 1 NEVER offers the ♣ guard (suit not in play)");
 
     const c2 = CampaignState.create();
-    for (let i = 0; i < 3; i++) c2.advance();                 // → Stage 2: ♠ ♥ ♦
+    for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 (4 runs/stage): ♠ ♥ ♦
     r.eq(c2.currentStage, 2, "advanced to Stage 2");
     const s2 = sample(c2, 300);
     r.ok(s2.has("diamondGuard"), "Stage 2 offers the ♦ guard (its suit is now in play)");
     r.ok(!s2.has("clubGuard"), "Stage 2 still NEVER offers the ♣ guard");
 
     const c3 = CampaignState.create();
-    for (let i = 0; i < 6; i++) c3.advance();                 // → Stage 3: ♠ ♥ ♦ ♣
+    for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3 (4 runs/stage): ♠ ♥ ♦ ♣
     r.eq(c3.currentStage, 3, "advanced to Stage 3");
     const s3 = sample(c3, 300);
     r.ok(s3.has("clubGuard"), "Stage 3 offers the ♣ guard (all four suits in play)");

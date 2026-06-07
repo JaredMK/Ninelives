@@ -94,7 +94,7 @@ export function run() {
   // --- Stage 2 widens the suit pool (basic cross-stage check) -----------
   {
     const c = CampaignState.create();
-    c.advance(); c.advance(); c.advance();   // → Stage 2 (suits ♠ ♥ ♦)
+    c.advance(); c.advance(); c.advance(); c.advance();   // → Stage 2 (4 runs/stage; suits ♠ ♥ ♦)
     r.eq(c.currentStage, 2, "advanced to Stage 2");
     const ok = ["♠", "♥", "♦"];
     const cards = c.revealPack("cardPack5", rngFrom(9));
@@ -226,8 +226,8 @@ export function run() {
     const c = CampaignState.create();
     const stages = [
       { advances: 0, ok: ["♠", "♥"] },
-      { advances: 3, ok: ["♠", "♥", "♦"] },
-      { advances: 6, ok: ["♠", "♥", "♦", "♣"] },
+      { advances: 4, ok: ["♠", "♥", "♦"] },
+      { advances: 8, ok: ["♠", "♥", "♦", "♣"] },
     ];
     let fresh = CampaignState.create();
     let totalAdv = 0;
