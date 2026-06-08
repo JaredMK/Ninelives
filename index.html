@@ -690,9 +690,48 @@
     100% { background: rgba(255,120,140,0);    box-shadow: 0 0 0 16px rgba(224,107,128,0); }
   }
   .pile.death-flash .card::after { animation: deathFlash 0.32s ease; }
+
+  /* "Shoulda said same" — a playful nudge when a Higher/Lower guess dies on a
+     tie (presentation only; fires off the existing death, never changes it).
+     A quick card WINCE + a small text pill that floats up over the pile and
+     fades. Matte (dark pill, light text, no neon). */
+  @keyframes cardWince {
+    0%   { transform: translate(0,0) rotate(0); }
+    15%  { transform: translate(-2px,0) rotate(-2.5deg); }
+    32%  { transform: translate(2px,0) rotate(2.5deg); }
+    50%  { transform: translate(-1.5px,0) rotate(-1.8deg); }
+    68%  { transform: translate(1.5px,0) rotate(1.4deg); }
+    84%  { transform: translate(-1px,0) rotate(-0.8deg); }
+    100% { transform: translate(0,0) rotate(0); }
+  }
+  /* Specificity (0,2,0) beats .card's drift (0,1,0) but loses to .pile.dead .card
+     (0,2,1) so the dissolve still takes over cleanly when the card dies. */
+  .card.wince { animation: cardWince 0.34s ease-in-out; }
+
+  .shoulda-nudge {
+    position: absolute; left: 50%; top: 46%;
+    transform: translate(-50%, -50%); transform-origin: 50% 50%;
+    z-index: 6; pointer-events: none; opacity: 0;
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(8.5px, 2.5vw, 11.5px); letter-spacing: 0.3px; white-space: nowrap;
+    color: var(--text); background: rgba(20,14,22,0.94);
+    border: 1px solid var(--edge-2); border-radius: 8px; padding: 3px 8px;
+    box-shadow: 0 2px 8px rgba(2,1,4,0.5);
+  }
+  .shoulda-nudge.show { animation: shouldaPop 1.3s ease forwards; }
+  @keyframes shouldaPop {
+    0%   { opacity: 0; transform: translate(-50%, -50%) translateY(7px) scale(0.9); }
+    16%  { opacity: 1; transform: translate(-50%, -50%) translateY(-2px) scale(1); }
+    68%  { opacity: 1; transform: translate(-50%, -50%) translateY(-8px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) translateY(-15px) scale(1); }
+  }
+  @keyframes shouldaFade { 0% { opacity: 0; } 16% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+
   @media (prefers-reduced-motion: reduce) {
     .card.landing .front { animation: none; }
     .pile.death-flash .card::after { animation: none; }
+    .card.wince { animation: none; }
+    .shoulda-nudge.show { animation: shouldaFade 1.1s ease forwards; }
   }
 
   /* ============================================================
@@ -2588,7 +2627,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.6 · scout-sticker";
+const APP_VERSION = "v0.99.7 · shoulda-said-same";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6461,6 +6500,27 @@ const UIRenderer = (() => {
        Add a pointerdown/pointerup pair here when desired. */
   }
 
+  /* "Shoulda said same": a light, playful nudge shown when a Higher/Lower guess
+     dies on a tie. Pure presentation — appended over the dying pile and removed
+     after it fades. Sequenced to start with the death flash (atMs), so it rides
+     the existing death feedback without delaying the dissolve. */
+  function shouldaSaidSame(pileEl, cardEl, reduce, atMs) {
+    if (!pileEl) return;
+    const nudge = document.createElement("div");
+    nudge.className = "shoulda-nudge";
+    nudge.textContent = "Shoulda said same";
+    pileEl.appendChild(nudge);
+    const delay = reduce ? 0 : (atMs || 0);
+    setTimeout(() => {
+      nudge.classList.add("show");
+      if (cardEl && !reduce) {                       // quick wince/shake on the card
+        cardEl.classList.add("wince");
+        setTimeout(() => cardEl.classList.remove("wince"), 360);
+      }
+    }, delay);
+    setTimeout(() => nudge.remove(), delay + 1400);   // clean up after the fade
+  }
+
   /* ---- event handling from the engine ---- */
   function handleEvent(type, payload) {
     switch (type) {
@@ -6528,6 +6588,13 @@ const UIRenderer = (() => {
             pileEl.classList.add("dead");           // dissolve
             refreshNetwork(payload.board);          // sever + reform across the gap
           }, dieAt);
+          // Presentation-only nudge: ONLY a Higher/Lower guess that died on a TIE
+          // (drawn value == the value it was played on). Not a correct "same", not
+          // a normal wrong-direction death. Reads the existing outcome; changes none.
+          const fatalTie = (payload.guess === "higher" || payload.guess === "lower")
+            && payload.drawn && payload.current
+            && payload.drawn.value === payload.current.value;
+          if (fatalTie) shouldaSaidSame(pileEl, cardEl, reduce, flashAt);
         }
 
         clearSelection();
