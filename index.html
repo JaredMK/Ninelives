@@ -2966,7 +2966,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.7 · shared-inventory-browser";
+const APP_VERSION = "v1.8 · how-to-play-copy";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -9253,7 +9253,7 @@ const UIRenderer = (() => {
           card("A", "♦", true) + card("9", "♠") + card("Q", "♥", true) +
           "</div>",
         cap: '<span class="lead">This is your board</span>' +
-          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top. These are what you keep alive.",
+          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top. These piles keep alive.",
       },
       { // 2 — the deck (your goal)
         art: '<div class="wt-flow-row" style="gap:16px">' +
@@ -9268,8 +9268,8 @@ const UIRenderer = (() => {
             card("7", "♠") + card("K", "♥", true) + card("A", "♦", true) + card("9", "♠") +
           "</div></div>",
         cap: '<span class="lead">Work through the deck</span>' +
-          "You have a <b>deck</b> of cards. Each turn you draw the next one and <b>place it</b> on a pile " +
-          "by guessing. Your goal is to get through the <b>whole deck</b>.",
+          "You have a <b>deck</b> of cards. Each turn you draw the next card from the deck, and <b>place it</b> " +
+          "on a pile by making a <b>higher</b> or <b>lower</b> guess. Your goal is to get through the <b>whole deck</b>.",
       },
       { // 3 — make a guess
         art: '<div class="wt-col">' + card("7", "♥", true) +
@@ -9280,7 +9280,7 @@ const UIRenderer = (() => {
           "</div></div>",
         cap: '<span class="lead">Make a guess</span>' +
           "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
-          "than the top card? (Aces are high; suits don’t matter.)",
+          "than the top card? (Aces are high)",
       },
       { // 4 — grow it or lose it
         art: '<div class="wt-split">' +
@@ -9308,8 +9308,9 @@ const UIRenderer = (() => {
           '<div class="cell"><span class="num coin">' + coin + '12</span><span class="lab">coins</span></div>' +
           "</div>",
         cap: '<span class="lead">Clear the deck, earn coins</span>' +
-          "Survive the whole <b>deck</b> to win the run. You earn <b>surviving piles × your smallest pile</b> " +
-          "in coins, so keep every pile alive and evenly sized, not over-stacked.",
+          "Survive the whole <b>deck</b> to win the run. You earn coins equal to the number of " +
+          "<b>surviving piles × the number of cards in the smallest pile</b>. " +
+          "Keep every pile alive and evenly sized to get the most coins.",
       },
       { // 6 — store & setup (buy, then place)
         art: '<div class="wt-flow">' +

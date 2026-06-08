@@ -14,16 +14,17 @@ SLIDE 1 — This is your board
 ----------------------------
 [Visual: a grid of 6 face-up cards (piles), e.g. 7♠ K♥ 4♣ / A♦ 9♠ Q♥]
 
-A grid of *piles*. Each pile shows one *card* on top. These are what you
-keep alive.
+A grid of *piles*. Each pile shows one *card* on top. These piles keep
+alive.
 
 
 SLIDE 2 — Work through the deck
 -------------------------------
 [Visual: a 52-card deck → arrow → a small board of 4 cards]
 
-You have a *deck* of cards. Each turn you draw the next one and *place it*
-on a pile by guessing. Your goal is to get through the *whole deck*.
+You have a *deck* of cards. Each turn you draw the next card from the deck,
+and *place it* on a pile by making a *higher* or *lower* guess. Your goal is
+to get through the *whole deck*.
 
 
 SLIDE 3 — Make a guess
@@ -31,7 +32,7 @@ SLIDE 3 — Make a guess
 [Visual: a 7♥ above three buttons: HIGHER / SAME / LOWER]
 
 Tap a pile, then call the next card: will it be *Higher*, *Same*, or
-*Lower* than the top card? (Aces are high; suits don't matter.)
+*Lower* than the top card? (Aces are high)
 
 
 SLIDE 4 — Grow it or lose it
@@ -46,9 +47,9 @@ SLIDE 5 — Clear the deck, earn coins
 ------------------------------------
 [Visual: 4 (piles alive) × 3 (smallest pile) = 12 coins]
 
-Survive the whole *deck* to win the run. You earn *surviving piles × your
-smallest pile* in coins, so keep every pile alive and evenly sized, not
-over-stacked.
+Survive the whole *deck* to win the run. You earn coins equal to the number
+of *surviving piles × the number of cards in the smallest pile*. Keep every
+pile alive and evenly sized to get the most coins.
 
 
 SLIDE 6 — Spend between runs
