@@ -830,8 +830,15 @@
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   }
   .menu-screen.hidden { display: none; }
-  .menu-mark { color: var(--accent); font-size: 46px; line-height: 1;
-    filter: drop-shadow(0 2px 5px rgba(2,1,4,0.6)); }
+  /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
+     mark centred, so it carries its own breathing room; sized to balance the
+     stacked title. SVG = crisp at any size. Negative margin trims the SVG's
+     built-in vertical padding so it sits comfortably close to the title. */
+  .menu-logo {
+    width: clamp(96px, 30vw, 124px); height: auto; display: block;
+    margin: 0 auto -10px;
+    filter: drop-shadow(0 2px 6px rgba(2,1,4,0.55));
+  }
   /* Stacked three-word title treatment (one word per line) — keeps the matte
      neural look, just sized to fit the longer name cleanly on any phone. */
   .menu-title {
@@ -2571,7 +2578,7 @@
 
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
-    <div class="menu-mark"><span class="ico-slot" data-ico="logo"></span></div>
+    <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" />
     <h1 class="menu-title"><span>Shoulda</span><span>Said</span><span>Same</span></h1>
     <div class="menu-tagline">a higher-or-lower survival game</div>
     <div class="menu-buttons" id="menuButtons"></div>
@@ -2632,7 +2639,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.8 · rename-shoulda-said-same";
+const APP_VERSION = "v0.99.9 · menu-logo";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
