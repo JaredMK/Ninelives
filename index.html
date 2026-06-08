@@ -161,6 +161,9 @@
   .hud .hud-sr {
     color: var(--accent-2); font-size: 10.5px; font-weight: 800;
     letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
+    /* Clear the fixed top-left menu button (30px + 8px inset) so they never
+       overlap the Stage/Run text. */
+    margin-left: 30px;
   }
   .hud .hud-score {
     color: var(--text); display: inline-flex; align-items: baseline; gap: 1px;
@@ -1399,7 +1402,11 @@
      height when present, so even Run 1's 4-tall column stays on one no-scroll
      screen. Cell widths/gaps mirror the column grid, so cells track columns. */
   .board-pillars { display: none; }
-  .board.has-pillars .board-pillars {
+  /* The row shows when a Pillar is placed (has-pillars) OR during setup
+     (show-slots), so the empty pillar slots are visible on every column from the
+     start, before anything is placed. */
+  .board.has-pillars .board-pillars,
+  .board.show-slots .board-pillars {
     display: flex; justify-content: center; align-items: center;
     gap: var(--gap); width: 100%; height: 26px;
   }
@@ -1514,17 +1521,39 @@
     max-width: 100%; margin: 0; padding: 1px;
   }
   .sticker-tray.hidden { display: none; }
-  /* Fixed help slot under the Imprint tray (mirrors the store's help slot). */
+  /* Help slot for the armed setup item (card / sticker / pillar). While an item
+     is armed it TAKES THE PLACE of the item strip (the strip hides), sitting under
+     the Cards/Stickers/Pillars tabs — so the tabs and the description are both
+     readable, never overlapping, and no board piles get covered. */
+  .setup-inv.armed .setup-strip { display: none; }
   .tray-help {
-    width: min(96vw, 400px); margin: 2px auto 0;
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: 12px;
-    padding: 7px 11px; text-align: center;
+    padding: 6px 10px; text-align: left;
   }
   .tray-help.hidden { display: none; }
+  .tray-help .th-row { display: flex; align-items: center; gap: 8px; }
   .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: 13px;
-    color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; }
-  .tray-help .th-title .ico { font-size: 16px; }
-  .tray-help .th-desc { display: block; font-size: 11px; line-height: 1.4; color: var(--text); margin-top: 2px; }
+    color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
+  .tray-help .th-title .ico { font-size: 16px; flex: none; }
+  .tray-help .th-desc { display: block; font-size: 11px; line-height: 1.4; color: var(--text); margin-top: 3px; }
+  /* Trash: a deliberate, clearly-marked discard (opens a confirm dialog first). */
+  .tray-help .th-trash {
+    flex: none; display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(181,67,90,0.14); color: var(--bad);
+    border: 1px solid var(--danger); border-radius: 999px;
+    padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+  }
+  .tray-help .th-trash .ico { font-size: 13px; }
+  .tray-help .th-trash.hidden { display: none; }
+  .tray-help .th-trash:active { transform: scale(0.95); }
+  /* Close (✕): disarm and return to the item strip. */
+  .tray-help .th-close {
+    flex: none; width: 22px; height: 22px; border-radius: 999px;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
+    font-size: 12px; line-height: 1; cursor: pointer; touch-action: manipulation;
+  }
+  .tray-help .th-close:active { transform: scale(0.92); }
   .tray-sticker {
     background: var(--panel);
     border: 2px solid transparent;
@@ -1556,7 +1585,15 @@
   .tray-pillar .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
   .tray-pillar.armed { border-color: var(--pathway); transform: scale(1.05); }
   /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
-  .board.placing-pillar .pile:not(.dead) { outline: 2px dashed var(--pathway); outline-offset: -3px; cursor: pointer; }
+  /* Placing a Pillar: the PILLAR SLOTS (top of each column) are the drop targets,
+     not the cards. Highlight the slots and light up the empty placeholders so it
+     reads as "drop it here". The cards get no placement outline. */
+  .board.placing-pillar .bp-cell { cursor: pointer; }
+  .board.placing-pillar .bp-cell .cph-banner { outline: 2px dashed var(--pathway); outline-offset: 1px; }
+  .board.placing-pillar .bp-cell .cph-banner.empty {
+    background: rgba(169,140,216,0.16);
+    border-color: rgba(196,168,236,0.7);
+  }
 
   /* Sticker badges — TOP-RIGHT corner, clear of the rank (top-left) and the
      mirrored rank (bottom-right). Right-anchored so extra badges grow leftward. */
@@ -2187,7 +2224,11 @@
             <div class="setup-empty hidden" id="setupEmpty"></div>
           </div>
           <div class="tray-help hidden" id="trayHelp">
-            <span class="th-title" id="thTitle"></span>
+            <div class="th-row">
+              <span class="th-title" id="thTitle"></span>
+              <button class="th-trash hidden" id="thTrash" type="button"><span class="ico-slot" data-ico="trash"></span> Trash</button>
+              <button class="th-close" id="thClose" type="button" aria-label="Back to items">✕</button>
+            </div>
             <span class="th-desc" id="thDesc"></span>
           </div>
         </div>
@@ -2505,7 +2546,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.3 · copy-and-ui-polish";
+const APP_VERSION = "v0.99.4 · play-setup-fixes";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3609,10 +3650,10 @@ const GameEngine = (() => {
         guess === "higher" ? drawn.value > current.value :
         guess === "lower"  ? drawn.value < current.value :
                              drawn.value === current.value; // "same"
-      // Tie-Safe (symmetric, draw-based): a tie counts as safe on ANY guess if
-      // EITHER card in the draw carries Tie-Safe — the top card OR the drawn card
-      // — or a Column Tie-Safe Pillar covers its column. (Any tie is current.value
-      // === drawn.value, so either participant's Tie-Safe makes the tie "same".)
+      // Tie-Safe: any tie that involves a Tie-Safe card is safe and counts as a
+      // "same" guess, whatever the guess was. A tie is current.value ===
+      // drawn.value, so Tie-Safe on the top card or the drawn card (or a Column
+      // Tie-Safe Pillar on the column) lets that tie survive.
       const tieSafe = current.tieSafe || drawn.tieSafe || (pillar && pillar.effect === "columnTieSafe");
       if (isTie && tieSafe) correct = true;
 
@@ -4213,6 +4254,14 @@ const CampaignState = (() => {
       debugGrantPillar(typeId) {
         if (!PillarTypes.get(typeId)) return false;
         pillarInventory[typeId] = (pillarInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Remove one Pillar of `typeId` from inventory permanently (player trash).
+          No refund. Returns true on success. */
+      discardPillarFromInventory(typeId) {
+        if ((pillarInventory[typeId] || 0) <= 0) return false;
+        pillarInventory[typeId] -= 1;
+        if (pillarInventory[typeId] <= 0) delete pillarInventory[typeId];
         return true;
       },
       /** Buy one Pillar into inventory if affordable (price fixed). Returns true
@@ -4954,6 +5003,7 @@ const UIRenderer = (() => {
     bottomRegion: document.getElementById("bottomRegion"),
     stickerTray: document.getElementById("stickerTray"),
     pillarTray: document.getElementById("pillarTray"),
+    setupInv: document.getElementById("setupInv"),
     setupTabs: document.getElementById("setupTabs"),
     setupStrip: document.getElementById("setupStrip"),
     setupEmpty: document.getElementById("setupEmpty"),
@@ -4963,6 +5013,8 @@ const UIRenderer = (() => {
     trayHelp: document.getElementById("trayHelp"),
     thTitle: document.getElementById("thTitle"),
     thDesc: document.getElementById("thDesc"),
+    thTrash: document.getElementById("thTrash"),
+    thClose: document.getElementById("thClose"),
     actions: document.getElementById("actions"),
     btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
@@ -5117,6 +5169,7 @@ const UIRenderer = (() => {
   let armedPillarSlot = null;
   let armedSlotMove = null;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
+  let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
@@ -5516,6 +5569,10 @@ const UIRenderer = (() => {
     clearSelection();                         // also hides #actions
     // Bottom region shows the setup inventory (histogram hidden) — same height.
     if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
+    // Reveal the pillar slot row on every column for the whole setup phase, so
+    // the player sees where Pillars go before placing any.
+    el.board.classList.add("show-slots");
+    fitBoard();
     el.startRunBtn.classList.remove("hidden");
     renderSetupInv();                         // tabbed Cards / Stickers / Pillars
     renderRedealBtn();                        // pre-run reshuffle button + price
@@ -5528,6 +5585,9 @@ const UIRenderer = (() => {
 
   function showActivePhase() {
     el.startRunBtn.classList.add("hidden");
+    // Keep the pillar slot row reserved through play too (show-slots stays on),
+    // so the board never jumps at Start. Placed Pillars show in their slots; any
+    // empty slots simply stay empty.
     // Bottom region swaps to the histogram (same fixed height → board stays put).
     if (el.bottomRegion) { el.bottomRegion.classList.add("run"); el.bottomRegion.classList.remove("setup"); }
     renderSetupInv();                         // window closed -> tabs hide themselves
@@ -5598,15 +5658,47 @@ const UIRenderer = (() => {
     if (engine) engine.startRun(campaign.getColumnPillars());
   }
 
-  /* Fixed help slot for the Imprint tray: while an Imprint is armed, show its
-     name + effect (same description source as the store help). */
+  /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
+     or pillar), show its name + description here, plus a Trash action to discard
+     it. Same tap-to-show-info idea the store uses. */
   function renderTrayHelp() {
     if (!el.trayHelp) return;
-    const t = armedSticker ? StickerTypes.get(armedSticker) : null;
-    if (!t) { el.trayHelp.classList.add("hidden"); return; }
-    el.thTitle.innerHTML = t.icon + " " + escHtml(t.label);
-    el.thDesc.textContent = t.description || "";
+    let title = "", desc = "";
+    if (armedSticker) {
+      const t = StickerTypes.get(armedSticker);
+      if (t) { title = t.icon + " " + escHtml(t.label); desc = t.description || ""; }
+    } else if (armedPillar) {
+      const t = PillarTypes.get(armedPillar);
+      if (t) { title = t.icon + " " + escHtml(t.label); desc = t.description || ""; }
+    } else if (armedPack != null && campaign) {
+      const card = campaign.getPackTray()[armedPack];
+      if (card) {
+        title = escHtml(miniRankLabel(card) + " " + card.suit);
+        const stk = (card.stickers || [])
+          .map(s => { const st = StickerTypes.get(s.type); return st ? st.label : null; })
+          .filter(Boolean);
+        desc = (stk.length ? "Carries " + stk.join(", ") + ". " : "A plain card. ")
+          + "Tap a pile to swap it into your deck in place of that card.";
+      }
+    }
+    if (!title) {
+      el.trayHelp.classList.add("hidden");
+      if (el.thTrash) el.thTrash.classList.add("hidden");
+      if (el.setupInv) el.setupInv.classList.remove("armed");   // show the item strip again
+      return;
+    }
+    el.thTitle.innerHTML = title;
+    el.thDesc.textContent = desc;
+    if (el.thTrash) el.thTrash.classList.remove("hidden");
     el.trayHelp.classList.remove("hidden");
+    if (el.setupInv) el.setupInv.classList.add("armed");        // help takes the strip's place
+  }
+
+  /* Disarm whatever setup item is armed and return to the item strip. */
+  function disarmSetupItem() {
+    armedSticker = null; armedPillar = null; armedPack = null;
+    updateArmingClass();
+    renderSetupInv();
   }
 
   /* ---- in-run sticker application ----
@@ -5629,7 +5721,6 @@ const UIRenderer = (() => {
       b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
       el.stickerTray.appendChild(b);
     });
-    renderTrayHelp();                   // reflect the armed sticker (or hide)
   }
 
   function armSticker(typeId) {
@@ -5695,6 +5786,7 @@ const UIRenderer = (() => {
   }
   function renderSetupInv() {
     renderPackTray(); renderStickerTray(); renderPillarTray();
+    renderTrayHelp();                   // reflect the armed card/sticker/pillar (or hide)
     if (!el.setupTabs) return;
     const open = !!(engine && engine.canApplyStickers());
     const counts = setupTabCounts();
@@ -5725,7 +5817,11 @@ const UIRenderer = (() => {
     }
   }
   function selectSetupTab(tab) {
-    if (!tab || activeSetupTab === tab) return;
+    if (!tab) return;
+    // Switching family also disarms, so the chosen tab's item strip is visible
+    // (the help replaces the strip while something is armed).
+    armedSticker = null; armedPillar = null; armedPack = null;
+    updateArmingClass();
     activeSetupTab = tab;
     renderSetupInv();
   }
@@ -5740,7 +5836,7 @@ const UIRenderer = (() => {
     renderSetupInv();
     const t = PillarTypes.get(armedPillar);
     el.hint.textContent = t
-      ? "Tap a board column to place " + t.label + "."
+      ? "Tap a column's pillar slot to place " + t.label + "."
       : "Place Pillars on columns, then press Start Run.";
   }
 
@@ -6102,7 +6198,10 @@ const UIRenderer = (() => {
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
       const index = Number(pileEl.dataset.index);
-      if (armedPillar) placePillarOnColumn(Number(pileEl.dataset.col));   // tap a column to place
+      // A Pillar is placed by tapping its column's SLOT (the .bp-cell row above),
+      // handled above — not by tapping a card. So while placing a Pillar, taps on
+      // cards do nothing.
+      if (armedPillar) return;
       else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else selectPile(index);
@@ -6132,6 +6231,13 @@ const UIRenderer = (() => {
     el.packReplaceCancel.addEventListener("click", closePackReplace);
     el.packReplaceOk.addEventListener("click", doReplace);
     el.packReplaceConfirm.addEventListener("click", (e) => { if (e.target === el.packReplaceConfirm) closePackReplace(); });
+
+    // Trash an armed setup item (deliberate: button -> confirm dialog).
+    if (el.thTrash) el.thTrash.addEventListener("click", requestTrashItem);
+    if (el.thClose) el.thClose.addEventListener("click", disarmSetupItem);   // ✕ → back to items
+    el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
+    el.trashOkBtn.addEventListener("click", doTrashItem);
+    el.trashConfirm.addEventListener("click", (e) => { if (e.target === el.trashConfirm) closeTrashConfirm(); });
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
@@ -7159,7 +7265,7 @@ const UIRenderer = (() => {
     // budget so the tallest column (row + 4 piles + gaps) still fits one
     // no-scroll screen. Collapsed runs (no Pillars) keep the original budget.
     let headH = 0, headGap = 0;
-    if (el.board.classList.contains("has-pillars")) {
+    if (el.board.classList.contains("has-pillars") || el.board.classList.contains("show-slots")) {
       headH = oh(el.board.querySelector(".board-pillars"));
       headGap = gapPx;
     }
@@ -7770,6 +7876,38 @@ const UIRenderer = (() => {
   function closeTrashConfirm() {
     el.trashConfirm.classList.add("hidden");
     trashPendingCol = null;
+    trashPendingItem = null;
+  }
+
+  /* ---- Trash an armed setup item (card / sticker / pillar) ----
+     A deliberate, two-step discard: tap Trash in the help slot, then confirm in
+     the dialog. Permanently removes one of the item from inventory. No refund. */
+  function requestTrashItem() {
+    if (!engine || !engine.canApplyStickers()) return;
+    let kind = null, label = "";
+    if (armedSticker) { const t = StickerTypes.get(armedSticker); kind = "sticker"; label = (t && t.label) || "sticker"; trashPendingItem = { kind, id: armedSticker }; }
+    else if (armedPillar) { const t = PillarTypes.get(armedPillar); kind = "pillar"; label = (t && t.label) || "pillar"; trashPendingItem = { kind, id: armedPillar }; }
+    else if (armedPack != null && campaign) {
+      const card = campaign.getPackTray()[armedPack];
+      if (!card) return;
+      kind = "card"; label = miniRankLabel(card) + " " + card.suit; trashPendingItem = { kind, index: armedPack };
+    } else return;
+    el.trashConfirmMsg.textContent = "Permanently discard " + label + "? It leaves your inventory for good.";
+    el.trashConfirm.classList.remove("hidden");
+  }
+
+  function doTrashItem() {
+    const p = trashPendingItem;
+    closeTrashConfirm();
+    if (!p || !campaign) return;
+    if (p.kind === "sticker") { campaign.useStickerFromInventory(p.id); armedSticker = null; }
+    else if (p.kind === "pillar") { campaign.discardPillarFromInventory(p.id); armedPillar = null; }
+    else if (p.kind === "card") { campaign.discardPackCard(p.index); armedPack = null; }
+    if (engine) engine.logAction("Trashed a setup item");
+    updateArmingClass();
+    renderSetupInv();
+    persistCampaign("run");
+    refreshDebug();
   }
 
   function closeStore() {
@@ -7873,6 +8011,7 @@ const UIRenderer = (() => {
     el.stageRun.classList.add("off");
     el.menuBtn.classList.add("hidden");
     el.overlay.classList.add("hidden");
+    el.board.classList.remove("show-slots");   // no setup slot row on the menu backdrop
     const items = [];
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
     items.push({ label: canContinue ? "New Campaign" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
