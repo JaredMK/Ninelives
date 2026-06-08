@@ -266,6 +266,20 @@
   .deck-pile .ds-back.ds-top { left: 4px; top: 0;
     background: repeating-linear-gradient(135deg, #3a3146 0 5px, #2f2538 5px 10px);
     border-color: var(--pathway); }
+  /* Scout reveal: the top of the deck shows the upcoming card's face (matte
+     off-white card, pathway-violet edge to signal it's the revealed look-ahead).
+     No glow — on-theme with the rest of the matte cards. */
+  .deck-pile .ds-face {
+    position: absolute; left: 4px; top: 0; width: 32px; height: 46px; border-radius: 6px;
+    background: var(--card-face); color: var(--card-ink);
+    border: 1px solid var(--pathway-2); box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 800; line-height: 1;
+  }
+  .deck-pile .ds-face.hidden { display: none; }
+  .deck-pile .ds-face.red { color: var(--card-red); }
+  .deck-pile .ds-face .dsf-rank { font-size: 16px; }
+  .deck-pile .ds-face .dsf-suit { font-size: 13px; margin-top: 1px; }
   .deck-count { display: flex; flex-direction: column; align-items: flex-start; line-height: 0.95; }
   .deck-count b { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--text); }
   .deck-count .ds-lbl { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
@@ -2268,7 +2282,7 @@
            phases. Tap to inspect · hold for a quick peek (wiring unchanged). -->
       <div class="deck-stack" id="deckStat" role="button" tabindex="0"
            title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-        <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span></span>
+        <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span><span class="ds-face hidden" id="deckFace"></span></span>
         <span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span>
       </div>
     </div>
@@ -2574,7 +2588,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.5 · batch-gameplay-presentation";
+const APP_VERSION = "v0.99.6 · scout-sticker";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2664,7 +2678,7 @@ const ELEM_GLYPH = {
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
-  heavy: "dense", collector: "hub", compound: "potentiation",
+  heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   sameValueTribute: "encode2", allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -2743,6 +2757,8 @@ const StickerTypes = (() => {
                   description: "Earn +1 coin per other sticker on the card when you place this sticker on a surviving pile's top card." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
                   description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the campaign until a full reset." },
+    revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
+                  description: "See the next card after this card is played, until that card is drawn." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -2753,7 +2769,7 @@ const StickerTypes = (() => {
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
-    "deathBounty", "heavy", "collector", "compound"];
+    "deathBounty", "heavy", "collector", "compound", "revealNext"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3077,6 +3093,9 @@ const DeckManager = (() => {
       stickers: stickers.map(x => ({ ...x })),   // for rendering badges
       heartsRemaining: stickers.filter(x => x.type === "extraHeart").length,
       tieSafe: stickers.some(x => x.type === "tieSafe"),
+      // Scout: when this card is placed on a pile, reveal the next deck card.
+      // Display-only look-ahead — never changes draw order (see deck.peek).
+      revealNext: stickers.some(x => x.type === "revealNext"),
       // Suit Guard: a once-per-run charge to survive a wrong guess when the
       // drawn card matches a guarded suit. One charge per guarded suit (a card
       // can hold guards for several suits; duplicate guards of one suit don't
@@ -3111,7 +3130,7 @@ const DeckManager = (() => {
     const s = SUITS[0];
     return {
       id: -value, label: r.label, value: r.value, suit: s.symbol, red: s.red,
-      stickers: [], heartsRemaining: 0, tieSafe: false,
+      stickers: [], heartsRemaining: 0, tieSafe: false, revealNext: false,
     };
   }
 
@@ -3389,6 +3408,9 @@ const GameEngine = (() => {
       for (const c of removed) deck.returnCard(c);  // random positions, never shown
       deck.returnCard(killingCard);                 // the card that would've killed it
       board.push(index, deck.draw());               // one new top (pile size = 1)
+      // Scout: a freshly-dealt revive top is "placed" too — reveal the next card.
+      const fresh = board.top(index);
+      if (fresh && fresh.revealNext) run.revealNextActive = true;
       logLine("Second Wind: pile revived (1 fresh card); " + (removed.length + 1) + " cards recycled into the deck (hidden)");
     }
 
@@ -3597,6 +3619,9 @@ const GameEngine = (() => {
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
+        // Scout: true while the next deck card is revealed (a Scout-stickered card
+        // was just placed). Display-only; cleared the moment that card is drawn.
+        revealNextActive: false,
         // Debug logbook: ground-truth, per-turn event log for this run. Reset
         // here every run. Dev tooling only — never read by game logic.
         log: [],
@@ -3633,6 +3658,12 @@ const GameEngine = (() => {
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
       logAction("Start Run", bound.length ? ["Pillars: " + bound.join(", ")] : ["No Pillars bound"]);
+      // Scout applied to a starting top counts as "placed" — reveal from the off.
+      run.revealNextActive = false;
+      for (let i = 0; i < board.size; i++) {
+        const t = board.top(i);
+        if (t && t.revealNext) { run.revealNextActive = true; break; }
+      }
       emit("run-started", { board, deck, run });
     }
 
@@ -3649,6 +3680,9 @@ const GameEngine = (() => {
 
       const current = board.top(index);
       const drawn = deck.draw();
+      // Scout: drawing this card consumes any active reveal (the revealed card has
+      // now been played). It may be re-armed below if a Scout card lands.
+      run.revealNextActive = false;
       const pillar = pillarForPile(index);   // column Pillar (or null)
 
       // Strict comparisons: an equal rank only wins on a "same" guess.
@@ -3714,6 +3748,9 @@ const GameEngine = (() => {
       let guardSave = null;
       if (correct) {
         board.push(index, drawn);
+        // Scout: the placed card reveals the next deck card (display-only; cleared
+        // when that card is drawn). peek(1) reads the REAL next card, no reshuffle.
+        if (drawn.revealNext) run.revealNextActive = true;
         // Tribute Pillars: on a qualifying SURVIVING resolution, pull card(s)
         // from the deck's BOTTOM and bury them under this pile — never revealed.
         // 8 Tribute fires when the landed card is an 8; Same / Double Tribute
@@ -3850,6 +3887,11 @@ const GameEngine = (() => {
       getBoard() { return board; },
       getDeck() { return deck; },
       getRun() { return run; },
+      /** Scout look-ahead: the next card to be drawn while a reveal is active, or
+          null. Read-only peek of the REAL next card — never changes draw order. */
+      revealedNextCard() {
+        return (run && run.revealNextActive && deck) ? (deck.peek(1)[0] || null) : null;
+      },
       /** Debug logbook: append a standalone entry for a non-engine action
           (sticker applied, store buy/reroll). Ground-truth, no gameplay impact. */
       logAction(title, lines) { logAction(title, lines); },
@@ -4982,6 +5024,7 @@ const UIRenderer = (() => {
     board: document.getElementById("board"),
     svhProbe: document.getElementById("svhProbe"),
     deckCount: document.getElementById("deckCount"),
+    deckFace: document.getElementById("deckFace"),
     aliveCount: document.getElementById("aliveCount"),
     minPileCount: document.getElementById("minPileCount"),
     bonusCoins: document.getElementById("bonusCoins"),
@@ -5382,6 +5425,24 @@ const UIRenderer = (() => {
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
+    renderDeckReveal(); // Scout look-ahead: show/hide the upcoming card on the deck
+  }
+
+  /* Scout: while a reveal is active, the face-down deck shows the next card's
+     face (read-only — the engine peeks the REAL next card, draw order unchanged).
+     Returns to the normal face-down stack once that card has been drawn. */
+  function renderDeckReveal() {
+    if (!el.deckFace) return;
+    const next = (engine && engine.revealedNextCard) ? engine.revealedNextCard() : null;
+    if (!next) {
+      el.deckFace.classList.add("hidden");
+      if (el.deckStat) el.deckStat.classList.remove("revealed");
+      return;
+    }
+    el.deckFace.classList.toggle("red", !!next.red);
+    el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>";
+    el.deckFace.classList.remove("hidden");
+    if (el.deckStat) el.deckStat.classList.add("revealed");
   }
 
   /* ---- deck composition strip (always-on companion to the modal) ----
@@ -5955,6 +6016,8 @@ const UIRenderer = (() => {
       card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
       card.tieSafe = true;
+    } else if (t.behavior === "revealNext") {
+      card.revealNext = true;   // Scout: arm the look-ahead flag on the live card
     } else if (t.behavior === "changeSuitTo" || t.behavior === "changeSuitRandom") {
       // The new suit was already decided on the PERSISTENT card by
       // campaign.applySticker (random pick happens there). Mirror that exact
@@ -6419,6 +6482,7 @@ const UIRenderer = (() => {
       case "run-started": {
         showActivePhase();    // hide Start Run, reveal guessing
         renderNetwork();
+        renderDeckReveal();   // Scout on a starting top reveals from the off
         refreshDebug();
         break;
       }

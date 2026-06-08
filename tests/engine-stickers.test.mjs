@@ -3,7 +3,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager } = loadGame();
+  const { GameEngine, DeckManager, StickerTypes } = loadGame();
   const r = makeRunner("engine-stickers.test.mjs");
 
   // Build a run where EVERY card has the given sticker, so whatever lands on
@@ -110,6 +110,45 @@ export function run() {
     r.ok(e.isRunStarted() && !e.canApplyStickers(), "startRun is idempotent");
     e.guess(0, "higher");
     r.ok(e.getDeck().remaining() < remBefore, "guessing works after Start Run");
+  }
+
+  // --- Scout: reveal the next card on placement, display-only ------------
+  {
+    r.eq(StickerTypes.get("revealNext").tier, "rare", "Scout is a Rare sticker");
+
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    let lastDrawn = null;
+    e.onEvent((t, p) => { if (p && p.drawn) lastDrawn = p.drawn; });
+    e.start(); e.startRun();
+    r.ok(e.revealedNextCard() == null, "no reveal active without a placed Scout card");
+
+    // Land a Scout card with a guaranteed-correct guess.
+    const top = e.getBoard().top(0); top.value = 5;
+    const d = e.debug.setNextCard(9); d.revealNext = true; d.stickers = [{ type: "revealNext" }];
+    const realNext = e.getDeck().peek(2)[1];   // the card AFTER the Scout card (its reveal target)
+    e.guess(0, "higher");                      // 9 > 5 → correct → Scout lands
+    r.ok(e.getBoard().isActive(0), "Scout card landed on the pile");
+
+    const revealed = e.revealedNextCard();
+    r.ok(revealed && revealed.id != null, "placing the Scout card reveals the next deck card");
+    r.eq(revealed.id, e.getDeck().peek(1)[0].id, "revealed = the deck's REAL next card (no reshuffle)");
+    r.eq(revealed.id, realNext.id, "revealed card is exactly the one already queued (draw order unchanged)");
+
+    // The next draw is exactly the revealed card, and the reveal then clears.
+    const remBefore = e.getDeck().remaining();
+    e.guess(0, "higher");
+    r.eq(lastDrawn.id, revealed.id, "the card actually drawn is the one that was revealed");
+    r.eq(e.getDeck().remaining(), remBefore - 1, "exactly one card drawn (RNG/order untouched)");
+    r.ok(e.revealedNextCard() == null, "reveal clears once the revealed card is drawn");
+  }
+
+  // --- Scout on a starting top reveals from run start -------------------
+  {
+    const e = GameEngine.create(specsWith("revealNext"), 9);   // every top carries Scout
+    e.start(); e.startRun();
+    const revealed = e.revealedNextCard();
+    r.ok(revealed && revealed.id != null, "Scout on a starting top reveals the next card at run start");
+    r.eq(revealed.id, e.getDeck().peek(1)[0].id, "starting-top reveal = the deck's real next card");
   }
 
   // --- a fresh run re-opens the sticker phase ----------------------------
