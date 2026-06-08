@@ -23,6 +23,8 @@
     --panel: #2A2430;       /* matte lighter-slate chrome (no glow) */
     --accent: #e88bb0;      /* neural rose (primary, = connection colour) */
     --accent-2: #e8a6c2;    /* light rose (secondary highlights/stats) */
+    --net: #C84A78;         /* connection-network links (deep rose, reads on light) */
+    --net-dot: #8E2F4E;     /* connection-network signal dots (dark, visible on light) */
     --good: #84c89a;        /* muted sage — survival/correct */
     --bad: #e06b80;         /* muted rose-red — loss/wrong */
     --text: #241C28;        /* dark ink (on cream) */
@@ -415,9 +417,9 @@
   }
   /* synapses are FILLED spindle/lens shapes (thin at the nodes, full in the
      middle) rather than stroked lines, with a small bulge at each endpoint. */
-  #network .lk { fill: var(--accent); stroke: none; }
-  #network .lk-bulge { fill: var(--accent); }
-  #network .pulse { fill: #ffe0ee; }
+  #network .lk { fill: var(--net); stroke: none; }
+  #network .lk-bulge { fill: var(--net); }
+  #network .pulse { fill: var(--net-dot); }
   /* a brand-new connection (a sightline that just opened) fades in */
   #network .edge.forming { animation: edgeForm 0.55s ease both; }
   @keyframes edgeForm { from { opacity: 0; } to { opacity: 1; } }
@@ -2641,7 +2643,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.2 · cards";
+const APP_VERSION = "v1.0-light.3 · network";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
