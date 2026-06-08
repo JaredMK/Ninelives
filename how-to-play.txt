@@ -1,0 +1,72 @@
+SHOULDA SAID SAME — HOW TO PLAY
+===============================
+
+This file mirrors the in-game "How to Play" walkthrough (the slides shown
+from the main menu / in-game menu). It is a guided, slide-by-slide
+walkthrough — not a wall of text. Each slide has a TITLE, a short BODY, and
+a small VISUAL (described here in brackets for context).
+
+Source in code: showManual() in index.html (the `slides` array).
+Emphasis below uses *asterisks* where the game bolds a word.
+
+
+SLIDE 1 — This is your board
+----------------------------
+[Visual: a grid of 6 face-up cards (piles), e.g. 7♠ K♥ 4♣ / A♦ 9♠ Q♥]
+
+A grid of *piles*. Each pile shows one *card* on top. These are what you
+keep alive.
+
+
+SLIDE 2 — Work through the deck
+-------------------------------
+[Visual: a 52-card deck → arrow → a small board of 4 cards]
+
+You have a *deck* of cards. Each turn you draw the next one and *place it*
+on a pile by guessing. Your goal is to get through the *whole deck*.
+
+
+SLIDE 3 — Make a guess
+----------------------
+[Visual: a 7♥ above three buttons: HIGHER / SAME / LOWER]
+
+Tap a pile, then call the next card: will it be *Higher*, *Same*, or
+*Lower* than the top card? (Aces are high; suits don't matter.)
+
+
+SLIDE 4 — Grow it or lose it
+----------------------------
+[Visual: left "Correct" — a growing stack (+1); right "Wrong" — a dead pile (✕)]
+
+Guess *right* and the card joins the pile, so it grows taller. Guess
+*wrong* and the whole pile *dies*.
+
+
+SLIDE 5 — Clear the deck, earn coins
+------------------------------------
+[Visual: 4 (piles alive) × 3 (smallest pile) = 12 coins]
+
+Survive the whole *deck* to win the run. You earn *surviving piles × your
+smallest pile* in coins, so keep every pile alive and evenly sized, not
+over-stacked.
+
+
+SLIDE 6 — Spend between runs
+----------------------------
+[Visual: Sticker (3 coins) → card with a badge; Pillar (6 coins) → a column]
+
+In the *store*, buy *stickers*, *pillars* and packs with coins, then place
+them: a sticker goes on a *card*, a pillar locks onto a whole *column*.
+Then start your run.
+
+
+NOTES FOR EDITING
+-----------------
+- To change wording, edit the `cap` (caption) of each slide in showManual().
+  The caption format is: '<span class="lead">TITLE</span>' + "BODY (HTML, may
+  use <b>...</b> for emphasis)".
+- To add/remove a slide, add/remove an entry in the `slides` array (each entry
+  is { art: "<...visual HTML...>", cap: "<...caption HTML...>" }); the dot
+  navigation and Back/Next/Skip/Done buttons adapt automatically to the count.
+- The visuals (`art`) are small inline HTML mockups (mini-cards, arrows, the
+  HIGHER/SAME/LOWER buttons, the store items, the score expression).
