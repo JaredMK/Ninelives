@@ -37,7 +37,7 @@ export function run() {
     r.eq(StickerTypes.get("rankUp2").price, 4, "+2 Rank price 4");
     r.eq(StickerTypes.get("randomFixedValue").price, 3, "Random Rank price 3");
     r.eq(StickerTypes.get("suitImmunity").price, 4, "Spade Guard price 4");
-    r.eq(StickerTypes.get("middleColumnReward").value, 2, "Middle Reward pays 2");
+    r.eq(StickerTypes.get("middleColumnReward").value, 3, "Middle Reward pays 3");
     r.eq(StickerTypes.get("gainCoin").value, 1, "Lucky Coin pays 1");
     r.eq(StickerTypes.get("oneTribute").price, 6, "Tribute I price 6");
     r.eq(StickerTypes.get("twoTribute").price, 8, "Tribute II price 8");
@@ -179,9 +179,9 @@ export function run() {
     const e = GameEngine.create(specsWith("middleColumnReward"), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
     landHigher(e, 3);   // pile 3 is the middle column (col 1)
-    r.eq(e.getRun().bonusCoins, 2, "Middle Reward pays +2 landing in the middle column");
+    r.eq(e.getRun().bonusCoins, 3, "Middle Reward pays +3 landing in the middle column");
     landHigher(e, 0);   // pile 0 is column 0 (not middle)
-    r.eq(e.getRun().bonusCoins, 2, "no reward landing outside the middle column");
+    r.eq(e.getRun().bonusCoins, 3, "no reward landing outside the middle column");
   }
 
   // --- Tribute I sticker: bury 1 + cost 1 bonus coin --------------------

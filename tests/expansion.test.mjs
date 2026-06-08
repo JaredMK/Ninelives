@@ -328,37 +328,6 @@ export function run() {
     r.eq(c.getCards().find(x => x.id === card.id).compoundHits, 0, "compoundHits resets to 0 on a campaign loss");
   }
 
-  // --- Untouched (Wallflower): +15 only if the pile was NEVER guessed on --
-  {
-    const e = GameEngine.create(deck(), 9);
-    e.start(); e.startRun();
-    e.getBoard().top(0).stickers = [{ type: "wallflower" }];
-    e.getBoard().pushBottom(0, { stickers: [], value: 7 });   // a burn UNDERNEATH
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 15, "Untouched: never guessed (burn underneath OK) → +15");
-  }
-  {
-    const e = GameEngine.create(deck(), 9);
-    e.start(); e.startRun();
-    e.getBoard().top(0).stickers = [{ type: "wallflower" }];
-    e.getBoard().top(0).value = 5;
-    e.debug.setNextCard(9); e.guess(0, "higher");   // a guess on the pile disqualifies it
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 0, "guessing on the pile disqualifies Wallflower");
-  }
-  {
-    // Guessed but the card stayed on top via Extra Heart → still disqualified.
-    const e = GameEngine.create(deck(), 9);
-    e.start(); e.startRun();
-    const top = e.getBoard().top(0);
-    top.stickers = [{ type: "wallflower" }, { type: "extraHeart" }];
-    top.heartsRemaining = 1; top.value = 9;
-    e.debug.setNextCard(2); e.guess(0, "higher");   // wrong → heart absorbs; top stays
-    r.ok(e.getBoard().isActive(0) && e.getBoard().top(0) === top, "Extra Heart kept the Wallflower card on top");
-    e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 0, "a guessed-on pile pays no Wallflower even if its card survives on top");
-  }
-
   // ===== Debug logbook (ground-truth event log) ==========================
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
@@ -387,10 +356,10 @@ export function run() {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["eightTribute", null, null]);
     e.getBoard().top(0).value = 5;
-    e.debug.setNextCard(8); e.guess(0, "higher");   // an 8 lands → tribute buries 1
+    e.debug.setNextCard(8); e.guess(0, "higher");   // an 8 lands → tribute buries 3
     const turn = e.getRun().log[e.getRun().log.length - 1];
     const buryLine = turn.lines.find(l => /buried/.test(l));
-    r.ok(!!buryLine && /deck −1/.test(buryLine), "logbook: tribute logs a buried count + deck delta");
+    r.ok(!!buryLine && /deck −3/.test(buryLine), "logbook: tribute logs a buried count + deck delta");
     r.ok(!/[♠♥♦♣]/.test(buryLine), "logbook: buried card is counts-only — no suit/identity leaked");
   }
 

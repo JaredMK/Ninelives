@@ -276,15 +276,15 @@ export function run() {
     const deckBefore = e.getDeck().remaining();
     landEight(e, 0);
     r.eq(e.getRun().eightTributesUsed[0], 1, "8 on the Tribute column triggers once");
-    // Pile gained the 8 (top) + a buried tribute card = +2; deck lost both.
-    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 2, "pile gains 8 + a buried card");
-    r.eq(e.getDeck().remaining(), deckBefore - 2, "deck loses the 8 and the tributed card");
+    // Pile gained the 8 (top) + 3 buried tribute cards = +4; deck lost all four.
+    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 4, "pile gains 8 + 3 buried cards");
+    r.eq(e.getDeck().remaining(), deckBefore - 4, "deck loses the 8 and the 3 tributed cards");
 
     landEight(e, 1);   // pile 1 is also column 0
     r.eq(e.getRun().eightTributesUsed[0], 2, "second 8 fires again (uncapped)");
     landEight(e, 2);   // pile 2, column 0 — still fires (no cap)
     r.eq(e.getRun().eightTributesUsed[0], 3, "third 8 fires too — caps removed");
-    r.eq(e.getBoard().piles[2].cards.length, 3, "third 8 still gets its buried tribute (1 deal + 8 + tribute)");
+    r.eq(e.getBoard().piles[2].cards.length, 5, "third 8 still gets its buried tribute (1 deal + 8 + 3 buried)");
   }
 
   // --- 8 on a non-Tribute column does nothing ---------------------------

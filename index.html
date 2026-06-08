@@ -216,6 +216,10 @@
   .br-main > .setup-inv, .br-main > .deck-strip { position: absolute; inset: 0; }
   .bottom-region.setup .deck-strip { display: none; }   /* before Start: histogram hidden */
   .bottom-region.run   .setup-inv  { display: none; }   /* after Start: inventory hidden */
+  /* Empty setup inventory: nothing to place, so show the histogram in its place
+     instead of an empty panel. */
+  .bottom-region.setup.inv-empty .setup-inv  { display: none; }
+  .bottom-region.setup.inv-empty .deck-strip { display: flex; }
   /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
      at its own consistent size instead of competing in one mixed strip. The tab
      bar sits on top; the active family's strip scrolls horizontally below it. */
@@ -946,7 +950,12 @@
 
   /* In-game menu button (corner). */
   .menu-btn {
-    position: fixed; top: 8px; left: 8px; z-index: 30;
+    /* Align with the HUD bar: same top offset (safe-area + the bar's 4px margin)
+       and a matching 30px height, so the button is vertically centred with the
+       bar and its left edge sits at the bar's left edge. */
+    position: fixed; z-index: 30;
+    top: calc(env(safe-area-inset-top) + 4px);
+    left: calc(env(safe-area-inset-left) + 4px);
     width: 30px; height: 30px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--accent-2);
@@ -1271,6 +1280,12 @@
   .buy-confirm:active { transform: scale(0.98); }
   .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
   .buy-confirm.hidden { display: none; }
+  /* Skip / take nothing on the pack reveal (secondary, under Confirm). */
+  .pack-skip-btn { width: min(94vw, 380px); margin-top: 8px; padding: 8px 12px;
+    background: transparent; color: var(--muted); border: 1px solid var(--edge-2); border-radius: 10px;
+    font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+  .pack-skip-btn:active { transform: scale(0.98); }
+  .pack-skip-btn.hidden { display: none; }
 
   /* View row: Inventory · Cards (secondary, equal width). */
   .store-views { display: flex; gap: 7px; }
@@ -1826,6 +1841,16 @@
   .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
   .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 11.5px; margin-top: 3px; }
   .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
+  .peek-info .pk-locked { color: var(--muted); }
+  /* "Return to inventory" (setup only). The peek popup is pointer-events:none, so
+     this button re-enables pointer events for itself to stay tappable. */
+  .peek-info .pk-unplace {
+    pointer-events: auto; margin-top: 9px; width: 100%;
+    background: rgba(181,67,90,0.14); color: var(--bad);
+    border: 1px solid var(--danger); border-radius: 10px;
+    padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+  }
+  .peek-info .pk-unplace:active { transform: scale(0.98); }
   .deck-quick-total {
     font-weight: 800;
     font-size: 13px;
@@ -2342,7 +2367,7 @@
     <div class="store-top">
       <div class="store-balance">Coins to spend: <b id="storeCoins">0</b>
         <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></div>
-      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
+      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh store</button>
     </div>
 
     <div class="zone z-imp">
@@ -2400,6 +2425,9 @@
       <!-- Finalize the pick. Disabled until exactly `keep` items are selected.
            Tapping an item selects it AND shows its info in the help slot below. -->
       <button class="buy-confirm" id="packConfirmBtn" type="button" disabled>Confirm</button>
+      <!-- Take nothing: the pack is already paid for, so skipping just closes it
+           with no items kept and no refund. -->
+      <button class="pack-skip-btn" id="packSkipBtn" type="button">Skip (take nothing)</button>
     </div>
   </div>
   <!-- Info help slot for revealed pack items (sticker name+desc, or a card's
@@ -2546,7 +2574,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.4 · play-setup-fixes";
+const APP_VERSION = "v0.99.5 · batch-gameplay-presentation";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2636,7 +2664,7 @@ const ELEM_GLYPH = {
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
-  heavy: "dense", collector: "hub", compound: "potentiation", wallflower: "dormant",
+  heavy: "dense", collector: "hub", compound: "potentiation",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   sameValueTribute: "encode2", allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -2693,11 +2721,11 @@ const StickerTypes = (() => {
                   description: "Safe from a wrong guess when a ♣ is drawn. Works once a run; the pile survives and the card goes back into the deck." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "Earn +1 coin per card in this pile when you clear the run with this card on top." },
-    middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 2, tier: "uncommon", price: 3,
-                  description: "Earn +2 coins when you place this sticker on a surviving pile in the middle column." },
+    middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
+                  description: "Earn +3 coins when you place this sticker on a surviving pile in the middle column." },
     gainCoin:   { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
                   description: "Earn +1 coin when you place this sticker on a surviving pile." },
-    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "uncommon", price: 4,
+    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 4,
                   description: "While this card is on top, this pile is left out of the smallest-pile part of your score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
                   description: "Safe from a wrong guess of any kind. Works once a run; the pile survives and the card goes back into the deck." },
@@ -2715,8 +2743,6 @@ const StickerTypes = (() => {
                   description: "Earn +1 coin per other sticker on the card when you place this sticker on a surviving pile's top card." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
                   description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the campaign until a full reset." },
-    wallflower: { id: "wallflower", label: "Untouched",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 15, tier: "uncommon", price: 4,
-                  description: "Earn +15 coins when you clear the run without ever guessing on this pile. Cards buried underneath are fine; only guessing on the pile breaks it." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -2727,7 +2753,7 @@ const StickerTypes = (() => {
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
-    "deathBounty", "heavy", "collector", "compound", "wallflower"];
+    "deathBounty", "heavy", "collector", "compound"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -2794,7 +2820,7 @@ const PillarTypes = (() => {
       // (bounded only by the draw deck). Pure composition shift — no reveal.
       id: "eightTribute", label: "8 Bury", icon: "8️⃣",
       kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
-      description: "Bury 1 card from the bottom of the deck under a pile in this column when a correct guess lands an 8 on its top. Every time.",
+      description: "Bury 3 cards from the bottom of the deck under a pile in this column when a correct guess lands an 8 on its top. Every time.",
     },
     sameTribute: {
       // When a pile in this column SURVIVES A TIE — a correctly-called Same
@@ -3366,23 +3392,6 @@ const GameEngine = (() => {
       logLine("Second Wind: pile revived (1 fresh card); " + (removed.length + 1) + " cards recycled into the deck (hidden)");
     }
 
-    /** End-of-run STICKER bonuses (win only), added to the live tally so the
-        tracker + run-complete breakdown reconcile. Reads alive top cards:
-          Wallflower — +value if the pile was NEVER guessed on (untouched top)
-        (Compound now pays LIVE on each correct use — see guess(); Collector pays
-        live when its card lands — see maybeLandingBonus.) */
-    function settleEndStickerBonuses() {
-      for (let i = 0; i < board.size; i++) {
-        if (!board.isActive(i)) continue;
-        const top = board.top(i);
-        if (!top || !top.stickers) continue;
-        if (top.stickers.some(s => s.type === "wallflower") && run.pileGuessed && !run.pileGuessed[i]) {
-          const wt = StickerTypes.get("wallflower");
-          addBonus("Untouched", (wt && wt.value) || 0);
-        }
-      }
-    }
-
     /** Composition Tribute Pillars (8 / Same / Double): on a qualifying
         surviving resolution, bury deck-bottom card(s) under this pile, hidden.
         Uncapped — fires every qualifying time (bounded only by the draw deck). */
@@ -3390,7 +3399,7 @@ const GameEngine = (() => {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
       if (pillar.effect === "eightTribute" && drawn.value === 8) {
-        if (buryTribute(index, 1, pillar.label) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
+        if (buryTribute(index, 3, pillar.label) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
       } else if (pillar.effect === "sameTribute" && isTie === true) {
         if (buryTribute(index, 1, pillar.label) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
       } else if (pillar.effect === "sameValueTribute" && isTie === true) {
@@ -3585,8 +3594,6 @@ const GameEngine = (() => {
         colStreak: cols ? new Array(cols.length).fill(0) : null,
         // Per-column "Second Wind already spent this run" flags.
         secondWindUsed: cols ? new Array(cols.length).fill(false) : null,
-        // Per-PILE "was ever guessed on" flags (for Wallflower). Sized at deal.
-        pileGuessed: new Array(pileCount).fill(false),
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
@@ -3659,10 +3666,6 @@ const GameEngine = (() => {
 
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
-
-      // Wallflower: ANY guess on a pile permanently disqualifies it (its top is
-      // no longer the untouched starter card).
-      if (run.pileGuessed) run.pileGuessed[index] = true;
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
@@ -3780,10 +3783,9 @@ const GameEngine = (() => {
         status = "won";
         run.phase = "ended";
         run.result = "win";
-        // End-of-run STICKER bonuses (Collector / Compound / Wallflower) fold into
-        // the live tally first, so the tracker reconciles with the summary.
+        // Collector and Compound stickers pay LIVE during play; the only end-of-run
+        // scoring left is the column Pillars (and Payout), logged into this entry.
         logBegin("RUN WON — end-of-run bonuses");
-        settleEndStickerBonuses();   // addBonus lines land in this entry
         // Column Pillars score at run end (win only). Itemized here so the UI
         // never recomputes column membership.
         const pp = computePillarPayout();
@@ -5073,6 +5075,7 @@ const UIRenderer = (() => {
     packMsg: document.getElementById("packMsg"),
     packDeckBtn: document.getElementById("packDeckBtn"),
     packConfirmBtn: document.getElementById("packConfirmBtn"),
+    packSkipBtn: document.getElementById("packSkipBtn"),
     packItemHelp: document.getElementById("packItemHelp"),
     packReplaceConfirm: document.getElementById("packReplaceConfirm"),
     packReplaceMsg: document.getElementById("packReplaceMsg"),
@@ -5499,9 +5502,15 @@ const UIRenderer = (() => {
     if (!pid) return '<div class="pk-head">Column ' + (col + 1) + '</div><div class="pk-empty">No Pillar on this column.</div>';
     const t = PillarTypes.get(pid);
     if (!t) return '<div class="pk-empty">Unknown Pillar.</div>';
+    // Un-placing is allowed ONLY in the setup window. During a run the pillar is
+    // locked in, so the popup shows the help with no return option.
+    const inSetup = engine && engine.canApplyStickers();
     return '<div class="pk-head">' + t.icon + " " + escHtml(t.label) + "</div>" +
       '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
-      '<div class="pk-state">Applies to column ' + (col + 1) + "</div>";
+      '<div class="pk-state">Applies to column ' + (col + 1) + "</div>" +
+      (inSetup
+        ? '<button class="pk-unplace" data-unplace-col="' + col + '" type="button">Return to inventory</button>'
+        : '<div class="pk-state pk-locked">Locked in for this run.</div>');
   }
   function openCardPeek(index) {
     if (!engine) return;
@@ -5810,11 +5819,12 @@ const UIRenderer = (() => {
       if (p) p.classList.toggle("hidden", !(open && k === activeSetupTab && counts[k] > 0));
     });
     el.setupTabs.classList.toggle("hidden", !(open && anyItems));
-    if (el.setupEmpty) {
-      const showEmpty = open && !anyItems;
-      el.setupEmpty.classList.toggle("hidden", !showEmpty);
-      if (showEmpty) el.setupEmpty.textContent = "Nothing to place. Read the board, then press Start Run.";
-    }
+    // Nothing to place during setup → show the histogram in this area instead of
+    // an empty panel (inv-empty hides the inventory and reveals the deck strip).
+    const showHist = open && !anyItems;
+    if (el.bottomRegion) el.bottomRegion.classList.toggle("inv-empty", showHist);
+    if (showHist) renderDeckStrip();
+    if (el.setupEmpty) el.setupEmpty.classList.add("hidden");
   }
   function selectSetupTab(tab) {
     if (!tab) return;
@@ -6182,14 +6192,10 @@ const UIRenderer = (() => {
       const bpCell = e.target.closest(".bp-cell");
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
-        // During setup the indicator row doubles as a placement target: place an
-        // armed Pillar, or (nothing armed) pick up the Pillar already there.
-        if (setupWindow) {
-          if (armedPillar) placePillarOnColumn(col);
-          else if (campaign && campaign.columnPillar(col) != null) pickUpPillar(col);
-          else openPillarPeek(col);
-          return;
-        }
+        // During setup, an armed Pillar drops onto the slot. Otherwise (setup or
+        // play) tapping a slot toggles its help popup — which, in setup, carries an
+        // explicit "Return to inventory" button (never auto-removed).
+        if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
         return;
@@ -6205,6 +6211,14 @@ const UIRenderer = (() => {
       else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else selectPile(index);
+    });
+
+    // Pillar peek popup: the "Return to inventory" button (setup only) un-places.
+    el.peekInfo.addEventListener("click", (e) => {
+      const b = e.target.closest(".pk-unplace");
+      if (!b) return;
+      closePeekInfo(); peekTapCol = null;
+      pickUpPillar(Number(b.dataset.unplaceCol));
     });
 
     // "?" card-info button (enabled once a pile is selected) + tap-off to close.
@@ -6227,6 +6241,7 @@ const UIRenderer = (() => {
       if (held) packDiscardHeld(Number(held.dataset.held));
     });
     el.packConfirmBtn.addEventListener("click", confirmPackPick);
+    if (el.packSkipBtn) el.packSkipBtn.addEventListener("click", skipPackReveal);
     // Replace confirmation.
     el.packReplaceCancel.addEventListener("click", closePackReplace);
     el.packReplaceOk.addEventListener("click", doReplace);
@@ -7639,9 +7654,11 @@ const UIRenderer = (() => {
         packItemButton(miniCardHtml(c), "data-held", i, false)).join("");
       el.packMsg.textContent = "Tap a held card to discard. Your new pick is then kept.";
       el.packConfirmBtn.classList.add("hidden");
+      if (el.packSkipBtn) el.packSkipBtn.classList.add("hidden");
       return;
     }
     el.packConfirmBtn.classList.remove("hidden");
+    if (el.packSkipBtn) el.packSkipBtn.classList.remove("hidden");
     const face = (i) => st.kind === "card"
       ? miniCardHtml(st.items[i])
       : (() => { const t = StickerTypes.get(st.items[i]);
@@ -7684,6 +7701,17 @@ const UIRenderer = (() => {
     }
     st.chosen.forEach(idx => campaign.addStickerToInventory(st.items[idx]));
     closePackReveal(); renderStore();
+  }
+
+  /* Skip / take nothing: the pack was already paid for, so this just closes the
+     reveal with no items kept and no refund. Not offered during the forced
+     discard step. */
+  function skipPackReveal() {
+    const st = packRevealState; if (!st || st.mode === "discard") return;
+    if (engine) engine.logAction("Skipped a pack (kept nothing)");
+    closePackItemInfo();
+    closePackReveal();
+    renderStore();
   }
 
   function packDiscardHeld(heldIndex) {
@@ -7787,7 +7815,7 @@ const UIRenderer = (() => {
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
-    el.rerollBtn.innerHTML = glyph("reroll") + " Reroll · " + COIN_SVG + cost;
+    el.rerollBtn.innerHTML = glyph("reroll") + " Refresh store · " + COIN_SVG + cost;
   }
 
   /* Offered Pillars (2 slots). Buying sends the Pillar to inventory; the player
