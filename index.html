@@ -850,6 +850,87 @@
   .manual-body .mi { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-2); font-weight: 700; }
   .manual-body .ico { font-size: 15px; }
 
+  /* ---- How to Play: guided walkthrough (replaces the old text manual) ---- */
+  .wt { display: flex; flex-direction: column; }
+  .wt-stage {
+    position: relative; cursor: pointer; user-select: none; -webkit-user-select: none;
+    border-radius: 14px; padding: 18px 14px 14px; min-height: 244px;
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(232,139,176,0.09), transparent 62%),
+      var(--bg-2);
+    border: 1px solid var(--edge);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  .wt-stage:active { background:
+      radial-gradient(120% 80% at 50% 0%, rgba(232,139,176,0.14), transparent 62%), var(--bg-2); }
+  .wt-art { display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 10px; min-height: 100px; }
+  .wt-cap { text-align: center; color: var(--text); font-size: 12.5px; line-height: 1.5;
+    max-width: 330px; margin: 0 auto; }
+  .wt-cap b { color: var(--accent-2); }
+  .wt-cap .lead { display: block; font-family: var(--font-display); font-weight: 700;
+    font-size: 16px; letter-spacing: 0.4px; color: var(--accent-2); margin-bottom: 5px; }
+  .wt-tap { position: absolute; bottom: 7px; left: 0; right: 0; text-align: center;
+    font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); opacity: 0.6; }
+  .wt-tap.hidden { display: none; }
+
+  .wt-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 10px; }
+  .wt-dots { display: flex; gap: 6px; }
+  .wt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--edge-2); transition: background 0.15s; }
+  .wt-dot.on { background: var(--accent); }
+  .wt-right { display: flex; gap: 8px; }
+  .wt-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
+    border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
+    font-family: var(--font-text); letter-spacing: 0.4px; }
+  .wt-btn.primary { color: #1c1206; border: none; background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
+  .wt-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; padding-left: 4px; }
+  .wt-btn:active { transform: scale(0.97); }
+  .wt-btn.hidden { display: none; }
+
+  /* Mock board grid (slide 1) */
+  .wt-board { display: grid; grid-template-columns: repeat(3, auto); gap: 9px; }
+  /* Mock guess-button row (slide 2) — visual only, not interactive */
+  .wt-guess { display: flex; gap: 7px; align-items: stretch; width: 236px; }
+  .wt-guess .btn { flex: 1; pointer-events: none; text-align: center; padding: 9px 4px; }
+  .wt-guess .btn.same { flex: 0.62; }
+  /* Outcome columns (slide 3) */
+  .wt-split { display: flex; gap: 20px; align-items: flex-start; justify-content: center; }
+  .wt-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .wt-tag { font-size: 10.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+  .wt-tag.good { color: var(--good); }
+  .wt-tag.bad { color: var(--bad); }
+  .wt-stack { position: relative; width: 52px; height: 86px; }
+  .wt-stack .mini-card { position: absolute; left: 0; }
+  .wt-stack.dead .mini-card { opacity: 0.32; filter: grayscale(0.7); }
+  .wt-x { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--bad); font-size: 30px; font-weight: 800; z-index: 2; }
+  .wt-grow { position: absolute; top: -8px; right: -10px; color: var(--good); font-size: 14px; font-weight: 800; }
+  /* Score formula (slide 4) */
+  .wt-score { display: flex; align-items: flex-end; gap: 9px; }
+  .wt-score .cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .wt-score .num { font-family: var(--font-display); font-weight: 700; font-size: 27px; color: var(--accent-2); line-height: 1; }
+  .wt-score .num.coin { color: var(--accent); display: inline-flex; align-items: center; gap: 3px; }
+  .wt-score .lab { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .wt-score .op { font-size: 20px; color: var(--muted); padding-bottom: 9px; }
+  /* Store + placement flow (slide 5) */
+  .wt-flow { display: flex; flex-direction: column; gap: 12px; }
+  .wt-flow-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .wt-arrow { color: var(--accent); font-size: 18px; font-weight: 800; }
+  .wt-shop-item { width: 78px; border: 1px solid var(--edge-2); border-radius: 12px; background: var(--panel);
+    padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+  .wt-shop-item .ico { font-size: 20px; color: var(--accent-2); }
+  .wt-shop-item .nm { font-size: 10px; font-weight: 700; color: var(--text); }
+  .wt-shop-item .pr { font-size: 11px; font-weight: 800; color: var(--accent-2); display: inline-flex; align-items: center; gap: 2px; }
+  .wt-pillar-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
+    background: rgba(169,140,216,0.18); border: 1px solid var(--pathway); color: var(--pathway-2);
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+  .wt-pillar-tag .ico { font-size: 12px; }
+  .wt-mini-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .wt-mini-col .col-cards { display: flex; flex-direction: column; gap: 4px; }
+  .wt-mini-col .mini-card { width: 38px; height: 50px; }
+  .wt-mini-col .mini-card .mc-rank { font-size: 14px; }
+  .wt-mini-col .mini-card .mc-suit { font-size: 12px; }
+
   /* In-game menu button (corner). */
   .menu-btn {
     position: fixed; top: 8px; left: 8px; z-index: 30;
@@ -2405,7 +2486,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.98 · balance-pass";
+const APP_VERSION = "v0.99 · howto-walkthrough";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7847,33 +7928,137 @@ const UIRenderer = (() => {
   }
   function closeStats() { el.statsOverlay.classList.add("hidden"); }
 
-  /* ---- How to Play (§12) ---- */
+  /* ---- How to Play (§12) — a short guided walkthrough, not a wall of text.
+     A handful of tappable mock screens that SHOW the core moments (board → guess
+     → grow/die → score → store). Reached from the main menu and the in-game menu
+     (both route here). Skippable: tap ×, the backdrop, or Skip. Presentation
+     only — these are static mocks; no engine state is touched. ---- */
   function showManual() {
-    const mi = (ico, name) => '<span class="mi">' + glyph(ico) + name + "</span>";
+    // A mock face-up card (matches the real .mini-card look). `attrs` allows an
+    // inline style (for stacking); `inner` carries an optional sticker badge.
+    const card = (rank, suit, red, attrs, inner) =>
+      '<div class="mini-card' + (red ? " red" : "") + '"' + (attrs || "") + ">" +
+      '<div class="mc-rank">' + rank + '</div><div class="mc-suit">' + suit + "</div>" +
+      (inner || "") + "</div>";
+    const coin = COIN_SVG;
+
+    const slides = [
+      { // 1 — the board
+        art: '<div class="wt-board">' +
+          card("7", "♠") + card("K", "♥", true) + card("4", "♣") +
+          card("A", "♦", true) + card("9", "♠") + card("Q", "♥", true) +
+          "</div>",
+        cap: '<span class="lead">This is your board</span>' +
+          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top — these are what you’re keeping alive.",
+      },
+      { // 2 — make a guess
+        art: '<div class="wt-col">' + card("7", "♥", true) +
+          '<div class="wt-guess">' +
+            '<div class="btn higher">HIGHER</div>' +
+            '<div class="btn same">SAME</div>' +
+            '<div class="btn lower">LOWER</div>' +
+          "</div></div>",
+        cap: '<span class="lead">Make a guess</span>' +
+          "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
+          "than the top card? (Aces are high; suits don’t matter.)",
+      },
+      { // 3 — grow it or lose it
+        art: '<div class="wt-split">' +
+          '<div class="wt-col"><span class="wt-tag good">Correct</span>' +
+            '<div class="wt-stack"><span class="wt-grow">+1</span>' +
+              card("2", "♣", false, ' style="top:22px"') +
+              card("5", "♦", true, ' style="top:11px"') +
+              card("7", "♥", true, ' style="top:0"') +
+            "</div></div>" +
+          '<div class="wt-col"><span class="wt-tag bad">Wrong</span>' +
+            '<div class="wt-stack dead"><span class="wt-x">✕</span>' +
+              card("7", "♥", true, ' style="top:0"') +
+            "</div></div>" +
+          "</div>",
+        cap: '<span class="lead">Grow it or lose it</span>' +
+          "Guess <b>right</b> and the card joins the pile — it grows taller. " +
+          "Guess <b>wrong</b> and the whole pile <b>dies</b>.",
+      },
+      { // 4 — clear the deck, earn coins
+        art: '<div class="wt-score">' +
+          '<div class="cell"><span class="num">4</span><span class="lab">piles alive</span></div>' +
+          '<span class="op">×</span>' +
+          '<div class="cell"><span class="num">3</span><span class="lab">smallest pile</span></div>' +
+          '<span class="op">=</span>' +
+          '<div class="cell"><span class="num coin">' + coin + '12</span><span class="lab">coins</span></div>' +
+          "</div>",
+        cap: '<span class="lead">Clear the deck, earn coins</span>' +
+          "Survive the whole <b>deck</b> to win the run. You earn <b>surviving piles × your smallest pile</b> " +
+          "in coins — so keep every pile alive and evenly sized, not over-stacked.",
+      },
+      { // 5 — store & setup (buy, then place)
+        art: '<div class="wt-flow">' +
+          '<div class="wt-flow-row">' +
+            '<div class="wt-shop-item"><span class="ico">' + glyph("spark") + '</span>' +
+              '<span class="nm">Sticker</span><span class="pr">' + coin + "3</span></div>" +
+            '<span class="wt-arrow">→</span>' +
+            card("7", "♥", true, "", '<div class="mc-badges">' + glyph("spark") + "</div>") +
+          "</div>" +
+          '<div class="wt-flow-row">' +
+            '<div class="wt-shop-item"><span class="ico">' + glyph("guardian") + '</span>' +
+              '<span class="nm">Pillar</span><span class="pr">' + coin + "6</span></div>" +
+            '<span class="wt-arrow">→</span>' +
+            '<div class="wt-mini-col"><span class="wt-pillar-tag">' + glyph("guardian") + 'Pillar</span>' +
+              '<div class="col-cards">' + card("9", "♠") + card("4", "♣") + "</div></div>" +
+          "</div></div>",
+        cap: '<span class="lead">Spend between runs</span>' +
+          "In the <b>store</b>, buy <b>stickers</b>, <b>pillars</b> and packs with coins, then place them: " +
+          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>. Then start your run.",
+      },
+    ];
+
+    let i = 0;
+    const n = slides.length;
     el.manualBody.innerHTML =
-      "<p class=\"manual-lede\">Guess higher, same, or lower to keep your <b>piles</b> alive. A " +
-        "correct guess keeps the card and grows the pile; a wrong guess kills the pile. Survive the " +
-        "whole deck to clear the run — the more piles you keep alive, the more coins you earn.</p>" +
-      "<h4>Making a guess</h4><p>Tap a <b>pile</b>, then guess the next <b>card</b> — will it be " +
-        "<b>Higher</b>, <b>Same</b>, or <b>Lower</b> than the card on top? Guess right and the card " +
-        "joins the pile (it grows by one). Guess wrong — or tie when you went Higher or Lower — and " +
-        "the pile dies. Aces are high; suits don't affect the guess.</p>" +
-      "<h4>The run</h4><p>Guess your way through the whole <b>deck</b> to clear a run. Clear every " +
-        "run of a stage to advance; clear all stages to win the campaign. But lose one run and the " +
-        "whole campaign resets — back to Stage 1.</p>" +
-      "<h4>The board</h4><p>Each living pile connects to its neighbours with a link. A link is only " +
-        "as thick as the <b>smaller</b> of the two piles it joins, so thin links mark your weak " +
-        "spots. When a pile dies, its links fade and the survivors reconnect across the gap.</p>" +
-      "<h4>Coins &amp; score</h4><p>Your score is what you earn for clearing a run: " +
-        "<b>number of surviving piles × the smallest surviving pile</b>, plus bonuses — so keeping " +
-        "every pile alive and evenly sized beats over-stacking one. Spend coins in the store between " +
-        "runs.</p>" +
-      "<h4>Upgrades</h4><p>Between runs, buy " + mi("dot", "Stickers") + " — they attach to a card " +
-        "and change what it does (raise its rank, guard its pile, pay coins, and more). " +
-        mi("guardian", "Pillars") + " bind to a whole column of piles, giving that column a special " +
-        "property. " + mi("cache", "Card Packs") + " let you swap a card in your deck for a " +
-        "different one, and " + mi("cache", "Sticker Packs") + " hand you stickers in bulk. Select " +
-        "any item to read exactly what it does, then confirm to buy.</p>";
+      '<div class="wt">' +
+        '<div class="wt-stage" id="wtStage">' +
+          '<div class="wt-art" id="wtArt"></div>' +
+          '<div class="wt-cap" id="wtCap"></div>' +
+          '<div class="wt-tap" id="wtTap">Tap to continue</div>' +
+        "</div>" +
+        '<div class="wt-nav">' +
+          '<button class="wt-btn ghost" id="wtSkip" type="button">Skip</button>' +
+          '<div class="wt-dots" id="wtDots"></div>' +
+          '<div class="wt-right">' +
+            '<button class="wt-btn hidden" id="wtBack" type="button">Back</button>' +
+            '<button class="wt-btn primary" id="wtNext" type="button">Next</button>' +
+          "</div>" +
+        "</div>" +
+      "</div>";
+
+    const pick = id => document.getElementById(id);
+    const stage = pick("wtStage"), art = pick("wtArt"), cap = pick("wtCap"), tap = pick("wtTap"),
+      dots = pick("wtDots"), back = pick("wtBack"), next = pick("wtNext"), skip = pick("wtSkip");
+    dots.innerHTML = slides.map(() => '<span class="wt-dot"></span>').join("");
+    const dotEls = dots.querySelectorAll(".wt-dot");
+
+    function render() {
+      art.innerHTML = slides[i].art;
+      cap.innerHTML = slides[i].cap;
+      dotEls.forEach((d, k) => d.classList.toggle("on", k === i));
+      const last = i === n - 1;
+      back.classList.toggle("hidden", i === 0);
+      next.textContent = last ? "Got it" : "Next";
+      tap.classList.toggle("hidden", last);
+      skip.classList.toggle("hidden", last);
+    }
+    function go(step) {
+      const ni = i + step;
+      if (ni < 0) return;
+      if (ni >= n) { closeManual(); return; }   // advancing past the last slide closes it
+      i = ni; render();
+    }
+    stage.addEventListener("click", () => { Sound.tap(); go(1); });
+    next.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); go(1); });
+    back.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); go(-1); });
+    skip.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); closeManual(); });
+
+    render();
     el.manualOverlay.classList.remove("hidden");
   }
   function closeManual() { el.manualOverlay.classList.add("hidden"); }
