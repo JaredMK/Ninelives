@@ -27,10 +27,12 @@
     --bad: #e06b80;         /* muted rose-red — loss/wrong */
     --text: #241C28;        /* dark ink (on cream) */
     --muted: #6E5E68;       /* muted plum-grey */
-    /* Matte cards: solid off-white face, dark two-color suits, crisp edge. */
-    --card-face: #F1ECE6;
-    --card-ink: #2c2430;
-    --card-red: #b5566f;
+    /* Matte cards: bright-white face that lifts off the cream, deep two-color
+       suits, a defined warm-grey border. */
+    --card-face: #FFFDFB;
+    --card-ink: #241C28;
+    --card-red: #C0364F;
+    --card-border: #D8CCC0;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
     --shadow: 0 6px 18px rgba(2, 1, 4, 0.55);
@@ -461,10 +463,10 @@
     height: 90%;
     border-radius: 22px;
     transform-style: preserve-3d;
-    /* MATTE: no neon/glow. A defined crisp edge (border on the face) + a subtle
-       drop shadow for separation from the dark board. Glow lives only on the
-       connection network now. */
-    box-shadow: 0 4px 10px rgba(2, 1, 4, 0.55);
+    /* MATTE: no neon/glow. A defined crisp edge (border on the face) + a real
+       warm drop shadow so the white card clearly lifts off the cream board.
+       Glow lives only on the connection network now. */
+    box-shadow: 0 6px 14px rgba(74, 50, 40, 0.18), 0 2px 5px rgba(74, 50, 40, 0.12);
     /* Gentle, independent floating drift (per-card vars) — runs together with
        the breathing scale on .front. Small, so cards never detach from links. */
     animation: cardDrift var(--drift-dur, 8s) ease-in-out var(--drift-delay, 0s) infinite;
@@ -504,10 +506,10 @@
     --ps: calc(var(--pile-size, 88px) * 0.9);   /* type tracks the 90% card */
     padding: calc(var(--ps) * 0.09);
     justify-content: space-between;
-    /* Defined crisp edge: a dark hairline + a faint top highlight for a matte,
-       printed-card feel (replaces the old feathered/glowing halo). */
-    border: 1px solid rgba(26, 18, 24, 0.32);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    /* Defined warm-grey edge so the white face reads as a crisp printed card on
+       the cream board (replaces the old dark hairline). */
+    border: 1px solid var(--card-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(74, 50, 40, 0.05);
     /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
     animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
     transform-origin: 50% 50%;
@@ -2639,7 +2641,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.1 · bg-text";
+const APP_VERSION = "v1.0-light.2 · cards";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
