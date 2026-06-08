@@ -870,9 +870,19 @@
   .wt-cap b { color: var(--accent-2); }
   .wt-cap .lead { display: block; font-family: var(--font-display); font-weight: 700;
     font-size: 16px; letter-spacing: 0.4px; color: var(--accent-2); margin-bottom: 5px; }
-  .wt-tap { position: absolute; bottom: 7px; left: 0; right: 0; text-align: center;
-    font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); opacity: 0.6; }
-  .wt-tap.hidden { display: none; }
+  /* Face-down deck stack (the "work through the deck" slide) */
+  .wt-deck { position: relative; width: 54px; height: 72px; }
+  .wt-deck .db { position: absolute; width: 50px; height: 68px; border-radius: 7px;
+    background: linear-gradient(155deg, var(--panel-2), var(--bg-2));
+    border: 1px solid var(--edge-2); box-shadow: 0 3px 8px rgba(2,1,4,0.5); }
+  .wt-deck .db.top { display: flex; align-items: center; justify-content: center; }
+  .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 5px; border: 1px solid rgba(232,139,176,0.35); }
+  .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 999px;
+    background: var(--accent); color: #1c1206; font-size: 10px; font-weight: 800; box-shadow: var(--shadow); }
+  .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
+  .wt-smallboard .mini-card { width: 34px; height: 46px; }
+  .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
+  .wt-smallboard .mini-card .mc-suit { font-size: 11px; }
 
   .wt-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 10px; }
   .wt-dots { display: flex; gap: 6px; }
@@ -2486,7 +2496,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99 · howto-walkthrough";
+const APP_VERSION = "v0.99.1 · howto-deck-slide";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7951,7 +7961,23 @@ const UIRenderer = (() => {
         cap: '<span class="lead">This is your board</span>' +
           "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top — these are what you’re keeping alive.",
       },
-      { // 2 — make a guess
+      { // 2 — the deck (your goal)
+        art: '<div class="wt-flow-row" style="gap:16px">' +
+          '<div class="wt-deck">' +
+            '<span class="db" style="top:6px;left:6px"></span>' +
+            '<span class="db" style="top:3px;left:3px"></span>' +
+            '<span class="db top" style="top:0;left:0"><i></i></span>' +
+            '<span class="ct">52</span>' +
+          "</div>" +
+          '<span class="wt-arrow">→</span>' +
+          '<div class="wt-smallboard">' +
+            card("7", "♠") + card("K", "♥", true) + card("A", "♦", true) + card("9", "♠") +
+          "</div></div>",
+        cap: '<span class="lead">Work through the deck</span>' +
+          "You have a <b>deck</b> of cards. Each turn you draw the next one and <b>place it</b> on a pile " +
+          "by guessing — your goal is to get through the <b>whole deck</b>.",
+      },
+      { // 3 — make a guess
         art: '<div class="wt-col">' + card("7", "♥", true) +
           '<div class="wt-guess">' +
             '<div class="btn higher">HIGHER</div>' +
@@ -7962,7 +7988,7 @@ const UIRenderer = (() => {
           "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
           "than the top card? (Aces are high; suits don’t matter.)",
       },
-      { // 3 — grow it or lose it
+      { // 4 — grow it or lose it
         art: '<div class="wt-split">' +
           '<div class="wt-col"><span class="wt-tag good">Correct</span>' +
             '<div class="wt-stack"><span class="wt-grow">+1</span>' +
@@ -7979,7 +8005,7 @@ const UIRenderer = (() => {
           "Guess <b>right</b> and the card joins the pile — it grows taller. " +
           "Guess <b>wrong</b> and the whole pile <b>dies</b>.",
       },
-      { // 4 — clear the deck, earn coins
+      { // 5 — clear the deck, earn coins
         art: '<div class="wt-score">' +
           '<div class="cell"><span class="num">4</span><span class="lab">piles alive</span></div>' +
           '<span class="op">×</span>' +
@@ -7991,7 +8017,7 @@ const UIRenderer = (() => {
           "Survive the whole <b>deck</b> to win the run. You earn <b>surviving piles × your smallest pile</b> " +
           "in coins — so keep every pile alive and evenly sized, not over-stacked.",
       },
-      { // 5 — store & setup (buy, then place)
+      { // 6 — store & setup (buy, then place)
         art: '<div class="wt-flow">' +
           '<div class="wt-flow-row">' +
             '<div class="wt-shop-item"><span class="ico">' + glyph("spark") + '</span>' +
@@ -8019,7 +8045,6 @@ const UIRenderer = (() => {
         '<div class="wt-stage" id="wtStage">' +
           '<div class="wt-art" id="wtArt"></div>' +
           '<div class="wt-cap" id="wtCap"></div>' +
-          '<div class="wt-tap" id="wtTap">Tap to continue</div>' +
         "</div>" +
         '<div class="wt-nav">' +
           '<button class="wt-btn ghost" id="wtSkip" type="button">Skip</button>' +
@@ -8032,7 +8057,7 @@ const UIRenderer = (() => {
       "</div>";
 
     const pick = id => document.getElementById(id);
-    const stage = pick("wtStage"), art = pick("wtArt"), cap = pick("wtCap"), tap = pick("wtTap"),
+    const stage = pick("wtStage"), art = pick("wtArt"), cap = pick("wtCap"),
       dots = pick("wtDots"), back = pick("wtBack"), next = pick("wtNext"), skip = pick("wtSkip");
     dots.innerHTML = slides.map(() => '<span class="wt-dot"></span>').join("");
     const dotEls = dots.querySelectorAll(".wt-dot");
@@ -8044,7 +8069,6 @@ const UIRenderer = (() => {
       const last = i === n - 1;
       back.classList.toggle("hidden", i === 0);
       next.textContent = last ? "Got it" : "Next";
-      tap.classList.toggle("hidden", last);
       skip.classList.toggle("hidden", last);
     }
     function go(step) {
