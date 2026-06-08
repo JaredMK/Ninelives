@@ -20,17 +20,16 @@ export function run() {
 
   // --- PackTypes registry -----------------------------------------------
   {
-    r.eq(PackTypes.all().length, 3, "three pack types registered (one card pack, two sticker packs)");
+    r.eq(PackTypes.all().length, 2, "exactly two pack types registered (one card pack, one sticker pack)");
+    r.ok(!PackTypes.get("stickerPack5") && !PackTypes.get("stickerPack3"), "the larger sticker-pack variants are gone");
     r.eq(PackTypes.get("cardPack").size, 5, "the card pack reveals 5");
     r.eq(PackTypes.get("cardPack").keep, 1, "the card pack keeps 1");
     r.eq(PackTypes.get("cardPack").price, 12, "the card pack costs 12");
-    r.eq(PackTypes.get("stickerPack3").size, 3, "3-sticker pack reveals 3");
-    r.eq(PackTypes.get("stickerPack3").keep, 1, "3-sticker pack keeps 1");
-    r.eq(PackTypes.get("stickerPack3").price, 3, "3-sticker pack costs 3");
-    r.eq(PackTypes.get("stickerPack5").keep, 2, "5-sticker pack keeps 2 (asymmetry)");
-    r.eq(PackTypes.get("stickerPack5").price, 5, "5-sticker pack costs 5");
+    r.eq(PackTypes.get("stickerPack").size, 3, "the sticker pack reveals 3");
+    r.eq(PackTypes.get("stickerPack").keep, 1, "the sticker pack keeps 1");
+    r.eq(PackTypes.get("stickerPack").price, 3, "the sticker pack costs 3");
     r.eq(PackTypes.get("cardPack").kind, "card", "card pack kind");
-    r.eq(PackTypes.get("stickerPack3").kind, "sticker", "sticker pack kind");
+    r.eq(PackTypes.get("stickerPack").kind, "sticker", "sticker pack kind");
     const missing = PackTypes.all().filter(t => !t.description || !t.description.trim());
     r.eq(missing.length, 0, "every pack has help text");
   }
@@ -55,8 +54,8 @@ export function run() {
   // --- Sticker-pack reveal: N sticker ids, suit-locked ------------------
   {
     const c = CampaignState.create();
-    const ids = c.revealPack("stickerPack5", rngFrom(2));
-    r.eq(ids.length, 5, "stickerPack5 reveals 5 stickers");
+    const ids = c.revealPack("stickerPack", rngFrom(2));
+    r.eq(ids.length, 3, "the sticker pack reveals 3 stickers");
     r.ok(ids.every(id => stickerIds.has(id)), "all revealed stickers are real");
     // Suit-locked: no revealed sticker requires a not-yet-present suit.
     const inPlay = new Set(["♠", "♥"]);
@@ -187,18 +186,23 @@ export function run() {
     r.ok(!broke.buyOfferedPack(0, rngFrom(2)), "can't buy a pack with no coins");
   }
 
-  // --- Both pack slots are always filled (no empty visits) --------------
+  // --- Both pack slots are always filled — one of EACH type (no dupes) ---
   {
     const c = CampaignState.create();
-    let allFull = true, varied = new Set();
+    let allFull = true, oneOfEach = true, varied = new Set();
     for (let seed = 1; seed <= 40; seed++) {
       c.openStore(rngFrom(seed));
       const packs = c.getStoreOffer().packs;
       if (packs.length !== 2 || !packs.every(Boolean)) allFull = false;
+      // With exactly two pack types for two slots, every visit shows one card
+      // pack and one sticker pack (distinct roll), never a duplicate.
+      const kinds = packs.map(id => (PackTypes.get(id) || {}).kind).sort().join(",");
+      if (kinds !== "card,sticker") oneOfEach = false;
       varied.add(packs.join(","));
     }
     r.ok(allFull, "every visit fills both pack slots (no empty/absent visits)");
-    r.ok(varied.size > 1, "pack slots re-roll across visits (fresh each open)");
+    r.ok(oneOfEach, "every visit offers exactly one Card Pack and one Sticker Pack");
+    r.ok(varied.size > 1, "pack slots re-roll across visits (slot order varies)");
   }
 
   // ===== Phase 3: permanent deck replacement =============================
@@ -242,7 +246,7 @@ export function run() {
         if (!allowed.has(card.suit)) cardsOk = false;
         if (!card.stickers.every(s => { const t = StickerTypes.get(s.type); return !t.suit || allowed.has(t.suit); })) cardStickersOk = false;
       }
-      const ids = fresh.revealPack("stickerPack5", rngFrom(2000 + st.advances));
+      const ids = fresh.revealPack("stickerPack", rngFrom(2000 + st.advances));
       if (!ids.every(id => { const t = StickerTypes.get(id); return !t.suit || allowed.has(t.suit); })) packStickersOk = false;
       r.ok(cardsOk, "Stage " + fresh.currentStage + ": pack-card suits stay in play");
       r.ok(cardStickersOk, "Stage " + fresh.currentStage + ": on-card stickers never require an out-of-play suit");

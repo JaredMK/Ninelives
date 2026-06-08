@@ -1325,22 +1325,14 @@
   }
   .pack-deck-btn:active { transform: scale(0.98); }
   .pack-deck-btn.hidden { display: none; }
-  /* position:relative anchors each item's "?" info affordance (top-left). */
   .pack-item { position: relative; background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; }
   .pack-item:active { transform: scale(0.95); }
   .pack-item.dim { opacity: 0.3; }
   .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
   .pack-item.chosen .pk-sticker { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 8px; }
-  /* The revealed-item info popup reuses .item-help styling but sits ABOVE the
+  /* The revealed-item info help slot reuses .item-help styling but sits ABOVE the
      pack-reveal overlay (z-index 70) and the deck modal (80). */
   .item-help.pack-item-help { z-index: 82; }
-  /* Per-item "?" — dark chip so it reads on both the white card face and the
-     dark sticker chip; tucked into the top-left corner away from the badges. */
-  .pack-item .pk-info {
-    top: 3px; left: 3px; width: 16px; height: 16px;
-    background: rgba(35, 23, 28, 0.9); color: var(--text); font-size: 10px;
-  }
-  .pack-item .pk-info:active { background: var(--accent); color: #fff; }
 
   /* Sticker chip (revealed sticker-pack item). */
   .pk-sticker {
@@ -2347,14 +2339,14 @@
            remaining/full breakdown as the deck pill) to inform the pick.
            Hidden for sticker packs; counts only, never draw order. -->
       <button class="pack-deck-btn hidden" id="packDeckBtn" type="button"><span class="ico-slot" data-ico="deck"></span> View cards in play</button>
-      <!-- Finalize the pick(s). Disabled until exactly `keep` items are selected
-           (1 for most packs, 2 for the 5-sticker pack). Tapping an item selects
-           it; the per-item "?" only opens info, never selects. -->
+      <!-- Finalize the pick. Disabled until exactly `keep` items are selected.
+           Tapping an item selects it AND shows its info in the help slot below. -->
       <button class="buy-confirm" id="packConfirmBtn" type="button" disabled>Confirm</button>
     </div>
   </div>
-  <!-- Per-item info popup for revealed pack items (sticker name+desc, or a card's
-       rank/suit + its stickers' descriptions). Sits above the reveal overlay. -->
+  <!-- Info help slot for revealed pack items (sticker name+desc, or a card's
+       rank/suit + its stickers' descriptions). Auto-shown when an item is tapped;
+       sits above the reveal overlay. -->
   <div class="item-help pack-item-help hidden" id="packItemHelp"></div>
 
   <!-- Pre-run deck replacement confirmation (a permanent campaign-deck change). -->
@@ -2496,7 +2488,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.1 · howto-deck-slide";
+const APP_VERSION = "v0.99.2 · pack-info-single";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2592,7 +2584,7 @@ const ELEM_GLYPH = {
   sameValueTribute: "encode2", allHeartsCoin: "heart", allSpadesCoin: "spade",
   allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
-  cardPack: "cardstack", stickerPack3: "cache", stickerPack5: "cache",
+  cardPack: "cardstack", stickerPack: "cache",
 };
 function glyph(name, cls) {
   const g = GLYPHS[name] || GLYPHS.dot;
@@ -2856,19 +2848,14 @@ const PackTypes = (() => {
       size: 5, keep: 1, price: 12,
       description: "Reveals 5 random cards — keep 1 to swap into your deck before a run, replacing a card of your choice. The rest are discarded.",
     },
-    stickerPack3: {
-      id: "stickerPack3", label: "Sticker Pack · 3", icon: "📦", kind: "sticker",
+    stickerPack: {
+      id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker",
       size: 3, keep: 1, price: 3,
       description: "Reveals 3 random stickers — keep 1, straight to your inventory. The rest are discarded.",
     },
-    stickerPack5: {
-      id: "stickerPack5", label: "Sticker Pack · 5", icon: "📦", kind: "sticker",
-      size: 5, keep: 2, price: 5,
-      description: "Reveals 5 random stickers — keep 2, straight to your inventory. The rest are discarded.",
-    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
-  const ORDER = ["cardPack", "stickerPack3", "stickerPack5"];
+  const ORDER = ["cardPack", "stickerPack"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3892,13 +3879,18 @@ const CampaignState = (() => {
   /** Pick `n` ids from a registry list, WITH replacement (dupes allowed), by
       rarity weight. A type's `weight` (if set) wins; otherwise its `tier` maps
       through TIER_WEIGHTS; otherwise a flat 1. */
-  function rollIds(types, n, rng = Math.random) {
+  function rollIds(types, n, rng = Math.random, distinct = false) {
     const pool = types.map(t => ({ id: t.id, weight: t.weight || TIER_WEIGHTS[t.tier] || 1 }));
-    const total = pool.reduce((a, x) => a + x.weight, 0) || 1;
     const out = [];
     for (let i = 0; i < n; i++) {
-      let r = rng() * total, chosen = pool[pool.length - 1].id;
-      for (const x of pool) { if ((r -= x.weight) < 0) { chosen = x.id; break; } }
+      // `distinct` draws WITHOUT replacement (used for the pack section, whose
+      // slot count equals its type count, so every visit shows one of each type
+      // rather than a duplicate). Other sections roll with replacement as before.
+      const avail = distinct ? pool.filter(x => out.indexOf(x.id) === -1) : pool;
+      if (avail.length === 0) break;
+      const total = avail.reduce((a, x) => a + x.weight, 0) || 1;
+      let r = rng() * total, chosen = avail[avail.length - 1].id;
+      for (const x of avail) { if ((r -= x.weight) < 0) { chosen = x.id; break; } }
       out.push(chosen);
     }
     return out;
@@ -3977,7 +3969,7 @@ const CampaignState = (() => {
       // for any suit-agnostic use.
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
       pillars: rollIds(pillarPool || PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
-      packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng),
+      packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng, true),   // one of each type, no dupes
       rerollCost: REROLL_BASE_COST,
     };
   }
@@ -5110,7 +5102,6 @@ const UIRenderer = (() => {
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
-  let packHelpOpen = null;      // revealed-item index whose "?" info popup is open, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
   // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
   // Tap a "?" to toggle; tap anything else (swallowed) to dismiss.
@@ -6114,26 +6105,12 @@ const UIRenderer = (() => {
     // the tray is full, a held card is tapped to discard. Forced pick — no
     // backdrop dismiss.
     el.packItems.addEventListener("click", (e) => {
-      const info = e.target.closest(".pk-info");
-      if (info) { const item = info.closest("[data-pick]"); if (item) togglePackItemInfo(Number(item.dataset.pick)); e.stopPropagation(); return; }
       const pick = e.target.closest("[data-pick]");
-      if (pick) { packSelect(Number(pick.dataset.pick)); return; }
+      if (pick) { packSelect(Number(pick.dataset.pick)); return; }   // selects + shows info
       const held = e.target.closest("[data-held]");
       if (held) packDiscardHeld(Number(held.dataset.held));
     });
     el.packConfirmBtn.addEventListener("click", confirmPackPick);
-    // Tap-off-to-close for the item info popup (capture phase, BEFORE the select
-    // handler): while a popup is open, any tap that isn't a "?" dismisses it and
-    // is swallowed — so the dismiss tap can't also select an item underneath.
-    el.packReveal.addEventListener("click", (e) => {
-      if (packHelpOpen == null) return;            // nothing open → normal flow
-      if (e.target.closest(".pk-info")) return;    // a "?" → let it toggle/switch
-      closePackItemInfo();
-      e.stopPropagation();
-      e.preventDefault();
-    }, true);
-    // A tap on the popup itself keeps it open (and never selects underneath).
-    el.packItemHelp.addEventListener("click", (e) => e.stopPropagation());
     // Replace confirmation.
     el.packReplaceCancel.addEventListener("click", closePackReplace);
     el.packReplaceOk.addEventListener("click", doReplace);
@@ -7351,6 +7328,12 @@ const UIRenderer = (() => {
       return btn;
     }
     const t = kind === "pillar" ? PillarTypes.get(id) : kind === "pack" ? PackTypes.get(id) : StickerTypes.get(id);
+    if (!t) {   // unknown id (e.g. a restored offer referencing a removed type) → empty slot
+      btn.className = "store-tile empty";
+      btn.disabled = true;
+      btn.innerHTML = '<span class="tile-sold">—</span>';
+      return btn;
+    }
     const price = kind === "pillar" ? campaign.priceOfPillar(id) : kind === "pack" ? campaign.priceOfPack(id) : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
@@ -7496,9 +7479,10 @@ const UIRenderer = (() => {
   }
 
   /* ---- reveal → pick modal (both pack families) ----
-     Two distinct gestures per revealed item: tapping the item SELECTS it (a
-     pick, highlighted); tapping its "?" opens an info popup (never selects).
-     A Confirm button finalizes once exactly `keep` items are selected. */
+     Tapping a revealed item SELECTS it (a pick, highlighted) AND auto-shows its
+     info in the help slot — the same tap-to-show-info pattern the main store uses
+     (no "?" affordance). A Confirm button finalizes once exactly `keep` items are
+     selected. */
   function openPackReveal(result) {
     packRevealState = { kind: result.kind, keep: result.keep, items: result.items, chosen: [], mode: "pick", pending: null };
     el.packReveal.classList.remove("hidden");
@@ -7509,12 +7493,12 @@ const UIRenderer = (() => {
     el.packReveal.classList.add("hidden"); el.packItems.innerHTML = "";
   }
 
-  /* One revealed-item button: its "?" info affordance + the card/sticker face.
-     `selectable` items carry data-pick (and a chosen highlight); discard-mode
-     held cards carry data-held and no "?". */
-  function packItemButton(innerHtml, attr, i, chosen, withInfo) {
+  /* One revealed-item button: just the card/sticker face. Tapping it selects the
+     item AND auto-shows its info in the help slot (no "?" affordance) — the same
+     tap-to-show-info pattern the main store uses. `selectable` items carry
+     data-pick (and a chosen highlight); discard-mode held cards carry data-held. */
+  function packItemButton(innerHtml, attr, i, chosen) {
     return '<button class="pack-item' + (chosen ? " chosen" : "") + '" ' + attr + '="' + i + '">' +
-      (withInfo ? '<span class="si-help pk-info" aria-label="Item info">?</span>' : "") +
       innerHtml + "</button>";
   }
 
@@ -7529,7 +7513,7 @@ const UIRenderer = (() => {
       // multi-select / Confirm here — it's a single immediate choice.
       el.packTitle.textContent = "Swap tray full (" + campaign.packTrayCap + ")";
       el.packItems.innerHTML = campaign.getPackTray().map((c, i) =>
-        packItemButton(miniCardHtml(c), "data-held", i, false, false)).join("");
+        packItemButton(miniCardHtml(c), "data-held", i, false)).join("");
       el.packMsg.textContent = "Tap a held card to discard — your new pick is then kept.";
       el.packConfirmBtn.classList.add("hidden");
       return;
@@ -7541,7 +7525,7 @@ const UIRenderer = (() => {
           return '<div class="pk-sticker"><span class="pks-ic">' + (t ? t.icon : "?") + '</span>' +
             '<span class="pks-name">' + escHtml(t ? t.label : st.items[i]) + "</span></div>"; })();
     el.packItems.innerHTML = st.items.map((_, i) =>
-      packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1, true)).join("");
+      packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1)).join("");
     const noun = st.kind === "card" ? "card" : "sticker";
     el.packTitle.textContent = "Pick " + st.keep + " " + noun + (st.keep > 1 ? "s" : "") + " to keep";
     el.packMsg.textContent = "Selected " + st.chosen.length + " / " + st.keep + " — the rest are discarded.";
@@ -7559,6 +7543,7 @@ const UIRenderer = (() => {
     else if (st.chosen.length < st.keep) st.chosen.push(i);  // multi → add until full
     // else (multi, already at cap): ignore — deselect one to change a pick
     renderPackReveal();
+    showPackItemInfo(i);   // tapping an item auto-shows its info in the help slot
   }
 
   /* Confirm: finalize the selected pick(s). Card pick → pending tray (which may
@@ -7585,9 +7570,10 @@ const UIRenderer = (() => {
     closePackReveal(); renderStore();
   }
 
-  /* ---- revealed-item "?" info popup (one open at a time) ----
+  /* ---- revealed-item info, shown in the help slot on tap ----
      Sticker: name + registry description. Card: rank/suit + each sticker on it
-     (name + description). All text from the registries; tap off to close. */
+     (name + description). All text from the registries. Driven by selecting an
+     item (packSelect), mirroring how the main store shows a selection's info. */
   function packItemInfoHtml(st, i) {
     if (st.kind === "card") {
       const c = st.items[i];
@@ -7604,16 +7590,14 @@ const UIRenderer = (() => {
     return { title: t ? (t.icon + " " + escHtml(t.label)) : escHtml(String(st.items[i])),
              body: t ? escHtml(t.description || "") : "" };
   }
-  function togglePackItemInfo(i) {
+  function showPackItemInfo(i) {
     const st = packRevealState; if (!st) return;
-    if (packHelpOpen === i) { closePackItemInfo(); return; }   // tap same "?" → close
     const info = packItemInfoHtml(st, i);
     el.packItemHelp.innerHTML =
       '<div class="ih-title">' + info.title + '</div><div class="ih-body">' + info.body + "</div>";
     el.packItemHelp.classList.remove("hidden");
-    packHelpOpen = i;
   }
-  function closePackItemInfo() { el.packItemHelp.classList.add("hidden"); packHelpOpen = null; }
+  function closePackItemInfo() { el.packItemHelp.classList.add("hidden"); }
 
   /* Populate the Cards tab panel (held pack cards → deck replacement). Visibility
      is owned by renderSetupInv's tab controller. */
