@@ -2405,7 +2405,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.97 · setup-inventory-tabs";
+const APP_VERSION = "v0.98 · balance-pass";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2498,9 +2498,10 @@ const ELEM_GLYPH = {
   heavy: "dense", collector: "hub", compound: "potentiation", wallflower: "dormant",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
-  sameValueTribute: "encode2", allHeartsCoin: "heart", envy: "envy", symmetry: "symmetry",
+  sameValueTribute: "encode2", allHeartsCoin: "heart", allSpadesCoin: "spade",
+  allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
-  cardPack3: "cardstack", cardPack5: "cardstack", stickerPack3: "cache", stickerPack5: "cache",
+  cardPack: "cardstack", stickerPack3: "cache", stickerPack5: "cache",
 };
 function glyph(name, cls) {
   const g = GLYPHS[name] || GLYPHS.dot;
@@ -2565,16 +2566,16 @@ const StickerTypes = (() => {
                   description: "Apply this sticker to the top card of a surviving pile to bury 2 cards from the deck beneath it (hidden) and pay 4 coins." },
     centerTribute: { id: "centerTribute", label: "Center Bury", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
                   description: "When this card lands on top of a surviving pile in the middle column, bury 1 card from the bottom of the deck beneath it (hidden). No cost." },
-    deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 2, tier: "common", price: 2,
-                  description: "If a wrong guess on this card kills the pile, you still pocket 2 coins." },
-    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "uncommon", price: 4,
+    deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 2,
+                  description: "If a wrong guess on this card kills the pile, you still pocket 5 coins." },
+    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 4,
                   description: "This card counts as 2 toward pile size everywhere — the surviving-piles × smallest-pile score, Payout stickers, and the count badge — even when buried." },
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
                   description: "Apply this sticker to the top card of a surviving pile and gain 1 coin for every other sticker on that card (it doesn't count itself)." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Grows across the whole campaign: +1 for every correct guess made on this card after the first. At run end, if it's still on top, it pays that banked total. A full reset wipes it." },
-    wallflower: { id: "wallflower", label: "Untouched",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 10, tier: "rare", price: 5,
-                  description: "At run end, +10 coins if you never guessed on this pile — its starting card still sits untouched on top. Cards buried beneath don't disqualify it; only guessing on the pile does." },
+                  description: "Grows every time this card is guessed correctly: +0 the first time, +1 the next, +2 the next, and so on — paid on the spot each correct use (it doesn't need to stay on top). The total carries across the whole campaign; a full reset wipes it." },
+    wallflower: { id: "wallflower", label: "Untouched",  icon: "🌼", kind: "behavior", behavior: "wallflower", value: 15, tier: "uncommon", price: 4,
+                  description: "At run end, +15 coins if you never guessed on this pile — its starting card still sits untouched on top. Cards buried beneath don't disqualify it; only guessing on the pile does." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -2669,19 +2670,34 @@ const PillarTypes = (() => {
       description: "When a pile in this column survives a tie — a correct Same guess, or a tie saved by Tie-Safe — two cards from the bottom of the deck are buried beneath it (hidden). Every time.",
     },
     allHeartsCoin: {
-      // Live, column-scoped bonus: after any resolution, if every alive pile in
-      // this column shows a ♥ on top, pay +5 bonus coins. Per post-draw check,
-      // uncapped. (Engine evaluates it per-column — see maybeAllHearts.)
+      // End-of-run, column-scoped (win only): +value if EVERY surviving pile in
+      // this column shows the matching suit on top. One per suit; scored in
+      // computePillarPayout via the shared "allSuitTop" effect. Suit-gated.
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
-      kind: "live", effect: "allHeartsCoin", value: 5, tier: "rare", price: 10,
-      description: "After any guess resolves, if every surviving pile in this column shows a ♥ on top, gain 5 coins. Checked every time, uncapped.",
+      kind: "scoring", effect: "allSuitTop", suit: "♥", value: 5, tier: "common", price: 6,
+      description: "At run end, +5 coins if every surviving pile in this column shows a ♥ on top.",
+    },
+    allSpadesCoin: {
+      id: "allSpadesCoin", label: "All Spades", icon: "♠️",
+      kind: "scoring", effect: "allSuitTop", suit: "♠", value: 5, tier: "common", price: 6,
+      description: "At run end, +5 coins if every surviving pile in this column shows a ♠ on top.",
+    },
+    allDiamondsCoin: {
+      id: "allDiamondsCoin", label: "All Diamonds", icon: "♦️",
+      kind: "scoring", effect: "allSuitTop", suit: "♦", value: 5, tier: "common", price: 6,
+      description: "At run end, +5 coins if every surviving pile in this column shows a ♦ on top.",
+    },
+    allClubsCoin: {
+      id: "allClubsCoin", label: "All Clubs", icon: "♣️",
+      kind: "scoring", effect: "allSuitTop", suit: "♣", value: 5, tier: "common", price: 6,
+      description: "At run end, +5 coins if every surviving pile in this column shows a ♣ on top.",
     },
     envy: {
-      // End-of-run: +1 per alive pile in the column to the LEFT (wraparound:
-      // left-of-leftmost = rightmost). Scored in computePillarPayout.
+      // End-of-run: +2 per surviving pile across all OTHER pillared columns
+      // (columns holding any Pillar, excluding this one). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
-      kind: "scoring", effect: "envyLeft", tier: "uncommon", price: 6,
-      description: "At run end, +1 coin for each surviving pile in the column to the LEFT of this one (the leftmost column wraps to the rightmost).",
+      kind: "scoring", effect: "envyOthers", value: 2, tier: "uncommon", price: 6,
+      description: "At run end, +2 coins for each surviving pile in every OTHER column that holds a Pillar (across all other pillared columns, not just one).",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
@@ -2725,7 +2741,7 @@ const PillarTypes = (() => {
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
-    "sameValueTribute", "allHeartsCoin",
+    "sameValueTribute", "allHeartsCoin", "allSpadesCoin", "allDiamondsCoin", "allClubsCoin",
     "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy"];
   return {
     ids: ORDER,
@@ -2744,14 +2760,9 @@ const PillarTypes = (() => {
 ---------------------------------------------------------------- */
 const PackTypes = (() => {
   const TYPES = {
-    cardPack3: {
-      id: "cardPack3", label: "Card Pack · 3", icon: "🎴", kind: "card",
-      size: 3, keep: 1, price: 10,
-      description: "Reveals 3 random cards — keep 1 to swap into your deck before a run, replacing a card of your choice. The rest are discarded.",
-    },
-    cardPack5: {
-      id: "cardPack5", label: "Card Pack · 5", icon: "🎴", kind: "card",
-      size: 5, keep: 1, price: 15,
+    cardPack: {
+      id: "cardPack", label: "Card Pack", icon: "🎴", kind: "card",
+      size: 5, keep: 1, price: 12,
       description: "Reveals 5 random cards — keep 1 to swap into your deck before a run, replacing a card of your choice. The rest are discarded.",
     },
     stickerPack3: {
@@ -2766,7 +2777,7 @@ const PackTypes = (() => {
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
-  const ORDER = ["cardPack3", "cardPack5", "stickerPack3", "stickerPack5"];
+  const ORDER = ["cardPack", "stickerPack3", "stickerPack5"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3221,18 +3232,14 @@ const GameEngine = (() => {
 
     /** End-of-run STICKER bonuses (win only), added to the live tally so the
         tracker + run-complete breakdown reconcile. Reads alive top cards:
-          Compound   — (lifetime correct guesses − 1), floored at 0
           Wallflower — +value if the pile was NEVER guessed on (untouched top)
-        (Collector is NOT here — it pays live when its card lands; see maybeLandingBonus.) */
+        (Compound now pays LIVE on each correct use — see guess(); Collector pays
+        live when its card lands — see maybeLandingBonus.) */
     function settleEndStickerBonuses() {
       for (let i = 0; i < board.size; i++) {
         if (!board.isActive(i)) continue;
         const top = board.top(i);
         if (!top || !top.stickers) continue;
-        if (top.stickers.some(s => s.type === "compound")) {
-          const n = Math.max(0, (top.compoundHits || 0) - 1);
-          if (n > 0) addBonus("Compound", n);
-        }
         if (top.stickers.some(s => s.type === "wallflower") && run.pileGuessed && !run.pileGuessed[i]) {
           const wt = StickerTypes.get("wallflower");
           addBonus("Untouched", (wt && wt.value) || 0);
@@ -3297,24 +3304,23 @@ const GameEngine = (() => {
       }
     }
 
-    /** All Hearts Pillar (column-scoped, live): for each column the Pillar is
-        bound to, if every ALIVE pile IN THAT COLUMN shows a ♥ on top, pay its
-        value once per resolution. Other columns are irrelevant — same
-        column-scoping the other column Pillars use. */
-    function maybeAllHearts() {
-      if (!run || !run.pillars || !run.pileColumns) return;
-      const t = PillarTypes.get("allHeartsCoin");
-      for (let col = 0; col < run.pillars.length; col++) {
-        if (run.pillars[col] !== "allHeartsCoin") continue;
-        let anyAlive = false, allHearts = true;
-        for (let i = 0; i < run.pileColumns.length; i++) {
-          if (run.pileColumns[i] !== col || !board.isActive(i)) continue;
-          anyAlive = true;
-          const top = board.top(i);
-          if (!top || top.suit !== "♥") { allHearts = false; break; }
-        }
-        if (anyAlive && allHearts) addBonus("All Hearts", t.value || 0);
-      }
+    /** Suit Guard save (symmetric, draw-based). A guard rides a specific card;
+        either participant in the draw can be the carrier. It fires when the OTHER
+        card in the draw is the guarded suit — the two cases from the spec:
+          • the guard card is DRAWN onto a card of that suit  (carrier=drawn,
+            other=current, current.suit === guarded suit), or
+          • a card of that suit is drawn onto the guard card  (carrier=current,
+            other=drawn,  drawn.suit  === guarded suit).
+        (A guard never self-triggers on its OWN card's suit — a Heart Guard still
+        ignores a ♠ even when it sits on a heart.) Returns { carrier, suit } to
+        consume (one charge per guarded suit per card per run), or null. `current`
+        is checked first, then `drawn`. */
+    function findGuardSave(current, drawn) {
+      if (current && current.suitGuards && current.suitGuards[drawn.suit])
+        return { carrier: current, suit: drawn.suit };   // guarded suit was DRAWN onto the carrier
+      if (drawn && drawn.suitGuards && drawn.suitGuards[current.suit])
+        return { carrier: drawn, suit: current.suit };   // carrier was DRAWN onto a card of its guarded suit
+      return null;
     }
 
     /** Itemized Pillar payout for the current board state (scoring Pillars
@@ -3349,13 +3355,26 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
           }
-        } else if (t.effect === "envyLeft") {
-          // +1 per alive pile in the column to the LEFT (wraparound: col 0 → last).
-          const left = (col - 1 + nCols) % nCols;
-          const n = aliveInCol(left);
-          if (n > 0) {
-            bonus += n;
-            lines.push({ label: t.label, detail: n + " alive in col " + (left + 1), amount: n });
+        } else if (t.effect === "allSuitTop") {
+          // +value if EVERY surviving pile in THIS column shows the matching suit
+          // on top (and the column has at least one survivor). End-of-run.
+          const alive = colIdxs(col).filter(i => board.isActive(i));
+          if (alive.length > 0 && alive.every(i => { const top = board.top(i); return top && top.suit === t.suit; })) {
+            bonus += t.value;
+            lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value });
+          }
+        } else if (t.effect === "envyOthers") {
+          // +value per surviving pile across all OTHER pillared columns (columns
+          // holding any Pillar, excluding this one).
+          let n = 0;
+          for (let c = 0; c < run.pillars.length; c++) {
+            if (c === col || !run.pillars[c]) continue;   // only OTHER pillared columns
+            n += aliveInCol(c);
+          }
+          const amt = n * (t.value || 0);
+          if (amt > 0) {
+            bonus += amt;
+            lines.push({ label: t.label, detail: n + " alive in other pillared columns", amount: amt });
           }
         } else if (t.effect === "symmetryRight") {
           // +value if this column's alive count equals the RIGHT column's
@@ -3495,9 +3514,11 @@ const GameEngine = (() => {
         guess === "higher" ? drawn.value > current.value :
         guess === "lower"  ? drawn.value < current.value :
                              drawn.value === current.value; // "same"
-      // Tie-Safe: a tie counts as safe on ANY guess — from the card's own
-      // Tie-Safe sticker OR a Column Tie-Safe Pillar covering its column.
-      const tieSafe = current.tieSafe || (pillar && pillar.effect === "columnTieSafe");
+      // Tie-Safe (symmetric, draw-based): a tie counts as safe on ANY guess if
+      // EITHER card in the draw carries Tie-Safe — the top card OR the drawn card
+      // — or a Column Tie-Safe Pillar covers its column. (Any tie is current.value
+      // === drawn.value, so either participant's Tie-Safe makes the tie "same".)
+      const tieSafe = current.tieSafe || drawn.tieSafe || (pillar && pillar.effect === "columnTieSafe");
       if (isTie && tieSafe) correct = true;
 
       run.totalGuesses++;
@@ -3530,11 +3551,15 @@ const GameEngine = (() => {
         }
       }
 
-      // Compound: a correct guess against a Compound card banks +1 on its
-      // persistent identity (written back on a win). Pays (hits − 1) if alive on top.
+      // Compound: every correct guess against a Compound card pays on the spot —
+      // +0 the first correct use, +1 the next, +2 the next, … (compoundHits − 1).
+      // No "still on top at run end" condition; the running total persists on the
+      // card's identity (written back on a win, so it carries across the campaign).
       if (correct && current.stickers && current.stickers.some(s => s.type === "compound")) {
         current.compoundHits = (current.compoundHits || 0) + 1;
         run.compoundUpdates[current.id] = current.compoundHits;
+        const pay = current.compoundHits - 1;
+        if (pay > 0) addBonus("Compound", pay);
       }
 
       // Suit Bounty: when a matching-suit card LANDS on a surviving pile in this
@@ -3547,6 +3572,7 @@ const GameEngine = (() => {
         addBonus(pillar.label, pillar.value || 0);
       }
 
+      let guardSave = null;
       if (correct) {
         board.push(index, drawn);
         // Tribute Pillars: on a qualifying SURVIVING resolution, pull card(s)
@@ -3564,14 +3590,15 @@ const GameEngine = (() => {
         maybeStickerTribute(index, drawn);
         logLine("→ pile survived (" + board.piles[index].cards.length + " cards)");
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
-      } else if (current.suitGuards && current.suitGuards[drawn.suit]) {
-        // Suit Guard: a drawn card of a guarded suit is absorbed once per run.
-        // The pile survives, the drawn card is reshuffled back in, and that
-        // suit's charge is spent (run-local — refreshes next run). Other suits'
-        // guards on the same card are untouched. The drawn card is NOT pushed.
-        current.suitGuards[drawn.suit] = false;
+      } else if ((guardSave = findGuardSave(current, drawn))) {
+        // Suit Guard (symmetric): the guarded suit is involved in this draw, so
+        // the wrong guess is absorbed once per run. The pile survives with its
+        // current top, the drawn card is reshuffled back in, and the matched
+        // guard's charge (on whichever participant carried it) is spent. Other
+        // suits' guards — and other cards' guards — are untouched.
+        guardSave.carrier.suitGuards[guardSave.suit] = false;
         deck.returnCard(drawn);
-        logLine("Guard consumed — pile survived (" + drawn.suit + " returned to the deck)");
+        logLine("Guard consumed — pile survived (" + guardSave.suit + " involved; card returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
@@ -3601,9 +3628,8 @@ const GameEngine = (() => {
         emit("resolved", { index, guess, current, drawn, correct: false, board, deck, run });
       }
 
-      // All Hearts Pillar: a board-wide, post-draw check (after the resolution
-      // above settled the tops), paid live every qualifying time.
-      maybeAllHearts();
+      // (All-Suit Pillars score at run end now — see computePillarPayout's
+      // "allSuitTop" effect — not live per resolution.)
       // Close the turn's log entry with a coins summary (newest entry at top).
       const net = run.bonusCoins - bonusBefore;
       logLine("Coins this turn: " + (net >= 0 ? "+" : "") + net + " → bonus tally " + run.bonusCoins);
@@ -3764,7 +3790,7 @@ const CampaignState = (() => {
      and costs REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit;
      it resets to base when the store re-opens for a new run. */
   const STORE_STICKER_SLOTS = 4;
-  const STORE_PILLAR_SLOTS = 2;
+  const STORE_PILLAR_SLOTS = 3;        // three Pillar slots offered per visit
   const STORE_PACK_SLOTS = 2;          // pack section slots — always filled
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
@@ -3787,8 +3813,9 @@ const CampaignState = (() => {
     return out;
   }
 
-  // Pack tray cap: at most this many pending CARD-pack picks held at once.
-  const PACK_TRAY_CAP = 2;
+  // Pack tray cap: REMOVED — unlimited pending CARD-pack picks may be held
+  // (Infinity means addPackCard never reports the tray "full"; no discard step).
+  const PACK_TRAY_CAP = Infinity;
   // All suit symbols (for the default — unrestricted — Change-Suit Random pick).
   const ALL_SUITS = DeckManager.SUITS.map(s => s.symbol);
 
@@ -4261,16 +4288,18 @@ const CampaignState = (() => {
          stickers rarity-weighted + suit-locked (see stickerPoolForSuits). */
 
       /** Generate ONE fresh pack card: a unique id, a random rank (2–A), a
-          random IN-PLAY suit, and a rolled sticker set (20% one / 4% two / 76%
-          none), each rolled rarity-weighted + suit-locked and applied to the
-          card (rank/suit stickers mutate it; Change-Suit Random stays in-play). */
+          random IN-PLAY suit, and a rolled sticker set (33% one / 11% two /
+          3% three / 1% four / 52% none), each rolled rarity-weighted + suit-
+          locked and applied to the card (rank/suit stickers mutate it; Change-
+          Suit Random stays in-play). */
       genPackCard(rng = Math.random) {
         const suits = suitsForStage(currentStage);
         const suit = suits[Math.floor(rng() * suits.length)];
         const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
         const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
         const roll = rng();
-        const n = roll < 0.04 ? 2 : roll < 0.24 ? 1 : 0;   // 4% two, 20% one, 76% none
+        // 1% four, 3% three, 11% two, 33% one, 52% none (cumulative thresholds).
+        const n = roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
         const pool = stickerPoolForSuits(suits);
         for (let k = 0; k < n; k++) {
           const sid = rollIds(pool, 1, rng)[0];

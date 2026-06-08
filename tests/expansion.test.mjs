@@ -16,30 +16,40 @@ export function run() {
 
   // ===== Pillars =========================================================
 
-  // --- Envy: +1 per alive pile in the LEFT column (wraparound) ----------
+  // --- Envy: +2 per surviving pile across all OTHER pillared columns -----
+  // (secondWind is a non-scoring Pillar — it only marks a column as "pillared"
+  //  for Envy and contributes 0 to the scoring payout.)
   {
-    // Envy on column 0 → left wraps to the RIGHTMOST column (2), piles 7-9.
+    // Envy alone scores nothing — there are no OTHER pillared columns.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["envy", null, null]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 3, "Envy (col 0) reads the RIGHTMOST column as left → 3 alive = +3");
+    r.eq(won().pillarPayout.bonus, 0, "Envy with no other Pillars scores 0");
+  }
+  {
+    // Envy on col 0 + a Pillar on col 2 → counts col 2's 3 survivors ×2 = +6.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["envy", null, "secondWind"]);
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 6, "Envy counts col 2's 3 survivors ×2 = +6");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", null, null]);
-    e.getBoard().kill(8);   // one pile in column 2 dies → 2 alive there
+    e.start(); e.startRun(["envy", null, "secondWind"]);
+    e.getBoard().kill(8);   // col 2 → 2 survivors
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 2, "Envy left-wrap counts only ALIVE piles (2)");
+    r.eq(won().pillarPayout.bonus, 4, "Envy counts only SURVIVING piles (2 ×2 = +4)");
   }
   {
-    // Envy on column 2 → left is the NORMAL neighbour, column 1 (piles 3-6, 4).
+    // Spans EVERY other pillared column: col 1 (4) + col 2 (3) = 7 × 2 = +14.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun([null, null, "envy"]);
+    e.start(); e.startRun(["envy", "secondWind", "secondWind"]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 4, "Envy (col 2) reads col 1 (no wrap) → 4 alive = +4");
+    r.eq(won().pillarPayout.bonus, 14, "Envy spans all other pillared columns (4+3) ×2 = +14");
   }
 
   // --- Symmetry: +6 if alive count equals the RIGHT column (wraparound) -
@@ -192,7 +202,7 @@ export function run() {
     const d = e.debug.setNextCard(2); d.stickers = [{ type: "deathBounty" }];   // drawn carries it
     e.guess(0, "higher");   // 2 < 5 → wrong → kills the pile
     r.ok(!e.getBoard().isActive(0), "pile died");
-    r.eq(e.getRun().bonusCoins, 2, "Death Bounty: the killing drawn card pays +2");
+    r.eq(e.getRun().bonusCoins, 5, "Death Bounty (Last Coin): the killing drawn card pays +5");
   }
   {
     const e = GameEngine.create(deck(), 9);
@@ -266,29 +276,44 @@ export function run() {
 
   // --- Compound: N increments per correct guess; pays (N − 1) on top -----
   {
+    // First correct use pays +0 (hits 0 → 1), LIVE, on the spot.
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
     const top = e.getBoard().top(0);
     top.stickers = [{ type: "compound" }]; top.value = 5;
     e.debug.setNextCard(9); e.guess(0, "higher");   // correct vs the Compound card → hits 0→1
     r.eq(e.getRun().compoundUpdates[top.id], 1, "Compound: a correct guess banks a hit (hits = 1)");
+    r.eq(e.getRun().bonusCoins, 0, "first correct use pays +0 (hits − 1 = 0), live");
   }
   {
+    // A later correct use pays (hits − 1) LIVE — e.g. hits 3 → 4 pays +3.
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
     const t = e.getBoard().top(1);
-    t.stickers = [{ type: "compound" }]; t.compoundHits = 3;   // 3 lifetime correct guesses
-    e.debug.winNow();   // never guessed → still the untouched top, alive
-    r.eq(e.getRun().bonusCoins, 2, "Compound pays (hits − 1): 3 hits → +2");
+    t.stickers = [{ type: "compound" }]; t.compoundHits = 3; t.value = 5;   // 3 prior correct uses
+    e.debug.setNextCard(9); e.guess(1, "higher");   // correct → hits 4, pays +3 immediately
+    r.eq(e.getRun().compoundUpdates[t.id], 4, "Compound: the hit count advances (3 → 4)");
+    r.eq(e.getRun().bonusCoins, 3, "Compound pays live on the correct use (hits − 1 = 3)");
+  }
+  {
+    // No "still on top at run end" condition: a card buried AFTER its correct use
+    // keeps the coins it already paid; a card never used this run pays nothing.
+    const e = GameEngine.create(deck(), 9);
+    e.start(); e.startRun();
+    const t = e.getBoard().top(0);
+    t.stickers = [{ type: "compound" }]; t.compoundHits = 2; t.value = 5;
+    e.debug.setNextCard(9); e.guess(0, "higher");   // hits 3, pays +2 LIVE (compound card now buried)
+    r.eq(e.getRun().bonusCoins, 2, "Compound paid +2 live even though the card is now buried");
+    e.debug.winNow();
+    r.eq(e.getRun().bonusCoins, 2, "no extra/duplicate payout at run end (paid live, not at the end)");
   }
   {
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
-    const t = e.getBoard().top(0);
-    t.stickers = [{ type: "compound" }]; t.compoundHits = 5;
-    e.getBoard().kill(0);
+    const t = e.getBoard().top(2);
+    t.stickers = [{ type: "compound" }]; t.compoundHits = 5;   // pre-existing, but NOT used this run
     e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 0, "Compound on a dead pile pays nothing (must be alive on top)");
+    r.eq(e.getRun().bonusCoins, 0, "Compound pays nothing in a run where the card is never used correctly");
   }
   {
     // Persists across runs (save/restore) and resets on a campaign loss.
@@ -303,14 +328,14 @@ export function run() {
     r.eq(c.getCards().find(x => x.id === card.id).compoundHits, 0, "compoundHits resets to 0 on a campaign loss");
   }
 
-  // --- Wallflower: +10 only if the pile was NEVER guessed on ------------
+  // --- Untouched (Wallflower): +15 only if the pile was NEVER guessed on --
   {
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
     e.getBoard().top(0).stickers = [{ type: "wallflower" }];
     e.getBoard().pushBottom(0, { stickers: [], value: 7 });   // a burn UNDERNEATH
     e.debug.winNow();
-    r.eq(e.getRun().bonusCoins, 10, "Wallflower: never guessed (burn underneath OK) → +10");
+    r.eq(e.getRun().bonusCoins, 15, "Untouched: never guessed (burn underneath OK) → +15");
   }
   {
     const e = GameEngine.create(deck(), 9);

@@ -17,7 +17,7 @@ export function run() {
     r.eq(c.getStoreOffer(), null, "no offer until the store opens");
     const offer = c.openStore();
     r.eq(offer.stickers.length, 4, "offer has 4 sticker slots");
-    r.eq(offer.pillars.length, 2, "offer has 2 Pillar slots");
+    r.eq(offer.pillars.length, 3, "offer has 3 Pillar slots");
     r.eq(offer.packs.length, 2, "offer has 2 pack slots");
     r.ok(offer.stickers.every(id => stickerIds.has(id)), "all offered stickers are real registry ids");
     r.ok(offer.pillars.every(id => pillarIds.has(id)), "all offered Pillars are real registry ids");

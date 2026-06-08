@@ -20,19 +20,16 @@ export function run() {
 
   // --- PackTypes registry -----------------------------------------------
   {
-    r.eq(PackTypes.all().length, 4, "four pack types registered");
-    r.eq(PackTypes.get("cardPack3").size, 3, "3-card pack reveals 3");
-    r.eq(PackTypes.get("cardPack3").keep, 1, "card packs keep 1");
-    r.eq(PackTypes.get("cardPack3").price, 10, "3-card pack costs 10");
-    r.eq(PackTypes.get("cardPack5").size, 5, "5-card pack reveals 5");
-    r.eq(PackTypes.get("cardPack5").keep, 1, "5-card pack still keeps 1 (asymmetry)");
-    r.eq(PackTypes.get("cardPack5").price, 15, "5-card pack costs 15");
+    r.eq(PackTypes.all().length, 3, "three pack types registered (one card pack, two sticker packs)");
+    r.eq(PackTypes.get("cardPack").size, 5, "the card pack reveals 5");
+    r.eq(PackTypes.get("cardPack").keep, 1, "the card pack keeps 1");
+    r.eq(PackTypes.get("cardPack").price, 12, "the card pack costs 12");
     r.eq(PackTypes.get("stickerPack3").size, 3, "3-sticker pack reveals 3");
     r.eq(PackTypes.get("stickerPack3").keep, 1, "3-sticker pack keeps 1");
     r.eq(PackTypes.get("stickerPack3").price, 3, "3-sticker pack costs 3");
     r.eq(PackTypes.get("stickerPack5").keep, 2, "5-sticker pack keeps 2 (asymmetry)");
     r.eq(PackTypes.get("stickerPack5").price, 5, "5-sticker pack costs 5");
-    r.eq(PackTypes.get("cardPack3").kind, "card", "card pack kind");
+    r.eq(PackTypes.get("cardPack").kind, "card", "card pack kind");
     r.eq(PackTypes.get("stickerPack3").kind, "sticker", "sticker pack kind");
     const missing = PackTypes.all().filter(t => !t.description || !t.description.trim());
     r.eq(missing.length, 0, "every pack has help text");
@@ -42,8 +39,8 @@ export function run() {
   {
     const c = CampaignState.create();   // Stage 1 → suits ♠ ♥
     const inPlay = new Set(["♠", "♥"]);
-    const cards = c.revealPack("cardPack5", rngFrom(1));
-    r.eq(cards.length, 5, "cardPack5 reveals 5 cards");
+    const cards = c.revealPack("cardPack", rngFrom(1));
+    r.eq(cards.length, 5, "the card pack reveals 5 cards");
     const okShape = cards.every(card =>
       card.currentRank >= 2 && card.currentRank <= 14 &&
       inPlay.has(card.suit) && card.id >= 52 &&
@@ -72,8 +69,8 @@ export function run() {
     const c = CampaignState.create();
     const inPlay = new Set(["♠", "♥"]);
     const rng = rngFrom(7);
-    let withAny = 0, withTwo = 0;
-    const N = 4000;
+    let withAny = 0, withTwo = 0, withThree = 0;
+    const N = 8000;
     let allInPlay = true, allValidRank = true, allStickersReal = true;
     for (let i = 0; i < N; i++) {
       const card = c.genPackCard(rng);
@@ -82,13 +79,18 @@ export function run() {
       if (!card.stickers.every(s => stickerIds.has(s.type))) allStickersReal = false;
       if (card.stickers.length >= 1) withAny++;
       if (card.stickers.length >= 2) withTwo++;
+      if (card.stickers.length >= 3) withThree++;
     }
     r.ok(allInPlay, "generated card suits stay in-play (Change-Suit Random respects in-play suits)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");
-    const pAny = withAny / N, pTwo = withTwo / N;
-    r.ok(pAny > 0.17 && pAny < 0.31, "≈24% of cards carry ≥1 sticker (got " + pAny.toFixed(3) + ")");
-    r.ok(pTwo > 0.015 && pTwo < 0.075, "≈4% of cards carry 2 stickers (got " + pTwo.toFixed(3) + ")");
+    // New odds: 33% one / 11% two / 3% three / 1% four → ≈48% ≥1, ≈15% ≥2, ≈4% ≥3.
+    // (A rank sticker that lands on an at-boundary card doesn't attach, so observed
+    //  rates run a touch under nominal; bounds are kept generous for that.)
+    const pAny = withAny / N, pTwo = withTwo / N, pThree = withThree / N;
+    r.ok(pAny > 0.42 && pAny < 0.53, "≈48% of cards carry ≥1 sticker (got " + pAny.toFixed(3) + ")");
+    r.ok(pTwo > 0.10 && pTwo < 0.19, "≈15% of cards carry ≥2 stickers (got " + pTwo.toFixed(3) + ")");
+    r.ok(pThree > 0.015 && pThree < 0.065, "≈4% of cards carry ≥3 stickers (got " + pThree.toFixed(3) + ")");
   }
 
   // --- Stage 2 widens the suit pool (basic cross-stage check) -----------
@@ -97,26 +99,26 @@ export function run() {
     c.advance(); c.advance(); c.advance(); c.advance();   // → Stage 2 (4 runs/stage; suits ♠ ♥ ♦)
     r.eq(c.currentStage, 2, "advanced to Stage 2");
     const ok = ["♠", "♥", "♦"];
-    const cards = c.revealPack("cardPack5", rngFrom(9));
+    const cards = c.revealPack("cardPack", rngFrom(9));
     r.ok(cards.every(card => ok.includes(card.suit)), "Stage-2 pack cards never roll ♣ (not in play yet)");
   }
 
-  // --- Pending tray: 2-cap, discard, take -------------------------------
+  // --- Pending tray: UNLIMITED (cap removed), discard, take -------------
   {
     const c = CampaignState.create();
-    r.eq(c.packTrayCap, 2, "tray cap is 2");
-    const [a, b, d] = c.revealPack("cardPack3", rngFrom(3));
+    r.eq(c.packTrayCap, Infinity, "tray cap removed (unlimited)");
+    const [a, b, d, e, f] = c.revealPack("cardPack", rngFrom(3));
     r.ok(c.addPackCard(a).ok, "1st pack card held");
     r.ok(c.addPackCard(b).ok, "2nd pack card held");
     const third = c.addPackCard(d);
-    r.ok(!third.ok && third.full, "3rd add reports the tray is full");
-    r.eq(c.packTrayCount(), 2, "tray still holds exactly 2");
+    r.ok(third.ok && !third.full, "3rd add succeeds — no cap, never 'full'");
+    r.ok(c.addPackCard(e).ok && c.addPackCard(f).ok, "4th and 5th held too");
+    r.eq(c.packTrayCount(), 5, "tray holds all five (unlimited)");
     r.ok(c.discardPackCard(0), "discard one");
-    r.eq(c.packTrayCount(), 1, "tray down to 1 after discard");
-    r.ok(c.addPackCard(d).ok, "now there's room for a third pick");
+    r.eq(c.packTrayCount(), 4, "tray down to 4 after discard");
     const taken = c.takePackCard(0);
     r.ok(taken && taken.id != null, "takePackCard returns the card");
-    r.eq(c.packTrayCount(), 1, "takePackCard removes it from the tray");
+    r.eq(c.packTrayCount(), 3, "takePackCard removes it from the tray");
   }
 
   // --- Sticker-pack keep → normal inventory -----------------------------
@@ -131,7 +133,7 @@ export function run() {
   // --- Persistence: tray + nextCardId round-trip; reset wipes -----------
   {
     const c = CampaignState.create();
-    const [pick] = c.revealPack("cardPack3", rngFrom(5));
+    const [pick] = c.revealPack("cardPack", rngFrom(5));
     c.addPackCard(pick);
     const snap = JSON.parse(JSON.stringify(c.serialize()));
     r.ok(Array.isArray(snap.packTray) && snap.packTray.length === 1, "snapshot carries the pending tray");
@@ -202,7 +204,7 @@ export function run() {
   // ===== Phase 3: permanent deck replacement =============================
   {
     const c = CampaignState.create();
-    const [pick] = c.revealPack("cardPack3", rngFrom(5));
+    const [pick] = c.revealPack("cardPack", rngFrom(5));
     c.addPackCard(pick);
     const dealt = c.getCards().find(x => x.suit === "♠");   // an in-play card
     c.applySticker(dealt.id, "tieSafe");                    // build it up, to verify destruction

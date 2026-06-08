@@ -46,8 +46,16 @@ export function run() {
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
     r.eq(PillarTypes.get("sameValueTribute").price, 22, "Double Tribute price 22");
     r.eq(PillarTypes.get("sameValueTribute").tributeCount, 2, "Double Tribute buries 2");
-    r.eq(PillarTypes.get("allHeartsCoin").price, 10, "All Hearts price 10");
+    r.eq(PillarTypes.get("allHeartsCoin").price, 6, "All Hearts price 6 (Common)");
     r.eq(PillarTypes.get("allHeartsCoin").value, 5, "All Hearts pays 5");
+    r.eq(PillarTypes.get("allHeartsCoin").tier, "common", "All Hearts is Common");
+    // Equivalent all-suit Pillars exist for every suit, end-of-run scoring.
+    for (const [id, suit] of [["allSpadesCoin", "♠"], ["allDiamondsCoin", "♦"], ["allClubsCoin", "♣"]]) {
+      r.eq(PillarTypes.get(id).suit, suit, id + " is for " + suit);
+      r.eq(PillarTypes.get(id).effect, "allSuitTop", id + " uses the shared end-of-run effect");
+      r.eq(PillarTypes.get(id).value, 5, id + " pays 5");
+    }
+    r.eq(PillarTypes.get("allHeartsCoin").effect, "allSuitTop", "All Hearts now end-of-run scoring");
   }
 
   // --- ±2 Rank clamps at the rank boundaries ----------------------------
@@ -96,8 +104,13 @@ export function run() {
       const b = e.getBoard();
       r.ok(b.top(0).suitGuards && b.top(0).suitGuards[suit], id + " projects a " + suit + " charge");
 
+      // specsWith() stickers EVERY card, so the drawn cards also carry this guard.
+      // Force the top card's OWN suit to a different suit so only the current-side
+      // (top) guard is in play — otherwise the symmetric rule could let a drawn
+      // guard save when the top happens to be the guarded suit (tested separately).
+      const otherSuit = suit === "♠" ? "♥" : "♠";
       const before = e.getDeck().remaining();
-      b.top(0).value = 10;
+      b.top(0).value = 10; b.top(0).suit = otherSuit;
       const d = e.debug.setNextCard(3); d.suit = suit;   // that suit, loses on HIGHER
       e.guess(0, "higher");
       r.ok(b.isActive(0), id + ": a " + suit + " wrong guess is absorbed, pile survives");
@@ -105,17 +118,19 @@ export function run() {
       r.eq(b.top(0).value, 10, id + ": showing card unchanged (drawn card not pushed)");
       r.eq(e.getDeck().remaining(), before, id + ": drawn " + suit + " returned to the deck");
 
+      b.top(0).suit = otherSuit;                          // keep the top a non-guarded suit
       const d2 = e.debug.setNextCard(3); d2.suit = suit;
       e.guess(0, "higher");
       r.ok(!b.isActive(0), id + ": with the charge spent, the next " + suit + " wrong guess kills");
     });
   }
   {
-    // A guard ignores OTHER suits: a Heart Guard doesn't stop a ♠ wrong guess.
+    // A guard ignores OTHER suits: a Heart Guard doesn't stop a ♠ wrong guess
+    // (top suit forced to ♠ so the drawn card's ♥ guard can't symmetric-save it).
     const e = GameEngine.create(specsWith("heartGuard"), 9);
     e.start(); e.startRun();
     const b = e.getBoard();
-    b.top(1).value = 10;
+    b.top(1).value = 10; b.top(1).suit = "♠";
     const d = e.debug.setNextCard(3); d.suit = "♠";
     e.guess(1, "higher");
     r.ok(!b.isActive(1), "Heart Guard ignores a non-♥ (♠) wrong guess (pile dies)");
@@ -211,34 +226,53 @@ export function run() {
     r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
   }
 
-  // --- All Hearts Pillar: +5 when every alive pile IN ITS COLUMN shows ♥ ----
+  // --- All Hearts Pillar: END-OF-RUN +5 when every SURVIVING pile in its
+  //     column shows ♥ (no longer a live per-resolution payout). -------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 3, { cols: [1, 1, 1] });
     e.start(); e.startRun(["allHeartsCoin", null, null]);   // Pillar on column 0
     const b = e.getBoard();
-    // Column 1 (pile 1) shows a non-heart and stays ALIVE — it must NOT block
-    // column 0's bonus (column-scoped, not board-wide).
-    b.top(1).suit = "♠";
-    b.top(0).value = 5;
-    const d = e.debug.setNextCard(9); d.suit = "♥";
-    e.guess(0, "higher");                 // pile 0 (col 0) now shows a ♥
-    r.ok(b.isActive(0) && b.isActive(1), "both piles still alive");
-    r.eq(e.getRun().bonusCoins, 5, "All Hearts pays +5: its column is all-♥ (other columns ignored)");
-
-    const d2 = e.debug.setNextCard(10); d2.suit = "♠";
-    e.guess(0, "higher");                 // col 0's own top is now a ♠
-    r.eq(e.getRun().bonusCoins, 5, "no pay when a pile IN the Pillar's column isn't a ♥");
+    b.top(0).suit = "♥";                  // col 0's only surviving pile shows ♥
+    b.top(1).suit = "♠";                  // another column, ignored (column-scoped)
+    r.eq(e.getRun().bonusCoins, 0, "no LIVE payout — All Hearts is end-of-run now");
+    r.eq(e.pillarPayout().bonus, 5, "All Hearts scores +5 at run end: its column's survivors are all ♥");
+    b.top(0).suit = "♠";                  // col 0 no longer all-♥
+    r.eq(e.pillarPayout().bonus, 0, "no score when a surviving pile in the column isn't a ♥");
   }
   {
-    // The Pillar's column must be ALL hearts: a non-heart alive top in-column blocks it.
+    // Every SURVIVING pile in the column must match: an in-column non-♥ top blocks it.
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 6, { cols: [2, 2, 2] });
     e.start(); e.startRun(["allHeartsCoin", null, null]);   // column 0 = piles 0,1
     const b = e.getBoard();
-    b.top(1).suit = "♠";                  // pile 1 is in column 0, not a ♥
-    b.top(0).value = 5;
-    const d = e.debug.setNextCard(9); d.suit = "♥";
-    e.guess(0, "higher");                 // pile 0 ♥, but pile 1 (same column) is ♠
-    r.eq(e.getRun().bonusCoins, 0, "in-column non-♥ top blocks the bonus");
+    b.top(0).suit = "♥"; b.top(1).suit = "♠";   // both in column 0; pile 1 not ♥
+    r.eq(e.pillarPayout().bonus, 0, "in-column non-♥ surviving top blocks the bonus");
+    b.top(1).suit = "♥";                        // now all survivors in col 0 are ♥
+    r.eq(e.pillarPayout().bonus, 5, "all surviving piles in the column ♥ → +5");
+  }
+  {
+    // The same end-of-run, surviving-piles rule for the other suits (Stage 1
+    // can exercise ♠; the rule is identical for ♦/♣).
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 3, { cols: [1, 1, 1] });
+    e.start(); e.startRun(["allSpadesCoin", null, null]);
+    const b = e.getBoard();
+    b.top(0).suit = "♠";
+    r.eq(e.pillarPayout().bonus, 5, "All Spades scores +5 when its column's survivors are all ♠");
+    b.top(0).suit = "♥";
+    r.eq(e.pillarPayout().bonus, 0, "All Spades scores 0 when a survivor isn't a ♠");
+  }
+  // --- Symmetric Suit Guard: a guard on the DRAWN card saves when the pile's
+  //     top is the guarded suit (the second spec case). --------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 3);
+    e.start(); e.startRun();
+    const b = e.getBoard();
+    const top = b.top(0);
+    top.suit = "♠"; top.value = 14; top.suitGuards = {};   // ♠ on top, NO guard of its own
+    const d = e.debug.setNextCard(3); d.suit = "♥"; d.suitGuards = { "♠": true };   // drawn carries a ♠ guard
+    e.guess(0, "higher");                 // wrong (3 ≤ Ace), but ♠ is involved (the top)
+    r.ok(b.isActive(0), "drawn card's ♠ guard saves the pile (top is ♠)");
+    r.ok(!d.suitGuards["♠"], "the DRAWN card's ♠ charge is spent");
+    r.eq(b.top(0).suit, "♠", "the ♠ top stays in place (drawn card not pushed)");
   }
 
   // --- Suit Bounty pays LIVE during play (not at run end) ---------------
