@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
      THEME / TOKENS
@@ -843,16 +844,28 @@
     margin: 0 auto -10px;
     filter: drop-shadow(0 2px 6px rgba(2,1,4,0.55));
   }
-  /* Stacked three-word title treatment (one word per line) — keeps the matte
-     neural look, just sized to fit the longer name cleanly on any phone. */
+  /* Playful Baloo 2 title — "Shoulda said" on one line, "same" below; three
+     equal-size words with slight tilts. Exact casing in the markup (lowercase
+     but a leading capital S). Light theme: dark warm ink + a rose "same". */
   .menu-title {
     display: flex; flex-direction: column; align-items: center;
-    font-family: var(--font-display); font-weight: 700;
-    font-size: clamp(34px, 12.5vw, 50px); line-height: 0.95;
-    letter-spacing: 4px; color: #B23A64; margin: 4px 0 2px;
-    text-transform: uppercase; text-align: center;
-    text-shadow: 0 2px 8px rgba(2,1,4,0.6);
+    font-family: "Baloo 2", var(--font-display); font-weight: 800;
+    font-size: clamp(30px, 10vw, 44px); line-height: 1.04;
+    letter-spacing: 0; margin: 6px 0 6px; text-align: center;
   }
+  .menu-title .mt-row {
+    display: flex; align-items: baseline; justify-content: center;
+    gap: clamp(7px, 2.4vw, 15px);
+  }
+  .menu-title .mt-w {
+    display: inline-block; white-space: nowrap; transform-origin: 50% 60%;
+    text-shadow: 0 1px 3px rgba(74, 44, 52, 0.22);
+  }
+  .menu-title .mt-a, .menu-title .mt-b { color: #3A2E36; }   /* dark warm ink */
+  .menu-title .mt-c { color: #E0577E; margin-top: 2px; }     /* rose emphasis */
+  .menu-title .mt-a { transform: rotate(-4deg); }
+  .menu-title .mt-b { transform: rotate(2deg); }
+  .menu-title .mt-c { transform: rotate(-2deg); }
   .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
     text-transform: uppercase; margin-bottom: 14px; }
   .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(82vw, 300px); }
@@ -2583,7 +2596,10 @@
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" />
-    <h1 class="menu-title"><span>Shoulda</span><span>Said</span><span>Same</span></h1>
+    <h1 class="menu-title">
+      <span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>
+      <span class="mt-w mt-c">same</span>
+    </h1>
     <div class="menu-tagline">a higher-or-lower survival game</div>
     <div class="menu-buttons" id="menuButtons"></div>
     <div class="menu-foot" id="menuFoot"></div>
@@ -2643,7 +2659,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.6 · contrast-sweep";
+const APP_VERSION = "v1.0-light.7 · menu-title";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
