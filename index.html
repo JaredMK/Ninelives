@@ -2229,6 +2229,94 @@
   @media (prefers-reduced-motion: reduce) {
     #tissue .blob { animation: none !important; }
   }
+
+  /* ============================================================
+     PROGRESSION MAP  (store → map → run)
+     A Slay-the-Spire-style climb: the current run sits at the top, cleared runs
+     descend below as "fossils" of their final surviving network. Display-only.
+     ============================================================ */
+  .overlay.map {
+    justify-content: flex-start; align-items: center;
+    overflow: hidden; gap: 0;
+    padding: max(14px, env(safe-area-inset-top)) 0 0;
+  }
+  .map-head { width: min(96vw, 420px); padding: 6px 16px 12px; text-align: center; flex: 0 0 auto; }
+  .map-title {
+    font-family: var(--font-display, "Baloo 2"); font-weight: 800;
+    font-size: 26px; letter-spacing: 0.5px; margin: 0; color: var(--text);
+    text-shadow: none;
+  }
+  .map-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .map-sub .ms-suit { font-weight: 800; }
+
+  /* Scroll region (the climb scrolls; the header + Enter button stay put). */
+  .map-scroll {
+    flex: 1 1 auto; width: 100%; overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+            mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  }
+  .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 14px 8px 22px; }
+  /* The dashed climbing path runs up the centre, BEHIND the nodes. */
+  .map-track::before {
+    content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
+    transform: translateX(-50%); z-index: 0;
+    background: repeating-linear-gradient(var(--edge-2) 0 6px, transparent 6px 12px);
+  }
+
+  /* Stage divider + suit callout. */
+  .map-stage { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 16px 0 12px; }
+  .map-stage .ms-line { height: 1px; background: var(--edge-2); flex: 1; }
+  .map-stage .ms-tag {
+    font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 12px;
+    color: var(--accent-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: 0.4px;
+  }
+  .map-stage .ms-suits { font-size: 13px; letter-spacing: 1px; }
+  .map-stage .ms-suits .red { color: var(--card-red); }
+  .map-newsuit {
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 999px;
+    padding: 2px 9px; font-size: 9.5px; font-weight: 800; color: var(--accent);
+    display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 1px 3px rgba(120,90,70,.12);
+    text-transform: none; letter-spacing: 0.2px;
+  }
+  .map-newsuit .red { color: var(--card-red); font-size: 12px; }
+
+  /* A run row: node + meta, alternating sides along the path. */
+  .map-run { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; width: fit-content; margin: 0 auto 14px; }
+  .map-run.right { flex-direction: row-reverse; }
+  .map-node {
+    width: 76px; height: 76px; border-radius: 16px; flex: 0 0 auto; position: relative;
+    background: var(--card-face); border: 1px solid var(--edge-2);
+    box-shadow: 0 3px 8px rgba(120,90,70,.16);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .map-node.done { border-color: rgba(63,157,106,0.55); }
+  .map-node.current {
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16);
+  }
+  .map-node.locked { opacity: 0.5; }
+  .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
+  .map-node .mn-lock { color: var(--muted); font-size: 19px; }
+  .map-node .fossil { width: 100%; height: 100%; }
+  .map-badge {
+    position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
+    font-size: 11px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 3px rgba(74,50,40,.3);
+  }
+  .map-badge.ok { background: var(--good); }
+  .map-badge.cur { background: var(--accent); }
+  .map-node .mn-here {
+    position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%);
+    font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; color: var(--accent); white-space: nowrap;
+  }
+  .map-meta { font-size: 11.5px; max-width: 150px; }
+  .map-meta .mm-name { font-weight: 800; color: var(--text); }
+  .map-meta .mm-desc { color: var(--muted); font-size: 10px; margin-top: 1px; }
+
+  .map-foot { flex: 0 0 auto; width: min(94vw, 420px); padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .play-btn.map-enter { width: 100%; padding: 15px; font-size: 17px; border-radius: 22px; letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
@@ -2655,6 +2743,22 @@
     </div>
   </div>
 
+  <!-- Progression map: shown between the store and each run (store → map → run).
+       The current run sits at the top; cleared runs descend below as "fossils" of
+       their final surviving network. Body built in JS from campaign fossils. -->
+  <div class="overlay map hidden" id="mapOverlay">
+    <div class="map-head">
+      <h2 class="map-title">Your climb</h2>
+      <div class="map-sub" id="mapSub"></div>
+    </div>
+    <div class="map-scroll" id="mapScroll">
+      <div class="map-track" id="mapTrack"></div>
+    </div>
+    <div class="map-foot">
+      <button class="play-btn map-enter" id="mapEnterBtn" type="button">Enter Run ▸</button>
+    </div>
+  </div>
+
   <!-- Deck inspection: full breakdown modal (tap) -->
   <div class="deck-modal hidden" id="deckModal">
     <div class="deck-modal-panel">
@@ -2761,7 +2865,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.3 · bury-anim-streak-peek";
+const APP_VERSION = "v1.4 · progression-map";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4322,6 +4426,12 @@ const CampaignState = (() => {
     // loss. nextCardId mints unique ids for pack cards (base deck is ids 0..51).
     let packTray = [];
     let nextCardId = 52;
+    // Progression-map "fossils": one record per CLEARED run, capturing the final
+    // surviving network so the map can redraw the shape of how that run ended.
+    // DISPLAY-ONLY — never read by any rule; recorded as a passive snapshot of the
+    // end-of-run board. Each: { stage, run, alive, total, nodes:[{x,y}], edges:[[i,j]] }.
+    // Persisted with the campaign and wiped on reset() like everything else.
+    let runFossils = [];
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -4349,6 +4459,40 @@ const CampaignState = (() => {
       /** Tally cards flipped (correct guesses) for ANY run end — win or loss —
           so the end screen counts the final losing run too. */
       addCardsFlipped(n) { totalCardsFlipped += (n || 0); },
+
+      /* ---- progression-map fossils (display-only) ----
+         Record the final surviving network for a cleared run so the map can
+         redraw it. `data` is the precomputed { alive, total, nodes, edges }
+         snapshot (see UIRenderer.computeRunFossil — a passive read of the
+         end-of-run board). Replaces any existing record for the same stage+run
+         so a re-record can't duplicate. Never affects gameplay. */
+      recordRunFossil(stage, run, data) {
+        if (!data) return;
+        const rec = {
+          stage, run,
+          alive: data.alive || 0,
+          total: data.total || 0,
+          nodes: (data.nodes || []).map(n => ({ x: n.x, y: n.y })),
+          edges: (data.edges || []).map(e => [e[0], e[1]]),
+        };
+        const at = runFossils.findIndex(f => f.stage === stage && f.run === run);
+        if (at >= 0) runFossils[at] = rec; else runFossils.push(rec);
+      },
+      /** All recorded run fossils (display copy). */
+      getRunFossils() {
+        return runFossils.map(f => ({
+          stage: f.stage, run: f.run, alive: f.alive, total: f.total,
+          nodes: f.nodes.map(n => ({ x: n.x, y: n.y })),
+          edges: f.edges.map(e => [e[0], e[1]]),
+        }));
+      },
+      /** The fossil for one (stage, run), or null. */
+      getRunFossil(stage, run) {
+        const f = runFossils.find(x => x.stage === stage && x.run === run);
+        if (!f) return null;
+        return { stage: f.stage, run: f.run, alive: f.alive, total: f.total,
+          nodes: f.nodes.map(n => ({ x: n.x, y: n.y })), edges: f.edges.map(e => [e[0], e[1]]) };
+      },
 
       /** True once Stage 3 Run 3 (the whole campaign) has been completed. */
       isComplete() { return runsCompleted >= TOTAL_RUNS; },
@@ -4828,6 +4972,7 @@ const CampaignState = (() => {
         storeOffer = null;
         packTray = [];
         nextCardId = 52;
+        runFossils = [];
       },
 
       /* ---- persistence (save/resume) ----
@@ -4849,6 +4994,12 @@ const CampaignState = (() => {
           baseDeck: this._copyCards(),
           packTray: packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) })),
           nextCardId,
+          // Display-only progression-map fossils (deep-copied; safe to omit on
+          // older saves — restore() defaults to []).
+          runFossils: runFossils.map(f => ({
+            stage: f.stage, run: f.run, alive: f.alive, total: f.total,
+            nodes: f.nodes.map(n => ({ x: n.x, y: n.y })), edges: f.edges.map(e => [e[0], e[1]]),
+          })),
         };
       },
 
@@ -4885,6 +5036,16 @@ const CampaignState = (() => {
         const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
         nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
           ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
+        // Progression-map fossils (default [] for saves written before the map).
+        runFossils = Array.isArray(s.runFossils)
+          ? s.runFossils
+              .filter(f => f && typeof f.stage === "number" && typeof f.run === "number")
+              .map(f => ({
+                stage: f.stage, run: f.run, alive: f.alive || 0, total: f.total || 0,
+                nodes: Array.isArray(f.nodes) ? f.nodes.map(n => ({ x: n.x, y: n.y })) : [],
+                edges: Array.isArray(f.edges) ? f.edges.map(e => [e[0], e[1]]) : [],
+              }))
+          : [];
         return true;
       },
     };
@@ -5400,6 +5561,11 @@ const UIRenderer = (() => {
     redealOkBtn: document.getElementById("redealOkBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
+    mapOverlay: document.getElementById("mapOverlay"),
+    mapSub: document.getElementById("mapSub"),
+    mapScroll: document.getElementById("mapScroll"),
+    mapTrack: document.getElementById("mapTrack"),
+    mapEnterBtn: document.getElementById("mapEnterBtn"),
     storeInvBtn: document.getElementById("storeInvBtn"),
     storeCardsBtn: document.getElementById("storeCardsBtn"),
     itemHelp: document.getElementById("itemHelp"),
@@ -6715,7 +6881,8 @@ const UIRenderer = (() => {
     // Store view buttons: owned inventory + the deck overview (both modal).
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     if (el.storeCardsBtn) el.storeCardsBtn.addEventListener("click", () => DeckInspector.openFull());
-    el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceAndStart(); });
+    el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceToNextRun(); });
+    el.mapEnterBtn.addEventListener("click", () => { Sound.tap(); enterRunFromMap(); });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -7192,7 +7359,9 @@ const UIRenderer = (() => {
     clearSave();          // a fresh campaign supersedes any saved one
     Stats.startGame();    // lifetime: count this as a game played (isolated store)
     campaign.reset();
-    startRun();
+    // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
+    // dealing — same store → map → run rhythm as every later run.
+    showProgressionMap(startRun);
   }
 
   /**
@@ -7808,6 +7977,59 @@ const UIRenderer = (() => {
     setTimeout(done, RUN_SUMMARY_DELAY_MS);  // then resolve into the payout
   }
 
+  /* Does survivor `c` block the straight sightline between survivors `a` and `b`?
+     The SAME centre-distance rule the live network uses (renderNetwork/cardBlocks),
+     just in logical GRID space (unit column/row pitch) instead of pixels — so the
+     recorded fossil matches what the board showed. Display-only. */
+  function fossilBlocks(a, b, c, rad) {
+    const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+    if (!len2) return false;
+    const t = ((c.x - a.x) * dx + (c.y - a.y) * dy) / len2;
+    if (t <= 0.06 || t >= 0.94) return false;     // not between the endpoints
+    const px = a.x + t * dx, py = a.y + t * dy;
+    return Math.hypot(c.x - px, c.y - py) < rad;
+  }
+
+  /* Compute the progression-map fossil for a finished run: the surviving piles
+     (logical grid positions, columns centred vertically exactly like the board)
+     and the line-of-sight links between them. PURE + PASSIVE — reads only
+     board.isActive() + the run's column layout; never mutates anything, so it
+     can't affect gameplay. Returns { alive, total, nodes:[{x,y}], edges:[[i,j]] }
+     or null when the run carried no layout (legacy). */
+  function computeRunFossil(board, run) {
+    const cols = run && run.cols;
+    const pileColumns = run && run.pileColumns;
+    if (!board || !Array.isArray(cols) || !Array.isArray(pileColumns)) return null;
+    const maxRows = Math.max(...cols);
+    // Row index within each column (the board fills DOWN each column in turn, so
+    // a column's piles are contiguous indices). Columns are centred against the
+    // tallest, matching the board's align-items:center.
+    const colSeen = {};
+    const nodes = [];
+    for (let i = 0; i < pileColumns.length; i++) {
+      const c = pileColumns[i];
+      const row = colSeen[c] || 0;
+      colSeen[c] = row + 1;
+      if (!board.isActive(i)) continue;            // survivors only
+      nodes.push({ x: c, y: (maxRows - cols[c]) / 2 + row });
+    }
+    // Line-of-sight links among survivors. Unit grid → a radius of ~0.5 reproduces
+    // the board's behaviour (collinear middles block; clear diagonals pass).
+    const RAD = 0.5;
+    const edges = [];
+    for (let a = 0; a < nodes.length; a++) {
+      for (let b = a + 1; b < nodes.length; b++) {
+        let blocked = false;
+        for (let k = 0; k < nodes.length && !blocked; k++) {
+          if (k === a || k === b) continue;
+          if (fossilBlocks(nodes[a], nodes[b], nodes[k], RAD)) blocked = true;
+        }
+        if (!blocked) edges.push([a, b]);
+      }
+    }
+    return { alive: nodes.length, total: pileColumns.length, nodes, edges };
+  }
+
   function onRunEnd(result, payload) {
     DeckInspector.close();   // no inspection overlays bleeding into end screens
 
@@ -7837,6 +8059,12 @@ const UIRenderer = (() => {
     // finish the campaign (Stage 3 Run 3) or head to the store. The itemized
     // breakdown comes straight from Economy — the view only formats it.
     campaign.recordRun(payload.run);
+    // Progression-map fossil: snapshot the FINAL surviving network for this run
+    // (a passive read of the end-of-run board — survivors + their line-of-sight
+    // links) so the map can redraw the shape of how it ended. Display-only;
+    // recorded for the run we just cleared (advance() hasn't happened yet).
+    const fossil = computeRunFossil(board, payload.run);
+    if (fossil) campaign.recordRunFossil(campaign.currentStage, campaign.currentRunIndex, fossil);
     // Compound: persist this run's banked correct-guess counts onto the card
     // identities so N carries into future runs (a loss wipes it via reset()).
     const cu = (payload.run && payload.run.compoundUpdates) || {};
@@ -7900,9 +8128,149 @@ const UIRenderer = (() => {
     showStore();
   }
 
-  function advanceAndStart() {
+  /* Leave the store for the next run: advance the campaign, then show the
+     progression map. The run itself is dealt only when the player taps Enter Run
+     on the map (store → map → run). Advancing here (before the map) is in-memory
+     only — the save still points at the store until startRun() checkpoints the
+     deal, so a refresh while on the map safely returns to the store. */
+  function advanceToNextRun() {
     campaign.advance();
-    startRun();
+    showProgressionMap(startRun);
+  }
+
+  /* ---- progression map (store → map → run) ----
+     A Slay-the-Spire-style climb: the run about to be played sits at the TOP;
+     every cleared run descends below it as a "fossil" of its final surviving
+     network. DISPLAY-ONLY — reads campaign stage/run + recorded fossils, never
+     touches gameplay. `onEnter` deals the run when Enter Run is tapped. */
+  const SUIT_NAME = { "♠": "spades", "♥": "hearts", "♦": "diamonds", "♣": "clubs" };
+  const SUIT_RED = { "♥": true, "♦": true, "♠": false, "♣": false };
+  let mapOnEnter = null;
+
+  function mapSuitSpan(sym) {
+    return '<span class="' + (SUIT_RED[sym] ? "red" : "") + '">' + sym + "</span>";
+  }
+  // First (stage+1) suits in canonical order — mirrors CampaignState.suitsForStage.
+  function suitsForStageDisplay(stage) {
+    return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
+  }
+
+  /* Small SVG of a recorded run's surviving network. Nodes/edges live in logical
+     grid space; fit them into a padded square, preserving aspect. */
+  function fossilSvg(fossil, size = 76) {
+    if (!fossil || !fossil.nodes || !fossil.nodes.length) return "";
+    const pad = 13, span = size - pad * 2;
+    const xs = fossil.nodes.map(n => n.x), ys = fossil.nodes.map(n => n.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const w = maxX - minX, h = maxY - minY;
+    const sc = Math.min(w > 0 ? span / w : span, h > 0 ? span / h : span, span);
+    const ox = pad + (span - w * sc) / 2, oy = pad + (span - h * sc) / 2;
+    const px = n => ox + (n.x - minX) * sc;
+    const py = n => oy + (n.y - minY) * sc;
+    const col = "var(--net)";
+    let s = '<svg class="fossil" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">';
+    (fossil.edges || []).forEach(([a, b]) => {
+      const A = fossil.nodes[a], B = fossil.nodes[b];
+      if (!A || !B) return;
+      s += '<line x1="' + px(A).toFixed(1) + '" y1="' + py(A).toFixed(1) +
+           '" x2="' + px(B).toFixed(1) + '" y2="' + py(B).toFixed(1) +
+           '" stroke="' + col + '" stroke-width="2" opacity="0.5"/>';
+    });
+    fossil.nodes.forEach(n => {
+      s += '<circle cx="' + px(n).toFixed(1) + '" cy="' + py(n).toFixed(1) + '" r="4.2" fill="' + col + '"/>';
+    });
+    return s + "</svg>";
+  }
+
+  /* Stage divider: the suits in play + (stage 2+) the new-suit "shuffled in"
+     callout, derived from the real suit schedule. */
+  function mapStageHeaderHtml(stage) {
+    const suits = suitsForStageDisplay(stage);
+    const suitStr = suits.map(mapSuitSpan).join(" ");
+    let callout = "";
+    if (stage > 1) {
+      const prev = suitsForStageDisplay(stage - 1);
+      const added = suits.filter(x => prev.indexOf(x) === -1);
+      if (added.length) {
+        const sym = added[0];
+        callout = '<span class="map-newsuit">+ ' + SUIT_NAME[sym] + " " + mapSuitSpan(sym) + " shuffled in</span>";
+      }
+    }
+    return '<div class="map-stage">' +
+        '<span class="ms-line"></span>' +
+        '<span class="ms-tag">STAGE ' + stage + ' <span class="ms-suits">' + suitStr + "</span>" + callout + "</span>" +
+        '<span class="ms-line"></span>' +
+      "</div>";
+  }
+
+  /* One run row on the climb: the current run (top) shows a "?" placeholder;
+     cleared runs show their fossil; the side alternates down the path. */
+  function mapRunNodeHtml(stage, run, isCurrent, side) {
+    let nodeClass, inner, badge, meta;
+    if (isCurrent) {
+      nodeClass = "current";
+      inner = '<span class="mn-q">?</span><span class="mn-here">YOU ARE HERE</span>';
+      badge = '<div class="map-badge cur">▸</div>';
+      const layout = campaign.layoutForRun(run);
+      meta = '<div class="mm-name">Run ' + run + ' · next</div>' +
+             '<div class="mm-desc">' + layout.piles + ' piles · survive the deck</div>';
+    } else {
+      const fossil = campaign.getRunFossil(stage, run);
+      nodeClass = "done";
+      badge = '<div class="map-badge ok">✓</div>';
+      if (fossil && fossil.nodes.length) {
+        inner = fossilSvg(fossil);
+        meta = '<div class="mm-name">Run ' + run + ' ✓</div>' +
+               '<div class="mm-desc">' + fossil.alive + ' pile' + (fossil.alive === 1 ? "" : "s") + ' survived</div>';
+      } else {
+        inner = '<span class="mn-q" style="color:var(--good)">✓</span>';   // cleared, no recorded shape (legacy)
+        meta = '<div class="mm-name">Run ' + run + ' ✓</div><div class="mm-desc">cleared</div>';
+      }
+    }
+    return '<div class="map-run ' + side + '">' +
+        '<div class="map-node ' + nodeClass + '">' + inner + badge + "</div>" +
+        '<div class="map-meta">' + meta + "</div>" +
+      "</div>";
+  }
+
+  function renderProgressionMap() {
+    const stage = campaign.currentStage, run = campaign.currentRunIndex;
+    const maxStage = campaign.maxStages, maxRun = campaign.maxRunsPerStage;
+    el.mapSub.innerHTML = "Stage " + stage + " of " + maxStage +
+      " · each cleared run leaves its final network behind";
+    let html = "";
+    let side = 0;   // alternate L/R as nodes are emitted top → bottom
+    // Walk stages from the current one DOWN to Stage 1. The current run is the
+    // top of the climb; future runs aren't shown.
+    for (let s = stage; s >= 1; s--) {
+      html += mapStageHeaderHtml(s);
+      const topRun = (s === stage) ? run : maxRun;   // current stage stops at the live run
+      for (let rr = topRun; rr >= 1; rr--) {
+        const isCurrent = (s === stage && rr === run);
+        html += mapRunNodeHtml(s, rr, isCurrent, (side++ % 2 === 0) ? "" : "right");
+      }
+    }
+    el.mapTrack.innerHTML = html;
+  }
+
+  function showProgressionMap(onEnter) {
+    mapOnEnter = (typeof onEnter === "function") ? onEnter : null;
+    hideOverlay();
+    closeStore();
+    DeckInspector.close();
+    if (el.menuBtn) el.menuBtn.classList.add("hidden");
+    if (el.stageRun) el.stageRun.classList.remove("off");
+    updateStageRun();
+    renderProgressionMap();
+    el.mapOverlay.classList.remove("hidden");
+    el.mapScroll.scrollTop = 0;   // start at the top (the current run)
+  }
+  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); }
+  function enterRunFromMap() {
+    const fn = mapOnEnter; mapOnEnter = null;
+    hideProgressionMap();
+    if (fn) fn();
   }
 
   /* ---- Store (between runs) ----

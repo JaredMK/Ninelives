@@ -77,5 +77,57 @@ export function run() {
     r.eq(c2.columnPillar(1), null, "the trashed column stays empty after save/restore");
   }
 
+  // --- Progression-map fossils: record, look up, round-trip, reset -------
+  {
+    const c = CampaignState.create();
+    r.eq(c.getRunFossils().length, 0, "no fossils on a fresh campaign");
+    r.eq(c.getRunFossil(1, 1), null, "missing fossil → null");
+
+    const fossil = {
+      alive: 3, total: 9,
+      nodes: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }],
+      edges: [[0, 1], [1, 2]],
+    };
+    c.recordRunFossil(1, 1, fossil);
+    const got = c.getRunFossil(1, 1);
+    r.ok(!!got, "fossil recorded + retrievable");
+    r.eq(got.alive, 3, "fossil alive count stored");
+    r.eq(got.total, 9, "fossil total piles stored");
+    r.eq(got.nodes.length, 3, "fossil nodes stored");
+    r.eq(got.edges.length, 2, "fossil edges stored");
+
+    // Recording the SAME stage+run replaces (no duplicate).
+    c.recordRunFossil(1, 1, { alive: 5, total: 9, nodes: [{ x: 0, y: 0 }], edges: [] });
+    r.eq(c.getRunFossils().length, 1, "re-recording a run replaces, not duplicates");
+    r.eq(c.getRunFossil(1, 1).alive, 5, "the replacement is kept");
+
+    // A second run records alongside.
+    c.recordRunFossil(1, 2, { alive: 7, total: 10, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }], edges: [[0, 1]] });
+    r.eq(c.getRunFossils().length, 2, "a second run adds its own fossil");
+
+    // Returned copies are independent (mutating them can't corrupt the store).
+    const copy = c.getRunFossil(1, 1);
+    copy.nodes.push({ x: 9, y: 9 });
+    r.eq(c.getRunFossil(1, 1).nodes.length, 1, "getRunFossil returns an independent copy");
+
+    // Round-trips through the JSON wire.
+    const restored = CampaignState.create();
+    r.ok(restored.restore(JSON.parse(JSON.stringify(c.serialize()))), "restore accepts the snapshot");
+    r.eq(restored.getRunFossils().length, 2, "both fossils survive save/restore");
+    r.eq(restored.getRunFossil(1, 2).alive, 7, "restored fossil keeps its alive count");
+    r.eq(restored.getRunFossil(1, 2).edges.length, 1, "restored fossil keeps its edges");
+
+    // Backward-compat: a save with no runFossils field restores to [].
+    const legacy = JSON.parse(JSON.stringify(c.serialize()));
+    delete legacy.runFossils;
+    const old = CampaignState.create();
+    r.ok(old.restore(legacy), "restore accepts a pre-map save (no runFossils)");
+    r.eq(old.getRunFossils().length, 0, "missing runFossils defaults to []");
+
+    // reset() wipes them.
+    c.reset();
+    r.eq(c.getRunFossils().length, 0, "reset() clears all fossils");
+  }
+
   return r.summary();
 }
