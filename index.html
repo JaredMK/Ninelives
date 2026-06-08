@@ -130,7 +130,7 @@
   }
   .inv-popup.hidden { display: none; }
   .inv-card {
-    width: min(86vw, 320px);
+    width: min(92vw, 380px);
     background: rgba(251, 246, 241, 0.98);
     border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 14px; box-shadow: var(--shadow);
@@ -144,6 +144,13 @@
     font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
   }
   .inv-card-body { display: flex; flex-direction: column; gap: 11px; }
+  /* The store inventory hosts the SAME tabbed component as start-of-run setup
+     (.setup-inv), here in a read-only "browse" mode — see .setup-inv.browse. */
+  .setup-inv.browse { gap: 8px; height: auto; width: 100%; }
+  .setup-inv.browse .setup-tabs { flex: none; }
+  .setup-inv.browse .setup-strip { flex: none; min-height: 72px; max-height: 32vh; }
+  .setup-inv.browse .tray-help { flex: none; max-height: 30vh; margin-top: 2px; }
+  .setup-inv.browse .tray-help .th-desc { margin-top: 5px; }
   /* Sectioned inventory: Stickers · Pillars · Cards, each a labelled group. */
   .inv-sec { display: flex; flex-direction: column; gap: 6px; }
   .inv-sec-h { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
@@ -1749,6 +1756,15 @@
   .tray-pillar .tp-name { font-size: 12px; font-weight: 800; color: var(--accent-2); }
   .tray-pillar .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
   .tray-pillar.armed { border-color: var(--pathway); transform: scale(1.05); }
+  /* Active (placed-on-board) Pillar chip — read-only, in the Pathway/violet
+     identity with the column it occupies, so held vs. active read distinctly. */
+  .tray-pillar.placed { background: rgba(110,81,166,0.14); border-color: var(--pathway); }
+  .tray-pillar.placed .tp-name { color: var(--pathway-2); }
+  .tray-pillar .tp-col {
+    font-size: 9px; font-weight: 800; color: var(--pathway-2);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    background: rgba(110,81,166,0.16); border-radius: 999px; padding: 1px 6px;
+  }
   /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
   /* Placing a Pillar: the PILLAR SLOTS (top of each column) are the drop targets,
      not the cards. Highlight the slots and light up the empty placeholders so it
@@ -2848,15 +2864,39 @@
   <!-- Store item help: revealed while holding an item's "?" (press & hold) -->
   <div class="item-help hidden" id="itemHelp"></div>
 
-  <!-- In-play sticker inventory: opened by TAPPING the coin indicator; dismiss
-       by tapping the backdrop or the ×. -->
+  <!-- Inventory browser: opened by TAPPING the coin indicator (in play) or the
+       store's Inventory button. Hosts the SAME tabbed Cards/Stickers/Pillars
+       component as start-of-run setup (.setup-inv), here in READ-ONLY "browse"
+       mode — tap an item to read its description; no placement. Dismiss by
+       tapping the backdrop or the ×. -->
   <div class="inv-popup hidden" id="invPopup">
     <div class="inv-card">
       <div class="inv-card-head">
         <span><span class="ico-slot" data-ico="stash"></span> Inventory</span>
         <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
       </div>
-      <div class="inv-card-body" id="invBody"></div>
+      <div class="inv-card-body" id="invBody">
+        <div class="setup-inv browse" id="browseInv">
+          <div class="setup-tabs" id="browseTabs">
+            <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="bTabNCards">0</span></button>
+            <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="bTabNStickers">0</span></button>
+            <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="bTabNPillars">0</span></button>
+          </div>
+          <div class="setup-strip" id="browseStrip">
+            <div class="pack-tray tab-panel hidden" id="browseCards" data-tab="cards"></div>
+            <div class="sticker-tray tab-panel hidden" id="browseStickers" data-tab="stickers"></div>
+            <div class="pillar-tray tab-panel hidden" id="browsePillars" data-tab="pillars"></div>
+            <div class="setup-empty hidden" id="browseEmpty">You don't own any items yet.</div>
+          </div>
+          <div class="tray-help hidden" id="browseHelp">
+            <div class="th-row">
+              <span class="th-title" id="bThTitle"></span>
+              <button class="th-close" id="bThClose" type="button" aria-label="Close">✕</button>
+            </div>
+            <span class="th-desc" id="bThDesc"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2926,7 +2966,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.6 · popup-dismiss-polish";
+const APP_VERSION = "v1.7 · shared-inventory-browser";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5637,6 +5677,21 @@ const UIRenderer = (() => {
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
+    // Store/in-play inventory browser (read-only tabbed view; same component as setup)
+    browseInv: document.getElementById("browseInv"),
+    browseTabs: document.getElementById("browseTabs"),
+    browseStrip: document.getElementById("browseStrip"),
+    browseCards: document.getElementById("browseCards"),
+    browseStickers: document.getElementById("browseStickers"),
+    browsePillars: document.getElementById("browsePillars"),
+    browseEmpty: document.getElementById("browseEmpty"),
+    browseHelp: document.getElementById("browseHelp"),
+    bTabNCards: document.getElementById("bTabNCards"),
+    bTabNStickers: document.getElementById("bTabNStickers"),
+    bTabNPillars: document.getElementById("bTabNPillars"),
+    bThTitle: document.getElementById("bThTitle"),
+    bThDesc: document.getElementById("bThDesc"),
+    bThClose: document.getElementById("bThClose"),
     // debug
     title: document.querySelector("header h1"),
     debugOverlay: document.getElementById("debugOverlay"),
@@ -6268,6 +6323,31 @@ const UIRenderer = (() => {
     renderSetupInv();
   }
 
+  /* ---- shared inventory chip builders ----
+     ONE source for the item markup used by BOTH the start-of-run setup inventory
+     and the store/in-play read-only browser, so the two stay identical. `sel`
+     toggles the highlight (armed for placement in setup; selected-to-read in the
+     browser). Pure HTML — the host decides interactivity. */
+  function invStickerChipHtml(t, count, sel) {
+    return '<button type="button" class="tray-sticker' + (sel ? " armed" : "") + '" data-type="' + t.id + '">' +
+      '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + count + "</span></button>";
+  }
+  function invPillarChipHtml(t, count, sel) {
+    return '<button type="button" class="tray-pillar' + (sel ? " armed" : "") + '" data-pillar="' + t.id + '">' +
+      '<span class="ts-icon">' + t.icon + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+      '<span class="ts-count">×' + count + "</span></button>";
+  }
+  /* An ACTIVE (placed-on-board) Pillar, tagged with its column — read-only. */
+  function invPlacedPillarChipHtml(t, col, sel) {
+    return '<button type="button" class="tray-pillar placed' + (sel ? " armed" : "") + '" data-placed-col="' + col + '">' +
+      '<span class="ts-icon">' + t.icon + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+      '<span class="tp-col">Col ' + (col + 1) + "</span></button>";
+  }
+  function invPackChipHtml(card, i, sel, withSwap) {
+    return '<button type="button" class="pt-card' + (sel ? " armed" : "") + '" data-tray="' + i + '">' +
+      miniCardHtml(card) + (withSwap ? '<div class="pt-label">swap</div>' : "") + "</button>";
+  }
+
   /* ---- in-run sticker application ----
      Buy stickers in the store; here you spend them on the face-up top card
      of a pile. Tap a sticker to "arm" it, then tap a pile. */
@@ -6278,16 +6358,8 @@ const UIRenderer = (() => {
     const open = engine && engine.canApplyStickers();
     const inv = campaign ? campaign.getInventory() : {};
     const owned = open ? StickerTypes.all().filter(t => (inv[t.id] || 0) > 0) : [];
-    el.stickerTray.innerHTML = "";
     if (!open && armedSticker) { armedSticker = null; updateArmingClass(); }
-    owned.forEach(t => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "tray-sticker" + (armedSticker === t.id ? " armed" : "");
-      b.dataset.type = t.id;
-      b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
-      el.stickerTray.appendChild(b);
-    });
+    el.stickerTray.innerHTML = owned.map(t => invStickerChipHtml(t, inv[t.id], armedSticker === t.id)).join("");
   }
 
   function armSticker(typeId) {
@@ -6322,18 +6394,8 @@ const UIRenderer = (() => {
     const open = engine && engine.canApplyStickers();
     const inv = campaign ? campaign.getPillarInventory() : {};
     const owned = open ? PillarTypes.all().filter(t => (inv[t.id] || 0) > 0) : [];
-    el.pillarTray.innerHTML = "";
     if (!open && armedPillar) { armedPillar = null; updateArmingClass(); }
-    owned.forEach(t => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "tray-pillar" + (armedPillar === t.id ? " armed" : "");
-      b.dataset.pillar = t.id;
-      b.innerHTML = '<span class="ts-icon">' + t.icon + '</span>' +
-        '<span class="tp-name">' + escHtml(t.label) + '</span>' +
-        '<span class="ts-count">×' + inv[t.id] + "</span>";
-      el.pillarTray.appendChild(b);
-    });
+    el.pillarTray.innerHTML = owned.map(t => invPillarChipHtml(t, inv[t.id], armedPillar === t.id)).join("");
   }
 
   /* The tab controller for the setup inventory: populates all three panels
@@ -6875,6 +6937,27 @@ const UIRenderer = (() => {
     el.invPopup.addEventListener("click", (e) => {
       if (e.target === el.invPopup) closeInvPopup();   // backdrop tap only
     });
+    // Inventory browser (read-only): switch tabs; tap an item to read its
+    // description. No arming/placement here — viewing only.
+    if (el.browseTabs) el.browseTabs.addEventListener("click", (e) => {
+      const b = e.target.closest(".setup-tab");
+      if (b && !b.classList.contains("empty")) selectBrowseTab(b.dataset.tab);
+    });
+    if (el.browseStickers) el.browseStickers.addEventListener("click", (e) => {
+      const b = e.target.closest(".tray-sticker");
+      if (b) browsePickItem({ kind: "sticker", id: b.dataset.type });
+    });
+    if (el.browsePillars) el.browsePillars.addEventListener("click", (e) => {
+      const placed = e.target.closest(".tray-pillar.placed");
+      if (placed) { browsePickItem({ kind: "placed", col: Number(placed.dataset.placedCol) }); return; }
+      const held = e.target.closest(".tray-pillar");
+      if (held) browsePickItem({ kind: "pillar", id: held.dataset.pillar });
+    });
+    if (el.browseCards) el.browseCards.addEventListener("click", (e) => {
+      const b = e.target.closest(".pt-card");
+      if (b) browsePickItem({ kind: "card", index: Number(b.dataset.tray) });
+    });
+    if (el.bThClose) el.bThClose.addEventListener("click", () => { browsePick = null; renderBrowse(); });
 
     // Any arm action dismisses an open pre-run card peek (shared popup element).
     const dismissPilePeek = () => { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } };
@@ -8406,15 +8489,6 @@ const UIRenderer = (() => {
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
      read from the SAME campaign inventory the store buys into. Shared by the
      store header and the in-play inventory popup. */
-  function inventoryHtml(emptyLabel) {
-    const inv = campaign ? campaign.getInventory() : {};
-    const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
-    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "No stickers yet") + "</span>";
-    return owned.map(t =>
-      '<span class="inv-chip">' + t.icon + ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
-    ).join("");
-  }
-
   /* One compact offered tile (sticker or Pillar). `kind` is "sticker"|"pillar";
      a null id renders the empty/sold placeholder so the grid never jumps. */
   function offerTile(id, slot, kind, selected) {
@@ -8716,16 +8790,8 @@ const UIRenderer = (() => {
   function renderPackTray() {
     const open = engine && engine.canApplyStickers();
     const tray = open && campaign ? campaign.getPackTray() : [];
-    el.packTrayEl.innerHTML = "";
     if (!open && armedPack != null) { armedPack = null; updateArmingClass(); }
-    tray.forEach((c, i) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "pt-card" + (armedPack === i ? " armed" : "");
-      b.dataset.tray = i;
-      b.innerHTML = miniCardHtml(c) + '<div class="pt-label">swap</div>';
-      el.packTrayEl.appendChild(b);
-    });
+    el.packTrayEl.innerHTML = tray.map((c, i) => invPackChipHtml(c, i, armedPack === i, true)).join("");
   }
 
   function armPack(index) {
@@ -8965,55 +9031,116 @@ const UIRenderer = (() => {
     openHelpKey = key;
   }
 
-  /* In-play sticker inventory popup — opened by TAPPING the coin indicator,
-     dismissed by tapping the backdrop or the ×. Reads the same campaign
-     inventory the store uses (via inventoryHtml). */
-  /* Owned (unplaced) Pillars as labelled chips — mirrors inventoryHtml. */
-  function pillarInventoryHtml(emptyLabel) {
-    const inv = campaign ? campaign.getPillarInventory() : {};
-    const owned = PillarTypes.all().filter(t => (inv[t.id] || 0) > 0);
-    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "None") + "</span>";
-    return owned.map(t =>
-      '<span class="inv-chip">' + t.icon + " " + escHtml(t.label) +
-        ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
-    ).join("");
+  /* ---- inventory browser (store + in-play coin badge) ----
+     The SAME tabbed Cards/Stickers/Pillars component as start-of-run setup,
+     hosted in the inv-popup modal as a READ-ONLY view: browse tabs, scroll, and
+     tap an item to read its description. No placement (the run isn't in its
+     setup window here). The Pillars tab lists held (unplaced) pillars AND the
+     ones active on the board, tagged by column. UI only — reads campaign state. */
+  let browseTab = "stickers";          // active tab in the browser
+  let browsePick = null;               // { kind, id|col|index } whose description shows, or null
+
+  function browseIsPick(kind, key) {
+    if (!browsePick || browsePick.kind !== kind) return false;
+    return kind === "card" ? browsePick.index === key
+         : kind === "placed" ? browsePick.col === key
+         : browsePick.id === key;
   }
-  /* Pillars currently PLACED on board columns (active in play) — distinct from
-     the unplaced/held chips, each tagged with the column it sits on. Reads the
-     persistent column binding (what's active on the board). */
-  function placedPillarsHtml(emptyLabel) {
+  function browseCounts() {
+    const inv = campaign ? campaign.getInventory() : {};
+    const pinv = campaign ? campaign.getPillarInventory() : {};
     const binding = campaign ? campaign.getColumnPillars() : [];
-    const chips = [];
+    const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
+    const placed = binding.filter(Boolean).length;
+    return {
+      cards: campaign ? campaign.packTrayCount() : 0,
+      stickers: sum(inv),
+      pillars: sum(pinv) + placed,     // held + active (both live in the Pillars tab)
+    };
+  }
+  function renderBrowseTrays() {
+    const inv = campaign ? campaign.getInventory() : {};
+    const pinv = campaign ? campaign.getPillarInventory() : {};
+    const binding = campaign ? campaign.getColumnPillars() : [];
+    const tray = campaign ? campaign.getPackTray() : [];
+    el.browseStickers.innerHTML = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0)
+      .map(t => invStickerChipHtml(t, inv[t.id], browseIsPick("sticker", t.id))).join("");
+    // Pillars: held (unplaced) first, then ACTIVE (placed) chips, tagged by column.
+    let pill = PillarTypes.all().filter(t => (pinv[t.id] || 0) > 0)
+      .map(t => invPillarChipHtml(t, pinv[t.id], browseIsPick("pillar", t.id))).join("");
     binding.forEach((pid, col) => {
       if (!pid) return;
       const t = PillarTypes.get(pid);
-      if (!t) return;
-      chips.push('<span class="inv-chip placed">' + t.icon + " " + escHtml(t.label) +
-        ' <span class="ic-col">Col ' + (col + 1) + "</span></span>");
+      if (t) pill += invPlacedPillarChipHtml(t, col, browseIsPick("placed", col));
     });
-    if (!chips.length) return '<span class="inv-empty">' + (emptyLabel || "None placed yet") + "</span>";
-    return chips.join("");
+    el.browsePillars.innerHTML = pill;
+    el.browseCards.innerHTML = tray.map((c, i) => invPackChipHtml(c, i, browseIsPick("card", i), false)).join("");
   }
-  /* The inventory popup: everything the player OWNS — stickers, unplaced
-     pillars, and a shortcut into the full deck (cards) view. Reads the same
-     campaign inventories the store buys into. */
+  function renderBrowseHelp() {
+    if (!el.browseHelp) return;
+    const info = browsePick ? browseDescribe(browsePick) : null;
+    if (!info) { el.browseHelp.classList.add("hidden"); return; }
+    el.bThTitle.innerHTML = info.title;
+    el.bThDesc.textContent = info.desc;
+    el.browseHelp.classList.remove("hidden");
+  }
+  function browseDescribe(pick) {
+    if (pick.kind === "sticker") { const t = StickerTypes.get(pick.id); return t ? { title: t.icon + " " + escHtml(t.label), desc: t.description || "" } : null; }
+    if (pick.kind === "pillar")  { const t = PillarTypes.get(pick.id);  return t ? { title: t.icon + " " + escHtml(t.label), desc: t.description || "" } : null; }
+    if (pick.kind === "placed") {
+      const binding = campaign ? campaign.getColumnPillars() : [];
+      const t = PillarTypes.get(binding[pick.col]);
+      return t ? { title: t.icon + " " + escHtml(t.label),
+        desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
+    }
+    if (pick.kind === "card") {
+      const card = campaign ? campaign.getPackTray()[pick.index] : null;
+      if (!card) return null;
+      const stk = (card.stickers || []).map(s => { const st = StickerTypes.get(s.type); return st ? st.label : null; }).filter(Boolean);
+      return { title: escHtml(miniRankLabel(card) + " " + card.suit),
+        desc: stk.length ? "Carries " + stk.join(", ") + "." : "A plain card, no stickers." };
+    }
+    return null;
+  }
+  function renderBrowse() {
+    renderBrowseTrays();
+    const counts = browseCounts();
+    const order = ["cards", "stickers", "pillars"];
+    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars };
+    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars };
+    order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
+    if (counts[browseTab] === 0) { const n = order.find(k => counts[k] > 0); if (n) browseTab = n; }
+    const anyItems = order.some(k => counts[k] > 0);
+    el.browseTabs.querySelectorAll(".setup-tab").forEach(btn => {
+      const k = btn.dataset.tab;
+      btn.classList.toggle("empty", counts[k] === 0);
+      btn.classList.toggle("active", k === browseTab);
+    });
+    order.forEach(k => { const p = panels[k]; if (p) p.classList.toggle("hidden", !(k === browseTab && counts[k] > 0)); });
+    el.browseTabs.classList.toggle("hidden", !anyItems);
+    if (el.browseEmpty) el.browseEmpty.classList.toggle("hidden", anyItems);
+    renderBrowseHelp();
+  }
+  function selectBrowseTab(tab) {
+    if (!tab) return;
+    browseTab = tab; browsePick = null;   // switching tabs clears the read selection
+    renderBrowse();
+  }
+  function browsePickItem(pick) {
+    // Tapping the highlighted item again clears it; otherwise show its description.
+    browsePick = (browsePick && browseIsPick(pick.kind, pick.kind === "card" ? pick.index : pick.kind === "placed" ? pick.col : pick.id))
+      ? null : pick;
+    renderBrowse();
+  }
   function openInvPopup() {
-    const placed = campaign ? campaign.getColumnPillars().filter(Boolean).length : 0;
-    el.invBody.innerHTML =
-      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("dot") + " Stickers</div>" +
-        '<div class="inv-chips">' + inventoryHtml("No stickers yet") + "</div></div>" +
-      // Pillars active on the board (placed) — shown distinctly from held ones.
-      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("guardian") + " Pillars · on the board</div>" +
-        '<div class="inv-chips">' + placedPillarsHtml("No pillars placed yet") + "</div></div>" +
-      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("guardian") + " Pillars · unplaced</div>" +
-        '<div class="inv-chips">' + pillarInventoryHtml(placed ? "All owned pillars are placed" : "No pillars yet") + "</div></div>" +
-      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("deck") + " Cards</div>" +
-        '<button class="inv-cards-btn" id="invCardsBtn" type="button">' + glyph("eye") + " View your deck</button></div>";
+    browsePick = null;
+    const counts = browseCounts();
+    const order = ["cards", "stickers", "pillars"];
+    if (counts[browseTab] === 0) { browseTab = order.find(k => counts[k] > 0) || "stickers"; }
+    renderBrowse();
     el.invPopup.classList.remove("hidden");
-    const cb = document.getElementById("invCardsBtn");
-    if (cb) cb.addEventListener("click", () => DeckInspector.openFull());
   }
-  function closeInvPopup() { el.invPopup.classList.add("hidden"); }
+  function closeInvPopup() { browsePick = null; el.invPopup.classList.add("hidden"); }
 
   /* ============================================================
      MENUS & SCREENS — main menu (§7), in-game menu (§8), Stats (§9),
