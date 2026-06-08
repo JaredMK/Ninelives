@@ -3947,9 +3947,10 @@ const GameEngine = (() => {
         if (drawn.revealNext) run.revealNextActive = true;
         // Tribute Pillars: on a qualifying SURVIVING resolution, pull card(s)
         // from the deck's BOTTOM and bury them under this pile — never revealed.
-        // 8 Tribute fires when the landed card is an 8; Same / Double Tribute
-        // fire when the pile survived a TIE (a correct Same guess, or a tie saved
-        // by Tie-Safe / Column Tie-Safe — both arrive here as isTie && correct).
+        // 8 Bury fires when the landed card is an 8 (buries 3); Tie Bury fires
+        // when the pile survived a TIE (a correct Same guess, or a tie saved by
+        // Tie-Safe / Column Tie-Safe — both arrive here as isTie && correct —
+        // and buries 2).
         // Uncapped; cards move straight deck→pile and are deliberately NOT placed
         // on the emitted payload (no order/identity leak).
         maybeTribute(index, pillar, drawn, isTie);
@@ -4268,13 +4269,6 @@ const CampaignState = (() => {
     } else if (t.behavior === "changeSuitTo") {
       const from = card.suit; card.suit = t.suit;
       card.modifications.push({ op: "changeSuit", from, to: card.suit });
-    } else if (t.behavior === "changeSuitRandom") {
-      const others = suits.filter(s => s !== card.suit);
-      if (others.length) {
-        const from = card.suit;
-        card.suit = others[Math.floor(rng() * others.length)];
-        card.modifications.push({ op: "changeSuit", from, to: card.suit });
-      }
     }
     card.stickers.push({ type: typeId });
     return true;
@@ -6308,11 +6302,11 @@ const UIRenderer = (() => {
       card.tieSafe = true;
     } else if (t.behavior === "revealNext") {
       card.revealNext = true;   // Scout: arm the look-ahead flag on the live card
-    } else if (t.behavior === "changeSuitTo" || t.behavior === "changeSuitRandom") {
-      // The new suit was already decided on the PERSISTENT card by
-      // campaign.applySticker (random pick happens there). Mirror that exact
-      // suit (and its red/black color) onto the live card so the change — and
-      // any Suit Bounty it now qualifies for — takes effect this run.
+    } else if (t.behavior === "changeSuitTo") {
+      // The new suit was decided on the PERSISTENT card by
+      // campaign.applySticker. Mirror that exact suit (and its red/black color)
+      // onto the live card so the change — and any Suit Bounty it now qualifies
+      // for — takes effect this run.
       const persisted = campaign.getCards().find(c => c.id === card.id);
       const sym = persisted ? persisted.suit : card.suit;
       const s = DeckManager.SUITS.find(x => x.symbol === sym) || DeckManager.SUITS[0];
