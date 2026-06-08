@@ -209,6 +209,50 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "Center Tribute has no coin cost");
   }
 
+  // --- Tribute II sticker: paid bury asks first (item 9) ---------------
+  // A coin-cost Tribute never auto-charges. On landing it queues an offer and
+  // emits "tribute-offer"; the bury + charge happen only when the player accepts.
+  {
+    const e = GameEngine.create(specsWith("twoTribute"), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null]);
+    let offer = null;
+    e.onEvent((type, p) => { if (type === "tribute-offer") offer = p; });
+    const len0 = e.getBoard().piles[0].cards.length;
+    landHigher(e, 0);
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 1, "Tribute II: landing alone buries nothing (asks first)");
+    r.eq(e.getRun().bonusCoins, 0, "Tribute II: no charge before confirming");
+    r.ok(!!offer, "Tribute II emits a paid-bury offer on landing");
+    r.eq(offer.cost, 4, "offer carries the 4-coin cost");
+    r.eq(offer.count, 2, "offer buries 2 cards");
+    r.ok(!!e.pendingTribute(), "an offer is queued awaiting the answer");
+  }
+  // Accept → bury 2 + charge 4.
+  {
+    const e = GameEngine.create(specsWith("twoTribute"), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null]);
+    const len0 = e.getBoard().piles[0].cards.length;
+    const deck0 = e.getDeck().remaining();
+    landHigher(e, 0);
+    e.answerTribute(true);
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 3, "accept: drawn card + 2 buried");
+    r.eq(e.getDeck().remaining(), deck0 - 3, "accept: deck loses drawn + 2 buried");
+    r.eq(e.getRun().bonusCoins, -4, "accept: charged the 4-coin cost");
+    r.ok(!e.pendingTribute(), "queue drained after accepting");
+  }
+  // Decline → nothing buried, nothing charged.
+  {
+    const e = GameEngine.create(specsWith("twoTribute"), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null]);
+    const len0 = e.getBoard().piles[0].cards.length;
+    const deck0 = e.getDeck().remaining();
+    landHigher(e, 0);
+    e.answerTribute(false);
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 1, "decline: only the drawn card, nothing buried");
+    r.eq(e.getDeck().remaining(), deck0 - 1, "decline: deck only loses the drawn card");
+    r.eq(e.getRun().bonusCoins, 0, "decline: no charge");
+    r.ok(!e.pendingTribute(), "queue drained after declining");
+  }
+
   // (Double Tribute / Double Bury pillar removed — Tie Bury now buries 2.)
 
   // --- All Hearts Pillar: END-OF-RUN +5 when every SURVIVING pile in its

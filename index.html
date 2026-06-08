@@ -2554,6 +2554,18 @@
     </div>
   </div>
 
+  <!-- Paid-bury confirmation — a coin-cost Tribute (Tribute II) just landed.
+       The player must opt in; only Yes buries and charges the cost. -->
+  <div class="confirm-overlay hidden" id="buryConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="buryConfirmMsg">Bury a card under this pile?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="buryNoBtn" type="button">No</button>
+        <button class="buy-confirm" id="buryYesBtn" type="button" style="flex:1 1 0">Yes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Deck inspection: full breakdown modal (tap) -->
   <div class="deck-modal hidden" id="deckModal">
     <div class="deck-modal-panel">
@@ -2659,7 +2671,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.1 · batch-1-registry";
+const APP_VERSION = "v1.2 · interest-bury-confirm";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3509,12 +3521,28 @@ const GameEngine = (() => {
       if (!stickers.length) return;
       const col = run && run.pileColumns ? run.pileColumns[index] : null;
       const center = centerColumn();
+      const hadNoOffers = run.pendingTributes.length === 0;
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t || t.behavior !== "tribute") continue;
         if (t.centerOnly && (center == null || col !== center)) continue;
-        buryTribute(index, t.tributeCount || 1, t.label);
-        if (t.coinCost) addBonus("Bury cost", -t.coinCost);
+        const count = t.tributeCount || 1;
+        if (t.coinCost) {
+          // Paid bury: never auto-charge. Queue the offer and ask first. With an
+          // empty deck there's nothing to bury → no prompt, no charge.
+          if (deck.isEmpty()) continue;
+          run.pendingTributes.push({ index, count, cost: t.coinCost, label: t.label });
+        } else {
+          // Free bury (Tribute I, Center Tribute): fires every time, no prompt.
+          buryTribute(index, count, t.label);
+        }
+      }
+      // Surface the first queued offer for the UI; further offers chain off each
+      // answerTribute(). Only emit when the queue went from empty → non-empty so
+      // a card with two paid stickers doesn't fire two dialogs at once.
+      if (hadNoOffers && run.pendingTributes.length) {
+        const o = run.pendingTributes[0];
+        emit("tribute-offer", { index: o.index, count: o.count, cost: o.cost, label: o.label, board, deck, run });
       }
     }
 
@@ -3675,6 +3703,12 @@ const GameEngine = (() => {
         // bonus. bonusEvents itemizes the live part (label → running amount).
         bonusCoins: 0,
         bonusEvents: {},
+        // Queued paid-bury offers awaiting the player's Yes/No (Tribute II and
+        // any coin-cost bury sticker). Each: { index, count, cost, label }.
+        // The bury + charge happen ONLY when the player confirms via
+        // answerTribute(); a fresh queue every run. The input-blocking confirm
+        // modal guarantees the queue drains before the next guess.
+        pendingTributes: [],
         // Per-column consecutive-correct-guess streak (Streak Bank / Streak
         // Tribute). Any guess in another column, or a wrong in-column guess,
         // resets it — so at most one column carries a live streak at a time.
@@ -3909,6 +3943,30 @@ const GameEngine = (() => {
       }
     }
 
+    /** Resolve the head of the paid-bury queue. The UI calls this after the
+        player answers the "Bury … for X coins?" prompt. On accept we bury (from
+        the deck bottom, hidden) and charge the cost into the live bonus tally;
+        on decline nothing moves. Either way we then surface the next queued
+        offer, if any. No-op when nothing is pending. */
+    function answerTribute(accept) {
+      if (!run || !run.pendingTributes || !run.pendingTributes.length) return;
+      const offer = run.pendingTributes.shift();
+      logBegin((offer.label || "Bury") + (accept ? " — accepted" : " — declined"));
+      if (accept) {
+        const buried = buryTribute(offer.index, offer.count, offer.label);
+        if (buried > 0) addBonus("Bury cost", -offer.cost);
+      } else {
+        logLine("Bury declined — no cards buried, no charge");
+      }
+      currentEntry = null;
+      emit("tribute-resolved", { index: offer.index, accepted: !!accept, board, deck, run });
+      // Chain the next queued offer (e.g. a card carrying two paid stickers).
+      if (run.pendingTributes.length) {
+        const next = run.pendingTributes[0];
+        emit("tribute-offer", { index: next.index, count: next.count, cost: next.cost, label: next.label, board, deck, run });
+      }
+    }
+
     /* Debug namespace — kept separate from the real rules so it can be
        ignored entirely in production. The engine still owns all state
        transitions; debug just nudges the same deck/board + re-evaluates. */
@@ -3940,6 +3998,10 @@ const GameEngine = (() => {
       start,
       startRun,
       guess,
+      /** Answer a queued paid-bury offer (see "tribute-offer" event). */
+      answerTribute(accept) { answerTribute(accept); },
+      /** The pending paid-bury offer awaiting an answer, or null. */
+      pendingTribute() { return (run && run.pendingTributes && run.pendingTributes[0]) || null; },
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
       /** True only during the sticker phase (after deal, before Start Run). */
@@ -5213,6 +5275,10 @@ const UIRenderer = (() => {
     trashConfirmMsg: document.getElementById("trashConfirmMsg"),
     trashCancelBtn: document.getElementById("trashCancelBtn"),
     trashOkBtn: document.getElementById("trashOkBtn"),
+    buryConfirm: document.getElementById("buryConfirm"),
+    buryConfirmMsg: document.getElementById("buryConfirmMsg"),
+    buryYesBtn: document.getElementById("buryYesBtn"),
+    buryNoBtn: document.getElementById("buryNoBtn"),
     redealConfirm: document.getElementById("redealConfirm"),
     redealConfirmMsg: document.getElementById("redealConfirmMsg"),
     redealCancelBtn: document.getElementById("redealCancelBtn"),
@@ -6420,6 +6486,10 @@ const UIRenderer = (() => {
     el.trashOkBtn.addEventListener("click", doTrashItem);
     el.trashConfirm.addEventListener("click", (e) => { if (e.target === el.trashConfirm) closeTrashConfirm(); });
 
+    // Paid-bury confirmation (Tribute II lands → "Bury … for X coins?").
+    el.buryYesBtn.addEventListener("click", () => answerBury(true));
+    el.buryNoBtn.addEventListener("click", () => answerBury(false));
+
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
 
@@ -6669,6 +6739,23 @@ const UIRenderer = (() => {
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} kept — ${payload.board.aliveCount()} piles alive.`
           : `${payload.drawn.label} wrong — the pile died.`;
+        refreshDebug();
+        break;
+      }
+
+      case "tribute-offer": {
+        // A paid Tribute (Tribute II) landed: ask before charging/burying.
+        showBuryConfirm({ index: payload.index, count: payload.count, cost: payload.cost, label: payload.label });
+        break;
+      }
+
+      case "tribute-resolved": {
+        // The player answered a paid-bury prompt. If accepted, cards were tucked
+        // under the pile (count up) and the cost charged — repaint counts + HUD.
+        if (payload.accepted) {
+          paintPileCounts(payload.board);
+          renderHud(payload.board, payload.deck);
+        }
         refreshDebug();
         break;
       }
@@ -8107,6 +8194,25 @@ const UIRenderer = (() => {
     el.trashConfirm.classList.add("hidden");
     trashPendingCol = null;
     trashPendingItem = null;
+  }
+
+  /* ---- Paid-bury confirmation (item 9) ----
+     A coin-cost Tribute (Tribute II) just landed on a surviving pile. The engine
+     has queued the offer and emitted "tribute-offer"; we ask Yes/No and only
+     charge + bury when the player confirms. The modal blocks the board, so the
+     deck can't change before the answer. answerTribute() chains the next offer
+     (re-firing "tribute-offer"), which re-opens this dialog as needed. */
+  function showBuryConfirm(offer) {
+    if (!offer) return;
+    const n = offer.count || 1;
+    el.buryConfirmMsg.innerHTML =
+      "Bury <b>" + n + " card" + (n > 1 ? "s" : "") + "</b> under this pile for <b>" +
+      offer.cost + " coin" + (offer.cost === 1 ? "" : "s") + "</b>?";
+    el.buryConfirm.classList.remove("hidden");
+  }
+  function answerBury(accept) {
+    el.buryConfirm.classList.add("hidden");
+    if (engine) engine.answerTribute(!!accept);
   }
 
   /* ---- Trash an armed setup item (card / sticker / pillar) ----
