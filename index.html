@@ -1396,6 +1396,24 @@
   .tray-sticker .ts-count { font-size: 12px; font-weight: 800; color: var(--accent-2); }
   .tray-sticker.armed { border-color: var(--accent); transform: scale(1.05); }
 
+  /* Pillar tray (setup): owned, unplaced Pillars — tap to arm, then tap a board
+     column to place. Same one-row, horizontally-scrolling strip as stickers. */
+  .pillar-tray {
+    display: flex; gap: 8px; justify-content: flex-start; flex-wrap: nowrap;
+    overflow-x: auto; overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
+  }
+  .pillar-tray.hidden { display: none; }
+  .tray-pillar {
+    background: var(--panel); border: 2px solid transparent; border-radius: 999px;
+    padding: 6px 12px; font-size: 15px; display: flex; align-items: center; gap: 5px;
+    cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
+  }
+  .tray-pillar .tp-name { font-size: 12px; font-weight: 800; color: var(--accent-2); }
+  .tray-pillar .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
+  .tray-pillar.armed { border-color: var(--pathway); transform: scale(1.05); }
+  /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
+  .board.placing-pillar .pile:not(.dead) { outline: 2px dashed var(--pathway); outline-offset: -3px; cursor: pointer; }
+
   /* Sticker badges — TOP-RIGHT corner, clear of the rank (top-left) and the
      mirrored rank (bottom-right). Right-anchored so extra badges grow leftward. */
   .pile-badges {
@@ -2002,6 +2020,7 @@
         <div class="setup-inv" id="setupInv">
           <div class="sticker-tray hidden" id="stickerTray"></div>
           <div class="pack-tray hidden" id="packTrayEl"></div>
+          <div class="pillar-tray hidden" id="pillarTray"></div>
           <div class="tray-help hidden" id="trayHelp">
             <span class="th-title" id="thTitle"></span>
             <span class="th-desc" id="thDesc"></span>
@@ -2122,10 +2141,8 @@
 
     <div class="zone z-path">
       <div class="zone-h"><span class="ico-slot" data-ico="guardian"></span> PILLARS
-        <span class="tag">pick one, then a column</span></div>
+        <span class="tag">buy now · place in setup</span></div>
       <div class="store-row" id="storePillars"></div>
-      <div class="pillar-slots" id="pillarSlots"></div>
-      <button class="trash-pillar-btn hidden" id="trashPillarBtn" type="button"><span class="ico-slot" data-ico="trash"></span> Trash this Pillar</button>
     </div>
 
     <div class="zone z-swap">
@@ -2147,6 +2164,8 @@
         <div class="sh-col hidden" id="shCol">Choose a column below ↓</div>
       </div>
       <div class="store-actions">
+        <button class="store-view-btn" id="storeInvBtn" type="button"><span class="ico-slot" data-ico="stash"></span> Inventory</button>
+        <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
         <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
         <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
       </div>
@@ -2313,7 +2332,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.93 · suit-gate-fix";
+const APP_VERSION = "v0.94 · pillars-place-in-setup";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3786,11 +3805,12 @@ const CampaignState = (() => {
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
+    let pillarInventory = {};      // { pillarTypeId: count } bought but not yet placed
     // Pillar binding: one slot per board column (index 0..COLUMN_SLOTS-1), each
-    // holding a Pillar type id or null. This is the WHOLE Pillar holding — no
-    // inventory. Bindings PERSIST across runs (you don't reassign each run) and
-    // are rearrangeable in the pre-run phase (see swap/set below); a run
-    // snapshots them at Start Run.
+    // holding a Pillar type id or null. Pillars are BOUGHT into pillarInventory
+    // (above) and PLACED onto columns during the pre-run setup phase; placing
+    // moves a Pillar from inventory to a column, and picking one up moves it
+    // back. Bindings PERSIST across runs; a run snapshots them at Start Run.
     let columnPillars = new Array(COLUMN_SLOTS).fill(null);
     // Current store offering (Balatro-style). Persists across store re-renders
     // (so a re-render can't re-roll for free); regenerated on each store open;
@@ -3970,10 +3990,12 @@ const CampaignState = (() => {
         return true;
       },
 
-      /* ---- Pillars (column modifiers — bound to columns, not cards) ----
-         The COLUMN_SLOTS column slots are the only place a Pillar lives; there
-         is no inventory. Bindings persist between runs and are edited in the
-         pre-run phase; a run reads them via getColumnPillars() at Start Run. */
+      /* ---- Pillars (column modifiers — bought to inventory, placed on columns) --
+         A Pillar is BOUGHT into pillarInventory, then PLACED onto one of the
+         COLUMN_SLOTS column slots during the pre-run setup phase. Placing moves
+         it inventory→column; picking it up (or being displaced by another) moves
+         it column→inventory. Bindings persist between runs; a run reads them via
+         getColumnPillars() at Start Run. */
       get columnSlots() { return COLUMN_SLOTS; },
       /** A copy of the column→Pillar binding (index = column, value = id|null). */
       getColumnPillars() { return columnPillars.slice(); },
@@ -3983,6 +4005,52 @@ const CampaignState = (() => {
       pillarCount() { return columnPillars.filter(Boolean).length; },
       /** Index of the first empty column slot, or -1 if all are full. */
       firstEmptyColumn() { return columnPillars.indexOf(null); },
+
+      /* ---- Pillar inventory (bought, not yet placed) ---- */
+      getPillarInventory() { return { ...pillarInventory }; },
+      pillarInventoryCount(typeId) { return pillarInventory[typeId] || 0; },
+      /** DEBUG ONLY: grant one Pillar to inventory free (no coins). */
+      debugGrantPillar(typeId) {
+        if (!PillarTypes.get(typeId)) return false;
+        pillarInventory[typeId] = (pillarInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Buy one Pillar into inventory if affordable (price fixed). Returns true
+          on success. Placement happens later, in setup, via placePillar. */
+      buyPillarToInventory(typeId) {
+        const t = PillarTypes.get(typeId);
+        if (!t) return false;
+        const price = this.priceOfPillar(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        pillarInventory[typeId] = (pillarInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Place an owned Pillar from inventory onto column `col`. If the column
+          already holds a Pillar, that one returns to inventory (a non-destructive
+          swap). Consumes one from inventory of `typeId`. Returns true on success;
+          false if not owned / bad column / not a real type. */
+      placePillar(typeId, col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        if (!PillarTypes.get(typeId)) return false;
+        if ((pillarInventory[typeId] || 0) <= 0) return false;
+        const displaced = columnPillars[col];
+        pillarInventory[typeId] -= 1;
+        if (pillarInventory[typeId] <= 0) delete pillarInventory[typeId];
+        if (displaced) pillarInventory[displaced] = (pillarInventory[displaced] || 0) + 1;
+        columnPillars[col] = typeId;
+        return true;
+      },
+      /** Pick a placed Pillar back up off column `col` into inventory (clears the
+          column). Returns the Pillar id moved, or null if the column was empty. */
+      unplacePillar(col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return null;
+        const id = columnPillars[col];
+        if (!id) return null;
+        pillarInventory[id] = (pillarInventory[id] || 0) + 1;
+        columnPillars[col] = null;
+        return id;
+      },
 
       /** Set (or clear, with null) the Pillar on a column. The raw setter used
           by buy/clear; returns false on an out-of-range column. No cost. */
@@ -4057,12 +4125,12 @@ const CampaignState = (() => {
         storeOffer.stickers[i] = null;
         return true;
       },
-      /** Buy the offered Pillar in slot `i` and place it on column `col`;
-          empties that slot only. Returns true on success. */
-      buyOfferedPillar(i, col) {
+      /** Buy the offered Pillar in slot `i` INTO INVENTORY (placement happens in
+          setup); empties that slot only. Returns true on success. */
+      buyOfferedPillar(i) {
         if (!storeOffer) return false;
         const id = storeOffer.pillars[i];
-        if (!id || !this.buyPillar(id, col)) return false;
+        if (!id || !this.buyPillarToInventory(id)) return false;
         storeOffer.pillars[i] = null;
         return true;
       },
@@ -4225,6 +4293,7 @@ const CampaignState = (() => {
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         stickerInventory = {};
+        pillarInventory = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
         storeOffer = null;
         packTray = [];
@@ -4244,6 +4313,7 @@ const CampaignState = (() => {
           totalCardsFlipped, totalCoinsEarned,
           coins,
           stickerInventory: { ...stickerInventory },
+          pillarInventory: { ...pillarInventory },
           columnPillars: columnPillars.slice(),
           storeOffer: storeOffer ? JSON.parse(JSON.stringify(storeOffer)) : null,
           baseDeck: this._copyCards(),
@@ -4268,6 +4338,7 @@ const CampaignState = (() => {
         totalCoinsEarned = s.totalCoinsEarned || 0;
         coins = s.coins || 0;
         stickerInventory = { ...(s.stickerInventory || {}) };
+        pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
         columnPillars = Array.isArray(s.columnPillars)
           ? s.columnPillars.slice() : new Array(COLUMN_SLOTS).fill(null);
         storeOffer = s.storeOffer || null;
@@ -4650,6 +4721,7 @@ const UIRenderer = (() => {
     gameMenuClose: document.getElementById("gameMenuClose"),
     bottomRegion: document.getElementById("bottomRegion"),
     stickerTray: document.getElementById("stickerTray"),
+    pillarTray: document.getElementById("pillarTray"),
     trayHelp: document.getElementById("trayHelp"),
     thTitle: document.getElementById("thTitle"),
     thDesc: document.getElementById("thDesc"),
@@ -4726,6 +4798,8 @@ const UIRenderer = (() => {
     redealOkBtn: document.getElementById("redealOkBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
+    storeInvBtn: document.getElementById("storeInvBtn"),
+    storeCardsBtn: document.getElementById("storeCardsBtn"),
     itemHelp: document.getElementById("itemHelp"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
@@ -4775,6 +4849,9 @@ const UIRenderer = (() => {
   // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
   let armedSticker = null;
+  // Setup Pillar placement: the owned Pillar type id armed from inventory
+  // (tap a Pillar to arm it, then tap a board column to place it), or null.
+  let armedPillar = null;
 
   // Redeal (pre-run reshuffle). `redealCost` is the price of the NEXT redeal
   // this phase; it starts at REDEAL_BASE_COST and rises REDEAL_STEP per redeal,
@@ -5201,11 +5278,13 @@ const UIRenderer = (() => {
     if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
     el.startRunBtn.classList.remove("hidden");
     renderStickerTray();                      // shows owned stickers (if any)
+    renderPillarTray();                       // shows owned (unplaced) pillars (if any)
     renderPackTray();                         // shows held pack cards (if any)
     renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
-    el.hint.textContent = hasStickers
-      ? "Apply stickers, then press Start Run."
+    const hasPillars = campaign && Object.values(campaign.getPillarInventory()).some(n => n > 0);
+    el.hint.textContent = (hasStickers || hasPillars)
+      ? "Place your stickers and pillars, then press Start Run."
       : "Read the board, then press Start Run.";
   }
 
@@ -5214,9 +5293,11 @@ const UIRenderer = (() => {
     // Bottom region swaps to the histogram (same fixed height → board stays put).
     if (el.bottomRegion) { el.bottomRegion.classList.add("run"); el.bottomRegion.classList.remove("setup"); }
     renderStickerTray();                      // window closed -> tray hides itself
+    renderPillarTray();                       // window closed -> pillar tray hides itself
     renderPackTray();                         // window closed -> pack tray hides itself
     renderRedealBtn();                        // window closed -> redeal hides itself
-    if (armedSticker || armedPack != null) { armedSticker = null; armedPack = null; el.board.classList.remove("arming"); }
+    armedSticker = null; armedPack = null; armedPillar = null;
+    el.board.classList.remove("arming", "placing-pillar");
     el.hint.textContent = "Tap a pile, then guess: Higher, Same, or Lower.";
     // No fitBoard here — the board region is fixed and does not reflow on Start.
   }
@@ -5326,13 +5407,98 @@ const UIRenderer = (() => {
     if (!engine || !engine.canApplyStickers()) return;
     if (campaign.inventoryCount(typeId) <= 0) return;
     armedSticker = armedSticker === typeId ? null : typeId;
+    if (armedSticker) { armedPillar = null; armedPack = null; }   // mutually exclusive
     clearSelection();
-    el.board.classList.toggle("arming", !!armedSticker);
-    renderStickerTray();
+    updateArmingClass();
+    renderStickerTray(); renderPillarTray(); renderPackTray();
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
       ? "Tap a pile to apply " + t.label + " to its top card."
       : "Apply stickers, then press Start Run.";
+  }
+
+  /* Reflect the current arm state on the board: `arming` (a sticker/pack target
+     is a pile) vs `placing-pillar` (the target is a whole column). */
+  function updateArmingClass() {
+    el.board.classList.toggle("arming", !!armedSticker || armedPack != null);
+    el.board.classList.toggle("placing-pillar", !!armedPillar);
+  }
+
+  /* ---- setup Pillar placement ----
+     Pillars are bought into inventory (store) and PLACED here: tap an owned
+     Pillar to arm it, then tap a board column (any pile in it, or its indicator)
+     to bind it. Placing onto an occupied column returns the old Pillar to
+     inventory. Tapping an occupied column's indicator with nothing armed picks
+     that Pillar back up. Only during the pre-run window. */
+  function renderPillarTray() {
+    if (!el.pillarTray) return;
+    const open = engine && engine.canApplyStickers();
+    const inv = campaign ? campaign.getPillarInventory() : {};
+    const owned = PillarTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    el.pillarTray.innerHTML = "";
+    if (!open || owned.length === 0) {
+      el.pillarTray.classList.add("hidden");
+      if (armedPillar) { armedPillar = null; updateArmingClass(); }
+      return;
+    }
+    el.pillarTray.classList.remove("hidden");
+    owned.forEach(t => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tray-pillar" + (armedPillar === t.id ? " armed" : "");
+      b.dataset.pillar = t.id;
+      b.innerHTML = '<span class="ts-icon">' + t.icon + '</span>' +
+        '<span class="tp-name">' + escHtml(t.label) + '</span>' +
+        '<span class="ts-count">×' + inv[t.id] + "</span>";
+      el.pillarTray.appendChild(b);
+    });
+  }
+
+  function armPillar(typeId) {
+    if (!engine || !engine.canApplyStickers()) return;
+    if (campaign.pillarInventoryCount(typeId) <= 0) return;
+    armedPillar = armedPillar === typeId ? null : typeId;
+    if (armedPillar) { armedSticker = null; armedPack = null; }   // mutually exclusive
+    clearSelection();
+    updateArmingClass();
+    renderStickerTray(); renderPillarTray(); renderPackTray();
+    const t = PillarTypes.get(armedPillar);
+    el.hint.textContent = t
+      ? "Tap a board column to place " + t.label + "."
+      : "Place Pillars on columns, then press Start Run.";
+  }
+
+  function placePillarOnColumn(col) {
+    if (!engine || !engine.canApplyStickers() || !armedPillar) return;
+    const t = PillarTypes.get(armedPillar);
+    if (!campaign.placePillar(armedPillar, col)) return;
+    if (engine) engine.logAction("Placed Pillar " + ((t && t.label) || armedPillar) + " on column " + (col + 1));
+    armedPillar = null;
+    updateArmingClass();
+    // Reflect on the board indicator row + refit (the row may reveal/hide).
+    paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    fitBoard();
+    renderPillarTray();
+    el.hint.textContent = (t ? t.label : "Pillar") + " placed on column " + (col + 1) + ".";
+    persistCampaign("run");
+    refreshDebug();
+  }
+
+  /* Pick a placed Pillar back up off a column into inventory (setup only, nothing
+     armed). The indicator row only shows while a column holds a Pillar, so this
+     is reachable whenever there's one to remove. */
+  function pickUpPillar(col) {
+    if (!engine || !engine.canApplyStickers()) return;
+    const id = campaign.unplacePillar(col);
+    if (!id) return;
+    const t = PillarTypes.get(id);
+    if (engine) engine.logAction("Picked up Pillar " + ((t && t.label) || id) + " from column " + (col + 1));
+    paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    fitBoard();
+    renderPillarTray();
+    el.hint.textContent = (t ? t.label : "Pillar") + " returned to inventory.";
+    persistCampaign("run");
+    refreshDebug();
   }
 
   function applyArmedSticker(index) {
@@ -5499,18 +5665,15 @@ const UIRenderer = (() => {
     el.debugPeekOut.textContent = "granted Sticker: " + id;
   }
 
-  /* DEBUG: grant the selected Pillar by placing it (free) on the first empty
-     column slot, or column 1 if all are full. Pillars have no inventory — they
-     live on columns — so this binds it the same way a purchase would. */
+  /* DEBUG: grant the selected Pillar (free) straight into the Pillar inventory —
+     the player then places it during setup, like a real purchase. */
   function debugAddSelectedPillar() {
     const id = el.debugPillarSel.value;
     if (!id || !campaign) return;
-    const empty = campaign.firstEmptyColumn();
-    const col = empty >= 0 ? empty : 0;
-    campaign.setColumnPillar(col, id);
+    campaign.debugGrantPillar(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
-    if (pileEls.length) paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
-    el.debugPeekOut.textContent = "granted Pillar: " + id + " → column " + (col + 1);
+    renderPillarTray();
+    el.debugPeekOut.textContent = "granted Pillar to inventory: " + id;
   }
 
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
@@ -5643,9 +5806,18 @@ const UIRenderer = (() => {
       if (suppressPileClick) { suppressPileClick = false; return; }
       // Tap a Pathway banner → toggle its description via the standard peek
       // popup (a hold still peeks-while-held). Read-only; no state change.
+      const setupWindow = engine && engine.canApplyStickers();
       const bpCell = e.target.closest(".bp-cell");
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
+        // During setup the indicator row doubles as a placement target: place an
+        // armed Pillar, or (nothing armed) pick up the Pillar already there.
+        if (setupWindow) {
+          if (armedPillar) placePillarOnColumn(col);
+          else if (campaign && campaign.columnPillar(col) != null) pickUpPillar(col);
+          else openPillarPeek(col);
+          return;
+        }
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
         return;
@@ -5654,7 +5826,8 @@ const UIRenderer = (() => {
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
       const index = Number(pileEl.dataset.index);
-      if (armedSticker) applyArmedSticker(index);
+      if (armedPillar) placePillarOnColumn(Number(pileEl.dataset.col));   // tap a column to place
+      else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else selectPile(index);
     });
@@ -5727,6 +5900,11 @@ const UIRenderer = (() => {
       const b = e.target.closest(".tray-sticker");
       if (b) armSticker(b.dataset.type);
     });
+    // Pillar tray (setup): tap an owned Pillar to arm/disarm it for placement.
+    if (el.pillarTray) el.pillarTray.addEventListener("click", (e) => {
+      const b = e.target.closest(".tray-pillar");
+      if (b) armPillar(b.dataset.pillar);
+    });
 
     el.btnHigher.addEventListener("click", () => submitGuess("higher"));
     el.btnSame.addEventListener("click", () => submitGuess("same"));
@@ -5760,21 +5938,23 @@ const UIRenderer = (() => {
     });
     el.storePillars.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) armPillarSlotUI(Number(tile.dataset.pslot));
+      if (tile && !tile.classList.contains("empty")) selectPillarUI(Number(tile.dataset.pslot));
     });
     el.storePacks.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) selectPackUI(Number(tile.dataset.packslot));
     });
     // The one Buy button lives in the help slot; it confirms whatever is selected
-    // (Imprints and Memory Swaps; Pathways buy by tapping a column instead).
+    // (Stickers + Pillars go to inventory, Packs open on buy).
     el.shBuy.addEventListener("click", () => {
-      if (el.shBuy.dataset.kind === "sticker") confirmBuySticker();
+      const kind = el.shBuy.dataset.kind;
+      if (kind === "sticker") confirmBuySticker();
+      else if (kind === "pillar") confirmBuyPillar();
       else confirmBuyPack();
     });
-    // Tap empty space in the shop (not a tile / footer / column chip) to deselect.
+    // Tap empty space in the shop (not a tile / footer) to deselect.
     el.storeOverlay.addEventListener("click", (e) => {
-      if (e.target.closest(".store-tile, .store-foot, .pillar-slot, .trash-pillar-btn")) return;
+      if (e.target.closest(".store-tile, .store-foot")) return;
       if (selectedStickerSlot != null || selectedPackSlot != null || armedPillarSlot != null) {
         selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; renderStore();
       }
@@ -5782,38 +5962,10 @@ const UIRenderer = (() => {
     // Pick screen: open the read-only deck composition to inform the choice.
     el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
     el.rerollBtn.addEventListener("click", rerollUI);
-    // Column chips: place an armed offered Pillar, or arm/swap for a rearrange.
-    el.pillarSlots.addEventListener("click", (e) => {
-      const chip = e.target.closest(".pillar-slot");
-      if (chip) tapPillarSlot(Number(chip.dataset.col));
-    });
+    // Store view buttons: owned inventory + the deck overview (both modal).
+    if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
+    if (el.storeCardsBtn) el.storeCardsBtn.addEventListener("click", () => DeckInspector.openFull());
     el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceAndStart(); });
-
-    // Trash a Pillar: open a confirm dialog for the armed column's Pillar.
-    el.trashPillarBtn.addEventListener("click", () => {
-      if (armedSlotMove == null) return;
-      const pid = campaign.columnPillar(armedSlotMove);
-      const t = pid ? PillarTypes.get(pid) : null;
-      if (!t) return;
-      trashPendingCol = armedSlotMove;
-      el.trashConfirmMsg.innerHTML = "Trash <b>" + t.label + "</b>? This permanently removes it — no refund.";
-      el.trashConfirm.classList.remove("hidden");
-    });
-    el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
-    el.trashConfirm.addEventListener("click", (e) => { if (e.target === el.trashConfirm) closeTrashConfirm(); });
-    el.trashOkBtn.addEventListener("click", () => {
-      if (trashPendingCol != null && campaign) {
-        const pid = campaign.columnPillar(trashPendingCol);
-        const t = pid ? PillarTypes.get(pid) : null;
-        campaign.setColumnPillar(trashPendingCol, null);   // permanent — no refund, no inventory
-        if (engine) engine.logAction("Store: trashed Pillar " + ((t && t.label) || pid) + " from column " + (trashPendingCol + 1));
-        el.storeMsg.textContent = "Pillar trashed — column " + (trashPendingCol + 1) + " is now empty.";
-      }
-      closeTrashConfirm();
-      armedSlotMove = null;
-      renderStore();   // re-renders + persists the removal (survives a refresh)
-      refreshDebug();
-    });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -6299,11 +6451,12 @@ const UIRenderer = (() => {
     const grid = document.createElement("div");
     grid.className = "board-grid";
     let index = 0;
-    cols.forEach(count => {
+    cols.forEach((count, colIdx) => {
       const colEl = document.createElement("div");
       colEl.className = "board-col";
       for (let k = 0; k < count; k++) {
         const pe = buildPile(index);
+        pe.dataset.col = colIdx;   // pile → board column (for setup Pillar placement)
         if (!dealing) pe.classList.remove("dealing");
         pileEls.push(pe);
         colEl.appendChild(pe);
@@ -6985,18 +7138,15 @@ const UIRenderer = (() => {
     el.storeHelp.classList.remove("empty");
     el.shTitle.innerHTML = t.icon + " " + escHtml(t.label) +
       (t.tier ? ' <span class="sh-tier">' + t.tier + "</span>" : "");
-    el.shDesc.textContent = t.desc || "";
-    if (kind === "pillar") {
-      el.shBuy.classList.add("hidden");
-      el.shCol.classList.remove("hidden");
-      el.shCol.textContent = afford ? "Choose a column below ↓" : ("Need " + price + " coins");
-    } else {
-      el.shCol.classList.add("hidden");
-      el.shBuy.classList.remove("hidden");
-      el.shBuy.disabled = !afford;
-      el.shBuy.dataset.kind = kind;
-      el.shBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
-    }
+    el.shDesc.textContent = (t.desc || "") +
+      (kind === "pillar" ? "  ·  Buy now, then place it on a column during setup." : "");
+    // Every kind buys the same way now: the one Buy button. Pillars go to
+    // inventory (placed in setup); stickers go to inventory; packs open on buy.
+    if (el.shCol) el.shCol.classList.add("hidden");
+    el.shBuy.classList.remove("hidden");
+    el.shBuy.disabled = !afford;
+    el.shBuy.dataset.kind = kind;
+    el.shBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
   }
 
   function renderStore() {
@@ -7266,44 +7416,14 @@ const UIRenderer = (() => {
     el.rerollBtn.innerHTML = glyph("reroll") + " Reroll · " + COIN_SVG + cost;
   }
 
-  /* Offered Pillars (2 slots) + the 3 board-column chips (placement/rearrange).
-     Arm an offered Pillar, then tap a column to place it there (buying empties
-     the offered slot). With nothing armed, tap a filled column then another to
-     swap them. */
+  /* Offered Pillars (2 slots). Buying sends the Pillar to inventory; the player
+     places it on a column during the pre-run setup phase (no in-store chooser). */
   function renderPillarStore() {
     const offer = campaign.getStoreOffer();
     el.storePillars.innerHTML = "";
     (offer ? offer.pillars : []).forEach((id, slot) =>
       el.storePillars.appendChild(offerTile(id, slot, "pillar", armedPillarSlot === slot)));
     padRow(el.storePillars, 4);
-
-    el.pillarSlots.innerHTML = "";
-    const binding = campaign.getColumnPillars();
-    binding.forEach((pid, col) => {
-      const t = pid ? PillarTypes.get(pid) : null;
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "pillar-slot" +
-        (t ? " filled" : "") +
-        (armedSlotMove === col ? " armed" : "") +
-        (armedPillarSlot != null ? " placing" : "");
-      chip.dataset.col = col;
-      chip.innerHTML =
-        '<span class="ps-col">Col ' + (col + 1) + '</span>' +
-        (t ? '<span class="ps-icon">' + t.icon + '</span>' +
-             '<span class="ps-name">' + t.label + '</span>'
-           : '<span class="ps-empty">＋</span>');
-      el.pillarSlots.appendChild(chip);
-    });
-
-    // Trash control: shown only while a FILLED column is armed (so trashing
-    // takes a deliberate select-then-trash-then-confirm, never an accidental tap).
-    const armedPid = armedSlotMove != null ? campaign.columnPillar(armedSlotMove) : null;
-    el.trashPillarBtn.classList.toggle("hidden", !armedPid);
-    if (armedPid) {
-      const t = PillarTypes.get(armedPid);
-      el.trashPillarBtn.innerHTML = glyph("trash") + " Trash " + ((t && t.label) || "Pillar");
-    }
   }
 
   /* Tap an offered sticker SLOT to select it (highlight) — does NOT buy.
@@ -7336,56 +7456,36 @@ const UIRenderer = (() => {
     refreshDebug();
   }
 
-  /* Tap an offered Pillar SLOT to arm it (then tap a column to place). Toggle
-     off by re-tapping; clears any sticker selection / slot-move. */
-  function armPillarSlotUI(slot) {
+  /* Tap an offered Pillar SLOT to SELECT it (its name/effect/Buy fill the help
+     slot) — does NOT buy. Toggle off by re-tapping; clears other selections. */
+  function selectPillarUI(slot) {
     const offer = campaign.getStoreOffer();
     const id = offer ? offer.pillars[slot] : null;
-    if (!id) return;   // affordability is shown in the help slot (Buy by tapping a column)
+    if (!id) return;
     selectedStickerSlot = null;
     selectedPackSlot = null;
-    armedSlotMove = null;
     armedPillarSlot = armedPillarSlot === slot ? null : slot;
     el.storeMsg.textContent = armedPillarSlot != null
-      ? "Tap a column to place this Pillar (replaces what's there)."
+      ? "Tap Buy to add it to your inventory — place it on a column in setup."
       : "Buy from the offer, reroll, then press Start Run.";
     renderStore();
   }
 
-  /* Tap a board-column chip. With an offered Pillar armed: buy it + place here
-     (empties the offered slot, overwrites the column — no refund). Otherwise a
-     rearrange: arm a filled column, then tap another to swap. */
-  function tapPillarSlot(col) {
-    selectedStickerSlot = null;   // touching the Pillar area deselects a sticker/pack
-    selectedPackSlot = null;
-    if (armedPillarSlot != null) {
-      const offer = campaign.getStoreOffer();
-      const pid = offer ? offer.pillars[armedPillarSlot] : null;
-      if (campaign.buyOfferedPillar(armedPillarSlot, col)) {
-        const pt = pid ? PillarTypes.get(pid) : null;
-        if (engine) engine.logAction("Store: bought Pillar " + ((pt && pt.label) || pid) + " → column " + (col + 1));
-        armedPillarSlot = null;
-        Sound.purchase();
-        el.storeMsg.textContent = "Pillar placed on Column " + (col + 1) + ".";
-      }
-      renderStore();
-      refreshDebug();
-      return;
-    }
-    if (armedSlotMove === null) {
-      if (campaign.columnPillar(col)) {
-        armedSlotMove = col;
-        el.storeMsg.textContent = "Tap another column to swap, Trash to remove it, or tap again to cancel.";
-      }
-    } else if (armedSlotMove === col) {
-      armedSlotMove = null;
-      el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
-    } else {
-      campaign.swapColumnPillars(armedSlotMove, col);
-      armedSlotMove = null;
-      el.storeMsg.textContent = "Pillars rearranged.";
+  /* Confirm buying the selected offered Pillar (the only place it's bought). It
+     goes to inventory (placed later in setup); empties just that slot. */
+  function confirmBuyPillar() {
+    if (armedPillarSlot == null) return;
+    const offer = campaign.getStoreOffer();
+    const id = offer ? offer.pillars[armedPillarSlot] : null;
+    if (campaign.buyOfferedPillar(armedPillarSlot)) {
+      const pt = id ? PillarTypes.get(id) : null;
+      if (engine) engine.logAction("Store: bought Pillar " + ((pt && pt.label) || id) + " → inventory");
+      armedPillarSlot = null;
+      Sound.purchase();
+      el.storeMsg.textContent = "Pillar bought — place it on a column during setup.";
     }
     renderStore();
+    refreshDebug();
   }
 
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */

@@ -25,6 +25,7 @@ export function run() {
     const card = a.getCards().find(c => c.suit === "♥");
     a.applySticker(card.id, "changeSuitSpade");   // permanent ♥ → ♠ on this card
     a.setColumnPillar(1, "spadeBounty");
+    a.debugGrantPillar("greedy"); // an owned-but-unplaced Pillar in inventory
     a.openStore();               // a live store offer to persist too
 
     const wire = JSON.parse(JSON.stringify(a.serialize()));   // simulate storage
@@ -34,6 +35,7 @@ export function run() {
     r.eq(b.getCoins(), a.getCoins(), "coins restored (39)");
     r.eq(b.inventoryCount("rankUp"), 1, "sticker inventory restored");
     r.eq(b.columnPillar(1), "spadeBounty", "column Pillar binding restored");
+    r.eq(b.pillarInventoryCount("greedy"), 1, "unplaced Pillar inventory restored");
 
     const bc = b.getCards().find(c => c.id === card.id);
     r.eq(bc.suit, "♠", "applied suit-change persists on the restored deck card");

@@ -77,7 +77,7 @@ export function run() {
     r.ok(!broke.buyOfferedSticker(0), "can't buy a sticker with no coins");
   }
 
-  // --- Buying a Pillar empties its slot + places on the chosen column ----
+  // --- Buying a Pillar empties its slot + banks it to INVENTORY (placed later) -
   {
     const c = CampaignState.create();
     c.addCoins(100);
@@ -85,12 +85,38 @@ export function run() {
     const pid = c.getStoreOffer().pillars[0];
     const price = c.priceOfPillar(pid);
     const coins0 = c.getCoins();
-    r.ok(c.buyOfferedPillar(0, 1), "buy offered Pillar slot 0 onto column 1");
-    r.eq(c.columnPillar(1), pid, "Pillar placed on column 1");
+    r.ok(c.buyOfferedPillar(0), "buy offered Pillar slot 0 (to inventory)");
+    r.eq(c.pillarInventoryCount(pid), 1, "bought Pillar went to inventory");
+    r.eq(c.columnPillar(1), null, "buying does NOT place it on a column");
     r.eq(c.getStoreOffer().pillars[0], null, "offered Pillar slot 0 now empty");
     r.eq(c.getCoins(), coins0 - price, "charged the fixed Pillar price");
-    r.ok(!c.buyOfferedPillar(0, 2), "can't buy an already-empty Pillar slot");
-    r.ok(!c.buyOfferedPillar(1, 9), "can't place on an out-of-range column");
+    r.ok(!c.buyOfferedPillar(0), "can't buy an already-empty Pillar slot");
+    // Placement (setup phase) moves it inventory → column.
+    r.ok(c.placePillar(pid, 1), "place the owned Pillar on column 1");
+    r.eq(c.columnPillar(1), pid, "Pillar now bound to column 1");
+    r.eq(c.pillarInventoryCount(pid), 0, "placing consumes it from inventory");
+    r.ok(!c.placePillar(pid, 1), "can't place a Pillar you no longer own");
+  }
+
+  // --- Pillar inventory: place / displace-swap / pick-up round-trips ------
+  {
+    const c = CampaignState.create();
+    c.addCoins(200);
+    c.debugGrantPillar("columnGuardian");
+    c.debugGrantPillar("greedy");
+    r.eq(c.pillarInventoryCount("columnGuardian"), 1, "owned 1 Guardian");
+    r.ok(c.placePillar("columnGuardian", 0), "place Guardian on col 0");
+    r.eq(c.pillarInventoryCount("columnGuardian"), 0, "Guardian left inventory");
+    // Placing onto an occupied column returns the displaced Pillar to inventory.
+    r.ok(c.placePillar("greedy", 0), "place Greedy on the same column");
+    r.eq(c.columnPillar(0), "greedy", "Greedy now holds col 0");
+    r.eq(c.pillarInventoryCount("columnGuardian"), 1, "displaced Guardian returned to inventory");
+    // Pick-up clears the column and banks it.
+    r.eq(c.unplacePillar(0), "greedy", "pick up returns the placed id");
+    r.eq(c.columnPillar(0), null, "column 0 now empty");
+    r.eq(c.pillarInventoryCount("greedy"), 1, "Greedy back in inventory");
+    r.eq(c.unplacePillar(0), null, "pick up an empty column returns null");
+    r.ok(!c.placePillar("columnGuardian", 9), "placement rejects an out-of-range column");
   }
 
   // --- Reroll: replaces ALL slots; 3 → 4 → 5; resets on store open -------
