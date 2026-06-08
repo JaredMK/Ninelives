@@ -3058,6 +3058,9 @@ const Economy = (() => {
     // Live in-run bonus coins (already accrued during play; may be negative).
     const eventBonus = won ? (stats.eventBonus || 0) : 0;
     const eventLines = won ? (stats.eventLines || []) : [];
+    // Interest: +1 coin per 10 coins the player STARTED this run with (paid on
+    // a win only). Passed in already computed (floor of startCoins / 10).
+    const interest = won ? (stats.interest || 0) : 0;
     // Product of alive piles and the smallest alive pile's card count. The
     // guard keeps it 0 (never NaN) when there are no alive piles.
     const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
@@ -3068,9 +3071,10 @@ const Economy = (() => {
       extraCoinUnits, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
       pillarBonus, pillarLines,
       eventBonus, eventLines,
+      interest,
       // The product can't go negative, but a Tribute cost can drag the bonus
       // below zero; clamp the TOTAL at 0 so a win never charges the player coins.
-      total: Math.max(0, product + extraCoinBonus + pillarBonus + eventBonus),
+      total: Math.max(0, product + extraCoinBonus + pillarBonus + eventBonus + interest),
     };
   }
   /** Coins earned (the total of breakdown()). */
@@ -5257,6 +5261,7 @@ const UIRenderer = (() => {
   let networkPulses = true;   // signal pulses on links (Phase 4)
   let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
+  let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
   let driftRAF = null, driftLast = 0;  // rAF loop keeping links attached to drifting cards
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
@@ -6584,6 +6589,9 @@ const UIRenderer = (() => {
   function handleEvent(type, payload) {
     switch (type) {
       case "dealt": {
+        // Snapshot the coin balance the player enters this run with (after any
+        // store spending) → drives the end-of-run Interest payout.
+        runStartCoins = campaign ? campaign.getCoins() : 0;
         renderBoard(payload.board, payload.deck);
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
@@ -6760,6 +6768,8 @@ const UIRenderer = (() => {
       // and any Tribute cost — which shows as a negative).
       (b.eventLines || []).map(p =>
         row(p.label, "", (p.amount >= 0 ? "+" : "") + p.amount)).join("") +
+      // Interest: +1 per 10 coins held entering the run (omitted when none).
+      (b.interest > 0 ? row("Interest", "", "+" + b.interest) : "") +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>"
     );
@@ -7574,6 +7584,8 @@ const UIRenderer = (() => {
       pillarLines: pp.lines,
       eventBonus: run.bonusCoins || 0,
       eventLines,
+      // Interest: +1 coin per 10 coins held at the start of this run.
+      interest: Math.floor(runStartCoins / 10),
     });
     if (payout.total > 0) campaign.earnCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
