@@ -982,7 +982,10 @@
   /* Compact shop: everything (sticky header, 4 sticker slots, Buy, 2 Pillar
      slots, column chips, reroll, start) targets ONE no-scroll phone screen.
      overflow-y:auto is only a safety net for unusually short viewports. */
-  .overlay.store { justify-content: flex-start; align-items: center; overflow-y: auto; overscroll-behavior: contain; gap: 9px; padding: 40px 12px 6px; }
+  /* The store fits ONE screen, no scrolling: a fixed-height flex column with the
+     foot pinned to the bottom (margin-top:auto) and content compacted above it.
+     overflow:hidden guarantees no scroll on the reference viewport. */
+  .overlay.store { justify-content: flex-start; align-items: center; overflow: hidden; gap: 6px; padding: 30px 12px max(8px, env(safe-area-inset-bottom)); }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
@@ -1020,7 +1023,7 @@
   .store-balance .coin-ico { font-size: 14px; }
 
   /* Category zone: its own tint, border, and header colour — tell them apart at a glance. */
-  .zone { width: min(96vw, 400px); border-radius: 16px; padding: 10px 10px 11px; border: 1px solid; }
+  .zone { width: min(96vw, 400px); border-radius: 14px; padding: 7px 9px 8px; border: 1px solid; }
   .zone-h { display: flex; align-items: center; gap: 7px; font-family: var(--font-display);
     font-weight: 700; font-size: 13px; letter-spacing: 2px; margin-bottom: 8px; }
   .zone-h .ico { font-size: 16px; }
@@ -1039,20 +1042,20 @@
     position: relative; flex: 1 1 0; min-width: 0;
     background: rgba(28,18,26,0.72); color: var(--text);
     border: 1px solid rgba(255,255,255,0.07); border-radius: 13px;
-    padding: 9px 5px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 7px 5px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px;
     cursor: pointer; box-shadow: var(--shadow); transition: transform 0.1s ease, box-shadow 0.1s ease;
   }
   .store-tile:active { transform: scale(0.96); }
   .store-tile.disabled { opacity: 0.45; }   /* unaffordable: dimmed, still tappable for help */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
-  .store-tile .ti-icon { font-size: 26px; line-height: 1; margin-top: 2px; }
+  .store-tile .ti-icon { font-size: 23px; line-height: 1; margin-top: 1px; }
   .z-imp  .store-tile .ti-icon { color: var(--accent-2); }
   .z-path .store-tile .ti-icon { color: #c4a8ec; }
   .z-swap .store-tile .ti-icon { color: #8fd9d6; }
   /* Pathway tiles show the shared synapse+icon banner (fits the tile width). */
-  .store-tile .ti-syn { width: 100%; height: 26px; margin-top: 2px; display: block; }
+  .store-tile .ti-syn { width: 100%; height: 23px; margin-top: 1px; display: block; }
   .store-tile .ti-name { font-size: 10px; font-weight: 700; line-height: 1.1; color: var(--text);
-    min-height: 22px; display: flex; align-items: center; text-align: center; }
+    min-height: 18px; display: flex; align-items: center; text-align: center; }
   .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--amber);
     display: inline-flex; align-items: center; gap: 3px; }
   .store-tile .ti-price .coin-ico { font-size: 11px; }
@@ -1092,11 +1095,12 @@
   .trash-pillar-btn:active { transform: scale(0.96); }
 
   /* Sticky footer: the one fixed help slot + the action row. */
-  .store-foot { position: sticky; bottom: 0; width: min(96vw, 400px);
-    display: flex; flex-direction: column; gap: 8px; padding-top: 8px;
-    background: linear-gradient(to top, var(--bg) 72%, transparent); }
+  /* Foot pinned to the bottom of the no-scroll store (margin-top:auto), holding
+     the help slot, the view buttons (Inventory / Cards / Reroll), and Start. */
+  .store-foot { margin-top: auto; width: min(96vw, 400px);
+    display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
   .store-help { background: rgba(20,12,18,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
-    padding: 10px 13px; min-height: 58px; }
+    padding: 8px 12px; min-height: 46px; }
   .store-help .sh-row { display: flex; align-items: center; gap: 8px; }
   .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: 14px;
     letter-spacing: 0.4px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
@@ -1123,15 +1127,20 @@
   .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
   .buy-confirm.hidden { display: none; }
 
-  /* Bottom action row (Reroll + Start). */
-  .store-actions { display: flex; gap: 9px; }
-  .reroll-btn { flex: 1; background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 999px; padding: 12px; font-size: 13px; font-weight: 700;
+  /* View row: Inventory · Cards · Reroll (all secondary, equal width). */
+  .store-views { display: flex; gap: 7px; }
+  .store-view-btn { flex: 1; background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--edge-2); border-radius: 999px; padding: 9px 6px; font-size: 12px; font-weight: 700;
     cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; touch-action: manipulation; }
+  .store-view-btn .ico { font-size: 15px; }
+  .store-view-btn:disabled { opacity: 0.4; color: var(--muted); cursor: default; }
+  .store-view-btn:active { transform: scale(0.97); }
+  /* Reroll keeps its own disabled wiring; it's just another view-row button now. */
+  .reroll-btn { flex: 1; }
   .reroll-btn .ico { font-size: 15px; }
-  .reroll-btn:disabled { opacity: 0.4; color: var(--muted); cursor: default; }
-  .reroll-btn:active { transform: scale(0.98); }
-  .play-btn.store-start { flex: 1.4; margin: 0; padding: 12px 18px; font-size: 15px; }
+  /* Bottom action row (Start, full width). */
+  .store-actions { display: flex; gap: 9px; }
+  .play-btn.store-start { flex: 1; margin: 0; padding: 12px 18px; font-size: 15px; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
   .confirm-overlay {
@@ -2163,10 +2172,12 @@
         <div class="sh-desc" id="shDesc">Select a Sticker, Pillar, or Pack to read it here.</div>
         <div class="sh-col hidden" id="shCol">Choose a column below ↓</div>
       </div>
-      <div class="store-actions">
+      <div class="store-views">
         <button class="store-view-btn" id="storeInvBtn" type="button"><span class="ico-slot" data-ico="stash"></span> Inventory</button>
         <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
-        <button class="reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
+        <button class="store-view-btn reroll-btn" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Reroll</button>
+      </div>
+      <div class="store-actions">
         <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
       </div>
     </div>
@@ -2332,7 +2343,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.94 · pillars-place-in-setup";
+const APP_VERSION = "v0.95 · store-one-screen";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
