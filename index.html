@@ -21,12 +21,12 @@
     --bg: #ECE3DA;          /* warm cream base */
     --bg-2: #FBF7F3;        /* lifted near-white centre */
     --panel: #F8F2EB;       /* warm light panel surface */
-    --accent: #e88bb0;      /* neural rose (primary, = connection colour) */
-    --accent-2: #e8a6c2;    /* light rose (secondary highlights/stats) */
+    --accent: #C84A78;      /* deep neural rose (primary; reads on light) */
+    --accent-2: #BC4270;    /* deep rose (secondary highlights/stats) */
     --net: #C84A78;         /* connection-network links (deep rose, reads on light) */
     --net-dot: #8E2F4E;     /* connection-network signal dots (dark, visible on light) */
-    --good: #84c89a;        /* muted sage — survival/correct */
-    --bad: #e06b80;         /* muted rose-red — loss/wrong */
+    --good: #3F9D6A;        /* deep sage — survival/correct */
+    --bad: #C9405C;         /* deep rose-red — loss/wrong */
     --text: #241C28;        /* dark ink (on cream) */
     --muted: #6E5E68;       /* muted plum-grey */
     /* Matte cards: bright-white face that lifts off the cream, deep two-color
@@ -42,14 +42,14 @@
     --font-display: "Josefin Sans", "Gill Sans", "Optima", sans-serif;
     --font-text: "Chakra Petch", "SF Mono", "Segoe UI", system-ui, sans-serif;
     /* Reserved accents for later phases. */
-    --amber: #e0973c;       /* limiting-pile accent (Phase 2) */
+    --amber: #C77E1F;       /* deep amber — limiting-pile / gold (reads on light) */
     --edge: rgba(74, 52, 44, 0.16);      /* warm hairline on light */
     --edge-2: #D8CCC0;                   /* defined warm-grey border for panels/chrome */
     --panel-2: #ECE3D9;     /* raised inner surface (inputs, secondary buttons) */
     --sel: rgba(200, 74, 120, 0.14);     /* warm rose selection fill */
-    --danger: #b5435a;      /* deep rose-red for destructive actions */
-    --pathway: #a98cd8;     /* Pathway identity (muted violet) */
-    --pathway-2: #c4a8ec;   /* lighter violet for accents/icons */
+    --danger: #B0374F;      /* deep rose-red for destructive actions */
+    --pathway: #6E51A6;     /* Pathway identity (deep violet, reads on light) */
+    --pathway-2: #8568C0;   /* medium violet for accents/icons */
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
     --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory ↔ histogram band */
@@ -245,8 +245,8 @@
     background: rgba(255,255,255,0.10); color: var(--text);
     font-size: 9px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
   }
-  .setup-tab.active { color: #1c1206; background: var(--accent-2); border-color: var(--accent-2); }
-  .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: #1c1206; }
+  .setup-tab.active { color: #fff; background: var(--accent-2); border-color: var(--accent-2); }
+  .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: #fff; }
   .setup-tab.empty { opacity: 0.4; cursor: default; }
   /* The strip holds the active family's horizontally-scrolling row. */
   .setup-strip { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; }
@@ -664,8 +664,8 @@
   .pile.dealing { animation: dealIn 0.4s ease both; }
 
   /* pulse feedback for correct/incorrect */
-  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(132,200,154,0.7);} 100%{box-shadow:0 0 0 15px rgba(132,200,154,0);} }
-  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(224,107,128,0.75);} 100%{box-shadow:0 0 0 15px rgba(224,107,128,0);} }
+  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(63,157,106,0.6);} 100%{box-shadow:0 0 0 15px rgba(63,157,106,0);} }
+  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(201,64,92,0.65);} 100%{box-shadow:0 0 0 15px rgba(201,64,92,0);} }
   /* The ripple rides a dedicated overlay (::after) rather than .card itself: the
      card's `animation` slot is owned by the perpetual cardDrift float, and CSS
      `animation` is not additive — flashing on .card would REPLACE cardDrift and
@@ -865,7 +865,7 @@
     box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
   }
   .menu-item:active { transform: scale(0.98); }
-  .menu-item.primary { color: #1c1206; border: none;
+  .menu-item.primary { color: #fff; border: none;
     background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
   .menu-item.danger { color: var(--danger); border-color: var(--danger); }
   .menu-item .ico { font-size: 18px; }
@@ -954,7 +954,7 @@
   .wt-deck .db.top { display: flex; align-items: center; justify-content: center; }
   .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 5px; border: 1px solid rgba(232,139,176,0.35); }
   .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 999px;
-    background: var(--accent); color: #1c1206; font-size: 10px; font-weight: 800; box-shadow: var(--shadow); }
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; box-shadow: var(--shadow); }
   .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
   .wt-smallboard .mini-card { width: 34px; height: 46px; }
   .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
@@ -968,7 +968,7 @@
   .wt-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
     border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
     font-family: var(--font-text); letter-spacing: 0.4px; }
-  .wt-btn.primary { color: #1c1206; border: none; background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
+  .wt-btn.primary { color: #fff; border: none; background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
   .wt-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; padding-left: 4px; }
   .wt-btn:active { transform: scale(0.97); }
   .wt-btn.hidden { display: none; }
@@ -1335,7 +1335,7 @@
   .store-help .sh-col { font-size: 11px; font-weight: 700; color: #c4a8ec; margin-top: 5px; }
   .store-help .sh-col.hidden, .store-help .sh-buy.hidden { display: none; }
   .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
-    color: #1c1206; border: none; border-radius: 999px; padding: 8px 16px;
+    color: #fff; border: none; border-radius: 999px; padding: 8px 16px;
     font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .sh-buy .coin-ico { font-size: 12px; }
   .sh-buy:disabled { background: var(--panel-2); color: var(--muted); cursor: default; }
@@ -1345,7 +1345,7 @@
   /* Pack-reveal Confirm button (still used by the reveal modal). */
   .buy-confirm { width: min(94vw, 380px); padding: 8px 12px; border: none; border-radius: 10px;
     font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow);
-    background: var(--accent); color: #1c1206; transition: transform 0.08s ease, opacity 0.15s ease; }
+    background: var(--accent); color: #fff; transition: transform 0.08s ease, opacity 0.15s ease; }
   .buy-confirm:active { transform: scale(0.98); }
   .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
   .buy-confirm.hidden { display: none; }
@@ -1504,13 +1504,13 @@
      the Pathway's own icon riding on a dark halo at the centre (instant ID). */
   .cph-banner {
     position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;
-    background: linear-gradient(180deg, rgba(169,140,216,0.24), rgba(169,140,216,0.10));
-    border: 1px solid rgba(196,168,236,0.45);
-    box-shadow: 0 0 11px rgba(169,140,216,0.26), inset 0 1px 0 rgba(255,255,255,0.10);
+    background: linear-gradient(180deg, rgba(110,81,166,0.20), rgba(110,81,166,0.08));
+    border: 1px solid var(--pathway);
+    box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5);
   }
   .cph-banner.empty {
-    background: rgba(255,255,255,0.02);
-    border: 1px dashed rgba(255,255,255,0.10);
+    background: rgba(74,52,44,0.03);
+    border: 1px dashed rgba(74,52,44,0.20);
     box-shadow: none;
   }
   .cph-syn { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -1675,8 +1675,8 @@
   .board.placing-pillar .bp-cell { cursor: pointer; }
   .board.placing-pillar .bp-cell .cph-banner { outline: 2px dashed var(--pathway); outline-offset: 1px; }
   .board.placing-pillar .bp-cell .cph-banner.empty {
-    background: rgba(169,140,216,0.16);
-    border-color: rgba(196,168,236,0.7);
+    background: rgba(110,81,166,0.14);
+    border-color: var(--pathway);
   }
 
   /* Sticker badges — TOP-RIGHT corner, clear of the rank (top-left) and the
@@ -2643,7 +2643,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.4 · panels";
+const APP_VERSION = "v1.0-light.5 · accents";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
