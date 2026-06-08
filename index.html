@@ -213,11 +213,36 @@
   .br-main > .setup-inv, .br-main > .deck-strip { position: absolute; inset: 0; }
   .bottom-region.setup .deck-strip { display: none; }   /* before Start: histogram hidden */
   .bottom-region.run   .setup-inv  { display: none; }   /* after Start: inventory hidden */
-  /* Setup inventory — scrolls within the fixed region if it overflows. */
+  /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
+     at its own consistent size instead of competing in one mixed strip. The tab
+     bar sits on top; the active family's strip scrolls horizontally below it. */
   .setup-inv {
     display: flex; flex-direction: column; gap: 5px;
-    overflow-y: auto; overscroll-behavior: contain; align-items: center;
+    overflow: hidden; align-items: stretch; width: 100%;
   }
+  .setup-tabs { display: flex; gap: 5px; justify-content: center; flex: none; }
+  .setup-tabs.hidden { display: none; }
+  .setup-tab {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--edge-2); border-radius: 999px;
+    padding: 4px 11px; font-size: 11px; font-weight: 800; letter-spacing: 0.3px;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .setup-tab .stab-n {
+    min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px;
+    background: rgba(255,255,255,0.10); color: var(--text);
+    font-size: 9px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .setup-tab.active { color: #1c1206; background: var(--accent-2); border-color: var(--accent-2); }
+  .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: #1c1206; }
+  .setup-tab.empty { opacity: 0.4; cursor: default; }
+  /* The strip holds the active family's horizontally-scrolling row. */
+  .setup-strip { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; }
+  .setup-strip .tab-panel { width: 100%; }
+  .tab-panel.hidden { display: none; }
+  .setup-empty { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; width: 100%; padding: 6px; }
+  .setup-empty.hidden { display: none; }
 
   /* The DECK — face-down card-stack + count, bottom-right of the region. */
   .deck-stack { flex: none; display: inline-flex; align-items: center; gap: 8px;
@@ -1258,9 +1283,13 @@
 
   /* Pre-run pack tray: held pack cards to apply as deck replacements. */
   .pack-tray {
-    display: flex; gap: 8px; justify-content: center; align-items: center;
-    flex-wrap: wrap; margin: 0 auto; padding: 2px 0;
+    display: flex; gap: 8px; justify-content: flex-start; align-items: center;
+    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior: contain; margin: 0; padding: 2px 1px;
   }
+  /* In the setup Cards tab, cards are sized to fit the fixed bottom region under
+     the tab bar (kept legible; the strip scrolls horizontally for many cards). */
+  .setup-strip .pack-tray .mini-card { width: 44px; height: 60px; }
+  .setup-strip .pack-tray .mini-card .mc-rank { font-size: 16px; }
   .pack-tray.hidden { display: none; }
   .pack-tray .pt-card { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; position: relative; }
   .pack-tray .pt-card:active { transform: scale(0.95); }
@@ -2049,9 +2078,19 @@
         <!-- Setup inventory (before Start). Scrolls within the fixed region if
              it has a lot of items — never resizes the region or the board. -->
         <div class="setup-inv" id="setupInv">
-          <div class="sticker-tray hidden" id="stickerTray"></div>
-          <div class="pack-tray hidden" id="packTrayEl"></div>
-          <div class="pillar-tray hidden" id="pillarTray"></div>
+          <!-- Tabs keep each item family at a consistent size (cards no longer
+               dwarf stickers). The active tab's strip scrolls horizontally. -->
+          <div class="setup-tabs" id="setupTabs">
+            <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="tabNCards">0</span></button>
+            <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="tabNStickers">0</span></button>
+            <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="tabNPillars">0</span></button>
+          </div>
+          <div class="setup-strip" id="setupStrip">
+            <div class="pack-tray tab-panel hidden" id="packTrayEl" data-tab="cards"></div>
+            <div class="sticker-tray tab-panel hidden" id="stickerTray" data-tab="stickers"></div>
+            <div class="pillar-tray tab-panel hidden" id="pillarTray" data-tab="pillars"></div>
+            <div class="setup-empty hidden" id="setupEmpty"></div>
+          </div>
           <div class="tray-help hidden" id="trayHelp">
             <span class="th-title" id="thTitle"></span>
             <span class="th-desc" id="thDesc"></span>
@@ -2366,7 +2405,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.96 · deck-histogram";
+const APP_VERSION = "v0.97 · setup-inventory-tabs";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4786,6 +4825,12 @@ const UIRenderer = (() => {
     bottomRegion: document.getElementById("bottomRegion"),
     stickerTray: document.getElementById("stickerTray"),
     pillarTray: document.getElementById("pillarTray"),
+    setupTabs: document.getElementById("setupTabs"),
+    setupStrip: document.getElementById("setupStrip"),
+    setupEmpty: document.getElementById("setupEmpty"),
+    tabNCards: document.getElementById("tabNCards"),
+    tabNStickers: document.getElementById("tabNStickers"),
+    tabNPillars: document.getElementById("tabNPillars"),
     trayHelp: document.getElementById("trayHelp"),
     thTitle: document.getElementById("thTitle"),
     thDesc: document.getElementById("thDesc"),
@@ -4917,6 +4962,8 @@ const UIRenderer = (() => {
   // Setup Pillar placement: the owned Pillar type id armed from inventory
   // (tap a Pillar to arm it, then tap a board column to place it), or null.
   let armedPillar = null;
+  // Which setup-inventory tab is showing: "cards" | "stickers" | "pillars".
+  let activeSetupTab = "stickers";
 
   // Redeal (pre-run reshuffle). `redealCost` is the price of the NEXT redeal
   // this phase; it starts at REDEAL_BASE_COST and rises REDEAL_STEP per redeal,
@@ -5342,9 +5389,7 @@ const UIRenderer = (() => {
     // Bottom region shows the setup inventory (histogram hidden) — same height.
     if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
     el.startRunBtn.classList.remove("hidden");
-    renderStickerTray();                      // shows owned stickers (if any)
-    renderPillarTray();                       // shows owned (unplaced) pillars (if any)
-    renderPackTray();                         // shows held pack cards (if any)
+    renderSetupInv();                         // tabbed Cards / Stickers / Pillars
     renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     const hasPillars = campaign && Object.values(campaign.getPillarInventory()).some(n => n > 0);
@@ -5357,9 +5402,7 @@ const UIRenderer = (() => {
     el.startRunBtn.classList.add("hidden");
     // Bottom region swaps to the histogram (same fixed height → board stays put).
     if (el.bottomRegion) { el.bottomRegion.classList.add("run"); el.bottomRegion.classList.remove("setup"); }
-    renderStickerTray();                      // window closed -> tray hides itself
-    renderPillarTray();                       // window closed -> pillar tray hides itself
-    renderPackTray();                         // window closed -> pack tray hides itself
+    renderSetupInv();                         // window closed -> tabs hide themselves
     renderRedealBtn();                        // window closed -> redeal hides itself
     armedSticker = null; armedPack = null; armedPillar = null;
     el.board.classList.remove("arming", "placing-pillar");
@@ -5441,20 +5484,15 @@ const UIRenderer = (() => {
   /* ---- in-run sticker application ----
      Buy stickers in the store; here you spend them on the face-up top card
      of a pile. Tap a sticker to "arm" it, then tap a pile. */
+  /* Populate the Stickers tab panel (visibility is owned by renderSetupInv's tab
+     controller). The tray is only active during the pre-play window; owned
+     stickers persist in inventory for the next run's window. */
   function renderStickerTray() {
-    // The tray is only active during the pre-play window (until the first
-    // guess). Owned stickers persist in inventory for the next run's window.
     const open = engine && engine.canApplyStickers();
     const inv = campaign ? campaign.getInventory() : {};
-    const owned = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    const owned = open ? StickerTypes.all().filter(t => (inv[t.id] || 0) > 0) : [];
     el.stickerTray.innerHTML = "";
-    if (!open || owned.length === 0) {
-      el.stickerTray.classList.add("hidden");
-      if (armedSticker) { armedSticker = null; el.board.classList.remove("arming"); }
-      renderTrayHelp();   // nothing armed/tray closed → hide the help slot
-      return;             // (no fitBoard — the tray lives inside the fixed region)
-    }
-    el.stickerTray.classList.remove("hidden");
+    if (!open && armedSticker) { armedSticker = null; updateArmingClass(); }
     owned.forEach(t => {
       const b = document.createElement("button");
       b.type = "button";
@@ -5463,9 +5501,7 @@ const UIRenderer = (() => {
       b.innerHTML = '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + inv[t.id] + "</span>";
       el.stickerTray.appendChild(b);
     });
-    renderTrayHelp();                   // reflect the armed Imprint (or hide)
-    // No fitBoard — the tray lives inside the fixed bottom region; the board
-    // size is fixed and must not recompute on inventory changes.
+    renderTrayHelp();                   // reflect the armed sticker (or hide)
   }
 
   function armSticker(typeId) {
@@ -5475,7 +5511,7 @@ const UIRenderer = (() => {
     if (armedSticker) { armedPillar = null; armedPack = null; }   // mutually exclusive
     clearSelection();
     updateArmingClass();
-    renderStickerTray(); renderPillarTray(); renderPackTray();
+    renderSetupInv();
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
       ? "Tap a pile to apply " + t.label + " to its top card."
@@ -5499,14 +5535,9 @@ const UIRenderer = (() => {
     if (!el.pillarTray) return;
     const open = engine && engine.canApplyStickers();
     const inv = campaign ? campaign.getPillarInventory() : {};
-    const owned = PillarTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    const owned = open ? PillarTypes.all().filter(t => (inv[t.id] || 0) > 0) : [];
     el.pillarTray.innerHTML = "";
-    if (!open || owned.length === 0) {
-      el.pillarTray.classList.add("hidden");
-      if (armedPillar) { armedPillar = null; updateArmingClass(); }
-      return;
-    }
-    el.pillarTray.classList.remove("hidden");
+    if (!open && armedPillar) { armedPillar = null; updateArmingClass(); }
     owned.forEach(t => {
       const b = document.createElement("button");
       b.type = "button";
@@ -5519,6 +5550,58 @@ const UIRenderer = (() => {
     });
   }
 
+  /* The tab controller for the setup inventory: populates all three panels
+     (Cards / Stickers / Pillars), updates the tab counts, hides empty tabs,
+     keeps a sensible active tab, and shows ONLY the active panel — so each
+     family renders at its own consistent size and scrolls horizontally rather
+     than the families competing in one mixed strip. */
+  function setupTabCounts() {
+    const inv = campaign ? campaign.getInventory() : {};
+    const pinv = campaign ? campaign.getPillarInventory() : {};
+    const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
+    return {
+      cards: campaign ? campaign.packTrayCount() : 0,
+      stickers: sum(inv),
+      pillars: sum(pinv),
+    };
+  }
+  function renderSetupInv() {
+    renderPackTray(); renderStickerTray(); renderPillarTray();
+    if (!el.setupTabs) return;
+    const open = !!(engine && engine.canApplyStickers());
+    const counts = setupTabCounts();
+    const order = ["cards", "stickers", "pillars"];
+    const panels = { cards: el.packTrayEl, stickers: el.stickerTray, pillars: el.pillarTray };
+    const badges = { cards: el.tabNCards, stickers: el.tabNStickers, pillars: el.tabNPillars };
+    order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
+    // If the active tab is empty, fall back to the first family that has items.
+    if (counts[activeSetupTab] === 0) {
+      const next = order.find(k => counts[k] > 0);
+      if (next) activeSetupTab = next;
+    }
+    const anyItems = order.some(k => counts[k] > 0);
+    el.setupTabs.querySelectorAll(".setup-tab").forEach(btn => {
+      const k = btn.dataset.tab;
+      btn.classList.toggle("empty", counts[k] === 0);
+      btn.classList.toggle("active", k === activeSetupTab);
+    });
+    order.forEach(k => {
+      const p = panels[k];
+      if (p) p.classList.toggle("hidden", !(open && k === activeSetupTab && counts[k] > 0));
+    });
+    el.setupTabs.classList.toggle("hidden", !(open && anyItems));
+    if (el.setupEmpty) {
+      const showEmpty = open && !anyItems;
+      el.setupEmpty.classList.toggle("hidden", !showEmpty);
+      if (showEmpty) el.setupEmpty.textContent = "Nothing to place — read the board, then press Start Run.";
+    }
+  }
+  function selectSetupTab(tab) {
+    if (!tab || activeSetupTab === tab) return;
+    activeSetupTab = tab;
+    renderSetupInv();
+  }
+
   function armPillar(typeId) {
     if (!engine || !engine.canApplyStickers()) return;
     if (campaign.pillarInventoryCount(typeId) <= 0) return;
@@ -5526,7 +5609,7 @@ const UIRenderer = (() => {
     if (armedPillar) { armedSticker = null; armedPack = null; }   // mutually exclusive
     clearSelection();
     updateArmingClass();
-    renderStickerTray(); renderPillarTray(); renderPackTray();
+    renderSetupInv();
     const t = PillarTypes.get(armedPillar);
     el.hint.textContent = t
       ? "Tap a board column to place " + t.label + "."
@@ -5543,7 +5626,7 @@ const UIRenderer = (() => {
     // Reflect on the board indicator row + refit (the row may reveal/hide).
     paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
     fitBoard();
-    renderPillarTray();
+    renderSetupInv();
     el.hint.textContent = (t ? t.label : "Pillar") + " placed on column " + (col + 1) + ".";
     persistCampaign("run");
     refreshDebug();
@@ -5560,7 +5643,7 @@ const UIRenderer = (() => {
     if (engine) engine.logAction("Picked up Pillar " + ((t && t.label) || id) + " from column " + (col + 1));
     paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
     fitBoard();
-    renderPillarTray();
+    renderSetupInv();
     el.hint.textContent = (t ? t.label : "Pillar") + " returned to inventory.";
     persistCampaign("run");
     refreshDebug();
@@ -5571,7 +5654,7 @@ const UIRenderer = (() => {
     if (!engine.canApplyStickers()) {
       armedSticker = null;
       el.board.classList.remove("arming");
-      renderStickerTray();
+      renderSetupInv();
       el.hint.textContent = "Sticker window closed — the run has started.";
       return;
     }
@@ -5602,7 +5685,7 @@ const UIRenderer = (() => {
     // after an in-run application until now.
     paintPileCounts(board);
     renderHud(board, engine.getDeck());
-    renderStickerTray();
+    renderSetupInv();
     el.hint.textContent = "Sticker applied — apply more or press Start Run.";
     persistCampaign("run");   // the sticker is a permanent campaign change
     const st = StickerTypes.get(typeId);
@@ -5726,7 +5809,7 @@ const UIRenderer = (() => {
     if (!id || !campaign) return;
     campaign.debugGrantSticker(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
-    renderStickerTray();
+    renderSetupInv();
     el.debugPeekOut.textContent = "granted Sticker: " + id;
   }
 
@@ -5737,7 +5820,7 @@ const UIRenderer = (() => {
     if (!id || !campaign) return;
     campaign.debugGrantPillar(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
-    renderPillarTray();
+    renderSetupInv();
     el.debugPeekOut.textContent = "granted Pillar to inventory: " + id;
   }
 
@@ -5970,6 +6053,11 @@ const UIRenderer = (() => {
       const b = e.target.closest(".tray-pillar");
       if (b) armPillar(b.dataset.pillar);
     });
+    // Setup inventory tabs: switch the visible family (Cards / Stickers / Pillars).
+    if (el.setupTabs) el.setupTabs.addEventListener("click", (e) => {
+      const b = e.target.closest(".setup-tab");
+      if (b && !b.classList.contains("empty")) selectSetupTab(b.dataset.tab);
+    });
 
     el.btnHigher.addEventListener("click", () => submitGuess("higher"));
     el.btnSame.addEventListener("click", () => submitGuess("same"));
@@ -6144,7 +6232,7 @@ const UIRenderer = (() => {
         }
 
         clearSelection();
-        renderStickerTray();
+        renderSetupInv();
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} kept — ${payload.board.aliveCount()} piles alive.`
           : `${payload.drawn.label} wrong — the pile died.`;
@@ -6163,7 +6251,7 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         refreshNetwork(payload.board);
         clearSelection();
-        renderStickerTray();
+        renderSetupInv();
         Sound.good();
         el.hint.textContent = `${payload.current.label} held on — a Shield soaked the hit.`;
         refreshDebug();
@@ -6182,7 +6270,7 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         refreshNetwork(payload.board);
         clearSelection();
-        renderStickerTray();
+        renderSetupInv();
         Sound.good();
         el.hint.textContent = `${payload.current.label} held on — the ${payload.drawn.suit} Guard kicked in.`;
         refreshDebug();
@@ -6202,7 +6290,7 @@ const UIRenderer = (() => {
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
-        renderStickerTray();
+        renderSetupInv();
         Sound.good();
         el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
@@ -7407,17 +7495,13 @@ const UIRenderer = (() => {
   }
   function closePackItemInfo() { el.packItemHelp.classList.add("hidden"); packHelpOpen = null; }
 
-  /* ---- pre-run pack tray (held pack cards → deck replacement) ---- */
+  /* Populate the Cards tab panel (held pack cards → deck replacement). Visibility
+     is owned by renderSetupInv's tab controller. */
   function renderPackTray() {
     const open = engine && engine.canApplyStickers();
-    const tray = campaign ? campaign.getPackTray() : [];
+    const tray = open && campaign ? campaign.getPackTray() : [];
     el.packTrayEl.innerHTML = "";
-    if (!open || tray.length === 0) {
-      el.packTrayEl.classList.add("hidden");
-      if (armedPack != null) { armedPack = null; el.board.classList.toggle("arming", !!armedSticker); }
-      return;             // (no fitBoard — pack tray lives inside the fixed region)
-    }
-    el.packTrayEl.classList.remove("hidden");
+    if (!open && armedPack != null) { armedPack = null; updateArmingClass(); }
     tray.forEach((c, i) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -7426,17 +7510,15 @@ const UIRenderer = (() => {
       b.innerHTML = miniCardHtml(c) + '<div class="pt-label">swap</div>';
       el.packTrayEl.appendChild(b);
     });
-    // No fitBoard — the board size is fixed; the pack tray is inside the region.
   }
 
   function armPack(index) {
     if (!engine || !engine.canApplyStickers()) return;
     if (index < 0 || index >= campaign.packTrayCount()) return;
     armedPack = armedPack === index ? null : index;
-    if (armedPack != null && armedSticker) { armedSticker = null; }   // mutually exclusive
-    el.board.classList.toggle("arming", armedPack != null || !!armedSticker);
-    renderStickerTray();
-    renderPackTray();
+    if (armedPack != null) { armedSticker = null; armedPillar = null; }   // mutually exclusive
+    updateArmingClass();
+    renderSetupInv();
   }
 
   function attemptReplace(pileIndex) {
@@ -7470,7 +7552,7 @@ const UIRenderer = (() => {
     appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
     armedPack = null;
     el.board.classList.toggle("arming", !!armedSticker);
-    renderPackTray();
+    renderSetupInv();
     persistCampaign("run");
   }
 
