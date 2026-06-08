@@ -138,7 +138,18 @@
     background: none; border: none; color: var(--text);
     font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
   }
-  .inv-card-body { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .inv-card-body { display: flex; flex-direction: column; gap: 11px; }
+  /* Sectioned inventory: Stickers · Pillars · Cards, each a labelled group. */
+  .inv-sec { display: flex; flex-direction: column; gap: 6px; }
+  .inv-sec-h { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .inv-sec-h .ico { font-size: 13px; color: var(--accent-2); }
+  .inv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .inv-cards-btn { align-self: flex-start; background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--edge-2); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 700;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .inv-cards-btn .ico { font-size: 15px; }
+  .inv-cards-btn:active { transform: scale(0.97); }
 
   /* Layout 4 — one slim HUD line: Stage·Run · score expression · dopamine. */
   .hud {
@@ -2273,7 +2284,7 @@
   <div class="inv-popup hidden" id="invPopup">
     <div class="inv-card">
       <div class="inv-card-head">
-        <span><span class="ico-slot" data-ico="stash"></span> Sticker Inventory</span>
+        <span><span class="ico-slot" data-ico="stash"></span> Inventory</span>
         <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
       </div>
       <div class="inv-card-body" id="invBody"></div>
@@ -7565,9 +7576,31 @@ const UIRenderer = (() => {
   /* In-play sticker inventory popup — opened by TAPPING the coin indicator,
      dismissed by tapping the backdrop or the ×. Reads the same campaign
      inventory the store uses (via inventoryHtml). */
+  /* Owned (unplaced) Pillars as labelled chips — mirrors inventoryHtml. */
+  function pillarInventoryHtml(emptyLabel) {
+    const inv = campaign ? campaign.getPillarInventory() : {};
+    const owned = PillarTypes.all().filter(t => (inv[t.id] || 0) > 0);
+    if (!owned.length) return '<span class="inv-empty">' + (emptyLabel || "None") + "</span>";
+    return owned.map(t =>
+      '<span class="inv-chip">' + t.icon + " " + escHtml(t.label) +
+        ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
+    ).join("");
+  }
+  /* The inventory popup: everything the player OWNS — stickers, unplaced
+     pillars, and a shortcut into the full deck (cards) view. Reads the same
+     campaign inventories the store buys into. */
   function openInvPopup() {
-    el.invBody.innerHTML = inventoryHtml("No stickers in your inventory");
+    const placed = campaign ? campaign.getColumnPillars().filter(Boolean).length : 0;
+    el.invBody.innerHTML =
+      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("dot") + " Stickers</div>" +
+        '<div class="inv-chips">' + inventoryHtml("No stickers yet") + "</div></div>" +
+      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("guardian") + " Pillars · unplaced</div>" +
+        '<div class="inv-chips">' + pillarInventoryHtml(placed ? "All owned pillars are placed on columns" : "No pillars yet") + "</div></div>" +
+      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("deck") + " Cards</div>" +
+        '<button class="inv-cards-btn" id="invCardsBtn" type="button">' + glyph("eye") + " View your deck</button></div>";
     el.invPopup.classList.remove("hidden");
+    const cb = document.getElementById("invCardsBtn");
+    if (cb) cb.addEventListener("click", () => DeckInspector.openFull());
   }
   function closeInvPopup() { el.invPopup.classList.add("hidden"); }
 
