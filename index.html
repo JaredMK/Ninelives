@@ -1260,6 +1260,10 @@
     font-size: 11px; font-weight: 700;
   }
   .inv-chip .ic-n { color: var(--accent-2); font-weight: 800; }
+  /* Placed-on-board Pillar chips read in the Pathway/violet identity so they're
+     clearly distinct from held (unplaced) chips, with the column they sit on. */
+  .inv-chip.placed { background: rgba(110,81,166,0.14); border: 1px solid var(--pathway); color: var(--pathway-2); }
+  .inv-chip .ic-col { color: var(--pathway-2); font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px; }
   .inv-empty { font-size: 11px; font-weight: 600; color: var(--muted); }
 
   /* ============================================================
@@ -1395,6 +1399,11 @@
     font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
   .pack-skip-btn:active { transform: scale(0.98); }
   .pack-skip-btn.hidden { display: none; }
+  /* Inside the pack panel, Confirm + Skip span the panel exactly like the
+     full-width deck button, so every button lines up centred and nothing
+     overflows the edge on a narrow phone. */
+  .pack-panel .buy-confirm,
+  .pack-panel .pack-skip-btn { width: 100%; max-width: 100%; }
 
   /* View row: Inventory · Cards (secondary, equal width). */
   .store-views { display: flex; gap: 7px; }
@@ -2917,7 +2926,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.5 · map-tap-nav";
+const APP_VERSION = "v1.6 · popup-dismiss-polish";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6820,17 +6829,24 @@ const UIRenderer = (() => {
     });
     el.packConfirmBtn.addEventListener("click", confirmPackPick);
     if (el.packSkipBtn) el.packSkipBtn.addEventListener("click", skipPackReveal);
-    // Replace confirmation.
+    // Pack pick: tapping anywhere OFF a pack item (panel space or backdrop)
+    // dismisses the item-info popup. The pick itself is forced, so the overlay
+    // never closes on a backdrop tap — only the informational popup does.
+    el.packReveal.addEventListener("click", (e) => {
+      if (e.target.closest("[data-pick], [data-held]")) return;   // tapping an item shows its info
+      closePackItemInfo();
+    });
+    // Replace confirmation (deliberate yes/no — requires an explicit choice, so
+    // a backdrop tap does NOT dismiss it).
     el.packReplaceCancel.addEventListener("click", closePackReplace);
     el.packReplaceOk.addEventListener("click", doReplace);
-    el.packReplaceConfirm.addEventListener("click", (e) => { if (e.target === el.packReplaceConfirm) closePackReplace(); });
 
     // Trash an armed setup item (deliberate: button -> confirm dialog).
     if (el.thTrash) el.thTrash.addEventListener("click", requestTrashItem);
     if (el.thClose) el.thClose.addEventListener("click", disarmSetupItem);   // ✕ → back to items
     el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
     el.trashOkBtn.addEventListener("click", doTrashItem);
-    el.trashConfirm.addEventListener("click", (e) => { if (e.target === el.trashConfirm) closeTrashConfirm(); });
+    // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
 
     // Paid-bury confirmation (Tribute II lands → "Bury … for X coins?").
     el.buryYesBtn.addEventListener("click", () => answerBury(true));
@@ -6843,7 +6859,7 @@ const UIRenderer = (() => {
     el.redealBtn.addEventListener("click", requestRedeal);
     el.redealCancelBtn.addEventListener("click", closeRedealConfirm);
     el.redealOkBtn.addEventListener("click", doRedeal);
-    el.redealConfirm.addEventListener("click", (e) => { if (e.target === el.redealConfirm) closeRedealConfirm(); });
+    // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
 
     // Deck composition histogram (always visible): drag to scrub higher/same/lower.
     el.deckStrip.addEventListener("pointerdown", (e) => { stripScrubbing = true; stripScrubApply(e); e.preventDefault(); });
@@ -8962,6 +8978,22 @@ const UIRenderer = (() => {
         ' <span class="ic-n">×' + inv[t.id] + "</span></span>"
     ).join("");
   }
+  /* Pillars currently PLACED on board columns (active in play) — distinct from
+     the unplaced/held chips, each tagged with the column it sits on. Reads the
+     persistent column binding (what's active on the board). */
+  function placedPillarsHtml(emptyLabel) {
+    const binding = campaign ? campaign.getColumnPillars() : [];
+    const chips = [];
+    binding.forEach((pid, col) => {
+      if (!pid) return;
+      const t = PillarTypes.get(pid);
+      if (!t) return;
+      chips.push('<span class="inv-chip placed">' + t.icon + " " + escHtml(t.label) +
+        ' <span class="ic-col">Col ' + (col + 1) + "</span></span>");
+    });
+    if (!chips.length) return '<span class="inv-empty">' + (emptyLabel || "None placed yet") + "</span>";
+    return chips.join("");
+  }
   /* The inventory popup: everything the player OWNS — stickers, unplaced
      pillars, and a shortcut into the full deck (cards) view. Reads the same
      campaign inventories the store buys into. */
@@ -8970,8 +9002,11 @@ const UIRenderer = (() => {
     el.invBody.innerHTML =
       '<div class="inv-sec"><div class="inv-sec-h">' + glyph("dot") + " Stickers</div>" +
         '<div class="inv-chips">' + inventoryHtml("No stickers yet") + "</div></div>" +
+      // Pillars active on the board (placed) — shown distinctly from held ones.
+      '<div class="inv-sec"><div class="inv-sec-h">' + glyph("guardian") + " Pillars · on the board</div>" +
+        '<div class="inv-chips">' + placedPillarsHtml("No pillars placed yet") + "</div></div>" +
       '<div class="inv-sec"><div class="inv-sec-h">' + glyph("guardian") + " Pillars · unplaced</div>" +
-        '<div class="inv-chips">' + pillarInventoryHtml(placed ? "All owned pillars are placed on columns" : "No pillars yet") + "</div></div>" +
+        '<div class="inv-chips">' + pillarInventoryHtml(placed ? "All owned pillars are placed" : "No pillars yet") + "</div></div>" +
       '<div class="inv-sec"><div class="inv-sec-h">' + glyph("deck") + " Cards</div>" +
         '<button class="inv-cards-btn" id="invCardsBtn" type="button">' + glyph("eye") + " View your deck</button></div>";
     el.invPopup.classList.remove("hidden");
