@@ -20,7 +20,7 @@
        Names unchanged so the existing chrome inherits the new palette. */
     --bg: #ECE3DA;          /* warm cream base */
     --bg-2: #FBF7F3;        /* lifted near-white centre */
-    --panel: #2A2430;       /* matte lighter-slate chrome (no glow) */
+    --panel: #F8F2EB;       /* warm light panel surface */
     --accent: #e88bb0;      /* neural rose (primary, = connection colour) */
     --accent-2: #e8a6c2;    /* light rose (secondary highlights/stats) */
     --net: #C84A78;         /* connection-network links (deep rose, reads on light) */
@@ -37,16 +37,16 @@
     --card-border: #D8CCC0;
     --radius: 14px;
     --gap: clamp(8px, 2.6vw, 16px);
-    --shadow: 0 6px 18px rgba(2, 1, 4, 0.55);
+    --shadow: 0 6px 18px rgba(74, 50, 40, 0.16);
     /* ---- Type system ----------------------------------------------------- */
     --font-display: "Josefin Sans", "Gill Sans", "Optima", sans-serif;
     --font-text: "Chakra Petch", "SF Mono", "Segoe UI", system-ui, sans-serif;
     /* Reserved accents for later phases. */
     --amber: #e0973c;       /* limiting-pile accent (Phase 2) */
-    --edge: rgba(74, 66, 80, 0.55);      /* matte slate hairline */
-    --edge-2: #4A4250;                   /* defined slate border for panels/chrome */
-    --panel-2: #332C3A;     /* raised inner surface (inputs, secondary buttons) */
-    --sel: rgba(232, 139, 176, 0.16);    /* warm selection fill */
+    --edge: rgba(74, 52, 44, 0.16);      /* warm hairline on light */
+    --edge-2: #D8CCC0;                   /* defined warm-grey border for panels/chrome */
+    --panel-2: #ECE3D9;     /* raised inner surface (inputs, secondary buttons) */
+    --sel: rgba(200, 74, 120, 0.14);     /* warm rose selection fill */
     --danger: #b5435a;      /* deep rose-red for destructive actions */
     --pathway: #a98cd8;     /* Pathway identity (muted violet) */
     --pathway-2: #c4a8ec;   /* lighter violet for accents/icons */
@@ -124,13 +124,13 @@
   .inv-popup {
     position: fixed; inset: 0; z-index: 60;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(6, 10, 22, 0.55);
+    background: rgba(48, 36, 32, 0.55);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   }
   .inv-popup.hidden { display: none; }
   .inv-card {
     width: min(86vw, 320px);
-    background: rgba(35, 23, 28, 0.98);
+    background: rgba(251, 246, 241, 0.98);
     border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 14px; box-shadow: var(--shadow);
   }
@@ -211,7 +211,7 @@
     display: flex; align-items: flex-end; gap: 10px;
     width: min(99vw, 540px); margin: 0 auto;
     height: var(--bottom-h, 102px);
-    background: rgba(20, 14, 22, 0.5);
+    background: rgba(248, 242, 235, 0.5);
     border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 6px 9px;
   }
@@ -262,13 +262,13 @@
   .deck-pile { position: relative; width: 36px; height: 48px; flex: none; }
   .deck-pile .ds-back {
     position: absolute; width: 32px; height: 46px; border-radius: 6px;
-    background: repeating-linear-gradient(135deg, #322a3c 0 5px, #281f30 5px 10px);
+    background: repeating-linear-gradient(135deg, #d8c7b8 0 5px, #cbb8a6 5px 10px);
     border: 1px solid var(--edge-2); box-shadow: 0 1px 3px rgba(0,0,0,0.55);
   }
   .deck-pile .ds-back:nth-child(1) { left: 0; top: 2px; }
   .deck-pile .ds-back:nth-child(2) { left: 2px; top: 1px; }
   .deck-pile .ds-back.ds-top { left: 4px; top: 0;
-    background: repeating-linear-gradient(135deg, #3a3146 0 5px, #2f2538 5px 10px);
+    background: repeating-linear-gradient(135deg, #e2d2c4 0 5px, #d3c1b0 5px 10px);
     border-color: var(--pathway); }
   /* Scout reveal: the top of the deck shows the upcoming card's face (matte
      off-white card, pathway-violet edge to signal it's the revealed look-ahead).
@@ -327,7 +327,7 @@
     position: absolute; left: 0; right: 0; bottom: 100%;
     margin-bottom: 2px; text-align: center;
     font-size: 11px; font-weight: 700; color: var(--text);
-    background: rgba(35,23,28,0.96); border: 1px solid var(--edge-2); border-radius: 8px;
+    background: rgba(251,246,241,0.96); border: 1px solid var(--edge-2); border-radius: 8px;
     padding: 3px 6px; pointer-events: none;
   }
   .ds-scrub.hidden { display: none; }
@@ -623,7 +623,7 @@
     font-size: clamp(26px, 12vw, 56px);
     font-weight: 600;
     color: rgba(176, 150, 165, 0.42);
-    background: rgba(10, 7, 9, 0.55);
+    background: rgba(246, 239, 231, 0.55);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.45s ease;
@@ -718,7 +718,7 @@
     z-index: 6; pointer-events: none; opacity: 0;
     font-family: var(--font-display); font-weight: 700;
     font-size: clamp(8.5px, 2.5vw, 11.5px); letter-spacing: 0.3px; white-space: nowrap;
-    color: var(--text); background: rgba(20,14,22,0.94);
+    color: var(--text); background: rgba(248,242,235,0.94);
     border: 1px solid var(--edge-2); border-radius: 8px; padding: 3px 8px;
     box-shadow: 0 2px 8px rgba(2,1,4,0.5);
   }
@@ -875,7 +875,7 @@
   .sheet-overlay {
     position: fixed; inset: 0; z-index: 1600;
     display: flex; align-items: flex-end; justify-content: center;
-    background: rgba(6, 4, 8, 0.66);
+    background: rgba(48, 36, 32, 0.66);
   }
   .sheet-overlay.hidden { display: none; }
   .sheet-panel {
@@ -1041,7 +1041,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(6, 10, 22, 0.82);
+    background: rgba(48, 36, 32, 0.82);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     display: flex;
@@ -1202,7 +1202,7 @@
     text-align: center;
     padding: 6px 0 8px;
     margin: 0;
-    background: rgba(22, 15, 20, 0.96);
+    background: rgba(248, 242, 235, 0.96);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.10);
@@ -1260,7 +1260,7 @@
   .store-row { display: flex; flex-wrap: nowrap; gap: 7px; }
   .store-tile {
     position: relative; flex: 1 1 0; min-width: 0;
-    background: rgba(28,18,26,0.72); color: var(--text);
+    background: rgba(246,239,231,0.72); color: var(--text);
     border: 1px solid rgba(255,255,255,0.07); border-radius: 13px;
     padding: 7px 5px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px;
     cursor: pointer; box-shadow: var(--shadow); transition: transform 0.1s ease, box-shadow 0.1s ease;
@@ -1293,7 +1293,7 @@
   /* Pathway column chooser (inside the Pathways zone). */
   .pillar-slots { display: flex; gap: 7px; margin-top: 8px; }
   .pillar-slot { flex: 1 1 0; min-width: 0;
-    background: rgba(28,18,26,0.55); color: var(--text);
+    background: rgba(246,239,231,0.55); color: var(--text);
     border: 1px dashed rgba(160,116,214,0.45); border-radius: 11px;
     padding: 8px 3px; display: flex; flex-direction: column; align-items: center; gap: 2px;
     cursor: pointer; transition: transform 0.08s ease; }
@@ -1319,7 +1319,7 @@
      the help slot, the view buttons (Inventory / Cards / Reroll), and Start. */
   .store-foot { margin-top: auto; width: min(96vw, 400px);
     display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
-  .store-help { background: rgba(20,12,18,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
+  .store-help { background: rgba(248,242,235,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 8px 12px; min-height: 46px; }
   /* Empty (nothing selected): keep the reserved height so the layout never jumps,
      but show a blank slot, no placeholder text or chrome. */
@@ -1372,7 +1372,7 @@
   .confirm-overlay {
     position: fixed; inset: 0; z-index: 70;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(6,10,22,0.62);
+    background: rgba(48,36,32,0.62);
     backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     padding: 20px;
   }
@@ -1557,7 +1557,7 @@
     pointer-events: auto;
     width: min(92vw, 340px);
     max-height: 42vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(35, 23, 28, 0.98);
+    background: rgba(251, 246, 241, 0.98);
     border: 1px solid var(--edge-2);
     border-radius: 12px;
     padding: 12px 14px;
@@ -1757,7 +1757,7 @@
   .deck-modal {
     position: fixed;
     inset: 0;
-    background: rgba(6, 10, 22, 0.7);
+    background: rgba(48, 36, 32, 0.7);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     display: flex;
@@ -1770,7 +1770,7 @@
   }
   .deck-modal.hidden { display: none; }
   .deck-modal-panel {
-    background: linear-gradient(180deg, #23171c, #160f14);
+    background: linear-gradient(180deg, #FBF6F1, #F1E8DE);
     border: 1px solid var(--edge-2);
     border-bottom: none;
     border-radius: 16px 16px 0 0;
@@ -1865,7 +1865,7 @@
     transform: translateX(-50%);
     z-index: 61;
     pointer-events: none;
-    background: rgba(35, 23, 28, 0.96);
+    background: rgba(251, 246, 241, 0.96);
     border: 1px solid var(--edge-2);
     border-radius: 12px;
     padding: 10px 12px;
@@ -1880,7 +1880,7 @@
     position: fixed; left: 50%; top: 15%; transform: translateX(-50%);
     z-index: 64; pointer-events: none;
     width: min(92vw, 360px); max-height: 66vh; overflow: hidden;
-    background: rgba(35, 23, 28, 0.98); border: 1px solid var(--edge-2);
+    background: rgba(251, 246, 241, 0.98); border: 1px solid var(--edge-2);
     border-radius: 12px; box-shadow: var(--shadow);
     padding: 11px 13px; font-size: 13px; color: var(--text);
   }
@@ -1891,13 +1891,13 @@
   .card-info {
     position: fixed; inset: 0; z-index: 64;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(6,10,22,0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    background: rgba(48,36,32,0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     padding: 18px;
   }
   .card-info.hidden { display: none; }
   .card-info-panel {
     width: min(92vw, 360px); max-height: 76vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(35,23,28,0.99); border: 1px solid var(--edge-2);
+    background: rgba(251,246,241,0.99); border: 1px solid var(--edge-2);
     border-radius: 12px; box-shadow: var(--shadow);
     padding: 13px 14px; font-size: 13px; color: var(--text);
   }
@@ -1947,7 +1947,7 @@
        toggle is reachable from any screen, including the store. */
     position: fixed; left: 8px; bottom: 8px; z-index: 90;
     width: 34px; height: 34px; border-radius: 50%;
-    background: rgba(35, 23, 28, 0.7); border: 1px solid var(--edge-2);
+    background: rgba(251, 246, 241, 0.7); border: 1px solid var(--edge-2);
     color: var(--accent-2); font-size: 16px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; opacity: 0.45;
@@ -1958,7 +1958,7 @@
   .debug-overlay {
     position: fixed; inset: 0; z-index: 95;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(6, 10, 22, 0.55);
+    background: rgba(48, 36, 32, 0.55);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
     padding: 16px;
   }
@@ -1968,7 +1968,7 @@
     max-height: 80svh; max-height: 80vh;
     display: flex; flex-direction: column;
     border: 1px dashed var(--edge-2); border-radius: 14px;
-    background: rgba(35, 23, 28, 0.98); box-shadow: var(--shadow);
+    background: rgba(251, 246, 241, 0.98); box-shadow: var(--shadow);
     font-size: 12px;
   }
   /* Internal scroll so debug content never needs the (locked) page to scroll. */
@@ -2643,7 +2643,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.3 · network";
+const APP_VERSION = "v1.0-light.4 · panels";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
