@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#0e0a0d" />
-<title>Mnesis</title>
+<title>Shoulda Said Same</title>
 <!-- Neural type system: Josefin Sans (soft organic display, for titles) +
      Chakra Petch (clean technical, for ranks/gameplay text). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -832,9 +832,14 @@
   .menu-screen.hidden { display: none; }
   .menu-mark { color: var(--accent); font-size: 46px; line-height: 1;
     filter: drop-shadow(0 2px 5px rgba(2,1,4,0.6)); }
+  /* Stacked three-word title treatment (one word per line) — keeps the matte
+     neural look, just sized to fit the longer name cleanly on any phone. */
   .menu-title {
-    font-family: var(--font-display); font-weight: 700; font-size: 54px;
-    letter-spacing: 8px; color: #f0d9e4; margin: 2px 0 0;
+    display: flex; flex-direction: column; align-items: center;
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(34px, 12.5vw, 50px); line-height: 0.95;
+    letter-spacing: 4px; color: #f0d9e4; margin: 4px 0 2px;
+    text-transform: uppercase; text-align: center;
     text-shadow: 0 2px 8px rgba(2,1,4,0.6);
   }
   .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
@@ -2381,7 +2386,7 @@
   <!-- Start / End overlay -->
   <div class="overlay" id="overlay">
     <div class="big" id="overlayIcon"><span class="ico-slot" data-ico="logo"></span></div>
-    <h2 id="overlayTitle">Mnesis</h2>
+    <h2 id="overlayTitle">Shoulda Said Same</h2>
     <p id="overlayMsg">
       Keep your piles alive. Pick a pile and guess the next card:
       higher, lower, or the same. Guess right and the pile grows.
@@ -2567,7 +2572,7 @@
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <div class="menu-mark"><span class="ico-slot" data-ico="logo"></span></div>
-    <h1 class="menu-title">MNESIS</h1>
+    <h1 class="menu-title"><span>Shoulda</span><span>Said</span><span>Same</span></h1>
     <div class="menu-tagline">a higher-or-lower survival game</div>
     <div class="menu-buttons" id="menuButtons"></div>
     <div class="menu-foot" id="menuFoot"></div>
@@ -2607,7 +2612,7 @@
 <script>
 "use strict";
 /* ================================================================
-   MNESIS — mobile-first card survival prototype
+   SHOULDA SAID SAME — mobile-first card survival prototype
    ----------------------------------------------------------------
    Architecture (intentionally decoupled for future expansion):
 
@@ -2627,7 +2632,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.99.7 · shoulda-said-same";
+const APP_VERSION = "v0.99.8 · rename-shoulda-said-same";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3873,7 +3878,7 @@ const GameEngine = (() => {
         emit("won", { board, deck, run, pillarPayout: pp });
         // FUTURE: HOOKS.onRunComplete({ result: "win", board });
       } else if (!board.anyAlive()) {
-        // All nine lives spent. -> Run End phase.
+        // All piles in play are dead. -> Run End phase.
         status = "lost";
         run.phase = "ended";
         run.result = "loss";
@@ -6776,7 +6781,7 @@ const UIRenderer = (() => {
   function showStartScreen() {
     showOverlay({
       icon: glyph("logo"),
-      title: "MNESIS",
+      title: "Shoulda Said Same",
       msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
          + " runs each). The deck grows by a suit each stage. Lose a single run "
          + "and the whole campaign resets. Survive every card to clear a run.",
@@ -8393,7 +8398,7 @@ const UIRenderer = (() => {
     // Stamp the build badge (and console) so the running version is obvious.
     el.buildTag.textContent = "build " + APP_VERSION;
     if (el.debugVer) el.debugVer.textContent = "build " + APP_VERSION;
-    console.log("Mnesis " + APP_VERSION);
+    console.log("Shoulda Said Same " + APP_VERSION);
 
     // Layout 4: the histogram is permanently visible (no toggle).
     deckStripOn = true;

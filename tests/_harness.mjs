@@ -1,4 +1,4 @@
-// Test harness for Nine Lives.
+// Test harness for Shoulda Said Same.
 //
 // The game ships as a single index.html with all logic in one <script>.
 // The "engine" modules (DeckManager, BoardState, GameEngine, CampaignState,

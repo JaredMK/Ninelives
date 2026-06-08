@@ -1,4 +1,4 @@
-# 🐱 Nine Lives
+# Shoulda Said Same
 
 A mobile-first, single-file web card game. No frameworks, no backend, no
 dependencies — open `index.html` in any modern browser.
