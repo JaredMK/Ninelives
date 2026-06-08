@@ -6423,6 +6423,7 @@ const UIRenderer = (() => {
     const DRAG_THRESH = 26;       // vertical travel to arm a guess
     let peekTimer = null, peeking = false, suppressPileClick = false;
     let peekTapCol = null;   // a Pathway banner whose peek is open via a quick TAP
+    let peekTapPile = null;  // a pile whose card-sticker peek is open via a TAP (pre-run)
     let pileDrag = null;          // { index, startY, armed, moved }
 
     function setDragGreying(armed) {
@@ -6499,13 +6500,15 @@ const UIRenderer = (() => {
         // play) tapping a slot toggles its help popup — which, in setup, carries an
         // explicit "Return to inventory" button (never auto-removed).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
+        if (peekTapPile != null) peekTapPile = null;   // switching to a Pillar peek
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
         return;
       }
       if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }   // tap-off closes it
       const pileEl = e.target.closest(".pile");
-      if (!pileEl) return;
+      // Tap-off (empty board space) also closes an open pre-run card peek.
+      if (!pileEl) { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } return; }
       const index = Number(pileEl.dataset.index);
       // A Pillar is placed by tapping its column's SLOT (the .bp-cell row above),
       // handled above — not by tapping a card. So while placing a Pillar, taps on
@@ -6513,6 +6516,12 @@ const UIRenderer = (() => {
       if (armedPillar) return;
       else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
+      else if (setupWindow) {
+        // Pre-run, nothing armed: tap a card to READ the stickers already on it
+        // (distinct from the placement flow, which arms a sticker first). Toggle.
+        if (peekTapPile === index) { closePeekInfo(); peekTapPile = null; }
+        else { openCardPeek(index); peekTapPile = index; }
+      }
       else selectPile(index);
     });
 
@@ -6531,7 +6540,7 @@ const UIRenderer = (() => {
     // Pre-run pack tray: tap a held pack card to arm/disarm it for replacement.
     el.packTrayEl.addEventListener("click", (e) => {
       const b = e.target.closest(".pt-card");
-      if (b) armPack(Number(b.dataset.tray));
+      if (b) { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } armPack(Number(b.dataset.tray)); }
     });
     // Pack reveal modal. Tapping the "?" opens that item's info popup (never a
     // select); tapping the item SELECTS it; the Confirm button finalizes. When
@@ -6585,15 +6594,17 @@ const UIRenderer = (() => {
       if (e.target === el.invPopup) closeInvPopup();   // backdrop tap only
     });
 
+    // Any arm action dismisses an open pre-run card peek (shared popup element).
+    const dismissPilePeek = () => { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } };
     // Sticker tray: tap a sticker to arm/disarm it.
     el.stickerTray.addEventListener("click", (e) => {
       const b = e.target.closest(".tray-sticker");
-      if (b) armSticker(b.dataset.type);
+      if (b) { dismissPilePeek(); armSticker(b.dataset.type); }
     });
     // Pillar tray (setup): tap an owned Pillar to arm/disarm it for placement.
     if (el.pillarTray) el.pillarTray.addEventListener("click", (e) => {
       const b = e.target.closest(".tray-pillar");
-      if (b) armPillar(b.dataset.pillar);
+      if (b) { dismissPilePeek(); armPillar(b.dataset.pillar); }
     });
     // Setup inventory tabs: switch the visible family (Cards / Stickers / Pillars).
     if (el.setupTabs) el.setupTabs.addEventListener("click", (e) => {
