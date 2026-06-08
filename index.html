@@ -1206,7 +1206,10 @@
   /* The store fits ONE screen, no scrolling: a fixed-height flex column with the
      foot pinned to the bottom (margin-top:auto) and content compacted above it.
      overflow:hidden guarantees no scroll on the reference viewport. */
-  .overlay.store { justify-content: flex-start; align-items: center; overflow: hidden; gap: 6px; padding: 30px 12px max(8px, env(safe-area-inset-bottom)); }
+  /* Top padding clears the fixed Stage·Run·coins badge (top:6px, ~34px tall) so
+     the Refresh-store button in the top row never tucks under it. overflow-y is
+     the safety net for short viewports now that the content sits a touch lower. */
+  .overlay.store { justify-content: flex-start; align-items: center; overflow-y: auto; overflow-x: hidden; gap: 6px; padding: 42px 12px max(8px, env(safe-area-inset-bottom)); }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
@@ -1443,8 +1446,19 @@
   .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
   .pack-item.chosen .pk-sticker { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 8px; }
   /* The revealed-item info help slot reuses .item-help styling but sits ABOVE the
-     pack-reveal overlay (z-index 70) and the deck modal (80). */
-  .item-help.pack-item-help { z-index: 82; }
+     pack-reveal overlay (z-index 70) and the deck modal (80). Fixed footprint so a
+     card with many stickers can't grow the box up over the pack items / buttons —
+     the title stays pinned and the description scrolls inside. */
+  .item-help.pack-item-help {
+    z-index: 82;
+    height: 162px; max-height: none;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .item-help.pack-item-help .ih-body {
+    flex: 1 1 auto; min-height: 0;
+    overflow-y: auto; overscroll-behavior: contain;
+  }
 
   /* Sticker chip (revealed sticker-pack item). */
   .pk-sticker {
@@ -1752,8 +1766,18 @@
     color: var(--amber);
     border-color: var(--amber);
   }
-  /* A pile is a valid sticker target while a sticker is armed. */
-  .board.arming .pile:not(.dead) { outline: 2px dashed var(--accent); outline-offset: -3px; }
+  /* A pile is a valid sticker target while a sticker is armed. Drawn as an
+     overlay pseudo-element (not an inset `outline`, whose sides the card or a
+     board-edge clip could swallow — the tight rightmost column lost its left
+     line) so every pile shows a COMPLETE dashed rectangle above its card. */
+  .board.arming .pile:not(.dead)::after {
+    content: "";
+    position: absolute; inset: 3px;
+    border: 2px dashed var(--accent);
+    border-radius: 22px;
+    pointer-events: none;
+    z-index: 3;
+  }
 
   /* ============================================================
      DECK INSPECTION (tap = full breakdown, hold = quick peek)
@@ -1824,6 +1848,26 @@
   .deck-modal-hist .dh-k:first-child { margin-left: 0; }
   .deck-modal-hist .dh-k-rem { background: var(--accent-2); }
   .deck-modal-hist .dh-k-all { background: rgba(74,52,44,0.30); }
+
+  /* Suit breakdown — remaining/total per suit, next to the rank histogram. */
+  .deck-modal-suits {
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+    gap: 6px; margin: -4px 0 12px;
+  }
+  .deck-modal-suits.hidden { display: none; }
+  .deck-modal-suits .dsuit-lbl {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); font-weight: 700; margin-right: 2px;
+  }
+  .deck-modal-suits .dsuit {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: var(--panel); border-radius: 999px; padding: 3px 9px;
+    font-weight: 800; color: var(--text);
+  }
+  .deck-modal-suits .dsuit.red { color: var(--card-red); }
+  .deck-modal-suits .dsuit-ic { font-size: 14px; line-height: 1; }
+  .deck-modal-suits .dsuit-n { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .deck-modal-suits .dsuit-of { color: var(--muted); font-weight: 700; font-size: 11px; }
 
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
@@ -2575,6 +2619,7 @@
       </div>
       <div class="deck-modal-total" id="deckModalTotal">—</div>
       <div class="deck-modal-hist hidden" id="deckModalHist"></div>
+      <div class="deck-modal-suits hidden" id="deckModalSuits"></div>
       <div class="bd-scrub hidden" id="deckScrub"></div>
       <div class="deck-breakdown" id="deckBreakdown"></div>
     </div>
@@ -5137,9 +5182,34 @@ const DeckInspector = (() => {
     refs.modalTotal.textContent =
       remCount + " of " + cards.length + " cards in play · faded = already played";
     renderHistogram();
+    renderSuitBreakdown(cards, isRem);
     refs.breakdown.innerHTML = '<div class="deck-cards">' +
       cards.map(c => '<div class="deck-card' + (isRem(c) ? "" : " drawn") + '">' + renderCard(c) + "</div>").join("") +
       "</div>";
+  }
+
+  /* Suit breakdown shown alongside the rank histogram: remaining-of-total per
+     suit (♠ ♥ ♣ ♦), in the same two-colour split as the card faces. Read-only,
+     order-free — counts only, derived from the same card list as the grid. */
+  function renderSuitBreakdown(cards, isRem) {
+    if (!refs.suits) return;
+    const SUITS = ["♠", "♥", "♣", "♦"];
+    const rem = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
+    const tot = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
+    for (const c of cards) {
+      if (!(c.suit in tot)) continue;
+      tot[c.suit] += 1;
+      if (isRem(c)) rem[c.suit] += 1;
+    }
+    const cells = SUITS.map(s => {
+      const red = (s === "♥" || s === "♦");
+      return '<span class="dsuit' + (red ? " red" : "") + '">' +
+        '<span class="dsuit-ic">' + s + "</span>" +
+        '<span class="dsuit-n">' + rem[s] + "<span class=\"dsuit-of\">/" + tot[s] + "</span></span>" +
+      "</span>";
+    }).join("");
+    refs.suits.innerHTML = '<span class="dsuit-lbl">by suit</span>' + cells;
+    refs.suits.classList.remove("hidden");
   }
 
   /* Hold view: lightweight remaining-only breakdown (unchanged). */
@@ -5235,6 +5305,7 @@ const UIRenderer = (() => {
     deckModalClose: document.getElementById("deckModalClose"),
     deckModalTotal: document.getElementById("deckModalTotal"),
     deckModalHist: document.getElementById("deckModalHist"),
+    deckModalSuits: document.getElementById("deckModalSuits"),
     deckScrub: document.getElementById("deckScrub"),
     deckBreakdown: document.getElementById("deckBreakdown"),
     deckQuick: document.getElementById("deckQuick"),
@@ -8586,7 +8657,7 @@ const UIRenderer = (() => {
       deckEl: el.deckStat,
       refs: {
         modal: el.deckModal, modalClose: el.deckModalClose,
-        modalTotal: el.deckModalTotal, hist: el.deckModalHist, scrub: el.deckScrub, breakdown: el.deckBreakdown,
+        modalTotal: el.deckModalTotal, hist: el.deckModalHist, suits: el.deckModalSuits, scrub: el.deckScrub, breakdown: el.deckBreakdown,
         quick: el.deckQuick, quickTotal: el.deckQuickTotal, quickGrid: el.deckQuickGrid,
       },
       getStats: () => {
