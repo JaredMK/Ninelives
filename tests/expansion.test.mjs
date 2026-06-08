@@ -167,7 +167,7 @@ export function run() {
     const won = onWon(e);
     e.start(); e.startRun(["greedy", null, null]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 30, "Greedy: sole Pillar + column all-alive → +30");
+    r.eq(won().pillarPayout.bonus, 20, "Greedy: sole Pillar + column all-alive → +20");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });

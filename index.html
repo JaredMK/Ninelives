@@ -2659,7 +2659,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.0-light.7 · menu-title";
+const APP_VERSION = "v1.1 · batch-1-registry";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -2745,14 +2745,14 @@ const GLYPHS = {
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
-  randomFixedValue: "die", changeSuitRandom: "swirl", changeSuitSpade: "spade", changeSuitHeart: "heart",
+  randomFixedValue: "die", changeSuitSpade: "spade", changeSuitHeart: "heart",
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
-  heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye",
+  heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
-  sameValueTribute: "encode2", allHeartsCoin: "heart", allSpadesCoin: "spade",
+  allHeartsCoin: "heart", allSpadesCoin: "spade",
   allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
   cardPack: "cardstack", stickerPack: "cache",
@@ -2788,8 +2788,6 @@ const StickerTypes = (() => {
                   description: "Lower this card's rank by 2, permanently. Stops at a 2." },
     randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
                   description: "Set this card's rank to a random one from 2 to Ace, permanently. The suit stays the same." },
-    changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
-                  description: "Change this card's suit to a random different one, permanently. The rank stays the same." },
     changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
                   description: "Change this card's suit to ♠, permanently. The rank stays the same." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
@@ -2814,12 +2812,12 @@ const StickerTypes = (() => {
                   description: "While this card is on top, this pile is left out of the smallest-pile part of your score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
                   description: "Safe from a wrong guess of any kind. Works once a run; the pile survives and the card goes back into the deck." },
-    oneTribute: { id: "oneTribute", label: "Bury 1",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 1, tier: "rare", price: 6,
-                  description: "Bury 1 card from the bottom of the deck under a surviving pile when you place this sticker on its top card. Costs 1 coin." },
+    oneTribute: { id: "oneTribute", label: "Bury 1",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, tier: "rare", price: 6,
+                  description: "Bury 1 card from the bottom of the deck under the pile when this card is correctly placed on it. Every time, no cost." },
     twoTribute: { id: "twoTribute", label: "Bury 2",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
-                  description: "Bury 2 cards from the bottom of the deck under a surviving pile when you place this sticker on its top card. Costs 4 coins." },
+                  description: "When this card is correctly placed on a pile, you may bury 2 cards from the bottom of the deck under it for 4 coins (you're asked first)." },
     centerTribute: { id: "centerTribute", label: "Center Bury", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
-                  description: "Bury 1 card from the bottom of the deck under this pile when this card lands on top of a surviving pile in the middle column. No cost." },
+                  description: "Bury 1 card from the bottom of the deck under this pile when this card is correctly placed in the middle column. Every time, no cost." },
     deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 2,
                   description: "Earn +5 coins when a wrong guess on this card kills the pile." },
     heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 4,
@@ -2830,17 +2828,19 @@ const StickerTypes = (() => {
                   description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the campaign until a full reset." },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
                   description: "See the next card after this card is played, until that card is drawn." },
+    duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "rare", price: 7,
+                  description: "Copy this card, stickers and all, into your card inventory to swap into your deck before a later run. The copy is independent of the original." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
-    "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
+    "changeSuitSpade", "changeSuitHeart",
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
-    "deathBounty", "heavy", "collector", "compound", "revealNext"];
+    "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -2911,16 +2911,10 @@ const PillarTypes = (() => {
     },
     sameTribute: {
       // When a pile in this column SURVIVES A TIE — a correctly-called Same
-      // guess OR a tie saved by Tie-Safe / Column Tie-Safe — pull the deck's
-      // BOTTOM card under that pile (hidden). Uncapped; same no-reveal guardrail.
+      // guess OR a tie saved by Tie-Safe / Column Tie-Safe — pull TWO of the
+      // deck's BOTTOM cards under that pile (hidden). Uncapped; no reveal.
       id: "sameTribute", label: "Tie Bury", icon: "⚖️",
-      kind: "composition", effect: "sameTribute", tier: "rare", price: 15,
-      description: "Bury 1 card from the bottom of the deck under a pile in this column when it survives a tie, from a correct Same guess or a Tie-Safe save. Every time.",
-    },
-    sameValueTribute: {
-      // Like Same Tribute, but buries TWO cards on a survived tie. Uncapped.
-      id: "sameValueTribute", label: "Double Bury", icon: "🏺",
-      kind: "composition", effect: "sameValueTribute", tributeCount: 2, tier: "rare", price: 22,
+      kind: "composition", effect: "sameTribute", tributeCount: 2, tier: "rare", price: 15,
       description: "Bury 2 cards from the bottom of the deck under a pile in this column when it survives a tie, from a correct Same guess or a Tie-Safe save. Every time.",
     },
     allHeartsCoin: {
@@ -2988,14 +2982,14 @@ const PillarTypes = (() => {
       // ONLY Pillar anywhere on the board (a second Pillar — even another Greedy
       // — disqualifies it).
       id: "greedy", label: "Greedy", icon: "🤑",
-      kind: "scoring", effect: "greedy", value: 30, tier: "rare", price: 10,
-      description: "Earn +30 coins when you clear the run with every pile in this column alive and no other Pillar anywhere on the board.",
+      kind: "scoring", effect: "greedy", value: 20, tier: "rare", price: 10,
+      description: "Earn +20 coins when you clear the run with every pile in this column alive and no other Pillar anywhere on the board.",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
-    "sameValueTribute", "allHeartsCoin", "allSpadesCoin", "allDiamondsCoin", "allClubsCoin",
+    "allHeartsCoin", "allSpadesCoin", "allDiamondsCoin", "allClubsCoin",
     "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy"];
   return {
     ids: ORDER,
@@ -3494,10 +3488,7 @@ const GameEngine = (() => {
       if (pillar.effect === "eightTribute" && drawn.value === 8) {
         if (buryTribute(index, 3, pillar.label) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
       } else if (pillar.effect === "sameTribute" && isTie === true) {
-        if (buryTribute(index, 1, pillar.label) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
-      } else if (pillar.effect === "sameValueTribute" && isTie === true) {
-        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0 && run.sameValueTributesUsed)
-          run.sameValueTributesUsed[col] += 1;
+        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
       }
     }
 
@@ -3672,7 +3663,6 @@ const GameEngine = (() => {
         // relevant counter moves.
         eightTributesUsed: cols ? new Array(cols.length).fill(0) : null,
         sameTributesUsed: cols ? new Array(cols.length).fill(0) : null,
-        sameValueTributesUsed: cols ? new Array(cols.length).fill(0) : null,
         // Live bonus-coin tally: starts at 0, moves the instant a bonus coin is
         // earned or spent during play (Suit Bounty, Middle Reward, Lucky Coin,
         // Tribute costs, All Hearts). bonusCoins == Σ bonusEvents during play;
@@ -4600,6 +4590,25 @@ const CampaignState = (() => {
         if (packTray.length >= PACK_TRAY_CAP) return { ok: false, full: true };
         packTray.push(card);
         return { ok: true };
+      },
+      /** Duplicate sticker: deep-copy a persistent card (rank, suit, modifications,
+          stickers, compound bank) into the card inventory (pack tray) with a fresh
+          id, so the copy is fully INDEPENDENT — editing one never touches the
+          other. Returns the copy, or null if the source id isn't found. */
+      duplicateCard(cardId) {
+        const src = findById(cardId);
+        if (!src) return null;
+        const copy = {
+          id: nextCardId++,
+          suit: src.suit,
+          originalRank: src.originalRank,
+          currentRank: src.currentRank,
+          modifications: (src.modifications || []).map(m => ({ ...m })),
+          stickers: (src.stickers || []).map(s => ({ ...s })),
+          compoundHits: src.compoundHits || 0,
+        };
+        packTray.push(copy);
+        return copy;
       },
       discardPackCard(index) {
         if (index >= 0 && index < packTray.length) { packTray.splice(index, 1); return true; }
@@ -6029,6 +6038,24 @@ const UIRenderer = (() => {
     const top = board.top(index);
     if (!top) return;
     const typeId = armedSticker;
+    // Duplicate: copy the card (with its stickers) into the card inventory and
+    // consume the Duplicate sticker — the card itself is NOT modified.
+    const tDef = StickerTypes.get(typeId);
+    if (tDef && tDef.behavior === "duplicate") {
+      const copy = campaign.duplicateCard(top.id);
+      campaign.useStickerFromInventory(typeId);
+      appliedThisPhase = true;
+      armedSticker = null;
+      el.board.classList.remove("arming");
+      renderSetupInv();
+      el.hint.textContent = copy
+        ? ("Copied " + top.label + top.suit + " to your card inventory.")
+        : "Couldn't copy that card.";
+      persistCampaign("run");
+      if (engine) engine.logAction("Duplicated " + top.label + top.suit + " into the card inventory");
+      refreshDebug();
+      return;
+    }
     if (!campaign.canApplyStickerById(top.id, typeId)) {
       const t = StickerTypes.get(typeId);
       el.hint.textContent = "Can't apply " + (t ? t.label : "that") + " there.";

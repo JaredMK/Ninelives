@@ -254,5 +254,24 @@ export function run() {
     }
   }
 
+  // --- Duplicate sticker: deep, independent copy into the card inventory --
+  {
+    const c = CampaignState.create();
+    const src = c.getCards()[0];
+    c.applySticker(src.id, "tieSafe");           // give the source a sticker
+    const before = c.packTrayCount();
+    const copy = c.duplicateCard(src.id);
+    r.ok(copy && copy.id !== src.id, "duplicate gets a fresh, distinct id");
+    r.eq(c.packTrayCount(), before + 1, "the copy lands in the card inventory (pack tray)");
+    r.eq(copy.suit, c.getCards().find(x => x.id === src.id).suit, "copy keeps the suit");
+    r.ok(copy.stickers.some(s => s.type === "tieSafe"), "copy includes the original's stickers");
+    // Independence: editing the copy must not touch the original (and vice versa).
+    copy.stickers.push({ type: "heavy" });
+    const srcNow = c.getCards().find(x => x.id === src.id);
+    r.ok(!srcNow.stickers.some(s => s.type === "heavy"), "editing the copy does NOT change the original");
+    c.applySticker(src.id, "anchor");
+    r.ok(!copy.stickers.some(s => s.type === "anchor"), "editing the original does NOT change the copy");
+  }
+
   return r.summary();
 }

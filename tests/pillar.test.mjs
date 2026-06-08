@@ -75,7 +75,6 @@ export function run() {
   {
     const c = CampaignState.create();
     r.eq(c.priceOf("rankUp"), 3, "+1 Rank = 3");
-    r.eq(c.priceOf("changeSuitRandom"), 1, "Change to Random Suit = 1");
     r.eq(c.priceOf("changeSuitSpade"), 2, "Change to ♠ = 2");
     r.eq(c.priceOf("changeSuitHeart"), 2, "Change to ♥ = 2");
     r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
@@ -165,7 +164,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 19, "all Pillars registered (incl. the four All-Suit Pillars)");
+    r.eq(PillarTypes.all().length, 18, "all Pillars registered (Double Bury removed)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -342,8 +341,8 @@ export function run() {
     e.debug.setNextCard(7);
     e.guess(0, "same");
     r.eq(e.getRun().sameTributesUsed[0], 1, "fires on a correct Same guess");
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "pile gains the Same card + a buried tribute");
-    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 3, "pile gains the Same card + 2 buried tributes");
+    r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
     r.eq(Object.keys(resolved).sort().join(","), "board,correct,current,deck,drawn,guess,index,run",
       "resolved payload carries no tributed-card field (no order leak)");
 
@@ -359,7 +358,7 @@ export function run() {
     e.debug.setNextCard(7);
     e.guess(2, "same");
     r.eq(e.getRun().sameTributesUsed[0], 3, "third survived tie fires too — caps removed");
-    r.eq(e.getBoard().piles[2].cards.length, 3, "survived tie still buries (1 deal + Same card + tribute)");
+    r.eq(e.getBoard().piles[2].cards.length, 4, "survived tie still buries 2 (1 deal + Same card + 2 buried)");
   }
 
   // --- Same Tribute does NOT fire on a non-tie win or an off-column tie ---
@@ -385,7 +384,7 @@ export function run() {
   {
     r.ok(!!StickerTypes.get("changeSuitSpade") && !!StickerTypes.get("changeSuitHeart"),
       "registry has the Defined-suit stickers (♠, ♥)");
-    r.ok(!!StickerTypes.get("changeSuitRandom"), "registry has the Random-suit sticker");
+    r.eq(StickerTypes.get("changeSuitRandom"), null, "Random-suit sticker is removed");
     r.eq(StickerTypes.get("changeSuit"), null, "old cycle Change Suit is removed");
 
     // Defined suit: set a ♦ card to ♥ (rank untouched).
@@ -408,13 +407,6 @@ export function run() {
     r.eq(dealt.suit, "♥", "changed suit materializes in the run deck");
     r.ok(dealt.stickers.some(s => s.type === "changeSuitHeart"),
       "the suit-change sticker rides into the dealt run deck (badge survives a later deal)");
-
-    // Random suit: changes to a DIFFERENT valid suit, and records its sticker.
-    const sid = c.getCards().find(x => x.suit === "♠").id;
-    c.applySticker(sid, "changeSuitRandom");
-    const sCard = c.getCards().find(x => x.id === sid);
-    r.ok(["♠", "♥", "♦", "♣"].includes(sCard.suit) && sCard.suit !== "♠", "Random suit picks a different valid suit");
-    r.ok(sCard.stickers.some(s => s.type === "changeSuitRandom"), "Random-suit sticker is recorded for its badge");
   }
 
   // --- Debug grant: free sticker to inventory, no coins / no escalation --

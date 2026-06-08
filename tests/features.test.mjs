@@ -44,8 +44,6 @@ export function run() {
     r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Tribute II costs 4 bonus coins");
     r.eq(StickerTypes.get("centerTribute").price, 5, "Center Tribute price 5");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
-    r.eq(PillarTypes.get("sameValueTribute").price, 22, "Double Tribute price 22");
-    r.eq(PillarTypes.get("sameValueTribute").tributeCount, 2, "Double Tribute buries 2");
     r.eq(PillarTypes.get("allHeartsCoin").price, 6, "All Hearts price 6 (Common)");
     r.eq(PillarTypes.get("allHeartsCoin").value, 5, "All Hearts pays 5");
     r.eq(PillarTypes.get("allHeartsCoin").tier, "common", "All Hearts is Common");
@@ -193,7 +191,7 @@ export function run() {
     landHigher(e, 0);
     r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "Tribute I: pile gains the drawn card + 1 buried");
     r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
-    r.eq(e.getRun().bonusCoins, -1, "Tribute I costs 1 bonus coin (negative tally)");
+    r.eq(e.getRun().bonusCoins, 0, "Tribute I (Bury 1) is now free");
   }
 
   // --- Center Tribute sticker: only fires in the middle column ----------
@@ -211,20 +209,7 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "Center Tribute has no coin cost");
   }
 
-  // --- Double Tribute Pillar: buries TWO on a survived tie --------------
-  {
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
-    e.start(); e.startRun(["sameValueTribute", null, null]);
-    const len0 = e.getBoard().piles[0].cards.length;
-    const deck0 = e.getDeck().remaining();
-    e.getBoard().top(0).value = 7;
-    e.debug.setNextCard(7);
-    e.guess(0, "same");
-    r.ok(e.getBoard().isActive(0), "correct Same guess survives the tie");
-    r.eq(e.getRun().sameValueTributesUsed[0], 1, "Double Tribute fired once");
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 3, "buries TWO (drawn Same card + 2 tributes)");
-    r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
-  }
+  // (Double Tribute / Double Bury pillar removed — Tie Bury now buries 2.)
 
   // --- All Hearts Pillar: END-OF-RUN +5 when every SURVIVING pile in its
   //     column shows ♥ (no longer a live per-resolution payout). -------------
