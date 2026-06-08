@@ -2249,14 +2249,15 @@
   .map-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
   .map-sub .ms-suit { font-weight: 800; }
 
-  /* Scroll region (the climb scrolls; the header + Enter button stay put). */
+  /* Scroll region (the climb scrolls; the header stays put). Navigation is by
+     tapping nodes — there's no footer button, so the climb fills to the bottom. */
   .map-scroll {
     flex: 1 1 auto; width: 100%; overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain;
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
             mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
-  .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 14px 8px 22px; }
+  .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 14px 8px calc(30px + env(safe-area-inset-bottom)); }
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
   .map-track::before {
     content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
@@ -2295,11 +2296,28 @@
   .map-node.current {
     border: 2px solid var(--accent);
     box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16);
+    animation: mapPulse 1.8s ease-in-out infinite;
   }
+  @keyframes mapPulse {
+    0%, 100% { box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16); }
+    50%      { box-shadow: 0 0 0 7px var(--sel), 0 4px 11px rgba(120,90,70,.22); }
+  }
+  @media (prefers-reduced-motion: reduce) { .map-node.current { animation: none; } }
+  /* Tappable nodes (current = enter the run; cleared = view its fossil). */
+  .map-node.tappable { cursor: pointer; }
+  .map-node.tappable:active { transform: scale(0.94); }
   .map-node.locked { opacity: 0.5; }
   .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
   .map-node .mn-lock { color: var(--muted); font-size: 19px; }
   .map-node .fossil { width: 100%; height: 100%; }
+  /* Play-button indicator on the current run node — the tap target to start it. */
+  .map-node .mn-play {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(180deg, var(--accent), #ff9d4d);
+    color: #fff; font-size: 15px; padding-left: 3px;   /* optical-centre the ▶ */
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 7px rgba(200,74,120,.42);
+  }
   .map-badge {
     position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
     font-size: 11px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center;
@@ -2315,8 +2333,32 @@
   .map-meta .mm-name { font-weight: 800; color: var(--text); }
   .map-meta .mm-desc { color: var(--muted); font-size: 10px; margin-top: 1px; }
 
-  .map-foot { flex: 0 0 auto; width: min(94vw, 420px); padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); }
-  .play-btn.map-enter { width: 100%; padding: 15px; font-size: 17px; border-radius: 22px; letter-spacing: 0.5px; }
+  /* Enlarged fossil detail — opened by tapping a cleared run's node. Sits above
+     the map overlay; tap the ✕ or the backdrop to dismiss. Display-only. */
+  .fossil-detail {
+    position: fixed; inset: 0; z-index: 85;
+    background: rgba(48, 36, 32, 0.55);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .fossil-detail.hidden { display: none; }
+  .fd-panel {
+    position: relative; width: min(86vw, 320px);
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 18px;
+    box-shadow: var(--shadow); padding: 18px 18px 20px; text-align: center;
+  }
+  .fd-close {
+    position: absolute; top: 8px; right: 11px; border: none; background: none;
+    color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  .fd-title { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 17px; color: var(--text); margin-bottom: 12px; }
+  .fd-art {
+    width: min(66vw, 230px); height: min(66vw, 230px); margin: 0 auto;
+    background: var(--card-face); border: 1px solid var(--edge-2); border-radius: 16px;
+    overflow: hidden;
+  }
+  .fd-art .fossil { width: 100%; height: 100%; }
+  .fd-sub { font-size: 12px; color: var(--muted); margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -2745,7 +2787,9 @@
 
   <!-- Progression map: shown between the store and each run (store → map → run).
        The current run sits at the top; cleared runs descend below as "fossils" of
-       their final surviving network. Body built in JS from campaign fossils. -->
+       their final surviving network. Navigation is by TAPPING nodes: the current
+       run node (▶) starts the run; a cleared node opens its fossil detail; future
+       runs are inert. Body built in JS from campaign fossils. -->
   <div class="overlay map hidden" id="mapOverlay">
     <div class="map-head">
       <h2 class="map-title">Your climb</h2>
@@ -2754,8 +2798,16 @@
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
-    <div class="map-foot">
-      <button class="play-btn map-enter" id="mapEnterBtn" type="button">Enter Run ▸</button>
+  </div>
+
+  <!-- Enlarged fossil detail (tap a cleared run's node). View-only; never starts
+       a run. Tap the ✕ or backdrop to dismiss. -->
+  <div class="fossil-detail hidden" id="fossilDetail">
+    <div class="fd-panel">
+      <button class="fd-close" id="fossilDetailClose" type="button" aria-label="Close">✕</button>
+      <div class="fd-title" id="fossilDetailTitle"></div>
+      <div class="fd-art" id="fossilDetailArt"></div>
+      <div class="fd-sub" id="fossilDetailSub"></div>
     </div>
   </div>
 
@@ -2865,7 +2917,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.4 · progression-map";
+const APP_VERSION = "v1.5 · map-tap-nav";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5565,7 +5617,11 @@ const UIRenderer = (() => {
     mapSub: document.getElementById("mapSub"),
     mapScroll: document.getElementById("mapScroll"),
     mapTrack: document.getElementById("mapTrack"),
-    mapEnterBtn: document.getElementById("mapEnterBtn"),
+    fossilDetail: document.getElementById("fossilDetail"),
+    fossilDetailClose: document.getElementById("fossilDetailClose"),
+    fossilDetailTitle: document.getElementById("fossilDetailTitle"),
+    fossilDetailArt: document.getElementById("fossilDetailArt"),
+    fossilDetailSub: document.getElementById("fossilDetailSub"),
     storeInvBtn: document.getElementById("storeInvBtn"),
     storeCardsBtn: document.getElementById("storeCardsBtn"),
     itemHelp: document.getElementById("itemHelp"),
@@ -6882,7 +6938,11 @@ const UIRenderer = (() => {
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     if (el.storeCardsBtn) el.storeCardsBtn.addEventListener("click", () => DeckInspector.openFull());
     el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceToNextRun(); });
-    el.mapEnterBtn.addEventListener("click", () => { Sound.tap(); enterRunFromMap(); });
+    // Progression map: navigate by tapping nodes (no Enter button). The current
+    // run node (▶) starts the run; a cleared node opens its fossil detail.
+    el.mapTrack.addEventListener("click", onMapNodeTap);
+    el.fossilDetailClose.addEventListener("click", closeFossilDetail);
+    el.fossilDetail.addEventListener("click", (e) => { if (e.target === el.fossilDetail) closeFossilDetail(); });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -8129,10 +8189,10 @@ const UIRenderer = (() => {
   }
 
   /* Leave the store for the next run: advance the campaign, then show the
-     progression map. The run itself is dealt only when the player taps Enter Run
-     on the map (store → map → run). Advancing here (before the map) is in-memory
-     only — the save still points at the store until startRun() checkpoints the
-     deal, so a refresh while on the map safely returns to the store. */
+     progression map. The run itself is dealt only when the player taps the
+     current run node on the map (store → map → run). Advancing here (before the
+     map) is in-memory only — the save still points at the store until startRun()
+     checkpoints the deal, so a refresh while on the map safely returns to the store. */
   function advanceToNextRun() {
     campaign.advance();
     showProgressionMap(startRun);
@@ -8142,7 +8202,8 @@ const UIRenderer = (() => {
      A Slay-the-Spire-style climb: the run about to be played sits at the TOP;
      every cleared run descends below it as a "fossil" of its final surviving
      network. DISPLAY-ONLY — reads campaign stage/run + recorded fossils, never
-     touches gameplay. `onEnter` deals the run when Enter Run is tapped. */
+     touches gameplay. Navigation is by tapping nodes: `onEnter` deals the run
+     when the current node (▶) is tapped. */
   const SUIT_NAME = { "♠": "spades", "♥": "hearts", "♦": "diamonds", "♣": "clubs" };
   const SUIT_RED = { "♥": true, "♦": true, "♠": false, "♣": false };
   let mapOnEnter = null;
@@ -8155,11 +8216,14 @@ const UIRenderer = (() => {
     return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
   }
 
-  /* Small SVG of a recorded run's surviving network. Nodes/edges live in logical
-     grid space; fit them into a padded square, preserving aspect. */
+  /* SVG of a recorded run's surviving network. Nodes/edges live in logical grid
+     space; fit them into a padded square, preserving aspect. `size` sets the
+     viewBox; padding/line/dot scale with it so it reads at any size (small node
+     thumbnail or the enlarged detail view). */
   function fossilSvg(fossil, size = 76) {
     if (!fossil || !fossil.nodes || !fossil.nodes.length) return "";
-    const pad = 13, span = size - pad * 2;
+    const pad = size * 0.17, span = size - pad * 2;
+    const dotR = size * 0.058, lineW = size * 0.027;
     const xs = fossil.nodes.map(n => n.x), ys = fossil.nodes.map(n => n.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
     const minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -8175,10 +8239,10 @@ const UIRenderer = (() => {
       if (!A || !B) return;
       s += '<line x1="' + px(A).toFixed(1) + '" y1="' + py(A).toFixed(1) +
            '" x2="' + px(B).toFixed(1) + '" y2="' + py(B).toFixed(1) +
-           '" stroke="' + col + '" stroke-width="2" opacity="0.5"/>';
+           '" stroke="' + col + '" stroke-width="' + lineW.toFixed(2) + '" opacity="0.5"/>';
     });
     fossil.nodes.forEach(n => {
-      s += '<circle cx="' + px(n).toFixed(1) + '" cy="' + py(n).toFixed(1) + '" r="4.2" fill="' + col + '"/>';
+      s += '<circle cx="' + px(n).toFixed(1) + '" cy="' + py(n).toFixed(1) + '" r="' + dotR.toFixed(2) + '" fill="' + col + '"/>';
     });
     return s + "</svg>";
   }
@@ -8204,32 +8268,36 @@ const UIRenderer = (() => {
       "</div>";
   }
 
-  /* One run row on the climb: the current run (top) shows a "?" placeholder;
-     cleared runs show their fossil; the side alternates down the path. */
+  /* One run row on the climb: the current run (top) is a tappable play button
+     that starts the run; cleared runs show their fossil and tap to enlarge it;
+     the side alternates down the path. `data-action` drives the tap handler. */
   function mapRunNodeHtml(stage, run, isCurrent, side) {
-    let nodeClass, inner, badge, meta;
+    let nodeClass, inner, badge, meta, attrs = "";
     if (isCurrent) {
-      nodeClass = "current";
-      inner = '<span class="mn-q">?</span><span class="mn-here">YOU ARE HERE</span>';
-      badge = '<div class="map-badge cur">▸</div>';
+      nodeClass = "current tappable";
+      attrs = ' data-action="enter"';
+      inner = '<span class="mn-play" aria-hidden="true">▶</span><span class="mn-here">TAP TO PLAY</span>';
+      badge = "";   // the play button IS the indicator
       const layout = campaign.layoutForRun(run);
       meta = '<div class="mm-name">Run ' + run + ' · next</div>' +
              '<div class="mm-desc">' + layout.piles + ' piles · survive the deck</div>';
     } else {
       const fossil = campaign.getRunFossil(stage, run);
-      nodeClass = "done";
       badge = '<div class="map-badge ok">✓</div>';
       if (fossil && fossil.nodes.length) {
+        nodeClass = "done tappable";
+        attrs = ' data-action="fossil" data-stage="' + stage + '" data-run="' + run + '"';
         inner = fossilSvg(fossil);
         meta = '<div class="mm-name">Run ' + run + ' ✓</div>' +
                '<div class="mm-desc">' + fossil.alive + ' pile' + (fossil.alive === 1 ? "" : "s") + ' survived</div>';
       } else {
-        inner = '<span class="mn-q" style="color:var(--good)">✓</span>';   // cleared, no recorded shape (legacy)
+        nodeClass = "done";   // cleared but no recorded shape (legacy) → nothing to enlarge
+        inner = '<span class="mn-q" style="color:var(--good)">✓</span>';
         meta = '<div class="mm-name">Run ' + run + ' ✓</div><div class="mm-desc">cleared</div>';
       }
     }
     return '<div class="map-run ' + side + '">' +
-        '<div class="map-node ' + nodeClass + '">' + inner + badge + "</div>" +
+        '<div class="map-node ' + nodeClass + '"' + attrs + '>' + inner + badge + "</div>" +
         '<div class="map-meta">' + meta + "</div>" +
       "</div>";
   }
@@ -8258,6 +8326,7 @@ const UIRenderer = (() => {
     mapOnEnter = (typeof onEnter === "function") ? onEnter : null;
     hideOverlay();
     closeStore();
+    closeFossilDetail();
     DeckInspector.close();
     if (el.menuBtn) el.menuBtn.classList.add("hidden");
     if (el.stageRun) el.stageRun.classList.remove("off");
@@ -8266,12 +8335,39 @@ const UIRenderer = (() => {
     el.mapOverlay.classList.remove("hidden");
     el.mapScroll.scrollTop = 0;   // start at the top (the current run)
   }
-  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); }
+  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
     if (fn) fn();
   }
+
+  /* Tap a map node: the current run (▶) starts the run; a cleared run opens its
+     fossil detail; anything else (future/locked, legacy) is inert. */
+  function onMapNodeTap(e) {
+    const node = e.target.closest(".map-node");
+    if (!node) return;
+    const action = node.dataset.action;
+    if (action === "enter") {
+      Sound.tap();
+      enterRunFromMap();            // same transition the Enter button used to fire
+    } else if (action === "fossil") {
+      Sound.tap();
+      showFossilDetail(Number(node.dataset.stage), Number(node.dataset.run));
+    }
+    // no data-action → not interactive
+  }
+
+  /* Enlarged, view-only fossil of a cleared run (never starts a run). */
+  function showFossilDetail(stage, run) {
+    const f = campaign.getRunFossil(stage, run);
+    if (!f || !f.nodes || !f.nodes.length) return;
+    el.fossilDetailTitle.textContent = "Stage " + stage + " · Run " + run;
+    el.fossilDetailArt.innerHTML = fossilSvg(f, 230);
+    el.fossilDetailSub.textContent = f.alive + " of " + f.total + " piles survived";
+    el.fossilDetail.classList.remove("hidden");
+  }
+  function closeFossilDetail() { if (el.fossilDetail) el.fossilDetail.classList.add("hidden"); }
 
   /* ---- Store (between runs) ----
      Spend coins on stickers; they go into the campaign inventory and are
