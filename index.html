@@ -1556,6 +1556,17 @@
   }
   .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
 
+  /* Rank histogram in the deck view (reuses .ds-* bar styling at a fixed height). */
+  .deck-modal-hist { margin: 0 0 12px; }
+  .deck-modal-hist.hidden { display: none; }
+  .deck-modal-hist .dh-bars { height: 64px; }
+  .deck-modal-hist .dh-legend { display: flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 9px; font-weight: 700; color: var(--muted); margin-top: 5px; }
+  .deck-modal-hist .dh-k { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-left: 8px; }
+  .deck-modal-hist .dh-k:first-child { margin-left: 0; }
+  .deck-modal-hist .dh-k-rem { background: var(--accent-2); }
+  .deck-modal-hist .dh-k-all { background: rgba(255,255,255,0.18); }
+
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
     background: rgba(232, 139, 176, 0.10);
@@ -2261,6 +2272,7 @@
         <button class="deck-modal-close" id="deckModalClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="deck-modal-total" id="deckModalTotal">—</div>
+      <div class="deck-modal-hist hidden" id="deckModalHist"></div>
       <div class="bd-scrub hidden" id="deckScrub"></div>
       <div class="deck-breakdown" id="deckBreakdown"></div>
     </div>
@@ -2354,7 +2366,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v0.95 · store-one-screen";
+const APP_VERSION = "v0.96 · deck-histogram";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4673,6 +4685,35 @@ const DeckInspector = (() => {
      same length on every row. Counts only — never order. */
   // Suit display order for the grid (matches the card-face two-colour split).
   const SUIT_ORDER = { "♠": 0, "♥": 1, "♣": 2, "♦": 3 };
+  /* Rank histogram shown ABOVE the card list: one bar per rank (2..A), the grey
+     bar = the full current-stage count, the bright overlay = how many of that
+     rank are still in the draw pile. Same shared-scale, order-free composition
+     the play-screen strip uses. Read-only. */
+  function renderHistogram() {
+    if (!refs.hist) return;
+    const stats = getStats() || { remaining: EMPTY, full: EMPTY };
+    const rem = stats.remaining || EMPTY;
+    const full = stats.full || EMPTY;
+    if (!rem.rows || !rem.rows.length) { refs.hist.classList.add("hidden"); refs.hist.innerHTML = ""; return; }
+    let scaleMax = 1;
+    full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
+    const bars = rem.rows.map((row, i) => {
+      const total = (full.rows[i] && full.rows[i].count) || 0;
+      const greyPct = (total / scaleMax) * 100;
+      const bluePct = (row.count / scaleMax) * 100;
+      return '<div class="ds-bar">' +
+        '<div class="ds-track">' +
+          '<div class="ds-grey" style="height:' + greyPct + '%"></div>' +
+          '<div class="ds-blue" style="height:' + bluePct + '%"></div>' +
+        "</div><div class=\"ds-rank\">" + row.label + "</div></div>";
+    }).join("");
+    refs.hist.innerHTML =
+      '<div class="dh-bars ds-bars">' + bars + "</div>" +
+      '<div class="dh-legend"><span class="dh-k dh-k-rem"></span>remaining' +
+        '<span class="dh-k dh-k-all"></span>total this stage</div>';
+    refs.hist.classList.remove("hidden");
+  }
+
   /* Balatro-style deck view: every card of the current stage, rank AND suit,
      grouped by suit then rank. Cards still in the draw pile read full; already-
      drawn cards are faded. Stickers/Imprints show on each card. Read-only and
@@ -4688,6 +4729,7 @@ const DeckInspector = (() => {
     if (refs.scrub) { refs.scrub.classList.add("hidden"); refs.scrub.innerHTML = ""; }
     refs.modalTotal.textContent =
       remCount + " of " + cards.length + " cards in play · faded = already played";
+    renderHistogram();
     refs.breakdown.innerHTML = '<div class="deck-cards">' +
       cards.map(c => '<div class="deck-card' + (isRem(c) ? "" : " drawn") + '">' + renderCard(c) + "</div>").join("") +
       "</div>";
@@ -4775,6 +4817,7 @@ const UIRenderer = (() => {
     deckModal: document.getElementById("deckModal"),
     deckModalClose: document.getElementById("deckModalClose"),
     deckModalTotal: document.getElementById("deckModalTotal"),
+    deckModalHist: document.getElementById("deckModalHist"),
     deckScrub: document.getElementById("deckScrub"),
     deckBreakdown: document.getElementById("deckBreakdown"),
     deckQuick: document.getElementById("deckQuick"),
@@ -7747,7 +7790,7 @@ const UIRenderer = (() => {
       deckEl: el.deckStat,
       refs: {
         modal: el.deckModal, modalClose: el.deckModalClose,
-        modalTotal: el.deckModalTotal, scrub: el.deckScrub, breakdown: el.deckBreakdown,
+        modalTotal: el.deckModalTotal, hist: el.deckModalHist, scrub: el.deckScrub, breakdown: el.deckBreakdown,
         quick: el.deckQuick, quickTotal: el.deckQuickTotal, quickGrid: el.deckQuickGrid,
       },
       getStats: () => {
