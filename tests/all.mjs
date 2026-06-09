@@ -17,6 +17,7 @@ import { run as expansion } from "./expansion.test.mjs";
 import { run as packs } from "./packs.test.mjs";
 import { run as packReplace } from "./pack-replace.test.mjs";
 import { run as redeal } from "./redeal.test.mjs";
+import { run as pillarFeedback } from "./pillar-feedback.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -34,6 +35,7 @@ const SUITES = [
   ["packs", packs],
   ["pack-replace", packReplace],
   ["redeal", redeal],
+  ["pillar-feedback", pillarFeedback],
 ];
 
 let pass = 0,

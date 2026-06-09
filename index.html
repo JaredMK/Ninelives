@@ -1629,6 +1629,32 @@
   }
   .cph-streak.bump { transform: translateY(-50%) scale(1.35); }
 
+  /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
+     effect fires, and (for coin rewards) a "+N" that floats up and fades. The
+     .bp-cell is position:relative, so the float anchors over its column. */
+  .cph-banner.fired { animation: pillarFire 0.6s ease-out; z-index: 2; }
+  @keyframes pillarFire {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(133,104,192,0); }
+    28%  { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(133,104,192,0.42), 0 0 12px 2px rgba(133,104,192,0.6); }
+    100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(133,104,192,0); }
+  }
+  .pillar-float {
+    position: absolute; left: 50%; top: -2px; transform: translateX(-50%);
+    font-family: var(--font-text); font-size: 13px; font-weight: 800; color: var(--amber);
+    text-shadow: 0 1px 2px rgba(255,255,255,0.85), 0 0 2px rgba(255,255,255,0.6);
+    pointer-events: none; white-space: nowrap; z-index: 6;
+    animation: pillarFloat 1s ease-out forwards;
+  }
+  @keyframes pillarFloat {
+    0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.8); }
+    22%  { opacity: 1; transform: translate(-50%, -7px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -26px) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cph-banner.fired { animation: none; outline: 2px solid var(--pathway-2); outline-offset: 1px; }
+    .pillar-float { animation: none; opacity: 1; transform: translate(-50%, -16px); }
+  }
+
   /* "?" help affordance on each store item + the tap-to-toggle popup it
      reveals. Tap the "?" to open, tap off (anywhere else) to dismiss; the
      popup is fixed + width/height clamped so it never overflows a phone edge. */
@@ -2978,7 +3004,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.2 · first-turn-help";
+const APP_VERSION = "v2.3 · pillar-effect-feedback";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3793,6 +3819,15 @@ const GameEngine = (() => {
       logLine((amount >= 0 ? "+" : "") + amount + " coins — " + label);
     }
 
+    /** Presentation hook: announce that a Pillar effect just fired on a column so
+        the UI can pulse that Pillar (+ float "+N" for coin rewards). PURE SIGNAL —
+        emitting it changes no state, value, or timing; it only mirrors an effect
+        that already happened. `amount` is the coins paid (0 for non-coin effects). */
+    function firePillar(col, effect, label, amount) {
+      if (col == null) return;
+      emit("pillar-fired", { col, effect, label: label || "", amount: amount || 0, board, deck, run });
+    }
+
     /** Second Wind: recycle a dying pile's cards (and the killing card) back into
         the draw deck at random positions — no reveal, stickers/identity intact —
         then deal one fresh card as the pile's only top. The pile stays alive. */
@@ -3814,9 +3849,15 @@ const GameEngine = (() => {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
       if (pillar.effect === "eightTribute" && drawn.value === 8) {
-        if (buryTribute(index, 3, pillar.label) > 0 && run.eightTributesUsed) run.eightTributesUsed[col] += 1;
+        if (buryTribute(index, 3, pillar.label) > 0) {
+          if (run.eightTributesUsed) run.eightTributesUsed[col] += 1;
+          firePillar(col, "eightTribute", pillar.label, 0);
+        }
       } else if (pillar.effect === "sameTribute" && isTie === true) {
-        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0 && run.sameTributesUsed) run.sameTributesUsed[col] += 1;
+        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0) {
+          if (run.sameTributesUsed) run.sameTributesUsed[col] += 1;
+          firePillar(col, "sameTribute", pillar.label, 0);
+        }
       }
     }
 
@@ -3926,7 +3967,7 @@ const GameEngine = (() => {
           const allAlive = idxs.length > 0 && idxs.every(i => board.isActive(i));
           if (allAlive) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value });
+            lines.push({ label: t.label, detail: "Column " + (col + 1) + " survived", amount: t.value, col });
           }
         } else if (t.effect === "allSuitTop") {
           // +value if EVERY surviving pile in THIS column shows the matching suit
@@ -3934,7 +3975,7 @@ const GameEngine = (() => {
           const alive = colIdxs(col).filter(i => board.isActive(i));
           if (alive.length > 0 && alive.every(i => { const top = board.top(i); return top && top.suit === t.suit; })) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value });
+            lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value, col });
           }
         } else if (t.effect === "envyOthers") {
           // +value per surviving pile across all OTHER pillared columns (columns
@@ -3947,7 +3988,7 @@ const GameEngine = (() => {
           const amt = n * (t.value || 0);
           if (amt > 0) {
             bonus += amt;
-            lines.push({ label: t.label, detail: n + " alive in other pillared columns", amount: amt });
+            lines.push({ label: t.label, detail: n + " alive in other pillared columns", amount: amt, col });
           }
         } else if (t.effect === "symmetryRight") {
           // +value if this column's alive count equals the RIGHT column's
@@ -3955,14 +3996,14 @@ const GameEngine = (() => {
           const right = (col + 1) % nCols;
           if (aliveInCol(col) === aliveInCol(right)) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "cols " + (col + 1) + " & " + (right + 1) + " match", amount: t.value });
+            lines.push({ label: t.label, detail: "cols " + (col + 1) + " & " + (right + 1) + " match", amount: t.value, col });
           }
         } else if (t.effect === "greedy") {
           // +value only if this column fully survived AND it's the SOLE Pillar on
           // the board (a second Pillar anywhere — even another Greedy — voids it).
           if (pillarsOnBoard === 1 && allAliveInCol(col)) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value });
+            lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
@@ -4114,6 +4155,14 @@ const GameEngine = (() => {
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
+      // Column Tie-Safe Pillar: a directional guess that hit a tie and survived
+      // ONLY because the column carries a Tie-Safe Pillar (no Tie-Safe sticker in
+      // play). Feedback only — the save already happened above.
+      if (isTie && correct && guess !== "same" && pillar && pillar.effect === "columnTieSafe"
+          && !current.tieSafe && !drawn.tieSafe) {
+        firePillar(col, "columnTieSafe", pillar.label, 0);
+      }
+
       // --- Debug logbook: open this turn's entry; cascade lines append below.
       const bonusBefore = run.bonusCoins;
       logBegin("Guess " + guess.toUpperCase() + " on pile " + (index + 1) + (col != null ? " (column " + (col + 1) + ")" : ""));
@@ -4128,8 +4177,8 @@ const GameEngine = (() => {
         if (correct) {
           run.colStreak[col] += 1;
           const s = run.colStreak[col];
-          if (pillar && pillar.effect === "streakBank" && s >= 3) addBonus(pillar.label, pillar.value || 1);
-          if (pillar && pillar.effect === "streakTribute" && s >= 4) buryTribute(index, 1, pillar.label);
+          if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); }
+          if (pillar && pillar.effect === "streakTribute" && s >= 4) { buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); }
         } else {
           run.colStreak[col] = 0;
         }
@@ -4154,6 +4203,7 @@ const GameEngine = (() => {
           && run.suitBountyHits) {
         run.suitBountyHits[run.pileColumns[index]] += 1;
         addBonus(pillar.label, pillar.value || 0);
+        firePillar(run.pileColumns[index], "suitBounty", pillar.label, pillar.value || 0);
       }
 
       let guardSave = null;
@@ -4204,6 +4254,7 @@ const GameEngine = (() => {
         // The revived 1-card pile is alive immediately (can lower "smallest").
         run.secondWindUsed[col] = true;
         reviveSecondWind(index, drawn);
+        firePillar(col, "secondWind", pillar.label, 0);
         emit("second-wind", { index, guess, current, board, deck, run });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
@@ -7146,6 +7197,31 @@ const UIRenderer = (() => {
     }
   }
 
+  /* Visual feedback when a Pillar effect fires (presentation only): pulse the
+     column's banner, and for a coin reward float a "+N" up from it. Reacts to
+     the engine's "pillar-fired" event (and the end-of-run payout) — it changes
+     nothing about the effect itself. */
+  function flashPillar(col, amount) {
+    if (col == null || !el.board) return;
+    const cell = el.board.querySelectorAll(".bp-cell")[col];
+    if (!cell) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const banner = cell.querySelector(".cph-banner");
+    if (banner && !banner.classList.contains("empty")) {
+      banner.classList.remove("fired");
+      if (!reduce) void banner.offsetWidth;   // restart the animation on rapid repeats
+      banner.classList.add("fired");
+      setTimeout(() => banner.classList.remove("fired"), reduce ? 240 : 650);
+    }
+    if (amount && amount > 0) {
+      const f = document.createElement("div");
+      f.className = "pillar-float";
+      f.textContent = "+" + amount;
+      cell.appendChild(f);
+      setTimeout(() => f.remove(), reduce ? 600 : 1000);
+    }
+  }
+
   /* ---- event handling from the engine ---- */
   function handleEvent(type, payload) {
     switch (type) {
@@ -7241,6 +7317,13 @@ const UIRenderer = (() => {
         // land-then-tuck rather than both at once.
         const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         setTimeout(() => playBuryTuck(payload.index, payload.count), reduce ? 0 : 380);
+        break;
+      }
+
+      case "pillar-fired": {
+        // A Pillar effect just fired on a column — pulse it (+ float "+N" for a
+        // coin reward) so the player sees which Pillar acted. Feedback only.
+        flashPillar(payload.col, payload.amount);
         break;
       }
 
@@ -8251,6 +8334,13 @@ const UIRenderer = (() => {
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
     // on the win payload; default to nothing for legacy/no-layout runs.
     const pp = payload.pillarPayout || { bonus: 0, lines: [] };
+    // End-of-run scoring Pillars: pulse each contributing column (+ float its
+    // coins) while the win cinematic keeps the board visible, staggered so
+    // multiple Pillars read one after another. Feedback only — the payout above
+    // is unchanged.
+    (pp.lines || []).forEach((ln, i) => {
+      if (ln && ln.col != null) setTimeout(() => flashPillar(ln.col, ln.amount || 0), 260 + i * 220);
+    });
     // Live in-run bonus coins accrued during play (Suit Bounty, Middle Reward,
     // Lucky Coin, Tribute costs, All Hearts), itemized straight from the run's
     // tally. run.bonusCoins == Σ bonusEvents during play.
