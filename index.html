@@ -1538,18 +1538,6 @@
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
   .confirm-msg b { color: var(--accent-2); }
   .confirm-msg .warn-stickers { color: var(--bad); font-size: 12px; display: inline-block; margin-top: 6px; }
-  /* Kamikaze look-ahead: a row of the next 3 cards (display-only). */
-  .lookahead-cards { display: flex; gap: 10px; justify-content: center; margin: 4px 0 16px; }
-  .lookahead-card {
-    width: 46px; height: 62px; border-radius: 8px; background: var(--card-face);
-    color: var(--card-ink); border: 1px solid var(--card-border);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-family: var(--font-text); font-weight: 800; line-height: 1;
-    box-shadow: 0 2px 6px rgba(74,50,40,0.2);
-  }
-  .lookahead-card.red { color: var(--card-red); }
-  .lookahead-card .la-rank { font-size: 18px; }
-  .lookahead-card .la-suit { font-size: 14px; margin-top: 2px; }
   /* Board input modes for the targeting Pillars (Revive / Kamikaze). */
   .board.armed-revive .pile.dead { cursor: pointer; }
   .board.armed-revive .pile.dead .card { outline: 2px dashed var(--good); outline-offset: 3px; border-radius: 22px; }
@@ -3030,16 +3018,6 @@
     </div>
   </div>
 
-  <!-- Kamikaze look-ahead — the next 3 deck cards revealed (display-only). -->
-  <div class="confirm-overlay hidden" id="lookAhead">
-    <div class="confirm-panel">
-      <div class="confirm-msg">Next 3 cards <span class="dim" style="font-weight:600">(look-ahead)</span></div>
-      <div class="lookahead-cards" id="lookAheadCards"></div>
-      <div class="confirm-actions">
-        <button class="buy-confirm" id="lookAheadOkBtn" type="button" style="flex:1 1 0">Got it</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Peel-stickers confirmation — strips ALL stickers off a card and reverts it
        to its base card. The stickers are destroyed (not returned). The message
@@ -3206,7 +3184,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.12 · unified-activation";
+const APP_VERSION = "v2.13 · kamikaze-deck-reveal";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4360,15 +4338,16 @@ const GameEngine = (() => {
     }
 
     /** Activate Kamikaze: kill the chosen pile, spend the charge, and reveal the
-        next 3 deck cards (a display-only snapshot — draw order is never changed).
-        Returns the revealed cards, or null if it couldn't activate. */
+        upcoming cards ON THE DECK for the next 3 draws (same display-only treatment
+        as Scout, one at a time — draw order is never changed). Returns the snapshot
+        of the next 3 cards (for tests/logging), or null if it couldn't activate. */
     function kamikazeActivate(col, targetIndex) {
       if (!kamikazeAvailable(col)) return null;
       if (targetIndex == null || !board.isActive(targetIndex)) return null;
       board.kill(targetIndex);
       run.kamikazeUsed[col] = true;
-      const cards = deck.peek(3).map(c => ({ ...c }));   // snapshot, read-only
-      run.kamikazeReveal = cards;
+      run.kamikazeRevealLeft = 3;   // reveal the next 3 draws on the deck, one at a time
+      const cards = deck.peek(3).map(c => ({ ...c }));   // read-only snapshot (no order change)
       logAction("Kamikaze: killed pile " + (targetIndex + 1) + " to look ahead 3 cards");
       emit("kamikaze-fired", { col, index: targetIndex, cards, board, deck, run });
       evaluateEnd();   // killing a pile can't empty the deck; only checks loss (safe — >1 was alive)
@@ -4528,6 +4507,10 @@ const GameEngine = (() => {
         reviveUsed: cols ? new Array(cols.length).fill(false) : null,
         // Kamikaze (one-shot per deal, per column): consumed when activated.
         kamikazeUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Kamikaze deck-reveal: how many of the NEXT draws still show the upcoming
+        // card on the deck (same treatment as Scout, but persisting 3 draws).
+        // Decremented as cards are drawn; display-only (never changes draw order).
+        kamikazeRevealLeft: 0,
         // Optional post-landing actions awaiting the player's Yes/No (Shuffle,
         // Donate stickers). Each: { kind, index, target? }. Surfaced one at a time
         // AFTER any paid-bury prompts, via answerAction().
@@ -4620,6 +4603,9 @@ const GameEngine = (() => {
       // Scout: drawing this card consumes any active reveal (the revealed card has
       // now been played). It may be re-armed below if a Scout card lands.
       run.revealNextActive = false;
+      // Kamikaze deck-reveal counts down one per draw; after the 3rd the deck
+      // returns to its normal hidden state (display-only — no order change).
+      if (run.kamikazeRevealLeft > 0) run.kamikazeRevealLeft -= 1;
       const pillar = pillarForPile(index);   // column Pillar (or null)
 
       // Strict comparisons: an equal rank only wins on a "same" guess.
@@ -4883,8 +4869,6 @@ const GameEngine = (() => {
       /** Activate Kamikaze on column `col`, killing `targetIndex` and revealing
           the next 3 deck cards (display-only). Returns the cards, or null. */
       kamikazeActivate(col, targetIndex) { return kamikazeActivate(col, targetIndex); },
-      /** The current Kamikaze 3-card look-ahead snapshot, or null. */
-      kamikazePeek() { return (run && run.kamikazeReveal) || null; },
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
       /** True only during the sticker phase (after deal, before Start Run). */
@@ -4900,7 +4884,11 @@ const GameEngine = (() => {
       /** Scout look-ahead: the next card to be drawn while a reveal is active, or
           null. Read-only peek of the REAL next card — never changes draw order. */
       revealedNextCard() {
-        return (run && run.revealNextActive && deck) ? (deck.peek(1)[0] || null) : null;
+        // The upcoming card is shown on the deck while EITHER a Scout reveal is
+        // active OR Kamikaze's deck-reveal still has draws left — same treatment,
+        // one card at a time. Read-only peek; never changes draw order.
+        const active = run && (run.revealNextActive || run.kamikazeRevealLeft > 0);
+        return (active && deck) ? (deck.peek(1)[0] || null) : null;
       },
       /** Debug logbook: append a standalone entry for a non-engine action
           (sticker applied, store buy/reroll). Ground-truth, no gameplay impact. */
@@ -6286,9 +6274,6 @@ const UIRenderer = (() => {
     actionConfirmMsg: document.getElementById("actionConfirmMsg"),
     actionYesBtn: document.getElementById("actionYesBtn"),
     actionNoBtn: document.getElementById("actionNoBtn"),
-    lookAhead: document.getElementById("lookAhead"),
-    lookAheadCards: document.getElementById("lookAheadCards"),
-    lookAheadOkBtn: document.getElementById("lookAheadOkBtn"),
     buryYesBtn: document.getElementById("buryYesBtn"),
     buryNoBtn: document.getElementById("buryNoBtn"),
     redealConfirm: document.getElementById("redealConfirm"),
@@ -7615,7 +7600,6 @@ const UIRenderer = (() => {
     if (el.actionYesBtn) el.actionYesBtn.addEventListener("click", () => answerAction(true));
     if (el.actionNoBtn) el.actionNoBtn.addEventListener("click", () => answerAction(false));
     // Kamikaze look-ahead dismiss.
-    if (el.lookAheadOkBtn) el.lookAheadOkBtn.addEventListener("click", () => el.lookAhead.classList.add("hidden"));
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
@@ -8011,7 +7995,6 @@ const UIRenderer = (() => {
         armedRevive = null; armedKamikaze = null;
         if (el.board) el.board.classList.remove("armed-revive", "armed-kamikaze");
         hideActionBar();
-        if (el.lookAhead) el.lookAhead.classList.add("hidden");
         // Snapshot the coin balance the player enters this run with (after any
         // store spending) → drives the end-of-run Interest payout.
         runStartCoins = campaign ? campaign.getCoins() : 0;
@@ -8241,15 +8224,16 @@ const UIRenderer = (() => {
       }
 
       case "kamikaze-fired": {
-        // A pile was sacrificed → mark it dead and reveal the next 3 cards.
+        // A pile was sacrificed → mark it dead. The next 3 cards now reveal ON THE
+        // DECK, one at a time (renderHud → renderDeckReveal), like the Scout
+        // sticker — no popup. Reverts to hidden after the third draw.
         const pileEl = pileEls[payload.index];
         pileEl.classList.add("death-flash");
         setTimeout(() => { pileEl.classList.remove("death-flash"); pileEl.classList.add("dead"); refreshNetwork(payload.board); }, 200);
         paintPileCounts(payload.board);
-        renderHud(payload.board, payload.deck);
+        renderHud(payload.board, payload.deck);   // shows the upcoming card on the deck
         Sound.death();
-        showLookAhead(payload.cards);
-        el.hint.textContent = "Kamikaze — a pile was sacrificed to see the next 3 cards.";
+        el.hint.textContent = "Kamikaze — the next 3 cards now show on the deck as you draw them.";
         refreshDebug();
         break;
       }
@@ -10311,18 +10295,6 @@ const UIRenderer = (() => {
   function answerAction(accept) {
     hideActionBar();
     if (engine) engine.answerAction(!!accept);
-  }
-
-  /* ---- Kamikaze look-ahead: show the next 3 cards (display-only) ---- */
-  function showLookAhead(cards) {
-    if (!el.lookAhead) return;
-    el.lookAheadCards.innerHTML = (cards || []).map(c => {
-      const s = DeckManager.SUITS.find(x => x.symbol === c.suit) || DeckManager.SUITS[0];
-      const r = DeckManager.RANKS.find(x => x.value === c.value) || { label: String(c.value) };
-      return '<div class="lookahead-card' + (s.red ? " red" : "") + '">' +
-        '<span class="la-rank">' + r.label + '</span><span class="la-suit">' + s.suit + "</span></div>";
-    }).join("");
-    el.lookAhead.classList.remove("hidden");
   }
 
   /* ---- Revive / Kamikaze board-targeting modes (unified bottom prompt) ----

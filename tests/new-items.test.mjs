@@ -272,6 +272,18 @@ export function run() {
     r.eq(e.getDeck().peek(1)[0].value, nextBefore, "draw order is unchanged (display-only look-ahead)");
     r.eq(cards[0].value, nextBefore, "the first revealed card is the true next draw");
     r.ok(!e.kamikazeAvailable(0), "Kamikaze is one-shot per deal");
+    // The reveal now lives ON THE DECK (like Scout), one at a time for 3 draws.
+    r.eq(e.getRun().kamikazeRevealLeft, 3, "reveal armed for the next 3 draws");
+    r.ok(e.revealedNextCard(), "the upcoming card shows on the deck (Scout-style)");
+    r.eq(e.revealedNextCard().value, e.getDeck().peek(1)[0].value, "deck reveal = the real next card");
+    winGuess(e, 0);   // draw 1
+    r.eq(e.getRun().kamikazeRevealLeft, 2, "counts down one per draw");
+    r.ok(e.revealedNextCard(), "still revealing through draw 2");
+    winGuess(e, 0);   // draw 2
+    r.ok(e.revealedNextCard(), "still revealing through draw 3");
+    winGuess(e, 0);   // draw 3
+    r.eq(e.getRun().kamikazeRevealLeft, 0, "reveal exhausted after the 3rd draw");
+    r.ok(!e.revealedNextCard(), "deck returns to hidden after the third draw");
   }
   {
     // Unavailable with only one pile alive on the board.
