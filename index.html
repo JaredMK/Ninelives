@@ -3153,7 +3153,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.10 · stage-map-backgrounds";
+const APP_VERSION = "v2.11 · play-polish-1";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3242,6 +3242,22 @@ const GLYPHS = {
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6"/>',
   stash: '<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8" fill="none" stroke="currentColor" stroke-width="2"/>',
   menu: '<g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></g>',
+  // ---- new pillars + stickers (same monoline neural style) ----
+  // Revive — a heartbeat/ECG pulse (bringing a dead pile back to life).
+  revive: '<path d="M2 12h4l2-5 3 11 3-8 2 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Kamikaze — a burst/blast from a core (sacrifice a pile).
+  kamikaze: '<g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M5.5 5.5l2.6 2.6M15.9 15.9l2.6 2.6M18.5 5.5l-2.6 2.6M8.1 15.9l-2.6 2.6"/></g><circle cx="12" cy="12" r="2.6"/>',
+  // Fibonacci — a growing spiral.
+  fibonacci: '<path d="M13 13a2 2 0 1 0-2 2 4 4 0 0 0 4-4 6 6 0 0 0-9.2-5.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // Highest Odd / Even — a double up-chevron ("highest") + parity dots (1 / 2).
+  highestOdd: '<path d="M6 12l6-5 6 5M6 18l6-5 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4" r="1.6"/>',
+  highestEven: '<path d="M6 12l6-5 6 5M6 18l6-5 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.4" cy="4" r="1.6"/><circle cx="14.6" cy="4" r="1.6"/>',
+  // Dense Bury — stacked layers with a small bury-down arrow above.
+  denseBury: '<path d="M12 2.5v3M10.2 4l1.8 1.8L13.8 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="8" width="14" height="2.6" rx="1.3"/><rect x="5" y="12" width="14" height="2.6" rx="1.3"/><rect x="5" y="16" width="14" height="2.6" rx="1.3"/>',
+  // Shuffle — two crossing arrows.
+  shuffle: '<path d="M3 7h4c2.6 0 4.4 10 7 10h4M3 17h4c2.6 0 4.4-10 7-10h4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M18 4l3 3-3 3M18 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Donate — a tall pile gives a card to a short pile (arrow between).
+  donate: '<rect x="3" y="5" width="6" height="14" rx="1.5"/><rect x="15" y="12" width="6" height="7" rx="1.5"/><path d="M10 10.5h4M12.5 8.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
@@ -3256,6 +3272,9 @@ const ELEM_GLYPH = {
   allHeartsCoin: "heart", allSpadesCoin: "spade",
   allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
+  fibonacci: "fibonacci", highestOdd: "highestOdd", highestEven: "highestEven",
+  denseBury: "denseBury", revive: "revive", kamikaze: "kamikaze",
+  shuffle: "shuffle", donate: "donate",
   cardPack: "cardstack", stickerPack: "cache",
 };
 function glyph(name, cls) {
@@ -3508,14 +3527,14 @@ const PillarTypes = (() => {
       // surviving piles (J = 11 and K = 13 count as odd; A = 14 is even).
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
       kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 10,
-      description: "Earn bonus coins equal to the highest odd rank among all cards in this column's surviving piles when you clear the deal (a Jack counts as 11 and a King as 13).",
+      description: "Earn bonus coins equal to the highest odd NUMBER card (3, 5, 7 or 9) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
     },
     highestEven: {
       // End-of-run: +the highest EVEN rank value among all cards in this column's
       // surviving piles (Q = 12 and A = 14 count as even; K = 13 is odd).
       id: "highestEven", label: "Highest Even", icon: "🔽",
       kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
-      description: "Earn bonus coins equal to the highest even rank among all cards in this column's surviving piles when you clear the deal (a Queen counts as 12 and an Ace as 14).",
+      description: "Earn bonus coins equal to the highest even NUMBER card (2, 4, 6, 8 or 10) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
     },
     denseBury: {
       // Composition: when a correct guess lands a card carrying 3+ stickers on a
@@ -4391,15 +4410,15 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
         } else if (t.effect === "highestOdd" || t.effect === "highestEven") {
-          // +the single highest odd- (or even-) ranked card among ALL cards in
-          // this column's SURVIVING piles. Rank value parity (J=11 odd, Q=12 even,
-          // K=13 odd, A=14 even). 0 if no qualifying card.
+          // +the single highest odd- (or even-) ranked NUMBER card (2–10) among
+          // all cards in this column's SURVIVING piles. Face cards (J/Q/K) and the
+          // Ace do NOT count. 0 if no qualifying number card.
           const wantOdd = t.effect === "highestOdd";
           let best = 0;
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;        // surviving piles only
             for (const c of board.piles[i].cards) {
-              if ((c.value % 2 === 1) === wantOdd && c.value > best) best = c.value;
+              if (c.value >= 2 && c.value <= 10 && (c.value % 2 === 1) === wantOdd && c.value > best) best = c.value;
             }
           }
           if (best > 0) {
@@ -7474,6 +7493,17 @@ const UIRenderer = (() => {
       closePeekInfo(); peekTapCol = null;
       pickUpPillar(Number(b.dataset.unplaceCol));
     });
+    // Global tap-away dismiss for the informational peek popup (pillar/card help).
+    // The popup is pointer-events:none and can sit over the HUD, so a tap that
+    // misses the board never reached the board's own tap-off close — this fills
+    // that gap for ALL pillar/card peeks (not just one). Taps inside the board
+    // (its own handler), on the popup's buttons, or on the toggling banner are
+    // left to their existing handlers.
+    document.addEventListener("click", (e) => {
+      if (el.peekInfo.classList.contains("hidden")) return;
+      if (e.target.closest(".board") || e.target.closest(".peek-info") || e.target.closest(".bp-cell")) return;
+      closePeekInfo(); peekTapCol = null; peekTapPile = null;
+    });
     // Peel confirmation actions.
     el.peelCancelBtn.addEventListener("click", closePeelConfirm);
     el.peelOkBtn.addEventListener("click", doPeel);
@@ -8510,12 +8540,20 @@ const UIRenderer = (() => {
   function clearSave() { SaveStore.clear(); }
 
   function startCampaign() {
+    // First-time players (never started a game before) get the How to Play
+    // walkthrough on New Game, with a Skip — then on to the map. It never
+    // auto-shows again (it stays available from the menu). Read BEFORE
+    // Stats.startGame() bumps the counter.
+    let firstTime = false;
+    try { firstTime = Stats.get().gamesPlayed === 0; } catch (e) { firstTime = false; }
     clearSave();          // a fresh campaign supersedes any saved one
     Stats.startGame();    // lifetime: count this as a game played (isolated store)
     campaign.reset();
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
     // dealing — same store → map → run rhythm as every later run.
-    showProgressionMap(startRun);
+    const toMap = () => showProgressionMap(startRun);
+    if (firstTime) showManual(toMap);   // walkthrough first, then the map
+    else toMap();
   }
 
   /**
@@ -10458,7 +10496,9 @@ const UIRenderer = (() => {
      → grow/die → score → store). Reached from the main menu and the in-game menu
      (both route here). Skippable: tap ×, the backdrop, or Skip. Presentation
      only — these are static mocks; no engine state is touched. ---- */
-  function showManual() {
+  let manualOnClose = null;   // optional callback when the walkthrough closes (first-time flow)
+  function showManual(onClose) {
+    manualOnClose = (typeof onClose === "function") ? onClose : null;
     // A mock face-up card (matches the real .mini-card look). `attrs` allows an
     // inline style (for stacking); `inner` carries an optional sticker badge.
     const card = (rank, suit, red, attrs, inner) =>
@@ -10602,7 +10642,11 @@ const UIRenderer = (() => {
     render();
     el.manualOverlay.classList.remove("hidden");
   }
-  function closeManual() { el.manualOverlay.classList.add("hidden"); }
+  function closeManual() {
+    el.manualOverlay.classList.add("hidden");
+    const fn = manualOnClose; manualOnClose = null;
+    if (fn) fn();   // first-time flow → continue to the map
+  }
 
   function init() {
     attachInput();

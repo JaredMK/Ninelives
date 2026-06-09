@@ -75,32 +75,43 @@ export function run() {
     const won = onWon(e);
     e.start(); e.startRun(["highestOdd", null, null]);
     e.getBoard().top(0).value = 8;    // even
-    e.getBoard().top(1).value = 13;   // King (odd)
+    e.getBoard().top(1).value = 9;    // odd number card
     e.getBoard().top(2).value = 6;    // even
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 13, "Highest Odd = 13 (K) among col-0 cards");
+    r.eq(won().pillarPayout.bonus, 9, "Highest Odd = 9 (highest odd number card 2–10)");
+  }
+  {
+    // Face cards (J/Q/K) and Aces do NOT count toward Highest Odd.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestOdd", null, null]);
+    e.getBoard().top(0).value = 13;   // King — excluded (face)
+    e.getBoard().top(1).value = 7;    // odd number card
+    e.getBoard().top(2).value = 11;   // Jack — excluded (face)
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 7, "face cards excluded → highest odd number = 7");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
-    e.getBoard().top(0).value = 8;
-    e.getBoard().top(1).value = 13;
-    e.getBoard().top(2).value = 14;   // Ace (even)
+    e.getBoard().top(0).value = 10;   // highest even number card
+    e.getBoard().top(1).value = 9;
+    e.getBoard().top(2).value = 14;   // Ace — excluded
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 14, "Highest Even = 14 (A) among col-0 cards");
+    r.eq(won().pillarPayout.bonus, 10, "Highest Even = 10 (Ace excluded)");
   }
   {
-    // Dead piles are excluded; buried cards still count.
+    // Dead piles are excluded; buried NUMBER cards still count.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestOdd", null, null]);
-    // pile 0: bury a King (13) under an Ace (14) top — the buried K still counts.
-    e.getBoard().top(0).value = 13; e.debug.setNextCard(14); e.guess(0, "higher");
-    e.getBoard().top(1).value = 9; e.getBoard().top(2).value = 5;
-    e.getBoard().kill(1);   // remove the 9 pile
+    // pile 0: bury a 9 under a 10 top — the buried 9 still counts.
+    e.getBoard().top(0).value = 9; e.debug.setNextCard(10); e.guess(0, "higher");
+    e.getBoard().top(1).value = 7; e.getBoard().top(2).value = 5;
+    e.getBoard().kill(1);   // remove the 7 pile
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 13, "Highest Odd counts a BURIED K (13) and excludes the dead pile");
+    r.eq(won().pillarPayout.bonus, 9, "Highest Odd counts a BURIED 9 and excludes the dead pile");
   }
 
   // --- Dense Bury: a 3+ sticker landing buries 1 from the deck bottom ----
