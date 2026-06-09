@@ -527,6 +527,52 @@
   }
   @media (prefers-reduced-motion: reduce) { .bury-tuck { display: none; } }
 
+  /* Balatro-style TRAVELING card. Whenever a card moves on the board (a deck→
+     pile draw, a pile→deck return, a bury, a pack swap) a position:fixed clone
+     flies along a quick eased arc from its source to its destination — so the
+     card visibly travels instead of teleporting into place. The transform is
+     driven by the Web Animations API (the flyCard() helper); these rules are
+     only the look. Purely an overlay: the engine move already happened, so this
+     never affects state, draw order, or timing. */
+  .fly-card {
+    position: fixed; z-index: 60; pointer-events: none;
+    border-radius: 18px; will-change: transform;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    box-shadow: 0 9px 22px rgba(74, 50, 40, 0.30), 0 3px 8px rgba(74, 50, 40, 0.18);
+  }
+  /* Face-down clone = a card lifted off the deck (warm tan back + dashed crest),
+     matching the deck-stack look so the travel reads as "off the deck". */
+  .fly-card.face-down {
+    background: repeating-linear-gradient(135deg, #e2d2c4 0 6px, #d3c1b0 6px 12px);
+    border: 1px solid var(--pathway-2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fly-card.face-down::after {
+    content: ""; width: 58%; height: 58%; border-radius: 10px;
+    border: 2px dashed rgba(120, 90, 70, 0.42);
+  }
+  /* Face-up clone = a matte card face carrying a rank+suit (pack swaps fly the
+     actual card onto the board). Sizing of the rank/suit is set inline to track
+     the destination card's width. */
+  .fly-card.face-up {
+    background: var(--card-face); color: var(--card-ink);
+    border: 1px solid var(--card-border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--font-text); font-weight: 800; line-height: 0.95;
+  }
+  .fly-card.face-up.red { color: var(--card-red); }
+  @media (prefers-reduced-motion: reduce) { .fly-card { display: none; } }
+
+  /* Revealed pack items pop in with the same quick, settling motion language as
+     the traveling cards (staggered per item). One-shot, applied on open only. */
+  @keyframes packDealIn {
+    0%   { opacity: 0; transform: translateY(14px) scale(0.86); }
+    70%  { opacity: 1; transform: translateY(-2px) scale(1.03); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pack-item.dealin { animation: packDealIn 360ms cubic-bezier(0.3, 0.1, 0.3, 1) both; }
+  @media (prefers-reduced-motion: reduce) { .pack-item.dealin { animation: none; } }
+
   .card .face {
     position: absolute;
     inset: 0;
@@ -3055,7 +3101,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.5 · guards-secondwind-loss-fossils";
+const APP_VERSION = "v2.6 · traveling-cards";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7293,6 +7339,82 @@ const UIRenderer = (() => {
      Cosmetic only — the engine already moved the real cards (hidden). Staggered
      so multiple buries read as a small sequence. Respects reduced-motion (CSS
      hides the element, so we just skip scheduling). */
+  /* ---- Balatro-style traveling cards (presentation only) -----------------
+     A card that MOVES on the board flies along a quick eased arc from its
+     source to its destination with a slight lift and a small settle/overshoot,
+     instead of teleporting into place. The engine move has ALREADY happened —
+     these clones are a pure overlay and never touch state, draw order, RNG, or
+     the timing of any underlying logic. */
+  function prefersReduce() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  /* Viewport rect of the deck stack — the source/sink for draws and returns. */
+  function deckRect() {
+    const dp = el.deckStat && el.deckStat.querySelector(".deck-pile");
+    return (dp || el.deckStat || document.body).getBoundingClientRect();
+  }
+  /* A face-down "deck back" flying clone (unattached). */
+  function flyBackEl() {
+    const n = document.createElement("div");
+    n.className = "fly-card face-down";
+    return n;
+  }
+  /* A face-up flying clone carrying a card's rank+suit, sized to `size` (the
+     destination rect) so its glyphs track the landing card. */
+  function flyFaceEl(card, size) {
+    const n = document.createElement("div");
+    n.className = "fly-card face-up" + (card && card.red ? " red" : "");
+    const fs = Math.max(11, Math.round((size ? size.width : 64) * 0.3));
+    n.innerHTML =
+      '<span style="font-size:' + fs + 'px">' + (card ? card.label : "") + "</span>" +
+      '<span style="font-size:' + Math.round(fs * 0.72) + 'px">' + (card ? card.suit : "") + "</span>";
+    return n;
+  }
+  /* Fly `node` (an unattached .fly-card) along an eased arc from rect `from` to
+     rect `to` (both viewport coords). It is sized to the destination and lands
+     centred on it with a small settle. `onArrive` fires once on landing, then
+     the clone removes itself. With reduced motion or no Web Animations support
+     (e.g. the jsdom test harness) it SKIPS the flight and calls onArrive
+     immediately — preserving the original instant behaviour. */
+  function flyCard(node, from, to, opts) {
+    opts = opts || {};
+    if (prefersReduce() || !from || !to || !node || typeof node.animate !== "function") {
+      if (opts.onArrive) opts.onArrive();
+      return 0;
+    }
+    const fcx = from.left + from.width / 2, fcy = from.top + from.height / 2;
+    const tcx = to.left + to.width / 2, tcy = to.top + to.height / 2;
+    node.style.left = (fcx - to.width / 2) + "px";
+    node.style.top = (fcy - to.height / 2) + "px";
+    node.style.width = to.width + "px";
+    node.style.height = to.height + "px";
+    document.body.appendChild(node);
+    const dx = tcx - fcx, dy = tcy - fcy;
+    const dur = opts.duration || 280;
+    const lift = opts.lift != null ? opts.lift : -Math.min(34, Math.max(10, Math.hypot(dx, dy) * 0.16));
+    const s0 = opts.startScale != null ? opts.startScale : 0.9;
+    const anim = node.animate([
+      { transform: "translate(0px,0px) scale(" + s0 + ")", offset: 0, easing: "cubic-bezier(0.45,0,0.55,1)" },
+      { transform: "translate(" + (dx * 0.5) + "px," + (dy * 0.5 + lift) + "px) scale(1)", offset: 0.55, easing: "cubic-bezier(0.3,0,0.25,1)" },
+      { transform: "translate(" + (dx * 1.02) + "px," + (dy * 1.02) + "px) scale(1.05)", offset: 0.84, easing: "ease-out" },
+      { transform: "translate(" + dx + "px," + dy + "px) scale(1)", offset: 1 },
+    ], { duration: dur, delay: opts.delay || 0, fill: "both" });
+    let done = false;
+    const finish = () => { if (done) return; done = true; node.remove(); if (opts.onArrive) opts.onArrive(); };
+    if (anim.finished && anim.finished.then) anim.finished.then(finish).catch(() => {});
+    else anim.addEventListener("finish", finish);
+    setTimeout(finish, dur + (opts.delay || 0) + 120);   // Safari finish-event safety net
+    return dur;
+  }
+  /* Stagger a one-shot deal-in pop across a container's children (pack reveal). */
+  function staggerDealIn(container) {
+    if (!container || prefersReduce()) return;
+    Array.prototype.forEach.call(container.children, (c, i) => {
+      c.classList.add("dealin");
+      c.style.animationDelay = (i * 55) + "ms";
+    });
+  }
+
   function playBuryTuck(index, count) {
     const pileEl = pileEls[index];
     if (!pileEl) return;
@@ -7371,7 +7493,7 @@ const UIRenderer = (() => {
       case "resolved": {
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
-        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const reduce = prefersReduce();
         // Show the drawn memory landing on the neuron (its new top, or final face).
         paintFront(pileEl, payload.drawn);
         renderStickerBadges(pileEl, payload.drawn);
@@ -7379,39 +7501,54 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // tick the live streak pill(s)
 
-        // §5: the drawn memory FLIPS onto the neuron (encoding).
-        if (!reduce && cardEl) {
-          cardEl.classList.add("landing");
-          setTimeout(() => cardEl.classList.remove("landing"), 360);
-        }
+        // The drawn memory LANDS on the neuron: §5 flip, then resolve the outcome
+        // (good pulse, or death-flash → dissolve). Wrapped so it runs on the
+        // traveling card's arrival below (or immediately under reduced motion).
+        const land = () => {
+          if (cardEl) cardEl.style.visibility = "";
+          // §5: the drawn memory FLIPS onto the neuron (encoding).
+          if (!reduce && cardEl) {
+            cardEl.classList.add("landing");
+            setTimeout(() => cardEl.classList.remove("landing"), 360);
+          }
+          if (payload.correct) {
+            // Encoded: a quick "good" pulse, re-strengthen the network now.
+            pileEl.classList.add("flash-good");
+            setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+            Sound.good();
+            refreshNetwork(payload.board);
+          } else {
+            // Mis-encoded → the neuron dies. Order: flip/resolve → DEATH FLASH →
+            // dissolve → reconnect, so the player registers the death first.
+            Sound.death();
+            const flashAt = reduce ? 0 : 340;        // after the flip settles
+            const dieAt = reduce ? 0 : flashAt + 300;
+            if (!reduce) setTimeout(() => {
+              pileEl.classList.add("death-flash");
+              setTimeout(() => pileEl.classList.remove("death-flash"), 340);
+            }, flashAt);
+            setTimeout(() => {
+              pileEl.classList.add("dead");           // dissolve
+              refreshNetwork(payload.board);          // sever + reform across the gap
+            }, dieAt);
+            // Presentation-only nudge: ONLY a Higher/Lower guess that died on a TIE
+            // (drawn value == the value it was played on). Not a correct "same", not
+            // a normal wrong-direction death. Reads the existing outcome; changes none.
+            const fatalTie = (payload.guess === "higher" || payload.guess === "lower")
+              && payload.drawn && payload.current
+              && payload.drawn.value === payload.current.value;
+            if (fatalTie) shouldaSaidSame(pileEl, cardEl, reduce, flashAt);
+          }
+        };
 
-        if (payload.correct) {
-          // Encoded: a quick "good" pulse, re-strengthen the network now.
-          pileEl.classList.add("flash-good");
-          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
-          Sound.good();
-          refreshNetwork(payload.board);
+        // TRAVEL: a face-down card flies from the deck to this pile, then lands
+        // + flips on arrival (the card visibly travels, never teleports).
+        if (!reduce && cardEl && typeof cardEl.animate === "function") {
+          const to = cardEl.getBoundingClientRect();
+          cardEl.style.visibility = "hidden";
+          flyCard(flyBackEl(), deckRect(), to, { duration: 250, onArrive: land });
         } else {
-          // Mis-encoded → the neuron dies. Order: flip/resolve → DEATH FLASH →
-          // dissolve → reconnect, so the player registers the death first.
-          Sound.death();
-          const flashAt = reduce ? 0 : 340;        // after the flip settles
-          const dieAt = reduce ? 0 : flashAt + 300;
-          if (!reduce) setTimeout(() => {
-            pileEl.classList.add("death-flash");
-            setTimeout(() => pileEl.classList.remove("death-flash"), 340);
-          }, flashAt);
-          setTimeout(() => {
-            pileEl.classList.add("dead");           // dissolve
-            refreshNetwork(payload.board);          // sever + reform across the gap
-          }, dieAt);
-          // Presentation-only nudge: ONLY a Higher/Lower guess that died on a TIE
-          // (drawn value == the value it was played on). Not a correct "same", not
-          // a normal wrong-direction death. Reads the existing outcome; changes none.
-          const fatalTie = (payload.guess === "higher" || payload.guess === "lower")
-            && payload.drawn && payload.current
-            && payload.drawn.value === payload.current.value;
-          if (fatalTie) shouldaSaidSame(pileEl, cardEl, reduce, flashAt);
+          land();
         }
 
         clearSelection();
@@ -7424,11 +7561,19 @@ const UIRenderer = (() => {
       }
 
       case "buried": {
-        // Cards were tucked under the pile from the deck (any bury effect). Play
-        // the tuck flourish AFTER the landing flip settles so it reads as
-        // land-then-tuck rather than both at once.
-        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        setTimeout(() => playBuryTuck(payload.index, payload.count), reduce ? 0 : 380);
+        // Cards were tucked under the pile from the deck (any bury effect). A
+        // face-down card TRAVELS from the deck to the pile, then the tuck
+        // flourish plays — reading as the card flying in and tucking under.
+        const reduce = prefersReduce();
+        const bPileEl = pileEls[payload.index];
+        const bCardEl = bPileEl && bPileEl.querySelector(".card");
+        const tuck = () => playBuryTuck(payload.index, payload.count);
+        if (!reduce && bCardEl && typeof bCardEl.animate === "function") {
+          const to = bCardEl.getBoundingClientRect();
+          flyCard(flyBackEl(), deckRect(), to, { duration: 240, onArrive: () => setTimeout(tuck, 50) });
+        } else {
+          setTimeout(tuck, reduce ? 0 : 380);
+        }
         break;
       }
 
@@ -7497,11 +7642,14 @@ const UIRenderer = (() => {
 
       case "second-wind": {
         // The pile revived: its old cards went back into the deck (hidden) and a
-        // single fresh top was dealt. Repaint the pile from its new top.
+        // single fresh top was dealt. The spent cards TRAVEL back to the deck,
+        // then a fresh card flies from the deck and flips onto the revived pile.
+        const reduce = prefersReduce();
         const idx = payload.index;
         const pileEl = pileEls[idx];
+        const cardEl = pileEl.querySelector(".card");
         const top = payload.board.top(idx);
-        if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+        const pileRect = (cardEl || pileEl).getBoundingClientRect();
         pileEl.classList.remove("dead");
         paintPileCounts(payload.board);
         renderHud(payload.board, payload.deck);
@@ -7511,9 +7659,25 @@ const UIRenderer = (() => {
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
         renderSetupInv();
-        Sound.good();
         el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
+
+        const revealTop = () => {
+          if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+          if (cardEl) cardEl.style.visibility = "";
+          if (!reduce && cardEl) {
+            cardEl.classList.add("landing");
+            setTimeout(() => cardEl.classList.remove("landing"), 360);
+          }
+          Sound.good();
+        };
+        if (!reduce && cardEl && typeof cardEl.animate === "function") {
+          flyCard(flyBackEl(), pileRect, deckRect(), { duration: 230 });           // OUT: spent cards → deck
+          cardEl.style.visibility = "hidden";
+          flyCard(flyBackEl(), deckRect(), pileRect, { duration: 270, delay: 110, onArrive: revealTop }); // IN: fresh card → pile
+        } else {
+          revealTop();
+        }
         break;
       }
 
@@ -8986,6 +9150,7 @@ const UIRenderer = (() => {
     packRevealState = { kind: result.kind, keep: result.keep, items: result.items, chosen: [], mode: "pick", pending: null };
     el.packReveal.classList.remove("hidden");
     renderPackReveal();
+    staggerDealIn(el.packItems);   // reveal items pop in (same motion language)
   }
   function closePackReveal() {
     packRevealState = null; closePackItemInfo();
@@ -9146,6 +9311,12 @@ const UIRenderer = (() => {
   function doReplace() {
     const st = packReplaceState;
     if (!st) return;
+    const reduce = prefersReduce();
+    const pileEl = pileEls[st.pileIndex];
+    const cardEl = pileEl && pileEl.querySelector(".card");
+    // Source rect: the armed pack-tray chip (captured before the tray re-renders).
+    const chip = el.packTrayEl && el.packTrayEl.querySelector('[data-tray="' + st.trayIndex + '"]');
+    const fromRect = chip ? chip.getBoundingClientRect() : null;
     const packCard = campaign.replaceDeckCard(st.dealtId, st.trayIndex);
     closePackReplace();
     if (!packCard) return;
@@ -9153,8 +9324,19 @@ const UIRenderer = (() => {
     const top = engine.getBoard().top(st.pileIndex);
     if (top) {
       Object.assign(top, DeckManager.toCard(packCard));
-      paintFront(pileEls[st.pileIndex], top);
-      renderStickerBadges(pileEls[st.pileIndex], top);
+      paintFront(pileEl, top);
+      renderStickerBadges(pileEl, top);
+      // TRAVEL: the pack card flies from its tray chip onto the pile and flips,
+      // matching the deck→pile motion language for a consistent swap.
+      if (!reduce && cardEl && fromRect && typeof cardEl.animate === "function") {
+        const to = cardEl.getBoundingClientRect();
+        cardEl.style.visibility = "hidden";
+        flyCard(flyFaceEl(top, to), fromRect, to, { duration: 300, onArrive: () => {
+          cardEl.style.visibility = "";
+          cardEl.classList.add("landing");
+          setTimeout(() => cardEl.classList.remove("landing"), 360);
+        } });
+      }
     }
     if (engine) engine.logAction("Replaced the dealt card on pile " + (st.pileIndex + 1) + " with a pack card");
     appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
