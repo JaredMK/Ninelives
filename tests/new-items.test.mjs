@@ -142,5 +142,141 @@ export function run() {
     r.eq(t.price, 1, "Random Suit costs 1");
   }
 
+  // ===== Group B: interactive items (engine entry points) ================
+
+  const landSticker = (e, i, type) => {
+    e.getBoard().top(i).value = 5;
+    const d = e.debug.setNextCard(9);
+    d.stickers = [{ type }];
+    e.guess(i, "higher");
+    return d;
+  };
+
+  // --- Shuffle: offered after landing; accept reorders, composition kept --
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let offer = null, resolved = null;
+    e.onEvent((t, p) => { if (t === "action-offer") offer = p; if (t === "action-resolved") resolved = p; });
+    e.start(); e.startRun([null, null, null]);
+    winGuess(e, 0);   // pile 0 → 2 cards so there's something to shuffle
+    landSticker(e, 0, "shuffle");   // pile 0 → 3 cards, Shuffle offered
+    r.ok(offer && offer.kind === "shuffle" && offer.index === 0, "Shuffle offered on the landing pile");
+    r.ok(e.pendingAction() && e.pendingAction().kind === "shuffle", "pendingAction exposes the shuffle offer");
+    const before = e.getBoard().piles[0].cards.map(c => c.value).sort().join(",");
+    const len = e.getBoard().piles[0].cards.length;
+    e.answerAction(true);
+    const after = e.getBoard().piles[0].cards.map(c => c.value).sort().join(",");
+    r.eq(e.getBoard().piles[0].cards.length, len, "shuffle keeps the pile size");
+    r.eq(after, before, "shuffle keeps the exact composition (no add/remove)");
+    r.ok(resolved && resolved.accepted, "action-resolved fired (accepted)");
+    r.ok(!e.pendingAction(), "the queue drained after answering");
+  }
+
+  // --- Donate: move a bottom card to the smallest pile (not the smallest) --
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let offer = null;
+    e.onEvent((t, p) => { if (t === "action-offer") offer = p; });
+    e.start(); e.startRun([null, null, null]);
+    winGuess(e, 0); winGuess(e, 0);   // pile 0 → 3 cards (not the smallest)
+    landSticker(e, 0, "donate");      // pile 0 → 4 cards; pile 1 is size 1 (smallest)
+    r.ok(offer && offer.kind === "donate" && offer.index === 0, "Donate offered on the non-smallest pile");
+    r.eq(offer.target, 1, "Donate targets the smallest other pile (pile 1)");
+    const a0 = e.getBoard().piles[0].cards.length, a1 = e.getBoard().piles[1].cards.length;
+    e.answerAction(true);
+    r.eq(e.getBoard().piles[0].cards.length, a0 - 1, "donor pile lost 1 card from the bottom");
+    r.eq(e.getBoard().piles[1].cards.length, a1 + 1, "smallest pile gained 1 card at the bottom");
+  }
+  {
+    // Decline → nothing moves.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun([null, null, null]);
+    winGuess(e, 0); winGuess(e, 0);
+    landSticker(e, 0, "donate");
+    const a0 = e.getBoard().piles[0].cards.length, a1 = e.getBoard().piles[1].cards.length;
+    e.answerAction(false);
+    r.eq(e.getBoard().piles[0].cards.length, a0, "declined donate moves nothing (donor unchanged)");
+    r.eq(e.getBoard().piles[1].cards.length, a1, "declined donate moves nothing (target unchanged)");
+  }
+  {
+    // No other alive pile → no Donate offer.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let offer = null;
+    e.onEvent((t, p) => { if (t === "action-offer") offer = p; });
+    e.start(); e.startRun([null, null, null]);
+    for (let i = 1; i < 10; i++) e.getBoard().kill(i);   // only pile 0 alive
+    landSticker(e, 0, "donate");
+    r.ok(!offer, "no Donate offer when there's no smaller pile to give to");
+  }
+
+  // --- Revive: pile hits 10 → offer; revives one dead pile, once per deal --
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let offers = 0, last = null;
+    e.onEvent((t, p) => { if (t === "revive-offer") { offers++; last = p; } });
+    e.start(); e.startRun(["revive", null, null]);
+    const b = e.getBoard();
+    for (let k = 0; k < 8; k++) b.piles[0].cards.push({ value: 3, suit: "♠", stickers: [] });  // pile 0 → 9
+    b.kill(3);   // a dead pile exists (column 1)
+    winGuess(e, 0);   // pile 0 → 10 → Revive offered
+    r.eq(offers, 1, "Revive offered when a col pile reaches 10 with a dead pile present");
+    r.ok(last && last.col === 0 && last.dead.indexOf(3) !== -1, "offer names the column and the dead piles");
+    r.ok(!b.isActive(3), "pile 3 still dead before the player picks");
+    r.ok(e.reviveDeadPile(0, 3), "reviveDeadPile revives the chosen dead pile");
+    r.ok(b.isActive(3), "pile 3 is alive again");
+    r.ok(b.top(3) && b.piles[3].cards.length >= 1, "revived pile has a fresh top");
+    r.ok(e.getRun().reviveUsed[0], "Revive marked spent for the column");
+    winGuess(e, 0);   // pile 0 → 11, still ≥10
+    r.eq(offers, 1, "Revive is one-shot per deal (no second offer)");
+  }
+  {
+    // No dead pile when it triggers → skipped, NOT consumed (stays ready).
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let offers = 0;
+    e.onEvent((t, p) => { if (t === "revive-offer") offers++; });
+    e.start(); e.startRun(["revive", null, null]);
+    const b = e.getBoard();
+    for (let k = 0; k < 8; k++) b.piles[0].cards.push({ value: 3, suit: "♠", stickers: [] });
+    winGuess(e, 0);   // pile 0 → 10, but nothing is dead
+    r.eq(offers, 0, "no Revive offer with no dead pile");
+    r.eq(e.getRun().reviveUsed[0], false, "the charge is NOT consumed — it stays ready");
+    b.kill(4);
+    winGuess(e, 0);   // now a dead pile exists and the pile is ≥10 → offers
+    r.eq(offers, 1, "Revive fires later once a pile is dead (it waited, stayed ready)");
+  }
+
+  // --- Kamikaze: activate to kill a pile + reveal 3 (display-only) -------
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    let fired = null;
+    e.onEvent((t, p) => { if (t === "kamikaze-fired") fired = p; });
+    e.start(); e.startRun(["kamikaze", null, null]);
+    r.ok(e.kamikazeAvailable(0), "Kamikaze available during play with >1 pile alive");
+    const nextBefore = e.getDeck().peek(1)[0].value;
+    const cards = e.kamikazeActivate(0, 5);   // kill pile 5
+    r.ok(cards && cards.length === 3, "Kamikaze reveals the next 3 cards");
+    r.ok(!e.getBoard().isActive(5), "the chosen pile is killed");
+    r.ok(e.getRun().kamikazeUsed[0], "Kamikaze is spent");
+    r.ok(fired && fired.index === 5 && fired.cards.length === 3, "kamikaze-fired event carries the kill + cards");
+    r.eq(e.getDeck().peek(1)[0].value, nextBefore, "draw order is unchanged (display-only look-ahead)");
+    r.eq(cards[0].value, nextBefore, "the first revealed card is the true next draw");
+    r.ok(!e.kamikazeAvailable(0), "Kamikaze is one-shot per deal");
+  }
+  {
+    // Unavailable with only one pile alive on the board.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun(["kamikaze", null, null]);
+    for (let i = 1; i < 10; i++) e.getBoard().kill(i);
+    r.ok(!e.kamikazeAvailable(0), "unavailable while only one pile is alive");
+    r.eq(e.kamikazeActivate(0, 0), null, "activation refused when unavailable");
+  }
+  {
+    // Unavailable when its OWN column is entirely dead (others still alive).
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun(["kamikaze", null, null]);
+    e.getBoard().kill(0); e.getBoard().kill(1); e.getBoard().kill(2);   // column 0 all dead
+    r.ok(!e.kamikazeAvailable(0), "unavailable when its own column is all dead");
+  }
+
   return r.summary();
 }

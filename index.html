@@ -1503,6 +1503,22 @@
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
   .confirm-msg b { color: var(--accent-2); }
   .confirm-msg .warn-stickers { color: var(--bad); font-size: 12px; display: inline-block; margin-top: 6px; }
+  /* Kamikaze look-ahead: a row of the next 3 cards (display-only). */
+  .lookahead-cards { display: flex; gap: 10px; justify-content: center; margin: 4px 0 16px; }
+  .lookahead-card {
+    width: 46px; height: 62px; border-radius: 8px; background: var(--card-face);
+    color: var(--card-ink); border: 1px solid var(--card-border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--font-text); font-weight: 800; line-height: 1;
+    box-shadow: 0 2px 6px rgba(74,50,40,0.2);
+  }
+  .lookahead-card.red { color: var(--card-red); }
+  .lookahead-card .la-rank { font-size: 18px; }
+  .lookahead-card .la-suit { font-size: 14px; margin-top: 2px; }
+  /* Board input modes for the targeting Pillars (Revive / Kamikaze). */
+  .board.armed-revive .pile.dead { cursor: pointer; }
+  .board.armed-revive .pile.dead .card { outline: 2px dashed var(--good); outline-offset: 3px; border-radius: 22px; }
+  .board.armed-kamikaze .pile:not(.dead) .card { outline: 2px dashed var(--bad); outline-offset: 3px; border-radius: 22px; }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
   .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
   .confirm-cancel { background: var(--panel-2); color: var(--text); }
@@ -2929,6 +2945,29 @@
     </div>
   </div>
 
+  <!-- Optional post-landing action (Shuffle / Donate sticker). The player opts
+       in; only Yes performs the composition shift. -->
+  <div class="confirm-overlay hidden" id="actionConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="actionConfirmMsg">Take this action?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="actionNoBtn" type="button">No</button>
+        <button class="buy-confirm" id="actionYesBtn" type="button" style="flex:1 1 0">Yes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kamikaze look-ahead — the next 3 deck cards revealed (display-only). -->
+  <div class="confirm-overlay hidden" id="lookAhead">
+    <div class="confirm-panel">
+      <div class="confirm-msg">Next 3 cards <span class="dim" style="font-weight:600">(look-ahead)</span></div>
+      <div class="lookahead-cards" id="lookAheadCards"></div>
+      <div class="confirm-actions">
+        <button class="buy-confirm" id="lookAheadOkBtn" type="button" style="flex:1 1 0">Got it</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Peel-stickers confirmation — strips ALL stickers off a card and reverts it
        to its base card. The stickers are destroyed (not returned). The message
        names the base card so the player knows what it becomes. -->
@@ -3094,7 +3133,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.8 · new-pillars-stickers";
+const APP_VERSION = "v2.9 · interactive-pillars-stickers";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3819,6 +3858,28 @@ const BoardState = (() => {
       },
       isActive(index) { return !piles[index].dead; },
       kill(index) { piles[index].dead = true; },
+      /** Bring a dead pile back to life (Revive Pillar). Keeps its existing cards;
+          the caller deals a fresh top on it. */
+      revive(index) { piles[index].dead = false; },
+      /** Shuffle a pile's cards in place with a seeded rng (Shuffle sticker). A
+          COMPOSITION shuffle only — the order is never surfaced; the new top is
+          simply whatever lands last. */
+      shufflePile(index, rng) {
+        const c = piles[index].cards;
+        for (let i = c.length - 1; i > 0; i--) {
+          const j = Math.floor((rng ? rng() : Math.random()) * (i + 1));
+          [c[i], c[j]] = [c[j], c[i]];
+        }
+      },
+      /** Move ONE card from the BOTTOM of pile `from` to the BOTTOM of pile `to`
+          (Donate sticker). Composition shift only — nothing is revealed. Returns
+          true if a card moved. */
+      moveBottomCard(from, to) {
+        const src = piles[from].cards;
+        if (!src.length || from === to) return false;
+        piles[to].cards.unshift(src.shift());
+        return true;
+      },
       aliveCount() { return piles.filter(p => !p.dead).length; },
       anyAlive() { return piles.some(p => !p.dead); },
       /** True if pile `index` is alive and its TOP card carries Anchor. Anchor
@@ -3895,6 +3956,7 @@ const GameEngine = (() => {
   function create(deckSpecs, pileCount, runConfig = {}) {
     const cols = Array.isArray(runConfig.cols) ? runConfig.cols.slice() : null;
     let deck, board, status, run, listeners = [];
+    let rng = null;   // the run's seeded rng (shared by the deck + board shuffles)
     // currentEntry: the log entry that in-flight cascade lines append to (set
     // while a guess or the run-end settle is resolving). Debug-only ground truth.
     let currentEntry = null;
@@ -4087,6 +4149,140 @@ const GameEngine = (() => {
       }
     }
 
+    /** Optional post-landing sticker ACTIONS carried by the DRAWN card that just
+        landed on a SURVIVING pile: Shuffle (reorder this pile) and Donate (move a
+        bottom card to the smallest pile). Both are OFFERED (player confirms); they
+        queue into run.pendingActions and surface one at a time AFTER any paid-bury
+        prompt. Composition only — nothing is revealed. */
+    function maybeStickerActions(index, drawn) {
+      const stickers = (drawn && drawn.stickers) || [];
+      if (!stickers.length) return;
+      for (const s of stickers) {
+        if (s.type === "shuffle") {
+          // Only worth offering if the pile has more than one card to reorder.
+          if (board.piles[index].cards.length > 1) run.pendingActions.push({ kind: "shuffle", index });
+        } else if (s.type === "donate") {
+          // Only when this is NOT the smallest pile and a smaller alive pile exists
+          // to receive the donation.
+          const target = smallestAlivePileExcept(index);
+          if (target != null && board.pileSize(index) > board.pileSize(target)
+              && board.piles[index].cards.length > 0) {
+            run.pendingActions.push({ kind: "donate", index, target });
+          }
+        }
+      }
+    }
+
+    /** The alive pile with the smallest (weighted) size, excluding `not`. Ties
+        break to the lowest index. null if no other alive pile. */
+    function smallestAlivePileExcept(not) {
+      let best = null, bestSize = Infinity;
+      for (let i = 0; i < board.size; i++) {
+        if (i === not || !board.isActive(i)) continue;
+        const sz = board.pileSize(i);
+        if (sz < bestSize) { bestSize = sz; best = i; }
+      }
+      return best;
+    }
+
+    /** Surface the head pending-action offer to the UI, but only once any paid-bury
+        prompts have drained (so dialogs never stack). No-op otherwise. */
+    function surfaceActionOffer() {
+      if (run.pendingTributes.length || !run.pendingActions.length) return;
+      const a = run.pendingActions[0];
+      emit("action-offer", { kind: a.kind, index: a.index, target: a.target, board, deck, run });
+    }
+
+    /** Resolve the head pending-action (Shuffle / Donate). On accept we perform
+        the composition shift; on decline nothing moves. Either way the next queued
+        action (or bury) surfaces. Called by the UI after the player answers. */
+    function answerAction(accept) {
+      if (!run || !run.pendingActions || !run.pendingActions.length) return;
+      const a = run.pendingActions.shift();
+      logBegin((a.kind === "shuffle" ? "Shuffle" : "Donate") + (accept ? " — accepted" : " — declined"));
+      if (accept) {
+        if (a.kind === "shuffle") {
+          board.shufflePile(a.index, rng);
+          logLine("pile " + (a.index + 1) + " shuffled (order hidden)");
+        } else if (a.kind === "donate" && board.isActive(a.index) && board.isActive(a.target)) {
+          if (board.moveBottomCard(a.index, a.target))
+            logLine("moved 1 card from pile " + (a.index + 1) + " to pile " + (a.target + 1) + " (hidden)");
+        }
+      }
+      currentEntry = null;
+      emit("action-resolved", { kind: a.kind, index: a.index, target: a.target, accepted: !!accept, board, deck, run });
+      surfaceActionOffer();   // chain the next queued action, if any
+    }
+
+    /** Revive Pillar (one-shot per deal): when a pile in the Pillar's column has
+        reached 10 cards, offer to revive a dead pile. Triggered after a correct
+        landing. If no pile is dead, it's skipped WITHOUT consuming the charge (it
+        stays ready). Only emits an OFFER — the actual revive happens in
+        reviveDeadPile() once the player picks a dead pile. */
+    function maybeReviveTrigger(col) {
+      if (col == null || !run.pillars || !run.reviveUsed || run.reviveUsed[col]) return;
+      const pillar = run.pillars[col] ? PillarTypes.get(run.pillars[col]) : null;
+      if (!pillar || pillar.effect !== "revive") return;
+      // A pile in THIS column at 10+ physical cards (and still alive).
+      let reached = false;
+      for (let i = 0; i < run.pileColumns.length; i++)
+        if (run.pileColumns[i] === col && board.isActive(i) && board.piles[i].cards.length >= 10) { reached = true; break; }
+      if (!reached) return;
+      const dead = [];
+      for (let i = 0; i < board.size; i++) if (!board.isActive(i)) dead.push(i);
+      if (!dead.length) return;   // nothing to revive → wait, stay ready (no consume)
+      firePillar(col, "revive", pillar.label, 0);
+      emit("revive-offer", { col, dead, board, deck, run });
+    }
+
+    /** Perform a Revive: bring a chosen DEAD pile back with one fresh top card and
+        consume the column's one-shot charge. No-op if the target isn't dead or the
+        charge is already spent. */
+    function reviveDeadPile(col, targetIndex) {
+      if (col == null || !run.reviveUsed || run.reviveUsed[col]) return false;
+      if (targetIndex == null || board.isActive(targetIndex)) return false;
+      board.revive(targetIndex);
+      if (!deck.isEmpty()) board.push(targetIndex, deck.draw());   // a fresh top
+      const fresh = board.top(targetIndex);
+      if (fresh && fresh.revealNext) run.revealNextActive = true;
+      run.reviveUsed[col] = true;
+      logAction("Revive: pile " + (targetIndex + 1) + " brought back with a fresh card");
+      emit("revived", { col, index: targetIndex, board, deck, run });
+      evaluateEnd();
+      return true;
+    }
+
+    /** Kamikaze availability for a column (during active play): the column holds an
+        unused Kamikaze, more than one pile is alive on the board, and this column
+        still has at least one alive pile. */
+    function kamikazeAvailable(col) {
+      if (col == null || status !== "playing" || !run || !run.started || !run.pillars) return false;
+      if (!run.kamikazeUsed || run.kamikazeUsed[col]) return false;
+      const pillar = run.pillars[col] ? PillarTypes.get(run.pillars[col]) : null;
+      if (!pillar || pillar.effect !== "kamikaze") return false;
+      if (board.aliveCount() <= 1) return false;   // can't activate with one pile left
+      let colAlive = false;
+      for (let i = 0; i < run.pileColumns.length; i++)
+        if (run.pileColumns[i] === col && board.isActive(i)) { colAlive = true; break; }
+      return colAlive;   // own column all dead → unavailable
+    }
+
+    /** Activate Kamikaze: kill the chosen pile, spend the charge, and reveal the
+        next 3 deck cards (a display-only snapshot — draw order is never changed).
+        Returns the revealed cards, or null if it couldn't activate. */
+    function kamikazeActivate(col, targetIndex) {
+      if (!kamikazeAvailable(col)) return null;
+      if (targetIndex == null || !board.isActive(targetIndex)) return null;
+      board.kill(targetIndex);
+      run.kamikazeUsed[col] = true;
+      const cards = deck.peek(3).map(c => ({ ...c }));   // snapshot, read-only
+      run.kamikazeReveal = cards;
+      logAction("Kamikaze: killed pile " + (targetIndex + 1) + " to look ahead 3 cards");
+      emit("kamikaze-fired", { col, index: targetIndex, cards, board, deck, run });
+      evaluateEnd();   // killing a pile can't empty the deck; only checks loss (safe — >1 was alive)
+      return cards;
+    }
+
     /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
         card and fires ONLY when that GUARD CARD is DRAWN from the deck and
         placed ONTO a card of its guarded suit (carrier = drawn, other = current
@@ -4240,6 +4436,10 @@ const GameEngine = (() => {
         reviveUsed: cols ? new Array(cols.length).fill(false) : null,
         // Kamikaze (one-shot per deal, per column): consumed when activated.
         kamikazeUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Optional post-landing actions awaiting the player's Yes/No (Shuffle,
+        // Donate stickers). Each: { kind, index, target? }. Surfaced one at a time
+        // AFTER any paid-bury prompts, via answerAction().
+        pendingActions: [],
         // Live bonus-coin tally: starts at 0, moves the instant a bonus coin is
         // earned or spent during play (Suit Bounty, Middle Reward, Lucky Coin,
         // Tribute costs, All Hearts). bonusCoins == Σ bonusEvents during play;
@@ -4272,7 +4472,8 @@ const GameEngine = (() => {
       };
       currentEntry = null;
       // A shuffled COPY of the campaign deck — deterministic per seed.
-      deck = DeckManager.create(deckSpecs, makeRng(seed));
+      rng = makeRng(seed);
+      deck = DeckManager.create(deckSpecs, rng);
       board = BoardState.create(pileCount);
       status = "playing";
       // Deal one face-up card into each pile.
@@ -4426,8 +4627,16 @@ const GameEngine = (() => {
         // Tributes (bury card(s) + charge bonus coins). Both feed the live tally.
         maybeLandingBonus(index, drawn);
         maybeStickerTribute(index, drawn);
+        // Optional post-landing actions (Shuffle / Donate) queue here; they
+        // surface only after any paid-bury prompt drains (surfaceActionOffer).
+        maybeStickerActions(index, drawn);
         logLine("→ pile survived (" + board.piles[index].cards.length + " cards)");
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
+        surfaceActionOffer();
+        // Revive: if a pile in this column just reached 10 and a dead pile exists,
+        // offer to revive one (one-shot per deal; skipped without consuming if
+        // nothing is dead).
+        maybeReviveTrigger(col);
       } else if ((guardSave = findGuardSave(current, drawn))) {
         // Suit Guard (symmetric): the guarded suit is involved in this draw, so
         // the wrong guess is absorbed once per run. The pile survives with its
@@ -4528,6 +4737,9 @@ const GameEngine = (() => {
       if (run.pendingTributes.length) {
         const next = run.pendingTributes[0];
         emit("tribute-offer", { index: next.index, count: next.count, cost: next.cost, label: next.label, board, deck, run });
+      } else {
+        // Burials done → surface any queued Shuffle/Donate actions.
+        surfaceActionOffer();
       }
     }
 
@@ -4566,6 +4778,21 @@ const GameEngine = (() => {
       answerTribute(accept) { answerTribute(accept); },
       /** The pending paid-bury offer awaiting an answer, or null. */
       pendingTribute() { return (run && run.pendingTributes && run.pendingTributes[0]) || null; },
+      /** Answer a queued post-landing action offer — Shuffle / Donate (see the
+          "action-offer" event). */
+      answerAction(accept) { answerAction(accept); },
+      /** The pending action offer awaiting an answer, or null. */
+      pendingAction() { return (run && run.pendingActions && run.pendingActions[0]) || null; },
+      /** Revive a chosen dead pile for the Revive Pillar on column `col` (see the
+          "revive-offer" event). Returns true if it revived. */
+      reviveDeadPile(col, targetIndex) { return reviveDeadPile(col, targetIndex); },
+      /** Whether the column's Kamikaze Pillar can be activated right now. */
+      kamikazeAvailable(col) { return kamikazeAvailable(col); },
+      /** Activate Kamikaze on column `col`, killing `targetIndex` and revealing
+          the next 3 deck cards (display-only). Returns the cards, or null. */
+      kamikazeActivate(col, targetIndex) { return kamikazeActivate(col, targetIndex); },
+      /** The current Kamikaze 3-card look-ahead snapshot, or null. */
+      kamikazePeek() { return (run && run.kamikazeReveal) || null; },
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
       /** True only during the sticker phase (after deal, before Start Run). */
@@ -5959,6 +6186,13 @@ const UIRenderer = (() => {
     peelOkBtn: document.getElementById("peelOkBtn"),
     buryConfirm: document.getElementById("buryConfirm"),
     buryConfirmMsg: document.getElementById("buryConfirmMsg"),
+    actionConfirm: document.getElementById("actionConfirm"),
+    actionConfirmMsg: document.getElementById("actionConfirmMsg"),
+    actionYesBtn: document.getElementById("actionYesBtn"),
+    actionNoBtn: document.getElementById("actionNoBtn"),
+    lookAhead: document.getElementById("lookAhead"),
+    lookAheadCards: document.getElementById("lookAheadCards"),
+    lookAheadOkBtn: document.getElementById("lookAheadOkBtn"),
     buryYesBtn: document.getElementById("buryYesBtn"),
     buryNoBtn: document.getElementById("buryNoBtn"),
     redealConfirm: document.getElementById("redealConfirm"),
@@ -6075,6 +6309,8 @@ const UIRenderer = (() => {
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
+  let armedRevive = null;       // { col } — Revive offered; tap a DEAD pile to revive it
+  let armedKamikaze = null;     // { col } — Kamikaze armed; tap an ALIVE pile to kill it
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
   // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
@@ -7158,6 +7394,12 @@ const UIRenderer = (() => {
         // play) tapping a slot toggles its help popup — which, in setup, carries an
         // explicit "Return to inventory" button (never auto-removed).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
+        // During active play, tapping an available Kamikaze Pillar arms (or
+        // cancels) its target mode instead of opening the peek.
+        if (!setupWindow && engine && engine.kamikazeAvailable && engine.kamikazeAvailable(col)) {
+          if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }
+          toggleArmKamikaze(col); return;
+        }
         if (peekTapPile != null) peekTapPile = null;   // switching to a Pillar peek
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
@@ -7165,6 +7407,25 @@ const UIRenderer = (() => {
       }
       if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }   // tap-off closes it
       const pileEl = e.target.closest(".pile");
+      // Revive targeting: tap a DEAD pile to revive it; tap anything else to skip
+      // (the charge stays ready). Kamikaze targeting: tap an ALIVE pile to kill it.
+      if (armedRevive) {
+        if (pileEl) {
+          const idx = Number(pileEl.dataset.index);
+          if (!engine.getBoard().isActive(idx)) { const col = armedRevive.col; disarmRevive(); engine.reviveDeadPile(col, idx); return; }
+        }
+        disarmRevive();   // tapped a live pile / empty space → skip without consuming
+        el.hint.textContent = "Revive skipped — it stays ready.";
+        return;
+      }
+      if (armedKamikaze) {
+        if (pileEl) {
+          const idx = Number(pileEl.dataset.index);
+          if (engine.getBoard().isActive(idx)) { const col = armedKamikaze.col; disarmKamikaze(); engine.kamikazeActivate(col, idx); return; }
+        }
+        disarmKamikaze();   // tapped a dead pile / empty space → cancel
+        return;
+      }
       // Tap-off (empty board space) also closes an open pre-run card peek.
       if (!pileEl) { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } return; }
       const index = Number(pileEl.dataset.index);
@@ -7240,6 +7501,11 @@ const UIRenderer = (() => {
     // Paid-bury confirmation (Tribute II lands → "Bury … for X coins?").
     el.buryYesBtn.addEventListener("click", () => answerBury(true));
     el.buryNoBtn.addEventListener("click", () => answerBury(false));
+    // Optional post-landing action (Shuffle / Donate) confirm.
+    if (el.actionYesBtn) el.actionYesBtn.addEventListener("click", () => answerAction(true));
+    if (el.actionNoBtn) el.actionNoBtn.addEventListener("click", () => answerAction(false));
+    // Kamikaze look-ahead dismiss.
+    if (el.lookAheadOkBtn) el.lookAheadOkBtn.addEventListener("click", () => el.lookAhead.classList.add("hidden"));
 
     // Start Run: ends the sticker phase and begins active play.
     el.startRunBtn.addEventListener("click", startRunUI);
@@ -7631,6 +7897,10 @@ const UIRenderer = (() => {
     switch (type) {
       case "dealt": {
         clearAnimQueue();   // a fresh board → drop any stale travel steps
+        // Clear any leftover targeting/confirm state from the previous deal.
+        disarmRevive(); disarmKamikaze();
+        if (el.actionConfirm) el.actionConfirm.classList.add("hidden");
+        if (el.lookAhead) el.lookAhead.classList.add("hidden");
         // Snapshot the coin balance the player enters this run with (after any
         // store spending) → drives the end-of-run Interest payout.
         runStartCoins = campaign ? campaign.getCoins() : 0;
@@ -7781,6 +8051,67 @@ const UIRenderer = (() => {
           paintPileCounts(payload.board);
           renderHud(payload.board, payload.deck);
         }
+        refreshDebug();
+        break;
+      }
+
+      case "action-offer": {
+        // An optional post-landing action (Shuffle / Donate sticker) — ask first.
+        showActionConfirm(payload);
+        break;
+      }
+
+      case "action-resolved": {
+        // The player answered. If accepted, the pile(s) changed composition —
+        // repaint the affected tops + counts. Order stays hidden.
+        if (payload.accepted) {
+          const top = payload.board.top(payload.index);
+          if (top) { paintFront(pileEls[payload.index], top); renderStickerBadges(pileEls[payload.index], top); }
+          if (payload.kind === "donate" && payload.target != null) {
+            const tt = payload.board.top(payload.target);
+            if (tt) { paintFront(pileEls[payload.target], tt); renderStickerBadges(pileEls[payload.target], tt); }
+          }
+          paintPileCounts(payload.board);
+          renderHud(payload.board, payload.deck);
+        }
+        refreshDebug();
+        break;
+      }
+
+      case "revive-offer": {
+        // A pile reached 10 and a dead pile exists → let the player tap a dead
+        // pile to revive it. Arm the targeting mode + hint.
+        armRevive(payload.col);
+        break;
+      }
+
+      case "revived": {
+        // A dead pile came back with a fresh top.
+        const pileEl = pileEls[payload.index];
+        pileEl.classList.remove("dead");
+        const top = payload.board.top(payload.index);
+        if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+        pileEl.classList.add("flash-good");
+        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+        paintPileCounts(payload.board);
+        renderHud(payload.board, payload.deck);
+        refreshNetwork(payload.board);
+        Sound.good();
+        el.hint.textContent = "Revive — that pile came back with a fresh card!";
+        refreshDebug();
+        break;
+      }
+
+      case "kamikaze-fired": {
+        // A pile was sacrificed → mark it dead and reveal the next 3 cards.
+        const pileEl = pileEls[payload.index];
+        pileEl.classList.add("death-flash");
+        setTimeout(() => { pileEl.classList.remove("death-flash"); pileEl.classList.add("dead"); refreshNetwork(payload.board); }, 200);
+        paintPileCounts(payload.board);
+        renderHud(payload.board, payload.deck);
+        Sound.death();
+        showLookAhead(payload.cards);
+        el.hint.textContent = "Kamikaze — a pile was sacrificed to see the next 3 cards.";
         refreshDebug();
         break;
       }
@@ -9709,6 +10040,64 @@ const UIRenderer = (() => {
   function answerBury(accept) {
     el.buryConfirm.classList.add("hidden");
     if (engine) engine.answerTribute(!!accept);
+  }
+
+  /* ---- Optional post-landing action (Shuffle / Donate) ----
+     The engine emits "action-offer"; we ask Yes/No and call answerAction. The
+     modal blocks the board so the next guess can't slip in first. */
+  function showActionConfirm(offer) {
+    if (!offer) return;
+    el.actionConfirmMsg.innerHTML = offer.kind === "shuffle"
+      ? "<b>Shuffle</b> this pile? A different card may end up on top (the order stays hidden)."
+      : "<b>Donate</b> 1 card from this pile to the smallest pile (pile " + ((offer.target != null ? offer.target : 0) + 1) + ")?";
+    el.actionConfirm.classList.remove("hidden");
+  }
+  function answerAction(accept) {
+    el.actionConfirm.classList.add("hidden");
+    if (engine) engine.answerAction(!!accept);
+  }
+
+  /* ---- Kamikaze look-ahead: show the next 3 cards (display-only) ---- */
+  function showLookAhead(cards) {
+    if (!el.lookAhead) return;
+    el.lookAheadCards.innerHTML = (cards || []).map(c => {
+      const s = DeckManager.SUITS.find(x => x.symbol === c.suit) || DeckManager.SUITS[0];
+      const r = DeckManager.RANKS.find(x => x.value === c.value) || { label: String(c.value) };
+      return '<div class="lookahead-card' + (s.red ? " red" : "") + '">' +
+        '<span class="la-rank">' + r.label + '</span><span class="la-suit">' + s.symbol + "</span></div>";
+    }).join("");
+    el.lookAhead.classList.remove("hidden");
+  }
+
+  /* ---- Revive / Kamikaze board-targeting modes ----
+     Revive: arm after the "revive-offer"; the player taps a DEAD pile to revive
+     it (or taps elsewhere to dismiss — the charge stays ready). Kamikaze: armed
+     by tapping its column's Pillar during play; the player taps an ALIVE pile to
+     sacrifice it. Both reuse the board click handler. */
+  function armRevive(col) {
+    armedRevive = { col };
+    armedKamikaze = null;
+    clearSelection();
+    if (el.board) el.board.classList.add("armed-revive");
+    el.board.classList.remove("armed-kamikaze");
+    el.hint.textContent = "Revive — tap a dead pile to bring it back (or tap elsewhere to skip).";
+  }
+  function disarmRevive() {
+    armedRevive = null;
+    if (el.board) el.board.classList.remove("armed-revive");
+  }
+  function toggleArmKamikaze(col) {
+    if (armedKamikaze && armedKamikaze.col === col) { disarmKamikaze(); return; }
+    armedKamikaze = { col };
+    armedRevive = null;
+    clearSelection();
+    el.board.classList.add("armed-kamikaze");
+    el.board.classList.remove("armed-revive");
+    el.hint.textContent = "Kamikaze — tap a pile to sacrifice it and see the next 3 cards (tap the Pillar again to cancel).";
+  }
+  function disarmKamikaze() {
+    armedKamikaze = null;
+    if (el.board) el.board.classList.remove("armed-kamikaze");
   }
 
   /* ---- Trash an armed setup item (card / sticker / pillar) ----
