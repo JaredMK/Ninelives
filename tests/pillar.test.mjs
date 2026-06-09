@@ -80,7 +80,7 @@ export function run() {
     r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
     r.eq(c.priceOf("extraCoin"), 3, "Extra Coin = 3");
     r.eq(c.priceOf("extraHeart"), 7, "Extra Heart = 7");
-    r.eq(c.priceOf("anchor"), 4, "Anchor = 4 (kept)");
+    r.eq(c.priceOf("anchor"), 7, "Anchor = 7");
     // Buying never changes a price.
     c.addCoins(100); c.buySticker("rankUp"); c.buySticker("rankUp");
     r.eq(c.priceOf("rankUp"), 3, "sticker price stays fixed after buying");

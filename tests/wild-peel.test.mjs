@@ -20,28 +20,30 @@ export function run() {
     r.ok(DeckManager.toCard(specs[1]).wildSuit === false, "a plain card is not wild");
   }
 
-  // --- Wild Suit triggers ANY suit guard (as the drawn/other card) ------
+  // --- Wild Suit TOP lets a guard card fire on it (one-directional) ------
+  // A guard fires when the GUARD CARD is drawn ONTO a top of its guarded suit;
+  // a Wild Suit top counts as every suit, so any guard card landing on it fires.
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: [3, 3, 3] });
     e.start(); e.startRun([null, null, null]);
     const b = e.getBoard();
-    b.top(0).value = 10; b.top(0).suit = "♠"; b.top(0).suitGuards = { "♥": true };   // guards ♥ only
+    b.top(0).value = 10; b.top(0).suit = "♣"; b.top(0).wildSuit = true;   // a WILD top
     const before = e.getDeck().remaining();
-    const d = e.debug.setNextCard(3); d.suit = "♠"; d.wildSuit = true;   // a ♠ WILD card, loses on HIGHER
+    const d = e.debug.setNextCard(3); d.suit = "♠"; d.suitGuards = { "♥": true };  // a ♥ guard card drawn onto it
     e.guess(0, "higher");
-    r.ok(b.isActive(0), "a Wild ♠ card triggers the ♥ guard (counts as ♥)");
-    r.ok(!b.top(0).suitGuards["♥"], "the ♥ guard charge is spent");
-    r.eq(e.getDeck().remaining(), before, "the drawn wild card was returned to the deck (guard save)");
+    r.ok(b.isActive(0), "a ♥ guard card drawn onto a WILD top fires (wild counts as ♥)");
+    r.ok(!d.suitGuards["♥"], "the drawn guard card's ♥ charge is spent");
+    r.eq(e.getDeck().remaining(), before, "the drawn guard card was returned to the deck (guard save)");
   }
   {
-    // Control: a plain ♠ card does NOT trigger a ♥-only guard.
+    // Control: the same ♥ guard card onto a plain ♠ top does NOT fire.
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: [3, 3, 3] });
     e.start(); e.startRun([null, null, null]);
     const b = e.getBoard();
-    b.top(0).value = 10; b.top(0).suit = "♠"; b.top(0).suitGuards = { "♥": true };
-    const d = e.debug.setNextCard(3); d.suit = "♠";   // plain ♠ — not guarded
+    b.top(0).value = 10; b.top(0).suit = "♠";   // plain ♠ top (no wild)
+    const d = e.debug.setNextCard(3); d.suit = "♠"; d.suitGuards = { "♥": true };
     e.guess(0, "higher");
-    r.ok(!b.isActive(0), "a plain ♠ does NOT trigger a ♥-only guard (pile dies)");
+    r.ok(!b.isActive(0), "a ♥ guard card onto a plain ♠ top does NOT fire (pile dies)");
   }
 
   // --- Wild Suit satisfies any Suit Bonus pillar (as the drawn card) -----

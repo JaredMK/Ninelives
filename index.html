@@ -1115,6 +1115,16 @@
      keeps capturing the pointer (no pointer-events:none) so release restores. */
   .overlay.peek { opacity: 0; transition: opacity 0.12s ease; }
 
+  /* Loss-screen fossil field: bouncing/colliding beaten-deal networks behind the
+     content. The layer sits at z-index 0; on the loss overlay the content is
+     lifted above it so the message/button stay readable + interactive. */
+  .loss-fossils { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .loss-fossils.hidden { display: none; }
+  .overlay.lose > :not(.loss-fossils) { position: relative; z-index: 1; }
+  .loss-fossil { position: absolute; top: 0; left: 0; opacity: 0.5; will-change: transform; }
+  .loss-fossil .fossil { width: 100%; height: 100%; display: block; }
+  @media (prefers-reduced-motion: reduce) { .loss-fossil { will-change: auto; } }
+
   .peek-hint {
     margin-top: 14px;
     font-size: 11px;
@@ -1628,6 +1638,21 @@
     border-color: #fff; box-shadow: 0 0 6px rgba(199,126,31,0.7);
   }
   .cph-streak.bump { transform: translateY(-50%) scale(1.35); }
+  /* Second Wind charged/used pip: bright green ↻ when charged, dim grey when
+     spent (and the banner itself desaturates so "used" reads at a glance). */
+  .cph-sw {
+    position: absolute; right: 2px; bottom: -1px;
+    min-width: 16px; height: 16px; padding: 0 2px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; line-height: 1;
+    color: #fff; background: var(--good); border: 1px solid #fff;
+    box-shadow: 0 0 5px rgba(63,157,106,0.6); transition: all 0.2s ease;
+  }
+  .cph-sw.spent {
+    color: #faf6f3; background: rgba(74,52,44,0.4); border-color: rgba(74,52,44,0.5);
+    box-shadow: none; text-decoration: line-through;
+  }
+  .cph-banner.sw-spent { filter: grayscale(0.7) brightness(0.93); opacity: 0.82; }
 
   /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
      effect fires, and (for coin rewards) a "+N" that floats up and fades. The
@@ -2705,6 +2730,9 @@
 
   <!-- Start / End overlay -->
   <div class="overlay" id="overlay">
+    <!-- Loss screen: this-run beaten-deal fossils bounce + collide behind the
+         content (populated by startLossFossils; empty/hidden otherwise). -->
+    <div class="loss-fossils hidden" id="lossFossils" aria-hidden="true"></div>
     <div class="big" id="overlayIcon"><span class="ico-slot" data-ico="logo"></span></div>
     <h2 id="overlayTitle">Shoulda Said Same</h2>
     <p id="overlayMsg">
@@ -3027,7 +3055,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.4 · wild-peel-envy-map";
+const APP_VERSION = "v2.5 · guards-secondwind-loss-fossils";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3170,20 +3198,20 @@ const StickerTypes = (() => {
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "Safe from a tie. A drawn card that matches this card's rank no longer kills the pile." },
     suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♠ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
+                  description: "When this card is drawn onto a ♠, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
     heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♥ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
+                  description: "When this card is drawn onto a ♥, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♦ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
+                  description: "When this card is drawn onto a ♦, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
     clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♣ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
+                  description: "When this card is drawn onto a ♣, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "Earn +1 coin per card in this pile when you clear the deal with this card on top." },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
                   description: "Earn +3 coins when you place this sticker on a surviving pile in the middle column." },
     gainCoin:   { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
                   description: "Earn +1 coin when you place this sticker on a surviving pile." },
-    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 4,
+    anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 7,
                   description: "While this card is on top, this pile is left out of the smallest-pile part of your score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
                   description: "Safe from a wrong guess of any kind. Works once a deal; the pile survives and the card goes back into the deck." },
@@ -3953,34 +3981,22 @@ const GameEngine = (() => {
       }
     }
 
-    /** Suit Guard save (symmetric, draw-based). A guard rides a specific card;
-        either participant in the draw can be the carrier. It fires when the OTHER
-        card in the draw is the guarded suit — the two cases from the spec:
-          • the guard card is DRAWN onto a card of that suit  (carrier=drawn,
-            other=current, current.suit === guarded suit), or
-          • a card of that suit is drawn onto the guard card  (carrier=current,
-            other=drawn,  drawn.suit  === guarded suit).
-        (A guard never self-triggers on its OWN card's suit — a Heart Guard still
-        ignores a ♠ even when it sits on a heart.) Returns { carrier, suit } to
-        consume (one charge per guarded suit per card per run), or null. `current`
-        is checked first, then `drawn`. */
+    /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
+        card and fires ONLY when that GUARD CARD is DRAWN from the deck and
+        placed ONTO a card of its guarded suit (carrier = drawn, other = current
+        top, current.suit === guarded suit). A matching-suit card drawn onto a
+        guard card does NOTHING. (A Wild Suit `current` counts as every suit, so
+        it matches any guard the drawn card carries.) Returns { carrier, suit } to
+        consume (one charge per guarded suit per card per run), or null. */
     function findGuardSave(current, drawn) {
-      // The first ACTIVE guarded suit on `carrier` that `other`'s suit matches —
-      // and a Wild Suit `other` counts as EVERY suit, so it matches any active
-      // guard the carrier holds (consuming one charge).
-      const guardHit = (carrier, other) => {
-        if (!carrier || !carrier.suitGuards || !other) return null;
-        if (other.wildSuit) {
-          for (const sym in carrier.suitGuards) if (carrier.suitGuards[sym]) return sym;
-          return null;
-        }
-        return carrier.suitGuards[other.suit] ? other.suit : null;
-      };
-      let suit = guardHit(current, drawn);   // guarded suit DRAWN onto the carrier
-      if (suit) return { carrier: current, suit };
-      suit = guardHit(drawn, current);       // carrier DRAWN onto a card of its guarded suit
-      if (suit) return { carrier: drawn, suit };
-      return null;
+      if (!drawn || !drawn.suitGuards || !current) return null;
+      // Wild current counts as every suit → matches any active guard the drawn
+      // guard card holds (consuming one charge).
+      if (current.wildSuit) {
+        for (const sym in drawn.suitGuards) if (drawn.suitGuards[sym]) return { carrier: drawn, suit: sym };
+        return null;
+      }
+      return drawn.suitGuards[current.suit] ? { carrier: drawn, suit: current.suit } : null;
     }
 
     /** Itemized Pillar payout for the current board state (scoring Pillars
@@ -5732,6 +5748,7 @@ const UIRenderer = (() => {
     redealBtn: document.getElementById("redealBtn"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
+    lossFossils: document.getElementById("lossFossils"),
     overlayIcon: document.getElementById("overlayIcon"),
     overlayTitle: document.getElementById("overlayTitle"),
     overlayMsg: document.getElementById("overlayMsg"),
@@ -5865,6 +5882,7 @@ const UIRenderer = (() => {
   let overlayPeekable = false; // run-complete screens allow hold-to-peek the board
   let selected = null;        // currently selected pile index, or null
   let peelPendingIndex = null; // pile index whose card awaits a peel confirmation
+  let lossRAF = null;         // rAF handle for the loss-screen fossil animation
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
   let networkEl = null;       // the per-board SVG connection layer (Phase 3)
@@ -7488,6 +7506,7 @@ const UIRenderer = (() => {
         paintPileCounts(payload.board);
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
+        updateSecondWind();               // this column's Second Wind is now spent
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
@@ -7544,6 +7563,7 @@ const UIRenderer = (() => {
   }
 
   function showOverlay(opts) {
+    stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
     el.overlay.classList.remove("hidden", "win", "lose");
     // The start/win/lose overlay carries its own progress line, so hide the
     // floating Stage·Run badge and the menu button while it's up.
@@ -7580,10 +7600,74 @@ const UIRenderer = (() => {
   }
 
   function hideOverlay() {
+    stopLossFossils();
     el.overlay.classList.add("hidden");
     // Back to an in-game screen. The play board keeps the badge OFF (its HUD bar
     // shows Stage·Run); the store turns the badge on explicitly (see showStore).
     if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
+  }
+
+  /* ---- loss-screen fossil field (presentation) ----
+     The networks the player beat THIS run (the same per-deal fossil data the
+     progression map uses) bounce off the walls AND collide off each other behind
+     the loss content. Inter-shape collisions use a tightened radius (~78% of each
+     fossil's box) so the visible networks appear to actually touch on impact,
+     while wall bounds + positioning use the full box. If no deals were beaten,
+     nothing is shown (plain loss screen). */
+  function stopLossFossils() {
+    if (lossRAF) { cancelAnimationFrame(lossRAF); lossRAF = null; }
+    if (el.lossFossils) { el.lossFossils.innerHTML = ""; el.lossFossils.classList.add("hidden"); }
+  }
+  function startLossFossils() {
+    stopLossFossils();
+    if (!el.lossFossils || !campaign) return;
+    const fossils = campaign.getRunFossils().filter(f => f && f.nodes && f.nodes.length);
+    if (!fossils.length) return;   // no deals beaten this run → plain loss screen
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const W = el.overlay.clientWidth || window.innerWidth || 360;
+    const H = el.overlay.clientHeight || window.innerHeight || 640;
+    el.lossFossils.classList.remove("hidden");
+    const items = [];
+    fossils.forEach(f => {
+      const size = 46 + Math.random() * 22;          // 46–68px
+      const node = document.createElement("div");
+      node.className = "loss-fossil";
+      node.style.width = size + "px"; node.style.height = size + "px";
+      node.innerHTML = fossilSvg(f, 72);             // the same per-deal network as the map
+      const half = size / 2;                         // wall bounds use the full box
+      const rad = half * 0.78;                       // collisions tightened so shapes visibly touch
+      const x = half + Math.random() * Math.max(1, W - size);
+      const y = half + Math.random() * Math.max(1, H - size);
+      const ang = Math.random() * Math.PI * 2, sp = Math.random() * 0.8 + 0.7;
+      items.push({ el: node, x, y, half, rad, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp });
+      el.lossFossils.appendChild(node);
+    });
+    const place = (o) => { o.el.style.transform = "translate(" + (o.x - o.half).toFixed(1) + "px," + (o.y - o.half).toFixed(1) + "px)"; };
+    if (reduce) { items.forEach(place); return; }    // reduced motion: static scatter
+    const step = () => {
+      // move + wall bounce (full box)
+      items.forEach(o => {
+        o.x += o.vx; o.y += o.vy;
+        if (o.x - o.half < 0) { o.x = o.half; o.vx *= -1; }
+        if (o.x + o.half > W) { o.x = W - o.half; o.vx *= -1; }
+        if (o.y - o.half < 0) { o.y = o.half; o.vy *= -1; }
+        if (o.y + o.half > H) { o.y = H - o.half; o.vy *= -1; }
+      });
+      // pairwise elastic collisions (equal mass), tight radius
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j];
+        const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy), min = a.rad + b.rad;
+        if (dist < min && dist > 0) {
+          const nx = dx / dist, ny = dy / dist, overlap = (min - dist) / 2;
+          a.x -= nx * overlap; a.y -= ny * overlap; b.x += nx * overlap; b.y += ny * overlap;
+          const av = a.vx * nx + a.vy * ny, bv = b.vx * nx + b.vy * ny, diff = bv - av;
+          a.vx += diff * nx; a.vy += diff * ny; b.vx -= diff * nx; b.vy -= diff * ny;
+        }
+      }
+      items.forEach(place);
+      lossRAF = requestAnimationFrame(step);
+    };
+    lossRAF = requestAnimationFrame(step);
   }
 
   /* ---- phase screens ---- */
@@ -7658,13 +7742,14 @@ const UIRenderer = (() => {
       kind: "lose",
       icon: glyph("loss"),
       title: "RUN OVER",
-      msg: "A deal slipped away. The run resets, so you start fresh from Stage 1.",
+      msg: "",                 // no "a deal slipped away…" copy
       progress: "Reached " + stageRunShort(),
       endStats: endStats(),
-      peek: true,
+      peek: false,             // no hold-to-peek-the-board on the loss screen
       btnLabel: "NEW RUN",
       action: startCampaign,
     });
+    startLossFossils();        // bounce/collide the deals beaten this run behind the content
   }
 
   function showCampaignComplete() {
@@ -8155,13 +8240,36 @@ const UIRenderer = (() => {
     const streakBadge = thr
       ? '<span class="cph-streak zero" data-threshold="' + thr + '" title="Streak (effect at ' + thr + ' in a row)">0</span>'
       : "";
+    // Second Wind: a charged/used pip so the player sees if the revive is still
+    // available this deal (updated live by updateSecondWind from run state).
+    const swBadge = t.effect === "secondWind"
+      ? '<span class="cph-sw" title="Second Wind ready">↻</span>'
+      : "";
     return '<div class="cph-banner">' +
         '<svg class="cph-syn" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">' +
           '<path class="syn-ribbon" d="' + sp.d + '"/>' + dots +
         '</svg>' +
         '<span class="cph-ico"><span class="cph-halo"></span>' + glyph(ELEM_GLYPH[t.id] || "guardian") + '</span>' +
-        streakBadge +
+        streakBadge + swBadge +
       '</div>';
+  }
+  /* Reflect each Second Wind Pathway's charged/used state from run.secondWindUsed:
+     a bright green pip when charged, a dim grey one (with the banner desaturated)
+     once it has been spent this deal. */
+  function updateSecondWind() {
+    if (!engine || !engine.getRun) return;
+    const run = engine.getRun();
+    if (!run || !run.secondWindUsed) return;
+    const cells = el.board.querySelectorAll(".bp-cell");
+    cells.forEach((cell, col) => {
+      const pip = cell.querySelector(".cph-sw");
+      if (!pip) return;
+      const spent = !!run.secondWindUsed[col];
+      pip.classList.toggle("spent", spent);
+      pip.title = spent ? "Second Wind used" : "Second Wind ready";
+      const banner = cell.querySelector(".cph-banner");
+      if (banner) banner.classList.toggle("sw-spent", spent);
+    });
   }
   /* Refresh every streak Pathway's live counter from the engine's per-column
      streak. Lights the pill once the streak reaches the Pathway's threshold and
@@ -8207,8 +8315,9 @@ const UIRenderer = (() => {
       cell.innerHTML = t ? pathwayBannerHtml(t) : '<div class="cph-banner empty"></div>';
       cell.title = t ? t.label : "";
     });
-    // Re-apply live streak values onto the freshly-rebuilt streak badges.
+    // Re-apply live streak values + Second Wind charge state onto the rebuilt row.
     updateStreakCounters();
+    updateSecondWind();
   }
 
   /* Size the uniform pile so the WHOLE play screen (stat bar + pile grid +

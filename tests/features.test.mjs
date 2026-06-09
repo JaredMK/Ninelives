@@ -81,10 +81,10 @@ export function run() {
     r.ok(after.stickers.some(s => s.type === "randomFixedValue"), "Random Rank sticker recorded for its badge");
   }
 
-  // --- Suit Guard family: one guard sticker per base suit ---------------
+  // --- Suit Guard family: one guard sticker per base suit (ONE-DIRECTIONAL) -
   // The four guards share ONE behavior ("suitImmunity"), each locked to its
-  // suit. Spade is the original; ♥/♦/♣ are siblings. Same tier + price = a
-  // uniform family. Drive each suit through the shared engine path.
+  // suit. A guard fires ONLY when the GUARD CARD is DRAWN onto a top of its
+  // guarded suit; a matching card drawn onto a guard card does nothing.
   {
     const SUIT_GUARDS = [
       ["suitImmunity", "♠"], ["heartGuard", "♥"],
@@ -102,65 +102,74 @@ export function run() {
       const b = e.getBoard();
       r.ok(b.top(0).suitGuards && b.top(0).suitGuards[suit], id + " projects a " + suit + " charge");
 
-      // specsWith() stickers EVERY card, so the drawn cards also carry this guard.
-      // Force the top card's OWN suit to a different suit so only the current-side
-      // (top) guard is in play — otherwise the symmetric rule could let a drawn
-      // guard save when the top happens to be the guarded suit (tested separately).
-      const otherSuit = suit === "♠" ? "♥" : "♠";
+      // The GUARD CARD (drawn — specsWith stickers every card) lands ONTO a top
+      // of its guarded suit → the wrong guess is safe.
       const before = e.getDeck().remaining();
-      b.top(0).value = 10; b.top(0).suit = otherSuit;
-      const d = e.debug.setNextCard(3); d.suit = suit;   // that suit, loses on HIGHER
+      b.top(0).value = 10; b.top(0).suit = suit;          // top IS the guarded suit
+      const d = e.debug.setNextCard(3); d.suit = "♠";     // loses on HIGHER (drawn's own suit irrelevant)
       e.guess(0, "higher");
-      r.ok(b.isActive(0), id + ": a " + suit + " wrong guess is absorbed, pile survives");
-      r.ok(!b.top(0).suitGuards[suit], id + ": the " + suit + " charge is spent");
-      r.eq(b.top(0).value, 10, id + ": showing card unchanged (drawn card not pushed)");
-      r.eq(e.getDeck().remaining(), before, id + ": drawn " + suit + " returned to the deck");
+      r.ok(b.isActive(0), id + ": a guard card drawn onto a " + suit + " absorbs the wrong guess");
+      r.ok(!d.suitGuards[suit], id + ": the DRAWN guard card's " + suit + " charge is spent");
+      r.eq(b.top(0).value, 10, id + ": the showing card is unchanged (drawn not pushed)");
+      r.eq(e.getDeck().remaining(), before, id + ": the drawn guard card returned to the deck");
 
-      b.top(0).suit = otherSuit;                          // keep the top a non-guarded suit
-      const d2 = e.debug.setNextCard(3); d2.suit = suit;
+      // A guard card drawn onto a NON-guarded-suit top does NOT fire (pile dies).
+      const otherSuit = suit === "♠" ? "♥" : "♠";
+      b.top(0).suit = otherSuit;
+      const d2 = e.debug.setNextCard(3); d2.suit = "♠";
       e.guess(0, "higher");
-      r.ok(!b.isActive(0), id + ": with the charge spent, the next " + suit + " wrong guess kills");
+      r.ok(!b.isActive(0), id + ": a guard card onto a NON-" + suit + " top does nothing (pile dies)");
     });
   }
   {
-    // A guard ignores OTHER suits: a Heart Guard doesn't stop a ♠ wrong guess
-    // (top suit forced to ♠ so the drawn card's ♥ guard can't symmetric-save it).
+    // ONE-DIRECTIONAL: a matching-suit card drawn ONTO a guard-carrying top does
+    // NOTHING (the reverse direction no longer saves).
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    e.start(); e.startRun();
+    const b = e.getBoard();
+    b.top(0).value = 10; b.top(0).suit = "♣"; b.top(0).suitGuards = { "♠": true };  // guard rides the TOP
+    const d = e.debug.setNextCard(3); d.suit = "♠"; d.suitGuards = {};               // plain ♠ drawn onto it
+    e.guess(0, "higher");
+    r.ok(!b.isActive(0), "a ♠ drawn onto a ♠-guard TOP does nothing (one-directional → pile dies)");
+  }
+  {
+    // A guard ignores OTHER suits: a Heart Guard card drawn onto a ♠ top doesn't
+    // fire (only a ♥ top would).
     const e = GameEngine.create(specsWith("heartGuard"), 9);
     e.start(); e.startRun();
     const b = e.getBoard();
     b.top(1).value = 10; b.top(1).suit = "♠";
-    const d = e.debug.setNextCard(3); d.suit = "♠";
+    const d = e.debug.setNextCard(3); d.suit = "♥";
     e.guess(1, "higher");
-    r.ok(!b.isActive(1), "Heart Guard ignores a non-♥ (♠) wrong guess (pile dies)");
+    r.ok(!b.isActive(1), "Heart Guard onto a ♠ top does nothing (pile dies)");
   }
   {
-    // Two guards on one card → independent per-suit charges.
+    // Two guards on one drawn card → independent per-suit charges, fired by the
+    // TOP's suit.
     const specs = DeckManager.buildStandardDeck();
     specs.forEach(c => { c.stickers.push({ type: "suitImmunity" }); c.stickers.push({ type: "heartGuard" }); });
     const e = GameEngine.create(specs, 9);
     e.start(); e.startRun();
     const b = e.getBoard();
-    b.top(0).value = 10;
-    const ds = e.debug.setNextCard(3); ds.suit = "♠";
+    b.top(0).value = 10; b.top(0).suit = "♠";
+    const ds = e.debug.setNextCard(3); ds.suit = "♣";   // guard card lands onto a ♠ top
     e.guess(0, "higher");
-    r.ok(b.isActive(0) && !b.top(0).suitGuards["♠"], "spent the ♠ charge");
-    r.ok(b.top(0).suitGuards["♥"], "the ♥ charge is still ready (independent)");
-    const dh = e.debug.setNextCard(3); dh.suit = "♥";
-    e.guess(0, "higher");
-    r.ok(b.isActive(0) && !b.top(0).suitGuards["♥"], "then the ♥ charge absorbs a ♥ wrong guess");
+    r.ok(b.isActive(0) && !ds.suitGuards["♠"], "the drawn card's ♠ charge is spent (top was ♠)");
+    r.ok(ds.suitGuards["♥"], "the ♥ charge on that card is still ready (independent)");
   }
   {
     // Refreshes next run (re-projected on each deal).
     const specs = specsWith("suitImmunity");
     const e1 = GameEngine.create(specs, 9);
     e1.start(); e1.startRun();
-    e1.getBoard().top(0).value = 10;
-    const d = e1.debug.setNextCard(3); d.suit = "♠";
+    const b1 = e1.getBoard();
+    b1.top(0).value = 10; b1.top(0).suit = "♠";
+    const d = e1.debug.setNextCard(3); d.suit = "♣";
     e1.guess(0, "higher");
-    r.ok(!e1.getBoard().top(0).suitGuards["♠"], "charge spent in run 1");
+    r.ok(b1.isActive(0) && !d.suitGuards["♠"], "the drawn guard's ♠ charge is spent in run 1");
     const e2 = GameEngine.create(specs, 9);
     e2.start();
-    r.ok(e2.getBoard().top(0).suitGuards["♠"], "Suit Guard refreshed for run 2");
+    r.ok(e2.getBoard().top(0).suitGuards["♠"], "Suit Guard re-projects fresh for run 2");
   }
 
   // --- Lucky Coin: +1 on a surviving landing ----------------------------
@@ -289,8 +298,8 @@ export function run() {
     b.top(0).suit = "♥";
     r.eq(e.pillarPayout().bonus, 0, "All Spades scores 0 when a survivor isn't a ♠");
   }
-  // --- Symmetric Suit Guard: a guard on the DRAWN card saves when the pile's
-  //     top is the guarded suit (the second spec case). --------------------
+  // --- One-directional Suit Guard: the DRAWN guard card saves when it lands
+  //     ONTO a top of the guarded suit. --------------------------------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 3);
     e.start(); e.startRun();
@@ -298,8 +307,8 @@ export function run() {
     const top = b.top(0);
     top.suit = "♠"; top.value = 14; top.suitGuards = {};   // ♠ on top, NO guard of its own
     const d = e.debug.setNextCard(3); d.suit = "♥"; d.suitGuards = { "♠": true };   // drawn carries a ♠ guard
-    e.guess(0, "higher");                 // wrong (3 ≤ Ace), but ♠ is involved (the top)
-    r.ok(b.isActive(0), "drawn card's ♠ guard saves the pile (top is ♠)");
+    e.guess(0, "higher");                 // wrong (3 ≤ Ace); the guard card landed onto a ♠
+    r.ok(b.isActive(0), "drawn ♠-guard card saves the pile (it landed onto a ♠)");
     r.ok(!d.suitGuards["♠"], "the DRAWN card's ♠ charge is spent");
     r.eq(b.top(0).suit, "♠", "the ♠ top stays in place (drawn card not pushed)");
   }
