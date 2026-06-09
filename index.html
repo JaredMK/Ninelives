@@ -225,6 +225,41 @@
   }
   .ctl-help.hidden { display: none; }
 
+  /* Unified bottom prompt bar — replaces the guess buttons while an interactive
+     pillar/effect is being activated or confirmed (Kamikaze, Revive, Donate,
+     Shuffle). The board stays in view above it; the player acts here. */
+  .action-prompt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+  .action-prompt.hidden { display: none; }
+  .play-controls.prompting > :not(.action-prompt) { display: none; }   /* hide the normal controls */
+  .ap-text { flex: 1 1 auto; text-align: left; font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--accent-2); }
+  .ap-btns { flex: 0 0 auto; display: flex; gap: 8px; }
+  .ap-btn {
+    border: none; border-radius: var(--radius); padding: 9px 15px;
+    font-size: 13px; font-weight: 800; letter-spacing: 0.2px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--edge-2);
+    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+    transition: transform 0.08s ease;
+  }
+  .ap-btn:active { transform: scale(0.96); }
+  .ap-btn.primary { background: linear-gradient(180deg, #7bf08a, var(--good)); color: #0c1124; border-color: transparent; }
+  .ap-btn.danger { background: linear-gradient(180deg, #ff9a9a, var(--bad)); color: #fff; border-color: transparent; }
+
+  /* "Tap to activate" indicator on a currently-activatable Pillar banner. A
+     pulsing violet ring (+ a small corner dot) signals it's tappable now. */
+  .cph-banner.activatable { cursor: pointer; overflow: visible; }
+  .cph-banner.activatable::after {
+    content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--pathway); box-shadow: 0 0 0 2px rgba(248,242,235,0.9);
+  }
+  .cph-banner.activatable { animation: pillarActivatable 1.3s ease-in-out infinite; }
+  @keyframes pillarActivatable {
+    0%, 100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14), 0 0 0 0 rgba(110,81,166,0.0); }
+    50%      { box-shadow: 0 1px 3px rgba(74,50,40,0.14), 0 0 0 4px rgba(110,81,166,0.32); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cph-banner.activatable { animation: none; outline: 2px solid var(--pathway); outline-offset: 1px; }
+  }
+
   /* FIXED-height bottom region — contents swap by phase, size stays constant. */
   .bottom-region {
     display: flex; align-items: flex-end; gap: 10px;
@@ -1519,6 +1554,18 @@
   .board.armed-revive .pile.dead { cursor: pointer; }
   .board.armed-revive .pile.dead .card { outline: 2px dashed var(--good); outline-offset: 3px; border-radius: 22px; }
   .board.armed-kamikaze .pile:not(.dead) .card { outline: 2px dashed var(--bad); outline-offset: 3px; border-radius: 22px; }
+  /* Generic "this pile is involved in the pending action" highlight (Donate
+     donor/receiver, Shuffle pile) while its bottom prompt is up. */
+  .pile.action-target .card { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 22px; }
+  /* Shuffle: a brief riffle wiggle on the pile's card when it's shuffled. */
+  @keyframes shuffleWiggle {
+    0%, 100% { transform: rotate(0) translateX(0); }
+    20% { transform: rotate(-5deg) translateX(-2px); }
+    50% { transform: rotate(4deg) translateX(2px); }
+    78% { transform: rotate(-2deg) translateX(-1px); }
+  }
+  .card.shuffling { animation: shuffleWiggle 0.42s ease-in-out 2; }
+  @media (prefers-reduced-motion: reduce) { .card.shuffling { animation: none; } }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
   .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
   .confirm-cancel { background: var(--panel-2); color: var(--text); }
@@ -2700,6 +2747,12 @@
       <!-- First-turn help, shown in the guess-button row before any pile is
            tapped (replaced by the buttons on the first selection). -->
       <div class="ctl-help hidden" id="ctlHelp">Tap a pile to guess Higher or Lower — or swipe it up or down.</div>
+      <!-- Unified activation/confirm prompt — fills this row while an interactive
+           pillar/effect is being activated or confirmed; the board stays in view. -->
+      <div class="action-prompt hidden" id="actionPrompt">
+        <div class="ap-text" id="actionPromptText"></div>
+        <div class="ap-btns" id="actionPromptBtns"></div>
+      </div>
     </div>
 
     <!-- FIXED-height bottom region. Its contents swap by PHASE but its size does
@@ -3153,7 +3206,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.11 · play-polish-1";
+const APP_VERSION = "v2.12 · unified-activation";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6149,6 +6202,10 @@ const UIRenderer = (() => {
     thClose: document.getElementById("thClose"),
     actions: document.getElementById("actions"),
     ctlHelp: document.getElementById("ctlHelp"),
+    playControls: document.getElementById("playControls"),
+    actionPrompt: document.getElementById("actionPrompt"),
+    actionPromptText: document.getElementById("actionPromptText"),
+    actionPromptBtns: document.getElementById("actionPromptBtns"),
     btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
@@ -6559,6 +6616,7 @@ const UIRenderer = (() => {
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
     renderDeckReveal(); // Scout look-ahead: show/hide the upcoming card on the deck
+    refreshActivatableIndicators();   // "tap to activate" cue on activatable Pillars
   }
 
   /* Scout: while a reveal is active, the face-down deck shows the next card's
@@ -6741,6 +6799,7 @@ const UIRenderer = (() => {
   function selectPile(index) {
     if (!engine || engine.getStatus() !== "playing") return;
     if (!engine.isRunStarted()) return;   // no guessing until Start Run is pressed
+    if (promptActive) return;             // an activation/confirm prompt is up — answer it first
     if (!engine.getBoard().isActive(index)) return;
     if (selected === index) { clearSelection(); return; }   // tap the selected pile again = deselect
     showPileSelected(index);
@@ -7383,9 +7442,9 @@ const UIRenderer = (() => {
       }
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
-      // Drag-to-guess only during active play; otherwise let the click handle
-      // tap-select (active) or sticker apply (sticker phase).
-      if (engine && engine.isRunStarted() && engine.getStatus() === "playing") {
+      // Drag-to-guess only during active play (never while an activation/confirm
+      // prompt is up); otherwise let the click handle tap-select / sticker apply.
+      if (engine && engine.isRunStarted() && engine.getStatus() === "playing" && !promptActive) {
         const index = Number(pileEl.dataset.index);
         if (engine.getBoard().isActive(index)) pileDrag = { index, startY: e.clientY, armed: null, moved: false };
       }
@@ -7423,6 +7482,26 @@ const UIRenderer = (() => {
     // A drag/peek sets suppressPileClick so the release doesn't also act.
     el.board.addEventListener("click", (e) => {
       if (suppressPileClick) { suppressPileClick = false; return; }
+      // --- Unified targeting modes come FIRST (Revive / Kamikaze). A tap picks a
+      // valid target; backing out is via the bottom Skip/Cancel button only (so a
+      // stray tap can't accidentally cancel). ---
+      const tPile = e.target.closest(".pile");
+      if (armedRevive) {
+        if (tPile) {
+          const idx = Number(tPile.dataset.index);
+          if (!engine.getBoard().isActive(idx)) { const col = armedRevive.col; disarmRevive(); engine.reviveDeadPile(col, idx); }
+        }
+        return;
+      }
+      if (armedKamikaze) {
+        if (tPile) {
+          const idx = Number(tPile.dataset.index);
+          if (engine.getBoard().isActive(idx)) { const col = armedKamikaze.col; disarmKamikaze(); engine.kamikazeActivate(col, idx); }
+        }
+        return;
+      }
+      // A confirm prompt is up (Donate / Shuffle): answer via its buttons only.
+      if (promptActive) return;
       // Tap a Pathway banner → toggle its description via the standard peek
       // popup (a hold still peeks-while-held). Read-only; no state change.
       const setupWindow = engine && engine.canApplyStickers();
@@ -7446,25 +7525,6 @@ const UIRenderer = (() => {
       }
       if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }   // tap-off closes it
       const pileEl = e.target.closest(".pile");
-      // Revive targeting: tap a DEAD pile to revive it; tap anything else to skip
-      // (the charge stays ready). Kamikaze targeting: tap an ALIVE pile to kill it.
-      if (armedRevive) {
-        if (pileEl) {
-          const idx = Number(pileEl.dataset.index);
-          if (!engine.getBoard().isActive(idx)) { const col = armedRevive.col; disarmRevive(); engine.reviveDeadPile(col, idx); return; }
-        }
-        disarmRevive();   // tapped a live pile / empty space → skip without consuming
-        el.hint.textContent = "Revive skipped — it stays ready.";
-        return;
-      }
-      if (armedKamikaze) {
-        if (pileEl) {
-          const idx = Number(pileEl.dataset.index);
-          if (engine.getBoard().isActive(idx)) { const col = armedKamikaze.col; disarmKamikaze(); engine.kamikazeActivate(col, idx); return; }
-        }
-        disarmKamikaze();   // tapped a dead pile / empty space → cancel
-        return;
-      }
       // Tap-off (empty board space) also closes an open pre-run card peek.
       if (!pileEl) { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } return; }
       const index = Number(pileEl.dataset.index);
@@ -7948,8 +8008,9 @@ const UIRenderer = (() => {
       case "dealt": {
         clearAnimQueue();   // a fresh board → drop any stale travel steps
         // Clear any leftover targeting/confirm state from the previous deal.
-        disarmRevive(); disarmKamikaze();
-        if (el.actionConfirm) el.actionConfirm.classList.add("hidden");
+        armedRevive = null; armedKamikaze = null;
+        if (el.board) el.board.classList.remove("armed-revive", "armed-kamikaze");
+        hideActionBar();
         if (el.lookAhead) el.lookAhead.classList.add("hidden");
         // Snapshot the coin balance the player enters this run with (after any
         // store spending) → drives the end-of-run Interest payout.
@@ -8113,16 +8174,43 @@ const UIRenderer = (() => {
 
       case "action-resolved": {
         // The player answered. If accepted, the pile(s) changed composition —
-        // repaint the affected tops + counts. Order stays hidden.
+        // repaint the affected tops + counts, and play the move animation. Order
+        // stays hidden (Donate flies a FACE-DOWN card; Shuffle riffles in place).
         if (payload.accepted) {
-          const top = payload.board.top(payload.index);
-          if (top) { paintFront(pileEls[payload.index], top); renderStickerBadges(pileEls[payload.index], top); }
+          const reduce = prefersReduce();
           if (payload.kind === "donate" && payload.target != null) {
-            const tt = payload.board.top(payload.target);
-            if (tt) { paintFront(pileEls[payload.target], tt); renderStickerBadges(pileEls[payload.target], tt); }
+            // #3 — fly a face-down card from the donor pile to the receiver pile
+            // (same traveling-card motion as a draw), then repaint both.
+            const fromEl = pileEls[payload.index] && pileEls[payload.index].querySelector(".card");
+            const toEl = pileEls[payload.target] && pileEls[payload.target].querySelector(".card");
+            const repaint = () => {
+              const top = payload.board.top(payload.index);
+              if (top) { paintFront(pileEls[payload.index], top); renderStickerBadges(pileEls[payload.index], top); }
+              const tt = payload.board.top(payload.target);
+              if (tt) { paintFront(pileEls[payload.target], tt); renderStickerBadges(pileEls[payload.target], tt); }
+              paintPileCounts(payload.board);
+              renderHud(payload.board, payload.deck);
+            };
+            if (!reduce && fromEl && toEl && typeof fromEl.animate === "function") {
+              queueAnim((done) => {
+                flyCard(flyBackEl(), fromEl.getBoundingClientRect(), toEl.getBoundingClientRect(),
+                  { duration: 300, onArrive: () => { repaint(); done(); } });
+              });
+            } else { repaint(); }
+          } else {
+            // #5 — Shuffle: a brief riffle wiggle on the pile, then show its (new) top.
+            const cardEl = pileEls[payload.index] && pileEls[payload.index].querySelector(".card");
+            const top = payload.board.top(payload.index);
+            if (top) { paintFront(pileEls[payload.index], top); renderStickerBadges(pileEls[payload.index], top); }
+            if (!reduce && cardEl && payload.kind === "shuffle") {
+              cardEl.classList.remove("shuffling"); void cardEl.offsetWidth;
+              cardEl.classList.add("shuffling");
+              setTimeout(() => cardEl.classList.remove("shuffling"), 900);
+              Sound.tap();
+            }
+            paintPileCounts(payload.board);
+            renderHud(payload.board, payload.deck);
           }
-          paintPileCounts(payload.board);
-          renderHud(payload.board, payload.deck);
         }
         refreshDebug();
         break;
@@ -10145,18 +10233,83 @@ const UIRenderer = (() => {
     if (engine) engine.answerTribute(!!accept);
   }
 
-  /* ---- Optional post-landing action (Shuffle / Donate) ----
-     The engine emits "action-offer"; we ask Yes/No and call answerAction. The
-     modal blocks the board so the next guess can't slip in first. */
+  /* ============================================================
+     UNIFIED ACTIVATION / PROMPT SYSTEM
+     One consistent pattern for every interactive Pillar/effect that needs the
+     player to choose or confirm (Kamikaze, Revive, Donate, Shuffle, and any
+     future one): an indicator on activatable Pillars, a BOTTOM PROMPT in the
+     guess-button row (board stays in view), and board target highlighting —
+     never a screen-blocking popup. Presentation only: this changes how effects
+     are chosen, never what they do, when they fire, or any value.
+     ============================================================ */
+  let promptActive = false;       // a bottom prompt is up → guessing is suspended
+  let promptTargets = [];         // pile indices highlighted for the current prompt
+
+  /* Show the bottom prompt bar with an instruction + buttons, hiding the normal
+     controls. `buttons`: [{ label, cls, onClick }]. `targets`: pile indices to
+     outline on the board (optional). */
+  function showActionBar(text, buttons, targets) {
+    el.actionPromptText.textContent = text;
+    el.actionPromptBtns.innerHTML = "";
+    (buttons || []).forEach(b => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ap-btn" + (b.cls ? " " + b.cls : "");
+      btn.textContent = b.label;
+      btn.addEventListener("click", (e) => { e.stopPropagation(); Sound.tap(); b.onClick(); });
+      el.actionPromptBtns.appendChild(btn);
+    });
+    el.actionPrompt.classList.remove("hidden");
+    if (el.playControls) el.playControls.classList.add("prompting");
+    setActionTargets(targets || []);
+    promptActive = true;
+  }
+  function hideActionBar() {
+    el.actionPrompt.classList.add("hidden");
+    if (el.playControls) el.playControls.classList.remove("prompting");
+    setActionTargets([]);
+    promptActive = false;
+    // Restore the normal active-play control state (guess help when idle).
+    if (engine && engine.isRunStarted() && engine.getStatus() === "playing"
+        && selected === null && el.ctlHelp) {
+      el.ctlHelp.classList.remove("hidden");
+    }
+  }
+  function setActionTargets(targets) {
+    promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.remove("action-target"); });
+    promptTargets = (targets || []).slice();
+    promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.add("action-target"); });
+  }
+
+  /* Indicator on every currently-activatable Pillar (tap-to-activate). Toggles a
+     pulsing cue on the column banner; reads the engine's availability. Cheap —
+     run on each HUD refresh and on entering active play. */
+  function refreshActivatableIndicators() {
+    if (!el.board) return;
+    const cells = el.board.querySelectorAll(".bp-cell");
+    for (let col = 0; col < cells.length; col++) {
+      const banner = cells[col].querySelector(".cph-banner");
+      if (!banner) continue;
+      const on = engine && engine.kamikazeAvailable && engine.kamikazeAvailable(col);
+      banner.classList.toggle("activatable", !!on);
+    }
+  }
+
+  /* ---- Optional post-landing action (Shuffle / Donate): bottom prompt ---- */
   function showActionConfirm(offer) {
     if (!offer) return;
-    el.actionConfirmMsg.innerHTML = offer.kind === "shuffle"
-      ? "<b>Shuffle</b> this pile? A different card may end up on top (the order stays hidden)."
-      : "<b>Donate</b> 1 card from this pile to the smallest pile (pile " + ((offer.target != null ? offer.target : 0) + 1) + ")?";
-    el.actionConfirm.classList.remove("hidden");
+    const text = offer.kind === "shuffle"
+      ? "Shuffle this pile? A different card may end up on top (order stays hidden)."
+      : "Donate 1 card from this pile to the smallest pile (pile " + ((offer.target != null ? offer.target : 0) + 1) + ")?";
+    const targets = offer.kind === "donate" && offer.target != null
+      ? [offer.index, offer.target] : [offer.index];
+    showActionBar(text, [
+      { label: "No", cls: "no", onClick: () => answerAction(false) },
+      { label: "Yes", cls: "primary", onClick: () => answerAction(true) },
+    ], targets);
   }
   function answerAction(accept) {
-    el.actionConfirm.classList.add("hidden");
+    hideActionBar();
     if (engine) engine.answerAction(!!accept);
   }
 
@@ -10167,40 +10320,55 @@ const UIRenderer = (() => {
       const s = DeckManager.SUITS.find(x => x.symbol === c.suit) || DeckManager.SUITS[0];
       const r = DeckManager.RANKS.find(x => x.value === c.value) || { label: String(c.value) };
       return '<div class="lookahead-card' + (s.red ? " red" : "") + '">' +
-        '<span class="la-rank">' + r.label + '</span><span class="la-suit">' + s.symbol + "</span></div>";
+        '<span class="la-rank">' + r.label + '</span><span class="la-suit">' + s.suit + "</span></div>";
     }).join("");
     el.lookAhead.classList.remove("hidden");
   }
 
-  /* ---- Revive / Kamikaze board-targeting modes ----
-     Revive: arm after the "revive-offer"; the player taps a DEAD pile to revive
-     it (or taps elsewhere to dismiss — the charge stays ready). Kamikaze: armed
-     by tapping its column's Pillar during play; the player taps an ALIVE pile to
-     sacrifice it. Both reuse the board click handler. */
+  /* ---- Revive / Kamikaze board-targeting modes (unified bottom prompt) ----
+     Revive: armed after "revive-offer" — tap a DEAD pile to revive it; Skip keeps
+     the charge ready. Kamikaze: armed by tapping its activatable Pillar — tap an
+     ALIVE pile to sacrifice it; Cancel backs out. Targets are outlined on board. */
+  function reviveTargets(col) {
+    const board = engine.getBoard();
+    const out = [];
+    for (let i = 0; i < board.size; i++) if (!board.isActive(i)) out.push(i);
+    return out;
+  }
+  function kamikazeTargets() {
+    const board = engine.getBoard();
+    const out = [];
+    for (let i = 0; i < board.size; i++) if (board.isActive(i)) out.push(i);
+    return out;
+  }
   function armRevive(col) {
-    armedRevive = { col };
     armedKamikaze = null;
+    armedRevive = { col };
     clearSelection();
-    if (el.board) el.board.classList.add("armed-revive");
-    el.board.classList.remove("armed-kamikaze");
-    el.hint.textContent = "Revive — tap a dead pile to bring it back (or tap elsewhere to skip).";
+    if (el.board) { el.board.classList.add("armed-revive"); el.board.classList.remove("armed-kamikaze"); }
+    showActionBar("Choose a pile to revive.", [
+      { label: "Skip", cls: "no", onClick: () => { disarmRevive(); el.hint.textContent = "Revive skipped — it stays ready."; } },
+    ], reviveTargets(col));
   }
   function disarmRevive() {
     armedRevive = null;
     if (el.board) el.board.classList.remove("armed-revive");
+    hideActionBar();
   }
   function toggleArmKamikaze(col) {
     if (armedKamikaze && armedKamikaze.col === col) { disarmKamikaze(); return; }
-    armedKamikaze = { col };
     armedRevive = null;
+    armedKamikaze = { col };
     clearSelection();
-    el.board.classList.add("armed-kamikaze");
-    el.board.classList.remove("armed-revive");
-    el.hint.textContent = "Kamikaze — tap a pile to sacrifice it and see the next 3 cards (tap the Pillar again to cancel).";
+    if (el.board) { el.board.classList.add("armed-kamikaze"); el.board.classList.remove("armed-revive"); }
+    showActionBar("Choose a pile to kill, then see the next three cards.", [
+      { label: "Cancel", cls: "no", onClick: disarmKamikaze },
+    ], kamikazeTargets());
   }
   function disarmKamikaze() {
     armedKamikaze = null;
     if (el.board) el.board.classList.remove("armed-kamikaze");
+    hideActionBar();
   }
 
   /* ---- Trash an armed setup item (card / sticker / pillar) ----
