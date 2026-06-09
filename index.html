@@ -3094,7 +3094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.7 · anim-queue-sequencing";
+const APP_VERSION = "v2.8 · new-pillars-stickers";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3186,7 +3186,7 @@ const GLYPHS = {
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
-  randomFixedValue: "die", changeSuitSpade: "spade", changeSuitHeart: "heart",
+  randomFixedValue: "die", changeSuitRandom: "swirl", changeSuitSpade: "spade", changeSuitHeart: "heart",
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
@@ -3230,6 +3230,8 @@ const StickerTypes = (() => {
                   description: "Lower this card's rank by 2, permanently. Stops at a 2." },
     randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
                   description: "Set this card's rank to a random one from 2 to Ace, permanently. The suit stays the same." },
+    changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
+                  description: "Change this card's suit to a random different one, permanently. The rank stays the same." },
     changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
                   description: "Change this card's suit to ♠, permanently. The rank stays the same." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
@@ -3274,17 +3276,22 @@ const StickerTypes = (() => {
                   description: "Copy this card, stickers and all, into your card inventory to swap into your deck before a later run. The copy is independent of the original." },
     wildSuit:   { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "rare", price: 8,
                   description: "This card counts as EVERY suit at once. It satisfies every suit condition simultaneously — any suit guard, any suit Bonus pillar, and any all-suit pillar treat it as their suit." },
+    shuffle:    { id: "shuffle",    label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 4,
+                  description: "After this card lands on a pile from a correct guess, you may shuffle that pile so a different card ends up on top. The pile's order is never revealed." },
+    donate:     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", tier: "uncommon", price: 4,
+                  description: "After this card lands on a pile from a correct guess, if it is not the smallest pile on the board, you may move 1 card from the bottom of this pile to the bottom of the smallest pile (you're asked first)." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
-    "changeSuitSpade", "changeSuitHeart",
+    "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
-    "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit"];
+    "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit",
+    "shuffle", "donate"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3429,12 +3436,58 @@ const PillarTypes = (() => {
       kind: "scoring", effect: "greedy", value: 20, tier: "rare", price: 10,
       description: "Earn +20 coins when you clear the deal with every pile in this column alive and no other Pillar anywhere on the board.",
     },
+    fibonacci: {
+      // Live: like Streak Bank but pays the FIBONACCI sequence from the 2nd
+      // consecutive correct guess onward (1,1,2,3,5,8,…). Same reset rules as the
+      // other column-streak Pillars (wrong here, or ANY other-column guess).
+      id: "fibonacci", label: "Fibonacci", icon: "🌀",
+      kind: "live", effect: "fibonacci", tier: "rare", price: 6,
+      description: "Earn a growing coin payout for each correct guess in a row on this column's piles, after the first: +1, +1, +2, +3, +5, +8, and on up the Fibonacci sequence. The streak resets on a wrong guess here or any guess in another column.",
+    },
+    highestOdd: {
+      // End-of-run: +the highest ODD rank value among all cards in this column's
+      // surviving piles (J = 11 and K = 13 count as odd; A = 14 is even).
+      id: "highestOdd", label: "Highest Odd", icon: "🔼",
+      kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 10,
+      description: "Earn bonus coins equal to the highest odd rank among all cards in this column's surviving piles when you clear the deal (a Jack counts as 11 and a King as 13).",
+    },
+    highestEven: {
+      // End-of-run: +the highest EVEN rank value among all cards in this column's
+      // surviving piles (Q = 12 and A = 14 count as even; K = 13 is odd).
+      id: "highestEven", label: "Highest Even", icon: "🔽",
+      kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
+      description: "Earn bonus coins equal to the highest even rank among all cards in this column's surviving piles when you clear the deal (a Queen counts as 12 and an Ace as 14).",
+    },
+    denseBury: {
+      // Composition: when a correct guess lands a card carrying 3+ stickers on a
+      // pile in this column, bury 1 deck-bottom card under it. Uncapped, no reveal.
+      id: "denseBury", label: "Dense Bury", icon: "🧊",
+      kind: "composition", effect: "denseBury", tier: "rare", price: 15,
+      description: "Bury 1 card from the bottom of the deck under a pile in this column when a correct guess lands a card carrying 3 or more stickers on its top. Every time.",
+    },
+    revive: {
+      // Guess-time, one-shot per deal: the first time a pile in this column reaches
+      // 10 cards, the player may revive one dead pile anywhere with a fresh top.
+      // Skipped (charge kept) when no pile is dead at trigger time.
+      id: "revive", label: "Revive", icon: "♻️",
+      kind: "guess", effect: "revive", tier: "uncommon", price: 8,
+      description: "The first time a pile in this column reaches 10 cards, you may bring one dead pile back to life with a fresh card on top. Once per deal. If no pile is dead when it triggers, it waits and stays ready.",
+    },
+    kamikaze: {
+      // Activated: tap this column's Pillar during play to arm it, then tap a pile
+      // to kill it and reveal the next 3 deck cards (display-only). Once per deal;
+      // unavailable when only one pile is alive, or when its own column is all dead.
+      id: "kamikaze", label: "Kamikaze", icon: "💥",
+      kind: "guess", effect: "kamikaze", tier: "uncommon", price: 8,
+      description: "Once per deal, tap this Pillar during play and then tap a pile to kill it and reveal the next 3 cards in the deck (a look-ahead — it never changes the draw order). Unavailable while only one pile is alive, or when every pile in this column is already dead.",
+    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
     "allHeartsCoin", "allSpadesCoin", "allDiamondsCoin", "allClubsCoin",
-    "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy"];
+    "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy",
+    "fibonacci", "highestOdd", "highestEven", "denseBury", "revive", "kamikaze"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3960,7 +4013,21 @@ const GameEngine = (() => {
           if (run.sameTributesUsed) run.sameTributesUsed[col] += 1;
           firePillar(col, "sameTribute", pillar.label, 0);
         }
+      } else if (pillar.effect === "denseBury" && (drawn.stickers ? drawn.stickers.length : 0) >= 3) {
+        // Dense Bury: a card carrying 3+ stickers just landed → bury 1 from the
+        // deck bottom under this pile. Uncapped.
+        if (buryTribute(index, 1, pillar.label) > 0) {
+          if (run.denseBuryUsed) run.denseBuryUsed[col] += 1;
+          firePillar(col, "denseBury", pillar.label, 0);
+        }
       }
+    }
+
+    /** Fibonacci value at position n (n ≥ 1): 1, 1, 2, 3, 5, 8, 13, … */
+    function fibAt(n) {
+      let a = 1, b = 1;
+      for (let i = 1; i < n; i++) { const c = a + b; a = b; b = c; }
+      return a;
     }
 
     /** The middle (center) column index for this run, or null with no layout. */
@@ -4107,6 +4174,22 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
+        } else if (t.effect === "highestOdd" || t.effect === "highestEven") {
+          // +the single highest odd- (or even-) ranked card among ALL cards in
+          // this column's SURVIVING piles. Rank value parity (J=11 odd, Q=12 even,
+          // K=13 odd, A=14 even). 0 if no qualifying card.
+          const wantOdd = t.effect === "highestOdd";
+          let best = 0;
+          for (const i of colIdxs(col)) {
+            if (!board.isActive(i)) continue;        // surviving piles only
+            for (const c of board.piles[i].cards) {
+              if ((c.value % 2 === 1) === wantOdd && c.value > best) best = c.value;
+            }
+          }
+          if (best > 0) {
+            bonus += best;
+            lines.push({ label: t.label, detail: "highest " + (wantOdd ? "odd" : "even") + " = " + best, amount: best, col });
+          }
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
         // the bonus tally (see guess()), so adding it again here would double it.
@@ -4150,6 +4233,13 @@ const GameEngine = (() => {
         // relevant counter moves.
         eightTributesUsed: cols ? new Array(cols.length).fill(0) : null,
         sameTributesUsed: cols ? new Array(cols.length).fill(0) : null,
+        // Dense Bury firings per column (observability/tests); uncapped.
+        denseBuryUsed: cols ? new Array(cols.length).fill(0) : null,
+        // Revive (one-shot per deal, per column): consumed only when the player
+        // actually revives a dead pile. Stays false — "ready" — until then.
+        reviveUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Kamikaze (one-shot per deal, per column): consumed when activated.
+        kamikazeUsed: cols ? new Array(cols.length).fill(false) : null,
         // Live bonus-coin tally: starts at 0, moves the instant a bonus coin is
         // earned or spent during play (Suit Bounty, Middle Reward, Lucky Coin,
         // Tribute costs, All Hearts). bonusCoins == Σ bonusEvents during play;
@@ -4281,6 +4371,13 @@ const GameEngine = (() => {
           const s = run.colStreak[col];
           if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); }
           if (pillar && pillar.effect === "streakTribute" && s >= 4) { buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); }
+          // Fibonacci: pay the Fibonacci sequence from the 2nd consecutive correct
+          // guess onward — s=2→+1, 3→+1, 4→+2, 5→+3, 6→+5, … (fib(s−1)).
+          if (pillar && pillar.effect === "fibonacci" && s >= 2) {
+            const pay = fibAt(s - 1);
+            addBonus(pillar.label, pay);
+            firePillar(col, "fibonacci", pillar.label, pay);
+          }
         } else {
           run.colStreak[col] = 0;
         }
@@ -4640,6 +4737,15 @@ const CampaignState = (() => {
     } else if (t.behavior === "changeSuitTo") {
       const from = card.suit; card.suit = t.suit;
       card.modifications.push({ op: "changeSuit", from, to: card.suit });
+    } else if (t.behavior === "changeSuitRandom") {
+      // Pick a random DIFFERENT suit from the allowed set (in-play suits for pack
+      // cards; all suits for normal application). Deterministic via opts.rng.
+      const others = suits.filter(s => s !== card.suit);
+      if (others.length) {
+        const from = card.suit;
+        card.suit = others[Math.floor(rng() * others.length)];
+        card.modifications.push({ op: "changeSuit", from, to: card.suit });
+      }
     }
     card.stickers.push({ type: typeId });
     return true;
@@ -6810,11 +6916,11 @@ const UIRenderer = (() => {
       card.wildSuit = true;     // counts as every suit, this deal too
     } else if (t.behavior === "revealNext") {
       card.revealNext = true;   // Scout: arm the look-ahead flag on the live card
-    } else if (t.behavior === "changeSuitTo") {
+    } else if (t.behavior === "changeSuitTo" || t.behavior === "changeSuitRandom") {
       // The new suit was decided on the PERSISTENT card by
-      // campaign.applySticker. Mirror that exact suit (and its red/black color)
-      // onto the live card so the change — and any Suit Bounty it now qualifies
-      // for — takes effect this run.
+      // campaign.applySticker (the random pick happens there). Mirror that exact
+      // suit (and its red/black color) onto the live card so the change — and any
+      // Suit Bounty it now qualifies for — takes effect this run.
       const persisted = campaign.getCards().find(c => c.id === card.id);
       const sym = persisted ? persisted.suit : card.suit;
       const s = DeckManager.SUITS.find(x => x.symbol === sym) || DeckManager.SUITS[0];
@@ -9575,12 +9681,12 @@ const UIRenderer = (() => {
     top.stickers = [];
     top.tieSafe = false; top.heartsRemaining = 0; top.revealNext = false;
     top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0;
+    closePeekInfo();
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
     paintPileCounts(engine.getBoard());
     renderHud(engine.getBoard(), engine.getDeck());
     renderSetupInv();
-    openCardPeek(index);      // re-render the peek: now the base card, no stickers
     persistCampaign("run");   // permanent campaign change
     engine.logAction("Peeled all stickers off " + top.label + top.suit + " (reverted to base; stickers destroyed)");
     refreshDebug();

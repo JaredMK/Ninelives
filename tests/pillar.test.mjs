@@ -164,7 +164,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 18, "all Pillars registered (Double Bury removed)");
+    r.eq(PillarTypes.all().length, 24, "all Pillars registered (incl. Fibonacci/Highest Odd-Even/Dense Bury/Revive/Kamikaze)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -384,7 +384,8 @@ export function run() {
   {
     r.ok(!!StickerTypes.get("changeSuitSpade") && !!StickerTypes.get("changeSuitHeart"),
       "registry has the Defined-suit stickers (♠, ♥)");
-    r.eq(StickerTypes.get("changeSuitRandom"), null, "Random-suit sticker is removed");
+    r.ok(!!StickerTypes.get("changeSuitRandom"), "Random Suit sticker is registered (re-added)");
+    r.eq(StickerTypes.get("changeSuitRandom").behavior, "changeSuitRandom", "Random Suit uses the changeSuitRandom behavior");
     r.eq(StickerTypes.get("changeSuit"), null, "old cycle Change Suit is removed");
 
     // Defined suit: set a ♦ card to ♥ (rank untouched).
