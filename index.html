@@ -3101,7 +3101,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.6 · traveling-cards";
+const APP_VERSION = "v2.6.1 · traveling-cards-faceup";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7494,19 +7494,25 @@ const UIRenderer = (() => {
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
         const reduce = prefersReduce();
-        // Show the drawn memory landing on the neuron (its new top, or final face).
-        paintFront(pileEl, payload.drawn);
-        renderStickerBadges(pileEl, payload.drawn);
+        // HUD/counts read board STATE (not the DOM card), so update them now. The
+        // pile's VISIBLE card is NOT swapped to the drawn card yet — the existing
+        // top stays on the neuron for the whole flight, and the drawn face is
+        // painted only when the traveling card LANDS (no blanking mid-trip).
         paintPileCounts(payload.board);   // repaint all so the orange min stays live
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // tick the live streak pill(s)
 
-        // The drawn memory LANDS on the neuron: §5 flip, then resolve the outcome
-        // (good pulse, or death-flash → dissolve). Wrapped so it runs on the
-        // traveling card's arrival below (or immediately under reduced motion).
+        // The drawn memory LANDS on the neuron: swap the face to the drawn card,
+        // a small settling flourish, then resolve the outcome (good pulse, or
+        // death-flash → dissolve). Wrapped so it runs on the traveling card's
+        // arrival below (or immediately under reduced motion).
         const land = () => {
+          // Cover/replace the old top with the drawn card exactly on arrival.
+          paintFront(pileEl, payload.drawn);
+          renderStickerBadges(pileEl, payload.drawn);
           if (cardEl) cardEl.style.visibility = "";
-          // §5: the drawn memory FLIPS onto the neuron (encoding).
+          // §5: a small landing flourish as the drawn memory settles (the card
+          // already arrived face-up, so this is a settle, not a reveal).
           if (!reduce && cardEl) {
             cardEl.classList.add("landing");
             setTimeout(() => cardEl.classList.remove("landing"), 360);
@@ -7541,12 +7547,13 @@ const UIRenderer = (() => {
           }
         };
 
-        // TRAVEL: a face-down card flies from the deck to this pile, then lands
-        // + flips on arrival (the card visibly travels, never teleports).
+        // TRAVEL: the drawn card flies FACE-UP from the deck to this pile — the
+        // player sees which card is coming the whole way. The pile's existing
+        // top stays visible underneath; the drawn face is swapped in on landing
+        // (in land()), with a small settling flourish.
         if (!reduce && cardEl && typeof cardEl.animate === "function") {
           const to = cardEl.getBoundingClientRect();
-          cardEl.style.visibility = "hidden";
-          flyCard(flyBackEl(), deckRect(), to, { duration: 250, onArrive: land });
+          flyCard(flyFaceEl(payload.drawn, to), deckRect(), to, { duration: 250, onArrive: land });
         } else {
           land();
         }
