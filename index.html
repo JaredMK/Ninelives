@@ -2409,6 +2409,26 @@
     background: repeating-linear-gradient(var(--edge-2) 0 6px, transparent 6px 12px);
   }
 
+  /* Per-stage background neural pattern (approach B). Each stage's section of the
+     climb wraps in a .map-band; a faint SVG web sits BEHIND its run nodes,
+     fossils and labels as background texture only. Density rises stage→stage
+     (set per render, scaled to the real stage count). The run nodes have opaque
+     faces, so the web only ever shows in the gaps — it can't bleed through a
+     fossil. Opacity is hard-capped low so it reads as subtle texture, never
+     content. Static (no animation) → no scroll cost. */
+  /* A self-contained stacking context per band, so the pattern reliably sits
+     behind this band's nodes/labels (which carry z-index 1/2) while the central
+     dashed path — drawn on the transparent band — still shows through. */
+  .map-band { position: relative; z-index: 0; }
+  .map-band-bg {
+    position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+    width: 100%; height: 100%; z-index: 0; pointer-events: none;
+    opacity: 0.12;   /* cap — subtle texture only */
+  }
+  .map-band-bg line { stroke: var(--net); stroke-width: 0.7; }
+  .map-band-bg circle { fill: var(--net); }
+  @media (prefers-reduced-motion: reduce) { .map-band-bg { opacity: 0.1; } }
+
   /* Stage divider + suit callout. The tag carries a solid background so the
      dotted path behind it is masked (no text-on-line overlap). */
   .map-stage { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 18px 0 14px; }
@@ -3133,7 +3153,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.9 · interactive-pillars-stickers";
+const APP_VERSION = "v2.10 · stage-map-backgrounds";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -9355,6 +9375,42 @@ const UIRenderer = (() => {
 
   /* Stage divider: the suits in play + (stage 2+) the new-suit "shuffled in"
      callout, derived from the real suit schedule. */
+  /* Approach B — a faint, STATIC neural web behind one stage's band of the climb.
+     Density scales to the real stage count: stage 1 sparsest, the final stage
+     densest, evenly stepped between (so it adapts if the campaign's stage count
+     changes). Seeded per stage so the pattern is stable across re-renders. The
+     SVG stretches to fill the band (preserveAspectRatio="none"); it's background
+     texture, so mild stretch is fine. Presentation only — never read by any rule. */
+  function bandPatternSvg(stage, maxStage, runCount) {
+    // Evenly stepped 0→1 across stages (guard the single-stage case).
+    const t = maxStage > 1 ? (stage - 1) / (maxStage - 1) : 0;
+    const MIN_NODES = 8, MAX_NODES = 30;
+    const count = Math.round(MIN_NODES + t * (MAX_NODES - MIN_NODES));
+    const vbW = 120, vbH = Math.max(60, Math.round((runCount || 4) * 30));
+    // mulberry32 — small seeded PRNG so the web is deterministic per stage.
+    let seed = (stage * 0x9E3779B1) >>> 0;
+    const rand = () => {
+      seed = (seed + 0x6D2B79F5) >>> 0;
+      let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+    const pts = [];
+    for (let i = 0; i < count; i++) pts.push([+(rand() * vbW).toFixed(1), +(rand() * vbH).toFixed(1)]);
+    const THRESH = 34, T2 = THRESH * THRESH;
+    let lines = "", dots = "";
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[i][0] - pts[j][0], dy = pts[i][1] - pts[j][1];
+        if (dx * dx + dy * dy < T2)
+          lines += '<line x1="' + pts[i][0] + '" y1="' + pts[i][1] + '" x2="' + pts[j][0] + '" y2="' + pts[j][1] + '"/>';
+      }
+      dots += '<circle cx="' + pts[i][0] + '" cy="' + pts[i][1] + '" r="1.2"/>';
+    }
+    return '<svg class="map-band-bg" viewBox="0 0 ' + vbW + ' ' + vbH + '" preserveAspectRatio="none" aria-hidden="true">' +
+      lines + dots + "</svg>";
+  }
+
   function mapStageHeaderHtml(stage) {
     const suits = suitsForStageDisplay(stage);
     const suitStr = suits.map(mapSuitSpan).join(" ");
@@ -9421,14 +9477,18 @@ const UIRenderer = (() => {
     // (DOM is top→bottom, so we emit highest stage first, deals high→low, then the
     // stage header BELOW its deals.) Display only — the structure is unchanged.
     for (let s = maxStage; s >= 1; s--) {
+      // Each stage is its own BAND: a faint per-stage neural pattern sits behind
+      // this stage's deals + header (presentation only; see bandPatternSvg).
+      let band = bandPatternSvg(s, maxStage, maxRun);
       for (let rr = maxRun; rr >= 1; rr--) {
         let st;
         if (s < stage || (s === stage && rr < run)) st = "cleared";
         else if (s === stage && rr === run) st = "current";
         else st = "locked";   // not yet reached
-        html += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
+        band += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
       }
-      html += mapStageHeaderHtml(s);   // the stage marker sits BELOW its deals
+      band += mapStageHeaderHtml(s);   // the stage marker sits BELOW its deals
+      html += '<div class="map-band">' + band + "</div>";
     }
     el.mapTrack.innerHTML = html;
   }
@@ -9449,7 +9509,12 @@ const UIRenderer = (() => {
     const curNode = el.mapTrack.querySelector(".map-node.current");
     const row = curNode ? curNode.closest(".map-run") : null;
     if (row) {
-      el.mapScroll.scrollTop = Math.max(0, row.offsetTop - (el.mapScroll.clientHeight - row.offsetHeight) / 2);
+      // Rect-based (not offsetTop) so the per-stage .map-band wrappers — which
+      // become the rows' offsetParent — don't throw off the centring.
+      const rRect = row.getBoundingClientRect();
+      const sRect = el.mapScroll.getBoundingClientRect();
+      const delta = (rRect.top - sRect.top) - (el.mapScroll.clientHeight - rRect.height) / 2;
+      el.mapScroll.scrollTop = Math.max(0, el.mapScroll.scrollTop + delta);
     } else {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // no current → show the bottom (Stage 1)
     }
