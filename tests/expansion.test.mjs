@@ -16,40 +16,42 @@ export function run() {
 
   // ===== Pillars =========================================================
 
-  // --- Envy: +2 per surviving pile across all OTHER pillared columns -----
-  // (secondWind is a non-scoring Pillar — it only marks a column as "pillared"
-  //  for Envy and contributes 0 to the scoring payout.)
+  // --- Envy: +1 per surviving pile across EVERY OTHER column ------------
+  // (cols [3,4,3] → col 0 = 3 piles, col 1 = 4, col 2 = 3. Envy on col 0 counts
+  //  every OTHER column's survivors, regardless of whether they hold a Pillar.)
   {
-    // Envy alone scores nothing — there are no OTHER pillared columns.
+    // Envy alone still counts every other column's survivors: col1(4)+col2(3)=7.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["envy", null, null]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 0, "Envy with no other Pillars scores 0");
+    r.eq(won().pillarPayout.bonus, 7, "Envy counts every other column (4+3 = +7)");
   }
   {
-    // Envy on col 0 + a Pillar on col 2 → counts col 2's 3 survivors ×2 = +6.
+    // Whether the other columns hold Pillars makes no difference.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["envy", null, "secondWind"]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Envy counts col 2's 3 survivors ×2 = +6");
+    r.eq(won().pillarPayout.bonus, 7, "Envy ignores whether other columns are pillared (4+3 = +7)");
   }
   {
+    // Only SURVIVING piles count — a death in another column lowers it.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", null, "secondWind"]);
+    e.start(); e.startRun(["envy", null, null]);
     e.getBoard().kill(8);   // col 2 → 2 survivors
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 4, "Envy counts only SURVIVING piles (2 ×2 = +4)");
+    r.eq(won().pillarPayout.bonus, 6, "Envy counts only SURVIVING piles (4+2 = +6)");
   }
   {
-    // Spans EVERY other pillared column: col 1 (4) + col 2 (3) = 7 × 2 = +14.
+    // Envy's OWN column never counts toward itself.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", "secondWind", "secondWind"]);
+    e.start(); e.startRun(["envy", null, null]);
+    e.getBoard().kill(0);   // col 0 (Envy's own) — should not change the score
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 14, "Envy spans all other pillared columns (4+3) ×2 = +14");
+    r.eq(won().pillarPayout.bonus, 7, "Envy excludes its own column (4+3 = +7)");
   }
 
   // --- Symmetry: +6 if alive count equals the RIGHT column (wraparound) -

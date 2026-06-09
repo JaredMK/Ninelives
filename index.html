@@ -2086,6 +2086,14 @@
     padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .peek-info .pk-unplace:active { transform: scale(0.98); }
+  /* "Peel off all stickers" — a destructive action (same danger styling). */
+  .peek-info .pk-peel {
+    pointer-events: auto; margin-top: 9px; width: 100%;
+    background: rgba(181,67,90,0.14); color: var(--bad);
+    border: 1px solid var(--danger); border-radius: 10px;
+    padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+  }
+  .peek-info .pk-peel:active { transform: scale(0.98); }
   .deck-quick-total {
     font-weight: 800;
     font-size: 13px;
@@ -2376,6 +2384,8 @@
   .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
   .map-node .mn-lock { color: var(--muted); display: flex; align-items: center; justify-content: center; }
   .map-node .mn-lock svg { width: 26px; height: 26px; }
+  /* Legacy cleared deal with no recorded fossil — a neutral dot (no checkmark). */
+  .map-node .mn-done { width: 12px; height: 12px; border-radius: 50%; background: var(--good); opacity: 0.55; }
   .map-node .fossil { width: 100%; height: 100%; }
   /* Play-button indicator on the current run node — the tap target to start it. */
   .map-node .mn-play {
@@ -2852,6 +2862,19 @@
     </div>
   </div>
 
+  <!-- Peel-stickers confirmation — strips ALL stickers off a card and reverts it
+       to its base card. The stickers are destroyed (not returned). The message
+       names the base card so the player knows what it becomes. -->
+  <div class="confirm-overlay hidden" id="peelConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="peelConfirmMsg">Peel off all stickers?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="peelCancelBtn" type="button">Cancel</button>
+        <button class="confirm-danger" id="peelOkBtn" type="button">Peel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Progression map: shown between the store and each run (store → map → run).
        The current run sits at the top; cleared runs descend below as "fossils" of
        their final surviving network. Navigation is by TAPPING nodes: the current
@@ -3004,7 +3027,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.3 · pillar-effect-feedback";
+const APP_VERSION = "v2.4 · wild-peel-envy-map";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3044,6 +3067,12 @@ const GLYPHS = {
   swirl: '<path d="M12 4a8 8 0 1 1-8 8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8a4 4 0 1 0 4 4" fill="none" stroke="currentColor" stroke-width="2"/>',
   // suits
   spade: suitPath("spade"), heart: suitPath("heart"), diamond: suitPath("diamond"), club: suitPath("club"),
+  // Wild Suit — all four suits clustered (this card counts as every suit).
+  wildsuit:
+    '<g transform="translate(1.5 1.5) scale(0.42)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>' +
+    '<g transform="translate(11 1.5) scale(0.42)"><path d="' + SUITP.heart + '" fill="var(--card-red)"/></g>' +
+    '<g transform="translate(1.5 11) scale(0.42)"><path d="' + SUITP.diamond + '" fill="var(--card-red)"/></g>' +
+    '<g transform="translate(11 11) scale(0.42)"><path d="' + SUITP.club + '" fill="currentColor"/></g>',
   // suit inhibitors (suit + block slash) and receptors (suit + cup)
   inh_spade: suitPath("spade", 0.7) + SLASH, inh_heart: suitPath("heart", 0.7) + SLASH,
   inh_diamond: suitPath("diamond", 0.7) + SLASH, inh_club: suitPath("club", 0.7) + SLASH,
@@ -3095,6 +3124,7 @@ const ELEM_GLYPH = {
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
   heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
+  wildSuit: "wildsuit",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -3175,6 +3205,8 @@ const StickerTypes = (() => {
                   description: "See the next card after this card is played, until that card is drawn." },
     duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "rare", price: 7,
                   description: "Copy this card, stickers and all, into your card inventory to swap into your deck before a later run. The copy is independent of the original." },
+    wildSuit:   { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "rare", price: 8,
+                  description: "This card counts as EVERY suit at once. It satisfies every suit condition simultaneously — any suit guard, any suit Bonus pillar, and any all-suit pillar treat it as their suit." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -3185,7 +3217,7 @@ const StickerTypes = (() => {
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
-    "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate"];
+    "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -3286,11 +3318,11 @@ const PillarTypes = (() => {
       description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♣ on top.",
     },
     envy: {
-      // End-of-run: +2 per surviving pile across all OTHER pillared columns
-      // (columns holding any Pillar, excluding this one). Scored in computePillarPayout.
+      // End-of-run: +1 per surviving pile across EVERY OTHER column (all columns
+      // except this one, whether or not they hold a Pillar). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
-      kind: "scoring", effect: "envyOthers", value: 2, tier: "uncommon", price: 6,
-      description: "Earn +2 coins per surviving pile in your other pillared columns when you clear the deal.",
+      kind: "scoring", effect: "envyOthers", value: 1, tier: "uncommon", price: 6,
+      description: "Earn +1 coin per surviving pile in every other column when you clear the deal.",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
@@ -3507,6 +3539,9 @@ const DeckManager = (() => {
       stickers: stickers.map(x => ({ ...x })),   // for rendering badges
       heartsRemaining: stickers.filter(x => x.type === "extraHeart").length,
       tieSafe: stickers.some(x => x.type === "tieSafe"),
+      // Wild Suit: this card counts as EVERY suit at once, everywhere suit is
+      // checked (guards, suit Bonus pillars, all-suit pillars).
+      wildSuit: stickers.some(x => x.type === "wildSuit"),
       // Scout: when this card is placed on a pile, reveal the next deck card.
       // Display-only look-ahead — never changes draw order (see deck.peek).
       revealNext: stickers.some(x => x.type === "revealNext"),
@@ -3930,10 +3965,21 @@ const GameEngine = (() => {
         consume (one charge per guarded suit per card per run), or null. `current`
         is checked first, then `drawn`. */
     function findGuardSave(current, drawn) {
-      if (current && current.suitGuards && current.suitGuards[drawn.suit])
-        return { carrier: current, suit: drawn.suit };   // guarded suit was DRAWN onto the carrier
-      if (drawn && drawn.suitGuards && drawn.suitGuards[current.suit])
-        return { carrier: drawn, suit: current.suit };   // carrier was DRAWN onto a card of its guarded suit
+      // The first ACTIVE guarded suit on `carrier` that `other`'s suit matches —
+      // and a Wild Suit `other` counts as EVERY suit, so it matches any active
+      // guard the carrier holds (consuming one charge).
+      const guardHit = (carrier, other) => {
+        if (!carrier || !carrier.suitGuards || !other) return null;
+        if (other.wildSuit) {
+          for (const sym in carrier.suitGuards) if (carrier.suitGuards[sym]) return sym;
+          return null;
+        }
+        return carrier.suitGuards[other.suit] ? other.suit : null;
+      };
+      let suit = guardHit(current, drawn);   // guarded suit DRAWN onto the carrier
+      if (suit) return { carrier: current, suit };
+      suit = guardHit(drawn, current);       // carrier DRAWN onto a card of its guarded suit
+      if (suit) return { carrier: drawn, suit };
       return null;
     }
 
@@ -3971,24 +4017,25 @@ const GameEngine = (() => {
           }
         } else if (t.effect === "allSuitTop") {
           // +value if EVERY surviving pile in THIS column shows the matching suit
-          // on top (and the column has at least one survivor). End-of-run.
+          // on top (and the column has at least one survivor). A Wild Suit top
+          // counts as the matching suit. End-of-run.
           const alive = colIdxs(col).filter(i => board.isActive(i));
-          if (alive.length > 0 && alive.every(i => { const top = board.top(i); return top && top.suit === t.suit; })) {
+          if (alive.length > 0 && alive.every(i => { const top = board.top(i); return top && (top.suit === t.suit || top.wildSuit); })) {
             bonus += t.value;
             lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value, col });
           }
         } else if (t.effect === "envyOthers") {
-          // +value per surviving pile across all OTHER pillared columns (columns
-          // holding any Pillar, excluding this one).
+          // +value per surviving pile across EVERY OTHER column (all columns
+          // except this one, whether or not they hold a Pillar).
           let n = 0;
-          for (let c = 0; c < run.pillars.length; c++) {
-            if (c === col || !run.pillars[c]) continue;   // only OTHER pillared columns
+          for (let c = 0; c < run.cols.length; c++) {
+            if (c === col) continue;   // every OTHER column
             n += aliveInCol(c);
           }
           const amt = n * (t.value || 0);
           if (amt > 0) {
             bonus += amt;
-            lines.push({ label: t.label, detail: n + " alive in other pillared columns", amount: amt, col });
+            lines.push({ label: t.label, detail: n + " alive in other columns", amount: amt, col });
           }
         } else if (t.effect === "symmetryRight") {
           // +value if this column's alive count equals the RIGHT column's
@@ -4197,9 +4244,10 @@ const GameEngine = (() => {
 
       // Suit Bounty: when a matching-suit card LANDS on a surviving pile in this
       // column (a correct guess that places the drawn card on top), earn the
-      // column its bounty. Paid LIVE into the bonus tally as it resolves (and
-      // tallied in suitBountyHits). One Pillar per column, so no double-count.
-      if (correct && pillar && pillar.effect === "suitBounty" && drawn.suit === pillar.suit
+      // column its bounty. A Wild Suit card matches any Bonus pillar. Paid LIVE
+      // into the bonus tally as it resolves (and tallied in suitBountyHits). One
+      // Pillar per column, so no double-count.
+      if (correct && pillar && pillar.effect === "suitBounty" && (drawn.suit === pillar.suit || drawn.wildSuit)
           && run.suitBountyHits) {
         run.suitBountyHits[run.pileColumns[index]] += 1;
         addBonus(pillar.label, pillar.value || 0);
@@ -4999,6 +5047,33 @@ const CampaignState = (() => {
         return applyStickerToCard(card, typeId);
       },
 
+      /** The BASE state a card reverts to if peeled — original rank + the suit it
+          had before any Change-Suit. Read-only (no mutation); for the peel
+          confirmation, so the player sees the underlying card (e.g. behind a
+          Random Rank). Returns { rank, suit } or null. */
+      baseStateOf(id) {
+        const card = findById(id);
+        if (!card) return null;
+        const firstSuitChange = (card.modifications || []).find(m => m.op === "changeSuit");
+        return { rank: card.originalRank, suit: firstSuitChange ? firstSuitChange.from : card.suit };
+      },
+
+      /** Strip ALL stickers from a card (by id), reverting it to its base state:
+          original rank, original suit, no modifications, no banked Compound. The
+          peeled stickers are DESTROYED — they do NOT return to inventory. Returns
+          the base { rank, suit }, or null. */
+      peelStickers(id) {
+        const card = findById(id);
+        if (!card) return null;
+        const base = this.baseStateOf(id);
+        card.currentRank = card.originalRank;
+        card.suit = base.suit;
+        card.modifications = [];
+        card.stickers = [];
+        card.compoundHits = 0;
+        return base;
+      },
+
       /* ---- Card Packs & Sticker Packs (reveal / pick / pending tray) ----
          Reveal logic is pure + rng-injectable (DOM-free, testable). Card packs
          reveal CARD objects; sticker packs reveal STICKER ids. Both roll their
@@ -5716,6 +5791,10 @@ const UIRenderer = (() => {
     trashConfirmMsg: document.getElementById("trashConfirmMsg"),
     trashCancelBtn: document.getElementById("trashCancelBtn"),
     trashOkBtn: document.getElementById("trashOkBtn"),
+    peelConfirm: document.getElementById("peelConfirm"),
+    peelConfirmMsg: document.getElementById("peelConfirmMsg"),
+    peelCancelBtn: document.getElementById("peelCancelBtn"),
+    peelOkBtn: document.getElementById("peelOkBtn"),
     buryConfirm: document.getElementById("buryConfirm"),
     buryConfirmMsg: document.getElementById("buryConfirmMsg"),
     buryYesBtn: document.getElementById("buryYesBtn"),
@@ -5785,6 +5864,7 @@ const UIRenderer = (() => {
   let overlayAction = null;   // what the single overlay button does right now
   let overlayPeekable = false; // run-complete screens allow hold-to-peek the board
   let selected = null;        // currently selected pile index, or null
+  let peelPendingIndex = null; // pile index whose card awaits a peel confirmation
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
   let networkEl = null;       // the per-board SVG connection layer (Phase 3)
@@ -6148,10 +6228,16 @@ const UIRenderer = (() => {
   function escHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
-  function cardPeekHtml(card) {
+  function cardPeekHtml(card, index) {
     if (!card) return '<div class="pk-empty">No card here.</div>';
     const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
     const stickers = card.stickers || [];
+    // During setup, a stickered card can have ALL its stickers peeled off (with a
+    // confirmation). Peeled stickers are destroyed, not returned.
+    const inSetup = engine && engine.canApplyStickers();
+    const peelBtn = (inSetup && stickers.length && index != null)
+      ? '<button class="pk-peel" data-peel-index="' + index + '" type="button">Peel off all stickers</button>'
+      : "";
     if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
     const counts = {};
     stickers.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
@@ -6170,7 +6256,7 @@ const UIRenderer = (() => {
           (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
         "</span></div>";
     });
-    return head + body;
+    return head + body + peelBtn;
   }
   function pillarPeekHtml(col) {
     const binding = campaign ? campaign.getColumnPillars() : [];
@@ -6190,7 +6276,7 @@ const UIRenderer = (() => {
   }
   function openCardPeek(index) {
     if (!engine) return;
-    el.peekInfo.innerHTML = cardPeekHtml(engine.getBoard().top(index));
+    el.peekInfo.innerHTML = cardPeekHtml(engine.getBoard().top(index), index);
     el.peekInfo.classList.remove("hidden");
   }
   function openPillarPeek(col) {
@@ -6236,7 +6322,7 @@ const UIRenderer = (() => {
      stickers (registry text) + persistent state. Tap off to close. ---- */
   function openCardInfo() {
     if (selected === null || !engine) return;
-    el.cardInfoPanel.innerHTML = cardPeekHtml(engine.getBoard().top(selected));
+    el.cardInfoPanel.innerHTML = cardPeekHtml(engine.getBoard().top(selected), selected);
     el.cardInfo.classList.remove("hidden");
   }
   function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
@@ -6663,6 +6749,8 @@ const UIRenderer = (() => {
       card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
       card.tieSafe = true;
+    } else if (t.behavior === "wildSuit") {
+      card.wildSuit = true;     // counts as every suit, this deal too
     } else if (t.behavior === "revealNext") {
       card.revealNext = true;   // Scout: arm the look-ahead flag on the live card
     } else if (t.behavior === "changeSuitTo") {
@@ -6932,13 +7020,19 @@ const UIRenderer = (() => {
       else selectPile(index);
     });
 
-    // Pillar peek popup: the "Return to inventory" button (setup only) un-places.
+    // Peek popup buttons: a Pillar's "Return to inventory" (un-place), or a
+    // card's "Peel off all stickers" (opens a destroy confirmation).
     el.peekInfo.addEventListener("click", (e) => {
+      const peel = e.target.closest(".pk-peel");
+      if (peel) { requestPeel(Number(peel.dataset.peelIndex)); return; }
       const b = e.target.closest(".pk-unplace");
       if (!b) return;
       closePeekInfo(); peekTapCol = null;
       pickUpPillar(Number(b.dataset.unplaceCol));
     });
+    // Peel confirmation actions.
+    el.peelCancelBtn.addEventListener("click", closePeelConfirm);
+    el.peelOkBtn.addEventListener("click", doPeel);
 
     // "?" card-info button (enabled once a pile is selected) + tap-off to close.
     el.btnInfo.addEventListener("click", openCardInfo);
@@ -7442,8 +7536,8 @@ const UIRenderer = (() => {
       // and any Tribute cost — which shows as a negative).
       (b.eventLines || []).map(p =>
         row(p.label, "", (p.amount >= 0 ? "+" : "") + p.amount)).join("") +
-      // Interest: +1 per 10 coins held entering the run (omitted when none).
-      (b.interest > 0 ? row("Interest", "", "+" + b.interest) : "") +
+      // Interest: +1 per 10 coins held entering the deal (omitted when none).
+      (b.interest > 0 ? row("Interest", "1 per 10 coins", "+" + b.interest) : "") +
       row("Total", "", "+" + b.total, "ocoins-sum") +
       '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>"
     );
@@ -8485,7 +8579,7 @@ const UIRenderer = (() => {
      reached — inert padlock). The node sits centred on the path; the label is in
      the outer column. `data-action` drives the tap handler (locked = none). */
   function mapRunNodeHtml(stage, run, state, side) {
-    let nodeClass, inner, badge = "", meta, attrs = "";
+    let nodeClass, inner, meta, attrs = "";
     if (state === "current") {
       nodeClass = "current tappable";
       attrs = ' data-action="enter"';
@@ -8495,21 +8589,20 @@ const UIRenderer = (() => {
       nodeClass = "locked";
       inner = '<span class="mn-lock">' + MAP_LOCK_SVG + "</span>";
       meta = '<div class="mm-name mm-dim">Deal ' + run + "</div>";
-    } else {   // cleared
+    } else {   // cleared — show its fossil (no checkmark). Legacy clears show a dot.
       const fossil = campaign.getRunFossil(stage, run);
-      badge = '<div class="map-badge ok">✓</div>';
       if (fossil && fossil.nodes.length) {
         nodeClass = "done tappable";
         attrs = ' data-action="fossil" data-stage="' + stage + '" data-run="' + run + '"';
         inner = fossilSvg(fossil);
       } else {
         nodeClass = "done";   // cleared but no recorded shape (legacy)
-        inner = '<span class="mn-q" style="color:var(--good)">✓</span>';
+        inner = '<span class="mn-done" aria-hidden="true"></span>';
       }
       meta = '<div class="mm-name">Deal ' + run + "</div>";
     }
     return '<div class="map-run ' + side + '">' +
-        '<div class="map-node ' + nodeClass + '"' + attrs + ">" + inner + badge + "</div>" +
+        '<div class="map-node ' + nodeClass + '"' + attrs + ">" + inner + "</div>" +
         '<div class="map-meta">' + meta + "</div>" +
       "</div>";
   }
@@ -8519,19 +8612,20 @@ const UIRenderer = (() => {
     const maxStage = campaign.maxStages, maxRun = campaign.maxRunsPerStage;
     let html = "";
     let side = 0;   // alternate L/R as nodes are emitted top → bottom
-    // Top → bottom: the NEXT stage (locked) sits ABOVE the current stage; the
-    // current stage shows ALL its runs (future ones locked); earlier stages show
-    // their cleared runs. Reflects the existing structure — display only.
-    const topStage = Math.min(maxStage, stage + 1);
-    for (let s = topStage; s >= 1; s--) {
-      html += mapStageHeaderHtml(s);
+    // Chronological climb, bottom → top: Stage 1 sits at the BOTTOM with its deals
+    // above it, then Stage 2 and its deals, etc., going up. The WHOLE map is shown
+    // from the start — every stage and deal, with not-yet-reached deals locked.
+    // (DOM is top→bottom, so we emit highest stage first, deals high→low, then the
+    // stage header BELOW its deals.) Display only — the structure is unchanged.
+    for (let s = maxStage; s >= 1; s--) {
       for (let rr = maxRun; rr >= 1; rr--) {
         let st;
         if (s < stage || (s === stage && rr < run)) st = "cleared";
         else if (s === stage && rr === run) st = "current";
-        else st = "locked";   // future run (rest of this stage, or the next stage)
+        else st = "locked";   // not yet reached
         html += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
       }
+      html += mapStageHeaderHtml(s);   // the stage marker sits BELOW its deals
     }
     el.mapTrack.innerHTML = html;
   }
@@ -8547,11 +8641,15 @@ const UIRenderer = (() => {
     updateStageRun();
     renderProgressionMap();
     el.mapOverlay.classList.remove("hidden");
-    // Bring the current run into view: it sits below the locked next stage, so
-    // scroll to it (leaving a little of the locked run visible above).
+    // Centre the current deal in view (it sits mid-climb: future deals above,
+    // cleared ones below).
     const curNode = el.mapTrack.querySelector(".map-node.current");
     const row = curNode ? curNode.closest(".map-run") : null;
-    el.mapScroll.scrollTop = row ? Math.max(0, row.offsetTop - 80) : 0;
+    if (row) {
+      el.mapScroll.scrollTop = Math.max(0, row.offsetTop - (el.mapScroll.clientHeight - row.offsetHeight) / 2);
+    } else {
+      el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // no current → show the bottom (Stage 1)
+    }
   }
   function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); }
   function enterRunFromMap() {
@@ -9051,6 +9149,57 @@ const UIRenderer = (() => {
     el.trashConfirm.classList.add("hidden");
     trashPendingCol = null;
     trashPendingItem = null;
+  }
+
+  /* ---- Peel ALL stickers off a card (setup only) ----
+     A deliberate, destructive action: it reverts the card to its base state and
+     DESTROYS the peeled stickers (they don't return to inventory). The confirm
+     names the base card so the player knows what it becomes — important when a
+     Random Rank hides the underlying value. */
+  function rankLabelOf(value) {
+    const r = DeckManager.RANKS.find(x => x.value === value);
+    return r ? r.label : String(value);
+  }
+  function requestPeel(index) {
+    if (index == null || !engine || !campaign || !engine.canApplyStickers()) return;
+    const top = engine.getBoard().top(index);
+    if (!top || !(top.stickers && top.stickers.length)) return;
+    const base = campaign.baseStateOf(top.id);
+    if (!base) return;
+    peelPendingIndex = index;
+    el.peelConfirmMsg.innerHTML =
+      "Peel off <b>all stickers</b> from this card? It reverts to <b>" +
+      escHtml(rankLabelOf(base.rank) + base.suit) + "</b> (its base card). " +
+      "The peeled stickers are <b>destroyed</b> — they do not return to your inventory.";
+    el.peelConfirm.classList.remove("hidden");
+  }
+  function closePeelConfirm() { el.peelConfirm.classList.add("hidden"); peelPendingIndex = null; }
+  function doPeel() {
+    const index = peelPendingIndex;
+    el.peelConfirm.classList.add("hidden");
+    peelPendingIndex = null;
+    if (index == null || !engine || !campaign) return;
+    const top = engine.getBoard().top(index);
+    if (!top) return;
+    const base = campaign.peelStickers(top.id);   // persistent: strip + revert (stickers destroyed)
+    if (!base) return;
+    // Mirror the base state onto the LIVE board card so it shows this deal.
+    top.value = base.rank;
+    top.label = rankLabelOf(base.rank);
+    const su = DeckManager.SUITS.find(x => x.symbol === base.suit) || DeckManager.SUITS[0];
+    top.suit = su.symbol; top.red = su.red;
+    top.stickers = [];
+    top.tieSafe = false; top.heartsRemaining = 0; top.revealNext = false;
+    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0;
+    paintFront(pileEls[index], top);
+    renderStickerBadges(pileEls[index], top);
+    paintPileCounts(engine.getBoard());
+    renderHud(engine.getBoard(), engine.getDeck());
+    renderSetupInv();
+    openCardPeek(index);      // re-render the peek: now the base card, no stickers
+    persistCampaign("run");   // permanent campaign change
+    engine.logAction("Peeled all stickers off " + top.label + top.suit + " (reverted to base; stickers destroyed)");
+    refreshDebug();
   }
 
   /* ---- Paid-bury confirmation (item 9) ----

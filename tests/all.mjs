@@ -18,6 +18,7 @@ import { run as packs } from "./packs.test.mjs";
 import { run as packReplace } from "./pack-replace.test.mjs";
 import { run as redeal } from "./redeal.test.mjs";
 import { run as pillarFeedback } from "./pillar-feedback.test.mjs";
+import { run as wildPeel } from "./wild-peel.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -36,6 +37,7 @@ const SUITES = [
   ["pack-replace", packReplace],
   ["redeal", redeal],
   ["pillar-feedback", pillarFeedback],
+  ["wild-peel", wildPeel],
 ];
 
 let pass = 0,
