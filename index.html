@@ -151,6 +151,11 @@
   .setup-inv.browse .setup-strip { flex: none; min-height: 72px; max-height: 32vh; }
   .setup-inv.browse .tray-help { flex: none; max-height: 30vh; margin-top: 2px; }
   .setup-inv.browse .tray-help .th-desc { margin-top: 5px; }
+  .tray-help .th-desc .bh-lede {
+    display: block; font-size: 10px; font-weight: 800; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
+  }
+  .tray-help .th-desc b { color: var(--accent-2); }
   /* Sectioned inventory: Stickers · Pillars · Cards, each a labelled group. */
   .inv-sec { display: flex; flex-direction: column; gap: 6px; }
   .inv-sec-h { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
@@ -897,8 +902,9 @@
   .menu-title .mt-a { transform: rotate(-4deg); }
   .menu-title .mt-b { transform: rotate(2deg); }
   .menu-title .mt-c { transform: rotate(-2deg); }
+  /* Tagline sits ABOVE the logo (flex gap handles the spacing). */
   .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
-    text-transform: uppercase; margin-bottom: 14px; }
+    text-transform: uppercase; margin: 0; }
   .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(82vw, 300px); }
   .menu-item {
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -2263,19 +2269,11 @@
   .overlay.map {
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
-    padding: max(14px, env(safe-area-inset-top)) 0 0;
+    padding: max(10px, env(safe-area-inset-top)) 0 0;
   }
-  .map-head { width: min(96vw, 420px); padding: 6px 16px 12px; text-align: center; flex: 0 0 auto; }
-  .map-title {
-    font-family: var(--font-display, "Baloo 2"); font-weight: 800;
-    font-size: 26px; letter-spacing: 0.5px; margin: 0; color: var(--text);
-    text-shadow: none;
-  }
-  .map-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
-  .map-sub .ms-suit { font-weight: 800; }
 
-  /* Scroll region (the climb scrolls; the header stays put). Navigation is by
-     tapping nodes — there's no footer button, so the climb fills to the bottom. */
+  /* Scroll region — no header/footer; the climb fills the whole overlay and
+     navigation is by tapping nodes. */
   .map-scroll {
     flex: 1 1 auto; width: 100%; overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain;
@@ -2290,13 +2288,15 @@
     background: repeating-linear-gradient(var(--edge-2) 0 6px, transparent 6px 12px);
   }
 
-  /* Stage divider + suit callout. */
-  .map-stage { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 16px 0 12px; }
+  /* Stage divider + suit callout. The tag carries a solid background so the
+     dotted path behind it is masked (no text-on-line overlap). */
+  .map-stage { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 18px 0 14px; }
   .map-stage .ms-line { height: 1px; background: var(--edge-2); flex: 1; }
   .map-stage .ms-tag {
     font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 12px;
     color: var(--accent-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
     letter-spacing: 0.4px;
+    background: var(--bg-2); padding: 2px 10px; border-radius: 999px;
   }
   .map-stage .ms-suits { font-size: 13px; letter-spacing: 1px; }
   .map-stage .ms-suits .red { color: var(--card-red); }
@@ -2308,9 +2308,17 @@
   }
   .map-newsuit .red { color: var(--card-red); font-size: 12px; }
 
-  /* A run row: node + meta, alternating sides along the path. */
-  .map-run { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; width: fit-content; margin: 0 auto 14px; }
-  .map-run.right { flex-direction: row-reverse; }
+  /* A run row: the NODE is centred on the dotted path; the label lives in the
+     outer column (alternating sides) so it never overlaps the line. */
+  .map-run {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center;
+    column-gap: 14px; width: 100%; margin: 0 auto 16px;
+  }
+  .map-run > .map-node { grid-column: 2; grid-row: 1; }
+  .map-run > .map-meta { grid-row: 1; }
+  .map-run:not(.right) > .map-meta { grid-column: 3; text-align: left; }
+  .map-run.right > .map-meta { grid-column: 1; text-align: right; }
   .map-node {
     width: 76px; height: 76px; border-radius: 16px; flex: 0 0 auto; position: relative;
     background: var(--card-face); border: 1px solid var(--edge-2);
@@ -2333,7 +2341,8 @@
   .map-node.tappable:active { transform: scale(0.94); }
   .map-node.locked { opacity: 0.5; }
   .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
-  .map-node .mn-lock { color: var(--muted); font-size: 19px; }
+  .map-node .mn-lock { color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .map-node .mn-lock svg { width: 26px; height: 26px; }
   .map-node .fossil { width: 100%; height: 100%; }
   /* Play-button indicator on the current run node — the tap target to start it. */
   .map-node .mn-play {
@@ -2350,13 +2359,10 @@
   }
   .map-badge.ok { background: var(--good); }
   .map-badge.cur { background: var(--accent); }
-  .map-node .mn-here {
-    position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%);
-    font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; color: var(--accent); white-space: nowrap;
-  }
-  .map-meta { font-size: 11.5px; max-width: 150px; }
+  .map-meta { font-size: 12.5px; min-width: 0; }
   .map-meta .mm-name { font-weight: 800; color: var(--text); }
-  .map-meta .mm-desc { color: var(--muted); font-size: 10px; margin-top: 1px; }
+  .map-meta .mm-name.mm-dim { color: var(--muted); font-weight: 700; }   /* locked runs */
+  .map-meta .mm-go { color: var(--accent); font-size: 10px; font-weight: 800; margin-top: 1px; }
 
   /* Enlarged fossil detail — opened by tapping a cleared run's node. Sits above
      the map overlay; tap the ✕ or the backdrop to dismiss. Display-only. */
@@ -2816,10 +2822,6 @@
        run node (▶) starts the run; a cleared node opens its fossil detail; future
        runs are inert. Body built in JS from campaign fossils. -->
   <div class="overlay map hidden" id="mapOverlay">
-    <div class="map-head">
-      <h2 class="map-title">Your climb</h2>
-      <div class="map-sub" id="mapSub"></div>
-    </div>
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
@@ -2902,12 +2904,12 @@
 
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
+    <div class="menu-tagline">Higher or lower?</div>
     <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" />
     <h1 class="menu-title">
       <span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>
       <span class="mt-w mt-c">same</span>
     </h1>
-    <div class="menu-tagline">a higher-or-lower survival game</div>
     <div class="menu-buttons" id="menuButtons"></div>
     <div class="menu-foot" id="menuFoot"></div>
   </div>
@@ -2966,7 +2968,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.8 · how-to-play-copy";
+const APP_VERSION = "v1.9 · map-stages-and-fixes";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5663,7 +5665,6 @@ const UIRenderer = (() => {
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     mapOverlay: document.getElementById("mapOverlay"),
-    mapSub: document.getElementById("mapSub"),
     mapScroll: document.getElementById("mapScroll"),
     mapTrack: document.getElementById("mapTrack"),
     fossilDetail: document.getElementById("fossilDetail"),
@@ -8367,36 +8368,39 @@ const UIRenderer = (() => {
       "</div>";
   }
 
-  /* One run row on the climb: the current run (top) is a tappable play button
-     that starts the run; cleared runs show their fossil and tap to enlarge it;
-     the side alternates down the path. `data-action` drives the tap handler. */
-  function mapRunNodeHtml(stage, run, isCurrent, side) {
-    let nodeClass, inner, badge, meta, attrs = "";
-    if (isCurrent) {
+  // Padlock for a locked (not-yet-reached) run — inherits the muted node colour.
+  const MAP_LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+
+  /* One run row on the climb. `state` is "current" (a tappable ▶ play button that
+     starts the run), "cleared" (its fossil; tap to enlarge), or "locked" (not yet
+     reached — inert padlock). The node sits centred on the path; the label is in
+     the outer column. `data-action` drives the tap handler (locked = none). */
+  function mapRunNodeHtml(stage, run, state, side) {
+    let nodeClass, inner, badge = "", meta, attrs = "";
+    if (state === "current") {
       nodeClass = "current tappable";
       attrs = ' data-action="enter"';
-      inner = '<span class="mn-play" aria-hidden="true">▶</span><span class="mn-here">TAP TO PLAY</span>';
-      badge = "";   // the play button IS the indicator
-      const layout = campaign.layoutForRun(run);
-      meta = '<div class="mm-name">Run ' + run + ' · next</div>' +
-             '<div class="mm-desc">' + layout.piles + ' piles · survive the deck</div>';
-    } else {
+      inner = '<span class="mn-play" aria-hidden="true">▶</span>';
+      meta = '<div class="mm-name">Run ' + run + '</div><div class="mm-go">Tap to play</div>';
+    } else if (state === "locked") {
+      nodeClass = "locked";
+      inner = '<span class="mn-lock">' + MAP_LOCK_SVG + "</span>";
+      meta = '<div class="mm-name mm-dim">Run ' + run + "</div>";
+    } else {   // cleared
       const fossil = campaign.getRunFossil(stage, run);
       badge = '<div class="map-badge ok">✓</div>';
       if (fossil && fossil.nodes.length) {
         nodeClass = "done tappable";
         attrs = ' data-action="fossil" data-stage="' + stage + '" data-run="' + run + '"';
         inner = fossilSvg(fossil);
-        meta = '<div class="mm-name">Run ' + run + ' ✓</div>' +
-               '<div class="mm-desc">' + fossil.alive + ' pile' + (fossil.alive === 1 ? "" : "s") + ' survived</div>';
       } else {
-        nodeClass = "done";   // cleared but no recorded shape (legacy) → nothing to enlarge
+        nodeClass = "done";   // cleared but no recorded shape (legacy)
         inner = '<span class="mn-q" style="color:var(--good)">✓</span>';
-        meta = '<div class="mm-name">Run ' + run + ' ✓</div><div class="mm-desc">cleared</div>';
       }
+      meta = '<div class="mm-name">Run ' + run + "</div>";
     }
     return '<div class="map-run ' + side + '">' +
-        '<div class="map-node ' + nodeClass + '"' + attrs + '>' + inner + badge + "</div>" +
+        '<div class="map-node ' + nodeClass + '"' + attrs + ">" + inner + badge + "</div>" +
         '<div class="map-meta">' + meta + "</div>" +
       "</div>";
   }
@@ -8404,18 +8408,20 @@ const UIRenderer = (() => {
   function renderProgressionMap() {
     const stage = campaign.currentStage, run = campaign.currentRunIndex;
     const maxStage = campaign.maxStages, maxRun = campaign.maxRunsPerStage;
-    el.mapSub.innerHTML = "Stage " + stage + " of " + maxStage +
-      " · each cleared run leaves its final network behind";
     let html = "";
     let side = 0;   // alternate L/R as nodes are emitted top → bottom
-    // Walk stages from the current one DOWN to Stage 1. The current run is the
-    // top of the climb; future runs aren't shown.
-    for (let s = stage; s >= 1; s--) {
+    // Top → bottom: the NEXT stage (locked) sits ABOVE the current stage; the
+    // current stage shows ALL its runs (future ones locked); earlier stages show
+    // their cleared runs. Reflects the existing structure — display only.
+    const topStage = Math.min(maxStage, stage + 1);
+    for (let s = topStage; s >= 1; s--) {
       html += mapStageHeaderHtml(s);
-      const topRun = (s === stage) ? run : maxRun;   // current stage stops at the live run
-      for (let rr = topRun; rr >= 1; rr--) {
-        const isCurrent = (s === stage && rr === run);
-        html += mapRunNodeHtml(s, rr, isCurrent, (side++ % 2 === 0) ? "" : "right");
+      for (let rr = maxRun; rr >= 1; rr--) {
+        let st;
+        if (s < stage || (s === stage && rr < run)) st = "cleared";
+        else if (s === stage && rr === run) st = "current";
+        else st = "locked";   // future run (rest of this stage, or the next stage)
+        html += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
       }
     }
     el.mapTrack.innerHTML = html;
@@ -8432,7 +8438,11 @@ const UIRenderer = (() => {
     updateStageRun();
     renderProgressionMap();
     el.mapOverlay.classList.remove("hidden");
-    el.mapScroll.scrollTop = 0;   // start at the top (the current run)
+    // Bring the current run into view: it sits below the locked next stage, so
+    // scroll to it (leaving a little of the locked run visible above).
+    const curNode = el.mapTrack.querySelector(".map-node.current");
+    const row = curNode ? curNode.closest(".map-run") : null;
+    el.mapScroll.scrollTop = row ? Math.max(0, row.offsetTop - 80) : 0;
   }
   function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); }
   function enterRunFromMap() {
@@ -9081,7 +9091,8 @@ const UIRenderer = (() => {
     const info = browsePick ? browseDescribe(browsePick) : null;
     if (!info) { el.browseHelp.classList.add("hidden"); return; }
     el.bThTitle.innerHTML = info.title;
-    el.bThDesc.textContent = info.desc;
+    if (info.descHtml != null) el.bThDesc.innerHTML = info.descHtml;   // multi-sticker list
+    else el.bThDesc.textContent = info.desc;
     el.browseHelp.classList.remove("hidden");
   }
   function browseDescribe(pick) {
@@ -9096,9 +9107,17 @@ const UIRenderer = (() => {
     if (pick.kind === "card") {
       const card = campaign ? campaign.getPackTray()[pick.index] : null;
       if (!card) return null;
-      const stk = (card.stickers || []).map(s => { const st = StickerTypes.get(s.type); return st ? st.label : null; }).filter(Boolean);
-      return { title: escHtml(miniRankLabel(card) + " " + card.suit),
-        desc: stk.length ? "Carries " + stk.join(", ") + "." : "A plain card, no stickers." };
+      const title = escHtml(miniRankLabel(card) + " " + card.suit);
+      // List EVERY sticker on the card and what it does — not just the card.
+      const counts = {};
+      (card.stickers || []).forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
+      const lines = [];
+      StickerTypes.all().forEach(t => {
+        const n = counts[t.id]; if (!n) return;
+        lines.push('<b>' + t.icon + " " + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</b> — " + escHtml(t.description || ""));
+      });
+      if (!lines.length) return { title, desc: "A plain card, no stickers." };
+      return { title, descHtml: '<span class="bh-lede">Stickers on this card:</span>' + lines.join("<br><br>") };
     }
     return null;
   }
