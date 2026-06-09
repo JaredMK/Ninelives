@@ -1,6 +1,6 @@
-// Phase 1 guard: the word "round" is banned as a unit — the only units are
-// Stage and Run. Allowed false positives: "background" (no word boundary) and
-// the JS "Math.round" function. Fails if a stray "round/rounds" reappears.
+// Phase 1 guard: the word "round" is banned as a unit — the hierarchy units are
+// Run > Stage > Deal. Allowed false positives: "background" (no word boundary)
+// and the JS "Math.round" function. Fails if a stray "round/rounds" reappears.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

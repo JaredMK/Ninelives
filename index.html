@@ -902,8 +902,9 @@
   .menu-title .mt-a { transform: rotate(-4deg); }
   .menu-title .mt-b { transform: rotate(2deg); }
   .menu-title .mt-c { transform: rotate(-2deg); }
-  /* Tagline sits ABOVE the logo (flex gap handles the spacing). */
-  .menu-tagline { color: var(--muted); font-size: 11px; letter-spacing: 2px;
+  /* Tagline sits ABOVE the logo (flex gap handles the spacing). Bigger + bolder
+     + higher-contrast for legibility; same uppercase tagline style. */
+  .menu-tagline { color: var(--text); font-size: 15px; font-weight: 800; letter-spacing: 1.5px;
     text-transform: uppercase; margin: 0; }
   .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(82vw, 300px); }
   .menu-item {
@@ -2520,12 +2521,12 @@
     <!-- Global Stage·Run badge — shown over the STORE/modals only (the play
          screen carries Stage·Run in its own slim HUD bar below). Fixed, so it
          contributes ~0 height to the top. -->
-    <div class="stage-run off" id="stageRun">Stage 1 · Run 1</div>
+    <div class="stage-run off" id="stageRun">Stage 1 · Deal 1</div>
   </header>
 
   <!-- Layout 4: a single slim HUD line — Stage·Run · score expression · dopamine. -->
-  <div class="hud" title="Your coins for clearing the run: surviving piles × the smallest surviving pile, plus bonus">
-    <span class="hud-sr" id="hudStageRun">Stage 1 · Run 1</span>
+  <div class="hud" title="Your coins for clearing the deal: surviving piles × the smallest surviving pile, plus bonus">
+    <span class="hud-sr" id="hudStageRun">Stage 1 · Deal 1</span>
     <span class="hud-score">
       <b id="aliveCount">9</b><span class="hl">P</span>
       <span class="hx">×</span>
@@ -2546,7 +2547,7 @@
          buttons during the run — mutually exclusive, reserved at a constant
          height so the board never reflows across the Start transition. -->
     <div class="play-controls" id="playControls">
-      <button class="play-btn start-run hidden" id="startRunBtn" type="button">START RUN</button>
+      <button class="play-btn start-run hidden" id="startRunBtn" type="button">START DEAL</button>
       <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
       <div class="actions hidden" id="actions">
         <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
@@ -2648,7 +2649,7 @@
           <button class="debug-btn" id="debugCoin100">+100 <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></button>
         </div>
         <div class="debug-peek" id="debugPeekOut"></div>
-        <div class="debug-sub">logbook (this run · newest first) →</div>
+        <div class="debug-sub">logbook (this deal · newest first) →</div>
         <div class="debug-log" id="debugLog"></div>
         <div class="debug-ver" id="debugVer">build —</div>
       </div>
@@ -2665,9 +2666,9 @@
       Keep your piles alive. Pick a pile and guess the next card:
       higher, lower, or the same. Guess right and the pile grows.
       Guess wrong (a tie counts as a miss) and the pile dies.
-      Survive the whole deck to clear the run.
+      Survive the whole deck to clear the deal.
     </p>
-    <div class="run-progress hidden" id="runProgress">Run 1 of 3</div>
+    <div class="run-progress hidden" id="runProgress">Deal 1 of 4</div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
     <div class="summary-block hidden" id="endSummary">
       <div class="summary-tiles">
@@ -2737,7 +2738,7 @@
         <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
       </div>
       <div class="store-actions">
-        <button class="play-btn store-start" id="storeStartBtn" type="button">START RUN</button>
+        <button class="play-btn store-start" id="storeStartBtn" type="button">START DEAL</button>
       </div>
     </div>
   </div>
@@ -2968,7 +2969,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v1.9 · map-stages-and-fixes";
+const APP_VERSION = "v2.0 · vocab-run-stage-deal";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -3104,15 +3105,15 @@ const StickerTypes = (() => {
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "Safe from a tie. A drawn card that matches this card's rank no longer kills the pile." },
     suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♠ is drawn. Works once a run; the pile survives and the card goes back into the deck." },
+                  description: "Safe from a wrong guess when a ♠ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
     heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♥ is drawn. Works once a run; the pile survives and the card goes back into the deck." },
+                  description: "Safe from a wrong guess when a ♥ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♦ is drawn. Works once a run; the pile survives and the card goes back into the deck." },
+                  description: "Safe from a wrong guess when a ♦ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
     clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "Safe from a wrong guess when a ♣ is drawn. Works once a run; the pile survives and the card goes back into the deck." },
+                  description: "Safe from a wrong guess when a ♣ is drawn. Works once a deal; the pile survives and the card goes back into the deck." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
-                  description: "Earn +1 coin per card in this pile when you clear the run with this card on top." },
+                  description: "Earn +1 coin per card in this pile when you clear the deal with this card on top." },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
                   description: "Earn +3 coins when you place this sticker on a surviving pile in the middle column." },
     gainCoin:   { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
@@ -3120,7 +3121,7 @@ const StickerTypes = (() => {
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 4,
                   description: "While this card is on top, this pile is left out of the smallest-pile part of your score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
-                  description: "Safe from a wrong guess of any kind. Works once a run; the pile survives and the card goes back into the deck." },
+                  description: "Safe from a wrong guess of any kind. Works once a deal; the pile survives and the card goes back into the deck." },
     oneTribute: { id: "oneTribute", label: "Bury 1",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, tier: "rare", price: 6,
                   description: "Bury 1 card from the bottom of the deck under the pile when this card is correctly placed on it. Every time, no cost." },
     twoTribute: { id: "twoTribute", label: "Bury 2",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
@@ -3134,7 +3135,7 @@ const StickerTypes = (() => {
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
                   description: "Earn +1 coin per other sticker on the card when you place this sticker on a surviving pile's top card." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the campaign until a full reset." },
+                  description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the run until a full reset." },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
                   description: "See the next card after this card is played, until that card is drawn." },
     duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "rare", price: 7,
@@ -3208,7 +3209,7 @@ const PillarTypes = (() => {
     columnGuardian: {
       id: "columnGuardian", label: "Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 5,
-      description: "Earn +5 coins when you clear the run with every pile in this column alive.",
+      description: "Earn +5 coins when you clear the deal with every pile in this column alive.",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
@@ -3232,36 +3233,36 @@ const PillarTypes = (() => {
       // computePillarPayout via the shared "allSuitTop" effect. Suit-gated.
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
       kind: "scoring", effect: "allSuitTop", suit: "♥", value: 5, tier: "common", price: 6,
-      description: "Earn +5 coins when you clear the run with every surviving pile in this column showing a ♥ on top.",
+      description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♥ on top.",
     },
     allSpadesCoin: {
       id: "allSpadesCoin", label: "All Spades", icon: "♠️",
       kind: "scoring", effect: "allSuitTop", suit: "♠", value: 5, tier: "common", price: 6,
-      description: "Earn +5 coins when you clear the run with every surviving pile in this column showing a ♠ on top.",
+      description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♠ on top.",
     },
     allDiamondsCoin: {
       id: "allDiamondsCoin", label: "All Diamonds", icon: "♦️",
       kind: "scoring", effect: "allSuitTop", suit: "♦", value: 5, tier: "common", price: 6,
-      description: "Earn +5 coins when you clear the run with every surviving pile in this column showing a ♦ on top.",
+      description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♦ on top.",
     },
     allClubsCoin: {
       id: "allClubsCoin", label: "All Clubs", icon: "♣️",
       kind: "scoring", effect: "allSuitTop", suit: "♣", value: 5, tier: "common", price: 6,
-      description: "Earn +5 coins when you clear the run with every surviving pile in this column showing a ♣ on top.",
+      description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♣ on top.",
     },
     envy: {
       // End-of-run: +2 per surviving pile across all OTHER pillared columns
       // (columns holding any Pillar, excluding this one). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "envyOthers", value: 2, tier: "uncommon", price: 6,
-      description: "Earn +2 coins per surviving pile in your other pillared columns when you clear the run.",
+      description: "Earn +2 coins per surviving pile in your other pillared columns when you clear the deal.",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
       // column's (wraparound: right-of-rightmost = leftmost).
       id: "symmetry", label: "Symmetry", icon: "🪞",
       kind: "scoring", effect: "symmetryRight", value: 6, tier: "rare", price: 7,
-      description: "Earn +6 coins when you clear the run with this column holding as many surviving piles as the column on its right. The rightmost column wraps to the leftmost.",
+      description: "Earn +6 coins when you clear the deal with this column holding as many surviving piles as the column on its right. The rightmost column wraps to the leftmost.",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -3284,7 +3285,7 @@ const PillarTypes = (() => {
       // reshuffled into the deck with no reveal, stickers intact.
       id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 7,
-      description: "The first pile to die in this column each run comes back with one fresh card on top. Its old cards shuffle back into the deck, and the revived one-card pile counts as surviving, which can lower your smallest-pile score.",
+      description: "The first pile to die in this column each deal comes back with one fresh card on top. Its old cards shuffle back into the deck, and the revived one-card pile counts as surviving, which can lower your smallest-pile score.",
     },
     greedy: {
       // End-of-run: +value if every pile in this column is alive AND this is the
@@ -3292,7 +3293,7 @@ const PillarTypes = (() => {
       // — disqualifies it).
       id: "greedy", label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 20, tier: "rare", price: 10,
-      description: "Earn +20 coins when you clear the run with every pile in this column alive and no other Pillar anywhere on the board.",
+      description: "Earn +20 coins when you clear the deal with every pile in this column alive and no other Pillar anywhere on the board.",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -3320,7 +3321,7 @@ const PackTypes = (() => {
     cardPack: {
       id: "cardPack", label: "Card Pack", icon: "🎴", kind: "card",
       size: 5, keep: 1, price: 12,
-      description: "Reveals 5 random cards. Keep 1 to swap into your deck before a run, replacing a card of your choice. The rest are discarded.",
+      description: "Reveals 5 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded.",
     },
     stickerPack: {
       id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker",
@@ -6069,7 +6070,7 @@ const UIRenderer = (() => {
   /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
   function updateStageRun() {
     if (!campaign) return;
-    const sr = "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+    const sr = "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex;
     const dop = campaign.getCoins();
     // Slim HUD bar (play screen).
     if (el.hudStageRun) el.hudStageRun.textContent = sr;
@@ -6202,8 +6203,8 @@ const UIRenderer = (() => {
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     const hasPillars = campaign && Object.values(campaign.getPillarInventory()).some(n => n > 0);
     el.hint.textContent = (hasStickers || hasPillars)
-      ? "Place your stickers and pillars, then press Start Run."
-      : "Read the board, then press Start Run.";
+      ? "Place your stickers and pillars, then press Start Deal."
+      : "Read the board, then press Start Deal.";
   }
 
   function showActivePhase() {
@@ -6374,7 +6375,7 @@ const UIRenderer = (() => {
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
       ? "Tap a pile to apply " + t.label + " to its top card."
-      : "Apply stickers, then press Start Run.";
+      : "Apply stickers, then press Start Deal.";
   }
 
   /* Reflect the current arm state on the board: `arming` (a sticker/pack target
@@ -6468,7 +6469,7 @@ const UIRenderer = (() => {
     const t = PillarTypes.get(armedPillar);
     el.hint.textContent = t
       ? "Tap a column's pillar slot to place " + t.label + "."
-      : "Place Pillars on columns, then press Start Run.";
+      : "Place Pillars on columns, then press Start Deal.";
   }
 
   function placePillarOnColumn(col) {
@@ -6510,7 +6511,7 @@ const UIRenderer = (() => {
       armedSticker = null;
       el.board.classList.remove("arming");
       renderSetupInv();
-      el.hint.textContent = "Sticker window closed — the run has started.";
+      el.hint.textContent = "Sticker window closed — the deal has started.";
       return;
     }
     const board = engine.getBoard();
@@ -6559,7 +6560,7 @@ const UIRenderer = (() => {
     paintPileCounts(board);
     renderHud(board, engine.getDeck());
     renderSetupInv();
-    el.hint.textContent = "Sticker applied — apply more or press Start Run.";
+    el.hint.textContent = "Sticker applied — apply more or press Start Deal.";
     persistCampaign("run");   // the sticker is a permanent campaign change
     const st = StickerTypes.get(typeId);
     engine.logAction("Applied Sticker: " + ((st && st.label) || typeId) + " → pile " + (index + 1));
@@ -7332,7 +7333,7 @@ const UIRenderer = (() => {
       '<div class="ocoins-head">' + COIN_SVG + ' Coins earned</div>' +
       row("Surviving piles", "", b.alivePiles) +
       row("Smallest pile", b.minPileCards + " cards", "") +
-      row("Run reward", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
+      row("Deal reward", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
       row("Payout bonus", "", "+" + b.extraCoinBonus) +
       // One row per scoring Pillar that paid out this run (omitted when none).
       (b.pillarLines || []).map(p =>
@@ -7394,7 +7395,7 @@ const UIRenderer = (() => {
   /* ---- phase screens ---- */
   /** Concise "Stage X · Run Y" for the end screen (no "of N"). */
   function stageRunShort() {
-    return "Stage " + campaign.currentStage + " · Run " + campaign.currentRunIndex;
+    return "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex;
   }
 
   /** The ending Pillars, by column: one row per column showing its Pillar (icon
@@ -7408,10 +7409,10 @@ const UIRenderer = (() => {
     }).join("");
   }
 
-  /** "Stage X of 3 · Run Y of 3" — shared progress label. */
+  /** "Stage X of 3 · Deal Y of 4" — shared progress label. */
   function stageRunLabel(suffix) {
     return "Stage " + campaign.currentStage + " of " + campaign.maxStages +
-           " · Run " + campaign.currentRunIndex + " of " + campaign.maxRunsPerStage +
+           " · Deal " + campaign.currentRunIndex + " of " + campaign.maxRunsPerStage +
            (suffix || "");
   }
 
@@ -7419,11 +7420,11 @@ const UIRenderer = (() => {
     showOverlay({
       icon: glyph("logo"),
       title: "Shoulda Said Same",
-      msg: "A " + campaign.maxStages + "-stage campaign (" + campaign.maxRunsPerStage
-         + " runs each). The deck grows by a suit each stage. Lose a single run "
-         + "and the whole campaign resets. Survive every card to clear a run.",
-      progress: "Stage 1 of " + campaign.maxStages + " · Run 1 of " + campaign.maxRunsPerStage,
-      btnLabel: "START CAMPAIGN",
+      msg: "A " + campaign.maxStages + "-stage run (" + campaign.maxRunsPerStage
+         + " deals each). The deck grows by a suit each stage. Lose a single deal "
+         + "and the whole run resets. Survive every card to clear a deal.",
+      progress: "Stage 1 of " + campaign.maxStages + " · Deal 1 of " + campaign.maxRunsPerStage,
+      btnLabel: "START RUN",
       action: startCampaign,
     });
   }
@@ -7436,7 +7437,7 @@ const UIRenderer = (() => {
     showOverlay({
       kind: "win",
       icon: glyph("win"),
-      title: "RUN CLEARED",
+      title: "DEAL CLEARED",
       msg: "Every card survived. Your piles hold.",
       progress: stageRunLabel(" complete"),
       coins,
@@ -7462,12 +7463,12 @@ const UIRenderer = (() => {
     showOverlay({
       kind: "lose",
       icon: glyph("loss"),
-      title: "CAMPAIGN OVER",
-      msg: "A run slipped away. The campaign resets, so you start fresh from Stage 1.",
+      title: "RUN OVER",
+      msg: "A deal slipped away. The run resets, so you start fresh from Stage 1.",
       progress: "Reached " + stageRunShort(),
       endStats: endStats(),
       peek: true,
-      btnLabel: "NEW CAMPAIGN",
+      btnLabel: "NEW RUN",
       action: startCampaign,
     });
   }
@@ -7477,12 +7478,12 @@ const UIRenderer = (() => {
     showOverlay({
       kind: "win",
       icon: glyph("complete"),
-      title: "CAMPAIGN CLEARED",
-      msg: "You survived every card to the end. All " + (campaign.maxStages * campaign.maxRunsPerStage) + " runs cleared.",
+      title: "RUN CLEARED",
+      msg: "You survived every card to the end. All " + (campaign.maxStages * campaign.maxRunsPerStage) + " deals cleared.",
       progress: stageRunShort(),
       endStats: endStats(),
       peek: true,
-      btnLabel: "NEW CAMPAIGN",
+      btnLabel: "NEW RUN",
       action: startCampaign,
     });
   }
@@ -7805,17 +7806,18 @@ const UIRenderer = (() => {
       const sp = ((0.32 + w * 0.05) * 0.56 * (0.90 + edgeRand(key, 13) * 0.20)).toFixed(3);
       const phase = edgeRand(key, 7);                      // per-edge start offset (desync)
       const r = (1.5 + w * 0.28).toFixed(1);
-      // Fire in BOTH directions so the synapse reads as actively signalling:
-      // `count` dots travel A→B and `count` travel B→A (the reverse set offset a
-      // half-phase so the two streams interleave rather than overlap).
-      for (let dir = 0; dir < 2; dir++) {
-        for (let k = 0; k < count; k++) {
-          const of = ((k + (dir ? 0.5 : 0)) / count + phase) % 1;
-          const t0 = dir ? 1 - of : of;                   // B→A walks the curve in reverse
-          const p = bezPt(a.x, a.y, c, b.x, b.y, t0);
-          m += '<circle class="pulse" r="' + r + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-            '" data-sp="' + sp + '" data-of="' + of.toFixed(3) + '" data-dir="' + (dir ? -1 : 1) + '"/>';
-        }
+      // A SINGLE travelling stream per edge (was two — one each way), so the dot
+      // count drops ~50% for a calmer mesh. The one direction is chosen
+      // deterministically per edge, so across the board dots still travel both
+      // ways overall and the synapses read as actively signalling. Per-dot
+      // size/speed/style and the speed-by-strength rule are unchanged.
+      const dir = edgeRand(key, 23) < 0.5 ? 0 : 1;
+      for (let k = 0; k < count; k++) {
+        const of = (k / count + phase) % 1;
+        const t0 = dir ? 1 - of : of;                     // B→A walks the curve in reverse
+        const p = bezPt(a.x, a.y, c, b.x, b.y, t0);
+        m += '<circle class="pulse" r="' + r + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+          '" data-sp="' + sp + '" data-of="' + of.toFixed(3) + '" data-dir="' + (dir ? -1 : 1) + '"/>';
       }
     }
     return m;
@@ -8381,11 +8383,11 @@ const UIRenderer = (() => {
       nodeClass = "current tappable";
       attrs = ' data-action="enter"';
       inner = '<span class="mn-play" aria-hidden="true">▶</span>';
-      meta = '<div class="mm-name">Run ' + run + '</div><div class="mm-go">Tap to play</div>';
+      meta = '<div class="mm-name">Deal ' + run + '</div><div class="mm-go">Tap to play</div>';
     } else if (state === "locked") {
       nodeClass = "locked";
       inner = '<span class="mn-lock">' + MAP_LOCK_SVG + "</span>";
-      meta = '<div class="mm-name mm-dim">Run ' + run + "</div>";
+      meta = '<div class="mm-name mm-dim">Deal ' + run + "</div>";
     } else {   // cleared
       const fossil = campaign.getRunFossil(stage, run);
       badge = '<div class="map-badge ok">✓</div>';
@@ -8397,7 +8399,7 @@ const UIRenderer = (() => {
         nodeClass = "done";   // cleared but no recorded shape (legacy)
         inner = '<span class="mn-q" style="color:var(--good)">✓</span>';
       }
-      meta = '<div class="mm-name">Run ' + run + "</div>";
+      meta = '<div class="mm-name">Deal ' + run + "</div>";
     }
     return '<div class="map-run ' + side + '">' +
         '<div class="map-node ' + nodeClass + '"' + attrs + ">" + inner + badge + "</div>" +
@@ -8471,7 +8473,7 @@ const UIRenderer = (() => {
   function showFossilDetail(stage, run) {
     const f = campaign.getRunFossil(stage, run);
     if (!f || !f.nodes || !f.nodes.length) return;
-    el.fossilDetailTitle.textContent = "Stage " + stage + " · Run " + run;
+    el.fossilDetailTitle.textContent = "Stage " + stage + " · Deal " + run;
     el.fossilDetailArt.innerHTML = fossilSvg(f, 230);
     el.fossilDetailSub.textContent = f.alive + " of " + f.total + " piles survived";
     el.fossilDetail.classList.remove("hidden");
@@ -8491,7 +8493,7 @@ const UIRenderer = (() => {
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
     selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedSlotMove = null;
     closeItemHelp();
-    el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Run.";
+    el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
   }
@@ -8644,7 +8646,7 @@ const UIRenderer = (() => {
     armedSlotMove = null;
     el.storeMsg.textContent = selectedPackSlot != null
       ? "Tap Buy to open it, or tap it again to deselect."
-      : "Buy from the offer, reroll, then press Start Run.";
+      : "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
   }
 
@@ -8874,7 +8876,7 @@ const UIRenderer = (() => {
     armedSlotMove = null;
     el.storeMsg.textContent = selectedStickerSlot != null
       ? "Tap Buy to confirm, or tap the sticker again to deselect."
-      : "Buy from the offer, reroll, then press Start Run.";
+      : "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
   }
 
@@ -8889,7 +8891,7 @@ const UIRenderer = (() => {
       if (engine) engine.logAction("Store: bought Sticker " + ((st && st.label) || id));
       selectedStickerSlot = null;
       Sound.purchase();
-      el.storeMsg.textContent = "Sticker bought — apply it during the next run.";
+      el.storeMsg.textContent = "Sticker bought — apply it during the next deal.";
     }
     renderStore();
     refreshDebug();
@@ -8906,7 +8908,7 @@ const UIRenderer = (() => {
     armedPillarSlot = armedPillarSlot === slot ? null : slot;
     el.storeMsg.textContent = armedPillarSlot != null
       ? "Tap Buy to add it to your inventory — place it on a column in setup."
-      : "Buy from the offer, reroll, then press Start Run.";
+      : "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
   }
 
@@ -9187,7 +9189,7 @@ const UIRenderer = (() => {
     el.board.classList.remove("show-slots");   // no setup slot row on the menu backdrop
     const items = [];
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
-    items.push({ label: canContinue ? "New Campaign" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
+    items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
       action: () => { hideMainMenu(); startCampaign(); } });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
@@ -9218,7 +9220,7 @@ const UIRenderer = (() => {
       { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
       { label: "How to Play", ico: "search", action: showManual },
       { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
-      { label: "New Campaign", ico: "spark", action: () => { closeGameMenu(); startCampaign(); } },
+      { label: "New Run", ico: "spark", action: () => { closeGameMenu(); startCampaign(); } },
       { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
     ]);
     el.gameMenu.classList.remove("hidden");
@@ -9237,12 +9239,12 @@ const UIRenderer = (() => {
   function showStats() {
     const s = Stats.get();
     const wr = s.gamesPlayed ? Math.round(100 * s.campaignsWon / s.gamesPlayed) : 0;
-    const far = s.furthestStage ? ("S" + s.furthestStage + " · R" + s.furthestRun) : "—";
+    const far = s.furthestStage ? ("S" + s.furthestStage + " · D" + s.furthestRun) : "—";
     const tiles = [
-      [s.gamesPlayed, "Games played"], [s.campaignsWon, "Campaigns won"],
+      [s.gamesPlayed, "Runs played"], [s.campaignsWon, "Runs won"],
       [wr + "%", "Win rate"], [far, "Furthest reached"],
-      [s.runsCleared, "Runs cleared"], [s.bestRunDopamine, "Best run"],
-      [s.bestCampaignDopamine, "Best campaign"], [s.lifetimeDopamine, "Lifetime coins"],
+      [s.runsCleared, "Deals cleared"], [s.bestRunDopamine, "Best deal"],
+      [s.bestCampaignDopamine, "Best run"], [s.lifetimeDopamine, "Lifetime coins"],
       [s.lifetimeCardsFlipped, "Cards played"],
     ];
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
@@ -9327,7 +9329,7 @@ const UIRenderer = (() => {
           '<div class="cell"><span class="num coin">' + coin + '12</span><span class="lab">coins</span></div>' +
           "</div>",
         cap: '<span class="lead">Clear the deck, earn coins</span>' +
-          "Survive the whole <b>deck</b> to win the run. You earn coins equal to the number of " +
+          "Survive the whole <b>deck</b> to win the deal. You earn coins equal to the number of " +
           "<b>surviving piles × the number of cards in the smallest pile</b>. " +
           "Keep every pile alive and evenly sized to get the most coins.",
       },
@@ -9346,9 +9348,9 @@ const UIRenderer = (() => {
             '<div class="wt-mini-col"><span class="wt-pillar-tag">' + glyph("guardian") + 'Pillar</span>' +
               '<div class="col-cards">' + card("9", "♠") + card("4", "♣") + "</div></div>" +
           "</div></div>",
-        cap: '<span class="lead">Spend between runs</span>' +
+        cap: '<span class="lead">Spend between deals</span>' +
           "In the <b>store</b>, buy <b>stickers</b>, <b>pillars</b> and packs with coins, then place them: " +
-          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>. Then start your run.",
+          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>. Then start your deal.",
       },
     ];
 
