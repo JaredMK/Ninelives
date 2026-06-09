@@ -533,16 +533,19 @@
      card visibly travels instead of teleporting into place. The transform is
      driven by the Web Animations API (the flyCard() helper); these rules are
      only the look. Purely an overlay: the engine move already happened, so this
-     never affects state, draw order, or timing. */
+     never affects state, draw order, or timing.
+       A face-UP travel clones the real .card DOM (it keeps the .card/.face look),
+     so the base rule only adds the overlay chrome — it must NOT override the
+     card's own radius. A face-DOWN clone is a plain div styled below. */
   .fly-card {
-    position: fixed; z-index: 60; pointer-events: none;
-    border-radius: 18px; will-change: transform;
+    z-index: 60; pointer-events: none; will-change: transform;
     backface-visibility: hidden; -webkit-backface-visibility: hidden;
     box-shadow: 0 9px 22px rgba(74, 50, 40, 0.30), 0 3px 8px rgba(74, 50, 40, 0.18);
   }
   /* Face-down clone = a card lifted off the deck (warm tan back + dashed crest),
      matching the deck-stack look so the travel reads as "off the deck". */
   .fly-card.face-down {
+    border-radius: 18px;
     background: repeating-linear-gradient(135deg, #e2d2c4 0 6px, #d3c1b0 6px 12px);
     border: 1px solid var(--pathway-2);
     display: flex; align-items: center; justify-content: center;
@@ -551,16 +554,6 @@
     content: ""; width: 58%; height: 58%; border-radius: 10px;
     border: 2px dashed rgba(120, 90, 70, 0.42);
   }
-  /* Face-up clone = a matte card face carrying a rank+suit (pack swaps fly the
-     actual card onto the board). Sizing of the rank/suit is set inline to track
-     the destination card's width. */
-  .fly-card.face-up {
-    background: var(--card-face); color: var(--card-ink);
-    border: 1px solid var(--card-border);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-family: var(--font-text); font-weight: 800; line-height: 0.95;
-  }
-  .fly-card.face-up.red { color: var(--card-red); }
   @media (prefers-reduced-motion: reduce) { .fly-card { display: none; } }
 
   /* Revealed pack items pop in with the same quick, settling motion language as
@@ -3101,7 +3094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.6.1 · traveling-cards-faceup";
+const APP_VERSION = "v2.6.2 · traveling-cards-realface";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7359,15 +7352,31 @@ const UIRenderer = (() => {
     n.className = "fly-card face-down";
     return n;
   }
-  /* A face-up flying clone carrying a card's rank+suit, sized to `size` (the
-     destination rect) so its glyphs track the landing card. */
-  function flyFaceEl(card, size) {
-    const n = document.createElement("div");
-    n.className = "fly-card face-up" + (card && card.red ? " red" : "");
-    const fs = Math.max(11, Math.round((size ? size.width : 64) * 0.3));
-    n.innerHTML =
-      '<span style="font-size:' + fs + 'px">' + (card ? card.label : "") + "</span>" +
-      '<span style="font-size:' + Math.round(fs * 0.72) + 'px">' + (card ? card.suit : "") + "</span>";
+  /* A face-up flying clone that LOOKS like a real board card. Clones the live
+     pile card DOM (the matte front, corner ranks, centre suit, styling), then
+     paints `card`'s face onto it with the same painter the board uses — so the
+     traveling card matches the cards on the neurons rather than a bare glyph.
+     The drift/landing state and the badge/dead overlays are stripped for a
+     clean face. Falls back to a minimal front if no template card is given. */
+  function flyRealCardEl(card, templateCardEl) {
+    let n;
+    if (templateCardEl && templateCardEl.cloneNode) {
+      n = templateCardEl.cloneNode(true);
+    } else {
+      n = document.createElement("div");
+      n.className = "card";
+      n.innerHTML =
+        '<div class="face front">' +
+        '<div class="rank-top"><span class="r"></span><span class="s"></span></div>' +
+        '<div class="pip"></div>' +
+        '<div class="rank-bottom"><span class="r"></span><span class="s"></span></div></div>';
+    }
+    n.classList.add("fly-card");
+    n.classList.remove("landing", "wince", "dealing");
+    n.style.animation = "none";              // kill cardDrift so it doesn't fight the flight transform
+    const fx = n.querySelector(".card-fx"); if (fx) fx.remove();      // drop badges/count overlay
+    const dm = n.querySelector(".dead-mark"); if (dm) dm.remove();    // drop the dead scar
+    paintFront(n, card);                     // paint the drawn face (same as the board)
     return n;
   }
   /* Fly `node` (an unattached .fly-card) along an eased arc from rect `from` to
@@ -7384,6 +7393,13 @@ const UIRenderer = (() => {
     }
     const fcx = from.left + from.width / 2, fcy = from.top + from.height / 2;
     const tcx = to.left + to.width / 2, tcy = to.top + to.height / 2;
+    // Position inline so any node works as a fixed overlay (a cloned .card is
+    // position:relative by default — override it here, don't rely on a class).
+    node.style.position = "fixed";
+    node.style.zIndex = "60";
+    node.style.pointerEvents = "none";
+    node.style.margin = "0";
+    node.style.boxSizing = "border-box";
     node.style.left = (fcx - to.width / 2) + "px";
     node.style.top = (fcy - to.height / 2) + "px";
     node.style.width = to.width + "px";
@@ -7553,7 +7569,7 @@ const UIRenderer = (() => {
         // (in land()), with a small settling flourish.
         if (!reduce && cardEl && typeof cardEl.animate === "function") {
           const to = cardEl.getBoundingClientRect();
-          flyCard(flyFaceEl(payload.drawn, to), deckRect(), to, { duration: 250, onArrive: land });
+          flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to, { duration: 250, onArrive: land });
         } else {
           land();
         }
@@ -9338,7 +9354,7 @@ const UIRenderer = (() => {
       if (!reduce && cardEl && fromRect && typeof cardEl.animate === "function") {
         const to = cardEl.getBoundingClientRect();
         cardEl.style.visibility = "hidden";
-        flyCard(flyFaceEl(top, to), fromRect, to, { duration: 300, onArrive: () => {
+        flyCard(flyRealCardEl(top, cardEl), fromRect, to, { duration: 300, onArrive: () => {
           cardEl.style.visibility = "";
           cardEl.classList.add("landing");
           setTimeout(() => cardEl.classList.remove("landing"), 360);
