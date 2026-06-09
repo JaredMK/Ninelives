@@ -3094,7 +3094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.6.3 · traveling-cards-noflip";
+const APP_VERSION = "v2.7 · anim-queue-sequencing";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7400,6 +7400,7 @@ const UIRenderer = (() => {
     node.style.pointerEvents = "none";
     node.style.margin = "0";
     node.style.boxSizing = "border-box";
+    node.style.visibility = "visible";   // a cloned hidden card must show in flight
     node.style.left = (fcx - to.width / 2) + "px";
     node.style.top = (fcy - to.height / 2) + "px";
     node.style.width = to.width + "px";
@@ -7429,6 +7430,53 @@ const UIRenderer = (() => {
       c.classList.add("dealin");
       c.style.animationDelay = (i * 55) + "ms";
     });
+  }
+
+  /* ---- card-movement animation QUEUE -------------------------------------
+     Card-movement animations triggered by one action play in CAUSAL order,
+     never overlapping: the triggering move (a draw) animates first, then the
+     effects that react to it (a Tribute bury, a Second Wind return) animate
+     after it lands. Each step is `run(done)` and calls done() when its move has
+     landed; the next step starts then. A lower `priority` runs earlier within a
+     batch — the engine can emit an effect (e.g. "buried") BEFORE the "resolved"
+     draw it follows, so the draw is given priority 0 and effects priority 1 to
+     restore causal order regardless of emit order. Timing/sequencing only —
+     never touches state, draw order, RNG, or any logic. */
+  const animQueue = [];
+  let animBusy = false;
+  let animSeq = 0;
+  let animPumpScheduled = false;
+  function queueAnim(run, priority) {
+    animQueue.push({ run, priority: priority || 0, seq: animSeq++ });
+    scheduleAnimPump();
+  }
+  function scheduleAnimPump() {
+    if (animPumpScheduled || animBusy) return;   // collect the whole synchronous batch first
+    animPumpScheduled = true;
+    Promise.resolve().then(() => { animPumpScheduled = false; pumpAnim(); });
+  }
+  function pumpAnim() {
+    if (animBusy) return;
+    // Stable: causal priority first, then insertion order within a priority.
+    animQueue.sort((a, b) => (a.priority - b.priority) || (a.seq - b.seq));
+    const step = animQueue.shift();
+    if (!step) return;
+    animBusy = true;
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      animBusy = false;
+      Promise.resolve().then(pumpAnim);   // run the next once this one has landed
+    };
+    try { step.run(done); } catch (e) { done(); }
+  }
+  /* Drop any pending/queued card animations (new deal, run end) so stale steps
+     never animate onto a rebuilt board. */
+  function clearAnimQueue() {
+    animQueue.length = 0;
+    animBusy = false;
+    animPumpScheduled = false;
   }
 
   function playBuryTuck(index, count) {
@@ -7476,6 +7524,7 @@ const UIRenderer = (() => {
   function handleEvent(type, payload) {
     switch (type) {
       case "dealt": {
+        clearAnimQueue();   // a fresh board → drop any stale travel steps
         // Snapshot the coin balance the player enters this run with (after any
         // store spending) → drives the end-of-run Interest payout.
         runStartCoins = campaign ? campaign.getCoins() : 0;
@@ -7562,10 +7611,14 @@ const UIRenderer = (() => {
         // TRAVEL: the drawn card flies FACE-UP from the deck to this pile — the
         // player sees which card is coming the whole way. The pile's existing
         // top stays visible underneath; the drawn face is swapped in on landing
-        // (in land()), with a small settling flourish.
+        // (in land()). Queued at priority 0 (the triggering draw) so any effect
+        // it triggers (a Tribute bury, a Second Wind return) animates AFTER it.
         if (!reduce && cardEl && typeof cardEl.animate === "function") {
-          const to = cardEl.getBoundingClientRect();
-          flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to, { duration: 250, onArrive: land });
+          queueAnim((done) => {
+            const to = cardEl.getBoundingClientRect();
+            flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to,
+              { duration: 250, onArrive: () => { land(); done(); } });
+          }, 0);
         } else {
           land();
         }
@@ -7583,13 +7636,19 @@ const UIRenderer = (() => {
         // Cards were tucked under the pile from the deck (any bury effect). A
         // face-down card TRAVELS from the deck to the pile, then the tuck
         // flourish plays — reading as the card flying in and tucking under.
+        // A bury is a CONSEQUENCE of the draw (and the engine may emit it before
+        // the "resolved" draw), so it queues at priority 1 — it animates AFTER
+        // the draw lands, never on top of it.
         const reduce = prefersReduce();
         const bPileEl = pileEls[payload.index];
         const bCardEl = bPileEl && bPileEl.querySelector(".card");
         const tuck = () => playBuryTuck(payload.index, payload.count);
         if (!reduce && bCardEl && typeof bCardEl.animate === "function") {
-          const to = bCardEl.getBoundingClientRect();
-          flyCard(flyBackEl(), deckRect(), to, { duration: 240, onArrive: () => setTimeout(tuck, 50) });
+          queueAnim((done) => {
+            const to = bCardEl.getBoundingClientRect();
+            flyCard(flyBackEl(), deckRect(), to,
+              { duration: 240, onArrive: () => { setTimeout(tuck, 50); done(); } });
+          }, 1);
         } else {
           setTimeout(tuck, reduce ? 0 : 380);
         }
@@ -7660,43 +7719,57 @@ const UIRenderer = (() => {
       }
 
       case "second-wind": {
-        // The pile revived: its old cards went back into the deck (hidden) and a
-        // single fresh top was dealt. The spent cards TRAVEL back to the deck,
-        // then a fresh card flies from the deck and flips onto the revived pile.
+        // The pile revived as a CONSEQUENCE of the killing draw. Animate the
+        // causal chain in sequence (queued, never overlapping):
+        //   1) the killing draw lands on the pile (face-DOWN — its identity is
+        //      recycled hidden, so it's never revealed),
+        //   2) the pile's cards travel back to the deck (face-down, recycled),
+        //   3) a fresh card flies from the deck and settles as the new top
+        //      (the new top IS public, so it's revealed on arrival).
         const reduce = prefersReduce();
         const idx = payload.index;
         const pileEl = pileEls[idx];
         const cardEl = pileEl.querySelector(".card");
         const top = payload.board.top(idx);
-        const pileRect = (cardEl || pileEl).getBoundingClientRect();
         pileEl.classList.remove("dead");
         paintPileCounts(payload.board);
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
         updateSecondWind();               // this column's Second Wind is now spent
-        pileEl.classList.add("flash-good");
-        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         clearSelection();
         renderSetupInv();
         el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
 
-        const revealTop = () => {
+        const settleTop = () => {
           if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
           if (cardEl) cardEl.style.visibility = "";
-          if (!reduce && cardEl) {
-            cardEl.classList.add("landing");
-            setTimeout(() => cardEl.classList.remove("landing"), 360);
-          }
+          pileEl.classList.add("flash-good");
+          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
           Sound.good();
         };
-        if (!reduce && cardEl && typeof cardEl.animate === "function") {
-          flyCard(flyBackEl(), pileRect, deckRect(), { duration: 230 });           // OUT: spent cards → deck
-          cardEl.style.visibility = "hidden";
-          flyCard(flyBackEl(), deckRect(), pileRect, { duration: 270, delay: 110, onArrive: revealTop }); // IN: fresh card → pile
-        } else {
-          revealTop();
+
+        if (reduce || !cardEl || typeof cardEl.animate !== "function") {
+          settleTop();
+          break;
         }
+        // 1) the killing draw lands (face-down — identity stays hidden).
+        queueAnim((done) => {
+          const to = cardEl.getBoundingClientRect();
+          flyCard(flyBackEl(), deckRect(), to, { duration: 210, onArrive: done });
+        });
+        // 2) the pile's cards travel back to the deck (recycled, hidden).
+        queueAnim((done) => {
+          const from = cardEl.getBoundingClientRect();
+          cardEl.style.visibility = "hidden";   // the pile empties as its cards leave
+          flyCard(flyBackEl(), from, deckRect(), { duration: 200, onArrive: done });
+        });
+        // 3) a fresh card flies in and settles as the (public) new top.
+        queueAnim((done) => {
+          const to = cardEl.getBoundingClientRect();
+          flyCard(flyRealCardEl(top, cardEl), deckRect(), to,
+            { duration: 220, onArrive: () => { settleTop(); done(); } });
+        });
         break;
       }
 
@@ -7747,6 +7820,7 @@ const UIRenderer = (() => {
 
   function showOverlay(opts) {
     stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
+    clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
     el.overlay.classList.remove("hidden", "win", "lose");
     // The start/win/lose overlay carries its own progress line, so hide the
     // floating Stage·Run badge and the menu button while it's up.
