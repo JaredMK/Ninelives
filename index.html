@@ -1955,20 +1955,48 @@
     z-index: 3;
     pointer-events: none;
   }
-  /* Imprint badges — substantially larger so they're identifiable at a glance. */
-  .pile-badges .badge {
-    font-size: calc(var(--pile-size, 88px) * 0.22);
-    line-height: 1;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
-    display: inline-flex;
-    align-items: flex-start;
+  /* ---- Matte die-cut sticker chip (used at EVERY sticker site) ----
+     Rounded-square, rarity-coloured fill (--dcs-bg), thick white cut-border, a
+     soft drop shadow so it reads as a physical sticker, and a faint inner
+     highlight for slight dimensionality. MATTE — no gloss. The icon is rendered
+     white, centred. Size + border scale per context via --dcs-size / --dcs-bw. */
+  .dcs {
+    --dcs-size: 26px; --dcs-bw: 2.5px;
+    position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: var(--dcs-size); height: var(--dcs-size);
+    border-radius: 30%;
+    background: var(--dcs-bg, #5a8fb0);
+    border: var(--dcs-bw) solid #fff;
+    box-shadow: 0 2px 5px rgba(80, 50, 40, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.28);
   }
-  .pile-badges .bcount {
-    font-size: calc(var(--pile-size, 88px) * 0.12);
-    font-weight: 800;
-    color: var(--card-ink);
-    margin-left: 0;
+  .dcs-ic { display: inline-flex; align-items: center; justify-content: center; width: 64%; height: 64%; color: #fff; }
+  .dcs-ic .ico, .dcs-ic svg { width: 100%; height: 100%; display: block; fill: currentColor; }
+  .dcs-ic .ico.spent { opacity: 1; }   /* spent state is shown on the whole chip, not the icon */
+  .dcs.spent { opacity: 0.5; filter: grayscale(0.45); }
+  .dcs-n {
+    position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
+    background: #2a1d24; color: #fff; border: 1.5px solid #fff; border-radius: 999px;
+    font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
   }
+
+  /* On-card sticker badges: ONE uniform fixed size for every sticker. */
+  .pile-badges .dcs {
+    --dcs-size: calc(var(--pile-size, 88px) * 0.26);
+    --dcs-bw: calc(var(--pile-size, 88px) * 0.022);
+  }
+  .pile-badges .dcs-n {
+    font-size: calc(var(--pile-size, 88px) * 0.11);
+    min-width: calc(var(--pile-size, 88px) * 0.15); height: calc(var(--pile-size, 88px) * 0.15);
+    line-height: calc(var(--pile-size, 88px) * 0.13);
+  }
+  /* Per-context sizes — same chip style everywhere, just scaled to fit. */
+  .tray-sticker .dcs { --dcs-size: 30px; --dcs-bw: 2.5px; }
+  .store-tile .dcs  { --dcs-size: 40px; --dcs-bw: 3px; }
+  .pk-sticker .dcs  { --dcs-size: 38px; --dcs-bw: 3px; }
+  .mc-badges .dcs   { --dcs-size: 15px; --dcs-bw: 1.5px; }
+  .mc-badges .dcs-n { display: none; }   /* mini cards: one chip per sticker, no count */
+  .pk-item .dcs     { --dcs-size: 30px; --dcs-bw: 2.5px; }
+  .wt-stack .mc-badges .dcs { --dcs-size: 16px; --dcs-bw: 1.5px; }
   /* Card-count badge — bottom-LEFT corner (sticker badges are top-right,
      the rotated rank sits bottom-right, so this corner is clear). */
   .pile-count {
@@ -3194,7 +3222,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.14 · analytics";
+const APP_VERSION = "v2.15 · diecut-stickers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3333,6 +3361,28 @@ const ELEM_GLYPH = {
 function glyph(name, cls) {
   const g = GLYPHS[name] || GLYPHS.dot;
   return '<svg class="ico' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" aria-hidden="true">' + g + "</svg>";
+}
+
+/* ---- Matte die-cut sticker chips (presentation only) --------------------
+   Every sticker renders as a matte die-cut chip: a rounded-square, rarity-
+   coloured fill with a thick white cut-border, a soft drop shadow, and a faint
+   inner highlight (matte — no gloss). The sticker's existing icon is re-rendered
+   in WHITE, centred. Used at EVERY sticker site (cards, store, packs, inventory,
+   help) so the look is uniform. Colour reads the sticker's `tier` only — it
+   never changes what a sticker does or which icon it carries. */
+const STICKER_RARITY_COLOR = { common: "#5a8fb0", uncommon: "#5a9e64", rare: "#a058c0" };
+function dieCutChip(iconHtml, tier, opts) {
+  opts = opts || {};
+  const color = STICKER_RARITY_COLOR[tier] || STICKER_RARITY_COLOR.common;
+  return '<span class="dcs' + (opts.cls ? " " + opts.cls : "") + '" style="--dcs-bg:' + color + '">' +
+    '<span class="dcs-ic">' + (iconHtml || "") + "</span>" +
+    (opts.count != null ? '<span class="dcs-n">' + opts.count + "</span>" : "") +
+    "</span>";
+}
+/* Convenience: a die-cut chip straight from a sticker type id. */
+function stickerChip(typeId, opts) {
+  const t = StickerTypes.get(typeId);
+  return t ? dieCutChip(t.icon, t.tier, opts) : "";
 }
 
 /* ----------------------------------------------------------------
@@ -6537,26 +6587,25 @@ const UIRenderer = (() => {
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
     const n = (type) => stickers.filter(s => s.type === type).length;
-    // One compact chip per kind with a small ×count when stacked, so any
-    // number of stickers stays inside the pile (no per-sticker overflow).
-    const chip = (icon, count) =>
-      count > 0 ? '<span class="badge">' + icon +
-        (count > 1 ? '<span class="bcount">' + count + "</span>" : "") + "</span>" : "";
-    // Extra Heart is dynamic — split into remaining vs broken.
+    const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
+    // One die-cut chip per kind, with a small ×count when stacked (uniform size).
+    const chip = (icon, tier, count, cls) =>
+      count > 0 ? dieCutChip(icon, tier, { count: count > 1 ? count : null, cls: cls }) : "";
+    // Extra Heart is dynamic — split into remaining vs broken (faded chip).
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
     const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
-    let html = chip(glyph("buffer"), heartsLeft) + chip(glyph("buffer", "spent"), heartsBroken);
-    // Every OTHER registered sticker type renders one chip from its registry
-    // icon — uniform display, and new types appear automatically.
+    let html = chip(glyph("buffer"), tierOf("extraHeart"), heartsLeft)
+             + chip(glyph("buffer"), tierOf("extraHeart"), heartsBroken, "spent");
+    // Every OTHER registered sticker type → one die-cut chip from its tier+icon.
     for (const t of StickerTypes.all()) {
       if (t.id === "extraHeart" || t.id === "compound") continue;   // handled specially
-      html += chip(t.icon, n(t.id));
+      html += chip(t.icon, t.tier, n(t.id));
     }
     // Compound shows its BANKED value (lifetime correct guesses − 1, min 0) so
     // the player watches it grow — not a plain stack count.
     if (n("compound") > 0) {
       const banked = Math.max(0, (card.compoundHits || 0) - 1);
-      html += '<span class="badge">' + glyph("potentiation") + '<span class="bcount">' + banked + "</span></span>";
+      html += dieCutChip(glyph("potentiation"), tierOf("compound"), { count: banked });
     }
     badges.innerHTML = html;
   }
@@ -6753,7 +6802,7 @@ const UIRenderer = (() => {
       else if (t.behavior === "suitImmunity") state = "Charge: " + ((card.suitGuards && card.suitGuards[t.suit]) ? "ready" : "spent");
       else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
       body +=
-        '<div class="pk-item"><span class="pk-ic">' + t.icon + "</span><span>" +
+        '<div class="pk-item">' + dieCutChip(t.icon, t.tier) + "<span>" +
           '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
           '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
           (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
@@ -6990,7 +7039,7 @@ const UIRenderer = (() => {
      browser). Pure HTML — the host decides interactivity. */
   function invStickerChipHtml(t, count, sel) {
     return '<button type="button" class="tray-sticker' + (sel ? " armed" : "") + '" data-type="' + t.id + '">' +
-      '<span class="ts-icon">' + t.icon + '</span><span class="ts-count">×' + count + "</span></button>";
+      dieCutChip(t.icon, t.tier) + '<span class="ts-count">×' + count + "</span></button>";
   }
   function invPillarChipHtml(t, count, sel) {
     return '<button type="button" class="tray-pillar' + (sel ? " armed" : "") + '" data-pillar="' + t.id + '">' +
@@ -9743,7 +9792,9 @@ const UIRenderer = (() => {
     // Imprints/Memory Swaps keep their plain glyph.
     const iconHtml = (kind === "pillar")
       ? '<span class="ti-syn">' + pathwayBannerHtml(t) + '</span>'
-      : '<span class="ti-icon">' + t.icon + '</span>';
+      : (kind === "sticker")
+        ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'   // matte die-cut chip
+        : '<span class="ti-icon">' + t.icon + '</span>';                      // packs keep the plain glyph
     btn.innerHTML =
       tierChip +
       iconHtml +
@@ -9833,7 +9884,7 @@ const UIRenderer = (() => {
   }
   function miniCardHtml(card) {
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
-    const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? t.icon : ""; }).join("");
+    const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? dieCutChip(t.icon, t.tier) : ""; }).join("");
     return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
       '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
@@ -9921,7 +9972,7 @@ const UIRenderer = (() => {
     const face = (i) => st.kind === "card"
       ? miniCardHtml(st.items[i])
       : (() => { const t = StickerTypes.get(st.items[i]);
-          return '<div class="pk-sticker"><span class="pks-ic">' + (t ? t.icon : "?") + '</span>' +
+          return '<div class="pk-sticker">' + (t ? dieCutChip(t.icon, t.tier) : '<span class="pks-ic">?</span>') +
             '<span class="pks-name">' + escHtml(t ? t.label : st.items[i]) + "</span></div>"; })();
     el.packItems.innerHTML = st.items.map((_, i) =>
       packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1)).join("");
@@ -10748,7 +10799,7 @@ const UIRenderer = (() => {
             '<div class="wt-shop-item"><span class="ico">' + glyph("spark") + '</span>' +
               '<span class="nm">Sticker</span><span class="pr">' + coin + "3</span></div>" +
             '<span class="wt-arrow">→</span>' +
-            card("7", "♥", true, "", '<div class="mc-badges">' + glyph("spark") + "</div>") +
+            card("7", "♥", true, "", '<div class="mc-badges">' + stickerChip("gainCoin") + "</div>") +
           "</div>" +
           '<div class="wt-flow-row">' +
             '<div class="wt-shop-item"><span class="ico">' + glyph("guardian") + '</span>' +
