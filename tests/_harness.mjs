@@ -16,9 +16,13 @@ const HTML = join(HERE, "..", "index.html");
 /** Load the game's modules with a stubbed DOM. Returns the engine modules. */
 export function loadGame() {
   const html = readFileSync(HTML, "utf8");
-  const m = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error("No <script> block found in index.html");
-  const code = m[1];
+  // The page has more than one inline <script> (e.g. the GA4/gtag init in <head>);
+  // pick the GAME script — the one that defines the engine modules.
+  const blocks = html.match(/<script>([\s\S]*?)<\/script>/g) || [];
+  const code = blocks
+    .map((b) => b.replace(/^<script>/, "").replace(/<\/script>$/, ""))
+    .find((c) => c.includes("const GameEngine"));
+  if (!code) throw new Error("No game <script> block found in index.html");
 
   // Every DOM access returns a chainable no-op proxy. The modules under test
   // never touch the DOM; this only keeps UIRenderer.init() (which runs on

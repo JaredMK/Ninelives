@@ -6,6 +6,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#ECE3DA" />
 <title>Shoulda Said Same</title>
+<!-- Google tag (gtag.js) — anonymous playtesting analytics (GA4). Loads async so
+     it never blocks or delays gameplay; if it's blocked/unavailable the game runs
+     normally (see the fail-silent track() helper in the script). -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0RBT99B6HD"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0RBT99B6HD');
+</script>
 <!-- Neural type system: Josefin Sans (soft organic display, for titles) +
      Chakra Petch (clean technical, for ranks/gameplay text). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -3184,7 +3194,19 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.13 · kamikaze-deck-reveal";
+const APP_VERSION = "v2.14 · analytics";
+
+/* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
+   gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
+   — analytics must NEVER throw, block, or delay gameplay. Anonymous only: we send
+   the event name with no personal/identifying data. */
+function track(name, params) {
+  try {
+    if (typeof window !== "undefined" && window.dataLayer && typeof window.gtag === "function") {
+      window.gtag("event", name, params || {});
+    }
+  } catch (e) { /* analytics is best-effort — never let it affect the game */ }
+}
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -8620,6 +8642,7 @@ const UIRenderer = (() => {
     try { firstTime = Stats.get().gamesPlayed === 0; } catch (e) { firstTime = false; }
     clearSave();          // a fresh campaign supersedes any saved one
     Stats.startGame();    // lifetime: count this as a game played (isolated store)
+    track("game_started");   // analytics (fail-silent)
     campaign.reset();
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
     // dealing — same store → map → run rhythm as every later run.
@@ -9335,6 +9358,7 @@ const UIRenderer = (() => {
     // through the single wipe (startCampaign -> campaign.reset). Nothing else
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
+      track("run_lost");   // analytics (fail-silent) — loss screen
       clearSave();   // a loss wipes the campaign — no resume of a dead run
       // Lifetime stats (isolated store): record how far this game got.
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
@@ -9343,6 +9367,9 @@ const UIRenderer = (() => {
       showCampaignFailed();
       return;
     }
+
+    // A deal was cleared (every win, including the final one).
+    track("deal_cleared");   // analytics (fail-silent)
 
     // WIN: fold into campaign totals, award coins (pure formula), and either
     // finish the campaign (Stage 3 Run 3) or head to the store. The itemized
@@ -9405,6 +9432,7 @@ const UIRenderer = (() => {
     renderHud(board, payload.deck);
 
     if (campaign.isComplete()) {
+      track("run_won");   // analytics (fail-silent) — full run cleared
       clearSave();   // campaign finished — nothing left to resume
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
