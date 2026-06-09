@@ -218,6 +218,12 @@
     display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
     gap: 8px; overflow: hidden;
   }
+  /* First-turn help line, occupying the guess-button row before a pile is tapped. */
+  .ctl-help {
+    width: 100%; text-align: center; padding: 0 14px;
+    font-size: 12.5px; font-weight: 700; line-height: 1.2; color: var(--accent-2);
+  }
+  .ctl-help.hidden { display: none; }
 
   /* FIXED-height bottom region — contents swap by phase, size stays constant. */
   .bottom-region {
@@ -2555,6 +2561,9 @@
         <button class="btn same" id="btnSame">SAME</button>
         <button class="btn lower" id="btnLower">LOWER</button>
       </div>
+      <!-- First-turn help, shown in the guess-button row before any pile is
+           tapped (replaced by the buttons on the first selection). -->
+      <div class="ctl-help hidden" id="ctlHelp">Tap a pile to guess Higher or Lower — or swipe it up or down.</div>
     </div>
 
     <!-- FIXED-height bottom region. Its contents swap by PHASE but its size does
@@ -2969,7 +2978,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.1 · swipe-hint";
+const APP_VERSION = "v2.2 · first-turn-help";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -5586,6 +5595,7 @@ const UIRenderer = (() => {
     thTrash: document.getElementById("thTrash"),
     thClose: document.getElementById("thClose"),
     actions: document.getElementById("actions"),
+    ctlHelp: document.getElementById("ctlHelp"),
     btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
@@ -6148,6 +6158,7 @@ const UIRenderer = (() => {
     selected = index;
     pileEls[index].classList.add("selected");
     el.actions.classList.remove("hidden");
+    if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // first-turn help done
     if (el.btnInfo) el.btnInfo.disabled = false;
     const top = engine.getBoard().top(index);
     el.hint.textContent = `Pile shows ${top.label}. Drag up = Higher, down = Lower, or tap a button.`;
@@ -6191,6 +6202,7 @@ const UIRenderer = (() => {
      two button groups are mutually exclusive so the layout never shows both. */
   function showStickerPhase() {
     clearSelection();                         // also hides #actions
+    if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // setup phase: no guess help
     // Bottom region shows the setup inventory (histogram hidden) — same height.
     if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
     // Reveal the pillar slot row on every column for the whole setup phase, so
@@ -6219,9 +6231,11 @@ const UIRenderer = (() => {
     armedSticker = null; armedPack = null; armedPillar = null;
     el.board.classList.remove("arming", "placing-pillar");
     // First turn of the deal, before any pile is tapped: a little how-to-guess
-    // hint. It's replaced the moment a pile is selected (showPileSelected) or a
-    // guess resolves, so it only shows at the start of each deal.
+    // hint shown in the (otherwise empty) guess-button row. It's hidden the
+    // moment a pile is selected (showPileSelected), so it only shows at the
+    // start of each deal.
     el.hint.textContent = "Tap a pile to guess Higher or Lower — or swipe it up or down.";
+    if (el.ctlHelp) el.ctlHelp.classList.remove("hidden");
     // No fitBoard here — the board region is fixed and does not reflow on Start.
   }
 
