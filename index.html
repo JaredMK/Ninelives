@@ -3094,7 +3094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.6.2 · traveling-cards-realface";
+const APP_VERSION = "v2.6.3 · traveling-cards-noflip";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -7524,15 +7524,11 @@ const UIRenderer = (() => {
         // arrival below (or immediately under reduced motion).
         const land = () => {
           // Cover/replace the old top with the drawn card exactly on arrival.
+          // The card already traveled face-up, so it simply settles into place —
+          // no landing flip.
           paintFront(pileEl, payload.drawn);
           renderStickerBadges(pileEl, payload.drawn);
           if (cardEl) cardEl.style.visibility = "";
-          // §5: a small landing flourish as the drawn memory settles (the card
-          // already arrived face-up, so this is a settle, not a reveal).
-          if (!reduce && cardEl) {
-            cardEl.classList.add("landing");
-            setTimeout(() => cardEl.classList.remove("landing"), 360);
-          }
           if (payload.correct) {
             // Encoded: a quick "good" pulse, re-strengthen the network now.
             pileEl.classList.add("flash-good");
@@ -7543,7 +7539,7 @@ const UIRenderer = (() => {
             // Mis-encoded → the neuron dies. Order: flip/resolve → DEATH FLASH →
             // dissolve → reconnect, so the player registers the death first.
             Sound.death();
-            const flashAt = reduce ? 0 : 340;        // after the flip settles
+            const flashAt = reduce ? 0 : 340;        // a beat after the card settles
             const dieAt = reduce ? 0 : flashAt + 300;
             if (!reduce) setTimeout(() => {
               pileEl.classList.add("death-flash");
