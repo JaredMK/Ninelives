@@ -32,7 +32,8 @@ SLIDE 3 — Make a guess
 [Visual: a 7♥ above three buttons: HIGHER / SAME / LOWER]
 
 Tap a pile, then call the next card: will it be *Higher*, *Same*, or
-*Lower* than the top card? (Aces are high)
+*Lower* than the top card? You can also *swipe a pile up or down* to guess
+Higher or Lower. (Aces are high)
 
 
 SLIDE 4 — Grow it or lose it

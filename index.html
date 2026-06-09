@@ -2969,7 +2969,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.0 · vocab-run-stage-deal";
+const APP_VERSION = "v2.1 · swipe-hint";
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -6218,7 +6218,10 @@ const UIRenderer = (() => {
     renderRedealBtn();                        // window closed -> redeal hides itself
     armedSticker = null; armedPack = null; armedPillar = null;
     el.board.classList.remove("arming", "placing-pillar");
-    el.hint.textContent = "Tap a pile, then guess: Higher, Same, or Lower.";
+    // First turn of the deal, before any pile is tapped: a little how-to-guess
+    // hint. It's replaced the moment a pile is selected (showPileSelected) or a
+    // guess resolves, so it only shows at the start of each deal.
+    el.hint.textContent = "Tap a pile to guess Higher or Lower — or swipe it up or down.";
     // No fitBoard here — the board region is fixed and does not reflow on Start.
   }
 
@@ -9301,7 +9304,8 @@ const UIRenderer = (() => {
           "</div></div>",
         cap: '<span class="lead">Make a guess</span>' +
           "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
-          "than the top card? (Aces are high)",
+          "than the top card? You can also <b>swipe a pile up or down</b> to guess Higher or Lower. " +
+          "(Aces are high)",
       },
       { // 4 — grow it or lose it
         art: '<div class="wt-split">' +
