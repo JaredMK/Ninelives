@@ -3269,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.19 · highest-evenodd-toponly-hardened";
+const APP_VERSION = "v2.20 · suit-guard-animation";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8513,22 +8513,64 @@ const UIRenderer = (() => {
       }
 
       case "guarded": {
-        // Suit Guard absorbed a wrong guess (the drawn card's suit): the top
-        // card stays, that suit's once-per-run charge is spent, and the drawn
-        // card went back into the deck.
+        // Suit Guard absorbed a wrong guess (the guard card was drawn onto a card
+        // of its guarded suit): the top stays, that suit's once-per-deal charge is
+        // spent, and the guard card goes back to the deck. Animate it like the
+        // Shield — sequenced, reusing the card-travel + return-to-deck motions:
+        //   1) the guard card travels deck→pile and lands (the pile's existing top
+        //      stays visible during the travel, as with a normal draw),
+        //   2) the SAVED indicator shows (wrong guess, but the pile is saved),
+        //   3) the guard card returns to the bottom of the deck.
+        // Engine behaviour is unchanged — only the movement is now shown. Works for
+        // EVERY suit guard (♠/♥/♦/♣) — this event fires for all of them.
+        const reduce = prefersReduce();
         const pileEl = pileEls[payload.index];
-        renderStickerBadges(pileEl, payload.current);
+        const cardEl = pileEl.querySelector(".card");
+        // Non-card state now (counts/HUD/streak read board state):
         paintPileCounts(payload.board);
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
-        pileEl.classList.add("flash-good");
-        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
-        refreshNetwork(payload.board);
         clearSelection();
         renderSetupInv();
-        Sound.good();
         el.hint.textContent = `${payload.current.label} held on — the ${payload.drawn.suit} Guard kicked in.`;
         refreshDebug();
+
+        const savedFeedback = () => {     // the guard's save indicator on the pile
+          pileEl.classList.add("flash-good");
+          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          Sound.good();
+        };
+        const settle = () => {            // guard held: revert to the guarded top
+          paintFront(pileEl, payload.current);
+          renderStickerBadges(pileEl, payload.current);
+          if (cardEl) cardEl.style.visibility = "";
+          refreshNetwork(payload.board);
+        };
+
+        if (reduce || !cardEl || typeof cardEl.animate !== "function") {
+          renderStickerBadges(pileEl, payload.current);
+          savedFeedback();
+          refreshNetwork(payload.board);
+          break;
+        }
+        // 1) the guard card flies in from the deck and lands (existing top stays
+        //    visible during travel; the guard card shows on arrival) → SAVED.
+        queueAnim((done) => {
+          const to = cardEl.getBoundingClientRect();
+          flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to, { duration: 240, onArrive: () => {
+            paintFront(pileEl, payload.drawn);          // the guard card shows on top, briefly
+            renderStickerBadges(pileEl, payload.drawn);
+            savedFeedback();                            // wrong guess, but SAVED
+            done();
+          } });
+        });
+        // 2) the guard card returns to the bottom of the deck (same as the Shield).
+        queueAnim((done) => {
+          const from = cardEl.getBoundingClientRect();
+          const ghost = flyRealCardEl(payload.drawn, cardEl);   // clone before hiding
+          cardEl.style.visibility = "hidden";                   // the guard card leaves the pile
+          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => { settle(); done(); } });
+        });
         break;
       }
 
