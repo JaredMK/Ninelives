@@ -1847,6 +1847,40 @@
   .ocoins-sum .lbl { font-weight: 800; }
   .ocoins-balance { text-align: right; margin-top: 6px; font-size: 12px; color: var(--muted); }
 
+  /* ---- Deal-cleared payout screen (matches diecut deal-cleared mockup) ----
+     Header in the themed Baloo 2 font, a white breakdown panel with main reward
+     lines (label left / coin value right) and italic-black indented sub-bullets,
+     and an emphasised grand Total. Presentation/copy only. */
+  .overlay.deal-cleared #overlayIcon { display: none; }   /* no icon — title leads */
+  .overlay.deal-cleared h2,
+  .overlay.deal-cleared.win h2 {
+    font-family: "Baloo 2", var(--font-display);
+    font-weight: 800; font-size: 34px; letter-spacing: 0;
+    text-transform: none; text-shadow: none; color: var(--accent);
+    margin: 0 0 6px;
+  }
+  .overlay.deal-cleared .run-progress { color: var(--accent-2); margin-bottom: 22px; }
+  .overlay.deal-cleared .overlay-coins {
+    width: min(86vw, 340px); margin: 0 auto 4px;
+    background: var(--bg-2); border: 1px solid var(--edge-2); border-radius: 16px;
+    padding: 16px; box-shadow: 0 4px 14px rgba(120, 90, 70, 0.12); font-size: 14px;
+  }
+  .dc-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 12px; }
+  .dc-line:first-child { margin-top: 0; }
+  .dc-lab { font-weight: 700; font-size: 15px; color: var(--text); }
+  .dc-val { font-weight: 700; font-size: 15px; color: var(--card-red); font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .dc-sub { margin: 3px 0 0 14px; }
+  .dc-sub > div { font-style: italic; font-size: 12px; color: #1c1418;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 2px; }
+  .dc-sub .dc-sv { font-style: normal; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .dc-sub .coin-ico { vertical-align: -0.15em; }
+  .dc-int-note { font-style: normal; opacity: 0.55; }
+  .dc-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--edge-2); }
+  .dc-total .dc-lab { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 18px; }
+  .dc-total .dc-val { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 20px; color: var(--card-red); }
+
   /* In-run sticker tray — owned stickers; tap to arm, then tap a pile. */
   .sticker-tray {
     display: flex;
@@ -3230,7 +3264,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.16 · shield-anim-debug-tools";
+const APP_VERSION = "v2.17 · deal-cleared-screen";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8554,46 +8588,79 @@ const UIRenderer = (() => {
   /* Format Economy's itemized payout for display. Pure formatting — every
      number comes from opts.coins.breakdown (the Economy module's output);
      the view multiplies/sums nothing. */
+  /* Deal-cleared payout breakdown. PRESENTATION ONLY — it regroups the SAME
+     itemized values from Economy.breakdown into four reward sections (deal /
+     stickers / pillars / interest) with italic sub-bullets, then the grand Total.
+     No value is recomputed: every number comes straight from `b`; the sections
+     sum to b.total exactly (b.total = product + extraCoinBonus + pillarBonus +
+     eventBonus + interest). Live in-run bonuses (b.eventLines) are split into
+     sticker- vs pillar-driven by label (pillar live-bonuses use a Pillar's label:
+     Suit Bonus / Streak Bank / Fibonacci — everything else is sticker-driven). */
   function coinBreakdownHtml(coins) {
     const b = coins.breakdown;
-    if (!b) return '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>";
-    const row = (label, detail, value, extra) =>
-      '<div class="ocoins-row' + (extra ? " " + extra : "") + '">' +
-        '<span class="lbl">' + label + (detail ? ' <span class="dim">' + detail + "</span>" : "") + "</span>" +
-        '<span class="val">' + value + "</span>" +
-      "</div>";
-    return (
-      '<div class="ocoins-head">' + COIN_SVG + ' Coins earned</div>' +
-      row("Surviving piles", "", b.alivePiles) +
-      row("Smallest pile", b.minPileCards + " cards", "") +
-      row("Deal reward", "(" + b.alivePiles + " × " + b.minPileCards + ")", "+" + b.product) +
-      row("Payout bonus", "", "+" + b.extraCoinBonus) +
-      // One row per scoring Pillar that paid out this run (omitted when none).
-      (b.pillarLines || []).map(p =>
-        row(glyph("guardian") + " " + p.label, p.detail || "", "+" + p.amount)).join("") +
-      // Live in-run bonus coins, itemized (Middle Reward, Lucky Coin, All Hearts,
-      // and any Tribute cost — which shows as a negative).
-      (b.eventLines || []).map(p =>
-        row(p.label, "", (p.amount >= 0 ? "+" : "") + p.amount)).join("") +
-      // Interest: +1 per 10 coins held entering the deal (omitted when none).
-      (b.interest > 0 ? row("Interest", "1 per 10 coins", "+" + b.interest) : "") +
-      row("Total", "", "+" + b.total, "ocoins-sum") +
-      '<div class="ocoins-balance">' + COIN_SVG + " " + coins.balance + " total</div>"
-    );
+    if (!b) return '<div class="dc-total"><span class="dc-lab">Total</span><span class="dc-val">' + COIN_SVG + coins.balance + "</span></div>";
+    const sign = (n) => (n >= 0 ? "+" : "−") + Math.abs(n);
+    const mainLine = (label, value) =>
+      '<div class="dc-line"><span class="dc-lab">' + label + '</span>' +
+        '<span class="dc-val">' + COIN_SVG + value + "</span></div>";
+    const subRow = (name, val) => '<div><span>' + name + '</span><span class="dc-sv">' + val + "</span></div>";
+    const subWrap = (rows) => '<div class="dc-sub">' + rows + "</div>";
+
+    const pillarLabels = new Set(PillarTypes.all().map(t => t.label));
+    const events = b.eventLines || [];
+    const stickerEvents = events.filter(p => !pillarLabels.has(p.label));
+    const pillarEvents = events.filter(p => pillarLabels.has(p.label));
+
+    // 1) Deal reward — base survival (surviving × smallest).
+    let html = mainLine("Deal reward", b.product) +
+      subWrap(subRow("Surviving piles", b.alivePiles) + subRow("Smallest pile", b.minPileCards + " cards"));
+
+    // 2) Sticker rewards — Extra Coin ("Payout") + sticker-driven live bonuses.
+    const stickerBullets = [];
+    if (b.extraCoinBonus > 0) {
+      const t = StickerTypes.get("extraCoin");
+      stickerBullets.push(subRow((t ? t.label : "Payout"), sign(b.extraCoinBonus)));
+    }
+    stickerEvents.forEach(p => stickerBullets.push(subRow(p.label, sign(p.amount))));
+    const stickerTotal = b.extraCoinBonus + stickerEvents.reduce((a, p) => a + p.amount, 0);
+    html += mainLine("Sticker rewards", stickerTotal) +
+      subWrap(stickerBullets.length ? stickerBullets.join("") : subRow("None", ""));
+
+    // 3) Pillar rewards — end-of-deal scoring Pillars + pillar-driven live bonuses.
+    const pillarBullets = [];
+    (b.pillarLines || []).forEach(p =>
+      pillarBullets.push(subRow(p.label + (p.col != null ? " (col " + (p.col + 1) + ")" : ""), sign(p.amount))));
+    pillarEvents.forEach(p => pillarBullets.push(subRow(p.label, sign(p.amount))));
+    const pillarTotal = (b.pillarBonus || 0) + pillarEvents.reduce((a, p) => a + p.amount, 0);
+    html += mainLine("Pillar rewards", pillarTotal) +
+      subWrap(pillarBullets.length ? pillarBullets.join("") : subRow("None", ""));
+
+    // 4) Interest — ALWAYS shown (even at 0). Coin icons for the amount + the note.
+    const coins10 = new Array(Math.max(0, Math.min(b.interest, 10))).fill(COIN_SVG).join("");
+    html += mainLine("Interest", b.interest) +
+      subWrap('<div><span>' + coins10 + '<span class="dc-int-note">1 per 10 coins held</span></span>' +
+        '<span class="dc-sv">' + sign(b.interest) + "</span></div>");
+
+    // Grand total.
+    html += '<div class="dc-total"><span class="dc-lab">Total</span>' +
+      '<span class="dc-val">' + COIN_SVG + b.total + "</span></div>";
+    return html;
   }
 
   function showOverlay(opts) {
     stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
     clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
-    el.overlay.classList.remove("hidden", "win", "lose");
+    el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared");
     // The start/win/lose overlay carries its own progress line, so hide the
     // floating Stage·Run badge and the menu button while it's up.
     if (el.stageRun) el.stageRun.classList.add("off");
     if (el.menuBtn) el.menuBtn.classList.add("hidden");
     if (opts.kind) el.overlay.classList.add(opts.kind);
+    if (opts.cls) el.overlay.classList.add(opts.cls);   // per-screen layout (e.g. deal-cleared)
     el.overlayIcon.innerHTML = opts.icon;
     el.overlayTitle.textContent = opts.title;
     el.overlayMsg.textContent = opts.msg || "";
+    el.overlayMsg.style.display = opts.msg ? "" : "none";   // no empty flavor gap
 
     el.runProgress.textContent = opts.progress || "";
     el.runProgress.classList.toggle("hidden", !opts.progress);
@@ -8735,10 +8802,11 @@ const UIRenderer = (() => {
     Sound.runClear();
     showOverlay({
       kind: "win",
+      cls: "deal-cleared",
       icon: glyph("win"),
-      title: "DEAL CLEARED",
-      msg: "Every card survived. Your piles hold.",
-      progress: stageRunLabel(" complete"),
+      title: "Deal cleared",
+      msg: "",                                   // flavor text removed
+      progress: "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex,   // bare numbers
       coins,
       peek: true,
       btnLabel: "CONTINUE",
