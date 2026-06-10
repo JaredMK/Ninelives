@@ -3269,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.20 · suit-guard-animation";
+const APP_VERSION = "v2.21 · guard-return-noblank";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8502,12 +8502,22 @@ const UIRenderer = (() => {
             done();
           } });
         });
-        // 2) the Shield bounces that card back to the deck.
+        // 2) the Shield bounces that card back to the deck. The shielded top is
+        //    revealed UNDER the travelling clone and stays continuously visible —
+        //    only the clone moves; the pile's card is never hidden, so it never
+        //    blanks during the return.
         queueAnim((done) => {
           const from = cardEl.getBoundingClientRect();
-          const ghost = flyRealCardEl(payload.drawn, cardEl);   // clone before hiding
-          cardEl.style.visibility = "hidden";                   // the bounced card leaves the pile
-          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => { settle(); done(); } });
+          const ghost = flyRealCardEl(payload.drawn, cardEl);   // the moving bounced-card layer
+          paintFront(pileEl, payload.current);                  // resting shielded top, beneath the clone
+          renderStickerBadges(pileEl, payload.current);
+          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => {
+            pileEl.classList.add("flash-good");
+            setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+            refreshNetwork(payload.board);
+            Sound.good();
+            done();
+          } });
         });
         break;
       }
@@ -8540,14 +8550,9 @@ const UIRenderer = (() => {
           setTimeout(() => pileEl.classList.remove("flash-good"), 520);
           Sound.good();
         };
-        const settle = () => {            // guard held: revert to the guarded top
-          paintFront(pileEl, payload.current);
-          renderStickerBadges(pileEl, payload.current);
-          if (cardEl) cardEl.style.visibility = "";
-          refreshNetwork(payload.board);
-        };
 
         if (reduce || !cardEl || typeof cardEl.animate !== "function") {
+          paintFront(pileEl, payload.current);
           renderStickerBadges(pileEl, payload.current);
           savedFeedback();
           refreshNetwork(payload.board);
@@ -8564,12 +8569,17 @@ const UIRenderer = (() => {
             done();
           } });
         });
-        // 2) the guard card returns to the bottom of the deck (same as the Shield).
+        // 2) the guard card returns to the bottom of the deck. The resting guarded
+        //    top is revealed UNDER the travelling clone and stays continuously
+        //    visible — only the clone moves; the pile's card is never hidden or
+        //    re-torn-down, so the pile never blanks during the return.
         queueAnim((done) => {
           const from = cardEl.getBoundingClientRect();
-          const ghost = flyRealCardEl(payload.drawn, cardEl);   // clone before hiding
-          cardEl.style.visibility = "hidden";                   // the guard card leaves the pile
-          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => { settle(); done(); } });
+          const ghost = flyRealCardEl(payload.drawn, cardEl);   // the moving guard-card layer
+          paintFront(pileEl, payload.current);                  // resting top, beneath the clone
+          renderStickerBadges(pileEl, payload.current);
+          refreshNetwork(payload.board);
+          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: done });
         });
         break;
       }
