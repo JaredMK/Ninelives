@@ -3269,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.18 · highest-odd-toponly-balance";
+const APP_VERSION = "v2.19 · highest-evenodd-toponly-hardened";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3679,7 +3679,7 @@ const PillarTypes = (() => {
       // Priced 3 above Highest Even (10 → 13).
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
       kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 13,
-      description: "Earn bonus coins equal to the highest odd NUMBER card (3, 5, 7 or 9) showing on top of a surviving pile in this column when you clear the deal. Buried cards, face cards and Aces don't count.",
+      description: "Earn bonus coins equal to the highest odd-rank card (3, 5, 7 or 9) showing on TOP of an alive pile in this column when you clear the deal. Only the top card of each alive pile counts — buried cards, face cards and Aces never count. Pays 0 if no alive pile shows a qualifying card on top.",
     },
     highestEven: {
       // End-of-deal: +the highest EVEN NUMBER card (2/4/6/8/10) showing ON TOP of
@@ -3687,7 +3687,7 @@ const PillarTypes = (() => {
       // (J/Q/K) and the Ace never count. (computePillarPayout, effect "highestEven".)
       id: "highestEven", label: "Highest Even", icon: "🔽",
       kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
-      description: "Earn bonus coins equal to the highest even NUMBER card (2, 4, 6, 8 or 10) showing on top of a surviving pile in this column when you clear the deal. Buried cards, face cards and Aces don't count.",
+      description: "Earn bonus coins equal to the highest even-rank card (2, 4, 6, 8 or 10) showing on TOP of an alive pile in this column when you clear the deal. Only the top card of each alive pile counts — buried cards, face cards and Aces never count. Pays 0 if no alive pile shows a qualifying card on top.",
     },
     denseBury: {
       // Composition: when a correct guess lands a card carrying 3+ stickers on a
@@ -4137,6 +4137,12 @@ const BoardState = (() => {
    Rules + flow. Pure logic — emits events, never touches DOM.
 ---------------------------------------------------------------- */
 const GameEngine = (() => {
+  // Exact qualifying-rank sets for the Highest Even / Highest Odd Pillars — the
+  // ONLY ranks each pillar scores from a pile's TOP card. Face cards (J=11/Q=12/
+  // K=13) and the Ace (14) are deliberately absent from both, so they never
+  // qualify. (See computePillarPayout.)
+  const EVEN_NUMBER_RANKS = new Set([2, 4, 6, 8, 10]);
+  const ODD_NUMBER_RANKS = new Set([3, 5, 7, 9]);
   // deckSpecs: the campaign base-deck specs to build this run's deck from.
   // pileCount: how many piles this run uses (presentation/layout is the
   //            renderer's concern; the engine only needs the count).
@@ -4564,16 +4570,20 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
         } else if (t.effect === "highestOdd" || t.effect === "highestEven") {
-          // +the single highest odd- (or even-) ranked NUMBER card (2–10) showing
-          // ON TOP of an ALIVE pile in this column. Only the TOP card of each
-          // surviving pile counts (buried cards don't); face cards (J/Q/K) and the
-          // Ace never count. 0 if no qualifying top card.
+          // Look ONLY at the single card currently on TOP of each ALIVE pile in
+          // this column (never any buried card; dead piles ignored entirely). A
+          // top card qualifies only if its rank is in the exact set — Even
+          // {2,4,6,8,10}, Odd {3,5,7,9}; face cards (J/Q/K) and the Ace never
+          // qualify. Payout = the value of the highest qualifying TOP card, or 0
+          // if no alive pile has a qualifying top (no default, no fallback, no
+          // digging into piles).
           const wantOdd = t.effect === "highestOdd";
+          const QUALIFY = wantOdd ? ODD_NUMBER_RANKS : EVEN_NUMBER_RANKS;
           let best = 0;
           for (const i of colIdxs(col)) {
-            if (!board.isActive(i)) continue;        // surviving piles only
-            const top = board.top(i);                // TOP card only
-            if (top && top.value >= 2 && top.value <= 10 && (top.value % 2 === 1) === wantOdd && top.value > best) best = top.value;
+            if (!board.isActive(i)) continue;        // alive piles only
+            const top = board.top(i);                // the TOP card only — nothing below it
+            if (top && QUALIFY.has(top.value) && top.value > best) best = top.value;
           }
           if (best > 0) {
             bonus += best;

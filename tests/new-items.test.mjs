@@ -345,6 +345,28 @@ export function run() {
     e.debug.winNow();
     r.eq(won().pillarPayout.bonus, 6, "Highest Even counts only TOP cards (buried 10 ignored → highest even top = 6)");
   }
+  {
+    // THE REPORTED BUG: the only alive pile in the column shows a Queen on top
+    // (with a buried even card). Both pillars MUST pay 0 — face-card top doesn't
+    // qualify, and buried cards are never scanned.
+    const evenE = GameEngine.create(deck(), 10, { cols: COLS });
+    const evenWon = onWon(evenE);
+    evenE.start(); evenE.startRun(["highestEven", null, null]);
+    const eb = evenE.getBoard();
+    eb.piles[0].cards = [{ value: 2, suit: "♠", stickers: [] }, { value: 12, suit: "♠", stickers: [] }];   // [2 buried, Q top]
+    eb.kill(1); eb.kill(2);   // col 0: only pile 0 alive, Queen on top
+    evenE.debug.winNow();
+    r.eq(evenWon().pillarPayout.bonus, 0, "Queen-only column pays 0 for Highest Even (face top, buried 2 ignored)");
+
+    const oddE = GameEngine.create(deck(), 10, { cols: COLS });
+    const oddWon = onWon(oddE);
+    oddE.start(); oddE.startRun(["highestOdd", null, null]);
+    const ob = oddE.getBoard();
+    ob.piles[0].cards = [{ value: 3, suit: "♠", stickers: [] }, { value: 12, suit: "♠", stickers: [] }];   // [3 buried, Q top]
+    ob.kill(1); ob.kill(2);
+    oddE.debug.winNow();
+    r.eq(oddWon().pillarPayout.bonus, 0, "Queen-only column pays 0 for Highest Odd (face top, buried 3 ignored)");
+  }
 
   // --- Debug: apply a sticker to the next draw card ---------------------
   {
