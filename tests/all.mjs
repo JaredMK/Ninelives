@@ -20,6 +20,7 @@ import { run as redeal } from "./redeal.test.mjs";
 import { run as pillarFeedback } from "./pillar-feedback.test.mjs";
 import { run as wildPeel } from "./wild-peel.test.mjs";
 import { run as newItems } from "./new-items.test.mjs";
+import { run as bases } from "./bases.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -40,6 +41,7 @@ const SUITES = [
   ["pillar-feedback", pillarFeedback],
   ["wild-peel", wildPeel],
   ["new-items", newItems],
+  ["bases", bases],
 ];
 
 let pass = 0,

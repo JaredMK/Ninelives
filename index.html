@@ -3269,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.23 · card-terminology-sweep";
+const APP_VERSION = "v2.24 · bases-engine";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3704,21 +3704,118 @@ const PillarTypes = (() => {
       kind: "guess", effect: "revive", tier: "uncommon", price: 8,
       description: "The first time a pile in this column reaches 10 cards, you may bring one dead pile back to life with a fresh pile card. Once per deal. If no pile is dead when it triggers, it waits and stays ready.",
     },
-    kamikaze: {
-      // Activated: tap this column's Pillar during play to arm it, then tap a pile
-      // to kill it and reveal the next 3 deck cards (display-only). Once per deal;
-      // unavailable when only one pile is alive, or when its own column is all dead.
-      id: "kamikaze", label: "Kamikaze", icon: "💥",
-      kind: "guess", effect: "kamikaze", tier: "uncommon", price: 8,
-      description: "Once per deal, tap this Pillar during play and then tap a pile to kill it and peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive, or when every pile in this column is already dead.",
-    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
+  // Kamikaze used to live here as a Pillar; it is now a Base (see BaseTypes).
   const ORDER = ["spadeBounty", "heartBounty", "diamondBounty", "clubBounty",
     "columnTieSafe", "columnGuardian", "eightTribute", "sameTribute",
     "allHeartsCoin", "allSpadesCoin", "allDiamondsCoin", "allClubsCoin",
     "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy",
-    "fibonacci", "highestOdd", "highestEven", "denseBury", "revive", "kamikaze"];
+    "fibonacci", "highestOdd", "highestEven", "denseBury", "revive"];
+  return {
+    ids: ORDER,
+    get(id) { return TYPES[id] || null; },
+    all() { return ORDER.map(id => TYPES[id]); },
+  };
+})();
+
+/* ----------------------------------------------------------------
+   BaseTypes — the data-driven registry for column BASES, a NEW artifact
+   class distinct from Pillars. A Base binds to the BOTTOM of a board COLUMN
+   (Pillars sit on TOP). Unlike a Pillar's ongoing passive column effect, a
+   Base is an ACTIVE one-time-use-per-deal power: it arms (charges) at the
+   start of each deal, the player ACTIVATES it once to fire its effect, and it
+   is then SPENT until the next deal recharges it. Many carry a cost or
+   tradeoff. Like Pillars, Bases are bought in the store with a rarity tier
+   and fixed price, placed onto a column in the pre-run setup, and persist
+   across runs (see CampaignState.columnBases).
+
+   Pure data — the engine switches on `effect`, exactly as it does for Pillars
+   and stickers. Each entry declares:
+     kind:   always "active" (the once-per-deal activated class)
+     effect: the behavior key GameEngine.baseActivate dispatches on
+     target: "pile" if the player must pick a pile in the column to fire it;
+             omitted for whole-column / no-target Bases (a simple confirm)
+     tier / price: store rarity weight + fixed price, like Pillars
+     description: single source of truth for the store/help popup
+   Per-deal randomized Bases (Set Value's target value, Suit Tally's suit) read
+   their rolled value from run.baseRandom; the UI shows it in the help text.
+---------------------------------------------------------------- */
+const BaseTypes = (() => {
+  const TYPES = {
+    kamikaze: {
+      // Moved here from Pillars. Tap a pile in this column to kill it, then peek
+      // at the next 3 upcoming cards on the deck (display-only). Can't fire while
+      // only one pile is alive board-wide.
+      id: "kamikaze", label: "Kamikaze", icon: "💥",
+      kind: "active", effect: "kamikaze", target: "pile", tier: "uncommon", price: 8,
+      description: "Once per deal, activate and tap a pile in this column to kill it, then peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive on the board.",
+    },
+    shuffleColumn: {
+      id: "shuffleColumn", label: "Shuffle Column", icon: "🔀",
+      kind: "active", effect: "shuffleColumn", tier: "common", price: 5,
+      description: "Once per deal, shuffle every pile in this column and shuffle one buried card from each of those piles back into the deck. Composition only — no card order is revealed.",
+    },
+    revive: {
+      id: "revive", label: "Revive", icon: "♻️",
+      kind: "active", effect: "reviveBase", tier: "uncommon", price: 9,
+      description: "Once per deal, bring a random dead pile in this column back to life with one fresh pile card; its buried cards shuffle back into the deck. Does nothing if no pile in this column is dead.",
+    },
+    randomSticker: {
+      id: "randomSticker", label: "Random Sticker", icon: "🎲",
+      kind: "active", effect: "randomSticker", target: "pile", tier: "uncommon", price: 7,
+      description: "Once per deal, apply a random sticker to the pile card of a pile you choose in this column.",
+    },
+    randomStickerAll: {
+      id: "randomStickerAll", label: "Random Sticker All", icon: "🃏",
+      kind: "active", effect: "randomStickerAll", tier: "rare", price: 10,
+      description: "Once per deal, apply a random sticker to the pile card of every pile in this column. Lose 1 coin for each sticker applied.",
+    },
+    evenOut: {
+      id: "evenOut", label: "Even Out", icon: "⚖️",
+      kind: "active", effect: "evenOut", tier: "common", price: 4,
+      description: "Once per deal, move buried cards from larger piles to smaller piles in this column until the piles are as balanced as possible. Composition only — nothing is revealed.",
+    },
+    buryLargest: {
+      id: "buryLargest", label: "Bury Largest", icon: "⬇️",
+      kind: "active", effect: "buryLargest", tier: "common", price: 4,
+      description: "Once per deal, bury one card from the deck under the largest pile in this column.",
+    },
+    buryAll: {
+      id: "buryAll", label: "Bury All", icon: "🪣",
+      kind: "active", effect: "buryAll", tier: "uncommon", price: 6,
+      description: "Once per deal, bury one card from the deck under each alive pile in this column. Lose 5 coins for each pile buried under.",
+    },
+    setValue: {
+      id: "setValue", label: "Set Value", icon: "🔢",
+      kind: "active", effect: "setValue", tier: "rare", price: 9,
+      description: "Once per deal, set every pile card in this column to the same value. The value is rolled once at the start of the run and shown to you.",
+    },
+    stickerHarvest: {
+      id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
+      kind: "active", effect: "stickerHarvest", target: "pile", tier: "uncommon", price: 6,
+      description: "Once per deal, choose a pile in this column: bury one card from the deck under it for each sticker on its pile card, then remove every sticker from that pile card.",
+    },
+    refreshBases: {
+      id: "refreshBases", label: "Refresh Bases", icon: "🔋",
+      kind: "active", effect: "refreshBases", tier: "rare", price: 12,
+      description: "Once per deal, recharge the other two Bases on your board if they have been spent this deal. It never recharges another Refresh Bases.",
+    },
+    suitTally: {
+      id: "suitTally", label: "Suit Tally", icon: "💰",
+      kind: "active", effect: "suitTally", tier: "uncommon", price: 7,
+      description: "Once per deal, add up the value of every card of the rolled suit among the piles in this column and gain that many coins (face cards count as 10). The suit is rolled each deal and shown to you.",
+    },
+    copyToInventory: {
+      id: "copyToInventory", label: "Copy to Inventory", icon: "📑",
+      kind: "active", effect: "copyToInventory", tier: "rare", price: 11,
+      description: "Once per deal, copy a random pile card in this column — including its stickers — and add the copy to your card inventory.",
+    },
+  };
+  for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
+  const ORDER = ["kamikaze", "shuffleColumn", "revive", "randomSticker",
+    "randomStickerAll", "evenOut", "buryLargest", "buryAll", "setValue",
+    "stickerHarvest", "refreshBases", "suitTally", "copyToInventory"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -4450,36 +4547,311 @@ const GameEngine = (() => {
       return true;
     }
 
-    /** Kamikaze availability for a column (during active play): the column holds an
-        unused Kamikaze, more than one pile is alive on the board, and this column
-        still has at least one alive pile. */
-    function kamikazeAvailable(col) {
-      if (col == null || status !== "playing" || !run || !run.started || !run.pillars) return false;
-      if (!run.kamikazeUsed || run.kamikazeUsed[col]) return false;
-      const pillar = run.pillars[col] ? PillarTypes.get(run.pillars[col]) : null;
-      if (!pillar || pillar.effect !== "kamikaze") return false;
-      if (board.aliveCount() <= 1) return false;   // can't activate with one pile left
-      let colAlive = false;
-      for (let i = 0; i < run.pileColumns.length; i++)
-        if (run.pileColumns[i] === col && board.isActive(i)) { colAlive = true; break; }
-      return colAlive;   // own column all dead → unavailable
+    /* ============================================================
+       BASES — a NEW artifact class bound to the BOTTOM of a column. Unlike a
+       Pillar's ongoing passive effect, a Base is an ACTIVE once-per-deal power:
+       it arms (charges) at the start of each deal (run.basesUsed[col] = false),
+       the player ACTIVATES it once to fire its effect, and it is then SPENT
+       (run.basesUsed[col] = true) until the next deal re-arms it. The binding is
+       snapshotted into run.bases at Start Run, exactly like Pillars. Per-deal
+       randomized Bases read run.baseRandom (Set Value's value, Suit Tally's
+       suit), rolled once when the board is dealt and shown to the player.
+       ============================================================ */
+
+    /** The Base bound to column `col` (or null). Reads the locked run binding. */
+    function baseForColumn(col) {
+      if (col == null || !run || !run.bases) return null;
+      const id = run.bases[col];
+      return id ? BaseTypes.get(id) : null;
+    }
+    /** Pile indices that belong to column `col` (in board order). */
+    function colPiles(col) {
+      const out = [];
+      if (!run || !run.pileColumns) return out;
+      for (let i = 0; i < run.pileColumns.length; i++) if (run.pileColumns[i] === col) out.push(i);
+      return out;
+    }
+    /** Alive pile indices in column `col`. */
+    function colAlivePiles(col) { return colPiles(col).filter(i => board.isActive(i)); }
+    /** Dead pile indices in column `col`. */
+    function colDeadPiles(col) { return colPiles(col).filter(i => !board.isActive(i)); }
+
+    /** The "safe" random-sticker pool a Base may apply: no suit-locked stickers
+        and nothing that changes a card's suit (so a Base can never introduce a
+        not-yet-in-play suit) and not the setup-only Duplicate. */
+    function baseStickerPool() {
+      return StickerTypes.all().filter(t =>
+        !t.suit && t.behavior !== "changeSuitRandom" && t.behavior !== "duplicate");
+    }
+    /** Pick one id from a list using the run rng (uniform). */
+    function pickOne(list) { return list.length ? list[Math.floor(rng() * list.length)] : null; }
+
+    /** Project a sticker's LIVE effect onto a board card in place (rank → value;
+        behavior → flags). Mirrors the debug projector. Used by the sticker Bases.
+        NOTE: this mutates the run-deck/board card only (effective for this deal);
+        it does NOT write the sticker back to the persistent campaign card. */
+    function projectStickerOntoCard(card, typeId) {
+      const t = StickerTypes.get(typeId);
+      if (!card || !t) return false;
+      card.stickers = card.stickers || [];
+      card.stickers.push({ type: typeId });
+      const setRank = (v) => {
+        card.value = Math.max(2, Math.min(14, v));
+        const rk = DeckManager.RANKS.find(x => x.value === card.value);
+        if (rk) card.label = rk.label;
+      };
+      if (t.kind === "rank") setRank(card.value + (t.rankDelta || 0));
+      else if (t.behavior === "randomFixedValue") setRank(2 + Math.floor(rng() * 13));
+      else if (t.behavior === "extraHeart") card.heartsRemaining = (card.heartsRemaining || 0) + 1;
+      else if (t.behavior === "tieSafe") card.tieSafe = true;
+      else if (t.behavior === "wildSuit") card.wildSuit = true;
+      else if (t.behavior === "revealNext") card.revealNext = true;
+      else if (t.behavior === "suitImmunity" && t.suit) { card.suitGuards = card.suitGuards || {}; card.suitGuards[t.suit] = true; }
+      return true;
     }
 
-    /** Activate Kamikaze: kill the chosen pile, spend the charge, and reveal the
-        upcoming cards ON THE DECK for the next 3 draws (same display-only treatment
-        as Scout, one at a time — draw order is never changed). Returns the snapshot
-        of the next 3 cards (for tests/logging), or null if it couldn't activate. */
-    function kamikazeActivate(col, targetIndex) {
-      if (!kamikazeAvailable(col)) return null;
-      if (targetIndex == null || !board.isActive(targetIndex)) return null;
-      board.kill(targetIndex);
-      run.kamikazeUsed[col] = true;
-      run.kamikazeRevealLeft = 3;   // reveal the next 3 draws on the deck, one at a time
-      const cards = deck.peek(3).map(c => ({ ...c }));   // read-only snapshot (no order change)
-      logAction("Kamikaze: killed pile " + (targetIndex + 1) + " to look ahead 3 cards");
-      emit("kamikaze-fired", { col, index: targetIndex, cards, board, deck, run });
-      evaluateEnd();   // killing a pile can't empty the deck; only checks loss (safe — >1 was alive)
-      return cards;
+    /** The "tally value" of a card for Suit Tally: number cards score their value;
+        face cards (J/Q/K) and the Ace score 10. */
+    function tallyValue(card) {
+      return (card && card.value <= 10) ? card.value : 10;
+    }
+
+    /** Whether the Base on column `col` is CHARGED (placed, and not yet spent this
+        deal). Independent of any per-Base precondition (see baseCanActivate). */
+    function baseCharged(col) {
+      if (col == null || !run || !run.bases || !run.basesUsed) return false;
+      return !!run.bases[col] && run.basesUsed[col] === false;
+    }
+
+    /** Per-Base precondition: can this Base's effect do anything meaningful right
+        now? (e.g. Kamikaze needs >1 pile alive, Revive needs a dead pile in its
+        column, paid/deck Bases need a non-empty deck.) Pure check — no state change. */
+    function baseCanActivate(col) {
+      const base = baseForColumn(col);
+      if (!base) return false;
+      const alive = colAlivePiles(col);
+      switch (base.effect) {
+        case "kamikaze":         return board.aliveCount() > 1;   // can't kill the last pile
+        case "shuffleColumn":    return alive.length > 0;
+        case "reviveBase":       return colDeadPiles(col).length > 0;
+        case "randomSticker":    return alive.length > 0;
+        case "randomStickerAll": return alive.length > 0;
+        case "evenOut":          return alive.length >= 2;
+        case "buryLargest":      return alive.length > 0 && !deck.isEmpty();
+        case "buryAll":          return alive.length > 0 && !deck.isEmpty();
+        case "setValue":         return alive.length > 0;
+        case "stickerHarvest":   return alive.length > 0;
+        case "refreshBases":     return refreshableBaseColumns(col).length > 0;
+        case "suitTally":        return alive.length > 0;
+        case "copyToInventory":  return alive.length > 0;
+        default:                 return false;
+      }
+    }
+
+    /** Whether column `col`'s Base can be activated right now (charged + in active
+        play + its precondition holds). */
+    function baseAvailable(col) {
+      if (col == null || status !== "playing" || !run || !run.started) return false;
+      if (!baseCharged(col)) return false;
+      return baseCanActivate(col);
+    }
+
+    /** Columns whose (spent, non-Refresh) Base a Refresh-Bases on `col` may re-arm:
+        every OTHER column holding a charged-out Base that is not itself a Refresh
+        Bases. (Refresh Bases never re-arms another Refresh Bases — no infinite loop.) */
+    function refreshableBaseColumns(col) {
+      const out = [];
+      if (!run || !run.bases) return out;
+      for (let c = 0; c < run.bases.length; c++) {
+        if (c === col) continue;
+        const b = BaseTypes.get(run.bases[c]);
+        if (b && b.effect !== "refreshBases" && run.basesUsed[c] === true) out.push(c);
+      }
+      return out;
+    }
+
+    /**
+     * Activate the Base on column `col`. `targetIndex` is the chosen pile for
+     * target Bases (Kamikaze / Random Sticker / Sticker Harvest); ignored by the
+     * whole-column Bases. Spends the charge and fires the effect. Returns a result
+     * object describing what happened (for the UI + tests), or null if it could
+     * not activate. Some effects (Copy to Inventory, sticker persistence) hand a
+     * follow-up to the UI via the "base-fired" event payload.
+     */
+    function baseActivate(col, targetIndex) {
+      if (!baseAvailable(col)) return null;
+      const base = baseForColumn(col);
+      // Validate the target for target Bases.
+      const needsTarget = base.target === "pile";
+      if (needsTarget) {
+        if (targetIndex == null) return null;
+        // Kamikaze may sacrifice ANY alive pile board-wide; the other target Bases
+        // act only on a pile in their own column.
+        if (base.effect === "kamikaze") {
+          if (!board.isActive(targetIndex)) return null;
+        } else {
+          if (run.pileColumns[targetIndex] !== col || !board.isActive(targetIndex)) return null;
+        }
+      }
+
+      const res = { col, effect: base.effect, label: base.label };
+      logBegin(base.label);
+
+      switch (base.effect) {
+        case "kamikaze": {
+          board.kill(targetIndex);
+          run.kamikazeRevealLeft = 3;                         // peek the next 3 draws (display-only)
+          res.index = targetIndex;
+          res.cards = deck.peek(3).map(c => ({ ...c }));      // read-only snapshot (no order change)
+          logLine("killed pile " + (targetIndex + 1) + ", peeking the next 3 upcoming cards");
+          break;
+        }
+        case "shuffleColumn": {
+          let returned = 0;
+          for (const i of colAlivePiles(col)) {
+            board.shufflePile(i, rng);
+            const cards = board.piles[i].cards;
+            if (cards.length > 1) { deck.returnCard(cards.shift()); returned++; }   // one buried card back to deck
+          }
+          res.returned = returned;
+          logLine("shuffled " + colAlivePiles(col).length + " piles; " + returned + " buried cards returned to the deck (hidden)");
+          break;
+        }
+        case "reviveBase": {
+          const dead = colDeadPiles(col);
+          const target = pickOne(dead);
+          board.revive(target);
+          const old = board.drain(target);                   // its buried cards → deck (hidden)
+          for (const c of old) deck.returnCard(c);
+          if (!deck.isEmpty()) board.push(target, deck.draw());   // one fresh pile card
+          const fresh = board.top(target);
+          if (fresh && fresh.revealNext) run.revealNextActive = true;
+          res.index = target;
+          logLine("revived pile " + (target + 1) + " with a fresh card; " + old.length + " buried cards shuffled into the deck");
+          break;
+        }
+        case "randomSticker": {
+          const typeId = pickOne(baseStickerPool().map(t => t.id));
+          const top = board.top(targetIndex);
+          projectStickerOntoCard(top, typeId);
+          res.index = targetIndex;
+          res.stickerApplied = { pileIndex: targetIndex, cardId: top.id, typeId };
+          const st = StickerTypes.get(typeId);
+          logLine("applied " + ((st && st.label) || typeId) + " to the pile card of pile " + (targetIndex + 1));
+          break;
+        }
+        case "randomStickerAll": {
+          const applied = [];
+          const pool = baseStickerPool().map(t => t.id);
+          for (const i of colAlivePiles(col)) {
+            const typeId = pickOne(pool);
+            const top = board.top(i);
+            projectStickerOntoCard(top, typeId);
+            applied.push({ pileIndex: i, cardId: top.id, typeId });
+          }
+          if (applied.length) addBonus(base.label, -applied.length);   // lose 1 coin per sticker
+          res.stickersApplied = applied;
+          logLine("applied " + applied.length + " stickers across the column; −" + applied.length + " coins");
+          break;
+        }
+        case "evenOut": {
+          let moves = 0;
+          // Repeatedly hand a buried card from the largest pile to the smallest
+          // until they're within 1 of each other (or the largest has no buried card).
+          for (let guard = 0; guard < 500; guard++) {
+            const alive = colAlivePiles(col);
+            if (alive.length < 2) break;
+            let big = alive[0], small = alive[0];
+            for (const i of alive) {
+              if (board.pileSize(i) > board.pileSize(big)) big = i;
+              if (board.pileSize(i) < board.pileSize(small)) small = i;
+            }
+            if (big === small || board.pileSize(big) - board.pileSize(small) <= 1) break;
+            if (board.piles[big].cards.length <= 1) break;   // no buried card to give
+            if (!board.moveBottomCard(big, small)) break;
+            moves++;
+          }
+          res.moves = moves;
+          logLine("evened out the column: " + moves + " buried cards moved (hidden)");
+          break;
+        }
+        case "buryLargest": {
+          const alive = colAlivePiles(col);
+          let big = alive[0];
+          for (const i of alive) if (board.pileSize(i) > board.pileSize(big)) big = i;
+          buryTribute(big, 1, base.label);
+          res.index = big;
+          break;
+        }
+        case "buryAll": {
+          const alive = colAlivePiles(col);
+          let buried = 0;
+          for (const i of alive) { if (deck.isEmpty()) break; if (buryTribute(i, 1, base.label) > 0) buried++; }
+          if (buried) addBonus(base.label, -5 * buried);   // lose 5 coins per pile buried under
+          res.buried = buried;
+          logLine("buried under " + buried + " piles; −" + (5 * buried) + " coins");
+          break;
+        }
+        case "setValue": {
+          const y = run.baseRandom ? run.baseRandom.value : 0;
+          const rk = DeckManager.RANKS.find(x => x.value === y);
+          for (const i of colAlivePiles(col)) {
+            const top = board.top(i);
+            top.value = y;
+            if (rk) top.label = rk.label;
+          }
+          res.value = y;
+          logLine("set every pile card in the column to " + (rk ? rk.label : y));
+          break;
+        }
+        case "stickerHarvest": {
+          const top = board.top(targetIndex);
+          const n = (top.stickers || []).length;
+          if (n > 0) buryTribute(targetIndex, n, base.label);
+          // Strip every sticker + its projected flags off the live pile card.
+          top.stickers = [];
+          delete top.tieSafe; delete top.wildSuit; delete top.revealNext;
+          delete top.heartsRemaining; delete top.suitGuards;
+          res.index = targetIndex; res.harvested = n;
+          logLine("buried " + n + " cards and removed " + n + " stickers from the pile card of pile " + (targetIndex + 1));
+          break;
+        }
+        case "refreshBases": {
+          const cols = refreshableBaseColumns(col);
+          for (const c of cols) run.basesUsed[c] = false;   // re-arm (never a Refresh Bases)
+          res.refreshed = cols.slice();
+          logLine("re-armed " + cols.length + " spent Base" + (cols.length === 1 ? "" : "s"));
+          break;
+        }
+        case "suitTally": {
+          const suit = run.baseRandom ? run.baseRandom.suit : null;
+          let sum = 0;
+          for (const i of colAlivePiles(col))
+            for (const c of board.piles[i].cards) if (c.suit === suit) sum += tallyValue(c);
+          if (sum) addBonus(base.label, sum);
+          res.suit = suit; res.gained = sum;
+          logLine("tallied " + suit + " cards in the column → +" + sum + " coins");
+          break;
+        }
+        case "copyToInventory": {
+          const alive = colAlivePiles(col).filter(i => board.top(i));
+          const target = pickOne(alive);
+          const top = board.top(target);
+          res.index = target;
+          res.copyCardId = top.id;            // the UI duplicates this card into inventory
+          logLine("copied the pile card of pile " + (target + 1) + " to the card inventory");
+          break;
+        }
+        default:
+          currentEntry = null;
+          return null;
+      }
+
+      run.basesUsed[col] = true;              // spend the charge for this deal
+      currentEntry = null;
+      emit("base-fired", { ...res, board, deck, run });
+      evaluateEnd();
+      return res;
     }
 
     /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
@@ -4637,8 +5009,16 @@ const GameEngine = (() => {
         // Revive (one-shot per deal, per column): consumed only when the player
         // actually revives a dead pile. Stays false — "ready" — until then.
         reviveUsed: cols ? new Array(cols.length).fill(false) : null,
-        // Kamikaze (one-shot per deal, per column): consumed when activated.
-        kamikazeUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Bases (the active per-deal artifact class): `bases` is the per-column
+        // binding snapshotted at Start Run (column index → Base id | null);
+        // `basesUsed[col]` is the charged/spent flag for THIS deal — false means
+        // charged (ready), true means already activated. Reset to charged every
+        // deal (here). `baseRandom` holds the per-deal rolls a Base may read
+        // (Set Value's `value`, Suit Tally's `suit`), shown to the player; null
+        // for column-agnostic legacy/test runs.
+        bases: null,
+        basesUsed: cols ? new Array(cols.length).fill(false) : null,
+        baseRandom: null,
         // Kamikaze deck-reveal: how many of the NEXT draws still show the upcoming
         // card on the deck (same treatment as Scout, but persisting 3 draws).
         // Decremented as cards are drawn; display-only (never changes draw order).
@@ -4688,6 +5068,21 @@ const GameEngine = (() => {
         board.push(i, deck.draw());
       }
       logAction("Run dealt — " + board.size + " piles, " + deck.remaining() + " cards in deck");
+      // Roll this deal's Base randomizers (Set Value's value, Suit Tally's suit),
+      // shown to the player. Only when columns are in play (skips legacy/test runs
+      // so their rng sequence is untouched). The Suit Tally suit is picked from the
+      // suits actually present this deal so the tally can never target an absent
+      // suit; the Set Value value spans the full 2..Ace range.
+      if (cols) {
+        const present = new Set();
+        for (let i = 0; i < board.size; i++) { const t = board.top(i); if (t) present.add(t.suit); }
+        for (const c of deck.peek(deck.remaining())) present.add(c.suit);
+        const suits = [...present];
+        run.baseRandom = {
+          value: 2 + Math.floor(rng() * 13),
+          suit: suits.length ? suits[Math.floor(rng() * suits.length)] : null,
+        };
+      }
       // --- Sticker phase: dealt, awaiting Start Run ------------------
       // phase stays "start" until startRun(); active play hasn't begun.
       emit("dealt", { board, deck, run });
@@ -4697,7 +5092,7 @@ const GameEngine = (() => {
         while playing and not already started. Closes the sticker window
         (anti-exploit: no mid/late-run sticker saves) and emits "run-started"
         so the UI can swap the Start Run button for the guess buttons. */
-    function startRun(pillars) {
+    function startRun(pillars, bases) {
       if (status !== "playing" || !run || run.started) return;
       run.started = true;
       run.stickerWindow = false;
@@ -4706,10 +5101,19 @@ const GameEngine = (() => {
       // to the campaign binding can't affect a run in progress). A plain copy
       // of the 3-slot array (column index → Pillar id | null).
       run.pillars = Array.isArray(pillars) ? pillars.slice() : null;
+      // Lock the per-column Base binding the same way (column index → Base id |
+      // null). basesUsed was already reset to "charged" when the deal was dealt.
+      run.bases = Array.isArray(bases) ? bases.slice() : null;
       const bound = (run.pillars || [])
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
-      logAction("Start Run", bound.length ? ["Pillars: " + bound.join(", ")] : ["No Pillars bound"]);
+      const boundBases = (run.bases || [])
+        .map((bid, c) => bid ? "col " + (c + 1) + "=" + ((BaseTypes.get(bid) || {}).label || bid) : null)
+        .filter(Boolean);
+      logAction("Start Run", [
+        bound.length ? "Pillars: " + bound.join(", ") : "No Pillars bound",
+        boundBases.length ? "Bases: " + boundBases.join(", ") : "No Bases bound",
+      ]);
       // Scout applied to a starting top counts as "placed" — reveal from the off.
       run.revealNextActive = false;
       for (let i = 0; i < board.size; i++) {
@@ -5042,11 +5446,22 @@ const GameEngine = (() => {
       /** Revive a chosen dead pile for the Revive Pillar on column `col` (see the
           "revive-offer" event). Returns true if it revived. */
       reviveDeadPile(col, targetIndex) { return reviveDeadPile(col, targetIndex); },
-      /** Whether the column's Kamikaze Pillar can be activated right now. */
-      kamikazeAvailable(col) { return kamikazeAvailable(col); },
-      /** Activate Kamikaze on column `col`, killing `targetIndex` and revealing
-          the next 3 deck cards (display-only). Returns the cards, or null. */
-      kamikazeActivate(col, targetIndex) { return kamikazeActivate(col, targetIndex); },
+      /* ---- Bases (the active per-deal artifact class) ---- */
+      /** The Base type bound to column `col` for this run (or null). */
+      baseForColumn(col) { return baseForColumn(col); },
+      /** Whether the Base on column `col` can be activated right now (charged this
+          deal, in active play, and its per-Base precondition holds). */
+      baseAvailable(col) { return baseAvailable(col); },
+      /** Whether the Base on column `col` needs the player to pick a target pile. */
+      baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && b.target === "pile"); },
+      /** Activate the Base on column `col` (with a chosen `targetIndex` for target
+          Bases). Returns a result object describing what fired, or null. */
+      baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
+      /** This deal's Base randomizers ({ value, suit }) for the UI to display, or null. */
+      baseRandom() { return run ? run.baseRandom : null; },
+      /** Back-compat shims for the (now Base) Kamikaze, used by the existing UI. */
+      kamikazeAvailable(col) { const b = baseForColumn(col); return !!(b && b.effect === "kamikaze") && baseAvailable(col); },
+      kamikazeActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
       onEvent(fn) { listeners.push(fn); },
       getStatus() { return status; },
       /** True only during the sticker phase (after deal, before Start Run). */
@@ -5147,6 +5562,7 @@ const CampaignState = (() => {
      it resets to base when the store re-opens for a new run. */
   const STORE_STICKER_SLOTS = 4;
   const STORE_PILLAR_SLOTS = 3;        // three Pillar slots offered per visit
+  const STORE_BASE_SLOTS = 3;          // three Base slots offered per visit
   const STORE_PACK_SLOTS = 2;          // pack section slots — always filled
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
@@ -5198,6 +5614,13 @@ const CampaignState = (() => {
     return PillarTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
 
+  /** Base types available to offer. Bases carry no suit gate today, so the whole
+      registry is always eligible; kept as a function to mirror the sticker/Pillar
+      pools (and to make a future suit-locked Base trivial). */
+  function basePoolForSuits(_suitsInPlay) {
+    return BaseTypes.all();
+  }
+
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
       deck cards) and pack-card generation. opts.rng seeds the random rank/suit
       picks (deterministic for tests); opts.suits limits Change-Suit Random to a
@@ -5241,14 +5664,15 @@ const CampaignState = (() => {
       full pool by rarity weight (packs carry no tier today, so equal-weighted;
       a future pack `tier`/`weight` would bias it automatically). The pack slots
       re-roll on every fresh store open and every reroll, just like the others. */
-  function freshOffer(rng = Math.random, stickerPool, pillarPool) {
+  function freshOffer(rng = Math.random, stickerPool, pillarPool, basePool) {
     return {
-      // stickerPool / pillarPool are the suit-locked pools for the current stage
-      // (so e.g. ♦/♣ Suit Guards and ♦/♣ Bonus Pillars can't be offered before
-      // their suit is in play). Callers pass them; each defaults to the full set
-      // for any suit-agnostic use.
+      // stickerPool / pillarPool / basePool are the suit-locked pools for the
+      // current stage (so e.g. ♦/♣ Suit Guards and ♦/♣ Bonus Pillars can't be
+      // offered before their suit is in play). Callers pass them; each defaults
+      // to the full set for any suit-agnostic use.
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
       pillars: rollIds(pillarPool || PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
+      bases: rollIds(basePool || BaseTypes.all(), STORE_BASE_SLOTS, rng),
       packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng, true),   // one of each type, no dupes
       rerollCost: REROLL_BASE_COST,
     };
@@ -5269,12 +5693,19 @@ const CampaignState = (() => {
     let coins = 0;                 // spendable currency, persists across runs
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
     let pillarInventory = {};      // { pillarTypeId: count } bought but not yet placed
+    let baseInventory = {};        // { baseTypeId: count } bought but not yet placed
     // Pillar binding: one slot per board column (index 0..COLUMN_SLOTS-1), each
     // holding a Pillar type id or null. Pillars are BOUGHT into pillarInventory
     // (above) and PLACED onto columns during the pre-run setup phase; placing
     // moves a Pillar from inventory to a column, and picking one up moves it
     // back. Bindings PERSIST across runs; a run snapshots them at Start Run.
     let columnPillars = new Array(COLUMN_SLOTS).fill(null);
+    // Base binding: one slot per board column, holding a Base type id or null.
+    // Bases are BOUGHT into baseInventory and PLACED onto columns in pre-run
+    // setup, exactly like Pillars — but they bind to the BOTTOM of a column and
+    // are activated once per deal during play. Bindings persist across runs; a
+    // run snapshots them at Start Run.
+    let columnBases = new Array(COLUMN_SLOTS).fill(null);
     // Current store offering (Balatro-style). Persists across store re-renders
     // (so a re-render can't re-roll for free); regenerated on each store open;
     // wiped on reset(). null until the first store opens.
@@ -5600,12 +6031,101 @@ const CampaignState = (() => {
         return true;
       },
 
+      /* ---- Bases (bottom-of-column active artifacts) ----
+         The exact same buy → inventory → place lifecycle as Pillars, against the
+         parallel columnBases binding + baseInventory. */
+      /** A copy of the column→Base binding (index = column, value = id|null). */
+      getColumnBases() { return columnBases.slice(); },
+      /** Base id on a given column (or null). */
+      columnBase(col) { return columnBases[col] || null; },
+      /** How many columns currently hold a Base. */
+      baseCount() { return columnBases.filter(Boolean).length; },
+      /** Index of the first empty Base column slot, or -1 if all are full. */
+      firstEmptyBaseColumn() { return columnBases.indexOf(null); },
+      getBaseInventory() { return { ...baseInventory }; },
+      baseInventoryCount(typeId) { return baseInventory[typeId] || 0; },
+      /** DEBUG ONLY: grant one Base to inventory free (no coins). */
+      debugGrantBase(typeId) {
+        if (!BaseTypes.get(typeId)) return false;
+        baseInventory[typeId] = (baseInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Remove one Base of `typeId` from inventory permanently. No refund. */
+      discardBaseFromInventory(typeId) {
+        if ((baseInventory[typeId] || 0) <= 0) return false;
+        baseInventory[typeId] -= 1;
+        if (baseInventory[typeId] <= 0) delete baseInventory[typeId];
+        return true;
+      },
+      /** FIXED price of a Base type (no per-purchase escalation). */
+      priceOfBase(typeId) {
+        const t = BaseTypes.get(typeId);
+        return t ? t.price : Infinity;
+      },
+      /** Buy one Base into inventory if affordable. Placement happens later. */
+      buyBaseToInventory(typeId) {
+        const t = BaseTypes.get(typeId);
+        if (!t) return false;
+        const price = this.priceOfBase(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        baseInventory[typeId] = (baseInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Place an owned Base from inventory onto column `col` (non-destructive
+          swap: any Base already there returns to inventory). */
+      placeBase(typeId, col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        if (!BaseTypes.get(typeId)) return false;
+        if ((baseInventory[typeId] || 0) <= 0) return false;
+        const displaced = columnBases[col];
+        baseInventory[typeId] -= 1;
+        if (baseInventory[typeId] <= 0) delete baseInventory[typeId];
+        if (displaced) baseInventory[displaced] = (baseInventory[displaced] || 0) + 1;
+        columnBases[col] = typeId;
+        return true;
+      },
+      /** Pick a placed Base back up off column `col` into inventory. Returns the
+          Base id moved, or null if the column held none. */
+      unplaceBase(col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return null;
+        const id = columnBases[col];
+        if (!id) return null;
+        baseInventory[id] = (baseInventory[id] || 0) + 1;
+        columnBases[col] = null;
+        return id;
+      },
+      /** Set (or clear, with null) the Base on a column. Raw setter; no cost. */
+      setColumnBase(col, typeId) {
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        if (typeId !== null && !BaseTypes.get(typeId)) return false;
+        columnBases[col] = typeId;
+        return true;
+      },
+      /** Swap the Bases on two columns (the pre-run "rearrange" primitive). */
+      swapColumnBases(a, b) {
+        if (a < 0 || a >= COLUMN_SLOTS || b < 0 || b >= COLUMN_SLOTS) return false;
+        const t = columnBases[a]; columnBases[a] = columnBases[b]; columnBases[b] = t;
+        return true;
+      },
+      /** Buy a Base straight onto column `col` (no inventory step; overwrites). */
+      buyBase(typeId, col) {
+        const t = BaseTypes.get(typeId);
+        if (!t) return false;
+        if (col < 0 || col >= COLUMN_SLOTS) return false;
+        const price = this.priceOfBase(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        columnBases[col] = typeId;
+        return true;
+      },
+
       /* ---- store offering (limited random roll; see freshOffer) ---------- */
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
         const suits = suitsForStage(currentStage);
-        storeOffer = freshOffer(rng, stickerPoolForSuits(suits), pillarPoolForSuits(suits));
+        storeOffer = freshOffer(rng, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         return storeOffer;
       },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
@@ -5620,9 +6140,10 @@ const CampaignState = (() => {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
         const suits = suitsForStage(currentStage);
-        const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits));
+        const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         storeOffer.stickers = f.stickers;
         storeOffer.pillars = f.pillars;
+        storeOffer.bases = f.bases;
         storeOffer.packs = f.packs;
         storeOffer.rerollCost += REROLL_STEP;
         return true;
@@ -5643,6 +6164,15 @@ const CampaignState = (() => {
         const id = storeOffer.pillars[i];
         if (!id || !this.buyPillarToInventory(id)) return false;
         storeOffer.pillars[i] = null;
+        return true;
+      },
+      /** Buy the offered Base in slot `i` INTO INVENTORY (placement happens in
+          setup); empties that slot only. Returns true on success. */
+      buyOfferedBase(i) {
+        if (!storeOffer) return false;
+        const id = storeOffer.bases[i];
+        if (!id || !this.buyBaseToInventory(id)) return false;
+        storeOffer.bases[i] = null;
         return true;
       },
 
@@ -5853,7 +6383,9 @@ const CampaignState = (() => {
         coins = 0;
         stickerInventory = {};
         pillarInventory = {};
+        baseInventory = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
+        columnBases = new Array(COLUMN_SLOTS).fill(null);
         storeOffer = null;
         packTray = [];
         nextCardId = 52;
@@ -5874,7 +6406,9 @@ const CampaignState = (() => {
           coins,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
+          baseInventory: { ...baseInventory },
           columnPillars: columnPillars.slice(),
+          columnBases: columnBases.slice(),
           storeOffer: storeOffer ? JSON.parse(JSON.stringify(storeOffer)) : null,
           baseDeck: this._copyCards(),
           packTray: packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) })),
@@ -5905,9 +6439,15 @@ const CampaignState = (() => {
         coins = s.coins || 0;
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
+        baseInventory = { ...(s.baseInventory || {}) };       // default {} for pre-Bases saves
         columnPillars = Array.isArray(s.columnPillars)
           ? s.columnPillars.slice() : new Array(COLUMN_SLOTS).fill(null);
+        columnBases = Array.isArray(s.columnBases)
+          ? s.columnBases.slice() : new Array(COLUMN_SLOTS).fill(null);
         storeOffer = s.storeOffer || null;
+        // Older saves predate the Base store section — backfill an empty slot
+        // array so the store renderer never reads `undefined`.
+        if (storeOffer && !Array.isArray(storeOffer.bases)) storeOffer.bases = [];
         baseDeck = s.baseDeck.map(c => ({
           ...c,
           modifications: (c.modifications || []).slice(),

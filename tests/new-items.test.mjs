@@ -28,8 +28,7 @@ export function run() {
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
     r.eq(PillarTypes.get("revive").price, 8, "Revive costs 8");
     r.eq(PillarTypes.get("revive").tier, "uncommon", "Revive is Uncommon");
-    r.eq(PillarTypes.get("kamikaze").price, 8, "Kamikaze costs 8");
-    r.eq(PillarTypes.get("kamikaze").tier, "uncommon", "Kamikaze is Uncommon");
+    r.ok(!PillarTypes.get("kamikaze"), "Kamikaze is no longer a Pillar (moved to Bases)");
     r.ok(!!StickerTypes.get("shuffle"), "Shuffle sticker registered");
     r.ok(!!StickerTypes.get("donate"), "Donate sticker registered");
     // Suit-gating is respected: none of the new items carry a `suit`, so they're
@@ -256,31 +255,30 @@ export function run() {
     r.eq(offers, 1, "Revive fires later once a pile is dead (it waited, stayed ready)");
   }
 
-  // --- Kamikaze: activate to kill a pile + reveal 3 (display-only) -------
+  // --- Kamikaze (now a BASE): activate to kill a pile + peek 3 (display-only) -
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     let fired = null;
-    e.onEvent((t, p) => { if (t === "kamikaze-fired") fired = p; });
-    e.start(); e.startRun(["kamikaze", null, null]);
-    r.ok(e.kamikazeAvailable(0), "Kamikaze available during play with >1 pile alive");
+    e.onEvent((t, p) => { if (t === "base-fired") fired = p; });
+    e.start(); e.startRun([null, null, null], ["kamikaze", null, null]);
+    r.ok(e.baseAvailable(0), "Kamikaze Base available during play with >1 pile alive");
+    r.ok(e.baseNeedsTarget(0), "Kamikaze is a target Base (player picks a pile)");
     const nextBefore = e.getDeck().peek(1)[0].value;
-    const cards = e.kamikazeActivate(0, 5);   // kill pile 5
-    r.ok(cards && cards.length === 3, "Kamikaze reveals the next 3 cards");
+    const res = e.baseActivate(0, 5);   // kill pile 5
+    r.ok(res && res.cards && res.cards.length === 3, "Kamikaze peeks the next 3 cards");
     r.ok(!e.getBoard().isActive(5), "the chosen pile is killed");
-    r.ok(e.getRun().kamikazeUsed[0], "Kamikaze is spent");
-    r.ok(fired && fired.index === 5 && fired.cards.length === 3, "kamikaze-fired event carries the kill + cards");
+    r.ok(e.getRun().basesUsed[0], "the Base is spent for the deal");
+    r.ok(fired && fired.effect === "kamikaze" && fired.index === 5, "base-fired event carries the kill");
     r.eq(e.getDeck().peek(1)[0].value, nextBefore, "draw order is unchanged (display-only look-ahead)");
-    r.eq(cards[0].value, nextBefore, "the first revealed card is the true next draw");
-    r.ok(!e.kamikazeAvailable(0), "Kamikaze is one-shot per deal");
-    // The reveal now lives ON THE DECK (like Scout), one at a time for 3 draws.
+    r.eq(res.cards[0].value, nextBefore, "the first peeked card is the true next draw");
+    r.ok(!e.baseAvailable(0), "the Base is one-shot per deal");
+    // The reveal lives ON THE DECK (like Scout), one at a time for 3 draws.
     r.eq(e.getRun().kamikazeRevealLeft, 3, "reveal armed for the next 3 draws");
     r.ok(e.revealedNextCard(), "the upcoming card shows on the deck (Scout-style)");
     r.eq(e.revealedNextCard().value, e.getDeck().peek(1)[0].value, "deck reveal = the real next card");
     winGuess(e, 0);   // draw 1
     r.eq(e.getRun().kamikazeRevealLeft, 2, "counts down one per draw");
-    r.ok(e.revealedNextCard(), "still revealing through draw 2");
     winGuess(e, 0);   // draw 2
-    r.ok(e.revealedNextCard(), "still revealing through draw 3");
     winGuess(e, 0);   // draw 3
     r.eq(e.getRun().kamikazeRevealLeft, 0, "reveal exhausted after the 3rd draw");
     r.ok(!e.revealedNextCard(), "deck returns to hidden after the third draw");
@@ -288,17 +286,10 @@ export function run() {
   {
     // Unavailable with only one pile alive on the board.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["kamikaze", null, null]);
+    e.start(); e.startRun([null, null, null], ["kamikaze", null, null]);
     for (let i = 1; i < 10; i++) e.getBoard().kill(i);
-    r.ok(!e.kamikazeAvailable(0), "unavailable while only one pile is alive");
-    r.eq(e.kamikazeActivate(0, 0), null, "activation refused when unavailable");
-  }
-  {
-    // Unavailable when its OWN column is entirely dead (others still alive).
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["kamikaze", null, null]);
-    e.getBoard().kill(0); e.getBoard().kill(1); e.getBoard().kill(2);   // column 0 all dead
-    r.ok(!e.kamikazeAvailable(0), "unavailable when its own column is all dead");
+    r.ok(!e.baseAvailable(0), "Kamikaze unavailable while only one pile is alive");
+    r.eq(e.baseActivate(0, 0), null, "activation refused when unavailable");
   }
 
   // --- Highest Even / Odd: dead piles excluded (regression lock) ---------
