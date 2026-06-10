@@ -3269,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.21 · guard-return-noblank";
+const APP_VERSION = "v2.22 · directional-copy-standardized";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3467,13 +3467,13 @@ const StickerTypes = (() => {
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "Safe from a tie. A drawn card that matches this card's rank no longer kills the pile." },
     suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
-                  description: "When this card is drawn onto a ♠, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
+                  description: "When this drawn card is placed on a ♠ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "When this card is drawn onto a ♥, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
+                  description: "When this drawn card is placed on a ♥ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "When this card is drawn onto a ♦, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
+                  description: "When this drawn card is placed on a ♦ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
-                  description: "When this card is drawn onto a ♣, a wrong guess is safe — the pile survives and this card returns to the deck. Works once a deal." },
+                  description: "When this drawn card is placed on a ♣ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "Earn +1 coin per card in this pile when you clear the deal with this card on top." },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
@@ -3483,13 +3483,13 @@ const StickerTypes = (() => {
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 7,
                   description: "While this card is on top, this pile is left out of the smallest-pile part of your score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
-                  description: "Safe from a wrong guess of any kind. Works once a deal; the pile survives and the card goes back into the deck." },
+                  description: "When a drawn card lands wrong on this pile card, the pile survives. Works once a deal; the drawn card goes back into the deck." },
     oneTribute: { id: "oneTribute", label: "Bury 1",   icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, tier: "rare", price: 6,
-                  description: "Bury 1 card from the bottom of the deck under the pile when this card is correctly placed on it. Every time, no cost." },
+                  description: "When this drawn card is correctly placed on a pile card, bury 1 card from the bottom of the deck under that pile. Every time, no cost." },
     twoTribute: { id: "twoTribute", label: "Bury 2",  icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 8,
-                  description: "When this card is correctly placed on a pile, you may bury 2 cards from the bottom of the deck under it for 4 coins (you're asked first)." },
+                  description: "When this drawn card is correctly placed on a pile card, you may bury 2 cards from the bottom of the deck under that pile for 4 coins (you're asked first)." },
     centerTribute: { id: "centerTribute", label: "Center Bury", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
-                  description: "Bury 1 card from the bottom of the deck under this pile when this card is correctly placed in the middle column. Every time, no cost." },
+                  description: "When this drawn card is correctly placed on a pile card in the middle column, bury 1 card from the bottom of the deck under that pile. Every time, no cost." },
     deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 2,
                   description: "Earn +5 coins when a wrong guess on this card kills the pile." },
     heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 4,
@@ -3497,17 +3497,17 @@ const StickerTypes = (() => {
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
                   description: "Earn +1 coin per other sticker on the card when you place this sticker on a surviving pile's top card." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Earn more coins each time this card is guessed correctly: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the run until a full reset." },
+                  description: "Each time a drawn card lands correctly on this pile card, earn more coins: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the run until a full reset." },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
-                  description: "See the next card after this card is played, until that card is drawn." },
+                  description: "After this drawn card is correctly placed on a pile card, see the next card in the deck until that card is drawn." },
     duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "rare", price: 7,
                   description: "Copy this card, stickers and all, into your card inventory to swap into your deck before a later run. The copy is independent of the original." },
     wildSuit:   { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "rare", price: 8,
                   description: "This card counts as EVERY suit at once. It satisfies every suit condition simultaneously — any suit guard, any suit Bonus pillar, and any all-suit pillar treat it as their suit." },
     shuffle:    { id: "shuffle",    label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 4,
-                  description: "After this card lands on a pile from a correct guess, you may shuffle that pile so a different card ends up on top. The pile's order is never revealed." },
+                  description: "After this drawn card lands correctly on a pile card, you may shuffle that pile so a different card ends up on top. The pile's order is never revealed." },
     donate:     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", tier: "uncommon", price: 4,
-                  description: "After this card lands on a pile from a correct guess, if it is not the smallest pile on the board, you may move 1 card from the bottom of this pile to the bottom of the smallest pile (you're asked first)." },
+                  description: "After this drawn card lands correctly on a pile card, if that pile is not the smallest on the board, you may move 1 card from the bottom of that pile to the bottom of the smallest pile (you're asked first)." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
