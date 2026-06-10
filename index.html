@@ -2861,10 +2861,18 @@
         <div class="debug-grant">
           <select class="debug-sel" id="debugStickerSel"></select>
           <button class="debug-btn" id="debugAddSticker">+ Sticker</button>
+          <button class="debug-btn" id="debugStickerNext">→ next draw</button>
         </div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugPillarSel"></select>
           <button class="debug-btn" id="debugAddPillar">+ Pillar</button>
+        </div>
+        <div class="debug-sub">set active Pillar on a column (mid-run) →</div>
+        <div class="debug-grant">
+          <select class="debug-sel" id="debugColPillarSel"></select>
+          <button class="debug-btn" id="debugSetPC0">C1</button>
+          <button class="debug-btn" id="debugSetPC1">C2</button>
+          <button class="debug-btn" id="debugSetPC2">C3</button>
         </div>
         <div class="debug-sub">add coins (free) →</div>
         <div class="debug-tools">
@@ -3222,7 +3230,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.15 · diecut-stickers";
+const APP_VERSION = "v2.16 · shield-anim-debug-tools";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3626,15 +3634,17 @@ const PillarTypes = (() => {
       description: "Earn a growing coin payout for each correct guess in a row on this column's piles, after the first: +1, +1, +2, +3, +5, +8, and on up the Fibonacci sequence. The streak resets on a wrong guess here or any guess in another column.",
     },
     highestOdd: {
-      // End-of-run: +the highest ODD rank value among all cards in this column's
-      // surviving piles (J = 11 and K = 13 count as odd; A = 14 is even).
+      // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) among all cards in
+      // this column's ALIVE piles. Face cards (J/Q/K) and the Ace never count;
+      // dead piles never count. (computePillarPayout, effect "highestOdd".)
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
       kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 10,
       description: "Earn bonus coins equal to the highest odd NUMBER card (3, 5, 7 or 9) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
     },
     highestEven: {
-      // End-of-run: +the highest EVEN rank value among all cards in this column's
-      // surviving piles (Q = 12 and A = 14 count as even; K = 13 is odd).
+      // End-of-deal: +the highest EVEN NUMBER card (2/4/6/8/10) among all cards in
+      // this column's ALIVE piles. Face cards (J/Q/K) and the Ace never count;
+      // dead piles never count. (computePillarPayout, effect "highestEven".)
       id: "highestEven", label: "Highest Even", icon: "🔽",
       kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
       description: "Earn bonus coins equal to the highest even NUMBER card (2, 4, 6, 8 or 10) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
@@ -4917,6 +4927,52 @@ const GameEngine = (() => {
           for (let i = 0; i < board.size; i++) board.kill(i);
           evaluateEnd();
         }
+      },
+      // DEBUG: apply a sticker directly onto the NEXT card in the draw deck, with
+      // its behaviour/rank/suit flags projected (so it behaves like a real sticker
+      // when drawn). Returns the affected card, or null.
+      applyStickerToNext(typeId) {
+        if (!deck || status !== "playing") return null;
+        const next = deck.peek(1)[0];
+        const t = StickerTypes.get(typeId);
+        if (!next || !t) return null;
+        next.stickers = next.stickers || [];
+        next.stickers.push({ type: typeId });
+        const setRank = (v) => {
+          next.value = Math.max(2, Math.min(14, v));
+          const r = DeckManager.RANKS.find(x => x.value === next.value);
+          if (r) next.label = r.label;
+        };
+        const setSuit = (sym) => {
+          const s = DeckManager.SUITS.find(x => x.symbol === sym);
+          if (s) { next.suit = s.symbol; next.red = s.red; }
+        };
+        if (t.kind === "rank") setRank(next.value + (t.rankDelta || 0));
+        else if (t.behavior === "randomFixedValue") setRank(2 + Math.floor((rng ? rng() : Math.random()) * 13));
+        else if (t.behavior === "changeSuitTo" && t.suit) setSuit(t.suit);
+        else if (t.behavior === "changeSuitRandom") {
+          const others = DeckManager.SUITS.filter(x => x.symbol !== next.suit);
+          if (others.length) setSuit(others[Math.floor((rng ? rng() : Math.random()) * others.length)].symbol);
+        }
+        else if (t.behavior === "extraHeart") next.heartsRemaining = (next.heartsRemaining || 0) + 1;
+        else if (t.behavior === "tieSafe") next.tieSafe = true;
+        else if (t.behavior === "wildSuit") next.wildSuit = true;
+        else if (t.behavior === "revealNext") next.revealNext = true;
+        else if (t.behavior === "suitImmunity" && t.suit) { next.suitGuards = next.suitGuards || {}; next.suitGuards[t.suit] = true; }
+        // (heavy / tribute / donate / shuffle / collector / extraCoin / anchor /
+        //  deathBounty / compound read the stickers array directly at resolve — no
+        //  projected flag needed; the push above is enough.)
+        logAction("DEBUG: applied " + (t.label || typeId) + " to the next draw card");
+        return next;
+      },
+      // DEBUG: change the ACTIVE Pillar on a column mid-run (add / remove /
+      // replace). Updates the live run snapshot so its effect applies for the rest
+      // of the deal. Returns true if applied.
+      setColumnPillar(col, pillarId) {
+        if (!run || !run.pillars || col == null || col < 0 || col >= run.pillars.length) return false;
+        run.pillars[col] = pillarId || null;
+        logAction("DEBUG: column " + (col + 1) + " Pillar set → " + (pillarId || "none"));
+        return true;
       },
     };
 
@@ -6397,8 +6453,13 @@ const UIRenderer = (() => {
     debugNew: document.getElementById("debugNew"),
     debugStickerSel: document.getElementById("debugStickerSel"),
     debugAddSticker: document.getElementById("debugAddSticker"),
+    debugStickerNext: document.getElementById("debugStickerNext"),
     debugPillarSel: document.getElementById("debugPillarSel"),
     debugAddPillar: document.getElementById("debugAddPillar"),
+    debugColPillarSel: document.getElementById("debugColPillarSel"),
+    debugSetPC0: document.getElementById("debugSetPC0"),
+    debugSetPC1: document.getElementById("debugSetPC1"),
+    debugSetPC2: document.getElementById("debugSetPC2"),
     debugCoin10: document.getElementById("debugCoin10"),
     debugCoin50: document.getElementById("debugCoin50"),
     debugCoin100: document.getElementById("debugCoin100"),
@@ -7385,6 +7446,45 @@ const UIRenderer = (() => {
     };
     fill(el.debugStickerSel, StickerTypes.all());
     fill(el.debugPillarSel, PillarTypes.all());
+    // Mid-run column-Pillar setter: "(none)" to clear + every Pillar.
+    if (el.debugColPillarSel) {
+      el.debugColPillarSel.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "__none"; none.textContent = "(none)";
+      el.debugColPillarSel.appendChild(none);
+      PillarTypes.all().forEach(t => {
+        const o = document.createElement("option");
+        o.value = t.id; o.textContent = t.label;
+        el.debugColPillarSel.appendChild(o);
+      });
+    }
+  }
+
+  /* DEBUG: apply the selected sticker to the NEXT card in the draw deck. */
+  function debugStickerToNext() {
+    if (!engine) return;
+    const id = el.debugStickerSel.value;
+    const card = engine.debug.applyStickerToNext(id);
+    el.debugPeekOut.textContent = card
+      ? ("applied " + id + " → next draw (" + card.label + card.suit + ")")
+      : "no next card to sticker";
+    refreshDebug();
+  }
+
+  /* DEBUG: set/replace/clear the active Pillar on a column mid-run. Updates BOTH
+     the live run snapshot (drives effects) and the campaign binding (drives the
+     banner), then repaints the column banners. */
+  function debugSetColumnPillar(col) {
+    if (!engine || !campaign) return;
+    const v = el.debugColPillarSel.value;
+    const pid = (!v || v === "__none") ? null : v;
+    campaign.setColumnPillar(col, pid);     // banner reads the campaign binding
+    engine.debug.setColumnPillar(col, pid); // effects read the run snapshot
+    const cols = (engine.getRun() && engine.getRun().cols) || [];
+    if (cols.length) paintColumnPillars(cols);
+    if (typeof refreshActivatableIndicators === "function") refreshActivatableIndicators();
+    el.debugPeekOut.textContent = "Col " + (col + 1) + " Pillar → " + (pid || "none");
+    refreshDebug();
   }
 
   /* DEBUG: grant the selected sticker straight to inventory (free). Reflects
@@ -7814,7 +7914,11 @@ const UIRenderer = (() => {
     el.debugLose.addEventListener("click", () => { engine && engine.debug.loseNow(); });
     el.debugNew.addEventListener("click", () => startCampaign());
     el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
+    if (el.debugStickerNext) el.debugStickerNext.addEventListener("click", debugStickerToNext);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
+    if (el.debugSetPC0) el.debugSetPC0.addEventListener("click", () => debugSetColumnPillar(0));
+    if (el.debugSetPC1) el.debugSetPC1.addEventListener("click", () => debugSetColumnPillar(1));
+    if (el.debugSetPC2) el.debugSetPC2.addEventListener("click", () => debugSetColumnPillar(2));
     el.debugCoin10.addEventListener("click", () => debugAddCoins(10));
     el.debugCoin50.addEventListener("click", () => debugAddCoins(50));
     el.debugCoin100.addEventListener("click", () => debugAddCoins(100));
@@ -8310,21 +8414,51 @@ const UIRenderer = (() => {
       }
 
       case "heart-broken": {
-        // Extra Heart absorbed a wrong guess: the top card stays, a heart is
-        // spent (run-local), and the drawn card went back into the deck.
+        // Extra Heart absorbed a wrong guess: the drawn card travels from the deck
+        // and lands on the pile (the normal draw), THEN the Shield bounces it back
+        // to the deck — sequenced (draw lands first, then it returns), reusing the
+        // card-travel animation. The pile keeps its current (shielded) top; a heart
+        // is now spent. Engine behaviour is unchanged — only the movement is shown.
+        const reduce = prefersReduce();
         const pileEl = pileEls[payload.index];
-        renderStickerBadges(pileEl, payload.current);   // a heart is now 💔
-        paintPileCounts(payload.board);   // repaint all so the orange min stays live
+        const cardEl = pileEl.querySelector(".card");
+        // Non-card state now (counts/HUD/streak read board state):
+        paintPileCounts(payload.board);
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
-        pileEl.classList.add("flash-good");
-        setTimeout(() => pileEl.classList.remove("flash-good"), 520);
-        refreshNetwork(payload.board);
         clearSelection();
         renderSetupInv();
-        Sound.good();
         el.hint.textContent = `${payload.current.label} held on — a Shield soaked the hit.`;
         refreshDebug();
+
+        const settle = () => {
+          // Shield held: revert to the shielded top; the heart is now spent (💔).
+          paintFront(pileEl, payload.current);
+          renderStickerBadges(pileEl, payload.current);
+          if (cardEl) cardEl.style.visibility = "";
+          pileEl.classList.add("flash-good");
+          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          refreshNetwork(payload.board);
+          Sound.good();
+        };
+
+        if (reduce || !cardEl || typeof cardEl.animate !== "function") { settle(); break; }
+        // 1) the wrong draw flies in from the deck and lands (shown briefly).
+        queueAnim((done) => {
+          const to = cardEl.getBoundingClientRect();
+          flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to, { duration: 240, onArrive: () => {
+            paintFront(pileEl, payload.drawn);          // the wrong card shows on top, briefly
+            renderStickerBadges(pileEl, payload.drawn);
+            done();
+          } });
+        });
+        // 2) the Shield bounces that card back to the deck.
+        queueAnim((done) => {
+          const from = cardEl.getBoundingClientRect();
+          const ghost = flyRealCardEl(payload.drawn, cardEl);   // clone before hiding
+          cardEl.style.visibility = "hidden";                   // the bounced card leaves the pile
+          flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => { settle(); done(); } });
+        });
         break;
       }
 

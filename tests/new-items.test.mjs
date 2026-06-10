@@ -301,5 +301,73 @@ export function run() {
     r.ok(!e.kamikazeAvailable(0), "unavailable when its own column is all dead");
   }
 
+  // --- Highest Even / Odd: dead piles excluded (regression lock) ---------
+  // A dead pile in the column holding a HIGHER qualifying card must NOT count.
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestEven", null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 10; b.kill(0);   // dead pile holds a 10 — must be ignored
+    b.top(1).value = 6; b.top(2).value = 4;
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 6, "Highest Even ignores a DEAD pile's higher even (pays 6, not 10)");
+  }
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestOdd", null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 9; b.kill(0);    // dead pile holds a 9 — must be ignored
+    b.top(1).value = 5; b.top(2).value = 4;
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 5, "Highest Odd ignores a DEAD pile's higher odd (pays 5, not 9)");
+  }
+  {
+    // Column-scoped: another column's high even is ignored.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestEven", null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 2; b.top(1).value = 4; b.top(2).value = 6;   // col0
+    b.top(3).value = 10;   // col1 — ignored
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 6, "Highest Even is column-scoped (col1's 10 ignored)");
+  }
+
+  // --- Debug: apply a sticker to the next draw card ---------------------
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun([null, null, null]);
+    const card = e.debug.applyStickerToNext("tieSafe");
+    r.ok(card && card.tieSafe === true, "debug applyStickerToNext projects the tieSafe flag");
+    r.ok(card.stickers.some(s => s.type === "tieSafe"), "the sticker is attached to the next card");
+    r.eq(e.getDeck().peek(1)[0], card, "it's the actual next deck card (drawn next)");
+    // A rank sticker shifts the value live.
+    const e2 = GameEngine.create(deck(), 10, { cols: COLS });
+    e2.start(); e2.startRun([null, null, null]);
+    const before = e2.getDeck().peek(1)[0].value;
+    const c2 = e2.debug.applyStickerToNext("rankUp");
+    r.eq(c2.value, Math.min(14, before + 1), "rankUp shifts the next card's value +1");
+  }
+
+  // --- Debug: change the active Pillar on a column mid-run --------------
+  {
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun([null, null, null]);   // no pillars
+    r.eq(e.getRun().pillars[0], null, "column 0 starts with no Pillar");
+    r.ok(e.debug.setColumnPillar(0, "highestEven"), "debug.setColumnPillar adds a Pillar mid-run");
+    r.eq(e.getRun().pillars[0], "highestEven", "column 0 now holds Highest Even");
+    e.getBoard().top(0).value = 8; e.getBoard().top(1).value = 4; e.getBoard().top(2).value = 2;
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 8, "the mid-run Pillar scores at deal end (Highest Even = 8)");
+    // Remove it again.
+    const e2 = GameEngine.create(deck(), 10, { cols: COLS });
+    e2.start(); e2.startRun(["greedy", null, null]);
+    r.ok(e2.debug.setColumnPillar(0, null), "debug.setColumnPillar can clear a column");
+    r.eq(e2.getRun().pillars[0], null, "column 0 cleared mid-run");
+  }
+
   return r.summary();
 }
