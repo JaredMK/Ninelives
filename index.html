@@ -1880,6 +1880,11 @@
     margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--edge-2); }
   .dc-total .dc-lab { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 18px; }
   .dc-total .dc-val { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 20px; color: var(--card-red); }
+  /* Running balance after this deal's earnings are added. */
+  .dc-balance { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 8px; }
+  .dc-balance .dc-bal-lab { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .dc-balance .dc-bal-val { font-size: 13px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 2px; }
 
   /* In-run sticker tray — owned stickers; tap to arm, then tap a pile. */
   .sticker-tray {
@@ -3264,7 +3269,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.17 · deal-cleared-screen";
+const APP_VERSION = "v2.18 · highest-odd-toponly-balance";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3668,20 +3673,21 @@ const PillarTypes = (() => {
       description: "Earn a growing coin payout for each correct guess in a row on this column's piles, after the first: +1, +1, +2, +3, +5, +8, and on up the Fibonacci sequence. The streak resets on a wrong guess here or any guess in another column.",
     },
     highestOdd: {
-      // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) among all cards in
-      // this column's ALIVE piles. Face cards (J/Q/K) and the Ace never count;
-      // dead piles never count. (computePillarPayout, effect "highestOdd".)
+      // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
+      // ALIVE pile in this column. Only top cards count (not buried); face cards
+      // (J/Q/K) and the Ace never count. (computePillarPayout, effect "highestOdd".)
+      // Priced 3 above Highest Even (10 → 13).
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
-      kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 10,
-      description: "Earn bonus coins equal to the highest odd NUMBER card (3, 5, 7 or 9) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
+      kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 13,
+      description: "Earn bonus coins equal to the highest odd NUMBER card (3, 5, 7 or 9) showing on top of a surviving pile in this column when you clear the deal. Buried cards, face cards and Aces don't count.",
     },
     highestEven: {
-      // End-of-deal: +the highest EVEN NUMBER card (2/4/6/8/10) among all cards in
-      // this column's ALIVE piles. Face cards (J/Q/K) and the Ace never count;
-      // dead piles never count. (computePillarPayout, effect "highestEven".)
+      // End-of-deal: +the highest EVEN NUMBER card (2/4/6/8/10) showing ON TOP of
+      // an ALIVE pile in this column. Only top cards count (not buried); face cards
+      // (J/Q/K) and the Ace never count. (computePillarPayout, effect "highestEven".)
       id: "highestEven", label: "Highest Even", icon: "🔽",
       kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
-      description: "Earn bonus coins equal to the highest even NUMBER card (2, 4, 6, 8 or 10) among all cards in this column's surviving piles when you clear the deal. Face cards and Aces don't count.",
+      description: "Earn bonus coins equal to the highest even NUMBER card (2, 4, 6, 8 or 10) showing on top of a surviving pile in this column when you clear the deal. Buried cards, face cards and Aces don't count.",
     },
     denseBury: {
       // Composition: when a correct guess lands a card carrying 3+ stickers on a
@@ -4558,16 +4564,16 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
         } else if (t.effect === "highestOdd" || t.effect === "highestEven") {
-          // +the single highest odd- (or even-) ranked NUMBER card (2–10) among
-          // all cards in this column's SURVIVING piles. Face cards (J/Q/K) and the
-          // Ace do NOT count. 0 if no qualifying number card.
+          // +the single highest odd- (or even-) ranked NUMBER card (2–10) showing
+          // ON TOP of an ALIVE pile in this column. Only the TOP card of each
+          // surviving pile counts (buried cards don't); face cards (J/Q/K) and the
+          // Ace never count. 0 if no qualifying top card.
           const wantOdd = t.effect === "highestOdd";
           let best = 0;
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;        // surviving piles only
-            for (const c of board.piles[i].cards) {
-              if (c.value >= 2 && c.value <= 10 && (c.value % 2 === 1) === wantOdd && c.value > best) best = c.value;
-            }
+            const top = board.top(i);                // TOP card only
+            if (top && top.value >= 2 && top.value <= 10 && (top.value % 2 === 1) === wantOdd && top.value > best) best = top.value;
           }
           if (best > 0) {
             bonus += best;
@@ -8641,9 +8647,12 @@ const UIRenderer = (() => {
       subWrap('<div><span>' + coins10 + '<span class="dc-int-note">1 per 10 coins held</span></span>' +
         '<span class="dc-sv">' + sign(b.interest) + "</span></div>");
 
-    // Grand total.
+    // Grand total (this deal's earnings) …
     html += '<div class="dc-total"><span class="dc-lab">Total</span>' +
       '<span class="dc-val">' + COIN_SVG + b.total + "</span></div>";
+    // … and the player's running balance AFTER these earnings are added.
+    html += '<div class="dc-balance"><span class="dc-bal-lab">Coins held</span>' +
+      '<span class="dc-bal-val">' + COIN_SVG + coins.balance + "</span></div>";
     return html;
   }
 

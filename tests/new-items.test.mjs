@@ -20,9 +20,10 @@ export function run() {
     r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
     r.eq(PillarTypes.get("fibonacci").tier, "rare", "Fibonacci is Rare");
     r.eq(PillarTypes.get("fibonacci").price, 6, "Fibonacci costs 6");
-    r.eq(PillarTypes.get("highestOdd").price, 10, "Highest Odd costs 10");
+    r.eq(PillarTypes.get("highestOdd").price, 13, "Highest Odd costs 13 (3 more than Highest Even)");
     r.eq(PillarTypes.get("highestOdd").tier, "uncommon", "Highest Odd is Uncommon");
     r.eq(PillarTypes.get("highestEven").price, 10, "Highest Even costs 10");
+    r.eq(PillarTypes.get("highestOdd").price - PillarTypes.get("highestEven").price, 3, "Highest Odd is priced 3 above Highest Even");
     r.eq(PillarTypes.get("denseBury").price, 15, "Dense Bury costs 15");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
     r.eq(PillarTypes.get("revive").price, 8, "Revive costs 8");
@@ -102,16 +103,15 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 10, "Highest Even = 10 (Ace excluded)");
   }
   {
-    // Dead piles are excluded; buried NUMBER cards still count.
+    // ONLY the top card of an alive pile counts — a buried higher odd is ignored.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestOdd", null, null]);
-    // pile 0: bury a 9 under a 10 top — the buried 9 still counts.
+    // pile 0: bury a 9 under a 10 top → its TOP is 10 (even); the buried 9 must NOT count.
     e.getBoard().top(0).value = 9; e.debug.setNextCard(10); e.guess(0, "higher");
-    e.getBoard().top(1).value = 7; e.getBoard().top(2).value = 5;
-    e.getBoard().kill(1);   // remove the 7 pile
+    e.getBoard().top(1).value = 3; e.getBoard().top(2).value = 5;   // top odds 3, 5
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 9, "Highest Odd counts a BURIED 9 and excludes the dead pile");
+    r.eq(won().pillarPayout.bonus, 5, "Highest Odd counts only TOP cards (buried 9 ignored → highest odd top = 5)");
   }
 
   // --- Dense Bury: a 3+ sticker landing buries 1 from the deck bottom ----
@@ -333,6 +333,17 @@ export function run() {
     b.top(3).value = 10;   // col1 — ignored
     e.debug.winNow();
     r.eq(won().pillarPayout.bonus, 6, "Highest Even is column-scoped (col1's 10 ignored)");
+  }
+  {
+    // Highest Even is ALSO top-only (the twin) — a buried higher even is ignored.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestEven", null, null]);
+    // pile 0: bury a 10 under a 3 top → its TOP is 3 (odd); the buried 10 must NOT count.
+    e.getBoard().top(0).value = 10; e.debug.setNextCard(3); e.guess(0, "lower");
+    e.getBoard().top(1).value = 4; e.getBoard().top(2).value = 6;   // top evens 4, 6
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 6, "Highest Even counts only TOP cards (buried 10 ignored → highest even top = 6)");
   }
 
   // --- Debug: apply a sticker to the next draw card ---------------------
