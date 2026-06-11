@@ -3854,12 +3854,13 @@ const BaseTypes = (() => {
     // only the player-facing `label` carries the Base's distinctive name, so it
     // never collides with a Pillar (e.g. the Revive Pillar vs the Phoenix Base).
     kamikaze: {
-      // Moved here from Pillars. Tap a pile in this column to kill it, then peek
-      // at the next 3 upcoming cards on the deck (display-only). Can't fire while
-      // only one pile is alive board-wide.
+      // Moved here from Pillars. Tap ANY alive pile board-wide to kill it (the
+      // engine + targeting deliberately allow the whole board, not just this
+      // column), then peek at the next 3 upcoming cards on the deck
+      // (display-only). Can't fire while only one pile is alive board-wide.
       id: "kamikaze", label: "Kamikaze", icon: "💥",
       kind: "active", effect: "kamikaze", target: "pile", tier: "uncommon", price: 8,
-      description: "Once per deal, activate and tap a pile in this column to kill it, then peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive on the board.",
+      description: "Once per deal, activate and tap any pile on the board to kill it, then peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive on the board.",
     },
     shuffleColumn: {
       id: "shuffleColumn", label: "Upheaval", icon: "🌀",
