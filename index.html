@@ -1858,26 +1858,11 @@
     .pillar-float { animation: none; opacity: 1; transform: translate(-50%, -16px); }
   }
 
-  /* "?" help affordance on each store item + the tap-to-toggle popup it
-     reveals. Tap the "?" to open, tap off (anywhere else) to dismiss; the
-     popup is fixed + width/height clamped so it never overflows a phone edge. */
-  .si-help {
-    position: absolute; top: 6px; left: 7px;
-    width: 18px; height: 18px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 50%;
-    background: rgba(74, 52, 44, 0.12);
-    color: var(--muted);
-    font-size: 11px; font-weight: 800; line-height: 1;
-    cursor: pointer;
-    touch-action: manipulation;   /* tap to toggle the help popup */
-    z-index: 4;
-  }
-  .si-help:active { background: var(--accent); color: #fff; }
-  /* Tap-to-toggle help popup. Bottom-anchored so it never covers the tiles'
-     "?" icons (so tapping a different "?" can switch directly); pointer-events
-     auto so a tap ON it keeps it open and never falls through to a buy. Width
-     and max-height clamp it on-screen. */
+  /* Shared item-info chrome (.ih-title/.ih-body) + base geometry. Its one live
+     user is the pack-reveal info slot (.item-help.pack-item-help, which
+     re-anchors it above the pack modal). The per-tile "?" popup this was built
+     for is gone — the unified store selects the whole tile into the fixed help
+     slot instead. Viewport-clamped so it can't overflow a phone edge. */
   .item-help {
     position: fixed;
     left: 50%; top: auto;
@@ -3284,9 +3269,6 @@
        indicator during play; dismissed on release. Reads registry descriptions. -->
   <div class="peek-info hidden" id="peekInfo"></div>
 
-  <!-- Store item help: revealed while holding an item's "?" (press & hold) -->
-  <div class="item-help hidden" id="itemHelp"></div>
-
   <!-- Inventory browser: opened by TAPPING the coin indicator (in play) or the
        store's Inventory button. Hosts the SAME tabbed Cards/Stickers/Pillars
        component as start-of-run setup (.setup-inv), here in READ-ONLY "browse"
@@ -3389,7 +3371,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.37 · qa-sweep-board";
+const APP_VERSION = "v2.38 · qa-sweep-store";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3615,7 +3597,7 @@ const StickerTypes = (() => {
     heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 4,
                   description: "This card counts as 2 toward pile size everywhere, even when buried." },
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
-                  description: "Earn +1 coin per other sticker on the card when you place this sticker on a surviving pile's top card." },
+                  description: "Earn +1 coin per other sticker on the card when you place this sticker on the pile card of a surviving pile." },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
                   description: "Each time a drawn card lands correctly on this pile card, earn more coins: +0, then +1, +2, and up. Paid on the spot whether or not it stays on top. The total carries across the run until a full reset." },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
@@ -7147,7 +7129,6 @@ const UIRenderer = (() => {
     fossilDetailSub: document.getElementById("fossilDetailSub"),
     storeInvBtn: document.getElementById("storeInvBtn"),
     storeCardsBtn: document.getElementById("storeCardsBtn"),
-    itemHelp: document.getElementById("itemHelp"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
@@ -7266,10 +7247,6 @@ const UIRenderer = (() => {
   let armedBaseItem = null;     // setup: an owned Base type id armed from inventory to place
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
-  // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
-  // Tap a "?" to toggle; tap anything else (swallowed) to dismiss.
-  let openHelpKey = null;
-
   /* ---- card element factory ---- */
   function buildPile(index) {
     const pile = document.createElement("div");
@@ -11242,7 +11219,6 @@ const UIRenderer = (() => {
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
     selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedSlotMove = null;
-    closeItemHelp();
     el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
@@ -12083,46 +12059,9 @@ const UIRenderer = (() => {
     closeTrashConfirm();
     closePackReveal();
     closePackReplace();
-    closeItemHelp();
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
     updateBoardMotion();
-  }
-
-  /* Store item help (tap-to-toggle the "?"). Text is read from the registry's
-     `description` field — never hardcoded here — so it lives in one place. The
-     popup is viewport-clamped (see .item-help CSS) so it can't overflow a phone
-     edge; see toggleItemHelp / the tap-off-to-close handler for the gesture. */
-  function showItemHelp(itemEl) {
-    if (!itemEl) return;
-    const t = itemEl.dataset.type ? StickerTypes.get(itemEl.dataset.type)
-            : itemEl.dataset.pillar ? PillarTypes.get(itemEl.dataset.pillar)
-            : itemEl.dataset.pack ? PackTypes.get(itemEl.dataset.pack)
-            : null;
-    if (!t) return;
-    el.itemHelp.innerHTML =
-      '<div class="ih-title">' + t.icon + " " + t.label + '</div>' +
-      '<div class="ih-body">' + (t.description || "") + "</div>";
-    el.itemHelp.classList.remove("hidden");
-  }
-  function hideItemHelp() { el.itemHelp.classList.add("hidden"); }
-  function closeItemHelp() { hideItemHelp(); openHelpKey = null; }
-
-  /* A stable key per offered tile (row + slot) so re-renders don't confuse the
-     toggle, and duplicate item types in different slots stay distinct. */
-  function helpKeyOf(tile) {
-    if (tile.dataset.slot != null) return "s" + tile.dataset.slot;
-    if (tile.dataset.pslot != null) return "p" + tile.dataset.pslot;
-    return "k" + tile.dataset.packslot;
-  }
-  /* Tap a "?": open this tile's help, switch to it if another was open, or
-     close it if it was already this one (tap-again-to-close). */
-  function toggleItemHelp(tile) {
-    if (!tile) return;
-    const key = helpKeyOf(tile);
-    if (openHelpKey === key) { closeItemHelp(); return; }
-    showItemHelp(tile);
-    openHelpKey = key;
   }
 
   /* ---- inventory browser (store + in-play coin badge) ----
