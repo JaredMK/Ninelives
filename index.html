@@ -152,7 +152,10 @@
   .inv-close {
     background: none; border: none; color: var(--text);
     font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
+    position: relative;   /* anchors the invisible hit-area extension below */
   }
+  /* Invisible touch-target extension (corner button, no neighbours). */
+  .inv-close::after { content: ""; position: absolute; inset: -8px; }
   .inv-card-body { display: flex; flex-direction: column; gap: 11px; }
   /* The store inventory hosts the SAME tabbed component as start-of-run setup
      (.setup-inv), here in a read-only "browse" mode — see .setup-inv.browse. */
@@ -1990,7 +1993,11 @@
     flex: none; width: 22px; height: 22px; border-radius: 999px;
     background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
     font-size: 12px; line-height: 1; cursor: pointer; touch-action: manipulation;
+    position: relative;   /* anchors the invisible hit-area extension below */
   }
+  /* Invisible touch-target extension: 22px visual → 38px tappable. -8px stays
+     inside the 8px gap to the neighbouring Trash button (no overlap). */
+  .tray-help .th-close::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
   .tray-help .th-close:active { transform: scale(0.92); }
   .tray-sticker {
     background: var(--panel);
@@ -3371,7 +3378,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.38 · qa-sweep-store";
+const APP_VERSION = "v2.39 · qa-sweep-setup";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7899,7 +7906,7 @@ const UIRenderer = (() => {
     renderSetupInv();
     const t = StickerTypes.get(armedSticker);
     el.hint.textContent = t
-      ? "Tap a pile to apply " + t.label + " to its top card."
+      ? "Tap a pile to apply " + t.label + " to its pile card."
       : "Apply stickers, then press Start Deal.";
   }
 
