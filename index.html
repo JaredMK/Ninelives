@@ -3377,7 +3377,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.34 · contextual-action-bar";
+const APP_VERSION = "v2.35 · game-over-after-death";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9126,6 +9126,20 @@ const UIRenderer = (() => {
   }
 
   /* ---- event handling from the engine ---- */
+
+  // Game-over sequencing: a fatal guess emits "resolved" (the death) immediately
+  // followed by "lost" (same synchronous batch). The recap must NOT appear until
+  // the fatal card has landed and the pile-death animation has played, so the
+  // "lost" handler stashes the recap here and the death animation (in the
+  // "resolved" land() path) flushes it once the death resolves — mirroring how
+  // the win cinematic defers its recap.
+  let pendingRunEnd = null;          // deferred game-over recap (set by "lost")
+  let endAwaitingDeathAnim = false;  // the last "resolved" was the fatal guess
+  function flushPendingRunEnd() {
+    if (!pendingRunEnd) return;
+    const f = pendingRunEnd; pendingRunEnd = null; f();
+  }
+
   function handleEvent(type, payload) {
     wakeMotion();   // §2: any board change re-enables card motion for the settle window
     switch (type) {
@@ -9203,6 +9217,12 @@ const UIRenderer = (() => {
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
         const reduce = prefersReduce();
+        // The engine kills the pile BEFORE emitting "resolved", so the board here
+        // already reflects the death: a wrong guess that leaves nothing alive is
+        // the FATAL guess that loses the run. The "lost" event follows in the same
+        // batch; we flag it so its recap is held until this death has played.
+        const fatalGuess = !payload.correct && payload.board.aliveCount() === 0;
+        endAwaitingDeathAnim = fatalGuess;
         // HUD/counts read board STATE (not the DOM card), so update them now. The
         // pile's VISIBLE card is NOT swapped to the drawn card yet — the existing
         // top stays on the neuron for the whole flight, and the drawn face is
@@ -9249,6 +9269,16 @@ const UIRenderer = (() => {
               && payload.drawn && payload.current
               && payload.drawn.value === payload.current.value;
             if (fatalTie) shouldaSaidSame(pileEl, cardEl, reduce, flashAt);
+            // If THIS death ends the run, hold the game-over recap until the death
+            // presentation has resolved — the dissolve completes (dieAt) plus a
+            // beat to register it (longer on a fatal tie so the "Shoulda said same"
+            // line is read first). The "lost" handler has stashed the recap in
+            // pendingRunEnd; we flush it here so the recap follows the death.
+            if (fatalGuess) {
+              const dieDone = reduce ? 0 : dieAt;
+              const readBeat = fatalTie ? 1100 : 360;
+              setTimeout(flushPendingRunEnd, dieDone + readBeat);
+            }
           }
         };
 
@@ -9593,7 +9623,16 @@ const UIRenderer = (() => {
         break;
 
       case "lost":
-        onRunEnd("loss", payload);
+        // Sequencing: when the loss came from a fatal guess, the preceding
+        // "resolved" handler is animating the fatal draw + pile death. Hold the
+        // recap and let that death animation flush it (fatal draw → pile death →
+        // recap). Any other loss path (no death animation) shows it immediately.
+        if (endAwaitingDeathAnim) {
+          endAwaitingDeathAnim = false;
+          pendingRunEnd = () => onRunEnd("loss", payload);
+        } else {
+          onRunEnd("loss", payload);
+        }
         break;
     }
   }
