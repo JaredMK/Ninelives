@@ -3352,7 +3352,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.25 · bases-ui";
+const APP_VERSION = "v2.26 · bases-naming";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3826,6 +3826,9 @@ const PillarTypes = (() => {
 ---------------------------------------------------------------- */
 const BaseTypes = (() => {
   const TYPES = {
+    // NB: the `id` keys are stable (saves / store offers / tests bind to them);
+    // only the player-facing `label` carries the Base's distinctive name, so it
+    // never collides with a Pillar (e.g. the Revive Pillar vs the Phoenix Base).
     kamikaze: {
       // Moved here from Pillars. Tap a pile in this column to kill it, then peek
       // at the next 3 upcoming cards on the deck (display-only). Can't fire while
@@ -3835,42 +3838,42 @@ const BaseTypes = (() => {
       description: "Once per deal, activate and tap a pile in this column to kill it, then peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive on the board.",
     },
     shuffleColumn: {
-      id: "shuffleColumn", label: "Shuffle Column", icon: "🔀",
+      id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", tier: "common", price: 5,
       description: "Once per deal, shuffle every pile in this column and shuffle one buried card from each of those piles back into the deck. Composition only — no card order is revealed.",
     },
     revive: {
-      id: "revive", label: "Revive", icon: "♻️",
+      id: "revive", label: "Phoenix", icon: "🔥",
       kind: "active", effect: "reviveBase", tier: "uncommon", price: 9,
       description: "Once per deal, bring a random dead pile in this column back to life with one fresh pile card; its buried cards shuffle back into the deck. Does nothing if no pile in this column is dead.",
     },
     randomSticker: {
-      id: "randomSticker", label: "Random Sticker", icon: "🎲",
+      id: "randomSticker", label: "Wild Sticker", icon: "🎲",
       kind: "active", effect: "randomSticker", target: "pile", tier: "uncommon", price: 7,
-      description: "Once per deal, apply a random sticker to the pile card of a pile you choose in this column.",
+      description: "Once per deal, apply a random sticker to the pile card of a pile you choose in this column. The sticker stays for the rest of the run.",
     },
     randomStickerAll: {
-      id: "randomStickerAll", label: "Random Sticker All", icon: "🃏",
+      id: "randomStickerAll", label: "Sticker Storm", icon: "🌪️",
       kind: "active", effect: "randomStickerAll", tier: "rare", price: 10,
-      description: "Once per deal, apply a random sticker to the pile card of every pile in this column. Lose 1 coin for each sticker applied.",
+      description: "Once per deal, apply a random sticker to the pile card of every pile in this column; the stickers stay for the rest of the run. Lose 1 coin for each sticker applied.",
     },
     evenOut: {
-      id: "evenOut", label: "Even Out", icon: "⚖️",
+      id: "evenOut", label: "Ballast", icon: "⚖️",
       kind: "active", effect: "evenOut", tier: "common", price: 4,
       description: "Once per deal, move buried cards from larger piles to smaller piles in this column until the piles are as balanced as possible. Composition only — nothing is revealed.",
     },
     buryLargest: {
-      id: "buryLargest", label: "Bury Largest", icon: "⬇️",
+      id: "buryLargest", label: "Sinkhole", icon: "🕳️",
       kind: "active", effect: "buryLargest", tier: "common", price: 4,
       description: "Once per deal, bury one card from the deck under the largest pile in this column.",
     },
     buryAll: {
-      id: "buryAll", label: "Bury All", icon: "🪣",
+      id: "buryAll", label: "Landslide", icon: "⛰️",
       kind: "active", effect: "buryAll", tier: "uncommon", price: 6,
       description: "Once per deal, bury one card from the deck under each alive pile in this column. Lose 5 coins for each pile buried under.",
     },
     setValue: {
-      id: "setValue", label: "Set Value", icon: "🔢",
+      id: "setValue", label: "Cast", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 9,
       description: "Once per deal, set every pile card in this column to the same value. The value is rolled once at the start of the run and shown to you.",
     },
@@ -3880,9 +3883,9 @@ const BaseTypes = (() => {
       description: "Once per deal, choose a pile in this column: bury one card from the deck under it for each sticker on its pile card, then remove every sticker from that pile card.",
     },
     refreshBases: {
-      id: "refreshBases", label: "Refresh Bases", icon: "🔋",
+      id: "refreshBases", label: "Reactor", icon: "⚛️",
       kind: "active", effect: "refreshBases", tier: "rare", price: 12,
-      description: "Once per deal, recharge the other two Bases on your board if they have been spent this deal. It never recharges another Refresh Bases.",
+      description: "Once per deal, recharge the other two Bases on your board if they have been spent this deal. It never recharges another Reactor.",
     },
     suitTally: {
       id: "suitTally", label: "Suit Tally", icon: "💰",
@@ -3890,12 +3893,13 @@ const BaseTypes = (() => {
       description: "Once per deal, add up the value of every card of the rolled suit among the piles in this column and gain that many coins (face cards count as 10). The suit is rolled each deal and shown to you.",
     },
     copyToInventory: {
-      id: "copyToInventory", label: "Copy to Inventory", icon: "📑",
+      id: "copyToInventory", label: "Replica", icon: "📑",
       kind: "active", effect: "copyToInventory", tier: "rare", price: 11,
       description: "Once per deal, copy a random pile card in this column — including its stickers — and add the copy to your card inventory.",
     },
   };
-  for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
+  // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
+  // override), so the whole class shares one distinct visual style.
   const ORDER = ["kamikaze", "shuffleColumn", "revive", "randomSticker",
     "randomStickerAll", "evenOut", "buryLargest", "buryAll", "setValue",
     "stickerHarvest", "refreshBases", "suitTally", "copyToInventory"];
