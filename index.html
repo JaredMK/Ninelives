@@ -242,6 +242,10 @@
   .action-prompt.hidden { display: none; }
   .play-controls.prompting > :not(.action-prompt) { display: none; }   /* hide the normal controls */
   .ap-text { flex: 1 1 auto; text-align: left; font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--accent-2); }
+  /* Two-line content for the contextual action bar: a header/question (.ap-q) and
+     a help/description line (.ap-desc) — used by pillar/base help + base decisions. */
+  .ap-text .ap-q { display: block; }
+  .ap-text .ap-desc { display: block; font-size: 11px; font-weight: 600; line-height: 1.15; color: var(--muted); margin-top: 1px; }
   .ap-btns { flex: 0 0 auto; display: flex; gap: 8px; }
   .ap-btn {
     border: none; border-radius: var(--radius); padding: 9px 15px;
@@ -3373,7 +3377,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.33 · perf-s4-idle-sweep";
+const APP_VERSION = "v2.34 · contextual-action-bar";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8582,9 +8586,13 @@ const UIRenderer = (() => {
       if (baseCell) {
         const col = Number(baseCell.dataset.col);
         if (setupWindow && armedBaseItem) { placeBaseOnColumn(col); return; }
-        if (!setupWindow && engine && engine.baseAvailable && engine.baseAvailable(col)) {
-          if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }
-          toggleArmBase(col); return;
+        // Active play: an activatable Base opens its DECISION (help + Activate/
+        // Cancel) in the strip; any other Base shows its help in the strip.
+        if (!setupWindow) {
+          if (engine && engine.baseAvailable && engine.baseAvailable(col)) { toggleArmBase(col); return; }
+          const bid = campaign && campaign.getColumnBases()[col];
+          if (bid) showHelpBar(BaseTypes.get(bid));
+          return;
         }
         if (peekTapPile != null) peekTapPile = null;
         if (peekTapCol === ("b" + col)) { closePeekInfo(); peekTapCol = null; }
@@ -8594,10 +8602,15 @@ const UIRenderer = (() => {
       const bpCell = e.target.closest(".bp-cell");
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
-        // During setup, an armed Pillar drops onto the slot. Otherwise (setup or
-        // play) tapping a slot toggles its help popup — which, in setup, carries an
-        // explicit "Return to inventory" button (never auto-removed).
+        // During setup, an armed Pillar drops onto the slot; otherwise setup taps
+        // open the help popup (which carries the "Return to inventory" button).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
+        if (!setupWindow) {
+          // Active play: this Pillar's help shows in the strip (contextual bar).
+          const pid = campaign && campaign.getColumnPillars()[col];
+          if (pid) showHelpBar(PillarTypes.get(pid));
+          return;
+        }
         if (peekTapPile != null) peekTapPile = null;   // switching to a Pillar peek
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
@@ -8645,6 +8658,15 @@ const UIRenderer = (() => {
       if (el.peekInfo.classList.contains("hidden")) return;
       if (e.target.closest(".board") || e.target.closest(".peek-info") || e.target.closest(".bp-cell") || e.target.closest(".base-cell")) return;
       closePeekInfo(); peekTapCol = null; peekTapPile = null;
+    });
+    // Contextual action bar (help mode + whole-column Base decision): a tap
+    // anywhere except its own buttons dismisses/cancels it and restores the guess
+    // buttons. The opening tap is ignored (actionBarJustOpened). Target-picking
+    // bars set no `dismiss`, so they're unaffected.
+    document.addEventListener("click", (e) => {
+      if (!actionBarDismiss || actionBarJustOpened) return;
+      if (e.target.closest("#actionPromptBtns")) return;   // its own buttons handle themselves
+      actionBarDismiss();
     });
     // Peel confirmation actions.
     el.peelCancelBtn.addEventListener("click", closePeelConfirm);
@@ -11762,12 +11784,24 @@ const UIRenderer = (() => {
      ============================================================ */
   let promptActive = false;       // a bottom prompt is up → guessing is suspended
   let promptTargets = [];         // pile indices highlighted for the current prompt
+  let actionBarDismiss = null;    // outside-tap dismiss callback while a dismissable bar is up
+  let actionBarJustOpened = false; // ignore the opening tap so it doesn't self-dismiss
 
   /* Show the bottom prompt bar with an instruction + buttons, hiding the normal
      controls. `buttons`: [{ label, cls, onClick }]. `targets`: pile indices to
-     outline on the board (optional). */
-  function showActionBar(text, buttons, targets) {
-    el.actionPromptText.textContent = text;
+     outline on the board (optional). `opts.help` adds a second description line
+     (the contextual help text, shown WITH the prompt); `opts.dismiss` makes an
+     outside tap dismiss/cancel the bar (call it). The `text` may contain trusted
+     icon markup; the help line is escaped. */
+  function showActionBar(text, buttons, targets, opts) {
+    opts = opts || {};
+    if (opts.help) {
+      el.actionPromptText.innerHTML =
+        (text ? '<span class="ap-q">' + text + "</span>" : "") +
+        '<span class="ap-desc">' + escHtml(opts.help) + "</span>";
+    } else {
+      el.actionPromptText.textContent = text;
+    }
     el.actionPromptBtns.innerHTML = "";
     (buttons || []).forEach(b => {
       const btn = document.createElement("button");
@@ -11781,12 +11815,16 @@ const UIRenderer = (() => {
     if (el.playControls) el.playControls.classList.add("prompting");
     setActionTargets(targets || []);
     promptActive = true;
+    actionBarDismiss = (typeof opts.dismiss === "function") ? opts.dismiss : null;
+    // The same tap that opened the bar must not immediately dismiss it.
+    if (actionBarDismiss) { actionBarJustOpened = true; setTimeout(() => { actionBarJustOpened = false; }, 0); }
   }
   function hideActionBar() {
     el.actionPrompt.classList.add("hidden");
     if (el.playControls) el.playControls.classList.remove("prompting");
     setActionTargets([]);
     promptActive = false;
+    actionBarDismiss = null;
     // Restore the normal active-play control state (guess help when idle).
     if (engine && engine.isRunStarted() && engine.getStatus() === "playing"
         && selected === null && el.ctlHelp) {
@@ -11797,6 +11835,17 @@ const UIRenderer = (() => {
     promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.remove("action-target"); });
     promptTargets = (targets || []).slice();
     promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.add("action-target"); });
+  }
+
+  /* HELP MODE: show an element's name + description in the strip (replacing the
+     guess buttons), reusing the same registry `description` data and the same
+     action-bar mechanism. No decision buttons; an outside tap dismisses it and
+     restores the guess buttons. Used by pillar/base taps during active play. */
+  function showHelpBar(t) {
+    if (!t) return;
+    clearSelection();
+    const header = (t.icon || "") + " " + escHtml(t.label);
+    showActionBar(header, [], [], { help: t.description || "", dismiss: hideActionBar });
   }
 
   /* Indicator on every currently-activatable Pillar (tap-to-activate). Toggles a
@@ -11892,16 +11941,19 @@ const UIRenderer = (() => {
     if (engine.baseNeedsTarget(col)) {
       armedBaseAct = { col };
       if (el.board) { el.board.classList.add("armed-base"); el.board.classList.remove("armed-revive"); }
+      // Show the instruction + the Base's description; board taps pick the target,
+      // Cancel backs out (no outside-tap dismiss while choosing a target).
       showActionBar(baseTargetPrompt(base), [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
-      ], baseTargets(col));
+      ], baseTargets(col), { help: base.description });
     } else {
-      // Whole-column Base: a plain confirm (its description rides in the help line).
+      // Whole-column Base (e.g. Landslide): show its DESCRIPTION and the
+      // "Activate X?" decision together; an outside tap cancels.
       armedBaseAct = { col, confirm: true };
-      showActionBar("Activate " + base.label + "?", [
+      showActionBar("Activate " + escHtml(base.label) + "?", [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
         { label: "Activate", cls: "primary", onClick: () => { const c = armedBaseAct.col; disarmBaseAct(); fireBase(c, null); } },
-      ], engine.getRun().pileColumns ? baseColumnPiles(col) : []);
+      ], engine.getRun().pileColumns ? baseColumnPiles(col) : [], { help: base.description, dismiss: disarmBaseAct });
     }
     refreshActivatableIndicators();
   }
