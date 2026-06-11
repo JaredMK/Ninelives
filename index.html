@@ -2979,6 +2979,10 @@
           <select class="debug-sel" id="debugPillarSel"></select>
           <button class="debug-btn" id="debugAddPillar">+ Pillar</button>
         </div>
+        <div class="debug-grant">
+          <select class="debug-sel" id="debugBaseSel"></select>
+          <button class="debug-btn" id="debugAddBase">+ Base</button>
+        </div>
         <div class="debug-sub">set active Pillar on a column (mid-run) →</div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugColPillarSel"></select>
@@ -7127,6 +7131,8 @@ const UIRenderer = (() => {
     debugAddSticker: document.getElementById("debugAddSticker"),
     debugStickerNext: document.getElementById("debugStickerNext"),
     debugPillarSel: document.getElementById("debugPillarSel"),
+    debugBaseSel: document.getElementById("debugBaseSel"),
+    debugAddBase: document.getElementById("debugAddBase"),
     debugAddPillar: document.getElementById("debugAddPillar"),
     debugColPillarSel: document.getElementById("debugColPillarSel"),
     debugSetPC0: document.getElementById("debugSetPC0"),
@@ -8219,6 +8225,7 @@ const UIRenderer = (() => {
     };
     fill(el.debugStickerSel, StickerTypes.all());
     fill(el.debugPillarSel, PillarTypes.all());
+    if (el.debugBaseSel) fill(el.debugBaseSel, BaseTypes.all());
     // Mid-run column-Pillar setter: "(none)" to clear + every Pillar.
     if (el.debugColPillarSel) {
       el.debugColPillarSel.innerHTML = "";
@@ -8280,6 +8287,17 @@ const UIRenderer = (() => {
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     renderSetupInv();
     el.debugPeekOut.textContent = "granted Pillar to inventory: " + id;
+  }
+
+  /* DEBUG: grant the selected Base (free) into the Base inventory — placed in
+     setup like a real purchase. */
+  function debugAddSelectedBase() {
+    const id = el.debugBaseSel ? el.debugBaseSel.value : null;
+    if (!id || !campaign) return;
+    campaign.debugGrantBase(id);
+    if (!el.storeOverlay.classList.contains("hidden")) renderStore();
+    renderSetupInv();
+    el.debugPeekOut.textContent = "granted Base to inventory: " + id;
   }
 
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
@@ -8711,6 +8729,7 @@ const UIRenderer = (() => {
     el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
     if (el.debugStickerNext) el.debugStickerNext.addEventListener("click", debugStickerToNext);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
+    if (el.debugAddBase) el.debugAddBase.addEventListener("click", debugAddSelectedBase);
     if (el.debugSetPC0) el.debugSetPC0.addEventListener("click", () => debugSetColumnPillar(0));
     if (el.debugSetPC1) el.debugSetPC1.addEventListener("click", () => debugSetColumnPillar(1));
     if (el.debugSetPC2) el.debugSetPC2.addEventListener("click", () => debugSetColumnPillar(2));
