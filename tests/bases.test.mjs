@@ -106,20 +106,38 @@ export function run() {
     r.eq(e.getDeck().remaining(), before + 3, "the deck grew by the returned cards");
   }
 
-  // --- effect: Revive (random dead pile in column; buried cards → deck) --
+  // --- effect: Phoenix (revive — keep the KILLER card; buried cards → deck) --
   {
     const e = game(["revive", null, null]);
     const b = e.getBoard();
-    b.piles[1].cards = [card(3, "♠"), card(4, "♠"), card(5, "♠")]; b.kill(1);   // dead, 3 buried
+    // A dead pile: the fatal/killer card sits on TOP, buried cards beneath.
+    b.piles[1].cards = [card(3, "♠"), card(4, "♥"), card(9, "♦")]; b.kill(1);   // 9♦ = killer (top)
     const before = e.getDeck().remaining();
     const res = e.baseActivate(0);
     r.eq(res.index, 1, "the only dead pile in the column is revived");
     r.ok(b.isActive(1), "the pile is alive again");
-    r.eq(b.piles[1].cards.length, 1, "it comes back with a single fresh pile card");
-    r.eq(e.getDeck().remaining(), before + 3 - 1, "its 3 buried cards returned, one fresh card drawn");
-    // No dead pile in the column → can't activate.
+    r.eq(b.piles[1].cards.length, 1, "the revived pile has exactly ONE card (never empty)");
+    r.ok(b.top(1), "the revived pile has a real pile card (not empty)");
+    r.eq(b.top(1).value, 9, "the KILLER card is kept as the pile card (value)");
+    r.eq(b.top(1).suit, "♦", "the KILLER card is kept as the pile card (suit)");
+    r.eq(e.getDeck().remaining(), before + 2, "only the 2 buried cards returned to the deck (killer kept)");
+    // Higher/Lower now works against the real pile card (the killer), not nothing.
+    b.top(1).value = 5; e.debug.setNextCard(9);
+    e.guess(1, "higher");
+    r.ok(b.isActive(1), "guessing higher/lower resolves normally against the revived pile card");
+    // Edge case: even with an EMPTY deck the killer is kept (the old bug left an
+    // empty pile here, because it relied on dealing a fresh card from the deck).
     const e2 = game(["revive", null, null]);
-    r.ok(!e2.baseAvailable(0), "Revive is unavailable with no dead pile in its column");
+    const b2 = e2.getBoard();
+    b2.piles[1].cards = [card(2, "♠"), card(8, "♣")]; b2.kill(1);   // 8♣ = killer
+    e2.getDeck()._drain();                                          // empty the draw deck
+    const res2 = e2.baseActivate(0);
+    r.ok(res2, "Phoenix still activates with an empty deck");
+    r.eq(b2.piles[1].cards.length, 1, "deck-empty revive still keeps exactly one card (the killer)");
+    r.eq(b2.top(1).value, 8, "deck-empty revive keeps the killer as the pile card");
+    // No dead pile in the column → can't activate.
+    const e3 = game(["revive", null, null]);
+    r.ok(!e3.baseAvailable(0), "Revive is unavailable with no dead pile in its column");
   }
 
   // --- effect: Random Sticker (chosen pile) + wrong-column rejection -----

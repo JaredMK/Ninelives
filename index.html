@@ -3361,7 +3361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.28 · perf-idle-drift";
+const APP_VERSION = "v2.29 · phoenix-revive-fix";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4817,13 +4817,19 @@ const GameEngine = (() => {
           const dead = colDeadPiles(col);
           const target = pickOne(dead);
           board.revive(target);
-          const old = board.drain(target);                   // its buried cards → deck (hidden)
-          for (const c of old) deck.returnCard(c);
-          if (!deck.isEmpty()) board.push(target, deck.draw());   // one fresh pile card
-          const fresh = board.top(target);
-          if (fresh && fresh.revealNext) run.revealNextActive = true;
+          // On a wrong guess the killing card is pushed onto the pile and then it
+          // dies (board.push(drawn) → board.kill), so the FATAL card is the dead
+          // pile's TOP card. Keep it as the revived pile's pile card; send only the
+          // cards BENEATH it back into the deck (shuffled in). Result: a live pile
+          // with exactly one card — the killer — never an empty pile.
+          const all = board.drain(target);                   // [bottom … top]; top = killer
+          const killer = all.pop();                          // keep the fatal top card
+          for (const c of all) deck.returnCard(c);           // the buried cards → deck (hidden)
+          if (killer) board.push(target, killer);            // re-seat the killer as the pile card
+          const topNow = board.top(target);
+          if (topNow && topNow.revealNext) run.revealNextActive = true;
           res.index = target;
-          logLine("revived pile " + (target + 1) + " with a fresh card; " + old.length + " buried cards shuffled into the deck");
+          logLine("revived pile " + (target + 1) + " — kept the killing card as its pile card; " + all.length + " buried cards shuffled into the deck");
           break;
         }
         case "randomSticker": {
@@ -9130,6 +9136,13 @@ const UIRenderer = (() => {
           if (copy && engine) engine.logAction("Copy to Inventory: copied a pile card into the card inventory");
         }
         const board = payload.board;
+        // Phoenix (reviveBase) brings a dead pile back to life — clear the leftover
+        // "dead" styling so its (killer) pile card renders like any live pile, the
+        // same way the Revive Pillar's "revived" handler does. Scoped to Phoenix;
+        // no other Base touches a pile's alive state.
+        if (payload.effect === "reviveBase" && payload.index != null && pileEls[payload.index]) {
+          pileEls[payload.index].classList.remove("dead", "death-flash");
+        }
         for (let i = 0; i < pileEls.length; i++) {
           const top = board.top(i);
           if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
