@@ -819,7 +819,6 @@
 
   /* pulse feedback for correct/incorrect */
   @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(63,157,106,0.6);} 100%{box-shadow:0 0 0 15px rgba(63,157,106,0);} }
-  @keyframes badPulse  { 0%{box-shadow:0 0 0 0 rgba(201,64,92,0.65);} 100%{box-shadow:0 0 0 15px rgba(201,64,92,0);} }
   /* The ripple rides a dedicated overlay (::after) rather than .card itself: the
      card's `animation` slot is owned by the perpetual cardDrift float, and CSS
      `animation` is not additive — flashing on .card would REPLACE cardDrift and
@@ -830,11 +829,10 @@
     pointer-events: none;
   }
   .pile.flash-good .card::after { animation: goodPulse 0.5s ease; }
-  .pile.flash-bad .card::after  { animation: badPulse 0.5s ease; }
 
-  /* §5 — a drawn memory FLIPS onto its neuron (encoding). Runs on .front so it
-     doesn't fight the card's perpetual drift; ends flat (= breathing base) so
-     cardBreathe resumes cleanly when the class is removed. */
+  /* Tray-card placement flourish (a swapped-in card flips into its slot).
+     Runs on .front so it doesn't fight the card's perpetual drift; ends flat
+     (= breathing base) so cardBreathe resumes cleanly on class removal. */
   @keyframes cardLand {
     0%   { transform: rotateX(-82deg); opacity: 0.25; }
     62%  { transform: rotateX(7deg);   opacity: 1; }
@@ -2916,7 +2914,7 @@
 
     <!-- FIXED-height bottom region. Its contents swap by PHASE but its size does
          NOT, so the board region above is stable through inventory changes,
-         imprint placement, memory swaps, and clicking Start:
+         sticker placement, card swaps, and clicking Start:
            setup phase → the setup inventory (Imprints to place, memories to swap)
            run phase   → the rank histogram
          The face-down deck + remaining count stays bottom-right in BOTH. -->
@@ -3378,7 +3376,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.40 · qa-sweep-overlays";
+const APP_VERSION = "v2.41 · qa-sweep-final";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8960,7 +8958,7 @@ const UIRenderer = (() => {
   /* A face-up flying clone that LOOKS like a real board card. Clones the live
      pile card DOM (the matte front, corner ranks, centre suit, styling), then
      paints `card`'s face onto it with the same painter the board uses — so the
-     traveling card matches the cards on the neurons rather than a bare glyph.
+     traveling card matches the cards on the piles rather than a bare glyph.
      The drift/landing state and the badge/dead overlays are stripped for a
      clean face. Falls back to a minimal front if no template card is given. */
   function flyRealCardEl(card, templateCardEl) {
@@ -9249,7 +9247,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // tick the live streak pill(s)
 
-        // The drawn memory LANDS on the neuron: swap the face to the drawn card,
+        // The drawn card LANDS on the pile: swap the face to the drawn card,
         // a small settling flourish, then resolve the outcome (good pulse, or
         // death-flash → dissolve). Wrapped so it runs on the traveling card's
         // arrival below (or immediately under reduced motion).
@@ -9261,13 +9259,13 @@ const UIRenderer = (() => {
           renderStickerBadges(pileEl, payload.drawn);
           if (cardEl) cardEl.style.visibility = "";
           if (payload.correct) {
-            // Encoded: a quick "good" pulse, re-strengthen the network now.
+            // Correct: a quick "good" pulse, re-strengthen the network now.
             pileEl.classList.add("flash-good");
             setTimeout(() => pileEl.classList.remove("flash-good"), 520);
             Sound.good();
             refreshNetwork(payload.board);
           } else {
-            // Mis-encoded → the neuron dies. Order: flip/resolve → DEATH FLASH →
+            // Wrong → the pile dies. Order: land/resolve → DEATH FLASH →
             // dissolve → reconnect, so the player registers the death first.
             Sound.death();
             const flashAt = reduce ? 0 : 340;        // a beat after the card settles
