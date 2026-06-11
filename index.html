@@ -645,6 +645,14 @@
   }
   @keyframes cardBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
   @media (prefers-reduced-motion: reduce) { .card .front { animation: none !important; } }
+  /* Performance: pause the perpetual card drift + breathe whenever the board is
+     not the active surface (covered by a full overlay) or has settled to idle —
+     so these ~33 animations stop compositing when nothing is happening. Only the
+     perpetual loops are paused (no transient/landing/dissolve animation runs while
+     this class is applied), so the board simply holds still. */
+  .board.cards-paused .card,
+  .board.cards-paused .card .front,
+  .board.cards-paused .card-fx { animation-play-state: paused; }
 
   /* Card-anchored overlay holding the size/imprint badges: inside .card so it
      inherits the float (drift translate), with its OWN breathing scale phase-
@@ -3361,7 +3369,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.29 · phoenix-revive-fix";
+const APP_VERSION = "v2.30 · perf-s1-overlay-pause";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7185,6 +7193,8 @@ const UIRenderer = (() => {
   let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
   let driftRAF = null, driftLast = 0;  // rAF loop keeping links attached to drifting cards
+  let motionIdle = false;     // §2: board has settled to idle (card motion paused, loop off)
+  let settleTimer = null;     // §2: pending settle timeout after the last board action
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -9633,6 +9643,7 @@ const UIRenderer = (() => {
     stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
     clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
     el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared");
+    updateBoardMotion();   // board is now covered → pause its perpetual card animations
     // The start/win/lose overlay carries its own progress line, so hide the
     // floating Stage·Run badge and the menu button while it's up.
     if (el.stageRun) el.stageRun.classList.add("off");
@@ -9676,6 +9687,7 @@ const UIRenderer = (() => {
     // shows Stage·Run); the store turns the badge on explicitly (see showStore).
     if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
+    updateBoardMotion();
   }
 
   /* ---- loss-screen fossil field (presentation) ----
@@ -9715,10 +9727,18 @@ const UIRenderer = (() => {
     });
     const place = (o) => { o.el.style.transform = "translate(" + (o.x - o.half).toFixed(1) + "px," + (o.y - o.half).toFixed(1) + "px)"; };
     if (reduce) { items.forEach(place); return; }    // reduced motion: static scatter
-    const step = () => {
+    let lossLast = 0;
+    const step = (t) => {
+      lossRAF = requestAnimationFrame(step);
+      if (document.hidden) return;                   // no physics work while the tab is hidden
+      if (lossLast && t - lossLast < 30) return;     // throttle to ~30fps
+      // Scale displacement by the frames elapsed (capped) so the bounce SPEED is
+      // identical regardless of the throttle / actual frame rate.
+      const dt = lossLast ? Math.min((t - lossLast) / 16.67, 3) : 1;
+      lossLast = t;
       // move + wall bounce (full box)
       items.forEach(o => {
-        o.x += o.vx; o.y += o.vy;
+        o.x += o.vx * dt; o.y += o.vy * dt;
         if (o.x - o.half < 0) { o.x = o.half; o.vx *= -1; }
         if (o.x + o.half > W) { o.x = W - o.half; o.vx *= -1; }
         if (o.y - o.half < 0) { o.y = o.half; o.vy *= -1; }
@@ -9736,7 +9756,6 @@ const UIRenderer = (() => {
         }
       }
       items.forEach(place);
-      lossRAF = requestAnimationFrame(step);
     };
     lossRAF = requestAnimationFrame(step);
   }
@@ -9868,6 +9887,8 @@ const UIRenderer = (() => {
   function clearSave() { SaveStore.clear(); }
 
   function startCampaign() {
+    hideMainMenu();   // every entry path leaves the title menu (so the board, once
+                      // dealt, is the active surface and its card motion runs)
     // First-time players (never started a game before) get the How to Play
     // walkthrough on New Game, with a Skip — then on to the map. It never
     // auto-shows again (it stays available from the menu). Read BEFORE
@@ -10105,6 +10126,7 @@ const UIRenderer = (() => {
       netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, bow: parseFloat(g.dataset.bow) || 0, paths, bulges, pulses });
     });
     startDriftSync();
+    updateBoardMotion();
   }
 
   /* ---- Synapse (organic spindle) geometry helpers -------------------------
@@ -10227,9 +10249,17 @@ const UIRenderer = (() => {
   function boardVisible() {
     if (!pileEls.length) return false;
     const up = (o) => o && !o.classList.contains("hidden");
-    if (up(el.overlay) || up(el.storeOverlay) || up(el.mapOverlay)
+    if (up(el.overlay) || up(el.storeOverlay) || up(el.mapOverlay) || up(el.mainMenu)
         || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
     return true;
+  }
+  /* Toggle the `cards-paused` class: pause the board's perpetual card drift/breathe
+     whenever the board is covered by a full overlay (and, from §2, when the visible
+     board has settled to idle). Called from every overlay show/hide so the ~33 card
+     animations stop compositing behind the store/map/menu/win-loss screens. */
+  function updateBoardMotion() {
+    if (!el.board) return;
+    el.board.classList.toggle("cards-paused", !boardVisible() || motionIdle);
   }
   function startDriftSync() {
     if (driftRAF != null) return;
@@ -10956,6 +10986,7 @@ const UIRenderer = (() => {
     updateStageRun();
     renderProgressionMap();
     el.mapOverlay.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the map → pause its card animations
     // Centre the current deal in view (it sits mid-climb: future deals above,
     // cleared ones below).
     const curNode = el.mapTrack.querySelector(".map-node.current");
@@ -10971,7 +11002,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // no current → show the bottom (Stage 1)
     }
   }
-  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); }
+  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
@@ -11021,6 +11052,7 @@ const UIRenderer = (() => {
     el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the store → pause its card animations
   }
 
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
@@ -11826,6 +11858,7 @@ const UIRenderer = (() => {
     closeItemHelp();
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
+    updateBoardMotion();
   }
 
   /* Store item help (tap-to-toggle the "?"). Text is read from the registry's
@@ -12020,8 +12053,9 @@ const UIRenderer = (() => {
     buildMenu(el.menuButtons, items);
     el.menuFoot.textContent = "build " + APP_VERSION;
     el.mainMenu.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the main menu → pause its card animations
   }
-  function hideMainMenu() { el.mainMenu.classList.add("hidden"); el.menuBtn.classList.remove("hidden"); }
+  function hideMainMenu() { el.mainMenu.classList.add("hidden"); el.menuBtn.classList.remove("hidden"); updateBoardMotion(); }
 
   function resumeSavedGame() {
     const saved = savedSnapshot;
@@ -12047,8 +12081,9 @@ const UIRenderer = (() => {
       { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
     ]);
     el.gameMenu.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the in-game menu → pause its card animations
   }
-  function closeGameMenu() { el.gameMenu.classList.add("hidden"); startDriftSync(); }
+  function closeGameMenu() { el.gameMenu.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
   function quitToMenu() {
     closeGameMenu();
     // Navigational only: the existing checkpoint (sticker phase / store) stays in
@@ -12073,8 +12108,9 @@ const UIRenderer = (() => {
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
     el.statsOverlay.classList.remove("hidden");
+    updateBoardMotion();
   }
-  function closeStats() { el.statsOverlay.classList.add("hidden"); startDriftSync(); }
+  function closeStats() { el.statsOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
 
   /* ---- How to Play (§12) — a short guided walkthrough, not a wall of text.
      A handful of tappable mock screens that SHOW the core moments (board → guess
@@ -12226,12 +12262,14 @@ const UIRenderer = (() => {
 
     render();
     el.manualOverlay.classList.remove("hidden");
+    updateBoardMotion();
   }
   function closeManual() {
     el.manualOverlay.classList.add("hidden");
     const fn = manualOnClose; manualOnClose = null;
     if (fn) fn();   // first-time flow → continue to the map
     startDriftSync();   // if this returned to the board, resume the drift loop
+    updateBoardMotion();
   }
 
   function init() {
