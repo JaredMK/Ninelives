@@ -2550,9 +2550,12 @@
   #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #e9b9c8; animation: hazeDrift 34s ease-in-out infinite alternate; }
   #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #cdbfe6; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
   #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #ecd0b6; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
+  /* Translate-only drift (no scale): scaling a 46px-blurred half-screen layer
+     forces Safari to re-rasterise the blur every frame; a pure translate stays
+     compositor-cheap. The slow positional drift — the visible motion — is kept. */
   @keyframes hazeDrift {
-    from { transform: translate3d(-3%, -2%, 0) scale(1); }
-    to   { transform: translate3d(4%, 3%, 0) scale(1.12); }
+    from { transform: translate3d(-3%, -2%, 0); }
+    to   { transform: translate3d(4%, 3%, 0); }
   }
   /* Layer B — faint, heavily-blurred, STATIC dark-rose veins (pure texture).
      Stroke colour/cap set in CSS (SVG presentation attrs don't support var()). */
@@ -3358,7 +3361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.27 · debug-autoplay";
+const APP_VERSION = "v2.28 · perf-idle-drift";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9659,6 +9662,7 @@ const UIRenderer = (() => {
     // Back to an in-game screen. The play board keeps the badge OFF (its HUD bar
     // shows Stage·Run); the store turns the badge on explicitly (see showStore).
     if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
+    startDriftSync();   // board may be back on screen → resume the network drift loop
   }
 
   /* ---- loss-screen fossil field (presentation) ----
@@ -10201,17 +10205,40 @@ const UIRenderer = (() => {
      the network stays attached to the floating cards. Throttled to ~30fps;
      paused when the tab is hidden; skipped entirely under reduced-motion (no
      drift to follow). Reads then writes (no layout thrash). */
+  /* Whether the board (and its network) is actually ON SCREEN. The drift loop
+     only needs to run while the board is visible; these full-screen phase
+     surfaces completely cover it, so while any is up the loop should do no work.
+     (Small centred modals — deck inspector, inventory popup — leave the board
+     visible behind them and intentionally DON'T count, so on-board tracking is
+     unchanged.) */
+  function boardVisible() {
+    if (!pileEls.length) return false;
+    const up = (o) => o && !o.classList.contains("hidden");
+    if (up(el.overlay) || up(el.storeOverlay) || up(el.mapOverlay)
+        || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
+    return true;
+  }
   function startDriftSync() {
     if (driftRAF != null) return;
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!netEdges.length || !boardVisible()) return;   // nothing to track / board off screen
     const step = (t) => {
+      // Truly idle when the board isn't on screen: cancel (no per-frame rect
+      // reads or SVG writes while a store / map / win-loss / menu covers it).
+      // The loop is restarted the instant the board is shown again — renderNetwork
+      // on a deal/guess, or the overlay-close hooks below call startDriftSync.
+      if (!boardVisible()) { stopDriftSync(); return; }
       driftRAF = requestAnimationFrame(step);
-      if (document.hidden) return;
-      if (t - driftLast < 28) return;          // ~30fps
+      if (document.hidden) return;              // tab hidden: keep scheduling, skip work
+      if (t - driftLast < 28) return;           // ~30fps — unchanged, so on-board feel is identical
       driftLast = t;
       syncNetworkToDrift(t);
     };
     driftRAF = requestAnimationFrame(step);
+  }
+  /* Matching stop — cancels the rAF so no work happens while the board is hidden. */
+  function stopDriftSync() {
+    if (driftRAF != null) { cancelAnimationFrame(driftRAF); driftRAF = null; }
   }
   function syncNetworkToDrift(t) {
     const net = networkEl; if (!net || !netEdges.length) return;
@@ -10931,7 +10958,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // no current → show the bottom (Stage 1)
     }
   }
-  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); }
+  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
@@ -11785,6 +11812,7 @@ const UIRenderer = (() => {
     closePackReplace();
     closeItemHelp();
     el.storeOverlay.classList.add("hidden");
+    startDriftSync();   // board may be back on screen → resume the network drift loop
   }
 
   /* Store item help (tap-to-toggle the "?"). Text is read from the registry's
@@ -11965,6 +11993,8 @@ const UIRenderer = (() => {
   function showMainMenu(canContinue) {
     el.stageRun.classList.add("off");
     el.menuBtn.classList.add("hidden");
+    stopLossFossils();   // this hides el.overlay directly (not via hideOverlay) — make
+                         // sure the loss-screen bounce loop can't leak behind the menu
     el.overlay.classList.add("hidden");
     el.board.classList.remove("show-slots");   // no setup slot row on the menu backdrop
     const items = [];
@@ -12005,7 +12035,7 @@ const UIRenderer = (() => {
     ]);
     el.gameMenu.classList.remove("hidden");
   }
-  function closeGameMenu() { el.gameMenu.classList.add("hidden"); }
+  function closeGameMenu() { el.gameMenu.classList.add("hidden"); startDriftSync(); }
   function quitToMenu() {
     closeGameMenu();
     // Navigational only: the existing checkpoint (sticker phase / store) stays in
@@ -12031,7 +12061,7 @@ const UIRenderer = (() => {
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
     el.statsOverlay.classList.remove("hidden");
   }
-  function closeStats() { el.statsOverlay.classList.add("hidden"); }
+  function closeStats() { el.statsOverlay.classList.add("hidden"); startDriftSync(); }
 
   /* ---- How to Play (§12) — a short guided walkthrough, not a wall of text.
      A handful of tappable mock screens that SHOW the core moments (board → guess
@@ -12188,6 +12218,7 @@ const UIRenderer = (() => {
     el.manualOverlay.classList.add("hidden");
     const fn = manualOnClose; manualOnClose = null;
     if (fn) fn();   // first-time flow → continue to the map
+    startDriftSync();   // if this returned to the board, resume the drift loop
   }
 
   function init() {
