@@ -161,8 +161,8 @@ export function run() {
   }
 
   // --- Suit-lock: suited stickers only roll once their suit is in play ---
-  // ♦/♣ Suit Guards must not be offered before their stage introduces that
-  // suit; ♠/♥ guards are always available (Stage 1's base pair). Many opens:
+  // ♣/♠ Suit Guards must not be offered before their stage introduces that
+  // suit; ♦/♥ guards are always available (Stage 1's base pair). Many opens:
   // an out-of-play guard appearing even once is a lock failure (0 probability).
   {
     const sample = (c, n) => {
@@ -170,50 +170,50 @@ export function run() {
       for (let i = 0; i < n; i++) c.openStore().stickers.forEach(id => seen.add(id));
       return seen;
     };
-    const s1 = sample(CampaignState.create(), 300);          // Stage 1: ♠ ♥
-    r.ok(s1.has("suitImmunity") && s1.has("heartGuard"), "Stage 1 offers the ♠ and ♥ guards");
-    r.ok(!s1.has("diamondGuard"), "Stage 1 NEVER offers the ♦ guard (suit not in play)");
+    const s1 = sample(CampaignState.create(), 300);          // Stage 1: ♦ ♥
+    r.ok(s1.has("diamondGuard") && s1.has("heartGuard"), "Stage 1 offers the ♦ and ♥ guards");
     r.ok(!s1.has("clubGuard"), "Stage 1 NEVER offers the ♣ guard (suit not in play)");
+    r.ok(!s1.has("suitImmunity"), "Stage 1 NEVER offers the ♠ guard (suit not in play)");
 
     const c2 = CampaignState.create();
-    for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 (4 runs/stage): ♠ ♥ ♦
+    for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 (4 runs/stage): ♦ ♥ ♣
     r.eq(c2.currentStage, 2, "advanced to Stage 2");
     const s2 = sample(c2, 300);
-    r.ok(s2.has("diamondGuard"), "Stage 2 offers the ♦ guard (its suit is now in play)");
-    r.ok(!s2.has("clubGuard"), "Stage 2 still NEVER offers the ♣ guard");
+    r.ok(s2.has("clubGuard"), "Stage 2 offers the ♣ guard (its suit is now in play)");
+    r.ok(!s2.has("suitImmunity"), "Stage 2 still NEVER offers the ♠ guard");
 
     const c3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3 (4 runs/stage): ♠ ♥ ♦ ♣
+    for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3 (4 runs/stage): ♦ ♥ ♣ ♠
     r.eq(c3.currentStage, 3, "advanced to Stage 3");
     const s3 = sample(c3, 300);
-    r.ok(s3.has("clubGuard"), "Stage 3 offers the ♣ guard (all four suits in play)");
+    r.ok(s3.has("suitImmunity"), "Stage 3 offers the ♠ guard (all four suits in play)");
   }
 
   // --- Suit-lock: suited PILLARS only roll once their suit is in play -----
-  // The four suit Bonus pillars carry a `suit`; ♦/♣ Bonus must not be offered
-  // before their stage introduces that suit (the diamond-receptor leak). ♠/♥
-  // Bonus are always available. Many opens; any out-of-play appearance fails.
+  // The four suit Bonus pillars carry a `suit`; ♣/♠ Bonus must not be offered
+  // before their stage introduces that suit (the receptor leak). ♦/♥ Bonus are
+  // always available. Many opens; any out-of-play appearance fails.
   {
     const sampleP = (c, n) => {
       const seen = new Set();
       for (let i = 0; i < n; i++) c.openStore().pillars.forEach(id => seen.add(id));
       return seen;
     };
-    const p1 = sampleP(CampaignState.create(), 400);          // Stage 1: ♠ ♥
-    r.ok(p1.has("spadeBounty") && p1.has("heartBounty"), "Stage 1 offers the ♠ and ♥ Bonus pillars");
-    r.ok(!p1.has("diamondBounty"), "Stage 1 NEVER offers the ♦ Bonus pillar (suit not in play)");
+    const p1 = sampleP(CampaignState.create(), 400);          // Stage 1: ♦ ♥
+    r.ok(p1.has("diamondBounty") && p1.has("heartBounty"), "Stage 1 offers the ♦ and ♥ Bonus pillars");
     r.ok(!p1.has("clubBounty"), "Stage 1 NEVER offers the ♣ Bonus pillar (suit not in play)");
+    r.ok(!p1.has("spadeBounty"), "Stage 1 NEVER offers the ♠ Bonus pillar (suit not in play)");
 
     const cp2 = CampaignState.create();
-    for (let i = 0; i < 4; i++) cp2.advance();                 // → Stage 2: ♠ ♥ ♦
+    for (let i = 0; i < 4; i++) cp2.advance();                 // → Stage 2: ♦ ♥ ♣
     const p2 = sampleP(cp2, 400);
-    r.ok(p2.has("diamondBounty"), "Stage 2 offers the ♦ Bonus pillar (its suit is now in play)");
-    r.ok(!p2.has("clubBounty"), "Stage 2 still NEVER offers the ♣ Bonus pillar");
+    r.ok(p2.has("clubBounty"), "Stage 2 offers the ♣ Bonus pillar (its suit is now in play)");
+    r.ok(!p2.has("spadeBounty"), "Stage 2 still NEVER offers the ♠ Bonus pillar");
 
     const cp3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) cp3.advance();                 // → Stage 3: ♠ ♥ ♦ ♣
+    for (let i = 0; i < 8; i++) cp3.advance();                 // → Stage 3: ♦ ♥ ♣ ♠
     const p3 = sampleP(cp3, 400);
-    r.ok(p3.has("clubBounty"), "Stage 3 offers the ♣ Bonus pillar (all four suits in play)");
+    r.ok(p3.has("spadeBounty"), "Stage 3 offers the ♠ Bonus pillar (all four suits in play)");
 
     // Reroll obeys the same lock (it shares freshOffer's pillar pool).
     const cr = CampaignState.create();
@@ -225,8 +225,8 @@ export function run() {
       cr.rerollStore();
       cr.addCoins(10000);   // keep rerolls affordable
     }
-    r.ok(!rerollSeen.has("diamondBounty") && !rerollSeen.has("clubBounty"),
-      "Stage 1 rerolls never surface a ♦/♣ Bonus pillar either");
+    r.ok(!rerollSeen.has("clubBounty") && !rerollSeen.has("spadeBounty"),
+      "Stage 1 rerolls never surface a ♣/♠ Bonus pillar either");
   }
 
   return r.summary();

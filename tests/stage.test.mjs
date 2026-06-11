@@ -6,15 +6,15 @@ export function run() {
   const { CampaignState } = loadGame();
   const r = makeRunner("stage.test.mjs");
 
-  const SUITS_ORDER = ["♠", "♥", "♦", "♣"]; // canonical; Stage 1 = ♠♥
+  const SUITS_ORDER = ["♦", "♥", "♣", "♠"]; // canonical; Stage 1 = ♦♥, +♣, +♠
   const uniqueSuits = (deck) => [...new Set(deck.map(c => c.suit))].sort();
 
   // --- deck size + active suits per stage -------------------------------
   const c = CampaignState.create();
   const expect = [
-    { stage: 1, size: 26, suits: ["♠", "♥"] },
-    { stage: 2, size: 39, suits: ["♠", "♥", "♦"] },
-    { stage: 3, size: 52, suits: ["♠", "♥", "♦", "♣"] },
+    { stage: 1, size: 26, suits: ["♦", "♥"] },
+    { stage: 2, size: 39, suits: ["♦", "♥", "♣"] },
+    { stage: 3, size: 52, suits: ["♦", "♥", "♣", "♠"] },
   ];
   for (const e of expect) {
     // advance into the target stage (advance walks runs then rolls stages)
@@ -26,20 +26,21 @@ export function run() {
     r.eq(JSON.stringify(uniqueSuits(deck)), JSON.stringify(e.suits.slice().sort()),
       "stage " + e.stage + " uses exactly suits " + e.suits.join(""));
   }
-  r.eq(JSON.stringify(SUITS_ORDER), JSON.stringify(["♠", "♥", "♦", "♣"]),
+  r.eq(JSON.stringify(SUITS_ORDER), JSON.stringify(["♦", "♥", "♣", "♠"]),
     "suit introduction order is fixed");
 
   // --- dormant-suit stickers persist until the suit enters --------------
   const c2 = CampaignState.create();
-  // A ♣ card is dormant in Stage 1 (only ♠♥ active). Sticker it anyway.
-  const clubId = c2.getCards().find(x => x.suit === "♣").id;
-  r.ok(c2.applySticker(clubId, "tieSafe"), "sticker a dormant ♣ card in Stage 1");
-  r.ok(!c2.getRunDeck().some(x => x.id === clubId), "♣ card absent from Stage 1 run deck");
+  // A ♠ card is dormant in Stage 1 (only ♦♥ active); ♠ is the last suit, entering
+  // at Stage 3. Sticker it anyway.
+  const spadeId = c2.getCards().find(x => x.suit === "♠").id;
+  r.ok(c2.applySticker(spadeId, "tieSafe"), "sticker a dormant ♠ card in Stage 1");
+  r.ok(!c2.getRunDeck().some(x => x.id === spadeId), "♠ card absent from Stage 1 run deck");
   // Advance to Stage 3 (8 advances now that each stage is 4 runs).
   for (let i = 0; i < 8; i++) c2.advance();
-  const clubNow = c2.getRunDeck().find(x => x.id === clubId);
-  r.ok(!!clubNow, "♣ card present once Stage 3 enters its suit");
-  r.ok(clubNow && clubNow.stickers.some(s => s.type === "tieSafe"),
+  const spadeNow = c2.getRunDeck().find(x => x.id === spadeId);
+  r.ok(!!spadeNow, "♠ card present once Stage 3 enters its suit");
+  r.ok(spadeNow && spadeNow.stickers.some(s => s.type === "tieSafe"),
     "dormant card kept its sticker until its suit entered");
 
   // --- stageComposition (the deck-inspection "full" column) -------------
@@ -50,7 +51,7 @@ export function run() {
   r.ok([2, 3, 4, 14].every(v => comp[v] === 2), "Stage 1: every rank has 2 (2 suits)");
 
   // Rank stickers shift the composition (current rank, not original).
-  const fiveId = c3.getCards().find(x => x.currentRank === 5 && (x.suit === "♠" || x.suit === "♥")).id;
+  const fiveId = c3.getCards().find(x => x.currentRank === 5 && (x.suit === "♦" || x.suit === "♥")).id;
   c3.applySticker(fiveId, "rankUp");   // a 5 -> 6
   comp = c3.stageComposition();
   r.eq(comp[5], 1, "rankUp on a 5 drops rank-5 count to 1");

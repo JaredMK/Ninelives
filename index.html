@@ -3377,7 +3377,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.35 · game-over-after-death";
+const APP_VERSION = "v2.36 · suit-order-DHCS";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3619,7 +3619,7 @@ const StickerTypes = (() => {
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
-  // Defined-suit set is ♠ and ♥ for now (♦/♣ enter later). Random-suit is the
+  // Defined-suit pair is ♦ and ♥ for Stage 1 (♣ enters Stage 2, ♠ Stage 3). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
     "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
@@ -4057,10 +4057,12 @@ const DeckManager = (() => {
     { label: "Q", value: 12 }, { label: "K", value: 13 },
     { label: "A", value: 14 },
   ];
-  // Suits are purely cosmetic (rank is all that matters).
+  // Suits are purely cosmetic (rank is all that matters). ARRAY ORDER is the
+  // suit-introduction schedule: suitsForStage slices the first (stage+1), so
+  // Stage 1 = ♦+♥, Stage 2 adds ♣, Stage 3 adds ♠. Reorder here to reschedule.
   const SUITS = [
-    { symbol: "♠", red: false }, { symbol: "♥", red: true },
-    { symbol: "♦", red: true },  { symbol: "♣", red: false },
+    { symbol: "♦", red: true },  { symbol: "♥", red: true },
+    { symbol: "♣", red: false }, { symbol: "♠", red: false },
   ];
 
   // Build the standard 52-card deck. Each card is a PERSISTENT identity:
@@ -5650,7 +5652,8 @@ const CampaignState = (() => {
   const TOTAL_RUNS = MAX_STAGES * MAX_RUNS_PER_STAGE; // 12 = a full campaign (3 × 4)
 
   // Active suits enter in canonical SUITS order. Stage s (1-based) uses the
-  // first (s + 1) suits — Stage 1 starts on the fixed pair ♠ + ♥.
+  // first (s + 1) suits — Stage 1 starts on the fixed pair ♦ + ♥, Stage 2 adds
+  // ♣, Stage 3 adds ♠.
   function suitsForStage(stage) {
     return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
   }
@@ -5716,18 +5719,19 @@ const CampaignState = (() => {
 
   /** Sticker types whose required suit (if any) is currently in play — so a
       rolled sticker never depends on a not-yet-present suit. Carriers of a
-      `suit`: Change-to-♠/♥ (always in play) and the four Suit Guards (♦/♣ guards
-      are excluded until their stage introduces that suit). Used by the store
-      roll AND the pack / pack-card sticker rolls, so the lock is uniform. */
+      `suit`: Change-to-♥ (in from Stage 1) and Change-to-♠ (waits for Stage 3),
+      plus the four Suit Guards — ♦/♥ guards are in from Stage 1, the ♣ guard
+      from Stage 2, the ♠ guard from Stage 3. Used by the store roll AND the
+      pack / pack-card sticker rolls, so the lock is uniform. */
   function stickerPoolForSuits(suitsInPlay) {
     return StickerTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
 
   /** Pillar types whose required suit (if any) is currently in play — the same
       lock as stickers, applied to the Pillar roll. Carriers of a `suit`: the
-      four suit Bonus pillars (Spade/Heart always in play; Diamond/Club are
-      excluded until their stage introduces that suit). Used by the store roll so
-      a suit-locked Pillar can never be offered before its suit exists. */
+      four suit Bonus pillars (Diamond/Heart in from Stage 1; Club from Stage 2;
+      Spade from Stage 3). Used by the store roll so a suit-locked Pillar can
+      never be offered before its suit exists. */
   function pillarPoolForSuits(suitsInPlay) {
     return PillarTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
@@ -5785,7 +5789,7 @@ const CampaignState = (() => {
   function freshOffer(rng = Math.random, stickerPool, pillarPool, basePool) {
     return {
       // stickerPool / pillarPool / basePool are the suit-locked pools for the
-      // current stage (so e.g. ♦/♣ Suit Guards and ♦/♣ Bonus Pillars can't be
+      // current stage (so e.g. ♣/♠ Suit Guards and ♣/♠ Bonus Pillars can't be
       // offered before their suit is in play). Callers pass them; each defaults
       // to the full set for any suit-agnostic use.
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),

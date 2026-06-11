@@ -36,8 +36,8 @@ export function run() {
 
   // --- Card-pack reveal: N cards, valid rank + IN-PLAY suit, unique ids --
   {
-    const c = CampaignState.create();   // Stage 1 → suits ♠ ♥
-    const inPlay = new Set(["♠", "♥"]);
+    const c = CampaignState.create();   // Stage 1 → suits ♦ ♥
+    const inPlay = new Set(["♦", "♥"]);
     const cards = c.revealPack("cardPack", rngFrom(1));
     r.eq(cards.length, 5, "the card pack reveals 5 cards");
     const okShape = cards.every(card =>
@@ -58,7 +58,7 @@ export function run() {
     r.eq(ids.length, 3, "the sticker pack reveals 3 stickers");
     r.ok(ids.every(id => stickerIds.has(id)), "all revealed stickers are real");
     // Suit-locked: no revealed sticker requires a not-yet-present suit.
-    const inPlay = new Set(["♠", "♥"]);
+    const inPlay = new Set(["♦", "♥"]);
     r.ok(ids.every(id => { const t = StickerTypes.get(id); return !t.suit || inPlay.has(t.suit); }),
       "revealed stickers never require an out-of-play suit");
   }
@@ -66,7 +66,7 @@ export function run() {
   // --- On-card stickers stay in-play even via Change-Suit Random + rough dist
   {
     const c = CampaignState.create();
-    const inPlay = new Set(["♠", "♥"]);
+    const inPlay = new Set(["♦", "♥"]);
     const rng = rngFrom(7);
     let withAny = 0, withTwo = 0, withThree = 0;
     const N = 8000;
@@ -95,11 +95,11 @@ export function run() {
   // --- Stage 2 widens the suit pool (basic cross-stage check) -----------
   {
     const c = CampaignState.create();
-    c.advance(); c.advance(); c.advance(); c.advance();   // → Stage 2 (4 runs/stage; suits ♠ ♥ ♦)
+    c.advance(); c.advance(); c.advance(); c.advance();   // → Stage 2 (4 runs/stage; suits ♦ ♥ ♣)
     r.eq(c.currentStage, 2, "advanced to Stage 2");
-    const ok = ["♠", "♥", "♦"];
+    const ok = ["♦", "♥", "♣"];
     const cards = c.revealPack("cardPack", rngFrom(9));
-    r.ok(cards.every(card => ok.includes(card.suit)), "Stage-2 pack cards never roll ♣ (not in play yet)");
+    r.ok(cards.every(card => ok.includes(card.suit)), "Stage-2 pack cards never roll ♠ (not in play yet)");
   }
 
   // --- Pending tray: UNLIMITED (cap removed), discard, take -------------
@@ -210,7 +210,7 @@ export function run() {
     const c = CampaignState.create();
     const [pick] = c.revealPack("cardPack", rngFrom(5));
     c.addPackCard(pick);
-    const dealt = c.getCards().find(x => x.suit === "♠");   // an in-play card
+    const dealt = c.getCards().find(x => x.suit === "♦");   // an in-play card
     c.applySticker(dealt.id, "tieSafe");                    // build it up, to verify destruction
     r.eq(c.getCards().length, 52, "deck starts at 52");
     const ret = c.replaceDeckCard(dealt.id, 0);
@@ -231,9 +231,9 @@ export function run() {
   {
     const c = CampaignState.create();
     const stages = [
-      { advances: 0, ok: ["♠", "♥"] },
-      { advances: 4, ok: ["♠", "♥", "♦"] },
-      { advances: 8, ok: ["♠", "♥", "♦", "♣"] },
+      { advances: 0, ok: ["♦", "♥"] },
+      { advances: 4, ok: ["♦", "♥", "♣"] },
+      { advances: 8, ok: ["♦", "♥", "♣", "♠"] },
     ];
     let fresh = CampaignState.create();
     let totalAdv = 0;
