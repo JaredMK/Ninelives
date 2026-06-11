@@ -1754,6 +1754,60 @@
   }
   .cph-banner.sw-spent { filter: grayscale(0.7) brightness(0.93); opacity: 0.82; }
 
+  /* ---- BASES: the bottom-of-column active-artifact row ----
+     A deliberately DISTINCT look from the Pillar synapse ribbon: a flat, light
+     "foundation slab" with squared bottom corners and a thick footing edge, in a
+     warm bronze (not Pillar violet), so a Base reads instantly as a different
+     class. Mirrors the Pillar row's sizing + reservation so fitBoard accounts for
+     it. The row sits BELOW the grid (bottom of every column). */
+  .board-bases { display: none; }
+  .board.has-bases .board-bases,
+  .board.show-slots .board-bases {
+    display: flex; justify-content: center; align-items: center;
+    gap: var(--gap); width: 100%; height: 26px; margin-top: 2px;
+  }
+  .base-cell {
+    width: var(--pile-w-fit); height: 24px; position: relative;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .base-banner {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    border-radius: 9px 9px 4px 4px;
+    display: flex; align-items: center; justify-content: center; gap: 3px; padding: 0 5px;
+    background: linear-gradient(180deg, rgba(176,122,60,0.18), rgba(176,122,60,0.05));
+    border: 1px solid #b07a3c; border-bottom-width: 3px;
+    box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  .base-banner.empty {
+    background: rgba(74,52,44,0.03);
+    border: 1px dashed rgba(74,52,44,0.20); border-bottom: 2px dashed rgba(74,52,44,0.28);
+    box-shadow: none;
+  }
+  .base-ico { font-size: 13px; line-height: 1; display: flex; align-items: center; color: #7a4f1e; }
+  .base-ico .ico { width: 15px; height: 15px; color: #7a4f1e; }
+  .base-name {
+    font-family: var(--font-text); font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.3px; color: #6b4a26;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .base-charge { position: absolute; right: 3px; top: 1px; font-size: 9px; line-height: 1; color: var(--good); }
+  .base-banner.spent { filter: grayscale(0.6) brightness(0.96); opacity: 0.7; }
+  .base-banner.spent .base-charge { color: rgba(74,52,44,0.5); }
+  .base-banner.activatable { cursor: pointer; animation: baseActivatable 1.3s ease-in-out infinite; }
+  @keyframes baseActivatable {
+    0%,100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5); }
+    50%     { box-shadow: 0 0 0 2px rgba(176,122,60,0.55), 0 0 11px 1px rgba(176,122,60,0.6); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .base-banner.activatable { animation: none; outline: 2px solid #b07a3c; outline-offset: 1px; }
+  }
+  .board.placing-base .base-cell { cursor: pointer; }
+  .board.placing-base .base-cell .base-banner { outline: 2px dashed #b07a3c; outline-offset: 1px; }
+  .board.armed-base .pile:not(.dead) { cursor: pointer; }
+  /* Store tile Base preview reuses the board banner so players recognise it. */
+  .store-tile .ti-base { width: 100%; height: 30px; margin-top: 1px; display: block; }
+  .store-tile .ti-base .base-banner { height: 100%; }
+
   /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
      effect fires, and (for coin rewards) a "+N" that floats up and fades. The
      .bp-cell is position:relative, so the float anchors over its column. */
@@ -1968,6 +2022,23 @@
     text-transform: uppercase; letter-spacing: 0.4px;
     background: rgba(110,81,166,0.16); border-radius: 999px; padding: 1px 6px;
   }
+  /* Base tray (setup): owned, unplaced Bases — tap to arm, then tap a column's
+     bottom base slot to place. Same scrolling strip as Pillars, bronze identity. */
+  .base-tray {
+    display: flex; gap: 8px; justify-content: flex-start; flex-wrap: nowrap;
+    overflow-x: auto; overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
+  }
+  .base-tray.hidden { display: none; }
+  .tray-base {
+    background: rgba(176,122,60,0.10); border: 2px solid #b07a3c; border-bottom-width: 3px;
+    border-radius: 10px 10px 5px 5px;
+    padding: 6px 12px; font-size: 15px; display: flex; align-items: center; gap: 5px;
+    cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
+  }
+  .tray-base .tp-name { font-size: 12px; font-weight: 800; color: #7a4f1e; }
+  .tray-base .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
+  .tray-base.armed { border-color: var(--accent); transform: scale(1.05); }
+
   /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
   /* Placing a Pillar: the PILLAR SLOTS (top of each column) are the drop targets,
      not the cards. Highlight the slots and light up the empty placeholders so it
@@ -2837,11 +2908,13 @@
             <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="tabNCards">0</span></button>
             <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="tabNStickers">0</span></button>
             <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="tabNPillars">0</span></button>
+            <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="tabNBases">0</span></button>
           </div>
           <div class="setup-strip" id="setupStrip">
             <div class="pack-tray tab-panel hidden" id="packTrayEl" data-tab="cards"></div>
             <div class="sticker-tray tab-panel hidden" id="stickerTray" data-tab="stickers"></div>
             <div class="pillar-tray tab-panel hidden" id="pillarTray" data-tab="pillars"></div>
+            <div class="base-tray tab-panel hidden" id="baseTray" data-tab="bases"></div>
             <div class="setup-empty hidden" id="setupEmpty"></div>
           </div>
           <div class="tray-help hidden" id="trayHelp">
@@ -2987,6 +3060,12 @@
       <div class="zone-h"><span class="ico-slot" data-ico="guardian"></span> PILLARS
         <span class="tag">change a whole column</span></div>
       <div class="store-row" id="storePillars"></div>
+    </div>
+
+    <div class="zone z-base">
+      <div class="zone-h"><span class="ico-slot" data-ico="anchor"></span> BASES
+        <span class="tag">activate once per deal</span></div>
+      <div class="store-row" id="storeBases"></div>
     </div>
 
     <div class="zone z-swap">
@@ -3269,7 +3348,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.24 · bases-engine";
+const APP_VERSION = "v2.25 · bases-ui";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6894,6 +6973,7 @@ const UIRenderer = (() => {
     bottomRegion: document.getElementById("bottomRegion"),
     stickerTray: document.getElementById("stickerTray"),
     pillarTray: document.getElementById("pillarTray"),
+    baseTray: document.getElementById("baseTray"),
     setupInv: document.getElementById("setupInv"),
     setupTabs: document.getElementById("setupTabs"),
     setupStrip: document.getElementById("setupStrip"),
@@ -6901,6 +6981,7 @@ const UIRenderer = (() => {
     tabNCards: document.getElementById("tabNCards"),
     tabNStickers: document.getElementById("tabNStickers"),
     tabNPillars: document.getElementById("tabNPillars"),
+    tabNBases: document.getElementById("tabNBases"),
     trayHelp: document.getElementById("trayHelp"),
     thTitle: document.getElementById("thTitle"),
     thDesc: document.getElementById("thDesc"),
@@ -6957,6 +7038,7 @@ const UIRenderer = (() => {
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
     storePillars: document.getElementById("storePillars"),
+    storeBases: document.getElementById("storeBases"),
     pillarSlots: document.getElementById("pillarSlots"),
     trashPillarBtn: document.getElementById("trashPillarBtn"),
     storePacks: document.getElementById("storePacks"),
@@ -7109,12 +7191,14 @@ const UIRenderer = (() => {
   let selectedStickerSlot = null;
   let selectedPackSlot = null;
   let armedPillarSlot = null;
+  let armedBaseSlot = null;     // offered Base slot selected in the store, awaiting Buy
   let armedSlotMove = null;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
   let armedRevive = null;       // { col } — Revive offered; tap a DEAD pile to revive it
-  let armedKamikaze = null;     // { col } — Kamikaze armed; tap an ALIVE pile to kill it
+  let armedBaseAct = null;      // { col } — a placed Base armed for activation; tap a target pile
+  let armedBaseItem = null;     // setup: an owned Base type id armed from inventory to place
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
   // Which offered tile's help popup is open ("s<slot>"/"p<slot>"), or null.
@@ -7486,6 +7570,44 @@ const UIRenderer = (() => {
     el.peekInfo.innerHTML = pillarPeekHtml(col);
     el.peekInfo.classList.remove("hidden");
   }
+  /* The bottom-Base help popup: the Base's name + effect, this deal's rolled
+     value/suit where relevant, its charged/spent state, and (in setup only) a
+     Return-to-inventory action. */
+  function basePeekHtml(col) {
+    const binding = campaign ? campaign.getColumnBases() : [];
+    const bid = binding[col];
+    if (!bid) return '<div class="pk-head">Column ' + (col + 1) + '</div><div class="pk-empty">No Base on this column.</div>';
+    const t = BaseTypes.get(bid);
+    if (!t) return '<div class="pk-empty">Unknown Base.</div>';
+    const inSetup = engine && engine.canApplyStickers();
+    const started = engine && engine.isRunStarted && engine.isRunStarted();
+    const run = engine && engine.getRun ? engine.getRun() : null;
+    // Surface this deal's roll for the randomized Bases.
+    const br = engine && engine.baseRandom ? engine.baseRandom() : null;
+    let roll = "";
+    if (br && t.effect === "setValue") {
+      const rk = DeckManager.RANKS.find(x => x.value === br.value);
+      roll = '<div class="pk-state">This deal: sets pile cards to ' + (rk ? rk.label : br.value) + ".</div>";
+    } else if (br && t.effect === "suitTally" && br.suit) {
+      roll = '<div class="pk-state">This deal: tallies ' + br.suit + " cards.</div>";
+    }
+    let charge = "";
+    if (started && run && run.basesUsed) {
+      charge = run.basesUsed[col]
+        ? '<div class="pk-state pk-locked">Spent this deal — recharges next deal.</div>'
+        : '<div class="pk-state">Charged — tap to activate (once this deal).</div>';
+    }
+    return '<div class="pk-head">' + (t.icon || "") + " " + escHtml(t.label) + "</div>" +
+      '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
+      roll + charge +
+      (inSetup
+        ? '<button class="pk-unplace base" data-unplace-base-col="' + col + '" type="button">Return to inventory</button>'
+        : "");
+  }
+  function openBasePeek(col) {
+    el.peekInfo.innerHTML = basePeekHtml(col);
+    el.peekInfo.classList.remove("hidden");
+  }
   function closePeekInfo() { el.peekInfo.classList.add("hidden"); }
 
   /* ---- selection / action sheet ---- */
@@ -7636,8 +7758,8 @@ const UIRenderer = (() => {
   }
 
   function startRunUI() {
-    // Lock in the current column→Pillar binding for the run as play begins.
-    if (engine) engine.startRun(campaign.getColumnPillars());
+    // Lock in the current column→Pillar and column→Base bindings as play begins.
+    if (engine) engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases());
   }
 
   /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
@@ -7652,6 +7774,9 @@ const UIRenderer = (() => {
     } else if (armedPillar) {
       const t = PillarTypes.get(armedPillar);
       if (t) { title = t.icon + " " + escHtml(t.label); desc = t.description || ""; }
+    } else if (armedBaseItem) {
+      const t = BaseTypes.get(armedBaseItem);
+      if (t) { title = (t.icon || "") + " " + escHtml(t.label); desc = t.description || ""; }
     } else if (armedPack != null && campaign) {
       const card = campaign.getPackTray()[armedPack];
       if (card) {
@@ -7678,7 +7803,7 @@ const UIRenderer = (() => {
 
   /* Disarm whatever setup item is armed and return to the item strip. */
   function disarmSetupItem() {
-    armedSticker = null; armedPillar = null; armedPack = null;
+    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
     updateArmingClass();
     renderSetupInv();
   }
@@ -7741,6 +7866,7 @@ const UIRenderer = (() => {
   function updateArmingClass() {
     el.board.classList.toggle("arming", !!armedSticker || armedPack != null);
     el.board.classList.toggle("placing-pillar", !!armedPillar);
+    el.board.classList.toggle("placing-base", !!armedBaseItem);
   }
 
   /* ---- setup Pillar placement ----
@@ -7766,22 +7892,24 @@ const UIRenderer = (() => {
   function setupTabCounts() {
     const inv = campaign ? campaign.getInventory() : {};
     const pinv = campaign ? campaign.getPillarInventory() : {};
+    const binv = campaign ? campaign.getBaseInventory() : {};
     const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
     return {
       cards: campaign ? campaign.packTrayCount() : 0,
       stickers: sum(inv),
       pillars: sum(pinv),
+      bases: sum(binv),
     };
   }
   function renderSetupInv() {
-    renderPackTray(); renderStickerTray(); renderPillarTray();
-    renderTrayHelp();                   // reflect the armed card/sticker/pillar (or hide)
+    renderPackTray(); renderStickerTray(); renderPillarTray(); renderBaseTray();
+    renderTrayHelp();                   // reflect the armed card/sticker/pillar/base (or hide)
     if (!el.setupTabs) return;
     const open = !!(engine && engine.canApplyStickers());
     const counts = setupTabCounts();
-    const order = ["cards", "stickers", "pillars"];
-    const panels = { cards: el.packTrayEl, stickers: el.stickerTray, pillars: el.pillarTray };
-    const badges = { cards: el.tabNCards, stickers: el.tabNStickers, pillars: el.tabNPillars };
+    const order = ["cards", "stickers", "pillars", "bases"];
+    const panels = { cards: el.packTrayEl, stickers: el.stickerTray, pillars: el.pillarTray, bases: el.baseTray };
+    const badges = { cards: el.tabNCards, stickers: el.tabNStickers, pillars: el.tabNPillars, bases: el.tabNBases };
     order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
     // If the active tab is empty, fall back to the first family that has items.
     if (counts[activeSetupTab] === 0) {
@@ -7810,7 +7938,7 @@ const UIRenderer = (() => {
     if (!tab) return;
     // Switching family also disarms, so the chosen tab's item strip is visible
     // (the help replaces the strip while something is armed).
-    armedSticker = null; armedPillar = null; armedPack = null;
+    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
     updateArmingClass();
     activeSetupTab = tab;
     renderSetupInv();
@@ -7859,6 +7987,61 @@ const UIRenderer = (() => {
     fitBoard();
     renderSetupInv();
     el.hint.textContent = (t ? t.label : "Pillar") + " returned to inventory.";
+    persistCampaign("run");
+    refreshDebug();
+  }
+
+  /* ---- setup Base placement (mirrors Pillar placement, bottom-of-column) ---- */
+  function renderBaseTray() {
+    if (!el.baseTray) return;
+    const open = engine && engine.canApplyStickers();
+    const inv = campaign ? campaign.getBaseInventory() : {};
+    const owned = open ? BaseTypes.all().filter(t => (inv[t.id] || 0) > 0) : [];
+    if (!open && armedBaseItem) { armedBaseItem = null; updateArmingClass(); }
+    el.baseTray.innerHTML = owned.map(t => invBaseChipHtml(t, inv[t.id], armedBaseItem === t.id)).join("");
+  }
+  function invBaseChipHtml(t, count, sel) {
+    return '<button type="button" class="tray-base' + (sel ? " armed" : "") + '" data-base="' + t.id + '">' +
+      '<span class="ts-icon">' + (t.icon || "") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+      '<span class="ts-count">×' + count + "</span></button>";
+  }
+  function armBaseItem(typeId) {
+    if (!engine || !engine.canApplyStickers()) return;
+    if (campaign.baseInventoryCount(typeId) <= 0) return;
+    armedBaseItem = armedBaseItem === typeId ? null : typeId;
+    if (armedBaseItem) { armedSticker = null; armedPillar = null; armedPack = null; }   // mutually exclusive
+    clearSelection();
+    updateArmingClass();
+    renderSetupInv();
+    const t = BaseTypes.get(armedBaseItem);
+    el.hint.textContent = t
+      ? "Tap a column's base slot (bottom of the column) to place " + t.label + "."
+      : "Place Bases on columns, then press Start Deal.";
+  }
+  function placeBaseOnColumn(col) {
+    if (!engine || !engine.canApplyStickers() || !armedBaseItem) return;
+    const t = BaseTypes.get(armedBaseItem);
+    if (!campaign.placeBase(armedBaseItem, col)) return;
+    if (engine) engine.logAction("Placed Base " + ((t && t.label) || armedBaseItem) + " on column " + (col + 1));
+    armedBaseItem = null;
+    updateArmingClass();
+    paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    fitBoard();
+    renderSetupInv();
+    el.hint.textContent = (t ? t.label : "Base") + " placed on column " + (col + 1) + ".";
+    persistCampaign("run");
+    refreshDebug();
+  }
+  function pickUpBase(col) {
+    if (!engine || !engine.canApplyStickers()) return;
+    const id = campaign.unplaceBase(col);
+    if (!id) return;
+    const t = BaseTypes.get(id);
+    if (engine) engine.logAction("Picked up Base " + ((t && t.label) || id) + " from column " + (col + 1));
+    paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    fitBoard();
+    renderSetupInv();
+    el.hint.textContent = (t ? t.label : "Base") + " returned to inventory.";
     persistCampaign("run");
     refreshDebug();
   }
@@ -8239,18 +8422,34 @@ const UIRenderer = (() => {
         }
         return;
       }
-      if (armedKamikaze) {
+      // A target Base is armed: a tap on a highlighted pile fires it.
+      if (armedBaseAct && !armedBaseAct.confirm) {
         if (tPile) {
           const idx = Number(tPile.dataset.index);
-          if (engine.getBoard().isActive(idx)) { const col = armedKamikaze.col; disarmKamikaze(); engine.kamikazeActivate(col, idx); }
+          if (baseTargets(armedBaseAct.col).indexOf(idx) !== -1) { const col = armedBaseAct.col; disarmBaseAct(); fireBase(col, idx); }
         }
         return;
       }
-      // A confirm prompt is up (Donate / Shuffle): answer via its buttons only.
+      // A confirm prompt is up (Donate / Shuffle / whole-column Base): answer via
+      // its buttons only.
       if (promptActive) return;
       // Tap a Pathway banner → toggle its description via the standard peek
       // popup (a hold still peeks-while-held). Read-only; no state change.
       const setupWindow = engine && engine.canApplyStickers();
+      // Bottom BASE row: place (setup) / activate (play) / peek.
+      const baseCell = e.target.closest(".base-cell");
+      if (baseCell) {
+        const col = Number(baseCell.dataset.col);
+        if (setupWindow && armedBaseItem) { placeBaseOnColumn(col); return; }
+        if (!setupWindow && engine && engine.baseAvailable && engine.baseAvailable(col)) {
+          if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }
+          toggleArmBase(col); return;
+        }
+        if (peekTapPile != null) peekTapPile = null;
+        if (peekTapCol === ("b" + col)) { closePeekInfo(); peekTapCol = null; }
+        else { openBasePeek(col); peekTapCol = "b" + col; }
+        return;
+      }
       const bpCell = e.target.closest(".bp-cell");
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
@@ -8258,12 +8457,6 @@ const UIRenderer = (() => {
         // play) tapping a slot toggles its help popup — which, in setup, carries an
         // explicit "Return to inventory" button (never auto-removed).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
-        // During active play, tapping an available Kamikaze Pillar arms (or
-        // cancels) its target mode instead of opening the peek.
-        if (!setupWindow && engine && engine.kamikazeAvailable && engine.kamikazeAvailable(col)) {
-          if (peekTapCol != null) { closePeekInfo(); peekTapCol = null; }
-          toggleArmKamikaze(col); return;
-        }
         if (peekTapPile != null) peekTapPile = null;   // switching to a Pillar peek
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
@@ -8274,10 +8467,10 @@ const UIRenderer = (() => {
       // Tap-off (empty board space) also closes an open pre-run card peek.
       if (!pileEl) { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } return; }
       const index = Number(pileEl.dataset.index);
-      // A Pillar is placed by tapping its column's SLOT (the .bp-cell row above),
-      // handled above — not by tapping a card. So while placing a Pillar, taps on
-      // cards do nothing.
-      if (armedPillar) return;
+      // A Pillar/Base is placed by tapping its column's SLOT (the row above/below),
+      // handled there — not by tapping a card. So while placing one, taps on cards
+      // do nothing.
+      if (armedPillar || armedBaseItem) return;
       else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else if (setupWindow) {
@@ -8294,6 +8487,8 @@ const UIRenderer = (() => {
     el.peekInfo.addEventListener("click", (e) => {
       const peel = e.target.closest(".pk-peel");
       if (peel) { requestPeel(Number(peel.dataset.peelIndex)); return; }
+      const ub = e.target.closest(".pk-unplace.base");
+      if (ub) { closePeekInfo(); peekTapCol = null; pickUpBase(Number(ub.dataset.unplaceBaseCol)); return; }
       const b = e.target.closest(".pk-unplace");
       if (!b) return;
       closePeekInfo(); peekTapCol = null;
@@ -8307,7 +8502,7 @@ const UIRenderer = (() => {
     // left to their existing handlers.
     document.addEventListener("click", (e) => {
       if (el.peekInfo.classList.contains("hidden")) return;
-      if (e.target.closest(".board") || e.target.closest(".peek-info") || e.target.closest(".bp-cell")) return;
+      if (e.target.closest(".board") || e.target.closest(".peek-info") || e.target.closest(".bp-cell") || e.target.closest(".base-cell")) return;
       closePeekInfo(); peekTapCol = null; peekTapPile = null;
     });
     // Peel confirmation actions.
@@ -8419,6 +8614,11 @@ const UIRenderer = (() => {
       const b = e.target.closest(".tray-pillar");
       if (b) { dismissPilePeek(); armPillar(b.dataset.pillar); }
     });
+    // Base tray (setup): tap an owned Base to arm/disarm it for placement.
+    if (el.baseTray) el.baseTray.addEventListener("click", (e) => {
+      const b = e.target.closest(".tray-base");
+      if (b) { dismissPilePeek(); armBaseItem(b.dataset.base); }
+    });
     // Setup inventory tabs: switch the visible family (Cards / Stickers / Pillars).
     if (el.setupTabs) el.setupTabs.addEventListener("click", (e) => {
       const b = e.target.closest(".setup-tab");
@@ -8459,23 +8659,28 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) selectPillarUI(Number(tile.dataset.pslot));
     });
+    if (el.storeBases) el.storeBases.addEventListener("click", (e) => {
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("empty")) selectBaseUI(Number(tile.dataset.bslot));
+    });
     el.storePacks.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) selectPackUI(Number(tile.dataset.packslot));
     });
     // The one Buy button lives in the help slot; it confirms whatever is selected
-    // (Stickers + Pillars go to inventory, Packs open on buy).
+    // (Stickers + Pillars + Bases go to inventory, Packs open on buy).
     el.shBuy.addEventListener("click", () => {
       const kind = el.shBuy.dataset.kind;
       if (kind === "sticker") confirmBuySticker();
       else if (kind === "pillar") confirmBuyPillar();
+      else if (kind === "base") confirmBuyBase();
       else confirmBuyPack();
     });
     // Tap empty space in the shop (not a tile / footer) to deselect.
     el.storeOverlay.addEventListener("click", (e) => {
       if (e.target.closest(".store-tile, .store-foot")) return;
-      if (selectedStickerSlot != null || selectedPackSlot != null || armedPillarSlot != null) {
-        selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; renderStore();
+      if (selectedStickerSlot != null || selectedPackSlot != null || armedPillarSlot != null || armedBaseSlot != null) {
+        selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedBaseSlot = null; renderStore();
       }
     });
     // Pick screen: open the read-only deck composition to inform the choice.
@@ -8757,8 +8962,8 @@ const UIRenderer = (() => {
       case "dealt": {
         clearAnimQueue();   // a fresh board → drop any stale travel steps
         // Clear any leftover targeting/confirm state from the previous deal.
-        armedRevive = null; armedKamikaze = null;
-        if (el.board) el.board.classList.remove("armed-revive", "armed-kamikaze");
+        armedRevive = null; armedBaseAct = null;
+        if (el.board) el.board.classList.remove("armed-revive", "armed-base");
         hideActionBar();
         // Snapshot the coin balance the player enters this run with (after any
         // store spending) → drives the end-of-run Interest payout.
@@ -8781,6 +8986,33 @@ const UIRenderer = (() => {
         showActivePhase();    // hide Start Run, reveal guessing
         renderNetwork();
         renderDeckReveal();   // Scout on a starting top reveals from the off
+        // Bases arm for the deal: repaint the bottom row to its live charged state
+        // and light the tap-to-activate cues.
+        paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
+        refreshDebug();
+        break;
+      }
+
+      case "base-fired": {
+        // A Base activated. Copy to Inventory is the one effect that mutates the
+        // campaign (duplicate the named pile card into the card inventory); every
+        // other effect already resolved inside the engine. Repaint the board cards
+        // (values/stickers/counts may have changed), the Base row (now spent), the
+        // HUD, and the activation cues.
+        if (payload.copyCardId != null && campaign) {
+          const copy = campaign.duplicateCard(payload.copyCardId);
+          if (copy && engine) engine.logAction("Copy to Inventory: copied a pile card into the card inventory");
+        }
+        const board = payload.board;
+        for (let i = 0; i < pileEls.length; i++) {
+          const top = board.top(i);
+          if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
+        }
+        paintPileCounts(board);
+        renderHud(board, payload.deck);
+        paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
+        renderNetwork();
+        persistCampaign("run");
         refreshDebug();
         break;
       }
@@ -9626,7 +9858,19 @@ const UIRenderer = (() => {
     networkEl = net;
     lastNetKeys = new Set();       // fresh board → the first draw fades its links in
     el.board.appendChild(grid);
-    paintColumnPillars(cols);     // fill the indicator row from the binding
+    // Single BASE row across the BOTTOM — one cell per column, mirroring the
+    // Pillar row at the top. Bases bind to the bottom of a column.
+    const baseRow = document.createElement("div");
+    baseRow.className = "board-bases";
+    for (let c = 0; c < cols.length; c++) {
+      const cell = document.createElement("div");
+      cell.className = "base-cell";
+      cell.dataset.col = c;
+      baseRow.appendChild(cell);
+    }
+    el.board.appendChild(baseRow);
+    paintColumnPillars(cols);     // fill the top indicator row from the binding
+    paintColumnBases(cols);       // fill the bottom Base row from the binding
     fitBoard();   // size piles to the actually-available space (see below)
   }
 
@@ -10029,6 +10273,45 @@ const UIRenderer = (() => {
     updateSecondWind();
   }
 
+  /* A BASE banner — a deliberately DISTINCT look from a Pillar's synapse ribbon:
+     a flat, squared "foundation slab" that reads as the base/footing of a column.
+     `state` is "empty" (dashed placeholder), "charged" (ready to activate this
+     deal) or "spent" (already used this deal). The icon is the Base's glyph. */
+  function baseBannerHtml(t, state) {
+    if (!t) return '<div class="base-banner empty"></div>';
+    const chargePip = '<span class="base-charge" title="' +
+      (state === "spent" ? "Spent this deal" : "Charged — activate once this deal") + '">' +
+      (state === "spent" ? "○" : "●") + "</span>";
+    return '<div class="base-banner ' + (state || "charged") + '">' +
+        '<span class="base-ico">' + (t.icon || "") + "</span>" +
+        '<span class="base-name">' + escHtml(t.label) + "</span>" +
+        chargePip +
+      "</div>";
+  }
+
+  /* Fill the bottom Base row from the column binding. `has-bases` reveals/reserves
+     the row when any Base is present. During active play each Base shows its
+     charged/spent state from run.basesUsed; in setup it shows as charged. */
+  function paintColumnBases(cols) {
+    if (!campaign) return;
+    const binding = campaign.getColumnBases();
+    const hasAny = cols.some((_, col) => !!binding[col]);
+    el.board.classList.toggle("has-bases", hasAny);
+    const run = engine && engine.getRun ? engine.getRun() : null;
+    const started = engine && engine.isRunStarted && engine.isRunStarted();
+    const cells = el.board.querySelectorAll(".base-cell");
+    cols.forEach((count, col) => {
+      const cell = cells[col];
+      if (!cell) return;
+      const t = binding[col] ? BaseTypes.get(binding[col]) : null;
+      let state = "charged";
+      if (t && started && run && run.basesUsed) state = run.basesUsed[col] ? "spent" : "charged";
+      cell.innerHTML = baseBannerHtml(t, t ? state : "empty");
+      cell.title = t ? t.label : "";
+    });
+    refreshActivatableIndicators();   // re-mark which Bases can be tapped right now
+  }
+
   /* Size the uniform pile so the WHOLE play screen (stat bar + pile grid +
      guess buttons) fits one viewport with no scrolling — the tallest run
      (Run 1, 4-pile middle column) is the limiting case. Presentation only:
@@ -10106,7 +10389,13 @@ const UIRenderer = (() => {
       headH = oh(el.board.querySelector(".board-pillars"));
       headGap = gapPx;
     }
-    const byHeight = (availH - headH - headGap - (tall - 1) * gapPx) / tall;
+    // The Base row sits BELOW the grid (bottom of every column) — reserve it too.
+    let footH = 0, footGap = 0;
+    if (el.board.classList.contains("has-bases") || el.board.classList.contains("show-slots")) {
+      footH = oh(el.board.querySelector(".board-bases"));
+      footGap = gapPx;
+    }
+    const byHeight = (availH - headH - headGap - footH - footGap - (tall - 1) * gapPx) / tall;
     const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns fill the board width
     // RECTANGULAR fill: width = the full column width, height = the per-row
     // budget. The board width already equals the viewport (min 99vw), so the
@@ -10585,29 +10874,31 @@ const UIRenderer = (() => {
       btn.innerHTML = '<span class="tile-sold">—</span>';
       return btn;
     }
-    const t = kind === "pillar" ? PillarTypes.get(id) : kind === "pack" ? PackTypes.get(id) : StickerTypes.get(id);
+    const t = kind === "pillar" ? PillarTypes.get(id) : kind === "base" ? BaseTypes.get(id) : kind === "pack" ? PackTypes.get(id) : StickerTypes.get(id);
     if (!t) {   // unknown id (e.g. a restored offer referencing a removed type) → empty slot
       btn.className = "store-tile empty";
       btn.disabled = true;
       btn.innerHTML = '<span class="tile-sold">—</span>';
       return btn;
     }
-    const price = kind === "pillar" ? campaign.priceOfPillar(id) : kind === "pack" ? campaign.priceOfPack(id) : campaign.priceOf(id);
+    const price = kind === "pillar" ? campaign.priceOfPillar(id) : kind === "base" ? campaign.priceOfBase(id) : kind === "pack" ? campaign.priceOfPack(id) : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
-    btn.dataset[kind === "pillar" ? "pslot" : kind === "pack" ? "packslot" : "slot"] = slot;
-    btn.dataset[kind === "pillar" ? "pillar" : kind === "pack" ? "pack" : "type"] = id;
-    // Packs have no rarity tier; Imprints/Pathways show their tier badge.
+    btn.dataset[kind === "pillar" ? "pslot" : kind === "base" ? "bslot" : kind === "pack" ? "packslot" : "slot"] = slot;
+    btn.dataset[kind === "pillar" ? "pillar" : kind === "base" ? "base" : kind === "pack" ? "pack" : "type"] = id;
+    // Packs have no rarity tier; Imprints/Pathways/Bases show their tier badge.
     const tierChip = (kind === "pack") ? ""
       : '<span class="ti-tier tier-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '">' + (t.tier || "common").charAt(0).toUpperCase() + '</span>';
     // Pathways render the SAME synapse+icon banner as when equipped on the board
-    // (shared pathwayBannerHtml) so players recognise them before buying;
-    // Imprints/Memory Swaps keep their plain glyph.
+    // (shared pathwayBannerHtml) so players recognise them before buying; Bases
+    // render their distinct base-banner; Imprints/Memory Swaps keep their glyph.
     const iconHtml = (kind === "pillar")
       ? '<span class="ti-syn">' + pathwayBannerHtml(t) + '</span>'
-      : (kind === "sticker")
-        ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'   // matte die-cut chip
-        : '<span class="ti-icon">' + t.icon + '</span>';                      // packs keep the plain glyph
+      : (kind === "base")
+        ? '<span class="ti-base">' + baseBannerHtml(t, "charged") + '</span>'
+        : (kind === "sticker")
+          ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'   // matte die-cut chip
+          : '<span class="ti-icon">' + t.icon + '</span>';                      // packs keep the plain glyph
     btn.innerHTML =
       tierChip +
       iconHtml +
@@ -10624,7 +10915,7 @@ const UIRenderer = (() => {
   /* Shared description source for any element (Imprint / Pathway / Cache):
      reads straight from the registries — the SAME text the help popups use. */
   function describeItem(kind, id) {
-    const reg = kind === "pillar" ? PillarTypes : kind === "pack" ? PackTypes : StickerTypes;
+    const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: t.description } : null;
   }
@@ -10639,6 +10930,7 @@ const UIRenderer = (() => {
     if (offer) {
       if (selectedStickerSlot != null) { kind = "sticker"; id = offer.stickers[selectedStickerSlot]; price = campaign.priceOf(id); }
       else if (armedPillarSlot != null) { kind = "pillar"; id = offer.pillars[armedPillarSlot]; price = campaign.priceOfPillar(id); }
+      else if (armedBaseSlot != null) { kind = "base"; id = offer.bases[armedBaseSlot]; price = campaign.priceOfBase(id); }
       else if (selectedPackSlot != null) { kind = "pack"; id = offer.packs[selectedPackSlot]; price = campaign.priceOfPack(id); }
     }
     const t = id ? describeItem(kind, id) : null;
@@ -10679,6 +10971,7 @@ const UIRenderer = (() => {
       el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
     padRow(el.storeItems, 4);
     renderPillarStore();
+    renderBaseStore();
     renderPackStore();
     updateRerollButton();
     renderStoreHelp();   // the fixed help slot tracks the selection
@@ -10718,6 +11011,7 @@ const UIRenderer = (() => {
     selectedPackSlot = selectedPackSlot === slot ? null : slot;
     selectedStickerSlot = null;
     armedPillarSlot = null;
+    armedBaseSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedPackSlot != null
       ? "Tap Buy to open it, or tap it again to deselect."
@@ -10966,6 +11260,7 @@ const UIRenderer = (() => {
     selectedStickerSlot = selectedStickerSlot === slot ? null : slot;
     selectedPackSlot = null;
     armedPillarSlot = null;
+    armedBaseSlot = null;
     armedSlotMove = null;
     el.storeMsg.textContent = selectedStickerSlot != null
       ? "Tap Buy to confirm, or tap the sticker again to deselect."
@@ -10998,6 +11293,7 @@ const UIRenderer = (() => {
     if (!id) return;
     selectedStickerSlot = null;
     selectedPackSlot = null;
+    armedBaseSlot = null;
     armedPillarSlot = armedPillarSlot === slot ? null : slot;
     el.storeMsg.textContent = armedPillarSlot != null
       ? "Tap Buy to add it to your inventory — place it on a column in setup."
@@ -11022,10 +11318,47 @@ const UIRenderer = (() => {
     refreshDebug();
   }
 
+  /* ---- store Bases (mirrors the Pillar store flow exactly) ---- */
+  function renderBaseStore() {
+    const offer = campaign.getStoreOffer();
+    if (!el.storeBases) return;
+    el.storeBases.innerHTML = "";
+    (offer && offer.bases ? offer.bases : []).forEach((id, slot) =>
+      el.storeBases.appendChild(offerTile(id, slot, "base", armedBaseSlot === slot)));
+    padRow(el.storeBases, 4);
+  }
+  function selectBaseUI(slot) {
+    const offer = campaign.getStoreOffer();
+    const id = offer ? offer.bases[slot] : null;
+    if (!id) return;
+    selectedStickerSlot = null;
+    selectedPackSlot = null;
+    armedPillarSlot = null;
+    armedBaseSlot = armedBaseSlot === slot ? null : slot;
+    el.storeMsg.textContent = armedBaseSlot != null
+      ? "Tap Buy to add it to your inventory — place it on a column in setup."
+      : "Buy from the offer, reroll, then press Start Deal.";
+    renderStore();
+  }
+  function confirmBuyBase() {
+    if (armedBaseSlot == null) return;
+    const offer = campaign.getStoreOffer();
+    const id = offer ? offer.bases[armedBaseSlot] : null;
+    if (campaign.buyOfferedBase(armedBaseSlot)) {
+      const bt = id ? BaseTypes.get(id) : null;
+      if (engine) engine.logAction("Store: bought Base " + ((bt && bt.label) || id) + " → inventory");
+      armedBaseSlot = null;
+      Sound.purchase();
+      el.storeMsg.textContent = "Base bought — place it on a column during setup.";
+    }
+    renderStore();
+    refreshDebug();
+  }
+
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
   function rerollUI() {
     if (campaign.rerollStore()) {
-      selectedStickerSlot = null; armedPillarSlot = null;
+      selectedStickerSlot = null; armedPillarSlot = null; armedBaseSlot = null;
       el.storeMsg.textContent = "Rerolled the offer.";
       if (engine) engine.logAction("Store: rerolled the offer");
       renderStore();
@@ -11162,11 +11495,13 @@ const UIRenderer = (() => {
      run on each HUD refresh and on entering active play. */
   function refreshActivatableIndicators() {
     if (!el.board) return;
-    const cells = el.board.querySelectorAll(".bp-cell");
+    // Bases live on the BOTTOM row; pulse the ones the engine says can fire now.
+    const cells = el.board.querySelectorAll(".base-cell");
     for (let col = 0; col < cells.length; col++) {
-      const banner = cells[col].querySelector(".cph-banner");
+      const banner = cells[col].querySelector(".base-banner");
       if (!banner) continue;
-      const on = engine && engine.kamikazeAvailable && engine.kamikazeAvailable(col);
+      const on = engine && engine.baseAvailable && engine.baseAvailable(col)
+        && !armedBaseAct;   // don't pulse the one already armed for targeting
       banner.classList.toggle("activatable", !!on);
     }
   }
@@ -11199,17 +11534,11 @@ const UIRenderer = (() => {
     for (let i = 0; i < board.size; i++) if (!board.isActive(i)) out.push(i);
     return out;
   }
-  function kamikazeTargets() {
-    const board = engine.getBoard();
-    const out = [];
-    for (let i = 0; i < board.size; i++) if (board.isActive(i)) out.push(i);
-    return out;
-  }
   function armRevive(col) {
-    armedKamikaze = null;
+    armedBaseAct = null;
     armedRevive = { col };
     clearSelection();
-    if (el.board) { el.board.classList.add("armed-revive"); el.board.classList.remove("armed-kamikaze"); }
+    if (el.board) { el.board.classList.add("armed-revive"); el.board.classList.remove("armed-base"); }
     showActionBar("Choose a pile to revive.", [
       { label: "Skip", cls: "no", onClick: () => { disarmRevive(); el.hint.textContent = "Revive skipped — it stays ready."; } },
     ], reviveTargets(col));
@@ -11219,20 +11548,78 @@ const UIRenderer = (() => {
     if (el.board) el.board.classList.remove("armed-revive");
     hideActionBar();
   }
-  function toggleArmKamikaze(col) {
-    if (armedKamikaze && armedKamikaze.col === col) { disarmKamikaze(); return; }
-    armedRevive = null;
-    armedKamikaze = { col };
-    clearSelection();
-    if (el.board) { el.board.classList.add("armed-kamikaze"); el.board.classList.remove("armed-revive"); }
-    showActionBar("Choose a pile to kill, then peek at the next 3 upcoming cards.", [
-      { label: "Cancel", cls: "no", onClick: disarmKamikaze },
-    ], kamikazeTargets());
+  /* ---- Base activation (unified bottom prompt) ----
+     Tapping a charged Base on the bottom row activates it. Target Bases (Kamikaze
+     / Random Sticker / Sticker Harvest) arm a targeting mode — tap a highlighted
+     pile to fire; whole-column Bases show a Yes/No confirm and fire on Yes. */
+  /** Valid target piles for the Base on `col` (Kamikaze = any alive pile board-
+      wide; the other target Bases act only on an alive pile in their own column). */
+  function baseTargets(col) {
+    const board = engine.getBoard();
+    const base = engine.baseForColumn(col);
+    const out = [];
+    for (let i = 0; i < board.size; i++) {
+      if (!board.isActive(i)) continue;
+      if (base && base.effect !== "kamikaze" && engine.getRun().pileColumns[i] !== col) continue;
+      out.push(i);
+    }
+    return out;
   }
-  function disarmKamikaze() {
-    armedKamikaze = null;
-    if (el.board) el.board.classList.remove("armed-kamikaze");
+  /** The bottom-prompt instruction for a target Base. */
+  function baseTargetPrompt(base) {
+    switch (base && base.effect) {
+      case "kamikaze":       return "Choose a pile to kill, then peek at the next 3 upcoming cards.";
+      case "randomSticker":  return "Choose a pile in this column to sticker its pile card.";
+      case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
+      default:               return "Choose a target pile.";
+    }
+  }
+  function toggleArmBase(col) {
+    if (armedBaseAct && armedBaseAct.col === col) { disarmBaseAct(); return; }
+    if (!engine || !engine.baseAvailable(col)) return;
+    const base = engine.baseForColumn(col);
+    armedRevive = null;
+    clearSelection();
+    if (engine.baseNeedsTarget(col)) {
+      armedBaseAct = { col };
+      if (el.board) { el.board.classList.add("armed-base"); el.board.classList.remove("armed-revive"); }
+      showActionBar(baseTargetPrompt(base), [
+        { label: "Cancel", cls: "no", onClick: disarmBaseAct },
+      ], baseTargets(col));
+    } else {
+      // Whole-column Base: a plain confirm (its description rides in the help line).
+      armedBaseAct = { col, confirm: true };
+      showActionBar("Activate " + base.label + "?", [
+        { label: "Cancel", cls: "no", onClick: disarmBaseAct },
+        { label: "Activate", cls: "primary", onClick: () => { const c = armedBaseAct.col; disarmBaseAct(); fireBase(c, null); } },
+      ], engine.getRun().pileColumns ? baseColumnPiles(col) : []);
+    }
+    refreshActivatableIndicators();
+  }
+  /** Alive pile indices in column `col` (for highlighting a whole-column Base). */
+  function baseColumnPiles(col) {
+    const board = engine.getBoard();
+    const run = engine.getRun();
+    const out = [];
+    for (let i = 0; i < board.size; i++) if (board.isActive(i) && run.pileColumns[i] === col) out.push(i);
+    return out;
+  }
+  function disarmBaseAct() {
+    armedBaseAct = null;
+    if (el.board) el.board.classList.remove("armed-base");
     hideActionBar();
+    refreshActivatableIndicators();
+  }
+  /** Fire the armed Base. The board/Base-row/HUD repaint + any side effects (Copy
+      to Inventory) are handled by the "base-fired" event, which fires inside
+      baseActivate — so this works for the targeting, confirm, and debug paths alike. */
+  function fireBase(col, targetIndex) {
+    if (!engine) return;
+    const base = engine.baseForColumn(col);
+    const res = engine.baseActivate(col, targetIndex);
+    if (!res) { el.hint.textContent = "That Base can't activate right now."; return; }
+    Sound.tap();
+    el.hint.textContent = ((base && base.label) || "Base") + " activated.";
   }
 
   /* ---- Trash an armed setup item (card / sticker / pillar) ----
