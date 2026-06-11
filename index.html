@@ -3369,7 +3369,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.31 · perf-s2-idle-settle";
+const APP_VERSION = "v2.32 · perf-s3-network-inplace";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7192,6 +7192,7 @@ const UIRenderer = (() => {
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
   let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
+  let edgeMap = new Map();    // edge key ("a-b") → live edge record, for in-place network updates
   let driftRAF = null, driftLast = 0;  // rAF loop keeping links attached to drifting cards
   let motionIdle = false;     // §2: board has settled to idle (card motion paused, loop off)
   let settleTimer = null;     // §2: pending settle timeout after the last board action
@@ -9981,6 +9982,7 @@ const UIRenderer = (() => {
     el.board.classList.remove("win-cine");   // clear any win-cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
     netEdges = [];                            // drop stale edge refs from the old board
+    edgeMap.clear();                          // the SVG is rebuilt per board — drop stale edge records
     pileEls.length = 0;
     // Single Pillar-indicator row across the top — one cell per column, so all
     // icons sit on one level line (see .board-pillars CSS).
@@ -10082,10 +10084,14 @@ const UIRenderer = (() => {
       const r = pileEls[i].getBoundingClientRect();
       nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
     }
-    if (nodes.length < 2) { net.innerHTML = ""; lastNetKeys = new Set(); return; }
+    if (nodes.length < 2) { net.innerHTML = ""; edgeMap.clear(); netEdges = []; lastNetKeys = new Set(); return; }
 
+    // Compute this frame's edge set + each edge's strength inputs, plus a quick
+    // pile-index → live centre lookup for re-seating positions after the diff.
     const keys = new Set();
-    let out = "";
+    const specs = [];
+    const centerByPile = {};
+    for (const n of nodes) centerByPile[n.i] = n;
     for (let a = 0; a < nodes.length; a++) {
       for (let b = a + 1; b < nodes.length; b++) {
         let blocked = false;
@@ -10101,33 +10107,98 @@ const UIRenderer = (() => {
           : Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
         const key = nodes[a].i + "-" + nodes[b].i;
         keys.add(key);
-        const bow = edgeBow(key);
-        const forming = lastNetKeys && !lastNetKeys.has(key) ? " forming" : "";
-        out += '<g class="edge' + forming + '" data-a="' + nodes[a].i + '" data-b="' + nodes[b].i +
-          '" data-bow="' + bow.toFixed(4) + '">' +
-          linkMarkup(nodes[a], nodes[b], w, diag, bow, key) + "</g>";
+        specs.push({ key, nodeA: nodes[a], nodeB: nodes[b], w, diag, bow: edgeBow(key) });
       }
     }
-    net.innerHTML = out;
+
+    // ---- IN-PLACE DIFF (no innerHTML rebuild / reparse per guess) ----
+    // 1) Remove edges that are no longer present (their <g> + refs are dropped).
+    for (const [key, rec] of edgeMap) {
+      if (!keys.has(key)) { if (rec.gEl) rec.gEl.remove(); edgeMap.delete(key); }
+    }
+    // 2) Update kept edges' strength in place; create only genuinely-new edges
+    //    (with the same fade-in via the "forming" class).
+    for (const sp of specs) {
+      const existing = edgeMap.get(sp.key);
+      if (existing) {
+        updateEdgeStrength(existing, sp.w, sp.diag, sp.key);
+      } else {
+        const forming = lastNetKeys && !lastNetKeys.has(sp.key) ? " forming" : "";
+        edgeMap.set(sp.key, createEdgeRecord(net, sp.nodeA, sp.nodeB, sp.w, sp.diag, sp.bow, sp.key, forming));
+      }
+    }
     lastNetKeys = keys;
 
-    // Record edge element refs so the drift loop can move endpoints + pulses to
-    // the cards' LIVE (drifting) centres every frame — keeping the network
-    // attached to the floating cards.
-    netEdges = [];
-    net.querySelectorAll("g.edge").forEach(g => {
-      const paths = [];
-      g.querySelectorAll(".lk").forEach(el => paths.push({ el, mw: parseFloat(el.dataset.mw) || 1 }));
-      const bulges = [];
-      g.querySelectorAll(".lk-bulge").forEach(el => bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12 }));
-      const pulses = [];
-      g.querySelectorAll(".pulse").forEach(el =>
-        pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0,
-          dir: parseFloat(el.dataset.dir) || 1 }));
-      netEdges.push({ a: +g.dataset.a, b: +g.dataset.b, bow: parseFloat(g.dataset.bow) || 0, paths, bulges, pulses });
-    });
+    // Rebuild the drift-loop ref list from the live map, and seat every edge's
+    // positions at the current card centres now (the loop takes over next frame).
+    netEdges = [...edgeMap.values()];
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    for (const e of netEdges) {
+      const a = centerByPile[e.a], b = centerByPile[e.b];
+      if (a && b) applyEdge(e, a.x, a.y, b.x, b.y, now);
+    }
     startDriftSync();
     updateBoardMotion();
+  }
+
+  /* Parse an edge <g>'s child elements into the ref shape the drift loop uses
+     (paths in document order: [halo?, main]; bulges; pulses). */
+  function parseEdgeRefs(gEl) {
+    const paths = [];
+    gEl.querySelectorAll(".lk").forEach(el => paths.push({ el, mw: parseFloat(el.dataset.mw) || 1 }));
+    const bulges = [];
+    gEl.querySelectorAll(".lk-bulge").forEach(el => bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12 }));
+    const pulses = [];
+    gEl.querySelectorAll(".pulse").forEach(el =>
+      pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0,
+        dir: parseFloat(el.dataset.dir) || 1 }));
+    return { paths, bulges, pulses };
+  }
+  /* Create a brand-new edge <g> (same markup as before, via linkMarkup) and
+     return its live record. */
+  function createEdgeRecord(net, nodeA, nodeB, w, diag, bow, key, forming) {
+    net.insertAdjacentHTML("beforeend",
+      '<g class="edge' + forming + '" data-a="' + nodeA.i + '" data-b="' + nodeB.i +
+      '" data-bow="' + bow.toFixed(4) + '">' + linkMarkup(nodeA, nodeB, w, diag, bow, key) + "</g>");
+    const gEl = net.lastElementChild;
+    const refs = parseEdgeRefs(gEl);
+    return { key, a: nodeA.i, b: nodeB.i, bow, diag, w, hasHalo: refs.paths.length >= 2, gEl,
+      paths: refs.paths, bulges: refs.bulges, pulses: refs.pulses };
+  }
+  /* Mutate an existing edge's STRENGTH-derived attributes in place (no element
+     churn). Positions are set separately by applyEdge. Uses the SAME edgeScalars
+     as linkMarkup so the result is identical to a freshly-built edge. The only
+     structural change a strength change can cause is the outer halo lens
+     appearing/disappearing at the w>=2 threshold; that single path is
+     added/removed here (the bulge/pulse counts never change). */
+  function updateEdgeStrength(rec, w, diag, key) {
+    const s = edgeScalars(w, diag, key);
+    const fill = s.fill.toFixed(2);
+    // Halo presence (front-most path) tracks w>=2.
+    if (w >= 2 && !rec.hasHalo) {
+      rec.gEl.insertAdjacentHTML("afterbegin",
+        '<path class="lk" data-mw="' + s.haloW.toFixed(2) + '" fill-opacity="' + s.haloOpacity.toFixed(2) + '" d=""/>');
+      rec.paths.unshift({ el: rec.gEl.firstElementChild, mw: s.haloW });
+      rec.hasHalo = true;
+    } else if (w < 2 && rec.hasHalo) {
+      rec.paths[0].el.remove();
+      rec.paths.shift();
+      rec.hasHalo = false;
+    } else if (rec.hasHalo) {
+      const halo = rec.paths[0];
+      halo.mw = s.haloW; halo.el.dataset.mw = s.haloW.toFixed(2);
+      halo.el.setAttribute("fill-opacity", s.haloOpacity.toFixed(2));
+    }
+    // Main spindle (last path).
+    const main = rec.paths[rec.paths.length - 1];
+    main.mw = s.maxW; main.el.dataset.mw = s.maxW.toFixed(2);
+    main.el.setAttribute("fill-opacity", fill);
+    // Endpoint bulges.
+    for (const bg of rec.bulges) { bg.el.setAttribute("r", s.bulgeR.toFixed(2)); bg.el.setAttribute("fill-opacity", fill); }
+    // Signal pulse(s): radius + speed scale with strength; phase/direction are
+    // stable per edge key, so they're left untouched.
+    for (const p of rec.pulses) { p.el.setAttribute("r", s.pulseR.toFixed(1)); p.sp = s.pulseSp; p.el.dataset.sp = s.pulseSp.toFixed(3); }
+    rec.w = w; rec.diag = diag;
   }
 
   /* ---- Synapse (organic spindle) geometry helpers -------------------------
@@ -10169,43 +10240,45 @@ const UIRenderer = (() => {
      spindle's mid-width (maxW), the endpoint bulge radius, and the pulse
      count/speed all scale with `w`. Pulses are plain circles (no SMIL) ridden
      along the CURVED centreline by the drift loop via cx/cy each frame. */
-  function linkMarkup(a, b, w, diag, bow, key) {
-    // Half-width at the middle, gated by `w` (the smaller connected pile, 1..5 —
-    // the RULE is unchanged; computed in renderNetwork). Amplified + ACCELERATING
-    // response so links thicken dramatically as both piles grow: w=1 stays the
-    // minimum (all equal at run start), then each size step adds more than the
-    // last (linear + quadratic term).
+  /* The strength-derived scalars for an edge (NOT positions). The ONE source for
+     both the initial markup (linkMarkup) and the in-place strength update
+     (updateEdgeStrength), so the two can never diverge. The thickness/brightness
+     RULES are unchanged — just factored out. */
+  function edgeScalars(w, diag, key) {
     const g = w - 1;
     const maxW = (diag ? 0.8 : 1.0) + g * 1.0 + g * g * 0.16;
-    const fill = Math.min(0.9, 0.4 + w * 0.08).toFixed(2);
-    const bulgeR = (0.6 + maxW * 0.42).toFixed(2);       // synaptic bulge tracks the thicker spindle
+    const fill = Math.min(0.9, 0.4 + w * 0.08);
+    const bulgeR = 0.6 + maxW * 0.42;          // synaptic bulge tracks the thicker spindle
+    const haloW = maxW + 1.6;                  // faint outer halo lens for stronger links (w>=2)
+    const haloOpacity = 0.10 + w * 0.025;
+    const pulseR = 1.5 + w * 0.28;
+    // Base speed slowed (×0.56 net) + a per-edge ±10% jitter so edges don't fire
+    // in lock-step.
+    const pulseSp = (0.32 + w * 0.05) * 0.56 * (0.90 + edgeRand(key, 13) * 0.20);
+    return { maxW, fill, bulgeR, haloW, haloOpacity, pulseR, pulseSp };
+  }
+  function linkMarkup(a, b, w, diag, bow, key) {
+    const s = edgeScalars(w, diag, key);
+    const fill = s.fill.toFixed(2);
     const c = synapseControl(a.x, a.y, b.x, b.y, bow);
     let m = "";
     if (w >= 2) {                                         // faint outer halo lens for stronger links
-      const hw = maxW + 1.6;
-      m += '<path class="lk" data-mw="' + hw.toFixed(2) + '" fill-opacity="' + (0.10 + w * 0.025).toFixed(2) +
-        '" d="' + lensPath(a.x, a.y, b.x, b.y, c, hw) + '"/>';
+      m += '<path class="lk" data-mw="' + s.haloW.toFixed(2) + '" fill-opacity="' + s.haloOpacity.toFixed(2) +
+        '" d="' + lensPath(a.x, a.y, b.x, b.y, c, s.haloW) + '"/>';
     }
-    m += '<path class="lk" data-mw="' + maxW.toFixed(2) + '" fill-opacity="' + fill +
-      '" d="' + lensPath(a.x, a.y, b.x, b.y, c, maxW) + '"/>';
+    m += '<path class="lk" data-mw="' + s.maxW.toFixed(2) + '" fill-opacity="' + fill +
+      '" d="' + lensPath(a.x, a.y, b.x, b.y, c, s.maxW) + '"/>';
     for (const t of [0.12, 0.88]) {                       // small bulge inset from each node
       const p = bezPt(a.x, a.y, c, b.x, b.y, t);
-      m += '<circle class="lk-bulge" data-t="' + t + '" r="' + bulgeR + '" fill-opacity="' + fill +
+      m += '<circle class="lk-bulge" data-t="' + t + '" r="' + s.bulgeR.toFixed(2) + '" fill-opacity="' + fill +
         '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '"/>';
     }
     if (networkPulses) {                                  // signal pulses
       const count = Math.max(1, Math.round(w * 0.2));      // # pings scales with the smaller pile (min size), kept sparse
-      // Base speed slowed 20% then a further 30% (×0.56 net), then a per-edge
-      // ±10% jitter + a per-edge phase offset so edges don't all fire in
-      // lock-step (more organic firing).
-      const sp = ((0.32 + w * 0.05) * 0.56 * (0.90 + edgeRand(key, 13) * 0.20)).toFixed(3);
+      const sp = s.pulseSp.toFixed(3);
       const phase = edgeRand(key, 7);                      // per-edge start offset (desync)
-      const r = (1.5 + w * 0.28).toFixed(1);
-      // A SINGLE travelling stream per edge (was two — one each way), so the dot
-      // count drops ~50% for a calmer mesh. The one direction is chosen
-      // deterministically per edge, so across the board dots still travel both
-      // ways overall and the synapses read as actively signalling. Per-dot
-      // size/speed/style and the speed-by-strength rule are unchanged.
+      const r = s.pulseR.toFixed(1);
+      // A SINGLE travelling stream per edge; direction chosen deterministically.
       const dir = edgeRand(key, 23) < 0.5 ? 0 : 1;
       for (let k = 0; k < count; k++) {
         const of = (k / count + phase) % 1;
