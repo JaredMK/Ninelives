@@ -246,6 +246,18 @@
      a help/description line (.ap-desc) — used by pillar/base help + base decisions. */
   .ap-text .ap-q { display: block; }
   .ap-text .ap-desc { display: block; font-size: 11px; font-weight: 600; line-height: 1.15; color: var(--muted); margin-top: 1px; }
+  /* Help-carrying prompts can exceed the FIXED strip height (long Base/Pillar
+     descriptions). Instead of clipping (overflow:hidden above), anchor them to
+     the strip's bottom edge and let them grow UPWARD over the band above, on the
+     same panel chip the other popups use. The strip's own height never changes,
+     so the board never reflows; plain one-line prompts are untouched. */
+  .play-controls.prompting { position: relative; overflow: visible; }
+  .action-prompt.with-help {
+    position: absolute; bottom: 0; left: 0; right: 0; width: auto; z-index: 5;
+    background: var(--panel); border: 1px solid var(--edge-2);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 8px 12px;
+  }
   .ap-btns { flex: 0 0 auto; display: flex; gap: 8px; }
   .ap-btn {
     border: none; border-radius: var(--radius); padding: 9px 15px;
@@ -3377,7 +3389,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.36 · suit-order-DHCS";
+const APP_VERSION = "v2.37 · qa-sweep-board";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9199,6 +9211,22 @@ const UIRenderer = (() => {
         if (payload.effect === "reviveBase" && payload.index != null && pileEls[payload.index]) {
           pileEls[payload.index].classList.remove("dead", "death-flash");
         }
+        // Kamikaze killed a pile (engine-side) — play the SAME death presentation
+        // as a wrong-guess kill (flash 340ms, dissolve + network sever at 300ms).
+        // Without this the sacrificed pile kept rendering as alive (state/visual
+        // desync) — the old presentation was stranded in an unreachable
+        // "kamikaze-fired" handler (the engine only ever emits "base-fired").
+        const kamiKill = payload.effect === "kamikaze" && payload.index != null && pileEls[payload.index];
+        if (kamiKill) {
+          const kEl = pileEls[payload.index];
+          const kReduce = prefersReduce();
+          Sound.death();
+          if (!kReduce) {
+            kEl.classList.add("death-flash");
+            setTimeout(() => kEl.classList.remove("death-flash"), 340);
+          }
+          setTimeout(() => { kEl.classList.add("dead"); refreshNetwork(board); }, kReduce ? 0 : 300);
+        }
         for (let i = 0; i < pileEls.length; i++) {
           const top = board.top(i);
           if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
@@ -9206,7 +9234,9 @@ const UIRenderer = (() => {
         paintPileCounts(board);
         renderHud(board, payload.deck);
         paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
-        renderNetwork();
+        // For a Kamikaze kill the network severs WITH the dissolve (scheduled
+        // above), matching the guess-death sequencing — not at activation time.
+        if (!kamiKill) renderNetwork();
         persistCampaign("run");
         refreshDebug();
         break;
@@ -9427,21 +9457,6 @@ const UIRenderer = (() => {
         refreshNetwork(payload.board);
         Sound.good();
         el.hint.textContent = "Revive — that pile came back with a fresh card!";
-        refreshDebug();
-        break;
-      }
-
-      case "kamikaze-fired": {
-        // A pile was sacrificed → mark it dead. The next 3 cards now reveal ON THE
-        // DECK, one at a time (renderHud → renderDeckReveal), like the Scout
-        // sticker — no popup. Reverts to hidden after the third draw.
-        const pileEl = pileEls[payload.index];
-        pileEl.classList.add("death-flash");
-        setTimeout(() => { pileEl.classList.remove("death-flash"); pileEl.classList.add("dead"); refreshNetwork(payload.board); }, 200);
-        paintPileCounts(payload.board);
-        renderHud(payload.board, payload.deck);   // shows the upcoming card on the deck
-        Sound.death();
-        el.hint.textContent = "Kamikaze — the next 3 upcoming cards now show on the deck as you draw them.";
         refreshDebug();
         break;
       }
@@ -11855,6 +11870,9 @@ const UIRenderer = (() => {
       el.actionPromptBtns.appendChild(btn);
     });
     el.actionPrompt.classList.remove("hidden");
+    // Help-carrying prompts ride the bottom-anchored panel chip (see CSS) so a
+    // long description extends upward instead of clipping in the fixed strip.
+    el.actionPrompt.classList.toggle("with-help", !!opts.help);
     if (el.playControls) el.playControls.classList.add("prompting");
     setActionTargets(targets || []);
     promptActive = true;
@@ -11864,6 +11882,7 @@ const UIRenderer = (() => {
   }
   function hideActionBar() {
     el.actionPrompt.classList.add("hidden");
+    el.actionPrompt.classList.remove("with-help");
     if (el.playControls) el.playControls.classList.remove("prompting");
     setActionTargets([]);
     promptActive = false;
