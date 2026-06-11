@@ -2969,6 +2969,12 @@
           <button class="debug-btn" id="debugLose">lose now</button>
           <button class="debug-btn" id="debugNew">new game</button>
         </div>
+        <div class="debug-sub">auto-play X cards (correct guesses only) →</div>
+        <div class="debug-grant">
+          <input class="debug-sel" id="debugAutoN" type="number" min="1" step="1" value="10" inputmode="numeric" />
+          <button class="debug-btn" id="debugAutoPlay">▶ auto-play</button>
+          <button class="debug-btn" id="debugAutoStop">■ stop</button>
+        </div>
         <div class="debug-sub">grant (free) →</div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugStickerSel"></select>
@@ -3352,7 +3358,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.26 · bases-naming";
+const APP_VERSION = "v2.27 · debug-autoplay";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7137,6 +7143,9 @@ const UIRenderer = (() => {
     debugPillarSel: document.getElementById("debugPillarSel"),
     debugBaseSel: document.getElementById("debugBaseSel"),
     debugAddBase: document.getElementById("debugAddBase"),
+    debugAutoN: document.getElementById("debugAutoN"),
+    debugAutoPlay: document.getElementById("debugAutoPlay"),
+    debugAutoStop: document.getElementById("debugAutoStop"),
     debugAddPillar: document.getElementById("debugAddPillar"),
     debugColPillarSel: document.getElementById("debugColPillarSel"),
     debugSetPC0: document.getElementById("debugSetPC0"),
@@ -7208,6 +7217,8 @@ const UIRenderer = (() => {
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
   let armedRevive = null;       // { col } — Revive offered; tap a DEAD pile to revive it
   let armedBaseAct = null;      // { col } — a placed Base armed for activation; tap a target pile
+  let autoPlaying = false;      // DEBUG auto-play in progress (fast-forward correct guesses)
+  let autoTimer = null;         // pending auto-play step timer, or null
   let armedBaseItem = null;     // setup: an owned Base type id armed from inventory to place
   let packRevealState = null;   // in-progress buy→reveal→pick, or null
   let packReplaceState = null;  // pending replacement awaiting confirmation, or null
@@ -8304,6 +8315,90 @@ const UIRenderer = (() => {
     el.debugPeekOut.textContent = "granted Base to inventory: " + id;
   }
 
+  /* ============================================================
+     DEBUG: AUTO-PLAY — fast-forward the next X draws by making only CORRECT,
+     surviving guesses (so nothing dies), to reach later deal states quickly.
+     It plays through the REAL game path (engine.guess + every event/effect),
+     just with instant rendering; it never shortcuts scoring or game logic.
+     For each draw it picks a RANDOM alive pile and the one guess (higher/same/
+     lower) that survives for that pile, then guesses. It stops after X, at deal
+     end (deck empty / not playing), or if no surviving placement exists — and
+     reports an early stop. Debug-panel only — unreachable in normal play.
+     ============================================================ */
+
+  /* Auto-resolve any interactive prompt a guess can surface, so auto-play never
+     stalls: decline paid burials (Tribute) and post-landing actions (Shuffle/
+     Donate), and skip a Revive offer (it stays ready). Declining keeps the
+     "just survive" intent and spends no coins. */
+  function autoFlushPrompts() {
+    let guard = 0;
+    while (engine && engine.pendingTribute && engine.pendingTribute() && guard++ < 100) answerBury(false);
+    guard = 0;
+    while (engine && engine.pendingAction && engine.pendingAction() && guard++ < 100) answerAction(false);
+    if (armedRevive) disarmRevive();
+    if (armedBaseAct) disarmBaseAct();
+  }
+
+  /* The surviving guess for `drawn` on the pile showing `top`: higher when the
+     draw is bigger, lower when smaller, same on a tie. Always exists for an
+     alive pile, so a correct placement is available unless every pile is dead. */
+  function survivingGuessFor(drawn, top) {
+    if (!drawn || !top) return null;
+    return drawn.value > top.value ? "higher" : drawn.value < top.value ? "lower" : "same";
+  }
+
+  function stopAutoPlay() {
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    autoPlaying = false;
+  }
+
+  function debugAutoPlay() {
+    if (autoPlaying) { stopAutoPlay(); el.debugPeekOut.textContent = "auto-play: stopped"; return; }
+    if (!engine || engine.getStatus() !== "playing" || !engine.isRunStarted()) {
+      el.debugPeekOut.textContent = "auto-play: only during active play (press Start Deal first)";
+      return;
+    }
+    const want = Math.max(1, Math.floor(Number(el.debugAutoN && el.debugAutoN.value) || 0));
+    if (!(want > 0)) { el.debugPeekOut.textContent = "auto-play: enter a positive number"; return; }
+    let played = 0;
+    autoPlaying = true;
+
+    const finish = (note) => {
+      stopAutoPlay();
+      el.debugPeekOut.textContent = "auto-play: " + note;
+      // One final repaint of board + HUD + indicators now that motion is back on.
+      const board = engine.getBoard();
+      paintPileCounts(board);
+      renderHud(board, engine.getDeck());
+      refreshDebug();
+    };
+
+    const step = () => {
+      autoFlushPrompts();                       // clear anything the last guess raised
+      if (played >= want) { finish("played " + played + " card" + (played === 1 ? "" : "s")); return; }
+      if (engine.getStatus() !== "playing") { finish("stopped early after " + played + " — the deal ended"); return; }
+      const deck = engine.getDeck();
+      if (!deck || deck.isEmpty()) { finish("stopped early after " + played + " — deck exhausted"); return; }
+      const drawn = deck.peek(1)[0];
+      if (!drawn) { finish("stopped early after " + played + " — no card to draw"); return; }
+      const board = engine.getBoard();
+      // All surviving (pile, guess) options for this draw — one per alive pile.
+      const opts = [];
+      for (let i = 0; i < board.size; i++) {
+        if (!board.isActive(i)) continue;
+        const g = survivingGuessFor(drawn, board.top(i));
+        if (g) opts.push({ i, g });
+      }
+      if (!opts.length) { finish("stopped early after " + played + " — no safe placement for " + (drawn.label || "the draw")); return; }
+      const pick = opts[Math.floor(Math.random() * opts.length)];   // random valid pile + its correct guess
+      engine.guess(pick.i, pick.g);
+      played++;
+      el.debugPeekOut.textContent = "auto-play: " + played + " / " + want + " …";
+      autoTimer = setTimeout(step, 35);         // brief gap so the board repaints between draws
+    };
+    step();
+  }
+
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
      coin display is showing — the store header or the in-game Stage·Run pill. */
   function debugAddCoins(n) {
@@ -8734,6 +8829,8 @@ const UIRenderer = (() => {
     if (el.debugStickerNext) el.debugStickerNext.addEventListener("click", debugStickerToNext);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
     if (el.debugAddBase) el.debugAddBase.addEventListener("click", debugAddSelectedBase);
+    if (el.debugAutoPlay) el.debugAutoPlay.addEventListener("click", debugAutoPlay);
+    if (el.debugAutoStop) el.debugAutoStop.addEventListener("click", () => { stopAutoPlay(); el.debugPeekOut.textContent = "auto-play: stopped"; });
     if (el.debugSetPC0) el.debugSetPC0.addEventListener("click", () => debugSetColumnPillar(0));
     if (el.debugSetPC1) el.debugSetPC1.addEventListener("click", () => debugSetColumnPillar(1));
     if (el.debugSetPC2) el.debugSetPC2.addEventListener("click", () => debugSetColumnPillar(2));
@@ -8798,6 +8895,9 @@ const UIRenderer = (() => {
      these clones are a pure overlay and never touch state, draw order, RNG, or
      the timing of any underlying logic. */
   function prefersReduce() {
+    // Auto-play (debug) renders instantly so the board state is always current
+    // between fast-forwarded guesses — same effect as reduced motion.
+    if (autoPlaying) return true;
     return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
   /* Viewport rect of the deck stack — the source/sink for draws and returns. */
