@@ -2558,6 +2558,10 @@
   #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #e9b9c8; animation: hazeDrift 34s ease-in-out infinite alternate; }
   #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #cdbfe6; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
   #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #ecd0b6; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
+  /* Perf: hold the slow background blobs while the on-board scene is idle (the
+     accepted idle-settle) — imperceptible at their speed, but no per-frame
+     compositing. They resume on any board action. */
+  body.scene-idle #tissue .blob { animation-play-state: paused; }
   /* Translate-only drift (no scale): scaling a 46px-blurred half-screen layer
      forces Safari to re-rasterise the blur every frame; a pure translate stays
      compositor-cheap. The slow positional drift — the visible motion — is kept. */
@@ -3369,7 +3373,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.32 · perf-s3-network-inplace";
+const APP_VERSION = "v2.33 · perf-s4-idle-sweep";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10334,6 +10338,11 @@ const UIRenderer = (() => {
   function updateBoardMotion() {
     if (!el.board) return;
     el.board.classList.toggle("cards-paused", !boardVisible() || motionIdle);
+    // When the on-board scene has settled to idle, also pause the slow background
+    // blobs (part of the same accepted idle-settle) — they drift imperceptibly,
+    // so freezing them is invisible but drops 3 continuous layer composites.
+    // Overlays (menu/store) keep their ambient drift.
+    document.body.classList.toggle("scene-idle", motionIdle && boardVisible());
   }
   function startDriftSync() {
     if (driftRAF != null) return;
