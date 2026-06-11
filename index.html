@@ -3369,7 +3369,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.30 · perf-s1-overlay-pause";
+const APP_VERSION = "v2.31 · perf-s2-idle-settle";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9100,6 +9100,7 @@ const UIRenderer = (() => {
 
   /* ---- event handling from the engine ---- */
   function handleEvent(type, payload) {
+    wakeMotion();   // §2: any board change re-enables card motion for the settle window
     switch (type) {
       case "dealt": {
         clearAnimQueue();   // a fresh board → drop any stale travel steps
@@ -10263,6 +10264,7 @@ const UIRenderer = (() => {
   }
   function startDriftSync() {
     if (driftRAF != null) return;
+    if (motionIdle) return;                            // §2: board has settled → no tracking needed
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if (!netEdges.length || !boardVisible()) return;   // nothing to track / board off screen
     const step = (t) => {
@@ -10282,6 +10284,36 @@ const UIRenderer = (() => {
   /* Matching stop — cancels the rAF so no work happens while the board is hidden. */
   function stopDriftSync() {
     if (driftRAF != null) { cancelAnimationFrame(driftRAF); driftRAF = null; }
+  }
+
+  /* §2 — idle settle. The board only needs to move (and the drift loop only needs
+     to run) during and just after an action; between guesses the board can hold
+     still so an idle board does ~zero per-frame work. wakeMotion() is called on
+     every board change: it un-settles (cards animate, loop tracks) and arms a
+     short timer; when the timer fires with no further action, settleMotion()
+     pauses the card animations and stops the loop. The network tracks the cards
+     while they move, then goes quiet — the one accepted visual change. */
+  const MOTION_SETTLE_MS = 1500;
+  function wakeMotion() {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    motionIdle = false;
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(settleMotion, MOTION_SETTLE_MS);
+    updateBoardMotion();   // un-pause the cards (if the board is the active surface)
+    startDriftSync();      // resume tracking the now-moving cards
+  }
+  function settleMotion() {
+    settleTimer = null;
+    // The win cinematic runs board animations longer than the settle window;
+    // don't pause it mid-play. Defer settling until it's over or the win overlay
+    // has covered the board (then pausing happens behind the overlay).
+    if (el.board && el.board.classList.contains("win-cine") && boardVisible()) {
+      settleTimer = setTimeout(settleMotion, 600);
+      return;
+    }
+    motionIdle = true;
+    stopDriftSync();       // cards no longer drift → no per-frame tracking
+    updateBoardMotion();   // pause the perpetual card drift/breathe (board holds still)
   }
   function syncNetworkToDrift(t) {
     const net = networkEl; if (!net || !netEdges.length) return;
