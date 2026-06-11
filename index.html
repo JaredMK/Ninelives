@@ -3378,7 +3378,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.39 · qa-sweep-setup";
+const APP_VERSION = "v2.40 · qa-sweep-overlays";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12309,7 +12309,7 @@ const UIRenderer = (() => {
           card("A", "♦", true) + card("9", "♠") + card("Q", "♥", true) +
           "</div>",
         cap: '<span class="lead">This is your board</span>' +
-          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top. These piles keep alive.",
+          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top. Keep these piles alive.",
       },
       { // 2 — the deck (your goal)
         art: '<div class="wt-flow-row" style="gap:16px">' +
@@ -12337,7 +12337,7 @@ const UIRenderer = (() => {
         cap: '<span class="lead">Make a guess</span>' +
           "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
           "than the <b>pile card</b> (the card on top)? You can also <b>swipe a pile up or down</b> to guess Higher or Lower. " +
-          "(Aces are high)",
+          "(Aces are high.)",
       },
       { // 4 — grow it or lose it
         art: '<div class="wt-split">' +
@@ -12385,8 +12385,8 @@ const UIRenderer = (() => {
               '<div class="col-cards">' + card("9", "♠") + card("4", "♣") + "</div></div>" +
           "</div></div>",
         cap: '<span class="lead">Spend between deals</span>' +
-          "In the <b>store</b>, buy <b>stickers</b>, <b>pillars</b> and packs with coins, then place them: " +
-          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>. Then start your deal.",
+          "In the <b>store</b>, buy <b>stickers</b>, <b>pillars</b>, <b>bases</b> and packs with coins, then place them: " +
+          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>, a base sits under one. Then start your deal.",
       },
     ];
 
