@@ -63,6 +63,12 @@
     --pathway-2: #8568C0;   /* medium violet for accents/icons */
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
+    /* Shared item-info typography — ONE source for every info slot (store
+       help, tray help, action-bar chip, pack-reveal info), so the components
+       can't drift apart again. Layout/colors stay per-component. */
+    --info-title-size: 13px;
+    --info-desc-size: 11.5px;
+    --info-desc-lh: 1.4;
     --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory ↔ histogram band */
   }
 
@@ -247,8 +253,8 @@
   .ap-text { flex: 1 1 auto; text-align: left; font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--accent-2); }
   /* Two-line content for the contextual action bar: a header/question (.ap-q) and
      a help/description line (.ap-desc) — used by pillar/base help + base decisions. */
-  .ap-text .ap-q { display: block; }
-  .ap-text .ap-desc { display: block; font-size: 11px; font-weight: 600; line-height: 1.15; color: var(--muted); margin-top: 1px; }
+  .ap-text .ap-q { display: block; font-size: var(--info-title-size); }
+  .ap-text .ap-desc { display: block; font-size: var(--info-desc-size); font-weight: 600; line-height: var(--info-desc-lh); color: var(--muted); margin-top: 1px; }
   /* Help-carrying prompts can exceed the FIXED strip height (long Base/Pillar
      descriptions). Instead of clipping (overflow:hidden above), anchor them to
      the strip's bottom edge and let them grow UPWARD over the band above, on the
@@ -1508,12 +1514,12 @@
      but show a blank slot, no placeholder text or chrome. */
   .store-help.empty { background: transparent; border-color: transparent; }
   .store-help .sh-row { display: flex; align-items: center; gap: 8px; }
-  .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: 14px;
+  .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
     letter-spacing: 0.4px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
   .store-help .sh-title .ico { font-size: 17px; flex: none; }
   .store-help .sh-tier { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
   .store-help.empty .sh-title { color: var(--muted); font-family: var(--font-text); font-weight: 600; font-size: 12px; }
-  .store-help .sh-desc { font-size: 11.5px; line-height: 1.45; color: var(--text); margin-top: 4px; }
+  .store-help .sh-desc { font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 4px; }
   .store-help.empty .sh-desc { color: var(--muted); opacity: 0.65; }
   .store-help .sh-col { font-size: 11px; font-weight: 700; color: #6E51A6; margin-top: 5px; }
   .store-help .sh-col.hidden, .store-help .sh-buy.hidden { display: none; }
@@ -1881,8 +1887,8 @@
     text-align: left;
   }
   .item-help.hidden { display: none; }
-  .item-help .ih-title { font-weight: 800; font-size: 14px; margin-bottom: 5px; color: var(--accent-2); }
-  .item-help .ih-body { font-size: 13px; line-height: 1.45; color: var(--text); }
+  .item-help .ih-title { font-weight: 800; font-size: var(--info-title-size); margin-bottom: 5px; color: var(--accent-2); }
+  .item-help .ih-body { font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); }
 
   /* Coins earned/total line on the run-complete overlay. */
   /* Itemized coin breakdown on the run-complete / campaign screens. */
@@ -1972,10 +1978,10 @@
   }
   .tray-help.hidden { display: none; }
   .tray-help .th-row { display: flex; align-items: center; gap: 8px; }
-  .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
     color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
   .tray-help .th-title .ico { font-size: 16px; flex: none; }
-  .tray-help .th-desc { display: block; font-size: 11px; line-height: 1.4; color: var(--text); margin-top: 3px; }
+  .tray-help .th-desc { display: block; font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 3px; }
   /* Trash: a deliberate, clearly-marked discard (opens a confirm dialog first). */
   .tray-help .th-trash {
     flex: none; display: inline-flex; align-items: center; gap: 4px;
