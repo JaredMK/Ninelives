@@ -6948,11 +6948,12 @@ const DeckInspector = (() => {
   }
 
   /* Suit breakdown shown alongside the rank histogram: remaining-of-total per
-     suit (♠ ♥ ♣ ♦), in the same two-colour split as the card faces. Read-only,
-     order-free — counts only, derived from the same card list as the grid. */
+     suit, in suit-ENTRY order (DeckManager.SUITS) so the in-play suits always
+     lead and any dormant suit (0/0) trails. Read-only — counts only, derived
+     from the same card list as the grid. */
   function renderSuitBreakdown(cards, isRem) {
     if (!refs.suits) return;
-    const SUITS = ["♠", "♥", "♣", "♦"];
+    const SUITS = DeckManager.SUITS.map(s => s.symbol);
     const rem = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
     const tot = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
     for (const c of cards) {
