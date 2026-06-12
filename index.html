@@ -2656,15 +2656,40 @@
     padding: max(10px, env(safe-area-inset-top)) 0 0;
   }
 
+  /* Depth atmosphere behind the climb: warm + settled at the BOTTOM (the path
+     you've conquered), cool + faint toward the TOP (the unknown summit). Fixed,
+     so the climb scrolls over it — atmospheric depth for free. */
+  .map-depth {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    background:
+      radial-gradient(120% 60% at 50% 112%, rgba(224,151,60,0.16), rgba(224,151,60,0) 60%),
+      radial-gradient(120% 55% at 50% -12%, rgba(110,81,166,0.13), rgba(110,81,166,0) 60%),
+      linear-gradient(180deg, rgba(236,227,217,0.0) 40%, rgba(248,242,235,0.0) 100%);
+  }
+  /* Faint star/dot field that drifts slower than the climb (JS sets --par on
+     scroll → a gentle parallax). Two tiled dot layers at different scales. */
+  .map-parallax {
+    position: absolute; left: 0; right: 0; top: -20%; height: 140%;
+    transform: translateY(var(--par, 0px));
+    background-image:
+      radial-gradient(circle, rgba(110,81,166,0.16) 1.1px, transparent 1.6px),
+      radial-gradient(circle, rgba(200,74,120,0.12) 1px, transparent 1.5px);
+    background-size: 76px 76px, 119px 119px;
+    background-position: 10px 0, 48px 30px;
+    opacity: 0.7;
+  }
+  @media (prefers-reduced-motion: reduce) { .map-parallax { transform: none; } }
+
   /* Scroll region — no header/footer; the climb fills the whole overlay and
-     navigation is by tapping nodes. */
+     navigation is by tapping nodes. Momentum + smooth programmatic scroll. */
   .map-scroll {
+    position: relative; z-index: 1;
     flex: 1 1 auto; width: 100%; overflow-y: auto; overflow-x: hidden;
-    overscroll-behavior: contain;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
             mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
-  .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 14px 8px calc(30px + env(safe-area-inset-bottom)); }
+  .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 40px 8px calc(30px + env(safe-area-inset-bottom)); }
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
   .map-track::before {
     content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
@@ -2729,7 +2754,14 @@
     box-shadow: 0 3px 8px rgba(120,90,70,.16);
     display: flex; align-items: center; justify-content: center;
   }
-  .map-node.done { border-color: rgba(63,157,106,0.55); }
+  /* CONQUERED (below the current node): warm + settled, fossils glowing faintly
+     like trophies behind glass. */
+  .map-node.done {
+    border-color: rgba(199,126,31,0.5);
+    background: linear-gradient(180deg, #fffdf9, #fdf4e6);
+    box-shadow: 0 3px 8px rgba(120,90,70,.16), 0 0 14px rgba(224,151,60,0.18);
+  }
+  .map-node.done .fossil { filter: drop-shadow(0 0 3px rgba(224,151,60,0.45)); opacity: 0.95; }
   .map-node.current {
     border: 2px solid var(--accent);
     box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16);
@@ -2739,11 +2771,39 @@
     0%, 100% { box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16); }
     50%      { box-shadow: 0 0 0 7px var(--sel), 0 4px 11px rgba(120,90,70,.22); }
   }
-  @media (prefers-reduced-motion: reduce) { .map-node.current { animation: none; } }
+  /* A gentle inviting breath on the current node's play button. */
+  .map-node.current .mn-play { animation: mapInvite 1.8s ease-in-out infinite; }
+  @keyframes mapInvite { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) {
+    .map-node.current { animation: none; }
+    .map-node.current .mn-play { animation: none; }
+  }
   /* Tappable nodes (current = enter the run; cleared = view its fossil). */
   .map-node.tappable { cursor: pointer; }
   .map-node.tappable:active { transform: scale(0.94); }
-  .map-node.locked { opacity: 0.5; }
+  /* AHEAD (locked): cooler + fainter — the unknown path. */
+  .map-node.locked { opacity: 0.46; filter: grayscale(0.25) brightness(0.99); }
+  .map-node.locked { background: linear-gradient(180deg, #fbfaff, #f3f0fa); border-color: rgba(110,81,166,0.28); }
+
+  /* SUMMIT — the final deal: a golden frame + a crown, set apart as the goal. */
+  .map-node.summit {
+    border-color: var(--amber);
+    box-shadow: 0 3px 10px rgba(120,90,70,.18), 0 0 0 3px rgba(224,151,60,0.28), 0 0 20px rgba(224,151,60,0.3);
+    background: linear-gradient(180deg, #fffdf6, #fdf1d8);
+  }
+  .map-node.summit.locked { opacity: 0.8; filter: none; }
+  .map-node.summit.current { animation: summitPulse 2.2s ease-in-out infinite; }
+  @keyframes summitPulse {
+    0%,100% { box-shadow: 0 0 0 4px var(--sel), 0 0 0 3px rgba(224,151,60,0.4), 0 0 22px rgba(224,151,60,0.4); }
+    50%     { box-shadow: 0 0 0 7px var(--sel), 0 0 0 3px rgba(224,151,60,0.6), 0 0 30px rgba(224,151,60,0.6); }
+  }
+  .map-node .mn-crown {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 26px; color: var(--amber);
+    filter: drop-shadow(0 1px 2px rgba(120,90,70,0.3));
+  }
+  .map-node.summit.locked .mn-crown { color: rgba(199,126,31,0.7); }
+  @media (prefers-reduced-motion: reduce) { .map-node.summit.current { animation: none; } }
   .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
   .map-node .mn-lock { color: var(--muted); display: flex; align-items: center; justify-content: center; }
   .map-node .mn-lock svg { width: 26px; height: 26px; }
@@ -3289,6 +3349,10 @@
        run node (▶) starts the run; a cleared node opens its fossil detail; future
        runs are inert. Body built in JS from campaign fossils. -->
   <div class="overlay map hidden" id="mapOverlay">
+    <!-- Depth backdrop: a fixed atmosphere (warm/settled below = conquered, cool
+         and faint above = the unknown summit) with a faint parallax dot layer
+         that drifts slower than the climb as you scroll. Presentation only. -->
+    <div class="map-depth" aria-hidden="true"><div class="map-parallax" id="mapParallax"></div></div>
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
@@ -7663,6 +7727,7 @@ const UIRenderer = (() => {
     mapOverlay: document.getElementById("mapOverlay"),
     mapScroll: document.getElementById("mapScroll"),
     mapTrack: document.getElementById("mapTrack"),
+    mapParallax: document.getElementById("mapParallax"),
     fossilDetail: document.getElementById("fossilDetail"),
     fossilDetailClose: document.getElementById("fossilDetailClose"),
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
@@ -9439,6 +9504,13 @@ const UIRenderer = (() => {
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
+    // Cheap parallax: the depth dot-field drifts at ~⅓ the scroll speed. One
+    // style write per scroll event (no rAF loop) — consistent with §5 discipline.
+    if (el.mapScroll && el.mapParallax) {
+      el.mapScroll.addEventListener("scroll", () => {
+        el.mapParallax.style.setProperty("--par", (-el.mapScroll.scrollTop * 0.32).toFixed(1) + "px");
+      }, { passive: true });
+    }
     el.fossilDetailClose.addEventListener("click", closeFossilDetail);
     el.fossilDetail.addEventListener("click", (e) => { if (e.target === el.fossilDetail) closeFossilDetail(); });
 
@@ -11808,6 +11880,7 @@ const UIRenderer = (() => {
 
   // Padlock for a locked (not-yet-reached) run — inherits the muted node colour.
   const MAP_LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  const MAP_CROWN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-1.4 11H4.4z"/><circle cx="3" cy="8" r="1.7"/><circle cx="21" cy="8" r="1.7"/><circle cx="12" cy="4" r="1.9"/></svg>';
 
   /* One run row on the climb. `state` is "current" (a tappable ▶ play button that
      starts the run), "cleared" (its fossil; tap to enlarge), or "locked" (not yet
@@ -11815,15 +11888,20 @@ const UIRenderer = (() => {
      the outer column. `data-action` drives the tap handler (locked = none). */
   function mapRunNodeHtml(stage, run, state, side) {
     let nodeClass, inner, meta, attrs = "";
+    // The final deal of the final stage is the SUMMIT — the goal of the climb.
+    const isSummit = stage === campaign.maxStages && run === campaign.maxRunsPerStage;
+    const crown = isSummit ? '<span class="mn-crown" aria-hidden="true">' + MAP_CROWN_SVG + "</span>" : "";
+    const summitCls = isSummit ? " summit" : "";
     if (state === "current") {
-      nodeClass = "current tappable";
+      nodeClass = "current tappable" + summitCls;
       attrs = ' data-action="enter"';
-      inner = '<span class="mn-play" aria-hidden="true">▶</span>';
-      meta = '<div class="mm-name">Deal ' + run + '</div><div class="mm-go">Tap to play</div>';
+      inner = crown + '<span class="mn-play" aria-hidden="true">▶</span>';
+      meta = '<div class="mm-name">' + (isSummit ? "The Summit" : "Deal " + run) + '</div><div class="mm-go">Tap to play</div>';
     } else if (state === "locked") {
-      nodeClass = "locked";
-      inner = '<span class="mn-lock">' + MAP_LOCK_SVG + "</span>";
-      meta = '<div class="mm-name mm-dim">Deal ' + run + "</div>";
+      nodeClass = "locked" + summitCls;
+      // The summit shows its crown even while locked — the peak you're climbing to.
+      inner = isSummit ? crown : ('<span class="mn-lock">' + MAP_LOCK_SVG + "</span>");
+      meta = '<div class="mm-name mm-dim">' + (isSummit ? "The Summit" : "Deal " + run) + "</div>";
     } else {   // cleared — show its fossil (no checkmark). Legacy clears show a dot.
       const fossil = campaign.getRunFossil(stage, run);
       if (fossil && fossil.nodes.length) {
