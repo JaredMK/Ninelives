@@ -1324,8 +1324,25 @@
   }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
   .overlay .big { font-size: 56px; margin-bottom: 6px; }
+  .overlay .big.hidden { display: none; }
   .overlay.win h2 { color: var(--good); }
   .overlay.lose h2 { color: var(--bad); }
+  /* Game-over header: a small "Game over" eyebrow over the menu's exact title
+     treatment, whose last word is the guess that would have survived. The menu
+     title colours read fine here (the overlay shares the cream palette). */
+  .overlay.lose h2 {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    letter-spacing: 0; text-shadow: none; margin-bottom: 14px;
+  }
+  .overlay .go-line {
+    font-family: var(--font-display);
+    font-weight: 700; font-size: 14px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--bad);
+  }
+  .overlay .menu-title.go-title { margin: 2px 0 0; }
+  /* Second recap row (Correct / Wrong / Accuracy) sits under the totals row. */
+  .summary-tiles.guess-tiles { margin-top: 10px; }
+  .summary-tiles.guess-tiles.hidden { display: none; }
 
   .play-btn {
     background: linear-gradient(180deg, var(--accent), #ff9d4d);
@@ -3205,6 +3222,21 @@
           <div class="run-stat-label">Coins</div>
         </div>
       </div>
+      <!-- This-run guess tally (game-over). Same tile treatment as above. -->
+      <div class="summary-tiles guess-tiles hidden" id="endGuessTiles">
+        <div class="run-stat">
+          <div class="run-stat-value" id="endCorrect">0</div>
+          <div class="run-stat-label">Correct</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="endWrong">0</div>
+          <div class="run-stat-label">Wrong</div>
+        </div>
+        <div class="run-stat">
+          <div class="run-stat-value" id="endAccuracy">0%</div>
+          <div class="run-stat-label">Accuracy</div>
+        </div>
+      </div>
       <div class="end-pillars">
         <div class="summary-label">Ending Pillars</div>
         <div class="ep-cols" id="endPillars"></div>
@@ -3544,7 +3576,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.48 · network-lockstep";
+const APP_VERSION = "v2.49 · gameover-map-fibonacci";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4022,12 +4054,11 @@ const PillarTypes = (() => {
       description: "+20 coins if every pile in this column survives the deal and no other Pillar is on the board.",
     },
     fibonacci: {
-      // Live: like Streak Bank but pays the FIBONACCI sequence from the 2nd
-      // consecutive correct guess onward (1,1,2,3,5,8,…). Same reset rules as the
-      // other column-streak Pillars (wrong here, or ANY other-column guess).
+      // Live: +1 coin each time a Fibonacci-rank drawn card (A=1, 2, 3, 5, 8)
+      // lands correctly in this column. No streak, no escalation, no reset.
       id: "fibonacci", label: "Fibonacci", icon: "🌀",
-      kind: "live", effect: "fibonacci", tier: "rare", price: 12,
-      description: "A growing Fibonacci payout per correct guess in a row in this column, after the first: +1, +1, +2, +3, +5, +8… Resets on a wrong guess here or any guess in another column.",
+      kind: "live", effect: "fibonacci", value: 1, tier: "rare", price: 12,
+      description: "+1 coin when a Fibonacci-rank drawn card (A/2/3/5/8) lands correctly in this column.",
     },
     highestOdd: {
       // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
@@ -4797,6 +4828,9 @@ const GameEngine = (() => {
       const v = drawn.value;
       if (pillar.effect === "prime" && (v === 2 || v === 3 || v === 5 || v === 7)) {
         payPillar(col, "prime", pillar.label, pillar.value || 1);
+      } else if (pillar.effect === "fibonacci" && (v === 14 || v === 2 || v === 3 || v === 5 || v === 8)) {
+        // Fibonacci-rank drawn card lands (Ace counts as 1): +1, flat — no streak.
+        payPillar(col, "fibonacci", pillar.label, pillar.value || 1);
       } else if (pillar.effect === "royalCourt" && v >= 11 && v <= 13) {
         payPillar(col, "royalCourt", pillar.label, pillar.value || 2);
       } else if (pillar.effect === "queensEye" && v === 12) {
@@ -4919,12 +4953,6 @@ const GameEngine = (() => {
       }
     }
 
-    /** Fibonacci value at position n (n ≥ 1): 1, 1, 2, 3, 5, 8, 13, … */
-    function fibAt(n) {
-      let a = 1, b = 1;
-      for (let i = 1; i < n; i++) { const c = a + b; a = b; b = c; }
-      return a;
-    }
 
     /** The middle (center) column index for this run, or null with no layout. */
     function centerColumn() {
@@ -5926,14 +5954,6 @@ const GameEngine = (() => {
           const s = run.colStreak[col];
           if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); echoAdjacent(col); }
           if (pillar && pillar.effect === "streakTribute" && s >= 4) { buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); }
-          // Fibonacci: pay the Fibonacci sequence from the 2nd consecutive correct
-          // guess onward — s=2→+1, 3→+1, 4→+2, 5→+3, 6→+5, … (fib(s−1)).
-          if (pillar && pillar.effect === "fibonacci" && s >= 2) {
-            const pay = fibAt(s - 1);
-            addBonus(pillar.label, pay);
-            firePillar(col, "fibonacci", pillar.label, pay);
-            echoAdjacent(col);
-          }
         } else {
           run.colStreak[col] = 0;
         }
@@ -7733,6 +7753,10 @@ const UIRenderer = (() => {
     endCards: document.getElementById("endCards"),
     endCoins: document.getElementById("endCoins"),
     endPillars: document.getElementById("endPillars"),
+    endGuessTiles: document.getElementById("endGuessTiles"),
+    endCorrect: document.getElementById("endCorrect"),
+    endWrong: document.getElementById("endWrong"),
+    endAccuracy: document.getElementById("endAccuracy"),
     overlayCoins: document.getElementById("overlayCoins"),
     peekHint: document.getElementById("peekHint"),
     playBtn: document.getElementById("playBtn"),
@@ -9961,6 +9985,10 @@ const UIRenderer = (() => {
   // the win cinematic defers its recap.
   let pendingRunEnd = null;          // deferred game-over recap (set by "lost")
   let endAwaitingDeathAnim = false;  // the last "resolved" was the fatal guess
+  // The most recent resolved draw (drawn vs. pile value). On a loss this is the
+  // FATAL draw, so the game-over header can name the guess that would have
+  // survived: drawn > pile → "higher", drawn < pile → "lower", tie → "same".
+  let lastResolvedDraw = null;
   function flushPendingRunEnd() {
     if (!pendingRunEnd) return;
     const f = pendingRunEnd; pendingRunEnd = null; f();
@@ -10112,6 +10140,13 @@ const UIRenderer = (() => {
         // batch; we flag it so its recap is held until this death has played.
         const fatalGuess = !payload.correct && payload.board.aliveCount() === 0;
         endAwaitingDeathAnim = fatalGuess;
+        // Remember this draw (the fatal one, if the run ends here) for the
+        // game-over header's "Shoulda said …" word.
+        lastResolvedDraw = {
+          guess: payload.guess,
+          drawnVal: payload.drawn ? payload.drawn.value : null,
+          currentVal: payload.current ? payload.current.value : null,
+        };
         // HUD/counts read board STATE (not the DOM card), so update them now. The
         // pile's VISIBLE card is NOT swapped to the drawn card yet — the existing
         // top stays on the neuron for the whole flight, and the drawn face is
@@ -10623,8 +10658,11 @@ const UIRenderer = (() => {
     setScreenNav(false, false, false);
     if (opts.kind) el.overlay.classList.add(opts.kind);
     if (opts.cls) el.overlay.classList.add(opts.cls);   // per-screen layout (e.g. deal-cleared)
-    el.overlayIcon.innerHTML = opts.icon;
-    el.overlayTitle.textContent = opts.title;
+    el.overlayIcon.innerHTML = opts.icon || "";
+    el.overlayIcon.classList.toggle("hidden", !opts.icon);   // no empty icon gap (game over)
+    // titleHtml renders rich markup (the game-over header); title is plain text.
+    if (opts.titleHtml != null) el.overlayTitle.innerHTML = opts.titleHtml;
+    else el.overlayTitle.textContent = opts.title;
     el.overlayMsg.textContent = opts.msg || "";
     el.overlayMsg.style.display = opts.msg ? "" : "none";   // no empty flavor gap
 
@@ -10639,6 +10677,14 @@ const UIRenderer = (() => {
       el.endPillars.innerHTML = endPillarsHtml(opts.endStats.pillars);
     }
     el.endSummary.classList.toggle("hidden", !opts.endStats);
+
+    // This-run guess tally (game over): correct / wrong / accuracy.
+    if (opts.guessStats) {
+      el.endCorrect.textContent = opts.guessStats.correct;
+      el.endWrong.textContent = opts.guessStats.wrong;
+      el.endAccuracy.textContent = opts.guessStats.pct + "%";
+    }
+    el.endGuessTiles.classList.toggle("hidden", !opts.guessStats);
 
     // Coins earned this run + running balance (shown on run-complete).
     if (opts.coins) el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins);
@@ -10808,20 +10854,45 @@ const UIRenderer = (() => {
     };
   }
 
+  /** The guess that WOULD have survived the fatal draw: higher / lower / same.
+      Reads the last resolved draw; defaults to "same" if unknown. */
+  function survivingGuessWord(fd) {
+    if (!fd || fd.drawnVal == null || fd.currentVal == null) return "same";
+    if (fd.drawnVal > fd.currentVal) return "higher";
+    if (fd.drawnVal < fd.currentVal) return "lower";
+    return "same";
+  }
+  /** The game-over header: a "Game over" eyebrow + the menu's title treatment,
+      whose last word is the guess that would have survived the fatal draw. */
+  function gameOverTitleHtml(word) {
+    return '<span class="go-line">Game over</span>' +
+      '<span class="menu-title go-title">' +
+        '<span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>' +
+        '<span class="mt-w mt-c">' + word + '</span>' +
+      '</span>';
+  }
+
   // Any run loss ends the whole campaign (shown before the wipe, so we can
-  // report how far you got). New Campaign -> startCampaign -> reset().
-  function showCampaignFailed() {
+  // report how far you got). The continue action returns to the MAIN MENU.
+  function showCampaignFailed(run) {
     Sound.death();
+    const total = run ? (run.totalGuesses || 0) : 0;
+    const correct = run ? (run.correctGuesses || 0) : 0;
     showOverlay({
       kind: "lose",
-      icon: glyph("loss"),
-      title: "RUN OVER",
+      icon: "",                // no circle-with-line icon — the header carries it
+      titleHtml: gameOverTitleHtml(survivingGuessWord(lastResolvedDraw)),
       msg: "",                 // no "a deal slipped away…" copy
       progress: "Reached " + stageRunShort(),
       endStats: endStats(),
+      guessStats: {
+        correct,
+        wrong: Math.max(0, total - correct),
+        pct: total > 0 ? Math.round((correct / total) * 100) : 0,
+      },
       peek: false,             // no hold-to-peek-the-board on the loss screen
-      btnLabel: "NEW RUN",
-      action: startCampaign,
+      btnLabel: "MAIN MENU",
+      action: () => showMainMenu(false),
     });
     startLossFossils();        // bounce/collide the deals beaten this run behind the content
   }
@@ -11834,7 +11905,7 @@ const UIRenderer = (() => {
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
-      showCampaignFailed();
+      showCampaignFailed(payload.run);
       return;
     }
 
@@ -12085,6 +12156,24 @@ const UIRenderer = (() => {
       "</div>";
   }
 
+  /* A subtle vertical tint per stage band so the climb shades from one stage
+     into the next as you scroll. Each band runs from its summit-edge colour
+     (top) to its base-edge colour (bottom); a band's base colour equals the
+     next-lower band's summit colour, so the seams are continuous. Warm gold at
+     the foot of the climb → soft rose toward the summit; low alpha keeps nodes,
+     fossils, labels and the neural patterns fully legible. */
+  function mapBandGradient(s, maxStage) {
+    const tint = (t) => {
+      const r = Math.round(232 + (208 - 232) * t);
+      const g = Math.round(158 + (120 - 158) * t);
+      const b = Math.round(84 + (156 - 84) * t);
+      return "rgba(" + r + "," + g + "," + b + ",0.12)";
+    };
+    const top = maxStage > 1 ? s / maxStage : 0.5;          // summit edge (cooler/rose)
+    const bot = maxStage > 1 ? (s - 1) / maxStage : 0.5;    // base edge (warmer/gold)
+    return "linear-gradient(180deg, " + tint(top) + " 0%, " + tint(bot) + " 100%)";
+  }
+
   function renderProgressionMap() {
     const stage = campaign.currentStage, run = campaign.currentRunIndex;
     const maxStage = campaign.maxStages, maxRun = campaign.maxRunsPerStage;
@@ -12107,7 +12196,7 @@ const UIRenderer = (() => {
         band += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
       }
       band += mapStageHeaderHtml(s);   // the stage marker sits BELOW its deals
-      html += '<div class="map-band">' + band + "</div>";
+      html += '<div class="map-band" style="background:' + mapBandGradient(s, maxStage) + '">' + band + "</div>";
     }
     el.mapTrack.innerHTML = html;
   }

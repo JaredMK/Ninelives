@@ -36,37 +36,28 @@ export function run() {
     r.ok(!PillarTypes.get("fibonacci").suit && !PillarTypes.get("revive").suit, "new pillars are not suit-gated");
   }
 
-  // --- Fibonacci: pays 1,1,2,3,5,… from the 2nd consecutive correct guess --
+  // --- Fibonacci: +1 per Fibonacci-rank (A,2,3,5,8) drawn card landed in this
+  //     column. No streak, no escalation, no reset. (Ace counts as 1.)
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["fibonacci", null, null]);
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 0, "1st correct: no Fibonacci pay");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 1, "2nd consecutive: +1");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 2, "3rd: +1 (total 2)");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 4, "4th: +2 (total 4)");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 7, "5th: +3 (total 7)");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 12, "6th: +5 (total 12)");
-  }
-  {
-    // A guess in ANOTHER column resets the streak (and pays nothing itself).
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["fibonacci", null, null]);
-    winGuess(e, 0); winGuess(e, 0); winGuess(e, 0);   // total 2
-    r.eq(e.getRun().bonusCoins, 2, "streak built to 3 → total 2");
-    winGuess(e, 3);   // column 1 — resets col-0 streak
-    r.eq(e.getRun().bonusCoins, 2, "other-column guess pays nothing and resets the streak");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 2, "post-reset 1st col-0 correct: no pay");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 3, "post-reset 2nd: +1");
-  }
-  {
-    // A WRONG guess in-column resets the streak too.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["fibonacci", null, null]);
-    winGuess(e, 0); winGuess(e, 0);   // total 1
-    e.getBoard().top(1).value = 9; e.debug.setNextCard(2); e.guess(1, "higher");   // wrong on col-0 pile → resets
-    r.eq(e.getRun().bonusCoins, 1, "wrong in-column guess pays nothing, resets streak");
-    winGuess(e, 0); winGuess(e, 0);   // s=1 (no pay), s=2 (+1)
-    r.eq(e.getRun().bonusCoins, 2, "streak rebuilt after the reset → +1");
+    // Land a card of `rank` correctly on pile `i` (sets a clear higher/lower top).
+    const landRank = (i, rank) => {
+      const top = rank > 2 ? rank - 1 : rank + 1;
+      e.getBoard().top(i).value = top;
+      e.debug.setNextCard(rank);
+      e.guess(i, rank > top ? "higher" : "lower");
+    };
+    landRank(0, 5);  r.eq(e.getRun().bonusCoins, 1, "a 5 (Fibonacci) lands → +1");
+    landRank(0, 9);  r.eq(e.getRun().bonusCoins, 1, "a 9 (not Fibonacci) → no pay");
+    landRank(0, 8);  r.eq(e.getRun().bonusCoins, 2, "an 8 (Fibonacci) → +1 (no escalation)");
+    landRank(0, 13); r.eq(e.getRun().bonusCoins, 2, "a King (13) → no pay (not in A/2/3/5/8)");
+    landRank(0, 14); r.eq(e.getRun().bonusCoins, 3, "an Ace (counts as 1) → +1");
+    landRank(0, 2);  r.eq(e.getRun().bonusCoins, 4, "a 2 (Fibonacci) → +1");
+    landRank(0, 3);  r.eq(e.getRun().bonusCoins, 5, "a 3 (Fibonacci) → +1");
+    // Column-scoped, and immune to streak/reset coupling.
+    landRank(3, 5);  r.eq(e.getRun().bonusCoins, 5, "a 5 in another column does not pay");
+    landRank(0, 5);  r.eq(e.getRun().bonusCoins, 6, "still +1 after an other-column guess (no reset/streak)");
   }
 
   // --- Highest Odd / Highest Even: end-of-deal column scoring ------------
