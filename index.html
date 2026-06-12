@@ -3554,6 +3554,9 @@ const StickerTypes = (() => {
   // keep it accurate to the effect; the UI only reads it, never hardcodes text.
   // `tier`: "common" | "uncommon" | "rare" — the store-offer rarity. Tiers only
   // weight how often a type is OFFERED (see TIER_WEIGHTS); price is independent.
+  // SUIT-TIMING PRICING: suit-gated items are only offerable once their suit is
+  // in play (Stage 1 ♦♥ → +♣ → +♠), so later suits buy fewer remaining deals.
+  // Rule: a ♣ item costs its ♦/♥ twin's price −1; a ♠ item costs −2 (floor 1).
   const TYPES = {
     rankUp:     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: +1, tier: "common", price: 3,
                   description: "Raise this card's rank by 1, permanently. Stops at an Ace." },
@@ -3567,19 +3570,19 @@ const StickerTypes = (() => {
                   description: "Set this card's rank to a random one from 2 to Ace, permanently. The suit stays the same." },
     changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
                   description: "Change this card's suit to a random different one, permanently. The rank stays the same." },
-    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 2,
+    changeSuitSpade:  { id: "changeSuitSpade",  label: "Change to ♠",  icon: "♠️", kind: "behavior", behavior: "changeSuitTo", suit: "♠", tier: "common", price: 1,
                   description: "Change this card's suit to ♠, permanently. The rank stays the same." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
                   description: "Change this card's suit to ♥, permanently. The rank stays the same." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "Safe from a tie. A drawn card that matches this card's rank no longer kills the pile." },
-    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 4,
+    suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 2,
                   description: "When this drawn card is placed on a ♠ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
                   description: "When this drawn card is placed on a ♥ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
                   description: "When this drawn card is placed on a ♦ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
-    clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 4,
+    clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 3,
                   description: "When this drawn card is placed on a ♣ pile card, a wrong guess is safe — the pile survives and this drawn card returns to the deck. Works once a deal." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "When you clear the deal with this card as the pile card, earn +1 coin per card in that pile." },
@@ -3649,6 +3652,9 @@ const StickerTypes = (() => {
    single scoring Pillar end to end; more land in later phases.
 ---------------------------------------------------------------- */
 const PillarTypes = (() => {
+  // Suit-gated pillars follow the same SUIT-TIMING PRICING rule as stickers
+  // (♣ = ♦/♥ twin −1, ♠ = twin −2): their suit enters play later, so they have
+  // fewer remaining deals to pay out.
   // suit-Bounty `suit` matches DeckManager.SUITS symbols (plain "♠♥♦♣"); the
   // icon may carry an emoji variation selector for display, but matching uses
   // the bare symbol. A Bounty pays `value` coins per CORRECT guess made on a
@@ -3659,7 +3665,7 @@ const PillarTypes = (() => {
   const TYPES = {
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bonus", icon: "♠️",
-      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 6,
+      kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 4,
       description: "Earn +1 coin when a ♠ drawn card lands correctly on a pile in this column.",
     },
     heartBounty: {
@@ -3674,7 +3680,7 @@ const PillarTypes = (() => {
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bonus", icon: "♣️",
-      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 6,
+      kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 5,
       description: "Earn +1 coin when a ♣ drawn card lands correctly on a pile in this column.",
     },
     columnTieSafe: {
@@ -3708,22 +3714,22 @@ const PillarTypes = (() => {
       // this column shows the matching suit on top. One per suit; scored in
       // computePillarPayout via the shared "allSuitTop" effect. Suit-gated.
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
-      kind: "scoring", effect: "allSuitTop", suit: "♥", value: 5, tier: "common", price: 6,
+      kind: "scoring", effect: "allSuitTop", suit: "♥", value: 5, tier: "common", price: 4,
       description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♥ as its pile card.",
     },
     allSpadesCoin: {
       id: "allSpadesCoin", label: "All Spades", icon: "♠️",
-      kind: "scoring", effect: "allSuitTop", suit: "♠", value: 5, tier: "common", price: 6,
+      kind: "scoring", effect: "allSuitTop", suit: "♠", value: 5, tier: "common", price: 2,
       description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♠ as its pile card.",
     },
     allDiamondsCoin: {
       id: "allDiamondsCoin", label: "All Diamonds", icon: "♦️",
-      kind: "scoring", effect: "allSuitTop", suit: "♦", value: 5, tier: "common", price: 6,
+      kind: "scoring", effect: "allSuitTop", suit: "♦", value: 5, tier: "common", price: 4,
       description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♦ as its pile card.",
     },
     allClubsCoin: {
       id: "allClubsCoin", label: "All Clubs", icon: "♣️",
-      kind: "scoring", effect: "allSuitTop", suit: "♣", value: 5, tier: "common", price: 6,
+      kind: "scoring", effect: "allSuitTop", suit: "♣", value: 5, tier: "common", price: 3,
       description: "Earn +5 coins when you clear the deal with every surviving pile in this column showing a ♣ as its pile card.",
     },
     envy: {
@@ -3776,16 +3782,17 @@ const PillarTypes = (() => {
       // consecutive correct guess onward (1,1,2,3,5,8,…). Same reset rules as the
       // other column-streak Pillars (wrong here, or ANY other-column guess).
       id: "fibonacci", label: "Fibonacci", icon: "🌀",
-      kind: "live", effect: "fibonacci", tier: "rare", price: 6,
+      kind: "live", effect: "fibonacci", tier: "rare", price: 12,
       description: "Earn a growing coin payout for each correct guess in a row on this column's piles, after the first: +1, +1, +2, +3, +5, +8, and on up the Fibonacci sequence. The streak resets on a wrong guess here or any guess in another column.",
     },
     highestOdd: {
       // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
       // ALIVE pile in this column. Only top cards count (not buried); face cards
       // (J/Q/K) and the Ace never count. (computePillarPayout, effect "highestOdd".)
-      // Priced 3 above Highest Even (10 → 13).
+      // Strictly worse stats than Highest Even (max payout 9 vs 10, four
+      // qualifying ranks vs five) → priced 1 below it (10 → 9).
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
-      kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 13,
+      kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 9,
       description: "Earn bonus coins equal to the highest odd-rank pile card (3, 5, 7 or 9) among the alive piles in this column when you clear the deal. Only pile cards count (the card on top of each pile) — buried cards, face cards and Aces never count. Pays 0 if no alive pile has a qualifying pile card.",
     },
     highestEven: {

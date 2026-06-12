@@ -61,7 +61,7 @@ export function run() {
     r.eq(c.getCoins(), 90, "second buy also cost the fixed 5 (no escalation)");
 
     // Per-type fixed prices.
-    r.eq(c.priceOfPillar("spadeBounty"), 6, "Suit Bounty = 6");
+    r.eq(c.priceOfPillar("spadeBounty"), 4, "Spade Bounty = 4 (suit-timing: ♠ enters Stage 3)");
     r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
     r.eq(c.priceOfPillar("eightTribute"), 8, "8 Tribute = 8");
     r.eq(c.priceOfPillar("sameTribute"), 15, "Same Tribute = 15");
@@ -75,7 +75,7 @@ export function run() {
   {
     const c = CampaignState.create();
     r.eq(c.priceOf("rankUp"), 3, "+1 Rank = 3");
-    r.eq(c.priceOf("changeSuitSpade"), 2, "Change to ♠ = 2");
+    r.eq(c.priceOf("changeSuitSpade"), 1, "Change to ♠ = 1 (suit-timing: ♠ enters Stage 3)");
     r.eq(c.priceOf("changeSuitHeart"), 2, "Change to ♥ = 2");
     r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
     r.eq(c.priceOf("extraCoin"), 3, "Extra Coin = 3");
