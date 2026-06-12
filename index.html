@@ -1848,6 +1848,7 @@
     pointer-events: none; white-space: nowrap; z-index: 6;
     animation: pillarFloat 1s ease-out forwards;
   }
+  .pillar-float.pile-float { top: 8px; z-index: 7; }
   @keyframes pillarFloat {
     0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.8); }
     22%  { opacity: 1; transform: translate(-50%, -7px) scale(1); }
@@ -3491,6 +3492,27 @@ const GLYPHS = {
   shuffle: '<path d="M3 7h4c2.6 0 4.4 10 7 10h4M3 17h4c2.6 0 4.4-10 7-10h4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M18 4l3 3-3 3M18 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   // Donate — a tall pile gives a card to a short pile (arrow between).
   donate: '<rect x="3" y="5" width="6" height="14" rx="1.5"/><rect x="15" y="12" width="6" height="7" rx="1.5"/><path d="M10 10.5h4M12.5 8.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // ---- expansion stickers (same monoline neural style) ----
+  // Quick Bury — the bury chevron with a lightning bolt (fast, fragile).
+  quickbury: '<path d="M8 4l-4 7h4l-3 9 9-11h-5l4-5z"/><path d="M16 13v6M13.8 16.4l2.2 2.2 2.2-2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Twin Spark — two four-point sparks side by side.
+  twinspark: '<path d="M8 4l1.3 3.7L13 9l-3.7 1.3L8 14l-1.3-3.7L3 9l3.7-1.3z"/><path d="M16.5 10l1.3 3.7 3.7 1.3-3.7 1.3-1.3 3.7-1.3-3.7-3.7-1.3 3.7-1.3z"/>',
+  // Loose Change — two overlapping coins.
+  loosechange: '<circle cx="9.5" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="14.5" r="5.5" fill="var(--panel)" stroke="currentColor" stroke-width="2"/>',
+  // Snowball Bury — a growing trio of circles rolling downhill.
+  snowball: '<circle cx="5" cy="7" r="2"/><circle cx="11" cy="10" r="3"/><circle cx="17.5" cy="15" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // Deep Pockets — a pouch with a coin dropping in.
+  deeppockets: '<circle cx="12" cy="4.5" r="2"/><path d="M5 10h14l-1.5 9a2 2 0 0 1-2 1.7h-7a2 2 0 0 1-2-1.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  // Pillar Scout — an eye over a column capital.
+  pillarscout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><path d="M7 17h10M8.5 17v4M12 17v4M15.5 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  // Base Scout — an eye over a foundation slab.
+  basescout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><rect x="5" y="17" width="14" height="3.6" rx="1"/>',
+  // Mirror — a card and its flipped reflection across a dashed axis.
+  mirror: '<path d="M12 3v18" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><rect x="3" y="7" width="6" height="10" rx="1.5"/><rect x="15" y="7" width="6" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // Suit Snob — a monocle (judging your suits).
+  suitsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // Momentum — an accelerating ramp with motion ticks.
+  momentum: '<path d="M3 19c6 0 12-3 16-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 4l1.6 4.4L16 9.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12.5l2.5 1M6 8.5l2.2 1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
@@ -3500,6 +3522,10 @@ const ELEM_GLYPH = {
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
   heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
   wildSuit: "wildsuit",
+  changeSuitDiamond: "diamond", changeSuitClub: "club",
+  quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
+  snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
+  baseScout: "basescout", mirror: "mirror", suitSnob: "suitsnob", momentum: "momentum",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -3564,7 +3590,7 @@ const StickerTypes = (() => {
                   description: "Raise this card's rank by 2, permanently. Stops at an Ace." },
     rankDown2:  { id: "rankDown2",  label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 4,
                   description: "Lower this card's rank by 2, permanently. Stops at a 2." },
-    randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 3,
+    randomFixedValue: { id: "randomFixedValue", label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "uncommon", price: 4,
                   description: "Set this card's rank to a random one from 2 to Ace, permanently. The suit stays the same." },
     changeSuitRandom: { id: "changeSuitRandom", label: "Random Suit", icon: "🎲", kind: "behavior", behavior: "changeSuitRandom", tier: "common", price: 1,
                   description: "Change this card's suit to a random different one, permanently. The rank stays the same." },
@@ -3572,6 +3598,10 @@ const StickerTypes = (() => {
                   description: "Change this card's suit to ♠, permanently. The rank stays the same." },
     changeSuitHeart:  { id: "changeSuitHeart",  label: "Change to ♥",  icon: "♥️", kind: "behavior", behavior: "changeSuitTo", suit: "♥", tier: "common", price: 2,
                   description: "Change this card's suit to ♥, permanently. The rank stays the same." },
+    changeSuitDiamond: { id: "changeSuitDiamond", label: "Change to ♦", icon: "♦️", kind: "behavior", behavior: "changeSuitTo", suit: "♦", tier: "common", price: 2,
+                  description: "Change this card's suit to ♦, permanently. The rank stays the same." },
+    changeSuitClub:   { id: "changeSuitClub",   label: "Change to ♣",  icon: "♣️", kind: "behavior", behavior: "changeSuitTo", suit: "♣", tier: "common", price: 1,
+                  description: "Change this card's suit to ♣, permanently. The rank stays the same." },
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "Safe from a tie. A drawn card that matches this card's rank no longer kills the pile." },
     suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 2,
@@ -3616,18 +3646,40 @@ const StickerTypes = (() => {
                   description: "After this drawn card lands correctly on a pile card, you may shuffle that pile so a different card ends up on top. The pile's order is never revealed." },
     donate:     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", tier: "uncommon", price: 4,
                   description: "After this drawn card lands correctly on a pile card, if that pile is not the smallest on the board, you may move 1 card from the bottom of that pile to the bottom of the smallest pile (you're asked first)." },
+    quickBury:  { id: "quickBury",  label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 4,
+                  description: "When this drawn card is correctly placed on a pile card, bury 1 card from the deck under that pile. After each use there is a 25% chance this sticker peels off and is destroyed." },
+    twinSpark:  { id: "twinSpark",  label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "rare", price: 6,
+                  description: "When this drawn card is correctly placed, add a random sticker to every alive pile card on the board with the same rank as this card, for the rest of this deal." },
+    looseChange: { id: "looseChange", label: "Loose Change", icon: "🪙", kind: "behavior", behavior: "looseChange", tier: "uncommon", price: 4,
+                  description: "When this drawn card is correctly placed on a pile card, earn a random 0, 1 or 2 coins." },
+    snowball:   { id: "snowball",   label: "Snowball Bury", icon: "☃️", kind: "behavior", behavior: "snowball", tier: "rare", price: 6,
+                  description: "When this drawn card is correctly placed on a pile card, bury X cards from the deck under that pile. X starts at 0 and grows by 1 with every correct placement of this card (it keeps growing across deals); a wrong placement resets X to 0." },
+    deepPockets: { id: "deepPockets", label: "Deep Pockets", icon: "👛", kind: "behavior", behavior: "deepPockets", tier: "uncommon", price: 4,
+                  description: "When this drawn card is correctly placed on a pile card, earn +1 coin per 10 cards remaining in the deck." },
+    pillarScout: { id: "pillarScout", label: "Pillar Scout", icon: "🔭", kind: "behavior", behavior: "pillarScout", tier: "uncommon", price: 3,
+                  description: "When this drawn card is correctly placed on a pile card, peek at the next upcoming card — but only while at least one column has no Pillar." },
+    baseScout:  { id: "baseScout",  label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
+                  description: "When this drawn card is correctly placed on a pile card, peek at the next upcoming card — but only while at least one column has no Base." },
+    mirror:     { id: "mirror",     label: "Mirror",      icon: "🪞", kind: "behavior", behavior: "mirror", tier: "uncommon", price: 3,
+                  description: "When this drawn card is correctly placed on a pile card, copy one random sticker from that pile card onto this card, for the rest of this deal." },
+    suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
+                  description: "When this drawn card is correctly placed on a pile card of the same suit, earn +2 coins. A Wild Suit on either card counts as a match." },
+    momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 5,
+                  description: "When this drawn card is correctly placed on a pile card, earn +1 coin per consecutive correct guess in that column's current streak (this placement included). The streak resets on a wrong guess there or any guess in another column." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Defined-suit pair is ♦ and ♥ for Stage 1 (♣ enters Stage 2, ♠ Stage 3). Random-suit is the
   // cheap gamble. The old cycle-style Change Suit has been removed.
   const ORDER = ["rankUp", "rankDown", "rankUp2", "rankDown2", "randomFixedValue",
-    "changeSuitRandom", "changeSuitSpade", "changeSuitHeart",
+    "changeSuitRandom", "changeSuitSpade", "changeSuitHeart", "changeSuitDiamond", "changeSuitClub",
     "tieSafe", "suitImmunity", "heartGuard", "diamondGuard", "clubGuard",
     "extraCoin", "middleColumnReward", "gainCoin",
     "anchor", "extraHeart", "oneTribute", "twoTribute", "centerTribute",
     "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit",
-    "shuffle", "donate"];
+    "shuffle", "donate",
+    "quickBury", "twinSpark", "looseChange", "snowball", "deepPockets",
+    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -4127,6 +4179,9 @@ const DeckManager = (() => {
       // Compound: lifetime count of correct guesses made against this identity
       // (persisted on the campaign card). Pays (compoundHits − 1) if alive on top.
       compoundHits: card.compoundHits || 0,
+      // Snowball Bury: the per-card bury size X (persisted on the campaign card,
+      // like compoundHits). Grows on correct placements, resets on a wrong one.
+      snowball: card.snowball || 0,
     };
   }
 
@@ -4560,6 +4615,87 @@ const GameEngine = (() => {
         else if (t.behavior === "gainCoin") addBonus("Bonus Coin", t.value || 0);
         // Hub pays per instance: +1 for each OTHER Imprint on this card.
         else if (t.behavior === "collector") addBonus("Collector", (t.value || 1) * Math.max(0, stickers.length - 1));
+      }
+    }
+
+    /** Expansion stickers carried by the DRAWN card that just landed on a
+        SURVIVING pile. Runs after maybeLandingBonus. Order inside matters:
+        coin payouts FIRST (Deep Pockets reads the deck before this landing's
+        own burials), then burials (Quick Bury / Snowball), then projections
+        (Twin Spark / Mirror — live, this-deal-only), then the Scouts' peek.
+        Coin payouts also emit "sticker-coins" so the UI floats the result over
+        the pile (including Loose Change's visible +0). */
+    function maybeExpansionStickers(index, current, drawn, col) {
+      const stickers = (drawn && drawn.stickers) || [];
+      if (!stickers.length) return;
+      const n = (type) => stickers.filter(x => x.type === type).length;
+      const payCoins = (label, amount, always) => {
+        if (amount) addBonus(label, amount);
+        if (amount || always) emit("sticker-coins", { index, label, amount, board, deck, run });
+      };
+      // --- coins ---
+      const dp = n("deepPockets");
+      if (dp > 0) {
+        const per = Math.floor(deck.remaining() / 10);
+        payCoins("Deep Pockets", dp * per);
+      }
+      const lc = n("looseChange");
+      for (let k = 0; k < lc; k++) payCoins("Loose Change", Math.floor(rng() * 3), true);
+      const snob = n("suitSnob");
+      if (snob > 0 && current && (drawn.suit === current.suit || drawn.wildSuit || current.wildSuit)) {
+        payCoins("Suit Snob", 2 * snob);
+      }
+      const mom = n("momentum");
+      if (mom > 0 && run.colStreak && col != null) {
+        payCoins("Momentum", mom * (run.colStreak[col] || 0));
+      }
+      // --- burials ---
+      const qb = n("quickBury");
+      for (let k = 0; k < qb; k++) {
+        buryTribute(index, 1, "Quick Bury");
+        if (rng() < 0.25) {
+          // The sticker peels off: drop ONE instance from the live card and
+          // record the destruction for the campaign write-back (on a win).
+          const at = drawn.stickers.findIndex(x => x.type === "quickBury");
+          if (at !== -1) drawn.stickers.splice(at, 1);
+          run.stickerPeels[drawn.id] = (run.stickerPeels[drawn.id] || 0) + 1;
+          logLine("Quick Bury peeled off (destroyed)");
+          emit("sticker-peeled", { index, cardId: drawn.id, type: "quickBury", board, deck, run });
+        }
+      }
+      if (n("snowball") > 0) {
+        // Per-card counter (duplicate Snowballs share it — they don't stack):
+        // bury X, then grow X by 1. Persisted like compoundHits.
+        const x = drawn.snowball || 0;
+        if (x > 0) buryTribute(index, x, "Snowball Bury");
+        drawn.snowball = x + 1;
+        run.snowballUpdates[drawn.id] = drawn.snowball;
+      }
+      // --- projections (live, this deal only) ---
+      const ts = n("twinSpark");
+      for (let k = 0; k < ts; k++) {
+        for (let i = 0; i < board.size; i++) {
+          if (!board.isActive(i)) continue;
+          const top = board.top(i);
+          if (!top || top.value !== drawn.value) continue;   // rank match only (suit-blind)
+          const typeId = pickOne(baseStickerPool().map(t => t.id));
+          if (typeId) projectStickerOntoCard(top, typeId);
+        }
+        firePillar(col, "twinSpark", "Twin Spark", 0);
+      }
+      const mi = n("mirror");
+      if (mi > 0 && current) {
+        for (let k = 0; k < mi; k++) {
+          const pool = (current.stickers || []).filter(x => x.type !== "mirror");
+          const pick = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
+          if (pick) projectStickerOntoCard(drawn, pick.type);
+        }
+      }
+      // --- scouts (peek at the next upcoming card; deck-reveal treatment) ---
+      const emptyPillarSlot = run.pillars ? run.pillars.some(p => !p) : false;
+      const emptyBaseSlot = run.bases ? run.bases.some(b => !b) : false;
+      if ((n("pillarScout") > 0 && emptyPillarSlot) || (n("baseScout") > 0 && emptyBaseSlot)) {
+        run.revealNextActive = true;
       }
     }
 
@@ -5175,6 +5311,12 @@ const GameEngine = (() => {
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
+        // Snowball Bury: { cardId: newX } accrued this run — same write-back-on-
+        // win contract as compoundUpdates (a loss ends the run, so nothing leaks).
+        snowballUpdates: {},
+        // Quick Bury peels: { cardId: peeledCount } — instances destroyed by the
+        // 25% roll, removed from the persistent card on a win.
+        stickerPeels: {},
         // Scout: true while the next deck card is revealed (a Scout-stickered card
         // was just placed). Display-only; cleared the moment that card is drawn.
         revealNextActive: false,
@@ -5346,6 +5488,14 @@ const GameEngine = (() => {
         firePillar(run.pileColumns[index], "suitBounty", pillar.label, pillar.value || 0);
       }
 
+      // Snowball Bury: ANY wrong placement of the carrying card resets its X to
+      // 0 (even when a Guard/Shield/Second Wind saves the pile — the placement
+      // itself was wrong). Recorded for the win write-back like compoundUpdates.
+      if (!correct && drawn.stickers && drawn.stickers.some(x => x.type === "snowball")) {
+        drawn.snowball = 0;
+        run.snowballUpdates[drawn.id] = 0;
+      }
+
       let guardSave = null;
       if (correct) {
         board.push(index, drawn);
@@ -5365,6 +5515,7 @@ const GameEngine = (() => {
         // immediate coin rewards (Middle Reward / Lucky Coin), then sticker
         // Tributes (bury card(s) + charge bonus coins). Both feed the live tally.
         maybeLandingBonus(index, drawn);
+        maybeExpansionStickers(index, current, drawn, col);
         maybeStickerTribute(index, drawn);
         // Optional post-landing actions (Shuffle / Donate) queue here; they
         // surface only after any paid-bury prompt drains (surfaceActionOffer).
@@ -6374,6 +6525,7 @@ const CampaignState = (() => {
         card.modifications = [];
         card.stickers = [];
         card.compoundHits = 0;
+        card.snowball = 0;
         return base;
       },
 
@@ -6447,6 +6599,7 @@ const CampaignState = (() => {
           modifications: (src.modifications || []).map(m => ({ ...m })),
           stickers: (src.stickers || []).map(s => ({ ...s })),
           compoundHits: src.compoundHits || 0,
+          snowball: src.snowball || 0,
         };
         packTray.push(copy);
         return copy;
@@ -6474,6 +6627,29 @@ const CampaignState = (() => {
       setCompoundHits(id, n) {
         const card = findById(id);
         if (card) card.compoundHits = n;
+      },
+
+      /** Snowball Bury: persist a card's bury counter X — the same
+          write-back-on-win contract as setCompoundHits. */
+      setSnowball(id, n) {
+        const card = findById(id);
+        if (card) card.snowball = n;
+      },
+
+      /** Destroy `count` instances of one sticker type on a card (Quick Bury's
+          25% peel-off). Removal only — no flag/rank reverts (the peeled types
+          carry no permanent card mutation). */
+      removeStickerInstances(id, typeId, count) {
+        const card = findById(id);
+        if (!card || !card.stickers) return 0;
+        let removed = 0;
+        for (let k = 0; k < count; k++) {
+          const at = card.stickers.findIndex(x => x.type === typeId);
+          if (at === -1) break;
+          card.stickers.splice(at, 1);
+          removed++;
+        }
+        return removed;
       },
 
       /** PERMANENT deck replacement (pre-run, via a held pack card): remove the
@@ -7386,8 +7562,13 @@ const UIRenderer = (() => {
              + chip(glyph("buffer"), tierOf("extraHeart"), heartsBroken, "spent");
     // Every OTHER registered sticker type → one die-cut chip from its tier+icon.
     for (const t of StickerTypes.all()) {
-      if (t.id === "extraHeart" || t.id === "compound") continue;   // handled specially
+      if (t.id === "extraHeart" || t.id === "compound" || t.id === "snowball") continue;   // handled specially
       html += chip(t.icon, t.tier, n(t.id));
+    }
+    // Snowball Bury shows its current bury size X (the per-card counter), the
+    // same live-counter treatment as Compound's banked value below.
+    if (n("snowball") > 0) {
+      html += dieCutChip(glyph("snowball"), tierOf("snowball"), { count: (card.snowball || 0) });
     }
     // Compound shows its BANKED value (lifetime correct guesses − 1, min 0) so
     // the player watches it grow — not a plain stack count.
@@ -9140,6 +9321,20 @@ const UIRenderer = (() => {
      column's banner, and for a coin reward float a "+N" up from it. Reacts to
      the engine's "pillar-fired" event (and the end-of-run payout) — it changes
      nothing about the effect itself. */
+  /* Float "+N" coin feedback over a PILE (the sticker-payout counterpart of
+     flashPillar's banner float — same .pillar-float chip, anchored to the pile).
+     Also used for Loose Change's visible "+0" (the random result must show). */
+  function floatOverPile(index, text) {
+    const pileEl = pileEls[index];
+    if (!pileEl) return;
+    const reduce = prefersReduce();
+    const f = document.createElement("div");
+    f.className = "pillar-float pile-float";
+    f.textContent = text;
+    pileEl.appendChild(f);
+    setTimeout(() => f.remove(), reduce ? 600 : 1000);
+  }
+
   function flashPillar(col, amount) {
     if (col == null || !el.board) return;
     const cell = el.board.querySelectorAll(".bp-cell")[col];
@@ -9380,6 +9575,23 @@ const UIRenderer = (() => {
         } else {
           setTimeout(tuck, reduce ? 0 : 380);
         }
+        break;
+      }
+
+      case "sticker-coins": {
+        // A new-expansion coin sticker paid out on a landing — float the result
+        // over the pile (including a visible "+0" for Loose Change's miss).
+        floatOverPile(payload.index, "+" + (payload.amount || 0));
+        renderHud(payload.board, payload.deck);
+        break;
+      }
+
+      case "sticker-peeled": {
+        // Quick Bury's 25% destruction roll hit: the sticker is gone from the
+        // card. Notice + badge refresh make the loss visible.
+        const pEl = pileEls[payload.index];
+        if (pEl) { const top = payload.board.top(payload.index); if (top) renderStickerBadges(pEl, top); }
+        flashNotice("Quick Bury peeled off — sticker destroyed.");
         break;
       }
 
@@ -10943,6 +11155,11 @@ const UIRenderer = (() => {
     // identities so N carries into future runs (a loss wipes it via reset()).
     const cu = (payload.run && payload.run.compoundUpdates) || {};
     for (const id in cu) campaign.setCompoundHits(Number(id), cu[id]);
+    // Snowball counters + Quick Bury peels follow the same win-only contract.
+    const su = (payload.run && payload.run.snowballUpdates) || {};
+    for (const id in su) campaign.setSnowball(Number(id), su[id]);
+    const sp = (payload.run && payload.run.stickerPeels) || {};
+    for (const id in sp) campaign.removeStickerInstances(Number(id), "quickBury", sp[id]);
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
     // on the win payload; default to nothing for legacy/no-layout runs.
     const pp = payload.pillarPayout || { bonus: 0, lines: [] };
@@ -11819,7 +12036,7 @@ const UIRenderer = (() => {
     top.suit = su.symbol; top.red = su.red;
     top.stickers = [];
     top.tieSafe = false; top.heartsRemaining = 0; top.revealNext = false;
-    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0;
+    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0; top.snowball = 0;
     closePeekInfo();
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);

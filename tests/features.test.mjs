@@ -35,7 +35,7 @@ export function run() {
     r.eq(StickerTypes.get("rankUp2").rankDelta, +2, "+2 Rank delta");
     r.eq(StickerTypes.get("rankDown2").rankDelta, -2, "−2 Rank delta");
     r.eq(StickerTypes.get("rankUp2").price, 4, "+2 Rank price 4");
-    r.eq(StickerTypes.get("randomFixedValue").price, 3, "Random Rank price 3");
+    r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank price 4");
     r.eq(StickerTypes.get("suitImmunity").price, 2, "Spade Guard price 2 (suit-timing: ♠ enters Stage 3)");
     r.eq(StickerTypes.get("middleColumnReward").value, 3, "Middle Reward pays 3");
     r.eq(StickerTypes.get("gainCoin").value, 1, "Lucky Coin pays 1");

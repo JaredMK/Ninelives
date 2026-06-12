@@ -21,6 +21,7 @@ import { run as pillarFeedback } from "./pillar-feedback.test.mjs";
 import { run as wildPeel } from "./wild-peel.test.mjs";
 import { run as newItems } from "./new-items.test.mjs";
 import { run as bases } from "./bases.test.mjs";
+import { run as expansionStickers } from "./expansion-stickers.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -42,6 +43,7 @@ const SUITES = [
   ["wild-peel", wildPeel],
   ["new-items", newItems],
   ["bases", bases],
+  ["expansion-stickers", expansionStickers],
 ];
 
 let pass = 0,
