@@ -579,10 +579,12 @@
        warm drop shadow so the white card clearly lifts off the cream board.
        Glow lives only on the connection network now. */
     box-shadow: 0 6px 14px rgba(74, 50, 40, 0.18), 0 2px 5px rgba(74, 50, 40, 0.12);
-    /* Gentle, independent floating drift (per-card vars) — runs together with
-       the breathing scale on .front. Small, so cards never detach from links. */
-    animation: cardDrift var(--drift-dur, 8s) ease-in-out var(--drift-delay, 0s) infinite;
+    /* Gentle, independent floating drift is now JS-driven (computed phase per
+       card — zero layout reads — so the network endpoints can move with it). The
+       breathing scale on .front stays CSS. transform-origin matches the old
+       keyframe so the JS translate reads identically. */
     transform-origin: 50% 50%;
+    will-change: transform;
   }
   @keyframes cardDrift {
     0%   { transform: translate(0, 0); }
@@ -7737,9 +7739,15 @@ const UIRenderer = (() => {
   let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
   let edgeMap = new Map();    // edge key ("a-b") → live edge record, for in-place network updates
-  let driftRAF = null, driftLast = 0;  // rAF loop keeping links attached to drifting cards
-  let motionIdle = false;     // §2: board has settled to idle (card motion paused, loop off)
-  let settleTimer = null;     // §2: pending settle timeout after the last board action
+  let driftRAF = null, driftLast = 0;  // rAF loop: JS-driven card drift + attached network
+  // Perpetual card drift is COMPUTED in JS (known phase functions) — zero layout
+  // reads per frame. Each pile's offset moves its card AND its network endpoints,
+  // so the lines stay attached without ever measuring the DOM.
+  let pileDriftParams = [];   // per-pile { wx[6], wy[6], dur, delay } (replaces CSS cardDrift)
+  let cardEls = [];           // cached .card element per pile (fast transform writes)
+  let netBaseCenter = {};     // pileIndex → static grid centre {x,y}, cached once per network build
+  let driftOffCache = {};     // pileIndex → this frame's drift offset {x,y} (cards + network share it)
+  const DRIFT_ZERO = { x: 0, y: 0 };
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -7793,19 +7801,16 @@ const UIRenderer = (() => {
     pile.dataset.index = index;
     pile.style.animationDelay = (index * 0.05) + "s";
     pile.style.setProperty("--bd", (index * 0.37).toFixed(2) + "s");   // breathe desync
-    // Per-card floating drift: random small waypoints + duration + phase so each
-    // card bobs independently (never in unison). Small amplitude (~4px) keeps
-    // cards from overlapping or detaching from their connections.
+    // Per-card floating drift params (JS-driven; same amplitude ~4.5px, period
+    // 13–22s, and random negative phase as the old CSS keyframe). Waypoints at
+    // 0/20/40/60/80/100% → [0, w1..w4, 0]; the loop interpolates between them.
     const rnd = (a, b) => (a + Math.random() * (b - a));
-    for (let p = 1; p <= 4; p++) {
-      pile.style.setProperty("--dx" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
-      pile.style.setProperty("--dy" + p, rnd(-4.5, 4.5).toFixed(1) + "px");
-    }
-    pile.style.setProperty("--drift-dur", rnd(13, 22).toFixed(1) + "s");   // ~50% slower
-    pile.style.setProperty("--drift-delay", (-rnd(0, 22)).toFixed(1) + "s");
+    const wp = () => [0, rnd(-4.5, 4.5), rnd(-4.5, 4.5), rnd(-4.5, 4.5), rnd(-4.5, 4.5), 0];
+    pileDriftParams[index] = { wx: wp(), wy: wp(), dur: rnd(13, 22), delay: -rnd(0, 22) };
 
     const card = document.createElement("div");
     card.className = "card";
+    cardEls[index] = card;
 
     // FRONT (face up)
     const front = document.createElement("div");
@@ -10763,6 +10768,7 @@ const UIRenderer = (() => {
     netEdges = [];                            // drop stale edge refs from the old board
     edgeMap.clear();                          // the SVG is rebuilt per board — drop stale edge records
     pileEls.length = 0;
+    cardEls.length = 0; pileDriftParams.length = 0; netBaseCenter = {}; driftOffCache = {};
     // Single Pillar-indicator row across the top — one cell per column, so all
     // icons sit on one level line (see .board-pillars CSS).
     const pillarRow = document.createElement("div");
@@ -10908,13 +10914,19 @@ const UIRenderer = (() => {
     }
     lastNetKeys = keys;
 
+    // Cache the STATIC pile centres (the pile box never moves — only the card
+    // child drifts via transform, which the loop adds on top). This is the only
+    // place the network measures the DOM; the per-frame loop reads zero layout.
+    netBaseCenter = centerByPile;
     // Rebuild the drift-loop ref list from the live map, and seat every edge's
-    // positions at the current card centres now (the loop takes over next frame).
+    // positions (base centre + current drift offset) now; the loop takes over.
     netEdges = [...edgeMap.values()];
     const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
     for (const e of netEdges) {
       const a = centerByPile[e.a], b = centerByPile[e.b];
-      if (a && b) applyEdge(e, a.x, a.y, b.x, b.y, now);
+      if (!a || !b) continue;
+      const oa = driftOffCache[e.a] || DRIFT_ZERO, ob = driftOffCache[e.b] || DRIFT_ZERO;
+      applyEdge(e, a.x + oa.x, a.y + oa.y, b.x + ob.x, b.y + ob.y, now);
     }
     startDriftSync();
     updateBoardMotion();
@@ -11106,35 +11118,63 @@ const UIRenderer = (() => {
         || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
     return true;
   }
-  /* Toggle the `cards-paused` class: pause the board's perpetual card drift/breathe
-     whenever the board is covered by a full overlay (and, from §2, when the visible
-     board has settled to idle). Called from every overlay show/hide so the ~33 card
-     animations stop compositing behind the store/map/menu/win-loss screens. */
+  /* Pause the board's perpetual card breathing (CSS) whenever a full overlay
+     covers the board. The JS drift loop pauses itself separately (boardVisible).
+     No idle-settle freeze any more — a visible board always drifts. */
   function updateBoardMotion() {
     if (!el.board) return;
-    el.board.classList.toggle("cards-paused", !boardVisible() || motionIdle);
-    // When the on-board scene has settled to idle, also pause the slow background
-    // blobs (part of the same accepted idle-settle) — they drift imperceptibly,
-    // so freezing them is invisible but drops 3 continuous layer composites.
-    // Overlays (menu/store) keep their ambient drift.
-    document.body.classList.toggle("scene-idle", motionIdle && boardVisible());
+    el.board.classList.toggle("cards-paused", !boardVisible());
   }
+
+  /* Compute a card's drift offset at time `now` (seconds) from its phase params —
+     a pure function (zero layout reads). Replicates the old CSS keyframe: stops
+     at 0/20/40/60/80/100% interpolated with an ease-in-out (smoothstep), period
+     `dur`, pre-phased by the negative `delay`. */
+  function driftOffset(now, d) {
+    let ph = ((now - d.delay) / d.dur) % 1; if (ph < 0) ph += 1;
+    const seg = ph >= 1 ? 4 : (ph * 5) | 0;       // 0..4 (segment of 0.2 each)
+    const lt = (ph - seg * 0.2) * 5;              // 0..1 within the segment
+    const e = lt * lt * (3 - 2 * lt);             // smoothstep ≈ ease-in-out
+    return { x: d.wx[seg] + (d.wx[seg + 1] - d.wx[seg]) * e,
+             y: d.wy[seg] + (d.wy[seg + 1] - d.wy[seg]) * e };
+  }
+
+  /* The perpetual-motion loop. Per frame it COMPUTES each card's drift offset
+     (no getBoundingClientRect, no layout) and writes it as the card's transform;
+     the network endpoints are seated from base-centre + the SAME offset, so the
+     lines stay attached. Cards update every frame (cheap composited transform
+     writes); the heavier network SVG writes run at ~30fps. Pauses when the board
+     is covered (boardVisible) or the tab is hidden; off entirely under reduced
+     motion. */
   function startDriftSync() {
     if (driftRAF != null) return;
-    if (motionIdle) return;                            // §2: board has settled → no tracking needed
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (!netEdges.length || !boardVisible()) return;   // nothing to track / board off screen
+    if (prefersReduce()) return;
+    if (!boardVisible()) return;
     const step = (t) => {
-      // Truly idle when the board isn't on screen: cancel (no per-frame rect
-      // reads or SVG writes while a store / map / win-loss / menu covers it).
-      // The loop is restarted the instant the board is shown again — renderNetwork
-      // on a deal/guess, or the overlay-close hooks below call startDriftSync.
       if (!boardVisible()) { stopDriftSync(); return; }
       driftRAF = requestAnimationFrame(step);
-      if (document.hidden) return;              // tab hidden: keep scheduling, skip work
-      if (t - driftLast < 28) return;           // ~30fps — unchanged, so on-board feel is identical
-      driftLast = t;
-      syncNetworkToDrift(t);
+      if (document.hidden) return;                // tab hidden: keep scheduling, skip work
+      const now = t / 1000;
+      // (a) Cards every frame — pure compute + a composited transform write each.
+      for (let i = 0; i < cardEls.length; i++) {
+        const d = pileDriftParams[i], ce = cardEls[i];
+        if (!d || !ce) continue;
+        const o = driftOffset(now, d);
+        driftOffCache[i] = o;
+        // Don't stomp a transient transform animation on the card (the wince).
+        if (!ce.classList.contains("wince"))
+          ce.style.transform = "translate(" + o.x.toFixed(2) + "px," + o.y.toFixed(2) + "px)";
+      }
+      // (b) Network at ~30fps — endpoints follow the cards via the cached offsets.
+      if (t - driftLast >= 31 && networkEl && netEdges.length) {
+        driftLast = t;
+        for (const e of netEdges) {
+          const ba = netBaseCenter[e.a], bb = netBaseCenter[e.b];
+          if (!ba || !bb) continue;
+          const oa = driftOffCache[e.a] || DRIFT_ZERO, ob = driftOffCache[e.b] || DRIFT_ZERO;
+          applyEdge(e, ba.x + oa.x, ba.y + oa.y, bb.x + ob.x, bb.y + ob.y, now);
+        }
+      }
     };
     driftRAF = requestAnimationFrame(step);
   }
@@ -11142,52 +11182,12 @@ const UIRenderer = (() => {
   function stopDriftSync() {
     if (driftRAF != null) { cancelAnimationFrame(driftRAF); driftRAF = null; }
   }
-
-  /* §2 — idle settle. The board only needs to move (and the drift loop only needs
-     to run) during and just after an action; between guesses the board can hold
-     still so an idle board does ~zero per-frame work. wakeMotion() is called on
-     every board change: it un-settles (cards animate, loop tracks) and arms a
-     short timer; when the timer fires with no further action, settleMotion()
-     pauses the card animations and stops the loop. The network tracks the cards
-     while they move, then goes quiet — the one accepted visual change. */
-  const MOTION_SETTLE_MS = 1500;
+  /* Any board change ensures the perpetual loop is running (it never settles to a
+     freeze now — a visible board drifts continuously). Idempotent. */
   function wakeMotion() {
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    motionIdle = false;
-    if (settleTimer) clearTimeout(settleTimer);
-    settleTimer = setTimeout(settleMotion, MOTION_SETTLE_MS);
-    updateBoardMotion();   // un-pause the cards (if the board is the active surface)
-    startDriftSync();      // resume tracking the now-moving cards
-  }
-  function settleMotion() {
-    settleTimer = null;
-    // The win cinematic runs board animations longer than the settle window;
-    // don't pause it mid-play. Defer settling until it's over or the win overlay
-    // has covered the board (then pausing happens behind the overlay).
-    if (el.board && el.board.classList.contains("win-cine") && boardVisible()) {
-      settleTimer = setTimeout(settleMotion, 600);
-      return;
-    }
-    motionIdle = true;
-    stopDriftSync();       // cards no longer drift → no per-frame tracking
-    updateBoardMotion();   // pause the perpetual card drift/breathe (board holds still)
-  }
-  function syncNetworkToDrift(t) {
-    const net = networkEl; if (!net || !netEdges.length) return;
-    const grid = net.parentNode; if (!grid) return;
-    const gr = grid.getBoundingClientRect();
-    // Read all live centres first (one layout flush), then write SVG attrs.
-    const ctr = [];
-    for (let i = 0; i < pileEls.length; i++) {
-      const r = pileEls[i].getBoundingClientRect();
-      ctr[i] = { x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top };
-    }
-    const now = t / 1000;
-    for (const e of netEdges) {
-      const a = ctr[e.a], b = ctr[e.b];
-      if (!a || !b) continue;
-      applyEdge(e, a.x, a.y, b.x, b.y, now);   // spindle + bulges + curved-path pulses
-    }
+    if (prefersReduce()) return;
+    updateBoardMotion();
+    startDriftSync();
   }
 
   /* Redraw the network after a board change. When a pile DIED (alive count
