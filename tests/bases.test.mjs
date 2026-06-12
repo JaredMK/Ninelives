@@ -98,15 +98,17 @@ export function run() {
     r.ok(br && br.suit, "Suit Tally's suit is rolled and present this deal");
   }
 
-  // --- effect: Shuffle Column (return one buried card per pile to deck) --
+  // --- effect: Upheaval (shuffle the column; cost = 1 coin per alive pile) --
   {
     const e = game(["shuffleColumn", null, null]);
     const b = e.getBoard();
     for (const i of [0, 1, 2]) { b.piles[i].cards = [card(3, "♠"), card(4, "♠"), card(5, "♠")]; }
-    const before = e.getDeck().remaining();
+    const deckBefore = e.getDeck().remaining();
+    const coinsBefore = e.getRun().bonusCoins;
     const res = e.baseActivate(0);
-    r.eq(res.returned, 3, "one buried card returned from each of the 3 piles");
-    r.eq(e.getDeck().remaining(), before + 3, "the deck grew by the returned cards");
+    r.eq(res.shuffled, 3, "all 3 alive piles in the column are shuffled");
+    r.eq(e.getDeck().remaining(), deckBefore, "no cards returned to the deck (cost is coins now)");
+    r.eq(e.getRun().bonusCoins - coinsBefore, -3, "lost 1 coin per alive pile (−3)");
   }
 
   // --- effect: Phoenix (revive — keep the KILLER card; buried cards → deck) --

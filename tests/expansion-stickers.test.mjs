@@ -74,22 +74,27 @@ export function run() {
     r.eq(gained, Math.floor((remBefore - 1) / 10), "Deep Pockets pays floor(deckRemaining/10) after the draw");
   }
 
-  // ---- Suit Snob: +2 only when the drawn card matches the pile card's suit ----
+  // ---- Suit Snob: PEEK the next card only on a same-suit correct land --------
   {
     const e = game();
-    const top0 = e.getBoard().top(0);
-    let snobPaid = 0;
-    e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === "Suit Snob") snobPaid += p.amount; });
-    const nc = land(e, 0, ["suitSnob"]);   // 'land' picks the value; force the SAME suit
-    // 'land' already guessed; re-run a controlled same-suit land on a fresh pile.
-    // (Simpler: assert via a second, suit-matched land on pile 1.)
     const top1 = e.getBoard().top(1);
     const up = top1.value < 14;
-    const nc1 = e.debug.setNextCard(up ? top1.value + 1 : top1.value - 1);
-    nc1.stickers = [{ type: "suitSnob" }]; nc1.suit = top1.suit;   // match the pile card's suit
-    snobPaid = 0;
+    const nc = e.debug.setNextCard(up ? top1.value + 1 : top1.value - 1);
+    nc.stickers = [{ type: "suitSnob" }]; nc.suit = top1.suit;   // match the pile card's suit
     e.guess(1, up ? "higher" : "lower");
-    r.eq(snobPaid, 2, "Suit Snob pays +2 on a same-suit correct land");
+    r.ok(e.getRun().revealNextActive, "Suit Snob peeks the next card on a same-suit correct land");
+
+    // A DIFFERENT-suit land does not peek (and pays no coins — the peek replaced it).
+    const e2 = game();
+    const t2 = e2.getBoard().top(2);
+    const up2 = t2.value < 14;
+    const otherSuit = ["♠", "♥", "♦", "♣"].find(s => s !== t2.suit);
+    const before = e2.getRun().bonusCoins;
+    const n2 = e2.debug.setNextCard(up2 ? t2.value + 1 : t2.value - 1);
+    n2.stickers = [{ type: "suitSnob" }]; n2.suit = otherSuit;
+    e2.guess(2, up2 ? "higher" : "lower");
+    r.ok(!e2.getRun().revealNextActive, "Suit Snob does NOT peek on a different-suit land");
+    r.eq(e2.getRun().bonusCoins - before, 0, "Suit Snob no longer pays coins");
   }
 
   // ---- Snowball Bury (per-card X, like Compound): buries X then X++, reset on wrong ----

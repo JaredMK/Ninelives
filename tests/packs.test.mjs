@@ -27,7 +27,7 @@ export function run() {
     r.eq(PackTypes.get("cardPack").price, 12, "the card pack costs 12");
     r.eq(PackTypes.get("stickerPack").size, 3, "the sticker pack reveals 3");
     r.eq(PackTypes.get("stickerPack").keep, 1, "the sticker pack keeps 1");
-    r.eq(PackTypes.get("stickerPack").price, 3, "the sticker pack costs 3");
+    r.eq(PackTypes.get("stickerPack").price, 5, "the sticker pack costs 5");
     r.eq(PackTypes.get("cardPack").kind, "card", "card pack kind");
     r.eq(PackTypes.get("stickerPack").kind, "sticker", "sticker pack kind");
     const missing = PackTypes.all().filter(t => !t.description || !t.description.trim());

@@ -2442,7 +2442,7 @@
   .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 11.5px; margin-top: 3px; }
   .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
   .peek-info .pk-locked { color: var(--muted); }
-  /* "Return to inventory" (setup only). The peek popup is pointer-events:none, so
+  /* "Sell for coins" (setup only). The peek popup is pointer-events:none, so
      this button re-enables pointer events for itself to stay tappable. */
   .peek-info .pk-unplace {
     pointer-events: auto; margin-top: 9px; width: 100%;
@@ -3334,6 +3334,18 @@
     </div>
   </div>
 
+  <!-- Sell-on-removal confirmation. Taking a placed Pillar/Base off the board
+       SELLS it (it does not return to inventory) for a tier-based coin payout. -->
+  <div class="confirm-overlay hidden" id="sellConfirm">
+    <div class="confirm-panel">
+      <div class="confirm-msg" id="sellConfirmMsg">Sell this for coins?</div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="sellCancelBtn" type="button">Cancel</button>
+        <button class="confirm-danger" id="sellOkBtn" type="button">Sell</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Paid-bury confirmation — a coin-cost Tribute (Tribute II) just landed.
        The player must opt in; only Yes buries and charges the cost. -->
   <div class="confirm-overlay hidden" id="buryConfirm">
@@ -3532,7 +3544,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.46 · duplicate-anchor-batch";
+const APP_VERSION = "v2.47 · sell-peek-shuffle-batch";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3845,7 +3857,7 @@ const StickerTypes = (() => {
     mirror:     { id: "mirror",     label: "Mirror",      icon: "🪞", kind: "behavior", behavior: "mirror", tier: "uncommon", price: 3,
                   description: "On a correct placement, copy one random sticker from the pile card onto this card, for this deal." },
     suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
-                  description: "On a correct placement onto a same-suit pile card, +2 coins (a Wild Suit on either counts)." },
+                  description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 5,
                   description: "On a correct placement, +1 coin per guess in this column's current streak (this one included). Resets on a wrong guess here or any guess in another column." },
   };
@@ -4178,7 +4190,7 @@ const BaseTypes = (() => {
     shuffleColumn: {
       id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", tier: "common", price: 9,
-      description: "Shuffle every pile in this column and return one buried card from each to the deck. Composition only — order stays hidden.",
+      description: "Shuffle every pile in this column (a different card may top each; order stays hidden). Lose 1 coin per alive pile in the column.",
     },
     revive: {
       id: "revive", label: "Phoenix", icon: "🔥",
@@ -4303,7 +4315,7 @@ const PackTypes = (() => {
     },
     stickerPack: {
       id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker",
-      size: 3, keep: 1, price: 3,
+      size: 3, keep: 1, price: 5,
       description: "Reveals 3 random stickers. Keep 1 for your inventory. The rest are discarded.",
     },
   };
@@ -5010,7 +5022,7 @@ const GameEngine = (() => {
       for (let k = 0; k < lc; k++) payCoins("Loose Change", Math.floor(rng() * 3), true);
       const snob = n("suitSnob");
       if (snob > 0 && current && (drawn.suit === current.suit || drawn.wildSuit || current.wildSuit)) {
-        payCoins("Suit Snob", 2 * snob);
+        run.revealNextActive = true;   // peek the next upcoming card (the reward)
       }
       const mom = n("momentum");
       if (mom > 0 && run.colStreak && col != null) {
@@ -5345,14 +5357,13 @@ const GameEngine = (() => {
           break;
         }
         case "shuffleColumn": {
-          let returned = 0;
-          for (const i of colAlivePiles(col)) {
-            board.shufflePile(i, rng);
-            const cards = board.piles[i].cards;
-            if (cards.length > 1) { deck.returnCard(cards.shift()); returned++; }   // one buried card back to deck
-          }
-          res.returned = returned;
-          logLine("shuffled " + colAlivePiles(col).length + " piles; " + returned + " buried cards returned to the deck (hidden)");
+          // Shuffle every alive pile in the column; the cost is now 1 coin per
+          // alive pile shuffled (no buried cards returned to the deck).
+          const alive = colAlivePiles(col);
+          for (const i of alive) board.shufflePile(i, rng);
+          if (alive.length) addBonus(base.label, -alive.length);
+          res.shuffled = alive.length;
+          logLine("shuffled " + alive.length + " piles; −" + alive.length + " coins");
           break;
         }
         case "reviveBase": {
@@ -5371,6 +5382,7 @@ const GameEngine = (() => {
           const topNow = board.top(target);
           if (topNow && topNow.revealNext) run.revealNextActive = true;
           res.index = target;
+          res.returnedCount = all.length;                    // buried cards sent back to the deck (for the UI's return animation)
           logLine("revived pile " + (target + 1) + " — kept the killing card as its pile card; " + all.length + " buried cards shuffled into the deck");
           break;
         }
@@ -6736,6 +6748,15 @@ const CampaignState = (() => {
         columnPillars[col] = null;
         return id;
       },
+      /** SELL a placed Pillar off a column: clear the slot WITHOUT returning it to
+          inventory (the caller pays out the coins). Returns the id, or null. */
+      removeColumnPillar(col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return null;
+        const id = columnPillars[col];
+        if (!id) return null;
+        columnPillars[col] = null;
+        return id;
+      },
 
       /** Set (or clear, with null) the Pillar on a column. The raw setter used
           by buy/clear; returns false on an out-of-range column. No cost. */
@@ -6835,6 +6856,15 @@ const CampaignState = (() => {
         const id = columnBases[col];
         if (!id) return null;
         baseInventory[id] = (baseInventory[id] || 0) + 1;
+        columnBases[col] = null;
+        return id;
+      },
+      /** SELL a placed Base off a column: clear the slot WITHOUT returning it to
+          inventory (the caller pays out the coins). Returns the id, or null. */
+      removeColumnBase(col) {
+        if (col < 0 || col >= COLUMN_SLOTS) return null;
+        const id = columnBases[col];
+        if (!id) return null;
         columnBases[col] = null;
         return id;
       },
@@ -7753,6 +7783,10 @@ const UIRenderer = (() => {
     packTrayEl: document.getElementById("packTrayEl"),
     trashConfirm: document.getElementById("trashConfirm"),
     trashConfirmMsg: document.getElementById("trashConfirmMsg"),
+    sellConfirm: document.getElementById("sellConfirm"),
+    sellConfirmMsg: document.getElementById("sellConfirmMsg"),
+    sellCancelBtn: document.getElementById("sellCancelBtn"),
+    sellOkBtn: document.getElementById("sellOkBtn"),
     trashCancelBtn: document.getElementById("trashCancelBtn"),
     trashOkBtn: document.getElementById("trashOkBtn"),
     peelConfirm: document.getElementById("peelConfirm"),
@@ -8263,7 +8297,7 @@ const UIRenderer = (() => {
       '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
       '<div class="pk-state">Applies to column ' + (col + 1) + "</div>" +
       (inSetup
-        ? '<button class="pk-unplace" data-unplace-col="' + col + '" type="button">Return to inventory</button>'
+        ? '<button class="pk-unplace" data-unplace-col="' + col + '" type="button">Sell for ' + COIN_SVG + " " + sellValueOf(t) + "</button>"
         : '<div class="pk-state pk-locked">Locked in for this run.</div>');
   }
   function openCardPeek(index) {
@@ -8305,7 +8339,7 @@ const UIRenderer = (() => {
       '<div class="pk-desc">' + escHtml(itemDescription(t)) + "</div>" +
       roll + charge +
       (inSetup
-        ? '<button class="pk-unplace base" data-unplace-base-col="' + col + '" type="button">Return to inventory</button>'
+        ? '<button class="pk-unplace base" data-unplace-base-col="' + col + '" type="button">Sell for ' + COIN_SVG + " " + sellValueOf(t) + "</button>"
         : "");
   }
   function openBasePeek(col) {
@@ -8686,16 +8720,45 @@ const UIRenderer = (() => {
   /* Pick a placed Pillar back up off a column into inventory (setup only, nothing
      armed). The indicator row only shows while a column holds a Pillar, so this
      is reachable whenever there's one to remove. */
+  /* Sale value by rarity (taking a placed Pillar/Base off the board SELLS it). */
+  const SELL_VALUE = { common: 1, uncommon: 2, rare: 3 };
+  function sellValueOf(t) { return SELL_VALUE[t && t.tier] || 1; }
+  let sellPending = null;   // { kind: "pillar"|"base", col, id, value }
+
   function pickUpPillar(col) {
-    if (!engine || !engine.canApplyStickers()) return;
-    const id = campaign.unplacePillar(col);
+    if (!engine || !engine.canApplyStickers() || !campaign) return;
+    const id = campaign.getColumnPillars()[col];
     if (!id) return;
-    const t = PillarTypes.get(id);
-    if (engine) engine.logAction("Picked up Pillar " + ((t && t.label) || id) + " from column " + (col + 1));
-    paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    requestSell("pillar", col, PillarTypes.get(id), id);
+  }
+
+  /* Removing a placed Pillar/Base SELLS it (it won't return to inventory) for a
+     tier-based payout — a deliberate two-step confirm. */
+  function requestSell(kind, col, t, id) {
+    const value = sellValueOf(t);
+    sellPending = { kind, col, id, value };
+    el.sellConfirmMsg.innerHTML = "Sell " + escHtml((t && t.label) || kind) + " for " +
+      COIN_SVG + " " + value + "? It won't return to your inventory.";
+    el.sellConfirm.classList.remove("hidden");
+  }
+  function closeSellConfirm() { el.sellConfirm.classList.add("hidden"); sellPending = null; }
+  function confirmSell() {
+    const p = sellPending;
+    el.sellConfirm.classList.add("hidden");
+    sellPending = null;
+    if (!p || !engine || !engine.canApplyStickers() || !campaign) return;
+    const t = p.kind === "pillar" ? PillarTypes.get(p.id) : BaseTypes.get(p.id);
+    const removed = p.kind === "pillar" ? campaign.removeColumnPillar(p.col) : campaign.removeColumnBase(p.col);
+    if (!removed) return;
+    campaign.addCoins(p.value);
+    Sound.purchase();
+    if (engine) engine.logAction("Sold " + ((t && t.label) || p.id) + " from column " + (p.col + 1) + " for " + p.value + " coins");
+    if (p.kind === "pillar") paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
+    else paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
     fitBoard();
     renderSetupInv();
-    el.hint.textContent = (t ? t.label : "Pillar") + " returned to inventory.";
+    updateStageRun();   // coin balance changed
+    el.hint.textContent = (t ? t.label : "Item") + " sold for " + p.value + " coins.";
     persistCampaign("run");
     refreshDebug();
   }
@@ -8742,17 +8805,10 @@ const UIRenderer = (() => {
     refreshDebug();
   }
   function pickUpBase(col) {
-    if (!engine || !engine.canApplyStickers()) return;
-    const id = campaign.unplaceBase(col);
+    if (!engine || !engine.canApplyStickers() || !campaign) return;
+    const id = campaign.getColumnBases()[col];
     if (!id) return;
-    const t = BaseTypes.get(id);
-    if (engine) engine.logAction("Picked up Base " + ((t && t.label) || id) + " from column " + (col + 1));
-    paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
-    fitBoard();
-    renderSetupInv();
-    el.hint.textContent = (t ? t.label : "Base") + " returned to inventory.";
-    persistCampaign("run");
-    refreshDebug();
+    requestSell("base", col, BaseTypes.get(id), id);
   }
 
   function applyArmedSticker(index) {
@@ -9285,7 +9341,7 @@ const UIRenderer = (() => {
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
         // During setup, an armed Pillar drops onto the slot; otherwise setup taps
-        // open the help popup (which carries the "Return to inventory" button).
+        // open the help popup (which carries the Sell button).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
         if (!setupWindow) {
           // Active play: this Pillar's help shows in the strip (contextual bar).
@@ -9318,7 +9374,7 @@ const UIRenderer = (() => {
       else selectPile(index);
     });
 
-    // Peek popup buttons: a Pillar's "Return to inventory" (un-place), or a
+    // Peek popup buttons: a Pillar's Sell button (remove + sell), or a
     // card's "Peel off all stickers" (opens a destroy confirmation).
     el.peekInfo.addEventListener("click", (e) => {
       const peel = e.target.closest(".pk-peel");
@@ -9391,6 +9447,8 @@ const UIRenderer = (() => {
     if (el.thClose) el.thClose.addEventListener("click", disarmSetupItem);   // ✕ → back to items
     el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
     el.trashOkBtn.addEventListener("click", doTrashItem);
+    if (el.sellCancelBtn) el.sellCancelBtn.addEventListener("click", closeSellConfirm);
+    if (el.sellOkBtn) el.sellOkBtn.addEventListener("click", confirmSell);
     // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
 
     // Paid-bury confirmation (Tribute II lands → "Bury … for X coins?").
@@ -9638,6 +9696,18 @@ const UIRenderer = (() => {
   function deckRect() {
     const dp = el.deckStat && el.deckStat.querySelector(".deck-pile");
     return (dp || el.deckStat || document.body).getBoundingClientRect();
+  }
+  /* Fly `count` face-down cards from pile `index` back to the deck, staggered,
+     starting after `startDelay`. Reuses the card-travel motion (face-down — no
+     identity revealed). Used by Phoenix to show its buried cards returning. */
+  function flyCardsToDeck(index, count, startDelay) {
+    if (prefersReduce() || count <= 0) return;
+    const pileEl = pileEls[index];
+    if (!pileEl) return;
+    const from = (pileEl.querySelector(".card") || pileEl).getBoundingClientRect();
+    for (let k = 0; k < count; k++) {
+      setTimeout(() => { flyCard(flyBackEl(), from, deckRect(), { duration: 270 }); }, startDelay + k * 95);
+    }
   }
   /* A face-down "deck back" flying clone (unattached). */
   function flyBackEl() {
@@ -9989,12 +10059,14 @@ const UIRenderer = (() => {
         //     (+ the coin float from flashBase); Reactor's re-armed banners + Suit
         //     Tally / Tax coins are shown by paintColumnBases + the float.
         switch (payload.effect) {
-          case "reviveBase":   // Phoenix — a revive flourish on the brought-back pile
+          case "reviveBase":   // Phoenix — sequenced: revive flourish, THEN the
+                               // buried cards travel back to the deck (killer stays).
             if (payload.index != null && pileEls[payload.index]) {
               const rp = pileEls[payload.index];
               rp.classList.add("flash-good");
               setTimeout(() => rp.classList.remove("flash-good"), 520);
               Sound.good();
+              flyCardsToDeck(payload.index, payload.returnedCount || 0, prefersReduce() ? 0 : 430);
             }
             break;
           case "copyToInventory":   // Replica — the copied card flies to the inventory button
@@ -12899,13 +12971,14 @@ const UIRenderer = (() => {
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
       ], baseTargets(col), { help: itemDescription(base) });
     } else {
-      // Whole-column Base (e.g. Landslide): show its DESCRIPTION and the
-      // "Activate X?" decision together; an outside tap cancels.
+      // Whole-column Base (e.g. Landslide): a simple confirm — NO pile is tapped,
+      // so NOTHING is highlighted (a highlight would wrongly signal "tap a pile").
+      // Pile/target highlighting appears only on the choose-a-target steps above.
       armedBaseAct = { col, confirm: true };
       showActionBar("Activate " + escHtml(base.label) + "?", [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
         { label: "Activate", cls: "primary", onClick: () => { const c = armedBaseAct.col; disarmBaseAct(); fireBase(c, null); } },
-      ], engine.getRun().pileColumns ? baseColumnPiles(col) : [], { help: itemDescription(base), dismiss: disarmBaseAct });
+      ], [], { help: itemDescription(base), dismiss: disarmBaseAct });
     }
     refreshActivatableIndicators();
   }
