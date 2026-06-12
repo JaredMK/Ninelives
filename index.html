@@ -4060,67 +4060,67 @@ const BaseTypes = (() => {
       // column), then peek at the next 3 upcoming cards on the deck
       // (display-only). Can't fire while only one pile is alive board-wide.
       id: "kamikaze", label: "Kamikaze", icon: "💥",
-      kind: "active", effect: "kamikaze", target: "pile", tier: "uncommon", price: 8,
+      kind: "active", effect: "kamikaze", target: "pile", tier: "uncommon", price: 15,
       description: "Once per deal, activate and tap any pile on the board to kill it, then peek at the next 3 upcoming cards in the deck (it never changes the draw order). Unavailable while only one pile is alive on the board.",
     },
     shuffleColumn: {
       id: "shuffleColumn", label: "Upheaval", icon: "🌀",
-      kind: "active", effect: "shuffleColumn", tier: "common", price: 5,
+      kind: "active", effect: "shuffleColumn", tier: "common", price: 9,
       description: "Once per deal, shuffle every pile in this column and shuffle one buried card from each of those piles back into the deck. Composition only — no card order is revealed.",
     },
     revive: {
       id: "revive", label: "Phoenix", icon: "🔥",
-      kind: "active", effect: "reviveBase", tier: "uncommon", price: 9,
+      kind: "active", effect: "reviveBase", tier: "uncommon", price: 14,
       description: "Once per deal, bring a random dead pile in this column back to life with one fresh pile card; its buried cards shuffle back into the deck. Does nothing if no pile in this column is dead.",
     },
     randomSticker: {
       id: "randomSticker", label: "Wild Sticker", icon: "🎲",
-      kind: "active", effect: "randomSticker", target: "pile", tier: "uncommon", price: 7,
+      kind: "active", effect: "randomSticker", target: "pile", tier: "uncommon", price: 10,
       description: "Once per deal, apply a random sticker to the pile card of a pile you choose in this column. The sticker stays for the rest of the run.",
     },
     randomStickerAll: {
       id: "randomStickerAll", label: "Sticker Storm", icon: "🌪️",
-      kind: "active", effect: "randomStickerAll", tier: "rare", price: 10,
+      kind: "active", effect: "randomStickerAll", tier: "rare", price: 13,
       description: "Once per deal, apply a random sticker to the pile card of every pile in this column; the stickers stay for the rest of the run. Lose 1 coin for each sticker applied.",
     },
     evenOut: {
       id: "evenOut", label: "Ballast", icon: "⚖️",
-      kind: "active", effect: "evenOut", tier: "common", price: 4,
+      kind: "active", effect: "evenOut", tier: "common", price: 8,
       description: "Once per deal, move buried cards from larger piles to smaller piles in this column until the piles are as balanced as possible. Composition only — nothing is revealed.",
     },
     buryLargest: {
       id: "buryLargest", label: "Sinkhole", icon: "🕳️",
-      kind: "active", effect: "buryLargest", tier: "common", price: 4,
+      kind: "active", effect: "buryLargest", tier: "common", price: 7,
       description: "Once per deal, bury one card from the deck under the largest pile in this column.",
     },
     buryAll: {
       id: "buryAll", label: "Landslide", icon: "⛰️",
-      kind: "active", effect: "buryAll", tier: "uncommon", price: 6,
+      kind: "active", effect: "buryAll", tier: "uncommon", price: 10,
       description: "Once per deal, bury one card from the deck under each alive pile in this column. Lose 5 coins for each pile buried under.",
     },
     setValue: {
       id: "setValue", label: "Cast", icon: "🗿",
-      kind: "active", effect: "setValue", tier: "rare", price: 9,
+      kind: "active", effect: "setValue", tier: "rare", price: 18,
       description: "Once per deal, set every pile card in this column to the same value. The value is rolled once at the start of the run and shown to you.",
     },
     stickerHarvest: {
       id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
-      kind: "active", effect: "stickerHarvest", target: "pile", tier: "uncommon", price: 6,
+      kind: "active", effect: "stickerHarvest", target: "pile", tier: "uncommon", price: 11,
       description: "Once per deal, choose a pile in this column: bury one card from the deck under it for each sticker on its pile card, then remove every sticker from that pile card.",
     },
     refreshBases: {
       id: "refreshBases", label: "Reactor", icon: "⚛️",
-      kind: "active", effect: "refreshBases", tier: "rare", price: 12,
+      kind: "active", effect: "refreshBases", tier: "rare", price: 17,
       description: "Once per deal, recharge the other two Bases on your board if they have been spent this deal. It never recharges another Reactor.",
     },
     suitTally: {
       id: "suitTally", label: "Suit Tally", icon: "💰",
-      kind: "active", effect: "suitTally", tier: "uncommon", price: 7,
+      kind: "active", effect: "suitTally", tier: "uncommon", price: 12,
       description: "Once per deal, add up the value of every card of the rolled suit among the piles in this column and gain that many coins (face cards count as 10). The suit is rolled each deal and shown to you.",
     },
     copyToInventory: {
       id: "copyToInventory", label: "Replica", icon: "📑",
-      kind: "active", effect: "copyToInventory", tier: "rare", price: 11,
+      kind: "active", effect: "copyToInventory", tier: "rare", price: 18,
       description: "Once per deal, copy a random pile card in this column — including its stickers — and add the copy to your card inventory.",
     },
     // ---- expansion Bases --------------------------------------------------
@@ -4132,32 +4132,32 @@ const BaseTypes = (() => {
     // per-card power: ♥/♦ at base, ♣ −1, ♠ −2.
     heartDig: {
       id: "heartDig", label: "Heart Dig", icon: "♥️",
-      kind: "active", effect: "suitDig", suit: "♥", digCount: 1, tier: "common", price: 5,
+      kind: "active", effect: "suitDig", suit: "♥", digCount: 1, tier: "common", price: 8,
       description: "Once per deal, bury 1 card from the deck under each ♥ pile card in this column.",
     },
     diamondDig: {
       id: "diamondDig", label: "Diamond Dig", icon: "♦️",
-      kind: "active", effect: "suitDig", suit: "♦", digCount: 1, tier: "common", price: 5,
+      kind: "active", effect: "suitDig", suit: "♦", digCount: 1, tier: "common", price: 8,
       description: "Once per deal, bury 1 card from the deck under each ♦ pile card in this column.",
     },
     spadeDig: {
       id: "spadeDig", label: "Spade Dig", icon: "♠️",
-      kind: "active", effect: "suitDig", suit: "♠", digCount: 2, tier: "uncommon", price: 4,
+      kind: "active", effect: "suitDig", suit: "♠", digCount: 2, tier: "uncommon", price: 9,
       description: "Once per deal, bury 2 cards from the deck under each ♠ pile card in this column.",
     },
     clubDig: {
       id: "clubDig", label: "Club Dig", icon: "♣️",
-      kind: "active", effect: "suitDig", suit: "♣", digCount: 3, tier: "uncommon", price: 6,
+      kind: "active", effect: "suitDig", suit: "♣", digCount: 3, tier: "uncommon", price: 11,
       description: "Once per deal, bury 3 cards from the deck under each ♣ pile card in this column.",
     },
     demolish: {
       id: "demolish", label: "Demolish", icon: "🔨",
-      kind: "active", effect: "demolish", target: "pillar", tier: "uncommon", price: 7,
+      kind: "active", effect: "demolish", target: "pillar", tier: "uncommon", price: 10,
       description: "Once per deal, choose one of your placed Pillars and destroy it for good, gaining +15 coins.",
     },
     tax: {
       id: "tax", label: "Tax", icon: "🧾",
-      kind: "active", effect: "tax", tier: "uncommon", price: 6,
+      kind: "active", effect: "tax", tier: "uncommon", price: 9,
       description: "Once per deal, gain +1 coin for each pile still alive on the board.",
     },
   };
