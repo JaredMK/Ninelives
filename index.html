@@ -3544,7 +3544,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.47 · sell-peek-shuffle-batch";
+const APP_VERSION = "v2.48 · network-lockstep";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7887,7 +7887,7 @@ const UIRenderer = (() => {
   let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
   let edgeMap = new Map();    // edge key ("a-b") → live edge record, for in-place network updates
-  let driftRAF = null, driftLast = 0;  // rAF loop: JS-driven card drift + attached network
+  let driftRAF = null;        // single rAF loop: JS-driven card drift + attached network (one clock, one rate)
   // Perpetual card drift is COMPUTED in JS (known phase functions) — zero layout
   // reads per frame. Each pile's offset moves its card AND its network endpoints,
   // so the lines stay attached without ever measuring the DOM.
@@ -7896,6 +7896,11 @@ const UIRenderer = (() => {
   let netBaseCenter = {};     // pileIndex → static grid centre {x,y}, cached once per network build
   let driftOffCache = {};     // pileIndex → this frame's drift offset {x,y} (cards + network share it)
   const DRIFT_ZERO = { x: 0, y: 0 };
+  // A link's curve only needs its `d` rebuilt when its A→B vector (its SHAPE)
+  // genuinely changes; pure drift translation is carried by a composited group
+  // transform. Rebuild once the shape drifts past this many px (sub-pixel → the
+  // curve stays visually identical while skipping ~all per-frame path-d writes).
+  const EDGE_SHAPE_EPS = 0.35;
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -11290,25 +11295,46 @@ const UIRenderer = (() => {
      (used at render time and every drift frame). Re-derives the bowed centreline
      so the curve, bulges and travelling dots all stay attached to the cards. */
   function applyEdge(e, ax, ay, bx, by, now) {
-    const c = synapseControl(ax, ay, bx, by, e.bow);
-    for (const p of e.paths) p.el.setAttribute("d", lensPath(ax, ay, bx, by, c, p.mw));
-    for (const bg of e.bulges) {
-      const pt = bezPt(ax, ay, c, bx, by, bg.t);
-      bg.el.setAttribute("cx", pt.x.toFixed(1)); bg.el.setAttribute("cy", pt.y.toFixed(1));
+    // Rebuild the spindle/bulge GEOMETRY only when the edge's A→B vector (its
+    // shape) has genuinely drifted past EDGE_SHAPE_EPS. Otherwise the drift is a
+    // pure translation, carried by a single composited group transform — no
+    // path-d string is rewritten and no SVG geometry is re-tessellated.
+    if (e.refAx == null
+        || Math.abs((bx - ax) - (e.refBx - e.refAx)) > EDGE_SHAPE_EPS
+        || Math.abs((by - ay) - (e.refBy - e.refAy)) > EDGE_SHAPE_EPS) {
+      const c = synapseControl(ax, ay, bx, by, e.bow);
+      for (const p of e.paths) p.el.setAttribute("d", lensPath(ax, ay, bx, by, c, p.mw));
+      for (const bg of e.bulges) {                 // bulges ride the group transform between rebuilds
+        const pt = bezPt(ax, ay, c, bx, by, bg.t);
+        bg.el.setAttribute("cx", pt.x.toFixed(1)); bg.el.setAttribute("cy", pt.y.toFixed(1));
+      }
+      e.refAx = ax; e.refAy = ay; e.refBx = bx; e.refBy = by; e.refC = c; e.tx = 0; e.ty = 0;
+      if (e.gEl) e.gEl.removeAttribute("transform");   // d is now at live coords → identity
+    } else {
+      // Pure translation: shift the whole edge <g> (paths + bulges + pulses) by
+      // the drift since the last rebuild. Composited; geometry untouched.
+      const tx = ax - e.refAx, ty = ay - e.refAy;
+      if (tx !== e.tx || ty !== e.ty) {
+        e.tx = tx; e.ty = ty;
+        e.gEl.setAttribute("transform", "translate(" + tx.toFixed(2) + "," + ty.toFixed(2) + ")");
+      }
     }
+    // Pulses travel along the curve every frame, so they always get a fresh
+    // cx/cy — computed in the cached reference frame (e.refC), which the group
+    // transform then carries to the live position (a couple of cheap circle
+    // attr writes, the same kind the loss-screen fossils do via transform).
     for (const p of e.pulses) {
       const ph = ((now * p.sp) + p.of) % 1;
       const tt = p.dir < 0 ? 1 - ph : ph;          // direction along the curved path
-      const pt = bezPt(ax, ay, c, bx, by, tt);
+      const pt = bezPt(e.refAx, e.refAy, e.refC, e.refBx, e.refBy, tt);
       p.el.setAttribute("cx", pt.x.toFixed(1)); p.el.setAttribute("cy", pt.y.toFixed(1));
     }
   }
 
-  /* Drift sync loop: each frame, read every live card's CURRENT (drifting)
-     centre and move its connections' endpoints + travelling pulses to match, so
-     the network stays attached to the floating cards. Throttled to ~30fps;
-     paused when the tab is hidden; skipped entirely under reduced-motion (no
-     drift to follow). Reads then writes (no layout thrash). */
+  /* Each frame the loop seats every connection's endpoints + travelling pulses
+     from the cards' COMPUTED drift offsets (no layout reads), so the network
+     stays attached to the floating cards at display rate. Paused when the tab is
+     hidden; skipped entirely under reduced-motion (no drift to follow). */
   /* Whether the board (and its network) is actually ON SCREEN. The drift loop
      only needs to run while the board is visible; these full-screen phase
      surfaces completely cover it, so while any is up the loop should do no work.
@@ -11343,11 +11369,14 @@ const UIRenderer = (() => {
              y: d.wy[seg] + (d.wy[seg + 1] - d.wy[seg]) * e };
   }
 
-  /* The perpetual-motion loop. Per frame it COMPUTES each card's drift offset
-     (no getBoundingClientRect, no layout) and writes it as the card's transform;
-     the network endpoints are seated from base-centre + the SAME offset, so the
-     lines stay attached. Cards update every frame (cheap composited transform
-     writes); the heavier network SVG writes run at ~30fps. Pauses when the board
+  /* The perpetual-motion loop — ONE rAF clock at display rate driving cards AND
+     network together (like the loss-screen fossils), so links and cards move in
+     lockstep with nothing lagging. Per frame it COMPUTES each card's drift
+     offset (no getBoundingClientRect, no layout) and writes it as the card's
+     transform; the network endpoints are seated from base-centre + the SAME
+     offset in the SAME frame. The network stays cheap because each edge is moved
+     by a composited group transform (its path-d geometry is rebuilt only when
+     the edge's shape genuinely changes — see applyEdge). Pauses when the board
      is covered (boardVisible) or the tab is hidden; off entirely under reduced
      motion. */
   function startDriftSync() {
@@ -11359,7 +11388,7 @@ const UIRenderer = (() => {
       driftRAF = requestAnimationFrame(step);
       if (document.hidden) return;                // tab hidden: keep scheduling, skip work
       const now = t / 1000;
-      // (a) Cards every frame — pure compute + a composited transform write each.
+      // (a) Cards — pure compute + a composited transform write each.
       for (let i = 0; i < cardEls.length; i++) {
         const d = pileDriftParams[i], ce = cardEls[i];
         if (!d || !ce) continue;
@@ -11369,9 +11398,13 @@ const UIRenderer = (() => {
         if (!ce.classList.contains("wince"))
           ce.style.transform = "translate(" + o.x.toFixed(2) + "px," + o.y.toFixed(2) + "px)";
       }
-      // (b) Network at ~30fps — endpoints follow the cards via the cached offsets.
-      if (t - driftLast >= 31 && networkEl && netEdges.length) {
-        driftLast = t;
+      // (b) Network — SAME frame, SAME clock as the cards. Endpoints are seated
+      //     from the offsets JUST computed above, so the links move in exact
+      //     lockstep with the cards (no separate, slower network rate to judder
+      //     against). Per edge this is one composited group-translate plus a few
+      //     pulse cx/cy writes; a path-d rebuild fires only when an edge's shape
+      //     genuinely changes (see applyEdge).
+      if (networkEl && netEdges.length) {
         for (const e of netEdges) {
           const ba = netBaseCenter[e.a], bb = netBaseCenter[e.b];
           if (!ba || !bb) continue;
