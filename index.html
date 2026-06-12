@@ -1828,6 +1828,11 @@
   .board.placing-base .base-cell { cursor: pointer; }
   .board.placing-base .base-cell .base-banner { outline: 2px dashed #b07a3c; outline-offset: 1px; }
   .board.armed-base .pile:not(.dead) { cursor: pointer; }
+  /* Demolish targeting: highlight the Pillar banners you may destroy (the
+     reverse of the activation glow — a warning ring on a tappable Pillar). */
+  .board.armed-base-pillar .bp-cell .cph-banner:not(.empty) {
+    cursor: pointer; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 12px;
+  }
   /* Store tile Base preview reuses the board banner so players recognise it. */
   .store-tile .ti-base { width: 100%; height: 30px; margin-top: 1px; display: block; }
   .store-tile .ti-base .base-banner { height: 100%; }
@@ -4077,12 +4082,50 @@ const BaseTypes = (() => {
       kind: "active", effect: "copyToInventory", tier: "rare", price: 11,
       description: "Once per deal, copy a random pile card in this column — including its stickers — and add the copy to your card inventory.",
     },
+    // ---- expansion Bases --------------------------------------------------
+    // The "Dig" family is the FIRST suit-gated Base class: each carries a `suit`
+    // so the store offers it only once that suit is in play (♦/♥ Stage 1, ♣
+    // Stage 2, ♠ Stage 3), exactly like the suit Guards/Bonuses. A Wild Suit
+    // pile card counts for EVERY Dig. `digCount` is the cards buried per
+    // matching pile card. Prices follow the suit-timing rule on top of the
+    // per-card power: ♥/♦ at base, ♣ −1, ♠ −2.
+    heartDig: {
+      id: "heartDig", label: "Heart Dig", icon: "♥️",
+      kind: "active", effect: "suitDig", suit: "♥", digCount: 1, tier: "common", price: 5,
+      description: "Once per deal, bury 1 card from the deck under each ♥ pile card in this column.",
+    },
+    diamondDig: {
+      id: "diamondDig", label: "Diamond Dig", icon: "♦️",
+      kind: "active", effect: "suitDig", suit: "♦", digCount: 1, tier: "common", price: 5,
+      description: "Once per deal, bury 1 card from the deck under each ♦ pile card in this column.",
+    },
+    spadeDig: {
+      id: "spadeDig", label: "Spade Dig", icon: "♠️",
+      kind: "active", effect: "suitDig", suit: "♠", digCount: 2, tier: "uncommon", price: 4,
+      description: "Once per deal, bury 2 cards from the deck under each ♠ pile card in this column.",
+    },
+    clubDig: {
+      id: "clubDig", label: "Club Dig", icon: "♣️",
+      kind: "active", effect: "suitDig", suit: "♣", digCount: 3, tier: "uncommon", price: 6,
+      description: "Once per deal, bury 3 cards from the deck under each ♣ pile card in this column.",
+    },
+    demolish: {
+      id: "demolish", label: "Demolish", icon: "🔨",
+      kind: "active", effect: "demolish", target: "pillar", tier: "uncommon", price: 7,
+      description: "Once per deal, choose one of your placed Pillars and destroy it for good, gaining +15 coins.",
+    },
+    tax: {
+      id: "tax", label: "Tax", icon: "🧾",
+      kind: "active", effect: "tax", tier: "uncommon", price: 6,
+      description: "Once per deal, gain +1 coin for each pile still alive on the board.",
+    },
   };
   // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
   // override), so the whole class shares one distinct visual style.
   const ORDER = ["kamikaze", "shuffleColumn", "revive", "randomSticker",
     "randomStickerAll", "evenOut", "buryLargest", "buryAll", "setValue",
-    "stickerHarvest", "refreshBases", "suitTally", "copyToInventory"];
+    "stickerHarvest", "refreshBases", "suitTally", "copyToInventory",
+    "heartDig", "diamondDig", "spadeDig", "clubDig", "demolish", "tax"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -5064,6 +5107,9 @@ const GameEngine = (() => {
         case "refreshBases":     return refreshableBaseColumns(col).length > 0;
         case "suitTally":        return alive.length > 0;
         case "copyToInventory":  return alive.length > 0;
+        case "suitDig":          return !deck.isEmpty() && alive.some(i => { const t = board.top(i); return t && (t.suit === base.suit || t.wildSuit); });
+        case "demolish":         return !!run.pillars && run.pillars.some(Boolean);
+        case "tax":              return board.aliveCount() > 0;
         default:                 return false;
       }
     }
@@ -5102,14 +5148,18 @@ const GameEngine = (() => {
       if (!baseAvailable(col)) return null;
       const base = baseForColumn(col);
       // Validate the target for target Bases.
-      const needsTarget = base.target === "pile";
+      const needsTarget = base.target === "pile" || base.target === "pillar";
       if (needsTarget) {
         if (targetIndex == null) return null;
-        // Kamikaze may sacrifice ANY alive pile board-wide; the other target Bases
-        // act only on a pile in their own column.
-        if (base.effect === "kamikaze") {
+        if (base.target === "pillar") {
+          // Demolish: targetIndex is the COLUMN of the Pillar to destroy — it
+          // must currently hold a Pillar.
+          if (!run.pillars || !run.pillars[targetIndex]) return null;
+        } else if (base.effect === "kamikaze") {
+          // Kamikaze may sacrifice ANY alive pile board-wide.
           if (!board.isActive(targetIndex)) return null;
         } else {
+          // Other target Bases act only on a pile in their own column.
           if (run.pileColumns[targetIndex] !== col || !board.isActive(targetIndex)) return null;
         }
       }
@@ -5266,6 +5316,38 @@ const GameEngine = (() => {
           res.index = target;
           res.copyCardId = top.id;            // the UI duplicates this card into inventory
           logLine("copied the pile card of pile " + (target + 1) + " to the card inventory");
+          break;
+        }
+        case "suitDig": {
+          // Bury digCount cards under EACH alive pile in this column whose pile
+          // card matches the Base's suit (a Wild Suit pile card matches every Dig).
+          let piles = 0, buried = 0;
+          for (const i of colAlivePiles(col)) {
+            if (deck.isEmpty()) break;
+            const top = board.top(i);
+            if (!top || (top.suit !== base.suit && !top.wildSuit)) continue;
+            const n = buryTribute(i, base.digCount || 1, base.label);
+            if (n > 0) { piles++; buried += n; }
+          }
+          res.piles = piles; res.buried = buried;
+          logLine("buried " + buried + " cards under " + piles + " " + base.suit + " pile" + (piles === 1 ? "" : "s"));
+          break;
+        }
+        case "demolish": {
+          // targetIndex is the column whose Pillar is destroyed (validated above).
+          const destroyedId = run.pillars[targetIndex];
+          run.pillars[targetIndex] = null;             // stop its effect immediately
+          addBonus(base.label, 15);                    // +15 coins
+          res.demolishedCol = targetIndex;
+          res.demolishedPillar = destroyedId;          // the UI clears the campaign binding
+          logLine("destroyed the Pillar on column " + (targetIndex + 1) + " (+15 coins)");
+          break;
+        }
+        case "tax": {
+          const n = board.aliveCount();
+          if (n > 0) addBonus(base.label, n);
+          res.gained = n;
+          logLine("taxed " + n + " alive piles → +" + n + " coins");
           break;
         }
         default:
@@ -5939,7 +6021,7 @@ const GameEngine = (() => {
           deal, in active play, and its per-Base precondition holds). */
       baseAvailable(col) { return baseAvailable(col); },
       /** Whether the Base on column `col` needs the player to pick a target pile. */
-      baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && b.target === "pile"); },
+      baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && (b.target === "pile" || b.target === "pillar")); },
       /** Activate the Base on column `col` (with a chosen `targetIndex` for target
           Bases). Returns a result object describing what fired, or null. */
       baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
@@ -6102,11 +6184,11 @@ const CampaignState = (() => {
     return PillarTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
   }
 
-  /** Base types available to offer. Bases carry no suit gate today, so the whole
-      registry is always eligible; kept as a function to mirror the sticker/Pillar
-      pools (and to make a future suit-locked Base trivial). */
-  function basePoolForSuits(_suitsInPlay) {
-    return BaseTypes.all();
+  /** Base types whose required suit (if any) is in play — the Dig family is
+      suit-gated exactly like the suit Guards/Bonuses; every other Base is
+      suit-free and always eligible. */
+  function basePoolForSuits(suitsInPlay) {
+    return BaseTypes.all().filter(t => !t.suit || (suitsInPlay && suitsInPlay.indexOf(t.suit) !== -1));
   }
 
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
@@ -8991,6 +9073,15 @@ const UIRenderer = (() => {
         }
         return;
       }
+      // A Demolish Base is armed: a tap on a highlighted Pillar banner fires it.
+      if (armedBaseAct && armedBaseAct.pillarTarget) {
+        const bp = e.target.closest(".bp-cell");
+        if (bp) {
+          const tcol = Number(bp.dataset.col);
+          if (pillarTargets().indexOf(tcol) !== -1) { const col = armedBaseAct.col; disarmBaseAct(); fireBase(col, tcol); }
+        }
+        return;   // any other tap is ignored — back out via Cancel
+      }
       // A target Base is armed: a tap on a highlighted pile fires it.
       if (armedBaseAct && !armedBaseAct.confirm) {
         if (tPile) {
@@ -9635,6 +9726,12 @@ const UIRenderer = (() => {
         // no other Base touches a pile's alive state.
         if (payload.effect === "reviveBase" && payload.index != null && pileEls[payload.index]) {
           pileEls[payload.index].classList.remove("dead", "death-flash");
+        }
+        // Demolish destroyed a Pillar: clear the campaign binding too (gone for
+        // good — not returned to inventory) and repaint the Pillar row.
+        if (payload.effect === "demolish" && payload.demolishedCol != null && campaign) {
+          campaign.setColumnPillar(payload.demolishedCol, null);
+          paintColumnPillars(campaign.layoutForRun(campaign.currentRunIndex).cols);
         }
         // Kamikaze killed a pile (engine-side) — play the SAME death presentation
         // as a wrong-guess kill (flash 340ms, dissolve + network sever at 300ms).
@@ -12455,8 +12552,16 @@ const UIRenderer = (() => {
       case "kamikaze":       return "Choose a pile to kill, then peek at the next 3 upcoming cards.";
       case "randomSticker":  return "Choose a pile in this column to sticker its pile card.";
       case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
+      case "demolish":       return "Choose one of your Pillars to destroy for +15 coins.";
       default:               return "Choose a target pile.";
     }
+  }
+  /** Columns that currently hold a Pillar (Demolish's targets). */
+  function pillarTargets() {
+    const run = engine.getRun();
+    const out = [];
+    if (run && run.pillars) for (let c = 0; c < run.pillars.length; c++) if (run.pillars[c]) out.push(c);
+    return out;
   }
   function toggleArmBase(col) {
     if (armedBaseAct && armedBaseAct.col === col) { disarmBaseAct(); return; }
@@ -12464,6 +12569,17 @@ const UIRenderer = (() => {
     const base = engine.baseForColumn(col);
     armedRevive = null;
     clearSelection();
+    if (base.target === "pillar") {
+      // Demolish: target a PILLAR banner (not a pile). Highlight the destroyable
+      // Pillars; a tap on one fires; Cancel backs out.
+      armedBaseAct = { col, pillarTarget: true };
+      if (el.board) { el.board.classList.add("armed-base-pillar"); el.board.classList.remove("armed-base", "armed-revive"); }
+      showActionBar(baseTargetPrompt(base), [
+        { label: "Cancel", cls: "no", onClick: disarmBaseAct },
+      ], [], { help: base.description });
+      refreshActivatableIndicators();
+      return;
+    }
     if (engine.baseNeedsTarget(col)) {
       armedBaseAct = { col };
       if (el.board) { el.board.classList.add("armed-base"); el.board.classList.remove("armed-revive"); }
@@ -12493,7 +12609,7 @@ const UIRenderer = (() => {
   }
   function disarmBaseAct() {
     armedBaseAct = null;
-    if (el.board) el.board.classList.remove("armed-base");
+    if (el.board) el.board.classList.remove("armed-base", "armed-base-pillar");
     hideActionBar();
     refreshActivatableIndicators();
   }

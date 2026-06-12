@@ -23,12 +23,15 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
-    r.eq(BaseTypes.all().length, 13, "all 13 Bases registered");
+    r.eq(BaseTypes.all().length, 19, "all 19 Bases registered (13 originals + 6 expansion)");
     r.ok(!!BaseTypes.get("kamikaze"), "Kamikaze is a Base now");
     r.eq(BaseTypes.get("kamikaze").kind, "active", "Bases are the 'active' kind");
     r.eq(BaseTypes.get("kamikaze").target, "pile", "Kamikaze is a target Base");
     r.ok(!BaseTypes.get("shuffleColumn").target, "Shuffle Column is a whole-column Base");
-    r.ok(BaseTypes.all().every(b => !b.suit), "no Base is suit-gated");
+    // The Dig family is suit-gated; every other Base is suit-free.
+    r.ok(["heartDig", "diamondDig", "spadeDig", "clubDig"].every(id => !!BaseTypes.get(id).suit), "the four Dig Bases are suit-gated");
+    r.ok(BaseTypes.all().filter(b => b.suit).length === 4, "only the four Dig Bases carry a suit");
+    r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish targets a Pillar");
     r.ok(BaseTypes.all().every(b => typeof b.price === "number" && b.description), "every Base has a price + description");
   }
 

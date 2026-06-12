@@ -23,6 +23,7 @@ import { run as newItems } from "./new-items.test.mjs";
 import { run as bases } from "./bases.test.mjs";
 import { run as expansionStickers } from "./expansion-stickers.test.mjs";
 import { run as expansionPillars } from "./expansion-pillars.test.mjs";
+import { run as expansionBases } from "./expansion-bases.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -46,6 +47,7 @@ const SUITES = [
   ["bases", bases],
   ["expansion-stickers", expansionStickers],
   ["expansion-pillars", expansionPillars],
+  ["expansion-bases", expansionBases],
 ];
 
 let pass = 0,
