@@ -77,7 +77,8 @@
     --info-title-size: 13px;
     --info-desc-size: 11.5px;
     --info-desc-lh: 1.4;
-    --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory ↔ histogram band */
+    --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band */
+    --bottom-run-h: 52px;                    /* run-phase pip-matrix band (compact) */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -323,6 +324,11 @@
      instead of an empty panel. */
   .bottom-region.setup.inv-empty .setup-inv  { display: none; }
   .bottom-region.setup.inv-empty .deck-strip { display: flex; }
+  /* Run phase: the pip matrix is compact, so the band shrinks to a fraction of
+     the setup band — fitBoard reads this live and flows the freed height into the
+     pile field (taller cards during play). The deck stack compacts inline. */
+  .bottom-region.run { height: var(--bottom-run-h, 52px); align-items: center; background: none; border: none; padding: 2px 4px; }
+  .bottom-region.run .deck-stack { transform: scale(0.56); transform-origin: center right; }
   /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
      at its own consistent size instead of competing in one mixed strip. The tab
      bar sits on top; the active family's strip scrolls horizontally below it. */
@@ -440,6 +446,17 @@
   .ds-bar.ds-active .ds-blue { background: var(--amber); }
   .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
+  /* PIP MATRIX — per rank, a column of 4 stacked cells filled bottom-up to the
+     number of that rank still in the deck (0–4). Filled = histogram magenta;
+     empty = faint neutral. Replaces the tall bars in the on-screen band; the
+     deck-inspector modal keeps the .ds-track bars above. */
+  .ds-bar { justify-content: flex-end; }
+  .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; }
+  .ds-pip { width: clamp(11px, 2.4vw, 16px); height: 7px; border-radius: 2px;
+    background: rgba(74,52,44,0.13); }
+  .ds-pip.filled { background: var(--accent-2); }
+  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.28); }
+  .ds-bar.ds-active .ds-pip.filled { background: var(--amber); }
   /* Scrubber readout — absolute overlay so it never changes the strip's height. */
   .ds-scrub {
     position: absolute; left: 0; right: 0; bottom: 100%;
@@ -1380,18 +1397,21 @@
   .play-btn:active { transform: scale(0.97); }
   /* In-board Start Run button (sticker phase). Sized like the guess row so the
      layout doesn't jump when it's swapped for the buttons. */
-  .play-btn.start-run { padding: 14px 40px; font-size: 17px; }
+  /* Pre-deal action row: START DEAL is the wide primary that flex-grows; REDEAL
+     is a bordered pill beside it. Both sit on ONE compact line (no wrap). */
+  .play-btn.start-run { flex: 1 1 auto; max-width: 360px; padding: 13px 28px; font-size: 17px; }
   .play-btn.start-run.hidden { display: none; }
   /* Redeal (pre-run reshuffle). Secondary look — muted, outlined — so it reads
      as the optional/paid action next to the primary Start Run. */
   .play-btn.redeal {
+    flex: 0 0 auto;
     background: transparent;
     color: var(--accent);
     border: 2px solid var(--accent);
     box-shadow: none;
-    padding: 10px 22px;
+    padding: 11px 18px;
     font-size: 14px;
-    margin-top: 8px;
+    margin-top: 0;
   }
   .play-btn.redeal.hidden { display: none; }
   .play-btn.redeal:disabled {
@@ -1830,7 +1850,7 @@
   .board.has-pillars .board-pillars,
   .board.show-slots .board-pillars {
     display: flex; justify-content: center; align-items: flex-start;
-    gap: var(--gap); width: 100%; height: var(--pillar-row-h, 64px);
+    gap: var(--gap); width: 100%; height: var(--pillar-row-h, 48px);
   }
   .bp-cell {
     width: var(--pile-w-fit); height: 100%; position: relative;
@@ -1970,10 +1990,10 @@
   .board.has-bases .board-bases,
   .board.show-slots .board-bases {
     display: flex; justify-content: center; align-items: center;
-    gap: var(--gap); width: 100%; height: var(--base-row-h, 36px); margin-top: 2px;
+    gap: var(--gap); width: 100%; height: var(--base-row-h, 32px); margin-top: 2px;
   }
   .base-cell {
-    width: var(--pile-w-fit); height: 34px; position: relative;
+    width: var(--pile-w-fit); height: 30px; position: relative;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
   /* ---- BASE = engraved brass plaque (one component, shop + installed) ----
@@ -3788,7 +3808,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.54 · shop-shelf-rebuild";
+const APP_VERSION = "v2.55 · field-first-layout";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8661,19 +8681,17 @@ const UIRenderer = (() => {
   }
   function renderDeckStrip() {
     if (!el.deckStrip || !deckStripOn) return;
-    const { remaining, full } = deckStripStats();
+    const { remaining } = deckStripStats();
     stripRemaining = remaining;                 // the scrubber sums these
-    let scaleMax = 1;
-    full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
-    el.deckStripBars.innerHTML = remaining.rows.map((row, i) => {
-      const total = (full.rows[i] && full.rows[i].count) || 0;
-      const greyPct = (total / scaleMax) * 100;            // absolute, shared scale
-      const bluePct = (row.count / scaleMax) * 100;        // remaining, same scale
+    // Pip matrix: 4 stacked cells per rank, filled bottom-up to the count still
+    // in the deck (capped at 4). data-value + .ds-rank are kept so the existing
+    // drag-scrubber (higher/same/lower readout) works unchanged.
+    el.deckStripBars.innerHTML = remaining.rows.map((row) => {
+      const n = Math.max(0, Math.min(4, row.count));
+      let pips = "";
+      for (let i = 0; i < 4; i++) pips += '<span class="ds-pip' + (i < n ? " filled" : "") + '"></span>';
       return '<div class="ds-bar" data-value="' + row.value + '">' +
-        '<div class="ds-track">' +
-          '<div class="ds-grey" style="height:' + greyPct + '%"></div>' +
-          '<div class="ds-blue" style="height:' + bluePct + '%"></div>' +
-        "</div>" +
+        '<div class="ds-pips">' + pips + "</div>" +
         '<div class="ds-rank">' + row.label + "</div></div>";
     }).join("");
   }
