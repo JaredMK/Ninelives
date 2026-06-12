@@ -161,48 +161,42 @@ export function run() {
     r.eq(packKeys, baseKeys, "pack card carries the same identity fields as a deck card");
   }
 
-  // ===== Phase 2: store roll + buy/reveal =================================
+  // ===== Phase 2: store roll + buy/reveal (packs live in MIXED slots) =====
+  // Find a store visit whose mixed slots include a pack; return { c, slot, id }.
+  const findMixedPack = (c) => {
+    for (let i = 0; i < 200; i++) {
+      const offer = c.openStore();
+      const slot = offer.mixed.findIndex(s => s && s.kind === "pack");
+      if (slot !== -1) return { slot, id: offer.mixed[slot].id };
+    }
+    throw new Error("never offered a mixed pack");
+  };
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    // Both pack slots are always filled now, so slot 0 always holds a pack.
-    c.openStore(rngFrom(1));
-    const offer = c.getStoreOffer();
-    r.ok(offer && offer.packs[0], "store offer rolls a pack into the section");
-    const packId = offer.packs[0];
+    const { slot, id: packId } = findMixedPack(c);
     const t = PackTypes.get(packId);
     const before = c.getCoins();
-    const result = c.buyOfferedPack(0, rngFrom(99));
-    r.ok(result && result.packId === packId, "buyOfferedPack reveals the bought pack");
-    r.eq(result.items.length, t.size, "reveals `size` items");
-    r.eq(result.keep, t.keep, "carries the keep count");
-    r.eq(c.getStoreOffer().packs[0], null, "buying empties only that pack slot");
+    const res = c.buyMixedSlot(slot, rngFrom(99));
+    r.ok(res.ok && res.kind === "pack" && res.reveal && res.reveal.packId === packId, "buyMixedSlot reveals the bought pack");
+    r.eq(res.reveal.items.length, t.size, "reveals `size` items");
+    r.eq(res.reveal.keep, t.keep, "carries the keep count");
+    r.eq(c.getStoreOffer().mixed[slot], null, "buying empties only that mixed slot");
     r.eq(c.getCoins(), before - t.price, "charged the fixed pack price (no escalation)");
-    r.ok(!c.buyOfferedPack(0, rngFrom(1)), "can't buy an already-empty pack slot");
+    r.ok(!c.buyMixedSlot(slot, rngFrom(1)).ok, "can't buy an already-empty mixed slot");
 
     const broke = CampaignState.create();
-    broke.openStore(rngFrom(2));   // slot 0 is always a pack now
-    r.ok(broke.getStoreOffer().packs[0], "broke offer still has a pack in slot 0");
-    r.ok(!broke.buyOfferedPack(0, rngFrom(2)), "can't buy a pack with no coins");
+    const m = findMixedPack(broke);
+    r.ok(!broke.buyMixedSlot(m.slot, rngFrom(2)).ok, "can't buy a pack with no coins");
   }
 
-  // --- Both pack slots are always filled — one of EACH type (no dupes) ---
+  // --- Mixed pack draws: both pack TYPES can appear across many visits ----
   {
     const c = CampaignState.create();
-    let allFull = true, oneOfEach = true, varied = new Set();
-    for (let seed = 1; seed <= 40; seed++) {
-      c.openStore(rngFrom(seed));
-      const packs = c.getStoreOffer().packs;
-      if (packs.length !== 2 || !packs.every(Boolean)) allFull = false;
-      // With exactly two pack types for two slots, every visit shows one card
-      // pack and one sticker pack (distinct roll), never a duplicate.
-      const kinds = packs.map(id => (PackTypes.get(id) || {}).kind).sort().join(",");
-      if (kinds !== "card,sticker") oneOfEach = false;
-      varied.add(packs.join(","));
-    }
-    r.ok(allFull, "every visit fills both pack slots (no empty/absent visits)");
-    r.ok(oneOfEach, "every visit offers exactly one Card Pack and one Sticker Pack");
-    r.ok(varied.size > 1, "pack slots re-roll across visits (slot order varies)");
+    const kinds = new Set();
+    for (let i = 0; i < 400; i++)
+      c.openStore().mixed.forEach(s => { if (s && s.kind === "pack") kinds.add((PackTypes.get(s.id) || {}).kind); });
+    r.ok(kinds.has("card") && kinds.has("sticker"), "mixed pack slots can roll BOTH a Card Pack and a Sticker Pack");
   }
 
   // ===== Phase 3: permanent deck replacement =============================

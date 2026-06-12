@@ -1496,102 +1496,93 @@
   /* ============================================================
      STORE — three colour/shape-coded zones + one fixed help slot.
      ============================================================ */
-  /* Store header row: coins balance (left) + Reroll control (right). */
-  .store-top { width: min(96vw, 400px); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .store-balance { font-size: 12px; color: var(--muted);
-    display: flex; align-items: center; gap: 5px; }
-  .store-balance b { color: var(--amber); font-size: 16px; font-weight: 800; }
-  .store-balance .coin-ico { font-size: 14px; }
-  /* Reroll: a defined store-level control (refreshes the whole offering). */
+  /* Store header: shop title + coin balance (left), Refresh control (right). */
+  .store-top { width: min(94vw, 440px); display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .store-head { display: flex; flex-direction: column; gap: 1px; }
+  .store-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: 0.3px; color: var(--text); line-height: 1; }
+  .store-balance { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .store-balance b { color: var(--amber); font-size: 17px; font-weight: 800; }
+  .store-balance .coin-ico { font-size: 13px; }
+  /* Refresh: a defined store-level control (re-rolls the whole offering). */
   .store-reroll { flex: none; display: inline-flex; align-items: center; gap: 6px;
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--accent); border-radius: 999px;
-    padding: 6px 14px; font-size: 12.5px; font-weight: 800;
+    padding: 8px 16px; font-size: 12.5px; font-weight: 800;
     cursor: pointer; touch-action: manipulation; box-shadow: var(--shadow); }
   .store-reroll .ico { font-size: 15px; }
   .store-reroll .coin-ico { font-size: 12px; }
   .store-reroll:disabled { background: var(--panel-2); color: var(--muted); border-color: var(--edge-2); box-shadow: none; cursor: default; }
   .store-reroll:active { transform: scale(0.97); }
 
-  /* Category zone: its own tint, border, and header colour — tell them apart at a glance. */
-  .zone { width: min(96vw, 400px); border-radius: 13px; padding: 5px 8px 6px; border: 1px solid; }
-  .zone-h { display: flex; align-items: center; gap: 6px; font-family: var(--font-display);
-    font-weight: 700; font-size: 12px; letter-spacing: 1.6px; margin-bottom: 4px; }
-  .zone-h .ico { font-size: 15px; }
-  .zone-h .tag { font-family: var(--font-text); font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
-    opacity: 0.6; margin-left: auto; text-transform: none; }
-  .z-imp  { background: linear-gradient(160deg, rgba(232,139,176,0.08), rgba(232,139,176,0.02)); border-color: rgba(232,139,176,0.30); }
-  .z-imp  .zone-h { color: var(--accent-2); }
-  .z-path { background: linear-gradient(160deg, rgba(160,116,214,0.10), rgba(160,116,214,0.03)); border-color: rgba(160,116,214,0.34); }
-  .z-path .zone-h { color: #6E51A6; }
-  .z-swap { background: linear-gradient(160deg, rgba(86,196,196,0.09), rgba(86,196,196,0.03)); border-color: rgba(86,196,196,0.30); }
-  .z-swap .zone-h { color: #1F8688; }
+  /* A shelf: a labelled section holding one row of large tiles. The two shelves
+     (Stickers, Items) are clearly separated by their headers + generous gaps. */
+  .store-shelf { width: min(94vw, 440px); }
+  .shelf-h { display: flex; align-items: center; gap: 7px; font-family: var(--font-display);
+    font-weight: 800; font-size: 13px; letter-spacing: 0.8px; text-transform: uppercase;
+    margin: 5px 3px 8px; }
+  .shelf-h .ico { font-size: 15px; }
+  .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 600; letter-spacing: 0.2px;
+    opacity: 0.6; margin-left: auto; text-transform: none; color: var(--muted); }
+  .store-shelf.z-imp .shelf-h { color: var(--accent-2); }   /* rose — stickers */
+  .store-shelf.z-mix .shelf-h { color: #6E51A6; }           /* violet — mixed items */
 
-  /* Tile row — stays on ONE row, shrink-to-fit (5-item offers never wrap). */
-  .store-row { display: flex; flex-wrap: nowrap; gap: 6px; }
+  /* One row of THREE large tiles. */
+  .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+
+  /* Large, inviting item card: top chips, big icon/banner, name, price. */
   .store-tile {
-    position: relative; flex: 1 1 0; min-width: 0;
-    background: rgba(246,239,231,0.72); color: var(--text);
-    border: 1px solid rgba(74,52,44,0.07); border-radius: 12px;
-    padding: 5px 4px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    cursor: pointer; box-shadow: var(--shadow); transition: transform 0.1s ease, box-shadow 0.1s ease;
+    position: relative; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 11px 8px 11px; border-radius: 17px;
+    background: linear-gradient(180deg, rgba(255,252,248,0.97), rgba(248,241,233,0.95));
+    color: var(--text); border: 1px solid rgba(74,52,44,0.10);
+    border-top: 3px solid var(--edge-2);   /* rarity accent (overridden by .srt-*) */
+    cursor: pointer; box-shadow: 0 3px 10px rgba(74,44,52,0.10);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
-  .store-tile:active { transform: scale(0.96); }
-  .store-tile.disabled { opacity: 0.45; }   /* unaffordable: dimmed, still tappable for help */
+  .store-tile:active { transform: scale(0.97); }
+  .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the description */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
-  .store-tile .ti-icon { font-size: 20px; line-height: 1; margin-top: 0; }
-  .z-imp  .store-tile .ti-icon { color: var(--accent-2); }
-  .z-path .store-tile .ti-icon { color: #6E51A6; }
-  .z-swap .store-tile .ti-icon { color: #1F8688; }
-  /* Pathway tiles show the shared synapse+icon banner (fits the tile width). */
-  .store-tile .ti-syn { width: 100%; height: 20px; margin-top: 0; display: block; }
-  .store-tile .ti-name { font-size: 9.5px; font-weight: 700; line-height: 1.08; color: var(--text);
-    min-height: 14px; display: flex; align-items: center; text-align: center; }
-  .store-tile .ti-price { font-size: 11px; font-weight: 800; color: var(--amber);
+  /* Top strip: category chip (left) + rarity chip (right). */
+  .store-tile .ti-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 15px; }
+  .store-tile .ti-kind { font-size: 8px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--muted); background: rgba(110,94,104,0.10); border-radius: 999px; padding: 2px 7px; }
+  .store-tile .ti-tier { font-size: 8px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 7px; }
+  /* Big central icon / banner. */
+  .store-tile .ti-icon { font-size: 29px; line-height: 1; margin: 3px 0 1px; }
+  .store-tile .ti-syn  { width: 100%; height: 28px; display: block; margin: 2px 0; }
+  .store-tile .ti-base { width: 100%; height: 28px; display: block; margin: 2px 0; }
+  .tile-sticker .ti-icon { color: var(--accent-2); }
+  .tile-pack    .ti-icon { color: #1F8688; }
+  /* Name + price. */
+  .store-tile .ti-name { font-size: 11.5px; font-weight: 800; line-height: 1.12; text-align: center;
+    color: var(--text); min-height: 27px; display: flex; align-items: center; }
+  .store-tile .ti-price { font-size: 14px; font-weight: 800; color: var(--amber);
     display: inline-flex; align-items: center; gap: 3px; }
-  .store-tile .ti-price .coin-ico { font-size: 11px; }
-  .store-tile.selected { transform: translateY(-2px); }
-  .z-imp  .store-tile.selected { border-color: var(--accent);  box-shadow: 0 0 0 2px var(--accent); }
-  .z-path .store-tile.selected { border-color: #6E51A6;        box-shadow: 0 0 0 2px #6E51A6; }
-  .z-swap .store-tile.selected { border-color: #1F8688;        box-shadow: 0 0 0 2px #1F8688; }
-  /* Rarity badge (top-left). */
-  .store-tile .ti-tier { position: absolute; top: 4px; left: 5px; font-size: 8px; font-weight: 800;
-    width: 14px; height: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-  .store-tile .tier-common   { color: var(--muted); background: rgba(110,94,104,0.14); }
-  .store-tile .tier-uncommon { color: var(--good);  background: rgba(132,200,154,0.18); }
-  .store-tile .tier-rare     { color: var(--amber); background: rgba(224,151,60,0.20); }
-
-  /* Pathway column chooser (inside the Pathways zone). */
-  .pillar-slots { display: flex; gap: 7px; margin-top: 8px; }
-  .pillar-slot { flex: 1 1 0; min-width: 0;
-    background: rgba(246,239,231,0.55); color: var(--text);
-    border: 1px dashed rgba(160,116,214,0.45); border-radius: 11px;
-    padding: 8px 3px; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    cursor: pointer; transition: transform 0.08s ease; }
-  .pillar-slot:active { transform: scale(0.96); }
-  .pillar-slot.filled { border-style: solid; border-color: rgba(160,116,214,0.5); }
-  .pillar-slot.armed { outline: 2px solid #6E51A6; outline-offset: 1px; }
-  .pillar-slot.placing { border-style: solid; border-color: #6E51A6; background: rgba(160,116,214,0.12); }
-  .pillar-slot .ps-col { font-size: 9px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-  .pillar-slot .ps-icon { font-size: 17px; line-height: 1.1; color: #6E51A6; }
-  .pillar-slot .ps-name { font-size: 9px; font-weight: 700; text-align: center; line-height: 1.1; }
-  .pillar-slot .ps-empty { font-size: 15px; color: var(--muted); }
-
-  /* Trash-Pathway control (in the Pathways zone, only when a column is armed). */
-  .trash-pillar-btn { margin: 8px auto 0; align-self: center;
-    background: rgba(181,67,90,0.16); color: var(--bad);
-    border: 1px solid var(--danger); border-radius: 999px;
-    padding: 6px 14px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
-  .trash-pillar-btn.hidden { display: none; }
-  .trash-pillar-btn:active { transform: scale(0.96); }
+  .store-tile .ti-price .coin-ico { font-size: 13px; }
+  /* Rarity accent: top border + tier-chip colour (packs use a teal "—" accent). */
+  .store-tile.srt-common   { border-top-color: rgba(110,94,104,0.45); }
+  .store-tile.srt-uncommon { border-top-color: var(--good); }
+  .store-tile.srt-rare     { border-top-color: var(--amber); }
+  .store-tile.srt-none     { border-top-color: rgba(86,196,196,0.55); }
+  .store-tile.srt-common   .ti-tier { color: var(--muted); background: rgba(110,94,104,0.14); }
+  .store-tile.srt-uncommon .ti-tier { color: var(--good);  background: rgba(132,200,154,0.20); }
+  .store-tile.srt-rare     .ti-tier { color: #b9781f;      background: rgba(224,151,60,0.22); }
+  /* Selected: lift + a rarity-coloured ring. */
+  .store-tile.selected { transform: translateY(-3px); }
+  .store-tile.selected.srt-common   { box-shadow: 0 0 0 2px rgba(110,94,104,0.5), 0 7px 16px rgba(74,44,52,0.18); }
+  .store-tile.selected.srt-uncommon { box-shadow: 0 0 0 2px var(--good),         0 7px 16px rgba(74,44,52,0.18); }
+  .store-tile.selected.srt-rare     { box-shadow: 0 0 0 2px var(--amber),        0 7px 16px rgba(74,44,52,0.18); }
+  .store-tile.selected.srt-none     { box-shadow: 0 0 0 2px rgba(86,196,196,0.6), 0 7px 16px rgba(74,44,52,0.18); }
 
   /* Sticky footer: the one fixed help slot + the action row. */
   /* Foot pinned to the bottom of the no-scroll store (margin-top:auto), holding
      the help slot, the view buttons (Inventory / Cards / Reroll), and Start. */
-  .store-foot { margin-top: auto; width: min(96vw, 400px);
-    display: flex; flex-direction: column; gap: 5px; padding-top: 2px; }
-  .store-help { background: rgba(248,242,235,0.97); border: 1px solid var(--edge-2); border-radius: 13px;
-    padding: 6px 11px; min-height: 38px; }
+  .store-foot { margin-top: auto; width: min(94vw, 440px);
+    display: flex; flex-direction: column; gap: 7px; padding-top: 4px; }
+  .store-help { background: rgba(248,242,235,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
+    padding: 8px 13px; min-height: 42px; box-shadow: 0 2px 8px rgba(74,44,52,0.07); }
   /* Empty (nothing selected): keep the reserved height so the layout never jumps,
      but show a blank slot, no placeholder text or chrome. */
   .store-help.empty { background: transparent; border-color: transparent; }
@@ -1599,12 +1590,13 @@
   .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
     letter-spacing: 0.4px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
   .store-help .sh-title .ico { font-size: 17px; flex: none; }
+  .store-help .sh-kind { font-size: 9px; font-weight: 800; color: #6E51A6; text-transform: uppercase; letter-spacing: 0.5px;
+    background: rgba(160,116,214,0.12); border-radius: 999px; padding: 1px 7px; }
   .store-help .sh-tier { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
   .store-help.empty .sh-title { color: var(--muted); font-family: var(--font-text); font-weight: 600; font-size: 12px; }
   .store-help .sh-desc { font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 4px; }
   .store-help.empty .sh-desc { color: var(--muted); opacity: 0.65; }
-  .store-help .sh-col { font-size: 11px; font-weight: 700; color: #6E51A6; margin-top: 5px; }
-  .store-help .sh-col.hidden, .store-help .sh-buy.hidden { display: none; }
+  .store-help .sh-buy.hidden { display: none; }
   .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
     color: #fff; border: none; border-radius: 999px; padding: 8px 16px;
     font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
@@ -1932,7 +1924,7 @@
     cursor: pointer; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 12px;
   }
   /* Store tile Base preview reuses the board banner so players recognise it. */
-  .store-tile .ti-base { width: 100%; height: 24px; margin-top: 0; display: block; }
+  .store-tile .ti-base { width: 100%; height: 28px; margin: 2px 0; display: block; }
   .store-tile .ti-base .base-banner { height: 100%; }
 
   /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
@@ -3250,37 +3242,27 @@
   <!-- Store overlay — shown between runs. Three colour/shape-coded zones, one
        fixed help slot at the bottom that fills on selection (no per-item "?"). -->
   <div class="overlay store hidden" id="storeOverlay">
-    <!-- Store header: coins on the left, Reroll on the right. Reroll is a
-         store-level control (it refreshes the whole offering), so it lives up
-         here rather than down with the view buttons. -->
+    <!-- Store header: title + coins on the left, Refresh on the right. -->
     <div class="store-top">
-      <div class="store-balance">Coins to spend: <b id="storeCoins">0</b>
-        <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg></div>
-      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh store</button>
+      <div class="store-head">
+        <div class="store-title">Shop</div>
+        <div class="store-balance"><b id="storeCoins">0</b>
+          <svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> to spend</div>
+      </div>
+      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
     </div>
 
-    <div class="zone z-imp">
-      <div class="zone-h"><span class="ico-slot" data-ico="dot"></span> STICKERS
+    <!-- Two shelves: three individual Stickers, then three mixed Items. -->
+    <div class="store-shelf z-imp">
+      <div class="shelf-h"><span class="ico-slot" data-ico="dot"></span> Stickers
         <span class="tag">change what a card does</span></div>
-      <div class="store-row" id="storeItems"></div>
+      <div class="store-row big" id="storeItems"></div>
     </div>
 
-    <div class="zone z-path">
-      <div class="zone-h"><span class="ico-slot" data-ico="guardian"></span> PILLARS
-        <span class="tag">change a whole column</span></div>
-      <div class="store-row" id="storePillars"></div>
-    </div>
-
-    <div class="zone z-base">
-      <div class="zone-h"><span class="ico-slot" data-ico="anchor"></span> BASES
-        <span class="tag">activate once per deal</span></div>
-      <div class="store-row" id="storeBases"></div>
-    </div>
-
-    <div class="zone z-swap">
-      <div class="zone-h"><span class="ico-slot" data-ico="cache"></span> PACKS
-        <span class="tag">open, reveal, then pick</span></div>
-      <div class="store-row" id="storePacks"></div>
+    <div class="store-shelf z-mix">
+      <div class="shelf-h"><span class="ico-slot" data-ico="cache"></span> Items
+        <span class="tag">base · pillar · pack</span></div>
+      <div class="store-row big" id="storeMixed"></div>
     </div>
 
     <div class="store-msg" id="storeMsg"></div>
@@ -3292,8 +3274,7 @@
           <span class="sh-title" id="shTitle">Tap any item to see what it does</span>
           <button class="sh-buy hidden" id="shBuy" type="button">Buy</button>
         </div>
-        <div class="sh-desc" id="shDesc">Select a Sticker, Pillar, or Pack to read it here.</div>
-        <div class="sh-col hidden" id="shCol">Choose a column below ↓</div>
+        <div class="sh-desc" id="shDesc">Tap a Sticker or Item to read it here.</div>
       </div>
       <!-- Inventory now lives in the global top-right button; the store keeps the
            Cards (deck) view inline with Start to save a whole row. -->
@@ -3576,7 +3557,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.50 · momentum-tax-excavator-batch";
+const APP_VERSION = "v2.51 · store-6-slot-rework";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6356,17 +6337,19 @@ const CampaignState = (() => {
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
 
   /* ---- Store offering (Balatro-style limited random roll) ----------------
-     Each store visit offers a small RANDOM selection drawn from the full
-     registries: STORE_STICKER_SLOTS stickers + STORE_PILLAR_SLOTS Pillars.
-     Buying empties only that slot (the rest stay). A reroll replaces ALL slots
-     and costs REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit;
-     it resets to base when the store re-opens for a new run. */
-  const STORE_STICKER_SLOTS = 4;
-  const STORE_PILLAR_SLOTS = 3;        // three Pillar slots offered per visit
-  const STORE_BASE_SLOTS = 3;          // three Base slots offered per visit
-  const STORE_PACK_SLOTS = 2;          // pack section slots — always filled
+     Each store visit offers EXACTLY 6 slots: STORE_STICKER_SLOTS individual
+     stickers + STORE_MIXED_SLOTS "mixed" slots (each one independently a Base,
+     Pillar, or Pack). Buying empties only that slot (the rest stay). A reroll
+     replaces ALL slots and costs REROLL_BASE_COST, climbing REROLL_STEP per
+     reroll within a visit; it resets to base when the store re-opens. */
+  const STORE_STICKER_SLOTS = 3;       // three individual sticker slots per visit
+  const STORE_MIXED_SLOTS = 3;         // three mixed slots: each a Base / Pillar / Pack
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
+  // Category odds for ONE mixed slot (drawn independently per slot). Bases and
+  // Pillars are the core build items (equal weight); Packs are a less-frequent
+  // bonus. Tune freely — base:pillar:pack = 2:2:1 → 40% / 40% / 20%.
+  const MIXED_KIND_WEIGHTS = { base: 2, pillar: 2, pack: 1 };
 
   // Store-offer rarity weights by tier: commons show up most, rares least.
   // These only bias HOW OFTEN a type is OFFERED — never its price.
@@ -6461,21 +6444,39 @@ const CampaignState = (() => {
     return true;
   }
 
-  /** A fresh offering: random sticker + Pillar + Pack slots, reroll cost at base.
-      All three sections roll the same way — rollIds fills EVERY slot from the
-      full pool by rarity weight (packs carry no tier today, so equal-weighted;
-      a future pack `tier`/`weight` would bias it automatically). The pack slots
-      re-roll on every fresh store open and every reroll, just like the others. */
+  /** Pick ONE mixed-slot category (base / pillar / pack) by MIXED_KIND_WEIGHTS. */
+  function rollMixedKind(rng = Math.random) {
+    const entries = [["base", MIXED_KIND_WEIGHTS.base], ["pillar", MIXED_KIND_WEIGHTS.pillar], ["pack", MIXED_KIND_WEIGHTS.pack]];
+    const total = entries.reduce((a, e) => a + e[1], 0) || 1;
+    let r = rng() * total;
+    for (const [kind, w] of entries) { if ((r -= w) < 0) return kind; }
+    return "base";
+  }
+  /** Roll `n` INDEPENDENT mixed slots. Each picks a category by weight, then one
+      id from that category's (suit-gated) pool by the SAME rarity weighting as
+      every other slot. Each slot is { kind, id }. Dupes across slots are allowed
+      (the draws are independent) — rare for Bases/Pillars, possible for Packs. */
+  function rollMixed(n, rng, pillarPool, basePool) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const kind = rollMixedKind(rng);
+      const pool = kind === "pillar" ? (pillarPool || PillarTypes.all())
+                 : kind === "base"   ? (basePool || BaseTypes.all())
+                 : PackTypes.all();
+      const id = rollIds(pool, 1, rng)[0];
+      out.push(id ? { kind, id } : null);
+    }
+    return out;
+  }
+
+  /** A fresh offering: STORE_STICKER_SLOTS individual stickers + STORE_MIXED_SLOTS
+      mixed (base/pillar/pack) slots, reroll cost at base. Both sections roll by
+      rarity weight; the pools passed in are the suit-locked ones for the stage
+      (so e.g. ♣/♠ Guards and ♣/♠ Bonus Pillars can't appear before their suit). */
   function freshOffer(rng = Math.random, stickerPool, pillarPool, basePool) {
     return {
-      // stickerPool / pillarPool / basePool are the suit-locked pools for the
-      // current stage (so e.g. ♣/♠ Suit Guards and ♣/♠ Bonus Pillars can't be
-      // offered before their suit is in play). Callers pass them; each defaults
-      // to the full set for any suit-agnostic use.
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
-      pillars: rollIds(pillarPool || PillarTypes.all(), STORE_PILLAR_SLOTS, rng),
-      bases: rollIds(basePool || BaseTypes.all(), STORE_BASE_SLOTS, rng),
-      packs: rollIds(PackTypes.all(), STORE_PACK_SLOTS, rng, true),   // one of each type, no dupes
+      mixed: rollMixed(STORE_MIXED_SLOTS, rng, pillarPool, basePool),
       rerollCost: REROLL_BASE_COST,
     };
   }
@@ -6962,9 +6963,7 @@ const CampaignState = (() => {
         const suits = suitsForStage(currentStage);
         const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         storeOffer.stickers = f.stickers;
-        storeOffer.pillars = f.pillars;
-        storeOffer.bases = f.bases;
-        storeOffer.packs = f.packs;
+        storeOffer.mixed = f.mixed;
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
@@ -6977,42 +6976,42 @@ const CampaignState = (() => {
         storeOffer.stickers[i] = null;
         return true;
       },
-      /** Buy the offered Pillar in slot `i` INTO INVENTORY (placement happens in
-          setup); empties that slot only. Returns true on success. */
-      buyOfferedPillar(i) {
-        if (!storeOffer) return false;
-        const id = storeOffer.pillars[i];
-        if (!id || !this.buyPillarToInventory(id)) return false;
-        storeOffer.pillars[i] = null;
-        return true;
-      },
-      /** Buy the offered Base in slot `i` INTO INVENTORY (placement happens in
-          setup); empties that slot only. Returns true on success. */
-      buyOfferedBase(i) {
-        if (!storeOffer) return false;
-        const id = storeOffer.bases[i];
-        if (!id || !this.buyBaseToInventory(id)) return false;
-        storeOffer.bases[i] = null;
-        return true;
-      },
-
       /** Fixed price of a pack type. */
       priceOfPack(packId) { const t = PackTypes.get(packId); return t ? t.price : Infinity; },
+      /** Price of a mixed slot's item (dispatches by its kind). 0 for an empty slot. */
+      priceOfMixed(i) {
+        const s = storeOffer && storeOffer.mixed ? storeOffer.mixed[i] : null;
+        if (!s) return 0;
+        return s.kind === "pillar" ? this.priceOfPillar(s.id)
+             : s.kind === "base"   ? this.priceOfBase(s.id)
+             : this.priceOfPack(s.id);
+      },
 
-      /** Buy + OPEN the offered pack in slot `i`: charges the fixed price, empties
-          the slot, and reveals its items. Returns { packId, kind, keep, items } on
-          success (items are card objects for card packs, sticker ids for sticker
-          packs — the UI shows them and the player picks), or null on failure. The
-          picked item(s) are then committed via addPackCard / addStickerToInventory. */
-      buyOfferedPack(i, rng) {
-        if (!storeOffer || !storeOffer.packs) return null;
-        const packId = storeOffer.packs[i];
-        const t = packId ? PackTypes.get(packId) : null;
-        if (!t) return null;
-        if (coins < t.price) return null;
-        coins -= t.price;
-        storeOffer.packs[i] = null;
-        return { packId, kind: t.kind, keep: t.keep, items: this.revealPack(packId, rng) };
+      /** Buy the MIXED slot `i`, dispatching by its kind. Pillars/Bases go to
+          inventory (placed in setup); Packs charge the fixed price and OPEN
+          (their items revealed for the player to pick). Empties only that slot.
+          Returns { ok, kind, reveal? } — `reveal` ({ packId, kind, keep, items })
+          is present only for packs, so the UI can show the reveal modal. */
+      buyMixedSlot(i, rng) {
+        if (!storeOffer || !storeOffer.mixed) return { ok: false };
+        const s = storeOffer.mixed[i];
+        if (!s) return { ok: false };
+        if (s.kind === "pillar") {
+          if (!this.buyPillarToInventory(s.id)) return { ok: false };
+          storeOffer.mixed[i] = null; return { ok: true, kind: "pillar" };
+        }
+        if (s.kind === "base") {
+          if (!this.buyBaseToInventory(s.id)) return { ok: false };
+          storeOffer.mixed[i] = null; return { ok: true, kind: "base" };
+        }
+        if (s.kind === "pack") {
+          const t = PackTypes.get(s.id);
+          if (!t || coins < t.price) return { ok: false };
+          coins -= t.price;
+          storeOffer.mixed[i] = null;
+          return { ok: true, kind: "pack", reveal: { packId: s.id, kind: t.kind, keep: t.keep, items: this.revealPack(s.id, rng) } };
+        }
+        return { ok: false };
       },
 
       /* ---- sticker application (permanent, per-card, validated) ----
@@ -7298,9 +7297,10 @@ const CampaignState = (() => {
         columnBases = Array.isArray(s.columnBases)
           ? s.columnBases.slice() : new Array(COLUMN_SLOTS).fill(null);
         storeOffer = s.storeOffer || null;
-        // Older saves predate the Base store section — backfill an empty slot
-        // array so the store renderer never reads `undefined`.
-        if (storeOffer && !Array.isArray(storeOffer.bases)) storeOffer.bases = [];
+        // Pre-rework saves used the old { stickers, pillars, bases, packs } shape.
+        // The new store is { stickers, mixed }; drop any old-shape offer so the
+        // next store open rolls a fresh, valid 6-slot offer (no data to migrate).
+        if (storeOffer && !Array.isArray(storeOffer.mixed)) storeOffer = null;
         baseDeck = s.baseDeck.map(c => ({
           ...c,
           modifications: (c.modifications || []).slice(),
@@ -7817,16 +7817,11 @@ const UIRenderer = (() => {
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
-    storePillars: document.getElementById("storePillars"),
-    storeBases: document.getElementById("storeBases"),
-    pillarSlots: document.getElementById("pillarSlots"),
-    trashPillarBtn: document.getElementById("trashPillarBtn"),
-    storePacks: document.getElementById("storePacks"),
+    storeMixed: document.getElementById("storeMixed"),
     storeHelp: document.getElementById("storeHelp"),
     shTitle: document.getElementById("shTitle"),
     shBuy: document.getElementById("shBuy"),
     shDesc: document.getElementById("shDesc"),
-    shCol: document.getElementById("shCol"),
     packReveal: document.getElementById("packReveal"),
     packTitle: document.getElementById("packTitle"),
     packItems: document.getElementById("packItems"),
@@ -7985,17 +7980,13 @@ const UIRenderer = (() => {
   let redealCost = REDEAL_BASE_COST;
   let appliedThisPhase = false;
 
-  // Store selection state, all keyed to the current offering's SLOTS:
-  //   selectedStickerSlot — offered sticker slot awaiting the Buy button.
-  //   selectedPackSlot    — offered pack slot awaiting the Buy button.
-  //   armedPillarSlot     — offered Pillar slot armed; tap a column to place.
-  //   armedSlotMove       — a filled board column armed for a rearrange/swap.
-  // Mutually exclusive (selecting/arming one clears the others).
+  // Store selection state, keyed to the current offering's SLOTS:
+  //   selectedStickerSlot — offered sticker slot (0..2) awaiting the Buy button.
+  //   selectedMixedSlot   — offered mixed slot (0..2) awaiting the Buy button.
+  // Mutually exclusive (selecting one clears the other); the mixed slot's kind
+  // (base/pillar/pack) is read from the offer when buying.
   let selectedStickerSlot = null;
-  let selectedPackSlot = null;
-  let armedPillarSlot = null;
-  let armedBaseSlot = null;     // offered Base slot selected in the store, awaiting Buy
-  let armedSlotMove = null;
+  let selectedMixedSlot = null;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
@@ -9628,32 +9619,21 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) selectStickerUI(Number(tile.dataset.slot));
     });
-    el.storePillars.addEventListener("click", (e) => {
+    el.storeMixed.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) selectPillarUI(Number(tile.dataset.pslot));
-    });
-    if (el.storeBases) el.storeBases.addEventListener("click", (e) => {
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) selectBaseUI(Number(tile.dataset.bslot));
-    });
-    el.storePacks.addEventListener("click", (e) => {
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) selectPackUI(Number(tile.dataset.packslot));
+      if (tile && !tile.classList.contains("empty")) selectMixedUI(Number(tile.dataset.mslot));
     });
     // The one Buy button lives in the help slot; it confirms whatever is selected
-    // (Stickers + Pillars + Bases go to inventory, Packs open on buy).
+    // (Stickers + mixed Pillars/Bases go to inventory; mixed Packs open on buy).
     el.shBuy.addEventListener("click", () => {
-      const kind = el.shBuy.dataset.kind;
-      if (kind === "sticker") confirmBuySticker();
-      else if (kind === "pillar") confirmBuyPillar();
-      else if (kind === "base") confirmBuyBase();
-      else confirmBuyPack();
+      if (el.shBuy.dataset.kind === "sticker") confirmBuySticker();
+      else confirmBuyMixed();
     });
     // Tap empty space in the shop (not a tile / footer) to deselect.
     el.storeOverlay.addEventListener("click", (e) => {
       if (e.target.closest(".store-tile, .store-foot")) return;
-      if (selectedStickerSlot != null || selectedPackSlot != null || armedPillarSlot != null || armedBaseSlot != null) {
-        selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedBaseSlot = null; renderStore();
+      if (selectedStickerSlot != null || selectedMixedSlot != null) {
+        selectedStickerSlot = null; selectedMixedSlot = null; renderStore();
       }
     });
     // Pick screen: open the read-only deck composition to inform the choice.
@@ -12366,8 +12346,8 @@ const UIRenderer = (() => {
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
-    selectedStickerSlot = null; selectedPackSlot = null; armedPillarSlot = null; armedSlotMove = null;
-    el.storeMsg.textContent = "Buy from the offer, reroll, then press Start Deal.";
+    selectedStickerSlot = null; selectedMixedSlot = null;
+    el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
     updateBoardMotion();   // board covered by the store → pause its card animations
@@ -12376,51 +12356,55 @@ const UIRenderer = (() => {
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
      read from the SAME campaign inventory the store buys into. Shared by the
      store header and the in-play inventory popup. */
-  /* One compact offered tile (sticker or Pillar). `kind` is "sticker"|"pillar";
-     a null id renders the empty/sold placeholder so the grid never jumps. */
+  /* One large offered tile. `kind` is "sticker" | "pillar" | "base" | "pack".
+     Sticker tiles set data-slot; the three mixed kinds set data-mslot. A null id
+     renders the empty/sold placeholder so the grid never jumps. The tile carries
+     its rarity color (top accent + tier chip) and a category chip so a mixed slot
+     reads as Base / Pillar / Pack at a glance. */
+  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack" };
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
-    if (!id) {
+    const t = !id ? null
+      : kind === "pillar" ? PillarTypes.get(id)
+      : kind === "base" ? BaseTypes.get(id)
+      : kind === "pack" ? PackTypes.get(id)
+      : StickerTypes.get(id);
+    if (!t) {   // empty slot or unknown id (restored offer referencing a removed type)
       btn.className = "store-tile empty";
       btn.disabled = true;
       btn.innerHTML = '<span class="tile-sold">—</span>';
       return btn;
     }
-    const t = kind === "pillar" ? PillarTypes.get(id) : kind === "base" ? BaseTypes.get(id) : kind === "pack" ? PackTypes.get(id) : StickerTypes.get(id);
-    if (!t) {   // unknown id (e.g. a restored offer referencing a removed type) → empty slot
-      btn.className = "store-tile empty";
-      btn.disabled = true;
-      btn.innerHTML = '<span class="tile-sold">—</span>';
-      return btn;
-    }
-    const price = kind === "pillar" ? campaign.priceOfPillar(id) : kind === "base" ? campaign.priceOfBase(id) : kind === "pack" ? campaign.priceOfPack(id) : campaign.priceOf(id);
+    const price = kind === "pillar" ? campaign.priceOfPillar(id)
+      : kind === "base" ? campaign.priceOfBase(id)
+      : kind === "pack" ? campaign.priceOfPack(id)
+      : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
-    btn.className = "store-tile" + (affordable ? "" : " disabled") + (selected ? " selected" : "");
-    btn.dataset[kind === "pillar" ? "pslot" : kind === "base" ? "bslot" : kind === "pack" ? "packslot" : "slot"] = slot;
-    btn.dataset[kind === "pillar" ? "pillar" : kind === "base" ? "base" : kind === "pack" ? "pack" : "type"] = id;
-    // Packs have no rarity tier; Imprints/Pathways/Bases show their tier badge.
-    const tierChip = (kind === "pack") ? ""
-      : '<span class="ti-tier tier-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '">' + (t.tier || "common").charAt(0).toUpperCase() + '</span>';
-    // Pathways render the SAME synapse+icon banner as when equipped on the board
-    // (shared pathwayBannerHtml) so players recognise them before buying; Bases
-    // render their distinct base-banner; Imprints/Memory Swaps keep their glyph.
+    const tier = t.tier || null;   // packs carry no tier
+    btn.className = "store-tile tile-" + kind + (tier ? " srt-" + tier : " srt-none")
+      + (affordable ? "" : " disabled") + (selected ? " selected" : "");
+    btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
+    // Pathways/Bases render the SAME banner as when equipped (shared helpers) so
+    // players recognise them before buying; Stickers show a matte die-cut chip;
+    // Packs keep their plain glyph.
     const iconHtml = (kind === "pillar")
       ? '<span class="ti-syn">' + pathwayBannerHtml(t) + '</span>'
       : (kind === "base")
         ? '<span class="ti-base">' + baseBannerHtml(t, "charged") + '</span>'
         : (kind === "sticker")
-          ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'   // matte die-cut chip
-          : '<span class="ti-icon">' + t.icon + '</span>';                      // packs keep the plain glyph
+          ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'
+          : '<span class="ti-icon">' + t.icon + '</span>';
+    const tierChip = tier ? '<span class="ti-tier" title="' + tier + '">' + tier + '</span>' : "";
     btn.innerHTML =
-      tierChip +
+      '<span class="ti-top"><span class="ti-kind">' + KIND_LABEL[kind] + '</span>' + tierChip + '</span>' +
       iconHtml +
       '<span class="ti-name">' + escHtml(t.label) + '</span>' +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
   }
-  /* Pad an offered row to `n` slots with invisible placeholders so every tile
-     keeps a consistent size across zones (matches the redesign layout). */
+  /* Pad an offered row to `n` slots with invisible placeholders so the grid
+     keeps its shape if a slot is empty (bought). */
   function padRow(container, n) {
     for (let i = container.children.length; i < n; i++) container.appendChild(offerTile(null, i, "sticker", false));
   }
@@ -12455,10 +12439,12 @@ const UIRenderer = (() => {
     const offer = campaign.getStoreOffer();
     let kind = null, id = null, price = 0;
     if (offer) {
-      if (selectedStickerSlot != null) { kind = "sticker"; id = offer.stickers[selectedStickerSlot]; price = campaign.priceOf(id); }
-      else if (armedPillarSlot != null) { kind = "pillar"; id = offer.pillars[armedPillarSlot]; price = campaign.priceOfPillar(id); }
-      else if (armedBaseSlot != null) { kind = "base"; id = offer.bases[armedBaseSlot]; price = campaign.priceOfBase(id); }
-      else if (selectedPackSlot != null) { kind = "pack"; id = offer.packs[selectedPackSlot]; price = campaign.priceOfPack(id); }
+      if (selectedStickerSlot != null) {
+        kind = "sticker"; id = offer.stickers[selectedStickerSlot]; price = campaign.priceOf(id);
+      } else if (selectedMixedSlot != null) {
+        const s = offer.mixed[selectedMixedSlot];
+        if (s) { kind = s.kind; id = s.id; price = campaign.priceOfMixed(selectedMixedSlot); }
+      }
     }
     const t = id ? describeItem(kind, id) : null;
     if (!t) {
@@ -12467,44 +12453,46 @@ const UIRenderer = (() => {
       el.shTitle.textContent = "";
       el.shDesc.textContent = "";
       el.shBuy.classList.add("hidden");
-      el.shCol.classList.add("hidden");
       return;
     }
     const afford = campaign.getCoins() >= price;
     el.storeHelp.classList.remove("empty");
     el.shTitle.innerHTML = t.icon + " " + escHtml(t.label) +
+      ' <span class="sh-kind">' + KIND_LABEL[kind] + "</span>" +
       (t.tier ? ' <span class="sh-tier">' + t.tier + "</span>" : "");
     el.shDesc.textContent = t.desc || "";
-    // Every kind buys the same way now: the one Buy button. Pillars go to
-    // inventory (placed in setup); stickers go to inventory; packs open on buy.
-    if (el.shCol) el.shCol.classList.add("hidden");
+    // One Buy button. Stickers + mixed Pillars/Bases go to inventory; Packs open
+    // on buy. dataset.kind distinguishes the sticker path from the mixed path.
     el.shBuy.classList.remove("hidden");
     el.shBuy.disabled = !afford;
-    el.shBuy.dataset.kind = kind;
+    el.shBuy.dataset.kind = kind === "sticker" ? "sticker" : "mixed";
     el.shBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
   }
 
   function renderStore() {
     const offer = campaign.getStoreOffer();
     // Single source of truth (campaign.getCoins()) → render BOTH dopamine
-    // displays together every time the store re-renders (after any buy / reroll /
-    // pillar placement / trash), so the top HUD badge and the "dopamine to spend"
-    // counter can never drift apart.
+    // displays together every time the store re-renders (after any buy / reroll),
+    // so the top HUD badge and the "to spend" counter can never drift apart.
     el.storeCoins.textContent = campaign.getCoins();
     updateStageRun();   // refresh the top HUD Stage·Run badge + dopamine counter
-    // Imprint offer (4 slots), padded to a full row of consistent tiles.
+    // Row 1: three individual sticker slots.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
       el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
-    padRow(el.storeItems, 4);
-    renderPillarStore();
-    renderBaseStore();
-    renderPackStore();
+    padRow(el.storeItems, STORE_STICKER_SLOTS);
+    // Row 2: three mixed slots (each a base / pillar / pack, per its kind).
+    el.storeMixed.innerHTML = "";
+    (offer && offer.mixed ? offer.mixed : []).forEach((s, slot) =>
+      el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
+    padRow(el.storeMixed, STORE_MIXED_SLOTS);
     updateRerollButton();
     renderStoreHelp();   // the fixed help slot tracks the selection
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
+  // Slot counts the UI mirrors from the engine config (kept in sync there).
+  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
@@ -12523,40 +12511,31 @@ const UIRenderer = (() => {
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
   }
 
-  function renderPackStore() {
+  /* Confirm buying the selected MIXED slot (the only place a base/pillar/pack is
+     bought). Pillars/Bases bank to inventory (placed in setup); a Pack charges +
+     opens its reveal/pick. Empties just that slot. */
+  function confirmBuyMixed() {
+    if (selectedMixedSlot == null) return;
+    const slot = selectedMixedSlot;
     const offer = campaign.getStoreOffer();
-    el.storePacks.innerHTML = "";
-    (offer && offer.packs ? offer.packs : []).forEach((id, slot) =>
-      el.storePacks.appendChild(offerTile(id, slot, "pack", selectedPackSlot === slot)));
-    padRow(el.storePacks, 4);
-  }
-
-  /* Tap an offered pack SLOT to select it (highlight) — does NOT buy. Toggle off
-     by re-tapping; clears any pending sticker/Pillar selection (mutually
-     exclusive). The Buy button confirms the purchase. */
-  function selectPackUI(slot) {
-    selectedPackSlot = selectedPackSlot === slot ? null : slot;
-    selectedStickerSlot = null;
-    armedPillarSlot = null;
-    armedBaseSlot = null;
-    armedSlotMove = null;
-    el.storeMsg.textContent = selectedPackSlot != null
-      ? "Tap Buy to open it, or tap it again to deselect."
-      : "Buy from the offer, reroll, then press Start Deal.";
-    renderStore();
-  }
-
-  /* Confirm buying the selected offered pack (the only place a pack is bought):
-     charges the fixed price, empties the slot, then opens the reveal/pick. */
-  function confirmBuyPack() {
-    if (selectedPackSlot == null) return;
-    const slot = selectedPackSlot;
-    const result = campaign.buyOfferedPack(slot, Math.random);
-    if (!result) return;   // unaffordable / empty slot
-    selectedPackSlot = null;
-    if (engine) engine.logAction("Store: opened " + ((PackTypes.get(result.packId) || {}).label || result.packId));
-    renderStore();         // empties the slot, updates coins (+persist)
-    openPackReveal(result);
+    const s = offer ? offer.mixed[slot] : null;
+    if (!s) return;
+    const res = campaign.buyMixedSlot(slot, Math.random);
+    if (!res.ok) return;   // unaffordable / empty slot
+    selectedMixedSlot = null;
+    Sound.purchase();
+    if (res.kind === "pack") {
+      if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
+      renderStore();                 // empties the slot, updates coins (+persist)
+      openPackReveal(res.reveal);    // reveal/pick modal
+    } else {
+      const reg = res.kind === "pillar" ? PillarTypes : BaseTypes;
+      const t = reg.get(s.id);
+      if (engine) engine.logAction("Store: bought " + KIND_LABEL[res.kind] + " " + ((t && t.label) || s.id) + " → inventory");
+      el.storeMsg.textContent = KIND_LABEL[res.kind] + " bought — place it on a column during setup.";
+      renderStore();
+      refreshDebug();
+    }
   }
 
   /* ---- reveal → pick modal (both pack families) ----
@@ -12768,30 +12747,17 @@ const UIRenderer = (() => {
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
-    el.rerollBtn.innerHTML = glyph("reroll") + " Refresh store · " + COIN_SVG + cost;
-  }
-
-  /* Offered Pillars (2 slots). Buying sends the Pillar to inventory; the player
-     places it on a column during the pre-run setup phase (no in-store chooser). */
-  function renderPillarStore() {
-    const offer = campaign.getStoreOffer();
-    el.storePillars.innerHTML = "";
-    (offer ? offer.pillars : []).forEach((id, slot) =>
-      el.storePillars.appendChild(offerTile(id, slot, "pillar", armedPillarSlot === slot)));
-    padRow(el.storePillars, 4);
+    el.rerollBtn.innerHTML = glyph("reroll") + " Refresh · " + COIN_SVG + cost;
   }
 
   /* Tap an offered sticker SLOT to select it (highlight) — does NOT buy.
-     Toggle off by re-tapping; clears any pending Pillar arm. */
+     Toggle off by re-tapping; clears any mixed-slot selection. */
   function selectStickerUI(slot) {
     selectedStickerSlot = selectedStickerSlot === slot ? null : slot;
-    selectedPackSlot = null;
-    armedPillarSlot = null;
-    armedBaseSlot = null;
-    armedSlotMove = null;
+    selectedMixedSlot = null;
     el.storeMsg.textContent = selectedStickerSlot != null
       ? "Tap Buy to confirm, or tap the sticker again to deselect."
-      : "Buy from the offer, reroll, then press Start Deal.";
+      : "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
   }
 
@@ -12812,82 +12778,26 @@ const UIRenderer = (() => {
     refreshDebug();
   }
 
-  /* Tap an offered Pillar SLOT to SELECT it (its name/effect/Buy fill the help
-     slot) — does NOT buy. Toggle off by re-tapping; clears other selections. */
-  function selectPillarUI(slot) {
+  /* Tap an offered MIXED SLOT to SELECT it (its name/effect/Buy fill the help
+     slot) — does NOT buy. Toggle off by re-tapping; clears the sticker selection. */
+  function selectMixedUI(slot) {
     const offer = campaign.getStoreOffer();
-    const id = offer ? offer.pillars[slot] : null;
-    if (!id) return;
+    const s = offer ? offer.mixed[slot] : null;
+    if (!s) return;
     selectedStickerSlot = null;
-    selectedPackSlot = null;
-    armedBaseSlot = null;
-    armedPillarSlot = armedPillarSlot === slot ? null : slot;
-    el.storeMsg.textContent = armedPillarSlot != null
-      ? "Tap Buy to add it to your inventory — place it on a column in setup."
-      : "Buy from the offer, reroll, then press Start Deal.";
+    selectedMixedSlot = selectedMixedSlot === slot ? null : slot;
+    el.storeMsg.textContent = selectedMixedSlot == null ? "Buy from the offer, refresh, then press Start Deal."
+      : s.kind === "pack" ? "Tap Buy to open it, or tap it again to deselect."
+      : "Tap Buy to add it to your inventory — place it on a column in setup.";
     renderStore();
-  }
-
-  /* Confirm buying the selected offered Pillar (the only place it's bought). It
-     goes to inventory (placed later in setup); empties just that slot. */
-  function confirmBuyPillar() {
-    if (armedPillarSlot == null) return;
-    const offer = campaign.getStoreOffer();
-    const id = offer ? offer.pillars[armedPillarSlot] : null;
-    if (campaign.buyOfferedPillar(armedPillarSlot)) {
-      const pt = id ? PillarTypes.get(id) : null;
-      if (engine) engine.logAction("Store: bought Pillar " + ((pt && pt.label) || id) + " → inventory");
-      armedPillarSlot = null;
-      Sound.purchase();
-      el.storeMsg.textContent = "Pillar bought — place it on a column during setup.";
-    }
-    renderStore();
-    refreshDebug();
-  }
-
-  /* ---- store Bases (mirrors the Pillar store flow exactly) ---- */
-  function renderBaseStore() {
-    const offer = campaign.getStoreOffer();
-    if (!el.storeBases) return;
-    el.storeBases.innerHTML = "";
-    (offer && offer.bases ? offer.bases : []).forEach((id, slot) =>
-      el.storeBases.appendChild(offerTile(id, slot, "base", armedBaseSlot === slot)));
-    padRow(el.storeBases, 4);
-  }
-  function selectBaseUI(slot) {
-    const offer = campaign.getStoreOffer();
-    const id = offer ? offer.bases[slot] : null;
-    if (!id) return;
-    selectedStickerSlot = null;
-    selectedPackSlot = null;
-    armedPillarSlot = null;
-    armedBaseSlot = armedBaseSlot === slot ? null : slot;
-    el.storeMsg.textContent = armedBaseSlot != null
-      ? "Tap Buy to add it to your inventory — place it on a column in setup."
-      : "Buy from the offer, reroll, then press Start Deal.";
-    renderStore();
-  }
-  function confirmBuyBase() {
-    if (armedBaseSlot == null) return;
-    const offer = campaign.getStoreOffer();
-    const id = offer ? offer.bases[armedBaseSlot] : null;
-    if (campaign.buyOfferedBase(armedBaseSlot)) {
-      const bt = id ? BaseTypes.get(id) : null;
-      if (engine) engine.logAction("Store: bought Base " + ((bt && bt.label) || id) + " → inventory");
-      armedBaseSlot = null;
-      Sound.purchase();
-      el.storeMsg.textContent = "Base bought — place it on a column during setup.";
-    }
-    renderStore();
-    refreshDebug();
   }
 
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
   function rerollUI() {
     if (campaign.rerollStore()) {
-      selectedStickerSlot = null; armedPillarSlot = null; armedBaseSlot = null;
-      el.storeMsg.textContent = "Rerolled the offer.";
-      if (engine) engine.logAction("Store: rerolled the offer");
+      selectedStickerSlot = null; selectedMixedSlot = null;
+      el.storeMsg.textContent = "Refreshed the offer.";
+      if (engine) engine.logAction("Store: refreshed the offer");
       renderStore();
       refreshDebug();
     }
@@ -13255,8 +13165,7 @@ const UIRenderer = (() => {
 
   function closeStore() {
     selectedStickerSlot = null;
-    armedPillarSlot = null;
-    armedSlotMove = null;
+    selectedMixedSlot = null;
     closeTrashConfirm();
     closePackReveal();
     closePackReplace();

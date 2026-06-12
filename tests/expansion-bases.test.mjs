@@ -107,8 +107,9 @@ export function run() {
 
   // ---- store suit-gating: Dig Bases follow the suit schedule -----------
   {
-    const sample = (c, n) => { const seen = new Set(); for (let i = 0; i < n; i++) c.openStore().bases.forEach(id => seen.add(id)); return seen; };
-    const s1 = sample(CampaignState.create(), 400);          // Stage 1 = ♦ ♥
+    // Bases now arrive via the store's MIXED slots — scan those for base kinds.
+    const sample = (c, n) => { const seen = new Set(); for (let i = 0; i < n; i++) c.openStore().mixed.forEach(s => { if (s && s.kind === "base") seen.add(s.id); }); return seen; };
+    const s1 = sample(CampaignState.create(), 700);          // Stage 1 = ♦ ♥
     r.ok(s1.has("heartDig") && s1.has("diamondDig"), "Stage 1 offers Heart/Diamond Dig (♦♥ in play)");
     r.ok(!s1.has("clubDig"), "Stage 1 NEVER offers Club Dig (♣ not in play)");
     r.ok(!s1.has("spadeDig"), "Stage 1 NEVER offers Spade Dig (♠ not in play)");
@@ -117,14 +118,14 @@ export function run() {
 
     const c2 = CampaignState.create();
     for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 = ♦ ♥ ♣
-    const s2 = sample(c2, 400);
+    const s2 = sample(c2, 700);
     r.ok(s2.has("clubDig"), "Stage 2 offers Club Dig (♣ now in play)");
     r.ok(s2.has("tax"), "Stage 2 offers Tax (♣ in play → black cards exist)");
     r.ok(!s2.has("spadeDig"), "Stage 2 still NEVER offers Spade Dig (♠ not yet)");
 
     const c3 = CampaignState.create();
     for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3 = ♦ ♥ ♣ ♠
-    const s3 = sample(c3, 400);
+    const s3 = sample(c3, 700);
     r.ok(s3.has("spadeDig"), "Stage 3 offers Spade Dig (all four suits in play)");
   }
 

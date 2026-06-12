@@ -73,15 +73,17 @@ export function run() {
     r.eq(c3.baseInventoryCount("kamikaze"), 0, "reset clears the Base inventory");
   }
 
-  // --- store offer includes Bases ---------------------------------------
+  // --- store offer can include Bases (in the mixed slots) ---------------
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    const offer = c.openStore(() => 0.0);
-    r.ok(Array.isArray(offer.bases) && offer.bases.length === 3, "store offers three Base slots");
-    const id = offer.bases[0];
-    r.ok(c.buyOfferedBase(0), "buy an offered Base into inventory");
-    r.eq(offer.bases[0], null, "the bought slot empties");
+    const offer = c.openStore(() => 0.0);   // rng 0 → every mixed slot rolls a Base
+    r.eq(offer.mixed.length, 3, "store offers three mixed slots");
+    r.ok(offer.mixed.every(s => s && s.kind === "base"), "with rng=0 the mixed slots are all Bases");
+    const id = offer.mixed[0].id;
+    const res = c.buyMixedSlot(0, () => 0.0);
+    r.ok(res.ok && res.kind === "base", "buy an offered Base into inventory");
+    r.eq(offer.mixed[0], null, "the bought slot empties");
     r.eq(c.baseInventoryCount(id), 1, "the offered Base lands in inventory");
   }
 
