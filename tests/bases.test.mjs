@@ -143,29 +143,26 @@ export function run() {
     r.ok(!e3.baseAvailable(0), "Revive is unavailable with no dead pile in its column");
   }
 
-  // --- effect: Random Sticker (chosen pile) + wrong-column rejection -----
+  // --- effect: Random Sticker (RANDOM pile in the column, no choice) -----
   {
     const e = game(["randomSticker", null, null]);
     const b = e.getBoard();
-    b.piles[0].cards = [card(7, "♠")];
-    r.eq(e.baseActivate(0, 3), null, "can't target a pile outside the Base's column");
-    r.eq(e.getRun().basesUsed[0], false, "a rejected activation does not spend the Base");
-    const res = e.baseActivate(0, 0);
-    r.ok(res && res.stickerApplied, "a sticker is applied to the chosen pile card");
-    r.eq(b.top(0).stickers.length, 1, "the pile card now carries one sticker");
+    const res = e.baseActivate(0);   // no target argument — it picks for you
+    r.ok(res && res.stickerApplied, "a sticker is applied to a random pile card");
+    r.ok([0, 1, 2].includes(res.index), "the random target is a pile in the Base's column");
+    r.eq(b.top(res.index).stickers.length, 1, "the targeted pile card now carries one sticker");
   }
 
   // --- a Wild Sticker stays on the card for the REST OF THE RUN ----------
   {
     const e = game(["randomSticker", null, null]);
     const b = e.getBoard();
-    b.piles[0].cards = [card(7, "♠")];
-    e.baseActivate(0, 0);
-    const stickered = b.top(0);          // the exact card object that got the sticker
+    const res = e.baseActivate(0);
+    const stickered = b.top(res.index);   // the exact card object that got the sticker
     r.eq(stickered.stickers.length, 1, "sticker applied");
-    // Play several guesses elsewhere in the run; the stickered card keeps it.
+    // Play several guesses in ANOTHER column; the stickered card keeps it.
     const guess = (i) => { b.top(i).value = 5; e.debug.setNextCard(9); e.guess(i, "higher"); };
-    guess(4); guess(5); guess(4);
+    guess(7); guess(8); guess(7);
     r.eq(stickered.stickers.length, 1, "the sticker rides the card for the rest of the run");
   }
 

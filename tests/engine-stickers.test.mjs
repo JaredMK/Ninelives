@@ -87,6 +87,38 @@ export function run() {
     r.ok(!e.getBoard().isActive(0), "3rd wrong with no hearts: pile dies");
   }
 
+  // --- Duplicate: copies on a SURVIVED correct Same (drawn OR pile card) -
+  {
+    // Only the DRAWN card carries Duplicate; force a Same tie on pile 0.
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    e.start(); e.startRun();
+    let copies = 0; e.onEvent((t) => { if (t === "card-duplicated") copies++; });
+    const nc = e.debug.setNextCard(e.getBoard().top(0).value);   // a tie
+    nc.stickers = [{ type: "duplicate" }];
+    e.guess(0, "same");
+    r.eq(copies, 1, "Duplicate copies when its (drawn) card survives a correct Same");
+    r.ok(e.getBoard().isActive(0), "the pile survives the same");
+
+    // Pile card carries Duplicate (drawn card does not) — still copies.
+    const e2 = GameEngine.create(DeckManager.buildStandardDeck(), 9);
+    e2.start(); e2.startRun();
+    e2.getBoard().top(0).stickers = [{ type: "duplicate" }];
+    let copies2 = 0; e2.onEvent((t) => { if (t === "card-duplicated") copies2++; });
+    e2.debug.setNextCard(e2.getBoard().top(0).value);
+    e2.guess(0, "same");
+    r.eq(copies2, 1, "Duplicate fires with the sticker on the PILE card too");
+
+    // A correct NON-Same guess does not copy.
+    const e3 = GameEngine.create(specsWith("duplicate"), 9);
+    e3.start(); e3.startRun();
+    let copies3 = 0; e3.onEvent((t) => { if (t === "card-duplicated") copies3++; });
+    const top = e3.getBoard().top(0).value;
+    const v = top < 14 ? top + 1 : top - 1;
+    e3.debug.setNextCard(v);
+    e3.guess(0, v > top ? "higher" : "lower");
+    r.eq(copies3, 0, "Duplicate does NOT copy on a correct non-Same guess");
+  }
+
   // --- sticker window: explicit Start Run trigger ------------------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);

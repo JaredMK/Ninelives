@@ -1256,19 +1256,21 @@
   /* A quick pop when something lands in the inventory (e.g. Replica's copy). */
   .nav-btn.nav-pop { animation: navPop 0.28s ease; }
   @keyframes navPop { 0%,100% { transform: scale(1); } 45% { transform: scale(1.28); } }
-  /* Map → Store: a bottom-centre pill, on the map only. */
+  /* Map → Store: a back-arrow pill anchored to the LEFT (reads as "back to the
+     store"), on the map only. */
   .map-store-btn {
     position: fixed; z-index: 55;
-    bottom: calc(env(safe-area-inset-bottom) + 12px); left: 50%; transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom) + 12px);
+    left: calc(env(safe-area-inset-left) + 10px);
     display: inline-flex; align-items: center; gap: 6px;
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--accent); border-radius: 999px;
-    padding: 9px 18px; font-family: var(--font-text); font-size: 13px; font-weight: 800;
+    padding: 9px 16px 9px 13px; font-family: var(--font-text); font-size: 13px; font-weight: 800;
     box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
   }
-  .map-store-btn .ico { font-size: 15px; }
+  .map-store-btn .ico { font-size: 16px; }
   .map-store-btn.hidden { display: none; }
-  .map-store-btn:active { transform: translateX(-50%) scale(0.96); }
+  .map-store-btn:active { transform: scale(0.96); }
 
   /* ============================================================
      OVERLAY (win / lose / start)
@@ -1898,13 +1900,11 @@
     100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
   }
   @media (prefers-reduced-motion: reduce) { .base-banner.fired { animation: none; } }
-  .base-banner.activatable { cursor: pointer; animation: baseActivatable 1.3s ease-in-out infinite; }
-  @keyframes baseActivatable {
-    0%,100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5); }
-    50%     { box-shadow: 0 0 0 2px rgba(176,122,60,0.55), 0 0 11px 1px rgba(176,122,60,0.6); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .base-banner.activatable { animation: none; outline: 2px solid #b07a3c; outline-offset: 1px; }
+  /* Activatable cue: a STATIC bronze ring + glow (no blinking) — clearly "ready
+     to tap" without the pulsing that read as too busy. */
+  .base-banner.activatable {
+    cursor: pointer; outline: 2px solid #b07a3c; outline-offset: 1px;
+    box-shadow: 0 0 0 2px rgba(176,122,60,0.4), 0 0 9px 1px rgba(176,122,60,0.5), inset 0 1px 0 rgba(255,255,255,0.5);
   }
   .board.placing-base .base-cell { cursor: pointer; }
   .board.placing-base .base-cell .base-banner { outline: 2px dashed #b07a3c; outline-offset: 1px; }
@@ -3505,8 +3505,9 @@
        (which carry their own actions). The map also shows a "Store" button. -->
   <button class="menu-btn nav-btn" id="menuBtn" type="button" aria-label="Menu"><span class="ico-slot" data-ico="menu"></span></button>
   <button class="inv-btn nav-btn hidden" id="invBtn" type="button" aria-label="Inventory"><span class="ico-slot" data-ico="stash"></span></button>
-  <!-- Map → Store (one-way: store → map → game; no game → map). -->
-  <button class="map-store-btn hidden" id="mapStoreBtn" type="button"><span class="ico-slot" data-ico="store"></span> Store</button>
+  <!-- Map → Store: a back arrow on the LEFT — "back to the store" (one-way flow:
+       store → map → game; no game → map). -->
+  <button class="map-store-btn hidden" id="mapStoreBtn" type="button"><span class="ico-slot" data-ico="back"></span> Store</button>
 
 <script>
 "use strict";
@@ -3531,7 +3532,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.45 · concise-descriptions";
+const APP_VERSION = "v2.46 · duplicate-anchor-batch";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3632,6 +3633,7 @@ const GLYPHS = {
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6"/>',
   stash: '<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8" fill="none" stroke="currentColor" stroke-width="2"/>',
   menu: '<g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></g>',
+  back: '<path d="M20 12H5M12 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   // ---- new pillars + stickers (same monoline neural style) ----
   // Revive — a heartbeat/ECG pulse (bringing a dead pile back to life).
   revive: '<path d="M2 12h4l2-5 3 11 3-8 2 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -3818,8 +3820,8 @@ const StickerTypes = (() => {
                   description: "Each correct landing on this pile card pays rising coins (+0, +1, +2, …), on the spot. The total carries across the run until a reset." },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
                   description: "On a correct placement, peek at the next upcoming card until it's drawn." },
-    duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "rare", price: 7,
-                  description: "Copy this card and its stickers into your card inventory, to swap into your deck before a later run." },
+    duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "uncommon", price: 3,
+                  description: "When this card survives a correct Same guess — as the drawn or pile card — copy it (stickers and all) into your card inventory." },
     wildSuit:   { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "rare", price: 8,
                   description: "Counts as every suit at once — satisfies any suit guard, suit Bonus Pillar, or all-suit Pillar." },
     shuffle:    { id: "shuffle",    label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 4,
@@ -4185,8 +4187,8 @@ const BaseTypes = (() => {
     },
     randomSticker: {
       id: "randomSticker", label: "Wild Sticker", icon: "🎲",
-      kind: "active", effect: "randomSticker", target: "pile", tier: "uncommon", price: 10,
-      description: "Apply a random sticker to a chosen pile's pile card in this column. Stays for the rest of the run.",
+      kind: "active", effect: "randomSticker", tier: "uncommon", price: 10,
+      description: "Apply a random sticker to a random pile card in this column. Stays for the rest of the run.",
     },
     randomStickerAll: {
       id: "randomStickerAll", label: "Sticker Storm", icon: "🌪️",
@@ -4226,7 +4228,7 @@ const BaseTypes = (() => {
     suitTally: {
       id: "suitTally", label: "Suit Tally", icon: "💰",
       kind: "active", effect: "suitTally", tier: "uncommon", price: 12,
-      description: "Gain coins equal to the total value of the rolled suit's cards in this column (face cards count 10). The suit is rolled each deal, shown to you.",
+      description: "Gain coins equal to the total value of the rolled suit among this column's cards (face cards count 10). (suit changes each deal)",
     },
     copyToInventory: {
       id: "copyToInventory", label: "Replica", icon: "📑",
@@ -4954,6 +4956,20 @@ const GameEngine = (() => {
         Middle Reward (+value in the middle column), Lucky Coin (+value any
         surviving landing), and Collector (+1 per OTHER sticker on the card, per
         Collector instance). Stacks by sticker count. */
+    /** Duplicate sticker: when the carrying card SURVIVES a correct Same guess —
+        as either the drawn card or the pile card it tied — copy it (stickers and
+        all) into the card inventory. One event per copied card; the UI does the
+        actual campaign-side duplicate + feedback. */
+    function maybeDuplicate(index, current, drawn, guess) {
+      if (guess !== "same") return;   // only a correctly-called Same (this branch = survived)
+      for (const card of [drawn, current]) {
+        if (card && card.id != null && card.stickers && card.stickers.some(s => s.type === "duplicate")) {
+          logLine("Duplicate: " + cardName(card) + " survived a Same — copied to inventory");
+          emit("card-duplicated", { cardId: card.id, index, board, deck, run });
+        }
+      }
+    }
+
     function maybeLandingBonus(index, drawn) {
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
@@ -5359,13 +5375,16 @@ const GameEngine = (() => {
           break;
         }
         case "randomSticker": {
+          // Targets a RANDOM alive pile card in the column (no player choice).
+          const target = pickOne(colAlivePiles(col).filter(i => board.top(i)));
+          if (target == null) break;
           const typeId = pickOne(baseStickerPool().map(t => t.id));
-          const top = board.top(targetIndex);
+          const top = board.top(target);
           projectStickerOntoCard(top, typeId);
-          res.index = targetIndex;
-          res.stickerApplied = { pileIndex: targetIndex, cardId: top.id, typeId };
+          res.index = target;
+          res.stickerApplied = { pileIndex: target, cardId: top.id, typeId };
           const st = StickerTypes.get(typeId);
-          logLine("applied " + ((st && st.label) || typeId) + " to the pile card of pile " + (targetIndex + 1));
+          logLine("applied " + ((st && st.label) || typeId) + " to the pile card of pile " + (target + 1));
           break;
         }
         case "randomStickerAll": {
@@ -5961,6 +5980,7 @@ const GameEngine = (() => {
         maybeLandingBonus(index, drawn);
         maybeExpansionStickers(index, current, drawn, col);
         maybeLivePillarExtras(index, pillar, drawn, guess, isTie, col);
+        maybeDuplicate(index, current, drawn, guess);
         maybeStickerTribute(index, drawn);
         // Optional post-landing actions (Shuffle / Donate) queue here; they
         // surface only after any paid-bury prompt drains (surfaceActionOffer).
@@ -8273,9 +8293,8 @@ const UIRenderer = (() => {
     if (br && t.effect === "setValue") {
       const rk = DeckManager.RANKS.find(x => x.value === br.value);
       roll = '<div class="pk-state">This deal: sets pile cards to ' + (rk ? rk.label : br.value) + ".</div>";
-    } else if (br && t.effect === "suitTally" && br.suit) {
-      roll = '<div class="pk-state">This deal: tallies ' + br.suit + " cards.</div>";
     }
+    // (Suit Tally's live suit is already in its description via itemDescription.)
     let charge = "";
     if (started && run && run.basesUsed) {
       charge = run.basesUsed[col]
@@ -8283,7 +8302,7 @@ const UIRenderer = (() => {
         : '<div class="pk-state">Charged — tap to activate (once this deal).</div>';
     }
     return '<div class="pk-head">' + (t.icon || "") + " " + escHtml(t.label) + "</div>" +
-      '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
+      '<div class="pk-desc">' + escHtml(itemDescription(t)) + "</div>" +
       roll + charge +
       (inSetup
         ? '<button class="pk-unplace base" data-unplace-base-col="' + col + '" type="button">Return to inventory</button>'
@@ -8750,23 +8769,8 @@ const UIRenderer = (() => {
     const top = board.top(index);
     if (!top) return;
     const typeId = armedSticker;
-    // Duplicate: copy the card (with its stickers) into the card inventory and
-    // consume the Duplicate sticker — the card itself is NOT modified.
-    const tDef = StickerTypes.get(typeId);
-    if (tDef && tDef.behavior === "duplicate") {
-      const copy = campaign.duplicateCard(top.id);
-      campaign.useStickerFromInventory(typeId);
-      appliedThisPhase = true;
-      armedSticker = null;
-      el.board.classList.remove("arming");
-      renderSetupInv();
-      if (copy) el.hint.textContent = "Copied " + top.label + top.suit + " to your card inventory.";
-      else flashNotice("Couldn't copy that card.");
-      persistCampaign("run");
-      if (engine) engine.logAction("Duplicated " + top.label + top.suit + " into the card inventory");
-      refreshDebug();
-      return;
-    }
+    // (Duplicate is now an ordinary triggered sticker — it ATTACHES to the card
+    // here and fires later when that card survives a correct Same guess.)
     if (!campaign.canApplyStickerById(top.id, typeId)) {
       const t = StickerTypes.get(typeId);
       // Visible failure feedback: notice in the strip + a wince on the tapped
@@ -10154,6 +10158,21 @@ const UIRenderer = (() => {
         break;
       }
 
+      case "card-duplicated": {
+        // Duplicate sticker fired (its card survived a correct Same): copy the
+        // card into the campaign inventory and fly it to the inventory button.
+        if (campaign) {
+          const copy = campaign.duplicateCard(payload.cardId);
+          if (copy) {
+            flyCopiedCardToInventory(payload.index, payload.board);
+            flashNotice("Duplicate — copied a card to your inventory.");
+            persistCampaign("run");
+            if (engine) engine.logAction("Duplicate: copied a card into the card inventory");
+          }
+        }
+        break;
+      }
+
       case "pillar-fired": {
         // A Pillar effect just fired on a column — pulse it (+ float "+N" for a
         // coin reward) so the player sees which Pillar acted. Feedback only.
@@ -10951,6 +10970,18 @@ const UIRenderer = (() => {
     const grid = net.parentNode; if (!grid) return;
     const board = engine.getBoard();
     if (!board) return;                       // board only exists after start()
+    // An Anchored pile (its pile card carries Anchor) is IGNORED for link
+    // thickness — the link reads from the non-anchored end. If BOTH ends are
+    // anchored, fall back to the LARGER of the two. (Appearance only; Anchor's
+    // scoring effect is unchanged.)
+    const isAnchored = (i) => { const top = board.top(i); return !!(top && top.stickers && top.stickers.some(s => s.type === "anchor")); };
+    const linkGateSize = (i, j) => {
+      const si = board.pileSize(i), sj = board.pileSize(j), ai = isAnchored(i), aj = isAnchored(j);
+      if (ai && aj) return Math.max(si, sj);
+      if (ai) return sj;
+      if (aj) return si;
+      return Math.min(si, sj);
+    };
     const gr = grid.getBoundingClientRect();
     if (!gr.width || !gr.height) return;
     net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
@@ -10990,7 +11021,7 @@ const UIRenderer = (() => {
         const diag = Math.min(dx, dy) / Math.max(dx, dy, 1) > 0.4;
         const w = Math.max(1, Math.min(5, (typeof forceStrength === "number")
           ? forceStrength
-          : Math.min(board.pileSize(nodes[a].i), board.pileSize(nodes[b].i))));
+          : linkGateSize(nodes[a].i, nodes[b].i)));
         const key = nodes[a].i + "-" + nodes[b].i;
         keys.add(key);
         specs.push({ key, nodeA: nodes[a], nodeB: nodes[b], w, diag, bow: edgeBow(key) });
@@ -12112,10 +12143,24 @@ const UIRenderer = (() => {
 
   /* Shared description source for any element (Imprint / Pathway / Cache):
      reads straight from the registries — the SAME text the help popups use. */
+  /* The displayed description for an item — usually the static registry text,
+     but Suit Tally injects this deal's ACTUAL rolled suit symbol (the store +
+     every help surface go through here, so the live suit shows everywhere and
+     updates each deal). */
+  function itemDescription(t) {
+    if (!t) return "";
+    if (t.effect === "suitTally") {
+      const br = engine && engine.baseRandom ? engine.baseRandom() : null;
+      if (br && br.suit) {
+        return br.suit + " — gain coins equal to the total value of that suit among this column's cards (face cards count 10). (suit changes each deal)";
+      }
+    }
+    return t.description;
+  }
   function describeItem(kind, id) {
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
-    return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: t.description } : null;
+    return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
   }
   /* The ONE fixed help slot: reflects the current selection (Imprint / Pathway /
      Memory Swap) with its name, tier, effect, and the Buy action. Pathways show
@@ -12734,7 +12779,7 @@ const UIRenderer = (() => {
     if (!t) return;
     clearSelection();
     const header = (t.icon || "") + " " + escHtml(t.label);
-    showActionBar(header, [], [], { help: t.description || "", dismiss: hideActionBar });
+    showActionBar(header, [], [], { help: itemDescription(t) || "", dismiss: hideActionBar });
   }
 
   /* Indicator on every currently-activatable Pillar (tap-to-activate). Toggles a
@@ -12816,7 +12861,6 @@ const UIRenderer = (() => {
   function baseTargetPrompt(base) {
     switch (base && base.effect) {
       case "kamikaze":       return "Choose a pile to kill, then peek at the next 3 upcoming cards.";
-      case "randomSticker":  return "Choose a pile in this column to sticker its pile card.";
       case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
       case "demolish":       return "Choose one of your Pillars to destroy for +15 coins.";
       default:               return "Choose a target pile.";
@@ -12842,7 +12886,7 @@ const UIRenderer = (() => {
       if (el.board) { el.board.classList.add("armed-base-pillar"); el.board.classList.remove("armed-base", "armed-revive"); }
       showActionBar(baseTargetPrompt(base), [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
-      ], [], { help: base.description });
+      ], [], { help: itemDescription(base) });
       refreshActivatableIndicators();
       return;
     }
@@ -12853,7 +12897,7 @@ const UIRenderer = (() => {
       // Cancel backs out (no outside-tap dismiss while choosing a target).
       showActionBar(baseTargetPrompt(base), [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
-      ], baseTargets(col), { help: base.description });
+      ], baseTargets(col), { help: itemDescription(base) });
     } else {
       // Whole-column Base (e.g. Landslide): show its DESCRIPTION and the
       // "Activate X?" decision together; an outside tap cancels.
@@ -12861,7 +12905,7 @@ const UIRenderer = (() => {
       showActionBar("Activate " + escHtml(base.label) + "?", [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
         { label: "Activate", cls: "primary", onClick: () => { const c = armedBaseAct.col; disarmBaseAct(); fireBase(c, null); } },
-      ], engine.getRun().pileColumns ? baseColumnPiles(col) : [], { help: base.description, dismiss: disarmBaseAct });
+      ], engine.getRun().pileColumns ? baseColumnPiles(col) : [], { help: itemDescription(base), dismiss: disarmBaseAct });
     }
     refreshActivatableIndicators();
   }
