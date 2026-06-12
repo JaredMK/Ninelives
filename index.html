@@ -934,7 +934,7 @@
   .actions {
     width: min(100%, 680px);
     display: grid;
-    grid-template-columns: 38px 1fr 0.6fr 1fr;   /* ? · HIGHER · SAME · LOWER */
+    grid-template-columns: 1fr 0.6fr 1fr;        /* HIGHER · SAME · LOWER */
     gap: 8px;
     min-height: 34px;
     align-items: stretch;
@@ -959,13 +959,6 @@
   .btn.lower  { background: linear-gradient(180deg, #ff8a97, var(--bad)); }
   /* Greyed during a drag-guess to show which guess is armed (non-chosen dim). */
   .btn.dim { opacity: 0.28; filter: grayscale(0.85); }
-
-  /* "?" card-info button — small, secondary; disabled until a pile is selected. */
-  .btn.info {
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); font-size: 19px; padding: 0;
-  }
-  .btn.info:disabled { opacity: 0.32; cursor: default; }
 
   /* "Same" is a smaller, secondary option wedged between higher/lower. */
   .btn.same {
@@ -2902,14 +2895,13 @@
       <button class="play-btn start-run hidden" id="startRunBtn" type="button">START DEAL</button>
       <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
       <div class="actions hidden" id="actions">
-        <button class="btn info" id="btnInfo" type="button" title="Card info" aria-label="Card info" disabled>?</button>
         <button class="btn higher" id="btnHigher">HIGHER</button>
         <button class="btn same" id="btnSame">SAME</button>
         <button class="btn lower" id="btnLower">LOWER</button>
       </div>
       <!-- First-turn help, shown in the guess-button row before any pile is
            tapped (replaced by the buttons on the first selection). -->
-      <div class="ctl-help hidden" id="ctlHelp">Tap a pile to guess Higher or Lower — or swipe it up or down.</div>
+      <div class="ctl-help hidden" id="ctlHelp">Tap a pile to guess Higher or Lower, swipe it up or down — or hold it for card info.</div>
       <!-- Unified activation/confirm prompt — fills this row while an interactive
            pillar/effect is being activated or confirmed; the board stays in view. -->
       <div class="action-prompt hidden" id="actionPrompt">
@@ -3382,7 +3374,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.41 · qa-sweep-final";
+const APP_VERSION = "v2.42 · proposals-pass";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7050,7 +7042,6 @@ const UIRenderer = (() => {
     actionPrompt: document.getElementById("actionPrompt"),
     actionPromptText: document.getElementById("actionPromptText"),
     actionPromptBtns: document.getElementById("actionPromptBtns"),
-    btnInfo: document.getElementById("btnInfo"),
     btnHigher: document.getElementById("btnHigher"),
     btnSame: document.getElementById("btnSame"),
     btnLower: document.getElementById("btnLower"),
@@ -7683,7 +7674,6 @@ const UIRenderer = (() => {
     pileEls[index].classList.add("selected");
     el.actions.classList.remove("hidden");
     if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // first-turn help done
-    if (el.btnInfo) el.btnInfo.disabled = false;
     const top = engine.getBoard().top(index);
     el.hint.textContent = `Pile shows ${top.label}. Drag up = Higher, down = Lower, or tap a button.`;
   }
@@ -7705,15 +7695,18 @@ const UIRenderer = (() => {
     }
     selected = null;
     el.actions.classList.add("hidden");
-    if (el.btnInfo) el.btnInfo.disabled = true;
     closeCardInfo();
   }
 
-  /* ---- card-info popup ("?" button): the selected card's description +
-     stickers (registry text) + persistent state. Tap off to close. ---- */
-  function openCardInfo() {
-    if (selected === null || !engine) return;
-    el.cardInfoPanel.innerHTML = cardPeekHtml(engine.getBoard().top(selected), selected);
+  /* ---- card-info popup: a pile card's description + stickers (registry
+     text) + persistent state. Opened by HOLDING a pile during active play
+     (the board's hold-to-peek idiom — release closes); the backdrop tap-off
+     close remains as a safety net. ---- */
+  function openCardInfo(index) {
+    if (index == null || !engine) return;
+    const top = engine.getBoard().top(index);
+    if (!top) return;
+    el.cardInfoPanel.innerHTML = cardPeekHtml(top, index);
     el.cardInfo.classList.remove("hidden");
   }
   function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
@@ -8505,11 +8498,14 @@ const UIRenderer = (() => {
     // (b) During active play, DRAG a pile up/down to guess Higher/Lower in one
     //     motion (release commits; centre dead-zone cancels). A drag suppresses
     //     the ensuing click so it never also selects. A plain TAP still selects.
-    // Card info during play is via select-pile → "?" (no card hold-peek).
+    // Card info during play: HOLD a pile (release closes) — see the pile
+    // pointerdown below. The old "?" button is gone.
     const PEEK_HOLD_MS = 180;     // Pillar-indicator hold threshold
+    const INFO_HOLD_MS = 350;     // pile hold → card info (longer: piles also tap+drag)
     const TAP_SLOP = 8;           // movement under this = a tap (selects)
     const DRAG_THRESH = 26;       // vertical travel to arm a guess
     let peekTimer = null, peeking = false, suppressPileClick = false;
+    let infoTimer = null, infoHold = false;   // pile hold-for-card-info state
     let peekTapCol = null;   // a Pathway banner whose peek is open via a quick TAP
     let peekTapPile = null;  // a pile whose card-sticker peek is open via a TAP (pre-run)
     let pileDrag = null;          // { index, startY, armed, moved }
@@ -8542,7 +8538,19 @@ const UIRenderer = (() => {
       // prompt is up); otherwise let the click handle tap-select / sticker apply.
       if (engine && engine.isRunStarted() && engine.getStatus() === "playing" && !promptActive) {
         const index = Number(pileEl.dataset.index);
-        if (engine.getBoard().isActive(index)) pileDrag = { index, startY: e.clientY, armed: null, moved: false };
+        if (engine.getBoard().isActive(index)) {
+          pileDrag = { index, startY: e.clientY, armed: null, moved: false };
+          // HOLD → this pile's card info (read-only; release closes). Movement
+          // (a drag-guess) cancels the hold; the hold cancels the drag.
+          clearTimeout(infoTimer);
+          infoHold = false;
+          infoTimer = setTimeout(() => {
+            infoHold = true;
+            pileDrag = null;               // a hold is not a drag — disarm guessing
+            clearDragGreying();
+            openCardInfo(index);
+          }, INFO_HOLD_MS);
+        }
       }
     });
 
@@ -8550,6 +8558,7 @@ const UIRenderer = (() => {
       if (!pileDrag) return;
       const dy = pileDrag.startY - e.clientY;          // up = positive
       if (Math.abs(dy) > TAP_SLOP) {
+        clearTimeout(infoTimer);                       // it's a drag — not an info hold
         if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); }  // reveal buttons for feedback
         const armed = dy >= DRAG_THRESH ? "higher" : dy <= -DRAG_THRESH ? "lower" : null;
         if (armed !== pileDrag.armed) { pileDrag.armed = armed; setDragGreying(armed); }
@@ -8559,6 +8568,8 @@ const UIRenderer = (() => {
 
     const endPeek = () => {
       clearTimeout(peekTimer);
+      clearTimeout(infoTimer);
+      if (infoHold) { infoHold = false; suppressPileClick = true; closeCardInfo(); }
       if (peeking) { peeking = false; suppressPileClick = true; closePeekInfo(); }
       if (pileDrag) {
         clearDragGreying();
@@ -8699,7 +8710,6 @@ const UIRenderer = (() => {
     el.peelOkBtn.addEventListener("click", doPeel);
 
     // "?" card-info button (enabled once a pile is selected) + tap-off to close.
-    el.btnInfo.addEventListener("click", openCardInfo);
     el.cardInfo.addEventListener("click", (e) => { if (e.target === el.cardInfo) closeCardInfo(); });
 
     // Pre-run pack tray: tap a held pack card to arm/disarm it for replacement.
