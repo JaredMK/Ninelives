@@ -1481,7 +1481,19 @@
   /* Top padding clears the fixed Stage·Run·coins badge (top:6px, ~34px tall) so
      the Refresh-store button in the top row never tucks under it. overflow-y is
      the safety net for short viewports now that the content sits a touch lower. */
-  .overlay.store { justify-content: flex-start; align-items: center; overflow-y: auto; overflow-x: hidden; gap: 5px; padding: 34px 12px max(6px, env(safe-area-inset-bottom)); }
+  /* The shop fits ONE screen — no scrolling. A flex column: header at the top,
+     two object shelves that grow to fill (and vertically distribute) the middle,
+     actions pinned to the bottom. A soft warm radial light gives the objects a
+     surface to rest ON rather than float over. */
+  .overlay.store {
+    justify-content: flex-start; align-items: center;
+    overflow: hidden; gap: 0;
+    padding: 30px 12px max(8px, env(safe-area-inset-bottom));
+    background:
+      radial-gradient(115% 70% at 50% 40%, rgba(255,238,212,0.66), rgba(255,238,212,0) 62%),
+      radial-gradient(80% 50% at 50% 96%, rgba(214,178,140,0.20), rgba(214,178,140,0) 70%),
+      rgba(249, 244, 238, 0.95);
+  }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
   .store-coins {
@@ -1535,87 +1547,105 @@
   .store-reroll:disabled { background: var(--panel-2); color: var(--muted); border-color: var(--edge-2); box-shadow: none; cursor: default; }
   .store-reroll:active { transform: scale(0.97); }
 
-  /* A shelf: a labelled section holding one row of large tiles. The two shelves
-     (Stickers, Items) are clearly separated by their headers + generous gaps. */
-  .store-shelf { width: min(94vw, 440px); }
-  .shelf-h { display: flex; align-items: center; gap: 7px; font-family: var(--font-display);
-    font-weight: 800; font-size: 13px; letter-spacing: 0.8px; text-transform: uppercase;
-    margin: 5px 3px 8px; }
-  .shelf-h .ico { font-size: 15px; }
-  .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 600; letter-spacing: 0.2px;
-    opacity: 0.6; margin-left: auto; text-transform: none; color: var(--muted); }
+  /* A shelf: a labelled section holding one row of objects. The two shelves grow
+     to fill the middle of the screen so the rows distribute vertically (stickers
+     on top, items below) with no scroll. */
+  .store-shelf { width: min(94vw, 440px); flex: 1 1 0; min-height: 0;
+    display: flex; flex-direction: column; }
+  /* Section label as a thin understated rule (not a box): small caps label, a
+     hairline that runs to the small italic sublabel. */
+  .shelf-h { display: flex; align-items: center; gap: 9px; font-family: var(--font-display);
+    font-weight: 800; font-size: 12px; letter-spacing: 1.1px; text-transform: uppercase;
+    margin: 2px 3px 4px; }
+  .shelf-h .rule { flex: 1; height: 1px; background: currentColor; opacity: 0.22; }
+  .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 500; font-style: italic;
+    letter-spacing: 0.2px; opacity: 0.62; text-transform: none; color: var(--muted); }
   .store-shelf.z-imp .shelf-h { color: var(--accent-2); }   /* rose — stickers */
   .store-shelf.z-mix .shelf-h { color: #6E51A6; }           /* violet — mixed items */
 
-  /* One row of THREE large tiles. */
-  .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+  /* One row of THREE objects, vertically centred in the shelf's grown space. */
+  .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px;
+    flex: 1 1 0; min-height: 0; align-content: center; }
 
-  /* Large, inviting item card: top chips, big icon/banner, name, price. */
-  /* The shop tile is NOT a card — it's the shelf the OBJECT sits on. Transparent
-     tap target: the physical object (sticker/pillar/base/pack) is the item, with
-     name + price beneath. No card chrome, no kind/rarity text tags. */
+  /* The shop tile is NOT a card — it's a transparent tap target. The physical
+     object (sticker/pillar/base/pack) IS the item; only a small white coin-chip
+     price pill sits beneath it. No card chrome, no name, no rarity text. */
   .store-tile {
     position: relative; min-width: 0; background: none; border: none;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
     padding: 4px 2px 6px; cursor: pointer;
     transition: transform 0.12s ease;
   }
-  .store-tile:active { transform: scale(0.97); }
-  .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the description */
+  .store-tile:active { transform: scale(0.96); }
+  .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the detail */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
-  /* Object slot — a fixed-height shelf area so all three tiles in a row align,
-     with the object resting on its lower edge (a soft contact shadow under it). */
+  /* Object area — a fixed-height slot so all three objects in a row align. A
+     slight per-object rotation (set inline) makes them read as merchandise laid
+     out on a surface, with a soft contact shadow grounding each one. */
   .store-tile .ti-obj {
-    width: 100%; height: 122px; display: flex; align-items: flex-end; justify-content: center;
+    width: 100%; height: 116px; display: flex; align-items: center; justify-content: center;
     position: relative;
   }
-  .store-tile .ti-obj.obj-sticker, .store-tile .ti-obj.obj-pack { align-items: center; }
   .store-tile .ti-obj.obj-pillar { align-items: flex-start; }   /* hangs from the top */
-  .store-tile .ti-obj.obj-base { padding-bottom: 8px; }
+  .store-tile .ti-obj.obj-base { align-items: flex-end; padding-bottom: 8px; }
   .store-tile .ti-obj.obj-base .base-banner.plaque { height: 46px; }   /* short plaque rests on the shelf */
   .store-tile .ti-obj.obj-pack .pack-foil.big { width: 90px; }
-  .store-tile .ti-name { font-size: 11.5px; font-weight: 800; line-height: 1.12; text-align: center;
-    color: var(--text); margin-top: 4px; min-height: 26px; display: flex; align-items: center; }
-  .store-tile .ti-price { font-size: 14px; font-weight: 800; color: var(--amber);
-    display: inline-flex; align-items: center; gap: 3px; }
-  .store-tile .ti-price .coin-ico { font-size: 13px; }
-  /* Selected: lift the object + a soft halo on the shelf (no card ring). */
-  .store-tile.selected { transform: translateY(-3px); }
-  .store-tile.selected .ti-obj::after {
-    content: ""; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
-    width: 70%; height: 14px; border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(224,87,126,0.35), rgba(224,87,126,0) 70%);
+  /* Soft contact shadow so each object sits ON the surface, not floating. */
+  .store-tile .ti-obj::after {
+    content: ""; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
+    width: 56%; height: 11px; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(70,44,40,0.20), rgba(70,44,40,0) 72%);
+    pointer-events: none;
   }
-  .store-tile.selected .ti-name { color: var(--accent-2); }
+  .store-tile .ti-obj.obj-pillar::after { bottom: 6px; }
+  /* Small white coin-chip price pill near the object. */
+  .store-tile .ti-price { font-size: 12.5px; font-weight: 800; color: var(--text);
+    display: inline-flex; align-items: center; gap: 3px;
+    background: #fff; border-radius: 999px; padding: 2px 9px 2px 7px;
+    box-shadow: 0 2px 6px rgba(74,44,52,0.18); }
+  .store-tile .ti-price .coin-ico { font-size: 12px; color: var(--amber); }
 
-  /* Sticky footer: the one fixed help slot + the action row. */
-  /* Foot pinned to the bottom of the no-scroll store (margin-top:auto), holding
-     the help slot, the view buttons (Inventory / Cards / Reroll), and Start. */
+  /* Footer pinned to the bottom of the no-scroll store: the action row only. */
   .store-foot { margin-top: auto; width: min(94vw, 440px);
     display: flex; flex-direction: column; gap: 7px; padding-top: 4px; }
-  .store-help { background: rgba(248,242,235,0.97); border: 1px solid var(--edge-2); border-radius: 14px;
-    padding: 8px 13px; min-height: 42px; box-shadow: 0 2px 8px rgba(74,44,52,0.07); }
-  /* Empty (nothing selected): keep the reserved height so the layout never jumps,
-     but show a blank slot, no placeholder text or chrome. */
-  .store-help.empty { background: transparent; border-color: transparent; }
-  .store-help .sh-row { display: flex; align-items: center; gap: 8px; }
-  .store-help .sh-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
-    letter-spacing: 0.4px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-  .store-help .sh-title .ico { font-size: 17px; flex: none; }
-  .store-help .sh-kind { font-size: 9px; font-weight: 800; color: #6E51A6; text-transform: uppercase; letter-spacing: 0.5px;
-    background: rgba(160,116,214,0.12); border-radius: 999px; padding: 1px 7px; }
-  .store-help .sh-tier { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .store-help.empty .sh-title { color: var(--muted); font-family: var(--font-text); font-weight: 600; font-size: 12px; }
-  .store-help .sh-desc { font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 4px; }
-  .store-help.empty .sh-desc { color: var(--muted); opacity: 0.65; }
-  .store-help .sh-buy.hidden { display: none; }
-  .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
-    color: #fff; border: none; border-radius: 999px; padding: 8px 16px;
-    font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-  .sh-buy .coin-ico { font-size: 12px; }
-  .sh-buy:disabled { background: var(--panel-2); color: var(--muted); cursor: default; }
-  .sh-buy:active { transform: scale(0.97); }
   #storeMsg { display: none; }   /* legacy feedback line kept for existing writes; not shown */
+
+  /* ---- Shop item detail overlay: a focused look at one object ----
+     Dim/blur backdrop; the object rendered larger; rarity, name, description,
+     and Buy. Tap the backdrop or ✕ to dismiss. */
+  .store-detail { position: fixed; inset: 0; z-index: 66;
+    display: flex; align-items: center; justify-content: center; padding: 26px;
+    background: rgba(38,28,26,0.56);
+    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+    animation: storeDetailIn 0.16s ease; }
+  .store-detail.hidden { display: none; }
+  @keyframes storeDetailIn { from { opacity: 0; } to { opacity: 1; } }
+  .sd-panel { position: relative; width: min(86vw, 330px);
+    display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
+  .sd-close { position: absolute; top: -10px; right: -6px; width: 34px; height: 34px;
+    border-radius: 999px; border: none; background: rgba(255,255,255,0.92); color: var(--muted);
+    font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .sd-close:active { transform: scale(0.94); }
+  /* The object, larger. Same component the shelf shows, scaled up. */
+  .sd-obj { display: flex; align-items: center; justify-content: center;
+    min-height: 156px; margin-bottom: 6px; }
+  .sd-obj > * { transform: scale(1.5); transform-origin: center; }
+  .sd-obj.obj-base > * { transform: scale(1.3); }
+  .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
+    color: rgba(255,255,255,0.6); }
+  .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
+  .sd-tier[data-tier="rare"] { color: #e8b964; }
+  .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 21px; color: #fff;
+    line-height: 1.1; }
+  .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; }
+  .sd-buy { margin-top: 4px; }
+  .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
+    color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
+    font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+    box-shadow: 0 4px 14px rgba(224,87,126,0.4); }
+  .sh-buy .coin-ico { font-size: 13px; }
+  .sh-buy:disabled { background: var(--panel-2); color: var(--muted); cursor: default; box-shadow: none; }
+  .sh-buy:active { transform: scale(0.97); }
 
   /* Pack-reveal Confirm button (still used by the reveal modal). */
   .buy-confirm { width: min(94vw, 380px); padding: 8px 12px; border: none; border-radius: 10px;
@@ -3432,36 +3462,43 @@
       <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
     </div>
 
-    <!-- Two shelves: three individual Stickers, then three mixed Items. -->
+    <!-- Two shelves of physical objects resting on the warm shop surface. Each
+         object IS the item — no card/panel around it. Section labels are thin
+         understated rules, not boxes. Tap an object to open its detail. -->
     <div class="store-shelf z-imp">
-      <div class="shelf-h"><span class="ico-slot" data-ico="dot"></span> Stickers
-        <span class="tag">change what a card does</span></div>
+      <div class="shelf-h"><span class="lbl">Stickers</span><span class="rule"></span><span class="tag">change what a card does</span></div>
       <div class="store-row big" id="storeItems"></div>
     </div>
 
     <div class="store-shelf z-mix">
-      <div class="shelf-h"><span class="ico-slot" data-ico="cache"></span> Items
-        <span class="tag">base · pillar · pack</span></div>
+      <div class="shelf-h"><span class="lbl">Items</span><span class="rule"></span><span class="tag">base · pillar · pack</span></div>
       <div class="store-row big" id="storeMixed"></div>
     </div>
 
     <div class="store-msg" id="storeMsg"></div>
 
-    <!-- one fixed help slot + actions, pinned to the bottom -->
+    <!-- actions pinned to the bottom -->
     <div class="store-foot">
-      <div class="store-help empty" id="storeHelp">
-        <div class="sh-row">
-          <span class="sh-title" id="shTitle">Tap any item to see what it does</span>
-          <button class="sh-buy hidden" id="shBuy" type="button">Buy</button>
-        </div>
-        <div class="sh-desc" id="shDesc">Tap a Sticker or Item to read it here.</div>
-      </div>
       <!-- Inventory now lives in the global top-right button; the store keeps the
            Cards (deck) view inline with Start to save a whole row. -->
       <div class="store-actions">
         <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
         <button class="play-btn store-start" id="storeStartBtn" type="button">START DEAL</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Shop item detail: tap a shelf object to focus it — the object rendered
+       larger, then rarity, name, description, and Buy. Dim/blur backdrop; tap
+       outside or ✕ to dismiss. Buying here runs the same purchase logic. -->
+  <div class="store-detail hidden" id="storeDetail">
+    <div class="sd-panel" id="sdPanel">
+      <button class="sd-close" id="sdClose" type="button" aria-label="Close">✕</button>
+      <div class="sd-obj" id="sdObj"></div>
+      <div class="sd-tier" id="sdTier"></div>
+      <div class="sd-name" id="sdName"></div>
+      <div class="sd-desc" id="sdDesc"></div>
+      <button class="sh-buy sd-buy" id="sdBuy" type="button">Buy</button>
     </div>
   </div>
 
@@ -3751,7 +3788,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.53 · physical-artifact-design";
+const APP_VERSION = "v2.54 · shop-shelf-rebuild";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8204,10 +8241,13 @@ const UIRenderer = (() => {
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
     storeMixed: document.getElementById("storeMixed"),
-    storeHelp: document.getElementById("storeHelp"),
-    shTitle: document.getElementById("shTitle"),
-    shBuy: document.getElementById("shBuy"),
-    shDesc: document.getElementById("shDesc"),
+    storeDetail: document.getElementById("storeDetail"),
+    sdObj: document.getElementById("sdObj"),
+    sdTier: document.getElementById("sdTier"),
+    sdName: document.getElementById("sdName"),
+    sdDesc: document.getElementById("sdDesc"),
+    sdBuy: document.getElementById("sdBuy"),
+    sdClose: document.getElementById("sdClose"),
     packReveal: document.getElementById("packReveal"),
     packTitle: document.getElementById("packTitle"),
     packItems: document.getElementById("packItems"),
@@ -9998,28 +10038,29 @@ const UIRenderer = (() => {
     el.overlay.addEventListener("pointercancel", peekOff);
     el.overlay.addEventListener("pointerleave", peekOff);
 
-    // Store wiring (unified): tap any item to SELECT it — its name, effect, and
-    // Buy action fill the single fixed help slot at the bottom. No "?" buttons.
+    // Store wiring: tap a shelf object → open its focused detail overlay. The
+    // object itself is the only affordance — no select-then-read step.
     el.storeItems.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) selectStickerUI(Number(tile.dataset.slot));
+      if (tile && !tile.classList.contains("empty")) openStoreDetail("sticker", Number(tile.dataset.slot));
     });
     el.storeMixed.addEventListener("click", (e) => {
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) selectMixedUI(Number(tile.dataset.mslot));
+      if (tile && !tile.classList.contains("empty")) openStoreDetail("mixed", Number(tile.dataset.mslot));
     });
-    // The one Buy button lives in the help slot; it confirms whatever is selected
-    // (Stickers + mixed Pillars/Bases go to inventory; mixed Packs open on buy).
-    el.shBuy.addEventListener("click", () => {
-      if (el.shBuy.dataset.kind === "sticker") confirmBuySticker();
+    // The detail overlay's Buy confirms the focused object (Stickers + mixed
+    // Pillars/Bases go to inventory; mixed Packs open on buy). Hide the detail
+    // first, keeping the selected slot so the existing confirm logic runs.
+    el.sdBuy.addEventListener("click", () => {
+      const kind = el.sdBuy.dataset.kind;
+      el.storeDetail.classList.add("hidden");
+      if (kind === "sticker") confirmBuySticker();
       else confirmBuyMixed();
     });
-    // Tap empty space in the shop (not a tile / footer) to deselect.
-    el.storeOverlay.addEventListener("click", (e) => {
-      if (e.target.closest(".store-tile, .store-foot")) return;
-      if (selectedStickerSlot != null || selectedMixedSlot != null) {
-        selectedStickerSlot = null; selectedMixedSlot = null; renderStore();
-      }
+    // Dismiss the detail: tap the backdrop or the ✕ (a tap on the panel is kept).
+    el.sdClose.addEventListener("click", closeStoreDetail);
+    el.storeDetail.addEventListener("click", (e) => {
+      if (!e.target.closest(".sd-panel")) closeStoreDetail();
     });
     // Pick screen: open the read-only deck composition to inform the choice.
     el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
@@ -12836,6 +12877,10 @@ const UIRenderer = (() => {
      its rarity color (top accent + tier chip) and a category chip so a mixed slot
      reads as Base / Pillar / Pack at a glance. */
   const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack" };
+  // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
+  // Indexed deterministically by (row, slot) so a given slot always tilts the same.
+  const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
+  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1 };
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -12855,11 +12900,14 @@ const UIRenderer = (() => {
       : kind === "pack" ? campaign.priceOfPack(id)
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
-    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled") + (selected ? " selected" : "");
+    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled");
     btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
-    // The OBJECT ITSELF is the shelf item (large) — the SAME component shown
-    // when installed in-game. No kind/tier text tags: rarity lives in the object
-    // (sticker die-cut border, pillar cloth trim, base metal tone, pack foil).
+    // The OBJECT ITSELF is the shelf item — the SAME component shown when
+    // installed in-game. No name / kind / tier text tags: rarity lives in the
+    // object (sticker die-cut border, pillar cloth trim, base metal tone, pack
+    // foil). A slight deterministic rotation makes objects read as merchandise
+    // laid on a surface; only a small white coin-chip price sits beneath.
+    const rot = DCS_ROT_SHOP[(STORE_KIND_ROW[kind] * 3 + slot) % DCS_ROT_SHOP.length];
     const obj = (kind === "pillar")
       ? '<span class="ti-obj obj-pillar">' + pathwayBannerHtml(t, { size: "shop" }) + '</span>'
       : (kind === "base")
@@ -12868,8 +12916,7 @@ const UIRenderer = (() => {
           ? '<span class="ti-obj obj-pack">' + packObjectHtml(t, { size: "shop" }) + '</span>'
           : '<span class="ti-obj obj-sticker">' + stickerChip(id, { seed: "shop" }) + '</span>';
     btn.innerHTML =
-      obj +
-      '<span class="ti-name">' + escHtml(t.label) + '</span>' +
+      obj.replace('<span class="ti-obj', '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj') +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
   }
@@ -12900,43 +12947,51 @@ const UIRenderer = (() => {
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
   }
-  /* The ONE fixed help slot: reflects the current selection (Imprint / Pathway /
-     Memory Swap) with its name, tier, effect, and the Buy action. Pathways show
-     "choose a column" instead of Buy (the column chooser lives in their zone).
-     This is the single, consistent way the player learns + buys anything. */
-  function renderStoreHelp() {
-    if (!el.storeHelp) return;
+  /* Tap a shelf object → a focused detail overlay: the object rendered larger,
+     then its rarity, name, description, and a Buy action. Selecting an object
+     also sets the matching slot so the EXISTING confirm-buy logic runs unchanged.
+     `row` is "sticker" (top shelf) or "mixed" (the base/pillar/pack shelf). */
+  function openStoreDetail(row, slot) {
     const offer = campaign.getStoreOffer();
-    let kind = null, id = null, price = 0;
-    if (offer) {
-      if (selectedStickerSlot != null) {
-        kind = "sticker"; id = offer.stickers[selectedStickerSlot]; price = campaign.priceOf(id);
-      } else if (selectedMixedSlot != null) {
-        const s = offer.mixed[selectedMixedSlot];
-        if (s) { kind = s.kind; id = s.id; price = campaign.priceOfMixed(selectedMixedSlot); }
-      }
+    if (!offer) return;
+    let kind, id, price;
+    if (row === "sticker") {
+      id = offer.stickers[slot];
+      if (!id) return;
+      kind = "sticker"; price = campaign.priceOf(id);
+      selectedStickerSlot = slot; selectedMixedSlot = null;
+    } else {
+      const s = offer.mixed[slot];
+      if (!s) return;
+      kind = s.kind; id = s.id; price = campaign.priceOfMixed(slot);
+      selectedMixedSlot = slot; selectedStickerSlot = null;
     }
-    const t = id ? describeItem(kind, id) : null;
-    if (!t) {
-      // Empty until the player taps an item: no placeholder text, just blank space.
-      el.storeHelp.classList.add("empty");
-      el.shTitle.textContent = "";
-      el.shDesc.textContent = "";
-      el.shBuy.classList.add("hidden");
-      return;
-    }
+    const info = describeItem(kind, id);
+    if (!info) return;
+    const t = kind === "pillar" ? PillarTypes.get(id)
+      : kind === "base" ? BaseTypes.get(id)
+      : kind === "pack" ? PackTypes.get(id)
+      : StickerTypes.get(id);
+    // The same component the shelf shows — larger (scaled up via .sd-obj CSS).
+    el.sdObj.className = "sd-obj obj-" + kind;
+    el.sdObj.innerHTML =
+        kind === "pillar" ? pathwayBannerHtml(t, { size: "shop" })
+      : kind === "base"   ? baseBannerHtml(t, "charged", { size: "shop" })
+      : kind === "pack"   ? packObjectHtml(t, { size: "shop" })
+      :                     stickerChip(id, { seed: "shop" });
+    el.sdTier.textContent = info.tier || "";
+    el.sdTier.dataset.tier = info.tier || "";
+    el.sdName.textContent = info.label;
+    el.sdDesc.textContent = info.desc || "";
     const afford = campaign.getCoins() >= price;
-    el.storeHelp.classList.remove("empty");
-    el.shTitle.innerHTML = t.icon + " " + escHtml(t.label) +
-      ' <span class="sh-kind">' + KIND_LABEL[kind] + "</span>" +
-      (t.tier ? ' <span class="sh-tier">' + t.tier + "</span>" : "");
-    el.shDesc.textContent = t.desc || "";
-    // One Buy button. Stickers + mixed Pillars/Bases go to inventory; Packs open
-    // on buy. dataset.kind distinguishes the sticker path from the mixed path.
-    el.shBuy.classList.remove("hidden");
-    el.shBuy.disabled = !afford;
-    el.shBuy.dataset.kind = kind === "sticker" ? "sticker" : "mixed";
-    el.shBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
+    el.sdBuy.disabled = !afford;
+    el.sdBuy.dataset.kind = kind === "sticker" ? "sticker" : "mixed";
+    el.sdBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
+    el.storeDetail.classList.remove("hidden");
+  }
+  function closeStoreDetail() {
+    el.storeDetail.classList.add("hidden");
+    selectedStickerSlot = null; selectedMixedSlot = null;
   }
 
   function renderStore() {
@@ -12957,7 +13012,6 @@ const UIRenderer = (() => {
       el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
     padRow(el.storeMixed, STORE_MIXED_SLOTS);
     updateRerollButton();
-    renderStoreHelp();   // the fixed help slot tracks the selection
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
@@ -13236,17 +13290,6 @@ const UIRenderer = (() => {
     el.rerollBtn.innerHTML = glyph("reroll") + " Refresh · " + COIN_SVG + cost;
   }
 
-  /* Tap an offered sticker SLOT to select it (highlight) — does NOT buy.
-     Toggle off by re-tapping; clears any mixed-slot selection. */
-  function selectStickerUI(slot) {
-    selectedStickerSlot = selectedStickerSlot === slot ? null : slot;
-    selectedMixedSlot = null;
-    el.storeMsg.textContent = selectedStickerSlot != null
-      ? "Tap Buy to confirm, or tap the sticker again to deselect."
-      : "Buy from the offer, refresh, then press Start Deal.";
-    renderStore();
-  }
-
   /* Confirm buying the selected offered sticker (the only place it's bought).
      Empties just that slot; the rest of the offer stays. */
   function confirmBuySticker() {
@@ -13263,20 +13306,6 @@ const UIRenderer = (() => {
     }
     renderStore();
     refreshDebug();
-  }
-
-  /* Tap an offered MIXED SLOT to SELECT it (its name/effect/Buy fill the help
-     slot) — does NOT buy. Toggle off by re-tapping; clears the sticker selection. */
-  function selectMixedUI(slot) {
-    const offer = campaign.getStoreOffer();
-    const s = offer ? offer.mixed[slot] : null;
-    if (!s) return;
-    selectedStickerSlot = null;
-    selectedMixedSlot = selectedMixedSlot === slot ? null : slot;
-    el.storeMsg.textContent = selectedMixedSlot == null ? "Buy from the offer, refresh, then press Start Deal."
-      : s.kind === "pack" ? "Tap Buy to open it, or tap it again to deselect."
-      : "Tap Buy to add it to your inventory — place it on a column in setup.";
-    renderStore();
   }
 
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
