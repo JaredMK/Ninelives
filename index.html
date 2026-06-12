@@ -1120,6 +1120,19 @@
     border: 1px solid var(--danger); border-radius: 10px;
     font-weight: 700; font-size: 12px; cursor: pointer;
   }
+  /* Artifact telemetry table (debug only). Wide table → horizontal scroll. */
+  .telem-panel { width: min(100%, 760px); }
+  .telem-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .telem-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+  .telem-scroll { overflow: auto; max-height: 64vh; -webkit-overflow-scrolling: touch; border: 1px solid var(--edge-2); border-radius: 10px; }
+  .telem-table { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .telem-table th, .telem-table td { padding: 4px 7px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--edge-2); }
+  .telem-table th { position: sticky; top: 0; background: var(--bg-2); color: var(--accent-2); font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; user-select: none; }
+  .telem-table td.tl, .telem-table th.tl { text-align: left; }
+  .telem-table tr.grp td { background: var(--panel-2); color: var(--accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; font-size: 10px; text-align: left; }
+  .telem-table tr.zero td { opacity: 0.45; }   /* never-triggered artifacts dimmed */
+  .telem-table td.name { font-weight: 700; color: var(--text); }
+  .telem-table td.rate { color: var(--amber); font-weight: 700; }
   /* Stats grid */
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .stat-tile {
@@ -3181,6 +3194,12 @@
         <div class="debug-peek" id="debugPeekOut"></div>
         <div class="debug-sub">logbook (this deal · newest first) →</div>
         <div class="debug-log" id="debugLog"></div>
+        <div class="debug-sub">artifact telemetry (playtest balancing) →</div>
+        <div class="debug-tools">
+          <button class="debug-btn" id="debugTelemView">📊 stats</button>
+          <button class="debug-btn" id="debugTelemCsv">⬇ CSV</button>
+          <button class="debug-btn" id="debugTelemReset">reset</button>
+        </div>
         <div class="debug-ver" id="debugVer">build —</div>
       </div>
     </div>
@@ -3496,6 +3515,20 @@
     <div class="menu-foot" id="menuFoot"></div>
   </div>
 
+  <!-- Artifact telemetry table (debug only — playtest balancing). -->
+  <div class="sheet-overlay hidden" id="telemOverlay">
+    <div class="sheet-panel telem-panel">
+      <div class="sheet-head"><span>Artifact Telemetry</span>
+        <button class="sheet-close" id="telemClose" type="button" aria-label="Close">×</button></div>
+      <div class="telem-meta" id="telemMeta"></div>
+      <div class="telem-actions">
+        <button class="debug-btn" id="telemCsvBtn">⬇ Export CSV</button>
+        <button class="debug-btn" id="telemResetBtn">Reset stats</button>
+      </div>
+      <div class="telem-scroll" id="telemBody"></div>
+    </div>
+  </div>
+
   <!-- Stats (lifetime record across games). Reached from the main menu. -->
   <div class="sheet-overlay hidden" id="statsOverlay">
     <div class="sheet-panel">
@@ -3557,7 +3590,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.51 · store-6-slot-rework";
+const APP_VERSION = "v2.52 · artifact-telemetry";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3570,6 +3603,84 @@ function track(name, params) {
     }
   } catch (e) { /* analytics is best-effort — never let it affect the game */ }
 }
+
+/* ----------------------------------------------------------------
+   Telem — artifact telemetry for PLAYTEST BALANCING. Instrumentation only:
+   it never reads or influences gameplay, and every entry point is wrapped
+   fail-silent (a telemetry error can NEVER break, block, or delay play).
+   Aggregated PER ARTIFACT (totals + exposure), not per-event — kept small.
+   Stored under its OWN localStorage key (separate from the campaign save and
+   from lifetime Stats), so it survives run wipes/deaths/resets — it's meta-data.
+   No PII. In-memory accumulation (cheap counter bumps during play) is flushed
+   to storage at safe, infrequent points (deal end, store open, tab hide).
+
+   Shape: { v, since, art: { <id>: { klass, label, triggers, dealsActive,
+   purchased, coins, coinsLost, buried, peeks, saves, copies, applied, killed,
+   shuffled, revived, moved, destroyed } } }. `klass` ∈ sticker|pillar|base. */
+const Telem = (() => {
+  const KEY = "mnesis.telem.v1";
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  let mem, dirty = false;
+  (function load() {
+    try {
+      const raw = ok() ? localStorage.getItem(KEY) : null;
+      mem = raw ? JSON.parse(raw) : null;
+    } catch (e) { mem = null; }
+    if (!mem || typeof mem !== "object" || !mem.art) mem = { v: 1, since: Date.now(), art: {} };
+  })();
+  function flush() {
+    try { if (dirty && ok()) { localStorage.setItem(KEY, JSON.stringify(mem)); dirty = false; } }
+    catch (e) { /* quota/serialize — ignore */ }
+  }
+  function entry(klass, id, label) {
+    let a = mem.art[id];
+    if (!a) a = mem.art[id] = { klass: klass, label: label || id };
+    if (klass) a.klass = klass;
+    if (label) a.label = label;
+    return a;
+  }
+  return {
+    /** Record ONE effect firing for artifact `id`: +1 trigger plus any impact
+        counters in `impacts` (coins, coinsLost, buried, peeks, saves, copies,
+        applied, killed, shuffled, revived, moved, destroyed). Fail-silent. */
+    rec(klass, id, label, impacts) {
+      try {
+        if (!id) return;
+        const a = entry(klass, id, label);
+        a.triggers = (a.triggers || 0) + 1;
+        if (impacts) for (const k in impacts) {
+          const v = impacts[k];
+          if (typeof v === "number" && v) a[k] = (a[k] || 0) + v;
+        }
+        dirty = true;
+      } catch (e) { /* telemetry must never throw */ }
+    },
+    /** Count a deal in which artifact `id` was active (placed/owned + able to
+        trigger). Call once per artifact per deal. Fail-silent. */
+    expose(klass, id, label) {
+      try { if (!id) return; const a = entry(klass, id, label); a.dealsActive = (a.dealsActive || 0) + 1; dirty = true; }
+      catch (e) { /* never throw */ }
+    },
+    /** Count a purchase of artifact `id`. Fail-silent. */
+    purchase(klass, id, label) {
+      try { if (!id) return; const a = entry(klass, id, label); a.purchased = (a.purchased || 0) + 1; dirty = true; }
+      catch (e) { /* never throw */ }
+    },
+    flush,
+    get() { try { return JSON.parse(JSON.stringify(mem)); } catch (e) { return { art: {} }; } },
+    since() { try { return mem.since || 0; } catch (e) { return 0; } },
+    reset() { try { mem = { v: 1, since: Date.now(), art: {} }; dirty = true; flush(); } catch (e) { /* ignore */ } },
+  };
+})();
+
+/* Flush telemetry when the tab is backgrounded/closed (best-effort; ignored if
+   unavailable). Never blocks play. */
+try {
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("visibilitychange", () => { try { Telem.flush(); } catch (e) {} });
+    window.addEventListener("pagehide", () => { try { Telem.flush(); } catch (e) {} });
+  }
+} catch (e) { /* ignore */ }
 
 /* Beat held after a run win — while the win cinematic plays out (faces recede,
    limiting node flashes, connections collapse to the weakest level) — before
@@ -4763,6 +4874,14 @@ const GameEngine = (() => {
       for (const fn of listeners) fn(type, payload);
     }
 
+    /* Fail-silent telemetry hook (playtest balancing only — never affects play).
+       Each call records ONE effect firing for an artifact id with optional
+       impact counters. Double-guarded so a telemetry fault can't touch the
+       engine. See the Telem module for storage/lifecycle. */
+    function recT(klass, id, label, impacts) {
+      try { if (typeof Telem !== "undefined") Telem.rec(klass, id, label, impacts); } catch (e) { /* never throw */ }
+    }
+
     /** The Pillar bound to the column that pile `index` sits in (or null).
         Reads the locked run binding — valid once startRun has snapshotted it. */
     /** The EFFECTIVE Pillar def for a column, resolving Ditto: a Ditto column
@@ -4793,6 +4912,8 @@ const GameEngine = (() => {
     function payPillar(col, effect, label, amount) {
       addBonus(label, amount);
       firePillar(col, effect, label, amount || 0);
+      const pdef = resolvePillarDef(col);   // telemetry: live coin payout (prime/fib/royalCourt)
+      if (pdef) recT("pillar", pdef.id, pdef.label, { coins: amount > 0 ? amount : 0, coinsLost: amount < 0 ? -amount : 0 });
       echoAdjacent(col);
     }
     /** Echo: each column NEXT TO `payerCol` that holds an Echo (incl. via Ditto)
@@ -4805,6 +4926,7 @@ const GameEngine = (() => {
         if (!def || def.effect !== "echo") continue;
         addBonus(def.label, def.value || 1);
         firePillar(c, "echo", def.label, def.value || 1);   // no echoAdjacent → no chain
+        recT("pillar", def.id, def.label, { coins: def.value || 1 });   // telemetry
       }
     }
     /** Expansion LIVE Pillars on a correct landing: Prime / Royal Court (coins),
@@ -4823,6 +4945,7 @@ const GameEngine = (() => {
       } else if (pillar.effect === "queensEye" && v === 12) {
         run.revealNextActive = true;
         firePillar(col, "queensEye", pillar.label, 0);
+        recT("pillar", pillar.id, pillar.label, { peeks: 1 });   // telemetry
       } else if (pillar.effect === "sameSpark" && isTie === true && guess === "same") {
         let n = 0;
         for (const i of colAlivePiles(col)) {
@@ -4831,7 +4954,7 @@ const GameEngine = (() => {
           const sid = pickOne(baseStickerPool().map(t => t.id));
           if (sid) { projectStickerOntoCard(top, sid); n++; }
         }
-        if (n > 0) { firePillar(col, "sameSpark", pillar.label, 0); logLine("Same Spark: stickered " + n + " pile cards in the column"); }
+        if (n > 0) { firePillar(col, "sameSpark", pillar.label, 0); logLine("Same Spark: stickered " + n + " pile cards in the column"); recT("pillar", pillar.id, pillar.label, { applied: n }); }
       }
     }
 
@@ -4921,21 +5044,27 @@ const GameEngine = (() => {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
       if (pillar.effect === "eightTribute" && drawn.value === 8) {
-        if (buryTribute(index, 3, pillar.label) > 0) {
+        const nb = buryTribute(index, 3, pillar.label);
+        if (nb > 0) {
           if (run.eightTributesUsed) run.eightTributesUsed[col] += 1;
           firePillar(col, "eightTribute", pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { buried: nb });
         }
       } else if (pillar.effect === "sameTribute" && isTie === true) {
-        if (buryTribute(index, pillar.tributeCount || 2, pillar.label) > 0) {
+        const nb = buryTribute(index, pillar.tributeCount || 2, pillar.label);
+        if (nb > 0) {
           if (run.sameTributesUsed) run.sameTributesUsed[col] += 1;
           firePillar(col, "sameTribute", pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { buried: nb });
         }
       } else if (pillar.effect === "denseBury" && (drawn.stickers ? drawn.stickers.length : 0) >= 3) {
         // Dense Bury: a card carrying 3+ stickers just landed → bury 1 from the
         // deck bottom under this pile. Uncapped.
-        if (buryTribute(index, 1, pillar.label) > 0) {
+        const nb = buryTribute(index, 1, pillar.label);
+        if (nb > 0) {
           if (run.denseBuryUsed) run.denseBuryUsed[col] += 1;
           firePillar(col, "denseBury", pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { buried: nb });
         }
       }
     }
@@ -4964,10 +5093,11 @@ const GameEngine = (() => {
           // Paid bury: never auto-charge. Queue the offer and ask first. With an
           // empty deck there's nothing to bury → no prompt, no charge.
           if (deck.isEmpty()) continue;
-          run.pendingTributes.push({ index, count, cost: t.coinCost, label: t.label });
+          run.pendingTributes.push({ index, count, cost: t.coinCost, label: t.label, type: t.id });
         } else {
           // Free bury (Tribute I, Center Tribute): fires every time, no prompt.
-          buryTribute(index, count, t.label);
+          const nb = buryTribute(index, count, t.label);
+          if (nb > 0) recT("sticker", t.id, t.label, { buried: nb });
         }
       }
       // Surface the first queued offer for the UI; further offers chain off each
@@ -4993,6 +5123,7 @@ const GameEngine = (() => {
         if (card && card.id != null && card.stickers && card.stickers.some(s => s.type === "duplicate")) {
           logLine("Duplicate: " + cardName(card) + " survived a Same — copied to inventory");
           emit("card-duplicated", { cardId: card.id, index, board, deck, run });
+          recT("sticker", "duplicate", "Duplicate", { copies: 1 });
         }
       }
     }
@@ -5005,10 +5136,10 @@ const GameEngine = (() => {
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t) continue;
-        if (t.behavior === "middleColumnReward" && center != null && col === center) addBonus("Focus", t.value || 0);
-        else if (t.behavior === "gainCoin") addBonus("Bonus Coin", t.value || 0);
+        if (t.behavior === "middleColumnReward" && center != null && col === center) { addBonus("Focus", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
+        else if (t.behavior === "gainCoin") { addBonus("Bonus Coin", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
         // Hub pays per instance: +1 for each OTHER Imprint on this card.
-        else if (t.behavior === "collector") addBonus("Collector", (t.value || 1) * Math.max(0, stickers.length - 1));
+        else if (t.behavior === "collector") { const amt = (t.value || 1) * Math.max(0, stickers.length - 1); addBonus("Collector", amt); recT("sticker", t.id, t.label, { coins: amt }); }
       }
     }
 
@@ -5032,12 +5163,16 @@ const GameEngine = (() => {
       if (dp > 0) {
         const per = Math.floor(deck.remaining() / 10);
         payCoins("Deep Pockets", dp * per);
+        recT("sticker", "deepPockets", "Deep Pockets", { coins: dp * per });
       }
       const lc = n("looseChange");
-      for (let k = 0; k < lc; k++) payCoins("Loose Change", Math.floor(rng() * 3), true);
+      let lcSum = 0;
+      for (let k = 0; k < lc; k++) { const a = Math.floor(rng() * 3); payCoins("Loose Change", a, true); lcSum += a; }
+      if (lc > 0) recT("sticker", "looseChange", "Loose Change", { coins: lcSum });
       const snob = n("suitSnob");
       if (snob > 0 && current && (drawn.suit === current.suit || drawn.wildSuit || current.wildSuit)) {
         run.revealNextActive = true;   // peek the next upcoming card (the reward)
+        recT("sticker", "suitSnob", "Suit Snob", { peeks: 1 });
       }
       if (n("momentum") > 0) {
         // Per-card counter (duplicate Momentums share it — they don't stack):
@@ -5046,11 +5181,13 @@ const GameEngine = (() => {
         if (x > 0) payCoins("Momentum", x);
         drawn.momentum = x + 1;
         run.momentumUpdates[drawn.id] = drawn.momentum;
+        recT("sticker", "momentum", "Momentum", { coins: x });
       }
       // --- burials ---
       const qb = n("quickBury");
+      let qbBuried = 0;
       for (let k = 0; k < qb; k++) {
-        buryTribute(index, 1, "Quick Bury");
+        qbBuried += buryTribute(index, 1, "Quick Bury");
         if (rng() < 0.25) {
           // The sticker peels off: drop ONE instance from the live card and
           // record the destruction for the campaign write-back (on a win).
@@ -5061,13 +5198,16 @@ const GameEngine = (() => {
           emit("sticker-peeled", { index, cardId: drawn.id, type: "quickBury", board, deck, run });
         }
       }
+      if (qb > 0) recT("sticker", "quickBury", "Quick Bury", { buried: qbBuried });
       if (n("snowball") > 0) {
         // Per-card counter (duplicate Snowballs share it — they don't stack):
         // bury X, then grow X by 1. Persisted like compoundHits.
         const x = drawn.snowball || 0;
-        if (x > 0) buryTribute(index, x, "Snowball Bury");
+        let sbBuried = 0;
+        if (x > 0) sbBuried = buryTribute(index, x, "Snowball Bury");
         drawn.snowball = x + 1;
         run.snowballUpdates[drawn.id] = drawn.snowball;
+        recT("sticker", "snowball", "Snowball Bury", { buried: sbBuried });
       }
       // --- projections (live, this deal only) ---
       const ts = n("twinSpark");
@@ -5087,21 +5227,27 @@ const GameEngine = (() => {
           const typeId = pickOne(baseStickerPool().map(t => t.id));
           if (typeId) projectStickerOntoCard(board.top(i), typeId);
         }
-        if (targets.length) firePillar(col, "twinSpark", "Twin Spark", 0);
+        if (targets.length) { firePillar(col, "twinSpark", "Twin Spark", 0); recT("sticker", "twinSpark", "Twin Spark", { applied: targets.length }); }
       }
       const mi = n("mirror");
       if (mi > 0 && current) {
+        let mirrored = 0;
         for (let k = 0; k < mi; k++) {
           const pool = (current.stickers || []).filter(x => x.type !== "mirror");
           const pick = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
-          if (pick) projectStickerOntoCard(drawn, pick.type);
+          if (pick) { projectStickerOntoCard(drawn, pick.type); mirrored++; }
         }
+        if (mirrored > 0) recT("sticker", "mirror", "Mirror", { applied: mirrored });
       }
       // --- scouts (peek at the next upcoming card; deck-reveal treatment) ---
       const emptyPillarSlot = run.pillars ? run.pillars.some(p => !p) : false;
       const emptyBaseSlot = run.bases ? run.bases.some(b => !b) : false;
-      if ((n("pillarScout") > 0 && emptyPillarSlot) || (n("baseScout") > 0 && emptyBaseSlot)) {
+      const psPeek = n("pillarScout") > 0 && emptyPillarSlot;
+      const bsPeek = n("baseScout") > 0 && emptyBaseSlot;
+      if (psPeek || bsPeek) {
         run.revealNextActive = true;
+        if (psPeek) recT("sticker", "pillarScout", "Pillar Scout", { peeks: 1 });
+        if (bsPeek) recT("sticker", "baseScout", "Base Scout", { peeks: 1 });
       }
     }
 
@@ -5204,6 +5350,7 @@ const GameEngine = (() => {
       run.reviveUsed[col] = true;
       logAction("Revive: pile " + (targetIndex + 1) + " brought back with a fresh card");
       emit("revived", { col, index: targetIndex, board, deck, run });
+      { const rdef = resolvePillarDef(col); recT("pillar", rdef ? rdef.id : "revive", rdef ? rdef.label : "Revive", { revived: 1 }); }
       evaluateEnd();
       return true;
     }
@@ -5565,6 +5712,24 @@ const GameEngine = (() => {
 
       run.basesUsed[col] = true;              // spend the charge for this deal
       res.coins = run.bonusCoins - coinsBefore;   // net coins this Base moved (UI float)
+      // Telemetry: one record per Base activation, impacts read from `res`.
+      {
+        const imp = {};
+        if (res.coins > 0) imp.coins = res.coins;
+        if (res.coins < 0) imp.coinsLost = -res.coins;
+        let bd = (typeof res.buried === "number" ? res.buried : 0) + (typeof res.harvested === "number" ? res.harvested : 0);
+        if (base.effect === "buryLargest") bd += 1;
+        if (bd) imp.buried = bd;
+        if (res.shuffled) imp.shuffled = res.shuffled;
+        if (res.moves) imp.moved = res.moves;
+        if (base.effect === "kamikaze" && res.index != null) { imp.killed = 1; if (res.cards) imp.peeks = res.cards.length; }
+        if (base.effect === "reviveBase" && res.index != null) imp.revived = 1;
+        if (res.copyCardId != null) imp.copies = 1;
+        if (base.effect === "demolish" && res.demolishedPillar) imp.destroyed = 1;
+        if (res.stickerApplied) imp.applied = 1;
+        if (res.stickersApplied) imp.applied = res.stickersApplied.length;
+        recT("base", base.id, base.label, imp);
+      }
       currentEntry = null;
       emit("base-fired", { ...res, board, deck, run });
       evaluateEnd();
@@ -5725,6 +5890,10 @@ const GameEngine = (() => {
       }
       for (const el of echoLines) bonus += el.amount;
       lines.push(...echoLines);
+      // Tag each payout line with its resolved Pillar id (telemetry reads this in
+      // the UI "won" handler, recorded once per win — never inside this function,
+      // which can be called for previews). Additive; gameplay reads label/amount.
+      for (const ln of lines) { const d = resolvePillarDef(ln.col); if (d && !ln.id) ln.id = d.id; }
       return { bonus, lines };
     }
 
@@ -5924,6 +6093,9 @@ const GameEngine = (() => {
       // Tie-Safe Pillar on the column) lets that tie survive.
       const tieSafe = current.tieSafe || drawn.tieSafe || (pillar && pillar.effect === "columnTieSafe");
       if (isTie && tieSafe) correct = true;
+      // Telemetry: a Tie-Safe STICKER turned a directional tie (would-die) into a
+      // save (a same-guess tie survives without it, so only count directional).
+      if (isTie && correct && guess !== "same" && (current.tieSafe || drawn.tieSafe)) recT("sticker", "tieSafe", "Tie-Safe", { saves: 1 });
 
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
@@ -5936,6 +6108,7 @@ const GameEngine = (() => {
       if (isTie && correct && guess !== "same" && pillar && pillar.effect === "columnTieSafe"
           && !current.tieSafe && !drawn.tieSafe) {
         firePillar(col, "columnTieSafe", pillar.label, 0);
+        recT("pillar", pillar.id, pillar.label, { saves: 1 });
       }
 
       // --- Debug logbook: open this turn's entry; cascade lines append below.
@@ -5952,8 +6125,8 @@ const GameEngine = (() => {
         if (correct) {
           run.colStreak[col] += 1;
           const s = run.colStreak[col];
-          if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); echoAdjacent(col); }
-          if (pillar && pillar.effect === "streakTribute" && s >= 4) { buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); }
+          if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); echoAdjacent(col); recT("pillar", pillar.id, pillar.label, { coins: pillar.value || 1 }); }
+          if (pillar && pillar.effect === "streakTribute" && s >= 4) { const nb = buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); if (nb > 0) recT("pillar", pillar.id, pillar.label, { buried: nb }); }
         } else {
           run.colStreak[col] = 0;
         }
@@ -5968,6 +6141,7 @@ const GameEngine = (() => {
         run.compoundUpdates[current.id] = current.compoundHits;
         const pay = current.compoundHits - 1;
         if (pay > 0) addBonus("Compound", pay);
+        recT("sticker", "compound", "Compound", { coins: pay > 0 ? pay : 0 });
       }
 
       // Suit Bounty: when a matching-suit card LANDS on a surviving pile in this
@@ -5981,6 +6155,7 @@ const GameEngine = (() => {
         addBonus(pillar.label, pillar.value || 0);
         firePillar(run.pileColumns[index], "suitBounty", pillar.label, pillar.value || 0);
         echoAdjacent(run.pileColumns[index]);
+        recT("pillar", pillar.id, pillar.label, { coins: pillar.value || 0 });
       }
 
       // Snowball Bury / Momentum: ANY wrong placement of the carrying card resets
@@ -6000,7 +6175,7 @@ const GameEngine = (() => {
         board.push(index, drawn);
         // Scout: the placed card reveals the next deck card (display-only; cleared
         // when that card is drawn). peek(1) reads the REAL next card, no reshuffle.
-        if (drawn.revealNext) run.revealNextActive = true;
+        if (drawn.revealNext) { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", { peeks: 1 }); }
         // Tribute Pillars: on a qualifying SURVIVING resolution, pull card(s)
         // from the deck's BOTTOM and bury them under this pile — never revealed.
         // 8 Bury fires when the landed card is an 8 (buries 3); Tie Bury fires
@@ -6038,6 +6213,8 @@ const GameEngine = (() => {
         deck.returnCard(drawn);
         logLine("Guard consumed — pile survived (" + guardSave.suit + " involved; card returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
+        const gdef = StickerTypes.all().find(t => t.behavior === "suitImmunity" && t.suit === guardSave.suit);
+        recT("sticker", gdef ? gdef.id : "suitImmunity", gdef ? gdef.label : "Guard", { saves: 1 });
       } else if (current.heartsRemaining > 0) {
         // Extra Heart: break one heart (run-local — refreshes next run), the
         // pile survives, and the wrongly-drawn card is shuffled back into the
@@ -6047,6 +6224,7 @@ const GameEngine = (() => {
         deck.returnCard(drawn);
         logLine("Shield consumed — pile survived (card returned to the deck)");
         emit("heart-broken", { index, guess, current, drawn, board, deck, run });
+        recT("sticker", "extraHeart", "Shield", { saves: 1 });
       } else if (pillar && pillar.effect === "secondWind" && run.secondWindUsed && col != null && !run.secondWindUsed[col]) {
         // Second Wind: the first pile to die in this column each run revives once.
         // Its cards AND the killing card are reshuffled back into the deck (no
@@ -6056,6 +6234,7 @@ const GameEngine = (() => {
         reviveSecondWind(index, drawn);
         firePillar(col, "secondWind", pillar.label, 0);
         emit("second-wind", { index, guess, current, board, deck, run });
+        recT("pillar", pillar.id, pillar.label, { saves: 1, revived: 1 });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
@@ -6063,7 +6242,7 @@ const GameEngine = (() => {
         logLine("→ pile died");
         // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
         const db = drawn.stickers ? drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
-        if (db > 0) { const t = StickerTypes.get("deathBounty"); addBonus("Last Coin", db * ((t && t.value) || 0)); }
+        if (db > 0) { const t = StickerTypes.get("deathBounty"); const amt = db * ((t && t.value) || 0); addBonus("Last Coin", amt); recT("sticker", "deathBounty", (t && t.label) || "Last Coin", { coins: amt }); }
         emit("resolved", { index, guess, current, drawn, correct: false, board, deck, run });
       }
 
@@ -6122,7 +6301,7 @@ const GameEngine = (() => {
       logBegin((offer.label || "Bury") + (accept ? " — accepted" : " — declined"));
       if (accept) {
         const buried = buryTribute(offer.index, offer.count, offer.label);
-        if (buried > 0) addBonus("Bury cost", -offer.cost);
+        if (buried > 0) { addBonus("Bury cost", -offer.cost); recT("sticker", offer.type, offer.label, { buried: buried, coinsLost: offer.cost || 0 }); }
       } else {
         logLine("Bury declined — no cards buried, no charge");
       }
@@ -7739,6 +7918,15 @@ const UIRenderer = (() => {
     mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
     statsGrid: document.getElementById("statsGrid"),
+    telemOverlay: document.getElementById("telemOverlay"),
+    telemMeta: document.getElementById("telemMeta"),
+    telemBody: document.getElementById("telemBody"),
+    telemCsvBtn: document.getElementById("telemCsvBtn"),
+    telemResetBtn: document.getElementById("telemResetBtn"),
+    telemClose: document.getElementById("telemClose"),
+    debugTelemView: document.getElementById("debugTelemView"),
+    debugTelemCsv: document.getElementById("debugTelemCsv"),
+    debugTelemReset: document.getElementById("debugTelemReset"),
     statsClose: document.getElementById("statsClose"),
     statsReset: document.getElementById("statsReset"),
     manualOverlay: document.getElementById("manualOverlay"),
@@ -9668,6 +9856,25 @@ const UIRenderer = (() => {
     el.debugWin.addEventListener("click", () => { engine && engine.debug.winNow(); });
     el.debugLose.addEventListener("click", () => { engine && engine.debug.loseNow(); });
     el.debugNew.addEventListener("click", () => startCampaign());
+    // Artifact telemetry (debug only): open the table, export CSV, reset.
+    if (el.debugTelemView) el.debugTelemView.addEventListener("click", showTelemetry);
+    if (el.debugTelemCsv) el.debugTelemCsv.addEventListener("click", exportTelemetryCSV);
+    if (el.debugTelemReset) el.debugTelemReset.addEventListener("click", resetTelemetry);
+    if (el.telemClose) el.telemClose.addEventListener("click", closeTelemetry);
+    if (el.telemCsvBtn) el.telemCsvBtn.addEventListener("click", exportTelemetryCSV);
+    if (el.telemResetBtn) el.telemResetBtn.addEventListener("click", resetTelemetry);
+    if (el.telemOverlay) {
+      el.telemOverlay.addEventListener("click", (e) => {
+        if (e.target === el.telemOverlay) { closeTelemetry(); return; }
+        const th = e.target.closest("th[data-sk]");
+        if (th) {
+          const sk = th.getAttribute("data-sk");
+          if (telemSort.key === sk) telemSort.dir *= -1;
+          else { telemSort.key = sk; telemSort.dir = sk === "label" ? 1 : -1; }
+          renderTelemTable();
+        }
+      });
+    }
     el.debugAddSticker.addEventListener("click", debugAddSelectedSticker);
     if (el.debugStickerNext) el.debugStickerNext.addEventListener("click", debugStickerToNext);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
@@ -10016,6 +10223,34 @@ const UIRenderer = (() => {
     const f = pendingRunEnd; pendingRunEnd = null; f();
   }
 
+  /* Telemetry exposure: once per deal (at run-started), count this deal for every
+     artifact that's ACTIVE — Pillars/Bases placed on a column, and every sticker
+     TYPE applied to a card in the campaign deck (all in play this deal). Lets the
+     debug stats compute per-deal rates. Fully fail-silent; never affects play. */
+  function recordDealExposure() {
+    try {
+      const run = engine && engine.getRun ? engine.getRun() : null;
+      if (!run) return;
+      if (Array.isArray(run.pillars)) {
+        const seen = new Set();
+        run.pillars.forEach(id => { if (id && !seen.has(id)) { seen.add(id); const t = PillarTypes.get(id); Telem.expose("pillar", id, t && t.label); } });
+      }
+      if (Array.isArray(run.bases)) {
+        const seen = new Set();
+        run.bases.forEach(id => { if (id && !seen.has(id)) { seen.add(id); const t = BaseTypes.get(id); Telem.expose("base", id, t && t.label); } });
+      }
+      if (campaign && campaign.getCards) {
+        const seen = new Set();
+        for (const c of campaign.getCards()) {
+          const sts = c && c.stickers;
+          if (!sts) continue;
+          for (const s of sts) if (s && s.type && !seen.has(s.type)) { seen.add(s.type); const t = StickerTypes.get(s.type); Telem.expose("sticker", s.type, t && t.label); }
+        }
+      }
+      Telem.flush();
+    } catch (e) { /* telemetry never breaks play */ }
+  }
+
   function handleEvent(type, payload) {
     wakeMotion();   // §2: any board change re-enables card motion for the settle window
     switch (type) {
@@ -10049,6 +10284,7 @@ const UIRenderer = (() => {
         // Bases arm for the deal: repaint the bottom row to its live charged state
         // and light the tap-to-activate cues.
         paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
+        recordDealExposure();   // telemetry: count this deal for every active artifact
         refreshDebug();
         break;
       }
@@ -10582,10 +10818,18 @@ const UIRenderer = (() => {
       }
 
       case "won":
+        // Telemetry: end-of-deal scoring Pillars pay out here (each line carries
+        // its resolved Pillar id). Recorded once per win, then persisted.
+        try {
+          const lines = (payload.pillarPayout && payload.pillarPayout.lines) || [];
+          for (const ln of lines) if (ln && ln.id) Telem.rec("pillar", ln.id, ln.label, { coins: ln.amount > 0 ? ln.amount : 0 });
+          Telem.flush();
+        } catch (e) { /* never break play */ }
         onRunEnd("win", payload);
         break;
 
       case "lost":
+        try { Telem.flush(); } catch (e) { /* deaths still keep telemetry; just persist */ }
         // Sequencing: when the loss came from a fatal guess, the preceding
         // "resolved" handler is animating the fatal draw + pile death. Hold the
         // recap and let that death animation flush it (fatal draw → pile death →
@@ -12524,6 +12768,9 @@ const UIRenderer = (() => {
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
+    if (res.kind === "pillar" || res.kind === "base") {
+      try { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.flush(); } catch (e) {}
+    }
     if (res.kind === "pack") {
       if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
       renderStore();                 // empties the slot, updates coins (+persist)
@@ -12622,7 +12869,12 @@ const UIRenderer = (() => {
       else if (res.full) { st.mode = "discard"; st.pending = card; renderPackReveal(); }
       return;
     }
-    st.chosen.forEach(idx => campaign.addStickerToInventory(st.items[idx]));
+    st.chosen.forEach(idx => {
+      const sid = st.items[idx];
+      campaign.addStickerToInventory(sid);
+      try { const sdef = StickerTypes.get(sid); Telem.purchase("sticker", sid, sdef && sdef.label); } catch (e) {}
+    });
+    try { Telem.flush(); } catch (e) {}
     closePackReveal(); renderStore();
   }
 
@@ -12770,6 +13022,7 @@ const UIRenderer = (() => {
     if (campaign.buyOfferedSticker(selectedStickerSlot)) {
       const st = id ? StickerTypes.get(id) : null;
       if (engine) engine.logAction("Store: bought Sticker " + ((st && st.label) || id));
+      try { Telem.purchase("sticker", id, st && st.label); Telem.flush(); } catch (e) {}
       selectedStickerSlot = null;
       Sound.purchase();
       el.storeMsg.textContent = "Sticker bought — apply it during the next deal.";
@@ -13388,6 +13641,115 @@ const UIRenderer = (() => {
     updateBoardMotion();
   }
   function closeStats() { el.statsOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
+
+  /* ---- Artifact telemetry viewer (debug only — playtest balancing) ----
+     Reads the Telem store (read-only), merges it with the full artifact
+     registries (so never-fired items show as 0 — coverage is visible), and
+     renders a sortable, class-grouped table + CSV export + reset. Entirely
+     fail-silent; touches no gameplay. */
+  const TELEM_COLS = [
+    { key: "triggers", label: "Trig" },
+    { key: "dealsActive", label: "Deals" },
+    { key: "coins", label: "Coins" },
+    { key: "cpd", label: "Coins/Deal", rate: true },
+    { key: "coinsLost", label: "Lost" },
+    { key: "buried", label: "Buried" },
+    { key: "saves", label: "Saves" },
+    { key: "applied", label: "Applied" },
+    { key: "peeks", label: "Peeks" },
+    { key: "copies", label: "Copies" },
+    { key: "killed", label: "Killed" },
+    { key: "shuffled", label: "Shuf" },
+    { key: "revived", label: "Rev" },
+    { key: "moved", label: "Moved" },
+    { key: "destroyed", label: "Destr" },
+    { key: "purchased", label: "Bought" },
+  ];
+  const TELEM_METRICS = ["triggers", "dealsActive", "coins", "coinsLost", "buried", "saves",
+    "applied", "peeks", "copies", "killed", "shuffled", "revived", "moved", "destroyed", "purchased"];
+  let telemSort = { key: "triggers", dir: -1 };
+  function telemRows() {
+    let data = {};
+    try { data = (Telem.get() || {}).art || {}; } catch (e) { data = {}; }
+    const rows = [];
+    const add = (klass, list) => { for (const t of list) {
+      const a = data[t.id] || {};
+      const row = { klass, id: t.id, label: t.label };
+      for (const m of TELEM_METRICS) row[m] = a[m] || 0;
+      row.cpd = row.dealsActive ? row.coins / row.dealsActive : null;
+      rows.push(row);
+    } };
+    try { add("sticker", StickerTypes.all()); add("pillar", PillarTypes.all()); add("base", BaseTypes.all()); } catch (e) {}
+    return rows;
+  }
+  function fmtCell(v, rate) {
+    if (v == null) return "—";
+    if (rate) return v.toFixed(2);
+    return String(v);
+  }
+  function renderTelemTable() {
+    const rows = telemRows();
+    let since = 0; try { since = Telem.since(); } catch (e) {}
+    const span = since ? (" since " + new Date(since).toLocaleString()) : "";
+    el.telemMeta.textContent = rows.length + " artifacts" + span +
+      ". Tap a column header to sort within each class; dimmed rows never fired.";
+    const head = '<th class="tl" data-sk="label">Artifact</th>' +
+      TELEM_COLS.map(c => '<th data-sk="' + c.key + '">' + c.label + (telemSort.key === c.key ? (telemSort.dir < 0 ? " ▾" : " ▴") : "") + '</th>').join("");
+    const groups = [["sticker", "Stickers"], ["pillar", "Pillars"], ["base", "Bases"]];
+    let bodyHtml = "";
+    for (const [klass, title] of groups) {
+      const grp = rows.filter(r => r.klass === klass);
+      grp.sort((a, b) => {
+        if (telemSort.key === "label") return telemSort.dir * a.label.localeCompare(b.label);
+        const av = a[telemSort.key] == null ? -1 : a[telemSort.key];
+        const bv = b[telemSort.key] == null ? -1 : b[telemSort.key];
+        return telemSort.dir * (av - bv) || a.label.localeCompare(b.label);
+      });
+      bodyHtml += '<tr class="grp"><td class="tl" colspan="' + (TELEM_COLS.length + 1) + '">' + title + ' (' + grp.length + ')</td></tr>';
+      for (const r of grp) {
+        const zero = r.triggers === 0 && r.dealsActive === 0 && r.purchased === 0;
+        bodyHtml += '<tr class="' + (zero ? "zero" : "") + '"><td class="tl name">' + escHtml(r.label) + "</td>" +
+          TELEM_COLS.map(c => '<td class="' + (c.rate ? "rate" : "") + '">' + fmtCell(r[c.key], c.rate) + "</td>").join("") + "</tr>";
+      }
+    }
+    el.telemBody.innerHTML = '<table class="telem-table"><thead><tr>' + head + '</tr></thead><tbody>' + bodyHtml + "</tbody></table>";
+  }
+  function showTelemetry() {
+    renderTelemTable();
+    el.telemOverlay.classList.remove("hidden");
+    updateBoardMotion();
+  }
+  function closeTelemetry() { el.telemOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
+  /* CSV: one row per artifact, a column per metric (paste-ready next to a
+     spreadsheet). Triggers a client-side download; fail-silent. */
+  function exportTelemetryCSV() {
+    try {
+      const rows = telemRows();
+      const cols = ["id", "label", "class", "triggers", "dealsActive", "coinsPerDeal"].concat(TELEM_METRICS.filter(m => m !== "triggers" && m !== "dealsActive"));
+      const esc = (s) => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
+      const lines = [cols.join(",")];
+      for (const r of rows) {
+        const cpd = r.dealsActive ? (r.coins / r.dealsActive).toFixed(3) : "";
+        const vals = cols.map(c => c === "id" ? r.id : c === "label" ? r.label : c === "class" ? r.klass
+          : c === "coinsPerDeal" ? cpd : (r[c] != null ? r[c] : 0));
+        lines.push(vals.map(esc).join(","));
+      }
+      const csv = lines.join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ninelives-telemetry-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 1000);
+    } catch (e) { /* export is best-effort */ }
+  }
+  function resetTelemetry() {
+    if (!window.confirm("Reset ALL artifact telemetry? This zeroes every counter for a fresh measurement window.")) return;
+    try { Telem.reset(); } catch (e) {}
+    if (!el.telemOverlay.classList.contains("hidden")) renderTelemTable();
+    try { el.debugPeekOut && (el.debugPeekOut.textContent = "telemetry reset"); } catch (e) {}
+  }
 
   /* ---- How to Play (§12) — a short guided walkthrough, not a wall of text.
      A handful of tappable mock screens that SHOW the core moments (board → guess
