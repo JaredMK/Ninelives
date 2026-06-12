@@ -7676,7 +7676,10 @@ const UIRenderer = (() => {
   function selectPile(index) {
     if (!engine || engine.getStatus() !== "playing") return;
     if (!engine.isRunStarted()) return;   // no guessing until Start Run is pressed
-    if (promptActive) return;             // an activation/confirm prompt is up — answer it first
+    if (promptActive) {
+      if (!noticeActive) return;          // an activation/confirm prompt is up — answer it first
+      hideActionBar();                    // a transient notice yields to the tap
+    }
     if (!engine.getBoard().isActive(index)) return;
     if (selected === index) { clearSelection(); return; }   // tap the selected pile again = deselect
     showPileSelected(index);
@@ -8118,9 +8121,8 @@ const UIRenderer = (() => {
       armedSticker = null;
       el.board.classList.remove("arming");
       renderSetupInv();
-      el.hint.textContent = copy
-        ? ("Copied " + top.label + top.suit + " to your card inventory.")
-        : "Couldn't copy that card.";
+      if (copy) el.hint.textContent = "Copied " + top.label + top.suit + " to your card inventory.";
+      else flashNotice("Couldn't copy that card.");
       persistCampaign("run");
       if (engine) engine.logAction("Duplicated " + top.label + top.suit + " into the card inventory");
       refreshDebug();
@@ -8128,7 +8130,14 @@ const UIRenderer = (() => {
     }
     if (!campaign.canApplyStickerById(top.id, typeId)) {
       const t = StickerTypes.get(typeId);
-      el.hint.textContent = "Can't apply " + (t ? t.label : "that") + " there.";
+      // Visible failure feedback: notice in the strip + a wince on the tapped
+      // card (the old hint line is display:none — this used to fail silently).
+      flashNotice("Can't apply " + (t ? t.label : "that") + " there.");
+      const wEl = pileEls[index] && pileEls[index].querySelector(".card");
+      if (wEl && !prefersReduce()) {
+        wEl.classList.add("wince");
+        setTimeout(() => wEl.classList.remove("wince"), 360);
+      }
       return;
     }
     // Persist to the campaign card, consume from inventory, and reflect the
@@ -8575,8 +8584,12 @@ const UIRenderer = (() => {
         return;
       }
       // A confirm prompt is up (Donate / Shuffle / whole-column Base): answer via
-      // its buttons only.
-      if (promptActive) return;
+      // its buttons only. A transient failure NOTICE is not a prompt — it yields
+      // to the tap, which then proceeds normally.
+      if (promptActive) {
+        if (!noticeActive) return;
+        hideActionBar();
+      }
       // Tap a Pathway banner → toggle its description via the standard peek
       // popup (a hold still peeks-while-held). Read-only; no state change.
       const setupWindow = engine && engine.canApplyStickers();
@@ -11826,6 +11839,8 @@ const UIRenderer = (() => {
   let promptTargets = [];         // pile indices highlighted for the current prompt
   let actionBarDismiss = null;    // outside-tap dismiss callback while a dismissable bar is up
   let actionBarJustOpened = false; // ignore the opening tap so it doesn't self-dismiss
+  let noticeActive = false;       // the bar holds a transient failure notice (yields to any tap)
+  let noticeToken = 0;            // invalidates a notice's auto-hide when a real prompt follows
 
   /* Show the bottom prompt bar with an instruction + buttons, hiding the normal
      controls. `buttons`: [{ label, cls, onClick }]. `targets`: pile indices to
@@ -11835,6 +11850,8 @@ const UIRenderer = (() => {
      icon markup; the help line is escaped. */
   function showActionBar(text, buttons, targets, opts) {
     opts = opts || {};
+    noticeToken++;          // a real prompt supersedes any pending notice timeout
+    noticeActive = false;   // (flashNotice re-flags itself right after calling us)
     if (opts.help) {
       el.actionPromptText.innerHTML =
         (text ? '<span class="ap-q">' + text + "</span>" : "") +
@@ -11868,6 +11885,7 @@ const UIRenderer = (() => {
     if (el.playControls) el.playControls.classList.remove("prompting");
     setActionTargets([]);
     promptActive = false;
+    noticeActive = false;
     actionBarDismiss = null;
     // Restore the normal active-play control state (guess help when idle).
     if (engine && engine.isRunStarted() && engine.getStatus() === "playing"
@@ -11879,6 +11897,19 @@ const UIRenderer = (() => {
     promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.remove("action-target"); });
     promptTargets = (targets || []).slice();
     promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.add("action-target"); });
+  }
+
+  /* Transient FAILURE notice in the prompt strip — the visible channel for
+     "that didn't work" feedback (the old .hint line is display:none). No
+     buttons; auto-clears after a beat, and any board tap clears it immediately
+     (the tap then proceeds normally — see the noticeActive checks in selectPile
+     and the board tap handler). The token guard means a real prompt opened
+     inside the window can never be closed by the notice's timer. */
+  function flashNotice(text) {
+    showActionBar(text, [], []);
+    noticeActive = true;
+    const tok = noticeToken;
+    setTimeout(() => { if (noticeToken === tok && noticeActive) hideActionBar(); }, 1600);
   }
 
   /* HELP MODE: show an element's name + description in the strip (replacing the
@@ -12022,7 +12053,7 @@ const UIRenderer = (() => {
     if (!engine) return;
     const base = engine.baseForColumn(col);
     const res = engine.baseActivate(col, targetIndex);
-    if (!res) { el.hint.textContent = "That Base can't activate right now."; return; }
+    if (!res) { flashNotice("That Base can't activate right now."); return; }
     Sound.tap();
     el.hint.textContent = ((base && base.label) || "Base") + " activated.";
   }
