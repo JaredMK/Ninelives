@@ -1222,6 +1222,9 @@
   .nav-btn .ico { font-size: 17px; }
   .nav-btn.hidden { display: none; }
   .nav-btn:active { transform: scale(0.92); }
+  /* A quick pop when something lands in the inventory (e.g. Replica's copy). */
+  .nav-btn.nav-pop { animation: navPop 0.28s ease; }
+  @keyframes navPop { 0%,100% { transform: scale(1); } 45% { transform: scale(1.28); } }
   /* Map → Store: a bottom-centre pill, on the map only. */
   .map-store-btn {
     position: fixed; z-index: 55;
@@ -1854,6 +1857,16 @@
   .base-charge { position: absolute; right: 3px; top: 1px; font-size: 9px; line-height: 1; color: var(--good); }
   .base-banner.spent { filter: grayscale(0.6) brightness(0.96); opacity: 0.7; }
   .base-banner.spent .base-charge { color: rgba(74,52,44,0.5); }
+  /* Activation feedback: a bronze pulse on the Base banner the moment it fires,
+     so every Base activation has a visible "it did something" cue (+ the spent
+     greying that follows). Mirrors the Pillar-fire pulse. */
+  .base-banner.fired { animation: baseFired 0.62s ease; }
+  @keyframes baseFired {
+    0%   { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
+    22%  { box-shadow: 0 0 0 3px rgba(176,122,60,0.7), 0 0 16px 2px rgba(176,122,60,0.75); transform: translateY(-1px); }
+    100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
+  }
+  @media (prefers-reduced-motion: reduce) { .base-banner.fired { animation: none; } }
   .base-banner.activatable { cursor: pointer; animation: baseActivatable 1.3s ease-in-out infinite; }
   @keyframes baseActivatable {
     0%,100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5); }
@@ -1891,6 +1904,8 @@
     animation: pillarFloat 1s ease-out forwards;
   }
   .pillar-float.pile-float { top: 8px; z-index: 7; }
+  .pillar-float.base-float { top: auto; bottom: 18px; z-index: 7; }   /* floats UP off the base banner */
+  .pillar-float.base-float.neg { color: var(--bad); }
   @keyframes pillarFloat {
     0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.8); }
     22%  { opacity: 1; transform: translate(-50%, -7px) scale(1); }
@@ -5206,6 +5221,7 @@ const GameEngine = (() => {
       }
 
       const res = { col, effect: base.effect, label: base.label };
+      const coinsBefore = run.bonusCoins;   // → res.coins net delta for UI float feedback
       logBegin(base.label);
 
       switch (base.effect) {
@@ -5397,6 +5413,7 @@ const GameEngine = (() => {
       }
 
       run.basesUsed[col] = true;              // spend the charge for this deal
+      res.coins = run.bonusCoins - coinsBefore;   // net coins this Base moved (UI float)
       currentEntry = null;
       emit("base-fired", { ...res, board, deck, run });
       evaluateEnd();
@@ -9700,6 +9717,55 @@ const UIRenderer = (() => {
     }
   }
 
+  /* Activation feedback for a Base: pulse its banner (so every activation has a
+     visible cue + draws the eye to the now-spent banner) and float its net coin
+     delta (+N / −N) over it. The bronze sibling of flashPillar. */
+  function flashBase(col, coins) {
+    if (col == null || !el.board) return;
+    const cell = el.board.querySelector('.base-cell[data-col="' + col + '"]');
+    if (!cell) return;
+    const reduce = prefersReduce();
+    const banner = cell.querySelector(".base-banner");
+    if (banner && !banner.classList.contains("empty")) {
+      banner.classList.remove("fired");
+      if (!reduce) void banner.offsetWidth;   // restart on rapid repeats
+      banner.classList.add("fired");
+      setTimeout(() => banner.classList.remove("fired"), reduce ? 240 : 640);
+    }
+    if (coins) {
+      const f = document.createElement("div");
+      f.className = "pillar-float base-float" + (coins < 0 ? " neg" : "");
+      f.textContent = (coins > 0 ? "+" : "−") + Math.abs(coins);
+      cell.appendChild(f);
+      setTimeout(() => f.remove(), reduce ? 600 : 1000);
+    }
+  }
+  /* A brief good-pulse across a column's alive piles — confirms an otherwise
+     subtle whole-column composition change (Cast / Upheaval / Ballast / Storm). */
+  function pulseBaseColumn(col) {
+    for (const i of baseColumnPiles(col)) {
+      const pe = pileEls[i];
+      if (!pe) continue;
+      pe.classList.add("flash-good");
+      setTimeout(() => pe.classList.remove("flash-good"), 520);
+    }
+  }
+  /* Replica: the copied pile card visibly flies from the pile toward the global
+     inventory button, so the player sees the copy go into their stash. */
+  function flyCopiedCardToInventory(index, board) {
+    if (prefersReduce() || !el.invBtn || index == null) return;
+    const pileEl = pileEls[index];
+    const cardEl = pileEl && pileEl.querySelector(".card");
+    const top = board && board.top(index);
+    if (!cardEl || !top || typeof cardEl.animate !== "function") return;
+    const from = cardEl.getBoundingClientRect();
+    const to = el.invBtn.getBoundingClientRect();
+    flyCard(flyRealCardEl(top, cardEl), from, to, { duration: 520, startScale: 1, onArrive: () => {
+      el.invBtn.classList.add("nav-pop");
+      setTimeout(() => el.invBtn.classList.remove("nav-pop"), 280);
+    } });
+  }
+
   /* ---- event handling from the engine ---- */
 
   // Game-over sequencing: a fatal guess emits "resolved" (the death) immediately
@@ -9802,6 +9868,43 @@ const UIRenderer = (() => {
         // For a Kamikaze kill the network severs WITH the dissolve (scheduled
         // above), matching the guess-death sequencing — not at activation time.
         if (!kamiKill) renderNetwork();
+
+        // --- Activation feedback: NO Base resolves with zero visible feedback ---
+        // (1) Always pulse the fired Base's banner + float its net coin delta —
+        //     this also draws the eye to the now-spent banner.
+        flashBase(payload.col, payload.coins || 0);
+        // (2) Effect-specific cues. Bury effects (suitDig / buryLargest / buryAll /
+        //     stickerHarvest) already animate via the "buried" event; Kamikaze
+        //     played the death animation above; Demolish removed the Pillar banner
+        //     (+ the coin float from flashBase); Reactor's re-armed banners + Suit
+        //     Tally / Tax coins are shown by paintColumnBases + the float.
+        switch (payload.effect) {
+          case "reviveBase":   // Phoenix — a revive flourish on the brought-back pile
+            if (payload.index != null && pileEls[payload.index]) {
+              const rp = pileEls[payload.index];
+              rp.classList.add("flash-good");
+              setTimeout(() => rp.classList.remove("flash-good"), 520);
+              Sound.good();
+            }
+            break;
+          case "copyToInventory":   // Replica — the copied card flies to the inventory button
+            flyCopiedCardToInventory(payload.index, board);
+            break;
+          case "randomSticker":     // a sticker landed on one pile card — pulse it
+            if (payload.index != null && pileEls[payload.index]) {
+              const sp = pileEls[payload.index];
+              sp.classList.add("flash-good");
+              setTimeout(() => sp.classList.remove("flash-good"), 520);
+            }
+            break;
+          case "setValue":          // whole-column composition/value change — pulse the column
+          case "shuffleColumn":
+          case "evenOut":
+          case "randomStickerAll":
+            pulseBaseColumn(payload.col);
+            break;
+        }
+
         persistCampaign("run");
         refreshDebug();
         break;
