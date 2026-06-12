@@ -998,16 +998,32 @@
      MAIN MENU · SHEETS (stats / manual / in-game menu) · MENU BUTTON
      ============================================================ */
   .menu-screen {
-    position: fixed; inset: 0; z-index: 1400;
+    position: fixed; inset: 0; z-index: 1400; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; padding: 24px;
+    gap: clamp(8px, 2vh, 14px); padding: 24px;
     background:
-      radial-gradient(120% 90% at 50% 18%, rgba(200,120,145,0.16), transparent 55%),
-      radial-gradient(110% 80% at 50% 100%, rgba(150,128,200,0.11), transparent 55%),
-      rgba(250, 245, 239, 0.96);
+      radial-gradient(125% 90% at 50% 16%, rgba(200,120,145,0.18), transparent 56%),
+      radial-gradient(115% 80% at 50% 102%, rgba(150,128,200,0.13), transparent 56%),
+      rgba(250, 245, 239, 0.94);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   }
   .menu-screen.hidden { display: none; }
+  /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
+     a single cheap composited animation (no per-frame JS), holds still under
+     reduced motion. Evokes the game's neural warmth without clutter. */
+  .menu-screen::before {
+    content: ""; position: absolute; left: 50%; top: 30%; width: 88vw; max-width: 520px; aspect-ratio: 1;
+    transform: translate(-50%, -50%); border-radius: 50%; z-index: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(232,139,176,0.20), rgba(160,116,214,0.10) 45%, transparent 70%);
+    filter: blur(16px); animation: menuGlow 9s ease-in-out infinite;
+  }
+  @keyframes menuGlow {
+    0%,100% { opacity: 0.65; transform: translate(-50%,-50%) scale(0.96); }
+    50%     { opacity: 1;    transform: translate(-50%,-50%) scale(1.06); }
+  }
+  @media (prefers-reduced-motion: reduce) { .menu-screen::before { animation: none; } }
+  /* Keep the content above the ambient glow. */
+  .menu-screen > * { position: relative; z-index: 1; }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
      stacked title. SVG = crisp at any size. Negative margin trims the SVG's
@@ -1043,21 +1059,34 @@
      + higher-contrast for legibility; same uppercase tagline style. */
   .menu-tagline { color: var(--text); font-size: 15px; font-weight: 800; letter-spacing: 1.5px;
     text-transform: uppercase; margin: 0; }
-  .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(82vw, 300px); }
+  .menu-buttons { display: flex; flex-direction: column; gap: 9px; width: min(82vw, 300px); margin-top: clamp(6px, 2vh, 16px); }
+  /* Crafted buttons: a soft inner top-highlight + layered shadow give weight; the
+     press sinks (translateY + reduced shadow). A clear hierarchy — the primary
+     action is larger, gradient-filled, and gently glows. */
   .menu-item {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 9px;
     width: 100%; padding: 13px 18px;
-    font-family: var(--font-text); font-size: 15px; font-weight: 700; letter-spacing: 1px;
-    color: var(--text); background: var(--panel);
+    font-family: var(--font-text); font-size: 14.5px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text); background: linear-gradient(180deg, #fcf8f3, var(--panel));
     border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+    box-shadow: 0 4px 11px rgba(74,50,40,0.12), inset 0 1px 0 rgba(255,255,255,0.7);
+    cursor: pointer; touch-action: manipulation;
+    transition: transform 0.09s ease, box-shadow 0.15s ease, filter 0.15s ease;
   }
-  .menu-item:active { transform: scale(0.98); }
-  .menu-item.primary { color: #fff; border: none;
-    background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
-  .menu-item.danger { color: var(--danger); border-color: var(--danger); }
-  .menu-item .ico { font-size: 18px; }
-  .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: 16px; opacity: 0.7; }
+  .menu-item:hover { filter: brightness(1.02); box-shadow: 0 6px 14px rgba(74,50,40,0.15), inset 0 1px 0 rgba(255,255,255,0.7); }
+  .menu-item:active { transform: translateY(1px) scale(0.99);
+    box-shadow: 0 2px 5px rgba(74,50,40,0.16), inset 0 1px 0 rgba(255,255,255,0.5); }
+  .menu-item.primary {
+    color: #fff; border: none; font-size: 16px; font-weight: 800; padding: 15px 18px; letter-spacing: 1.2px;
+    background: linear-gradient(180deg, #d65a87, var(--accent));
+    box-shadow: 0 7px 18px rgba(200,74,120,0.42), inset 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .menu-item.primary:hover { filter: brightness(1.04); }
+  .menu-item.primary:active { transform: translateY(1px) scale(0.99);
+    box-shadow: 0 3px 9px rgba(200,74,120,0.4), inset 0 1px 0 rgba(255,255,255,0.3); }
+  .menu-item.danger { color: var(--danger); border-color: var(--danger); background: linear-gradient(180deg, #fdf6f7, var(--panel)); }
+  .menu-item .ico { font-size: 18px; opacity: 0.92; }
+  .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: clamp(10px, 3vh, 20px); opacity: 0.6; }
 
   /* Bottom-sheet panels (stats / manual / in-game menu). */
   .sheet-overlay {
@@ -3502,7 +3531,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.43 · content-expansion";
+const APP_VERSION = "v2.44 · ui-elevation";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
