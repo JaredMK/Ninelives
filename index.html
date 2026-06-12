@@ -61,6 +61,14 @@
     --danger: #B0374F;      /* deep rose-red for destructive actions */
     --pathway: #6E51A6;     /* Pathway identity (deep violet, reads on light) */
     --pathway-2: #8568C0;   /* medium violet for accents/icons */
+    /* Pillar cloth (plum) + rarity trim (richer = rarer). Foil pack (cooler violet). */
+    --plum-1: #7a4f93;      /* top-lit plum */
+    --plum-2: #553463;      /* shaded plum bottom */
+    --trim-common: #9c7b46; /* tarnished bronze */
+    --trim-uncommon: #c3c9d0; /* silver */
+    --trim-rare: #e6bb46;   /* gold */
+    --foil-1: #8a5cc6;      /* pack foil (cool metallic violet, distinct from plum) */
+    --foil-2: #5b3aa0;
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
     /* Shared item-info typography — ONE source for every info slot (store
@@ -1543,51 +1551,42 @@
   .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
 
   /* Large, inviting item card: top chips, big icon/banner, name, price. */
+  /* The shop tile is NOT a card — it's the shelf the OBJECT sits on. Transparent
+     tap target: the physical object (sticker/pillar/base/pack) is the item, with
+     name + price beneath. No card chrome, no kind/rarity text tags. */
   .store-tile {
-    position: relative; min-width: 0;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 11px 8px 11px; border-radius: 17px;
-    background: linear-gradient(180deg, rgba(255,252,248,0.97), rgba(248,241,233,0.95));
-    color: var(--text); border: 1px solid rgba(74,52,44,0.10);
-    border-top: 3px solid var(--edge-2);   /* rarity accent (overridden by .srt-*) */
-    cursor: pointer; box-shadow: 0 3px 10px rgba(74,44,52,0.10);
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    position: relative; min-width: 0; background: none; border: none;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 4px 2px 6px; cursor: pointer;
+    transition: transform 0.12s ease;
   }
   .store-tile:active { transform: scale(0.97); }
   .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the description */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
-  /* Top strip: category chip (left) + rarity chip (right). */
-  .store-tile .ti-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 15px; }
-  .store-tile .ti-kind { font-size: 8px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
-    color: var(--muted); background: rgba(110,94,104,0.10); border-radius: 999px; padding: 2px 7px; }
-  .store-tile .ti-tier { font-size: 8px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
-    border-radius: 999px; padding: 2px 7px; }
-  /* Big central icon / banner. */
-  .store-tile .ti-icon { font-size: 29px; line-height: 1; margin: 3px 0 1px; }
-  .store-tile .ti-syn  { width: 100%; height: 28px; display: block; margin: 2px 0; }
-  .store-tile .ti-base { width: 100%; height: 28px; display: block; margin: 2px 0; }
-  .tile-sticker .ti-icon { color: var(--accent-2); }
-  .tile-pack    .ti-icon { color: #1F8688; }
-  /* Name + price. */
+  /* Object slot — a fixed-height shelf area so all three tiles in a row align,
+     with the object resting on its lower edge (a soft contact shadow under it). */
+  .store-tile .ti-obj {
+    width: 100%; height: 122px; display: flex; align-items: flex-end; justify-content: center;
+    position: relative;
+  }
+  .store-tile .ti-obj.obj-sticker, .store-tile .ti-obj.obj-pack { align-items: center; }
+  .store-tile .ti-obj.obj-pillar { align-items: flex-start; }   /* hangs from the top */
+  .store-tile .ti-obj.obj-base { padding-bottom: 8px; }
+  .store-tile .ti-obj.obj-base .base-banner.plaque { height: 46px; }   /* short plaque rests on the shelf */
+  .store-tile .ti-obj.obj-pack .pack-foil.big { width: 90px; }
   .store-tile .ti-name { font-size: 11.5px; font-weight: 800; line-height: 1.12; text-align: center;
-    color: var(--text); min-height: 27px; display: flex; align-items: center; }
+    color: var(--text); margin-top: 4px; min-height: 26px; display: flex; align-items: center; }
   .store-tile .ti-price { font-size: 14px; font-weight: 800; color: var(--amber);
     display: inline-flex; align-items: center; gap: 3px; }
   .store-tile .ti-price .coin-ico { font-size: 13px; }
-  /* Rarity accent: top border + tier-chip colour (packs use a teal "—" accent). */
-  .store-tile.srt-common   { border-top-color: rgba(110,94,104,0.45); }
-  .store-tile.srt-uncommon { border-top-color: var(--good); }
-  .store-tile.srt-rare     { border-top-color: var(--amber); }
-  .store-tile.srt-none     { border-top-color: rgba(86,196,196,0.55); }
-  .store-tile.srt-common   .ti-tier { color: var(--muted); background: rgba(110,94,104,0.14); }
-  .store-tile.srt-uncommon .ti-tier { color: var(--good);  background: rgba(132,200,154,0.20); }
-  .store-tile.srt-rare     .ti-tier { color: #b9781f;      background: rgba(224,151,60,0.22); }
-  /* Selected: lift + a rarity-coloured ring. */
+  /* Selected: lift the object + a soft halo on the shelf (no card ring). */
   .store-tile.selected { transform: translateY(-3px); }
-  .store-tile.selected.srt-common   { box-shadow: 0 0 0 2px rgba(110,94,104,0.5), 0 7px 16px rgba(74,44,52,0.18); }
-  .store-tile.selected.srt-uncommon { box-shadow: 0 0 0 2px var(--good),         0 7px 16px rgba(74,44,52,0.18); }
-  .store-tile.selected.srt-rare     { box-shadow: 0 0 0 2px var(--amber),        0 7px 16px rgba(74,44,52,0.18); }
-  .store-tile.selected.srt-none     { box-shadow: 0 0 0 2px rgba(86,196,196,0.6), 0 7px 16px rgba(74,44,52,0.18); }
+  .store-tile.selected .ti-obj::after {
+    content: ""; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+    width: 70%; height: 14px; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(224,87,126,0.35), rgba(224,87,126,0) 70%);
+  }
+  .store-tile.selected .ti-name { color: var(--accent-2); }
 
   /* Sticky footer: the one fixed help slot + the action row. */
   /* Foot pinned to the bottom of the no-scroll store (margin-top:auto), holding
@@ -1800,12 +1799,12 @@
      start, before anything is placed. */
   .board.has-pillars .board-pillars,
   .board.show-slots .board-pillars {
-    display: flex; justify-content: center; align-items: center;
-    gap: var(--gap); width: 100%; height: 26px;
+    display: flex; justify-content: center; align-items: flex-start;
+    gap: var(--gap); width: 100%; height: var(--pillar-row-h, 64px);
   }
   .bp-cell {
-    width: var(--pile-w-fit); height: 24px; position: relative;
-    display: flex; align-items: center; justify-content: center;
+    width: var(--pile-w-fit); height: 100%; position: relative;
+    display: flex; align-items: flex-start; justify-content: center;
     cursor: pointer;
   }
   /* Equipped Pathway = a wavy tapered SYNAPSE banner (same language as the
@@ -1818,9 +1817,10 @@
     box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5);
   }
   .cph-banner.empty {
-    background: rgba(74,52,44,0.03);
-    border: 1px dashed rgba(74,52,44,0.20);
-    box-shadow: none;
+    width: min(72%, 74px); height: 64%; margin: 0 auto;
+    background: rgba(110,81,166,0.04);
+    border: 1px dashed rgba(110,81,166,0.30);
+    border-radius: 6px 6px 0 0; box-shadow: none;
   }
   .cph-syn { position: absolute; inset: 0; width: 100%; height: 100%; }
   .cph-syn .syn-ribbon { fill: var(--pathway-2); opacity: 0.55; }
@@ -1873,6 +1873,63 @@
   }
   .cph-banner.sw-spent { filter: grayscale(0.7) brightness(0.93); opacity: 0.82; }
 
+  /* ---- PILLAR = plum cloth pennant (one component, shop + installed) ----
+     A rod across the top with a swallowtail cloth hanging below; a dark circular
+     emblem holds the icon. Rarity = the cloth's trim colour (--pb-trim). The
+     .pennant variant overrides the legacy capsule look on .cph-banner. */
+  .cph-banner.pennant {
+    --pb-trim: var(--trim-common);
+    background: none; border: none; box-shadow: none; border-radius: 0; overflow: visible;
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .cph-banner.pennant.srt-uncommon { --pb-trim: var(--trim-uncommon); }
+  .cph-banner.pennant.srt-rare     { --pb-trim: var(--trim-rare); }
+  .pennant .pb-rod {
+    flex: none; width: min(98%, 116px); height: 5px; border-radius: 3px; z-index: 2;
+    background: linear-gradient(180deg, #e6d09a 0%, #b7945a 45%, #7c5f30 100%);
+    box-shadow: 0 1px 2px rgba(40,24,10,0.45), inset 0 1px 0 rgba(255,255,255,0.4);
+  }
+  /* The swallowtail shape (shared by the trim layer + the inset cloth face). */
+  .pennant .pb-cloth, .pennant .pb-face {
+    clip-path: polygon(0 0, 100% 0, 100% 74%, 83% 90%, 66% 75%, 50% 90%, 34% 75%, 17% 90%, 0 74%);
+  }
+  .pennant .pb-cloth {
+    position: relative; flex: 1 1 auto; width: min(84%, 86px); margin-top: -1px;
+    background: var(--pb-trim);                 /* the trim shows around the inset face */
+    filter: drop-shadow(0 3px 4px rgba(50,30,55,0.4));
+    padding: 2px 2px 0;
+  }
+  .pennant .pb-face {
+    position: relative; width: 100%; height: 100%;
+    background: linear-gradient(180deg, var(--plum-1) 0%, var(--plum-2) 100%);
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  /* Top-light sheen on the cloth. */
+  .pennant .pb-shade {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 32%);
+  }
+  /* Dark circular emblem holding the icon, near the top of the cloth. */
+  .pennant .pb-emblem {
+    position: absolute; left: 50%; top: 16%; transform: translateX(-50%);
+    width: 56%; max-width: 30px; aspect-ratio: 1; height: auto;
+    color: #f4ecf3; z-index: 1;
+  }
+  .pennant .pb-emblem .cph-halo {
+    position: absolute; inset: -10%; border-radius: 50%;
+    background: radial-gradient(circle, rgba(16,8,22,0.95) 58%, rgba(16,8,22,0) 82%);
+  }
+  .pennant .pb-emblem .ico { position: relative; width: 64%; height: 64%; }
+  /* Re-anchor the live badges to the cloth face (lower area, clear of the emblem). */
+  .pennant .cph-streak { top: auto; bottom: 30%; right: 8%; transform: none; }
+  .pennant .cph-streak.bump { transform: scale(1.35); }
+  .pennant .cph-sw { right: 8%; bottom: 26%; }
+  /* Shop pennant: larger shelf object. */
+  .cph-banner.pennant.big .pb-rod { width: min(100%, 132px); height: 7px; }
+  .cph-banner.pennant.big .pb-cloth { width: min(92%, 116px); }
+  .cph-banner.pennant.big .pb-emblem { max-width: 44px; }
+
   /* ---- BASES: the bottom-of-column active-artifact row ----
      A deliberately DISTINCT look from the Pillar synapse ribbon: a flat, light
      "foundation slab" with squared bottom corners and a thick footing edge, in a
@@ -1883,35 +1940,119 @@
   .board.has-bases .board-bases,
   .board.show-slots .board-bases {
     display: flex; justify-content: center; align-items: center;
-    gap: var(--gap); width: 100%; height: 26px; margin-top: 2px;
+    gap: var(--gap); width: 100%; height: var(--base-row-h, 36px); margin-top: 2px;
   }
   .base-cell {
-    width: var(--pile-w-fit); height: 24px; position: relative;
+    width: var(--pile-w-fit); height: 34px; position: relative;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
-  .base-banner {
-    position: relative; width: 100%; height: 100%; overflow: hidden;
-    border-radius: 9px 9px 4px 4px;
-    display: flex; align-items: center; justify-content: center; gap: 3px; padding: 0 5px;
-    background: linear-gradient(180deg, rgba(176,122,60,0.18), rgba(176,122,60,0.05));
-    border: 1px solid #b07a3c; border-bottom-width: 3px;
-    box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5);
+  /* ---- BASE = engraved brass plaque (one component, shop + installed) ----
+     Warm brass plate, darker brass border, four corner screws, engraved label,
+     and a green LED that lights when charged. Rarity = the metal tone (--mtl-*).
+     Keeps the .base-banner wrapper + charged/spent/empty/fired/activatable. */
+  .base-banner.plaque {
+    --mtl-hi: #efd9a0; --mtl-mid: #c9a25b; --mtl-lo: #8a6a32; --mtl-edge: #6b5022;
+    position: relative; width: min(96%, 124px); height: 100%; overflow: hidden;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 11px 0 9px;
+    background: linear-gradient(180deg, var(--mtl-hi) 0%, var(--mtl-mid) 46%, var(--mtl-lo) 100%);
+    border: 1.5px solid var(--mtl-edge);
+    box-shadow: 0 2px 4px rgba(40,26,8,0.32), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 3px rgba(60,40,14,0.4);
   }
+  .base-banner.plaque.srt-uncommon { --mtl-hi: #f1ead9; --mtl-mid: #cdb98f; --mtl-lo: #93805a; --mtl-edge: #6e5e3e; }  /* polished bronze */
+  .base-banner.plaque.srt-rare     { --mtl-hi: #fff4cf; --mtl-mid: #e7c869; --mtl-lo: #b9912f; --mtl-edge: #8a6a1e; }  /* gold */
   .base-banner.empty {
-    background: rgba(74,52,44,0.03);
-    border: 1px dashed rgba(74,52,44,0.20); border-bottom: 2px dashed rgba(74,52,44,0.28);
+    width: min(80%, 96px);
+    background: rgba(120,90,40,0.05);
+    border: 1px dashed rgba(120,90,40,0.34); border-radius: 6px;
     box-shadow: none;
   }
-  .base-ico { font-size: 13px; line-height: 1; display: flex; align-items: center; color: #7a4f1e; }
-  .base-ico .ico { width: 15px; height: 15px; color: #7a4f1e; }
-  .base-name {
-    font-family: var(--font-text); font-size: 9px; font-weight: 800;
-    text-transform: uppercase; letter-spacing: 0.3px; color: #6b4a26;
+  .bp-screw {
+    position: absolute; width: 4px; height: 4px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff6df, #7c5f2c 70%, #4f3a16);
+    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.3);
+  }
+  .bp-screw.s-tl { left: 3px; top: 3px; } .bp-screw.s-tr { right: 3px; top: 3px; }
+  .bp-screw.s-bl { left: 3px; bottom: 3px; } .bp-screw.s-br { right: 3px; bottom: 3px; }
+  .base-banner.plaque .base-ico { font-size: 13px; line-height: 1; display: flex; align-items: center; color: #4a3413; filter: drop-shadow(0 1px 0 rgba(255,255,255,0.4)); }
+  .base-banner.plaque .base-ico .ico { width: 15px; height: 15px; color: #4a3413; }
+  .base-banner.plaque .base-name {
+    font-family: var(--font-display, "Baloo 2"); font-size: 9.5px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.4px; color: #4a3413;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.45), 0 -0.5px 0 rgba(60,40,14,0.4);   /* engraved */
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .base-charge { position: absolute; right: 3px; top: 1px; font-size: 9px; line-height: 1; color: var(--good); }
-  .base-banner.spent { filter: grayscale(0.6) brightness(0.96); opacity: 0.7; }
-  .base-banner.spent .base-charge { color: rgba(74,52,44,0.5); }
+  /* Green LED dot (charged) → dark/off (spent). */
+  .base-charge {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #c9ffd9, var(--good) 60%, #1f7a4a);
+    box-shadow: 0 0 5px 1px rgba(63,157,106,0.8), inset 0 0 1px rgba(0,0,0,0.3);
+  }
+  .base-banner.spent { filter: brightness(0.97); opacity: 0.82; }
+  .base-banner.spent .base-charge {
+    background: radial-gradient(circle at 35% 30%, #6a6258, #3a342c 70%); box-shadow: inset 0 0 1px rgba(0,0,0,0.4);
+  }
+  .base-banner.big { width: min(100%, 144px); }
+  .base-banner.big .base-name { font-size: 11px; }
+
+  /* ---- PACK = sealed foil pack (shop object) ---- */
+  .pack-foil {
+    position: relative; width: 64px; aspect-ratio: 3 / 4;
+    display: flex; flex-direction: column;
+    filter: drop-shadow(0 6px 11px rgba(50,30,55,0.38));
+  }
+  .pf-crimp {
+    flex: none; height: 11%;
+    background: repeating-linear-gradient(90deg, #c3a9e8 0 3px, #6b4ba2 3px 6px);
+    border: 1px solid rgba(40,20,60,0.4);
+  }
+  .pf-crimp.top { border-radius: 5px 5px 0 0; border-bottom: none; }
+  .pf-crimp.bottom { border-radius: 0 0 5px 5px; border-top: none; }
+  .pf-body {
+    position: relative; flex: 1 1 auto; overflow: hidden;
+    background: linear-gradient(155deg, var(--foil-1) 0%, var(--foil-2) 100%);
+    border-left: 1px solid rgba(40,20,60,0.4); border-right: 1px solid rgba(40,20,60,0.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pf-sheen {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(118deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0) 34%, rgba(255,255,255,0.14) 58%, rgba(255,255,255,0) 78%);
+  }
+  .pf-window {
+    position: relative; width: 78%; height: 66%; border-radius: 5px;
+    background: rgba(18,8,28,0.34); border: 1px solid rgba(255,255,255,0.30);
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  }
+  .pf-cards { display: flex; align-items: flex-end; }
+  .pf-cards i {
+    width: 11px; height: 16px; border-radius: 2px; display: block;
+    background: linear-gradient(180deg, #fff, #e7dff0);
+    border: 0.5px solid rgba(60,40,80,0.4); box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .pf-cards i:nth-child(1) { transform: rotate(-12deg) translateX(4px); z-index: 1; }
+  .pf-cards i:nth-child(2) { transform: translateY(-2px); z-index: 2; }
+  .pf-cards i:nth-child(3) { transform: rotate(12deg) translateX(-4px); z-index: 1; }
+  .pf-name {
+    font-family: var(--font-display, "Baloo 2"); font-size: 7px; font-weight: 800;
+    color: #fff; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .pack-foil.big { width: 96px; }
+  .pack-foil.big .pf-cards i { width: 16px; height: 23px; }
+  .pack-foil.big .pf-name { font-size: 9.5px; }
+  /* Tear-open: a quick rip of the top crimp + a flash, then the reveal modal. */
+  @keyframes packTear {
+    0%   { transform: translateY(0) scale(1); }
+    35%  { transform: translateY(-4px) scale(1.04) rotate(-1deg); }
+    60%  { transform: translateY(-2px) scale(1.06) rotate(1.5deg); filter: brightness(1.3); }
+    100% { transform: translateY(8px) scale(0.85); opacity: 0; filter: brightness(1.6); }
+  }
+  .pack-foil.tearing { animation: packTear 0.42s ease-in forwards; }
+  .pack-foil.tearing .pf-crimp.top { animation: packCrimpRip 0.42s ease-in forwards; }
+  @keyframes packCrimpRip { 0% { transform: translateY(0); } 100% { transform: translateY(-14px) rotate(-6deg); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .pack-foil.tearing, .pack-foil.tearing .pf-crimp.top { animation: none; } }
   /* Activation feedback: a bronze pulse on the Base banner the moment it fires,
      so every Base activation has a visible "it did something" cue (+ the spent
      greying that follows). Mirrors the Pillar-fire pulse. */
@@ -1936,9 +2077,6 @@
   .board.armed-base-pillar .bp-cell .cph-banner:not(.empty) {
     cursor: pointer; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 12px;
   }
-  /* Store tile Base preview reuses the board banner so players recognise it. */
-  .store-tile .ti-base { width: 100%; height: 28px; margin: 2px 0; display: block; }
-  .store-tile .ti-base .base-banner { height: 100%; }
 
   /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
      effect fires, and (for coin rewards) a "+N" that floats up and fades. The
@@ -2163,6 +2301,15 @@
   .tray-base .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
   .tray-base.armed { border-color: var(--accent); transform: scale(1.05); }
 
+  /* Tray inventory chips show the REAL object (small) instead of a glyph. */
+  .tray-obj { gap: 7px; }
+  .tray-obj .to-art { display: block; flex: none; }
+  .tray-pillar.tray-obj .to-art { width: 30px; height: 44px; }
+  .tray-base.tray-obj .to-art { width: 58px; height: 24px; }
+  .tray-obj .to-art .cph-banner.pennant, .tray-obj .to-art .base-banner.plaque { width: 100%; height: 100%; }
+  .tray-obj .to-art .base-banner.plaque { padding: 0 6px; }
+  .tray-obj .cph-streak, .tray-obj .cph-count, .tray-obj .cph-sw, .tray-obj .base-charge { display: none; }   /* live badges are board-only */
+
   /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
   /* Placing a Pillar: the PILLAR SLOTS (top of each column) are the drop targets,
      not the cards. Highlight the slots and light up the empty placeholders so it
@@ -2178,32 +2325,44 @@
      mirrored rank (bottom-right). Right-anchored so extra badges grow leftward. */
   .pile-badges {
     position: absolute;
-    /* Anchored to the card overlay (.card-fx = card bounds), so it drifts +
-       breathes with the card. Small fixed inset from the card's top-right. */
-    top: 3px; right: 3px;
+    /* Anchored to the card overlay (.card-fx), so it drifts + breathes with the
+       card. The vinyl stickers stick ON the top-right corner (slightly over the
+       edge), fanning leftward when stacked — overlap via the chips' negative
+       margins below; card-fx is overflow:visible so they're never clipped. */
+    top: -5px; right: -3px;
     display: flex;
-    gap: 2px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: 70%;
+    flex-direction: row-reverse;   /* first sticker on top/outermost at the corner */
+    align-items: flex-start;
     z-index: 3;
     pointer-events: none;
   }
-  /* ---- Matte die-cut sticker chip (used at EVERY sticker site) ----
-     Rounded-square, rarity-coloured fill (--dcs-bg), thick white cut-border, a
-     soft drop shadow so it reads as a physical sticker, and a faint inner
-     highlight for slight dimensionality. MATTE — no gloss. The icon is rendered
-     white, centred. Size + border scale per context via --dcs-size / --dcs-bw. */
+  .pile-badges .dcs:not(:first-child) { margin-right: calc(var(--dcs-size) * -0.5); }
+  /* ---- Die-cut VINYL sticker (one component, every site) ----
+     Circular, glossy effect-coloured face (--dcs-face), a thick white die-cut
+     border tinted by rarity (--dcs-edge), a soft drop shadow so it lies on the
+     surface, and a per-instance rotation (--dcs-rot) so they feel hand-placed.
+     A .dcs-gloss layer adds the highlight sweep. Size scales via --dcs-size. */
   .dcs {
-    --dcs-size: 26px; --dcs-bw: 2.5px;
+    --dcs-size: 26px; --dcs-bw: calc(var(--dcs-size) * 0.12); --dcs-rot: 0deg;
     position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center;
     width: var(--dcs-size); height: var(--dcs-size);
-    border-radius: 30%;
-    background: var(--dcs-bg, #5a8fb0);
-    border: var(--dcs-bw) solid #fff;
-    box-shadow: 0 2px 5px rgba(80, 50, 40, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.28);
+    border-radius: 50%;
+    background:
+      radial-gradient(120% 120% at 30% 22%, rgba(255,255,255,0.55), rgba(255,255,255,0) 42%),
+      radial-gradient(130% 130% at 70% 115%, rgba(0,0,0,0.30), rgba(0,0,0,0) 55%),
+      var(--dcs-face, #6f7a66);
+    border: var(--dcs-bw) solid var(--dcs-edge, #fff);
+    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(255,255,255,0.85),
+                0 3px 6px rgba(70,44,40,0.40);
+    transform: rotate(var(--dcs-rot));
+    overflow: hidden;
   }
-  .dcs-ic { display: inline-flex; align-items: center; justify-content: center; width: 64%; height: 64%; color: #fff; }
+  .dcs-gloss {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 26%, rgba(255,255,255,0) 48%);
+  }
+  .dcs-ic { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 58%; height: 58%; color: #fff;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.32)); }
   .dcs-ic .ico, .dcs-ic svg { width: 100%; height: 100%; display: block; fill: currentColor; }
   .dcs-ic .ico.spent { opacity: 1; }   /* spent state is shown on the whole chip, not the icon */
   .dcs.spent { opacity: 0.5; filter: grayscale(0.45); }
@@ -2211,26 +2370,28 @@
     position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
     background: #2a1d24; color: #fff; border: 1.5px solid #fff; border-radius: 999px;
     font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
+    transform: rotate(calc(var(--dcs-rot) * -1)); z-index: 2;
   }
 
   /* On-card sticker badges: ONE uniform fixed size for every sticker. */
   .pile-badges .dcs {
-    --dcs-size: calc(var(--pile-size, 88px) * 0.26);
-    --dcs-bw: calc(var(--pile-size, 88px) * 0.022);
+    --dcs-size: clamp(26px, calc(var(--pile-size, 88px) * 0.34), 34px);
   }
   .pile-badges .dcs-n {
     font-size: calc(var(--pile-size, 88px) * 0.11);
     min-width: calc(var(--pile-size, 88px) * 0.15); height: calc(var(--pile-size, 88px) * 0.15);
     line-height: calc(var(--pile-size, 88px) * 0.13);
   }
-  /* Per-context sizes — same chip style everywhere, just scaled to fit. */
-  .tray-sticker .dcs { --dcs-size: 30px; --dcs-bw: 2.5px; }
-  .store-tile .dcs  { --dcs-size: 40px; --dcs-bw: 3px; }
-  .pk-sticker .dcs  { --dcs-size: 38px; --dcs-bw: 3px; }
-  .mc-badges .dcs   { --dcs-size: 15px; --dcs-bw: 1.5px; }
+  /* Per-context sizes — same vinyl, just scaled (border derives from size). */
+  .tray-sticker .dcs { --dcs-size: 34px; }
+  .pk-sticker .dcs  { --dcs-size: 46px; }
+  .mc-badges .dcs   { --dcs-size: 15px; }
   .mc-badges .dcs-n { display: none; }   /* mini cards: one chip per sticker, no count */
-  .pk-item .dcs     { --dcs-size: 30px; --dcs-bw: 2.5px; }
-  .wt-stack .mc-badges .dcs { --dcs-size: 16px; --dcs-bw: 1.5px; }
+  .pk-item .dcs     { --dcs-size: 32px; }
+  .wt-stack .mc-badges .dcs { --dcs-size: 16px; }
+  /* Shop: large vinyl lying on the shelf with a soft drop shadow. */
+  .obj-sticker .dcs { --dcs-size: 88px;
+    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(255,255,255,0.9), 0 9px 16px rgba(70,44,40,0.30); }
   /* Card-count badge — bottom-LEFT corner (sticker badges are top-right,
      the rotated rank sits bottom-right, so this corner is clear). */
   .pile-count {
@@ -3590,7 +3751,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.52 · artifact-telemetry";
+const APP_VERSION = "v2.53 · physical-artifact-design";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3866,19 +4027,56 @@ function glyph(name, cls) {
    in WHITE, centred. Used at EVERY sticker site (cards, store, packs, inventory,
    help) so the look is uniform. Colour reads the sticker's `tier` only — it
    never changes what a sticker does or which icon it carries. */
-const STICKER_RARITY_COLOR = { common: "#5a8fb0", uncommon: "#5a9e64", rare: "#a058c0" };
+/* ---- Sticker = die-cut vinyl. The glossy FACE is coloured by the sticker's
+   EFFECT CATEGORY (coins/saves/bury/peek/spark/rank·util); the die-cut BORDER
+   is tinted by RARITY (common gray / uncommon green / rare blue). Per-instance
+   rotation makes them feel hand-placed (deterministic per seed → no jitter on
+   repaint). One component, reused at every size via the --dcs-* vars. ---- */
+const STICKER_FACE = { coins: "#c9982f", saves: "#2f9ca0", bury: "#8a6038", peek: "#5663b6", spark: "#c8607e", rank: "#5e7290", util: "#6f7a66" };
+const STICKER_BEHAVIOR_CAT = {
+  extraCoin: "coins", middleColumnReward: "coins", gainCoin: "coins", collector: "coins",
+  compound: "coins", deathBounty: "coins", looseChange: "coins", deepPockets: "coins", momentum: "coins",
+  tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves",
+  tribute: "bury", quickBury: "bury", snowball: "bury",
+  revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek",
+  duplicate: "spark", twinSpark: "spark", mirror: "spark",
+  randomFixedValue: "rank", changeSuitTo: "rank", changeSuitRandom: "rank", wildSuit: "rank",
+  heavy: "util", anchor: "util", shuffle: "util", donate: "util",
+};
+const STICKER_EDGE = { common: "#c9cfd4", uncommon: "#7cc089", rare: "#6ba4d8" };
+function stickerCat(t) { return !t ? "util" : (t.kind === "rank" ? "rank" : (STICKER_BEHAVIOR_CAT[t.behavior] || "util")); }
+function stickerFaceColor(t) { return STICKER_FACE[stickerCat(t)] || STICKER_FACE.util; }
+/* Deterministic small rotation in ±[3,12]° from a seed string (stable across
+   repaints so a placed sticker never jitters). */
+function dcsRot(seed) {
+  let h = 0; const s = String(seed == null ? "" : seed);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  const mag = 3 + (Math.abs(h) % 10);     // 3..12
+  return ((h & 1) ? mag : -mag);
+}
+const STICKER_RARITY_COLOR = STICKER_FACE;   // back-compat alias (face palette)
 function dieCutChip(iconHtml, tier, opts) {
   opts = opts || {};
-  const color = STICKER_RARITY_COLOR[tier] || STICKER_RARITY_COLOR.common;
-  return '<span class="dcs' + (opts.cls ? " " + opts.cls : "") + '" style="--dcs-bg:' + color + '">' +
+  const face = opts.face || STICKER_FACE.util;
+  const edge = STICKER_EDGE[tier] || STICKER_EDGE.common;
+  const rot = (opts.rot != null ? opts.rot : 0);
+  return '<span class="dcs' + (opts.cls ? " " + opts.cls : "") +
+    '" style="--dcs-face:' + face + ';--dcs-edge:' + edge + ';--dcs-rot:' + rot + 'deg">' +
+    '<span class="dcs-gloss"></span>' +
     '<span class="dcs-ic">' + (iconHtml || "") + "</span>" +
     (opts.count != null ? '<span class="dcs-n">' + opts.count + "</span>" : "") +
     "</span>";
 }
-/* Convenience: a die-cut chip straight from a sticker type id. */
+/* Convenience: a die-cut chip straight from a sticker type id — fills in the
+   category face colour and a stable rotation (seed it per-instance via opts.seed). */
 function stickerChip(typeId, opts) {
   const t = StickerTypes.get(typeId);
-  return t ? dieCutChip(t.icon, t.tier, opts) : "";
+  if (!t) return "";
+  opts = opts || {};
+  return dieCutChip(t.icon, t.tier, Object.assign({}, opts, {
+    face: stickerFaceColor(t),
+    rot: opts.rot != null ? opts.rot : dcsRot(typeId + "|" + (opts.seed || "")),
+  }));
 }
 
 /* ----------------------------------------------------------------
@@ -8300,35 +8498,31 @@ const UIRenderer = (() => {
     const stickers = (card && card.stickers) || [];
     const n = (type) => stickers.filter(s => s.type === type).length;
     const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
-    // One die-cut chip per kind, with a small ×count when stacked (uniform size).
-    const chip = (icon, tier, count, cls) =>
-      count > 0 ? dieCutChip(icon, tier, { count: count > 1 ? count : null, cls: cls }) : "";
+    const faceOf = (id) => stickerFaceColor(StickerTypes.get(id));
+    // Each vinyl leans toward the top-right corner (~−11°) and fans a little as
+    // more stack, with a seeded jitter so it's stable per card but hand-placed.
+    const seed = (card && card.id != null) ? card.id : "x";
+    let idx = 0;
+    const rotN = (id) => { const r = (-11 + idx * 8) + (dcsRot(seed + "|" + id + "|" + idx) % 5); idx++; return Math.max(-15, Math.min(15, r)); };
+    // One die-cut vinyl per kind, with a small ×count when stacked.
+    const chip = (id, icon, count, cls) =>
+      count > 0 ? dieCutChip(icon, tierOf(id), { count: count > 1 ? count : null, cls: cls, face: faceOf(id), rot: rotN(id) }) : "";
+    const counter = (id, icon, count) =>
+      dieCutChip(icon, tierOf(id), { count: count, face: faceOf(id), rot: rotN(id) });
     // Extra Heart is dynamic — split into remaining vs broken (faded chip).
     const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
     const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
-    let html = chip(glyph("buffer"), tierOf("extraHeart"), heartsLeft)
-             + chip(glyph("buffer"), tierOf("extraHeart"), heartsBroken, "spent");
-    // Every OTHER registered sticker type → one die-cut chip from its tier+icon.
+    let html = chip("extraHeart", glyph("buffer"), heartsLeft)
+             + (heartsBroken > 0 ? dieCutChip(glyph("buffer"), tierOf("extraHeart"), { count: heartsBroken > 1 ? heartsBroken : null, cls: "spent", face: faceOf("extraHeart"), rot: rotN("extraHeart") }) : "");
+    // Every OTHER registered sticker type → one vinyl from its category + rarity.
     for (const t of StickerTypes.all()) {
       if (t.id === "extraHeart" || t.id === "compound" || t.id === "snowball" || t.id === "momentum") continue;   // handled specially
-      html += chip(t.icon, t.tier, n(t.id));
+      html += chip(t.id, t.icon, n(t.id));
     }
-    // Snowball Bury shows its current bury size X (the per-card counter), the
-    // same live-counter treatment as Compound's banked value below.
-    if (n("snowball") > 0) {
-      html += dieCutChip(glyph("snowball"), tierOf("snowball"), { count: (card.snowball || 0) });
-    }
-    // Momentum shows its current coin counter X (what the NEXT correct placement
-    // pays) — same live-counter treatment as Snowball.
-    if (n("momentum") > 0) {
-      html += dieCutChip(glyph("momentum"), tierOf("momentum"), { count: (card.momentum || 0) });
-    }
-    // Compound shows its BANKED value (lifetime correct guesses − 1, min 0) so
-    // the player watches it grow — not a plain stack count.
-    if (n("compound") > 0) {
-      const banked = Math.max(0, (card.compoundHits || 0) - 1);
-      html += dieCutChip(glyph("potentiation"), tierOf("compound"), { count: banked });
-    }
+    // Snowball / Momentum / Compound show their live per-card counter value.
+    if (n("snowball") > 0) html += counter("snowball", glyph("snowball"), (card.snowball || 0));
+    if (n("momentum") > 0) html += counter("momentum", glyph("momentum"), (card.momentum || 0));
+    if (n("compound") > 0) html += counter("compound", glyph("potentiation"), Math.max(0, (card.compoundHits || 0) - 1));
     badges.innerHTML = html;
   }
 
@@ -8526,7 +8720,7 @@ const UIRenderer = (() => {
       else if (t.id === "snowball") state = "Buries next: " + (card.snowball || 0) + " card" + ((card.snowball || 0) === 1 ? "" : "s");
       else if (t.id === "momentum") state = "Earns next: +" + (card.momentum || 0) + " coins";
       body +=
-        '<div class="pk-item">' + dieCutChip(t.icon, t.tier) + "<span>" +
+        '<div class="pk-item">' + stickerChip(t.id, { seed: "pki" }) + "<span>" +
           '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
           '<div class="pk-desc">' + escHtml(t.description) + "</div>" +
           (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
@@ -8692,7 +8886,10 @@ const UIRenderer = (() => {
     // start of each deal.
     el.hint.textContent = "Tap a pile to guess Higher or Lower — or swipe it up or down.";
     if (el.ctlHelp) el.ctlHelp.classList.remove("hidden");
-    // No fitBoard here — the board region is fixed and does not reflow on Start.
+    // Re-fit to the live run layout: the bottom region's run histogram can differ
+    // slightly in height from the setup inventory, so size the piles to the real
+    // available space now (the taller Pillar/Base rows leave no slack to absorb it).
+    fitBoard();
   }
 
   /* ---- redeal (pre-run reshuffle) ----
@@ -8808,17 +9005,17 @@ const UIRenderer = (() => {
      browser). Pure HTML — the host decides interactivity. */
   function invStickerChipHtml(t, count, sel) {
     return '<button type="button" class="tray-sticker' + (sel ? " armed" : "") + '" data-type="' + t.id + '">' +
-      dieCutChip(t.icon, t.tier) + '<span class="ts-count">×' + count + "</span></button>";
+      stickerChip(t.id, { seed: "tray" }) + '<span class="ts-count">×' + count + "</span></button>";
   }
   function invPillarChipHtml(t, count, sel) {
-    return '<button type="button" class="tray-pillar' + (sel ? " armed" : "") + '" data-pillar="' + t.id + '">' +
-      '<span class="ts-icon">' + t.icon + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+    return '<button type="button" class="tray-pillar tray-obj' + (sel ? " armed" : "") + '" data-pillar="' + t.id + '">' +
+      '<span class="to-art">' + pathwayBannerHtml(t) + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
       '<span class="ts-count">×' + count + "</span></button>";
   }
   /* An ACTIVE (placed-on-board) Pillar, tagged with its column — read-only. */
   function invPlacedPillarChipHtml(t, col, sel) {
-    return '<button type="button" class="tray-pillar placed' + (sel ? " armed" : "") + '" data-placed-col="' + col + '">' +
-      '<span class="ts-icon">' + t.icon + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+    return '<button type="button" class="tray-pillar tray-obj placed' + (sel ? " armed" : "") + '" data-placed-col="' + col + '">' +
+      '<span class="to-art">' + pathwayBannerHtml(t) + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
       '<span class="tp-col">Col ' + (col + 1) + "</span></button>";
   }
   function invPackChipHtml(card, i, sel, withSwap) {
@@ -9023,8 +9220,8 @@ const UIRenderer = (() => {
     el.baseTray.innerHTML = owned.map(t => invBaseChipHtml(t, inv[t.id], armedBaseItem === t.id)).join("");
   }
   function invBaseChipHtml(t, count, sel) {
-    return '<button type="button" class="tray-base' + (sel ? " armed" : "") + '" data-base="' + t.id + '">' +
-      '<span class="ts-icon">' + (t.icon || "") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+    return '<button type="button" class="tray-base tray-obj' + (sel ? " armed" : "") + '" data-base="' + t.id + '">' +
+      '<span class="to-art">' + baseBannerHtml(t, "charged") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
       '<span class="ts-count">×' + count + "</span></button>";
   }
   function armBaseItem(typeId) {
@@ -11839,12 +12036,15 @@ const UIRenderer = (() => {
   }
   // Streak Pathways and the threshold at which their effect starts paying.
   const STREAK_THRESHOLD = { streakBank: 3, streakTribute: 4 };
-  function pathwayBannerHtml(t) {
-    const sp = synSpindle(synShapeFor(t.id));
-    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dots = reduce ? "" :
-      '<circle class="syn-dot" r="1.8"><animateMotion dur="2.6s" repeatCount="indefinite" path="' + sp.cd + '"/></circle>' +
-      '<circle class="syn-dot" r="1.8" opacity="0.75"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear" path="' + sp.cd + '"/></circle>';
+  /* Pillar = a plum cloth PENNANT hanging from a rod: rod across the top, cloth
+     below with a swallowtail bottom, a dark circular emblem holding the Pillar's
+     icon near the top. Rarity = the cloth's trim colour (richer = rarer). Keeps
+     the SAME .cph-banner wrapper + live badge elements (.cph-streak / .cph-count
+     / .cph-sw) so the activation/fired/spent states and live counters are
+     unchanged. `opts.size` = "shop" renders the large shelf version. */
+  function pathwayBannerHtml(t, opts) {
+    opts = opts || {};
+    const big = opts.size === "shop";
     const thr = STREAK_THRESHOLD[t.effect] || 0;
     const streakBadge = thr
       ? '<span class="cph-streak zero" data-threshold="' + thr + '" title="Streak (effect at ' + thr + ' in a row)">0</span>'
@@ -11861,12 +12061,13 @@ const UIRenderer = (() => {
     const swBadge = t.effect === "secondWind"
       ? '<span class="cph-sw" title="Second Wind ready">↻</span>'
       : "";
-    return '<div class="cph-banner">' +
-        '<svg class="cph-syn" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">' +
-          '<path class="syn-ribbon" d="' + sp.d + '"/>' + dots +
-        '</svg>' +
-        '<span class="cph-ico"><span class="cph-halo"></span>' + glyph(ELEM_GLYPH[t.id] || "guardian") + '</span>' +
-        streakBadge + countBadge + swBadge +
+    return '<div class="cph-banner pennant srt-' + (t.tier || "common") + (big ? " big" : "") + '">' +
+        '<span class="pb-rod"></span>' +
+        '<span class="pb-cloth"><span class="pb-face">' +
+          '<span class="pb-shade"></span>' +
+          '<span class="cph-ico pb-emblem"><span class="cph-halo"></span>' + glyph(ELEM_GLYPH[t.id] || "guardian") + '</span>' +
+          streakBadge + countBadge + swBadge +
+        '</span></span>' +
       '</div>';
   }
   /* Reflect each Second Wind Pathway's charged/used state from run.secondWindUsed:
@@ -11979,16 +12180,41 @@ const UIRenderer = (() => {
      a flat, squared "foundation slab" that reads as the base/footing of a column.
      `state` is "empty" (dashed placeholder), "charged" (ready to activate this
      deal) or "spent" (already used this deal). The icon is the Base's glyph. */
-  function baseBannerHtml(t, state) {
+  /* Base = an engraved BRASS PLAQUE: warm metal plate, darker metal border, four
+     corner screws, engraved label, and a green LED that lights when the Base is
+     charged (the existing charge/spent state — unchanged behaviour). Rarity =
+     the metal tone (--srt-* → richer is rarer). Keeps the SAME .base-banner
+     wrapper + state classes. `opts.size` = "shop" renders the large plaque. */
+  function baseBannerHtml(t, state, opts) {
+    opts = opts || {};
     if (!t) return '<div class="base-banner empty"></div>';
-    const chargePip = '<span class="base-charge" title="' +
-      (state === "spent" ? "Spent this deal" : "Charged — activate once this deal") + '">' +
-      (state === "spent" ? "○" : "●") + "</span>";
-    return '<div class="base-banner ' + (state || "charged") + '">' +
+    const screws = '<i class="bp-screw s-tl"></i><i class="bp-screw s-tr"></i><i class="bp-screw s-bl"></i><i class="bp-screw s-br"></i>';
+    const led = '<span class="base-charge" title="' +
+      (state === "spent" ? "Spent this deal" : "Charged — activate once this deal") + '"></span>';
+    return '<div class="base-banner plaque srt-' + (t.tier || "common") + " " + (state || "charged") + (opts.size === "shop" ? " big" : "") + '">' +
+        screws +
         '<span class="base-ico">' + (t.icon || "") + "</span>" +
         '<span class="base-name">' + escHtml(t.label) + "</span>" +
-        chargePip +
+        led +
       "</div>";
+  }
+
+  /* Pack = a SEALED FOIL PACK: crimped foil strips top + bottom, a purple foil
+     body with a soft sheen, and an art window showing fanned card silhouettes +
+     the pack name. Shop-only object (opened on purchase). `opts.size` = "shop". */
+  function packObjectHtml(t, opts) {
+    opts = opts || {};
+    return '<div class="pack-foil' + (opts.size === "shop" ? " big" : "") + '">' +
+        '<span class="pf-crimp top"></span>' +
+        '<span class="pf-body">' +
+          '<span class="pf-sheen"></span>' +
+          '<span class="pf-window">' +
+            '<span class="pf-cards"><i></i><i></i><i></i></span>' +
+            '<span class="pf-name">' + escHtml(t.label) + '</span>' +
+          '</span>' +
+        '</span>' +
+        '<span class="pf-crimp bottom"></span>' +
+      '</div>';
   }
 
   /* Fill the bottom Base row from the column binding. `has-bases` reveals/reserves
@@ -12075,9 +12301,13 @@ const UIRenderer = (() => {
     const visibleChildren = 3;   // board + controls + bottom region
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
-    // 16px breathing margin: no-scroll is the priority, so trade a little board
-    // size for a safety buffer against sub-pixel rounding and toolbar/notch slop.
-    const availH = vh - bodyPadV - oh(header) - oh(hud) - mainPadV - belowH - mainGaps - 16;
+    // Breathing margin: no-scroll is the priority, so trade a little board size
+    // for a safety buffer against sub-pixel rounding, uncounted child margins,
+    // and toolbar/notch slop. The taller Pillar/Base object rows leave no extra
+    // slack, so reserve a bigger buffer only when those rows are shown.
+    const rowsShown = el.board.classList.contains("has-pillars")
+      || el.board.classList.contains("has-bases") || el.board.classList.contains("show-slots");
+    const availH = vh - bodyPadV - oh(header) - oh(hud) - mainPadV - belowH - mainGaps - (rowsShown ? 40 : 16);
     const boardW = el.board.clientWidth;                    // fixed (min(96vw,460))
     if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
 
@@ -12625,24 +12855,20 @@ const UIRenderer = (() => {
       : kind === "pack" ? campaign.priceOfPack(id)
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
-    const tier = t.tier || null;   // packs carry no tier
-    btn.className = "store-tile tile-" + kind + (tier ? " srt-" + tier : " srt-none")
-      + (affordable ? "" : " disabled") + (selected ? " selected" : "");
+    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled") + (selected ? " selected" : "");
     btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
-    // Pathways/Bases render the SAME banner as when equipped (shared helpers) so
-    // players recognise them before buying; Stickers show a matte die-cut chip;
-    // Packs keep their plain glyph.
-    const iconHtml = (kind === "pillar")
-      ? '<span class="ti-syn">' + pathwayBannerHtml(t) + '</span>'
+    // The OBJECT ITSELF is the shelf item (large) — the SAME component shown
+    // when installed in-game. No kind/tier text tags: rarity lives in the object
+    // (sticker die-cut border, pillar cloth trim, base metal tone, pack foil).
+    const obj = (kind === "pillar")
+      ? '<span class="ti-obj obj-pillar">' + pathwayBannerHtml(t, { size: "shop" }) + '</span>'
       : (kind === "base")
-        ? '<span class="ti-base">' + baseBannerHtml(t, "charged") + '</span>'
-        : (kind === "sticker")
-          ? '<span class="ti-icon">' + dieCutChip(t.icon, t.tier) + '</span>'
-          : '<span class="ti-icon">' + t.icon + '</span>';
-    const tierChip = tier ? '<span class="ti-tier" title="' + tier + '">' + tier + '</span>' : "";
+        ? '<span class="ti-obj obj-base">' + baseBannerHtml(t, "charged", { size: "shop" }) + '</span>'
+        : (kind === "pack")
+          ? '<span class="ti-obj obj-pack">' + packObjectHtml(t, { size: "shop" }) + '</span>'
+          : '<span class="ti-obj obj-sticker">' + stickerChip(id, { seed: "shop" }) + '</span>';
     btn.innerHTML =
-      '<span class="ti-top"><span class="ti-kind">' + KIND_LABEL[kind] + '</span>' + tierChip + '</span>' +
-      iconHtml +
+      obj +
       '<span class="ti-name">' + escHtml(t.label) + '</span>' +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
     return btn;
@@ -12749,7 +12975,7 @@ const UIRenderer = (() => {
   }
   function miniCardHtml(card) {
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
-    const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? dieCutChip(t.icon, t.tier) : ""; }).join("");
+    const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? stickerChip(st.type, { seed: "mc" }) : ""; }).join("");
     return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
       '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
@@ -12773,8 +12999,16 @@ const UIRenderer = (() => {
     }
     if (res.kind === "pack") {
       if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
-      renderStore();                 // empties the slot, updates coins (+persist)
-      openPackReveal(res.reveal);    // reveal/pick modal
+      // Tear-open: rip the foil on the bought pack, THEN reveal its real objects.
+      const tile = el.storeMixed.querySelector('.store-tile[data-mslot="' + slot + '"] .pack-foil');
+      const reveal = res.reveal;
+      const finish = () => { renderStore(); openPackReveal(reveal); };
+      if (tile && !prefersReduce() && typeof tile.animate === "function") {
+        tile.classList.add("tearing");
+        setTimeout(finish, 430);
+      } else {
+        finish();   // reduced motion / no tile: instant reveal of real objects
+      }
     } else {
       const reg = res.kind === "pillar" ? PillarTypes : BaseTypes;
       const t = reg.get(s.id);
@@ -12832,7 +13066,7 @@ const UIRenderer = (() => {
     const face = (i) => st.kind === "card"
       ? miniCardHtml(st.items[i])
       : (() => { const t = StickerTypes.get(st.items[i]);
-          return '<div class="pk-sticker">' + (t ? dieCutChip(t.icon, t.tier) : '<span class="pks-ic">?</span>') +
+          return '<div class="pk-sticker">' + (t ? stickerChip(st.items[i], { seed: "pk" }) : '<span class="pks-ic">?</span>') +
             '<span class="pks-name">' + escHtml(t ? t.label : st.items[i]) + "</span></div>"; })();
     el.packItems.innerHTML = st.items.map((_, i) =>
       packItemButton(face(i), "data-pick", i, st.chosen.indexOf(i) !== -1)).join("");
