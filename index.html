@@ -210,6 +210,8 @@
   .hud .hud-score .hx { color: var(--muted); font-size: 12px; margin: 0 1px; }
   .hud .hud-dop {
     color: var(--amber); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    /* Clear the fixed top-right inventory button (mirror of hud-sr's left clear). */
+    margin-right: 30px;
   }
   .hud .hud-dop b { font-size: 15px; font-weight: 800; }
   .hud .hud-dop .coin-ico { font-size: 13px; }
@@ -1183,22 +1185,37 @@
   .wt-mini-col .mini-card .mc-suit { font-size: 12px; }
 
   /* In-game menu button (corner). */
-  .menu-btn {
-    /* Align with the HUD bar: same top offset (safe-area + the bar's 4px margin)
-       and a matching 30px height, so the button is vertically centred with the
-       bar and its left edge sits at the bar's left edge. */
-    position: fixed; z-index: 30;
+  /* Global nav corner buttons (menu top-left, inventory top-right). z-index 55
+     keeps them tappable OVER the store/map overlays (z-50) while the inventory
+     popup (60) and game-menu sheet (1600) still layer above them. */
+  .nav-btn {
+    position: fixed; z-index: 55;
     top: calc(env(safe-area-inset-top) + 4px);
-    left: calc(env(safe-area-inset-left) + 4px);
     width: 30px; height: 30px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--edge-2); box-shadow: var(--shadow);
     cursor: pointer; touch-action: manipulation;
+    transition: transform 0.08s ease;
   }
-  .menu-btn .ico { font-size: 17px; }
-  .menu-btn.hidden { display: none; }
-  .menu-btn:active { transform: scale(0.92); }
+  .menu-btn { left: calc(env(safe-area-inset-left) + 4px); }
+  .inv-btn  { right: calc(env(safe-area-inset-right) + 4px); }
+  .nav-btn .ico { font-size: 17px; }
+  .nav-btn.hidden { display: none; }
+  .nav-btn:active { transform: scale(0.92); }
+  /* Map → Store: a bottom-centre pill, on the map only. */
+  .map-store-btn {
+    position: fixed; z-index: 55;
+    bottom: calc(env(safe-area-inset-bottom) + 12px); left: 50%; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--accent); border-radius: 999px;
+    padding: 9px 18px; font-family: var(--font-text); font-size: 13px; font-weight: 800;
+    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+  }
+  .map-store-btn .ico { font-size: 15px; }
+  .map-store-btn.hidden { display: none; }
+  .map-store-btn:active { transform: translateX(-50%) scale(0.96); }
 
   /* ============================================================
      OVERLAY (win / lose / start)
@@ -3354,8 +3371,14 @@
     </div>
   </div>
 
-  <!-- In-game menu button (corner). -->
-  <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu"><span class="ico-slot" data-ico="menu"></span></button>
+  <!-- Global navigation corner buttons. Menu (top-left) + Inventory (top-right)
+       sit on EVERY in-game screen (play / store / map) in a consistent place and
+       style; hidden on the main menu and the full-screen start/win/lose overlays
+       (which carry their own actions). The map also shows a "Store" button. -->
+  <button class="menu-btn nav-btn" id="menuBtn" type="button" aria-label="Menu"><span class="ico-slot" data-ico="menu"></span></button>
+  <button class="inv-btn nav-btn hidden" id="invBtn" type="button" aria-label="Inventory"><span class="ico-slot" data-ico="stash"></span></button>
+  <!-- Map → Store (one-way: store → map → game; no game → map). -->
+  <button class="map-store-btn hidden" id="mapStoreBtn" type="button"><span class="ico-slot" data-ico="store"></span> Store</button>
 
 <script>
 "use strict";
@@ -7477,6 +7500,8 @@ const UIRenderer = (() => {
     menuButtons: document.getElementById("menuButtons"),
     menuFoot: document.getElementById("menuFoot"),
     menuBtn: document.getElementById("menuBtn"),
+    invBtn: document.getElementById("invBtn"),
+    mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
     statsGrid: document.getElementById("statsGrid"),
     statsClose: document.getElementById("statsClose"),
@@ -9687,7 +9712,7 @@ const UIRenderer = (() => {
         renderBoard(payload.board, payload.deck);
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
-        if (el.menuBtn) el.menuBtn.classList.remove("hidden");
+        setScreenNav(true, true, false);   // menu + inventory; no map button in-game
         showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
         lastAliveCount = payload.board.aliveCount();
         renderNetwork();
@@ -10269,10 +10294,10 @@ const UIRenderer = (() => {
     clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
     el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared");
     updateBoardMotion();   // board is now covered → pause its perpetual card animations
-    // The start/win/lose overlay carries its own progress line, so hide the
-    // floating Stage·Run badge and the menu button while it's up.
+    // The start/win/lose overlay carries its own progress line + actions, so
+    // hide the floating Stage·Run badge and all global nav buttons while it's up.
     if (el.stageRun) el.stageRun.classList.add("off");
-    if (el.menuBtn) el.menuBtn.classList.add("hidden");
+    setScreenNav(false, false, false);
     if (opts.kind) el.overlay.classList.add(opts.kind);
     if (opts.cls) el.overlay.classList.add(opts.cls);   // per-screen layout (e.g. deal-cleared)
     el.overlayIcon.innerHTML = opts.icon;
@@ -10305,12 +10330,22 @@ const UIRenderer = (() => {
     overlayAction = opts.action;
   }
 
+  /* Single source of truth for the global nav corner buttons. Each screen's
+     show-function calls it so menu (top-left), inventory (top-right) and the
+     map's Store button are always in a consistent, correct state. */
+  function setScreenNav(menu, inv, mapStore) {
+    if (el.menuBtn) el.menuBtn.classList.toggle("hidden", !menu);
+    if (el.invBtn) el.invBtn.classList.toggle("hidden", !inv);
+    if (el.mapStoreBtn) el.mapStoreBtn.classList.toggle("hidden", !mapStore);
+  }
+
   function hideOverlay() {
     stopLossFossils();
     el.overlay.classList.add("hidden");
-    // Back to an in-game screen. The play board keeps the badge OFF (its HUD bar
-    // shows Stage·Run); the store turns the badge on explicitly (see showStore).
-    if (el.menuBtn && el.mainMenu.classList.contains("hidden")) el.menuBtn.classList.remove("hidden");
+    // Back to an in-game screen (play/store/map). The specific screen's show
+    // function sets the final nav state; default to menu+inventory visible when
+    // returning to the board outside the main menu.
+    if (el.mainMenu.classList.contains("hidden")) setScreenNav(true, true, false);
     startDriftSync();   // board may be back on screen → resume the network drift loop
     updateBoardMotion();
   }
@@ -11719,7 +11754,7 @@ const UIRenderer = (() => {
     closeStore();
     closeFossilDetail();
     DeckInspector.close();
-    if (el.menuBtn) el.menuBtn.classList.add("hidden");
+    setScreenNav(true, true, true);   // menu + inventory + the map's Store button
     if (el.stageRun) el.stageRun.classList.remove("off");
     updateStageRun();
     renderProgressionMap();
@@ -11780,7 +11815,9 @@ const UIRenderer = (() => {
      Shown after every run so banked coins are always spendable. */
   function showStore(fresh = true) {
     hideOverlay();
+    closeFossilDetail();
     updateStageRun();
+    setScreenNav(true, true, false);   // menu + inventory; Store button is map-only
     if (el.stageRun) el.stageRun.classList.remove("off");   // badge shows over the store
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
@@ -12809,7 +12846,7 @@ const UIRenderer = (() => {
 
   function showMainMenu(canContinue) {
     el.stageRun.classList.add("off");
-    el.menuBtn.classList.add("hidden");
+    setScreenNav(false, false, false);
     stopLossFossils();   // this hides el.overlay directly (not via hideOverlay) — make
                          // sure the loss-screen bounce loop can't leak behind the menu
     el.overlay.classList.add("hidden");
@@ -12826,12 +12863,12 @@ const UIRenderer = (() => {
     el.mainMenu.classList.remove("hidden");
     updateBoardMotion();   // board covered by the main menu → pause its card animations
   }
-  function hideMainMenu() { el.mainMenu.classList.add("hidden"); el.menuBtn.classList.remove("hidden"); updateBoardMotion(); }
+  function hideMainMenu() { el.mainMenu.classList.add("hidden"); setScreenNav(true, true, false); updateBoardMotion(); }
 
   function resumeSavedGame() {
     const saved = savedSnapshot;
     if (!saved) { startCampaign(); return; }
-    el.stageRun.classList.remove("off"); el.menuBtn.classList.remove("hidden");
+    el.stageRun.classList.remove("off"); setScreenNav(true, true, false);
     buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
     if (saved.phase === "store") showStore(false);
     else {
@@ -13100,6 +13137,8 @@ const UIRenderer = (() => {
 
     // Wire the menus/sheets (§7/§8/§9/§12) and the corner menu button.
     el.menuBtn.addEventListener("click", () => { Sound.tap(); showGameMenu(); });
+    if (el.invBtn) el.invBtn.addEventListener("click", () => { Sound.tap(); openInvPopup(); });
+    if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
     el.statsReset.addEventListener("click", () => { Stats.reset(); showStats(); });
     el.manualClose.addEventListener("click", closeManual);
