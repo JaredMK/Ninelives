@@ -119,16 +119,16 @@ export function run() {
     r.ok(sc && sc.amount === 3, "Sticker Count counts pile-card + buried stickers (3)");
   }
 
-  // ---- Excavator: +1 per buried card across the column's alive piles ----
+  // ---- Excavator: +1 per buried card in the column's LARGEST alive pile only ----
   {
     const e = game(["excavator", null, null]);
     const b = e.getBoard();
     b.pushBottom(0, { value: 4, suit: "♣", label: "4", stickers: [] });
-    b.pushBottom(0, { value: 6, suit: "♦", label: "6", stickers: [] });  // pile 0 → 2 buried
-    b.pushBottom(1, { value: 9, suit: "♠", label: "9", stickers: [] });  // pile 1 → 1 buried
+    b.pushBottom(0, { value: 6, suit: "♦", label: "6", stickers: [] });  // pile 0 → 2 buried (LARGEST)
+    b.pushBottom(1, { value: 9, suit: "♠", label: "9", stickers: [] });  // pile 1 → 1 buried (ignored now)
     const pp = winPayout(e);
     const ex = pp.lines.find(l => l.label === "Excavator");
-    r.ok(ex && ex.amount === 3, "Excavator pays +1 per buried card in the column (3)");
+    r.ok(ex && ex.amount === 2, "Excavator pays only the largest alive pile's buried count (2)");
   }
 
   // ---- Gambler: 50/50 +12 or +0, always shows a line -------------------

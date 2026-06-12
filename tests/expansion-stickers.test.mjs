@@ -163,15 +163,29 @@ export function run() {
     r.ok(e3.getRun().revealNextActive, "Base Scout peeks when a base slot is empty");
   }
 
-  // ---- Momentum: +1 coin per consecutive correct guess in this column --
+  // ---- Momentum (per-card X, like Snowball): pays X then X++, reset on wrong ----
   {
     const e = game();
     const paid = [];
     e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === "Momentum") paid.push(p.amount); });
-    land(e, 0, ["momentum"]);   // streak 1 → +1
-    land(e, 0, ["momentum"]);   // streak 2 → +2
-    land(e, 0, ["momentum"]);   // streak 3 → +3
-    r.eq(JSON.stringify(paid), JSON.stringify([1, 2, 3]), "Momentum pays the running column streak (1,2,3)");
+    land(e, 0, ["momentum"]);                        // fresh card: pays 0 (no event), X→1
+    r.eq(e.getBoard().top(0).momentum, 1, "fresh Momentum card → X=1 after its first placement");
+    r.eq(paid.length, 0, "first placement pays 0 (no payout event)");
+    // A card whose X is already 2 pays 2 and advances to 3.
+    const top1 = e.getBoard().top(1).value;
+    const up1 = top1 < 14;
+    const nc = e.debug.setNextCard(up1 ? top1 + 1 : top1 - 1);
+    nc.stickers = [{ type: "momentum" }]; nc.momentum = 2;
+    e.guess(1, up1 ? "higher" : "lower");
+    r.eq(paid[paid.length - 1], 2, "a Momentum card with X=2 pays +2 on placement");
+    r.eq(e.getBoard().top(1).momentum, 3, "that card's X advanced to 3");
+    // A WRONG placement of a Momentum card resets its X to 0.
+    const top2 = e.getBoard().top(2).value;
+    const nb = e.debug.setNextCard(top2);   // a tie → death (no save stickers)
+    nb.stickers = [{ type: "momentum" }]; nb.momentum = 5;
+    e.guess(2, "higher");
+    r.ok(!e.getBoard().isActive(2), "pile died on the wrong guess");
+    r.eq(e.getBoard().top(2).momentum, 0, "a wrong placement reset Momentum X to 0");
   }
 
   // ---- Quick Bury: buries 1 each correct land; peel path reachable -----

@@ -28,9 +28,11 @@ export function run() {
     r.eq(BaseTypes.get("kamikaze").kind, "active", "Bases are the 'active' kind");
     r.eq(BaseTypes.get("kamikaze").target, "pile", "Kamikaze is a target Base");
     r.ok(!BaseTypes.get("shuffleColumn").target, "Shuffle Column is a whole-column Base");
-    // The Dig family is suit-gated; every other Base is suit-free.
+    // The Dig family is suit-gated; Tax is gated on ♣ (so it's only offered once
+    // black cards exist). Every OTHER Base is suit-free.
     r.ok(["heartDig", "diamondDig", "spadeDig", "clubDig"].every(id => !!BaseTypes.get(id).suit), "the four Dig Bases are suit-gated");
-    r.ok(BaseTypes.all().filter(b => b.suit).length === 4, "only the four Dig Bases carry a suit");
+    r.eq(BaseTypes.get("tax").suit, "♣", "Tax is suit-gated on ♣ (first black suit)");
+    r.ok(BaseTypes.all().filter(b => b.suit).length === 5, "exactly the four Dig Bases + Tax carry a suit");
     r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish targets a Pillar");
     r.ok(BaseTypes.all().every(b => typeof b.price === "number" && b.description), "every Base has a price + description");
   }

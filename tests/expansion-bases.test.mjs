@@ -85,15 +85,17 @@ export function run() {
     r.ok(!e3.baseAvailable(0), "Demolish is unavailable with no Pillars on the board");
   }
 
-  // ---- Tax: +1 coin per alive pile board-wide --------------------------
+  // ---- Tax: +1 coin per BLACK pile card (♠/♣) on the board -------------
   {
     const e = game(["tax", null, null]);
     const b = e.getBoard();
-    b.kill(7); b.kill(8);                       // 10 piles → 8 alive
+    for (let i = 0; i < 10; i++) b.top(i).red = true;          // all red → no black cards
+    b.top(0).red = false; b.top(3).red = false; b.top(7).red = false;   // 3 alive black tops
+    b.top(9).red = false; b.kill(9);                           // a black-topped pile, but DEAD → ignored
     const before = e.getRun().bonusCoins;
     const res = e.baseActivate(0);
-    r.eq(res.gained, 8, "Tax counted the 8 alive piles");
-    r.eq(e.getRun().bonusCoins - before, 8, "Tax paid +8 coins");
+    r.eq(res.gained, 3, "Tax counts only ALIVE black pile cards (♠/♣)");
+    r.eq(e.getRun().bonusCoins - before, 3, "Tax paid +3 coins");
   }
 
   // ---- once-per-deal lifecycle still holds for the new Bases -----------
@@ -110,12 +112,14 @@ export function run() {
     r.ok(s1.has("heartDig") && s1.has("diamondDig"), "Stage 1 offers Heart/Diamond Dig (♦♥ in play)");
     r.ok(!s1.has("clubDig"), "Stage 1 NEVER offers Club Dig (♣ not in play)");
     r.ok(!s1.has("spadeDig"), "Stage 1 NEVER offers Spade Dig (♠ not in play)");
-    r.ok(s1.has("tax") && s1.has("demolish"), "suit-free new Bases (Tax/Demolish) offer from Stage 1");
+    r.ok(s1.has("demolish"), "suit-free Base (Demolish) offers from Stage 1");
+    r.ok(!s1.has("tax"), "Tax is gated on ♣ → NOT offered in Stage 1 (no black cards yet)");
 
     const c2 = CampaignState.create();
     for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 = ♦ ♥ ♣
     const s2 = sample(c2, 400);
     r.ok(s2.has("clubDig"), "Stage 2 offers Club Dig (♣ now in play)");
+    r.ok(s2.has("tax"), "Stage 2 offers Tax (♣ in play → black cards exist)");
     r.ok(!s2.has("spadeDig"), "Stage 2 still NEVER offers Spade Dig (♠ not yet)");
 
     const c3 = CampaignState.create();

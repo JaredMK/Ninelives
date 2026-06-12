@@ -329,6 +329,42 @@ export function run() {
     r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
   }
 
+  // --- Deck-end death is a LOSS, not a deal clear ----------------------
+  // If the final deck card kills the last alive pile, the kill resolves before
+  // the end-of-deck check, so it must read as a loss (not a clear).
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let result = null;
+    e.onEvent((t) => { if (t === "won" || t === "lost") result = t; });
+    e.start(); e.startRun();
+    const b = e.getBoard();
+    for (let i = 1; i < b.size; i++) b.kill(i);             // reduce to a single alive pile (0)
+    r.eq(b.aliveCount(), 1, "exactly one pile alive going into the final card");
+    e.debug.setNextCard(b.top(0).value);                   // a tie → wrong on a Higher guess
+    e.debug.trimDeck(1);                                    // that tie is the deck's LAST card
+    e.guess(0, "higher");
+    r.ok(e.getDeck().isEmpty(), "the final deck card was drawn");
+    r.ok(!b.anyAlive(), "the last alive pile died on that final card");
+    r.eq(result, "lost", "deck-end death emits 'lost' (a loss), not 'won'");
+    r.eq(e.getRun().result, "loss", "run result is recorded as a loss");
+  }
+
+  // --- A deck-end with a SURVIVOR is still a clear ----------------------
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    let result = null;
+    e.onEvent((t) => { if (t === "won" || t === "lost") result = t; });
+    e.start(); e.startRun();
+    const b = e.getBoard();
+    for (let i = 1; i < b.size; i++) b.kill(i);             // one survivor (pile 0)
+    b.top(0).value = 5;
+    e.debug.setNextCard(9);                                 // a correct Higher → survives
+    e.debug.trimDeck(1);
+    e.guess(0, "higher");
+    r.ok(e.getDeck().isEmpty() && b.anyAlive(), "deck empty with a survivor");
+    r.eq(result, "won", "surviving to the last card is still a clear");
+  }
+
   // --- Tracker reconciles: live tally + end-of-run bonuses == summary ----
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });

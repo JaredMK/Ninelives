@@ -3576,7 +3576,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.49 · gameover-map-fibonacci";
+const APP_VERSION = "v2.50 · momentum-tax-excavator-batch";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -3891,7 +3891,7 @@ const StickerTypes = (() => {
     suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
                   description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 5,
-                  description: "On a correct placement, +1 coin per guess in this column's current streak (this one included). Resets on a wrong guess here or any guess in another column." },
+                  description: "On a correct placement, earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -4145,11 +4145,11 @@ const PillarTypes = (() => {
       description: "+2 coins when a face card (J/Q/K) lands correctly in this column.",
     },
     excavator: {
-      // End-of-deal: +value per BURIED card across this column's alive piles
-      // (every card beneath the pile card, summed over the column's survivors).
+      // End-of-deal: +value per BURIED card in this column's LARGEST alive pile
+      // only (the most-cards survivor; ties bury the same count either way).
       id: "excavator", label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 7,
-      description: "On a cleared deal, +1 coin per buried card across this column's alive piles.",
+      description: "On a cleared deal, +1 coin per buried card in this column's largest alive pile.",
     },
     echo: {
       // Reactive: +value each time a Pillar in an ADJACENT column pays out coins
@@ -4313,7 +4313,10 @@ const BaseTypes = (() => {
     tax: {
       id: "tax", label: "Tax", icon: "🧾",
       kind: "active", effect: "tax", tier: "uncommon", price: 9,
-      description: "+1 coin per pile still alive on the board.",
+      // Suit-gated on ♣ (the first black suit, entering Stage 2) so it's only
+      // offered once black cards exist — otherwise it could earn nothing.
+      suit: "♣",
+      description: "+1 coin per black pile card (♠/♣) on the board.",
     },
   };
   // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
@@ -4519,6 +4522,9 @@ const DeckManager = (() => {
       // Snowball Bury: the per-card bury size X (persisted on the campaign card,
       // like compoundHits). Grows on correct placements, resets on a wrong one.
       snowball: card.snowball || 0,
+      // Momentum: the per-card coin counter X (same persist/grow/reset contract
+      // as snowball — pays X coins instead of burying X).
+      momentum: card.momentum || 0,
     };
   }
 
@@ -5052,9 +5058,13 @@ const GameEngine = (() => {
       if (snob > 0 && current && (drawn.suit === current.suit || drawn.wildSuit || current.wildSuit)) {
         run.revealNextActive = true;   // peek the next upcoming card (the reward)
       }
-      const mom = n("momentum");
-      if (mom > 0 && run.colStreak && col != null) {
-        payCoins("Momentum", mom * (run.colStreak[col] || 0));
+      if (n("momentum") > 0) {
+        // Per-card counter (duplicate Momentums share it — they don't stack):
+        // earn X coins, then grow X by 1. Persisted like snowball/compoundHits.
+        const x = drawn.momentum || 0;
+        if (x > 0) payCoins("Momentum", x);
+        drawn.momentum = x + 1;
+        run.momentumUpdates[drawn.id] = drawn.momentum;
       }
       // --- burials ---
       const qb = n("quickBury");
@@ -5555,10 +5565,16 @@ const GameEngine = (() => {
           break;
         }
         case "tax": {
-          const n = board.aliveCount();
+          // +1 coin per BLACK pile card (♠/♣) currently on top of an alive pile.
+          let n = 0;
+          for (let i = 0; i < board.size; i++) {
+            if (!board.isActive(i)) continue;
+            const top = board.top(i);
+            if (top && top.red === false) n++;
+          }
           if (n > 0) addBonus(base.label, n);
           res.gained = n;
-          logLine("taxed " + n + " alive piles → +" + n + " coins");
+          logLine("taxed " + n + " black pile cards → +" + n + " coins");
           break;
         }
         default:
@@ -5694,14 +5710,15 @@ const GameEngine = (() => {
           }
           if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " stickers (buried included)", amount: amt, col }); }
         } else if (t.effect === "excavator") {
-          // +value per BURIED card (every card beneath the pile card) across this
-          // column's alive piles.
-          let n = 0;
+          // +value per BURIED card in this column's LARGEST alive pile only (most
+          // cards). Ties don't matter — equally-large piles bury the same count.
+          let best = 0;
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;
-            n += Math.max(0, board.piles[i].cards.length - 1);
+            best = Math.max(best, board.piles[i].cards.length);
           }
-          if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " buried cards", amount: amt, col }); }
+          const n = Math.max(0, best - 1);   // cards beneath the top of that pile
+          if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " buried (largest pile)", amount: amt, col }); }
         } else if (t.effect === "gambler") {
           // 50/50: +value or nothing. Always emit a line so the result shows.
           const won = rng() < 0.5;
@@ -5815,6 +5832,8 @@ const GameEngine = (() => {
         // Snowball Bury: { cardId: newX } accrued this run — same write-back-on-
         // win contract as compoundUpdates (a loss ends the run, so nothing leaks).
         snowballUpdates: {},
+        // Momentum: { cardId: newX } accrued this run — same write-back contract.
+        momentumUpdates: {},
         // Quick Bury peels: { cardId: peeledCount } — instances destroyed by the
         // 25% roll, removed from the persistent card on a win.
         stickerPeels: {},
@@ -5983,12 +6002,16 @@ const GameEngine = (() => {
         echoAdjacent(run.pileColumns[index]);
       }
 
-      // Snowball Bury: ANY wrong placement of the carrying card resets its X to
-      // 0 (even when a Guard/Shield/Second Wind saves the pile — the placement
-      // itself was wrong). Recorded for the win write-back like compoundUpdates.
+      // Snowball Bury / Momentum: ANY wrong placement of the carrying card resets
+      // its X to 0 (even when a Guard/Shield/Second Wind saves the pile — the
+      // placement itself was wrong). Recorded for the win write-back.
       if (!correct && drawn.stickers && drawn.stickers.some(x => x.type === "snowball")) {
         drawn.snowball = 0;
         run.snowballUpdates[drawn.id] = 0;
+      }
+      if (!correct && drawn.stickers && drawn.stickers.some(x => x.type === "momentum")) {
+        drawn.momentum = 0;
+        run.momentumUpdates[drawn.id] = 0;
       }
 
       let guardSave = null;
@@ -6074,7 +6097,19 @@ const GameEngine = (() => {
 
     function evaluateEnd() {
       if (status !== "playing") return;
-      if (deck.isEmpty()) {
+      // Death is checked BEFORE the end-of-deck clear: if the final deck card kills
+      // the last alive pile, the kill has already resolved (board.kill ran before
+      // this), so all-piles-dead is a LOSS — never a deal clear — even with an
+      // empty deck.
+      if (!board.anyAlive()) {
+        // All piles in play are dead. -> Run End phase.
+        status = "lost";
+        run.phase = "ended";
+        run.result = "loss";
+        logAction("RUN LOST — all piles in play are dead (no payout)");
+        emit("lost", { board, deck, run });
+        // FUTURE: HOOKS.onRunComplete({ result: "loss", board });
+      } else if (deck.isEmpty()) {
         // Survived to the end of the deck. -> Run End phase.
         status = "won";
         run.phase = "ended";
@@ -6092,14 +6127,6 @@ const GameEngine = (() => {
         currentEntry = null;
         emit("won", { board, deck, run, pillarPayout: pp });
         // FUTURE: HOOKS.onRunComplete({ result: "win", board });
-      } else if (!board.anyAlive()) {
-        // All piles in play are dead. -> Run End phase.
-        status = "lost";
-        run.phase = "ended";
-        run.result = "loss";
-        logAction("RUN LOST — all piles in play are dead (no payout)");
-        emit("lost", { board, deck, run });
-        // FUTURE: HOOKS.onRunComplete({ result: "loss", board });
       }
     }
 
@@ -7041,6 +7068,7 @@ const CampaignState = (() => {
         card.stickers = [];
         card.compoundHits = 0;
         card.snowball = 0;
+        card.momentum = 0;
         return base;
       },
 
@@ -7115,6 +7143,7 @@ const CampaignState = (() => {
           stickers: (src.stickers || []).map(s => ({ ...s })),
           compoundHits: src.compoundHits || 0,
           snowball: src.snowball || 0,
+          momentum: src.momentum || 0,
         };
         packTray.push(copy);
         return copy;
@@ -7149,6 +7178,12 @@ const CampaignState = (() => {
       setSnowball(id, n) {
         const card = findById(id);
         if (card) card.snowball = n;
+      },
+
+      /** Momentum: persist a card's coin counter X — same write-back contract. */
+      setMomentum(id, n) {
+        const card = findById(id);
+        if (card) card.momentum = n;
       },
 
       /** Destroy `count` instances of one sticker type on a card (Quick Bury's
@@ -8096,13 +8131,18 @@ const UIRenderer = (() => {
              + chip(glyph("buffer"), tierOf("extraHeart"), heartsBroken, "spent");
     // Every OTHER registered sticker type → one die-cut chip from its tier+icon.
     for (const t of StickerTypes.all()) {
-      if (t.id === "extraHeart" || t.id === "compound" || t.id === "snowball") continue;   // handled specially
+      if (t.id === "extraHeart" || t.id === "compound" || t.id === "snowball" || t.id === "momentum") continue;   // handled specially
       html += chip(t.icon, t.tier, n(t.id));
     }
     // Snowball Bury shows its current bury size X (the per-card counter), the
     // same live-counter treatment as Compound's banked value below.
     if (n("snowball") > 0) {
       html += dieCutChip(glyph("snowball"), tierOf("snowball"), { count: (card.snowball || 0) });
+    }
+    // Momentum shows its current coin counter X (what the NEXT correct placement
+    // pays) — same live-counter treatment as Snowball.
+    if (n("momentum") > 0) {
+      html += dieCutChip(glyph("momentum"), tierOf("momentum"), { count: (card.momentum || 0) });
     }
     // Compound shows its BANKED value (lifetime correct guesses − 1, min 0) so
     // the player watches it grow — not a plain stack count.
@@ -8304,6 +8344,8 @@ const UIRenderer = (() => {
       if (t.id === "extraHeart") state = "Shields remaining: " + (card.heartsRemaining || 0) + " of " + n;
       else if (t.behavior === "suitImmunity") state = "Charge: " + ((card.suitGuards && card.suitGuards[t.suit]) ? "ready" : "spent");
       else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
+      else if (t.id === "snowball") state = "Buries next: " + (card.snowball || 0) + " card" + ((card.snowball || 0) === 1 ? "" : "s");
+      else if (t.id === "momentum") state = "Earns next: +" + (card.momentum || 0) + " coins";
       body +=
         '<div class="pk-item">' + dieCutChip(t.icon, t.tier) + "<span>" +
           '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
@@ -11583,6 +11625,13 @@ const UIRenderer = (() => {
     const streakBadge = thr
       ? '<span class="cph-streak zero" data-threshold="' + thr + '" title="Streak (effect at ' + thr + ' in a row)">0</span>'
       : "";
+    // Accumulating scoring Pathways show their live would-be payout.
+    const countTitle = t.effect === "excavator"
+      ? "Current payout (buried cards in this column's largest pile)"
+      : "Current payout (stickers in this column, buried included)";
+    const countBadge = (t.effect === "stickerCount" || t.effect === "excavator")
+      ? '<span class="cph-streak cph-count zero" title="' + countTitle + '">0</span>'
+      : "";
     // Second Wind: a charged/used pip so the player sees if the revive is still
     // available this deal (updated live by updateSecondWind from run state).
     const swBadge = t.effect === "secondWind"
@@ -11593,7 +11642,7 @@ const UIRenderer = (() => {
           '<path class="syn-ribbon" d="' + sp.d + '"/>' + dots +
         '</svg>' +
         '<span class="cph-ico"><span class="cph-halo"></span>' + glyph(ELEM_GLYPH[t.id] || "guardian") + '</span>' +
-        streakBadge + swBadge +
+        streakBadge + countBadge + swBadge +
       '</div>';
   }
   /* Reflect each Second Wind Pathway's charged/used state from run.secondWindUsed:
@@ -11624,7 +11673,7 @@ const UIRenderer = (() => {
     if (!run || !run.colStreak) return;
     const cells = el.board.querySelectorAll(".bp-cell");
     cells.forEach((cell, col) => {
-      const badge = cell.querySelector(".cph-streak");
+      const badge = cell.querySelector(".cph-streak[data-threshold]");
       if (!badge) return;
       const s = run.colStreak[col] || 0;
       const thr = Number(badge.dataset.threshold) || 0;
@@ -11633,6 +11682,45 @@ const UIRenderer = (() => {
       badge.classList.toggle("zero", s === 0);
       badge.classList.toggle("hot", thr > 0 && s >= thr);
       if (s > prev) {
+        badge.classList.add("bump");
+        setTimeout(() => badge.classList.remove("bump"), 220);
+      }
+    });
+    updateScoringCounters();
+  }
+
+  /* Live "current would-be payout" counter for the accumulating SCORING Pathways
+     (Sticker Count: +value per sticker in the column's alive piles, buried
+     included; Excavator: +value per buried card in the column's largest alive
+     pile). Mirrors the engine's end-of-deal math exactly. Same visual chip as
+     the streak counter; refreshed each resolution. */
+  function updateScoringCounters() {
+    if (!engine || !engine.getRun || !campaign) return;
+    const run = engine.getRun();
+    const board = engine.getBoard();
+    if (!run || !run.pileColumns || !board) return;
+    const binding = campaign.getColumnPillars();
+    const cells = el.board.querySelectorAll(".bp-cell");
+    cells.forEach((cell, col) => {
+      const badge = cell.querySelector(".cph-count");
+      if (!badge) return;
+      const t = binding[col] ? PillarTypes.get(binding[col]) : null;
+      if (!t) return;
+      const alive = [];
+      for (let i = 0; i < board.size; i++) if (run.pileColumns[i] === col && board.isActive(i)) alive.push(i);
+      let units = 0;
+      if (t.effect === "stickerCount") {
+        for (const i of alive) for (const c of board.piles[i].cards) units += (c.stickers ? c.stickers.length : 0);
+      } else if (t.effect === "excavator") {
+        let best = 0;
+        for (const i of alive) best = Math.max(best, board.piles[i].cards.length);
+        units = Math.max(0, best - 1);
+      }
+      const payout = units * (t.value || 1);
+      const prev = Number(badge.textContent) || 0;
+      badge.textContent = payout;
+      badge.classList.toggle("zero", payout === 0);
+      if (payout > prev) {
         badge.classList.add("bump");
         setTimeout(() => badge.classList.remove("bump"), 220);
       }
@@ -11929,6 +12017,8 @@ const UIRenderer = (() => {
     // Snowball counters + Quick Bury peels follow the same win-only contract.
     const su = (payload.run && payload.run.snowballUpdates) || {};
     for (const id in su) campaign.setSnowball(Number(id), su[id]);
+    const mu = (payload.run && payload.run.momentumUpdates) || {};
+    for (const id in mu) campaign.setMomentum(Number(id), mu[id]);
     const sp = (payload.run && payload.run.stickerPeels) || {};
     for (const id in sp) campaign.removeStickerInstances(Number(id), "quickBury", sp[id]);
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
@@ -12848,7 +12938,7 @@ const UIRenderer = (() => {
     top.suit = su.symbol; top.red = su.red;
     top.stickers = [];
     top.tieSafe = false; top.heartsRemaining = 0; top.revealNext = false;
-    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0; top.snowball = 0;
+    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0; top.snowball = 0; top.momentum = 0;
     closePeekInfo();
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
@@ -13138,6 +13228,7 @@ const UIRenderer = (() => {
     let kind = null, label = "";
     if (armedSticker) { const t = StickerTypes.get(armedSticker); kind = "sticker"; label = (t && t.label) || "sticker"; trashPendingItem = { kind, id: armedSticker }; }
     else if (armedPillar) { const t = PillarTypes.get(armedPillar); kind = "pillar"; label = (t && t.label) || "pillar"; trashPendingItem = { kind, id: armedPillar }; }
+    else if (armedBaseItem) { const t = BaseTypes.get(armedBaseItem); kind = "base"; label = (t && t.label) || "base"; trashPendingItem = { kind, id: armedBaseItem }; }
     else if (armedPack != null && campaign) {
       const card = campaign.getPackTray()[armedPack];
       if (!card) return;
@@ -13153,6 +13244,7 @@ const UIRenderer = (() => {
     if (!p || !campaign) return;
     if (p.kind === "sticker") { campaign.useStickerFromInventory(p.id); armedSticker = null; }
     else if (p.kind === "pillar") { campaign.discardPillarFromInventory(p.id); armedPillar = null; }
+    else if (p.kind === "base") { campaign.discardBaseFromInventory(p.id); armedBaseItem = null; }
     else if (p.kind === "card") { campaign.discardPackCard(p.index); armedPack = null; }
     if (engine) engine.logAction("Trashed a setup item");
     updateArmingClass();
