@@ -3894,7 +3894,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.58 · histogram-drag-capture";
+const APP_VERSION = "v2.59 · idempotent-advance";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12779,7 +12779,17 @@ const UIRenderer = (() => {
      map) is in-memory only — the save still points at the store until startRun()
      checkpoints the deal, so a refresh while on the map safely returns to the store. */
   function advanceToNextRun() {
-    campaign.advance();
+    // Advance ONLY when the current deal position still matches the number of
+    // deals completed — i.e. a freshly-finished deal we haven't moved past yet.
+    // This makes leaving the store idempotent w.r.t. navigation: the first exit
+    // after a completion advances once; bouncing store ↔ map any number of times
+    // does NOT advance again (the position already moved past runsCompleted), so
+    // progression advances exactly once per completed deal. Purely state-based
+    // (linear position vs. runsCompleted, both persisted), so it also survives a
+    // refresh/resume at the store. Real advancement still happens only because a
+    // deal was finished (recordRun bumped runsCompleted at completion).
+    const linearDeal = (campaign.currentStage - 1) * campaign.maxRunsPerStage + campaign.currentRunIndex;
+    if (linearDeal === campaign.runsCompleted) campaign.advance();
     showProgressionMap(startRun);
   }
 
