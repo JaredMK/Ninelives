@@ -305,21 +305,70 @@
     .cph-banner.activatable { animation: none; outline: 2px solid var(--pathway); outline-offset: 1px; }
   }
 
-  /* Bottom region — now the SETUP INVENTORY band only (the histogram moved to the
-     left rail). Shown during setup; hidden in run so its full height flows into
-     the pile field. */
+  /* Setup bottom bar — slim: a launcher that opens the placement sheet, or the
+     armed item (+ Trash/✕) while you tap a slot. Hidden in run, and hidden when
+     there is nothing to place and nothing armed, so the field uses the space. */
   .bottom-region {
-    display: flex; align-items: flex-end; gap: 10px;
+    display: flex; align-items: stretch; gap: 8px;
     width: min(99vw, 540px); margin: 0 auto;
-    height: var(--bottom-h, 102px);
-    background: rgba(248, 242, 235, 0.5);
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    padding: 6px 9px;
+    min-height: var(--bottom-bar-h, 52px);
   }
-  .br-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
-  .br-main > .setup-inv { position: absolute; inset: 0; }
-  .bottom-region.run { display: none; }                       /* run: band gone, height → field */
-  .bottom-region.setup.inv-empty { display: none; }           /* nothing to place → no empty band */
+  .bottom-region.run { display: none; }
+  .bottom-region.setup.bar-empty { display: none; }
+
+  /* Launcher: opens the placement sheet. */
+  .place-launcher {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: linear-gradient(180deg, #fff, var(--panel)); color: var(--accent-2);
+    border: 1.5px solid var(--accent); border-radius: 14px;
+    font-size: 14px; font-weight: 800; letter-spacing: 0.3px;
+    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
+  }
+  .place-launcher.hidden { display: none; }
+  .place-launcher:active { transform: scale(0.98); }
+  .place-launcher .pl-ico { font-size: 11px; }
+  .place-launcher .pl-n {
+    background: var(--accent-2); color: #fff; border-radius: 999px;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+  }
+
+  /* Dim backdrop behind the open sheet. */
+  .place-backdrop {
+    position: fixed; inset: 0; z-index: 64;
+    background: rgba(40,30,28,0.5);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    opacity: 1; transition: opacity 0.18s ease;
+  }
+  .place-backdrop.hidden { display: none; }
+
+  /* The placement sheet — slides up from the bottom, over the bottom bars. */
+  .place-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 66;
+    width: min(100%, 560px); margin: 0 auto;
+    max-height: 64vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--edge-2);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -10px 34px rgba(40,26,20,0.38);
+    padding: 4px 12px max(12px, env(safe-area-inset-bottom));
+    transform: translateY(110%); pointer-events: none;
+    transition: transform 0.26s cubic-bezier(0.3,0.1,0.3,1);
+  }
+  .place-sheet.open { transform: translateY(0); pointer-events: auto; }
+  .ps-head { display: flex; align-items: center; gap: 8px; padding: 4px 2px 6px; position: relative; }
+  .ps-grip { position: absolute; left: 50%; top: 2px; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: 999px; background: var(--edge-2); }
+  .ps-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--text); flex: 1; }
+  .ps-done {
+    flex: none; background: var(--accent); color: #fff; border: none; border-radius: 999px;
+    padding: 7px 16px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+  }
+  .ps-done:active { transform: scale(0.97); }
+  /* The setup inventory now lives in the sheet: tabs on top, the item strip below
+     with room to show the full (tall) artifact chips without clipping. */
+  .place-sheet .setup-inv { flex: 1 1 auto; min-height: 0; }
+  .place-sheet .setup-strip { min-height: 96px; max-height: 46vh; overflow-y: auto; overflow-x: hidden; }
+  /* Armed item bar (in the slim bottom region while you tap a slot to place). */
+  .bottom-region .tray-help { flex: 1; max-height: 118px; }
   /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
      at its own consistent size instead of competing in one mixed strip. The tab
      bar sits on top; the active family's strip scrolls horizontally below it. */
@@ -551,7 +600,7 @@
   .board-grid {
     display: flex;
     flex-direction: row;
-    justify-content: center;   /* the 3 columns + gaps already fill the width */
+    justify-content: space-between;  /* spread columns to the field's edges */
     align-items: center;       /* center columns vertically against the tallest */
     gap: var(--gap);
     width: 100%;
@@ -1872,7 +1921,7 @@
      start, before anything is placed. */
   .board.has-pillars .board-pillars,
   .board.show-slots .board-pillars {
-    display: flex; justify-content: center; align-items: flex-start;
+    display: flex; justify-content: space-between; align-items: flex-start;
     gap: var(--gap); width: 100%; height: var(--pillar-row-h, 48px);
   }
   .bp-cell {
@@ -2012,7 +2061,7 @@
   .board-bases { display: none; }
   .board.has-bases .board-bases,
   .board.show-slots .board-bases {
-    display: flex; justify-content: center; align-items: center;
+    display: flex; justify-content: space-between; align-items: center;
     gap: var(--gap); width: 100%; height: var(--base-row-h, 32px); margin-top: 2px;
   }
   .base-cell {
@@ -3334,44 +3383,51 @@
       </div>
     </div>
 
-    <!-- FIXED-height bottom region. Its contents swap by PHASE but its size does
-         NOT, so the board region above is stable through inventory changes,
-         sticker placement, card swaps, and clicking Start:
-           setup phase → the setup inventory (Imprints to place, memories to swap)
-           run phase   → the rank histogram
-         The face-down deck + remaining count stays bottom-right in BOTH. -->
+    <!-- Slim bottom bar (setup only). When something is to be placed it shows a
+         launcher that opens the placement sheet; while an item is armed it shows
+         that item + Trash/✕ so the board above is clear for the placing tap. -->
     <div class="bottom-region setup" id="bottomRegion">
-      <div class="br-main">
-        <!-- Setup inventory (before Start). Scrolls within the fixed region if
-             it has a lot of items — never resizes the region or the board. -->
-        <div class="setup-inv" id="setupInv">
-          <!-- Tabs keep each item family at a consistent size (cards no longer
-               dwarf stickers). The active tab's strip scrolls horizontally. -->
-          <div class="setup-tabs" id="setupTabs">
-            <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="tabNCards">0</span></button>
-            <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="tabNStickers">0</span></button>
-            <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="tabNPillars">0</span></button>
-            <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="tabNBases">0</span></button>
-          </div>
-          <div class="setup-strip" id="setupStrip">
-            <div class="pack-tray tab-panel hidden" id="packTrayEl" data-tab="cards"></div>
-            <div class="sticker-tray tab-panel hidden" id="stickerTray" data-tab="stickers"></div>
-            <div class="pillar-tray tab-panel hidden" id="pillarTray" data-tab="pillars"></div>
-            <div class="base-tray tab-panel hidden" id="baseTray" data-tab="bases"></div>
-            <div class="setup-empty hidden" id="setupEmpty"></div>
-          </div>
-          <div class="tray-help hidden" id="trayHelp">
-            <div class="th-row">
-              <span class="th-title" id="thTitle"></span>
-              <button class="th-trash hidden" id="thTrash" type="button"><span class="ico-slot" data-ico="trash"></span> Trash</button>
-              <button class="th-close" id="thClose" type="button" aria-label="Back to items">✕</button>
-            </div>
-            <span class="th-desc" id="thDesc"></span>
-          </div>
+      <button class="place-launcher hidden" id="placeLauncher" type="button">
+        <span class="pl-ico">▲</span><span class="pl-label">Place items</span><span class="pl-n" id="placeLauncherN">0</span>
+      </button>
+      <div class="tray-help hidden" id="trayHelp">
+        <div class="th-row">
+          <span class="th-title" id="thTitle"></span>
+          <button class="th-trash hidden" id="thTrash" type="button"><span class="ico-slot" data-ico="trash"></span> Trash</button>
+          <button class="th-close" id="thClose" type="button" aria-label="Cancel">✕</button>
         </div>
+        <span class="th-desc" id="thDesc"></span>
       </div>
     </div>
   </main>
+
+  <!-- Placement sheet: slides up OVER the bottom bars to pick an artifact to
+       place. Dim backdrop behind; picking an item closes the sheet so the board
+       (incl. the bottom Base slots) is fully clear for the placing tap. -->
+  <div class="place-backdrop hidden" id="placeBackdrop"></div>
+  <div class="place-sheet" id="placeSheet" role="dialog" aria-label="Place artifacts">
+    <div class="ps-head">
+      <span class="ps-grip"></span>
+      <span class="ps-title">Place an artifact</span>
+      <button class="ps-done" id="placeSheetDone" type="button">Done</button>
+    </div>
+    <div class="setup-inv" id="setupInv">
+      <!-- Tabs keep each item family at a consistent size. -->
+      <div class="setup-tabs" id="setupTabs">
+        <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="tabNCards">0</span></button>
+        <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="tabNStickers">0</span></button>
+        <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="tabNPillars">0</span></button>
+        <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="tabNBases">0</span></button>
+      </div>
+      <div class="setup-strip" id="setupStrip">
+        <div class="pack-tray tab-panel hidden" id="packTrayEl" data-tab="cards"></div>
+        <div class="sticker-tray tab-panel hidden" id="stickerTray" data-tab="stickers"></div>
+        <div class="pillar-tray tab-panel hidden" id="pillarTray" data-tab="pillars"></div>
+        <div class="base-tray tab-panel hidden" id="baseTray" data-tab="bases"></div>
+        <div class="setup-empty hidden" id="setupEmpty"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Card info popup ("?" button): the selected pile's top card — description
        + its stickers (registry text) + persistent state. Tap off to close. -->
@@ -3838,7 +3894,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.56 · portrait-leftrail";
+const APP_VERSION = "v2.57 · spread-field-place-sheet";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8221,6 +8277,11 @@ const UIRenderer = (() => {
     gameMenuButtons: document.getElementById("gameMenuButtons"),
     gameMenuClose: document.getElementById("gameMenuClose"),
     bottomRegion: document.getElementById("bottomRegion"),
+    placeLauncher: document.getElementById("placeLauncher"),
+    placeLauncherN: document.getElementById("placeLauncherN"),
+    placeBackdrop: document.getElementById("placeBackdrop"),
+    placeSheet: document.getElementById("placeSheet"),
+    placeSheetDone: document.getElementById("placeSheetDone"),
     stickerTray: document.getElementById("stickerTray"),
     pillarTray: document.getElementById("pillarTray"),
     baseTray: document.getElementById("baseTray"),
@@ -8951,6 +9012,9 @@ const UIRenderer = (() => {
     fitBoard();
     el.startRunBtn.classList.remove("hidden");
     renderSetupInv();                         // tabbed Cards / Stickers / Pillars
+    // Auto-open the placement sheet when there's anything to place this setup.
+    const pc = setupTabCounts();
+    if (pc.cards + pc.stickers + pc.pillars + pc.bases > 0) { placeSheetOpen = true; renderPlacementUI(true, pc); }
     renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
     const hasPillars = campaign && Object.values(campaign.getPillarInventory()).some(n => n > 0);
@@ -9207,12 +9271,52 @@ const UIRenderer = (() => {
       if (p) p.classList.toggle("hidden", !(open && k === activeSetupTab && counts[k] > 0));
     });
     el.setupTabs.classList.toggle("hidden", !(open && anyItems));
-    // Nothing to place during setup → show the histogram in this area instead of
-    // an empty panel (inv-empty hides the inventory and reveals the deck strip).
-    const showHist = open && !anyItems;
-    if (el.bottomRegion) el.bottomRegion.classList.toggle("inv-empty", showHist);
-    if (showHist) renderDeckStrip();
     if (el.setupEmpty) el.setupEmpty.classList.add("hidden");
+    renderPlacementUI(open, counts);
+  }
+
+  /* ---- placement sheet controller ----
+     Placeable artifacts live in a slide-up sheet (over the bottom bars) so they
+     are never clipped. Picking an item closes the sheet and arms it, leaving the
+     board fully clear to tap the target slot (incl. the bottom Base row). Three
+     UI states: closed (a slim launcher), open (the picker sheet + backdrop), and
+     armed (a slim item bar with Trash/✕ while you place). */
+  let placeSheetOpen = false;
+  function placementArmed() {
+    return !!(armedSticker || armedPillar || armedBaseItem) || armedPack != null;
+  }
+  function renderPlacementUI(open, counts) {
+    const inSetup = open != null ? open : !!(engine && engine.canApplyStickers());
+    const c = counts || (inSetup ? setupTabCounts() : { cards: 0, stickers: 0, pillars: 0, bases: 0 });
+    const total = c.cards + c.stickers + c.pillars + c.bases;
+    const armed = inSetup && placementArmed();
+    if (!inSetup || armed) placeSheetOpen = false;   // leaving setup / arming closes the picker
+    const sheetUp = inSetup && placeSheetOpen && !armed;
+    if (el.placeSheet) el.placeSheet.classList.toggle("open", sheetUp);
+    if (el.placeBackdrop) el.placeBackdrop.classList.toggle("hidden", !sheetUp);
+    const showLauncher = inSetup && !sheetUp && !armed && total > 0;
+    if (el.placeLauncher) {
+      el.placeLauncher.classList.toggle("hidden", !showLauncher);
+      if (el.placeLauncherN) el.placeLauncherN.textContent = total;
+    }
+    // Reserve the slim bar whenever there's something to do; hide it otherwise so
+    // the field uses the space. The sheet is a fixed overlay — it never resizes
+    // the board.
+    const barActive = inSetup && (total > 0 || sheetUp || armed);
+    if (el.bottomRegion) el.bottomRegion.classList.toggle("bar-empty", !barActive);
+  }
+  function openPlaceSheet() {
+    if (!(engine && engine.canApplyStickers())) return;
+    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
+    updateArmingClass();
+    placeSheetOpen = true;
+    renderSetupInv();
+  }
+  function closePlaceSheet() {
+    placeSheetOpen = false;
+    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
+    updateArmingClass();
+    renderSetupInv();
   }
   function selectSetupTab(tab) {
     if (!tab) return;
@@ -9981,7 +10085,11 @@ const UIRenderer = (() => {
 
     // Trash an armed setup item (deliberate: button -> confirm dialog).
     if (el.thTrash) el.thTrash.addEventListener("click", requestTrashItem);
-    if (el.thClose) el.thClose.addEventListener("click", disarmSetupItem);   // ✕ → back to items
+    if (el.thClose) el.thClose.addEventListener("click", disarmSetupItem);   // ✕ → cancel placing
+    // Placement sheet: launcher opens it; Done / backdrop close it.
+    if (el.placeLauncher) el.placeLauncher.addEventListener("click", openPlaceSheet);
+    if (el.placeSheetDone) el.placeSheetDone.addEventListener("click", closePlaceSheet);
+    if (el.placeBackdrop) el.placeBackdrop.addEventListener("click", closePlaceSheet);
     el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
     el.trashOkBtn.addEventListener("click", doTrashItem);
     if (el.sellCancelBtn) el.sellCancelBtn.addEventListener("click", closeSellConfirm);
@@ -12422,18 +12530,19 @@ const UIRenderer = (() => {
     }
     const byHeight = (availH - headH - headGap - footH - footGap - (tall - 1) * gapPx) / tall;
     const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns share the board width
-    // PORTRAIT cards: the largest 66:92 (w:h) rectangle that fits inside the
-    // available cell (byWidth × byHeight), clamped to sane bounds. Extra width or
-    // height becomes margin/gap (the grid centres each column), so cards read as
-    // real playing cards instead of squat ovals, and never overlap.
-    const ASPECT = 66 / 92;                                 // card width ÷ height
-    const MIN_H = 76, MAX_H = 172;
-    let h = Math.max(36, byHeight);
-    let w = h * ASPECT;
-    if (w > byWidth) { w = byWidth; h = w / ASPECT; }       // width-limited
-    h = Math.max(MIN_H, Math.min(MAX_H, h));
-    w = h * ASPECT;
-    if (w > byWidth) { w = byWidth; h = w / ASPECT; }       // re-limit after clamp
+    // PORTRAIT cards that USE THE FULL WIDTH. The field is height-constrained, so
+    // height drives the card; width then grows toward the column budget (the
+    // columns are spread edge-to-edge with space-between), widening the card from
+    // the ideal portrait up to MAX_ASPECT so the freed side room is filled — but
+    // never past the column width (which would overlap a neighbour). When the
+    // column is the tighter limit, height follows to keep a true portrait.
+    const ASPECT = 66 / 92;            // ideal portrait (w ÷ h ≈ 0.717)
+    const MAX_ASPECT = 0.80;           // widen up to here to consume freed width
+    const MIN_H = 76, MAX_H = 176;
+    let h = Math.max(36, Math.min(MAX_H, byHeight));
+    let w = Math.min(byWidth, h * MAX_ASPECT);              // grow into the column, aspect-capped
+    if (w < h * ASPECT) { h = Math.min(h, w / ASPECT); }    // width-limited → keep portrait
+    if (h < MIN_H && byHeight >= MIN_H) { h = MIN_H; w = Math.min(byWidth, h * MAX_ASPECT); }
     w = Math.max(28, w); h = Math.max(36, h);
     el.board.style.setProperty("--pile-w-fit", w + "px");
     el.board.style.setProperty("--pile-h-fit", h + "px");
