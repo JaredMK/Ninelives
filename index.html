@@ -77,8 +77,7 @@
     --info-title-size: 13px;
     --info-desc-size: 11.5px;
     --info-desc-lh: 1.4;
-    --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band */
-    --bottom-run-h: 52px;                    /* run-phase pip-matrix band (compact) */
+    --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band (run: hidden) */
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -306,7 +305,9 @@
     .cph-banner.activatable { animation: none; outline: 2px solid var(--pathway); outline-offset: 1px; }
   }
 
-  /* FIXED-height bottom region — contents swap by phase, size stays constant. */
+  /* Bottom region — now the SETUP INVENTORY band only (the histogram moved to the
+     left rail). Shown during setup; hidden in run so its full height flows into
+     the pile field. */
   .bottom-region {
     display: flex; align-items: flex-end; gap: 10px;
     width: min(99vw, 540px); margin: 0 auto;
@@ -315,20 +316,10 @@
     border: 1px solid var(--edge-2); border-radius: 14px;
     padding: 6px 9px;
   }
-  /* Left area holds the setup inventory and the histogram, overlaid + swapped. */
   .br-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
-  .br-main > .setup-inv, .br-main > .deck-strip { position: absolute; inset: 0; }
-  .bottom-region.setup .deck-strip { display: none; }   /* before Start: histogram hidden */
-  .bottom-region.run   .setup-inv  { display: none; }   /* after Start: inventory hidden */
-  /* Empty setup inventory: nothing to place, so show the histogram in its place
-     instead of an empty panel. */
-  .bottom-region.setup.inv-empty .setup-inv  { display: none; }
-  .bottom-region.setup.inv-empty .deck-strip { display: flex; }
-  /* Run phase: the pip matrix is compact, so the band shrinks to a fraction of
-     the setup band — fitBoard reads this live and flows the freed height into the
-     pile field (taller cards during play). The deck stack compacts inline. */
-  .bottom-region.run { height: var(--bottom-run-h, 52px); align-items: center; background: none; border: none; padding: 2px 4px; }
-  .bottom-region.run .deck-stack { transform: scale(0.56); transform-origin: center right; }
+  .br-main > .setup-inv { position: absolute; inset: 0; }
+  .bottom-region.run { display: none; }                       /* run: band gone, height → field */
+  .bottom-region.setup.inv-empty { display: none; }           /* nothing to place → no empty band */
   /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
      at its own consistent size instead of competing in one mixed strip. The tab
      bar sits on top; the active family's strip scrolls horizontally below it. */
@@ -419,22 +410,17 @@
      a scroll; the scrubber readout is an absolute overlay (adds no height).
      ============================================================ */
   .deck-strip {
-    position: relative;
-    min-width: 0; margin: 0; padding: 0;
-    display: flex; flex-direction: column; justify-content: flex-end;
+    position: relative; flex: 1 1 auto; min-height: 0; min-width: 0;
+    display: flex; flex-direction: column;
+    background: rgba(255,255,255,0.42); border: 1px solid rgba(74,52,44,0.07);
+    border-radius: 11px; padding: 6px 4px;
     touch-action: none;            /* drag scrubs, never scrolls the locked page */
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
   .deck-strip.hidden { display: none; }
-  .ds-bars {
-    display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 2px; flex: 1 1 auto;       /* fills the fixed bottom-region height */
-  }
-  .ds-bar {
-    flex: 1 1 0; min-width: 0;
-    display: flex; flex-direction: column; align-items: center;
-    height: 100%;
-  }
+  /* Generic bar layout — used by the deck-inspector MODAL (vertical bars). */
+  .ds-bars { display: flex; align-items: flex-end; gap: 2px; flex: 1 1 auto; min-height: 0; }
+  .ds-bar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
   .ds-track {
     position: relative; width: 100%; flex: 1 1 auto;
     border-radius: 2px 2px 0 0; overflow: hidden;
@@ -444,24 +430,40 @@
   .ds-blue { background: var(--accent-2); }
   .ds-bar.ds-active .ds-grey { background: rgba(74,52,44,0.40); }
   .ds-bar.ds-active .ds-blue { background: var(--amber); }
-  .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+  .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
-  /* PIP MATRIX — per rank, a column of 4 stacked cells filled bottom-up to the
-     number of that rank still in the deck (0–4). Filled = histogram magenta;
-     empty = faint neutral. Replaces the tall bars in the on-screen band; the
-     deck-inspector modal keeps the .ds-track bars above. */
-  .ds-bar { justify-content: flex-end; }
-  .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; }
-  .ds-pip { width: clamp(11px, 2.4vw, 16px); height: 7px; border-radius: 2px;
-    background: rgba(74,52,44,0.13); }
-  .ds-pip.filled { background: var(--accent-2); }
-  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.28); }
+  /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom), each row = a left rank
+     label + 4 horizontal cells filled left-to-right to the count still in the
+     deck (0–4). Filled = histogram magenta; empty = faint neutral. */
+  .rail .ds-bars { flex-direction: column; align-items: stretch; }
+  .rail .ds-bar { flex-direction: row; align-items: center; gap: 3px; }
+  .rail .ds-rank { flex: none; width: 12px; text-align: right; font-size: 8px; line-height: 1; }
+  .ds-pips { display: flex; flex-direction: row; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .ds-pip { flex: 1 1 0; min-width: 0; height: 8px; border-radius: 2.5px; background: rgba(74,52,44,0.10); }
+  .ds-pip.filled { background: linear-gradient(90deg, var(--accent-2), #e36b97); }
+  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.24); }
   .ds-bar.ds-active .ds-pip.filled { background: var(--amber); }
-  /* Scrubber readout — absolute overlay so it never changes the strip's height. */
+  /* Rail deck chip — compact striped pile + remaining count at the rail's bottom. */
+  .rail .deck-stack { flex: none; justify-content: center;
+    background: rgba(255,255,255,0.42); border: 1px solid rgba(74,52,44,0.07);
+    border-radius: 11px; padding: 5px 3px; }
+  .rail .deck-pile { width: 36px; height: 48px; }
+  .rail .deck-pile .ds-back { width: 31px; height: 45px; border-radius: 5px; }
+  .rail .deck-pile .ds-back:nth-child(1) { left: 0; top: 2px; }
+  .rail .deck-pile .ds-back:nth-child(2) { left: 2px; top: 1px; }
+  .rail .deck-pile .ds-back.ds-top { left: 4px; top: 0; }
+  .rail .deck-pile .ds-face { left: 4px; top: 0; width: 31px; height: 45px; }
+  .rail .deck-pile .ds-face .dsf-rank { font-size: 15px; }
+  .rail .deck-pile .ds-face .dsf-suit { font-size: 11px; }
+  .rail .deck-count { inset: 0 0 0 4px; }
+  .rail .deck-count b { font-size: 18px; }
+  .rail .deck-count .ds-lbl { font-size: 6.5px; letter-spacing: 0.6px; }
+  /* Scrubber readout — absolute overlay anchored to the rail's right so the wide
+     higher/same/lower text reads over the field, never widening the rail. */
   .ds-scrub {
-    position: absolute; left: 0; right: 0; bottom: 100%;
-    margin-bottom: 2px; text-align: center;
-    font-size: 11px; font-weight: 700; color: var(--text);
+    position: absolute; left: 100%; top: 4px; bottom: auto; margin-left: 6px;
+    width: max-content; max-width: 220px; white-space: nowrap; text-align: left;
+    font-size: 11px; font-weight: 700; color: var(--text); z-index: 6;
     background: rgba(251,246,241,0.96); border: 1px solid var(--edge-2); border-radius: 8px;
     padding: 3px 6px; pointer-events: none;
   }
@@ -480,6 +482,25 @@
     width: 100%;
     padding: 10px;
     gap: 14px;
+  }
+
+  /* Play row: the left rail beside the board, filling the play area's height.
+     The board flex-grows into the width that's left of the rail. */
+  .play-row {
+    flex: 1 1 auto; min-height: 0;
+    width: 100%; max-width: 700px; margin: 0 auto;
+    display: flex; align-items: stretch; justify-content: center;
+    gap: 6px;
+  }
+  .play-row .board { flex: 1 1 auto; min-width: 0; width: auto; margin: 0; }
+
+  /* LEFT RAIL — vertical pip matrix (top, grows) + deck-count chip (bottom).
+     Replaces the old bottom histogram band; reserved in both phases so the
+     board width never jumps across Start. */
+  .rail {
+    flex: 0 0 58px; min-height: 0;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 2px 0;
   }
 
   /* Per-run layout: three side-by-side COLUMNS, vertically centered against
@@ -598,7 +619,9 @@
        the node centre is unchanged and the connections read better. */
     width: 90%;
     height: 90%;
-    border-radius: 22px;
+    /* Portrait cards: corner radius scales with the card so it reads as a real
+       playing card (not a squat oval) at any size. */
+    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
     transform-style: preserve-3d;
     /* MATTE: no neon/glow. A defined crisp edge (border on the face) + a real
        warm drop shadow so the white card clearly lifts off the cream board.
@@ -687,7 +710,7 @@
   .card .face {
     position: absolute;
     inset: 0;
-    border-radius: 22px;
+    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     display: flex;
@@ -3264,7 +3287,26 @@
   </div>
 
   <main>
-    <div class="board" id="board" aria-label="Three columns of card piles"></div>
+    <!-- Play row: the left rail (vertical pip matrix + deck count) beside the
+         board (banners · pile field · plaques). The rail replaces the old bottom
+         histogram band; that removed height flows into the pile field. -->
+    <div class="play-row">
+      <div class="rail" id="rail">
+        <!-- Rank histogram, re-oriented vertical: A at top → 2 at bottom, four
+             horizontal pip cells per rank. Same counts as the deck modal. -->
+        <div class="deck-strip" id="deckStrip">
+          <div class="ds-scrub hidden" id="deckStripScrub"></div>
+          <div class="ds-bars" id="deckStripBars"></div>
+        </div>
+        <!-- The DECK: face-down stack + remaining count, at the rail's bottom.
+             Tap to inspect · hold for a quick peek (wiring unchanged). -->
+        <div class="deck-stack" id="deckStat" role="button" tabindex="0"
+             title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
+          <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
+        </div>
+      </div>
+      <div class="board" id="board" aria-label="Three columns of card piles"></div>
+    </div>
 
     <!-- Move-feedback line: removed from the layout (kept hidden so existing JS
          can still write to it without consuming vertical space). -->
@@ -3327,18 +3369,6 @@
             <span class="th-desc" id="thDesc"></span>
           </div>
         </div>
-        <!-- Rank histogram (after Start). Always reads the same counts as the
-             deck modal; never reveals draw order. -->
-        <div class="deck-strip" id="deckStrip">
-          <div class="ds-scrub hidden" id="deckStripScrub"></div>
-          <div class="ds-bars" id="deckStripBars"></div>
-        </div>
-      </div>
-      <!-- The DECK: face-down card-stack + remaining count — bottom-right in both
-           phases. Tap to inspect · hold for a quick peek (wiring unchanged). -->
-      <div class="deck-stack" id="deckStat" role="button" tabindex="0"
-           title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-        <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
       </div>
     </div>
   </main>
@@ -3808,7 +3838,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.55 · field-first-layout";
+const APP_VERSION = "v2.56 · portrait-leftrail";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8683,16 +8713,18 @@ const UIRenderer = (() => {
     if (!el.deckStrip || !deckStripOn) return;
     const { remaining } = deckStripStats();
     stripRemaining = remaining;                 // the scrubber sums these
-    // Pip matrix: 4 stacked cells per rank, filled bottom-up to the count still
-    // in the deck (capped at 4). data-value + .ds-rank are kept so the existing
+    // Rail orientation: Ace at the TOP → 2 at the bottom. Each row is the rank
+    // label then 4 horizontal cells filled left-to-right to the count still in
+    // the deck (capped at 4). data-value + .ds-rank are kept so the existing
     // drag-scrubber (higher/same/lower readout) works unchanged.
-    el.deckStripBars.innerHTML = remaining.rows.map((row) => {
+    const rows = remaining.rows.slice().reverse();
+    el.deckStripBars.innerHTML = rows.map((row) => {
       const n = Math.max(0, Math.min(4, row.count));
       let pips = "";
       for (let i = 0; i < 4; i++) pips += '<span class="ds-pip' + (i < n ? " filled" : "") + '"></span>';
       return '<div class="ds-bar" data-value="' + row.value + '">' +
-        '<div class="ds-pips">' + pips + "</div>" +
-        '<div class="ds-rank">' + row.label + "</div></div>";
+        '<div class="ds-rank">' + row.label + "</div>" +
+        '<div class="ds-pips">' + pips + "</div></div>";
     }).join("");
   }
 
@@ -12356,8 +12388,10 @@ const UIRenderer = (() => {
     const controlH = controls ? oh(controls) : 0;
     const bottomRegionH = el.bottomRegion ? oh(el.bottomRegion) : 0;
     const belowH = controlH + bottomRegionH;
-    // main's in-flow children below the board: control row, bottom region.
-    const visibleChildren = 3;   // board + controls + bottom region
+    // main's in-flow children: the play-row, the control row, and (setup only)
+    // the bottom inventory band — which is display:none in run, so don't count
+    // its gap then. The play-row holds the rail + board side by side.
+    const visibleChildren = 2 + (bottomRegionH > 0 ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // Breathing margin: no-scroll is the priority, so trade a little board size
@@ -12387,13 +12421,20 @@ const UIRenderer = (() => {
       footGap = gapPx;
     }
     const byHeight = (availH - headH - headGap - footH - footGap - (tall - 1) * gapPx) / tall;
-    const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns fill the board width
-    // RECTANGULAR fill: width = the full column width, height = the per-row
-    // budget. The board width already equals the viewport (min 99vw), so the
-    // columns span the whole screen; the height budget keeps Run 1 no-scroll.
-    // 36px floors only guard a degenerate (pre-layout) measurement.
-    const w = Math.max(36, byWidth);
-    const h = Math.max(36, byHeight);
+    const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns share the board width
+    // PORTRAIT cards: the largest 66:92 (w:h) rectangle that fits inside the
+    // available cell (byWidth × byHeight), clamped to sane bounds. Extra width or
+    // height becomes margin/gap (the grid centres each column), so cards read as
+    // real playing cards instead of squat ovals, and never overlap.
+    const ASPECT = 66 / 92;                                 // card width ÷ height
+    const MIN_H = 76, MAX_H = 172;
+    let h = Math.max(36, byHeight);
+    let w = h * ASPECT;
+    if (w > byWidth) { w = byWidth; h = w / ASPECT; }       // width-limited
+    h = Math.max(MIN_H, Math.min(MAX_H, h));
+    w = h * ASPECT;
+    if (w > byWidth) { w = byWidth; h = w / ASPECT; }       // re-limit after clamp
+    w = Math.max(28, w); h = Math.max(36, h);
     el.board.style.setProperty("--pile-w-fit", w + "px");
     el.board.style.setProperty("--pile-h-fit", h + "px");
     // Card-face type scales with the smaller dimension so glyphs never overflow.
