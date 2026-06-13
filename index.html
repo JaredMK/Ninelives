@@ -3894,7 +3894,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.57 · spread-field-place-sheet";
+const APP_VERSION = "v2.58 · histogram-drag-capture";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8792,10 +8792,25 @@ const UIRenderer = (() => {
   /* Strip scrubber: drag to see how many REMAINING cards are higher / same /
      lower than the rank under the finger. Counts only — never order. Clears on
      release. touch-action:none on the strip keeps the drag off the scroll-lock. */
+  /* Map the finger's VERTICAL position to a rank row, ignoring horizontal drift,
+     so the scrub keeps tracking even when the finger slides off the rail (the
+     pointer is captured on press). Clamps to the ends: above the top row stays on
+     the topmost rank (Ace), below the bottom row stays on the bottommost (2). */
   function stripBarAt(e) {
-    const t = typeof document.elementFromPoint === "function"
-      ? document.elementFromPoint(e.clientX, e.clientY) : null;
-    return t && t.closest ? t.closest(".ds-bar") : null;
+    const bars = el.deckStripBars ? el.deckStripBars.querySelectorAll(".ds-bar") : [];
+    if (!bars.length) return null;
+    const y = e.clientY;
+    if (y <= bars[0].getBoundingClientRect().top) return bars[0];
+    const last = bars[bars.length - 1];
+    if (y >= last.getBoundingClientRect().bottom) return last;
+    let best = bars[0], bestDist = Infinity;
+    for (const b of bars) {
+      const r = b.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) return b;     // inside this row's vertical span
+      const d = Math.abs(y - (r.top + r.bottom) / 2);
+      if (d < bestDist) { bestDist = d; best = b; }  // fallback: nearest row centre (inter-row gaps)
+    }
+    return best;
   }
   function stripScrubApply(e) {
     const bar = stripBarAt(e);
@@ -10113,11 +10128,18 @@ const UIRenderer = (() => {
     el.redealOkBtn.addEventListener("click", doRedeal);
     // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
 
-    // Deck composition histogram (always visible): drag to scrub higher/same/lower.
-    el.deckStrip.addEventListener("pointerdown", (e) => { stripScrubbing = true; stripScrubApply(e); e.preventDefault(); });
+    // Deck composition histogram (left rail): drag to scrub higher/same/lower.
+    // Capture the pointer on press so move events keep flowing once the finger
+    // leaves the rail — the highlight tracks by vertical position anywhere on
+    // screen, clamps to the end ranks past the rail's bounds, and only releases
+    // on lift. (No pointerleave handler: leaving the rail must NOT end the drag.)
+    el.deckStrip.addEventListener("pointerdown", (e) => {
+      stripScrubbing = true;
+      try { el.deckStrip.setPointerCapture(e.pointerId); } catch (_) {}
+      stripScrubApply(e); e.preventDefault();
+    });
     el.deckStrip.addEventListener("pointermove", (e) => { if (stripScrubbing) { stripScrubApply(e); e.preventDefault(); } });
     el.deckStrip.addEventListener("pointerup", stripScrubEnd);
-    el.deckStrip.addEventListener("pointerleave", stripScrubEnd);
     el.deckStrip.addEventListener("pointercancel", stripScrubEnd);
 
     // Tap the coin indicator (top of screen) to open the sticker inventory
