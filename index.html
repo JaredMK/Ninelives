@@ -481,16 +481,19 @@
   .ds-bar.ds-active .ds-blue { background: var(--amber); }
   .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
-  /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom), each row = a left rank
-     label + 4 horizontal cells filled left-to-right to the count still in the
-     deck (0–4). Filled = histogram magenta; empty = faint neutral. */
+  /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom). Each row = a left rank
+     label + a bar of notches equal to that rank's OWN total count, laid out on a
+     shared axis (grid columns = the largest single-rank total, set inline), so
+     fewer-card ranks read as visibly shorter bars. GREY = the rank's full count
+     (its drawn notches show grey); PINK = how many remain. */
   .rail .ds-bars { flex-direction: column; align-items: stretch; }
   .rail .ds-bar { flex-direction: row; align-items: center; gap: 3px; }
   .rail .ds-rank { flex: none; width: 12px; text-align: right; font-size: 8px; line-height: 1; }
-  .ds-pips { display: flex; flex-direction: row; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
-  .ds-pip { flex: 1 1 0; min-width: 0; height: 8px; border-radius: 2.5px; background: rgba(74,52,44,0.10); }
-  .ds-pip.filled { background: linear-gradient(90deg, var(--accent-2), #e36b97); }
-  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.24); }
+  .ds-pips { display: grid; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
+    grid-template-columns: repeat(4, 1fr); justify-content: start; }
+  .ds-pip { min-width: 0; height: 8px; border-radius: 2.5px; background: rgba(74,52,44,0.30); }   /* grey = total (drawn) */
+  .ds-pip.filled { background: linear-gradient(90deg, var(--accent-2), #e36b97); }                /* pink = remaining */
+  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.46); }
   .ds-bar.ds-active .ds-pip.filled { background: var(--amber); }
   /* Rail deck chip — compact striped pile + remaining count at the rail's bottom. */
   .rail .deck-stack { flex: none; justify-content: center;
@@ -3894,7 +3897,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.59 · idempotent-advance";
+const APP_VERSION = "v2.60 · dynamic-histogram";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8772,20 +8775,25 @@ const UIRenderer = (() => {
   }
   function renderDeckStrip() {
     if (!el.deckStrip || !deckStripOn) return;
-    const { remaining } = deckStripStats();
+    const { remaining, full } = deckStripStats();
     stripRemaining = remaining;                 // the scrubber sums these
-    // Rail orientation: Ace at the TOP → 2 at the bottom. Each row is the rank
-    // label then 4 horizontal cells filled left-to-right to the count still in
-    // the deck (capped at 4). data-value + .ds-rank are kept so the existing
-    // drag-scrubber (higher/same/lower readout) works unchanged.
-    const rows = remaining.rows.slice().reverse();
-    el.deckStripBars.innerHTML = rows.map((row) => {
-      const n = Math.max(0, Math.min(4, row.count));
+    // Dynamic axis: the largest single-rank TOTAL sets the scale (not a fixed 4),
+    // so every notch is the same width and the longest bar fills the rail.
+    let axisMax = 1;
+    full.rows.forEach(r => { if (r.count > axisMax) axisMax = r.count; });
+    // Rail orientation: Ace at the TOP → 2 at the bottom. Each rank shows notches
+    // equal to its OWN total count — GREY for the full count (drawn portion),
+    // PINK for how many remain — so a rank with fewer cards is a shorter bar and
+    // its pink shrinks against the grey as cards are drawn. data-value + .ds-rank
+    // are kept so the drag-scrubber (higher/same/lower readout) works unchanged.
+    const rows = remaining.rows.map((r, i) => ({ r, total: (full.rows[i] && full.rows[i].count) || 0 })).reverse();
+    el.deckStripBars.innerHTML = rows.map(({ r, total }) => {
+      const rem = Math.max(0, Math.min(total, r.count));
       let pips = "";
-      for (let i = 0; i < 4; i++) pips += '<span class="ds-pip' + (i < n ? " filled" : "") + '"></span>';
-      return '<div class="ds-bar" data-value="' + row.value + '">' +
-        '<div class="ds-rank">' + row.label + "</div>" +
-        '<div class="ds-pips">' + pips + "</div></div>";
+      for (let i = 0; i < total; i++) pips += '<span class="ds-pip' + (i < rem ? " filled" : "") + '"></span>';
+      return '<div class="ds-bar" data-value="' + r.value + '">' +
+        '<div class="ds-rank">' + r.label + "</div>" +
+        '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + pips + "</div></div>";
     }).join("");
   }
 
