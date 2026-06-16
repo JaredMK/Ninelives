@@ -560,6 +560,39 @@
     padding: 2px 0;
   }
 
+  /* ============================================================
+     SIDE-GUESS LAYOUT (isolated + revertable via GUESS_SIDE_LAYOUT)
+     Higher/Same/Lower live in the side rail; the histogram moves to a bottom
+     band. Everything here is scoped to body.guess-side, so flipping the flag off
+     (no class, no DOM move) restores the default rail-histogram / bottom-buttons
+     layout with nothing else to untangle.
+     ============================================================ */
+  body.guess-side .rail { flex-basis: 66px; }
+  /* Guess buttons fill the rail vertically — big thumb targets; the deck-count
+     chip stays pinned at the rail's bottom. */
+  body.guess-side .rail #actions {
+    width: 100%; flex: 1 1 auto; min-height: 0;
+    display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr 0.66fr 1fr;
+    gap: 8px; align-items: stretch;
+  }
+  body.guess-side .rail #actions.hidden { visibility: hidden; }   /* keep the space reserved (no board shift) */
+  body.guess-side .rail #actions .btn { width: 100%; height: 100%; padding: 6px 4px; font-size: 13px; align-self: stretch; }
+  body.guess-side .rail #actions .btn.same { font-size: 12px; padding: 6px 3px; }
+  body.guess-side .rail .deck-stack { margin-top: auto; }
+
+  /* Bottom histogram band — horizontal bars (ranks 2→A, left→right). */
+  .hist-band { width: min(99vw, 540px); margin: 4px auto 0; display: flex; align-items: stretch; }
+  .hist-band.hidden { display: none; }
+  body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: auto; }
+  body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; }
+  body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+  body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; }
+  body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; width: 100%; min-width: 0; }
+  body.guess-side #histBand .ds-pip { width: 100%; max-width: 15px; height: 6px; min-width: 0; }
+  /* Scrubber readout floats ABOVE the bottom band (instead of right of the rail). */
+  body.guess-side #histBand .ds-scrub { left: 50%; right: auto; top: auto; bottom: 100%;
+    transform: translateX(-50%); margin: 0 0 5px 0; }
+
   /* Per-run layout: three side-by-side COLUMNS, vertically centered against
      each other so uneven columns stagger-center (the 3-pile outer columns
      center against a taller 4-pile middle in Run 1; the 2-pile middle centers
@@ -3434,6 +3467,11 @@
         <span class="th-desc" id="thDesc"></span>
       </div>
     </div>
+
+    <!-- Bottom histogram band — used ONLY by the side-guess layout: the deck
+         strip is relocated here from the rail (and the guess buttons go to the
+         rail). Empty + hidden in the default layout. See GUESS_SIDE_LAYOUT. -->
+    <div class="hist-band hidden" id="histBand"></div>
   </main>
 
   <!-- Placement sheet: slides up OVER the bottom bars to pick an artifact to
@@ -3931,7 +3969,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.63 · base-family-colors";
+const APP_VERSION = "v2.64 · side-guess-layout";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8382,6 +8420,7 @@ const UIRenderer = (() => {
     // deck composition strip (always-on)
     deckStrip: document.getElementById("deckStrip"),
     deckStripBars: document.getElementById("deckStripBars"),
+    histBand: document.getElementById("histBand"),
     deckStripScrub: document.getElementById("deckStripScrub"),
     // store (between runs)
     storeOverlay: document.getElementById("storeOverlay"),
@@ -8809,20 +8848,42 @@ const UIRenderer = (() => {
       full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
     };
   }
+  /* ============================================================
+     PLAY-SCREEN CONTROL LAYOUT (isolated + revertable)
+     GUESS_SIDE_LAYOUT = true  → histogram at the BOTTOM, Higher/Same/Lower on
+                                 the SIDE rail.
+     GUESS_SIDE_LAYOUT = false → original: histogram in the side rail, guess
+                                 buttons at the bottom control row.
+     To flip back: set the flag to false (no DOM move, no body class). All the
+     side-guess styling lives under `body.guess-side` and the orientation logic
+     keys off that class, so nothing else needs touching.
+     ============================================================ */
+  const GUESS_SIDE_LAYOUT = true;
+  function guessSide() { return GUESS_SIDE_LAYOUT && document.body.classList.contains("guess-side"); }
+  function applyGuessLayout() {
+    if (!GUESS_SIDE_LAYOUT) return;
+    document.body.classList.add("guess-side");
+    const rail = document.getElementById("rail");
+    // Histogram (deck strip) → the bottom band; guess buttons → the rail (the
+    // deck-count chip stays pinned at the rail's bottom).
+    if (el.histBand && el.deckStrip) { el.histBand.appendChild(el.deckStrip); el.histBand.classList.remove("hidden"); }
+    if (rail && el.actions) rail.insertBefore(el.actions, el.deckStat || null);
+  }
+
   function renderDeckStrip() {
     if (!el.deckStrip || !deckStripOn) return;
     const { remaining, full } = deckStripStats();
     stripRemaining = remaining;                 // the scrubber sums these
     // Dynamic axis: the largest single-rank TOTAL sets the scale (not a fixed 4),
-    // so every notch is the same width and the longest bar fills the rail.
+    // so every notch is the same width and the longest bar fills its slot.
     let axisMax = 1;
     full.rows.forEach(r => { if (r.count > axisMax) axisMax = r.count; });
-    // Rail orientation: Ace at the TOP → 2 at the bottom. Each rank shows notches
-    // equal to its OWN total count — GREY for the full count (drawn portion),
-    // PINK for how many remain — so a rank with fewer cards is a shorter bar and
-    // its pink shrinks against the grey as cards are drawn. data-value + .ds-rank
-    // are kept so the drag-scrubber (higher/same/lower readout) works unchanged.
-    const rows = remaining.rows.map((r, i) => ({ r, total: (full.rows[i] && full.rows[i].count) || 0 })).reverse();
+    // Each rank shows notches equal to its OWN total count — GREY for the full
+    // count (drawn portion), PINK for how many remain. Order: bottom band runs
+    // 2→A (left→right); the side rail runs A→2 (top→bottom). data-value +
+    // .ds-rank are kept so the drag-scrubber works in either orientation.
+    const seq = remaining.rows.map((r, i) => ({ r, total: (full.rows[i] && full.rows[i].count) || 0 }));
+    const rows = guessSide() ? seq : seq.reverse();
     el.deckStripBars.innerHTML = rows.map(({ r, total }) => {
       const rem = Math.max(0, Math.min(total, r.count));
       let pips = "";
@@ -8843,16 +8904,21 @@ const UIRenderer = (() => {
   function stripBarAt(e) {
     const bars = el.deckStripBars ? el.deckStripBars.querySelectorAll(".ds-bar") : [];
     if (!bars.length) return null;
-    const y = e.clientY;
-    if (y <= bars[0].getBoundingClientRect().top) return bars[0];
+    // Side rail = vertical (map finger Y → rank row); bottom band = horizontal
+    // (map finger X → rank column). Clamps to the end rank past the bounds.
+    const horiz = guessSide();
+    const c = horiz ? e.clientX : e.clientY;
+    const lo = (b) => { const r = b.getBoundingClientRect(); return horiz ? r.left : r.top; };
+    const hi = (b) => { const r = b.getBoundingClientRect(); return horiz ? r.right : r.bottom; };
+    const mid = (b) => { const r = b.getBoundingClientRect(); return horiz ? (r.left + r.right) / 2 : (r.top + r.bottom) / 2; };
+    if (c <= lo(bars[0])) return bars[0];
     const last = bars[bars.length - 1];
-    if (y >= last.getBoundingClientRect().bottom) return last;
+    if (c >= hi(last)) return last;
     let best = bars[0], bestDist = Infinity;
     for (const b of bars) {
-      const r = b.getBoundingClientRect();
-      if (y >= r.top && y <= r.bottom) return b;     // inside this row's vertical span
-      const d = Math.abs(y - (r.top + r.bottom) / 2);
-      if (d < bestDist) { bestDist = d; best = b; }  // fallback: nearest row centre (inter-row gaps)
+      if (c >= lo(b) && c <= hi(b)) return b;          // inside this rank's span
+      const d = Math.abs(c - mid(b));
+      if (d < bestDist) { bestDist = d; best = b; }    // fallback: nearest centre (gaps)
     }
     return best;
   }
@@ -12638,11 +12704,12 @@ const UIRenderer = (() => {
     const controls = main.querySelector(".play-controls");
     const controlH = controls ? oh(controls) : 0;
     const bottomRegionH = el.bottomRegion ? oh(el.bottomRegion) : 0;
-    const belowH = controlH + bottomRegionH;
-    // main's in-flow children: the play-row, the control row, and (setup only)
-    // the bottom inventory band — which is display:none in run, so don't count
-    // its gap then. The play-row holds the rail + board side by side.
-    const visibleChildren = 2 + (bottomRegionH > 0 ? 1 : 0);
+    // Side-guess layout reserves a bottom histogram band (constant in both phases).
+    const histBandH = (el.histBand && !el.histBand.classList.contains("hidden")) ? oh(el.histBand) : 0;
+    const belowH = controlH + bottomRegionH + histBandH;
+    // main's in-flow children: the play-row, the control row, (setup only) the
+    // bottom inventory band, and the bottom histogram band (side-guess layout).
+    const visibleChildren = 2 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // Breathing margin: no-scroll is the priority, so trade a little board size
@@ -14529,6 +14596,9 @@ const UIRenderer = (() => {
     // Layout 4: the histogram is permanently visible (no toggle).
     deckStripOn = true;
     el.deckStrip.classList.remove("hidden");
+    // Play-screen control layout: histogram → bottom, guess buttons → side rail
+    // (isolated + revertable; see GUESS_SIDE_LAYOUT).
+    applyGuessLayout();
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
