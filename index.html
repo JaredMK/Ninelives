@@ -4008,7 +4008,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.69 · consistent-card-size";
+const APP_VERSION = "v2.70 · lifetime-correct-pct";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8025,6 +8025,7 @@ const Stats = (() => {
     gamesPlayed: 0, campaignsWon: 0, runsCleared: 0,
     bestRunDopamine: 0, bestCampaignDopamine: 0,
     lifetimeDopamine: 0, lifetimeCardsFlipped: 0,
+    lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
   };
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
@@ -8060,6 +8061,13 @@ const Stats = (() => {
     },
     /** Add to the lifetime cards-flipped tally (called once per campaign end). */
     addCardsFlipped(n) { const s = get(); s.lifetimeCardsFlipped += Math.max(0, n || 0); put(s); },
+    /** Add a deal's guesses to the lifetime tally (every deal end — win or loss). */
+    addGuesses(correct, total) {
+      const s = get();
+      s.lifetimeCorrectGuesses += Math.max(0, correct || 0);
+      s.lifetimeGuesses += Math.max(0, total || 0);
+      put(s);
+    },
     reset() { put({ ...DEF }); },
   };
 })();
@@ -12970,6 +12978,8 @@ const UIRenderer = (() => {
     // Cards flipped (correct guesses) are tallied for EVERY run end — including
     // the final losing run — so the end screen reflects all runs played.
     campaign.addCardsFlipped(payload.run.correctGuesses);
+    // Lifetime guess accuracy: every deal's guesses (correct + total), win OR loss.
+    Stats.addGuesses(payload.run.correctGuesses, payload.run.totalGuesses);
 
     // LOSS ends the campaign. We deliberately do NOT record or advance: the
     // failed screen reads the stage/run we died on, and "New Campaign" funnels
@@ -14416,13 +14426,14 @@ const UIRenderer = (() => {
   function showStats() {
     const s = Stats.get();
     const wr = s.gamesPlayed ? Math.round(100 * s.campaignsWon / s.gamesPlayed) : 0;
+    const acc = s.lifetimeGuesses ? Math.round(100 * s.lifetimeCorrectGuesses / s.lifetimeGuesses) : 0;
     const far = s.furthestStage ? ("S" + s.furthestStage + " · D" + s.furthestRun) : "—";
     const tiles = [
       [s.gamesPlayed, "Runs played"], [s.campaignsWon, "Runs won"],
       [wr + "%", "Win rate"], [far, "Furthest reached"],
       [s.runsCleared, "Deals cleared"], [s.bestRunDopamine, "Best deal"],
       [s.bestCampaignDopamine, "Best run"], [s.lifetimeDopamine, "Lifetime coins"],
-      [s.lifetimeCardsFlipped, "Cards played"],
+      [s.lifetimeCardsFlipped, "Cards played"], [acc + "%", "Correct guesses"],
     ];
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
