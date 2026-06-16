@@ -697,14 +697,17 @@
   /* a brand-new connection (a sightline that just opened) fades in */
   #network .edge.forming { animation: edgeForm 0.55s ease both; }
   @keyframes edgeForm { from { opacity: 0; } to { opacity: 1; } }
-  /* A dying pile's connections dissolve IN SYNC with its card — same 0.6s ease
-     fade (matches @keyframes cardDissolve) so the card and its links vanish as
-     one unit, with no lines dangling after the card is gone. */
-  #network .edge.severing { opacity: 0; transition: opacity 0.6s ease; }
+  /* A dying pile's connections DISSOLVE in sync with its card — a 0.6s opacity
+     fade matching @keyframes cardDissolve, so the card and its links vanish as
+     one unit (no lines dangling after the card is gone). It's an ANIMATION (not a
+     transition) declared AFTER .forming so it overrides edgeForm's fill:both —
+     which otherwise pins opacity at 1 and swallows the fade. */
+  #network .edge.severing { animation: edgeSever 0.6s ease forwards; }
+  @keyframes edgeSever { from { opacity: 1; } to { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
     #network .pulse { display: none; }
     #network .edge.forming { animation: none; }
-    #network .edge.severing { transition: none; }
+    #network .edge.severing { animation: none; opacity: 0; }
   }
   .board-col {
     display: flex;
@@ -4003,7 +4006,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.66 · network-anim-polish";
+const APP_VERSION = "v2.67 · synapse-dissolve-fix";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12412,7 +12415,13 @@ const UIRenderer = (() => {
       const dead = {};
       for (let i = 0; i < pileEls.length; i++) if (!b.isActive(i)) dead[i] = true;
       networkEl.querySelectorAll("g.edge").forEach(g => {
-        if (dead[+g.getAttribute("data-a")] || dead[+g.getAttribute("data-b")]) g.classList.add("severing");
+        if (dead[+g.getAttribute("data-a")] || dead[+g.getAttribute("data-b")]) {
+          // Drop .forming first: its edgeForm animation uses fill:both, which
+          // would otherwise pin opacity at 1 and SWALLOW the severing fade (the
+          // line would just vanish at removal instead of dissolving).
+          g.classList.remove("forming");
+          g.classList.add("severing");
+        }
       });
       // After the synced sever fade + card dissolve complete (0.6s), reform with
       // the dead pile removed → its surviving neighbours link across the gap.
