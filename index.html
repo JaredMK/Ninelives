@@ -4006,7 +4006,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.67 · synapse-dissolve-fix";
+const APP_VERSION = "v2.68 · peek-keeps-network-alive";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10401,8 +10401,9 @@ const UIRenderer = (() => {
       e.preventDefault();
       try { el.overlay.setPointerCapture(e.pointerId); } catch (_) {}
       el.overlay.classList.add("peek");
+      wakeMotion();   // board now revealed → resume the synapse drift + card breathing
     };
-    const peekOff = () => el.overlay.classList.remove("peek");
+    const peekOff = () => { el.overlay.classList.remove("peek"); updateBoardMotion(); };
     el.overlay.addEventListener("pointerdown", peekOn);
     el.overlay.addEventListener("pointerup", peekOff);
     el.overlay.addEventListener("pointercancel", peekOff);
@@ -12316,7 +12317,10 @@ const UIRenderer = (() => {
   function boardVisible() {
     if (!pileEls.length) return false;
     const up = (o) => o && !o.classList.contains("hidden");
-    if (up(el.overlay) || up(el.storeOverlay) || up(el.mapOverlay) || up(el.mainMenu)
+    // The win/lose overlay covers the board EXCEPT while the player HOLDS to peek
+    // (it fades to opacity 0, revealing the board) — keep the network drifting then.
+    const overlayCovers = up(el.overlay) && !el.overlay.classList.contains("peek");
+    if (overlayCovers || up(el.storeOverlay) || up(el.mapOverlay) || up(el.mainMenu)
         || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
     return true;
   }
