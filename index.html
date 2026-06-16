@@ -305,32 +305,37 @@
     .cph-banner.activatable { animation: none; outline: 2px solid var(--pathway); outline-offset: 1px; }
   }
 
-  /* Setup bottom bar — slim: a launcher that opens the placement sheet, or the
-     armed item (+ Trash/✕) while you tap a slot. Hidden in run, and hidden when
-     there is nothing to place and nothing armed, so the field uses the space. */
-  .bottom-region {
-    display: flex; align-items: stretch; gap: 8px;
-    width: min(99vw, 540px); margin: 0 auto;
-    min-height: var(--bottom-bar-h, 52px);
-  }
-  .bottom-region.run { display: none; }
-  .bottom-region.setup.bar-empty { display: none; }
-
-  /* Launcher: opens the placement sheet. */
+  /* Placement launcher — a pill IN the control row (opens the placement sheet).
+     Living in the fixed-height control row means setup adds no extra band, so the
+     board keeps the SAME layout as in play. */
   .place-launcher {
-    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     background: linear-gradient(180deg, #fff, var(--panel)); color: var(--accent-2);
-    border: 1.5px solid var(--accent); border-radius: 14px;
-    font-size: 14px; font-weight: 800; letter-spacing: 0.3px;
-    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
+    border: 1.5px solid var(--accent); border-radius: 999px;
+    padding: 8px 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.2px;
+    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation; white-space: nowrap;
   }
   .place-launcher.hidden { display: none; }
   .place-launcher:active { transform: scale(0.98); }
-  .place-launcher .pl-ico { font-size: 11px; }
+  .place-launcher .pl-ico { font-size: 10px; }
   .place-launcher .pl-n {
     background: var(--accent-2); color: #fff; border-radius: 999px;
     min-width: 18px; height: 18px; padding: 0 5px;
     display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+  }
+  /* While an item is armed, the armed-item bar TAKES OVER the control row (the
+     normal controls hide) — same pattern as the activation prompt — so the band
+     height is unchanged and the board above stays clear for the placing tap. */
+  .play-controls.placing > :not(.tray-help) { display: none; }
+  .play-controls .tray-help {
+    flex: 1 1 auto; min-width: 0; height: 100%;
+    display: flex; flex-direction: column; justify-content: center; gap: 1px;
+    padding: 4px 10px; text-align: left;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 12px;
+  }
+  .play-controls .tray-help .th-desc {
+    font-size: 10.5px; line-height: 1.25; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   /* Dim backdrop behind the open sheet. */
@@ -367,8 +372,6 @@
      with room to show the full (tall) artifact chips without clipping. */
   .place-sheet .setup-inv { flex: 1 1 auto; min-height: 0; }
   .place-sheet .setup-strip { min-height: 96px; max-height: 46vh; overflow-y: auto; overflow-x: hidden; }
-  /* Armed item bar (in the slim bottom region while you tap a slot to place). */
-  .bottom-region .tray-help { flex: 1; max-height: 118px; }
   /* Setup inventory — tabbed (Cards | Stickers | Pillars) so each family renders
      at its own consistent size instead of competing in one mixed strip. The tab
      bar sits on top; the active family's strip scrolls horizontally below it. */
@@ -1474,7 +1477,10 @@
      layout doesn't jump when it's swapped for the buttons. */
   /* Pre-deal action row: START DEAL is the wide primary that flex-grows; REDEAL
      is a bordered pill beside it. Both sit on ONE compact line (no wrap). */
-  .play-btn.start-run { flex: 1 1 auto; max-width: 360px; padding: 13px 28px; font-size: 17px; }
+  /* flex-shrinkable (min-width:0) so START DEAL absorbs the row and the Redeal +
+     placement launcher pills always fit on one line (no wrap/clip) in setup. */
+  .play-btn.start-run { flex: 1 1 0; min-width: 0; max-width: 360px; padding: 12px 14px; font-size: 16px;
+    letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .play-btn.start-run.hidden { display: none; }
   /* Redeal (pre-run reshuffle). Secondary look — muted, outlined — so it reads
      as the optional/paid action next to the primary Start Run. */
@@ -1484,8 +1490,9 @@
     color: var(--accent);
     border: 2px solid var(--accent);
     box-shadow: none;
-    padding: 11px 18px;
-    font-size: 14px;
+    padding: 10px 12px;
+    font-size: 13px;
+    letter-spacing: 0.3px;
     margin-top: 0;
   }
   .play-btn.redeal.hidden { display: none; }
@@ -3364,12 +3371,16 @@
          can still write to it without consuming vertical space). -->
     <div class="hint" id="hint" aria-hidden="true">Tap a pile to begin.</div>
 
-    <!-- Control row (FIXED height): Start Run (+ Redeal) during setup, the guess
-         buttons during the run — mutually exclusive, reserved at a constant
-         height so the board never reflows across the Start transition. -->
+    <!-- Control row (FIXED height): in setup it holds Start Deal (+ Redeal) and
+         the placement launcher / armed-item bar; in play the guess buttons — all
+         mutually exclusive and clipped to a constant height, so the board has the
+         SAME size/position in setup and play (no reflow at Start). -->
     <div class="play-controls" id="playControls">
       <button class="play-btn start-run hidden" id="startRunBtn" type="button">START DEAL</button>
       <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
+      <button class="place-launcher hidden" id="placeLauncher" type="button">
+        <span class="pl-ico">▲</span><span class="pl-label">Place</span><span class="pl-n" id="placeLauncherN">0</span>
+      </button>
       <div class="actions hidden" id="actions">
         <button class="btn higher" id="btnHigher">HIGHER</button>
         <button class="btn same" id="btnSame">SAME</button>
@@ -3384,15 +3395,8 @@
         <div class="ap-text" id="actionPromptText"></div>
         <div class="ap-btns" id="actionPromptBtns"></div>
       </div>
-    </div>
-
-    <!-- Slim bottom bar (setup only). When something is to be placed it shows a
-         launcher that opens the placement sheet; while an item is armed it shows
-         that item + Trash/✕ so the board above is clear for the placing tap. -->
-    <div class="bottom-region setup" id="bottomRegion">
-      <button class="place-launcher hidden" id="placeLauncher" type="button">
-        <span class="pl-ico">▲</span><span class="pl-label">Place items</span><span class="pl-n" id="placeLauncherN">0</span>
-      </button>
+      <!-- Armed-item bar (setup): while an item is armed it fills this row with the
+           item + Trash/✕ so the board above stays clear for the placing tap. -->
       <div class="tray-help hidden" id="trayHelp">
         <div class="th-row">
           <span class="th-title" id="thTitle"></span>
@@ -3897,7 +3901,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.60 · dynamic-histogram";
+const APP_VERSION = "v2.61 · no-deal-start-shift";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9301,9 +9305,11 @@ const UIRenderer = (() => {
   /* ---- placement sheet controller ----
      Placeable artifacts live in a slide-up sheet (over the bottom bars) so they
      are never clipped. Picking an item closes the sheet and arms it, leaving the
-     board fully clear to tap the target slot (incl. the bottom Base row). Three
-     UI states: closed (a slim launcher), open (the picker sheet + backdrop), and
-     armed (a slim item bar with Trash/✕ while you place). */
+     board fully clear to tap the target slot (incl. the bottom Base row). The
+     launcher (closed state) and the armed-item bar both live in the FIXED-height
+     control row, so setup never adds a band — the board keeps the same layout as
+     in play. Three UI states: closed (launcher), open (picker sheet + backdrop),
+     armed (the control row hosts the item bar via .placing). */
   let placeSheetOpen = false;
   function placementArmed() {
     return !!(armedSticker || armedPillar || armedBaseItem) || armedPack != null;
@@ -9322,11 +9328,8 @@ const UIRenderer = (() => {
       el.placeLauncher.classList.toggle("hidden", !showLauncher);
       if (el.placeLauncherN) el.placeLauncherN.textContent = total;
     }
-    // Reserve the slim bar whenever there's something to do; hide it otherwise so
-    // the field uses the space. The sheet is a fixed overlay — it never resizes
-    // the board.
-    const barActive = inSetup && (total > 0 || sheetUp || armed);
-    if (el.bottomRegion) el.bottomRegion.classList.toggle("bar-empty", !barActive);
+    // Armed: the control row becomes the item bar (the normal controls hide).
+    if (el.playControls) el.playControls.classList.toggle("placing", armed);
   }
   function openPlaceSheet() {
     if (!(engine && engine.canApplyStickers())) return;
