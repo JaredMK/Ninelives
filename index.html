@@ -713,7 +713,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--gap);
+    /* Per-deal vertical spread: lighter deals get a bigger gap so the same-size
+       cards fill the board (set by fitBoard); densest deal falls back to --gap. */
+    gap: var(--pile-v-gap, var(--gap));
     width: var(--pile-w-fit);
   }
 
@@ -4006,7 +4008,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.68 · peek-keeps-network-alive";
+const APP_VERSION = "v2.69 · consistent-card-size";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12819,13 +12821,15 @@ const UIRenderer = (() => {
     const boardW = el.board.clientWidth;                    // fixed (min(96vw,460))
     if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
 
-    // Size to the CURRENT run's tallest column (not the 4-tall worst case), so a
-    // run whose columns are all short fills the height instead of leaving a dead
-    // zone. (A staggered run like 3-4-3 still uses its real max, 4, so the short
-    // outer columns keep their intentional centred stagger.)
+    // ONE FIXED card size for ALL deals — sized for the DENSEST deal (the tallest
+    // column anywhere in the campaign), so the 11-card deal fits with the network
+    // clearly visible. Cards NEVER resize deal-to-deal; only the SPACING changes
+    // (see --pile-v-gap). The actual deal's tallest column drives how much the
+    // same-size cards spread to fill the board in lighter deals.
+    const tall = CAMPAIGN_MAX_COLS;                         // densest deal's column height (4)
     let liveTall = 0;
     el.board.querySelectorAll(".board-col").forEach(c => { liveTall = Math.max(liveTall, c.querySelectorAll(".pile").length); });
-    const tall = liveTall || CAMPAIGN_MAX_COLS;
+    liveTall = liveTall || tall;
     // When the Pillar indicator row is shown it sits ABOVE the column grid
     // (its height + one board flex-column gap). Subtract it from the pile
     // budget so the tallest column (row + 4 piles + gaps) still fits one
@@ -12841,7 +12845,8 @@ const UIRenderer = (() => {
       footH = oh(el.board.querySelector(".board-bases"));
       footGap = rowGapPx;
     }
-    const byHeight = (availH - headH - headGap - footH - footGap - (tall - 1) * gapPx) / tall;
+    const gridH = availH - headH - headGap - footH - footGap;   // vertical room for the pile rows
+    const byHeight = (gridH - (tall - 1) * gapPx) / tall;        // per-row budget at the DENSEST count
     const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns share the board width
     // PORTRAIT cards that USE THE FULL WIDTH. The field is height-constrained, so
     // height drives the card; width then grows toward the column budget (the
@@ -12851,7 +12856,7 @@ const UIRenderer = (() => {
     // column is the tighter limit, height follows to keep a true portrait.
     const ASPECT = 66 / 92;            // ideal portrait (w ÷ h ≈ 0.717)
     const MAX_ASPECT = 0.80;           // widen up to here to consume freed width
-    const MIN_H = 76, MAX_H = 210;     // allow taller cards when a short run frees height
+    const MIN_H = 76, MAX_H = 210;
     let h = Math.max(36, Math.min(MAX_H, byHeight));
     let w = Math.min(byWidth, h * MAX_ASPECT);              // grow into the column, aspect-capped
     if (w < h * ASPECT) { h = Math.min(h, w / ASPECT); }    // width-limited → keep portrait
@@ -12861,6 +12866,14 @@ const UIRenderer = (() => {
     el.board.style.setProperty("--pile-h-fit", h + "px");
     // Card-face type scales with the smaller dimension so glyphs never overflow.
     el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
+    // SPREAD the same-size cards to fill the board: a lighter deal (fewer rows)
+    // gets a LARGER vertical gap so its tallest column still spans gridH — airy +
+    // balanced (the grid centres the columns), never cramped or leaving an empty
+    // zone. The densest deal lands on the base gap (tight). Floored at the base
+    // gap and capped at one card-height so the network stays clearly readable.
+    let vGap = gapPx;
+    if (liveTall > 1) vGap = Math.max(gapPx, Math.min((gridH - liveTall * h) / (liveTall - 1), h));
+    el.board.style.setProperty("--pile-v-gap", vGap + "px");
     // Realign the connection network to the freshly-sized nodes.
     renderNetwork();
   }
