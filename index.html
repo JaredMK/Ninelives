@@ -697,8 +697,10 @@
   /* a brand-new connection (a sightline that just opened) fades in */
   #network .edge.forming { animation: edgeForm 0.55s ease both; }
   @keyframes edgeForm { from { opacity: 0; } to { opacity: 1; } }
-  /* a dying pile's connections dissolve out before the reform */
-  #network .edge.severing { opacity: 0; transition: opacity 0.45s ease; }
+  /* A dying pile's connections dissolve IN SYNC with its card — same 0.6s ease
+     fade (matches @keyframes cardDissolve) so the card and its links vanish as
+     one unit, with no lines dangling after the card is gone. */
+  #network .edge.severing { opacity: 0; transition: opacity 0.6s ease; }
   @media (prefers-reduced-motion: reduce) {
     #network .pulse { display: none; }
     #network .edge.forming { animation: none; }
@@ -4001,7 +4003,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.65 · play-screen-rebalance";
+const APP_VERSION = "v2.66 · network-anim-polish";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8602,6 +8604,11 @@ const UIRenderer = (() => {
   // transform. Rebuild once the shape drifts past this many px (sub-pixel → the
   // curve stays visually identical while skipping ~all per-frame path-d writes).
   const EDGE_SHAPE_EPS = 0.35;
+  // Per-frame ease factor for a link's THICKNESS change (spindle half-width +
+  // endpoint bulge radius) — a quick eased glide instead of an instant snap when
+  // the gating (weaker) endpoint grows or shrinks. ~95% reached in ~0.2s @60fps.
+  const MW_EASE = 0.2;
+  const MW_EPS = 0.05;          // close enough → settle on the target exactly
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
@@ -12066,9 +12073,17 @@ const UIRenderer = (() => {
     // positions (base centre + current drift offset) now; the loop takes over.
     netEdges = [...edgeMap.values()];
     const now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    // The drift loop drives the thickness ease; if it won't run (reduced motion
+    // or the board is covered) there are no frames to ease over, so settle every
+    // link on its target width immediately (snap — no stuck half-eased widths).
+    const willAnimate = !prefersReduce() && boardVisible();
     for (const e of netEdges) {
       const a = centerByPile[e.a], b = centerByPile[e.b];
       if (!a || !b) continue;
+      if (!willAnimate) {
+        for (const p of e.paths) if (p.mwTo != null) p.mw = p.mwTo;
+        for (const bg of e.bulges) if (bg.rTo != null) { bg.r = bg.rTo; bg.el.setAttribute("r", bg.r.toFixed(2)); }
+      }
       const oa = driftOffCache[e.a] || DRIFT_ZERO, ob = driftOffCache[e.b] || DRIFT_ZERO;
       applyEdge(e, a.x + oa.x, a.y + oa.y, b.x + ob.x, b.y + ob.y, now);
     }
@@ -12080,9 +12095,11 @@ const UIRenderer = (() => {
      (paths in document order: [halo?, main]; bulges; pulses). */
   function parseEdgeRefs(gEl) {
     const paths = [];
-    gEl.querySelectorAll(".lk").forEach(el => paths.push({ el, mw: parseFloat(el.dataset.mw) || 1 }));
+    // mw = the live (eased) half-width, mwTo = its target; a thickness change
+    // sets mwTo and the drift loop glides mw toward it (see applyEdge).
+    gEl.querySelectorAll(".lk").forEach(el => { const mw = parseFloat(el.dataset.mw) || 1; paths.push({ el, mw, mwTo: mw }); });
     const bulges = [];
-    gEl.querySelectorAll(".lk-bulge").forEach(el => bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12 }));
+    gEl.querySelectorAll(".lk-bulge").forEach(el => { const r = parseFloat(el.getAttribute("r")) || 1; bulges.push({ el, t: parseFloat(el.dataset.t) || 0.12, r, rTo: r }); });
     const pulses = [];
     gEl.querySelectorAll(".pulse").forEach(el =>
       pulses.push({ el, sp: parseFloat(el.dataset.sp) || 0.4, of: parseFloat(el.dataset.of) || 0,
@@ -12109,11 +12126,16 @@ const UIRenderer = (() => {
   function updateEdgeStrength(rec, w, diag, key) {
     const s = edgeScalars(w, diag, key);
     const fill = s.fill.toFixed(2);
+    // Thickness changes set a TARGET (mwTo / rTo); the drift loop eases the live
+    // width toward it (smooth thicken AND thin) instead of snapping.
+    const curMain = rec.paths[rec.paths.length - 1];   // the main spindle (before any halo insert)
     // Halo presence (front-most path) tracks w>=2.
     if (w >= 2 && !rec.hasHalo) {
       rec.gEl.insertAdjacentHTML("afterbegin",
         '<path class="lk" data-mw="' + s.haloW.toFixed(2) + '" fill-opacity="' + s.haloOpacity.toFixed(2) + '" d=""/>');
-      rec.paths.unshift({ el: rec.gEl.firstElementChild, mw: s.haloW });
+      // Start the new outer lens at the spindle's CURRENT width so it grows out
+      // smoothly with the easing spindle (no pop).
+      rec.paths.unshift({ el: rec.gEl.firstElementChild, mw: curMain ? curMain.mw : s.haloW, mwTo: s.haloW });
       rec.hasHalo = true;
     } else if (w < 2 && rec.hasHalo) {
       rec.paths[0].el.remove();
@@ -12121,15 +12143,15 @@ const UIRenderer = (() => {
       rec.hasHalo = false;
     } else if (rec.hasHalo) {
       const halo = rec.paths[0];
-      halo.mw = s.haloW; halo.el.dataset.mw = s.haloW.toFixed(2);
+      halo.mwTo = s.haloW; halo.el.dataset.mw = s.haloW.toFixed(2);
       halo.el.setAttribute("fill-opacity", s.haloOpacity.toFixed(2));
     }
     // Main spindle (last path).
     const main = rec.paths[rec.paths.length - 1];
-    main.mw = s.maxW; main.el.dataset.mw = s.maxW.toFixed(2);
+    main.mwTo = s.maxW; main.el.dataset.mw = s.maxW.toFixed(2);
     main.el.setAttribute("fill-opacity", fill);
-    // Endpoint bulges.
-    for (const bg of rec.bulges) { bg.el.setAttribute("r", s.bulgeR.toFixed(2)); bg.el.setAttribute("fill-opacity", fill); }
+    // Endpoint bulges (radius tracks thickness → eased too).
+    for (const bg of rec.bulges) { bg.rTo = s.bulgeR; bg.el.setAttribute("fill-opacity", fill); }
     // Signal pulse(s): radius + speed scale with strength; phase/direction are
     // stable per edge key, so they're left untouched.
     for (const p of rec.pulses) { p.el.setAttribute("r", s.pulseR.toFixed(1)); p.sp = s.pulseSp; p.el.dataset.sp = s.pulseSp.toFixed(3); }
@@ -12230,11 +12252,23 @@ const UIRenderer = (() => {
      (used at render time and every drift frame). Re-derives the bowed centreline
      so the curve, bulges and travelling dots all stay attached to the cards. */
   function applyEdge(e, ax, ay, bx, by, now) {
-    // Rebuild the spindle/bulge GEOMETRY only when the edge's A→B vector (its
-    // shape) has genuinely drifted past EDGE_SHAPE_EPS. Otherwise the drift is a
-    // pure translation, carried by a single composited group transform — no
-    // path-d string is rewritten and no SVG geometry is re-tessellated.
-    if (e.refAx == null
+    // Ease the THICKNESS toward its target each frame (smooth thicken/thin). The
+    // spindle half-width drives the path geometry, so while it's animating the
+    // path-d must be rebuilt every frame (thickAnim), not just on positional drift.
+    let thickAnim = false;
+    for (const p of e.paths) {
+      if (p.mwTo != null && Math.abs(p.mw - p.mwTo) > MW_EPS) { p.mw += (p.mwTo - p.mw) * MW_EASE; thickAnim = true; }
+      else if (p.mwTo != null && p.mw !== p.mwTo) { p.mw = p.mwTo; thickAnim = true; }
+    }
+    for (const bg of e.bulges) {
+      if (bg.rTo != null && Math.abs(bg.r - bg.rTo) > MW_EPS) { bg.r += (bg.rTo - bg.r) * MW_EASE; bg.el.setAttribute("r", bg.r.toFixed(2)); thickAnim = true; }
+      else if (bg.rTo != null && bg.r !== bg.rTo) { bg.r = bg.rTo; bg.el.setAttribute("r", bg.r.toFixed(2)); }
+    }
+    // Rebuild the spindle/bulge GEOMETRY when the thickness is animating OR the
+    // edge's A→B vector (its shape) has genuinely drifted past EDGE_SHAPE_EPS.
+    // Otherwise the drift is a pure translation, carried by a single composited
+    // group transform — no path-d string is rewritten.
+    if (thickAnim || e.refAx == null
         || Math.abs((bx - ax) - (e.refBx - e.refAx)) > EDGE_SHAPE_EPS
         || Math.abs((by - ay) - (e.refBy - e.refAy)) > EDGE_SHAPE_EPS) {
       const c = synapseControl(ax, ay, bx, by, e.bow);
@@ -12380,9 +12414,9 @@ const UIRenderer = (() => {
       networkEl.querySelectorAll("g.edge").forEach(g => {
         if (dead[+g.getAttribute("data-a")] || dead[+g.getAttribute("data-b")]) g.classList.add("severing");
       });
-      // After the sever fade (and the card dissolve) complete, reform with the
-      // dead pile removed → its surviving neighbours link across the gap.
-      setTimeout(() => renderNetwork(), 470);
+      // After the synced sever fade + card dissolve complete (0.6s), reform with
+      // the dead pile removed → its surviving neighbours link across the gap.
+      setTimeout(() => renderNetwork(), 600);
     } else {
       renderNetwork();
     }
