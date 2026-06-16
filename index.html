@@ -2087,16 +2087,21 @@
      and a green LED that lights when charged. Rarity = the metal tone (--mtl-*).
      Keeps the .base-banner wrapper + charged/spent/empty/fired/activatable. */
   .base-banner.plaque {
-    --mtl-hi: #efd9a0; --mtl-mid: #c9a25b; --mtl-lo: #8a6a32; --mtl-edge: #6b5022;
+    /* Default = utility purple; the .fam-* class sets the real family colour. */
+    --mtl-hi: #c59cff; --mtl-mid: #8a4fd6; --mtl-lo: #5e2f9e; --mtl-edge: #44226f;
     position: relative; width: min(96%, 124px); height: 100%; overflow: hidden;
     border-radius: 6px;
-    display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 11px 0 9px;
+    display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 9px;
     background: linear-gradient(180deg, var(--mtl-hi) 0%, var(--mtl-mid) 46%, var(--mtl-lo) 100%);
     border: 1.5px solid var(--mtl-edge);
-    box-shadow: 0 2px 4px rgba(40,26,8,0.32), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 3px rgba(60,40,14,0.4);
+    box-shadow: 0 2px 4px rgba(20,12,30,0.3), inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -2px 3px rgba(0,0,0,0.28);
   }
-  .base-banner.plaque.srt-uncommon { --mtl-hi: #f1ead9; --mtl-mid: #cdb98f; --mtl-lo: #93805a; --mtl-edge: #6e5e3e; }  /* polished bronze */
-  .base-banner.plaque.srt-rare     { --mtl-hi: #fff4cf; --mtl-mid: #e7c869; --mtl-lo: #b9912f; --mtl-edge: #8a6a1e; }  /* gold */
+  /* Bar colour = FAMILY (effect type). */
+  .base-banner.plaque.fam-dig     { --mtl-hi: #7fe39a; --mtl-mid: #34a85c; --mtl-lo: #1d6e3b; --mtl-edge: #14502a; }  /* green  — dig/bury */
+  .base-banner.plaque.fam-peek    { --mtl-hi: #8cc9ff; --mtl-mid: #2f86db; --mtl-lo: #1c5699; --mtl-edge: #143f70; }  /* blue   — peek/reveal */
+  .base-banner.plaque.fam-destroy { --mtl-hi: #ff958a; --mtl-mid: #db4233; --mtl-lo: #9c281c; --mtl-edge: #711a12; }  /* red    — destroy */
+  .base-banner.plaque.fam-coins   { --mtl-hi: #ffe18d; --mtl-mid: #e3ac33; --mtl-lo: #a8761c; --mtl-edge: #7a5414; }  /* gold   — coins/economy */
+  .base-banner.plaque.fam-util    { --mtl-hi: #c59cff; --mtl-mid: #8a4fd6; --mtl-lo: #5e2f9e; --mtl-edge: #44226f; }  /* purple — manipulate/utility */
   .base-banner.empty {
     width: min(80%, 96px);
     background: rgba(120,90,40,0.05);
@@ -2110,14 +2115,31 @@
   }
   .bp-screw.s-tl { left: 3px; top: 3px; } .bp-screw.s-tr { right: 3px; top: 3px; }
   .bp-screw.s-bl { left: 3px; bottom: 3px; } .bp-screw.s-br { right: 3px; bottom: 3px; }
-  .base-banner.plaque .base-ico { font-size: 13px; line-height: 1; display: flex; align-items: center; color: #4a3413; filter: drop-shadow(0 1px 0 rgba(255,255,255,0.4)); }
-  .base-banner.plaque .base-ico .ico { width: 15px; height: 15px; color: #4a3413; }
-  .base-banner.plaque .base-name {
-    font-family: var(--font-display, "Baloo 2"); font-size: 9.5px; font-weight: 800;
-    text-transform: uppercase; letter-spacing: 0.4px; color: #4a3413;
-    text-shadow: 0 1px 0 rgba(255,255,255,0.45), 0 -0.5px 0 rgba(60,40,14,0.4);   /* engraved */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Bold filled WHITE symbol — fills most of the bar height, game-y + legible. */
+  .base-banner.plaque .base-sym {
+    display: flex; align-items: center; justify-content: center; gap: 1px; color: #fff;
+    line-height: 1;
   }
+  .base-banner.plaque .base-sym .ico {
+    width: 21px; height: 21px; fill: currentColor;
+    filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.4));
+  }
+  .base-banner.plaque .base-sym .bsym-x {
+    font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 12px; color: #fff;
+    text-shadow: 0 1px 1.5px rgba(0,0,0,0.45); margin-left: -1px;
+  }
+  .base-banner.big .base-sym .ico { width: 26px; height: 26px; }
+  .base-banner.big .base-sym .bsym-x { font-size: 14px; }
+  /* Store-only rarity gem strip — a small diamond at the bar's bottom centre,
+     coloured by tier (consistent with the silver/gold rarity reads elsewhere). */
+  .base-banner.base-rarity, .base-banner .base-rarity {
+    position: absolute; left: 50%; bottom: 1.5px; transform: translateX(-50%) rotate(45deg);
+    width: 6px; height: 6px; border-radius: 1.5px; z-index: 2;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.28), inset 0 0 0 0.5px rgba(255,255,255,0.5);
+  }
+  .base-rarity.srt-common   { background: #cdbfa6; }
+  .base-rarity.srt-uncommon { background: #c3c9d0; }   /* silver */
+  .base-rarity.srt-rare     { background: #e6bb46; }   /* gold */
   /* Green LED dot (charged) → dark/off (spent). */
   .base-charge {
     position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
@@ -3909,7 +3931,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.62 · batch-tweaks";
+const APP_VERSION = "v2.63 · base-family-colors";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12446,21 +12468,75 @@ const UIRenderer = (() => {
      a flat, squared "foundation slab" that reads as the base/footing of a column.
      `state` is "empty" (dashed placeholder), "charged" (ready to activate this
      deal) or "spent" (already used this deal). The icon is the Base's glyph. */
-  /* Base = an engraved BRASS PLAQUE: warm metal plate, darker metal border, four
-     corner screws, engraved label, and a green LED that lights when the Base is
-     charged (the existing charge/spent state — unchanged behaviour). Rarity =
-     the metal tone (--srt-* → richer is rarer). Keeps the SAME .base-banner
-     wrapper + state classes. `opts.size` = "shop" renders the large plaque. */
+  /* ---- Base FAMILY-COLOUR system (presentation only) ----
+     The metal bar's COLOUR encodes the base's FAMILY (effect type); a bold,
+     filled WHITE symbol distinguishes the specific base (suit Digs add a ×N
+     strength count). Rarity is re-homed to a small store-only gem strip — bar
+     colour no longer carries rarity. Categorisation (base → family → colour):
+       DIG/bury  (green):  heart/diamond/spade/club Dig, Sinkhole, Landslide, Sticker Harvest
+       DESTROY   (red):    Kamikaze, Demolish
+       COINS     (gold):   Suit Tally, Tax
+       UTILITY   (purple): Upheaval, Phoenix, Wild Sticker, Sticker Storm, Ballast,
+                           Cast, Reactor, Replica
+       PEEK/reveal (blue): reserved — no base is primarily peek today. */
+  const BASE_FAMILY = {
+    heartDig: "dig", diamondDig: "dig", spadeDig: "dig", clubDig: "dig",
+    buryLargest: "dig", buryAll: "dig", stickerHarvest: "dig",
+    kamikaze: "destroy", demolish: "destroy",
+    suitTally: "coins", tax: "coins",
+    shuffleColumn: "util", revive: "util", randomSticker: "util", randomStickerAll: "util",
+    evenOut: "util", setValue: "util", refreshBases: "util", copyToInventory: "util",
+  };
+  function baseFamily(t) { return (t && BASE_FAMILY[t.id]) || "util"; }
+  const BASE_SUIT_KEY = { "♥": "heart", "♦": "diamond", "♠": "spade", "♣": "club" };
+  // Bold FILLED white symbols (viewBox 0 0 24 24, fill = currentColor = white).
+  // Dark detail uses a translucent black so it reads on any family colour.
+  const DK = 'fill="rgba(0,0,0,0.34)"', DKS = 'stroke="rgba(0,0,0,0.32)"';
+  const BASE_SYM = {
+    buryLargest: '<path d="M9 3h6v8.4h4.2L12 20 4.8 11.4H9z"/>',
+    buryAll: '<path d="M9 2.4h6v7.2h4L12 17 5 9.6h4z"/><rect x="3.6" y="20" width="16.8" height="2.6" rx="1.3"/>',
+    stickerHarvest: '<circle cx="12" cy="6.6" r="4.2"/><path d="M9.4 11.4h5.2v3h2.9L12 20.6 6.5 14.4h2.9z"/>',
+    kamikaze: '<path d="M12 2l1.8 4.3 3.6-2.9-.6 4.5 4.5-.6-2.9 3.6L22.2 12l-4.2 1.6 2.9 3.6-4.5-.6.6 4.5-3.6-2.9L12 22.2l-1.8-4.3-3.6 2.9.6-4.5-4.5.6 2.9-3.6L1.8 12l4.2-1.6L3.1 6.8l4.5.6L7 2.9l3.6 2.9z"/>',
+    demolish: '<path d="M3 18.4l7.7-7.7 2.3 2.3L5.3 20.7zM12.6 4.1l-2 2 5.3 5.3 2-2zM14.4 1.9l-3.3 3.3 1.5 1.5 3.3-3.3zM18.4 5.9l-3.3 3.3 1.5 1.5 3.3-3.3z"/>',
+    suitTally: '<circle cx="12" cy="12" r="9.3"/><g ' + DKS + ' stroke-width="2" stroke-linecap="round"><path d="M8.7 8.4v7.2M12 7.8v8.4M15.3 8.4v7.2"/></g>',
+    tax: '<ellipse cx="12" cy="8.2" rx="8.6" ry="3.4"/><path d="M3.4 8.2v6.5c0 1.9 3.85 3.4 8.6 3.4s8.6-1.5 8.6-3.4V8.2z"/><path d="M3.4 11.4c0 1.9 3.85 3.4 8.6 3.4s8.6-1.5 8.6-3.4" fill="none" ' + DKS + ' stroke-width="1.5"/>',
+    shuffleColumn: '<path d="M2.5 8.5h11.8l-2.1-2.1L13.7 5l4.3 3.5-4.3 3.5-1.5-1.4 2.1-2.1H2.5z"/><path d="M21.5 15.5H9.7l2.1 2.1L10.3 19 6 15.5 10.3 12l1.5 1.4-2.1 2.1h11.8z"/>',
+    revive: '<path d="M15 21H9v-8.4H4.8L12 4l7.2 8.6H15z"/>',
+    randomSticker: '<rect x="4" y="4" width="16" height="16" rx="4.5"/><g ' + DK + '><circle cx="9" cy="9" r="1.7"/><circle cx="15" cy="9" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="9" cy="15" r="1.7"/><circle cx="15" cy="15" r="1.7"/></g>',
+    randomStickerAll: '<rect x="5.6" y="5.6" width="12.8" height="12.8" rx="4"/><g ' + DK + '><circle cx="9.4" cy="9.4" r="1.5"/><circle cx="14.6" cy="14.6" r="1.5"/><circle cx="12" cy="12" r="1.5"/></g><path d="M3 2.6l.8 1.7 1.7.8-1.7.8L3 7.6l-.8-1.7L.5 5.1l1.7-.8z"/><path d="M20.8 2.2l.6 1.3 1.3.6-1.3.6-.6 1.3-.6-1.3-1.3-.6 1.3-.6z"/>',
+    evenOut: '<path d="M11 3.4h2v15.6h-2z"/><rect x="5.5" y="19" width="13" height="2.2" rx="1.1"/><circle cx="12" cy="4.4" r="1.9"/><path d="M4.6 6.2L1.4 11.4h6.4zM19.4 6.2l3.2 5.2h-6.4z"/>',
+    setValue: '<rect x="4.5" y="8.3" width="15" height="3" rx="1.5"/><rect x="4.5" y="12.7" width="15" height="3" rx="1.5"/>',
+    refreshBases: '<path d="M12.6 2L4 13.2h5L8 22l8.4-11.4h-5z"/>',
+    copyToInventory: '<rect x="3.6" y="6.6" width="11.6" height="14.4" rx="2.4"/><rect x="8.8" y="3" width="11.6" height="14.4" rx="2.4" ' + DKS + ' stroke-width="1.8"/>',
+  };
+  function baseSymHtml(t) {
+    if (!t) return "";
+    if (t.effect === "suitDig") {
+      const sp = '<path d="' + (SUITP[BASE_SUIT_KEY[t.suit]] || SUITP.spade) + '" fill="currentColor"/>';
+      return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + sp + "</svg>" +
+        '<span class="bsym-x">×' + (t.digCount || 1) + "</span>";
+    }
+    return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + (BASE_SYM[t.id] || GLYPHS.dot) + "</svg>";
+  }
+
+  /* Base = a FAMILY-COLOURED metal bar (colour = effect type) with four corner
+     screws, a bold filled white symbol, and a green LED for the charged state.
+     In-game the bar is colour + symbol only (no text); the store adds a small
+     rarity gem strip. `opts.size` = "shop" renders the large bar. */
   function baseBannerHtml(t, state, opts) {
     opts = opts || {};
     if (!t) return '<div class="base-banner empty"></div>';
+    const big = opts.size === "shop";
     const screws = '<i class="bp-screw s-tl"></i><i class="bp-screw s-tr"></i><i class="bp-screw s-bl"></i><i class="bp-screw s-br"></i>';
     const led = '<span class="base-charge" title="' +
       (state === "spent" ? "Spent this deal" : "Charged — activate once this deal") + '"></span>';
-    return '<div class="base-banner plaque srt-' + (t.tier || "common") + " " + (state || "charged") + (opts.size === "shop" ? " big" : "") + '">' +
+    // Store-only rarity strip (bar colour now = family, so rarity needs its own
+    // indicator when buying); never shown on the in-game bar.
+    const gem = big ? '<span class="base-rarity srt-' + (t.tier || "common") + '" title="' + (t.tier || "common") + '"></span>' : "";
+    return '<div class="base-banner plaque fam-' + baseFamily(t) + " " + (state || "charged") + (big ? " big" : "") + '">' +
         screws +
-        '<span class="base-ico">' + (t.icon || "") + "</span>" +
-        '<span class="base-name">' + escHtml(t.label) + "</span>" +
+        '<span class="base-sym">' + baseSymHtml(t) + "</span>" +
+        gem +
         led +
       "</div>";
   }
