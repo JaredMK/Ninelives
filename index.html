@@ -147,7 +147,9 @@
 
   /* In-play sticker inventory popup (tap-to-open, tap-out / × to close). */
   .inv-popup {
-    position: fixed; inset: 0; z-index: 60;
+    /* Above the pack-reveal / confirm overlays (z-index 70) so the inventory the
+       player opens is viewable OVER an open store pack, not hidden behind it. */
+    position: fixed; inset: 0; z-index: 75;
     display: flex; align-items: center; justify-content: center;
     background: rgba(48, 36, 32, 0.55);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
@@ -338,11 +340,11 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  /* Dim backdrop behind the open sheet. */
+  /* Light scrim behind the open sheet — NO blur, and only a faint tint, so the
+     board (its cards + stickers) stays clearly visible while placing. */
   .place-backdrop {
     position: fixed; inset: 0; z-index: 64;
-    background: rgba(40,30,28,0.5);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    background: rgba(40,30,28,0.18);
     opacity: 1; transition: opacity 0.18s ease;
   }
   .place-backdrop.hidden { display: none; }
@@ -2044,8 +2046,10 @@
   }
   /* Dark circular emblem holding the icon, near the top of the cloth. */
   .pennant .pb-emblem {
-    position: absolute; left: 50%; top: 16%; transform: translateX(-50%);
-    width: 56%; max-width: 30px; aspect-ratio: 1; height: auto;
+    /* Sit higher + slightly smaller so the icon clears the swallowtail notch at
+       the cloth's bottom (it was being clipped in the shorter on-board row). */
+    position: absolute; left: 50%; top: 9%; transform: translateX(-50%);
+    width: 54%; max-width: 27px; aspect-ratio: 1; height: auto;
     color: #f4ecf3; z-index: 1;
   }
   .pennant .pb-emblem .cph-halo {
@@ -2468,7 +2472,9 @@
     z-index: 3;
     pointer-events: none;
   }
-  .pile-badges .dcs:not(:first-child) { margin-right: calc(var(--dcs-size) * -0.5); }
+  /* Fan the stacked stickers with only a SLIGHT overlap (≈28%) so each die-cut
+     stays identifiable at a glance instead of hiding behind the one in front. */
+  .pile-badges .dcs:not(:first-child) { margin-right: calc(var(--dcs-size) * -0.28); }
   /* ---- Die-cut VINYL sticker (one component, every site) ----
      Circular, glossy effect-coloured face (--dcs-face), a thick white die-cut
      border tinted by rarity (--dcs-edge), a soft drop shadow so it lies on the
@@ -3795,11 +3801,13 @@
             <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="bTabNCards">0</span></button>
             <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="bTabNStickers">0</span></button>
             <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="bTabNPillars">0</span></button>
+            <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="bTabNBases">0</span></button>
           </div>
           <div class="setup-strip" id="browseStrip">
             <div class="pack-tray tab-panel hidden" id="browseCards" data-tab="cards"></div>
             <div class="sticker-tray tab-panel hidden" id="browseStickers" data-tab="stickers"></div>
             <div class="pillar-tray tab-panel hidden" id="browsePillars" data-tab="pillars"></div>
+            <div class="base-tray tab-panel hidden" id="browseBases" data-tab="bases"></div>
             <div class="setup-empty hidden" id="browseEmpty">You don't own any items yet.</div>
           </div>
           <div class="tray-help hidden" id="browseHelp">
@@ -3901,7 +3909,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.61 · no-deal-start-shift";
+const APP_VERSION = "v2.62 · batch-tweaks";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4271,13 +4279,13 @@ const StickerTypes = (() => {
     tieSafe:    { id: "tieSafe",    label: "Tie-Safe",    icon: "🛡️", kind: "behavior", behavior: "tieSafe",    tier: "common", price: 4,
                   description: "A drawn card that ties this pile card's rank no longer kills the pile." },
     suitImmunity: { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 2,
-                  description: "When this drawn card lands on a ♠ pile card, a wrong guess is safe: the pile survives and the drawn card returns to the deck. Once a deal." },
+                  description: "When THIS card is drawn onto a pile showing a ♠, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal." },
     heartGuard: { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 4,
-                  description: "When this drawn card lands on a ♥ pile card, a wrong guess is safe: the pile survives and the drawn card returns to the deck. Once a deal." },
+                  description: "When THIS card is drawn onto a pile showing a ♥, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal." },
     diamondGuard: { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 4,
-                  description: "When this drawn card lands on a ♦ pile card, a wrong guess is safe: the pile survives and the drawn card returns to the deck. Once a deal." },
+                  description: "When THIS card is drawn onto a pile showing a ♦, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal." },
     clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 3,
-                  description: "When this drawn card lands on a ♣ pile card, a wrong guess is safe: the pile survives and the drawn card returns to the deck. Once a deal." },
+                  description: "When THIS card is drawn onto a pile showing a ♣, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
                   description: "Clear the deal with this as the pile card: +1 coin per card in the pile." },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
@@ -4406,8 +4414,8 @@ const PillarTypes = (() => {
     },
     columnGuardian: {
       id: "columnGuardian", label: "Guardian", icon: "🏛️",
-      kind: "scoring", effect: "columnAllAlive", value: 5, tier: "uncommon", price: 5,
-      description: "+5 coins if every pile in this column survives the deal.",
+      kind: "scoring", effect: "columnAllAlive", value: 7, tier: "uncommon", price: 5,
+      description: "+7 coins if every pile in this column survives the deal.",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
@@ -4459,7 +4467,7 @@ const PillarTypes = (() => {
       // End-of-run: +value if this column's alive count equals the RIGHT
       // column's (wraparound: right-of-rightmost = leftmost).
       id: "symmetry", label: "Symmetry", icon: "🪞",
-      kind: "scoring", effect: "symmetryRight", value: 6, tier: "rare", price: 7,
+      kind: "scoring", effect: "symmetryRight", value: 6, tier: "uncommon", price: 7,
       description: "+6 coins if this column ends with as many survivors as the column to its right (rightmost wraps to leftmost).",
     },
     streakBank: {
@@ -4602,8 +4610,8 @@ const PillarTypes = (() => {
       // End-of-deal: a 50/50 coin flip — +value or nothing. The outcome is
       // always shown in the payout breakdown.
       id: "gambler", label: "Gambler", icon: "🎲",
-      kind: "scoring", effect: "gambler", value: 12, tier: "uncommon", price: 6,
-      description: "On a cleared deal, a 50/50 flip: +12 coins or nothing. The result is shown.",
+      kind: "scoring", effect: "gambler", value: 7, tier: "uncommon", price: 6,
+      description: "On a cleared deal, a 50/50 flip: +7 coins or nothing. The result is shown.",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -8426,11 +8434,13 @@ const UIRenderer = (() => {
     browseCards: document.getElementById("browseCards"),
     browseStickers: document.getElementById("browseStickers"),
     browsePillars: document.getElementById("browsePillars"),
+    browseBases: document.getElementById("browseBases"),
     browseEmpty: document.getElementById("browseEmpty"),
     browseHelp: document.getElementById("browseHelp"),
     bTabNCards: document.getElementById("bTabNCards"),
     bTabNStickers: document.getElementById("bTabNStickers"),
     bTabNPillars: document.getElementById("bTabNPillars"),
+    bTabNBases: document.getElementById("bTabNBases"),
     bThTitle: document.getElementById("bThTitle"),
     bThDesc: document.getElementById("bThDesc"),
     bThClose: document.getElementById("bThClose"),
@@ -9444,6 +9454,12 @@ const UIRenderer = (() => {
       '<span class="to-art">' + baseBannerHtml(t, "charged") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
       '<span class="ts-count">×' + count + "</span></button>";
   }
+  /* An ACTIVE (placed-on-board) Base, tagged with its column — read-only. */
+  function invPlacedBaseChipHtml(t, col, sel) {
+    return '<button type="button" class="tray-base tray-obj placed' + (sel ? " armed" : "") + '" data-placed-base="' + col + '">' +
+      '<span class="to-art">' + baseBannerHtml(t, "charged") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+      '<span class="tp-col">Col ' + (col + 1) + "</span></button>";
+  }
   function armBaseItem(typeId) {
     if (!engine || !engine.canApplyStickers()) return;
     if (campaign.baseInventoryCount(typeId) <= 0) return;
@@ -9891,6 +9907,12 @@ const UIRenderer = (() => {
         peekTimer = setTimeout(() => { peeking = true; openPillarPeek(col); }, PEEK_HOLD_MS);
         return;
       }
+      const bCell = e.target.closest(".base-cell");
+      if (bCell) {   // Base-indicator hold-to-peek (consistent with Pillars)
+        const col = Number(bCell.dataset.col);
+        peekTimer = setTimeout(() => { peeking = true; openBasePeek(col); }, PEEK_HOLD_MS);
+        return;
+      }
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
       // Drag-to-guess only during active play (never while an activation/confirm
@@ -9910,6 +9932,12 @@ const UIRenderer = (() => {
             openCardInfo(index);
           }, INFO_HOLD_MS);
         }
+      } else if (engine && engine.canApplyStickers()
+                 && !armedSticker && armedPack == null && !armedPillar && !armedBaseItem) {
+        // Setup (nothing armed): HOLD a pile to read its card + stickers, so
+        // hold-for-info works consistently in setup too (not just in play).
+        const index = Number(pileEl.dataset.index);
+        peekTimer = setTimeout(() => { peeking = true; openCardPeek(index); peekTapPile = null; }, INFO_HOLD_MS);
       }
     });
 
@@ -10175,6 +10203,12 @@ const UIRenderer = (() => {
       if (placed) { browsePickItem({ kind: "placed", col: Number(placed.dataset.placedCol) }); return; }
       const held = e.target.closest(".tray-pillar");
       if (held) browsePickItem({ kind: "pillar", id: held.dataset.pillar });
+    });
+    if (el.browseBases) el.browseBases.addEventListener("click", (e) => {
+      const placed = e.target.closest(".tray-base.placed");
+      if (placed) { browsePickItem({ kind: "placedBase", col: Number(placed.dataset.placedBase) }); return; }
+      const held = e.target.closest(".tray-base");
+      if (held) browsePickItem({ kind: "base", id: held.dataset.base });
     });
     if (el.browseCards) el.browseCards.addEventListener("click", (e) => {
       const b = e.target.closest(".pt-card");
@@ -13491,6 +13525,7 @@ const UIRenderer = (() => {
     armedPack = null;
     el.board.classList.toggle("arming", !!armedSticker);
     renderSetupInv();
+    renderDeckStrip();   // the swap changed the deck composition → refresh the histogram now
     persistCampaign("run");
   }
 
@@ -13913,37 +13948,50 @@ const UIRenderer = (() => {
   function browseIsPick(kind, key) {
     if (!browsePick || browsePick.kind !== kind) return false;
     return kind === "card" ? browsePick.index === key
-         : kind === "placed" ? browsePick.col === key
+         : (kind === "placed" || kind === "placedBase") ? browsePick.col === key
          : browsePick.id === key;
   }
   function browseCounts() {
     const inv = campaign ? campaign.getInventory() : {};
     const pinv = campaign ? campaign.getPillarInventory() : {};
-    const binding = campaign ? campaign.getColumnPillars() : [];
+    const binv = campaign ? campaign.getBaseInventory() : {};
+    const pBinding = campaign ? campaign.getColumnPillars() : [];
+    const bBinding = campaign ? campaign.getColumnBases() : [];
     const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
-    const placed = binding.filter(Boolean).length;
     return {
       cards: campaign ? campaign.packTrayCount() : 0,
       stickers: sum(inv),
-      pillars: sum(pinv) + placed,     // held + active (both live in the Pillars tab)
+      pillars: sum(pinv) + pBinding.filter(Boolean).length,   // held + active (both in the Pillars tab)
+      bases: sum(binv) + bBinding.filter(Boolean).length,     // held + active (both in the Bases tab)
     };
   }
   function renderBrowseTrays() {
     const inv = campaign ? campaign.getInventory() : {};
     const pinv = campaign ? campaign.getPillarInventory() : {};
-    const binding = campaign ? campaign.getColumnPillars() : [];
+    const binv = campaign ? campaign.getBaseInventory() : {};
+    const pBinding = campaign ? campaign.getColumnPillars() : [];
+    const bBinding = campaign ? campaign.getColumnBases() : [];
     const tray = campaign ? campaign.getPackTray() : [];
     el.browseStickers.innerHTML = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0)
       .map(t => invStickerChipHtml(t, inv[t.id], browseIsPick("sticker", t.id))).join("");
     // Pillars: held (unplaced) first, then ACTIVE (placed) chips, tagged by column.
     let pill = PillarTypes.all().filter(t => (pinv[t.id] || 0) > 0)
       .map(t => invPillarChipHtml(t, pinv[t.id], browseIsPick("pillar", t.id))).join("");
-    binding.forEach((pid, col) => {
+    pBinding.forEach((pid, col) => {
       if (!pid) return;
       const t = PillarTypes.get(pid);
       if (t) pill += invPlacedPillarChipHtml(t, col, browseIsPick("placed", col));
     });
     el.browsePillars.innerHTML = pill;
+    // Bases: held (unplaced) first, then ACTIVE (placed) chips, tagged by column.
+    let bs = BaseTypes.all().filter(t => (binv[t.id] || 0) > 0)
+      .map(t => invBaseChipHtml(t, binv[t.id], browseIsPick("base", t.id))).join("");
+    bBinding.forEach((bid, col) => {
+      if (!bid) return;
+      const t = BaseTypes.get(bid);
+      if (t) bs += invPlacedBaseChipHtml(t, col, browseIsPick("placedBase", col));
+    });
+    if (el.browseBases) el.browseBases.innerHTML = bs;
     el.browseCards.innerHTML = tray.map((c, i) => invPackChipHtml(c, i, browseIsPick("card", i), false)).join("");
   }
   function renderBrowseHelp() {
@@ -13962,6 +14010,13 @@ const UIRenderer = (() => {
       const binding = campaign ? campaign.getColumnPillars() : [];
       const t = PillarTypes.get(binding[pick.col]);
       return t ? { title: t.icon + " " + escHtml(t.label),
+        desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
+    }
+    if (pick.kind === "base") { const t = BaseTypes.get(pick.id); return t ? { title: (t.icon || "") + " " + escHtml(t.label), desc: t.description || "" } : null; }
+    if (pick.kind === "placedBase") {
+      const binding = campaign ? campaign.getColumnBases() : [];
+      const t = BaseTypes.get(binding[pick.col]);
+      return t ? { title: (t.icon || "") + " " + escHtml(t.label),
         desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
     }
     if (pick.kind === "card") {
@@ -13984,9 +14039,9 @@ const UIRenderer = (() => {
   function renderBrowse() {
     renderBrowseTrays();
     const counts = browseCounts();
-    const order = ["cards", "stickers", "pillars"];
-    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars };
-    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars };
+    const order = ["cards", "stickers", "pillars", "bases"];
+    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars, bases: el.browseBases };
+    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars, bases: el.bTabNBases };
     order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
     if (counts[browseTab] === 0) { const n = order.find(k => counts[k] > 0); if (n) browseTab = n; }
     const anyItems = order.some(k => counts[k] > 0);
@@ -14007,14 +14062,15 @@ const UIRenderer = (() => {
   }
   function browsePickItem(pick) {
     // Tapping the highlighted item again clears it; otherwise show its description.
-    browsePick = (browsePick && browseIsPick(pick.kind, pick.kind === "card" ? pick.index : pick.kind === "placed" ? pick.col : pick.id))
-      ? null : pick;
+    const key = pick.kind === "card" ? pick.index
+      : (pick.kind === "placed" || pick.kind === "placedBase") ? pick.col : pick.id;
+    browsePick = (browsePick && browseIsPick(pick.kind, key)) ? null : pick;
     renderBrowse();
   }
   function openInvPopup() {
     browsePick = null;
     const counts = browseCounts();
-    const order = ["cards", "stickers", "pillars"];
+    const order = ["cards", "stickers", "pillars", "bases"];
     if (counts[browseTab] === 0) { browseTab = order.find(k => counts[k] > 0) || "stickers"; }
     renderBrowse();
     el.invPopup.classList.remove("hidden");

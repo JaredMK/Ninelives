@@ -140,11 +140,11 @@ export function run() {
       const pp = winPayout(e);
       const g = pp.lines.find(l => l.label === "Gambler");
       if (!g) { alwaysLine = false; continue; }
-      if (g.amount === 12) sawWin = true;
+      if (g.amount === 7) sawWin = true;
       if (g.amount === 0) sawLoss = true;
     }
     r.ok(alwaysLine, "Gambler always emits a result line");
-    r.ok(sawWin && sawLoss, "Gambler produces both +12 and +0 outcomes across seeds");
+    r.ok(sawWin && sawLoss, "Gambler produces both +7 and +0 outcomes across seeds");
   }
 
   // ---- Echo: +1 when an adjacent column's Pillar pays out --------------
@@ -174,7 +174,7 @@ export function run() {
     const e = game(["ditto", "columnGuardian", null]);
     const pp = winPayout(e);   // all piles alive (no kills) → col 0 fully alive
     const dittoLine = pp.lines.find(l => l.col === 0 && l.label === "Guardian");
-    r.ok(dittoLine && dittoLine.amount === 5, "Ditto mirrors the center Guardian onto its own column (+5)");
+    r.ok(dittoLine && dittoLine.amount === 7, "Ditto mirrors the center Guardian onto its own column (+7)");
     // Ditto IN the center column does nothing.
     const e2 = game(["columnGuardian", "ditto", null]);
     const pp2 = winPayout(e2);

@@ -15,7 +15,7 @@ export function run() {
     r.ok(!!g, "registry has columnGuardian");
     r.eq(g.kind, "scoring", "columnGuardian is a scoring Pillar");
     r.eq(g.effect, "columnAllAlive", "columnGuardian effect key");
-    r.eq(g.value, 5, "columnGuardian pays 5");
+    r.eq(g.value, 7, "columnGuardian pays 7");
     r.eq(g.price, 5, "columnGuardian fixed price 5");
     r.eq(PillarTypes.get("nope"), null, "unknown Pillar id → null");
     r.ok(PillarTypes.all().length === PillarTypes.ids.length, "all() matches ids");
@@ -118,7 +118,7 @@ export function run() {
     win.start();
     win.startRun(["columnGuardian", null, null]);
     win.debug.winNow();   // empty the deck → win, every pile still alive
-    r.eq(payload.pillarPayout.bonus, 5, "all-alive column pays +5");
+    r.eq(payload.pillarPayout.bonus, 7, "all-alive column pays +7");
     r.eq(payload.pillarPayout.lines.length, 1, "one itemized Pillar line");
 
     // Same setup but kill a pile in column 0 → no payout for that column.

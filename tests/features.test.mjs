@@ -386,12 +386,12 @@ export function run() {
       extraCoinUnits: board.extraCoinUnits(), pillarBonus: pp.bonus, pillarLines: pp.lines,
       eventBonus, eventLines: [],
     });
-    r.eq(pp.bonus, 5, "Column Guardian (col 3 all-alive) pays +5 at run end");
+    r.eq(pp.bonus, 7, "Column Guardian (col 3 all-alive) pays +7 at run end");
     // The HUD's folded final value is exactly (total − product) = the summary's
     // total bonus, and equals live + Guardian + Extra Coin.
     const finalTracker = bd.total - bd.product;
     r.eq(finalTracker, eventBonus + pp.bonus + bd.extraCoinBonus, "final tracker = live + Guardian + Extra Coin");
-    r.eq(finalTracker, 6, "final bonus reconciles to the summary: 1 live + 5 Guardian = 6");
+    r.eq(finalTracker, 8, "final bonus reconciles to the summary: 1 live + 7 Guardian = 8");
   }
 
   // --- Economy folds the live bonus into the total ----------------------
