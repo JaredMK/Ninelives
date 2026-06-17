@@ -456,6 +456,16 @@
     background: rgba(36,28,40,0.80); border-radius: 6px; padding: 1px 5px; }
   .deck-pile .ds-face:not(.hidden) ~ .deck-count b { font-size: 14px; color: #fff; text-shadow: none; }
   .deck-pile .ds-face:not(.hidden) ~ .deck-count .ds-lbl { display: none; }
+  /* Peek TRIGGER pulse: a single attention-drawing scale + violet glow when the
+     upcoming card is first revealed, then it settles. Draws the eye to the small
+     corner deck so the reveal isn't missed. One-shot (JS re-arms it per trigger). */
+  @keyframes deckPeekPulse {
+    0%   { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(133,104,192,0)); }
+    32%  { transform: scale(1.16); filter: drop-shadow(0 0 9px rgba(133,104,192,0.9)); }
+    100% { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(133,104,192,0)); }
+  }
+  .deck-pile.peek-pulse { animation: deckPeekPulse 0.55s ease; }
+  @media (prefers-reduced-motion: reduce) { .deck-pile.peek-pulse { animation: none; } }
 
   /* ============================================================
      DECK COMPOSITION STRIP — thin always-on bar graph at the bottom.
@@ -604,6 +614,14 @@
   body.guess-side #histBand .deck-count { inset: 0 0 0 6px; }
   body.guess-side #histBand .deck-count b { font-size: 26px; }
   body.guess-side #histBand .deck-count .ds-lbl { font-size: 7.5px; letter-spacing: 1px; }
+  /* During a peek/Scout reveal, demote the count to a corner badge so the
+     revealed card stays readable. Re-declared here because the centered
+     #histBand rules above out-specificity the base demotion (lines ~454). */
+  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count {
+    inset: auto 2px 2px auto; flex-direction: row; gap: 2px; align-items: baseline;
+    background: rgba(36,28,40,0.82); border-radius: 6px; padding: 1px 5px; }
+  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count b { font-size: 13px; color: #fff; text-shadow: none; }
+  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count .ds-lbl { display: none; }
   /* Scrubber readout floats ABOVE the bottom strip. */
   body.guess-side #histBand .ds-scrub { left: 50%; right: auto; top: auto; bottom: 100%;
     transform: translateX(-50%); margin: 0 0 5px 0; }
@@ -4010,7 +4028,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.71 · lifetime-stats-rework";
+const APP_VERSION = "v2.72 · deck-peek-ui";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8925,10 +8943,24 @@ const UIRenderer = (() => {
       if (el.deckStat) el.deckStat.classList.remove("revealed");
       return;
     }
+    // Detect the trigger edge (face was not showing → now showing) so the deck
+    // pulses exactly once when a peek fires, not on every re-render while it's up.
+    const wasRevealed = el.deckStat && el.deckStat.classList.contains("revealed");
     el.deckFace.classList.toggle("red", !!next.red);
     el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>";
     el.deckFace.classList.remove("hidden");
     if (el.deckStat) el.deckStat.classList.add("revealed");
+    if (!wasRevealed) pulseDeckPeek();
+  }
+
+  /* One-shot attention pulse on the deck when a peek first reveals the next card.
+     Removes + reflows + re-adds the class so it can re-fire on each new trigger. */
+  function pulseDeckPeek() {
+    const pile = el.deckStat && el.deckStat.querySelector(".deck-pile");
+    if (!pile) return;
+    pile.classList.remove("peek-pulse");
+    void pile.offsetWidth;   // force reflow so the animation restarts cleanly
+    pile.classList.add("peek-pulse");
   }
 
   /* ---- deck composition strip (always-on companion to the modal) ----
