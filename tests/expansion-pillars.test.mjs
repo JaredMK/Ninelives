@@ -40,7 +40,7 @@ export function run() {
     const ids = ["sameSpark", "insurance", "ditto", "stickerCount", "prime",
       "queensEye", "royalCourt", "excavator", "echo", "gambler"];
     r.ok(ids.every(id => !!PillarTypes.get(id)), "all 10 new Pillars registered");
-    r.eq(PillarTypes.all().length, 33, "pillar registry now totals 33");
+    r.eq(PillarTypes.all().length, 34, "pillar registry now totals 34 (with Broadcast)");
     r.ok(ids.every(id => { const t = PillarTypes.get(id); return t.description && t.icon; }), "every new Pillar has a description + icon");
   }
 

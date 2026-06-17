@@ -25,6 +25,7 @@ import { run as expansionStickers } from "./expansion-stickers.test.mjs";
 import { run as expansionPillars } from "./expansion-pillars.test.mjs";
 import { run as expansionBases } from "./expansion-bases.test.mjs";
 import { run as lifetimeStats } from "./lifetime-stats.test.mjs";
+import { run as broadcast } from "./broadcast.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -50,6 +51,7 @@ const SUITES = [
   ["expansion-pillars", expansionPillars],
   ["expansion-bases", expansionBases],
   ["lifetime-stats", lifetimeStats],
+  ["broadcast", broadcast],
 ];
 
 let pass = 0,

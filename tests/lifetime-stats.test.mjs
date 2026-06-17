@@ -65,5 +65,28 @@ export function run() {
     r.ok(!a.isPlayedCounted(), "reset() clears the played guard");
   }
 
+  // --- whole-run guess totals: every deal accumulates, persists, resets ---
+  // (Feeds the end-of-run summary's right/wrong — must cover ALL deals, not
+  // just the last one.)
+  {
+    const a = CampaignState.create();
+    r.eq(a.allGuessesCorrect, 0, "fresh campaign: 0 correct guesses");
+    r.eq(a.allGuessesTotal, 0, "fresh campaign: 0 total guesses");
+    a.addRunGuesses(7, 10);     // deal 1
+    a.addRunGuesses(5, 9);      // deal 2 (e.g. the losing deal)
+    r.eq(a.allGuessesCorrect, 12, "correct guesses sum across deals (7 + 5)");
+    r.eq(a.allGuessesTotal, 19, "total guesses sum across deals (10 + 9)");
+
+    const wire = JSON.parse(JSON.stringify(a.serialize()));
+    const b = CampaignState.create();
+    b.restore(wire);
+    r.eq(b.allGuessesCorrect, 12, "whole-run correct total survives serialize/restore");
+    r.eq(b.allGuessesTotal, 19, "whole-run total survives serialize/restore");
+
+    a.reset();
+    r.eq(a.allGuessesCorrect, 0, "reset clears whole-run correct total");
+    r.eq(a.allGuessesTotal, 0, "reset clears whole-run total");
+  }
+
   return r.summary();
 }

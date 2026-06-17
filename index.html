@@ -4028,7 +4028,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.72 · deck-peek-ui";
+const APP_VERSION = "v2.73 · broadcast-pillar";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4732,6 +4732,18 @@ const PillarTypes = (() => {
       kind: "scoring", effect: "gambler", value: 7, tier: "uncommon", price: 6,
       description: "On a cleared deal, a 50/50 flip: +7 coins or nothing. The result is shown.",
     },
+    broadcast: {
+      // Passive force-multiplier (no coins of its own): while in play, every one
+      // of the player's COLUMN-SCOPED Bases reaches the WHOLE board instead of
+      // just its own column. Each Base still activates individually and keeps its
+      // own once-per-deal charge; only its SCOPE widens. Already board-wide Bases
+      // (Kamikaze, Tax) are unchanged. Its effect is GLOBAL regardless of which
+      // column it occupies — placement is irrelevant. The engine reads it via
+      // broadcastActive(); it has no scoring/guess hook (kind "modifier").
+      id: "broadcast", label: "Broadcast", icon: "📡",
+      kind: "modifier", effect: "broadcast", tier: "rare", price: 18,
+      description: "While in play, every one of your column Bases reaches the WHOLE board, not just its own column — so Upheaval shuffles every pile on the board, Cast sets every pile, Phoenix can revive any dead pile, and so on. Each Base still fires once per deal. Bases that are already board-wide (Kamikaze, Tax) are unchanged. It works the same in any column.",
+    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Kamikaze used to live here as a Pillar; it is now a Base (see BaseTypes).
@@ -4741,7 +4753,7 @@ const PillarTypes = (() => {
     "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy",
     "fibonacci", "highestOdd", "highestEven", "denseBury", "revive",
     "sameSpark", "insurance", "ditto", "stickerCount", "prime",
-    "queensEye", "royalCourt", "excavator", "echo", "gambler"];
+    "queensEye", "royalCourt", "excavator", "echo", "gambler", "broadcast"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -5865,6 +5877,20 @@ const GameEngine = (() => {
     function colAlivePiles(col) { return colPiles(col).filter(i => board.isActive(i)); }
     /** Dead pile indices in column `col`. */
     function colDeadPiles(col) { return colPiles(col).filter(i => !board.isActive(i)); }
+    /** Every alive / dead pile board-wide (column-agnostic). */
+    function allAlivePiles() { const o = []; for (let i = 0; i < board.size; i++) if (board.isActive(i)) o.push(i); return o; }
+    function allDeadPiles()  { const o = []; for (let i = 0; i < board.size; i++) if (!board.isActive(i)) o.push(i); return o; }
+    /** Broadcast Pillar in play? Its effect is GLOBAL regardless of which column
+        it sits in — so we only check that SOME column holds it, never which one.
+        While active, every player-owned column-scoped Base reaches the whole
+        board instead of just its own column (Bases only — Pillars keep their own
+        column scope). Already board-wide Bases (Kamikaze, Tax) are unaffected. */
+    function broadcastActive() {
+      return !!(run && run.pillars && run.pillars.some(pid => {
+        const t = pid ? PillarTypes.get(pid) : null;
+        return !!t && t.effect === "broadcast";
+      }));
+    }
 
     /** The "safe" random-sticker pool a Base may apply: no suit-locked stickers
         and nothing that changes a card's suit (so a Base can never introduce a
@@ -5919,6 +5945,12 @@ const GameEngine = (() => {
     function baseCanActivate(col) {
       const base = baseForColumn(col);
       if (!base) return false;
+      // Broadcast widens a column-scoped Base's reach to the whole board; shadow
+      // the column selectors so the precondition is evaluated at the real scope
+      // (e.g. Phoenix can fire if ANY pile is dead board-wide, not just here).
+      const bc = broadcastActive();
+      const colAlivePiles = (c) => bc ? allAlivePiles() : colPiles(c).filter(i => board.isActive(i));
+      const colDeadPiles  = (c) => bc ? allDeadPiles()  : colPiles(c).filter(i => !board.isActive(i));
       const alive = colAlivePiles(col);
       switch (base.effect) {
         case "kamikaze":         return board.aliveCount() > 1;   // can't kill the last pile
@@ -5974,6 +6006,12 @@ const GameEngine = (() => {
     function baseActivate(col, targetIndex) {
       if (!baseAvailable(col)) return null;
       const base = baseForColumn(col);
+      // Broadcast widens column-scoped Bases to the whole board: shadow the
+      // column selectors so every case's colAlivePiles/colDeadPiles below reaches
+      // all columns (Pillars are untouched — they call the module versions).
+      const bc = broadcastActive();
+      const colAlivePiles = (c) => bc ? allAlivePiles() : colPiles(c).filter(i => board.isActive(i));
+      const colDeadPiles  = (c) => bc ? allDeadPiles()  : colPiles(c).filter(i => !board.isActive(i));
       // Validate the target for target Bases.
       const needsTarget = base.target === "pile" || base.target === "pillar";
       if (needsTarget) {
@@ -5986,8 +6024,10 @@ const GameEngine = (() => {
           // Kamikaze may sacrifice ANY alive pile board-wide.
           if (!board.isActive(targetIndex)) return null;
         } else {
-          // Other target Bases act only on a pile in their own column.
-          if (run.pileColumns[targetIndex] !== col || !board.isActive(targetIndex)) return null;
+          // Other single-pile-target Bases (Sticker Harvest) act on a pile in
+          // their own column — or, under Broadcast, any alive pile board-wide.
+          if (!board.isActive(targetIndex)) return null;
+          if (!bc && run.pileColumns[targetIndex] !== col) return null;
         }
       }
 
@@ -6909,6 +6949,9 @@ const GameEngine = (() => {
       baseAvailable(col) { return baseAvailable(col); },
       /** Whether the Base on column `col` needs the player to pick a target pile. */
       baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && (b.target === "pile" || b.target === "pillar")); },
+      /** True when a Broadcast Pillar is in play (column-scoped Bases go board-wide).
+          Lets the UI widen a Base's valid target piles + prompt accordingly. */
+      broadcastActive() { return broadcastActive(); },
       /** Activate the Base on column `col` (with a chosen `targetIndex` for target
           Bases). Returns a result object describing what fired, or null. */
       baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
@@ -7160,6 +7203,12 @@ const CampaignState = (() => {
     let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE (within the stage)
     let totalCorrectGuesses = 0;   // summed across every WON run this campaign
     let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
+    // Whole-run (campaign-wide) guess totals for the end-of-run summary: correct
+    // and total guesses across EVERY deal played this campaign — won OR lost,
+    // including the final losing deal. (totalCorrectGuesses above counts won
+    // deals only; these count all of them so the summary reflects the whole run.)
+    let allGuessesCorrect = 0;
+    let allGuessesTotal = 0;
     // Cumulative campaign stats for the end screen (reset with everything else):
     //   totalCardsFlipped — correct guesses (cards drawn-and-survived) across
     //     ALL runs played, including the final losing run.
@@ -7219,11 +7268,22 @@ const CampaignState = (() => {
       get runsCompleted() { return runsCompleted; },
       get totalCardsFlipped() { return totalCardsFlipped; },
       get totalCoinsEarned() { return totalCoinsEarned; },
+      // Whole-run guess totals (every deal, win or loss) for the end summary.
+      get allGuessesCorrect() { return allGuessesCorrect; },
+      get allGuessesTotal() { return allGuessesTotal; },
 
       /** Fold a finished WON run's stats into the campaign totals. */
       recordRun(run) {
         totalCorrectGuesses += run.correctGuesses;
         runsCompleted += 1;
+      },
+
+      /** Tally a finished deal's guesses (correct + total) into the whole-run
+          totals — called for EVERY deal end, win or loss, so the end-of-run
+          summary's right/wrong reflects the entire run, not just the last deal. */
+      addRunGuesses(correct, total) {
+        allGuessesCorrect += Math.max(0, correct || 0);
+        allGuessesTotal += Math.max(0, total || 0);
       },
 
       /* ---- "run played" guard (lifetime stats) ----
@@ -7912,6 +7972,8 @@ const CampaignState = (() => {
         currentStage = 1;
         currentRunIndex = 1;
         totalCorrectGuesses = 0;
+        allGuessesCorrect = 0;
+        allGuessesTotal = 0;
         runsCompleted = 0;
         totalCardsFlipped = 0;
         totalCoinsEarned = 0;
@@ -7940,6 +8002,7 @@ const CampaignState = (() => {
           currentStage, currentRunIndex,
           totalCorrectGuesses, runsCompleted,
           totalCardsFlipped, totalCoinsEarned,
+          allGuessesCorrect, allGuessesTotal,
           coins,
           playedCounted,
           stickerInventory: { ...stickerInventory },
@@ -7972,6 +8035,8 @@ const CampaignState = (() => {
         currentRunIndex = s.currentRunIndex;
         totalCorrectGuesses = s.totalCorrectGuesses || 0;
         runsCompleted = s.runsCompleted || 0;
+        allGuessesCorrect = s.allGuessesCorrect || 0;
+        allGuessesTotal = s.allGuessesTotal || 0;
         totalCardsFlipped = s.totalCardsFlipped || 0;
         totalCoinsEarned = s.totalCoinsEarned || 0;
         coins = s.coins || 0;
@@ -11844,8 +11909,10 @@ const UIRenderer = (() => {
   // report how far you got). The continue action returns to the MAIN MENU.
   function showCampaignFailed(run) {
     Sound.death();
-    const total = run ? (run.totalGuesses || 0) : 0;
-    const correct = run ? (run.correctGuesses || 0) : 0;
+    // Whole-run totals (every deal played this run, including the final losing
+    // one), not just the last deal — onRunEnd folded this deal in before us.
+    const total = campaign.allGuessesTotal;
+    const correct = campaign.allGuessesCorrect;
     showOverlay({
       kind: "lose",
       icon: "",                // no circle-with-line icon — the header carries it
@@ -13060,6 +13127,10 @@ const UIRenderer = (() => {
     // Cards flipped (correct guesses) are tallied for EVERY run end — including
     // the final losing run — so the end screen reflects all runs played.
     campaign.addCardsFlipped(payload.run.correctGuesses);
+    // Whole-run guess totals for the end-of-run summary: fold THIS deal's
+    // correct/total into the campaign running totals (win or loss) so the
+    // summary's right/wrong covers every deal, not just the last one.
+    campaign.addRunGuesses(payload.run.correctGuesses, payload.run.totalGuesses);
     // Lifetime draw + guess tallies: every deal's cards drawn during play, plus
     // its guess accuracy (correct + total), win OR loss.
     Stats.addDeal(payload.run.cardsDrawn, payload.run.correctGuesses, payload.run.totalGuesses);
@@ -14157,10 +14228,13 @@ const UIRenderer = (() => {
   function baseTargets(col) {
     const board = engine.getBoard();
     const base = engine.baseForColumn(col);
+    // Kamikaze is always board-wide; under a Broadcast Pillar, a column-scoped
+    // pile-target Base (Sticker Harvest) may also pick any alive pile board-wide.
+    const boardWide = (base && base.effect === "kamikaze") || engine.broadcastActive();
     const out = [];
     for (let i = 0; i < board.size; i++) {
       if (!board.isActive(i)) continue;
-      if (base && base.effect !== "kamikaze" && engine.getRun().pileColumns[i] !== col) continue;
+      if (!boardWide && engine.getRun().pileColumns[i] !== col) continue;
       out.push(i);
     }
     return out;
@@ -14169,7 +14243,9 @@ const UIRenderer = (() => {
   function baseTargetPrompt(base) {
     switch (base && base.effect) {
       case "kamikaze":       return "Choose a pile to kill, then peek at the next 3 upcoming cards.";
-      case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
+      case "stickerHarvest": return engine.broadcastActive()
+        ? "Choose any pile on the board to harvest its pile card."
+        : "Choose a pile in this column to harvest its pile card.";
       case "demolish":       return "Choose one of your Pillars to destroy for +15 coins.";
       default:               return "Choose a target pile.";
     }
