@@ -1827,6 +1827,14 @@
     min-height: 156px; margin-bottom: 6px; }
   .sd-obj > * { transform: scale(1.5); transform-origin: center; }
   .sd-obj.obj-base > * { transform: scale(1.3); }
+  /* The pillar banner sizes itself off its PARENT (width/height:100%, swallowtail
+     cloth filling via flex:1; the emblem is absolutely-positioned so it lends no
+     intrinsic size). The shelf TILE gives it a definite-size slot, but this detail
+     container is shrink-to-fit, so the banner would collapse to a sliver (just the
+     rod + icon). Give the shop pennant a definite box HERE — same component, same
+     proportions as the shelf — then .sd-obj scales it up. Detail-scoped, so the
+     shelf tile is untouched. */
+  .sd-obj.obj-pillar .cph-banner.pennant.big { width: 132px; height: 116px; }
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(255,255,255,0.6); }
   .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
@@ -4028,7 +4036,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.74 · peek-pillars";
+const APP_VERSION = "v2.75 · store-pillar-render";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
