@@ -1318,6 +1318,8 @@
   }
   .stat-tile .sv { font-family: var(--font-display); font-weight: 700; font-size: 22px;
     color: var(--accent-2); line-height: 1.1; }
+  /* Inline secondary percentage beside a count (Runs won, Correct draws). */
+  .stat-tile .sv .pct { font-size: 14px; font-weight: 600; color: var(--muted); }
   .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-top: 3px; }
   /* Manual */
@@ -4008,7 +4010,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.70 · lifetime-correct-pct";
+const APP_VERSION = "v2.71 · lifetime-stats-rework";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5100,17 +5102,24 @@ const DeckManager = (() => {
   // deck (permanent upgrades happen on the specs held by CampaignState).
   function create(specs, rng = Math.random) {
     let cards = shuffle(specs.map(toCard), rng);
+    // Lifetime/telemetry counter: how many cards have been pulled OUT of this
+    // deck (top or bottom draws) since it was created. Pure observation — does
+    // not affect order or composition; a returnCard() reinsertion is NOT
+    // un-counted, so a re-drawn card counts each time it leaves the deck.
+    let drawnCount = 0;
     return {
       /** Remove and return the top card, or null if empty. */
-      draw() { return cards.length ? cards.shift() : null; },
+      draw() { if (!cards.length) return null; drawnCount++; return cards.shift(); },
       /** Remove and return the BOTTOM card, or null if empty. Used by the Ace
           Tribute Pillar to move a card from the deck's bottom to a pile's
           bottom. The card is handed to the engine to re-seat WITHOUT ever being
           revealed (no order/identity is surfaced), so the no-look-ahead rule
           holds — composition shifts, order stays hidden. */
-      drawFromBottom() { return cards.length ? cards.pop() : null; },
+      drawFromBottom() { if (!cards.length) return null; drawnCount++; return cards.pop(); },
       /** How many cards remain in the draw deck. */
       remaining() { return cards.length; },
+      /** How many cards have been drawn from this deck so far (top + bottom). */
+      drawn() { return drawnCount; },
       isEmpty() { return cards.length === 0; },
       /** Count of remaining cards per rank value (order-free, no leak). */
       remainingCounts() {
@@ -6367,6 +6376,12 @@ const GameEngine = (() => {
         result: null,        // "win" | "loss" once ended
         correctGuesses: 0,
         totalGuesses: 0,
+        // Cards drawn during ACTIVE play (guess draws + bury/donate/reload —
+        // anything pulled from the deck after Start Run). `dealDraws` snapshots
+        // the initial deal's draws so they're excluded; `cardsDrawn` is the
+        // play-only total, finalized at run end for the lifetime "Cards drawn".
+        dealDraws: 0,
+        cardsDrawn: 0,
         // Explicit run-phase flags (not inferred from whether a guess has
         // happened). The run deals into the STICKER phase: started=false and
         // the sticker window open. startRun() flips both. The UI gates the
@@ -6489,6 +6504,9 @@ const GameEngine = (() => {
       run.started = true;
       run.stickerWindow = false;
       run.phase = "active";
+      // Snapshot the initial deal's draws so "cards drawn during play" excludes
+      // the face-up pile cards dealt before active play began.
+      run.dealDraws = deck.drawn();
       // Lock the per-column Pillar binding for the run (snapshot — later edits
       // to the campaign binding can't affect a run in progress). A plain copy
       // of the 3-slot array (column index → Pillar id | null).
@@ -6712,6 +6730,10 @@ const GameEngine = (() => {
 
     function evaluateEnd() {
       if (status !== "playing") return;
+      // Cards drawn during active play (excludes the initial deal). Recomputed
+      // on every call; the terminal call (the one that ends the run below)
+      // captures the final count for the lifetime "Cards drawn" tally.
+      if (run) run.cardsDrawn = deck.drawn() - (run.dealDraws || 0);
       // Death is checked BEFORE the end-of-deck clear: if the final deck card kills
       // the last alive pile, the kill has already resolved (board.kill ran before
       // this), so all-piles-dead is a LOSS — never a deal clear — even with an
@@ -7128,6 +7150,10 @@ const CampaignState = (() => {
     let totalCoinsEarned = 0;
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
+    // Lifetime-stats guard: has THIS campaign already been counted as a "run
+    // played"? Flips true on the first guess (UIRenderer) and persists with the
+    // save so a mid-deal resume can't double-count. Cleared by reset().
+    let playedCounted = false;
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
     let pillarInventory = {};      // { pillarTypeId: count } bought but not yet placed
     let baseInventory = {};        // { baseTypeId: count } bought but not yet placed
@@ -7181,6 +7207,12 @@ const CampaignState = (() => {
         totalCorrectGuesses += run.correctGuesses;
         runsCompleted += 1;
       },
+
+      /* ---- "run played" guard (lifetime stats) ----
+         True once this campaign's first guess has been counted as a run played.
+         Persisted, so a resume of the same campaign never re-counts it. */
+      isPlayedCounted() { return playedCounted; },
+      markPlayed() { playedCounted = true; },
 
       /** Tally cards flipped (correct guesses) for ANY run end — win or loss —
           so the end screen counts the final losing run too. */
@@ -7867,6 +7899,7 @@ const CampaignState = (() => {
         totalCoinsEarned = 0;
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
+        playedCounted = false;
         stickerInventory = {};
         pillarInventory = {};
         baseInventory = {};
@@ -7890,6 +7923,7 @@ const CampaignState = (() => {
           totalCorrectGuesses, runsCompleted,
           totalCardsFlipped, totalCoinsEarned,
           coins,
+          playedCounted,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
           baseInventory: { ...baseInventory },
@@ -7923,6 +7957,7 @@ const CampaignState = (() => {
         totalCardsFlipped = s.totalCardsFlipped || 0;
         totalCoinsEarned = s.totalCoinsEarned || 0;
         coins = s.coins || 0;
+        playedCounted = !!s.playedCounted;   // default false for pre-guard saves
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
         baseInventory = { ...(s.baseInventory || {}) };       // default {} for pre-Bases saves
@@ -8025,6 +8060,7 @@ const Stats = (() => {
     gamesPlayed: 0, campaignsWon: 0, runsCleared: 0,
     bestRunDopamine: 0, bestCampaignDopamine: 0,
     lifetimeDopamine: 0, lifetimeCardsFlipped: 0,
+    lifetimeCardsDrawn: 0,
     lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
   };
@@ -8039,8 +8075,10 @@ const Stats = (() => {
   const rank = (st, rn) => st * 100 + rn;
   return {
     get,
-    /** A new campaign was started. */
-    startGame() { const s = get(); s.gamesPlayed++; put(s); },
+    /** A run counts as "played" only once the player makes their FIRST guess of
+        the campaign (opening the map / browsing and backing out never counts).
+        Called once per campaign, guarded by campaign.isPlayedCounted(). */
+    runPlayed() { const s = get(); s.gamesPlayed++; put(s); },
     /** A run was cleared (won). `dopamine` = that run's payout total. */
     runCleared(dopamine, stage, run) {
       const s = get();
@@ -8061,9 +8099,13 @@ const Stats = (() => {
     },
     /** Add to the lifetime cards-flipped tally (called once per campaign end). */
     addCardsFlipped(n) { const s = get(); s.lifetimeCardsFlipped += Math.max(0, n || 0); put(s); },
-    /** Add a deal's guesses to the lifetime tally (every deal end — win or loss). */
-    addGuesses(correct, total) {
+    /** Fold a finished deal's draw/guess counts into the lifetime tallies (every
+        deal end — win or loss). `drawn` = cards drawn during play (guesses plus
+        non-guess movements like bury/donate); `correct`/`total` are the guess
+        accuracy numerator/denominator (total = correct + wrong). */
+    addDeal(drawn, correct, total) {
       const s = get();
+      s.lifetimeCardsDrawn += Math.max(0, drawn || 0);
       s.lifetimeCorrectGuesses += Math.max(0, correct || 0);
       s.lifetimeGuesses += Math.max(0, total || 0);
       put(s);
@@ -11008,6 +11050,15 @@ const UIRenderer = (() => {
         break;
 
       case "resolved": {
+        // First guess of the campaign → NOW it counts as a run played. Opening
+        // the map / browsing without ever guessing never reaches here, so it
+        // never counts. Guarded + persisted on the campaign so a mid-deal resume
+        // (which re-plays the deal) can't double-count the same run.
+        if (campaign && !campaign.isPlayedCounted()) {
+          campaign.markPlayed();
+          Stats.runPlayed();
+          persistCampaign("run");
+        }
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
         const reduce = prefersReduce();
@@ -11828,14 +11879,13 @@ const UIRenderer = (() => {
   function startCampaign() {
     hideMainMenu();   // every entry path leaves the title menu (so the board, once
                       // dealt, is the active surface and its card motion runs)
-    // First-time players (never started a game before) get the How to Play
+    // First-time players (never played a guess before) get the How to Play
     // walkthrough on New Game, with a Skip — then on to the map. It never
-    // auto-shows again (it stays available from the menu). Read BEFORE
-    // Stats.startGame() bumps the counter.
+    // auto-shows again once they've actually played (gamesPlayed now bumps on
+    // the first guess, not here — see the "resolved" handler).
     let firstTime = false;
     try { firstTime = Stats.get().gamesPlayed === 0; } catch (e) { firstTime = false; }
     clearSave();          // a fresh campaign supersedes any saved one
-    Stats.startGame();    // lifetime: count this as a game played (isolated store)
     track("game_started");   // analytics (fail-silent)
     campaign.reset();
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
@@ -12978,8 +13028,9 @@ const UIRenderer = (() => {
     // Cards flipped (correct guesses) are tallied for EVERY run end — including
     // the final losing run — so the end screen reflects all runs played.
     campaign.addCardsFlipped(payload.run.correctGuesses);
-    // Lifetime guess accuracy: every deal's guesses (correct + total), win OR loss.
-    Stats.addGuesses(payload.run.correctGuesses, payload.run.totalGuesses);
+    // Lifetime draw + guess tallies: every deal's cards drawn during play, plus
+    // its guess accuracy (correct + total), win OR loss.
+    Stats.addDeal(payload.run.cardsDrawn, payload.run.correctGuesses, payload.run.totalGuesses);
 
     // LOSS ends the campaign. We deliberately do NOT record or advance: the
     // failed screen reads the stage/run we died on, and "New Campaign" funnels
@@ -14425,15 +14476,20 @@ const UIRenderer = (() => {
   /* ---- Stats screen (§9) ---- */
   function showStats() {
     const s = Stats.get();
+    // Win rate over counted runs only (gamesPlayed bumps on the first guess).
     const wr = s.gamesPlayed ? Math.round(100 * s.campaignsWon / s.gamesPlayed) : 0;
+    // True guess accuracy: correct ÷ (correct + wrong). lifetimeGuesses is the
+    // total guesses (= correct + wrong) — non-guess card moves are not counted.
     const acc = s.lifetimeGuesses ? Math.round(100 * s.lifetimeCorrectGuesses / s.lifetimeGuesses) : 0;
-    const far = s.furthestStage ? ("S" + s.furthestStage + " · D" + s.furthestRun) : "—";
+    // Inline secondary percentage shown after a count (e.g. "12 48%").
+    const pct = (n) => ' <span class="pct">' + n + '%</span>';
     const tiles = [
-      [s.gamesPlayed, "Runs played"], [s.campaignsWon, "Runs won"],
-      [wr + "%", "Win rate"], [far, "Furthest reached"],
-      [s.runsCleared, "Deals cleared"], [s.bestRunDopamine, "Best deal"],
-      [s.bestCampaignDopamine, "Best run"], [s.lifetimeDopamine, "Lifetime coins"],
-      [s.lifetimeCardsFlipped, "Cards played"], [acc + "%", "Correct guesses"],
+      [s.gamesPlayed, "Runs played"],
+      [s.campaignsWon + pct(wr), "Runs won"],
+      [s.lifetimeCardsDrawn, "Cards drawn"],
+      [s.lifetimeCorrectGuesses + pct(acc), "Correct draws"],
+      [s.lifetimeDopamine, "Lifetime coins"],
+      [s.bestCampaignDopamine, "Most coins in a run"],
     ];
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
