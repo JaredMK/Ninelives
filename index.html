@@ -4036,7 +4036,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.75 · store-pillar-render";
+const APP_VERSION = "v2.76 · run-mods-and-fibonacci";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4629,11 +4629,13 @@ const PillarTypes = (() => {
       description: "+20 coins if every pile in this column survives the deal and no other Pillar is on the board.",
     },
     fibonacci: {
-      // Live: +1 coin each time a Fibonacci-rank drawn card (A=1, 2, 3, 5, 8)
-      // lands correctly in this column. No streak, no escalation, no reset.
+      // Live: +1 coin each time a Fibonacci-rank card (A=1, 2, 3, 5, 8) is DRAWN
+      // into this column — a running total across the deal, paid the moment it's
+      // drawn, whether the guess is right or wrong and whether the pile lives or
+      // dies. No streak, no escalation, no reset.
       id: "fibonacci", label: "Fibonacci", icon: "🌀",
       kind: "live", effect: "fibonacci", value: 1, tier: "rare", price: 12,
-      description: "+1 coin when a Fibonacci-rank drawn card (A/2/3/5/8) lands correctly in this column.",
+      description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) is drawn into this column, paid live as it's drawn (however the guess resolves).",
     },
     highestOdd: {
       // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
@@ -4868,7 +4870,7 @@ const BaseTypes = (() => {
     setValue: {
       id: "setValue", label: "Cast", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 18,
-      description: "Set every pile card in this column to the same value (rolled at the start of the run, shown to you).",
+      description: "Set every pile card in this column to the same secret value — a blind gamble. You won't see the new rank until those cards come up in play. The change lasts the rest of the run.",
     },
     stickerHarvest: {
       id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
@@ -5458,15 +5460,13 @@ const GameEngine = (() => {
     }
     /** Expansion LIVE Pillars on a correct landing: Prime / Royal Court (coins),
         Queen's Eye (peek), Same Spark (spray stickers in-column). `pillar` is the
-        Ditto-resolved def for the pile's column. */
+        Ditto-resolved def for the pile's column. (Fibonacci is NOT here — it pays
+        on every DRAW into the column, win or lose; see the per-draw hook in guess.) */
     function maybeLivePillarExtras(index, pillar, drawn, guess, isTie, col) {
       if (!pillar || col == null) return;
       const v = drawn.value;
       if (pillar.effect === "prime" && (v === 2 || v === 3 || v === 5 || v === 7)) {
         payPillar(col, "prime", pillar.label, pillar.value || 1);
-      } else if (pillar.effect === "fibonacci" && (v === 14 || v === 2 || v === 3 || v === 5 || v === 8)) {
-        // Fibonacci-rank drawn card lands (Ace counts as 1): +1, flat — no streak.
-        payPillar(col, "fibonacci", pillar.label, pillar.value || 1);
       } else if (pillar.effect === "royalCourt" && v >= 11 && v <= 13) {
         payPillar(col, "royalCourt", pillar.label, pillar.value || 2);
       } else if (pillar.effect === "queensEye" && v === 12) {
@@ -6196,15 +6196,25 @@ const GameEngine = (() => {
           break;
         }
         case "setValue": {
-          const y = run.baseRandom ? run.baseRandom.value : 0;
+          // Blind gamble: roll THIS Cast's secret value NOW (independently each
+          // activation, so multiple Casts never share a value), and never surface
+          // it — the player sees the new rank only as the cards come up in play.
+          const y = 2 + Math.floor(rng() * 13);   // 2..14 (matches the deck's rank range)
           const rk = DeckManager.RANKS.find(x => x.value === y);
+          const applied = [];
           for (const i of colAlivePiles(col)) {
             const top = board.top(i);
             top.value = y;
             if (rk) top.label = rk.label;
+            applied.push({ cardId: top.id, value: y });
           }
-          res.value = y;
-          logLine("set every pile card in the column to " + (rk ? rk.label : y));
+          // Durable run-level modification: the new value rides each card's
+          // identity for the REST OF THE RUN (the UI writes it to the persistent
+          // deck on this event — not just the current deal's board card).
+          res.valueApplied = applied;
+          // NB: no res.value / rank in the log — the gamble stays hidden (the
+          // logbook's no-revelation rule: hidden moves are counts only).
+          logLine("set " + applied.length + " pile card" + (applied.length === 1 ? "" : "s") + " in the column to a hidden value");
           break;
         }
         case "stickerHarvest": {
@@ -6695,6 +6705,14 @@ const GameEngine = (() => {
       if (pillar && pillar.effect === "static") {
         const chance = 0.10 * (drawn.stickers ? drawn.stickers.length : 0);
         if (chance > 0 && rng() < chance) peekPillar(col, pillar);
+      }
+
+      // Fibonacci: +value the moment a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) is
+      // DRAWN into this column — paid live, a running total across the deal,
+      // regardless of whether the guess is correct or the pile later dies.
+      if (pillar && pillar.effect === "fibonacci"
+          && (drawn.value === 14 || drawn.value === 2 || drawn.value === 3 || drawn.value === 5 || drawn.value === 8)) {
+        payPillar(col, "fibonacci", pillar.label, pillar.value || 1);
       }
 
       // Column Tie-Safe Pillar: a directional guess that hit a tie and survived
@@ -9302,14 +9320,9 @@ const UIRenderer = (() => {
     const inSetup = engine && engine.canApplyStickers();
     const started = engine && engine.isRunStarted && engine.isRunStarted();
     const run = engine && engine.getRun ? engine.getRun() : null;
-    // Surface this deal's roll for the randomized Bases.
-    const br = engine && engine.baseRandom ? engine.baseRandom() : null;
-    let roll = "";
-    if (br && t.effect === "setValue") {
-      const rk = DeckManager.RANKS.find(x => x.value === br.value);
-      roll = '<div class="pk-state">This deal: sets pile cards to ' + (rk ? rk.label : br.value) + ".</div>";
-    }
-    // (Suit Tally's live suit is already in its description via itemDescription.)
+    // Cast (setValue) is a hidden gamble — never reveal the rank it will set in
+    // advance. (Suit Tally's live suit is shown via itemDescription instead.)
+    const roll = "";
     let charge = "";
     if (started && run && run.basesUsed) {
       charge = run.basesUsed[col]
@@ -11200,6 +11213,25 @@ const UIRenderer = (() => {
           case "randomStickerAll":
             pulseBaseColumn(payload.col);
             break;
+        }
+
+        // Durable card modifications (Cast's value change, Sticker Storm / Wild
+        // Sticker's stickers) must last the REST OF THE RUN, not just this deal.
+        // The engine only mutated the deal-level board card; write the SAME change
+        // onto the PERSISTENT campaign card here so it survives every redeal. A
+        // loss wipes it (reset), exactly like every other card mutation. Then
+        // refresh the histogram so a value change shows in the composition NOW.
+        if (campaign) {
+          let deckChanged = false;
+          for (const v of (payload.valueApplied || [])) {
+            if (campaign.randomizeCard(v.cardId, v.value)) deckChanged = true;
+          }
+          const stickerAdds = payload.stickersApplied
+            || (payload.stickerApplied ? [payload.stickerApplied] : []);
+          for (const a of stickerAdds) {
+            if (campaign.applySticker(a.cardId, a.typeId)) deckChanged = true;
+          }
+          if (deckChanged) renderDeckStrip();   // recompute composition immediately
         }
 
         persistCampaign("run");

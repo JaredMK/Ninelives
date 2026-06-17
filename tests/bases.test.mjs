@@ -221,14 +221,20 @@ export function run() {
     r.eq(e.getRun().bonusCoins, -15, "lost 5 coins per pile buried under");
   }
 
-  // --- effect: Set Value (every pile card in the column → rolled value) --
+  // --- effect: Set Value (every pile card in the column → one rolled value) --
+  // Cast rolls its OWN hidden value at activation (no shared baseRandom) and
+  // records it per card in res.valueApplied for the durable run-level write-back.
   {
     const e = game(["setValue", null, null]);
-    e.getRun().baseRandom.value = 9;   // pin the rolled value
     const b = e.getBoard();
     for (const i of [0, 1, 2]) b.piles[i].cards = [card(3, "♠")];
-    e.baseActivate(0);
-    r.ok([0, 1, 2].every(i => b.top(i).value === 9), "all pile cards set to the rolled value");
+    const res = e.baseActivate(0);
+    const y = res.valueApplied[0].value;
+    r.ok(y >= 2 && y <= 14, "Cast rolled a value in range (2..Ace)");
+    r.ok([0, 1, 2].every(i => b.top(i).value === y), "all pile cards set to the one rolled value");
+    r.eq(res.valueApplied.length, 3, "all three column cards recorded for run-level persistence");
+    r.ok(res.valueApplied.every(v => v.value === y && b.piles.some(p => p.cards[0].id === v.cardId)),
+      "each recorded change carries the card id + the rolled value");
   }
 
   // --- effect: Sticker Harvest (bury per sticker, then strip them) -------

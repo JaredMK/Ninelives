@@ -27,6 +27,7 @@ import { run as expansionBases } from "./expansion-bases.test.mjs";
 import { run as lifetimeStats } from "./lifetime-stats.test.mjs";
 import { run as broadcast } from "./broadcast.test.mjs";
 import { run as peekPillars } from "./peek-pillars.test.mjs";
+import { run as runMods } from "./run-mods.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -54,6 +55,7 @@ const SUITES = [
   ["lifetime-stats", lifetimeStats],
   ["broadcast", broadcast],
   ["peek-pillars", peekPillars],
+  ["run-mods", runMods],
 ];
 
 let pass = 0,

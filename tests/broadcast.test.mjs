@@ -46,22 +46,22 @@ export function run() {
   //     from the Broadcast pillar, proving placement doesn't matter ---------
   {
     const e = game([null, "broadcast", null], ["setValue", null, null]);
-    e.getRun().baseRandom.value = 9;                       // pin the rolled value
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.piles[i].cards = [card(3, "♠")];
-    e.baseActivate(0);                                     // Cast lives in col 0
-    r.ok([0,1,2,3,4,5,6,7,8,9].every(i => b.top(i).value === 9),
-      "Broadcast: Cast set EVERY pile on the board to the rolled value");
+    const res = e.baseActivate(0);                         // Cast lives in col 0
+    const y = res.valueApplied[0].value;                  // Cast's own rolled value
+    r.ok([0,1,2,3,4,5,6,7,8,9].every(i => b.top(i).value === y),
+      "Broadcast: Cast set EVERY pile on the board to its rolled value");
   }
 
   // --- Control: without Broadcast, Cast stays inside its own column -------
   {
     const e = game([null, null, null], ["setValue", null, null]);
-    e.getRun().baseRandom.value = 9;
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.piles[i].cards = [card(3, "♠")];
-    e.baseActivate(0);
-    r.ok([0,1,2].every(i => b.top(i).value === 9), "no Broadcast: col-0 piles set");
+    const res = e.baseActivate(0);
+    const y = res.valueApplied[0].value;
+    r.ok([0,1,2].every(i => b.top(i).value === y), "no Broadcast: col-0 piles set");
     r.ok([3,4,5,6,7,8,9].every(i => b.top(i).value === 3), "no Broadcast: other columns untouched");
   }
 
