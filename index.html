@@ -4028,7 +4028,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.73 · broadcast-pillar";
+const APP_VERSION = "v2.74 · peek-pillars";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4744,6 +4744,30 @@ const PillarTypes = (() => {
       kind: "modifier", effect: "broadcast", tier: "rare", price: 18,
       description: "While in play, every one of your column Bases reaches the WHOLE board, not just its own column — so Upheaval shuffles every pile on the board, Cast sets every pile, Phoenix can revive any dead pile, and so on. Each Base still fires once per deal. Bases that are already board-wide (Kamikaze, Tax) are unchanged. It works the same in any column.",
     },
+    unearth: {
+      // Live, column-scoped: every BURY under a pile in this column (whatever
+      // caused it — 8 Bury, a Dig, Sinkhole, a Base, …) rolls a single 50%
+      // chance to peek the next upcoming card via the standard deck-reveal.
+      id: "unearth", label: "Unearth", icon: "🪏",
+      kind: "live", effect: "unearth", tier: "rare", price: 7,
+      description: "Whenever a card is buried in this column, a 50% chance to peek at the next upcoming card.",
+    },
+    lastRites: {
+      // Live, column-scoped: whenever a pile in this column DIES (a fatal wrong
+      // guess, or a Kamikaze sacrifice), peek the next upcoming card. Always
+      // fires on a death — no roll.
+      id: "lastRites", label: "Last Rites", icon: "🕯️",
+      kind: "live", effect: "lastRites", tier: "rare", price: 5,
+      description: "Whenever a pile in this column dies, peek at the next upcoming card.",
+    },
+    static: {
+      // Live, column-scoped: when a card is DRAWN into this column, roll ONCE to
+      // peek the next upcoming card, with a 10% chance per sticker on that drawn
+      // card (0 stickers → never; 3 stickers → 30%, single roll).
+      id: "static", label: "Static", icon: "🔌",
+      kind: "live", effect: "static", tier: "rare", price: 6,
+      description: "When a card is drawn into this column, peek at the next upcoming card — a 10% chance per sticker on that drawn card, rolled once.",
+    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Kamikaze used to live here as a Pillar; it is now a Base (see BaseTypes).
@@ -4753,7 +4777,8 @@ const PillarTypes = (() => {
     "envy", "symmetry", "streakBank", "streakTribute", "secondWind", "greedy",
     "fibonacci", "highestOdd", "highestEven", "denseBury", "revive",
     "sameSpark", "insurance", "ditto", "stickerCount", "prime",
-    "queensEye", "royalCourt", "excavator", "echo", "gambler", "broadcast"];
+    "queensEye", "royalCourt", "excavator", "echo", "gambler", "broadcast",
+    "unearth", "lastRites", "static"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -5492,6 +5517,12 @@ const GameEngine = (() => {
       }
       if (buried > 0) {
         logLine((source ? source + ": " : "") + buried + " card" + (buried > 1 ? "s" : "") + " buried, deck −" + buried);
+        // Unearth: any bury under a pile in this column (whatever the source) rolls
+        // ONCE for a 50% chance to peek the next upcoming card. Set before the
+        // "buried" emit so the reveal is up when the UI renders the bury.
+        const ucol = run && run.pileColumns ? run.pileColumns[index] : null;
+        const udef = resolvePillarDef(ucol);
+        if (udef && udef.effect === "unearth" && rng() < 0.5) peekPillar(ucol, udef);
         // Surface the bury so the UI can play a brief "tuck under the pile"
         // animation. Composition only — no card identities/order are emitted.
         emit("buried", { index, count: buried, source: source || "", board, deck, run });
@@ -5515,6 +5546,19 @@ const GameEngine = (() => {
     function firePillar(col, effect, label, amount) {
       if (col == null) return;
       emit("pillar-fired", { col, effect, label: label || "", amount: amount || 0, board, deck, run });
+    }
+
+    /** Arm a column-scoped peek Pillar (Unearth / Last Rites / Static): reveal
+        the next upcoming card on the deck via the EXISTING deck-reveal path (same
+        run.revealNextActive flag every peek uses) and pulse the firing column.
+        `def` is the (Ditto-resolved) Pillar def on `col`. Reuses the standard
+        peek + pulse-on-trigger — no new reveal behavior. */
+    function peekPillar(col, def) {
+      if (col == null || !def) return;
+      run.revealNextActive = true;            // standard deck-reveal (UI pulses on trigger)
+      firePillar(col, def.effect, def.label, 0);
+      recT("pillar", def.id, def.label, { peeks: 1 });
+      logLine((def.label || "Peek") + ": peeking the next upcoming card");
     }
 
     /** Second Wind: recycle a dying pile's cards (and the killing card) back into
@@ -6039,6 +6083,10 @@ const GameEngine = (() => {
         case "kamikaze": {
           board.kill(targetIndex);
           run.kamikazeRevealLeft = 3;                         // peek the next 3 draws (display-only)
+          // Last Rites on the SACRIFICED pile's column (any death counts).
+          { const kc = run.pileColumns ? run.pileColumns[targetIndex] : null;
+            const kd = resolvePillarDef(kc);
+            if (kd && kd.effect === "lastRites") peekPillar(kc, kd); }
           res.index = targetIndex;
           res.cards = deck.peek(3).map(c => ({ ...c }));      // read-only snapshot (no order change)
           logLine("killed pile " + (targetIndex + 1) + ", peeking the next 3 upcoming cards");
@@ -6633,6 +6681,14 @@ const GameEngine = (() => {
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
+      // Static: a card was drawn into this column — roll ONCE to peek the next
+      // upcoming card, 10% per sticker on the DRAWN card (correct or wrong; 0
+      // stickers never peeks). Set after the reveal reset above so it persists.
+      if (pillar && pillar.effect === "static") {
+        const chance = 0.10 * (drawn.stickers ? drawn.stickers.length : 0);
+        if (chance > 0 && rng() < chance) peekPillar(col, pillar);
+      }
+
       // Column Tie-Safe Pillar: a directional guess that hit a tie and survived
       // ONLY because the column carries a Tie-Safe Pillar (no Tie-Safe sticker in
       // play). Feedback only — the save already happened above.
@@ -6771,6 +6827,8 @@ const GameEngine = (() => {
         board.push(index, drawn);
         board.kill(index);
         logLine("→ pile died");
+        // Last Rites: a pile in this column just died — peek the next upcoming card.
+        if (pillar && pillar.effect === "lastRites") peekPillar(col, pillar);
         // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
         const db = drawn.stickers ? drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
         if (db > 0) { const t = StickerTypes.get("deathBounty"); const amt = db * ((t && t.value) || 0); addBonus("Last Coin", amt); recT("sticker", "deathBounty", (t && t.label) || "Last Coin", { coins: amt }); }
