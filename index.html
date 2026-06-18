@@ -243,12 +243,18 @@
   /* Layout 4 bottom band — the always-visible histogram fills the left, the
      face-down deck + count sits at the right; one shared row at the bottom. */
   /* Control row — FIXED height so Start↔guess never reflows the board. */
+  /* The control row is an ABSOLUTE overlay pinned to the bottom strip (over the
+     histogram band), so it reserves NO board height — the board fills the full
+     game area (the larger play size) identically in setup and play. It is empty
+     in play (taps fall through to the histogram); in setup it carries Start Deal /
+     Redeal / Place (its children re-enable pointer events). */
   .play-controls {
-    width: min(100%, 680px); margin: 0 auto;
-    height: var(--controls-h, 52px);
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; z-index: 6;
+    width: min(100%, 680px);
     display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-    gap: 8px; overflow: hidden;
+    gap: 8px; overflow: visible; pointer-events: none;
   }
+  .play-controls > * { pointer-events: auto; }
   /* First-turn help line, occupying the guess-button row before a pile is tapped. */
   .ctl-help {
     width: 100%; text-align: center; padding: 0 14px;
@@ -272,7 +278,9 @@
      the strip's bottom edge and let them grow UPWARD over the band above, on the
      same panel chip the other popups use. The strip's own height never changes,
      so the board never reflows; plain one-line prompts are untouched. */
-  .play-controls.prompting { position: relative; overflow: visible; }
+  /* The control row is already absolute (its own containing block); keep it that
+     way while prompting so it never re-enters flow and pushes the histogram. */
+  .play-controls.prompting { overflow: visible; }
   .action-prompt.with-help {
     position: absolute; bottom: 0; left: 0; right: 0; width: auto; z-index: 5;
     background: var(--panel); border: 1px solid var(--edge-2);
@@ -562,6 +570,7 @@
     width: 100%;
     padding: 10px;
     gap: 14px;
+    position: relative;   /* containing block for the absolute control row overlay */
   }
 
   /* Play row: the left rail beside the board, filling the play area's height.
@@ -613,7 +622,7 @@
      popup's floating base style (position:fixed; top:15%) is overridden to flow
      inside the band. Only applies in play (body.peek-band is set there only). */
   body.peek-band #histBand .deck-strip { display: none; }
-  body.guess-side #histBand .peek-info {
+  body.peek-band #histBand .peek-info {
     position: relative; left: auto; right: auto; top: auto; transform: none;
     flex: 1 1 auto; min-width: 0; width: auto; max-width: none; align-self: stretch;
     max-height: 100%; overflow-y: auto;
@@ -621,9 +630,9 @@
     border-radius: 10px; box-shadow: none; padding: 4px 10px; z-index: 1;
     font-size: 12px; line-height: 1.32;
   }
-  body.guess-side #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
-  body.guess-side #histBand .peek-info .pk-desc { font-size: 11.5px; margin-top: 0; }
-  body.guess-side #histBand .peek-info .pk-state { margin-top: 2px; }
+  body.peek-band #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
+  body.peek-band #histBand .peek-info .pk-desc { font-size: 11.5px; margin-top: 0; }
+  body.peek-band #histBand .peek-info .pk-state { margin-top: 2px; }
   body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: auto; background: none; border: none; padding: 0; }
   body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; }
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
@@ -656,21 +665,22 @@
   body.guess-side #histBand .ds-scrub { left: 50%; right: auto; top: auto; bottom: 100%;
     transform: translateX(-50%); margin: 0 0 5px 0; }
 
-  /* Active play: the control row KEEPS its reserved height (it does NOT collapse).
-     Collapsing it only in play made fitBoard measure a taller board than setup, so
-     pressing Start shifted everything (the board grew by the row's height). Keeping
-     the row's height constant across setup→play means fitBoard reserves the same
-     space in both phases → zero layout shift on Start. The row's CONTENTS still
-     swap (the first-turn hint is dropped; the activation prompt overlays the now-
-     empty row), but its SIZE stays put. */
-  body.guess-side.play-active .play-controls { overflow: visible; position: relative; }
+  /* The control row floats over the bottom strip (see .play-controls) and reserves
+     NO board height, so the board fills the same full (larger) area in setup AND
+     play with no resize on Start. In idle play it is empty + click-through (the
+     histogram shows through). When it carries content — Start Deal/Redeal in setup
+     or an activation prompt — it gets an opaque panel backing so it reads cleanly. */
   body.guess-side.play-active .ctl-help { display: none; }
-  body.guess-side.play-active .play-controls.prompting { overflow: visible; }
-  body.guess-side.play-active .play-controls .action-prompt:not(.hidden) {
-    position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; width: auto; z-index: 8;
+  body.guess-side:not(.play-active) .play-controls,
+  body.guess-side .play-controls.prompting {
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 8px 12px;
+    box-shadow: var(--shadow); padding: 6px 8px;
   }
+  /* In SETUP the opaque control bar takes the bottom strip's place, so hide the
+     histogram + deck beneath it (the board has already reclaimed the control-row
+     space). Play shows the histogram normally. */
+  body.guess-side:not(.play-active) #histBand > .deck-strip,
+  body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: hidden; }
 
   /* Per-run layout: three side-by-side COLUMNS, vertically centered against
      each other so uneven columns stagger-center (the 3-pile outer columns
@@ -4082,7 +4092,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.77 · batch-fixes-ui";
+const APP_VERSION = "v2.78 · play-size-board";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13140,17 +13150,18 @@ const UIRenderer = (() => {
     // so the board size never recomputes on inventory / imprint / swap / Start:
     const header = document.querySelector("header");
     const hud = document.querySelector(".hud");
-    // Control row + bottom region are both fixed-height containers (their CONTENTS
-    // swap by phase, their SIZE does not), so the reservation below is constant.
-    const controls = main.querySelector(".play-controls");
-    const controlH = controls ? oh(controls) : 0;
+    // The control row is an ABSOLUTE overlay pinned to the bottom strip (it no
+    // longer reserves board height), so the board fills the SAME full area — the
+    // larger play size — in setup AND play, with no resize on Start. Only the
+    // bottom region + histogram band reserve vertical space.
     const bottomRegionH = el.bottomRegion ? oh(el.bottomRegion) : 0;
     // Side-guess layout reserves a bottom histogram band (constant in both phases).
     const histBandH = (el.histBand && !el.histBand.classList.contains("hidden")) ? oh(el.histBand) : 0;
-    const belowH = controlH + bottomRegionH + histBandH;
-    // main's in-flow children: the play-row, the control row, (setup only) the
-    // bottom inventory band, and the bottom histogram band (side-guess layout).
-    const visibleChildren = 2 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0);
+    const belowH = bottomRegionH + histBandH;
+    // main's IN-FLOW children: the play-row, (setup only) the bottom inventory
+    // band, and the bottom histogram band. The control row is absolute (out of
+    // flow) → it does NOT add a flex gap.
+    const visibleChildren = 1 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // Breathing margin: no-scroll is the priority, so trade a little board size
