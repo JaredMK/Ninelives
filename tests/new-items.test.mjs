@@ -104,28 +104,28 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 5, "Highest Odd counts only TOP cards (buried 9 ignored → highest odd top = 5)");
   }
 
-  // --- Dense Bury: a 3+ sticker landing buries 1 from the deck bottom ----
+  // --- Dense Bury: a 2+ sticker landing buries 1 from the deck bottom ----
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["denseBury", null, null]);
     e.getBoard().top(0).value = 5;
     const d = e.debug.setNextCard(9);
-    d.stickers = [{ type: "heavy" }, { type: "gainCoin" }, { type: "tieSafe" }];   // 3 stickers
+    d.stickers = [{ type: "heavy" }, { type: "tieSafe" }];   // 2 stickers (the new threshold)
     const before = e.getBoard().piles[0].cards.length;
     e.guess(0, "higher");
-    r.eq(e.getBoard().piles[0].cards.length, before + 2, "3-sticker landing buries 1 (pile +2: drawn + buried)");
-    r.eq(e.getRun().denseBuryUsed[0], 1, "Dense Bury firing counted");
+    r.eq(e.getBoard().piles[0].cards.length, before + 2, "2-sticker landing buries 1 (pile +2: drawn + buried)");
+    r.eq(e.getRun().denseBuryUsed[0], 1, "Dense Bury fires at 2 stickers");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["denseBury", null, null]);
     e.getBoard().top(0).value = 5;
     const d = e.debug.setNextCard(9);
-    d.stickers = [{ type: "heavy" }, { type: "tieSafe" }];   // only 2
+    d.stickers = [{ type: "heavy" }];   // only 1 — below the 2+ threshold
     const before = e.getBoard().piles[0].cards.length;
     e.guess(0, "higher");
-    r.eq(e.getBoard().piles[0].cards.length, before + 1, "2 stickers → no Dense Bury (pile +1: drawn only)");
-    r.eq(e.getRun().denseBuryUsed[0], 0, "no Dense Bury firing under 3 stickers");
+    r.eq(e.getBoard().piles[0].cards.length, before + 1, "1 sticker → no Dense Bury (pile +1: drawn only)");
+    r.eq(e.getRun().denseBuryUsed[0], 0, "no Dense Bury firing under 2 stickers");
   }
 
   // --- Random Suit (re-added): changeSuitRandom ------------------------

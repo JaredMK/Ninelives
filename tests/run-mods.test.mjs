@@ -68,14 +68,22 @@ export function run() {
 
   // --- #3 Multiple Casts roll INDEPENDENT values ------------------------
   {
-    // Two Casts in one deal. A shared per-deal roll would force equal values;
-    // independent rolls (consecutive rng draws) differ for this seed.
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 7, { cols: COLS });
-    e.start();
-    e.startRun([null, null, null], ["setValue", "setValue", null]);   // Cast on col 0 AND col 1
-    const a = e.baseActivate(0).valueApplied[0].value;
-    const b = e.baseActivate(1).valueApplied[0].value;
-    r.ok(a !== b, "two Casts rolled independent values (got " + a + " and " + b + ", not a shared roll)");
+    // Two Casts in one deal each roll their OWN value. A SHARED per-deal roll
+    // would force a === b on EVERY deal; independent rolls differ on at least some
+    // deals. (Robust: 10 piles = sum(COLS) so both columns are live, and we loop
+    // fresh deals — each a fresh random seed — until a pair differs.)
+    let differs = false, both = 0;
+    for (let i = 0; i < 20 && !differs; i++) {
+      const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: COLS });
+      e.start();
+      e.startRun([null, null, null], ["setValue", "setValue", null]);   // Cast on col 0 AND col 1
+      const ra = e.baseActivate(0), rb = e.baseActivate(1);
+      if (!ra || !rb) continue;
+      both++;
+      if (ra.valueApplied[0].value !== rb.valueApplied[0].value) differs = true;
+    }
+    r.ok(both > 0, "both Casts activated (10-pile board has live cols)");
+    r.ok(differs, "two Casts roll INDEPENDENT values (some deal gives a≠b — a shared roll never could)");
   }
 
   // --- #5 Fibonacci pays LIVE per fib-rank draw, win or lose -------------

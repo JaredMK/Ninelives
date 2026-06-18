@@ -466,6 +466,19 @@
   }
   .deck-pile.peek-pulse { animation: deckPeekPulse 0.55s ease; }
   @media (prefers-reduced-motion: reduce) { .deck-pile.peek-pulse { animation: none; } }
+  /* Peek SUSTAINED glow: while a peek is actively showing the upcoming card, the
+     whole deck GLOWS continuously (a clearly visible violet halo that breathes),
+     settling only when the peek ends — much stronger + persistent than the
+     one-shot trigger pulse, so the small corner deck can't be missed. The
+     `.revealed` class is on the deck stack the entire time the face is up. */
+  @keyframes deckPeekGlow {
+    0%, 100% { filter: drop-shadow(0 0 5px rgba(133,104,192,0.62)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(133,104,192,1)); }
+  }
+  .deck-stack.revealed { animation: deckPeekGlow 1.3s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .deck-stack.revealed { animation: none; filter: drop-shadow(0 0 9px rgba(133,104,192,0.95)); }
+  }
 
   /* ============================================================
      DECK COMPOSITION STRIP — thin always-on bar graph at the bottom.
@@ -594,6 +607,23 @@
   .hist-band { width: min(99vw, 540px); margin: 5px auto 0; display: flex; align-items: stretch; gap: 8px;
     background: rgba(248,242,235,0.5); border: 1px solid var(--edge-2); border-radius: 14px; padding: 6px 9px; }
   .hist-band.hidden { display: none; }
+  /* #6 — Hold-to-see-help takes over the HISTOGRAM's room in active play: while a
+     help peek is held, the strip is hidden and the help flows into the band (more
+     room than the cramped floating popup); on release the histogram returns. The
+     popup's floating base style (position:fixed; top:15%) is overridden to flow
+     inside the band. Only applies in play (body.peek-band is set there only). */
+  body.peek-band #histBand .deck-strip { display: none; }
+  body.guess-side #histBand .peek-info {
+    position: relative; left: auto; right: auto; top: auto; transform: none;
+    flex: 1 1 auto; min-width: 0; width: auto; max-width: none; align-self: stretch;
+    max-height: 100%; overflow-y: auto;
+    background: rgba(251,246,241,0.99); border: 1px solid var(--edge-2);
+    border-radius: 10px; box-shadow: none; padding: 4px 10px; z-index: 1;
+    font-size: 12px; line-height: 1.32;
+  }
+  body.guess-side #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
+  body.guess-side #histBand .peek-info .pk-desc { font-size: 11.5px; margin-top: 0; }
+  body.guess-side #histBand .peek-info .pk-state { margin-top: 2px; }
   body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: auto; background: none; border: none; padding: 0; }
   body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; }
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
@@ -626,11 +656,14 @@
   body.guess-side #histBand .ds-scrub { left: 50%; right: auto; top: auto; bottom: 100%;
     transform: translateX(-50%); margin: 0 0 5px 0; }
 
-  /* Active play: collapse the (otherwise empty) control row so the board fills
-     the whole height down to the control strip. The first-turn hint is dropped
-     (the greyed buttons already say "select a pile"); the activation prompt
-     overlays the control strip when it fires, so it never covers the board. */
-  body.guess-side.play-active .play-controls { height: 0; min-height: 0; padding: 0; overflow: visible; position: relative; }
+  /* Active play: the control row KEEPS its reserved height (it does NOT collapse).
+     Collapsing it only in play made fitBoard measure a taller board than setup, so
+     pressing Start shifted everything (the board grew by the row's height). Keeping
+     the row's height constant across setup→play means fitBoard reserves the same
+     space in both phases → zero layout shift on Start. The row's CONTENTS still
+     swap (the first-turn hint is dropped; the activation prompt overlays the now-
+     empty row), but its SIZE stays put. */
+  body.guess-side.play-active .play-controls { overflow: visible; position: relative; }
   body.guess-side.play-active .ctl-help { display: none; }
   body.guess-side.play-active .play-controls.prompting { overflow: visible; }
   body.guess-side.play-active .play-controls .action-prompt:not(.hidden) {
@@ -1648,7 +1681,8 @@
     margin-top: 4px;
   }
 
-  /* End-of-campaign "Ending Pillars" — one tidy row per column. */
+  /* End-of-campaign "Ending Board" — laid out like the play board: Pillars across
+     the TOP, Bases across the BOTTOM, each in its column position. */
   .end-pillars { margin-top: 12px; }
   .end-pillars .summary-label { margin-bottom: 5px; }
   .ep-cols {
@@ -1656,14 +1690,24 @@
     background: var(--panel); border-radius: 12px;
     padding: 8px 10px; box-shadow: var(--shadow);
   }
-  .ep-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .ep-col {
-    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  .ep-band { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .ep-cell {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; text-align: center; min-height: 40px; padding: 4px 3px; border-radius: 8px;
+    background: rgba(74,52,44,0.05); border: 1px solid var(--edge);
+  }
+  .ep-cell.empty { background: none; border-style: dashed; }
+  .ep-cell .ep-icon { font-size: 17px; line-height: 1; }
+  .ep-cell .ep-name { font-size: 9.5px; font-weight: 800; line-height: 1.12; color: var(--text); }
+  .ep-cell .ep-dash { color: var(--muted); font-weight: 700; }
+  /* Pillar row reads violet (pathway), Base row reads bronze — echoing the board. */
+  .ep-pillars .ep-cell:not(.empty) { border-color: var(--pathway-2); background: rgba(110,81,166,0.08); }
+  .ep-bases .ep-cell:not(.empty) { border-color: #b07a3c; background: rgba(176,122,60,0.10); }
+  .ep-colnums { padding: 1px 0; }
+  .ep-colnum {
+    text-align: center; font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--muted); font-weight: 800;
   }
-  .ep-val { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; }
-  .ep-val.empty { color: var(--muted); font-weight: 600; }
-  .ep-val .ep-icon { font-size: 15px; }
 
   /* ============================================================
      STORE + STICKERS
@@ -2008,7 +2052,8 @@
   /* Pre-run pack tray: held pack cards to apply as deck replacements. */
   .pack-tray {
     display: flex; gap: 8px; justify-content: flex-start; align-items: center;
-    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior: contain; margin: 0; padding: 2px 1px;
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+    overscroll-behavior: contain; margin: 0; padding: 2px 1px;
   }
   /* In the setup Cards tab, cards are sized to fit the fixed bottom region under
      the tab bar (kept legible; the strip scrolls horizontally for many cards). */
@@ -2462,7 +2507,7 @@
     gap: 8px;
     justify-content: flex-start;
     flex-wrap: nowrap;            /* one compact row; scrolls inside the fixed region */
-    overflow-x: auto; overscroll-behavior: contain;
+    overflow-x: auto; overflow-y: hidden; touch-action: pan-x; overscroll-behavior: contain;
     max-width: 100%; margin: 0; padding: 1px;
   }
   .sticker-tray.hidden { display: none; }
@@ -2522,7 +2567,8 @@
      column to place. Same one-row, horizontally-scrolling strip as stickers. */
   .pillar-tray {
     display: flex; gap: 8px; justify-content: flex-start; flex-wrap: nowrap;
-    overflow-x: auto; overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
+    overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
+    overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
   }
   .pillar-tray.hidden { display: none; }
   .tray-pillar {
@@ -2546,7 +2592,7 @@
      bottom base slot to place. Same scrolling strip as Pillars, bronze identity. */
   .base-tray {
     display: flex; gap: 8px; justify-content: flex-start; flex-wrap: nowrap;
-    overflow-x: auto; overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
+    overflow-x: auto; overflow-y: hidden; touch-action: pan-x; overscroll-behavior: contain; max-width: 100%; margin: 0; padding: 1px;
   }
   .base-tray.hidden { display: none; }
   .tray-base {
@@ -3686,7 +3732,7 @@
         </div>
       </div>
       <div class="end-pillars">
-        <div class="summary-label">Ending Pillars</div>
+        <div class="summary-label">Ending Board</div>
         <div class="ep-cols" id="endPillars"></div>
       </div>
     </div>
@@ -4036,7 +4082,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.76 · run-mods-and-fibonacci";
+const APP_VERSION = "v2.77 · batch-fixes-ui";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4431,7 +4477,7 @@ const StickerTypes = (() => {
                   description: "On a correct placement in the middle column, bury 1 deck card under the pile." },
     deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 2,
                   description: "+5 coins when a wrong guess on this card kills the pile." },
-    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 4,
+    heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 3,
                   description: "Counts as 2 toward pile size everywhere, even buried." },
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
                   description: "When placed on a surviving pile card, +1 coin per other sticker on that card." },
@@ -4445,7 +4491,7 @@ const StickerTypes = (() => {
                   description: "Counts as every suit at once — satisfies any suit guard, suit Bonus Pillar, or all-suit Pillar." },
     shuffle:    { id: "shuffle",    label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 4,
                   description: "On a correct placement, optionally shuffle the pile so a different card tops it (order stays hidden)." },
-    donate:     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", tier: "uncommon", price: 4,
+    donate:     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", tier: "common", price: 2,
                   description: "On a correct placement, if this isn't the smallest pile, optionally move 1 buried card from it to the smallest pile (asked first)." },
     quickBury:  { id: "quickBury",  label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 4,
                   description: "On a correct placement, bury 1 deck card under the pile — then a 25% chance this sticker peels off (destroyed)." },
@@ -4465,7 +4511,7 @@ const StickerTypes = (() => {
                   description: "On a correct placement, copy one random sticker from the pile card onto this card, for this deal." },
     suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
                   description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
-    momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 5,
+    momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 3,
                   description: "On a correct placement, earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
@@ -4656,11 +4702,11 @@ const PillarTypes = (() => {
       description: "On a cleared deal, coins equal to the highest even-rank pile card (2/4/6/8/10) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify.",
     },
     denseBury: {
-      // Composition: when a correct guess lands a card carrying 3+ stickers on a
+      // Composition: when a correct guess lands a card carrying 2+ stickers on a
       // pile in this column, bury 1 deck-bottom card under it. Uncapped, no reveal.
       id: "denseBury", label: "Dense Bury", icon: "🧊",
       kind: "composition", effect: "denseBury", tier: "rare", price: 15,
-      description: "When a drawn card carrying 3+ stickers lands correctly in this column, bury 1 deck card under that pile.",
+      description: "When a drawn card carrying 2+ stickers lands correctly in this column, bury 1 deck card under that pile.",
     },
     revive: {
       // Guess-time, one-shot per deal: the first time a pile in this column reaches
@@ -5603,8 +5649,8 @@ const GameEngine = (() => {
           firePillar(col, "sameTribute", pillar.label, 0);
           recT("pillar", pillar.id, pillar.label, { buried: nb });
         }
-      } else if (pillar.effect === "denseBury" && (drawn.stickers ? drawn.stickers.length : 0) >= 3) {
-        // Dense Bury: a card carrying 3+ stickers just landed → bury 1 from the
+      } else if (pillar.effect === "denseBury" && (drawn.stickers ? drawn.stickers.length : 0) >= 2) {
+        // Dense Bury: a card carrying 2+ stickers just landed → bury 1 from the
         // deck bottom under this pile. Uncapped.
         const nb = buryTribute(index, 1, pillar.label);
         if (nb > 0) {
@@ -9144,6 +9190,10 @@ const UIRenderer = (() => {
     if (el.histBand) {
       if (el.deckStrip) el.histBand.appendChild(el.deckStrip);
       if (el.deckStat) el.histBand.appendChild(el.deckStat);
+      // The hold-to-see-help popup lives INSIDE the histogram band: while a help
+      // peek is held, it takes over the histogram's room (body.peek-band hides the
+      // strip); on release it reverts and the histogram returns. (See #peekInfo.)
+      if (el.peekInfo) el.histBand.appendChild(el.peekInfo);
       el.histBand.classList.remove("hidden");
     }
     if (rail && el.actions) rail.appendChild(el.actions);
@@ -9299,14 +9349,21 @@ const UIRenderer = (() => {
         ? '<button class="pk-unplace" data-unplace-col="' + col + '" type="button">Sell for ' + COIN_SVG + " " + sellValueOf(t) + "</button>"
         : '<div class="pk-state pk-locked">Locked in for this run.</div>');
   }
+  // In ACTIVE PLAY, the hold-help renders inside the histogram band (#6). In SETUP
+  // the peek is the management popup (with Sell/Peel) and stays a floating overlay.
+  function peekInBand() {
+    return !!(engine && engine.isRunStarted && engine.isRunStarted());
+  }
   function openCardPeek(index) {
     if (!engine) return;
     el.peekInfo.innerHTML = cardPeekHtml(engine.getBoard().top(index), index);
     el.peekInfo.classList.remove("hidden");
+    document.body.classList.toggle("peek-band", peekInBand());
   }
   function openPillarPeek(col) {
     el.peekInfo.innerHTML = pillarPeekHtml(col);
     el.peekInfo.classList.remove("hidden");
+    document.body.classList.toggle("peek-band", peekInBand());
   }
   /* The bottom-Base help popup: the Base's name + effect, this deal's rolled
      value/suit where relevant, its charged/spent state, and (in setup only) a
@@ -9339,8 +9396,9 @@ const UIRenderer = (() => {
   function openBasePeek(col) {
     el.peekInfo.innerHTML = basePeekHtml(col);
     el.peekInfo.classList.remove("hidden");
+    document.body.classList.toggle("peek-band", peekInBand());
   }
-  function closePeekInfo() { el.peekInfo.classList.add("hidden"); }
+  function closePeekInfo() { el.peekInfo.classList.add("hidden"); document.body.classList.remove("peek-band"); }
 
   /* ---- selection / action sheet ---- */
   /* Force-select a pile (no toggle): show the action row + enable the "?" info
@@ -10384,22 +10442,23 @@ const UIRenderer = (() => {
         if (!noticeActive) return;
         hideActionBar();
       }
-      // Tap a Pathway banner → toggle its description via the standard peek
-      // popup (a hold still peeks-while-held). Read-only; no state change.
       const setupWindow = engine && engine.canApplyStickers();
-      // Bottom BASE row: place (setup) / activate (play) / peek.
+      // Bottom BASE row: place (setup) / activate (play) / manage (setup popup).
       const baseCell = e.target.closest(".base-cell");
       if (baseCell) {
         const col = Number(baseCell.dataset.col);
         if (setupWindow && armedBaseItem) { placeBaseOnColumn(col); return; }
-        // Active play: an activatable Base opens its DECISION (help + Activate/
-        // Cancel) in the strip; any other Base shows its help in the strip.
         if (!setupWindow) {
-          if (engine && engine.baseAvailable && engine.baseAvailable(col)) { toggleArmBase(col); return; }
-          const bid = campaign && campaign.getColumnBases()[col];
-          if (bid) showHelpBar(BaseTypes.get(bid));
+          // ACTIVE PLAY: tapping an activatable Base opens its Activate/Cancel
+          // decision; otherwise a tap does NOTHING — a Base's HELP is HOLD-only
+          // (press-and-hold → openBasePeek). The old tap→showHelpBar strip help is
+          // gone, so play no longer shows different help on tap vs hold.
+          if (engine && engine.baseAvailable && engine.baseAvailable(col)) toggleArmBase(col);
           return;
         }
+        // SETUP: tap opens the Base's MANAGEMENT popup (info + Sell button). Tap and
+        // hold both open the SAME popup, so setup is internally consistent; the
+        // popup must stay open (toggle) so the Sell button is tappable.
         if (peekTapPile != null) peekTapPile = null;
         if (peekTapCol === ("b" + col)) { closePeekInfo(); peekTapCol = null; }
         else { openBasePeek(col); peekTapCol = "b" + col; }
@@ -10408,16 +10467,12 @@ const UIRenderer = (() => {
       const bpCell = e.target.closest(".bp-cell");
       if (bpCell) {
         const col = Number(bpCell.dataset.col);
-        // During setup, an armed Pillar drops onto the slot; otherwise setup taps
-        // open the help popup (which carries the Sell button).
         if (setupWindow && armedPillar) { placePillarOnColumn(col); return; }
-        if (!setupWindow) {
-          // Active play: this Pillar's help shows in the strip (contextual bar).
-          const pid = campaign && campaign.getColumnPillars()[col];
-          if (pid) showHelpBar(PillarTypes.get(pid));
-          return;
-        }
-        if (peekTapPile != null) peekTapPile = null;   // switching to a Pillar peek
+        // ACTIVE PLAY: a Pillar's HELP is HOLD-only (press-and-hold → openPillarPeek).
+        // A plain tap does NOTHING (the old tap→showHelpBar strip help is gone).
+        if (!setupWindow) return;
+        // SETUP: tap opens the Pillar's MANAGEMENT popup (info + Sell), same as hold.
+        if (peekTapPile != null) peekTapPile = null;
         if (peekTapCol === col) { closePeekInfo(); peekTapCol = null; }
         else { openPillarPeek(col); peekTapCol = col; }
         return;
@@ -10434,8 +10489,9 @@ const UIRenderer = (() => {
       else if (armedSticker) applyArmedSticker(index);
       else if (armedPack != null) attemptReplace(index);   // pre-run pack-card replacement
       else if (setupWindow) {
-        // Pre-run, nothing armed: tap a card to READ the stickers already on it
-        // (distinct from the placement flow, which arms a sticker first). Toggle.
+        // SETUP: tap a card to open its MANAGEMENT popup (the stickers on it + a
+        // "Peel off" button), same popup the hold shows — consistent in setup, and
+        // it must stay open so the Peel button is tappable. Toggle.
         if (peekTapPile === index) { closePeekInfo(); peekTapPile = null; }
         else { openCardPeek(index); peekTapPile = index; }
       }
@@ -10567,25 +10623,42 @@ const UIRenderer = (() => {
       const b = e.target.closest(".setup-tab");
       if (b && !b.classList.contains("empty")) selectBrowseTab(b.dataset.tab);
     });
-    if (el.browseStickers) el.browseStickers.addEventListener("click", (e) => {
-      const b = e.target.closest(".tray-sticker");
-      if (b) browsePickItem({ kind: "sticker", id: b.dataset.type });
+    // Inventory item help is HOLD-only (consistent with pillars/bases everywhere):
+    // press-and-hold a chip to show its description; release (or scroll) hides it.
+    // No tap-to-open help. A horizontal scroll-drag fires pointercancel → no help.
+    const INV_HOLD_MS = 180;
+    const attachBrowseHold = (container, resolvePick) => {
+      if (!container) return;
+      let holdT = null, shown = false;
+      const clearT = () => { if (holdT) { clearTimeout(holdT); holdT = null; } };
+      const hide = () => { clearT(); if (shown) { shown = false; browsePick = null; renderBrowse(); } };
+      container.addEventListener("pointerdown", (e) => {
+        const pick = resolvePick(e);
+        if (!pick) return;
+        clearT();
+        holdT = setTimeout(() => { holdT = null; shown = true; browsePick = pick; renderBrowse(); }, INV_HOLD_MS);
+      });
+      container.addEventListener("pointerup", hide);
+      container.addEventListener("pointerleave", hide);
+      container.addEventListener("pointercancel", hide);
+    };
+    attachBrowseHold(el.browseStickers, (e) => {
+      const b = e.target.closest(".tray-sticker"); return b ? { kind: "sticker", id: b.dataset.type } : null;
     });
-    if (el.browsePillars) el.browsePillars.addEventListener("click", (e) => {
+    attachBrowseHold(el.browsePillars, (e) => {
       const placed = e.target.closest(".tray-pillar.placed");
-      if (placed) { browsePickItem({ kind: "placed", col: Number(placed.dataset.placedCol) }); return; }
+      if (placed) return { kind: "placed", col: Number(placed.dataset.placedCol) };
       const held = e.target.closest(".tray-pillar");
-      if (held) browsePickItem({ kind: "pillar", id: held.dataset.pillar });
+      return held ? { kind: "pillar", id: held.dataset.pillar } : null;
     });
-    if (el.browseBases) el.browseBases.addEventListener("click", (e) => {
+    attachBrowseHold(el.browseBases, (e) => {
       const placed = e.target.closest(".tray-base.placed");
-      if (placed) { browsePickItem({ kind: "placedBase", col: Number(placed.dataset.placedBase) }); return; }
+      if (placed) return { kind: "placedBase", col: Number(placed.dataset.placedBase) };
       const held = e.target.closest(".tray-base");
-      if (held) browsePickItem({ kind: "base", id: held.dataset.base });
+      return held ? { kind: "base", id: held.dataset.base } : null;
     });
-    if (el.browseCards) el.browseCards.addEventListener("click", (e) => {
-      const b = e.target.closest(".pt-card");
-      if (b) browsePickItem({ kind: "card", index: Number(b.dataset.tray) });
+    attachBrowseHold(el.browseCards, (e) => {
+      const b = e.target.closest(".pt-card"); return b ? { kind: "card", index: Number(b.dataset.tray) } : null;
     });
     if (el.bThClose) el.bThClose.addEventListener("click", () => { browsePick = null; renderBrowse(); });
 
@@ -11805,7 +11878,7 @@ const UIRenderer = (() => {
     if (opts.endStats) {
       el.endCards.textContent = opts.endStats.cardsFlipped;
       el.endCoins.innerHTML = COIN_SVG + " " + opts.endStats.coinsEarned;
-      el.endPillars.innerHTML = endPillarsHtml(opts.endStats.pillars);
+      el.endPillars.innerHTML = endBoardHtml(opts.endStats.pillars, opts.endStats.bases);
     }
     el.endSummary.classList.toggle("hidden", !opts.endStats);
 
@@ -11928,13 +12001,26 @@ const UIRenderer = (() => {
 
   /** The ending Pillars, by column: one row per column showing its Pillar (icon
       + label) or "—" when empty. Reads campaign.getColumnPillars(). */
-  function endPillarsHtml(pillars) {
-    return (pillars || []).map((id, col) => {
-      const t = id ? PillarTypes.get(id) : null;
-      const val = t ? '<span class="ep-icon">' + t.icon + "</span> " + t.label : "—";
-      return '<div class="ep-row"><span class="ep-col">Col ' + (col + 1) + "</span>" +
-             '<span class="ep-val' + (t ? "" : " empty") + '">' + val + "</span></div>";
-    }).join("");
+  /* The ending board, laid out like the play board: Pillars across the TOP
+     (columns 1–N), Bases across the BOTTOM, each in its column position. */
+  function endBoardHtml(pillars, bases) {
+    pillars = pillars || []; bases = bases || [];
+    const nCols = Math.max(pillars.length, bases.length, 1);
+    const cell = (id, reg) => {
+      const t = id ? reg.get(id) : null;
+      return '<div class="ep-cell' + (t ? "" : " empty") + '">' +
+        (t ? '<span class="ep-icon">' + t.icon + '</span><span class="ep-name">' + escHtml(t.label) + '</span>'
+           : '<span class="ep-dash">—</span>') + '</div>';
+    };
+    let pRow = "", cRow = "", bRow = "";
+    for (let c = 0; c < nCols; c++) {
+      pRow += cell(pillars[c], PillarTypes);
+      cRow += '<div class="ep-colnum">Col ' + (c + 1) + '</div>';
+      bRow += cell(bases[c], BaseTypes);
+    }
+    return '<div class="ep-band ep-pillars">' + pRow + '</div>' +
+           '<div class="ep-band ep-colnums">' + cRow + '</div>' +
+           '<div class="ep-band ep-bases">' + bRow + '</div>';
   }
 
   /** "Stage X of 3 · Deal Y of 4" — shared progress label. */
@@ -11982,6 +12068,7 @@ const UIRenderer = (() => {
       cardsFlipped: campaign.totalCardsFlipped,
       coinsEarned: campaign.totalCoinsEarned,
       pillars: campaign.getColumnPillars(),
+      bases: campaign.getColumnBases(),
     };
   }
 
@@ -13222,9 +13309,11 @@ const UIRenderer = (() => {
     const board = payload.board;
     const aliveCount = board.aliveCount();
 
-    // Cards flipped (correct guesses) are tallied for EVERY run end — including
-    // the final losing run — so the end screen reflects all runs played.
-    campaign.addCardsFlipped(payload.run.correctGuesses);
+    // "Cards Played" = every card that got drawn through play this deal — correct
+    // guesses AND buried/donated/reloaded cards, anything that left the deck into
+    // play (run.cardsDrawn), NOT just correct guesses. Tallied for EVERY run end
+    // (win or the final losing run) so the end screen reflects all cards played.
+    campaign.addCardsFlipped(payload.run.cardsDrawn);
     // Whole-run guess totals for the end-of-run summary: fold THIS deal's
     // correct/total into the campaign running totals (win or loss) so the
     // summary's right/wrong covers every deal, not just the last one.
