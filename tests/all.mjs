@@ -28,6 +28,7 @@ import { run as lifetimeStats } from "./lifetime-stats.test.mjs";
 import { run as broadcast } from "./broadcast.test.mjs";
 import { run as peekPillars } from "./peek-pillars.test.mjs";
 import { run as runMods } from "./run-mods.test.mjs";
+import { run as tell } from "./tell.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -56,6 +57,7 @@ const SUITES = [
   ["broadcast", broadcast],
   ["peek-pillars", peekPillars],
   ["run-mods", runMods],
+  ["tell", tell],
 ];
 
 let pass = 0,

@@ -2739,6 +2739,24 @@
     color: var(--amber);
     border-color: var(--amber);
   }
+  /* Tell hint — a small directional pill at the TOP-CENTRE of a pile: ▲ higher,
+     = same, ▼ lower for the NEXT draw here. It shows a DIRECTION (not a card), so
+     it's deliberately distinct from the deck peek-reveal (which renders an actual
+     card face on the deck): a flat info-violet chip on the board. One colour for
+     all three directions — the glyph carries the meaning, no good/bad implied. */
+  .pile-hint {
+    position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+    z-index: 4; pointer-events: none;
+    min-width: calc(var(--pile-size, 88px) * 0.24); height: calc(var(--pile-size, 88px) * 0.24);
+    padding: 0 calc(var(--pile-size, 88px) * 0.05);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: calc(var(--pile-size, 88px) * 0.16); font-weight: 900; line-height: 1;
+    color: #fff; background: #5663b6; border: 1.5px solid #fff; border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(20,12,40,0.45);
+  }
+  .pile-hint.hidden { display: none; }
+  .pile.dead .pile-hint { display: none; }
+  .pile-hint.same { letter-spacing: -1px; }
   /* A pile is a valid sticker target while a sticker is armed. Drawn as an
      overlay pseudo-element (not an inset `outline`, whose sides the card or a
      board-edge clip could swallow — the tight rightmost column lost its left
@@ -4092,7 +4110,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.78 · play-size-board";
+const APP_VERSION = "v2.79 · tell-sticker";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4330,6 +4348,9 @@ const GLYPHS = {
   echo: '<circle cx="7" cy="12" r="2"/><path d="M11 8a6 6 0 0 1 0 8M14.5 5a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   // Gambler — a die showing five.
   gambler: '<rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.4"/><circle cx="15.5" cy="8.5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.5" cy="15.5" r="1.4"/><circle cx="15.5" cy="15.5" r="1.4"/>',
+  // Tell — the three possible reads stacked: ▲ higher, = same, ▼ lower (a
+  // directional hint, not a card reveal).
+  tell: '<path d="M7 8l5-4 5 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 16l5 4 5-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
@@ -4342,7 +4363,7 @@ const ELEM_GLYPH = {
   changeSuitDiamond: "diamond", changeSuitClub: "club",
   quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
   snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
-  baseScout: "basescout", mirror: "mirror", suitSnob: "suitsnob", momentum: "momentum",
+  baseScout: "basescout", mirror: "mirror", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -4379,7 +4400,7 @@ const STICKER_BEHAVIOR_CAT = {
   compound: "coins", deathBounty: "coins", looseChange: "coins", deepPockets: "coins", momentum: "coins",
   tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves",
   tribute: "bury", quickBury: "bury", snowball: "bury",
-  revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek",
+  revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek", tell: "peek",
   duplicate: "spark", twinSpark: "spark", mirror: "spark",
   randomFixedValue: "rank", changeSuitTo: "rank", changeSuitRandom: "rank", wildSuit: "rank",
   heavy: "util", anchor: "util", shuffle: "util", donate: "util",
@@ -4523,6 +4544,8 @@ const StickerTypes = (() => {
                   description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 3,
                   description: "On a correct placement, earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0." },
+    tell:       { id: "tell",       label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 2,
+                  description: "When this lands correctly and becomes the pile card, hint that pile's NEXT drawn card: higher, lower, or same as this pile card. Direction only — not the card. Lasts one draw on that pile." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -4536,7 +4559,7 @@ const StickerTypes = (() => {
     "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit",
     "shuffle", "donate",
     "quickBury", "twinSpark", "looseChange", "snowball", "deepPockets",
-    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum"];
+    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum", "tell"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -6146,6 +6169,7 @@ const GameEngine = (() => {
       switch (base.effect) {
         case "kamikaze": {
           board.kill(targetIndex);
+          if (run.tellPiles) run.tellPiles.delete(targetIndex);   // dead pile drops any Tell hint
           run.kamikazeRevealLeft = 3;                         // peek the next 3 draws (display-only)
           // Last Rites on the SACRIFICED pile's column (any death counts).
           { const kc = run.pileColumns ? run.pileColumns[targetIndex] : null;
@@ -6640,6 +6664,12 @@ const GameEngine = (() => {
         // Scout: true while the next deck card is revealed (a Scout-stickered card
         // was just placed). Display-only; cleared the moment that card is drawn.
         revealNextActive: false,
+        // Tell: the set of pile indices with an active directional hint (a
+        // Tell-stickered card just landed there). The hint reports the REAL next
+        // card's direction (higher/lower/same) vs that pile's top — DISPLAY ONLY,
+        // never touches draw order/RNG — and clears the moment that pile is next
+        // drawn. Transient per deal (the run is rebuilt each deal).
+        tellPiles: new Set(),
         // Debug logbook: ground-truth, per-turn event log for this run. Reset
         // here every run. Dev tooling only — never read by game logic.
         log: [],
@@ -6729,6 +6759,9 @@ const GameEngine = (() => {
       // Scout: drawing this card consumes any active reveal (the revealed card has
       // now been played). It may be re-armed below if a Scout card lands.
       run.revealNextActive = false;
+      // Tell: this draw IS the "next draw on this pile" the hint was for — consume
+      // it (re-armed below only if the landing card carries Tell).
+      if (run.tellPiles) run.tellPiles.delete(index);
       // Kamikaze deck-reveal counts down one per draw; after the 3rd the deck
       // returns to its normal hidden state (display-only — no order change).
       if (run.kamikazeRevealLeft > 0) run.kamikazeRevealLeft -= 1;
@@ -6845,6 +6878,14 @@ const GameEngine = (() => {
         // Scout: the placed card reveals the next deck card (display-only; cleared
         // when that card is drawn). peek(1) reads the REAL next card, no reshuffle.
         if (drawn.revealNext) { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", { peeks: 1 }); }
+        // Tell: the Tell-stickered card just became this pile's card on a correct
+        // guess — arm a DIRECTIONAL hint (higher/lower/same) for the NEXT draw on
+        // this pile. Display-only info about the real next card (see pileHint);
+        // cleared when this pile is next drawn.
+        if (run.tellPiles && drawn.stickers && drawn.stickers.some(s => s.type === "tell")) {
+          run.tellPiles.add(index);
+          recT("sticker", "tell", "Tell", { peeks: 1 });
+        }
         // Tribute Pillars: on a qualifying SURVIVING resolution, pull card(s)
         // from the deck's BOTTOM and bury them under this pile — never revealed.
         // 8 Bury fires when the landed card is an 8 (buries 3); Tie Bury fires
@@ -7120,6 +7161,20 @@ const GameEngine = (() => {
         // one card at a time. Read-only peek; never changes draw order.
         const active = run && (run.revealNextActive || run.kamikazeRevealLeft > 0);
         return (active && deck) ? (deck.peek(1)[0] || null) : null;
+      },
+      /** Tell: the directional hint for an armed pile, or null. Returns "higher",
+          "lower", or "same" — the REAL next card's rank vs this pile's top card.
+          DISPLAY ONLY: a pure read (deck.peek never changes draw order/RNG); it
+          reveals direction, not the card. Null unless the pile is armed, alive,
+          and the deck has a next card. Recomputed live, so it always reflects the
+          true next card even after draws on other piles. */
+      pileHint(index) {
+        if (!run || !run.tellPiles || !run.tellPiles.has(index)) return null;
+        if (!deck || deck.isEmpty() || !board.isActive(index)) return null;
+        const top = board.top(index);
+        const next = deck.peek(1)[0];
+        if (!top || !next) return null;
+        return next.value > top.value ? "higher" : next.value < top.value ? "lower" : "same";
       },
       /** Debug logbook: append a standalone entry for a non-engine action
           (sticker applied, store buy/reroll). Ground-truth, no gameplay impact. */
@@ -8988,6 +9043,13 @@ const UIRenderer = (() => {
     count.className = "pile-count";
     fx.appendChild(count);
 
+    // Tell hint — a small directional indicator (▲ higher / = same / ▼ lower) for
+    // the NEXT draw on this pile, top-centre. Distinct from a peek: it shows a
+    // DIRECTION, never the card. Hidden until armed (see renderPileHints).
+    const hint = document.createElement("div");
+    hint.className = "pile-hint hidden";
+    fx.appendChild(hint);
+
     card.appendChild(fx);
     pile.appendChild(card);
     return pile;
@@ -9134,7 +9196,29 @@ const UIRenderer = (() => {
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
     renderDeckReveal(); // Scout look-ahead: show/hide the upcoming card on the deck
+    renderPileHints();  // Tell: per-pile higher/lower/same direction indicators
     refreshActivatableIndicators();   // "tap to activate" cue on activatable Pillars
+  }
+
+  /* Tell: paint each pile's directional hint (▲ higher / = same / ▼ lower) for its
+     NEXT draw, reading the engine's display-only pileHint(). Recomputed every HUD
+     pass, so it stays correct as the deck top changes (a draw on any pile), and
+     clears when this pile is next drawn. Shows a DIRECTION, never the card — kept
+     visually separate from the deck peek-reveal. */
+  const TELL_GLYPH = { higher: "▲", same: "=", lower: "▼" };
+  function renderPileHints() {
+    if (!pileEls) return;
+    for (let i = 0; i < pileEls.length; i++) {
+      const el = pileEls[i] && pileEls[i].querySelector(".pile-hint");
+      if (!el) continue;
+      const dir = (engine && engine.pileHint) ? engine.pileHint(i) : null;
+      el.classList.remove("higher", "same", "lower");
+      if (!dir) { el.classList.add("hidden"); el.textContent = ""; el.removeAttribute("title"); continue; }
+      el.classList.remove("hidden");
+      el.classList.add(dir);
+      el.textContent = TELL_GLYPH[dir] || "";
+      el.title = "Tell: next card here is " + dir;
+    }
   }
 
   /* Scout: while a reveal is active, the face-down deck shows the next card's

@@ -36,7 +36,7 @@ export function run() {
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
       "mirror", "suitSnob", "momentum"];
     r.ok(ids.every(id => !!StickerTypes.get(id)), "all 12 new stickers registered");
-    r.eq(StickerTypes.all().length, 42, "sticker registry now totals 42");
+    r.eq(StickerTypes.all().length, 43, "sticker registry now totals 43 (with Tell)");
     r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank now costs 4");
     r.eq(StickerTypes.get("changeSuitDiamond").suit, "♦", "Change to ♦ locked to ♦");
     r.eq(StickerTypes.get("changeSuitDiamond").price, 2, "Change to ♦ = 2 (Stage-1 suit)");
