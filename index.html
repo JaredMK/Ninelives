@@ -4153,7 +4153,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.85 · same-power-slot";
+const APP_VERSION = "v2.86 · same-powers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6538,7 +6538,35 @@ const GameEngine = (() => {
           result.amount = buried;
           break;
         }
-        // linkRevive / linkCoins land in Section 3.
+        case "linkRevive": {
+          // Revive ONE dead pile directly linked to the hub, keeping its size
+          // (board.revive flips it alive without touching its buried cards). Pick
+          // the largest such dead pile (most cards saved); ties → lowest index.
+          const dead = linkedPiles(hub, "dead");
+          let pick = null;
+          for (const j of dead) if (pick == null || board.pileSize(j) > board.pileSize(pick)) pick = j;
+          if (pick != null) {
+            board.revive(pick);
+            result.targets = [pick];
+            result.amount = board.pileSize(pick);
+            logLine(def.label + ": revived pile " + (pick + 1) + " (" + board.pileSize(pick) + " cards kept)");
+          }
+          break;
+        }
+        case "linkCoins": {
+          // +value coins × the size of the LARGEST alive directly-linked pile.
+          const targets = linkedPiles(hub, "alive");
+          let max = 0, biggest = null;
+          for (const j of targets) { const s = board.pileSize(j); if (s > max) { max = s; biggest = j; } }
+          const amt = (def.value || 2) * max;
+          if (amt > 0) {
+            addBonus(def.label, amt);
+            recT("samePower", def.id, def.label, { coins: amt });
+          }
+          result.targets = biggest == null ? [] : [biggest];
+          result.amount = amt;
+          break;
+        }
       }
       logLine(def.label + " (Same-Power): " + result.targets.length + " linked pile(s)");
       emit("same-power", { ...result, board, deck, run });
@@ -12962,12 +12990,31 @@ const UIRenderer = (() => {
     // engine so Same-Powers act on exactly the links shown here. Reading only —
     // this never changes how the network is generated or drawn (rendering uses
     // `specs` below unchanged); it mirrors the same edge set into run-state.
+    // The ALIVE↔ALIVE edges are the rendered `specs` (identical rule). We ALSO
+    // add ALIVE↔DEAD edges (a dead pile linked to an alive pile when no ALIVE
+    // pile blocks the sightline — dead piles are empty space, so paths pass
+    // through them) so the revive Same-Power can target a directly-linked dead
+    // pile. Dead edges are never drawn — they exist only in the pushed adjacency.
     if (engine && engine.setLinks) {
       const adj = {};
       for (const sp of specs) {
         const a = sp.nodeA.i, b = sp.nodeB.i;
         (adj[a] || (adj[a] = [])).push(b);
         (adj[b] || (adj[b] = [])).push(a);
+      }
+      // Dead-pile centres (same measurement; the pile box persists when dead).
+      for (let d = 0; d < pileEls.length; d++) {
+        if (board.isActive(d)) continue;
+        const rd = pileEls[d].getBoundingClientRect();
+        const dx = rd.left + rd.width / 2 - gr.left, dy = rd.top + rd.height / 2 - gr.top;
+        for (const a of nodes) {
+          let blocked = false;
+          for (let k = 0; k < nodes.length && !blocked; k++) {
+            if (nodes[k].i === a.i) continue;        // the alive endpoint itself
+            if (cardBlocks(a.x, a.y, dx, dy, nodes[k].x, nodes[k].y, rad)) blocked = true;
+          }
+          if (!blocked) { (adj[a.i] || (adj[a.i] = [])).push(d); (adj[d] || (adj[d] = [])).push(a.i); }
+        }
       }
       engine.setLinks(adj);
     }

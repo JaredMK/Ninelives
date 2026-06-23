@@ -133,6 +133,58 @@ export function run() {
     r.ok(!fired, "no Same-Power equipped → no power fires (Same still does its two things, power is a no-op)");
   }
 
+  // --- Rekindle: revive a directly-linked DEAD pile, keeping its size ----
+  {
+    const e = mk({ samePower: "linkRevive" });
+    const b = e.getBoard();
+    // Give pile 4 some buried cards, then kill it; link it to hub pile 0.
+    b.piles[4].cards = [{ value: 3, suit: "♠", label: "3", stickers: [] },
+                        { value: 9, suit: "♥", label: "9", stickers: [] },
+                        { value: 5, suit: "♦", label: "5", stickers: [] }];
+    b.kill(4);
+    r.ok(!b.isActive(4), "pile 4 starts dead");
+    const sizeWhenDead = b.pileSize(4);
+    e.setLinks({ 0: [1, 4], 1: [0], 4: [0] });   // pile 4 (dead) is directly linked to hub 0
+    let evt = null;
+    e.onEvent((t, p) => { if (t === "same-power") evt = p; });
+    sameOn(e, 0, 7);
+    r.ok(b.isActive(4), "Rekindle revived the directly-linked dead pile");
+    r.eq(b.pileSize(4), sizeWhenDead, "the revived pile kept its size (all buried cards intact)");
+    r.eq(JSON.stringify(evt.targets), JSON.stringify([4]), "the event names the revived pile");
+  }
+
+  // --- Rekindle revives the LARGEST linked dead pile; ignores non-linked ---
+  {
+    const e = mk({ samePower: "linkRevive" });
+    const b = e.getBoard();
+    const fill = (i, n) => { b.piles[i].cards = Array.from({ length: n }, () => ({ value: 4, suit: "♠", label: "4", stickers: [] })); };
+    fill(1, 2); b.kill(1);          // linked, 2 cards
+    fill(4, 5); b.kill(4);          // linked, 5 cards (largest) → should win
+    fill(8, 9); b.kill(8);          // NOT linked → must stay dead
+    e.setLinks({ 0: [1, 4], 1: [0], 4: [0] });
+    sameOn(e, 0, 7);
+    r.ok(b.isActive(4), "the largest linked dead pile was revived");
+    r.ok(!b.isActive(1), "the smaller linked dead pile stays dead (only one revived)");
+    r.ok(!b.isActive(8), "a NON-linked dead pile stays dead");
+  }
+
+  // --- Dividend: +2 coins × the largest directly-linked pile's size -------
+  {
+    const e = mk({ samePower: "linkCoins" });
+    const b = e.getBoard();
+    const fill = (i, n) => { b.piles[i].cards = Array.from({ length: n }, () => ({ value: 4, suit: "♠", label: "4", stickers: [] })); };
+    fill(1, 3); fill(2, 6);          // linked: sizes 3 and 6 → largest = 6
+    fill(5, 9);                      // NOT linked → ignored even though bigger
+    e.setLinks({ 0: [1, 2], 1: [0], 2: [0] });
+    const before = e.getRun().bonusCoins;
+    let evt = null;
+    e.onEvent((t, p) => { if (t === "same-power") evt = p; });
+    sameOn(e, 0, 7);
+    r.eq(e.getRun().bonusCoins - before, 12, "Dividend paid 2 × largest linked size (2×6=12)");
+    r.eq(evt.amount, 12, "the event reports the coins paid");
+    r.eq(JSON.stringify(evt.targets), JSON.stringify([2]), "the event names the largest linked pile");
+  }
+
   // --- the power fires ONLY on a correct Same, not other correct guesses --
   {
     const e = mk({ samePower: "linkBury" });
