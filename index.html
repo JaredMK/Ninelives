@@ -4153,7 +4153,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.86 · same-powers";
+const APP_VERSION = "v2.87 · same-powers-fixes";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12336,6 +12336,19 @@ const UIRenderer = (() => {
           pe.classList.add("flash-good");
           setTimeout(() => pe.classList.remove("flash-good"), 520);
         };
+        // Rekindle revived a dead target: bring it back VISUALLY (drop .dead +
+        // repaint its top), exactly as the "revived" handler does — otherwise the
+        // pile stays dissolved/blank on the board until the next deal.
+        if (payload.board) {
+          (payload.targets || []).forEach((idx) => {
+            const pe = pileEls[idx];
+            if (pe && pe.classList.contains("dead") && payload.board.isActive(idx)) {
+              pe.classList.remove("dead");
+              const top = payload.board.top(idx);
+              if (top) { paintFront(pe, top); renderStickerBadges(pe, top); }
+            }
+          });
+        }
         flash(payload.hub);
         (payload.targets || []).forEach(flash);
         if (payload.board) paintPileCounts(payload.board);
@@ -12959,7 +12972,13 @@ const UIRenderer = (() => {
       const r = pileEls[i].getBoundingClientRect();
       nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
     }
-    if (nodes.length < 2) { net.innerHTML = ""; edgeMap.clear(); netEdges = []; lastNetKeys = new Set(); return; }
+    if (nodes.length < 2) {
+      net.innerHTML = ""; edgeMap.clear(); netEdges = []; lastNetKeys = new Set();
+      // No drawable network (< 2 alive piles) → clear the engine adjacency too, so
+      // a Same-Power can never act on stale links from a previous frame.
+      if (engine && engine.setLinks) engine.setLinks({});
+      return;
+    }
 
     // Compute this frame's edge set + each edge's strength inputs, plus a quick
     // pile-index → live centre lookup for re-seating positions after the diff.
