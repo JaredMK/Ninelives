@@ -272,7 +272,7 @@
   /* Two-line content for the contextual action bar: a header/question (.ap-q) and
      a help/description line (.ap-desc) — used by pillar/base help + base decisions. */
   .ap-text .ap-q { display: block; font-size: var(--info-title-size); }
-  .ap-text .ap-desc { display: block; font-size: var(--info-desc-size); font-weight: 600; line-height: var(--info-desc-lh); color: var(--muted); margin-top: 1px; }
+  .ap-text .ap-desc { display: block; font-size: var(--info-desc-size); font-weight: 600; line-height: var(--info-desc-lh); color: var(--muted); margin-top: 1px; white-space: pre-line; }
   /* Help-carrying prompts can exceed the FIXED strip height (long Base/Pillar
      descriptions). Instead of clipping (overflow:hidden above), anchor them to
      the strip's bottom edge and let them grow UPWARD over the band above, on the
@@ -1895,7 +1895,7 @@
   .sd-tier[data-tier="rare"] { color: #e8b964; }
   .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 21px; color: #fff;
     line-height: 1.1; }
-  .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; }
+  .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; white-space: pre-line; }
   .sd-buy { margin-top: 4px; }
   .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
     color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
@@ -2536,7 +2536,7 @@
   .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
     color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
   .tray-help .th-title .ico { font-size: 16px; flex: none; }
-  .tray-help .th-desc { display: block; font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 3px; }
+  .tray-help .th-desc { display: block; font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 3px; white-space: pre-line; }
   /* Trash: a deliberate, clearly-marked discard (opens a confirm dialog first). */
   .tray-help .th-trash {
     flex: none; display: inline-flex; align-items: center; gap: 4px;
@@ -2955,7 +2955,7 @@
   .peek-info .pk-item:first-of-type, .card-info-panel .pk-item:first-of-type { border-top: none; }
   .peek-info .pk-ic, .card-info-panel .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
   .peek-info .pk-name, .card-info-panel .pk-name { font-weight: 700; }
-  .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; }
+  .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; white-space: pre-line; }
   .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 11.5px; margin-top: 3px; }
   .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
   .peek-info .pk-locked { color: var(--muted); }
@@ -4110,7 +4110,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.79 · tell-sticker";
+const APP_VERSION = "v2.80 · trigger-effect-help";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4491,11 +4491,11 @@ const StickerTypes = (() => {
     clubGuard: { id: "clubGuard", label: "Club Guard", icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 3,
                   description: "When THIS card is drawn onto a pile showing a ♣, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal." },
     extraCoin:  { id: "extraCoin",  label: "Payout",  icon: "💰", kind: "behavior", behavior: "extraCoin",  tier: "uncommon", price: 3,
-                  description: "Clear the deal with this as the pile card: +1 coin per card in the pile." },
+                  description: "Trigger: Deal cleared with this as the pile card\nEffect: +1 coin per card in the pile" },
     middleColumnReward: { id: "middleColumnReward", label: "Focus", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 3, tier: "uncommon", price: 3,
-                  description: "+3 coins when placed on a surviving pile in the middle column." },
+                  description: "Trigger: This card lands correctly on a pile in the middle column\nEffect: +3 coins" },
     gainCoin:   { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 3,
-                  description: "+1 coin when placed on a surviving pile." },
+                  description: "Trigger: This card lands correctly (the pile survives)\nEffect: +1 coin" },
     anchor:     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor",     tier: "common", price: 7,
                   description: "While this is the pile card, the pile is left out of the smallest-pile score." },
     extraHeart: { id: "extraHeart", label: "Shield", icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 7,
@@ -4507,13 +4507,13 @@ const StickerTypes = (() => {
     centerTribute: { id: "centerTribute", label: "Center Bury", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 5,
                   description: "On a correct placement in the middle column, bury 1 deck card under the pile." },
     deathBounty: { id: "deathBounty", label: "Last Coin", icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 2,
-                  description: "+5 coins when a wrong guess on this card kills the pile." },
+                  description: "Trigger: This card is the drawn card on a wrong guess that kills the pile\nEffect: +5 coins" },
     heavy:      { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", tier: "common", price: 3,
                   description: "Counts as 2 toward pile size everywhere, even buried." },
     collector:  { id: "collector",  label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 3,
-                  description: "When placed on a surviving pile card, +1 coin per other sticker on that card." },
+                  description: "Trigger: This card lands correctly (the pile survives)\nEffect: +1 coin per OTHER sticker on this card" },
     compound:   { id: "compound",   label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", tier: "rare", price: 5,
-                  description: "Each correct landing on this pile card pays rising coins (+0, +1, +2, …), on the spot. The total carries across the run until a reset." },
+                  description: "Trigger: A correct guess lands on this pile card\nEffect: Pay rising coins on the spot — +0, +1, +2, … on each successive landing. The count carries across the run until a reset" },
     revealNext: { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
                   description: "On a correct placement, peek at the next upcoming card until it's drawn." },
     duplicate:  { id: "duplicate",  label: "Duplicate",   icon: "🃏", kind: "behavior", behavior: "duplicate", tier: "uncommon", price: 3,
@@ -4529,11 +4529,11 @@ const StickerTypes = (() => {
     twinSpark:  { id: "twinSpark",  label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "rare", price: 6,
                   description: "On a correct placement, add a random sticker to every alive pile card of this card's rank, board-wide, for this deal." },
     looseChange: { id: "looseChange", label: "Loose Change", icon: "🪙", kind: "behavior", behavior: "looseChange", tier: "uncommon", price: 4,
-                  description: "On a correct placement, earn a random 0–2 coins." },
+                  description: "Trigger: A correct placement\nEffect: Earn a random 0–2 coins" },
     snowball:   { id: "snowball",   label: "Snowball Bury", icon: "☃️", kind: "behavior", behavior: "snowball", tier: "rare", price: 6,
                   description: "On a correct placement, bury X deck cards under the pile. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0." },
     deepPockets: { id: "deepPockets", label: "Deep Pockets", icon: "👛", kind: "behavior", behavior: "deepPockets", tier: "uncommon", price: 4,
-                  description: "On a correct placement, +1 coin per 10 cards left in the deck." },
+                  description: "Trigger: A correct placement\nEffect: +1 coin per 10 cards left in the deck" },
     pillarScout: { id: "pillarScout", label: "Pillar Scout", icon: "🔭", kind: "behavior", behavior: "pillarScout", tier: "uncommon", price: 3,
                   description: "On a correct placement, peek at the next upcoming card — only while a column has no Pillar." },
     baseScout:  { id: "baseScout",  label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
@@ -4543,7 +4543,7 @@ const StickerTypes = (() => {
     suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
                   description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 3,
-                  description: "On a correct placement, earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0." },
+                  description: "Trigger: A correct placement\nEffect: Earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0" },
     tell:       { id: "tell",       label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 2,
                   description: "When this lands correctly and becomes the pile card, hint that pile's NEXT drawn card: higher, lower, or same as this pile card. Direction only — not the card. Lasts one draw on that pile." },
   };
@@ -4596,32 +4596,32 @@ const PillarTypes = (() => {
     spadeBounty: {
       id: "spadeBounty", label: "Spade Bonus", icon: "♠️",
       kind: "scoring", effect: "suitBounty", suit: "♠", value: 1, tier: "uncommon", price: 4,
-      description: "+1 coin when a ♠ drawn card lands correctly in this column.",
+      description: "Trigger: A ♠ card lands correctly in this column\nEffect: +1 coin",
     },
     heartBounty: {
       id: "heartBounty", label: "Heart Bonus", icon: "♥️",
       kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin when a ♥ drawn card lands correctly in this column.",
+      description: "Trigger: A ♥ card lands correctly in this column\nEffect: +1 coin",
     },
     diamondBounty: {
       id: "diamondBounty", label: "Diamond Bonus", icon: "♦️",
       kind: "scoring", effect: "suitBounty", suit: "♦", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin when a ♦ drawn card lands correctly in this column.",
+      description: "Trigger: A ♦ card lands correctly in this column\nEffect: +1 coin",
     },
     clubBounty: {
       id: "clubBounty", label: "Club Bonus", icon: "♣️",
       kind: "scoring", effect: "suitBounty", suit: "♣", value: 1, tier: "uncommon", price: 5,
-      description: "+1 coin when a ♣ drawn card lands correctly in this column.",
+      description: "Trigger: A ♣ card lands correctly in this column\nEffect: +1 coin",
     },
     columnTieSafe: {
       id: "columnTieSafe", label: "Column Tie-Safe", icon: "🛡️",
       kind: "guess", effect: "columnTieSafe", tier: "rare", price: 12,
-      description: "Every pile in this column is safe from a tie, on any guess.",
+      description: "Trigger: Passive\nEffect: Every pile in this column survives a tie, on any guess",
     },
     columnGuardian: {
       id: "columnGuardian", label: "Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 7, tier: "uncommon", price: 5,
-      description: "+7 coins if every pile in this column survives the deal.",
+      description: "Trigger: Deal cleared\nEffect: +7 coins if every pile in this column survived",
     },
     eightTribute: {
       // When a drawn 8 lands as a new top on a pile in this column, pull the
@@ -4629,7 +4629,7 @@ const PillarTypes = (() => {
       // (bounded only by the draw deck). Pure composition shift — no reveal.
       id: "eightTribute", label: "8 Bury", icon: "8️⃣",
       kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
-      description: "When an 8 lands correctly in this column, bury 3 deck cards under that pile.",
+      description: "Trigger: An 8 lands correctly in this column\nEffect: Bury 3 deck cards under that pile",
     },
     sameTribute: {
       // When a pile in this column SURVIVES A TIE — a correctly-called Same
@@ -4637,7 +4637,7 @@ const PillarTypes = (() => {
       // deck's BOTTOM cards under that pile (hidden). Uncapped; no reveal.
       id: "sameTribute", label: "Tie Bury", icon: "⚖️",
       kind: "composition", effect: "sameTribute", tributeCount: 2, tier: "rare", price: 15,
-      description: "When a pile in this column survives a tie (a correct Same or a Tie-Safe save), bury 2 deck cards under it.",
+      description: "Trigger: A pile in this column survives a tie (a correct Same, or a Tie-Safe save)\nEffect: Bury 2 deck cards under that pile",
     },
     allHeartsCoin: {
       // End-of-run, column-scoped (win only): +value if EVERY surviving pile in
@@ -4645,36 +4645,36 @@ const PillarTypes = (() => {
       // computePillarPayout via the shared "allSuitTop" effect. Suit-gated.
       id: "allHeartsCoin", label: "All Hearts", icon: "💗",
       kind: "scoring", effect: "allSuitTop", suit: "♥", value: 5, tier: "common", price: 4,
-      description: "+5 coins on a cleared deal if every surviving pile in this column shows a ♥ pile card.",
+      description: "Trigger: Deal cleared\nEffect: +5 coins if every surviving pile in this column shows a ♥ pile card",
     },
     allSpadesCoin: {
       id: "allSpadesCoin", label: "All Spades", icon: "♠️",
       kind: "scoring", effect: "allSuitTop", suit: "♠", value: 5, tier: "common", price: 2,
-      description: "+5 coins on a cleared deal if every surviving pile in this column shows a ♠ pile card.",
+      description: "Trigger: Deal cleared\nEffect: +5 coins if every surviving pile in this column shows a ♠ pile card",
     },
     allDiamondsCoin: {
       id: "allDiamondsCoin", label: "All Diamonds", icon: "♦️",
       kind: "scoring", effect: "allSuitTop", suit: "♦", value: 5, tier: "common", price: 4,
-      description: "+5 coins on a cleared deal if every surviving pile in this column shows a ♦ pile card.",
+      description: "Trigger: Deal cleared\nEffect: +5 coins if every surviving pile in this column shows a ♦ pile card",
     },
     allClubsCoin: {
       id: "allClubsCoin", label: "All Clubs", icon: "♣️",
       kind: "scoring", effect: "allSuitTop", suit: "♣", value: 5, tier: "common", price: 3,
-      description: "+5 coins on a cleared deal if every surviving pile in this column shows a ♣ pile card.",
+      description: "Trigger: Deal cleared\nEffect: +5 coins if every surviving pile in this column shows a ♣ pile card",
     },
     envy: {
       // End-of-run: +1 per surviving pile across EVERY OTHER column (all columns
       // except this one, whether or not they hold a Pillar). Scored in computePillarPayout.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "envyOthers", value: 1, tier: "uncommon", price: 6,
-      description: "On a cleared deal, +1 coin per surviving pile in every other column.",
+      description: "Trigger: Deal cleared\nEffect: +1 coin per surviving pile in every OTHER column",
     },
     symmetry: {
       // End-of-run: +value if this column's alive count equals the RIGHT
       // column's (wraparound: right-of-rightmost = leftmost).
       id: "symmetry", label: "Symmetry", icon: "🪞",
       kind: "scoring", effect: "symmetryRight", value: 6, tier: "uncommon", price: 7,
-      description: "+6 coins if this column ends with as many survivors as the column to its right (rightmost wraps to leftmost).",
+      description: "Trigger: Deal cleared\nEffect: +6 coins if this column has as many survivors as the column to its right (rightmost wraps to leftmost)",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -4682,14 +4682,14 @@ const PillarTypes = (() => {
       // guess in another column — resets the streak. Paid via addBonus.
       id: "streakBank", label: "Streak Bank", icon: "🏦",
       kind: "live", effect: "streakBank", value: 1, tier: "rare", price: 8,
-      description: "+1 coin per correct guess in this column from the 3rd in a row onward. Resets on a wrong guess here or any guess in another column.",
+      description: "Trigger: A correct guess in this column, from the 3rd in a row onward\nEffect: +1 coin. Resets on a wrong guess here, or any guess in another column",
     },
     streakTribute: {
       // Composition: from the 4th consecutive correct guess in this column
       // onward, bury a deck-bottom card under the pile. Uncapped, no reveal.
       id: "streakTribute", label: "Streak Bury", icon: "🔥",
       kind: "composition", effect: "streakTribute", tier: "rare", price: 10,
-      description: "From the 4th correct guess in a row in this column, bury 1 deck card under that pile. Resets on a wrong guess here or any guess in another column.",
+      description: "Trigger: A correct guess in this column, from the 4th in a row onward\nEffect: Bury 1 deck card under that pile. Resets on a wrong guess here, or any guess in another column",
     },
     secondWind: {
       // Guess-time: the FIRST pile to die in this column each run revives once
@@ -4697,7 +4697,7 @@ const PillarTypes = (() => {
       // reshuffled into the deck with no reveal, stickers intact.
       id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 7,
-      description: "The first pile to die in this column each deal returns with one fresh pile card (its old cards shuffle into the deck). The one-card pile counts as surviving — it can lower your smallest-pile score.",
+      description: "Trigger: The first pile in this column dies (once per deal)\nEffect: It returns with one fresh pile card (its old cards shuffle into the deck). The one-card pile counts as surviving — it can lower your smallest-pile score",
     },
     greedy: {
       // End-of-run: +value if every pile in this column is alive AND this is the
@@ -4705,7 +4705,7 @@ const PillarTypes = (() => {
       // — disqualifies it).
       id: "greedy", label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 20, tier: "rare", price: 10,
-      description: "+20 coins if every pile in this column survives the deal and no other Pillar is on the board.",
+      description: "Trigger: Deal cleared\nEffect: +20 coins if every pile in this column survived AND no other Pillar is on the board",
     },
     fibonacci: {
       // Live: +1 coin each time a Fibonacci-rank card (A=1, 2, 3, 5, 8) is DRAWN
@@ -4714,7 +4714,7 @@ const PillarTypes = (() => {
       // dies. No streak, no escalation, no reset.
       id: "fibonacci", label: "Fibonacci", icon: "🌀",
       kind: "live", effect: "fibonacci", value: 1, tier: "rare", price: 12,
-      description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) is drawn into this column, paid live as it's drawn (however the guess resolves).",
+      description: "Trigger: A Fibonacci-rank card (A/2/3/5/8) is drawn into this column\nEffect: +1 coin, paid live as it's drawn (however the guess resolves)",
     },
     highestOdd: {
       // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
@@ -4724,7 +4724,7 @@ const PillarTypes = (() => {
       // qualifying ranks vs five) → priced 1 below it (10 → 9).
       id: "highestOdd", label: "Highest Odd", icon: "🔼",
       kind: "scoring", effect: "highestOdd", tier: "uncommon", price: 9,
-      description: "On a cleared deal, coins equal to the highest odd-rank pile card (3/5/7/9) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify.",
+      description: "Trigger: Deal cleared\nEffect: Coins equal to the highest odd-rank pile card (3/5/7/9) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify",
     },
     highestEven: {
       // End-of-deal: +the highest EVEN NUMBER card (2/4/6/8/10) showing ON TOP of
@@ -4732,14 +4732,14 @@ const PillarTypes = (() => {
       // (J/Q/K) and the Ace never count. (computePillarPayout, effect "highestEven".)
       id: "highestEven", label: "Highest Even", icon: "🔽",
       kind: "scoring", effect: "highestEven", tier: "uncommon", price: 10,
-      description: "On a cleared deal, coins equal to the highest even-rank pile card (2/4/6/8/10) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify.",
+      description: "Trigger: Deal cleared\nEffect: Coins equal to the highest even-rank pile card (2/4/6/8/10) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify",
     },
     denseBury: {
       // Composition: when a correct guess lands a card carrying 2+ stickers on a
       // pile in this column, bury 1 deck-bottom card under it. Uncapped, no reveal.
       id: "denseBury", label: "Dense Bury", icon: "🧊",
       kind: "composition", effect: "denseBury", tier: "rare", price: 15,
-      description: "When a drawn card carrying 2+ stickers lands correctly in this column, bury 1 deck card under that pile.",
+      description: "Trigger: A card carrying 2+ stickers lands correctly in this column\nEffect: Bury 1 deck card under that pile",
     },
     revive: {
       // Guess-time, one-shot per deal: the first time a pile in this column reaches
@@ -4747,7 +4747,7 @@ const PillarTypes = (() => {
       // Skipped (charge kept) when no pile is dead at trigger time.
       id: "revive", label: "Revive", icon: "♻️",
       kind: "guess", effect: "revive", tier: "uncommon", price: 8,
-      description: "The first time a pile in this column reaches 10 cards, revive any one dead pile with a fresh pile card. Once per deal; waits and stays ready if no pile is dead.",
+      description: "Trigger: A pile in this column first reaches 10 cards (once per deal)\nEffect: Revive any one dead pile with a fresh pile card. Waits and stays ready if no pile is dead",
     },
     // ---- expansion Pillars ------------------------------------------------
     sameSpark: {
@@ -4755,14 +4755,14 @@ const PillarTypes = (() => {
       // onto every alive pile card in the column (live projection, this deal).
       id: "sameSpark", label: "Same Spark", icon: "✨",
       kind: "guess", effect: "sameSpark", tier: "rare", price: 10,
-      description: "On a correct Same guess in this column, add a random sticker to every alive pile card in the column, for this deal.",
+      description: "Trigger: A correct Same guess in this column\nEffect: Add a random sticker to every alive pile card in the column (this deal)",
     },
     insurance: {
       // End-of-deal: +value if the board has exactly ONE alive pile and it sits
       // in this column (you cleared the deal down to a single survivor here).
       id: "insurance", label: "Insurance", icon: "🛟",
       kind: "scoring", effect: "insurance", value: 20, tier: "rare", price: 8,
-      description: "+20 coins if you clear the deal with exactly one pile alive board-wide and it's in this column.",
+      description: "Trigger: Deal cleared\nEffect: +20 coins if exactly one pile is alive board-wide and it's in this column",
     },
     ditto: {
       // Meta: dynamically MIRRORS the Pillar in the center column, applied to
@@ -4770,56 +4770,56 @@ const PillarTypes = (() => {
       // center column has no Pillar. Resolved live (a center change re-mirrors).
       id: "ditto", label: "Ditto", icon: "🪞",
       kind: "meta", effect: "ditto", tier: "rare", price: 9,
-      description: "Copies the center column's Pillar, applied to this column; updates if it changes. Nothing if Ditto is in the center, or the center has no Pillar.",
+      description: "Trigger: Passive\nEffect: Mirror the center column's Pillar, applied to this column (updates if it changes). Nothing if Ditto is in the center, or the center has no Pillar",
     },
     stickerCount: {
       // End-of-deal: +value per sticker across this column's alive piles,
       // counting stickers on BURIED cards too (not just the pile card).
       id: "stickerCount", label: "Sticker Count", icon: "🏷️",
       kind: "scoring", effect: "stickerCount", value: 1, tier: "uncommon", price: 7,
-      description: "On a cleared deal, +1 coin per sticker across this column's alive piles, buried cards included.",
+      description: "Trigger: Deal cleared\nEffect: +1 coin per sticker across this column's alive piles (buried cards included)",
     },
     prime: {
       // Live: +value each time a prime-ranked drawn card (2, 3, 5, 7) is placed
       // correctly on a pile in this column.
       id: "prime", label: "Prime", icon: "🔢",
       kind: "live", effect: "prime", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin when a prime-rank drawn card (2/3/5/7) lands correctly in this column.",
+      description: "Trigger: A prime-rank card (2/3/5/7) lands correctly in this column\nEffect: +1 coin",
     },
     queensEye: {
       // Live: when a Queen lands correctly in this column, peek the next upcoming
       // card (deck-reveal treatment, like Scout).
       id: "queensEye", label: "Queen's Eye", icon: "👁️",
       kind: "live", effect: "queensEye", tier: "uncommon", price: 5,
-      description: "When a Queen lands correctly in this column, peek at the next upcoming card until it's drawn.",
+      description: "Trigger: A Queen lands correctly in this column\nEffect: Peek the next upcoming card until it's drawn",
     },
     royalCourt: {
       // Live: +value each time a face card (J/Q/K) is placed correctly in this
       // column.
       id: "royalCourt", label: "Royal Court", icon: "👑",
       kind: "live", effect: "royalCourt", value: 2, tier: "uncommon", price: 7,
-      description: "+2 coins when a face card (J/Q/K) lands correctly in this column.",
+      description: "Trigger: A face card (J/Q/K) lands correctly in this column\nEffect: +2 coins",
     },
     excavator: {
       // End-of-deal: +value per BURIED card in this column's LARGEST alive pile
       // only (the most-cards survivor; ties bury the same count either way).
       id: "excavator", label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 7,
-      description: "On a cleared deal, +1 coin per buried card in this column's largest alive pile.",
+      description: "Trigger: Deal cleared\nEffect: +1 coin per buried card in this column's largest alive pile",
     },
     echo: {
       // Reactive: +value each time a Pillar in an ADJACENT column pays out coins
       // (live OR end-of-deal). Echo never reacts to another Echo — no chains.
       id: "echo", label: "Echo", icon: "📣",
       kind: "live", effect: "echo", value: 1, tier: "uncommon", price: 6,
-      description: "+1 coin whenever a Pillar in an adjacent column pays out coins. Never triggers off another Echo.",
+      description: "Trigger: A Pillar in an adjacent column pays out coins (never another Echo)\nEffect: +1 coin",
     },
     gambler: {
       // End-of-deal: a 50/50 coin flip — +value or nothing. The outcome is
       // always shown in the payout breakdown.
       id: "gambler", label: "Gambler", icon: "🎲",
       kind: "scoring", effect: "gambler", value: 7, tier: "uncommon", price: 6,
-      description: "On a cleared deal, a 50/50 flip: +7 coins or nothing. The result is shown.",
+      description: "Trigger: Deal cleared\nEffect: A 50/50 flip — +7 coins or nothing (the result is shown)",
     },
     broadcast: {
       // Passive force-multiplier (no coins of its own): while in play, every one
@@ -4831,7 +4831,7 @@ const PillarTypes = (() => {
       // broadcastActive(); it has no scoring/guess hook (kind "modifier").
       id: "broadcast", label: "Broadcast", icon: "📡",
       kind: "modifier", effect: "broadcast", tier: "rare", price: 18,
-      description: "While in play, every one of your column Bases reaches the WHOLE board, not just its own column — so Upheaval shuffles every pile on the board, Cast sets every pile, Phoenix can revive any dead pile, and so on. Each Base still fires once per deal. Bases that are already board-wide (Kamikaze, Tax) are unchanged. It works the same in any column.",
+      description: "Trigger: Passive\nEffect: Every one of your column Bases reaches the WHOLE board, not just its own column — Upheaval shuffles every pile, Cast sets every pile, Phoenix can revive any dead pile, and so on. Each Base still fires once per deal. Already board-wide Bases (Kamikaze, Tax) are unchanged. Works the same in any column",
     },
     unearth: {
       // Live, column-scoped: every BURY under a pile in this column (whatever
@@ -4839,7 +4839,7 @@ const PillarTypes = (() => {
       // chance to peek the next upcoming card via the standard deck-reveal.
       id: "unearth", label: "Unearth", icon: "🪏",
       kind: "live", effect: "unearth", tier: "rare", price: 7,
-      description: "Whenever a card is buried in this column, a 50% chance to peek at the next upcoming card.",
+      description: "Trigger: A card is buried in this column\nEffect: 50% chance to peek the next upcoming card",
     },
     lastRites: {
       // Live, column-scoped: whenever a pile in this column DIES (a fatal wrong
@@ -4847,7 +4847,7 @@ const PillarTypes = (() => {
       // fires on a death — no roll.
       id: "lastRites", label: "Last Rites", icon: "🕯️",
       kind: "live", effect: "lastRites", tier: "rare", price: 5,
-      description: "Whenever a pile in this column dies, peek at the next upcoming card.",
+      description: "Trigger: A pile in this column dies\nEffect: Peek the next upcoming card",
     },
     static: {
       // Live, column-scoped: when a card is DRAWN into this column, roll ONCE to
@@ -4855,7 +4855,7 @@ const PillarTypes = (() => {
       // card (0 stickers → never; 3 stickers → 30%, single roll).
       id: "static", label: "Static", icon: "🔌",
       kind: "live", effect: "static", tier: "rare", price: 6,
-      description: "When a card is drawn into this column, peek at the next upcoming card — a 10% chance per sticker on that drawn card, rolled once.",
+      description: "Trigger: A card is drawn into this column\nEffect: Peek the next upcoming card — 10% chance per sticker on the drawn card, rolled once",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -4909,67 +4909,67 @@ const BaseTypes = (() => {
       // (display-only). Can't fire while only one pile is alive board-wide.
       id: "kamikaze", label: "Kamikaze", icon: "💥",
       kind: "active", effect: "kamikaze", target: "pile", tier: "uncommon", price: 15,
-      description: "Tap any pile on the board to kill it, then peek at the next 3 upcoming cards (draw order unchanged). Unavailable while only one pile is alive.",
+      description: "Trigger: Activated (tap a pile), once per deal\nEffect: Kill the chosen pile, then peek the next 3 upcoming cards (draw order unchanged). Unavailable while only one pile is alive",
     },
     shuffleColumn: {
       id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", tier: "common", price: 9,
-      description: "Shuffle every pile in this column (a different card may top each; order stays hidden). Lose 1 coin per alive pile in the column.",
+      description: "Trigger: Activated, once per deal\nEffect: Shuffle every pile in this column (a different card may top each; order stays hidden). Lose 1 coin per alive pile in the column",
     },
     revive: {
       id: "revive", label: "Phoenix", icon: "🔥",
       kind: "active", effect: "reviveBase", tier: "uncommon", price: 14,
-      description: "Revive a random dead pile in this column with one fresh pile card (its buried cards shuffle into the deck). Nothing if none is dead.",
+      description: "Trigger: Activated, once per deal\nEffect: Revive a random dead pile in this column with one fresh pile card (its buried cards shuffle into the deck). Nothing if none is dead",
     },
     randomSticker: {
       id: "randomSticker", label: "Wild Sticker", icon: "🎲",
       kind: "active", effect: "randomSticker", tier: "uncommon", price: 10,
-      description: "Apply a random sticker to a random pile card in this column. Stays for the rest of the run.",
+      description: "Trigger: Activated, once per deal\nEffect: Apply a random sticker to a random pile card in this column. Lasts the rest of the run",
     },
     randomStickerAll: {
       id: "randomStickerAll", label: "Sticker Storm", icon: "🌪️",
       kind: "active", effect: "randomStickerAll", tier: "rare", price: 13,
-      description: "Apply a random sticker to every pile card in this column (stays for the run). Lose 1 coin per sticker applied.",
+      description: "Trigger: Activated, once per deal\nEffect: Apply a random sticker to every pile card in this column (lasts the run). Lose 1 coin per sticker applied",
     },
     evenOut: {
       id: "evenOut", label: "Ballast", icon: "⚖️",
       kind: "active", effect: "evenOut", tier: "common", price: 8,
-      description: "Move buried cards from larger to smaller piles in this column until they're balanced. Composition only — nothing revealed.",
+      description: "Trigger: Activated, once per deal\nEffect: Move buried cards from larger to smaller piles in this column until they're balanced (composition only — nothing revealed)",
     },
     buryLargest: {
       id: "buryLargest", label: "Sinkhole", icon: "🕳️",
       kind: "active", effect: "buryLargest", tier: "common", price: 7,
-      description: "Bury 1 deck card under the largest pile in this column.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under the largest pile in this column",
     },
     buryAll: {
       id: "buryAll", label: "Landslide", icon: "⛰️",
       kind: "active", effect: "buryAll", tier: "uncommon", price: 10,
-      description: "Bury 1 deck card under each alive pile in this column. Lose 5 coins per pile buried.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under each alive pile in this column. Lose 5 coins per pile buried",
     },
     setValue: {
       id: "setValue", label: "Cast", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 18,
-      description: "Set every pile card in this column to the same secret value — a blind gamble. You won't see the new rank until those cards come up in play. The change lasts the rest of the run.",
+      description: "Trigger: Activated, once per deal\nEffect: Set every pile card in this column to the same secret value — a blind gamble (you won't see the new rank until those cards come up in play). Lasts the rest of the run",
     },
     stickerHarvest: {
       id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
       kind: "active", effect: "stickerHarvest", target: "pile", tier: "uncommon", price: 11,
-      description: "Choose a pile in this column: bury 1 deck card under it per sticker on its pile card, then strip every sticker off it.",
+      description: "Trigger: Activated (choose a pile), once per deal\nEffect: Bury 1 deck card under the chosen pile per sticker on its pile card, then strip every sticker off it",
     },
     refreshBases: {
       id: "refreshBases", label: "Reactor", icon: "⚛️",
       kind: "active", effect: "refreshBases", tier: "rare", price: 17,
-      description: "Recharge your other two Bases if they've been spent this deal. Never recharges another Reactor.",
+      description: "Trigger: Activated, once per deal\nEffect: Recharge your other two Bases if they've been spent this deal (never another Reactor)",
     },
     suitTally: {
       id: "suitTally", label: "Suit Tally", icon: "💰",
       kind: "active", effect: "suitTally", tier: "uncommon", price: 12,
-      description: "Gain coins equal to the total value of the rolled suit among this column's cards (face cards count 10). (suit changes each deal)",
+      description: "Trigger: Activated, once per deal\nEffect: Gain coins equal to the total value of the rolled suit among this column's cards (face cards count 10). The suit changes each deal",
     },
     copyToInventory: {
       id: "copyToInventory", label: "Replica", icon: "📑",
       kind: "active", effect: "copyToInventory", tier: "rare", price: 18,
-      description: "Copy a random pile card in this column (with its stickers) into your card inventory.",
+      description: "Trigger: Activated, once per deal\nEffect: Copy a random pile card in this column (with its stickers) into your card inventory",
     },
     // ---- expansion Bases --------------------------------------------------
     // The "Dig" family is the FIRST suit-gated Base class: each carries a `suit`
@@ -4981,27 +4981,27 @@ const BaseTypes = (() => {
     heartDig: {
       id: "heartDig", label: "Heart Dig", icon: "♥️",
       kind: "active", effect: "suitDig", suit: "♥", digCount: 1, tier: "common", price: 8,
-      description: "Bury 1 deck card under each ♥ pile card in this column.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under each ♥ pile card in this column",
     },
     diamondDig: {
       id: "diamondDig", label: "Diamond Dig", icon: "♦️",
       kind: "active", effect: "suitDig", suit: "♦", digCount: 1, tier: "common", price: 8,
-      description: "Bury 1 deck card under each ♦ pile card in this column.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under each ♦ pile card in this column",
     },
     spadeDig: {
       id: "spadeDig", label: "Spade Dig", icon: "♠️",
       kind: "active", effect: "suitDig", suit: "♠", digCount: 2, tier: "uncommon", price: 9,
-      description: "Bury 2 deck cards under each ♠ pile card in this column.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 2 deck cards under each ♠ pile card in this column",
     },
     clubDig: {
       id: "clubDig", label: "Club Dig", icon: "♣️",
       kind: "active", effect: "suitDig", suit: "♣", digCount: 3, tier: "uncommon", price: 11,
-      description: "Bury 3 deck cards under each ♣ pile card in this column.",
+      description: "Trigger: Activated, once per deal\nEffect: Bury 3 deck cards under each ♣ pile card in this column",
     },
     demolish: {
       id: "demolish", label: "Demolish", icon: "🔨",
       kind: "active", effect: "demolish", target: "pillar", tier: "uncommon", price: 10,
-      description: "Destroy one of your placed Pillars for good, gaining +15 coins.",
+      description: "Trigger: Activated (choose a Pillar), once per deal\nEffect: Destroy the chosen placed Pillar for good; gain +15 coins",
     },
     tax: {
       id: "tax", label: "Tax", icon: "🧾",
@@ -5009,7 +5009,7 @@ const BaseTypes = (() => {
       // Suit-gated on ♣ (the first black suit, entering Stage 2) so it's only
       // offered once black cards exist — otherwise it could earn nothing.
       suit: "♣",
-      description: "+1 coin per black pile card (♠/♣) on the board.",
+      description: "Trigger: Activated, once per deal\nEffect: +1 coin per black pile card (♠/♣) on the board",
     },
   };
   // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
@@ -13887,7 +13887,7 @@ const UIRenderer = (() => {
     if (t.effect === "suitTally") {
       const br = engine && engine.baseRandom ? engine.baseRandom() : null;
       if (br && br.suit) {
-        return br.suit + " — gain coins equal to the total value of that suit among this column's cards (face cards count 10). (suit changes each deal)";
+        return "Trigger: Activated, once per deal\nEffect: Gain coins equal to the total value of " + br.suit + " cards among this column's cards (face cards count 10). The suit changes each deal";
       }
     }
     return t.description;
