@@ -4127,7 +4127,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.81 · same-charge-L1";
+const APP_VERSION = "v2.82 · same-fire-L2";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6425,6 +6425,47 @@ const GameEngine = (() => {
       return res;
     }
 
+    /** LAYER 2 — a correct Same fires the player's whole installed engine.
+        Every installed WHOLE-COLUMN Base RE-FIRES (its once-per-deal spend is
+        bypassed: un-spend → baseActivate re-spends), even if already used this
+        deal. Every installed Pillar grants its coin reward (scoring Pillars pay
+        their current end-of-deal contribution NOW, on top of scoring again at
+        deal end; live coin Pillars pay their value). Reuses the existing base /
+        pillar firing feedback. Target Bases (Kamikaze / Sticker Harvest /
+        Demolish) need a manual pick, so they're skipped here. */
+    function fireSameEngine() {
+      if (!run) return;
+      // Bases — re-fire each non-target Base, bypassing the spent limit.
+      if (run.bases) {
+        for (let c = 0; c < run.bases.length; c++) {
+          const base = BaseTypes.get(run.bases[c]);
+          if (!base || base.target) continue;          // empty slot, or a manual-target Base
+          if (run.basesUsed) run.basesUsed[c] = false;  // un-spend so a spent Base re-fires
+          if (status === "playing") baseActivate(c);    // checks its precondition; no-op if it can't act
+        }
+      }
+      // Pillars — END-OF-DEAL scoring Pillars: pay their current contribution now
+      // (computePillarPayout covers Guardian / all-suit / Envy / Symmetry / Greedy
+      // / Highest Odd·Even / Insurance / Sticker Count / Excavator / Gambler).
+      const pp = computePillarPayout();
+      const scoredCols = new Set();
+      for (const ln of (pp.lines || [])) {
+        if (ln && ln.col != null) { addBonus(ln.label, ln.amount || 0); firePillar(ln.col, "sameFire", ln.label, ln.amount || 0); scoredCols.add(ln.col); }
+      }
+      // PER-LANDING coin Pillars (paid live in play, so not in computePillarPayout):
+      // grant their value on the Same. The rest (peek / tie-safe / bury / meta /
+      // passive) just pulse for feedback.
+      const SAME_LIVE_COIN = { suitBounty: 1, prime: 1, fibonacci: 1, royalCourt: 1, streakBank: 1, echo: 1 };
+      if (run.pillars) {
+        for (let c = 0; c < run.pillars.length; c++) {
+          const def = resolvePillarDef(c);
+          if (!def) continue;
+          if (SAME_LIVE_COIN[def.effect]) payPillar(c, def.effect, def.label, def.value || 1);
+          else if (!scoredCols.has(c)) firePillar(c, "sameFire", def.label, 0);   // pulse (non-coin / already-scored skipped)
+        }
+      }
+    }
+
     /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
         card and fires ONLY when that GUARD CARD is DRAWN from the deck and
         placed ONTO a card of its guarded suit (carrier = drawn, other = current
@@ -6939,6 +6980,10 @@ const GameEngine = (() => {
         // backstop above auto-spends it to save a pile from death.
         if (guess === "same") {
           sameCharge = true;
+          // LAYER 2 — fire the whole installed base/pillar engine (every correct
+          // Same, bypassing once-per-deal limits). This is why a Same is always
+          // worth pressing even at full charge.
+          fireSameEngine();
           emit("same-banked", { index, board, deck, run, sameCharge });
         }
       } else if ((guardSave = findGuardSave(current, drawn))) {

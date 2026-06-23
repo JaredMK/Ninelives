@@ -30,6 +30,7 @@ import { run as peekPillars } from "./peek-pillars.test.mjs";
 import { run as runMods } from "./run-mods.test.mjs";
 import { run as tell } from "./tell.test.mjs";
 import { run as sameCharge } from "./same-charge.test.mjs";
+import { run as sameFire } from "./same-fire.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -60,6 +61,7 @@ const SUITES = [
   ["run-mods", runMods],
   ["tell", tell],
   ["same-charge", sameCharge],
+  ["same-fire", sameFire],
 ];
 
 let pass = 0,
