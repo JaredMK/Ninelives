@@ -164,7 +164,7 @@ export function run() {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
     r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 37, "all Pillars registered (23 originals + 10 expansion + Broadcast + 3 peek Pillars)");
+    r.eq(PillarTypes.all().length, 39, "all Pillars registered (23 originals + 10 expansion + Broadcast + 3 peek Pillars + 2 Same-payoff)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------

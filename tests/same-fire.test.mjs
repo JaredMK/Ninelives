@@ -115,5 +115,79 @@ export function run() {
     r.eq(firedAmt, 0, "the Pillar still pulsed for feedback (amount 0)");
   }
 
+  // ====================================================================
+  // LAYER 3 — Same-payoff artifacts (Resonance, Dynamo, Resonator)
+  // ====================================================================
+
+  // --- Resonance Pillar: a correct Same grows its column (buries 2 each) -
+  {
+    const e = game(["resonance", null, null], null);
+    const b = e.getBoard();
+    const sizesBefore = [0, 1, 2].map(i => b.pileSize(i));
+    let grew = 0, firedGrow = false;
+    e.onEvent((t, p) => {
+      if (t === "buried" && p.source === "Resonance") grew += p.count;
+      if (t === "pillar-fired" && p.effect === "sameGrow") firedGrow = true;
+    });
+    // The Same lands on pile 7 (a DIFFERENT column) — Resonance still grows col 0,
+    // because Layer 2 fires every installed artifact on ANY correct Same.
+    sameOn(e, 7, 7);
+    r.eq(grew, 6, "Resonance buried 2 under each of col 0's 3 alive piles (=6)");
+    r.ok(firedGrow, "Resonance pulsed (sameGrow) on the Same");
+    r.ok([0, 1, 2].every(i => b.pileSize(i) === sizesBefore[i] + 2), "every alive pile in col 0 grew by 2");
+  }
+
+  // --- Dynamo Pillar: a Same-Charge SAVE in its column refills the charge -
+  {
+    const e = game(["dynamo", null, null], ["", "", ""].map(() => null));
+    const b = e.getBoard();
+    // Seed a charge by banking a correct Same first.
+    sameOn(e, 0, 7);
+    r.ok(e.sameCharge(), "charge banked");
+    // Now a would-be death on a pile in col 0 (Dynamo's column): the backstop
+    // saves it AND Dynamo refills the charge.
+    let refilled = false;
+    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "sameRecharge") refilled = true; });
+    b.top(1).value = 5;
+    e.debug.setNextCard(9);
+    e.guess(1, "lower");                 // 9 > 5 → wrong → backstop saves pile 1
+    r.ok(b.isActive(1), "the backstop saved the pile");
+    r.ok(refilled, "Dynamo fired on the save (sameRecharge)");
+    r.ok(e.sameCharge(), "Dynamo refilled the Same Charge (repeatable backstop in this column)");
+
+    // A save in a column WITHOUT Dynamo does NOT refill.
+    const e2 = game(["dynamo", null, null], ["", "", ""].map(() => null));
+    sameOn(e2, 0, 7);                    // bank a charge
+    const b2 = e2.getBoard();
+    b2.top(7).value = 5;                 // pile 7 is in col 2 (no Dynamo)
+    e2.debug.setNextCard(9);
+    e2.guess(7, "lower");                // wrong → backstop saves, but col 2 has no Dynamo
+    r.ok(b2.isActive(7), "the backstop saved the pile in the Dynamo-less column");
+    r.ok(!e2.sameCharge(), "no Dynamo there → the charge stayed spent");
+  }
+
+  // --- Resonator sticker: +4 coins when this card lands as a correct Same -
+  {
+    const e = game(null, null);
+    const b = e.getBoard();
+    b.top(0).value = 7; b.top(0).label = "7";
+    const nc = e.debug.setNextCard(7);              // a tie
+    nc.stickers = [{ type: "resonator" }];          // the landing card carries Resonator
+    const before = e.getRun().bonusCoins;
+    e.guess(0, "same");                              // correct Same → Resonator pays +4
+    r.ok(b.isActive(0), "the Same survived");
+    r.eq(e.getRun().bonusCoins - before, 4, "Resonator paid +4 coins on the correct Same");
+
+    // It does NOT pay on a non-Same correct land.
+    const e2 = game(null, null);
+    const b2 = e2.getBoard();
+    b2.top(0).value = 5;
+    const n2 = e2.debug.setNextCard(9);
+    n2.stickers = [{ type: "resonator" }];
+    const before2 = e2.getRun().bonusCoins;
+    e2.guess(0, "higher");                           // correct, but NOT a Same
+    r.eq(e2.getRun().bonusCoins - before2, 0, "Resonator pays nothing on a non-Same land");
+  }
+
   return r.summary();
 }

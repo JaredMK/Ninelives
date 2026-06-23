@@ -4127,7 +4127,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.82 · same-fire-L2";
+const APP_VERSION = "v2.83 · same-payoff-L3";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4563,6 +4563,8 @@ const StickerTypes = (() => {
                   description: "Trigger: A correct placement\nEffect: Earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0" },
     tell:       { id: "tell",       label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 2,
                   description: "When this lands correctly and becomes the pile card, hint that pile's NEXT drawn card: higher, lower, or same as this pile card. Direction only — not the card. Lasts one draw on that pile." },
+    resonator:  { id: "resonator",  label: "Resonator",   icon: "🔔", kind: "behavior", behavior: "sameCoin", value: 4, tier: "uncommon", price: 3,
+                  description: "Trigger: This card lands as a correct Same\nEffect: +4 coins" },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -4576,7 +4578,7 @@ const StickerTypes = (() => {
     "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit",
     "shuffle", "donate",
     "quickBury", "twinSpark", "looseChange", "snowball", "deepPockets",
-    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum", "tell"];
+    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum", "tell", "resonator"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -4874,6 +4876,25 @@ const PillarTypes = (() => {
       kind: "live", effect: "static", tier: "rare", price: 6,
       description: "Trigger: A card is drawn into this column\nEffect: Peek the next upcoming card — 10% chance per sticker on the drawn card, rolled once",
     },
+    // --- Same-payoff Pillars (Layer 3) -----------------------------------
+    // These fire off the Same mechanic. A correct Same already fires every
+    // installed artifact (Layer 2), so these read as artifacts whose effect is
+    // the Same itself. kind "modifier": no scoring/guess hook — the engine acts
+    // on them directly in the Same paths (fireSameEngine / the Same-Charge save).
+    resonance: {
+      // On any correct Same, GROW this column: bury 2 cards under each alive pile
+      // here (deeper piles → more buried-card scoring, a survival/economy buffer).
+      id: "resonance", label: "Resonance", icon: "🪈",
+      kind: "modifier", effect: "sameGrow", value: 2, tier: "uncommon", price: 6,
+      description: "Trigger: You make a correct Same (anywhere)\nEffect: Bury 2 cards under every alive pile in this column",
+    },
+    dynamo: {
+      // When your Same Charge saves a pile in THIS column, immediately refill the
+      // charge — turning the one-shot backstop into a repeatable shield here.
+      id: "dynamo", label: "Dynamo", icon: "🔋",
+      kind: "modifier", effect: "sameRecharge", tier: "rare", price: 8,
+      description: "Trigger: Your Same Charge saves a pile in this column\nEffect: Instantly refill your Same Charge",
+    },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Kamikaze used to live here as a Pillar; it is now a Base (see BaseTypes).
@@ -4884,7 +4905,7 @@ const PillarTypes = (() => {
     "fibonacci", "highestOdd", "highestEven", "denseBury", "revive",
     "sameSpark", "insurance", "ditto", "stickerCount", "prime",
     "queensEye", "royalCourt", "excavator", "echo", "gambler", "broadcast",
-    "unearth", "lastRites", "static"];
+    "unearth", "lastRites", "static", "resonance", "dynamo"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -6460,7 +6481,13 @@ const GameEngine = (() => {
         for (let c = 0; c < run.pillars.length; c++) {
           const def = resolvePillarDef(c);
           if (!def) continue;
-          if (SAME_LIVE_COIN[def.effect]) payPillar(c, def.effect, def.label, def.value || 1);
+          if (def.effect === "sameGrow") {
+            // LAYER 3 — Resonance: grow this column on a Same (bury value cards
+            // under each alive pile here). Pulse only if it actually buried.
+            let grew = 0;
+            for (const i of colAlivePiles(c)) grew += buryTribute(i, def.value || 2, def.label);
+            if (grew > 0) firePillar(c, "sameGrow", def.label, 0);
+          } else if (SAME_LIVE_COIN[def.effect]) payPillar(c, def.effect, def.label, def.value || 1);
           else if (!scoredCols.has(c)) firePillar(c, "sameFire", def.label, 0);   // pulse (non-coin / already-scored skipped)
         }
       }
@@ -6980,6 +7007,14 @@ const GameEngine = (() => {
         // backstop above auto-spends it to save a pile from death.
         if (guess === "same") {
           sameCharge = true;
+          // LAYER 3 — Resonator sticker(s) on the landed card pay coins on a Same.
+          const res = drawn.stickers ? drawn.stickers.filter(s => s.type === "resonator").length : 0;
+          if (res > 0) {
+            const rt = StickerTypes.get("resonator");
+            const amt = res * ((rt && rt.value) || 0);
+            addBonus((rt && rt.label) || "Resonator", amt);
+            recT("sticker", "resonator", (rt && rt.label) || "Resonator", { coins: amt });
+          }
           // LAYER 2 — fire the whole installed base/pillar engine (every correct
           // Same, bypassing once-per-deal limits). This is why a Same is always
           // worth pressing even at full charge.
@@ -7029,6 +7064,14 @@ const GameEngine = (() => {
         sameCharge = false;
         board.push(index, drawn);
         logLine("Same Charge consumed — pile saved (the killing card landed as the new pile card)");
+        // LAYER 3 — Dynamo: if this saved pile's column holds a Dynamo Pillar,
+        // immediately refill the charge (the backstop becomes repeatable here).
+        const dyn = resolvePillarDef(col);
+        if (dyn && dyn.effect === "sameRecharge") {
+          sameCharge = true;
+          firePillar(col, "sameRecharge", dyn.label, 0);
+          logLine(dyn.label + ": Same Charge refilled");
+        }
         emit("same-saved", { index, guess, current, drawn, board, deck, run, sameCharge });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
