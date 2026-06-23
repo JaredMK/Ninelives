@@ -29,6 +29,7 @@ import { run as broadcast } from "./broadcast.test.mjs";
 import { run as peekPillars } from "./peek-pillars.test.mjs";
 import { run as runMods } from "./run-mods.test.mjs";
 import { run as tell } from "./tell.test.mjs";
+import { run as sameCharge } from "./same-charge.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -58,6 +59,7 @@ const SUITES = [
   ["peek-pillars", peekPillars],
   ["run-mods", runMods],
   ["tell", tell],
+  ["same-charge", sameCharge],
 ];
 
 let pass = 0,

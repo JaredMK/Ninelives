@@ -225,6 +225,22 @@
   }
   .hud .hud-dop b { font-size: 15px; font-weight: 800; }
   .hud .hud-dop .coin-ico { font-size: 13px; }
+  /* Same Charge indicator: a lightning chip — lit + glowing when CHARGED (the
+     auto-save backstop is armed), dim/outlined when EMPTY. */
+  .hud .hud-same {
+    font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+    width: 19px; height: 19px; border-radius: 999px; transition: all 0.18s ease;
+  }
+  .hud .hud-same.charged {
+    color: #1c1206; background: var(--amber);
+    box-shadow: 0 0 8px var(--amber), 0 0 2px var(--amber); transform: scale(1.05);
+  }
+  .hud .hud-same.empty { color: var(--muted); opacity: 0.45; background: none; }
+  @keyframes sameChargePulse { 0%,100% { box-shadow: 0 0 8px var(--amber); } 50% { box-shadow: 0 0 14px var(--amber); } }
+  .hud .hud-same.charged { animation: sameChargePulse 1.5s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .hud .hud-same.charged { animation: none; } }
+  /* The SAME guess button also glows while a charge is banked (contextual cue). */
+  .btn.same.charged { box-shadow: 0 0 0 2px var(--amber), 0 2px 8px rgba(0,0,0,0.2); }
   /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
   .min-accent { color: var(--amber) !important; }
   .bonus-accent { color: var(--accent-2) !important; margin-left: 4px; }
@@ -3544,6 +3560,7 @@
       <b id="minPileCount" class="min-accent">1</b><span class="hl">S</span>
       <b id="bonusCoins" class="bonus-accent">+0</b>
     </span>
+    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort">⚡</span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
@@ -4110,7 +4127,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.80 · trigger-effect-help";
+const APP_VERSION = "v2.81 · same-charge-L1";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5467,6 +5484,10 @@ const GameEngine = (() => {
   //            no Pillar effects (existing callers are unaffected).
   function create(deckSpecs, pileCount, runConfig = {}) {
     const cols = Array.isArray(runConfig.cols) ? runConfig.cols.slice() : null;
+    // Same Charge — seeded from the campaign (it persists across deals). A correct
+    // Same banks it (max 1); it auto-fires as the LAST-priority backstop to save a
+    // pile from death. Written back to the campaign at deal end (on a win).
+    let sameCharge = !!runConfig.sameCharge;
     let deck, board, status, run, listeners = [];
     let rng = null;   // the run's seeded rng (shared by the deck + board shuffles)
     // currentEntry: the log entry that in-flight cascade lines append to (set
@@ -6913,6 +6934,13 @@ const GameEngine = (() => {
         // offer to revive one (one-shot per deal; skipped without consuming if
         // nothing is dead).
         maybeReviveTrigger(col);
+        // SAME: a correct Same call banks a Same Charge (max 1 — a Same at full
+        // charge does not stack the charge, but still earns Layer 2 below). The
+        // backstop above auto-spends it to save a pile from death.
+        if (guess === "same") {
+          sameCharge = true;
+          emit("same-banked", { index, board, deck, run, sameCharge });
+        }
       } else if ((guardSave = findGuardSave(current, drawn))) {
         // Suit Guard (symmetric): the guarded suit is involved in this draw, so
         // the wrong guess is absorbed once per run. The pile survives with its
@@ -6945,6 +6973,18 @@ const GameEngine = (() => {
         firePillar(col, "secondWind", pillar.label, 0);
         emit("second-wind", { index, guess, current, board, deck, run });
         recT("pillar", pillar.id, pillar.label, { saves: 1, revived: 1 });
+      } else if (sameCharge) {
+        // SAME CHARGE — the LAST-priority backstop. Reached only after Guard,
+        // Shield and Second Wind all declined to save (they sit above this in the
+        // chain), so it is truly the last line of defence, and it's spent only
+        // when it actually saves. Works uniformly for BOTH death types — a
+        // wrong-direction guess OR a lethal tie both fall through to here.
+        // The save: the would-be-killing card LANDS on the pile normally and
+        // becomes the new pile card; the pile survives and continues from it.
+        sameCharge = false;
+        board.push(index, drawn);
+        logLine("Same Charge consumed — pile saved (the killing card landed as the new pile card)");
+        emit("same-saved", { index, guess, current, drawn, board, deck, run, sameCharge });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
@@ -7162,6 +7202,9 @@ const GameEngine = (() => {
         const active = run && (run.revealNextActive || run.kamikazeRevealLeft > 0);
         return (active && deck) ? (deck.peek(1)[0] || null) : null;
       },
+      /** Same Charge — true when a charge is currently banked (the auto-save
+          backstop is armed), false when empty. Live for the whole deal. */
+      sameCharge() { return sameCharge; },
       /** Tell: the directional hint for an armed pile, or null. Returns "higher",
           "lower", or "same" — the REAL next card's rank vs this pile's top card.
           DISPLAY ONLY: a pure read (deck.peek never changes draw order/RNG); it
@@ -7416,6 +7459,11 @@ const CampaignState = (() => {
     // played"? Flips true on the first guess (UIRenderer) and persists with the
     // save so a mid-deal resume can't double-count. Cleared by reset().
     let playedCounted = false;
+    // Same Charge (the "Same" mechanic): a correct Same call banks 1 charge (max
+    // 1). It persists ACROSS DEALS within a run and resets at the start of each
+    // run (reset()). The engine reads it at deal start and writes the deal-end
+    // value back here on a win; a loss ends the run (reset clears it).
+    let sameCharge = false;
     let stickerInventory = {};     // { stickerTypeId: count } bought, unapplied
     let pillarInventory = {};      // { pillarTypeId: count } bought but not yet placed
     let baseInventory = {};        // { baseTypeId: count } bought but not yet placed
@@ -7486,6 +7534,10 @@ const CampaignState = (() => {
          Persisted, so a resume of the same campaign never re-counts it. */
       isPlayedCounted() { return playedCounted; },
       markPlayed() { playedCounted = true; },
+
+      /* ---- Same Charge (persists across deals, resets per run) ---- */
+      getSameCharge() { return sameCharge; },
+      setSameCharge(v) { sameCharge = !!v; },
 
       /** Tally cards flipped (correct guesses) for ANY run end — win or loss —
           so the end screen counts the final losing run too. */
@@ -8175,6 +8227,7 @@ const CampaignState = (() => {
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         playedCounted = false;
+        sameCharge = false;
         stickerInventory = {};
         pillarInventory = {};
         baseInventory = {};
@@ -8200,6 +8253,7 @@ const CampaignState = (() => {
           allGuessesCorrect, allGuessesTotal,
           coins,
           playedCounted,
+          sameCharge,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
           baseInventory: { ...baseInventory },
@@ -8236,6 +8290,7 @@ const CampaignState = (() => {
         totalCoinsEarned = s.totalCoinsEarned || 0;
         coins = s.coins || 0;
         playedCounted = !!s.playedCounted;   // default false for pre-guard saves
+        sameCharge = !!s.sameCharge;
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
         baseInventory = { ...(s.baseInventory || {}) };       // default {} for pre-Bases saves
@@ -8692,6 +8747,7 @@ const UIRenderer = (() => {
     bonusCoins: document.getElementById("bonusCoins"),
     hudStageRun: document.getElementById("hudStageRun"),
     hudDopamine: document.getElementById("hudDopamine"),
+    hudSame: document.getElementById("hudSame"),
     stageRun: document.getElementById("stageRun"),
     mainMenu: document.getElementById("mainMenu"),
     menuButtons: document.getElementById("menuButtons"),
@@ -9197,7 +9253,17 @@ const UIRenderer = (() => {
     renderDeckStrip();  // keep the always-on composition strip in sync
     renderDeckReveal(); // Scout look-ahead: show/hide the upcoming card on the deck
     renderPileHints();  // Tell: per-pile higher/lower/same direction indicators
+    updateSameCharge(); // Same Charge: charged/empty indicator + Same-button glow
     refreshActivatableIndicators();   // "tap to activate" cue on activatable Pillars
+  }
+
+  /* Reflect the live Same Charge: the HUD chip lights/glows when a charge is
+     banked (the auto-save backstop is armed) and dims when empty; the SAME guess
+     button gets a matching glow. Reads engine.sameCharge() (live for the deal). */
+  function updateSameCharge() {
+    const charged = !!(engine && engine.sameCharge && engine.sameCharge());
+    if (el.hudSame) { el.hudSame.classList.toggle("charged", charged); el.hudSame.classList.toggle("empty", !charged); }
+    if (el.btnSame) el.btnSame.classList.toggle("charged", charged);
   }
 
   /* Tell: paint each pile's directional hint (▲ higher / = same / ▼ lower) for its
@@ -11849,6 +11915,48 @@ const UIRenderer = (() => {
         break;
       }
 
+      case "same-saved": {
+        // Same Charge backstop fired (last-priority). Unlike Shield/Guard (which
+        // bounce the card back), the would-be-killing card LANDED as the new pile
+        // card and the pile survived; the charge is now spent. Distinct feedback.
+        const reduce = prefersReduce();
+        const idx = payload.index;
+        const pileEl = pileEls[idx];
+        const cardEl = pileEl && pileEl.querySelector(".card");
+        const top = payload.board.top(idx);
+        pileEl && pileEl.classList.remove("dead");
+        paintPileCounts(payload.board);
+        renderHud(payload.board, payload.deck);   // updates the now-EMPTY Same indicator
+        updateStreakCounters();                   // a wrong guess reset this column's streak
+        clearSelection();
+        renderSetupInv();
+        el.hint.textContent = "Same Charge — the pile was saved; the card landed as its new card.";
+        refreshDebug();
+
+        const settle = () => {
+          if (top && pileEl) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+          if (cardEl) cardEl.style.visibility = "";
+          if (pileEl) { pileEl.classList.add("flash-good"); setTimeout(() => pileEl.classList.remove("flash-good"), 600); }
+          refreshNetwork(payload.board);
+          Sound.good();
+        };
+        if (reduce || !cardEl || typeof cardEl.animate !== "function") { settle(); break; }
+        // The killing card flies in from the deck and lands as the new top.
+        queueAnim((done) => {
+          const to = cardEl.getBoundingClientRect();
+          flyCard(flyRealCardEl(payload.drawn, cardEl), deckRect(), to,
+            { duration: 230, onArrive: () => { settle(); done(); } });
+        });
+        break;
+      }
+
+      case "same-banked": {
+        // A correct Same banked a charge (emitted after "resolved"): refresh the
+        // charged/empty indicator now (the resolved render ran before banking).
+        updateSameCharge();
+        break;
+      }
+
       case "won":
         // Telemetry: end-of-deal scoring Pillars pay out here (each line carries
         // its resolved Pillar id). Recorded once per win, then persisted.
@@ -12313,7 +12421,7 @@ const UIRenderer = (() => {
     // Pass the column layout so the engine can resolve Pillars (column
     // modifiers); the per-column Pillar binding is snapshotted later, at
     // Start Run, after the pre-run assignment phase.
-    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles, { cols: cfg.cols });
+    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge() });
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -13456,6 +13564,9 @@ const UIRenderer = (() => {
     for (const id in mu) campaign.setMomentum(Number(id), mu[id]);
     const sp = (payload.run && payload.run.stickerPeels) || {};
     for (const id in sp) campaign.removeStickerInstances(Number(id), "quickBury", sp[id]);
+    // Same Charge persists across deals: carry this deal's end-state back to the
+    // campaign (a loss never reaches here — it ends the run, and reset() clears it).
+    if (engine && engine.sameCharge) campaign.setSameCharge(engine.sameCharge());
     // Column Pillars are scored engine-side (column-aware) and arrive itemized
     // on the win payload; default to nothing for legacy/no-layout runs.
     const pp = payload.pillarPayout || { bonus: 0, lines: [] };
