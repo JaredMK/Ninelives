@@ -1828,6 +1828,22 @@
     letter-spacing: 0.2px; opacity: 0.62; text-transform: none; color: var(--muted); }
   .store-shelf.z-imp .shelf-h { color: var(--accent-2); }   /* rose — stickers */
   .store-shelf.z-mix .shelf-h { color: #6E51A6; }           /* violet — mixed items */
+  .store-shelf.z-same .shelf-h { color: var(--net, #C84A78); }  /* synapse rose — Same-Power */
+  /* The Same-Power shelf holds a single object; let its one tile sit centred. */
+  .store-shelf.z-same .store-row.big { grid-template-columns: 1fr; justify-items: center; }
+  .store-shelf.z-same { flex: 0 0 auto; min-height: 96px; }
+
+  /* Same-Power badge: the power's glyph over its name, ringed in synapse-violet
+     so it reads as a "links" artifact. Used on store tiles + the setup chip. */
+  .sp-badge { display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 8px 12px; border-radius: 12px;
+    background: linear-gradient(180deg, rgba(200,74,120,0.14), rgba(142,47,78,0.20));
+    border: 1.5px solid var(--net, #C84A78); box-shadow: 0 0 10px rgba(200,74,120,0.30); }
+  .sp-badge-ico { font-size: 22px; line-height: 1; }
+  .sp-badge-name { font-family: var(--font-text); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.3px; color: var(--net-dot, #8E2F4E); }
+  .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
+  .tray-samepower.armed { outline: 2px solid var(--net, #C84A78); outline-offset: 2px; border-radius: 12px; }
 
   /* One row of THREE objects, vertically centred in the shelf's grown space. */
   .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px;
@@ -3649,12 +3665,14 @@
         <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="tabNStickers">0</span></button>
         <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="tabNPillars">0</span></button>
         <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="tabNBases">0</span></button>
+        <button class="setup-tab" type="button" data-tab="samepowers"><span class="stab-l">Same</span><span class="stab-n" id="tabNSame">0</span></button>
       </div>
       <div class="setup-strip" id="setupStrip">
         <div class="pack-tray tab-panel hidden" id="packTrayEl" data-tab="cards"></div>
         <div class="sticker-tray tab-panel hidden" id="stickerTray" data-tab="stickers"></div>
         <div class="pillar-tray tab-panel hidden" id="pillarTray" data-tab="pillars"></div>
         <div class="base-tray tab-panel hidden" id="baseTray" data-tab="bases"></div>
+        <div class="samepower-tray tab-panel hidden" id="samePowerTray" data-tab="samepowers"></div>
         <div class="setup-empty hidden" id="setupEmpty"></div>
       </div>
     </div>
@@ -3705,6 +3723,9 @@
         <div class="debug-grant">
           <select class="debug-sel" id="debugBaseSel"></select>
           <button class="debug-btn" id="debugAddBase">+ Base</button>
+          <select class="debug-sel" id="debugSamePowerSel"></select>
+          <button class="debug-btn" id="debugEquipSamePower">equip SP</button>
+          <button class="debug-btn" id="debugForceSame">force Same✓</button>
         </div>
         <div class="debug-sub">set active Pillar on a column (mid-run) →</div>
         <div class="debug-grant">
@@ -3810,6 +3831,11 @@
     <div class="store-shelf z-mix">
       <div class="shelf-h"><span class="lbl">Items</span><span class="rule"></span><span class="tag">base · pillar · pack</span></div>
       <div class="store-row big" id="storeMixed"></div>
+    </div>
+
+    <div class="store-shelf z-same">
+      <div class="shelf-h"><span class="lbl">Same-Power</span><span class="rule"></span><span class="tag">what a correct Same does · equip one</span></div>
+      <div class="store-row big" id="storeSame"></div>
     </div>
 
     <div class="store-msg" id="storeMsg"></div>
@@ -4127,7 +4153,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.84 · same-power-cleanup";
+const APP_VERSION = "v2.85 · same-power-slot";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5043,6 +5069,54 @@ const BaseTypes = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   SamePowerTypes — the data-driven registry for SAME-POWERS, the artifact
+   class that the "Same" guess pays off. The player equips exactly ONE at a
+   time (its own dedicated store slot + a single equip slot — never mixed into
+   Pillars/Bases). A CORRECT Same triggers the equipped Same-Power, and that is
+   the ONLY artifact a Same triggers. Unifying rule: every Same-Power acts on
+   the piles DIRECTLY linked (via the synapse network) to the pile the Same was
+   called on — the called pile is the hub, the power acts on its direct
+   link-neighbours (NOT the whole transitive network). So which pile you call
+   Same on is a real spatial choice (a hub with many links is worth more than a
+   leaf), and timing matters as the web rewires when piles die.
+
+   Pure data — the engine switches on `effect` in fireSamePower(), exactly as it
+   does for Pillars/Bases/stickers. Each entry declares tier/price (store rarity
+   + fixed price) and a Trigger/Effect description (single source of truth).
+---------------------------------------------------------------- */
+const SamePowerTypes = (() => {
+  const TYPES = {
+    linkBury: {
+      // Flagship / survival. On a correct Same, bury 1 deck card under each pile
+      // directly linked to the called pile (deeper neighbours = more buffer).
+      id: "linkBury", label: "Burrow", icon: "🕳️",
+      effect: "linkBury", value: 1, tier: "uncommon", price: 5,
+      description: "Trigger: You make a correct Same\nEffect: Bury 1 card under each pile directly linked to the pile you called Same on",
+    },
+    linkRevive: {
+      // Survival. On a correct Same, revive one dead pile directly linked to the
+      // called pile, keeping all of its cards (its full size).
+      id: "linkRevive", label: "Rekindle", icon: "🌱",
+      effect: "linkRevive", tier: "rare", price: 7,
+      description: "Trigger: You make a correct Same\nEffect: Revive one dead pile directly linked to the pile you called Same on, keeping its size",
+    },
+    linkCoins: {
+      // Economy. On a correct Same, gain 2 coins × the size of the largest pile
+      // directly linked to the called pile.
+      id: "linkCoins", label: "Dividend", icon: "💰",
+      effect: "linkCoins", value: 2, tier: "uncommon", price: 5,
+      description: "Trigger: You make a correct Same\nEffect: Gain 2 coins × the size of your largest directly-linked pile",
+    },
+  };
+  const ORDER = ["linkBury", "linkRevive", "linkCoins"];
+  return {
+    ids: ORDER,
+    get(id) { return TYPES[id] || null; },
+    all() { return ORDER.map(id => TYPES[id]); },
+  };
+})();
+
+/* ----------------------------------------------------------------
    PackTypes — the data-driven registry for CARD PACKS and STICKER PACKS,
    a third store section. Buying a pack reveals `size` random items; the
    player keeps `keep` of them (card-pack picks go to the pending pack tray
@@ -5488,6 +5562,9 @@ const GameEngine = (() => {
     // Same banks it (max 1); it auto-fires as the LAST-priority backstop to save a
     // pile from death. Written back to the campaign at deal end (on a win).
     let sameCharge = !!runConfig.sameCharge;
+    // The equipped Same-Power id (the only artifact a correct Same triggers).
+    // Seeded from the campaign at deal start; read in fireSamePower().
+    const samePower = runConfig.samePower || null;
     let deck, board, status, run, listeners = [];
     let rng = null;   // the run's seeded rng (shared by the deck + board shuffles)
     // currentEntry: the log entry that in-flight cascade lines append to (set
@@ -6425,12 +6502,46 @@ const GameEngine = (() => {
       return res;
     }
 
-    /** A correct Same triggers the player's ONE equipped Same-Power (the only
-        artifact a Same triggers). Every Same-Power acts on the piles DIRECTLY
-        linked (via the synapse network) to `hub` — the pile the Same was called
-        on. Implemented in full alongside the Same-Power slot. */
+    /** The piles DIRECTLY linked to `hub` via the synapse network, optionally
+        filtered to alive (default) or dead. Reads run.links — the adjacency the
+        UI pushes in — so it mirrors exactly the links the player sees. Returns a
+        de-duplicated array of pile indices (never includes `hub`). */
+    function linkedPiles(hub, which) {
+      const raw = (run && run.links && run.links[hub]) || [];
+      const out = [];
+      const seen = new Set();
+      for (const j of raw) {
+        if (j === hub || seen.has(j)) continue;
+        seen.add(j);
+        const alive = board.isActive(j);
+        if (which === "dead" ? !alive : alive) out.push(j);
+      }
+      return out;
+    }
+
+    /** A correct Same triggers the player's ONE equipped Same-Power — the only
+        artifact a Same triggers. Every Same-Power acts on the piles DIRECTLY
+        linked (via the synapse network) to `hub`, the pile the Same was called
+        on. No-op when nothing is equipped. Emits "same-power" for UI feedback. */
     function fireSamePower(hub) {
-      // (Section 2/3 — Same-Power dispatch lands here.)
+      if (!run || !run.samePower) return;
+      const def = SamePowerTypes.get(run.samePower);
+      if (!def) return;
+      const result = { power: def.id, label: def.label, hub, effect: def.effect, targets: [], amount: 0 };
+      switch (def.effect) {
+        case "linkBury": {
+          // Bury `value` card(s) under each ALIVE directly-linked pile.
+          const targets = linkedPiles(hub, "alive");
+          let buried = 0;
+          for (const j of targets) buried += buryTribute(j, def.value || 1, def.label);
+          result.targets = targets;
+          result.amount = buried;
+          break;
+        }
+        // linkRevive / linkCoins land in Section 3.
+      }
+      logLine(def.label + " (Same-Power): " + result.targets.length + " linked pile(s)");
+      emit("same-power", { ...result, board, deck, run });
     }
 
     /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
@@ -6628,6 +6739,14 @@ const GameEngine = (() => {
         cols,
         pileColumns: cols ? buildPileColumns(cols, pileCount) : null,
         pillars: null,
+        // The equipped Same-Power for this deal (the only artifact a correct Same
+        // triggers). Snapshotted from runConfig; null if nothing is equipped.
+        samePower,
+        // Synapse-link adjacency the UI pushes in (pileIndex → array of DIRECTLY
+        // linked pile indices). Read by Same-Powers to act on the called pile's
+        // direct link-neighbours. The engine never computes geometry — it mirrors
+        // exactly the links the player sees. Empty until the UI calls setLinks().
+        links: {},
         // Per-column tally of qualifying correct guesses for a Suit Bounty
         // Pillar (accrued during play, paid out at run end).
         suitBountyHits: cols ? new Array(cols.length).fill(0) : null,
@@ -7091,6 +7210,19 @@ const GameEngine = (() => {
       setNextCard(value) {
         return (deck && status === "playing") ? deck._setNext(value) : null;
       },
+      // Set the equipped Same-Power for THIS deal live (debug/QA only — normal
+      // play snapshots it from runConfig at deal start).
+      setSamePower(id) { if (run) run.samePower = id || null; },
+      // Force a guaranteed-correct Same on a pile (debug/QA): set the next draw to
+      // the pile's current top value, then guess "same". Returns the pile index.
+      forceSame(index) {
+        if (status !== "playing" || !board || !board.isActive(index)) return null;
+        const top = board.top(index);
+        if (!top) return null;
+        deck._setNext(top.value);
+        guess(index, "same");
+        return index;
+      },
       // Inspect upcoming cards without drawing.
       peekNext(n = 1) { return deck ? deck.peek(n) : []; },
       // Shrink the draw deck so a win is moments away.
@@ -7215,6 +7347,24 @@ const GameEngine = (() => {
       /** Same Charge — true when a charge is currently banked (the auto-save
           backstop is armed), false when empty. Live for the whole deal. */
       sameCharge() { return sameCharge; },
+      /** The equipped Same-Power id for this deal (or null). */
+      samePower() { return run ? run.samePower : samePower; },
+      /** Push the synapse-link adjacency the UI computed (pileIndex → array of
+          DIRECTLY linked pile indices). The engine reads it for Same-Power
+          targeting so the gameplay links exactly match what the player sees. */
+      setLinks(map) {
+        if (!run) return;
+        const links = {};
+        if (map && typeof map === "object") {
+          for (const k in map) {
+            const arr = map[k];
+            if (Array.isArray(arr)) links[k] = arr.slice();
+          }
+        }
+        run.links = links;
+      },
+      /** A copy of the current link adjacency (pileIndex → linked indices). */
+      getLinks() { return run ? run.links : {}; },
       /** Tell: the directional hint for an armed pile, or null. Returns "higher",
           "lower", or "same" — the REAL next card's rank vs this pile's top card.
           DISPLAY ONLY: a pure read (deck.peek never changes draw order/RNG); it
@@ -7309,6 +7459,7 @@ const CampaignState = (() => {
      reroll within a visit; it resets to base when the store re-opens. */
   const STORE_STICKER_SLOTS = 3;       // three individual sticker slots per visit
   const STORE_MIXED_SLOTS = 3;         // three mixed slots: each a Base / Pillar / Pack
+  const STORE_SAMEPOWER_SLOTS = 1;     // one dedicated Same-Power slot (own section)
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
   // Category odds for ONE mixed slot (drawn independently per slot). Bases and
@@ -7442,6 +7593,9 @@ const CampaignState = (() => {
     return {
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
       mixed: rollMixed(STORE_MIXED_SLOTS, rng, pillarPool, basePool),
+      // Same-Powers get their OWN dedicated slot (never mixed into bases/pillars).
+      // Not suit-gated, so they roll from the full registry by rarity weight.
+      samePowers: rollIds(SamePowerTypes.all(), STORE_SAMEPOWER_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
     };
   }
@@ -7489,6 +7643,14 @@ const CampaignState = (() => {
     // are activated once per deal during play. Bindings persist across runs; a
     // run snapshots them at Start Run.
     let columnBases = new Array(COLUMN_SLOTS).fill(null);
+    // Same-Power: the artifact class the "Same" guess pays off. Exactly ONE is
+    // equipped at a time, in its own dedicated slot (never mixed into Pillars /
+    // Bases). Same-Powers are BOUGHT into samePowerInventory and EQUIPPED into
+    // the single slot during pre-run setup (equipping a new one returns the old
+    // to inventory). Both the inventory and the equipped slot PERSIST across
+    // runs; a run snapshots the equipped power at Start Run.
+    let samePowerInventory = {};   // { samePowerId: count } bought, not equipped
+    let equippedSamePower = null;  // the one equipped Same-Power id (or null)
     // Current store offering (Balatro-style). Persists across store re-renders
     // (so a re-render can't re-roll for free); regenerated on each store open;
     // wiped on reset(). null until the first store opens.
@@ -7930,6 +8092,63 @@ const CampaignState = (() => {
         const t = columnBases[a]; columnBases[a] = columnBases[b]; columnBases[b] = t;
         return true;
       },
+
+      /* ---- Same-Powers (the single equipped Same-trigger artifact) ----
+         Buy → inventory → equip ONE into the single slot (equipping returns any
+         previously-equipped power to inventory). Both persist across runs. */
+      /** The equipped Same-Power id, or null. */
+      getSamePower() { return equippedSamePower; },
+      getSamePowerInventory() { return { ...samePowerInventory }; },
+      samePowerInventoryCount(typeId) { return samePowerInventory[typeId] || 0; },
+      /** FIXED price of a Same-Power type. */
+      priceOfSamePower(typeId) {
+        const t = SamePowerTypes.get(typeId);
+        return t ? t.price : Infinity;
+      },
+      /** Buy one Same-Power into inventory if affordable. Equip happens later. */
+      buySamePowerToInventory(typeId) {
+        const t = SamePowerTypes.get(typeId);
+        if (!t) return false;
+        const price = this.priceOfSamePower(typeId);
+        if (coins < price) return false;
+        coins -= price;
+        samePowerInventory[typeId] = (samePowerInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** DEBUG ONLY: grant one Same-Power to inventory free (no coins). */
+      debugGrantSamePower(typeId) {
+        if (!SamePowerTypes.get(typeId)) return false;
+        samePowerInventory[typeId] = (samePowerInventory[typeId] || 0) + 1;
+        return true;
+      },
+      /** Equip an owned Same-Power from inventory into the single slot. Any
+          power already equipped returns to inventory (non-destructive swap).
+          Returns true on success. */
+      equipSamePower(typeId) {
+        if (!SamePowerTypes.get(typeId)) return false;
+        if ((samePowerInventory[typeId] || 0) <= 0) return false;
+        const displaced = equippedSamePower;
+        samePowerInventory[typeId] -= 1;
+        if (samePowerInventory[typeId] <= 0) delete samePowerInventory[typeId];
+        if (displaced) samePowerInventory[displaced] = (samePowerInventory[displaced] || 0) + 1;
+        equippedSamePower = typeId;
+        return true;
+      },
+      /** Unequip the Same-Power back into inventory. Returns the id, or null. */
+      unequipSamePower() {
+        const id = equippedSamePower;
+        if (!id) return null;
+        samePowerInventory[id] = (samePowerInventory[id] || 0) + 1;
+        equippedSamePower = null;
+        return id;
+      },
+      /** Remove one Same-Power from inventory permanently. No refund. */
+      discardSamePowerFromInventory(typeId) {
+        if ((samePowerInventory[typeId] || 0) <= 0) return false;
+        samePowerInventory[typeId] -= 1;
+        if (samePowerInventory[typeId] <= 0) delete samePowerInventory[typeId];
+        return true;
+      },
       /** Buy a Base straight onto column `col` (no inventory step; overwrites). */
       buyBase(typeId, col) {
         const t = BaseTypes.get(typeId);
@@ -7965,6 +8184,7 @@ const CampaignState = (() => {
         const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         storeOffer.stickers = f.stickers;
         storeOffer.mixed = f.mixed;
+        storeOffer.samePowers = f.samePowers;
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
@@ -7975,6 +8195,20 @@ const CampaignState = (() => {
         const id = storeOffer.stickers[i];
         if (!id || !this.buySticker(id)) return false;
         storeOffer.stickers[i] = null;
+        return true;
+      },
+      /** Price of the Same-Power offered in slot `i` (0 for an empty slot). */
+      priceOfSamePowerSlot(i) {
+        const id = storeOffer && storeOffer.samePowers ? storeOffer.samePowers[i] : null;
+        return id ? this.priceOfSamePower(id) : 0;
+      },
+      /** Buy the offered Same-Power in slot `i` (to the Same-Power inventory);
+          empties that slot only. Returns true on success. */
+      buyOfferedSamePower(i) {
+        if (!storeOffer || !storeOffer.samePowers) return false;
+        const id = storeOffer.samePowers[i];
+        if (!id || !this.buySamePowerToInventory(id)) return false;
+        storeOffer.samePowers[i] = null;
         return true;
       },
       /** Fixed price of a pack type. */
@@ -8243,6 +8477,8 @@ const CampaignState = (() => {
         baseInventory = {};
         columnPillars = new Array(COLUMN_SLOTS).fill(null);
         columnBases = new Array(COLUMN_SLOTS).fill(null);
+        samePowerInventory = {};
+        equippedSamePower = null;
         storeOffer = null;
         packTray = [];
         nextCardId = 52;
@@ -8269,6 +8505,8 @@ const CampaignState = (() => {
           baseInventory: { ...baseInventory },
           columnPillars: columnPillars.slice(),
           columnBases: columnBases.slice(),
+          samePowerInventory: { ...samePowerInventory },
+          equippedSamePower,
           storeOffer: storeOffer ? JSON.parse(JSON.stringify(storeOffer)) : null,
           baseDeck: this._copyCards(),
           packTray: packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) })),
@@ -8308,6 +8546,8 @@ const CampaignState = (() => {
           ? s.columnPillars.slice() : new Array(COLUMN_SLOTS).fill(null);
         columnBases = Array.isArray(s.columnBases)
           ? s.columnBases.slice() : new Array(COLUMN_SLOTS).fill(null);
+        samePowerInventory = { ...(s.samePowerInventory || {}) };   // default {} for pre-Same-Power saves
+        equippedSamePower = s.equippedSamePower || null;
         storeOffer = s.storeOffer || null;
         // Pre-rework saves used the old { stickers, pillars, bases, packs } shape.
         // The new store is { stickers, mixed }; drop any old-shape offer so the
@@ -8793,6 +9033,8 @@ const UIRenderer = (() => {
     stickerTray: document.getElementById("stickerTray"),
     pillarTray: document.getElementById("pillarTray"),
     baseTray: document.getElementById("baseTray"),
+    samePowerTray: document.getElementById("samePowerTray"),
+    tabNSame: document.getElementById("tabNSame"),
     setupInv: document.getElementById("setupInv"),
     setupTabs: document.getElementById("setupTabs"),
     setupStrip: document.getElementById("setupStrip"),
@@ -8861,6 +9103,7 @@ const UIRenderer = (() => {
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
     storeMixed: document.getElementById("storeMixed"),
+    storeSame: document.getElementById("storeSame"),
     storeDetail: document.getElementById("storeDetail"),
     sdObj: document.getElementById("sdObj"),
     sdTier: document.getElementById("sdTier"),
@@ -8956,6 +9199,9 @@ const UIRenderer = (() => {
     debugPillarSel: document.getElementById("debugPillarSel"),
     debugBaseSel: document.getElementById("debugBaseSel"),
     debugAddBase: document.getElementById("debugAddBase"),
+    debugSamePowerSel: document.getElementById("debugSamePowerSel"),
+    debugEquipSamePower: document.getElementById("debugEquipSamePower"),
+    debugForceSame: document.getElementById("debugForceSame"),
     debugAutoN: document.getElementById("debugAutoN"),
     debugAutoPlay: document.getElementById("debugAutoPlay"),
     debugAutoStop: document.getElementById("debugAutoStop"),
@@ -9040,6 +9286,7 @@ const UIRenderer = (() => {
   // (base/pillar/pack) is read from the offer when buying.
   let selectedStickerSlot = null;
   let selectedMixedSlot = null;
+  let selectedSamePowerSlot = null;   // offered Same-Power slot (0) awaiting Buy
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
@@ -9876,22 +10123,25 @@ const UIRenderer = (() => {
     const pinv = campaign ? campaign.getPillarInventory() : {};
     const binv = campaign ? campaign.getBaseInventory() : {};
     const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
+    const spinv = campaign ? campaign.getSamePowerInventory() : {};
+    const equipped = campaign && campaign.getSamePower() ? 1 : 0;
     return {
       cards: campaign ? campaign.packTrayCount() : 0,
       stickers: sum(inv),
       pillars: sum(pinv),
       bases: sum(binv),
+      samepowers: sum(spinv) + equipped,
     };
   }
   function renderSetupInv() {
-    renderPackTray(); renderStickerTray(); renderPillarTray(); renderBaseTray();
+    renderPackTray(); renderStickerTray(); renderPillarTray(); renderBaseTray(); renderSamePowerTray();
     renderTrayHelp();                   // reflect the armed card/sticker/pillar/base (or hide)
     if (!el.setupTabs) return;
     const open = !!(engine && engine.canApplyStickers());
     const counts = setupTabCounts();
-    const order = ["cards", "stickers", "pillars", "bases"];
-    const panels = { cards: el.packTrayEl, stickers: el.stickerTray, pillars: el.pillarTray, bases: el.baseTray };
-    const badges = { cards: el.tabNCards, stickers: el.tabNStickers, pillars: el.tabNPillars, bases: el.tabNBases };
+    const order = ["cards", "stickers", "pillars", "bases", "samepowers"];
+    const panels = { cards: el.packTrayEl, stickers: el.stickerTray, pillars: el.pillarTray, bases: el.baseTray, samepowers: el.samePowerTray };
+    const badges = { cards: el.tabNCards, stickers: el.tabNStickers, pillars: el.tabNPillars, bases: el.tabNBases, samepowers: el.tabNSame };
     order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
     // If the active tab is empty, fall back to the first family that has items.
     if (counts[activeSetupTab] === 0) {
@@ -9927,8 +10177,8 @@ const UIRenderer = (() => {
   }
   function renderPlacementUI(open, counts) {
     const inSetup = open != null ? open : !!(engine && engine.canApplyStickers());
-    const c = counts || (inSetup ? setupTabCounts() : { cards: 0, stickers: 0, pillars: 0, bases: 0 });
-    const total = c.cards + c.stickers + c.pillars + c.bases;
+    const c = counts || (inSetup ? setupTabCounts() : { cards: 0, stickers: 0, pillars: 0, bases: 0, samepowers: 0 });
+    const total = c.cards + c.stickers + c.pillars + c.bases + (c.samepowers || 0);
     const armed = inSetup && placementArmed();
     if (!inSetup || armed) placeSheetOpen = false;   // leaving setup / arming closes the picker
     const sheetUp = inSetup && placeSheetOpen && !armed;
@@ -10054,6 +10304,47 @@ const UIRenderer = (() => {
     return '<button type="button" class="tray-base tray-obj' + (sel ? " armed" : "") + '" data-base="' + t.id + '">' +
       '<span class="to-art">' + baseBannerHtml(t, "charged") + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
       '<span class="ts-count">×' + count + "</span></button>";
+  }
+  /* The Same-Power tray (pre-run setup). A Same-Power equips to a single global
+     slot (it never goes on a column), so the interaction is a plain toggle: tap
+     an owned power to EQUIP it (swapping out whatever was equipped); tap the
+     equipped power to UNEQUIP it. The equipped one shows first, tagged "equipped". */
+  function renderSamePowerTray() {
+    if (!el.samePowerTray) return;
+    const open = engine && engine.canApplyStickers();
+    const inv = campaign ? campaign.getSamePowerInventory() : {};
+    const equipped = campaign ? campaign.getSamePower() : null;
+    const chips = [];
+    if (open && equipped) {
+      const t = SamePowerTypes.get(equipped);
+      if (t) chips.push(invSamePowerChipHtml(t, "equipped", true));
+    }
+    if (open) {
+      for (const t of SamePowerTypes.all()) {
+        if ((inv[t.id] || 0) > 0) chips.push(invSamePowerChipHtml(t, "×" + inv[t.id], false));
+      }
+    }
+    el.samePowerTray.innerHTML = chips.join("");
+  }
+  function invSamePowerChipHtml(t, tag, equipped) {
+    return '<button type="button" class="tray-samepower tray-obj' + (equipped ? " armed" : "") + '" data-samepower="' + t.id + '">' +
+      '<span class="to-art">' + samePowerBadgeHtml(t) + '</span><span class="tp-name">' + escHtml(t.label) + '</span>' +
+      '<span class="ts-count">' + tag + "</span></button>";
+  }
+  /* Equip (or unequip) an owned Same-Power. Tapping the equipped one unequips it;
+     tapping another equips it (swapping the prior back to inventory). */
+  function toggleEquipSamePower(typeId) {
+    if (!engine || !engine.canApplyStickers() || !campaign) return;
+    if (campaign.getSamePower() === typeId) {
+      campaign.unequipSamePower();
+      el.hint.textContent = "Same-Power unequipped.";
+    } else if (campaign.equipSamePower(typeId)) {
+      const t = SamePowerTypes.get(typeId);
+      el.hint.textContent = (t ? t.label : "Same-Power") + " equipped — a correct Same will trigger it.";
+      if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || typeId));
+    }
+    renderSetupInv();
+    persistCampaign("equip-samepower");
   }
   /* An ACTIVE (placed-on-board) Base, tagged with its column — read-only. */
   function invPlacedBaseChipHtml(t, col, sel) {
@@ -10260,6 +10551,7 @@ const UIRenderer = (() => {
     fill(el.debugStickerSel, StickerTypes.all());
     fill(el.debugPillarSel, PillarTypes.all());
     if (el.debugBaseSel) fill(el.debugBaseSel, BaseTypes.all());
+    if (el.debugSamePowerSel) fill(el.debugSamePowerSel, SamePowerTypes.all());
     // Mid-run column-Pillar setter: "(none)" to clear + every Pillar.
     if (el.debugColPillarSel) {
       el.debugColPillarSel.innerHTML = "";
@@ -10332,6 +10624,20 @@ const UIRenderer = (() => {
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     renderSetupInv();
     el.debugPeekOut.textContent = "granted Base to inventory: " + id;
+  }
+  /* DEBUG: grant the selected Same-Power and equip it immediately. Note: it takes
+     effect on the NEXT deal (the engine snapshots run.samePower at deal start);
+     during an in-progress deal the engine reads its snapshot. */
+  function debugEquipSelectedSamePower() {
+    const id = el.debugSamePowerSel ? el.debugSamePowerSel.value : null;
+    if (!id || !campaign) return;
+    if (campaign.samePowerInventoryCount(id) <= 0) campaign.debugGrantSamePower(id);
+    campaign.equipSamePower(id);
+    // Also apply to the LIVE engine so it takes effect THIS deal (debug/QA only).
+    if (engine && engine.debug && engine.debug.setSamePower) engine.debug.setSamePower(id);
+    if (!el.storeOverlay.classList.contains("hidden")) renderStore();
+    renderSetupInv();
+    el.debugPeekOut.textContent = "equipped Same-Power: " + id + " (live this deal)";
   }
 
   /* ============================================================
@@ -10849,6 +11155,12 @@ const UIRenderer = (() => {
       const b = e.target.closest(".tray-base");
       if (b) { dismissPilePeek(); armBaseItem(b.dataset.base); }
     });
+    // Same-Power tray (setup): tap an owned power to equip it (or the equipped
+    // one to unequip). No column placement — it equips to the single global slot.
+    if (el.samePowerTray) el.samePowerTray.addEventListener("click", (e) => {
+      const b = e.target.closest(".tray-samepower");
+      if (b) { dismissPilePeek(); toggleEquipSamePower(b.dataset.samepower); }
+    });
     // Setup inventory tabs: switch the visible family (Cards / Stickers / Pillars).
     if (el.setupTabs) el.setupTabs.addEventListener("click", (e) => {
       const b = e.target.closest(".setup-tab");
@@ -10890,13 +11202,19 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) openStoreDetail("mixed", Number(tile.dataset.mslot));
     });
+    if (el.storeSame) el.storeSame.addEventListener("click", (e) => {
+      const tile = e.target.closest(".store-tile");
+      if (tile && !tile.classList.contains("empty")) openStoreDetail("samepower", Number(tile.dataset.spslot));
+    });
     // The detail overlay's Buy confirms the focused object (Stickers + mixed
-    // Pillars/Bases go to inventory; mixed Packs open on buy). Hide the detail
-    // first, keeping the selected slot so the existing confirm logic runs.
+    // Pillars/Bases go to inventory; mixed Packs open on buy; Same-Powers go to
+    // the Same-Power inventory). Hide the detail first, keeping the selected slot
+    // so the existing confirm logic runs.
     el.sdBuy.addEventListener("click", () => {
       const kind = el.sdBuy.dataset.kind;
       el.storeDetail.classList.add("hidden");
       if (kind === "sticker") confirmBuySticker();
+      else if (kind === "samepower") confirmBuySamePower();
       else confirmBuyMixed();
     });
     // Dismiss the detail: tap the backdrop or the ✕ (a tap on the panel is kept).
@@ -10959,6 +11277,17 @@ const UIRenderer = (() => {
     if (el.debugStickerNext) el.debugStickerNext.addEventListener("click", debugStickerToNext);
     el.debugAddPillar.addEventListener("click", debugAddSelectedPillar);
     if (el.debugAddBase) el.debugAddBase.addEventListener("click", debugAddSelectedBase);
+    if (el.debugEquipSamePower) el.debugEquipSamePower.addEventListener("click", debugEquipSelectedSamePower);
+    if (el.debugForceSame) el.debugForceSame.addEventListener("click", () => {
+      if (!engine || !engine.debug || !engine.debug.forceSame) return;
+      let idx = selected;
+      if (idx == null || !engine.getBoard().isActive(idx)) {
+        for (let i = 0; i < engine.getBoard().size; i++) if (engine.getBoard().isActive(i)) { idx = i; break; }
+      }
+      const r = engine.debug.forceSame(idx);
+      el.debugPeekOut.textContent = r != null ? ("forced correct Same on pile " + (r + 1)) : "no alive pile";
+      refreshDebug();
+    });
     if (el.debugAutoPlay) el.debugAutoPlay.addEventListener("click", debugAutoPlay);
     if (el.debugAutoStop) el.debugAutoStop.addEventListener("click", () => { stopAutoPlay(); el.debugPeekOut.textContent = "auto-play: stopped"; });
     if (el.debugSetPC0) el.debugSetPC0.addEventListener("click", () => debugSetColumnPillar(0));
@@ -11967,6 +12296,28 @@ const UIRenderer = (() => {
         break;
       }
 
+      case "same-power": {
+        // The equipped Same-Power fired on the called pile's directly-linked
+        // piles. Pulse the hub + each target for legible feedback, repaint pile
+        // counts (Burrow grew them) + the HUD coins (Dividend paid), and refresh
+        // the network. The concrete effects (bury / revive / coins) already
+        // mutated state; this is feedback only.
+        const flash = (idx) => {
+          const pe = pileEls[idx];
+          if (!pe) return;
+          pe.classList.add("flash-good");
+          setTimeout(() => pe.classList.remove("flash-good"), 520);
+        };
+        flash(payload.hub);
+        (payload.targets || []).forEach(flash);
+        if (payload.board) paintPileCounts(payload.board);
+        if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
+        renderNetwork();
+        if (payload.label) el.hint && (el.hint.textContent = payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
+        Sound.good && Sound.good();
+        break;
+      }
+
       case "won":
         // Telemetry: end-of-deal scoring Pillars pay out here (each line carries
         // its resolved Pillar id). Recorded once per win, then persisted.
@@ -12431,7 +12782,7 @@ const UIRenderer = (() => {
     // Pass the column layout so the engine can resolve Pillars (column
     // modifiers); the per-column Pillar binding is snapshotted later, at
     // Start Run, after the pre-run assignment phase.
-    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge() });
+    engine = GameEngine.create(campaign.getRunDeck(), cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge(), samePower: campaign.getSamePower() });
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -12605,6 +12956,20 @@ const UIRenderer = (() => {
         keys.add(key);
         specs.push({ key, nodeA: nodes[a], nodeB: nodes[b], w, diag, bow: edgeBow(key) });
       }
+    }
+
+    // Push the DIRECT-link adjacency (pileIndex → linked pile indices) into the
+    // engine so Same-Powers act on exactly the links shown here. Reading only —
+    // this never changes how the network is generated or drawn (rendering uses
+    // `specs` below unchanged); it mirrors the same edge set into run-state.
+    if (engine && engine.setLinks) {
+      const adj = {};
+      for (const sp of specs) {
+        const a = sp.nodeA.i, b = sp.nodeB.i;
+        (adj[a] || (adj[a] = [])).push(b);
+        (adj[b] || (adj[b] = [])).push(a);
+      }
+      engine.setLinks(adj);
     }
 
     // ---- IN-PLACE DIFF (no innerHTML rebuild / reparse per guess) ----
@@ -13932,7 +14297,7 @@ const UIRenderer = (() => {
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
-    selectedStickerSlot = null; selectedMixedSlot = null;
+    selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
     el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
@@ -13947,11 +14312,19 @@ const UIRenderer = (() => {
      renders the empty/sold placeholder so the grid never jumps. The tile carries
      its rarity color (top accent + tier chip) and a category chip so a mixed slot
      reads as Base / Pillar / Pack at a glance. */
-  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack" };
+  /* A simple shelf badge for a Same-Power (no bespoke object art): the power's
+     glyph over its name, in the synapse-violet of the connection network so it
+     reads as "links" at a glance. Used on store tiles + the setup equip chip. */
+  function samePowerBadgeHtml(t) {
+    if (!t) return "";
+    return '<span class="sp-badge"><span class="sp-badge-ico">' + (t.icon || "⚡") + '</span>' +
+      '<span class="sp-badge-name">' + t.label + '</span></span>';
+  }
+  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power" };
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
   // Indexed deterministically by (row, slot) so a given slot always tilts the same.
   const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
-  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1 };
+  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1, samepower: 2 };
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -13959,6 +14332,7 @@ const UIRenderer = (() => {
       : kind === "pillar" ? PillarTypes.get(id)
       : kind === "base" ? BaseTypes.get(id)
       : kind === "pack" ? PackTypes.get(id)
+      : kind === "samepower" ? SamePowerTypes.get(id)
       : StickerTypes.get(id);
     if (!t) {   // empty slot or unknown id (restored offer referencing a removed type)
       btn.className = "store-tile empty";
@@ -13969,10 +14343,11 @@ const UIRenderer = (() => {
     const price = kind === "pillar" ? campaign.priceOfPillar(id)
       : kind === "base" ? campaign.priceOfBase(id)
       : kind === "pack" ? campaign.priceOfPack(id)
+      : kind === "samepower" ? campaign.priceOfSamePower(id)
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled");
-    btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
+    btn.dataset[kind === "sticker" ? "slot" : kind === "samepower" ? "spslot" : "mslot"] = slot;
     // The OBJECT ITSELF is the shelf item — the SAME component shown when
     // installed in-game. No name / kind / tier text tags: rarity lives in the
     // object (sticker die-cut border, pillar cloth trim, base metal tone, pack
@@ -13985,7 +14360,9 @@ const UIRenderer = (() => {
         ? '<span class="ti-obj obj-base">' + baseBannerHtml(t, "charged", { size: "shop" }) + '</span>'
         : (kind === "pack")
           ? '<span class="ti-obj obj-pack">' + packObjectHtml(t, { size: "shop" }) + '</span>'
-          : '<span class="ti-obj obj-sticker">' + stickerChip(id, { seed: "shop" }) + '</span>';
+          : (kind === "samepower")
+            ? '<span class="ti-obj obj-samepower">' + samePowerBadgeHtml(t) + '</span>'
+            : '<span class="ti-obj obj-sticker">' + stickerChip(id, { seed: "shop" }) + '</span>';
     btn.innerHTML =
       obj.replace('<span class="ti-obj', '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj') +
       '<span class="ti-price">' + COIN_SVG + price + '</span>';
@@ -14014,7 +14391,7 @@ const UIRenderer = (() => {
     return t.description;
   }
   function describeItem(kind, id) {
-    const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : StickerTypes;
+    const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
   }
@@ -14030,18 +14407,24 @@ const UIRenderer = (() => {
       id = offer.stickers[slot];
       if (!id) return;
       kind = "sticker"; price = campaign.priceOf(id);
-      selectedStickerSlot = slot; selectedMixedSlot = null;
+      selectedStickerSlot = slot; selectedMixedSlot = null; selectedSamePowerSlot = null;
+    } else if (row === "samepower") {
+      id = offer.samePowers ? offer.samePowers[slot] : null;
+      if (!id) return;
+      kind = "samepower"; price = campaign.priceOfSamePower(id);
+      selectedSamePowerSlot = slot; selectedStickerSlot = null; selectedMixedSlot = null;
     } else {
       const s = offer.mixed[slot];
       if (!s) return;
       kind = s.kind; id = s.id; price = campaign.priceOfMixed(slot);
-      selectedMixedSlot = slot; selectedStickerSlot = null;
+      selectedMixedSlot = slot; selectedStickerSlot = null; selectedSamePowerSlot = null;
     }
     const info = describeItem(kind, id);
     if (!info) return;
     const t = kind === "pillar" ? PillarTypes.get(id)
       : kind === "base" ? BaseTypes.get(id)
       : kind === "pack" ? PackTypes.get(id)
+      : kind === "samepower" ? SamePowerTypes.get(id)
       : StickerTypes.get(id);
     // The same component the shelf shows — larger (scaled up via .sd-obj CSS).
     el.sdObj.className = "sd-obj obj-" + kind;
@@ -14049,6 +14432,7 @@ const UIRenderer = (() => {
         kind === "pillar" ? pathwayBannerHtml(t, { size: "shop" })
       : kind === "base"   ? baseBannerHtml(t, "charged", { size: "shop" })
       : kind === "pack"   ? packObjectHtml(t, { size: "shop" })
+      : kind === "samepower" ? samePowerBadgeHtml(t)
       :                     stickerChip(id, { seed: "shop" });
     el.sdTier.textContent = info.tier || "";
     el.sdTier.dataset.tier = info.tier || "";
@@ -14056,13 +14440,13 @@ const UIRenderer = (() => {
     el.sdDesc.textContent = info.desc || "";
     const afford = campaign.getCoins() >= price;
     el.sdBuy.disabled = !afford;
-    el.sdBuy.dataset.kind = kind === "sticker" ? "sticker" : "mixed";
+    el.sdBuy.dataset.kind = kind === "sticker" ? "sticker" : kind === "samepower" ? "samepower" : "mixed";
     el.sdBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
     el.storeDetail.classList.remove("hidden");
   }
   function closeStoreDetail() {
     el.storeDetail.classList.add("hidden");
-    selectedStickerSlot = null; selectedMixedSlot = null;
+    selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
   }
 
   function renderStore() {
@@ -14082,12 +14466,20 @@ const UIRenderer = (() => {
     (offer && offer.mixed ? offer.mixed : []).forEach((s, slot) =>
       el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
     padRow(el.storeMixed, STORE_MIXED_SLOTS);
+    // Row 3: the dedicated Same-Power slot.
+    if (el.storeSame) {
+      el.storeSame.innerHTML = "";
+      (offer && offer.samePowers ? offer.samePowers : []).forEach((id, slot) =>
+        el.storeSame.appendChild(offerTile(id, slot, "samepower", selectedSamePowerSlot === slot)));
+      for (let i = (offer && offer.samePowers ? offer.samePowers.length : 0); i < STORE_SAMEPOWER_SLOTS; i++)
+        el.storeSame.appendChild(offerTile(null, i, "samepower", false));
+    }
     updateRerollButton();
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
   // Slot counts the UI mirrors from the engine config (kept in sync there).
-  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3;
+  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3, STORE_SAMEPOWER_SLOTS = 1;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
@@ -14142,6 +14534,25 @@ const UIRenderer = (() => {
       renderStore();
       refreshDebug();
     }
+  }
+
+  /* Confirm buying the offered Same-Power. It banks to the Same-Power inventory;
+     the player equips one (the single slot) during pre-run setup. */
+  function confirmBuySamePower() {
+    if (selectedSamePowerSlot == null) return;
+    const slot = selectedSamePowerSlot;
+    const offer = campaign.getStoreOffer();
+    const id = offer && offer.samePowers ? offer.samePowers[slot] : null;
+    if (!id) return;
+    if (!campaign.buyOfferedSamePower(slot)) return;   // unaffordable / empty
+    selectedSamePowerSlot = null;
+    Sound.purchase();
+    const t = SamePowerTypes.get(id);
+    try { Telem.purchase("samepower", id, t && t.label); Telem.flush(); } catch (e) {}
+    if (engine) engine.logAction("Store: bought Same-Power " + ((t && t.label) || id) + " → inventory");
+    el.storeMsg.textContent = "Same-Power bought — equip it during setup.";
+    renderStore();
+    refreshDebug();
   }
 
   /* ---- reveal → pick modal (both pack families) ----
@@ -14383,7 +14794,7 @@ const UIRenderer = (() => {
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
   function rerollUI() {
     if (campaign.rerollStore()) {
-      selectedStickerSlot = null; selectedMixedSlot = null;
+      selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
       el.storeMsg.textContent = "Refreshed the offer.";
       if (engine) engine.logAction("Store: refreshed the offer");
       renderStore();
