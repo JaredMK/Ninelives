@@ -2530,6 +2530,18 @@
     text-shadow: 0 1px 1px rgba(255,255,255,0.7);
   }
 
+  /* Same-Power firing — a distinct synapse-rose pulse on the called (hub) pile and
+     each DIRECTLY-linked target, so a Same-Power activation reads as its OWN event
+     (not a generic correct pulse). Echoes the connection-network rose (--net). */
+  @keyframes powerPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(200,74,120,0.0); }
+    25%  { box-shadow: 0 0 0 4px rgba(200,74,120,0.62), 0 0 16px 4px rgba(200,74,120,0.45); }
+    100% { box-shadow: 0 0 0 12px rgba(200,74,120,0.0); }
+  }
+  .pile.power-pulse .card { animation: powerPulse 0.72s ease-out; }
+  .pile.power-pulse.power-hub .card { animation-duration: 0.9s; }   /* the hub reads a touch stronger */
+  @media (prefers-reduced-motion: reduce) { .pile.power-pulse .card { animation: none; outline: 2px solid var(--net); outline-offset: 1px; } }
+
   /* Shared item-info chrome (.ih-title/.ih-body) + base geometry. Its one live
      user is the pack-reveal info slot (.item-help.pack-item-help, which
      re-anchors it above the pack modal). The per-tile "?" popup this was built
@@ -4237,7 +4249,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.93 · feedback-S4-S5-saves";
+const APP_VERSION = "v2.94 · feedback-S6-power";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11809,6 +11821,24 @@ const UIRenderer = (() => {
     setTimeout(() => pe.classList.remove("saved-pulse"), 820);
     floatChip(pe, "SAVED" + (label ? " · " + label : ""), "save-float");
   }
+  /* THE shared Same-Power firing flourish: a distinct synapse-rose pulse on the
+     called (hub) pile + each directly-linked target, so an activation reads as its
+     own event (not a generic correct pulse). The concrete effect (bury via the
+     buried animation / revive repaint / coin float) is shown by the handler; this
+     ties hub→targets together and names the power. Presentation only. */
+  function firePowerFeedback(hub, targets) {
+    const pulse = (idx, isHub) => {
+      const pe = pileEls[idx];
+      if (!pe) return;
+      pe.classList.remove("power-pulse", "power-hub");
+      if (!prefersReduce()) void pe.offsetWidth;   // restart on rapid repeats
+      pe.classList.add("power-pulse");
+      if (isHub) pe.classList.add("power-hub");
+      setTimeout(() => pe.classList.remove("power-pulse", "power-hub"), 940);
+    };
+    if (hub != null) pulse(hub, true);
+    (targets || []).forEach((t) => { if (t !== hub) pulse(t, false); });
+  }
 
   function flashPillar(col, amount) {
     if (col == null || !el.board) return;
@@ -12577,20 +12607,14 @@ const UIRenderer = (() => {
       }
 
       case "same-power": {
-        // The equipped Same-Power fired on the called pile's directly-linked
-        // piles. Pulse the hub + each target for legible feedback, repaint pile
-        // counts (Burrow grew them) + the HUD coins (Dividend paid), and refresh
-        // the network. The concrete effects (bury / revive / coins) already
-        // mutated state; this is feedback only.
-        const flash = (idx) => {
-          const pe = pileEls[idx];
-          if (!pe) return;
-          pe.classList.add("flash-good");
-          setTimeout(() => pe.classList.remove("flash-good"), 520);
-        };
+        // The equipped Same-Power fired on the called pile's directly-linked piles.
+        // A DISTINCT synapse-rose flourish (firePowerFeedback) ties hub→targets so
+        // it reads as the Same-Power firing — not a generic correct pulse. The
+        // concrete effect is then shown by its own canonical cue: Burrow's buries
+        // via the 'buried' animation, Rekindle's revive repaint below, Dividend's
+        // coins via the shared coin float. This is feedback only.
         // Rekindle revived a dead target: bring it back VISUALLY (drop .dead +
-        // repaint its top), exactly as the "revived" handler does — otherwise the
-        // pile stays dissolved/blank on the board until the next deal.
+        // repaint its top) so the pile isn't left dissolved until the next deal.
         if (payload.board) {
           (payload.targets || []).forEach((idx) => {
             const pe = pileEls[idx];
@@ -12601,8 +12625,7 @@ const UIRenderer = (() => {
             }
           });
         }
-        flash(payload.hub);
-        (payload.targets || []).forEach(flash);
+        firePowerFeedback(payload.hub, payload.targets);   // distinct hub→targets flourish
         // Coin powers (Dividend / linkCoins) paid via the shared coin float, so a
         // Same-Power coin gain shows a +N like every other coin source (it was
         // previously silent). Floats over the paid pile (largest linked) or the hub.
@@ -12613,7 +12636,7 @@ const UIRenderer = (() => {
         if (payload.board) paintPileCounts(payload.board);
         if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
         renderNetwork();
-        if (payload.label) el.hint && (el.hint.textContent = payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
+        if (payload.label) el.hint && (el.hint.textContent = "Same-Power · " + payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
         Sound.good && Sound.good();
         break;
       }
