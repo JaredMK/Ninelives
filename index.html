@@ -2509,6 +2509,27 @@
     .pillar-float { animation: none; opacity: 1; transform: translate(-50%, -16px); }
   }
 
+  /* PILE SAVED — ONE shared rescue cue for every save path (Shield, Suit Guard,
+     Tie-Safe, Second Wind, Same Charge): a protective teal ring sweep + a floating
+     "SAVED · <source>" badge. Deliberately DISTINCT from the green correct-pulse
+     (.flash-good) and the red death-flash, so a rescued wrong guess is unmistakable
+     and names its rescuer. */
+  @keyframes savedRing {
+    0%   { box-shadow: 0 0 0 0 rgba(45,150,180,0.0); }
+    25%  { box-shadow: 0 0 0 4px rgba(45,150,180,0.66), 0 0 18px 5px rgba(45,150,180,0.5); }
+    100% { box-shadow: 0 0 0 12px rgba(45,150,180,0.0); }
+  }
+  .pile.saved-pulse .card { animation: savedRing 0.75s ease-out; }
+  @media (prefers-reduced-motion: reduce) {
+    .pile.saved-pulse .card { animation: none; outline: 3px solid #2e96b4; outline-offset: 1px; }
+  }
+  .pillar-float.save-float {
+    top: 4px; z-index: 8; color: #15677e; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
+    background: rgba(226,245,251,0.94); border: 1px solid rgba(45,150,180,0.75);
+    border-radius: 999px; padding: 2px 8px;
+    text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+  }
+
   /* Shared item-info chrome (.ih-title/.ih-body) + base geometry. Its one live
      user is the pack-reveal info slot (.item-help.pack-item-help, which
      re-anchors it above the pack modal). The per-tile "?" popup this was built
@@ -4216,7 +4237,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.92 · feedback-S2-S3-coins";
+const APP_VERSION = "v2.93 · feedback-S4-S5-saves";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11774,6 +11795,20 @@ const UIRenderer = (() => {
     if (!anchorEl || amount == null) return;
     floatChip(anchorEl, (amount < 0 ? "−" : "+") + Math.abs(amount), (cls || "") + (amount < 0 ? " neg" : ""));
   }
+  /* THE shared pile-SAVED indicator — every save path (Shield, Suit Guard,
+     Tie-Safe, Second Wind, Same Charge) calls this so a rescue always looks the
+     same and is unmistakably DISTINCT from a normal correct guess. A protective
+     teal ring sweep on the pile + a floating "SAVED · <source>" badge naming the
+     rescuer. Presentation only. */
+  function savedIndicator(index, label) {
+    const pe = pileEls[index];
+    if (!pe) return;
+    pe.classList.remove("saved-pulse");
+    if (!prefersReduce()) void pe.offsetWidth;   // restart the ring on rapid repeats
+    pe.classList.add("saved-pulse");
+    setTimeout(() => pe.classList.remove("saved-pulse"), 820);
+    floatChip(pe, "SAVED" + (label ? " · " + label : ""), "save-float");
+  }
 
   function flashPillar(col, amount) {
     if (col == null || !el.board) return;
@@ -12062,6 +12097,14 @@ const UIRenderer = (() => {
         const dbCount = (!payload.correct && payload.drawn && payload.drawn.stickers)
           ? payload.drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
         const deathBountyPay = dbCount * ((dbT && dbT.value) || 0);
+        // Tie-Safe / Column Tie-Safe SAVE (presentation-only detection): a
+        // DIRECTIONAL guess that resolved CORRECT on a TIE (drawn == current) can
+        // only have survived because Tie-Safe converted the lethal tie — so show
+        // the shared SAVED cue instead of a plain correct pulse. (A correct "same"
+        // on a tie is the normal Same, not a save, so directional-only is required.)
+        const tieSafeSave = payload.correct
+          && (payload.guess === "higher" || payload.guess === "lower")
+          && payload.drawn && payload.current && payload.drawn.value === payload.current.value;
         // The engine kills the pile BEFORE emitting "resolved", so the board here
         // already reflects the death: a wrong guess that leaves nothing alive is
         // the FATAL guess that loses the run. The "lost" event follows in the same
@@ -12095,9 +12138,15 @@ const UIRenderer = (() => {
           renderStickerBadges(pileEl, payload.drawn);
           if (cardEl) cardEl.style.visibility = "";
           if (payload.correct) {
-            // Correct: a quick "good" pulse, re-strengthen the network now.
-            pileEl.classList.add("flash-good");
-            setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+            // Correct: a quick "good" pulse — UNLESS Tie-Safe rescued a lethal tie,
+            // which gets the distinct shared SAVED cue instead (so it never reads
+            // like an ordinary correct guess). Re-strengthen the network now.
+            if (tieSafeSave) {
+              savedIndicator(payload.index, "Tie-Safe");
+            } else {
+              pileEl.classList.add("flash-good");
+              setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+            }
             Sound.good();
             refreshNetwork(payload.board);
             if (compoundPay > 0) floatCoins(pileEl, compoundPay, "pile-float");   // was silent
@@ -12336,8 +12385,7 @@ const UIRenderer = (() => {
           paintFront(pileEl, payload.current);
           renderStickerBadges(pileEl, payload.current);
           if (cardEl) cardEl.style.visibility = "";
-          pileEl.classList.add("flash-good");
-          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          savedIndicator(payload.index, "Shield");   // shared distinct save cue
           refreshNetwork(payload.board);
           Sound.good();
         };
@@ -12362,8 +12410,7 @@ const UIRenderer = (() => {
           paintFront(pileEl, payload.current);                  // resting shielded top, beneath the clone
           renderStickerBadges(pileEl, payload.current);
           flyCard(ghost, from, deckRect(), { duration: 240, onArrive: () => {
-            pileEl.classList.add("flash-good");
-            setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+            savedIndicator(payload.index, "Shield");   // shared distinct save cue
             refreshNetwork(payload.board);
             Sound.good();
             done();
@@ -12396,8 +12443,7 @@ const UIRenderer = (() => {
         refreshDebug();
 
         const savedFeedback = () => {     // the guard's save indicator on the pile
-          pileEl.classList.add("flash-good");
-          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          savedIndicator(payload.index, payload.drawn.suit + " Guard");   // shared distinct save cue
           Sound.good();
         };
 
@@ -12460,8 +12506,7 @@ const UIRenderer = (() => {
         const settleTop = () => {
           if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
           if (cardEl) cardEl.style.visibility = "";
-          pileEl.classList.add("flash-good");
-          setTimeout(() => pileEl.classList.remove("flash-good"), 520);
+          savedIndicator(idx, "2nd Wind");   // shared distinct save cue (pile rescued from death)
           Sound.good();
         };
 
@@ -12510,7 +12555,7 @@ const UIRenderer = (() => {
         const settle = () => {
           if (top && pileEl) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
           if (cardEl) cardEl.style.visibility = "";
-          if (pileEl) { pileEl.classList.add("flash-good"); setTimeout(() => pileEl.classList.remove("flash-good"), 600); }
+          savedIndicator(idx, "Same Charge");   // shared distinct save cue — the Same Charge rescue
           refreshNetwork(payload.board);
           Sound.good();
         };
