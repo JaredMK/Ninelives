@@ -4216,7 +4216,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.90 · same-mark-and-overlay";
+const APP_VERSION = "v2.91 · feedback-S1-floatcoins";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11754,14 +11754,25 @@ const UIRenderer = (() => {
      flashPillar's banner float — same .pillar-float chip, anchored to the pile).
      Also used for Loose Change's visible "+0" (the random result must show). */
   function floatOverPile(index, text) {
-    const pileEl = pileEls[index];
-    if (!pileEl) return;
-    const reduce = prefersReduce();
+    floatChip(pileEls[index], text, "pile-float");
+  }
+  /* THE shared coin/text float chip. ONE place builds the .pillar-float element so
+     every floating cue (Pillar / Base banner coins, pile coins, saves, Same-Power)
+     looks identical. `cls` adds an anchor/variant modifier. Presentation only. */
+  function floatChip(anchorEl, text, cls) {
+    if (!anchorEl) return;
     const f = document.createElement("div");
-    f.className = "pillar-float pile-float";
+    f.className = "pillar-float" + (cls ? " " + cls : "");
     f.textContent = text;
-    pileEl.appendChild(f);
-    setTimeout(() => f.remove(), reduce ? 600 : 1000);
+    anchorEl.appendChild(f);
+    setTimeout(() => f.remove(), prefersReduce() ? 600 : 1000);
+  }
+  /* THE single coin float: a signed +N / −N chip over an anchor (a pile element OR
+     a Pillar/Base banner cell). Every coin gain floats through here so the cue is
+     identical regardless of which artifact paid. */
+  function floatCoins(anchorEl, amount, cls) {
+    if (!anchorEl || amount == null) return;
+    floatChip(anchorEl, (amount < 0 ? "−" : "+") + Math.abs(amount), (cls || "") + (amount < 0 ? " neg" : ""));
   }
 
   function flashPillar(col, amount) {
@@ -11776,13 +11787,7 @@ const UIRenderer = (() => {
       banner.classList.add("fired");
       setTimeout(() => banner.classList.remove("fired"), reduce ? 240 : 650);
     }
-    if (amount && amount > 0) {
-      const f = document.createElement("div");
-      f.className = "pillar-float";
-      f.textContent = "+" + amount;
-      cell.appendChild(f);
-      setTimeout(() => f.remove(), reduce ? 600 : 1000);
-    }
+    if (amount && amount > 0) floatCoins(cell, amount);   // shared coin float
   }
 
   /* Activation feedback for a Base: pulse its banner (so every activation has a
@@ -11800,13 +11805,7 @@ const UIRenderer = (() => {
       banner.classList.add("fired");
       setTimeout(() => banner.classList.remove("fired"), reduce ? 240 : 640);
     }
-    if (coins) {
-      const f = document.createElement("div");
-      f.className = "pillar-float base-float" + (coins < 0 ? " neg" : "");
-      f.textContent = (coins > 0 ? "+" : "−") + Math.abs(coins);
-      cell.appendChild(f);
-      setTimeout(() => f.remove(), reduce ? 600 : 1000);
-    }
+    if (coins) floatCoins(cell, coins, "base-float");   // shared coin float
   }
   /* A brief good-pulse across a column's alive piles — confirms an otherwise
      subtle whole-column composition change (Cast / Upheaval / Ballast / Storm). */
