@@ -4249,7 +4249,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.94 · feedback-S6-power";
+const APP_VERSION = "v2.95 · feedback-S7-S8-dedup";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11839,6 +11839,31 @@ const UIRenderer = (() => {
     if (hub != null) pulse(hub, true);
     (targets || []).forEach((t) => { if (t !== hub) pulse(t, false); });
   }
+  /* Shared "un-dead a pile" repaint — drop the dissolved state and show the pile's
+     (new) top. The CONTEXTUAL cue (correct pulse / Same-Power flourish) is added by
+     the caller; this is just the common revive repaint, de-duplicated. */
+  function revivePileVisual(index, board) {
+    const pe = pileEls[index];
+    if (!pe) return;
+    pe.classList.remove("dead", "death-flash");
+    const top = board && board.top(index);
+    if (top) { paintFront(pe, top); renderStickerBadges(pe, top); }
+  }
+  /* Shared immediate pile-death presentation: a death-flash beat, then the pile
+     dissolves (.dead) and the network severs across the gap, with the death sound.
+     Used by instant-kill sources (Kamikaze). The wrong-guess death keeps its own
+     land-then-die timing (a card settles first), so it is intentionally separate. */
+  function playPileDeath(index, board) {
+    const pe = pileEls[index];
+    if (!pe) return;
+    const reduce = prefersReduce();
+    Sound.death();
+    if (!reduce) {
+      pe.classList.add("death-flash");
+      setTimeout(() => pe.classList.remove("death-flash"), 340);
+    }
+    setTimeout(() => { pe.classList.add("dead"); refreshNetwork(board); }, reduce ? 0 : 300);
+  }
 
   function flashPillar(col, amount) {
     if (col == null || !el.board) return;
@@ -12013,16 +12038,7 @@ const UIRenderer = (() => {
         // desync) — the old presentation was stranded in an unreachable
         // "kamikaze-fired" handler (the engine only ever emits "base-fired").
         const kamiKill = payload.effect === "kamikaze" && payload.index != null && pileEls[payload.index];
-        if (kamiKill) {
-          const kEl = pileEls[payload.index];
-          const kReduce = prefersReduce();
-          Sound.death();
-          if (!kReduce) {
-            kEl.classList.add("death-flash");
-            setTimeout(() => kEl.classList.remove("death-flash"), 340);
-          }
-          setTimeout(() => { kEl.classList.add("dead"); refreshNetwork(board); }, kReduce ? 0 : 300);
-        }
+        if (kamiKill) playPileDeath(payload.index, board);   // shared immediate-death presentation
         for (let i = 0; i < pileEls.length; i++) {
           const top = board.top(i);
           if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
@@ -12378,9 +12394,7 @@ const UIRenderer = (() => {
       case "revived": {
         // A dead pile came back with a fresh top.
         const pileEl = pileEls[payload.index];
-        pileEl.classList.remove("dead");
-        const top = payload.board.top(payload.index);
-        if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
+        revivePileVisual(payload.index, payload.board);   // shared un-dead repaint
         pileEl.classList.add("flash-good");
         setTimeout(() => pileEl.classList.remove("flash-good"), 520);
         paintPileCounts(payload.board);
@@ -12618,11 +12632,7 @@ const UIRenderer = (() => {
         if (payload.board) {
           (payload.targets || []).forEach((idx) => {
             const pe = pileEls[idx];
-            if (pe && pe.classList.contains("dead") && payload.board.isActive(idx)) {
-              pe.classList.remove("dead");
-              const top = payload.board.top(idx);
-              if (top) { paintFront(pe, top); renderStickerBadges(pe, top); }
-            }
+            if (pe && pe.classList.contains("dead") && payload.board.isActive(idx)) revivePileVisual(idx, payload.board);   // shared un-dead repaint
           });
         }
         firePowerFeedback(payload.hub, payload.targets);   // distinct hub→targets flourish
