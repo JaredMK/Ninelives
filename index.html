@@ -4257,7 +4257,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.97 · same-power-badge";
+const APP_VERSION = "v2.98 · same-power-equip-fix";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6989,7 +6989,7 @@ const GameEngine = (() => {
         while playing and not already started. Closes the sticker window
         (anti-exploit: no mid/late-run sticker saves) and emits "run-started"
         so the UI can swap the Start Run button for the guess buttons. */
-    function startRun(pillars, bases) {
+    function startRun(pillars, bases, samePower) {
       if (status !== "playing" || !run || run.started) return;
       run.started = true;
       run.stickerWindow = false;
@@ -7004,6 +7004,13 @@ const GameEngine = (() => {
       // Lock the per-column Base binding the same way (column index → Base id |
       // null). basesUsed was already reset to "charged" when the deal was dealt.
       run.bases = Array.isArray(bases) ? bases.slice() : null;
+      // Lock the equipped Same-Power for the run (the ONE artifact a correct Same
+      // triggers). Finalized HERE from the setup, exactly like Pillars/Bases — the
+      // engine was created at deal entry, BEFORE the setup equip window, so without
+      // this a power equipped during setup never reaches the engine (run.samePower
+      // would stay at the deal-entry value → fireSamePower no-ops). Only override
+      // when explicitly passed (engine tests seed it via runConfig at create).
+      if (samePower !== undefined) run.samePower = samePower || null;
       const bound = (run.pillars || [])
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
@@ -9662,8 +9669,12 @@ const UIRenderer = (() => {
      tap/hold-able for the power's description (see its handler in attachInput). */
   function updateSamePowerHud() {
     if (!el.hudSamePower) return;
-    const id = (engine && engine.samePower && engine.samePower())
-      || (campaign && campaign.getSamePower && campaign.getSamePower()) || null;
+    // The CAMPAIGN equip state is authoritative (it drives what the engine locks
+    // in at Start Run). Read it FIRST so the chip reflects a setup equip/unequip
+    // immediately — engine.samePower() (run.samePower) is the previous deal's value
+    // until Start Run, so preferring it would show a stale power during setup.
+    const id = (campaign && campaign.getSamePower && campaign.getSamePower())
+      || (engine && engine.samePower && engine.samePower()) || null;
     const t = id ? SamePowerTypes.get(id) : null;
     if (!t) { el.hudSamePower.classList.add("hidden"); el.hudSamePower.dataset.power = ""; el.hudSamePower.innerHTML = ""; return; }
     el.hudSamePower.dataset.power = id;
@@ -10168,8 +10179,10 @@ const UIRenderer = (() => {
   }
 
   function startRunUI() {
-    // Lock in the current column→Pillar and column→Base bindings as play begins.
-    if (engine) engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases());
+    // Lock in the current column→Pillar, column→Base, and equipped Same-Power as
+    // play begins — all finalized from the setup window (the engine was created at
+    // deal entry, before the player equipped anything this deal).
+    if (engine) engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower());
   }
 
   /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
@@ -10525,6 +10538,8 @@ const UIRenderer = (() => {
       if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || typeId));
     }
     renderSetupInv();
+    updateSamePowerHud();   // reflect the equip on the board indicator IMMEDIATELY
+                            // (don't wait for the next guess to force a renderHud)
     persistCampaign("equip-samepower");
   }
   /* An ACTIVE (placed-on-board) Base, tagged with its column — read-only. */
@@ -10806,20 +10821,19 @@ const UIRenderer = (() => {
     renderSetupInv();
     el.debugPeekOut.textContent = "granted Base to inventory: " + id;
   }
-  /* DEBUG: grant the selected Same-Power and equip it immediately. Note: it takes
-     effect on the NEXT deal (the engine snapshots run.samePower at deal start);
-     during an in-progress deal the engine reads its snapshot. */
+  /* DEBUG: grant + equip the selected Same-Power, exactly like the real setup
+     equip (campaign state → locked into the engine at Start Run). Equipping during
+     active play takes effect next deal — matching real behaviour — so this no
+     longer live-pokes run.samePower (that crutch masked the setup-equip bug). */
   function debugEquipSelectedSamePower() {
     const id = el.debugSamePowerSel ? el.debugSamePowerSel.value : null;
     if (!id || !campaign) return;
     if (campaign.samePowerInventoryCount(id) <= 0) campaign.debugGrantSamePower(id);
     campaign.equipSamePower(id);
-    // Also apply to the LIVE engine so it takes effect THIS deal (debug/QA only).
-    if (engine && engine.debug && engine.debug.setSamePower) engine.debug.setSamePower(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     renderSetupInv();
-    updateSamePowerHud();   // refresh the HUD chip immediately (debug live-equip)
-    el.debugPeekOut.textContent = "equipped Same-Power: " + id + " (live this deal)";
+    updateSamePowerHud();   // refresh the HUD chip immediately
+    el.debugPeekOut.textContent = "equipped Same-Power: " + id + " (locked in at Start Deal)";
   }
 
   /* ============================================================
