@@ -4216,7 +4216,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.91 · feedback-S1-floatcoins";
+const APP_VERSION = "v2.92 · feedback-S2-S3-coins";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12049,6 +12049,19 @@ const UIRenderer = (() => {
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
         const reduce = prefersReduce();
+        // Coin gains that were previously SILENT (no float): read the amounts the
+        // engine already computed off the payload (presentation only — no recompute
+        // of game values). Compound pays (compoundHits − 1) on a correct guess (the
+        // engine already incremented it on `current`); Death Bounty (Last Coin) pays
+        // value × its sticker count on the killing card. Floated via the shared coin
+        // float so they match every other coin source.
+        const cur = payload.current;
+        const compoundPay = (payload.correct && cur && cur.stickers && cur.stickers.some(s => s.type === "compound"))
+          ? (cur.compoundHits || 0) - 1 : 0;
+        const dbT = StickerTypes.get("deathBounty");
+        const dbCount = (!payload.correct && payload.drawn && payload.drawn.stickers)
+          ? payload.drawn.stickers.filter(s => s.type === "deathBounty").length : 0;
+        const deathBountyPay = dbCount * ((dbT && dbT.value) || 0);
         // The engine kills the pile BEFORE emitting "resolved", so the board here
         // already reflects the death: a wrong guess that leaves nothing alive is
         // the FATAL guess that loses the run. The "lost" event follows in the same
@@ -12087,10 +12100,12 @@ const UIRenderer = (() => {
             setTimeout(() => pileEl.classList.remove("flash-good"), 520);
             Sound.good();
             refreshNetwork(payload.board);
+            if (compoundPay > 0) floatCoins(pileEl, compoundPay, "pile-float");   // was silent
           } else {
             // Wrong → the pile dies. Order: land/resolve → DEATH FLASH →
             // dissolve → reconnect, so the player registers the death first.
             Sound.death();
+            if (deathBountyPay > 0) floatCoins(pileEl, deathBountyPay, "pile-float");   // Last Coin consolation (was silent)
             const flashAt = reduce ? 0 : 340;        // a beat after the card settles
             const dieAt = reduce ? 0 : flashAt + 300;
             if (!reduce) setTimeout(() => {
@@ -12543,6 +12558,13 @@ const UIRenderer = (() => {
         }
         flash(payload.hub);
         (payload.targets || []).forEach(flash);
+        // Coin powers (Dividend / linkCoins) paid via the shared coin float, so a
+        // Same-Power coin gain shows a +N like every other coin source (it was
+        // previously silent). Floats over the paid pile (largest linked) or the hub.
+        if (payload.effect === "linkCoins" && payload.amount > 0) {
+          const coinIdx = (payload.targets && payload.targets.length) ? payload.targets[0] : payload.hub;
+          floatCoins(pileEls[coinIdx], payload.amount, "pile-float");
+        }
         if (payload.board) paintPileCounts(payload.board);
         if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
         renderNetwork();
