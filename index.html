@@ -1839,7 +1839,11 @@
     padding: 8px 12px; border-radius: 12px;
     background: linear-gradient(180deg, rgba(200,74,120,0.14), rgba(142,47,78,0.20));
     border: 1.5px solid var(--net, #C84A78); box-shadow: 0 0 10px rgba(200,74,120,0.30); }
-  .sp-badge-ico { font-size: 22px; line-height: 1; }
+  .sp-badge-ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  /* The equals-synapse mark (reused menu logo) as the Same-Power class symbol.
+     Background-less SVG; sized to sit where the old glyph did and read clearly on
+     the badge's light rose gradient. */
+  .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; user-select: none; -webkit-user-drag: none; }
   .sp-badge-name { font-family: var(--font-text); font-size: 11px; font-weight: 700;
     letter-spacing: 0.3px; color: var(--net-dot, #8E2F4E); }
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
@@ -4153,7 +4157,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.87 · same-powers-fixes";
+const APP_VERSION = "v2.88 · same-power-mark";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14381,10 +14385,15 @@ const UIRenderer = (() => {
   /* A simple shelf badge for a Same-Power (no bespoke object art): the power's
      glyph over its name, in the synapse-violet of the connection network so it
      reads as "links" at a glance. Used on store tiles + the setup equip chip. */
+  /* A simple shelf badge for a Same-Power (no bespoke object art): the game's
+     equals-synapse mark (the menu logo, icons/logo.svg — the background-less rose
+     equals bars + nodes) over the power's name. The mark is the Same-Power class
+     symbol everywhere it shows (store tiles + the setup equip chip). */
   function samePowerBadgeHtml(t) {
     if (!t) return "";
-    return '<span class="sp-badge"><span class="sp-badge-ico">' + (t.icon || "⚡") + '</span>' +
-      '<span class="sp-badge-name">' + t.label + '</span></span>';
+    return '<span class="sp-badge"><span class="sp-badge-ico">' +
+      '<img class="sp-mark" src="icons/logo.svg" alt="Same-Power" width="22" height="22" draggable="false" />' +
+      '</span><span class="sp-badge-name">' + t.label + '</span></span>';
   }
   const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power" };
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
