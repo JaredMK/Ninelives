@@ -4257,7 +4257,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.96 · feedback-S9-S10";
+const APP_VERSION = "v2.97 · same-power-badge";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11838,7 +11838,7 @@ const UIRenderer = (() => {
      own event (not a generic correct pulse). The concrete effect (bury via the
      buried animation / revive repaint / coin float) is shown by the handler; this
      ties hub→targets together and names the power. Presentation only. */
-  function firePowerFeedback(hub, targets) {
+  function firePowerFeedback(hub, targets, label) {
     const pulse = (idx, isHub) => {
       const pe = pileEls[idx];
       if (!pe) return;
@@ -11850,6 +11850,9 @@ const UIRenderer = (() => {
     };
     if (hub != null) pulse(hub, true);
     (targets || []).forEach((t) => { if (t !== hub) pulse(t, false); });
+    // A clear NAMED badge on the hub so the activation is unmistakable (like the
+    // SAVED badge for saves) — the rose pulse alone reads subtly on a busy board.
+    if (hub != null && label) floatChip(pileEls[hub], label, "power-float");
   }
   /* Shared "un-dead a pile" repaint — drop the dissolved state and show the pile's
      (new) top. The CONTEXTUAL cue (correct pulse / Same-Power flourish) is added by
@@ -12647,7 +12650,7 @@ const UIRenderer = (() => {
             if (pe && pe.classList.contains("dead") && payload.board.isActive(idx)) revivePileVisual(idx, payload.board);   // shared un-dead repaint
           });
         }
-        firePowerFeedback(payload.hub, payload.targets);   // distinct hub→targets flourish
+        firePowerFeedback(payload.hub, payload.targets, payload.label);   // distinct hub→targets flourish + named hub badge
         // Coin powers (Dividend / linkCoins) paid via the shared coin float, so a
         // Same-Power coin gain shows a +N like every other coin source (it was
         // previously silent). Floats over the paid pile (largest linked) or the hub.
