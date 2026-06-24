@@ -225,17 +225,20 @@
   }
   .hud .hud-dop b { font-size: 15px; font-weight: 800; }
   .hud .hud-dop .coin-ico { font-size: 13px; }
-  /* Same Charge indicator: a lightning chip — lit + glowing when CHARGED (the
-     auto-save backstop is armed), dim/outlined when EMPTY. */
+  /* Same Charge indicator: the equals-synapse mark — lit + amber-glowing when
+     CHARGED (the auto-save backstop is armed), dim/desaturated when EMPTY. (Uses
+     the game's logo, like the Same-Power chip beside it, so the two read as one
+     "Same" unit; the charge is the glowing, border-less one.) */
   .hud .hud-same {
     font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
     width: 19px; height: 19px; border-radius: 999px; transition: all 0.18s ease;
   }
+  .hud .hud-same img { width: 15px; height: 15px; display: block; }
   .hud .hud-same.charged {
-    color: #1c1206; background: var(--amber);
+    background: rgba(227,192,101,0.20);
     box-shadow: 0 0 8px var(--amber), 0 0 2px var(--amber); transform: scale(1.05);
   }
-  .hud .hud-same.empty { color: var(--muted); opacity: 0.45; background: none; }
+  .hud .hud-same.empty { opacity: 0.4; filter: grayscale(0.65); background: none; }
   @keyframes sameChargePulse { 0%,100% { box-shadow: 0 0 8px var(--amber); } 50% { box-shadow: 0 0 14px var(--amber); } }
   .hud .hud-same.charged { animation: sameChargePulse 1.5s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .hud .hud-same.charged { animation: none; } }
@@ -712,25 +715,29 @@
      no horizontal edge-swipe navigation, no pinch) while playing on it. */
   body.swipe-input .board { touch-action: none; overscroll-behavior: none; }
 
-  /* Floating live-direction label that follows the finger while swiping. Fixed,
-     pointer-transparent, color-coded per direction; the dead-zone reads neutral. */
+  /* Live-direction indicator: a big, faded word CENTERED on the board (style A) —
+     NO background scrim, so the board stays fully visible behind it. Fixed in
+     place every swipe (never follows the finger); tinted by direction; hidden in
+     the centre dead-zone. Pointer-transparent. */
   .swipe-label {
     position: fixed; z-index: 90; pointer-events: none;
-    transform: translate(-50%, -140%);
-    font-family: var(--font-text); font-weight: 900; font-size: 17px; letter-spacing: 1.2px;
-    padding: 5px 12px; border-radius: 999px; white-space: nowrap;
-    background: rgba(28,20,26,0.92); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.30);
-    border: 1.5px solid rgba(255,255,255,0.18);
+    transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+    font-family: var(--font-text); font-weight: 900; text-align: center;
+    opacity: 0.55;
+    /* soft white halo (lifts off the busy network) + a faint dark edge for
+       definition — readable on the light board without any background scrim. */
+    text-shadow: 0 0 16px rgba(255,255,255,0.75), 0 1px 2px rgba(0,0,0,0.16);
   }
+  .swipe-label .sl-glyph { font-size: 62px; line-height: 0.82; }
+  .swipe-label .sl-word { font-size: 27px; letter-spacing: 4px; }
   .swipe-label.hidden { display: none; }
-  /* Colours echo the old buttons: Higher = green, Lower = pink/red, Same = gold. */
-  .swipe-label.dir-higher { background: #2e9e6b; border-color: rgba(255,255,255,0.30); }
-  .swipe-label.dir-lower  { background: #cf5b6b; border-color: rgba(255,255,255,0.30); }
-  .swipe-label.dir-same   { background: #e3c065; color: #2a2410; border-color: rgba(42,36,16,0.25); }
-  .swipe-label.dir-none   { background: rgba(60,52,58,0.86); color: rgba(255,255,255,0.85);
-    font-size: 13px; letter-spacing: 0.6px; font-weight: 700; }
+  /* Colours echo the rest of the game: Higher = green, Lower = pink/red, Same = amber. */
+  .swipe-label.dir-higher { color: #1f8f5c; }
+  .swipe-label.dir-lower  { color: #c64a5b; }
+  .swipe-label.dir-same   { color: #c2902a; }
   @media (prefers-reduced-motion: no-preference) {
-    .swipe-label { transition: background-color 0.12s ease, border-color 0.12s ease; }
+    .swipe-label { transition: color 0.12s ease; }
   }
 
   /* Equipped Same-Power, shown next to the Same Charge as one unit. The
@@ -3626,7 +3633,7 @@
       <b id="minPileCount" class="min-accent">1</b><span class="hl">S</span>
       <b id="bonusCoins" class="bonus-accent">+0</b>
     </span>
-    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort">⚡</span>
+    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="icons/logo.svg" alt="" draggable="false" /></span>
     <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
@@ -4209,7 +4216,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.89 · swipe-input";
+const APP_VERSION = "v2.90 · same-mark-and-overlay";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10952,17 +10959,29 @@ const UIRenderer = (() => {
       el.btnLower.classList.remove("dim");
       el.btnSame.classList.remove("dim");
     }
-    function showSwipeLabel(x, y, armed) {
+    // The direction indicator is a big faded word CENTERED on the board — fixed in
+    // place for the whole swipe (never follows the finger). Positioned once when a
+    // drag starts; updated live as the armed direction changes; hidden in the
+    // centre dead-zone (neutral / no guess).
+    const SWIPE_GLYPH = { higher: "▲", lower: "▼", same: "＝" };
+    const SWIPE_WORD = { higher: "HIGHER", lower: "LOWER", same: "SAME" };
+    function positionSwipeLabel() {
+      if (!el.swipeLabel || !el.board) return;
+      const r = el.board.getBoundingClientRect();
+      el.swipeLabel.style.left = (r.left + r.width / 2) + "px";
+      el.swipeLabel.style.top = (r.top + r.height / 2) + "px";
+    }
+    function showSwipeLabel(armed) {
       if (!el.swipeLabel) return;
-      el.swipeLabel.textContent = armed === "higher" ? "HIGHER"
-        : armed === "lower" ? "LOWER" : armed === "same" ? "SAME" : "release to cancel";
-      el.swipeLabel.className = "swipe-label dir-" + (armed || "none");
-      el.swipeLabel.style.left = x + "px";
-      el.swipeLabel.style.top = y + "px";
+      if (!armed) { el.swipeLabel.classList.add("hidden"); return; }   // dead-zone → neutral/hidden
+      el.swipeLabel.innerHTML =
+        '<span class="sl-glyph">' + SWIPE_GLYPH[armed] + '</span>' +
+        '<span class="sl-word">' + SWIPE_WORD[armed] + '</span>';
+      el.swipeLabel.className = "swipe-label dir-" + armed;
     }
     function hideSwipeLabel() { if (el.swipeLabel) el.swipeLabel.classList.add("hidden"); }
-    function dragFeedback(armed, x, y) {
-      if (SWIPE_INPUT) showSwipeLabel(x, y, armed);
+    function dragFeedback(armed) {
+      if (SWIPE_INPUT) showSwipeLabel(armed);
       else setDragGreying(armed);
     }
     function clearDragFeedback() {
@@ -11024,10 +11043,10 @@ const UIRenderer = (() => {
       const dy = pileDrag.startY - e.clientY;           // up = positive
       if (Math.max(Math.abs(dx), Math.abs(dy)) > TAP_SLOP) {
         clearTimeout(infoTimer);                        // it's a drag — not an info hold
-        if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); }
+        if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); positionSwipeLabel(); }
         const armed = dirFromDelta(dx, dy);
         pileDrag.armed = armed;
-        dragFeedback(armed, e.clientX, e.clientY);      // floating label (swipe) / button greying
+        dragFeedback(armed);                            // centered board overlay (swipe) / button greying
         e.preventDefault();
       }
     });
