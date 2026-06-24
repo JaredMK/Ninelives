@@ -698,6 +698,52 @@
   body.guess-side:not(.play-active) #histBand > .deck-strip,
   body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: hidden; }
 
+  /* ============================================================
+     SWIPE INPUT (isolated + revertable via SWIPE_INPUT / body.swipe-input)
+     The guess buttons are removed and the rail collapses, so the board reclaims
+     that width. Guesses are swipes on a pile; the board OWNS the gesture
+     (touch-action:none) so a sideways Same can never trigger Safari edge-swipe
+     back/forward. A floating label shows the live direction near the finger.
+     ============================================================ */
+  body.swipe-input.guess-side .rail { flex-basis: 0; width: 0; min-width: 0; padding: 0; gap: 0; overflow: hidden; }
+  body.swipe-input.guess-side .rail #actions { display: none; }
+  body.swipe-input .play-row { gap: 0; }
+  /* The board captures all touch so the game owns every swipe (no page scroll,
+     no horizontal edge-swipe navigation, no pinch) while playing on it. */
+  body.swipe-input .board { touch-action: none; overscroll-behavior: none; }
+
+  /* Floating live-direction label that follows the finger while swiping. Fixed,
+     pointer-transparent, color-coded per direction; the dead-zone reads neutral. */
+  .swipe-label {
+    position: fixed; z-index: 90; pointer-events: none;
+    transform: translate(-50%, -140%);
+    font-family: var(--font-text); font-weight: 900; font-size: 17px; letter-spacing: 1.2px;
+    padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+    background: rgba(28,20,26,0.92); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.30);
+    border: 1.5px solid rgba(255,255,255,0.18);
+  }
+  .swipe-label.hidden { display: none; }
+  /* Colours echo the old buttons: Higher = green, Lower = pink/red, Same = gold. */
+  .swipe-label.dir-higher { background: #2e9e6b; border-color: rgba(255,255,255,0.30); }
+  .swipe-label.dir-lower  { background: #cf5b6b; border-color: rgba(255,255,255,0.30); }
+  .swipe-label.dir-same   { background: #e3c065; color: #2a2410; border-color: rgba(42,36,16,0.25); }
+  .swipe-label.dir-none   { background: rgba(60,52,58,0.86); color: rgba(255,255,255,0.85);
+    font-size: 13px; letter-spacing: 0.6px; font-weight: 700; }
+  @media (prefers-reduced-motion: no-preference) {
+    .swipe-label { transition: background-color 0.12s ease, border-color 0.12s ease; }
+  }
+
+  /* Equipped Same-Power, shown next to the Same Charge as one unit. The
+     background-less equals-synapse mark; tap/hold for its description. */
+  .hud .hud-samepower {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin-left: -2px; cursor: pointer; vertical-align: middle;
+    border-radius: 7px; border: 1px solid var(--net, #C84A78);
+    background: rgba(200,74,120,0.12); box-shadow: 0 0 6px rgba(200,74,120,0.22);
+  }
+  .hud .hud-samepower.hidden { display: none; }
+  .hud .hud-samepower img { width: 16px; height: 16px; display: block; }
+
   /* Per-run layout: three side-by-side COLUMNS, vertically centered against
      each other so uneven columns stagger-center (the 3-pile outer columns
      center against a taller 4-pile middle in Run 1; the 2-pile middle centers
@@ -3581,6 +3627,7 @@
       <b id="bonusCoins" class="bonus-accent">+0</b>
     </span>
     <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort">⚡</span>
+    <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
@@ -3627,7 +3674,7 @@
       </div>
       <!-- First-turn help, shown in the guess-button row before any pile is
            tapped (replaced by the buttons on the first selection). -->
-      <div class="ctl-help hidden" id="ctlHelp">Tap a pile to guess Higher or Lower, swipe it up or down — or hold it for card info.</div>
+      <div class="ctl-help hidden" id="ctlHelp">Swipe a pile to guess — up = Higher, down = Lower, sideways = Same. Hold a pile for card info.</div>
       <!-- Unified activation/confirm prompt — fills this row while an interactive
            pillar/effect is being activated or confirmed; the board stays in view. -->
       <div class="action-prompt hidden" id="actionPrompt">
@@ -3687,6 +3734,11 @@
   <div class="card-info hidden" id="cardInfo">
     <div class="card-info-panel" id="cardInfoPanel"></div>
   </div>
+
+  <!-- Floating live-direction label that follows the finger while swiping a pile
+       to guess (swipe input only). Updates to HIGHER / LOWER / SAME, or a neutral
+       cancel state in the centre dead-zone. Pointer-transparent. -->
+  <div class="swipe-label hidden" id="swipeLabel"></div>
 
   <!-- Debug: a small corner toggle opens a floating, self-scrolling overlay.
        Also openable via ?debug in the URL or a triple-tap on the title. -->
@@ -4157,7 +4209,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.88 · same-power-mark";
+const APP_VERSION = "v2.89 · swipe-input";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9030,6 +9082,8 @@ const UIRenderer = (() => {
     hudStageRun: document.getElementById("hudStageRun"),
     hudDopamine: document.getElementById("hudDopamine"),
     hudSame: document.getElementById("hudSame"),
+    hudSamePower: document.getElementById("hudSamePower"),
+    swipeLabel: document.getElementById("swipeLabel"),
     stageRun: document.getElementById("stageRun"),
     mainMenu: document.getElementById("mainMenu"),
     menuButtons: document.getElementById("menuButtons"),
@@ -9553,6 +9607,21 @@ const UIRenderer = (() => {
     const charged = !!(engine && engine.sameCharge && engine.sameCharge());
     if (el.hudSame) { el.hudSame.classList.toggle("charged", charged); el.hudSame.classList.toggle("empty", !charged); }
     if (el.btnSame) el.btnSame.classList.toggle("charged", charged);
+    updateSamePowerHud();   // the equipped Same-Power sits beside the charge as one unit
+  }
+  /* Show the equipped Same-Power's mark next to the Same Charge (or hide it when
+     none is equipped). The mark is the game's equals-synapse logo; the chip is
+     tap/hold-able for the power's description (see its handler in attachInput). */
+  function updateSamePowerHud() {
+    if (!el.hudSamePower) return;
+    const id = (engine && engine.samePower && engine.samePower())
+      || (campaign && campaign.getSamePower && campaign.getSamePower()) || null;
+    const t = id ? SamePowerTypes.get(id) : null;
+    if (!t) { el.hudSamePower.classList.add("hidden"); el.hudSamePower.dataset.power = ""; el.hudSamePower.innerHTML = ""; return; }
+    el.hudSamePower.dataset.power = id;
+    el.hudSamePower.title = t.label + " — tap or hold for its effect";
+    el.hudSamePower.innerHTML = '<img src="icons/logo.svg" alt="" draggable="false" />';
+    el.hudSamePower.classList.remove("hidden");
   }
 
   /* Tell: paint each pile's directional hint (▲ higher / = same / ▼ lower) for its
@@ -9629,8 +9698,22 @@ const UIRenderer = (() => {
      keys off that class, so nothing else needs touching.
      ============================================================ */
   const GUESS_SIDE_LAYOUT = true;
+  /* ============================================================
+     SWIPE INPUT (isolated + revertable via SWIPE_INPUT)
+     true  → the Higher/Same/Lower buttons are removed; every guess is a SWIPE on
+             a pile (up=Higher, down=Lower, sideways=Same), committing on release
+             with a centre cancel dead-zone + a floating live-direction label. The
+             rail collapses so the board reclaims that width. The equipped
+             Same-Power shows next to the Same Charge.
+     false → the original buttons return (the vertical drag-to-guess + button
+             greying feedback still work); nothing else to untangle.
+     All swipe-only styling is scoped to body.swipe-input, and the input/feedback
+     code branches on SWIPE_INPUT, so flipping the flag falls back cleanly.
+     ============================================================ */
+  const SWIPE_INPUT = true;
   function guessSide() { return GUESS_SIDE_LAYOUT && document.body.classList.contains("guess-side"); }
   function applyGuessLayout() {
+    if (SWIPE_INPUT) document.body.classList.add("swipe-input");
     if (!GUESS_SIDE_LAYOUT) return;
     document.body.classList.add("guess-side");
     const rail = document.getElementById("rail");
@@ -9861,7 +9944,9 @@ const UIRenderer = (() => {
     el.actions.classList.remove("hidden", "guess-disabled");   // a pile is selected → buttons active
     if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // first-turn help done
     const top = engine.getBoard().top(index);
-    el.hint.textContent = `Pile shows ${top.label}. Drag up = Higher, down = Lower, or tap a button.`;
+    el.hint.textContent = SWIPE_INPUT
+      ? `Pile shows ${top.label}. Swipe up = Higher, down = Lower, sideways = Same. Release to commit.`
+      : `Pile shows ${top.label}. Drag up = Higher, down = Lower, or tap a button.`;
   }
   function selectPile(index) {
     if (!engine || engine.getStatus() !== "playing") return;
@@ -9898,6 +9983,20 @@ const UIRenderer = (() => {
     el.cardInfo.classList.remove("hidden");
   }
   function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
+
+  /* The equipped Same-Power's description, shown in the shared card-info popup
+     (reused) — opened by tapping/holding the HUD Same-Power chip. */
+  function openSamePowerInfo(id) {
+    const t = id ? SamePowerTypes.get(id) : null;
+    if (!t || !el.cardInfoPanel || !el.cardInfo) return;
+    el.cardInfoPanel.innerHTML =
+      '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
+      '<img src="icons/logo.svg" alt="" width="20" height="20" draggable="false" />' +
+      '<b style="font-size:15px;">' + escHtml(t.label) + '</b>' +
+      '<span style="margin-left:auto;font-size:10px;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;">' + escHtml(t.tier || "") + '</span></div>' +
+      '<div style="white-space:pre-line;font-size:12.5px;line-height:1.34;">' + escHtml(t.description || "") + '</div>';
+    el.cardInfo.classList.remove("hidden");
+  }
 
   function submitGuess(guess) {
     Sound.tap();
@@ -9955,7 +10054,9 @@ const UIRenderer = (() => {
     // hint shown in the (otherwise empty) guess-button row. It's hidden the
     // moment a pile is selected (showPileSelected), so it only shows at the
     // start of each deal.
-    el.hint.textContent = "Tap a pile to guess Higher or Lower — or swipe it up or down.";
+    el.hint.textContent = SWIPE_INPUT
+      ? "Swipe a pile to guess — up = Higher, down = Lower, sideways = Same. Hold for card info."
+      : "Tap a pile to guess Higher or Lower — or swipe it up or down.";
     if (el.ctlHelp) el.ctlHelp.classList.remove("hidden");
     // Re-fit to the live run layout: the bottom region's run histogram can differ
     // slightly in height from the setup inventory, so size the piles to the real
@@ -10669,6 +10770,7 @@ const UIRenderer = (() => {
     if (engine && engine.debug && engine.debug.setSamePower) engine.debug.setSamePower(id);
     if (!el.storeOverlay.classList.contains("hidden")) renderStore();
     renderSetupInv();
+    updateSamePowerHud();   // refresh the HUD chip immediately (debug live-equip)
     el.debugPeekOut.textContent = "equipped Same-Power: " + id + " (live this deal)";
   }
 
@@ -10817,13 +10919,29 @@ const UIRenderer = (() => {
     const PEEK_HOLD_MS = 180;     // Pillar-indicator hold threshold
     const INFO_HOLD_MS = 350;     // pile hold → card info (longer: piles also tap+drag)
     const TAP_SLOP = 8;           // movement under this = a tap (selects)
-    const DRAG_THRESH = 26;       // vertical travel to arm a guess
+    const DRAG_THRESH = 26;       // travel to arm a guess (past the dead-zone)
     let peekTimer = null, peeking = false, suppressPileClick = false;
     let infoTimer = null, infoHold = false;   // pile hold-for-card-info state
     let peekTapCol = null;   // a Pathway banner whose peek is open via a quick TAP
     let peekTapPile = null;  // a pile whose card-sticker peek is open via a TAP (pre-run)
-    let pileDrag = null;          // { index, startY, armed, moved }
+    let pileDrag = null;          // { index, startX, startY, armed, moved }
 
+    /* The guess armed by a drag delta (dx right-positive, dy UP-positive). SWIPE
+       input: dominant axis decides — sideways (either way) = Same, up = Higher,
+       down = Lower; inside the centre dead-zone = null (release cancels). Button
+       (revert) mode keeps the original vertical-only arming. */
+    function dirFromDelta(dx, dy) {
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (SWIPE_INPUT) {
+        if (Math.max(adx, ady) < DRAG_THRESH) return null;   // dead-zone → cancel
+        if (adx > ady) return "same";                        // sideways = Same
+        return dy > 0 ? "higher" : "lower";                  // up / down
+      }
+      return dy >= DRAG_THRESH ? "higher" : dy <= -DRAG_THRESH ? "lower" : null;
+    }
+
+    // Feedback while dragging: SWIPE input → a floating label at the finger; button
+    // (revert) mode → the original button-greying. Both read the same `armed`.
     function setDragGreying(armed) {
       el.btnHigher.classList.toggle("dim", armed === "lower");
       el.btnLower.classList.toggle("dim", armed === "higher");
@@ -10833,6 +10951,23 @@ const UIRenderer = (() => {
       el.btnHigher.classList.remove("dim");
       el.btnLower.classList.remove("dim");
       el.btnSame.classList.remove("dim");
+    }
+    function showSwipeLabel(x, y, armed) {
+      if (!el.swipeLabel) return;
+      el.swipeLabel.textContent = armed === "higher" ? "HIGHER"
+        : armed === "lower" ? "LOWER" : armed === "same" ? "SAME" : "release to cancel";
+      el.swipeLabel.className = "swipe-label dir-" + (armed || "none");
+      el.swipeLabel.style.left = x + "px";
+      el.swipeLabel.style.top = y + "px";
+    }
+    function hideSwipeLabel() { if (el.swipeLabel) el.swipeLabel.classList.add("hidden"); }
+    function dragFeedback(armed, x, y) {
+      if (SWIPE_INPUT) showSwipeLabel(x, y, armed);
+      else setDragGreying(armed);
+    }
+    function clearDragFeedback() {
+      if (SWIPE_INPUT) hideSwipeLabel();
+      else clearDragGreying();
     }
 
     el.board.addEventListener("pointerdown", (e) => {
@@ -10859,7 +10994,10 @@ const UIRenderer = (() => {
       if (engine && engine.isRunStarted() && engine.getStatus() === "playing" && !promptActive) {
         const index = Number(pileEl.dataset.index);
         if (engine.getBoard().isActive(index)) {
-          pileDrag = { index, startY: e.clientY, armed: null, moved: false };
+          pileDrag = { index, startX: e.clientX, startY: e.clientY, armed: null, moved: false };
+          // Own the gesture so a sideways Same can't trigger browser back/forward
+          // (and moves keep tracking even if the finger leaves the pile).
+          try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
           // HOLD → this pile's card info (read-only; release closes). Movement
           // (a drag-guess) cancels the hold; the hold cancels the drag.
           clearTimeout(infoTimer);
@@ -10867,7 +11005,7 @@ const UIRenderer = (() => {
           infoTimer = setTimeout(() => {
             infoHold = true;
             pileDrag = null;               // a hold is not a drag — disarm guessing
-            clearDragGreying();
+            clearDragFeedback();
             openCardInfo(index);
           }, INFO_HOLD_MS);
         }
@@ -10882,12 +11020,14 @@ const UIRenderer = (() => {
 
     el.board.addEventListener("pointermove", (e) => {
       if (!pileDrag) return;
-      const dy = pileDrag.startY - e.clientY;          // up = positive
-      if (Math.abs(dy) > TAP_SLOP) {
-        clearTimeout(infoTimer);                       // it's a drag — not an info hold
-        if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); }  // reveal buttons for feedback
-        const armed = dy >= DRAG_THRESH ? "higher" : dy <= -DRAG_THRESH ? "lower" : null;
-        if (armed !== pileDrag.armed) { pileDrag.armed = armed; setDragGreying(armed); }
+      const dx = e.clientX - pileDrag.startX;           // right = positive
+      const dy = pileDrag.startY - e.clientY;           // up = positive
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > TAP_SLOP) {
+        clearTimeout(infoTimer);                        // it's a drag — not an info hold
+        if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); }
+        const armed = dirFromDelta(dx, dy);
+        pileDrag.armed = armed;
+        dragFeedback(armed, e.clientX, e.clientY);      // floating label (swipe) / button greying
         e.preventDefault();
       }
     });
@@ -10898,11 +11038,13 @@ const UIRenderer = (() => {
       if (infoHold) { infoHold = false; suppressPileClick = true; closeCardInfo(); }
       if (peeking) { peeking = false; suppressPileClick = true; closePeekInfo(); }
       if (pileDrag) {
-        clearDragGreying();
+        clearDragFeedback();
         if (pileDrag.moved) {
           suppressPileClick = true;   // it was a drag, not a tap
-          if (pileDrag.armed) engine.guess(pileDrag.index, pileDrag.armed);   // commit Higher/Lower
-          // else: released in the dead-zone → cancel (pile stays selected, no guess)
+          // Commit the direction at RELEASE: Higher / Lower / Same. The player may
+          // have changed direction mid-swipe; only the final one counts.
+          if (pileDrag.armed) engine.guess(pileDrag.index, pileDrag.armed);
+          // else: released in the centre dead-zone → cancel (no guess, pile stays selected)
         }
         pileDrag = null;
       }
@@ -10910,6 +11052,34 @@ const UIRenderer = (() => {
     el.board.addEventListener("pointerup", endPeek);
     el.board.addEventListener("pointerleave", endPeek);
     el.board.addEventListener("pointercancel", endPeek);
+
+    // Equipped Same-Power chip (beside the Same Charge): TAP toggles its
+    // description popup; HOLD shows it while held (release closes) — the same help
+    // idiom the Pillar/Base indicators use.
+    if (el.hudSamePower) {
+      let spHoldTimer = null, spHeld = false, suppressSpClick = false;
+      const spId = () => el.hudSamePower.dataset.power || null;
+      el.hudSamePower.addEventListener("pointerdown", (e) => {
+        spHeld = false; suppressSpClick = false;
+        // Capture so opening the info overlay (which sits over the chip) can't fire
+        // a pointerleave that would instantly close the held popup.
+        try { el.hudSamePower.setPointerCapture(e.pointerId); } catch (err) {}
+        clearTimeout(spHoldTimer);
+        spHoldTimer = setTimeout(() => { spHeld = true; openSamePowerInfo(spId()); }, 180);
+      });
+      const spRelease = () => {
+        clearTimeout(spHoldTimer);
+        if (spHeld) { spHeld = false; suppressSpClick = true; closeCardInfo(); }
+      };
+      el.hudSamePower.addEventListener("pointerup", spRelease);
+      el.hudSamePower.addEventListener("pointerleave", spRelease);
+      el.hudSamePower.addEventListener("pointercancel", spRelease);
+      el.hudSamePower.addEventListener("click", () => {
+        if (suppressSpClick) { suppressSpClick = false; return; }   // a hold already handled it
+        if (el.cardInfo && !el.cardInfo.classList.contains("hidden")) closeCardInfo();
+        else openSamePowerInfo(spId());
+      });
+    }
 
     // Tap a pile: apply an armed sticker (sticker phase) or select it (active).
     // A drag/peek sets suppressPileClick so the release doesn't also act.
@@ -15653,8 +15823,9 @@ const UIRenderer = (() => {
             '<div class="btn lower">LOWER</div>' +
           "</div></div>",
         cap: '<span class="lead">Make a guess</span>' +
-          "Tap a pile, then call the next card: will it be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> " +
-          "than the <b>pile card</b> (the card on top)? You can also <b>swipe a pile up or down</b> to guess Higher or Lower. " +
+          "Will the next card be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> than the <b>pile card</b> (the card on top)? " +
+          "<b>Swipe a pile</b> to guess — <b>up</b> = Higher, <b>down</b> = Lower, <b>sideways</b> = Same. " +
+          "The guess commits when you lift your finger; release near the centre to cancel. <b>Hold</b> a pile for card info. " +
           "(Aces are high.)",
       },
       { // 4 — grow it or lose it
