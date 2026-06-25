@@ -3417,6 +3417,11 @@
   .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.08); }
   @keyframes hereGlow { 0%,100% { box-shadow: 0 0 0 4px rgba(188,66,112,0.55), 0 0 14px 2px rgba(188,66,112,0.4); } 50% { box-shadow: 0 0 0 5px rgba(188,66,112,0.7), 0 0 20px 5px rgba(188,66,112,0.5); } }
   .pm-node.s-here { transform: translate(-50%, -50%) scale(1.12); animation: hereGlow 1.6s ease-in-out infinite; border-color: var(--accent-2); }
+  /* Arrival cue: the marker "lands" on the node it just travelled to (a brief
+     upward pop), reinforcing the bottom→top progression. */
+  @keyframes pmArrive { 0% { transform: translate(-50%, 22px) scale(0.7); opacity: 0.4; } 60% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.12); } }
+  .pm-node.s-here.arrived { animation: pmArrive 0.42s ease-out, hereGlow 1.6s ease-in-out infinite 0.42s; }
+  @media (prefers-reduced-motion: reduce) { .pm-node.s-here.arrived { animation: none; } }
   @media (prefers-reduced-motion: reduce) { .pm-node.s-here { animation: none; box-shadow: 0 0 0 4px rgba(188,66,112,0.6); } .map-hdr .map-deck.gain { animation: none; } }
 
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
@@ -4318,7 +4323,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.00 · run-map M1 (state+gen+deals+nav)";
+const APP_VERSION = "v3.01 · run-map M2 (map UX + copy, no score)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10217,10 +10222,16 @@ const UIRenderer = (() => {
      reclaim/cede the space, persist the choice. */
   /* The histogram is permanently visible in Layout 4 (no toggle). */
 
-  /** Persistent "Stage X · Run Y" indicator (presentation; reads campaign). */
+  /** Persistent run indicator: the PHASE (suit) + the accumulated DECK SIZE (the
+      survival number) — there is NO score. (presentation; reads campaign). */
+  const PHASE_LABEL = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
   function updateStageRun() {
     if (!campaign) return;
-    const sr = "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex;
+    const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
+    const phaseNo = (campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0) + 1;
+    const phases = campaign.phasesTotal ? campaign.phasesTotal() : 3;
+    const sr = suit + " " + (PHASE_LABEL[suit] || "") + " " + phaseNo + "/" + phases
+      + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
     // Slim HUD bar (play screen).
     if (el.hudStageRun) el.hudStageRun.textContent = sr;
@@ -13274,9 +13285,12 @@ const UIRenderer = (() => {
   }
 
   /* ---- phase screens ---- */
-  /** Concise "Stage X · Run Y" for the end screen (no "of N"). */
+  /** Concise phase + deck-size summary for the end screen (no score — survival). */
   function stageRunShort() {
-    return "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex;
+    const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
+    return suit + " phase " + ((campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0) + 1)
+      + "/" + (campaign.phasesTotal ? campaign.phasesTotal() : 3)
+      + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
   }
 
   /** The ending Pillars, by column: one row per column showing its Pillar (icon
@@ -13334,7 +13348,7 @@ const UIRenderer = (() => {
       icon: glyph("win"),
       title: "Deal cleared",
       msg: "",                                   // flavor text removed
-      progress: "Stage " + campaign.currentStage + " · Deal " + campaign.currentRunIndex,   // bare numbers
+      progress: stageRunShort(),                 // phase + deck size (no score)
       coins,
       peek: true,
       btnLabel: "CONTINUE",
@@ -14973,6 +14987,7 @@ const UIRenderer = (() => {
     if (n.type === "pack") return "Pack +" + (n.packCount || 3);
     return "Card +1";
   }
+  let mapArrive = false;   // true for ONE render right after the marker moves (arrival pop)
   function renderProgressionMap() {
     const map = campaign.getMap();
     if (!map) { el.mapTrack.innerHTML = ""; return; }
@@ -15005,8 +15020,9 @@ const UIRenderer = (() => {
     map.nodes.forEach(n => {
       const p = mapNodeXY(n, R);
       const state = cleared.has(n.id) ? "done" : (n.id === pos ? "here" : (legal.has(n.id) ? "legal" : "far"));
+      const arrive = (state === "here" && mapArrive) ? " arrived" : "";
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
-      nodes += '<button type="button" class="pm-node t-' + n.type + ' s-' + state + '"' + action +
+      nodes += '<button type="button" class="pm-node t-' + n.type + ' s-' + state + arrive + '"' + action +
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + mapNodeLabel(n) + '">' +
         mapNodeInner(n, suit) + '</button>';
     });
@@ -15015,6 +15031,7 @@ const UIRenderer = (() => {
         '<svg class="map-edges" viewBox="0 0 ' + MAP_W + ' ' + height + '" width="' + MAP_W + '" height="' + height + '" preserveAspectRatio="none">' + edges + '</svg>' +
         nodes +
       '</div>';
+    mapArrive = false;   // the arrival pop is one-shot
   }
 
   function showProgressionMap(onEnter) {
@@ -15024,7 +15041,9 @@ const UIRenderer = (() => {
     closeFossilDetail();
     DeckInspector.close();
     setScreenNav(true, true, false);   // menu + inventory; the shop is a map node now
-    if (el.stageRun) el.stageRun.classList.remove("off");
+    // The map has its own header (phase + deck), so hide the global Stage·Run badge
+    // here to avoid overlapping it.
+    if (el.stageRun) el.stageRun.classList.add("off");
     updateStageRun();
     renderProgressionMap();
     updateDeckIndicator();
@@ -15068,6 +15087,7 @@ const UIRenderer = (() => {
   function resolveMapNode(id) {
     const node = campaign.moveToNode(id);
     if (!node) return;
+    mapArrive = true;   // the marker just travelled here → play the arrival pop on the next render
     if (node.type === "pickup") {
       const card = campaign.resolvePickup(node);
       campaign.markNodeCleared(id);
