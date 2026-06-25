@@ -4361,7 +4361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.05 · run-map M7 (fillable node+edge map spec format)";
+const APP_VERSION = "v3.06 · run-map M8 (Phase 1 = author-supplied node+edge spec)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5777,35 +5777,107 @@ const RunMap = (() => {
        • x    = 0..1 horizontal position. next = ids this node leads UP to.
      The virtual run-start sits below row 0 and connects to every row-0 node. */
   const PHASE_DEFS = {
-    // Phase 1 — Diamonds. Hardcoded fixed graph (for playtesting). Forks AND
-    // recombines; stores + boss are chokepoints; leaner card-routes are gated
-    // behind harder (fewer-pile) deals; difficulty trends harder toward the top.
+    // Phase 1 — Diamonds. Author-supplied fixed graph (explicit node + edge spec;
+    // parsed by parseMapSpec). Built EXACTLY as specified — no interpretation.
     0: {
       suit: "♦",
       nodes: [
-        { id: 0,  type: "deal",  piles: 5,  row: 0,  x: 0.50, next: [1, 2] },        // start → Deal 5
-        { id: 1,  type: "card",  add: 3,    row: 1,  x: 0.33, next: [3] },           // fork L: +3
-        { id: 2,  type: "card",  add: 5,    row: 1,  x: 0.67, next: [4] },           // fork R: +5
-        { id: 3,  type: "card",  add: 1,    row: 2,  x: 0.33, next: [5] },           // +1
-        { id: 4,  type: "card",  add: 1,    row: 2,  x: 0.67, next: [5] },           // +1
-        { id: 5,  type: "card",  add: 1,    row: 3,  x: 0.50, next: [6] },           // recombine → +1
-        { id: 6,  type: "deal",  piles: 7,  row: 4,  x: 0.50, next: [7] },           // Deal 7
-        { id: 7,  type: "store",            row: 5,  x: 0.50, next: [8, 9, 10] },    // Store (chokepoint)
-        { id: 8,  type: "card",  add: 1,    row: 6,  x: 0.22, next: [11] },          // route A start: +1 (leanest)
-        { id: 9,  type: "card",  add: 3,    row: 6,  x: 0.50, next: [12] },          // route B start: +3
-        { id: 10, type: "card",  add: 5,    row: 6,  x: 0.78, next: [13] },          // route C start: +5 (heaviest)
-        { id: 11, type: "deal",  piles: 4,  row: 7,  x: 0.22, next: [15] },          // A → hardest 4-pile
-        { id: 12, type: "deal",  piles: 6,  row: 7,  x: 0.50, next: [15] },          // B → 6-pile
-        { id: 13, type: "deal",  piles: 10, row: 7,  x: 0.78, next: [14] },          // C → easiest 10-pile
-        { id: 14, type: "deal",  piles: 9,  row: 8,  x: 0.78, next: [15] },          // C continues → 9-pile
-        { id: 15, type: "store",            row: 9,  x: 0.50, next: [16, 17, 18, 19] }, // recombine Store
-        { id: 16, type: "card",  add: 1,    row: 10, x: 0.20, next: [20] },          // +1
-        { id: 17, type: "card",  add: 1,    row: 10, x: 0.40, next: [20] },          // +1
-        { id: 18, type: "card",  add: 3,    row: 10, x: 0.60, next: [21] },          // +3
-        { id: 19, type: "card",  add: 5,    row: 10, x: 0.80, next: [21] },          // +5
-        { id: 20, type: "store",            row: 11, x: 0.30, next: [22] },          // LEFT flanking Store
-        { id: 21, type: "store",            row: 11, x: 0.70, next: [22] },          // RIGHT flanking Store
-        { id: 22, type: "boss",  piles: 6,  row: 12, x: 0.50, next: [] },            // Boss 6 (completes Phase 1)
+        { id: "start",  type: "start",           tier: 0,  x: 0.50 },
+
+        { id: "d_5p",   type: "deal",  piles: 5,  tier: 1,  x: 0.50 },
+
+        // fork off the first deal
+        { id: "c_3a",   type: "pack",  add: 3,    tier: 2,  x: 0.40 },  // +3D
+        { id: "c_5a",   type: "pack",  add: 5,    tier: 2,  x: 0.60 },  // +5D
+
+        // two +1 cards above the +3
+        { id: "c_1a",   type: "card",  add: 1,    tier: 3,  x: 0.33 },  // +1D
+        { id: "c_1b",   type: "card",  add: 1,    tier: 3,  x: 0.47 },  // +1D
+
+        // recombine into a single +1
+        { id: "c_1c",   type: "card",  add: 1,    tier: 4,  x: 0.40 },  // +1D
+
+        { id: "d_7p",   type: "deal",  piles: 7,  tier: 5,  x: 0.50 },
+
+        { id: "shop1",  type: "store",            tier: 6,  x: 0.50 },  // "18 cards"
+
+        // 3-way fork out of the store
+        { id: "c_1d",   type: "card",  add: 1,    tier: 7,  x: 0.25 },  // +1D
+        { id: "c_3b",   type: "pack",  add: 3,    tier: 7,  x: 0.50 },  // +3D
+        { id: "c_5b",   type: "pack",  add: 5,    tier: 7,  x: 0.75 },  // +5D
+
+        // three deals, leaner route = fewer piles = harder
+        { id: "d_4p",   type: "deal",  piles: 4,  tier: 8,  x: 0.25 },  // hardest
+        { id: "d_6p",   type: "deal",  piles: 6,  tier: 8,  x: 0.50 },
+        { id: "d_10p",  type: "deal",  piles: 10, tier: 8,  x: 0.75 },  // easiest
+
+        // the 10-pile route continues to a 9-pile deal
+        { id: "d_9p",   type: "deal",  piles: 9,  tier: 9,  x: 0.75 },
+
+        { id: "shop2",  type: "store",            tier: 10, x: 0.62 },  // "21-23 cards"
+
+        // upper card nodes
+        { id: "c_5c",   type: "pack",  add: 5,    tier: 11, x: 0.10 },  // +5D (far left, off the 4-pile route)
+        { id: "c_1e",   type: "card",  add: 1,    tier: 11, x: 0.35 },  // +1D (20-24)
+        { id: "c_1f",   type: "card",  add: 1,    tier: 11, x: 0.50 },  // +1D (22-24)
+        { id: "c_3c",   type: "pack",  add: 3,    tier: 11, x: 0.78 },  // +3D (24-26, right side, off shop2)
+
+        { id: "c_1g",   type: "card",  add: 1,    tier: 12, x: 0.38 },  // +1D (21-25)
+        { id: "c_1h",   type: "card",  add: 1,    tier: 12, x: 0.52 },  // +1D (21-25)
+
+        { id: "c_1i",   type: "card",  add: 1,    tier: 13, x: 0.40 },  // +1D (22-26)
+        { id: "c_1j",   type: "card",  add: 1,    tier: 13, x: 0.54 },  // +1D (22-26)
+
+        // two stores flanking the final approach
+        { id: "shop3",  type: "store",            tier: 13, x: 0.12 },  // "24 cards" (far left)
+        { id: "shop4",  type: "store",            tier: 13, x: 0.85 },  // "24-26 cards" (far right)
+
+        { id: "boss",   type: "boss",  piles: 6,  tier: 14, x: 0.50 },
+      ],
+      edges: [
+        ["start", "d_5p"],
+
+        // first fork
+        ["d_5p", "c_3a"], ["d_5p", "c_5a"],
+
+        // +3 leads up into two +1s; +5 goes straight up
+        ["c_3a", "c_1a"], ["c_3a", "c_1b"],
+        ["c_1a", "c_1c"], ["c_1b", "c_1c"],
+        ["c_1c", "d_7p"],
+        ["c_5a", "d_7p"],
+
+        ["d_7p", "shop1"],
+
+        // 3-way fork from store 1
+        ["shop1", "c_1d"], ["shop1", "c_3b"], ["shop1", "c_5b"],
+        ["c_1d", "d_4p"], ["c_3b", "d_6p"], ["c_5b", "d_10p"],
+
+        // 10-pile route continues to 9-pile
+        ["d_10p", "d_9p"],
+
+        // routes converge at store 2: the 6-pile and 9-pile feed it
+        ["d_6p", "shop2"], ["d_9p", "shop2"],
+
+        // the 4-pile (hardest) route goes far-left up to the +5
+        ["d_4p", "c_5c"],
+
+        // out of store 2
+        ["shop2", "c_1e"], ["shop2", "c_1f"], ["shop2", "c_3c"],
+
+        // left column up to shop3
+        ["c_5c", "shop3"],
+
+        // middle cards climbing and recombining
+        ["c_1e", "c_1g"], ["c_1f", "c_1g"], ["c_1f", "c_1h"],
+        ["c_1g", "c_1i"], ["c_1h", "c_1j"],
+
+        // right side: +3 up to shop4
+        ["c_3c", "shop4"],
+
+        // everything converges on the boss
+        ["shop3", "boss"],
+        ["c_1i", "boss"], ["c_1j", "boss"],
+        ["shop4", "boss"],
       ],
     },
   };

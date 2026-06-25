@@ -131,9 +131,11 @@ export function run() {
   {
     const def = RunMap.PHASE_DEFS[0];
     r.ok(def && def.suit === "♦", "Phase 1 has a hardcoded ♦ definition");
-    // every edge points at a real node id (no dangling edits).
+    // every edge endpoint is a real node id (no dangling edits).
     const ids = new Set(def.nodes.map(n => n.id));
-    r.ok(def.nodes.every(n => (n.next || []).every(t => ids.has(t))), "every edge targets a real node");
+    r.ok((def.edges || []).every(([f, t]) => ids.has(f) && ids.has(t)), "every edge endpoint is a real node");
+    r.eq(def.nodes.filter(n => n.type === "start").length, 1, "exactly one start node");
+    r.eq(def.nodes.filter(n => n.type === "boss").length, 1, "exactly one boss node");
     // the definition adapts into the same internal phase shape as the generator.
     const ph = RunMap.definitionToPhase(def, 0);
     r.eq(ph.suit, "♦", "adapted phase travels diamonds");
@@ -157,7 +159,7 @@ export function run() {
     // +1 → pickup (single card); +2 or more → pack with that count.
     const packs = ph.nodes.filter(n => n.type === "pack").map(n => n.packCount).sort((a, b) => a - b);
     r.eq(packs.join(","), "3,3,3,5,5,5", "packs are the +3/+5 nodes (three each)");
-    r.eq(ph.nodes.filter(n => n.type === "pickup").length, 6, "six single-card (+1) nodes");
+    r.eq(ph.nodes.filter(n => n.type === "pickup").length, 10, "ten single-card (+1) nodes");
   }
 
   // ---- the EXPLICIT map spec (node list + edge list + tiers) maps 1:1 -----
