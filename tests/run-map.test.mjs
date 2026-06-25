@@ -127,6 +127,39 @@ export function run() {
     r.eq(c.nodeCard(pickup).id, shown.id, "the node keeps its committed card for display");
   }
 
+  // ---- Phase 1 is a HARDCODED, swappable data definition ------------------
+  {
+    const def = RunMap.PHASE_DEFS[0];
+    r.ok(def && def.suit === "♦", "Phase 1 has a hardcoded ♦ definition");
+    // every edge points at a real node id (no dangling edits).
+    const ids = new Set(def.nodes.map(n => n.id));
+    r.ok(def.nodes.every(n => (n.next || []).every(t => ids.has(t))), "every edge targets a real node");
+    // the definition adapts into the same internal phase shape as the generator.
+    const ph = RunMap.definitionToPhase(def, 0);
+    r.eq(ph.suit, "♦", "adapted phase travels diamonds");
+    r.eq(ph.row0.length, 1, "one opening (the bottom deal)");
+    const open = ph.byId[ph.row0[0]];
+    r.eq(open.type, "deal", "the opening is a deal");
+    r.eq(open.piles, 5, "the opening deal is 5 piles");
+    const boss = ph.byId[ph.bossId];
+    r.eq(boss.type, "boss", "the top node is the boss");
+    r.eq(boss.piles, 6, "the boss is 6 piles");
+    r.eq(boss.next.length, 0, "the boss is terminal within the phase");
+    // the boss is reachable from the opening (BFS over the adapted graph).
+    const seen = new Set(), q = ph.row0.slice();
+    while (q.length) { const id = q.shift(); if (seen.has(id)) continue; seen.add(id); (ph.byId[id].next || []).forEach(x => q.push(x)); }
+    r.ok(seen.has(ph.bossId), "the boss is reachable from the opening");
+    r.eq(seen.size, ph.nodes.length, "every node is reachable (no orphans)");
+    // the three parallel deals 4/6/10 and the 9-pile continuation exist.
+    const dealPiles = ph.nodes.filter(n => n.type === "deal").map(n => n.piles).sort((a, b) => a - b);
+    r.eq(dealPiles.join(","), "4,5,6,7,9,10", "deals are exactly 4,5,6,7,9,10 piles");
+    r.eq(ph.nodes.filter(n => n.type === "store").length, 4, "four store chokepoints (mid, recombine, two flanking)");
+    // +1 → pickup (single card); +2 or more → pack with that count.
+    const packs = ph.nodes.filter(n => n.type === "pack").map(n => n.packCount).sort((a, b) => a - b);
+    r.eq(packs.join(","), "3,3,3,5,5,5", "packs are the +3/+5 nodes (three each)");
+    r.eq(ph.nodes.filter(n => n.type === "pickup").length, 6, "six single-card (+1) nodes");
+  }
+
   // ---- moveToNode across a phase boss syncs the phase/suit ----------------
   {
     const c = CampaignState.create();

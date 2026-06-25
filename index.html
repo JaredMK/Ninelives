@@ -4361,7 +4361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.03 · run-map M5 (single-card face-up vs sealed packs)";
+const APP_VERSION = "v3.04 · run-map M6 (hardcoded Phase 1 map definition)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5757,6 +5757,90 @@ const RunMap = (() => {
              row0: rowsArr[0].map(n => n.id) };
   }
 
+  /* ── HARDCODED PHASE MAPS (the generator seam) ────────────────────────────
+     A phase map can come from a fixed DATA DEFINITION instead of the generator.
+     PHASE_DEFS[phaseIndex] — when present — is a plain { suit, nodes:[…] } graph
+     that definitionToPhase() adapts into the exact same internal shape
+     generatePhase() returns, so the renderer, navigation and deck logic are
+     unchanged. This is the clean swap point: a future generator just populates /
+     replaces PHASE_DEFS (or generateRun falls back to generatePhase when a phase
+     has no definition). Nothing about the SHAPE is baked into rendering/logic —
+     it all lives here as editable data.
+
+     Node format (editable):
+       { id, type, row, x, next:[ids], piles?, add? }
+       • type "deal" | "boss" → `piles` (the only thing that matters for a deal).
+       • type "store"         → a shop chokepoint (no extra fields).
+       • type "card"          → `add` = +N cards (+1 shows the EXACT card; +2 or
+                                more is a sealed pack). Omit add → +1.
+       • row  = layer, 0 = the bottom opening(s); increases UPWARD to the boss.
+       • x    = 0..1 horizontal position. next = ids this node leads UP to.
+     The virtual run-start sits below row 0 and connects to every row-0 node. */
+  const PHASE_DEFS = {
+    // Phase 1 — Diamonds. Hardcoded fixed graph (for playtesting). Forks AND
+    // recombines; stores + boss are chokepoints; leaner card-routes are gated
+    // behind harder (fewer-pile) deals; difficulty trends harder toward the top.
+    0: {
+      suit: "♦",
+      nodes: [
+        { id: 0,  type: "deal",  piles: 5,  row: 0,  x: 0.50, next: [1, 2] },        // start → Deal 5
+        { id: 1,  type: "card",  add: 3,    row: 1,  x: 0.33, next: [3] },           // fork L: +3
+        { id: 2,  type: "card",  add: 5,    row: 1,  x: 0.67, next: [4] },           // fork R: +5
+        { id: 3,  type: "card",  add: 1,    row: 2,  x: 0.33, next: [5] },           // +1
+        { id: 4,  type: "card",  add: 1,    row: 2,  x: 0.67, next: [5] },           // +1
+        { id: 5,  type: "card",  add: 1,    row: 3,  x: 0.50, next: [6] },           // recombine → +1
+        { id: 6,  type: "deal",  piles: 7,  row: 4,  x: 0.50, next: [7] },           // Deal 7
+        { id: 7,  type: "store",            row: 5,  x: 0.50, next: [8, 9, 10] },    // Store (chokepoint)
+        { id: 8,  type: "card",  add: 1,    row: 6,  x: 0.22, next: [11] },          // route A start: +1 (leanest)
+        { id: 9,  type: "card",  add: 3,    row: 6,  x: 0.50, next: [12] },          // route B start: +3
+        { id: 10, type: "card",  add: 5,    row: 6,  x: 0.78, next: [13] },          // route C start: +5 (heaviest)
+        { id: 11, type: "deal",  piles: 4,  row: 7,  x: 0.22, next: [15] },          // A → hardest 4-pile
+        { id: 12, type: "deal",  piles: 6,  row: 7,  x: 0.50, next: [15] },          // B → 6-pile
+        { id: 13, type: "deal",  piles: 10, row: 7,  x: 0.78, next: [14] },          // C → easiest 10-pile
+        { id: 14, type: "deal",  piles: 9,  row: 8,  x: 0.78, next: [15] },          // C continues → 9-pile
+        { id: 15, type: "store",            row: 9,  x: 0.50, next: [16, 17, 18, 19] }, // recombine Store
+        { id: 16, type: "card",  add: 1,    row: 10, x: 0.20, next: [20] },          // +1
+        { id: 17, type: "card",  add: 1,    row: 10, x: 0.40, next: [20] },          // +1
+        { id: 18, type: "card",  add: 3,    row: 10, x: 0.60, next: [21] },          // +3
+        { id: 19, type: "card",  add: 5,    row: 10, x: 0.80, next: [21] },          // +5
+        { id: 20, type: "store",            row: 11, x: 0.30, next: [22] },          // LEFT flanking Store
+        { id: 21, type: "store",            row: 11, x: 0.70, next: [22] },          // RIGHT flanking Store
+        { id: 22, type: "boss",  piles: 6,  row: 12, x: 0.50, next: [] },            // Boss 6 (completes Phase 1)
+      ],
+    },
+  };
+
+  /* Adapt a PHASE_DEFS data definition into the internal phase-map shape that
+     generatePhase() returns (so everything downstream is identical). Translates
+     the friendly "card"/add format into pickup/pack, stamps the phase suit on
+     card/deal/boss nodes, and derives rows / bossId / row0 from the data. */
+  function definitionToPhase(def, phaseIndex) {
+    const suit = def.suit;
+    const nodes = def.nodes.map(d => {
+      const n = { id: d.id, row: d.row, x: d.x, type: d.type, next: (d.next || []).slice() };
+      if (d.type === "deal" || d.type === "boss") { n.piles = d.piles; n.suit = suit; }
+      else if (d.type === "card") {
+        n.suit = suit; n.mixed = !!d.mixed;
+        const add = d.add || 1;
+        if (add >= 2) { n.type = "pack"; n.packCount = add; } else { n.type = "pickup"; }
+      }
+      return n;   // store: no extra fields
+    });
+    const byId = {}; nodes.forEach(n => byId[n.id] = n);
+    const boss = nodes.find(n => n.type === "boss") || nodes[nodes.length - 1];
+    const rows = nodes.reduce((m, n) => Math.max(m, n.row), 0) + 1;
+    return {
+      phaseIndex, suit, rows, bossRow: boss.row,
+      nodes, byId, bossId: boss.id,
+      row0: nodes.filter(n => n.row === 0).map(n => n.id),
+    };
+  }
+  /* A phase map: a hardcoded definition if one exists, else the generator. */
+  function buildPhase(phaseIndex, seed) {
+    return PHASE_DEFS[phaseIndex] ? definitionToPhase(PHASE_DEFS[phaseIndex], phaseIndex)
+                                  : generatePhase(phaseIndex, seed);
+  }
+
   /* Generate the WHOLE run as ONE continuous graph: the three phase-maps
      (♦ → ♣ → ♠) stacked bottom→top into a single DAG. Ids are namespaced per
      phase (gid = phase*1000 + localId) so they never collide; rows are made
@@ -5774,7 +5858,7 @@ const RunMap = (() => {
     let rowOffset = 0;
     const NS = 1000;                                   // id namespace stride/phase
     for (let p = 0; p < MAP_CONFIG.phaseSuits.length; p++) {
-      const ph = generatePhase(p, seed);
+      const ph = buildPhase(p, seed);
       const remap = id => p * NS + id;
       ph.nodes.forEach(n => {
         n.id = remap(n.id);
@@ -5806,7 +5890,7 @@ const RunMap = (() => {
     };
   }
 
-  return { MAP_CONFIG, generatePhase, generateRun };
+  return { MAP_CONFIG, PHASE_DEFS, definitionToPhase, generatePhase, generateRun };
 })();
 
 /* ----------------------------------------------------------------
