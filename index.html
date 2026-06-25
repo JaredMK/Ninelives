@@ -4150,12 +4150,14 @@
             <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="bTabNStickers">0</span></button>
             <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="bTabNPillars">0</span></button>
             <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="bTabNBases">0</span></button>
+            <button class="setup-tab" type="button" data-tab="samepowers"><span class="stab-l">Same</span><span class="stab-n" id="bTabNSame">0</span></button>
           </div>
           <div class="setup-strip" id="browseStrip">
             <div class="pack-tray tab-panel hidden" id="browseCards" data-tab="cards"></div>
             <div class="sticker-tray tab-panel hidden" id="browseStickers" data-tab="stickers"></div>
             <div class="pillar-tray tab-panel hidden" id="browsePillars" data-tab="pillars"></div>
             <div class="base-tray tab-panel hidden" id="browseBases" data-tab="bases"></div>
+            <div class="samepower-tray tab-panel hidden" id="browseSamePowers" data-tab="samepowers"></div>
             <div class="setup-empty hidden" id="browseEmpty">You don't own any items yet.</div>
           </div>
           <div class="tray-help hidden" id="browseHelp">
@@ -4257,7 +4259,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.98 · same-power-equip-fix";
+const APP_VERSION = "v2.99 · same-power-inventory";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9313,12 +9315,14 @@ const UIRenderer = (() => {
     browseStickers: document.getElementById("browseStickers"),
     browsePillars: document.getElementById("browsePillars"),
     browseBases: document.getElementById("browseBases"),
+    browseSamePowers: document.getElementById("browseSamePowers"),
     browseEmpty: document.getElementById("browseEmpty"),
     browseHelp: document.getElementById("browseHelp"),
     bTabNCards: document.getElementById("bTabNCards"),
     bTabNStickers: document.getElementById("bTabNStickers"),
     bTabNPillars: document.getElementById("bTabNPillars"),
     bTabNBases: document.getElementById("bTabNBases"),
+    bTabNSame: document.getElementById("bTabNSame"),
     bThTitle: document.getElementById("bThTitle"),
     bThDesc: document.getElementById("bThDesc"),
     bThClose: document.getElementById("bThClose"),
@@ -11411,6 +11415,9 @@ const UIRenderer = (() => {
     });
     attachBrowseHold(el.browseCards, (e) => {
       const b = e.target.closest(".pt-card"); return b ? { kind: "card", index: Number(b.dataset.tray) } : null;
+    });
+    attachBrowseHold(el.browseSamePowers, (e) => {
+      const b = e.target.closest(".tray-samepower"); return b ? { kind: "samepower", id: b.dataset.samepower } : null;
     });
     if (el.bThClose) el.bThClose.addEventListener("click", () => { browsePick = null; renderBrowse(); });
 
@@ -15591,12 +15598,15 @@ const UIRenderer = (() => {
     const binv = campaign ? campaign.getBaseInventory() : {};
     const pBinding = campaign ? campaign.getColumnPillars() : [];
     const bBinding = campaign ? campaign.getColumnBases() : [];
+    const spinv = campaign ? campaign.getSamePowerInventory() : {};
+    const equipped = campaign && campaign.getSamePower() ? 1 : 0;
     const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
     return {
       cards: campaign ? campaign.packTrayCount() : 0,
       stickers: sum(inv),
       pillars: sum(pinv) + pBinding.filter(Boolean).length,   // held + active (both in the Pillars tab)
       bases: sum(binv) + bBinding.filter(Boolean).length,     // held + active (both in the Bases tab)
+      samepowers: sum(spinv) + equipped,                      // held + the equipped one
     };
   }
   function renderBrowseTrays() {
@@ -15626,6 +15636,15 @@ const UIRenderer = (() => {
       if (t) bs += invPlacedBaseChipHtml(t, col, browseIsPick("placedBase", col));
     });
     if (el.browseBases) el.browseBases.innerHTML = bs;
+    // Same-Powers: the equipped one (tagged) first, then any held (unequipped).
+    if (el.browseSamePowers) {
+      const spinv = campaign ? campaign.getSamePowerInventory() : {};
+      const equipped = campaign ? campaign.getSamePower() : null;
+      let sp = "";
+      if (equipped) { const t = SamePowerTypes.get(equipped); if (t) sp += invSamePowerChipHtml(t, "equipped", browseIsPick("samepower", equipped)); }
+      SamePowerTypes.all().forEach(t => { if ((spinv[t.id] || 0) > 0) sp += invSamePowerChipHtml(t, "×" + spinv[t.id], browseIsPick("samepower", t.id)); });
+      el.browseSamePowers.innerHTML = sp;
+    }
     el.browseCards.innerHTML = tray.map((c, i) => invPackChipHtml(c, i, browseIsPick("card", i), false)).join("");
   }
   function renderBrowseHelp() {
@@ -15647,6 +15666,12 @@ const UIRenderer = (() => {
         desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
     }
     if (pick.kind === "base") { const t = BaseTypes.get(pick.id); return t ? { title: (t.icon || "") + " " + escHtml(t.label), desc: t.description || "" } : null; }
+    if (pick.kind === "samepower") {
+      const t = SamePowerTypes.get(pick.id);
+      if (!t) return null;
+      const equipped = campaign && campaign.getSamePower() === pick.id;
+      return { title: "Same-Power · " + escHtml(t.label), desc: (t.description || "") + (equipped ? " — equipped." : "") };
+    }
     if (pick.kind === "placedBase") {
       const binding = campaign ? campaign.getColumnBases() : [];
       const t = BaseTypes.get(binding[pick.col]);
@@ -15673,9 +15698,9 @@ const UIRenderer = (() => {
   function renderBrowse() {
     renderBrowseTrays();
     const counts = browseCounts();
-    const order = ["cards", "stickers", "pillars", "bases"];
-    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars, bases: el.browseBases };
-    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars, bases: el.bTabNBases };
+    const order = ["cards", "stickers", "pillars", "bases", "samepowers"];
+    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars, bases: el.browseBases, samepowers: el.browseSamePowers };
+    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars, bases: el.bTabNBases, samepowers: el.bTabNSame };
     order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
     if (counts[browseTab] === 0) { const n = order.find(k => counts[k] > 0); if (n) browseTab = n; }
     const anyItems = order.some(k => counts[k] > 0);
