@@ -7,7 +7,7 @@ import { run as economy } from "./economy.test.mjs";
 import { run as sticker } from "./sticker.test.mjs";
 import { run as engineStickers } from "./engine-stickers.test.mjs";
 // [run-map rework] stage.test.mjs (old stages×deals schedule) retired — rewritten in reconcile section
-import { run as progression } from "./progression.test.mjs";
+import { run as runMap } from "./run-map.test.mjs";  // run-map replaces the old progression (stages×deals)
 import { run as terminology } from "./terminology.test.mjs";
 import { run as pillar } from "./pillar.test.mjs";
 import { run as storeOffer } from "./store-offer.test.mjs";
@@ -38,7 +38,7 @@ const SUITES = [
   ["sticker", sticker],
   ["engine-stickers", engineStickers],
   // ["stage", stage],  // retired with the old stage schedule (see run-map reconcile)
-  ["progression", progression],
+  ["run-map", runMap],
   ["terminology", terminology],
   ["pillar", pillar],
   ["store-offer", storeOffer],

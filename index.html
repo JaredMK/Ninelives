@@ -8088,6 +8088,9 @@ const CampaignState = (() => {
       runSeed = generateSeed();
       genPhaseMap();
     }
+    // A freshly-CREATED campaign is immediately playable (13 hearts + a phase-0
+    // map), so getRunDeck() is never empty before the first reset()/restore().
+    startNewRun();
 
     return {
       maxRunsPerStage: MAX_RUNS_PER_STAGE,
@@ -8261,14 +8264,14 @@ const CampaignState = (() => {
         return counts;
       },
 
-      /** Card count per CURRENT rank for THIS stage's active suits — i.e. the
-          full deck in play this stage (26/39/52), reflecting rank stickers.
-          The deck-inspection "full" column reads this; no order is exposed. */
+      /** Card count per CURRENT rank for the ACCUMULATED DRAFT (the owned deck —
+          the actual deck dealt every deal), reflecting rank stickers. The
+          deck-inspection "full" column reads this; no order is exposed. */
       stageComposition() {
-        const active = new Set(suitsForStage(currentStage));
+        const active = new Set(ownedIds);
         const counts = {};
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
-        for (const c of baseDeck) if (active.has(c.suit)) counts[c.currentRank]++;
+        for (const c of baseDeck) if (active.has(c.id)) counts[c.currentRank]++;
         return counts;
       },
 
@@ -8631,7 +8634,7 @@ const CampaignState = (() => {
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
-        const suits = suitsForStage(currentStage);
+        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
         storeOffer = freshOffer(rng, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         return storeOffer;
       },
@@ -8646,7 +8649,7 @@ const CampaignState = (() => {
       rerollStore() {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
-        const suits = suitsForStage(currentStage);
+        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
         const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         storeOffer.stickers = f.stickers;
         storeOffer.mixed = f.mixed;
@@ -8783,7 +8786,7 @@ const CampaignState = (() => {
           locked and applied to the card (rank/suit stickers mutate it; Change-
           Suit Random stays in-play). */
       genPackCard(rng = Math.random) {
-        const suits = suitsForStage(currentStage);
+        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
         const suit = suits[Math.floor(rng() * suits.length)];
         const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
         const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
@@ -8809,7 +8812,7 @@ const CampaignState = (() => {
           for (let i = 0; i < t.size; i++) out.push(this.genPackCard(rng));
           return out;
         }
-        return rollIds(stickerPoolForSuits(suitsForStage(currentStage)), t.size, rng);
+        return rollIds(stickerPoolForSuits(suitsInPlay()), t.size, rng);
       },
 
       /* ---- pending pack tray (card-pack picks) ---- */

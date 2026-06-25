@@ -12,7 +12,7 @@ export function run() {
   // --- snapshot shape ---------------------------------------------------
   {
     const s = CampaignState.create().serialize();
-    r.eq(s.schema, 1, "snapshot carries schema 1");
+    r.eq(s.schema, 2, "snapshot carries schema 2 (run-map structure)");
     r.eq(s.baseDeck.length, 52, "snapshot holds the full 52-card identity deck");
   }
 

@@ -72,7 +72,7 @@ export function loadGame() {
   const factory = new Function(
     ...Object.keys(sandbox),
     code +
-      "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState," +
+      "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
       " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes };"
   );
   return factory(...Object.values(sandbox));

@@ -189,14 +189,14 @@ export function run() {
     r.ok(!s1.has("suitImmunity"), "Stage 1 NEVER offers the ♠ guard (suit not in play)");
 
     const c2 = CampaignState.create();
-    for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2: ♦ ♥ ♣
+    c2.advancePhase();                 // → Stage 2: ♦ ♥ ♣
     r.eq(c2.currentStage, 2, "advanced to Stage 2");
     const s2 = sample(c2, 400);
     r.ok(s2.has("clubGuard"), "Stage 2 offers the ♣ guard (its suit is now in play)");
     r.ok(!s2.has("suitImmunity"), "Stage 2 still NEVER offers the ♠ guard");
 
     const c3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3: ♦ ♥ ♣ ♠
+    c3.advancePhase(); c3.advancePhase();                 // → Stage 3: ♦ ♥ ♣ ♠
     r.eq(c3.currentStage, 3, "advanced to Stage 3");
     const s3 = sample(c3, 400);
     r.ok(s3.has("suitImmunity"), "Stage 3 offers the ♠ guard (all four suits in play)");
@@ -218,13 +218,13 @@ export function run() {
     r.ok(!p1.has("spadeBounty"), "Stage 1 NEVER offers the ♠ Bonus pillar (suit not in play)");
 
     const cp2 = CampaignState.create();
-    for (let i = 0; i < 4; i++) cp2.advance();                 // → Stage 2: ♦ ♥ ♣
+    cp2.advancePhase();                 // → Stage 2: ♦ ♥ ♣
     const p2 = samplePillars(cp2, 700);
     r.ok(p2.has("clubBounty"), "Stage 2 offers the ♣ Bonus pillar (its suit is now in play)");
     r.ok(!p2.has("spadeBounty"), "Stage 2 still NEVER offers the ♠ Bonus pillar");
 
     const cp3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) cp3.advance();                 // → Stage 3: ♦ ♥ ♣ ♠
+    cp3.advancePhase(); cp3.advancePhase();                 // → Stage 3: ♦ ♥ ♣ ♠
     const p3 = samplePillars(cp3, 700);
     r.ok(p3.has("spadeBounty"), "Stage 3 offers the ♠ Bonus pillar (all four suits in play)");
 
@@ -255,7 +255,7 @@ export function run() {
     r.ok(!b1.has("spadeDig"), "Stage 1 NEVER offers Spade Dig (♠ not in play)");
 
     const cb3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) cb3.advance();                 // → Stage 3: all four
+    cb3.advancePhase(); cb3.advancePhase();                 // → Stage 3: all four
     const b3 = sampleBases(cb3, 700);
     r.ok(b3.has("spadeDig"), "Stage 3 offers Spade Dig (all four suits in play)");
   }

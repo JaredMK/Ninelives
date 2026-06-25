@@ -402,12 +402,16 @@ export function run() {
     // shows it. This is the root-cause guard for the missing-badge bug.
     r.eq(after.stickers.filter(s => s.type === "changeSuitHeart").length, 1,
       "suit-change sticker is recorded in card.stickers (persistent identity)");
-    // Flows into the run deck the engine deals from (a Heart Bounty would see it).
-    // ♥ is active in Stage 1, so it appears in the run deck.
-    const dealt = c.getRunDeck().find(x => x.id === id);
-    r.eq(dealt.suit, "♥", "changed suit materializes in the run deck");
-    r.ok(dealt.stickers.some(s => s.type === "changeSuitHeart"),
-      "the suit-change sticker rides into the dealt run deck (badge survives a later deal)");
+    // A sticker rides into the dealt run deck (the engine deals the OWNED draft;
+    // the run starts holding the 13 hearts, so apply to one of those to confirm
+    // the badge survives into the deal). The ♦→♥ change above already proved the
+    // suit-change identity; here we confirm the sticker materializes when dealt.
+    const ownedId = c.getRunDeck()[0].id;   // a card actually in the dealt draft
+    r.ok(c.applySticker(ownedId, "anchor"), "apply a sticker to an owned (dealt) card");
+    const dealt = c.getRunDeck().find(x => x.id === ownedId);
+    r.ok(dealt, "an owned card materializes in the dealt run deck");
+    r.ok(dealt.stickers.some(s => s.type === "anchor"),
+      "the sticker rides into the dealt run deck (badge survives into the deal)");
   }
 
   // --- Debug grant: free sticker to inventory, no coins / no escalation --

@@ -117,14 +117,14 @@ export function run() {
     r.ok(!s1.has("tax"), "Tax is gated on ♣ → NOT offered in Stage 1 (no black cards yet)");
 
     const c2 = CampaignState.create();
-    for (let i = 0; i < 4; i++) c2.advance();                 // → Stage 2 = ♦ ♥ ♣
+    c2.advancePhase();                 // → Stage 2 = ♦ ♥ ♣
     const s2 = sample(c2, 700);
     r.ok(s2.has("clubDig"), "Stage 2 offers Club Dig (♣ now in play)");
     r.ok(s2.has("tax"), "Stage 2 offers Tax (♣ in play → black cards exist)");
     r.ok(!s2.has("spadeDig"), "Stage 2 still NEVER offers Spade Dig (♠ not yet)");
 
     const c3 = CampaignState.create();
-    for (let i = 0; i < 8; i++) c3.advance();                 // → Stage 3 = ♦ ♥ ♣ ♠
+    c3.advancePhase(); c3.advancePhase();                 // → Stage 3 = ♦ ♥ ♣ ♠
     const s3 = sample(c3, 700);
     r.ok(s3.has("spadeDig"), "Stage 3 offers Spade Dig (all four suits in play)");
   }
