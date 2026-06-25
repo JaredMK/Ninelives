@@ -3366,8 +3366,61 @@
             mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
   .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 40px 8px calc(30px + env(safe-area-inset-bottom)); }
+
+  /* ── NEW branching phase-map ──────────────────────────────────────────
+     The new map draws its OWN edges (SVG), so the old centre climbing line is
+     suppressed. Nodes are absolutely positioned within .phase-map. */
+  .overlay.map .map-track::before { display: none; }
+  .map-hdr {
+    position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 10px 14px calc(6px); width: 100%; max-width: 420px; margin: 0 auto;
+    font-family: var(--font-text); font-weight: 700;
+  }
+  .map-hdr .map-phase { font-size: 13px; color: var(--accent-2); letter-spacing: 0.3px; }
+  .map-hdr .map-phase b { font-family: var(--font-display); font-size: 15px; }
+  .map-hdr .map-deck { font-size: 12px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--edge-2); border-radius: 999px; padding: 4px 11px; box-shadow: var(--shadow); white-space: nowrap; }
+  .map-hdr .map-deck b { font-size: 15px; color: var(--accent-2); margin: 0 1px; }
+  @keyframes deckGain { 0% { transform: scale(1); } 35% { transform: scale(1.18); box-shadow: 0 0 10px var(--accent-2); } 100% { transform: scale(1); } }
+  .map-hdr .map-deck.gain { animation: deckGain 0.5s ease; }
+
+  .phase-map { position: relative; margin: 8px auto 0; }
+  .phase-map .map-edges { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; }
+  .map-edge { stroke: rgba(120,100,90,0.30); stroke-width: 3; stroke-linecap: round; }
+  .map-edge.done { stroke: rgba(120,100,90,0.16); }
+  .map-edge.active { stroke: var(--accent-2); stroke-width: 4; }
+  /* Phase tint: the current suit colours the edges/glow subtly. */
+  .phase-map.t-suit-d .map-edge.active { stroke: #c8506e; }
+  .phase-map.t-suit-c .map-edge.active, .phase-map.t-suit-s .map-edge.active { stroke: #5a6b86; }
+
+  .pm-node {
+    position: absolute; transform: translate(-50%, -50%); z-index: 2;
+    width: 54px; height: 54px; border-radius: 14px; padding: 0; cursor: default;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    background: var(--panel); border: 2px solid var(--edge-2); box-shadow: var(--shadow);
+    font-family: var(--font-text); color: var(--ink); transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+  .pm-node .mn-ico { font-size: 19px; line-height: 1; }
+  .pm-node .mn-piles { font-size: 13px; font-weight: 900; color: var(--accent-2); line-height: 1; }
+  .pm-node .mn-add { font-size: 11px; font-weight: 800; color: var(--accent-2); line-height: 1; }
+  .pm-node .mn-deal-ico { width: 16px; height: 12px; border: 2px solid var(--ink); border-radius: 2px; }
+  /* Node types */
+  .pm-node.t-boss { width: 64px; height: 64px; border-color: var(--amber); }
+  .pm-node.t-boss .mn-ico { font-size: 24px; color: var(--amber); }
+  .pm-node.t-store { border-color: #6E51A6; }
+  .pm-node.t-deal { border-color: #b06; }
+  /* Node states */
+  .pm-node.s-far { opacity: 0.42; filter: grayscale(0.4); }
+  .pm-node.s-done { opacity: 0.5; filter: grayscale(0.55); }
+  .pm-node.s-done::after { content: "✓"; position: absolute; right: -4px; top: -6px; font-size: 12px; font-weight: 900; color: #2e9e6b; }
+  .pm-node.s-legal { cursor: pointer; box-shadow: 0 0 0 3px rgba(188,66,112,0.35), var(--shadow); }
+  .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.08); }
+  @keyframes hereGlow { 0%,100% { box-shadow: 0 0 0 4px rgba(188,66,112,0.55), 0 0 14px 2px rgba(188,66,112,0.4); } 50% { box-shadow: 0 0 0 5px rgba(188,66,112,0.7), 0 0 20px 5px rgba(188,66,112,0.5); } }
+  .pm-node.s-here { transform: translate(-50%, -50%) scale(1.12); animation: hereGlow 1.6s ease-in-out infinite; border-color: var(--accent-2); }
+  @media (prefers-reduced-motion: reduce) { .pm-node.s-here { animation: none; box-shadow: 0 0 0 4px rgba(188,66,112,0.6); } .map-hdr .map-deck.gain { animation: none; } }
+
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
-  .map-track::before {
+  .map-track-legacy::before {
     content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
     transform: translateX(-50%); z-index: 0;
     background: repeating-linear-gradient(var(--edge-2) 0 6px, transparent 6px 12px);
@@ -4091,6 +4144,12 @@
          and faint above = the unknown summit) with a faint parallax dot layer
          that drifts slower than the climb as you scroll. Presentation only. -->
     <div class="map-depth" aria-hidden="true"><div class="map-parallax" id="mapParallax"></div></div>
+    <!-- Persistent map header: the phase (suit) being travelled + the always-
+         glanceable accumulated DECK SIZE (the survival-difficulty number). -->
+    <div class="map-hdr">
+      <span class="map-phase" id="mapPhase"></span>
+      <span class="map-deck" id="mapDeck">Deck <b>0</b> cards</span>
+    </div>
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
@@ -4259,7 +4318,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v2.99 · same-power-inventory";
+const APP_VERSION = "v3.00 · run-map M1 (state+gen+deals+nav)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5496,6 +5555,166 @@ const DeckManager = (() => {
   }
 
   return { create, buildStandardDeck, toCard, RANKS, SUITS };
+})();
+
+/* ================================================================
+   RunMap — the Slay-the-Spire-style branching map that replaces the old
+   "stages × deals" schedule. A run travels THREE phase-maps in order
+   (♦ → ♣ → ♠); hearts are pre-held (the run starts with 13 hearts). Each
+   phase is a generated layered DAG read bottom→top, ending in a boss.
+
+   This module is PURE DATA + generation (no DOM, no gameplay). CampaignState
+   owns the live position + the accumulated deck; the UI renders the graph.
+
+   ── EDIT HERE TO TUNE ──────────────────────────────────────────────
+   MAP_CONFIG below holds every generation knob: phase order, row count,
+   nodes-per-row, how many deals/stores/packs, pack sizes, the mixed-suit
+   chance, and the pile-count ranges (FEWER piles = HARDER). Change these to
+   re-balance phases; generation is parameter-driven, never hardcoded.
+================================================================ */
+const RunMap = (() => {
+  const MAP_CONFIG = {
+    // Traveled phases, in order. Hearts are NOT here — they are pre-held.
+    phaseSuits: ["♦", "♣", "♠"],
+    startSuit: "♥",
+    startDeckSize: 13,            // 13 hearts pre-held at run start
+
+    // Graph shape (per phase). rows includes the boss row (the top row).
+    rows: [7, 9],                // min..max body rows incl. boss
+    nodesPerRow: [1, 3],         // nodes on a normal (non-chokepoint) row
+
+    // Node-type budget per phase (approximate; gen fits the graph to these).
+    deals: [3, 4],               // normal deal nodes per phase (excl. boss)
+    stores: [1, 2],              // store chokepoint rows per phase
+    // Remaining body nodes are DRAFT nodes (card pickups / packs):
+    packChance: 0.28,            // a draft node is a PACK (else a single pickup)
+    packCount: [3, 5],           // cards a pack adds
+    mixedChance: 0.22,           // a draft pulls an off-phase (mixed) suit card
+
+    // Pile counts — FEWER piles = HARDER (the visible difficulty on the node).
+    dealPiles: [5, 9],           // a normal deal's pile count
+    leanDealPiles: [3, 5],       // a deal offered AS THE ALTERNATIVE to a pickup
+                                 // (gates lean/card-light routes behind harder deals)
+    bossPiles: [3, 5],           // the phase boss (a hard chokepoint)
+  };
+
+  const ri = (rng, range) => range[0] + Math.floor(rng() * (range[1] - range[0] + 1));
+  const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+
+  /* Generate ONE phase map. Returns { phaseIndex, suit, rows, nodes:[...],
+     bossId }. Each node: { id, row, x (0..1), type, piles?, packCount?,
+     suit?, next:[ids] }. The player starts BELOW row 0 (position = null) and
+     may move to any row-0 node; thereafter only `next` edges are legal. The
+     graph forks AND recombines; stores + the boss are chokepoints every route
+     passes. */
+  function generatePhase(phaseIndex, seed) {
+    const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1));
+    const C = MAP_CONFIG;
+    const suit = C.phaseSuits[phaseIndex];
+    const R = ri(rng, C.rows);                 // total rows (row R-1 = boss)
+    const bossRow = R - 1;
+
+    // Choose store chokepoint rows (single-node rows) in the middle band.
+    const storeCount = Math.min(ri(rng, C.stores), Math.max(0, R - 3));
+    const storeRows = new Set();
+    const lo = Math.max(1, Math.floor(R * 0.35)), hi = Math.max(lo, Math.floor(R * 0.8));
+    let guard = 0;
+    while (storeRows.size < storeCount && guard++ < 40) {
+      const r = lo + Math.floor(rng() * (hi - lo + 1));
+      if (r > 0 && r < bossRow) storeRows.add(r);
+    }
+
+    // Build rows of nodes (ids assigned globally).
+    let nid = 0;
+    const rowsArr = [];           // rowsArr[r] = array of node objects
+    for (let r = 0; r < R; r++) {
+      let count;
+      if (r === bossRow) count = 1;            // boss = single chokepoint
+      else if (storeRows.has(r)) count = 1;    // store = single chokepoint
+      else if (r === 0) count = ri(rng, [Math.min(2, C.nodesPerRow[1]), C.nodesPerRow[1]]); // a couple of openings
+      else count = ri(rng, C.nodesPerRow);
+      const row = [];
+      for (let i = 0; i < count; i++) {
+        row.push({ id: nid++, row: r, x: count === 1 ? 0.5 : (i + 0.5) / count, type: null, next: [] });
+      }
+      rowsArr.push(row);
+    }
+
+    // Edges: connect each row r to r+1 so the graph is fully connected and
+    // recombines at chokepoints. Every node gets ≥1 outgoing; every next-row
+    // node gets ≥1 incoming.
+    for (let r = 0; r < R - 1; r++) {
+      const cur = rowsArr[r], nxt = rowsArr[r + 1];
+      if (nxt.length === 1) {                  // recombine: everyone → the one
+        cur.forEach(n => n.next.push(nxt[0].id));
+      } else if (cur.length === 1) {           // fan-out: the one → everyone
+        nxt.forEach(m => cur[0].next.push(m.id));
+      } else {
+        // Connect each cur node to its nearest nxt node(s) by x; a chance of a
+        // second edge makes diagonal forks. Then guarantee incoming for all nxt.
+        const incoming = new Set();
+        cur.forEach(n => {
+          const sorted = nxt.slice().sort((a, b) => Math.abs(a.x - n.x) - Math.abs(b.x - n.x));
+          n.next.push(sorted[0].id); incoming.add(sorted[0].id);
+          if (sorted[1] && rng() < 0.45) { n.next.push(sorted[1].id); incoming.add(sorted[1].id); }
+        });
+        nxt.forEach(m => {
+          if (incoming.has(m.id)) return;
+          // hook the nearest cur node to this orphan next-node
+          const c = cur.slice().sort((a, b) => Math.abs(a.x - m.x) - Math.abs(b.x - m.x))[0];
+          c.next.push(m.id); incoming.add(m.id);
+        });
+      }
+    }
+
+    // ── Assign TYPES ──────────────────────────────────────────────────────
+    const all = rowsArr.flat();
+    const byId = {};
+    all.forEach(n => byId[n.id] = n);
+    // Boss + stores first.
+    rowsArr[bossRow][0].type = "boss";
+    rowsArr[bossRow][0].piles = ri(rng, C.bossPiles);
+    rowsArr[bossRow][0].suit = suit;
+    storeRows.forEach(r => { rowsArr[r][0].type = "store"; });
+
+    // Spread normal DEAL nodes across distinct body rows (not row 0, not store/boss).
+    const dealTarget = ri(rng, C.deals);
+    const candidateRows = [];
+    for (let r = 1; r < bossRow; r++) if (!storeRows.has(r)) candidateRows.push(r);
+    // shuffle candidate rows
+    for (let i = candidateRows.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [candidateRows[i], candidateRows[j]] = [candidateRows[j], candidateRows[i]]; }
+    let dealsPlaced = 0;
+    for (const r of candidateRows) {
+      if (dealsPlaced >= dealTarget) break;
+      const row = rowsArr[r];
+      if (row.length >= 2) {
+        // FORK GATE: make ONE node a (harder, fewer-pile) deal; the rest stay
+        // draft (pickups) — so the lean choice (the deal) is the card-light path
+        // gated behind a punishing pile count, exactly as the spine intends.
+        const d = pick(rng, row); d.type = "deal"; d.piles = ri(rng, C.leanDealPiles); d.suit = suit;
+      } else {
+        const d = row[0]; d.type = "deal"; d.piles = ri(rng, C.dealPiles); d.suit = suit;
+      }
+      dealsPlaced++;
+    }
+
+    // Everything still untyped is a DRAFT node (pickup / pack).
+    all.forEach(n => {
+      if (n.type) return;
+      if (rng() < C.packChance) {
+        n.type = "pack"; n.packCount = ri(rng, C.packCount);
+      } else {
+        n.type = "pickup";
+      }
+      n.suit = suit;
+      n.mixed = rng() < C.mixedChance;          // pulls an off-phase card sometimes
+    });
+
+    return { phaseIndex, suit, rows: R, bossRow, nodes: all, byId, bossId: rowsArr[bossRow][0].id,
+             row0: rowsArr[0].map(n => n.id) };
+  }
+
+  return { MAP_CONFIG, generatePhase };
 })();
 
 /* ----------------------------------------------------------------
@@ -7589,6 +7808,23 @@ const CampaignState = (() => {
     };
   }
 
+  /** Derive a board layout for an ARBITRARY pile count (a map node sets the pile
+      count now, not a fixed RUN_LAYOUT). Splits n into up to 3 balanced columns,
+      tallest column ≤ ~3, so the fixed board sizing still holds. */
+  function layoutForPiles(n) {
+    n = Math.max(1, Math.round(n));
+    let cols;
+    if (n <= 3) cols = new Array(n).fill(1);          // 1 per column (2 or 3 columns)
+    else {
+      const base = Math.floor(n / 3), rem = n % 3;
+      cols = (rem === 1) ? [base, base + 1, base]
+           : (rem === 2) ? [base + 1, base, base + 1]
+           : [base, base, base];
+      cols = cols.filter(x => x > 0);
+    }
+    return { cols, piles: cols.reduce((a, b) => a + b, 0), rows: Math.max(...cols) };
+  }
+
   const MIN_RANK = 2;   // 2 is the floor for Decrease
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
 
@@ -7742,8 +7978,19 @@ const CampaignState = (() => {
   }
 
   function create() {
-    let currentStage = 1;          // 1 .. MAX_STAGES
+    let currentStage = 1;          // 1 .. MAX_STAGES (legacy shim → phaseIndex+1; see getters)
     let currentRunIndex = 1;       // 1 .. MAX_RUNS_PER_STAGE (within the stage)
+    // ── NEW run structure (Slay-the-Spire branching map) ──────────────────
+    // The run travels 3 phase-maps in order (♦ → ♣ → ♠); hearts are pre-held.
+    // The accumulated deck is the player's DRAFT: `ownedIds` is the set of base-
+    // deck card ids currently in the deck (starts as the 13 hearts; grows via
+    // pickup/pack nodes). It is the WHOLE deck dealt every deal — bigger = worse.
+    let phaseIndex = 0;            // 0=♦, 1=♣, 2=♠
+    let ownedIds = [];            // base-deck ids in the accumulated deck
+    let phaseMap = null;          // RunMap.generatePhase(...) for the current phase
+    let nodePos = null;           // current node id, or null = at the phase start
+    let clearedNodes = [];        // node ids already resolved this phase
+    let runSeed = 0;              // seeds deterministic map generation
     let totalCorrectGuesses = 0;   // summed across every WON run this campaign
     let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
     // Whole-run (campaign-wide) guess totals for the end-of-run summary: correct
@@ -7813,12 +8060,88 @@ const CampaignState = (() => {
       return baseDeck.find(c => c.id === id) || null;
     }
 
+    // ── Run-map helpers (NEW structure) ──────────────────────────────────
+    const PHASE_SUITS = RunMap.MAP_CONFIG.phaseSuits;   // ["♦","♣","♠"]
+    const START_SUIT = RunMap.MAP_CONFIG.startSuit;     // "♥"
+    function idsOfSuit(suit) { return baseDeck.filter(c => c.suit === suit).map(c => c.id); }
+    function phaseSuit() { return PHASE_SUITS[phaseIndex]; }
+    /** Suits currently in play (drives item suit-gating): hearts (pre-held) +
+        every phase suit traveled so far, including the current one. */
+    function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
+    function genPhaseMap() { phaseMap = RunMap.generatePhase(phaseIndex, runSeed); nodePos = null; clearedNodes = []; }
+    /** Choose a not-yet-owned card id to draft. Prefers the current phase's suit;
+        `mixed` (or an exhausted suit) lets it pull any not-owned card. */
+    function pickDraftId(mixed) {
+      const ownSet = new Set(ownedIds);
+      let pool = idsOfSuit(phaseSuit()).filter(id => !ownSet.has(id));
+      if (mixed || pool.length === 0) {
+        const any = baseDeck.map(c => c.id).filter(id => !ownSet.has(id));
+        if (any.length) pool = any;
+      }
+      if (!pool.length) return null;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    /** Start a fresh run: 13 hearts pre-held, phase 0 (♦), a new map. */
+    function startNewRun() {
+      phaseIndex = 0;
+      ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
+      runSeed = generateSeed();
+      genPhaseMap();
+    }
+
     return {
       maxRunsPerStage: MAX_RUNS_PER_STAGE,
       maxStages: MAX_STAGES,
       layoutForRun,
-      get currentStage() { return currentStage; },
-      get currentRunIndex() { return currentRunIndex; },
+      layoutForPiles,
+      // ── Run-map / deck API (NEW structure) ──
+      startNewRun,
+      getPhaseIndex() { return phaseIndex; },
+      phaseSuit,
+      suitsInPlay,
+      phasesTotal() { return PHASE_SUITS.length; },
+      getMap() { return phaseMap; },
+      nodePos() { return nodePos; },
+      getNode(id) { return phaseMap && phaseMap.byId ? (phaseMap.byId[id] || null) : null; },
+      /** The node objects the player may legally move to from the current
+          position (row-0 nodes at the start; otherwise the current node's edges).
+          Already-cleared nodes are excluded. */
+      legalNextNodes() {
+        if (!phaseMap) return [];
+        const cleared = new Set(clearedNodes);
+        const ids = (nodePos == null) ? phaseMap.row0 : ((phaseMap.byId[nodePos] || {}).next || []);
+        return ids.map(id => phaseMap.byId[id]).filter(n => n && !cleared.has(n.id));
+      },
+      moveToNode(id) { if (phaseMap && phaseMap.byId[id]) { nodePos = id; return phaseMap.byId[id]; } return null; },
+      markNodeCleared(id) { if (clearedNodes.indexOf(id) === -1) clearedNodes.push(id); },
+      nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
+      clearedNodeIds() { return clearedNodes.slice(); },
+      currentNode() { return (nodePos != null && phaseMap) ? phaseMap.byId[nodePos] : null; },
+      /** Resolve a pickup node → add one drafted card. Returns the added card (or null). */
+      resolvePickup(node) {
+        const id = pickDraftId(node && node.mixed);
+        if (id == null) return null;
+        ownedIds.push(id);
+        return findById(id);
+      },
+      /** Resolve a pack node → add `packCount` drafted cards. Returns the added cards. */
+      resolvePack(node) {
+        const out = [];
+        const n = (node && node.packCount) || 3;
+        for (let i = 0; i < n; i++) { const id = pickDraftId(node && node.mixed); if (id == null) break; ownedIds.push(id); out.push(findById(id)); }
+        return out;
+      },
+      /** Advance to the next phase after a boss is beaten. Returns true if there
+          IS a next phase; false means the run is WON (the ♠ boss fell). */
+      advancePhase() {
+        if (phaseIndex >= PHASE_SUITS.length - 1) { phaseIndex = PHASE_SUITS.length; return false; }
+        phaseIndex += 1;
+        genPhaseMap();
+        return true;
+      },
+      isRunComplete() { return phaseIndex >= PHASE_SUITS.length; },
+      get currentStage() { return phaseIndex + 1; },   // legacy label shim → phase number (1..3)
+      get currentRunIndex() { return clearedNodes.length; },   // legacy shim → nodes cleared this phase
       get activeSuitCount() { return currentStage + 1; },
       get totalCorrectGuesses() { return totalCorrectGuesses; },
       get runsCompleted() { return runsCompleted; },
@@ -7891,7 +8214,7 @@ const CampaignState = (() => {
       },
 
       /** True once Stage 3 Run 3 (the whole campaign) has been completed. */
-      isComplete() { return runsCompleted >= TOTAL_RUNS; },
+      isComplete() { return phaseIndex >= PHASE_SUITS.length; },   // run won = ♠ boss fell
 
       /** Advance to the next run: within the stage, then roll to the next
           stage's Run 1. Clamps at the final run of the final stage. */
@@ -7920,13 +8243,15 @@ const CampaignState = (() => {
       /** Same — used for sticker inspection across all card identities. */
       getCards() { return this._copyCards(); },
 
-      /** The deck to deal THIS run: base cards filtered to the current
-          stage's active suits. Stickers on dormant suits stay on the base
-          deck untouched until their suit enters in a later stage. */
+      /** The deck dealt THIS deal: the player's ACCUMULATED DRAFT (every owned
+          card). This is the whole deck for every deal — bigger decks are worse.
+          (Starts as the 13 hearts; grows via pickup/pack nodes.) */
       getRunDeck() {
-        const active = new Set(suitsForStage(currentStage));
-        return this._copyCards().filter(c => active.has(c.suit));
+        const own = new Set(ownedIds);
+        return this._copyCards().filter(c => own.has(c.id));
       },
+      /** The accumulated deck size (the survival-difficulty number). */
+      deckSize() { return ownedIds.length; },
 
       /** Card count per CURRENT rank value, 2..14 (whole 52-card base deck). */
       composition() {
@@ -8624,6 +8949,7 @@ const CampaignState = (() => {
         packTray = [];
         nextCardId = 52;
         runFossils = [];
+        startNewRun();   // NEW structure: phase 0 (♦), 13 hearts pre-held, fresh map
       },
 
       /* ---- persistence (save/resume) ----
@@ -8633,7 +8959,12 @@ const CampaignState = (() => {
          `schema` guards against restoring an incompatible older save. */
       serialize() {
         return {
-          schema: 1,
+          schema: 2,
+          // NEW run structure: the map is deterministic from (phaseIndex, runSeed),
+          // so we persist only the seed + position + draft, not the whole graph.
+          phaseIndex, runSeed, nodePos,
+          ownedIds: ownedIds.slice(),
+          clearedNodes: clearedNodes.slice(),
           currentStage, currentRunIndex,
           totalCorrectGuesses, runsCompleted,
           totalCardsFlipped, totalCoinsEarned,
@@ -8665,12 +8996,17 @@ const CampaignState = (() => {
           (leaving state untouched) if the snapshot is missing/incompatible —
           callers then fall back to a fresh campaign. */
       restore(s) {
-        if (!s || s.schema !== 1) return false;
+        if (!s || s.schema !== 2) return false;   // schema-1 (old stages×deals) saves can't map onto the new run structure → fresh campaign
         if (!Array.isArray(s.baseDeck) || s.baseDeck.length !== 52) return false;
-        if (!(s.currentStage >= 1 && s.currentStage <= MAX_STAGES)) return false;
-        if (!(s.currentRunIndex >= 1 && s.currentRunIndex <= MAX_RUNS_PER_STAGE)) return false;
-        currentStage = s.currentStage;
-        currentRunIndex = s.currentRunIndex;
+        // NEW run structure: restore the draft + position, regenerate the map.
+        phaseIndex = Math.max(0, Math.min(PHASE_SUITS.length, s.phaseIndex || 0));
+        runSeed = (s.runSeed >>> 0) || generateSeed();
+        ownedIds = Array.isArray(s.ownedIds) ? s.ownedIds.slice() : idsOfSuit(START_SUIT).slice();
+        clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
+        nodePos = (s.nodePos != null) ? s.nodePos : null;
+        phaseMap = (phaseIndex < PHASE_SUITS.length) ? RunMap.generatePhase(phaseIndex, runSeed) : null;
+        currentStage = s.currentStage || 1;
+        currentRunIndex = s.currentRunIndex || 1;
         totalCorrectGuesses = s.totalCorrectGuesses || 0;
         runsCompleted = s.runsCompleted || 0;
         allGuessesCorrect = s.allGuessesCorrect || 0;
@@ -9296,6 +9632,8 @@ const UIRenderer = (() => {
     mapOverlay: document.getElementById("mapOverlay"),
     mapScroll: document.getElementById("mapScroll"),
     mapTrack: document.getElementById("mapTrack"),
+    mapDeck: document.getElementById("mapDeck"),
+    mapPhase: document.getElementById("mapPhase"),
     mapParallax: document.getElementById("mapParallax"),
     fossilDetail: document.getElementById("fossilDetail"),
     fossilDetailClose: document.getElementById("fossilDetailClose"),
@@ -11511,7 +11849,14 @@ const UIRenderer = (() => {
     // Store view buttons: owned inventory + the deck overview (both modal).
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     if (el.storeCardsBtn) el.storeCardsBtn.addEventListener("click", () => DeckInspector.openFull());
-    el.storeStartBtn.addEventListener("click", () => { closeStore(); advanceToNextRun(); });
+    el.storeStartBtn.addEventListener("click", () => {
+      // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
+      closeStore();
+      const node = campaign.currentNode();
+      if (node && node.type === "store") campaign.markNodeCleared(node.id);
+      persistCampaign("map");
+      showProgressionMap(startRun);
+    });
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
@@ -13136,8 +13481,12 @@ const UIRenderer = (() => {
       ? redealCostOverride : REDEAL_BASE_COST;
     appliedThisPhase = false;
 
-    // Per-run layout config drives both the pile count and the row shape.
-    const cfg = campaign.layoutForRun(campaign.currentRunIndex);
+    // The MAP NODE sets the pile count for this deal (fewer = harder); the deck
+    // is the player's full accumulated draft (campaign.getRunDeck()). Derive the
+    // column layout from the node's pile count.
+    const node = campaign.currentNode();
+    const nodePiles = (node && node.piles) ? node.piles : 9;
+    const cfg = campaign.layoutForPiles(nodePiles);
 
     // Scaling hook (inert for now) — wired into run start by design.
     applyRunScaling(campaign.currentRunIndex);
@@ -14382,7 +14731,15 @@ const UIRenderer = (() => {
     run.bonusCoins = payout.total - payout.product;
     renderHud(board, payload.deck);
 
-    if (campaign.isComplete()) {
+    // NEW structure: a deal/boss node was just cleared. Mark it on the map. If it
+    // was the BOSS, advance the phase — and if that was the ♠ boss, the RUN is won.
+    const clearedNode = campaign.currentNode();
+    if (clearedNode) campaign.markNodeCleared(clearedNode.id);
+    const wasBoss = clearedNode && clearedNode.type === "boss";
+    let runWon = false;
+    if (wasBoss) runWon = !campaign.advancePhase();   // advancePhase()=false → ♠ boss fell → run won
+
+    if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared
       clearSave();   // campaign finished — nothing left to resume
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
@@ -14390,17 +14747,16 @@ const UIRenderer = (() => {
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
       playWinCinematic(board, showCampaignComplete);
     } else {
-      // Between-runs intermission: just stage/run + the coin breakdown.
-      // Checkpoint with the won coins folded in; a refresh resumes at the store.
-      persistCampaign("store");
+      // Show the coin breakdown, then continue back to the (current or new-phase)
+      // map to pick the next node. Checkpoint so a refresh resumes at the map.
+      persistCampaign("map");
       playWinCinematic(board, () => showRunComplete(coins));
     }
   }
 
   function continueCampaign() {
-    // Reached only after a won, non-final run: visit the store, then begin
-    // the next run (which may be the first run of the next stage).
-    showStore();
+    // After a won deal/boss: return to the phase map to choose the next node.
+    showProgressionMap(startRun);
   }
 
   /* Leave the store for the next run: advance the campaign, then show the
@@ -14589,31 +14945,73 @@ const UIRenderer = (() => {
     return "linear-gradient(180deg, " + tint(top) + " 0%, " + tint(bot) + " 100%)";
   }
 
+  /* ── NEW branching phase-map render ───────────────────────────────────
+     A layered DAG read BOTTOM→TOP: the player starts below row 0, the boss is
+     the top row. Nodes are absolutely positioned (row → y, x → horizontal);
+     SVG lines draw the edges. Node states: done (cleared/dimmed), here (current
+     position, glowing), legal (a reachable next move, emphasised), far (dimmed,
+     not selectable). Each node type is visually distinct and deal/boss nodes show
+     their pile count. The whole phase is visible/scrollable so a route can be
+     planned start→boss. */
+  const MAP_ROW_H = 96, MAP_PAD = 46, MAP_W = 330;
+  const SUIT_PHASE_NAME = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
+  function mapNodeXY(n, R) { return { x: MAP_PAD + n.x * (MAP_W - 2 * MAP_PAD), y: MAP_PAD + (R - 1 - n.row) * MAP_ROW_H }; }
+  function mapNodeInner(n, suit) {
+    if (n.type === "boss") return '<span class="mn-ico">♛</span><span class="mn-piles">' + n.piles + '</span>';
+    if (n.type === "deal") return '<span class="mn-ico mn-deal-ico"></span><span class="mn-piles">' + n.piles + '</span>';
+    if (n.type === "store") return '<span class="mn-ico">🛍</span>';
+    if (n.type === "pack") return '<span class="mn-ico">' + suit + '</span><span class="mn-add">+' + (n.packCount || 3) + '</span>';
+    return '<span class="mn-ico">' + suit + '</span><span class="mn-add">+1</span>';   // pickup
+  }
+  function mapNodeLabel(n) {
+    if (n.type === "boss") return n.piles + " piles · BOSS";
+    if (n.type === "deal") return n.piles + " piles";
+    if (n.type === "store") return "Shop";
+    if (n.type === "pack") return "Pack +" + (n.packCount || 3);
+    return "Card +1";
+  }
   function renderProgressionMap() {
-    const stage = campaign.currentStage, run = campaign.currentRunIndex;
-    const maxStage = campaign.maxStages, maxRun = campaign.maxRunsPerStage;
-    let html = "";
-    let side = 0;   // alternate L/R as nodes are emitted top → bottom
-    // Chronological climb, bottom → top: Stage 1 sits at the BOTTOM with its deals
-    // above it, then Stage 2 and its deals, etc., going up. The WHOLE map is shown
-    // from the start — every stage and deal, with not-yet-reached deals locked.
-    // (DOM is top→bottom, so we emit highest stage first, deals high→low, then the
-    // stage header BELOW its deals.) Display only — the structure is unchanged.
-    for (let s = maxStage; s >= 1; s--) {
-      // Each stage is its own BAND: a faint per-stage neural pattern sits behind
-      // this stage's deals + header (presentation only; see bandPatternSvg).
-      let band = bandPatternSvg(s, maxStage, maxRun);
-      for (let rr = maxRun; rr >= 1; rr--) {
-        let st;
-        if (s < stage || (s === stage && rr < run)) st = "cleared";
-        else if (s === stage && rr === run) st = "current";
-        else st = "locked";   // not yet reached
-        band += mapRunNodeHtml(s, rr, st, (side++ % 2 === 0) ? "" : "right");
-      }
-      band += mapStageHeaderHtml(s);   // the stage marker sits BELOW its deals
-      html += '<div class="map-band" style="background:' + mapBandGradient(s, maxStage) + '">' + band + "</div>";
+    const map = campaign.getMap();
+    if (!map) { el.mapTrack.innerHTML = ""; return; }
+    const suit = campaign.phaseSuit();
+    const cleared = new Set(campaign.clearedNodeIds());
+    const legal = new Set(campaign.legalNextNodes().map(n => n.id));
+    const pos = campaign.nodePos();
+    const R = map.rows;
+    const height = MAP_PAD * 2 + (R - 1) * MAP_ROW_H;
+    // Edges: a line per directed edge; edges leaving the CURRENT node stand out.
+    let edges = "";
+    const atStart = pos == null;
+    map.nodes.forEach(n => {
+      const a = mapNodeXY(n, R);
+      n.next.forEach(mid => {
+        const m = map.byId[mid]; if (!m) return;
+        const b = mapNodeXY(m, R);
+        const active = (n.id === pos);
+        const done = cleared.has(n.id) && cleared.has(m.id);
+        edges += '<line x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" class="map-edge' + (active ? " active" : "") + (done ? " done" : "") + '"/>';
+      });
+    });
+    // Virtual start → row-0 nodes (shown emphasised while at the start).
+    if (atStart) {
+      const startY = height - MAP_PAD * 0.4;
+      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; const b = mapNodeXY(m, R); edges += '<line x1="' + (MAP_W / 2).toFixed(1) + '" y1="' + startY.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" class="map-edge active"/>'; });
     }
-    el.mapTrack.innerHTML = html;
+    // Nodes.
+    let nodes = "";
+    map.nodes.forEach(n => {
+      const p = mapNodeXY(n, R);
+      const state = cleared.has(n.id) ? "done" : (n.id === pos ? "here" : (legal.has(n.id) ? "legal" : "far"));
+      const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
+      nodes += '<button type="button" class="pm-node t-' + n.type + ' s-' + state + '"' + action +
+        ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + mapNodeLabel(n) + '">' +
+        mapNodeInner(n, suit) + '</button>';
+    });
+    el.mapTrack.innerHTML =
+      '<div class="phase-map t-suit-' + (suit === "♦" ? "d" : suit === "♣" ? "c" : "s") + '" style="width:' + MAP_W + 'px;height:' + height + 'px;">' +
+        '<svg class="map-edges" viewBox="0 0 ' + MAP_W + ' ' + height + '" width="' + MAP_W + '" height="' + height + '" preserveAspectRatio="none">' + edges + '</svg>' +
+        nodes +
+      '</div>';
   }
 
   function showProgressionMap(onEnter) {
@@ -14622,25 +15020,27 @@ const UIRenderer = (() => {
     closeStore();
     closeFossilDetail();
     DeckInspector.close();
-    setScreenNav(true, true, true);   // menu + inventory + the map's Store button
+    setScreenNav(true, true, false);   // menu + inventory; the shop is a map node now
     if (el.stageRun) el.stageRun.classList.remove("off");
     updateStageRun();
     renderProgressionMap();
+    updateDeckIndicator();
+    if (el.mapPhase) {
+      const suit = campaign.phaseSuit();
+      el.mapPhase.innerHTML = '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
+        ' · phase ' + (campaign.getPhaseIndex() + 1) + '/' + campaign.phasesTotal();
+    }
     el.mapOverlay.classList.remove("hidden");
     updateBoardMotion();   // board covered by the map → pause its card animations
-    // Centre the current deal in view (it sits mid-climb: future deals above,
-    // cleared ones below).
-    const curNode = el.mapTrack.querySelector(".map-node.current");
-    const row = curNode ? curNode.closest(".map-run") : null;
-    if (row) {
-      // Rect-based (not offsetTop) so the per-stage .map-band wrappers — which
-      // become the rows' offsetParent — don't throw off the centring.
-      const rRect = row.getBoundingClientRect();
+    // Centre on the current position (the marker), else show the bottom (start).
+    const here = el.mapTrack.querySelector(".pm-node.s-here") || el.mapTrack.querySelector(".phase-map");
+    if (here && campaign.nodePos() != null) {
+      const rRect = here.getBoundingClientRect();
       const sRect = el.mapScroll.getBoundingClientRect();
       const delta = (rRect.top - sRect.top) - (el.mapScroll.clientHeight - rRect.height) / 2;
       el.mapScroll.scrollTop = Math.max(0, el.mapScroll.scrollTop + delta);
     } else {
-      el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // no current → show the bottom (Stage 1)
+      el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // start → show the bottom
     }
   }
   function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
@@ -14650,20 +15050,53 @@ const UIRenderer = (() => {
     if (fn) fn();
   }
 
-  /* Tap a map node: the current run (▶) starts the run; a cleared run opens its
-     fossil detail; anything else (future/locked, legacy) is inert. */
+  /* Tap a LEGAL next node on the phase map → move the marker there and resolve it. */
   function onMapNodeTap(e) {
-    const node = e.target.closest(".map-node");
+    const btn = e.target.closest(".pm-node[data-action='node']");
+    if (!btn) return;
+    Sound.tap();
+    resolveMapNode(Number(btn.dataset.node));
+  }
+
+  /* Move to a node and resolve by type. Draft nodes (pickup/pack) add cards and
+     re-render the map; a Store node opens the shop (closing returns to the map);
+     a Deal/Boss node launches the deal. The boss is the chokepoint at the top of
+     each phase. */
+  function resolveMapNode(id) {
+    const node = campaign.moveToNode(id);
     if (!node) return;
-    const action = node.dataset.action;
-    if (action === "enter") {
-      Sound.tap();
-      enterRunFromMap();            // same transition the Enter button used to fire
-    } else if (action === "fossil") {
-      Sound.tap();
-      showFossilDetail(Number(node.dataset.stage), Number(node.dataset.run));
+    if (node.type === "pickup") {
+      const card = campaign.resolvePickup(node);
+      campaign.markNodeCleared(id);
+      persistCampaign("map");
+      flashDeckGain(card ? 1 : 0);
+      renderProgressionMap();
+    } else if (node.type === "pack") {
+      const cards = campaign.resolvePack(node);
+      campaign.markNodeCleared(id);
+      persistCampaign("map");
+      flashDeckGain(cards.length);
+      renderProgressionMap();
+    } else if (node.type === "store") {
+      // Open the shop; it returns to the map on Done (storeStartBtn), which marks
+      // the node cleared. Re-render now so the marker shows on this node behind it.
+      renderProgressionMap();
+      showStore();
+    } else {
+      // Deal / Boss: launch the deal with the full accumulated deck across the
+      // node's pile count. onRunEnd handles win (→ map, boss → advance) / loss.
+      hideProgressionMap();
+      startRun();
     }
-    // no data-action → not interactive
+  }
+
+  /* Tiny "deck grew" flourish on the map's deck indicator (presentation only). */
+  function flashDeckGain(n) {
+    updateDeckIndicator();
+    if (n > 0 && el.mapDeck) { el.mapDeck.classList.remove("gain"); void el.mapDeck.offsetWidth; el.mapDeck.classList.add("gain"); }
+  }
+  function updateDeckIndicator() {
+    if (el.mapDeck) el.mapDeck.innerHTML = 'Deck <b>' + campaign.deckSize() + '</b> cards';
   }
 
   /* Enlarged, view-only fossil of a cleared run (never starts a run). */

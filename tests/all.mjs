@@ -6,7 +6,7 @@ import { run as tieRule } from "./tie-rule.test.mjs";
 import { run as economy } from "./economy.test.mjs";
 import { run as sticker } from "./sticker.test.mjs";
 import { run as engineStickers } from "./engine-stickers.test.mjs";
-import { run as stage } from "./stage.test.mjs";
+// [run-map rework] stage.test.mjs (old stages×deals schedule) retired — rewritten in reconcile section
 import { run as progression } from "./progression.test.mjs";
 import { run as terminology } from "./terminology.test.mjs";
 import { run as pillar } from "./pillar.test.mjs";
@@ -37,7 +37,7 @@ const SUITES = [
   ["economy", economy],
   ["sticker", sticker],
   ["engine-stickers", engineStickers],
-  ["stage", stage],
+  // ["stage", stage],  // retired with the old stage schedule (see run-map reconcile)
   ["progression", progression],
   ["terminology", terminology],
   ["pillar", pillar],
@@ -68,7 +68,16 @@ let pass = 0,
   fail = 0;
 const allFails = [];
 for (const [name, run] of SUITES) {
-  const s = run();
+  let s;
+  try {
+    s = run();
+  } catch (e) {
+    // A suite that THROWS (rather than returning fails) is reported as one
+    // failure instead of crashing the whole runner.
+    fail += 1;
+    allFails.push(`${name}: THREW ${e && e.message ? e.message : e}`);
+    continue;
+  }
   pass += s.pass;
   fail += s.fail;
   allFails.push(...s.fails.map((f) => `${name}: ${f}`));
