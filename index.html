@@ -3426,6 +3426,27 @@
   .pm-node.t-boss .mn-ico { font-size: 24px; color: var(--amber); }
   .pm-node.t-store { border-color: #6E51A6; }
   .pm-node.t-deal { border-color: #b06; }
+  /* Single-CARD node (grants exactly 1): the node frames the EXACT card, face-up
+     (rank + suit) when it's a reachable choice, or a face-DOWN back when it's not
+     yet reachable. Multi-card nodes are sealed PACKS instead (below). */
+  .pm-node.t-pickup { padding: 2px; }
+  .pm-node .mn-card, .pm-node .mn-cardback { display: block; }
+  .pm-node .mn-card .mini-card { width: 38px; height: 50px; border-radius: 5px; box-shadow: none; border: 1px solid rgba(0,0,0,0.16); }
+  .pm-node .mn-card .mini-card .mc-rank { font-size: 16px; }
+  .pm-node .mn-card .mini-card .mc-suit { font-size: 13px; }
+  .pm-node .mn-card .mini-card .mc-badges { font-size: 7px; top: 1px; right: 1px; }
+  .pm-node .mn-cardback {
+    width: 38px; height: 50px; border-radius: 5px; border: 1px solid rgba(40,20,60,0.45);
+    background:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
+      linear-gradient(155deg, var(--foil-1, #7e62a8) 0%, var(--foil-2, #4d2f78) 100%);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.18);
+  }
+  /* Sealed PACK node (grants 2+): the store's foil, shrunk — count only, hidden. */
+  .pm-node.t-pack { padding: 2px; }
+  .pm-node .pack-foil.pf-node { width: 36px; filter: none; }
+  .pm-node .pack-foil.pf-node .pf-cards i { width: 8px; height: 12px; }
+  .pm-node .pack-foil.pf-node .pf-name { font-size: 9px; }
   /* Node states */
   .pm-node.s-far { opacity: 0.42; filter: grayscale(0.4); }
   .pm-node.s-done { opacity: 0.5; filter: grayscale(0.55); }
@@ -4340,7 +4361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.02 · run-map M4 (one continuous 3-phase map)";
+const APP_VERSION = "v3.03 · run-map M5 (single-card face-up vs sealed packs)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8062,6 +8083,12 @@ const CampaignState = (() => {
     let nodePos = null;           // current node id, or null = at the run start (below ♦ row 0)
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
     let runSeed = 0;              // seeds deterministic map generation
+    // Single-card (pickup) nodes commit to ONE exact card so the map can show it
+    // face-up before it's taken: { nodeId: baseDeckCardId }. Assigned the first
+    // time a pickup node is previewed/resolved (deterministic from runSeed+nodeId),
+    // so the card SHOWN is exactly the card GRANTED. Persisted so the shown/granted
+    // card survives a refresh; wiped on reset()/startNewRun().
+    let nodeCards = {};
     let totalCorrectGuesses = 0;   // summed across every WON run this campaign
     let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
     // Whole-run (campaign-wide) guess totals for the end-of-run summary: correct
@@ -8141,7 +8168,7 @@ const CampaignState = (() => {
     function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
-    function genRunMap() { runMap = RunMap.generateRun(runSeed); nodePos = null; clearedNodes = []; }
+    function genRunMap() { runMap = RunMap.generateRun(runSeed); nodePos = null; clearedNodes = []; nodeCards = {}; }
     /** Choose a not-yet-owned card id to draft. Prefers the current phase's suit;
         `mixed` (or an exhausted suit) lets it pull any not-owned card. */
     function pickDraftId(mixed) {
@@ -8153,6 +8180,33 @@ const CampaignState = (() => {
       }
       if (!pool.length) return null;
       return pool[Math.floor(Math.random() * pool.length)];
+    }
+    /** The suit a draft NODE pulls from — its own phase's suit (not the live
+        phaseIndex), so a not-yet-reached node previews from the right pool. */
+    function suitForNode(node) { return (node && typeof node.phase === "number") ? PHASE_SUITS[node.phase] : phaseSuit(); }
+    /** DETERMINISTIC draft pick for a specific map node: seeded by (runSeed,
+        node.id) over the not-yet-owned pool, so previewing and resolving the same
+        node yield the SAME card (what's shown on the map == what's granted). */
+    function draftIdForNode(node) {
+      const ownSet = new Set(ownedIds);
+      let pool = idsOfSuit(suitForNode(node)).filter(id => !ownSet.has(id));
+      if ((node && node.mixed) || pool.length === 0) {
+        const any = baseDeck.map(c => c.id).filter(id => !ownSet.has(id));
+        if (any.length) pool = any;
+      }
+      if (!pool.length) return null;
+      const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0));
+      return pool[Math.floor(rng() * pool.length)];
+    }
+    /** The card a pickup node commits to (assigns + caches it on first call). */
+    function commitNodeCard(node) {
+      if (node == null || node.id == null) return null;
+      if (nodeCards[node.id] == null) {
+        const id = draftIdForNode(node);
+        if (id == null) return null;
+        nodeCards[node.id] = id;
+      }
+      return nodeCards[node.id];
     }
     /** Start a fresh run: 13 hearts pre-held, phase 0 (♦), a new map. */
     function startNewRun() {
@@ -8206,9 +8260,17 @@ const CampaignState = (() => {
       currentNode() { return (nodePos != null && runMap) ? runMap.byId[nodePos] : null; },
       /** True if `id` is the FINAL boss of the run (the ♠ boss). Beating it wins. */
       isRunBoss(id) { return !!(runMap && id === runMap.runBossId); },
-      /** Resolve a pickup node → add one drafted card. Returns the added card (or null). */
+      /** The EXACT card a single-card (pickup) node will grant — shown face-up on
+          the map so the choice is precise. Commits the node's card on first call
+          (deterministic), so the previewed card is exactly what resolvePickup adds. */
+      previewPickupCard(node) { const id = commitNodeCard(node); return id == null ? null : findById(id); },
+      /** Peek a node's already-committed card WITHOUT assigning one (for display of
+          already-cleared nodes); null if the node never committed a card. */
+      nodeCard(node) { const id = node && node.id != null ? nodeCards[node.id] : null; return id == null ? null : findById(id); },
+      /** Resolve a pickup node → add its committed exact card (the one shown on the
+          map). Falls back to a random draft for node literals without an id (tests). */
       resolvePickup(node) {
-        const id = pickDraftId(node && node.mixed);
+        const id = (node && node.id != null) ? commitNodeCard(node) : pickDraftId(node && node.mixed);
         if (id == null) return null;
         ownedIds.push(id);
         return findById(id);
@@ -9056,6 +9118,7 @@ const CampaignState = (() => {
           phaseIndex, runSeed, nodePos,
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
+          nodeCards: { ...nodeCards },   // single-card nodes' committed exact cards (shown == granted)
           currentStage, currentRunIndex,
           totalCorrectGuesses, runsCompleted,
           totalCardsFlipped, totalCoinsEarned,
@@ -9094,6 +9157,7 @@ const CampaignState = (() => {
         runSeed = (s.runSeed >>> 0) || generateSeed();
         ownedIds = Array.isArray(s.ownedIds) ? s.ownedIds.slice() : idsOfSuit(START_SUIT).slice();
         clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
+        nodeCards = (s.nodeCards && typeof s.nodeCards === "object") ? { ...s.nodeCards } : {};
         nodePos = (s.nodePos != null) ? s.nodePos : null;
         runMap = RunMap.generateRun(runSeed);   // the whole continuous run regenerates from the seed
         currentStage = s.currentStage || 1;
@@ -11740,6 +11804,8 @@ const UIRenderer = (() => {
     el.packItems.addEventListener("click", (e) => {
       const pick = e.target.closest("[data-pick]");
       if (pick) { packSelect(Number(pick.dataset.pick)); return; }   // selects + shows info
+      const info = e.target.closest("[data-info]");
+      if (info) { showPackItemInfo(Number(info.dataset.info)); return; }   // reveal-only (map pack): tap = info
       const held = e.target.closest("[data-held]");
       if (held) packDiscardHeld(Number(held.dataset.held));
     });
@@ -11749,7 +11815,7 @@ const UIRenderer = (() => {
     // dismisses the item-info popup. The pick itself is forced, so the overlay
     // never closes on a backdrop tap — only the informational popup does.
     el.packReveal.addEventListener("click", (e) => {
-      if (e.target.closest("[data-pick], [data-held]")) return;   // tapping an item shows its info
+      if (e.target.closest("[data-pick], [data-held], [data-info]")) return;   // tapping an item shows its info
       closePackItemInfo();
     });
     // Replace confirmation (deliberate yes/no — requires an explicit choice, so
@@ -15063,19 +15129,41 @@ const UIRenderer = (() => {
   function mapNodeXY(n, R) { return { x: MAP_PAD + n.x * (MAP_W - 2 * MAP_PAD), y: MAP_PAD + (R - 1 - n.row) * MAP_ROW_H }; }
   /** The suit a node belongs to (its own draft/deal/boss suit, else its phase's). */
   function nodeSuit(n, map) { return n.suit || (map.phases && map.phases[n.phase] && map.phases[n.phase].suit) || "♦"; }
-  function mapNodeInner(n, suit) {
+  /* A small SEALED PACK foil for a multi-card map node — the same foil component
+     the store uses (.pack-foil + pf-* parts), shrunk to fit a node, showing ONLY
+     the count (contents stay hidden until opened). */
+  function mapPackFoilHtml(n) {
+    return '<span class="pack-foil pf-node">' +
+        '<span class="pf-crimp top"></span>' +
+        '<span class="pf-body"><span class="pf-sheen"></span>' +
+          '<span class="pf-window"><span class="pf-cards"><i></i><i></i><i></i></span>' +
+            '<span class="pf-name">+' + (n.packCount || 3) + '</span></span>' +
+        '</span>' +
+        '<span class="pf-crimp bottom"></span>' +
+      '</span>';
+  }
+  /* A single-card node's inner content. A pickup that's a known choice (legal) or
+     already taken (done, card still committed) shows the EXACT card FACE-UP; a
+     not-yet-reachable pickup shows a face-DOWN card back (still clearly ONE card,
+     identity revealed once you can take it). */
+  function mapPickupInner(n, state) {
+    const card = (state === "legal" || state === "here") ? campaign.previewPickupCard(n) : campaign.nodeCard(n);
+    if (card) return '<span class="mn-card">' + miniCardHtml(card) + '</span>';
+    return '<span class="mn-cardback"></span>';   // face-down until reachable
+  }
+  function mapNodeInner(n, suit, state) {
     if (n.type === "boss") return '<span class="mn-ico">♛</span><span class="mn-piles">' + n.piles + '</span>';
     if (n.type === "deal") return '<span class="mn-ico mn-deal-ico"></span><span class="mn-piles">' + n.piles + '</span>';
     if (n.type === "store") return '<span class="mn-ico">🛍</span>';
-    if (n.type === "pack") return '<span class="mn-ico">' + suit + '</span><span class="mn-add">+' + (n.packCount || 3) + '</span>';
-    return '<span class="mn-ico">' + suit + '</span><span class="mn-add">+1</span>';   // pickup
+    if (n.type === "pack") return mapPackFoilHtml(n);                   // 2+ cards → sealed pack (count only)
+    return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
     if (n.type === "boss") return n.piles + " piles · BOSS";
     if (n.type === "deal") return n.piles + " piles";
     if (n.type === "store") return "Shop";
-    if (n.type === "pack") return "Pack +" + (n.packCount || 3);
-    return "Card +1";
+    if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
+    return "A single card";
   }
   let mapArrive = false;   // true for ONE render right after the marker moves (arrival pop)
   function renderProgressionMap() {
@@ -15129,7 +15217,7 @@ const UIRenderer = (() => {
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
       nodes += '<button type="button" class="pm-node t-' + n.type + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + mapNodeLabel(n) + '">' +
-        mapNodeInner(n, suit) + '</button>';
+        mapNodeInner(n, suit, state) + '</button>';
     });
     el.mapTrack.innerHTML =
       '<div class="phase-map run-map" style="width:' + MAP_W + 'px;height:' + height + 'px;">' +
@@ -15201,11 +15289,13 @@ const UIRenderer = (() => {
       flashDeckGain(card ? 1 : 0);
       renderProgressionMap();
     } else if (node.type === "pack") {
+      // A sealed pack: its contents were hidden on the map. Grant the cards, then
+      // FLASH-REVEAL them with the SAME store pack-open animation/component.
       const cards = campaign.resolvePack(node);
       campaign.markNodeCleared(id);
       persistCampaign("map");
-      flashDeckGain(cards.length);
-      renderProgressionMap();
+      renderProgressionMap();   // mark the node done behind the reveal
+      openMapPackReveal(cards);
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
       // the node cleared. Re-render now so the marker shows on this node behind it.
@@ -15532,6 +15622,18 @@ const UIRenderer = (() => {
     el.packReveal.classList.add("hidden"); el.packItems.innerHTML = "";
   }
 
+  /* Map PACK open: reuse the store's pack-reveal overlay + the SAME deal-in flash,
+     in a reveal-ONLY mode (mode:"show"). The cards are already granted (drafted by
+     resolvePack) — this just shows exactly what was added; there's no pick/keep.
+     Confirm returns to the map and flourishes the deck indicator. */
+  function openMapPackReveal(cards) {
+    if (!cards || !cards.length) { flashDeckGain(0); return; }
+    packRevealState = { kind: "card", mode: "show", items: cards, chosen: [], keep: cards.length, pending: null };
+    el.packReveal.classList.remove("hidden");
+    renderPackReveal();
+    staggerDealIn(el.packItems);   // identical reveal motion to the store
+  }
+
   /* One revealed-item button: just the card/sticker face. Tapping it selects the
      item AND auto-shows its info in the help slot (no "?" affordance) — the same
      tap-to-show-info pattern the main store uses. `selectable` items carry
@@ -15543,6 +15645,21 @@ const UIRenderer = (() => {
 
   function renderPackReveal() {
     const st = packRevealState; if (!st) return;
+    if (st.mode === "show") {
+      // Map pack: reveal-only (everything shown was already added to the deck).
+      // Cards are tap-for-info but NOT selectable; one Confirm returns to the map.
+      if (el.packDeckBtn) el.packDeckBtn.classList.add("hidden");
+      el.packItems.innerHTML = st.items.map((c, i) => packItemButton(miniCardHtml(c), "data-info", i, false)).join("");
+      const m = st.items.length;
+      el.packTitle.textContent = m + " card" + (m > 1 ? "s" : "") + " added";
+      el.packMsg.textContent = "These join your deck.";
+      el.packConfirmBtn.classList.remove("hidden");
+      el.packConfirmBtn.disabled = false;
+      el.packConfirmBtn.textContent = "Add to deck";
+      if (el.packSkipBtn) el.packSkipBtn.classList.add("hidden");
+      return;
+    }
+    el.packConfirmBtn.textContent = "Confirm";   // reset (map reveal may have changed it)
     // The deck-composition aid is only useful when picking a CARD (a sticker
     // pick doesn't depend on deck composition). Show it for both the pick and
     // the full-tray discard step of a card pack.
@@ -15591,6 +15708,16 @@ const UIRenderer = (() => {
      bounce to the discard step at the cap); sticker picks → inventory. */
   function confirmPackPick() {
     const st = packRevealState; if (!st || st.mode === "discard") return;
+    if (st.mode === "show") {
+      // Map pack: cards are already in the deck — just close back to the map and
+      // flourish the deck indicator with the count revealed.
+      const added = st.items.length;
+      closePackItemInfo();
+      closePackReveal();
+      flashDeckGain(added);
+      renderProgressionMap();
+      return;
+    }
     if (st.chosen.length !== st.keep) return;          // guard (button is disabled too)
     closePackItemInfo();
     if (st.kind === "card") {

@@ -110,6 +110,23 @@ export function run() {
     }
   }
 
+  // ---- a single-card node shows EXACTLY the card it grants ----------------
+  {
+    const c = CampaignState.create();
+    const map = c.getMap();
+    // any pickup (single-card) node carrying an id
+    const pickup = map.nodes.find(n => n.type === "pickup" && n.id != null);
+    r.ok(pickup, "the map has a single-card (pickup) node");
+    const shown = c.previewPickupCard(pickup);
+    r.ok(shown && shown.id != null, "previewPickupCard shows a concrete card (rank+suit)");
+    const before = c.deckSize();
+    const granted = c.resolvePickup(pickup);
+    r.eq(granted.id, shown.id, "the card GRANTED is exactly the card SHOWN");
+    r.eq(c.deckSize(), before + 1, "taking the single-card node adds exactly one card");
+    // the committed card persists for display of the (now cleared) node.
+    r.eq(c.nodeCard(pickup).id, shown.id, "the node keeps its committed card for display");
+  }
+
   // ---- moveToNode across a phase boss syncs the phase/suit ----------------
   {
     const c = CampaignState.create();
