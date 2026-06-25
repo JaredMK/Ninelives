@@ -4361,7 +4361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.06 · run-map M8 (Phase 1 = author-supplied node+edge spec)";
+const APP_VERSION = "v3.07 · run-map M9 (every +1 node locks + shows its exact card)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8376,14 +8376,24 @@ const CampaignState = (() => {
     function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
-    function genRunMap() { runMap = RunMap.generateRun(runSeed); nodePos = null; clearedNodes = []; nodeCards = {}; }
-    /** Choose a not-yet-owned card id to draft. Prefers the current phase's suit;
-        `mixed` (or an exhausted suit) lets it pull any not-owned card. */
+    function genRunMap() { runMap = RunMap.generateRun(runSeed); nodePos = null; clearedNodes = []; nodeCards = {}; lockAllPickupCards(); }
+    /** Cards that are SPOKEN FOR: every owned card + every card a +1 node has
+        locked to display on the map (so a roll never picks a card already shown
+        on another node, and a pack never steals a card a +1 node shows).
+        `exceptNodeId` lets a node ignore its OWN lock when (re)resolving. */
+    function reservedSet(exceptNodeId) {
+      const s = new Set(ownedIds);
+      for (const k in nodeCards) { if (exceptNodeId == null || Number(k) !== exceptNodeId) s.add(nodeCards[k]); }
+      return s;
+    }
+    /** Choose a card id to draft for a PACK. Prefers the current phase's suit;
+        `mixed` (or an exhausted suit) lets it pull any card. Skips owned cards AND
+        cards locked to +1 nodes (those are reserved for their node's display). */
     function pickDraftId(mixed) {
-      const ownSet = new Set(ownedIds);
-      let pool = idsOfSuit(phaseSuit()).filter(id => !ownSet.has(id));
+      const taken = reservedSet(null);
+      let pool = idsOfSuit(phaseSuit()).filter(id => !taken.has(id));
       if (mixed || pool.length === 0) {
-        const any = baseDeck.map(c => c.id).filter(id => !ownSet.has(id));
+        const any = baseDeck.map(c => c.id).filter(id => !taken.has(id));
         if (any.length) pool = any;
       }
       if (!pool.length) return null;
@@ -8392,34 +8402,37 @@ const CampaignState = (() => {
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
         phaseIndex), so a not-yet-reached node previews from the right pool. */
     function suitForNode(node) { return (node && typeof node.phase === "number") ? PHASE_SUITS[node.phase] : phaseSuit(); }
-    /** DETERMINISTIC draft pick for a specific map node: seeded by (runSeed,
-        node.id) over the not-yet-owned pool, so previewing and resolving the same
-        node yield the SAME card (what's shown on the map == what's granted). */
+    /** DETERMINISTIC roll for a specific +1 node: seeded by (runSeed, node.id)
+        over the unclaimed pool (skips owned + cards already locked to OTHER nodes),
+        so each +1 node locks a DISTINCT card and the same node always rolls the
+        same one. */
     function draftIdForNode(node) {
-      const ownSet = new Set(ownedIds);
-      let pool = idsOfSuit(suitForNode(node)).filter(id => !ownSet.has(id));
+      const taken = reservedSet(node.id);
+      let pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
       if ((node && node.mixed) || pool.length === 0) {
-        const any = baseDeck.map(c => c.id).filter(id => !ownSet.has(id));
+        const any = baseDeck.map(c => c.id).filter(id => !taken.has(id));
         if (any.length) pool = any;
       }
       if (!pool.length) return null;
       const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0));
       return pool[Math.floor(rng() * pool.length)];
     }
-    /** The card a pickup node commits to (assigns + caches it on first call). */
-    /** Resolve a node's optional `forceCard` (e.g. "K♦", "10♠") to an unowned
-        base-deck id, so a +1 card node can pin the EXACT card it grants. Returns
-        null if unset / unparseable / already owned (callers then draft normally). */
+    /** Resolve a node's optional `forceCard` (e.g. "K♦", "10♠") to a base-deck id,
+        so a +1 card node can pin the EXACT card it grants. Returns null if unset /
+        unparseable / already claimed (callers then roll normally). */
     function forcedCardId(node) {
       if (!node || !node.forceCard) return null;
       const label = String(node.forceCard).trim();
       const suitChar = label.slice(-1);
       const rank = DeckManager.RANKS.find(r => r.label === label.slice(0, -1).trim());
       if (!rank) return null;
-      const ownSet = new Set(ownedIds);
-      const match = baseDeck.find(c => c.suit === suitChar && c.currentRank === rank.value && !ownSet.has(c.id));
+      const taken = reservedSet(node.id);
+      const match = baseDeck.find(c => c.suit === suitChar && c.currentRank === rank.value && !taken.has(c.id));
       return match ? match.id : null;
     }
+    /** The card a +1 node is locked to (assigns + caches it on first call). A
+        forced card wins; otherwise a deterministic distinct roll of the node's
+        phase suit. */
     function commitNodeCard(node) {
       if (node == null || node.id == null) return null;
       if (nodeCards[node.id] == null) {
@@ -8428,6 +8441,16 @@ const CampaignState = (() => {
         nodeCards[node.id] = id;
       }
       return nodeCards[node.id];
+    }
+    /** Lock a card onto EVERY +1 node up front (at map generation), so each shows
+        its exact card face-up and stays fixed for the whole run. Forced-card nodes
+        claim first (so their exact card is honored), then the rest roll distinct
+        cards in id order — fully deterministic, identical on every re-render. */
+    function lockAllPickupCards() {
+      if (!runMap) return;
+      runMap.nodes.filter(n => n.type === "pickup")
+        .sort((a, b) => ((a.forceCard ? 0 : 1) - (b.forceCard ? 0 : 1)) || (a.id - b.id))
+        .forEach(n => commitNodeCard(n));
     }
     /** Start a fresh run: 13 hearts pre-held, phase 0 (♦), a new map. */
     function startNewRun() {
@@ -8493,7 +8516,7 @@ const CampaignState = (() => {
       resolvePickup(node) {
         const id = (node && node.id != null) ? commitNodeCard(node) : pickDraftId(node && node.mixed);
         if (id == null) return null;
-        ownedIds.push(id);
+        if (ownedIds.indexOf(id) === -1) ownedIds.push(id);   // the locked card is reserved, so never a dup — guarded anyway
         return findById(id);
       },
       /** Resolve a pack node → add `packCount` drafted cards. Returns the added cards. */
@@ -9381,6 +9404,7 @@ const CampaignState = (() => {
         nodeCards = (s.nodeCards && typeof s.nodeCards === "object") ? { ...s.nodeCards } : {};
         nodePos = (s.nodePos != null) ? s.nodePos : null;
         runMap = RunMap.generateRun(runSeed);   // the whole continuous run regenerates from the seed
+        lockAllPickupCards();                   // re-lock any +1 node missing a card (old saves) — committed ones are kept
         currentStage = s.currentStage || 1;
         currentRunIndex = s.currentRunIndex || 1;
         totalCorrectGuesses = s.totalCorrectGuesses || 0;
@@ -15363,14 +15387,14 @@ const UIRenderer = (() => {
         '<span class="pf-crimp bottom"></span>' +
       '</span>';
   }
-  /* A single-card node's inner content. A pickup that's a known choice (legal) or
-     already taken (done, card still committed) shows the EXACT card FACE-UP; a
-     not-yet-reachable pickup shows a face-DOWN card back (still clearly ONE card,
-     identity revealed once you can take it). */
+  /* A single-card node's inner content. Every +1 node is locked to an exact card
+     at map generation, so it ALWAYS shows that card FACE-UP (rank + suit) — far,
+     legal, or done — and it never changes for the run. (The face-down back is a
+     fallback only if a node somehow has no locked card, e.g. an exhausted pool.) */
   function mapPickupInner(n, state) {
-    const card = (state === "legal" || state === "here") ? campaign.previewPickupCard(n) : campaign.nodeCard(n);
+    const card = campaign.nodeCard(n) || campaign.previewPickupCard(n);
     if (card) return '<span class="mn-card">' + miniCardHtml(card) + '</span>';
-    return '<span class="mn-cardback"></span>';   // face-down until reachable
+    return '<span class="mn-cardback"></span>';
   }
   function mapNodeInner(n, suit, state) {
     if (n.type === "boss") return '<span class="mn-ico">♛</span><span class="mn-piles">' + n.piles + '</span>';

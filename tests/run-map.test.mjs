@@ -212,16 +212,64 @@ export function run() {
     r.ok(seen.has(ph.bossId) && seen.size === ph.nodes.length, "every node reachable, boss included");
   }
 
-  // ---- a +1 card node can FORCE its exact card ----------------------------
+  // ---- every +1 node locks an EXACT card at generation, distinct + fixed --
   {
     const c = CampaignState.create();
-    const kingVal = DeckManager.RANKS.find(r => r.label === "K").value;
-    const card = c.previewPickupCard({ id: 9991, phase: 0, forceCard: "K♦" });
-    r.ok(card && card.suit === "♦", "forceCard 'K♦' resolves to a diamond");
-    r.eq(card.currentRank, kingVal, "forceCard 'K♦' is the King of Diamonds");
-    // taking it grants exactly that forced card.
-    const granted = c.resolvePickup({ id: 9991, phase: 0, forceCard: "K♦" });
+    const map = c.getMap();
+    const rankLabel = card => (DeckManager.RANKS.find(r => r.value === card.currentRank) || {}).label;
+    const pickups = map.nodes.filter(n => n.type === "pickup");
+    r.ok(pickups.length > 0, "the map has +1 single-card nodes");
+    // EVERY +1 node shows an exact card up front (no lazy/face-down nodes).
+    r.ok(pickups.every(n => !!c.nodeCard(n)), "every +1 node is locked to a card at generation");
+    // its phase suit (Phase 1 +1 nodes are diamonds).
+    r.ok(pickups.filter(n => n.phase === 0).every(n => c.nodeCard(n).suit === "♦"), "Phase 1 +1 nodes lock diamonds");
+    // the locked cards are DISTINCT (no two +1 nodes show the same identity).
+    const ids = pickups.map(n => c.nodeCard(n).id);
+    r.eq(new Set(ids).size, ids.length, "no two +1 nodes lock the same card");
+    // FIXED for the run: re-reading (re-render) returns the same card.
+    const n0 = pickups[0], first = c.nodeCard(n0).id;
+    c.nodeCard(n0); c.previewPickupCard(n0);
+    r.eq(c.nodeCard(n0).id, first, "a +1 node's card never re-randomizes");
+    // taking it adds EXACTLY that locked card.
+    const before = c.deckSize();
+    const granted = c.resolvePickup(n0);
+    r.eq(granted.id, first, "taking a +1 node adds exactly its locked card");
+    r.eq(c.deckSize(), before + 1, "the deck grew by exactly one");
+  }
+
+  // ---- a +1 node can FORCE a specific card (when free) --------------------
+  {
+    const rankLabel = card => (DeckManager.RANKS.find(r => r.value === card.currentRank) || {}).label;
+    // Find a campaign with a free diamond rank to force (a +1 node, incl. mixed
+    // nodes in later phases, may have already claimed a diamond). Retry to dodge
+    // the rare run where all 13 diamonds happen to be locked.
+    let c, freeRank;
+    for (let attempt = 0; attempt < 25 && !freeRank; attempt++) {
+      c = CampaignState.create();
+      const lockedDiamonds = new Set(c.getMap().nodes.filter(n => n.type === "pickup")
+        .map(n => c.nodeCard(n)).filter(card => card && card.suit === "♦").map(rankLabel));
+      freeRank = DeckManager.RANKS.map(r => r.label).find(l => !lockedDiamonds.has(l));
+    }
+    r.ok(freeRank, "found a free diamond rank to force");
+    const card = c.previewPickupCard({ id: 99999, phase: 0, forceCard: freeRank + "♦" });
+    r.ok(card && card.suit === "♦", "the forced card resolves to a diamond");
+    r.eq(rankLabel(card), freeRank, "forceCard pins the requested rank");
+    const granted = c.resolvePickup({ id: 99999, phase: 0, forceCard: freeRank + "♦" });
     r.eq(granted.id, card.id, "the forced card shown is the forced card granted");
+  }
+
+  // ---- packs never draw a card a +1 node is showing (reserved) -----------
+  {
+    const c = CampaignState.create();
+    const map = c.getMap();
+    const lockedIds = new Set(map.nodes.filter(n => n.type === "pickup").map(n => c.nodeCard(n).id));
+    // open several packs; none of their cards should be a +1 node's locked card.
+    let clean = true;
+    for (let i = 0; i < 6; i++) {
+      const cards = c.resolvePack({ type: "pack", packCount: 3, mixed: false });
+      if (cards.some(x => lockedIds.has(x.id))) clean = false;
+    }
+    r.ok(clean, "packs never reveal a card reserved by a +1 node");
   }
 
   // ---- moveToNode across a phase boss syncs the phase/suit ----------------
