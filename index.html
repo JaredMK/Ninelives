@@ -4361,7 +4361,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.04 · run-map M6 (hardcoded Phase 1 map definition)";
+const APP_VERSION = "v3.05 · run-map M7 (fillable node+edge map spec format)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5810,11 +5810,63 @@ const RunMap = (() => {
     },
   };
 
+  /* ── EXPLICIT MAP SPEC (the fillable authoring format) ─────────────────────
+     parseMapSpec adapts the hand-editable spec — a NODE LIST + a separate EDGE
+     LIST + per-node tier/x — into the internal phase shape. This is the format
+     an author fills in (and a generator will later emit); every field maps 1:1
+     to a rendered node/edge.
+
+       spec = {
+         suit: "♦",
+         nodes: [ { id, type, tier, x, ...params }, … ],   // ids are strings
+         edges: [ [fromId, toId], … ],                     // directed, bottom→top
+       }
+
+     Node types + params:
+       start            run start (not drawn). EXACTLY ONE. Its out-edges are the
+                        openings (row 0).
+       deal  : piles N  a deal across N piles.
+       boss  : piles N  the phase boss. EXACTLY ONE (top). Terminal within phase.
+       store            a shop (no params).
+       card  : (+1)     adds one card; optional `card:"K♦"` forces that exact card
+                        (else a deterministic diamond); `card:"random"` = any draft.
+       pack  : add N    adds N cards (N ≥ 2), shown as a sealed pack.
+     tier  = vertical row, smallest = bottom; normalized so the lowest real node
+             renders at row 0. x = 0..1 horizontal slot within the tier (forks). */
+  function parseMapSpec(spec, phaseIndex) {
+    const suit = spec.suit;
+    const num = {};                                  // author id (string) → stable number
+    spec.nodes.forEach((d, i) => { num[d.id] = i; });
+    const out = {};                                  // outgoing edges by author id
+    (spec.edges || []).forEach(e => { const f = e[0]; (out[f] = out[f] || []).push(e[1]); });
+    const toNum = name => num[name];
+    const start = spec.nodes.find(d => d.type === "start");
+    const reals = spec.nodes.filter(d => d.type !== "start");
+    const minTier = reals.reduce((m, d) => Math.min(m, d.tier), Infinity);
+    const nodes = reals.map(d => {
+      const n = { id: num[d.id], row: d.tier - minTier, x: (d.x == null ? 0.5 : d.x),
+                  next: (out[d.id] || []).map(toNum).filter(v => v != null) };
+      if (d.type === "deal" || d.type === "boss") { n.type = d.type; n.piles = d.piles; n.suit = suit; }
+      else if (d.type === "store") { n.type = "store"; }
+      else if (d.type === "pack") { n.type = "pack"; n.packCount = d.add; n.suit = suit; n.mixed = !!d.mixed; }
+      else { n.type = "pickup"; n.suit = suit; n.mixed = !!d.mixed;   // "card" → single +1 pickup
+             if (d.card && d.card !== "random") n.forceCard = d.card; }
+      return n;
+    });
+    const byId = {}; nodes.forEach(n => byId[n.id] = n);
+    const boss = nodes.find(n => n.type === "boss") || nodes[nodes.length - 1];
+    const rows = nodes.reduce((m, n) => Math.max(m, n.row), 0) + 1;
+    const row0 = start ? (out[start.id] || []).map(toNum).filter(v => v != null)
+                       : nodes.filter(n => n.row === 0).map(n => n.id);
+    return { phaseIndex, suit, rows, bossRow: boss.row, nodes, byId, bossId: boss.id, row0 };
+  }
+
   /* Adapt a PHASE_DEFS data definition into the internal phase-map shape that
-     generatePhase() returns (so everything downstream is identical). Translates
-     the friendly "card"/add format into pickup/pack, stamps the phase suit on
-     card/deal/boss nodes, and derives rows / bossId / row0 from the data. */
+     generatePhase() returns (so everything downstream is identical). A def with
+     an `edges` list is the explicit authoring spec → parseMapSpec. The older
+     inline form (per-node `next` arrays + `row`) is handled below. */
   function definitionToPhase(def, phaseIndex) {
+    if (def.edges) return parseMapSpec(def, phaseIndex);   // explicit node+edge spec
     const suit = def.suit;
     const nodes = def.nodes.map(d => {
       const n = { id: d.id, row: d.row, x: d.x, type: d.type, next: (d.next || []).slice() };
@@ -5890,7 +5942,7 @@ const RunMap = (() => {
     };
   }
 
-  return { MAP_CONFIG, PHASE_DEFS, definitionToPhase, generatePhase, generateRun };
+  return { MAP_CONFIG, PHASE_DEFS, definitionToPhase, parseMapSpec, generatePhase, generateRun };
 })();
 
 /* ----------------------------------------------------------------
@@ -8283,10 +8335,23 @@ const CampaignState = (() => {
       return pool[Math.floor(rng() * pool.length)];
     }
     /** The card a pickup node commits to (assigns + caches it on first call). */
+    /** Resolve a node's optional `forceCard` (e.g. "K♦", "10♠") to an unowned
+        base-deck id, so a +1 card node can pin the EXACT card it grants. Returns
+        null if unset / unparseable / already owned (callers then draft normally). */
+    function forcedCardId(node) {
+      if (!node || !node.forceCard) return null;
+      const label = String(node.forceCard).trim();
+      const suitChar = label.slice(-1);
+      const rank = DeckManager.RANKS.find(r => r.label === label.slice(0, -1).trim());
+      if (!rank) return null;
+      const ownSet = new Set(ownedIds);
+      const match = baseDeck.find(c => c.suit === suitChar && c.currentRank === rank.value && !ownSet.has(c.id));
+      return match ? match.id : null;
+    }
     function commitNodeCard(node) {
       if (node == null || node.id == null) return null;
       if (nodeCards[node.id] == null) {
-        const id = draftIdForNode(node);
+        const id = forcedCardId(node) != null ? forcedCardId(node) : draftIdForNode(node);
         if (id == null) return null;
         nodeCards[node.id] = id;
       }

@@ -160,6 +160,68 @@ export function run() {
     r.eq(ph.nodes.filter(n => n.type === "pickup").length, 6, "six single-card (+1) nodes");
   }
 
+  // ---- the EXPLICIT map spec (node list + edge list + tiers) maps 1:1 -----
+  {
+    // A tiny worked spec: start → deal → FORK (card/pack) → RECOMBINE (card) →
+    // store → boss. Mirrors the authoring template exactly.
+    const spec = {
+      suit: "♦",
+      nodes: [
+        { id: "S",  type: "start",            tier: 0, x: 0.5 },
+        { id: "D1", type: "deal",  piles: 5,  tier: 1, x: 0.5 },
+        { id: "L",  type: "card",  card: "K♦", tier: 2, x: 0.3 },
+        { id: "R",  type: "pack",  add: 3,    tier: 2, x: 0.7 },
+        { id: "M",  type: "card",             tier: 3, x: 0.5 },
+        { id: "ST", type: "store",            tier: 4, x: 0.5 },
+        { id: "B",  type: "boss",  piles: 6,  tier: 5, x: 0.5 },
+      ],
+      edges: [
+        ["S", "D1"],
+        ["D1", "L"], ["D1", "R"],     // FORK
+        ["L", "M"], ["R", "M"],       // RECOMBINE
+        ["M", "ST"], ["ST", "B"],
+      ],
+    };
+    const ph = RunMap.parseMapSpec(spec, 0);
+    const id = name => ["S", "D1", "L", "R", "M", "ST", "B"].indexOf(name);   // author order → number
+    // start is not a drawn node; its out-edge defines the single opening.
+    r.eq(ph.nodes.length, 6, "the start node is not rendered (6 real nodes)");
+    r.eq(ph.row0.length, 1, "one opening (start's out-edge)");
+    r.eq(ph.byId[ph.row0[0]].piles, 5, "the opening is the 5-pile deal");
+    // tiers normalize so the lowest real node is row 0 (deal at tier 1 → row 0).
+    r.eq(ph.byId[id("D1")].row, 0, "tier 1 normalizes to row 0");
+    r.eq(ph.byId[id("B")].row, 4, "the boss tier 5 → row 4 (top)");
+    // FORK: the deal points at BOTH branch nodes.
+    r.eq(ph.byId[id("D1")].next.slice().sort().join(","), [id("L"), id("R")].sort().join(","), "deal forks to card + pack");
+    // node params translate: card→pickup, pack→pack +3, forced card carried.
+    r.eq(ph.byId[id("L")].type, "pickup", "a +1 card is a single pickup");
+    r.eq(ph.byId[id("L")].forceCard, "K♦", "the forced card id is carried through");
+    r.eq(ph.byId[id("R")].type, "pack", "a +N card is a pack");
+    r.eq(ph.byId[id("R")].packCount, 3, "the pack carries its +3 count");
+    // RECOMBINE: both branches point at the same node M.
+    const into = ph.nodes.filter(n => n.next.indexOf(id("M")) !== -1).map(n => n.id).sort();
+    r.eq(into.join(","), [id("L"), id("R")].sort().join(","), "card + pack recombine into one node");
+    // boss is terminal + the boss-of-phase.
+    r.eq(ph.bossId, id("B"), "the boss node is the phase boss");
+    r.eq(ph.byId[id("B")].next.length, 0, "the boss is terminal within the phase");
+    // reachable from the opening (BFS).
+    const seen = new Set(), q = ph.row0.slice();
+    while (q.length) { const n = q.shift(); if (seen.has(n)) continue; seen.add(n); (ph.byId[n].next || []).forEach(x => q.push(x)); }
+    r.ok(seen.has(ph.bossId) && seen.size === ph.nodes.length, "every node reachable, boss included");
+  }
+
+  // ---- a +1 card node can FORCE its exact card ----------------------------
+  {
+    const c = CampaignState.create();
+    const kingVal = DeckManager.RANKS.find(r => r.label === "K").value;
+    const card = c.previewPickupCard({ id: 9991, phase: 0, forceCard: "K♦" });
+    r.ok(card && card.suit === "♦", "forceCard 'K♦' resolves to a diamond");
+    r.eq(card.currentRank, kingVal, "forceCard 'K♦' is the King of Diamonds");
+    // taking it grants exactly that forced card.
+    const granted = c.resolvePickup({ id: 9991, phase: 0, forceCard: "K♦" });
+    r.eq(granted.id, card.id, "the forced card shown is the forced card granted");
+  }
+
   // ---- moveToNode across a phase boss syncs the phase/suit ----------------
   {
     const c = CampaignState.create();
