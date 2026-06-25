@@ -3367,6 +3367,16 @@
   }
   .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 40px 8px calc(30px + env(safe-area-inset-bottom)); }
 
+  /* Persistent deck panel pinned below the climb (outside the scroll, so it stays
+     visible while scrolling). Hosts the relocated deal-screen #histBand. */
+  .map-foot {
+    position: relative; z-index: 2; flex: 0 0 auto; width: 100%;
+    display: flex; justify-content: center;
+    padding: 3px 6px calc(5px + env(safe-area-inset-bottom));
+  }
+  .map-foot .hist-band { margin: 0 auto; }
+  .map-foot:empty { display: none; }
+
   /* ── NEW branching phase-map ──────────────────────────────────────────
      The new map draws its OWN edges (SVG), so the old centre climbing line is
      suppressed. Nodes are absolutely positioned within .phase-map. */
@@ -4196,6 +4206,10 @@
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
+    <!-- Persistent deck panel: the SAME histogram + deck component as the deal
+         screen (#histBand is relocated here while the map is shown), fed the
+         player's accumulated deck so it densifies live as cards are picked up. -->
+    <div class="map-foot" id="mapFoot"></div>
   </div>
 
   <!-- Enlarged fossil detail (tap a cleared run's node). View-only; never starts
@@ -10032,6 +10046,7 @@ const UIRenderer = (() => {
     mapOverlay: document.getElementById("mapOverlay"),
     mapScroll: document.getElementById("mapScroll"),
     mapTrack: document.getElementById("mapTrack"),
+    mapFoot: document.getElementById("mapFoot"),
     mapDeck: document.getElementById("mapDeck"),
     mapPhase: document.getElementById("mapPhase"),
     mapParallax: document.getElementById("mapParallax"),
@@ -10481,12 +10496,41 @@ const UIRenderer = (() => {
      Reads the SAME counts the modal uses — remaining (blue) vs this stage's
      total (grey) per rank, on a shared absolute scale (max total). Presentation
      only; never reveals draw order. */
+  function mapVisible() { return el.mapOverlay && !el.mapOverlay.classList.contains("hidden"); }
   function deckStripStats() {
+    // On the MAP there's no active deal, so both bars show the whole accumulated
+    // deck: every owned card is "present", and the strip densifies live as cards
+    // are picked up while travelling.
+    if (mapVisible()) {
+      const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
+      return { remaining: full, full };
+    }
     const deck = engine && engine.getDeck();
     return {
       remaining: DeckStats.fromCounts(deck ? deck.remainingCounts() : {}),
       full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
     };
+  }
+  // The deal-screen histogram + deck component (#histBand) is RELOCATED into the
+  // map footer while the map is shown, then moved back for the deal — one
+  // component, never a parallel copy. We remember its home to restore it.
+  let histBandHome = null;
+  function mountHistOnMap() {
+    if (!el.histBand || !el.mapFoot) return;
+    if (!histBandHome) histBandHome = el.histBand.parentNode;
+    if (el.histBand.parentNode !== el.mapFoot) el.mapFoot.appendChild(el.histBand);
+    el.histBand.classList.remove("hidden");
+    refreshMapDeckPanel();
+  }
+  function unmountHistFromMap() {
+    if (!el.histBand || !histBandHome) return;
+    if (el.histBand.parentNode !== histBandHome) histBandHome.appendChild(el.histBand);
+  }
+  // Refresh the relocated panel from the accumulated deck (histogram + count).
+  function refreshMapDeckPanel() {
+    if (!mapVisible()) return;
+    renderDeckStrip();
+    if (el.deckCount) el.deckCount.textContent = campaign ? campaign.deckSize() : 0;
   }
   /* ============================================================
      PLAY-SCREEN CONTROL LAYOUT (isolated + revertable)
@@ -12104,6 +12148,7 @@ const UIRenderer = (() => {
     // screen, clamps to the end ranks past the rail's bounds, and only releases
     // on lift. (No pointerleave handler: leaving the rail must NOT end the drag.)
     el.deckStrip.addEventListener("pointerdown", (e) => {
+      if (mapVisible()) return;   // on the map the strip is read-only (no guess scrubber)
       stripScrubbing = true;
       try { el.deckStrip.setPointerCapture(e.pointerId); } catch (_) {}
       stripScrubApply(e); e.preventDefault();
@@ -15492,6 +15537,7 @@ const UIRenderer = (() => {
         ' · phase ' + (campaign.getPhaseIndex() + 1) + '/' + campaign.phasesTotal();
     }
     el.mapOverlay.classList.remove("hidden");
+    mountHistOnMap();      // the deal-screen deck panel rides along, fed the accumulated deck
     updateBoardMotion();   // board covered by the map → pause its card animations
     // Centre on the current position (the marker), else show the bottom (start).
     const here = el.mapTrack.querySelector(".pm-node.s-here") || el.mapTrack.querySelector(".phase-map");
@@ -15504,7 +15550,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // start → show the bottom
     }
   }
-  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
+  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); unmountHistFromMap(); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
@@ -15540,6 +15586,7 @@ const UIRenderer = (() => {
       campaign.markNodeCleared(id);
       persistCampaign("map");
       renderProgressionMap();   // mark the node done behind the reveal
+      flashDeckGain(cards.length);   // deck panel + header update live as the pack lands
       openMapPackReveal(cards);
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
@@ -15557,6 +15604,7 @@ const UIRenderer = (() => {
   /* Tiny "deck grew" flourish on the map's deck indicator (presentation only). */
   function flashDeckGain(n) {
     updateDeckIndicator();
+    refreshMapDeckPanel();   // the live histogram + count densify the moment cards land
     if (n > 0 && el.mapDeck) { el.mapDeck.classList.remove("gain"); void el.mapDeck.offsetWidth; el.mapDeck.classList.add("gain"); }
   }
   function updateDeckIndicator() {
