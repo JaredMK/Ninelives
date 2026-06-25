@@ -84,6 +84,44 @@ export function run() {
     }
   }
 
+  // ---- generateRun: all 3 phases stacked into ONE continuous graph --------
+  {
+    for (let s = 1; s <= 4; s++) {
+      const run = RunMap.generateRun(s * 9001 + 3);
+      r.ok(run && run.nodes.length > 12, "run " + s + ": a large combined graph");
+      r.eq(run.phases.length, 3, "run " + s + ": three phases");
+      // ids are unique across the whole run (namespaced per phase).
+      const ids = run.nodes.map(n => n.id);
+      r.eq(new Set(ids).size, ids.length, "run " + s + ": no duplicate ids across phases");
+      // every node carries its phase + a global row; rows are stacked (♦ < ♣ < ♠).
+      r.ok(run.nodes.every(n => n.phase >= 0 && n.phase <= 2 && typeof n.row === "number"), "run " + s + ": nodes carry phase + global row");
+      r.ok(run.phases[0].rowStart < run.phases[1].rowStart && run.phases[1].rowStart < run.phases[2].rowStart, "run " + s + ": phases stack bottom→top");
+      // the ♦ boss links straight into the ♣ openings (continuous path).
+      const dBoss = run.byId[run.phases[0].bossId];
+      r.ok(dBoss.next.length >= 1 && dBoss.next.every(id => run.byId[id].phase === 1), "run " + s + ": ♦ boss feeds the ♣ openings");
+      const cBoss = run.byId[run.phases[1].bossId];
+      r.ok(cBoss.next.every(id => run.byId[id].phase === 2), "run " + s + ": ♣ boss feeds the ♠ openings");
+      // the run boss is the ♠ boss and is reachable from the ♦ start via BFS.
+      r.eq(run.runBossId, run.phases[2].bossId, "run " + s + ": run boss = the ♠ boss");
+      r.ok(run.byId[run.runBossId].next.length === 0, "run " + s + ": the ♠ boss is the terminal node");
+      const seen = new Set(), q = run.row0.slice();
+      while (q.length) { const id = q.shift(); if (seen.has(id)) continue; seen.add(id); (run.byId[id].next || []).forEach(x => q.push(x)); }
+      r.ok(seen.has(run.runBossId), "run " + s + ": the ♠ boss is reachable from the ♦ start");
+    }
+  }
+
+  // ---- moveToNode across a phase boss syncs the phase/suit ----------------
+  {
+    const c = CampaignState.create();
+    const map = c.getMap();
+    r.ok(map && map.phases && map.phases.length === 3, "getMap() returns the continuous 3-phase run");
+    // moving onto a ♣ (phase-1) node flips the campaign into phase ♣.
+    const clubNode = map.nodes.find(n => n.phase === 1);
+    c.moveToNode(clubNode.id);
+    r.eq(c.getPhaseIndex(), 1, "moveToNode onto a ♣ node → phase 1");
+    r.eq(c.phaseSuit(), "♣", "…and the suit follows to clubs");
+  }
+
   // ---- layoutForPiles: any pile count → a valid board ---------------------
   {
     const c = CampaignState.create();
