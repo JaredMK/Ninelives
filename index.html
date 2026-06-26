@@ -239,9 +239,46 @@
     box-shadow: 0 0 8px var(--amber), 0 0 2px var(--amber); transform: scale(1.05);
   }
   .hud .hud-same.empty { opacity: 0.4; filter: grayscale(0.65); background: none; }
-  @keyframes sameChargePulse { 0%,100% { box-shadow: 0 0 8px var(--amber); } 50% { box-shadow: 0 0 14px var(--amber); } }
+  @keyframes sameChargePulse { 0%,100% { box-shadow: 0 0 10px var(--amber), 0 0 3px var(--amber); } 50% { box-shadow: 0 0 18px var(--amber), 0 0 6px var(--amber); } }
   .hud .hud-same.charged { animation: sameChargePulse 1.5s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .hud .hud-same.charged { animation: none; } }
+
+  /* ── #4 SAME CHARGE — bigger + bolder (important survival resource). ───────── */
+  .hud .hud-same { width: 30px; height: 30px; font-size: 20px; }
+  .hud .hud-same img { width: 23px; height: 23px; }
+  .hud .hud-same.charged { background: rgba(227,192,101,0.28); transform: scale(1.1);
+    box-shadow: 0 0 12px var(--amber), 0 0 3px var(--amber); border: 1.5px solid var(--amber); }
+
+  /* ── #2 FOUR-SUIT PHASE TRACKER (replaces the phase text in the HUD). ─────────
+     DONE = full-colour suit, ACTIVE = highlighted (scale + amber glow + chip),
+     TODO = dim. ♥ ♦ render red, ♣ ♠ dark. */
+  .hud .suit-track { display: inline-flex; align-items: center; gap: 6px; margin-left: 30px; }
+  .suit-track .st-suit { font-size: 16px; line-height: 1; font-weight: 800; color: #3c4356;
+    opacity: 0.26; transition: opacity 0.2s ease, transform 0.2s ease, text-shadow 0.2s ease; }
+  .suit-track .st-suit.st-red { color: #c8506e; }
+  .suit-track .st-done { opacity: 1; }
+  .suit-track .st-active { opacity: 1; transform: scale(1.28); text-shadow: 0 0 8px var(--amber), 0 0 3px var(--amber); }
+
+  /* ── #1 SUIT-COUNT CHART (beside the rank histogram) — 2×2 of "♥ rem/total",
+     plain numbers (not bars, to avoid confusion with the rank histogram). ────── */
+  .suit-counts { flex: 0 0 auto; align-self: center; display: grid;
+    grid-template-columns: auto auto; gap: 1px 7px; padding: 0 5px 0 1px; }
+  .suit-counts .sc-cell { display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; line-height: 1.3; white-space: nowrap; }
+  .suit-counts .sc-suit { font-size: 11.5px; color: #3c4356; }
+  .suit-counts .sc-cell.sc-red .sc-suit { color: #c8506e; }
+  .suit-counts .sc-num { color: var(--muted); font-weight: 700; }
+  .suit-counts .sc-num b { color: var(--ink); font-weight: 800; }
+
+  /* ── #3 DEAL-STATUS ROW — surviving piles × smallest pile + bonus, between the
+     histogram and the board (its own glance row, out of the top bar). ────────── */
+  .deal-status { display: flex; align-items: center; justify-content: center;
+    width: min(96vw, 460px); margin: 3px auto 1px; }
+  .deal-status .hud-score { color: var(--text); display: inline-flex; align-items: baseline;
+    gap: 1px; white-space: nowrap; font-weight: 700; }
+  .deal-status .hud-score b { font-size: 18px; font-weight: 800; }
+  .deal-status .hud-score .hl { font-size: 9.5px; color: var(--muted); margin: 0 5px 0 1px; text-transform: uppercase; }
+  .deal-status .hud-score .hx { color: var(--muted); font-size: 14px; margin: 0 3px; }
   /* The SAME guess button also glows while a charge is banked (contextual cue). */
   .btn.same.charged { box-shadow: 0 0 0 2px var(--amber), 0 2px 8px rgba(0,0,0,0.2); }
   /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
@@ -4079,21 +4116,28 @@
     <div class="stage-run off" id="stageRun">Stage 1 · Deal 1</div>
   </header>
 
-  <!-- Layout 4: a single slim HUD line — Stage·Run · score expression · dopamine. -->
-  <div class="hud" title="Your coins for clearing the deal: surviving piles × the smallest surviving pile, plus bonus">
-    <span class="hud-sr" id="hudStageRun">Stage 1 · Deal 1</span>
-    <span class="hud-score">
-      <b id="aliveCount">9</b><span class="hl">P</span>
-      <span class="hx">×</span>
-      <b id="minPileCount" class="min-accent">1</b><span class="hl">S</span>
-      <b id="bonusCoins" class="bonus-accent">+0</b>
-    </span>
+  <!-- Slim HUD line — four-suit phase tracker · Same Charge · equipped Same-Power
+       · coin balance. (The deal-status score expression moved to its own row
+       between the histogram and the board; see #dealStatus below.) -->
+  <div class="hud" title="Phase progress (♥ ♦ ♣ ♠) · Same Charge · coins">
+    <span class="hud-sr suit-track" id="hudStageRun" aria-label="Phase progress"></span>
     <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="icons/logo.svg" alt="" draggable="false" /></span>
     <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
   <main>
+    <!-- Deal-status row: surviving piles × smallest pile + bonus. Its own glance
+         row, between the top histogram band and the board (relocated from the
+         top bar). Same info + same element ids — only the position changed. -->
+    <div class="deal-status" id="dealStatus" title="Your coins for clearing the deal: surviving piles × the smallest surviving pile, plus bonus">
+      <span class="hud-score">
+        <b id="aliveCount">9</b><span class="hl">P</span>
+        <span class="hx">×</span>
+        <b id="minPileCount" class="min-accent">1</b><span class="hl">S</span>
+        <b id="bonusCoins" class="bonus-accent">+0</b>
+      </span>
+    </div>
     <!-- Play row: the left rail (vertical pip matrix + deck count) beside the
          board (banners · pile field · plaques). The rail replaces the old bottom
          histogram band; that removed height flows into the pile field. -->
@@ -4685,7 +4729,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.22 · store button label + remove map node D-13-2";
+const APP_VERSION = "v3.23 · suit-count chart, suit progress tracker, deal-status row, bigger Same Charge";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5888,6 +5932,13 @@ const DeckManager = (() => {
       remainingCounts() {
         const counts = {};
         for (const c of cards) counts[c.value] = (counts[c.value] || 0) + 1;
+        return counts;
+      },
+      /** Count of remaining cards per SUIT (order-free, no leak) — feeds the
+          suit-count chart. */
+      remainingSuitCounts() {
+        const counts = { "♥": 0, "♦": 0, "♣": 0, "♠": 0 };
+        for (const c of cards) if (counts[c.suit] != null) counts[c.suit]++;
         return counts;
       },
       /** Look at the next n cards without drawing them. */
@@ -9084,6 +9135,15 @@ const CampaignState = (() => {
         return counts;
       },
 
+      /** Card count per SUIT for the ACCUMULATED DRAFT (the whole owned deck) —
+          the "total" column of the suit-count chart. Order-free; no leak. */
+      suitComposition() {
+        const active = new Set(ownedIds);
+        const counts = { "♥": 0, "♦": 0, "♣": 0, "♠": 0 };
+        for (const c of baseDeck) if (active.has(c.id) && counts[c.suit] != null) counts[c.suit]++;
+        return counts;
+      },
+
       /* ---- Deck Surgery operations (permanent, validated, per-card) ----
          Each targets a SPECIFIC persistent card by id, records the change
          in that card's modification history, and returns true if applied
@@ -10394,6 +10454,7 @@ const UIRenderer = (() => {
     deckStrip: document.getElementById("deckStrip"),
     deckStripBars: document.getElementById("deckStripBars"),
     histBand: document.getElementById("histBand"),
+    dealStatus: document.getElementById("dealStatus"),
     deckStripScrub: document.getElementById("deckStripScrub"),
     // store (between runs)
     storeOverlay: document.getElementById("storeOverlay"),
@@ -11043,11 +11104,10 @@ const UIRenderer = (() => {
   function unmountHistFromMap() {
     if (!el.histBand || !histBandHome) return;
     if (el.histBand.parentNode !== histBandHome) {
-      // Restore to the TOP of <main> (under the HUD), before the play row — the
-      // thumb-reach layout keeps the histogram at the top on the deal screen too.
-      const playRow = histBandHome.querySelector(".play-row");
-      if (playRow) histBandHome.insertBefore(el.histBand, playRow);
-      else histBandHome.appendChild(el.histBand);
+      // Restore to the VERY TOP of <main> (under the HUD) — above the deal-status
+      // row and the play row — so the histogram stays at the top on the deal
+      // screen too (matching the thumb-reach layout / the map).
+      histBandHome.insertBefore(el.histBand, histBandHome.firstElementChild);
     }
   }
   // Refresh the relocated panel from the accumulated deck (histogram + count).
@@ -11090,6 +11150,16 @@ const UIRenderer = (() => {
     // is narrowed + centred so the outer columns pull in from the screen edges.
     document.body.classList.add("guess-side", "thumb-deal");
     if (el.histBand) {
+      // Suit-count chart (total + remaining per suit, as plain numbers) rides at
+      // the LEFT of the band, beside the rank histogram. Created once.
+      if (!document.getElementById("suitCounts")) {
+        const sc = document.createElement("div");
+        sc.className = "suit-counts"; sc.id = "suitCounts";
+        sc.setAttribute("aria-label", "Cards remaining of total, per suit");
+        el.histBand.appendChild(sc);
+      }
+      const sc = document.getElementById("suitCounts");
+      if (sc) el.histBand.appendChild(sc);
       if (el.deckStrip) el.histBand.appendChild(el.deckStrip);
       if (el.deckStat) el.histBand.appendChild(el.deckStat);
       // The hold-to-see-help popup lives INSIDE the histogram band: while a help
@@ -11126,6 +11196,28 @@ const UIRenderer = (() => {
       return '<div class="ds-bar" data-value="' + r.value + '">' +
         '<div class="ds-rank">' + r.label + "</div>" +
         '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + pips + "</div></div>";
+    }).join("");
+    renderSuitCounts();   // keep the suit-count chart in sync with the histogram
+  }
+
+  /* Suit-count chart (beside the rank histogram): per suit, REMAINING / TOTAL as
+     plain numbers (no bars — that's the rank histogram's job). Mirrors the
+     histogram's data sources exactly: total = the whole owned deck per suit,
+     remaining = the draw pile per suit (on the map, everything is "present", so
+     remaining == total). Presentation only; reads counts, never order. */
+  function renderSuitCounts() {
+    const host = document.getElementById("suitCounts");
+    if (!host || !campaign) return;
+    const total = campaign.suitComposition ? campaign.suitComposition() : { "♥":0,"♦":0,"♣":0,"♠":0 };
+    let remaining = total;
+    if (!mapVisible() && engine && engine.getDeck) {
+      const deck = engine.getDeck();
+      if (deck && deck.remainingSuitCounts) remaining = deck.remainingSuitCounts();
+    }
+    host.innerHTML = ["♥", "♦", "♣", "♠"].map(s => {
+      const red = (s === "♥" || s === "♦") ? " sc-red" : "";
+      return '<span class="sc-cell' + red + '"><span class="sc-suit">' + s + '</span>' +
+        '<span class="sc-num"><b>' + (remaining[s] || 0) + '</b>/' + (total[s] || 0) + '</span></span>';
     }).join("");
   }
 
@@ -11190,6 +11282,21 @@ const UIRenderer = (() => {
   /** Persistent run indicator: the PHASE (suit) + the accumulated DECK SIZE (the
       survival number) — there is NO score. (presentation; reads campaign). */
   const PHASE_LABEL = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
+  /* Four-suit PROGRESS TRACKER (replaces the phase text in the HUD): ♥ ♦ ♣ ♠ in
+     order. ♥ is pre-held → always DONE; each phase suit is DONE once its phase is
+     cleared, ACTIVE while you're in it, and TODO (dim) until then. Beating the ♠
+     boss fills all four. Presentation only — reads campaign.getPhaseIndex(). */
+  const SUIT_TRACK_ORDER = ["♥", "♦", "♣", "♠"];
+  const SUIT_TRACK_PHASE = { "♥": -1, "♦": 0, "♣": 1, "♠": 2 };   // ♥ pre-held; phases 0..2
+  function suitTrackerHtml() {
+    const pi = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;   // 0=♦,1=♣,2=♠; ≥3 = run cleared
+    return SUIT_TRACK_ORDER.map(s => {
+      const ph = SUIT_TRACK_PHASE[s];
+      const state = (ph < 0 || pi > ph) ? "done" : (pi === ph ? "active" : "todo");
+      const red = (s === "♥" || s === "♦") ? " st-red" : "";
+      return '<span class="st-suit st-' + state + red + '">' + s + '</span>';
+    }).join("");
+  }
   function updateStageRun() {
     if (!campaign) return;
     const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
@@ -11198,10 +11305,10 @@ const UIRenderer = (() => {
     const sr = suit + " " + (PHASE_LABEL[suit] || "") + " " + phaseNo + "/" + phases
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
-    // Slim HUD bar (play screen).
-    if (el.hudStageRun) el.hudStageRun.textContent = sr;
+    // Slim HUD bar (play screen): the four-suit phase tracker.
+    if (el.hudStageRun) el.hudStageRun.innerHTML = suitTrackerHtml();
     if (el.hudDopamine) el.hudDopamine.textContent = dop;
-    // Global fixed badge (shown over the store/modals only).
+    // Global fixed badge (shown over the store/modals only) keeps the text form.
     el.stageRun.innerHTML = sr + " · " + COIN_SVG + " " + dop;
   }
 
@@ -15485,11 +15592,14 @@ const UIRenderer = (() => {
     const bottomRegionH = el.bottomRegion ? oh(el.bottomRegion) : 0;
     // Side-guess layout reserves a bottom histogram band (constant in both phases).
     const histBandH = (el.histBand && !el.histBand.classList.contains("hidden")) ? oh(el.histBand) : 0;
-    const belowH = bottomRegionH + histBandH;
-    // main's IN-FLOW children: the play-row, (setup only) the bottom inventory
-    // band, and the bottom histogram band. The control row is absolute (out of
-    // flow) → it does NOT add a flex gap.
-    const visibleChildren = 1 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0);
+    // The deal-status row (surviving piles × smallest pile) sits in-flow between
+    // the histogram and the board — reserve its height so the board never overflows.
+    const dealStatusH = (el.dealStatus && el.dealStatus.offsetParent) ? oh(el.dealStatus) : 0;
+    const belowH = bottomRegionH + histBandH + dealStatusH;
+    // main's IN-FLOW children: the play-row, the deal-status row, (setup only) the
+    // bottom inventory band, and the histogram band. The control row is absolute
+    // (out of flow) → it does NOT add a flex gap.
+    const visibleChildren = 1 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0) + (dealStatusH > 0 ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // Breathing margin: no-scroll is the priority, so trade a little board size
