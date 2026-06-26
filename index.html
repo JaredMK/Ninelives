@@ -520,39 +520,68 @@
      deck-slot character is hidden there; only the trail character shows. The
      avatar's own badge carries the deck count while on the map. */
   body.on-map #deckStat { display: none; }
-  .deck-char { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-  .dc-body { position: absolute; inset: 0; border-radius: 9px;
+  /* The whole character LEANS toward the selected pile (a subtle weight shift,
+     set by JS via --lean-*); eased so it sways rather than snaps. */
+  .deck-char { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    transform: translate(var(--lean-x, 0px), var(--lean-y, 0px));
+    transition: transform 0.5s cubic-bezier(0.33, 1.28, 0.5, 1); }
+  .dc-body { position: absolute; inset: 0; border-radius: 9px; transform-origin: 50% 92%;
     background: linear-gradient(160deg, var(--dc-1, #e0738f), var(--dc-2, #b23a5c));
     border: 1.5px solid rgba(255,255,255,0.55);
     box-shadow: 0 3px 8px rgba(74,50,40,0.42), inset 0 1px 0 rgba(255,255,255,0.5);
-    animation: dcBob 3.2s ease-in-out infinite; }                          /* IDLE bob */
-  @keyframes dcBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+    animation: dcBreathe 3.7s ease-in-out infinite; }     /* IDLE: soft breathing squash/stretch */
+  @keyframes dcBreathe {
+    0%,100% { transform: translateY(0) scale(1, 1); }
+    50%     { transform: translateY(-1.4px) scale(0.992, 1.014); }   /* inhale: rise + gentle stretch */
+  }
   .dc-lid { position: absolute; left: 13%; right: 13%; top: 5%; height: 11%;
     border-radius: 6px 6px 3px 3px; transform-origin: 50% 0;
     background: linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.12));
     border: 1px solid rgba(255,255,255,0.45); }
   .dc-face { position: absolute; left: 0; right: 0; top: 21%; display: flex; justify-content: center; gap: 30%; }
-  .dc-eye { position: relative; width: 17%; height: 14%; max-width: 8px; min-height: 7px;
-    border-radius: 50%; background: #241c28; aspect-ratio: 4 / 5;
-    transition: height 0.12s ease, width 0.12s ease, transform 0.12s ease; }
-  .dc-eye::after { content: ""; position: absolute; top: 18%; left: 22%; width: 36%; height: 28%;
-    border-radius: 50%; background: rgba(255,255,255,0.9);
-    transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)); transition: transform 0.13s ease; }
-  /* LOOKING: eyes widen + focus (pupils already aimed via --eye-x/--eye-y). */
-  .deck-char.dc-looking .dc-eye { transform: scale(1.14); }
-  /* HAPPY: big bright arched eyes + a hop. */
-  .deck-char.dc-happy .dc-eye { transform: translateY(-1px) scale(1.15, 1.4); }
-  .deck-char.dc-happy .dc-body { animation: dcHappy 0.5s ease; }
-  @keyframes dcHappy { 0%,100% { transform: translateY(0) scale(1,1); } 35% { transform: translateY(-4px) scale(1.05,0.95); } 65% { transform: translateY(0) scale(0.98,1.04); } }
-  /* SAD: droopy, outer-corner-down squints + a downward slump. */
-  .deck-char.dc-sad .dc-eye { height: 4px; min-height: 4px; width: 24%; border-radius: 40%; opacity: 0.85; }
-  .deck-char.dc-sad .dc-eye.l { transform: translateY(2.5px) rotate(22deg); }
-  .deck-char.dc-sad .dc-eye.r { transform: translateY(2.5px) rotate(-22deg); }
-  .deck-char.dc-sad .dc-eye::after { display: none; }   /* hide the highlight on a flat squint */
-  .deck-char.dc-sad .dc-body { animation: dcSad 0.6s ease; }
-  @keyframes dcSad { 0% { transform: translateY(0); } 40% { transform: translateY(3px) scale(1.03,0.95); } 100% { transform: translateY(0); } }
-  /* BLINK (JS-toggled, brief) — overrides any expression for a moment. */
-  .deck-char.dc-blink .dc-eye { height: 8% !important; transform: none !important; }
+  /* EYE = a wrapper that GLANCES (translates toward the pile with a slight
+     overshoot, then settles). PUPIL = the dark dot inside, which carries the
+     per-emotion SHAPE. Separating them lets a look (translate) and an expression
+     (scale/rotate/squash) compose cleanly and ease independently. */
+  .dc-eye { position: relative; width: 17%; height: 14%; max-width: 8px; min-height: 7px; aspect-ratio: 4 / 5;
+    transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+    transition: transform 0.42s cubic-bezier(0.34, 1.72, 0.46, 1); }     /* glance: anticipation overshoot → settle */
+  .dc-pupil { position: absolute; inset: 0; border-radius: 50%; background: #241c28;
+    transition: transform 0.34s cubic-bezier(0.34, 1.45, 0.5, 1), height 0.26s ease, border-radius 0.26s ease, opacity 0.24s ease; }
+  .dc-pupil::after { content: ""; position: absolute; top: 16%; left: 20%; width: 38%; height: 30%;
+    border-radius: 50%; background: rgba(255,255,255,0.92); transition: opacity 0.2s ease; }
+  /* LOOKING: alert — slightly bigger pupils with a tiny living micro-pulse (the
+     glance translate is on .dc-eye, the body lean on .deck-char, both via JS). */
+  .deck-char.dc-looking .dc-pupil { transform: scale(1.14); animation: dcLook 1.9s ease-in-out infinite; }
+  @keyframes dcLook { 0%,100% { transform: scale(1.14); } 50% { transform: scale(1.05); } }
+  /* HAPPY: anticipation dip → joyful POP (squash & stretch) → follow-through;
+     eyes arch up and brighten. Quick, snappy timing with an overshoot curve. */
+  .deck-char.dc-happy .dc-pupil { transform: translateY(-0.5px) scale(1.18, 1.5); border-radius: 50% 50% 46% 46%; }
+  .deck-char.dc-happy .dc-body { animation: dcHappy 0.72s cubic-bezier(0.28, 0.7, 0.4, 1.2); }
+  @keyframes dcHappy {
+    0%   { transform: translateY(0) scale(1, 1); }
+    13%  { transform: translateY(2px) scale(1.07, 0.9); }     /* anticipation: dip + squash */
+    40%  { transform: translateY(-8px) scale(0.9, 1.14); }    /* POP up + stretch */
+    62%  { transform: translateY(0) scale(1.08, 0.93); }      /* land squash */
+    80%  { transform: translateY(-2px) scale(0.98, 1.04); }   /* follow-through bounce */
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+  /* SAD: slow + heavy — droopy outer-down eyes (highlight fades), a weighted
+     slump with squash, settling low. Slow easing reads as sadness/weight. */
+  .deck-char.dc-sad .dc-pupil { height: 46%; opacity: 0.82; border-radius: 46% 46% 50% 50%; }
+  .deck-char.dc-sad .dc-eye { transform: translate(var(--eye-x, 0px), calc(var(--eye-y, 0px) + 1.6px)); }
+  .deck-char.dc-sad .dc-eye.l .dc-pupil { transform: rotate(20deg) scaleY(0.62); }
+  .deck-char.dc-sad .dc-eye.r .dc-pupil { transform: rotate(-20deg) scaleY(0.62); }
+  .deck-char.dc-sad .dc-pupil::after { opacity: 0; }
+  .deck-char.dc-sad .dc-body { animation: dcSad 1.05s cubic-bezier(0.33, 0, 0.45, 1); }
+  @keyframes dcSad {
+    0%   { transform: translateY(0) scale(1, 1); }
+    24%  { transform: translateY(-1.5px) scale(0.99, 1.01); }  /* small heavy recoil */
+    60%  { transform: translateY(4px) scale(1.06, 0.9); }       /* slump down + squash (weight) */
+    100% { transform: translateY(1.5px) scale(1.02, 0.97); }    /* settles low (follow-through) */
+  }
+  /* BLINK (JS-toggled, brief) — pupils squash shut; overrides any expression. */
+  .deck-char.dc-blink .dc-pupil { transform: scaleY(0.12) !important; }
   /* The big count sits in the lower body, below the eyes, still glanceable. The
      "left" label is dropped here (the number alone reads as cards-left) to keep
      the character's face clear. */
@@ -570,10 +599,17 @@
   /* The flying clone used for the map→deck JUMP: the same character body, sized
      inline by flyCard(); a quick arrival pop lands it in the slot. */
   .deck-char-jump { z-index: 61; pointer-events: none; filter: drop-shadow(0 6px 12px rgba(74,30,45,0.4)); }
-  .deck-char.dc-arrive .dc-body { animation: dcArrive 0.32s ease; }
-  @keyframes dcArrive { 0% { transform: scale(0.7); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
+  .deck-char.dc-arrive .dc-body { animation: dcArrive 0.42s cubic-bezier(0.3, 0.8, 0.4, 1.3); }
+  @keyframes dcArrive {
+    0%   { transform: translateY(-3px) scale(0.62); }
+    50%  { transform: translateY(0) scale(1.14, 0.9); }    /* land squash */
+    76%  { transform: translateY(0) scale(0.97, 1.05); }   /* follow-through */
+    100% { transform: translateY(0) scale(1, 1); }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body { animation: none; }
+    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body,
+    .deck-char.dc-looking .dc-pupil { animation: none; }
+    .deck-char, .dc-eye, .dc-pupil { transition: none; }
   }
 
   /* ============================================================
@@ -4044,7 +4080,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"></span><span class="dc-eye r"></span></span></span></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span></span></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -4618,7 +4654,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.18 · one character: map trail ↔ deck slot (pink + jump)";
+const APP_VERSION = "v3.19 · deck character: expressive Disney-like animation";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10877,8 +10913,10 @@ const UIRenderer = (() => {
       const hold = CHAR_STATES[name].hold;
       if (hold > 0) revertId = setTimeout(() => { revertId = 0; set(resting()); }, hold);
     }
-    /** Compute the pupil aim toward pile `index` as a one-shot transform (no
-        per-frame work; recomputed only when the selection changes). */
+    /** Aim the eyes (and a subtle body lean) toward pile `index` as a one-shot
+        computed transform — no per-frame work; recomputed only on selection. The
+        CSS eases the glance with an overshoot-and-settle, so it reads as an active
+        LOOK rather than a snap. */
     function aimAtPile(index) {
       const n = node(); if (!n) return;
       const pe = (typeof pileEls !== "undefined") && pileEls[index];
@@ -10886,14 +10924,19 @@ const UIRenderer = (() => {
       const cr = n.getBoundingClientRect(), pr = pe.getBoundingClientRect();
       const dx = (pr.left + pr.right) / 2 - (cr.left + cr.right) / 2;
       const dy = (pr.top + pr.bottom) / 2 - (cr.top + cr.bottom) / 2;
-      const len = Math.hypot(dx, dy) || 1, MAX = 2.4;   // px the pupils may travel
-      n.style.setProperty("--eye-x", (dx / len * MAX).toFixed(2) + "px");
-      n.style.setProperty("--eye-y", (dy / len * MAX).toFixed(2) + "px");
+      const len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      const EYE = 2.7, LEAN = 1.7;       // px the eyes glance / the body leans
+      n.style.setProperty("--eye-x", (ux * EYE).toFixed(2) + "px");
+      n.style.setProperty("--eye-y", (uy * EYE).toFixed(2) + "px");
+      n.style.setProperty("--lean-x", (ux * LEAN).toFixed(2) + "px");
+      n.style.setProperty("--lean-y", (uy * LEAN).toFixed(2) + "px");
     }
     function aimReset() {
       const n = node(); if (!n) return;
       n.style.setProperty("--eye-x", "0px");
       n.style.setProperty("--eye-y", "0px");
+      n.style.setProperty("--lean-x", "0px");
+      n.style.setProperty("--lean-y", "0px");
     }
     return {
       /** Player selected pile `index` → look at it and hold until resolved. */
@@ -10907,16 +10950,32 @@ const UIRenderer = (() => {
       /** Phase suit wash on the character (matches the map avatar). */
       setSuit(sym) { const n = node(); if (!n) return; n.classList.remove("dc-d", "dc-c", "dc-s");
         n.classList.add("dc-" + ((typeof SUIT_CLASS !== "undefined" && SUIT_CLASS[sym]) || "d")); },
-      /** Lightweight idle blink loop (one class toggle every few seconds; skipped
-          under reduced motion). Safe to call repeatedly — only one loop runs. */
+      /** Lightweight ambient-life loop (skipped under reduced motion; only one
+          runs). Each tick blinks, and now and then sneaks a tiny idle GLANCE so
+          the character feels alive and waiting — never frozen. Both are cheap
+          class/var toggles on irregular timers (no per-frame work); glances only
+          fire while genuinely idle so they never fight a real look/reaction. */
       startBlink() {
         if (blinkId || prefersReduce()) return;
         const tick = () => {
           const n = node();
-          if (n) { n.classList.add("dc-blink"); setTimeout(() => { const m = node(); if (m) m.classList.remove("dc-blink"); }, 130); }
-          blinkId = setTimeout(tick, 3800 + Math.floor(Math.random() * 2600));
+          if (n) {
+            n.classList.add("dc-blink");
+            setTimeout(() => { const m = node(); if (m) m.classList.remove("dc-blink"); }, 120 + Math.floor(Math.random() * 60));
+            if (state === "idle" && Math.random() < 0.5) {
+              const gx = (Math.random() * 2 - 1) * 1.5, gy = (Math.random() * 2 - 1) * 1.1;
+              n.style.setProperty("--eye-x", gx.toFixed(2) + "px");
+              n.style.setProperty("--eye-y", gy.toFixed(2) + "px");
+              setTimeout(() => {   // hold the glance briefly, then drift back (only if still idle)
+                if (state !== "idle") return;
+                const m = node(); if (!m) return;
+                m.style.setProperty("--eye-x", "0px"); m.style.setProperty("--eye-y", "0px");
+              }, 800 + Math.floor(Math.random() * 600));
+            }
+          }
+          blinkId = setTimeout(tick, 3200 + Math.floor(Math.random() * 3200));
         };
-        blinkId = setTimeout(tick, 2600);
+        blinkId = setTimeout(tick, 2200);
       },
     };
   })();
@@ -16372,7 +16431,8 @@ const UIRenderer = (() => {
       const fly = document.createElement("div");
       fly.className = "deck-char-jump " + suit;
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
-        '<span class="dc-face"><span class="dc-eye l"></span><span class="dc-eye r"></span></span></span>';
+        '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
+        '<span class="dc-eye r"><i class="dc-pupil"></i></span></span></span>';
       // Reuse the board flyCard arc; a strong lift sells the "jump".
       flyCard(fly, fromRect, toRect, {
         duration: 460, startScale: 0.9, lift: -46,
