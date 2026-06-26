@@ -4533,7 +4533,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.13 · hold-help persists + map banner clearance + remove Mirror";
+const APP_VERSION = "v3.14 · Phase 2 (Clubs) hardcoded map definition";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6046,6 +6046,76 @@ const RunMap = (() => {
         ["shop3", "boss"],
         ["c_1i", "boss"], ["c_1j", "boss"],
         ["shop4", "boss"],
+      ],
+    },
+
+    // Phase 2 — Clubs. Author-supplied fixed graph, built EXACTLY as specified.
+    // SEAM: generateRun() wires each phase's boss → the next phase's row-0
+    // openings, so the diamond BOSS (id "boss") connects up to this phase's
+    // tier-0 entries (c_5a, c_5b) automatically — the two sections form one
+    // continuous map. (There is no store after the diamond boss in the built
+    // diamond spec; the boss IS the seam node.) Every card/pack here grants ♣.
+    1: {
+      suit: "♣",
+      nodes: [
+        // entry seam: fed by the diamond boss (the store right after Boss Diamond 4
+        // in the drawing); the two +5C packs are the club openings.
+        { id: "c_5a",    type: "pack",  add: 5, suit: "♣", tier: 0,  x: 0.35 },  // +5C (left)
+        { id: "c_5b",    type: "pack",  add: 5, suit: "♣", tier: 0,  x: 0.62 },  // +5C (right)
+
+        { id: "cd1",     type: "deal",  piles: 8,           tier: 1,  x: 0.30 },  // Club Deal 1
+
+        { id: "c_1a",    type: "card",  add: 1, suit: "♣",  tier: 1,  x: 0.78 },  // +1C (right chain start)
+        { id: "c_1b",    type: "card",  add: 1, suit: "♣",  tier: 2,  x: 0.82 },  // +1C
+        { id: "c_3a",    type: "pack",  add: 3, suit: "♣",  tier: 3,  x: 0.85 },  // +3C
+
+        { id: "c_5c",    type: "pack",  add: 5, suit: "♣",  tier: 2,  x: 0.30 },  // +5C (left, above Club Deal 1)
+        { id: "c_5d",    type: "pack",  add: 5, suit: "♣",  tier: 2,  x: 0.58 },  // +5C (middle, below 10-pile)
+
+        { id: "cd1_1",   type: "deal",  piles: 10,          tier: 3,  x: 0.58 },  // Club Deal 1-1.1
+
+        { id: "shop_c1", type: "store",                     tier: 4,  x: 0.45 },  // store
+
+        { id: "cd2",     type: "deal",  piles: 9,           tier: 5,  x: 0.50 },  // Club Deal 2
+
+        { id: "c_5e",    type: "pack",  add: 5, suit: "♣",  tier: 6,  x: 0.22 },  // +5C (left)
+        { id: "c_1c",    type: "card",  add: 1, suit: "♣",  tier: 6,  x: 0.45 },  // +1C (middle)
+        { id: "c_5f",    type: "pack",  add: 5, suit: "♣",  tier: 6,  x: 0.75 },  // +5C (right)
+
+        { id: "shop_c2", type: "store",                     tier: 7,  x: 0.15 },  // store
+        { id: "c_1d",    type: "card",  add: 1, suit: "♣",  tier: 8,  x: 0.15 },  // +1C
+
+        { id: "cd2_1",   type: "deal",  piles: 8,           tier: 9,  x: 0.40 },  // Club Deal 2-2.1
+
+        { id: "cd3",     type: "deal",  piles: 9,           tier: 10, x: 0.55 },  // Club Deal 3
+
+        { id: "c_1e",    type: "card",  add: 1, suit: "♣",  tier: 11, x: 0.40 },  // +1C (left)
+        { id: "c_1f",    type: "card",  add: 1, suit: "♣",  tier: 11, x: 0.70 },  // +1C (right)
+        { id: "c_1g",    type: "card",  add: 1, suit: "♣",  tier: 12, x: 0.40 },  // +1C
+
+        { id: "shop_c3", type: "store",                     tier: 13, x: 0.45 },  // store
+
+        { id: "boss_c",  type: "boss",  piles: 8,           tier: 14, x: 0.55 },  // Boss Club Deal 4
+      ],
+      edges: [
+        ["c_5a", "cd1"],
+        ["c_5b", "c_1a"],
+        ["c_1a", "c_1b"], ["c_1b", "c_3a"],
+
+        ["cd1", "c_5c"], ["cd1", "c_5d"],
+        ["c_3a", "cd1_1"], ["c_5d", "cd1_1"],
+
+        ["c_5c", "shop_c1"], ["cd1_1", "shop_c1"],
+        ["shop_c1", "cd2"],
+
+        ["cd2", "c_5e"], ["cd2", "c_1c"], ["cd2", "c_5f"],
+        ["c_5e", "shop_c2"], ["shop_c2", "c_1d"],
+        ["c_1d", "cd2_1"], ["c_1c", "cd2_1"], ["c_5f", "cd2_1"],
+
+        ["cd2_1", "cd3"],
+        ["cd3", "c_1e"], ["cd3", "c_1f"],
+        ["c_1e", "c_1g"], ["c_1g", "shop_c3"],
+        ["shop_c3", "boss_c"], ["c_1f", "boss_c"],
       ],
     },
   };
