@@ -3205,6 +3205,8 @@
   .debug-btn:active { transform: scale(0.94); }
   .debug-btn.armed { background: var(--accent-2); color: #06203a; }
 
+  /* DEBUG MAP ADDRESSES (removable): checkbox row in the debug panel */
+  .debug-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); cursor: pointer; }
   .debug-tools { display: flex; flex-wrap: wrap; gap: 5px; }
   .debug-tools .debug-btn { flex: 1 1 28%; }
 
@@ -3450,6 +3452,15 @@
     display: inline-flex; align-items: center; justify-content: center;
     font-family: var(--font-text); color: var(--ink);
     transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+  }
+  /* DEBUG MAP ADDRESSES (removable): small node-address tag, debug overlay only */
+  .pm-addr {
+    position: absolute; transform: translate(-50%, -50%); z-index: 6;
+    pointer-events: none; white-space: nowrap;
+    font-family: var(--font-text); font-size: 10px; font-weight: 700; line-height: 1;
+    letter-spacing: 0.04em; color: #fff;
+    background: rgba(18, 14, 28, 0.85); border: 1px solid rgba(255, 255, 255, 0.28);
+    padding: 2px 4px; border-radius: 5px;
   }
   /* Amber pile-count chip (deal/boss) — the deal screen's limiting-pile badge. */
   .pm-node .mn-piles {
@@ -4077,6 +4088,11 @@
           <button class="debug-btn" id="debugLose">lose now</button>
           <button class="debug-btn" id="debugNew">new game</button>
         </div>
+        <!-- DEBUG MAP ADDRESSES (removable): toggles the node-address overlay on the progression map -->
+        <div class="debug-sub">map overlay →</div>
+        <div class="debug-tools">
+          <label class="debug-check"><input type="checkbox" id="debugMapAddr"> show node addresses</label>
+        </div>
         <div class="debug-sub">auto-play X cards (correct guesses only) →</div>
         <div class="debug-grant">
           <input class="debug-sel" id="debugAutoN" type="number" min="1" step="1" value="10" inputmode="numeric" />
@@ -4533,7 +4549,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.14 · Phase 2 (Clubs) hardcoded map definition";
+const APP_VERSION = "v3.15 · Phase 2 (Clubs) map rebuilt from hand-drawn ref";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6049,73 +6065,82 @@ const RunMap = (() => {
       ],
     },
 
-    // Phase 2 — Clubs. Author-supplied fixed graph, built EXACTLY as specified.
+    // Phase 2 — Clubs. Author-supplied fixed graph, transcribed EXACTLY from the
+    // hand-drawn map (starts at the diamond boss, ends at the clubs boss).
     // SEAM: generateRun() wires each phase's boss → the next phase's row-0
     // openings, so the diamond BOSS (id "boss") connects up to this phase's
-    // tier-0 entries (c_5a, c_5b) automatically — the two sections form one
-    // continuous map. (There is no store after the diamond boss in the built
-    // diamond spec; the boss IS the seam node.) Every card/pack here grants ♣.
+    // single tier-0 entry (shop_c0, the "22-26" store right after Boss Diamond 4
+    // in the drawing) automatically — the two sections form one continuous map.
+    // Every card/pack here grants ♣. (Card-count / difficulty annotations in the
+    // drawing are ignored; only deal/boss pile counts are build-relevant.)
     1: {
       suit: "♣",
       nodes: [
-        // entry seam: fed by the diamond boss (the store right after Boss Diamond 4
-        // in the drawing); the two +5C packs are the club openings.
-        { id: "c_5a",    type: "pack",  add: 5, suit: "♣", tier: 0,  x: 0.35 },  // +5C (left)
-        { id: "c_5b",    type: "pack",  add: 5, suit: "♣", tier: 0,  x: 0.62 },  // +5C (right)
+        // entry seam: the "22-26" store, fed by the diamond boss.
+        { id: "shop_c0", type: "store",                     tier: 0,  x: 0.50 },  // store 22-26
 
-        { id: "cd1",     type: "deal",  piles: 8,           tier: 1,  x: 0.30 },  // Club Deal 1
+        { id: "c5_a",    type: "pack",  add: 5, suit: "♣",  tier: 1,  x: 0.30 },  // +5C 27-31 (left)
+        { id: "c5_b",    type: "pack",  add: 5, suit: "♣",  tier: 1,  x: 0.62 },  // +5C 27-31 (right)
 
-        { id: "c_1a",    type: "card",  add: 1, suit: "♣",  tier: 1,  x: 0.78 },  // +1C (right chain start)
-        { id: "c_1b",    type: "card",  add: 1, suit: "♣",  tier: 2,  x: 0.82 },  // +1C
-        { id: "c_3a",    type: "pack",  add: 3, suit: "♣",  tier: 3,  x: 0.85 },  // +3C
+        { id: "cd1",     type: "deal",  piles: 8,           tier: 2,  x: 0.46 },  // Club Deal 1 (8 piles)
+        { id: "c1_a",    type: "card",  add: 1, suit: "♣",  tier: 2,  x: 0.85 },  // +1C 28-32
 
-        { id: "c_5c",    type: "pack",  add: 5, suit: "♣",  tier: 2,  x: 0.30 },  // +5C (left, above Club Deal 1)
-        { id: "c_5d",    type: "pack",  add: 5, suit: "♣",  tier: 2,  x: 0.58 },  // +5C (middle, below 10-pile)
+        { id: "c5_left", type: "pack",  add: 5, suit: "♣",  tier: 3,  x: 0.22 },  // +5C 32-36 (cards, left)
+        { id: "c5_mid",  type: "pack",  add: 5, suit: "♣",  tier: 3,  x: 0.48 },  // +5C 32-36 (mid)
+        { id: "c1_b",    type: "card",  add: 1, suit: "♣",  tier: 3,  x: 0.85 },  // +1C 29-33
 
-        { id: "cd1_1",   type: "deal",  piles: 10,          tier: 3,  x: 0.58 },  // Club Deal 1-1.1
+        { id: "c3_a",    type: "pack",  add: 3, suit: "♣",  tier: 4,  x: 0.85 },  // +3C 32-36
 
-        { id: "shop_c1", type: "store",                     tier: 4,  x: 0.45 },  // store
+        { id: "cd1_1",   type: "deal",  piles: 10,          tier: 5,  x: 0.62 },  // Club Deal 1-1.1 (10 piles)
 
-        { id: "cd2",     type: "deal",  piles: 9,           tier: 5,  x: 0.50 },  // Club Deal 2
+        { id: "shop_c1", type: "store",                     tier: 6,  x: 0.48 },  // store 32-36
 
-        { id: "c_5e",    type: "pack",  add: 5, suit: "♣",  tier: 6,  x: 0.22 },  // +5C (left)
-        { id: "c_1c",    type: "card",  add: 1, suit: "♣",  tier: 6,  x: 0.45 },  // +1C (middle)
-        { id: "c_5f",    type: "pack",  add: 5, suit: "♣",  tier: 6,  x: 0.75 },  // +5C (right)
+        { id: "cd2",     type: "deal",  piles: 9,           tier: 7,  x: 0.52 },  // Club Deal 2 (9 piles)
 
-        { id: "shop_c2", type: "store",                     tier: 7,  x: 0.15 },  // store
-        { id: "c_1d",    type: "card",  add: 1, suit: "♣",  tier: 8,  x: 0.15 },  // +1C
+        { id: "c5_c",    type: "pack",  add: 5, suit: "♣",  tier: 8,  x: 0.14 },  // +5C 37-41 (left)
+        { id: "c1_c",    type: "card",  add: 1, suit: "♣",  tier: 8,  x: 0.45 },  // +1C 33-37 (mid)
+        { id: "c5_d",    type: "pack",  add: 5, suit: "♣",  tier: 8,  x: 0.75 },  // +5C 37-41 (right)
 
-        { id: "cd2_1",   type: "deal",  piles: 8,           tier: 9,  x: 0.40 },  // Club Deal 2-2.1
+        { id: "c1_d",    type: "card",  add: 1, suit: "♣",  tier: 9,  x: 0.12 },  // +1C 38-42
 
-        { id: "cd3",     type: "deal",  piles: 9,           tier: 10, x: 0.55 },  // Club Deal 3
+        { id: "shop_c2", type: "store",                     tier: 10, x: 0.18 },  // store 38-42
 
-        { id: "c_1e",    type: "card",  add: 1, suit: "♣",  tier: 11, x: 0.40 },  // +1C (left)
-        { id: "c_1f",    type: "card",  add: 1, suit: "♣",  tier: 11, x: 0.70 },  // +1C (right)
-        { id: "c_1g",    type: "card",  add: 1, suit: "♣",  tier: 12, x: 0.40 },  // +1C
+        { id: "cd2_1",   type: "deal",  piles: 8,           tier: 11, x: 0.42 },  // Club Deal 2-2.1 (8 piles)
 
-        { id: "shop_c3", type: "store",                     tier: 13, x: 0.45 },  // store
+        { id: "cd3",     type: "deal",  piles: 9,           tier: 12, x: 0.55 },  // Club Deal 3 (9 piles)
 
-        { id: "boss_c",  type: "boss",  piles: 8,           tier: 14, x: 0.55 },  // Boss Club Deal 4
+        { id: "c1_e",    type: "card",  add: 1, suit: "♣",  tier: 13, x: 0.42 },  // +1C 34-43 (left)
+        { id: "c1_f",    type: "card",  add: 1, suit: "♣",  tier: 13, x: 0.68 },  // +1C 34-43 (right)
+
+        { id: "c1_g",    type: "card",  add: 1, suit: "♣",  tier: 14, x: 0.42 },  // +1C 35-44
+
+        { id: "shop_c3", type: "store",                     tier: 15, x: 0.46 },  // store 36-45
+
+        { id: "boss_c",  type: "boss",  piles: 8,           tier: 16, x: 0.55 },  // Boss Club Deal 4 (8 piles)
       ],
       edges: [
-        ["c_5a", "cd1"],
-        ["c_5b", "c_1a"],
-        ["c_1a", "c_1b"], ["c_1b", "c_3a"],
+        ["shop_c0", "c5_a"], ["shop_c0", "c5_b"],
 
-        ["cd1", "c_5c"], ["cd1", "c_5d"],
-        ["c_3a", "cd1_1"], ["c_5d", "cd1_1"],
+        ["c5_a", "cd1"],
+        ["c5_b", "c5_mid"], ["c5_b", "c1_a"],
+        ["c1_a", "c1_b"], ["c1_b", "c3_a"],
+        ["c3_a", "cd1_1"], ["c5_mid", "cd1_1"],
 
-        ["c_5c", "shop_c1"], ["cd1_1", "shop_c1"],
+        ["cd1", "c5_left"], ["cd1", "cd1_1"],
+        ["c5_left", "shop_c1"], ["c5_left", "c5_c"],
+        ["cd1_1", "shop_c1"],
+
         ["shop_c1", "cd2"],
+        ["cd2", "c1_c"], ["cd2", "c5_d"],
 
-        ["cd2", "c_5e"], ["cd2", "c_1c"], ["cd2", "c_5f"],
-        ["c_5e", "shop_c2"], ["shop_c2", "c_1d"],
-        ["c_1d", "cd2_1"], ["c_1c", "cd2_1"], ["c_5f", "cd2_1"],
+        ["c5_c", "c1_d"], ["c5_c", "cd2_1"],
+        ["c1_d", "shop_c2"], ["shop_c2", "cd2_1"], ["c1_c", "cd2_1"],
 
-        ["cd2_1", "cd3"],
-        ["cd3", "c_1e"], ["cd3", "c_1f"],
-        ["c_1e", "c_1g"], ["c_1g", "shop_c3"],
-        ["shop_c3", "boss_c"], ["c_1f", "boss_c"],
+        ["cd2_1", "cd3"], ["c5_d", "cd3"],
+
+        ["cd3", "c1_e"], ["cd3", "c1_f"],
+        ["c1_e", "c1_g"], ["c1_g", "shop_c3"],
+        ["shop_c3", "boss_c"], ["c1_f", "boss_c"],
       ],
     },
   };
@@ -10324,6 +10349,7 @@ const UIRenderer = (() => {
     debugWin: document.getElementById("debugWin"),
     debugLose: document.getElementById("debugLose"),
     debugNew: document.getElementById("debugNew"),
+    debugMapAddr: document.getElementById("debugMapAddr"),   // DEBUG MAP ADDRESSES (removable)
     debugStickerSel: document.getElementById("debugStickerSel"),
     debugAddSticker: document.getElementById("debugAddSticker"),
     debugStickerNext: document.getElementById("debugStickerNext"),
@@ -12578,6 +12604,12 @@ const UIRenderer = (() => {
     el.debugWin.addEventListener("click", () => { engine && engine.debug.winNow(); });
     el.debugLose.addEventListener("click", () => { engine && engine.debug.loseNow(); });
     el.debugNew.addEventListener("click", () => startCampaign());
+    // DEBUG MAP ADDRESSES (removable): toggle the node-address overlay; re-render
+    // the map immediately if it's on screen so the change is visible at once.
+    if (el.debugMapAddr) el.debugMapAddr.addEventListener("change", () => {
+      mapAddrDebug = el.debugMapAddr.checked;
+      if (mapVisible()) renderProgressionMap();
+    });
     // Artifact telemetry (debug only): open the table, export CSV, reset.
     if (el.debugTelemView) el.debugTelemView.addEventListener("click", showTelemetry);
     if (el.debugTelemCsv) el.debugTelemCsv.addEventListener("click", exportTelemetryCSV);
@@ -15910,6 +15942,42 @@ const UIRenderer = (() => {
     });
   }
   let mapArrive = false;   // true for ONE render right after the marker moves (arrival pop)
+  /* ── DEBUG: map node addresses (removable block) ───────────────────────────
+     A toggleable overlay that stamps each map node with a short, sayable address
+     so playtesters can name nodes precisely (e.g. "C-4-R overlaps C-4-M").
+       Address = <Phase>-<Tier>[-<Pos>]
+         Phase  D / C / S  (Diamonds / Clubs / Spades), from the node's phase suit
+         Tier   1-based row WITHIN that phase (bottom = 1, counting up to its boss)
+         Pos    left→right slot in the row: L/R for 2, L/M/R for 3, 1..n for 4+,
+                omitted when the node is alone in its row
+     The boss is special-cased to <Phase>-BOSS. An address depends only on a node's
+     own phase, row, and left-right order among its row-mates, so it stays stable
+     when unrelated nodes move. Presentation-only — to remove this feature delete:
+     this block, buildMapAddresses(), the guarded label injection in
+     renderProgressionMap, the `.pm-addr`/`.debug-check` CSS, the debug checkbox
+     markup + its `el.debugMapAddr` ref, and its change handler. */
+  let mapAddrDebug = false;
+  function buildMapAddresses(map) {
+    const PH = { "♦": "D", "♣": "C", "♠": "S", "♥": "H" };
+    const groups = {};                                  // "phase|localRow" → [nodes]
+    map.nodes.forEach(n => { const k = n.phase + "|" + n.localRow; (groups[k] = groups[k] || []).push(n); });
+    const addr = {};
+    Object.keys(groups).forEach(k => {
+      const row = groups[k].slice().sort((a, b) => mapNodeXY(a, map.totalRows).x - mapNodeXY(b, map.totalRows).x);
+      const tier = row[0].localRow + 1;                 // 1-based, bottom of the phase = 1
+      row.forEach((n, i) => {
+        const P = PH[nodeSuit(n, map)] || "?";
+        if (n.type === "boss") { addr[n.id] = P + "-BOSS"; return; }
+        const pos = row.length === 1 ? "" :
+          row.length === 2 ? "-" + ["L", "R"][i] :
+          row.length === 3 ? "-" + ["L", "M", "R"][i] : "-" + (i + 1);
+        addr[n.id] = P + "-" + tier + pos;
+      });
+    });
+    return addr;
+  }
+  /* ── /DEBUG: map node addresses ─────────────────────────────────────────── */
+
   function renderProgressionMap() {
     const map = campaign.getMap();
     if (!map) { el.mapTrack.innerHTML = ""; return; }
@@ -15974,11 +16042,23 @@ const UIRenderer = (() => {
     nodes += '<button type="button" class="pm-node t-home s-' + (atStart ? "home-here" : "done") + '" disabled' +
       ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (13 hearts)">' +
       '<span class="mn-home"><span class="mn-home-ico">⌂</span></span></button>';
+    // DEBUG MAP ADDRESSES (removable): stamp each node with its address tag, just
+    // above the node, when the debug overlay is toggled on. Off → empty string.
+    let addrLabels = "";
+    if (mapAddrDebug) {
+      const addr = buildMapAddresses(map);
+      map.nodes.forEach(n => {
+        const p = mapNodeXY(n, R);
+        const off = (NODE_HALF[n.type] ? NODE_HALF[n.type][1] : 29) + 8;
+        addrLabels += '<span class="pm-addr" style="left:' + p.x.toFixed(1) + 'px;top:' + (p.y - off).toFixed(1) + 'px;">' + addr[n.id] + '</span>';
+      });
+    }
     el.mapTrack.innerHTML =
       '<div class="phase-map run-map" style="width:' + MAP_W + 'px;height:' + height + 'px;">' +
         bands +
         '<svg class="map-edges" viewBox="0 0 ' + MAP_W + ' ' + height + '" width="' + MAP_W + '" height="' + height + '" preserveAspectRatio="none">' + edges + '</svg>' +
         nodes +
+        addrLabels +
       '</div>';
     mapArrive = false;   // the arrival pop is one-shot
     placeAvatar();       // re-attach + reposition the player box on the current node
