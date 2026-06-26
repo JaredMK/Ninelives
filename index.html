@@ -3394,12 +3394,17 @@
      text takes the current suit's colour (--suit-col, set by the tint class). */
   .map-hdr {
     position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; width: min(96vw, 420px); margin: 2px auto 0; padding: 5px 15px;
+    gap: 10px; width: min(98vw, 460px); margin: 4px auto 0;
+    /* Reserve room for the fixed corner buttons (menu top-left, inventory
+       top-right, ~34px each) so the phase + deck text never slides under them —
+       the same clearance the play HUD uses, keeping the banner consistent. */
+    padding: 5px 42px;
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px; box-shadow: var(--shadow);
     font-family: var(--font-text); font-weight: 800;
   }
   .map-hdr .map-phase { font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase;
-    color: var(--suit-col, var(--accent-2)); white-space: nowrap; }
+    color: var(--suit-col, var(--accent-2)); white-space: nowrap; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; }   /* never wrap/overflow under a button */
   .map-hdr .map-phase b { font-family: var(--font-display); font-size: 14px; text-transform: none; margin-right: 3px; }
   .map-hdr .map-deck { font-size: 11px; color: var(--ink); white-space: nowrap; }
   .map-hdr .map-deck b { font-size: 15px; color: var(--accent-2); margin: 0 1px; }
@@ -4528,7 +4533,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.12 · setup histogram + home node + pack suit-correctness";
+const APP_VERSION = "v3.13 · hold-help persists + map banner clearance + remove Mirror";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4739,8 +4744,6 @@ const GLYPHS = {
   pillarscout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><path d="M7 17h10M8.5 17v4M12 17v4M15.5 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   // Base Scout — an eye over a foundation slab.
   basescout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><rect x="5" y="17" width="14" height="3.6" rx="1"/>',
-  // Mirror — a card and its flipped reflection across a dashed axis.
-  mirror: '<path d="M12 3v18" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><rect x="3" y="7" width="6" height="10" rx="1.5"/><rect x="15" y="7" width="6" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>',
   // Suit Snob — a monocle (judging your suits).
   suitsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   // Momentum — an accelerating ramp with motion ticks.
@@ -4781,7 +4784,7 @@ const ELEM_GLYPH = {
   changeSuitDiamond: "diamond", changeSuitClub: "club",
   quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
   snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
-  baseScout: "basescout", mirror: "mirror", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
+  baseScout: "basescout", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "heart", allSpadesCoin: "spade",
@@ -4819,7 +4822,7 @@ const STICKER_BEHAVIOR_CAT = {
   tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves",
   tribute: "bury", quickBury: "bury", snowball: "bury",
   revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek", tell: "peek",
-  duplicate: "spark", twinSpark: "spark", mirror: "spark",
+  duplicate: "spark", twinSpark: "spark",
   randomFixedValue: "rank", changeSuitTo: "rank", changeSuitRandom: "rank", wildSuit: "rank",
   heavy: "util", anchor: "util", shuffle: "util", donate: "util",
 };
@@ -4956,8 +4959,6 @@ const StickerTypes = (() => {
                   description: "On a correct placement, peek at the next upcoming card — only while a column has no Pillar." },
     baseScout:  { id: "baseScout",  label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
                   description: "On a correct placement, peek at the next upcoming card — only while a column has no Base." },
-    mirror:     { id: "mirror",     label: "Mirror",      icon: "🪞", kind: "behavior", behavior: "mirror", tier: "uncommon", price: 3,
-                  description: "On a correct placement, copy one random sticker from the pile card onto this card, for this deal." },
     suitSnob:   { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
                   description: "On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts)." },
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 3,
@@ -4977,7 +4978,7 @@ const StickerTypes = (() => {
     "deathBounty", "heavy", "collector", "compound", "revealNext", "duplicate", "wildSuit",
     "shuffle", "donate",
     "quickBury", "twinSpark", "looseChange", "snowball", "deepPockets",
-    "pillarScout", "baseScout", "mirror", "suitSnob", "momentum", "tell"];
+    "pillarScout", "baseScout", "suitSnob", "momentum", "tell"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -6743,16 +6744,6 @@ const GameEngine = (() => {
           if (typeId) projectStickerOntoCard(board.top(i), typeId);
         }
         if (targets.length) { firePillar(col, "twinSpark", "Twin Spark", 0); recT("sticker", "twinSpark", "Twin Spark", { applied: targets.length }); }
-      }
-      const mi = n("mirror");
-      if (mi > 0 && current) {
-        let mirrored = 0;
-        for (let k = 0; k < mi; k++) {
-          const pool = (current.stickers || []).filter(x => x.type !== "mirror");
-          const pick = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
-          if (pick) { projectStickerOntoCard(drawn, pick.type); mirrored++; }
-        }
-        if (mirrored > 0) recT("sticker", "mirror", "Mirror", { applied: mirrored });
       }
       // --- scouts (peek at the next upcoming card; deck-reveal treatment) ---
       const emptyPillarSlot = run.pillars ? run.pillars.some(p => !p) : false;
@@ -12017,12 +12008,16 @@ const UIRenderer = (() => {
       pileDrag = null;
       const cell = e.target.closest(".bp-cell");
       if (cell) {   // Pillar-indicator hold-to-peek
+        // Capture the pointer so the held peek tracks the finger anywhere and
+        // only ends on RELEASE (not when the finger slides off the cell).
+        try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
         const col = Number(cell.dataset.col);
         peekTimer = setTimeout(() => { peeking = true; openPillarPeek(col); }, PEEK_HOLD_MS);
         return;
       }
       const bCell = e.target.closest(".base-cell");
       if (bCell) {   // Base-indicator hold-to-peek (consistent with Pillars)
+        try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
         const col = Number(bCell.dataset.col);
         peekTimer = setTimeout(() => { peeking = true; openBasePeek(col); }, PEEK_HOLD_MS);
         return;
@@ -12053,6 +12048,9 @@ const UIRenderer = (() => {
                  && !armedSticker && armedPack == null && !armedPillar && !armedBaseItem) {
         // Setup (nothing armed): HOLD a pile to read its card + stickers, so
         // hold-for-info works consistently in setup too (not just in play).
+        // Capture the pointer so the held help survives finger movement and only
+        // closes on RELEASE (matches the in-play hold).
+        try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
         const index = Number(pileEl.dataset.index);
         peekTimer = setTimeout(() => { peeking = true; openCardPeek(index); peekTapPile = null; }, INFO_HOLD_MS);
       }
@@ -12090,7 +12088,9 @@ const UIRenderer = (() => {
       }
     };
     el.board.addEventListener("pointerup", endPeek);
-    el.board.addEventListener("pointerleave", endPeek);
+    // NOT pointerleave: a held help/peek must persist while the finger moves off
+    // the card (e.g. to slide it off the help text). Pointer capture (set on
+    // pointerdown) guarantees pointerup still reaches the board on release.
     el.board.addEventListener("pointercancel", endPeek);
 
     // Equipped Same-Power chip (beside the Same Charge): TAP toggles its

@@ -34,9 +34,10 @@ export function run() {
   {
     const ids = ["changeSuitDiamond", "changeSuitClub", "quickBury", "twinSpark",
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
-      "mirror", "suitSnob", "momentum"];
-    r.ok(ids.every(id => !!StickerTypes.get(id)), "all 12 new stickers registered");
-    r.eq(StickerTypes.all().length, 43, "sticker registry now totals 43 (with Tell)");
+      "suitSnob", "momentum"];
+    r.ok(ids.every(id => !!StickerTypes.get(id)), "all 11 new stickers registered");
+    r.eq(StickerTypes.all().length, 42, "sticker registry totals 42 (Mirror removed)");
+    r.ok(!StickerTypes.get("mirror"), "Mirror sticker is gone from the registry");
     r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank now costs 4");
     r.eq(StickerTypes.get("changeSuitDiamond").suit, "♦", "Change to ♦ locked to ♦");
     r.eq(StickerTypes.get("changeSuitDiamond").price, 2, "Change to ♦ = 2 (Stage-1 suit)");
@@ -137,15 +138,6 @@ export function run() {
     nc.stickers = [{ type: "twinSpark" }];
     e.guess(0, up ? "higher" : "lower");
     r.ok((b.top(target).stickers || []).length > before, "Twin Spark stickered a rank-matched alive pile card");
-  }
-
-  // ---- Mirror: copies a random sticker from the pile card onto the drawn card ----
-  {
-    const e = game();
-    const b = e.getBoard();
-    b.top(0).stickers = [{ type: "anchor" }];   // the pile card to mirror FROM
-    const nc = land(e, 0, ["mirror"]);
-    r.ok((b.top(0).stickers || []).some(x => x.type === "anchor"), "Mirror copied the pile card's sticker onto the drawn card");
   }
 
   // ---- Pillar Scout / Base Scout: peek only when a matching slot is empty ----
