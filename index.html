@@ -270,15 +270,19 @@
   .suit-counts .sc-num { color: var(--muted); font-weight: 700; }
   .suit-counts .sc-num b { color: var(--ink); font-weight: 800; }
 
-  /* ── #3 DEAL-STATUS ROW — surviving piles × smallest pile + bonus, between the
-     histogram and the board (its own glance row, out of the top bar). ────────── */
-  .deal-status { display: flex; align-items: center; justify-content: center;
-    width: min(96vw, 460px); margin: 3px auto 1px; }
+  /* ── #3 DEAL-STATUS ROW — the CLEAR-REWARD factors (surviving piles × smallest
+     surviving pile + bonus), each labelled, between the histogram and the board
+     (its own glance row, out of the top bar). ──────────────────────────────── */
+  .deal-status { display: flex; align-items: baseline; justify-content: center; gap: 8px;
+    width: min(98vw, 500px); margin: 3px auto 1px; flex-wrap: wrap; }
+  .deal-status .ds-cap { font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--accent-2); }
   .deal-status .hud-score { color: var(--text); display: inline-flex; align-items: baseline;
     gap: 1px; white-space: nowrap; font-weight: 700; }
-  .deal-status .hud-score b { font-size: 18px; font-weight: 800; }
-  .deal-status .hud-score .hl { font-size: 9.5px; color: var(--muted); margin: 0 5px 0 1px; text-transform: uppercase; }
-  .deal-status .hud-score .hx { color: var(--muted); font-size: 14px; margin: 0 3px; }
+  .deal-status .hud-score b { font-size: 17px; font-weight: 800; margin: 0 1px; }
+  .deal-status .hud-score .hl { font-size: 9px; color: var(--muted); margin: 0 1px 0 7px;
+    text-transform: uppercase; letter-spacing: 0.3px; font-weight: 800; }
+  .deal-status .hud-score .hx { color: var(--muted); font-size: 13px; margin: 0 2px; }
   /* The SAME guess button also glows while a charge is banked (contextual cue). */
   .btn.same.charged { box-shadow: 0 0 0 2px var(--amber), 0 2px 8px rgba(0,0,0,0.2); }
   /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
@@ -845,27 +849,35 @@
   body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: visible; }
 
   /* ============================================================
-     THUMB-REACH DEAL LAYOUT (body.thumb-deal) — frequency-of-use ↔ reachability:
-     glance-only histogram + deck at the TOP, the board NARROWED + CENTRED (outer
-     columns pulled in from the hard-to-reach edges), and the constantly-tapped
-     guess buttons in the BOTTOM control strip (the comfortable thumb arc). Reuses
-     the existing histogram / deck / button components — repositions + resizes only.
+     THUMB-REACH DEAL LAYOUT (body.thumb-deal): glance-only histogram + deck at
+     the TOP, the guess buttons in their OWN narrow LEFT strip (off the board) as
+     compact SYMBOL buttons, and the board filling the rest — wider AND taller
+     (the freed bottom space lets the cards grow). Reuses the existing histogram /
+     deck / button components — repositions + resizes only.
      ============================================================ */
-  /* TOP — the histogram+deck band rides just under the HUD, kept compact. */
-  body.thumb-deal #histBand { margin: 3px auto 0; max-width: min(96vw, 520px); padding: 4px 9px; }
-  /* MIDDLE — narrow + centre the board so the side columns are easier to reach.
-     ~84vw is the target; capped so the linked web never re-crowds the centre. */
-  body.thumb-deal .play-row { max-width: min(84vw, 520px); margin: 0 auto; gap: 0; }
-  body.thumb-deal .rail { display: none; }       /* no side rail — the board reclaims + centres the width */
-  /* BOTTOM — the guess buttons sit in the bottom control strip as big thumb
-     targets (they stay in .play-controls, so the swipe-input rail-hide never
-     reaches them). Reserve the zone via main's bottom padding so the absolute
-     control strip never overlaps the board. */
-  body.thumb-deal main { padding-bottom: 64px; }
+  /* TOP — the histogram+deck band rides just under the HUD; its children are
+     vertically CENTRED so the suit-count chart and the rank histogram align. */
+  body.thumb-deal #histBand { margin: 3px auto 0; max-width: min(96vw, 520px); padding: 4px 9px; align-items: center; }
+  body.thumb-deal #histBand .deck-strip { align-self: center; }
+  /* LEFT — the guess buttons get their own dedicated strip beside the board (a
+     distinct region, not over the board). Compact width; full play-area height. */
+  body.thumb-deal .play-row { max-width: min(99vw, 640px); margin: 0 auto; gap: 7px; align-items: stretch; }
+  body.thumb-deal .rail { display: flex; flex: 0 0 50px; min-width: 50px; padding: 0; }
+  body.thumb-deal .rail #actions {
+    display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr 0.82fr 1fr;
+    gap: 8px; width: 100%; height: 100%; min-height: 0; align-items: stretch;
+  }
+  body.thumb-deal .rail #actions.hidden { visibility: hidden; }   /* keep the strip reserved (no board shift on Start) */
+  body.thumb-deal .rail #actions .btn {
+    width: 100%; height: 100%; padding: 0; border-radius: 13px; font-size: 33px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  body.thumb-deal .rail #actions .btn.same { font-size: 28px; align-self: stretch; }
+  /* BOARD — fills the width right of the strip and the full vertical space; only a
+     slim bottom zone is reserved for the Start Deal / prompt bar. */
+  body.thumb-deal .play-row .board { flex: 1 1 auto; }
+  body.thumb-deal main { padding-bottom: 50px; }
   body.thumb-deal .play-controls { bottom: 8px; width: min(96vw, 460px); }
-  body.thumb-deal .actions { width: 100%; gap: 10px; min-height: 54px; }
-  body.thumb-deal .actions .btn { padding: 16px 6px; font-size: 16px; border-radius: 14px; }
-  body.thumb-deal .actions .btn.same { padding: 16px 4px; font-size: 13px; }
   body.thumb-deal .play-controls .play-btn { padding: 13px 22px; font-size: 15px; }
 
   /* ============================================================
@@ -875,9 +887,10 @@
      (touch-action:none) so a sideways Same can never trigger Safari edge-swipe
      back/forward. A floating label shows the live direction near the finger.
      ============================================================ */
-  body.swipe-input.guess-side .rail { flex-basis: 0; width: 0; min-width: 0; padding: 0; gap: 0; overflow: hidden; }
-  body.swipe-input.guess-side .rail #actions { display: none; }
-  body.swipe-input .play-row { gap: 0; }
+  /* (Not in thumb-deal: that layout shows the buttons in the left rail.) */
+  body.swipe-input.guess-side:not(.thumb-deal) .rail { flex-basis: 0; width: 0; min-width: 0; padding: 0; gap: 0; overflow: hidden; }
+  body.swipe-input.guess-side:not(.thumb-deal) .rail #actions { display: none; }
+  body.swipe-input:not(.thumb-deal) .play-row { gap: 0; }
   /* The board captures all touch so the game owns every swipe (no page scroll,
      no horizontal edge-swipe navigation, no pinch) while playing on it. */
   body.swipe-input .board { touch-action: none; overscroll-behavior: none; }
@@ -4130,12 +4143,14 @@
     <!-- Deal-status row: surviving piles × smallest pile + bonus. Its own glance
          row, between the top histogram band and the board (relocated from the
          top bar). Same info + same element ids — only the position changed. -->
-    <div class="deal-status" id="dealStatus" title="Your coins for clearing the deal: surviving piles × the smallest surviving pile, plus bonus">
+    <div class="deal-status" id="dealStatus" title="Coins you'll earn clearing this deal: surviving piles × the smallest surviving pile, plus bonus">
+      <span class="ds-cap">Clear reward</span>
       <span class="hud-score">
-        <b id="aliveCount">9</b><span class="hl">P</span>
+        <span class="hl">Piles</span><b id="aliveCount">9</b>
         <span class="hx">×</span>
-        <b id="minPileCount" class="min-accent">1</b><span class="hl">S</span>
-        <b id="bonusCoins" class="bonus-accent">+0</b>
+        <span class="hl">Smallest</span><b id="minPileCount" class="min-accent">1</b>
+        <span class="hx">+</span>
+        <span class="hl">Bonus</span><b id="bonusCoins" class="bonus-accent">+0</b>
       </span>
     </div>
     <!-- Play row: the left rail (vertical pip matrix + deck count) beside the
@@ -4174,9 +4189,9 @@
         <span class="pl-ico">▲</span><span class="pl-label">Place</span><span class="pl-n" id="placeLauncherN">0</span>
       </button>
       <div class="actions hidden" id="actions">
-        <button class="btn higher" id="btnHigher">HIGHER</button>
-        <button class="btn same" id="btnSame">SAME</button>
-        <button class="btn lower" id="btnLower">LOWER</button>
+        <button class="btn higher" id="btnHigher" aria-label="Higher" title="Higher">▲</button>
+        <button class="btn same" id="btnSame" aria-label="Same" title="Same">＝</button>
+        <button class="btn lower" id="btnLower" aria-label="Lower" title="Lower">▼</button>
       </div>
       <!-- First-turn help, shown in the guess-button row before any pile is
            tapped (replaced by the buttons on the first selection). -->
@@ -4729,7 +4744,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.23 · suit-count chart, suit progress tracker, deal-status row, bigger Same Charge";
+const APP_VERSION = "v3.24 · left guess-button strip (symbols), bigger board, labeled status";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11171,8 +11186,11 @@ const UIRenderer = (() => {
       const main = document.querySelector("main");
       if (main && main.firstElementChild !== el.histBand) main.insertBefore(el.histBand, main.firstElementChild);
     }
-    // The guess buttons STAY in the bottom .play-controls (the thumb zone); they
-    // are NOT moved to the side rail (which this layout hides).
+    // The guess buttons live in their OWN dedicated LEFT strip (the rail), off the
+    // board — compact symbol buttons stacked vertically. (Swipe-on-board still
+    // works; the buttons are an additional, always-visible control.)
+    const rail = document.getElementById("rail");
+    if (rail && el.actions) rail.appendChild(el.actions);
   }
 
   function renderDeckStrip() {
