@@ -199,7 +199,7 @@ export function run() {
     // +1 → pickup (single card); +2 or more → pack with that count.
     const packs = ph.nodes.filter(n => n.type === "pack").map(n => n.packCount).sort((a, b) => a - b);
     r.eq(packs.join(","), "3,3,3,5,5,5", "packs are the +3/+5 nodes (three each)");
-    r.eq(ph.nodes.filter(n => n.type === "pickup").length, 10, "ten single-card (+1) nodes");
+    r.eq(ph.nodes.filter(n => n.type === "pickup").length, 9, "nine single-card (+1) nodes (D-13-2 / c_1i was removed)");
   }
 
   // ---- the EXPLICIT map spec (node list + edge list + tiers) maps 1:1 -----

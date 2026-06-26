@@ -4364,7 +4364,7 @@
            Cards (deck) view inline with Start to save a whole row. -->
       <div class="store-actions">
         <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
-        <button class="play-btn store-start" id="storeStartBtn" type="button">START DEAL</button>
+        <button class="play-btn store-start" id="storeStartBtn" type="button">GO TO MAP</button>
       </div>
     </div>
   </div>
@@ -4685,7 +4685,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.21 · swipe lights the armed guess button, dims the rest";
+const APP_VERSION = "v3.22 · store button label + remove map node D-13-2";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6145,7 +6145,6 @@ const RunMap = (() => {
         { id: "c_1g",   type: "card",  add: 1,    tier: 12, x: 0.38 },  // +1D (21-25)
         { id: "c_1h",   type: "card",  add: 1,    tier: 12, x: 0.52 },  // +1D (21-25)
 
-        { id: "c_1i",   type: "card",  add: 1,    tier: 13, x: 0.40 },  // +1D (22-26)
         { id: "c_1j",   type: "card",  add: 1,    tier: 13, x: 0.54 },  // +1D (22-26)
 
         // two stores flanking the final approach
@@ -6189,14 +6188,14 @@ const RunMap = (() => {
 
         // middle cards climbing and recombining
         ["c_1e", "c_1g"], ["c_1f", "c_1g"], ["c_1f", "c_1h"],
-        ["c_1g", "c_1i"], ["c_1h", "c_1j"],
+        ["c_1h", "c_1j"],
 
         // right side: +3 up to shop4
         ["c_3c", "shop4"],
 
         // everything converges on the boss
         ["shop3", "boss"],
-        ["c_1i", "boss"], ["c_1j", "boss"],
+        ["c_1g", "boss"], ["c_1j", "boss"],   // D-12-L (c_1g) now reaches the boss directly (D-13-2 / c_1i removed)
         ["shop4", "boss"],
       ],
     },
