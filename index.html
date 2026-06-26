@@ -4175,13 +4175,8 @@
     </div>
 
     <div class="store-shelf z-mix">
-      <div class="shelf-h"><span class="lbl">Items</span><span class="rule"></span><span class="tag">base · pillar · pack</span></div>
+      <div class="shelf-h"><span class="lbl">Items</span><span class="rule"></span><span class="tag">base · pillar · pack · same-power</span></div>
       <div class="store-row big" id="storeMixed"></div>
-    </div>
-
-    <div class="store-shelf z-same">
-      <div class="shelf-h"><span class="lbl">Same-Power</span><span class="rule"></span><span class="tag">what a correct Same does · equip one</span></div>
-      <div class="store-row big" id="storeSame"></div>
     </div>
 
     <div class="store-msg" id="storeMsg"></div>
@@ -4511,7 +4506,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.09 · map player avatar (card-box character: travel + collect)";
+const APP_VERSION = "v3.10 · camera-on-player + same-power in rotation + node spacing";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8285,14 +8280,16 @@ const CampaignState = (() => {
      replaces ALL slots and costs REROLL_BASE_COST, climbing REROLL_STEP per
      reroll within a visit; it resets to base when the store re-opens. */
   const STORE_STICKER_SLOTS = 3;       // three individual sticker slots per visit
-  const STORE_MIXED_SLOTS = 3;         // three mixed slots: each a Base / Pillar / Pack
-  const STORE_SAMEPOWER_SLOTS = 1;     // one dedicated Same-Power slot (own section)
+  const STORE_MIXED_SLOTS = 3;         // three mixed slots: Base / Pillar / Pack / Same-Power
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
   // Category odds for ONE mixed slot (drawn independently per slot). Bases and
-  // Pillars are the core build items (equal weight); Packs are a less-frequent
-  // bonus. Tune freely — base:pillar:pack = 2:2:1 → 40% / 40% / 20%.
-  const MIXED_KIND_WEIGHTS = { base: 2, pillar: 2, pack: 1 };
+  // Pillars are the core build items (equal weight); Packs and Same-Powers are
+  // the less-frequent bonuses. Same-Powers fold into the normal rotation here
+  // (no dedicated slot) — base:pillar:pack:samepower = 2:2:1:1 → samepower is
+  // 1/6 (≈16.7%) per slot, so with 3 slots a Same-Power surfaces in ≈42% of
+  // store visits (1 − (5/6)^3). Tune freely.
+  const MIXED_KIND_WEIGHTS = { base: 2, pillar: 2, pack: 1, samepower: 1 };
 
   // Store-offer rarity weights by tier: commons show up most, rares least.
   // These only bias HOW OFTEN a type is OFFERED — never its price.
@@ -8387,24 +8384,26 @@ const CampaignState = (() => {
     return true;
   }
 
-  /** Pick ONE mixed-slot category (base / pillar / pack) by MIXED_KIND_WEIGHTS. */
+  /** Pick ONE mixed-slot category (base / pillar / pack / samepower) by MIXED_KIND_WEIGHTS. */
   function rollMixedKind(rng = Math.random) {
-    const entries = [["base", MIXED_KIND_WEIGHTS.base], ["pillar", MIXED_KIND_WEIGHTS.pillar], ["pack", MIXED_KIND_WEIGHTS.pack]];
+    const entries = [["base", MIXED_KIND_WEIGHTS.base], ["pillar", MIXED_KIND_WEIGHTS.pillar],
+                     ["pack", MIXED_KIND_WEIGHTS.pack], ["samepower", MIXED_KIND_WEIGHTS.samepower]];
     const total = entries.reduce((a, e) => a + e[1], 0) || 1;
     let r = rng() * total;
     for (const [kind, w] of entries) { if ((r -= w) < 0) return kind; }
     return "base";
   }
   /** Roll `n` INDEPENDENT mixed slots. Each picks a category by weight, then one
-      id from that category's (suit-gated) pool by the SAME rarity weighting as
-      every other slot. Each slot is { kind, id }. Dupes across slots are allowed
-      (the draws are independent) — rare for Bases/Pillars, possible for Packs. */
+      id from that category's pool by the SAME rarity weighting as every other
+      slot. Each slot is { kind, id }. Dupes across slots are allowed (the draws
+      are independent). Same-Powers (not suit-gated) share this rotation now. */
   function rollMixed(n, rng, pillarPool, basePool) {
     const out = [];
     for (let i = 0; i < n; i++) {
       const kind = rollMixedKind(rng);
-      const pool = kind === "pillar" ? (pillarPool || PillarTypes.all())
-                 : kind === "base"   ? (basePool || BaseTypes.all())
+      const pool = kind === "pillar"    ? (pillarPool || PillarTypes.all())
+                 : kind === "base"      ? (basePool || BaseTypes.all())
+                 : kind === "samepower" ? SamePowerTypes.all()
                  : PackTypes.all();
       const id = rollIds(pool, 1, rng)[0];
       out.push(id ? { kind, id } : null);
@@ -8419,10 +8418,8 @@ const CampaignState = (() => {
   function freshOffer(rng = Math.random, stickerPool, pillarPool, basePool) {
     return {
       stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
+      // Mixed slots now include Same-Powers in the normal rotation (no dedicated slot).
       mixed: rollMixed(STORE_MIXED_SLOTS, rng, pillarPool, basePool),
-      // Same-Powers get their OWN dedicated slot (never mixed into bases/pillars).
-      // Not suit-gated, so they roll from the full registry by rarity weight.
-      samePowers: rollIds(SamePowerTypes.all(), STORE_SAMEPOWER_SLOTS, rng),
       rerollCost: REROLL_BASE_COST,
     };
   }
@@ -9197,7 +9194,6 @@ const CampaignState = (() => {
         const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
         storeOffer.stickers = f.stickers;
         storeOffer.mixed = f.mixed;
-        storeOffer.samePowers = f.samePowers;
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
@@ -9230,8 +9226,9 @@ const CampaignState = (() => {
       priceOfMixed(i) {
         const s = storeOffer && storeOffer.mixed ? storeOffer.mixed[i] : null;
         if (!s) return 0;
-        return s.kind === "pillar" ? this.priceOfPillar(s.id)
-             : s.kind === "base"   ? this.priceOfBase(s.id)
+        return s.kind === "pillar"    ? this.priceOfPillar(s.id)
+             : s.kind === "base"      ? this.priceOfBase(s.id)
+             : s.kind === "samepower" ? this.priceOfSamePower(s.id)
              : this.priceOfPack(s.id);
       },
 
@@ -9251,6 +9248,10 @@ const CampaignState = (() => {
         if (s.kind === "base") {
           if (!this.buyBaseToInventory(s.id)) return { ok: false };
           storeOffer.mixed[i] = null; return { ok: true, kind: "base" };
+        }
+        if (s.kind === "samepower") {
+          if (!this.buySamePowerToInventory(s.id)) return { ok: false };
+          storeOffer.mixed[i] = null; return { ok: true, kind: "samepower" };
         }
         if (s.kind === "pack") {
           const t = PackTypes.get(s.id);
@@ -12424,8 +12425,7 @@ const UIRenderer = (() => {
       const kind = el.sdBuy.dataset.kind;
       el.storeDetail.classList.add("hidden");
       if (kind === "sticker") confirmBuySticker();
-      else if (kind === "samepower") confirmBuySamePower();
-      else confirmBuyMixed();
+      else confirmBuyMixed();   // mixed slot: base / pillar / pack / same-power
     });
     // Dismiss the detail: tap the backdrop or the ✕ (a tap on the panel is kept).
     el.sdClose.addEventListener("click", closeStoreDetail);
@@ -15549,10 +15549,40 @@ const UIRenderer = (() => {
      visually distinct, deal/boss nodes show their pile count, and each node is
      tinted by its phase. Per-phase bands + labels mark where one suit hands off
      to the next. */
-  const MAP_ROW_H = 96, MAP_PAD = 46, MAP_W = 330;
+  const MAP_ROW_H = 104, MAP_PAD = 46, MAP_W = 348;
+  const MAP_MIN_GAP = 60;   // min horizontal centre-to-centre spacing within a row (node footprint + margin)
   const SUIT_PHASE_NAME = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
   const SUIT_CLASS = { "♦": "d", "♣": "c", "♠": "s", "♥": "h" };
-  function mapNodeXY(n, R) { return { x: MAP_PAD + n.x * (MAP_W - 2 * MAP_PAD), y: MAP_PAD + (R - 1 - n.row) * MAP_ROW_H }; }
+  /* Per-row LAYOUT: the authored x's can place same-row nodes too close (cards
+     overlapping). We keep the structure (rows/edges/order) and only SPACE nodes:
+     each row's nodes are pushed apart to MAP_MIN_GAP, then re-centred in the
+     usable width — so no node overlaps its neighbour. Cached per map (stable for
+     a run); mapNodeXY reads it, so nodes, edges and the avatar all agree. */
+  let _mapLayoutKey = null, _mapLayoutX = null;
+  function buildMapLayout(map) {
+    const usable = MAP_W - 2 * MAP_PAD, lo = MAP_PAD, hi = MAP_W - MAP_PAD;
+    const byRow = {}; map.nodes.forEach(n => { (byRow[n.row] = byRow[n.row] || []).push(n); });
+    const xById = {};
+    Object.keys(byRow).forEach(rk => {
+      const row = byRow[rk].slice().sort((a, b) => a.x - b.x);
+      const px = row.map(n => lo + n.x * usable);
+      for (let i = 1; i < px.length; i++) if (px[i] < px[i - 1] + MAP_MIN_GAP) px[i] = px[i - 1] + MAP_MIN_GAP;
+      const span = px[px.length - 1] - px[0];
+      // Re-centre the spread group in the usable band (keeps the route centred).
+      let shift = (lo + hi) / 2 - (px[0] + span / 2);
+      if (px[0] + shift < lo) shift = lo - px[0];
+      if (px[px.length - 1] + shift > hi) shift = hi - px[px.length - 1];
+      row.forEach((n, i) => { xById[n.id] = px[i] + shift; });
+    });
+    return xById;
+  }
+  function mapNodeXY(n, R) {
+    const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
+    if (map && _mapLayoutKey !== map) { _mapLayoutX = buildMapLayout(map); _mapLayoutKey = map; }
+    const x = (_mapLayoutX && _mapLayoutX[n.id] != null) ? _mapLayoutX[n.id] : (MAP_PAD + n.x * (MAP_W - 2 * MAP_PAD));
+    const rows = (R != null) ? R : (map ? map.totalRows : 1);
+    return { x, y: MAP_PAD + (rows - 1 - n.row) * MAP_ROW_H };
+  }
   /** The suit a node belongs to (its own draft/deal/boss suit, else its phase's). */
   function nodeSuit(n, map) { return n.suit || (map.phases && map.phases[n.phase] && map.phases[n.phase].suit) || "♦"; }
   /* A real DEAL-SCREEN card face, reusing the board card's exact markup + CSS
@@ -15823,15 +15853,17 @@ const UIRenderer = (() => {
     el.mapOverlay.classList.remove("hidden");
     mountHistOnMap();      // the deal-screen deck panel rides along, fed the accumulated deck
     updateBoardMotion();   // board covered by the map → pause its card animations
-    // Centre on the current position (the marker), else show the bottom (start).
-    const here = el.mapTrack.querySelector(".pm-node.s-here") || el.mapTrack.querySelector(".phase-map");
-    if (here && campaign.nodePos() != null) {
-      const rRect = here.getBoundingClientRect();
+    // Camera DEFAULTS to the PLAYER: centre the view on the avatar (which marks
+    // the current node, or the virtual start before the first move), so "you are
+    // here" + the reachable moves are immediately in view (clamped at the edges).
+    const target = mapAvatarEl || el.mapTrack.querySelector(".pm-node.s-here");
+    if (target) {
+      const tRect = target.getBoundingClientRect();
       const sRect = el.mapScroll.getBoundingClientRect();
-      const delta = (rRect.top - sRect.top) - (el.mapScroll.clientHeight - rRect.height) / 2;
+      const delta = (tRect.top - sRect.top) - (el.mapScroll.clientHeight - tRect.height) / 2;
       el.mapScroll.scrollTop = Math.max(0, el.mapScroll.scrollTop + delta);
     } else {
-      el.mapScroll.scrollTop = el.mapScroll.scrollHeight;   // start → show the bottom
+      el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
   }
   function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); unmountHistFromMap(); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
@@ -15965,7 +15997,7 @@ const UIRenderer = (() => {
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
   // Indexed deterministically by (row, slot) so a given slot always tilts the same.
   const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
-  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1, samepower: 2 };
+  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1, samepower: 1 };
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -15988,7 +16020,10 @@ const UIRenderer = (() => {
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled");
-    btn.dataset[kind === "sticker" ? "slot" : kind === "samepower" ? "spslot" : "mslot"] = slot;
+    // Slot key is by ROW: stickers → slot; everything else (incl. same-power,
+    // which now lives in a mixed slot) → mslot, so the mixed-row click handler
+    // reads it correctly.
+    btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
     // The OBJECT ITSELF is the shelf item — the SAME component shown when
     // installed in-game. No name / kind / tier text tags: rarity lives in the
     // object (sticker die-cut border, pillar cloth trim, base metal tone, pack
@@ -16049,15 +16084,10 @@ const UIRenderer = (() => {
       if (!id) return;
       kind = "sticker"; price = campaign.priceOf(id);
       selectedStickerSlot = slot; selectedMixedSlot = null; selectedSamePowerSlot = null;
-    } else if (row === "samepower") {
-      id = offer.samePowers ? offer.samePowers[slot] : null;
-      if (!id) return;
-      kind = "samepower"; price = campaign.priceOfSamePower(id);
-      selectedSamePowerSlot = slot; selectedStickerSlot = null; selectedMixedSlot = null;
     } else {
       const s = offer.mixed[slot];
       if (!s) return;
-      kind = s.kind; id = s.id; price = campaign.priceOfMixed(slot);
+      kind = s.kind; id = s.id; price = campaign.priceOfMixed(slot);   // kind may be samepower now
       selectedMixedSlot = slot; selectedStickerSlot = null; selectedSamePowerSlot = null;
     }
     const info = describeItem(kind, id);
@@ -16081,7 +16111,9 @@ const UIRenderer = (() => {
     el.sdDesc.textContent = info.desc || "";
     const afford = campaign.getCoins() >= price;
     el.sdBuy.disabled = !afford;
-    el.sdBuy.dataset.kind = kind === "sticker" ? "sticker" : kind === "samepower" ? "samepower" : "mixed";
+    // Dispatch by ROW, not item kind: a Same-Power now lives in a mixed slot, so
+    // it's bought via confirmBuyMixed (which dispatches on the slot's kind).
+    el.sdBuy.dataset.kind = row === "sticker" ? "sticker" : "mixed";
     el.sdBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
     el.storeDetail.classList.remove("hidden");
   }
@@ -16102,25 +16134,18 @@ const UIRenderer = (() => {
     (offer ? offer.stickers : []).forEach((id, slot) =>
       el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
     padRow(el.storeItems, STORE_STICKER_SLOTS);
-    // Row 2: three mixed slots (each a base / pillar / pack, per its kind).
+    // Row 2: three mixed slots — each a base / pillar / pack / same-power, per
+    // its kind (Same-Powers now fold into this normal rotation; no own slot).
     el.storeMixed.innerHTML = "";
     (offer && offer.mixed ? offer.mixed : []).forEach((s, slot) =>
       el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
     padRow(el.storeMixed, STORE_MIXED_SLOTS);
-    // Row 3: the dedicated Same-Power slot.
-    if (el.storeSame) {
-      el.storeSame.innerHTML = "";
-      (offer && offer.samePowers ? offer.samePowers : []).forEach((id, slot) =>
-        el.storeSame.appendChild(offerTile(id, slot, "samepower", selectedSamePowerSlot === slot)));
-      for (let i = (offer && offer.samePowers ? offer.samePowers.length : 0); i < STORE_SAMEPOWER_SLOTS; i++)
-        el.storeSame.appendChild(offerTile(null, i, "samepower", false));
-    }
     updateRerollButton();
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
   // Slot counts the UI mirrors from the engine config (kept in sync there).
-  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3, STORE_SAMEPOWER_SLOTS = 1;
+  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
@@ -16155,7 +16180,14 @@ const UIRenderer = (() => {
     if (res.kind === "pillar" || res.kind === "base") {
       try { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.flush(); } catch (e) {}
     }
-    if (res.kind === "pack") {
+    if (res.kind === "samepower") {
+      const t = SamePowerTypes.get(s.id);
+      try { Telem.purchase("samepower", s.id, t && t.label); Telem.flush(); } catch (e) {}
+      if (engine) engine.logAction("Store: bought Same-Power " + ((t && t.label) || s.id) + " → inventory");
+      el.storeMsg.textContent = "Same-Power bought — equip it during setup.";
+      renderStore();
+      refreshDebug();
+    } else if (res.kind === "pack") {
       if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
       // Tear-open: rip the foil on the bought pack, THEN reveal its real objects.
       const tile = el.storeMixed.querySelector('.store-tile[data-mslot="' + slot + '"] .pack-foil');

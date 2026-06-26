@@ -6,14 +6,16 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes } = loadGame();
+  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes } = loadGame();
   const r = makeRunner("store-offer.test.mjs");
   const stickerIds = new Set(StickerTypes.ids);
   const pillarIds = new Set(PillarTypes.ids);
   const baseIds = new Set(BaseTypes.ids);
   const packIds = new Set(PackTypes.ids);
+  const samePowerIds = new Set(SamePowerTypes.ids);
   const idOk = (kind, id) => kind === "pillar" ? pillarIds.has(id)
-    : kind === "base" ? baseIds.has(id) : kind === "pack" ? packIds.has(id) : false;
+    : kind === "base" ? baseIds.has(id) : kind === "pack" ? packIds.has(id)
+    : kind === "samepower" ? samePowerIds.has(id) : false;
 
   // Open the store repeatedly until a mixed slot of `kind` is offered; return
   // { c, slot, id }. (Mixed draws are random; a few opens always suffice.)
@@ -35,10 +37,30 @@ export function run() {
     r.eq(offer.mixed.length, 3, "offer has 3 mixed slots");
     r.eq(offer.stickers.length + offer.mixed.length, 6, "exactly 6 slots per visit");
     r.ok(offer.stickers.every(id => stickerIds.has(id)), "all offered stickers are real registry ids");
-    r.ok(offer.mixed.every(s => s && ["base", "pillar", "pack"].includes(s.kind)),
-      "every mixed slot is a base / pillar / pack");
+    r.ok(offer.mixed.every(s => s && ["base", "pillar", "pack", "samepower"].includes(s.kind)),
+      "every mixed slot is a base / pillar / pack / same-power");
     r.ok(offer.mixed.every(s => idOk(s.kind, s.id)), "every mixed slot's id is real for its kind");
     r.eq(offer.rerollCost, 3, "reroll cost starts at 3");
+    r.eq(offer.samePowers, undefined, "no dedicated Same-Power slot (folded into the mixed rotation)");
+  }
+
+  // --- Same-Powers now surface PERIODICALLY in the mixed rotation -------
+  {
+    const c = CampaignState.create();
+    const count = { base: 0, pillar: 0, pack: 0, samepower: 0 }, N = 3000;
+    for (let i = 0; i < N; i++) c.openStore().mixed.forEach(s => { if (s) count[s.kind]++; });
+    r.ok(count.samepower > 0, "Same-Powers appear in mixed slots");
+    // weight 1 of base:2 pillar:2 pack:1 samepower:1 (total 6) → ≈1/6 per slot.
+    const share = count.samepower / (N * 3);
+    r.ok(share > 0.11 && share < 0.23, "Same-Power share ≈1/6 per mixed slot (got " + share.toFixed(3) + ")");
+    // can be bought from a mixed slot into the Same-Power inventory.
+    c.addCoins(200);
+    const found = findMixed(c, "samepower");
+    const before = c.samePowerInventoryCount(found.id);
+    const res = c.buyMixedSlot(found.slot, () => 0.5);
+    r.ok(res.ok && res.kind === "samepower", "buying a mixed Same-Power slot succeeds");
+    r.eq(c.samePowerInventoryCount(found.id), before + 1, "the bought Same-Power lands in inventory");
+    r.eq(c.getStoreOffer().mixed[found.slot], null, "that mixed slot is now empty");
   }
 
   // --- Mixed slots draw all three kinds; packs are the rarer category --
