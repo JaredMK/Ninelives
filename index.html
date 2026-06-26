@@ -798,12 +798,14 @@
   body.peek-band #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
   body.peek-band #histBand .peek-info .pk-desc { font-size: 11.5px; margin-top: 0; }
   body.peek-band #histBand .peek-info .pk-state { margin-top: 2px; }
-  body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: auto; background: none; border: none; padding: 0; }
-  body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; }
+  /* Fixed strip height = a STABLE container the dynamic pip scaling measures
+     (renderDeckStrip), so the histogram fits inside it at any deck size. */
+  body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: 56px; background: none; border: none; padding: 0; }
+  body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; overflow: hidden; }
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
   body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 9px; }
-  body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; width: 100%; min-width: 0; }
-  body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: 9px; min-width: 0; border-radius: 2.5px; }
+  body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: var(--ds-pip-gap, 2px); width: 100%; min-width: 0; }
+  body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: var(--ds-pip-h, 9px); min-width: 0; min-height: 0; border-radius: 2.5px; }
   /* Prominent deck chip in the strip (un-scaled, big count). */
   body.guess-side #histBand .deck-stack { flex: none; transform: none; align-self: center;
     background: rgba(255,255,255,0.55); border: 1px solid rgba(74,52,44,0.10); border-radius: 11px; padding: 4px 8px; }
@@ -11210,6 +11212,26 @@ const UIRenderer = (() => {
     // so every notch is the same width and the longest bar fills its slot.
     let axisMax = 1;
     full.rows.forEach(r => { if (r.count > axisMax) axisMax = r.count; });
+    // DYNAMIC FIT (guess-side vertical columns): scale the pip height AND the
+    // inter-pip gap so the TALLEST column (axisMax pips) always fits the strip's
+    // actual pixel height — so it never overflows as a rank accumulates copies in
+    // a big late-game deck (40+ cards). The strip has a fixed pixel height (CSS),
+    // so this measures a STABLE container, not the (circular) content height. Each
+    // pip gets an equal "slot" = avail/axisMax, split into pip (72%) + gap (28%);
+    // all columns share the SAME scale (a true axis). (#ds-bars also has
+    // overflow:hidden as a hard backstop.)
+    if (guessSide() && el.deckStrip) {
+      const stripH = el.deckStrip.clientHeight || (el.deckStripBars && el.deckStripBars.clientHeight) || 0;
+      if (stripH > 8) {
+        const RANK_LABEL_H = 13;                         // room for the rank label under each column
+        const avail = Math.max(8, stripH - RANK_LABEL_H);
+        const slot = avail / axisMax;
+        const pipH = Math.max(1, Math.min(10, slot * 0.72));
+        const gapH = Math.max(0.5, Math.min(2.5, slot * 0.28));
+        el.deckStrip.style.setProperty("--ds-pip-h", pipH.toFixed(2) + "px");
+        el.deckStrip.style.setProperty("--ds-pip-gap", gapH.toFixed(2) + "px");
+      }
+    }
     // Each rank shows notches equal to its OWN total count — GREY for the full
     // count (drawn portion), PINK for how many remain. Order: bottom band runs
     // 2→A (left→right); the side rail runs A→2 (top→bottom). data-value +
