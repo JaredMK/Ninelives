@@ -808,6 +808,30 @@
   body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: visible; }
 
   /* ============================================================
+     THUMB-REACH DEAL LAYOUT (body.thumb-deal) — frequency-of-use ↔ reachability:
+     glance-only histogram + deck at the TOP, the board NARROWED + CENTRED (outer
+     columns pulled in from the hard-to-reach edges), and the constantly-tapped
+     guess buttons in the BOTTOM control strip (the comfortable thumb arc). Reuses
+     the existing histogram / deck / button components — repositions + resizes only.
+     ============================================================ */
+  /* TOP — the histogram+deck band rides just under the HUD, kept compact. */
+  body.thumb-deal #histBand { margin: 3px auto 0; max-width: min(96vw, 520px); padding: 4px 9px; }
+  /* MIDDLE — narrow + centre the board so the side columns are easier to reach.
+     ~84vw is the target; capped so the linked web never re-crowds the centre. */
+  body.thumb-deal .play-row { max-width: min(84vw, 520px); margin: 0 auto; gap: 0; }
+  body.thumb-deal .rail { display: none; }       /* no side rail — the board reclaims + centres the width */
+  /* BOTTOM — the guess buttons sit in the bottom control strip as big thumb
+     targets (they stay in .play-controls, so the swipe-input rail-hide never
+     reaches them). Reserve the zone via main's bottom padding so the absolute
+     control strip never overlaps the board. */
+  body.thumb-deal main { padding-bottom: 64px; }
+  body.thumb-deal .play-controls { bottom: 8px; width: min(96vw, 460px); }
+  body.thumb-deal .actions { width: 100%; gap: 10px; min-height: 54px; }
+  body.thumb-deal .actions .btn { padding: 16px 6px; font-size: 16px; border-radius: 14px; }
+  body.thumb-deal .actions .btn.same { padding: 16px 4px; font-size: 13px; }
+  body.thumb-deal .play-controls .play-btn { padding: 13px 22px; font-size: 15px; }
+
+  /* ============================================================
      SWIPE INPUT (isolated + revertable via SWIPE_INPUT / body.swipe-input)
      The guess buttons are removed and the rail collapses, so the board reclaims
      that width. Guesses are swipes on a pile; the board OWNS the gesture
@@ -3482,7 +3506,7 @@
   .map-foot {
     position: relative; z-index: 2; flex: 0 0 auto; width: 100%;
     display: flex; justify-content: center;
-    padding: 3px 6px calc(5px + env(safe-area-inset-bottom));
+    padding: 4px 6px 6px;   /* sits at the TOP now (under the map header) */
   }
   /* Give the relocated #histBand the deal screen's band height so its bars have
      room (in <main> it's sized by flex; here we set it explicitly). */
@@ -4482,13 +4506,15 @@
       <span class="map-phase" id="mapPhase"></span>
       <span class="map-deck" id="mapDeck">Deck <b>0</b> cards</span>
     </div>
+    <!-- Persistent deck panel: the SAME histogram + deck component as the deal
+         screen (#histBand is relocated here while the map is shown), fed the
+         player's accumulated deck so it densifies live as cards are picked up.
+         Sits at the TOP (just under the header) to match the deal screen's
+         thumb-reach layout — glance-only info stays out of the thumb zone. -->
+    <div class="map-foot" id="mapFoot"></div>
     <div class="map-scroll" id="mapScroll">
       <div class="map-track" id="mapTrack"></div>
     </div>
-    <!-- Persistent deck panel: the SAME histogram + deck component as the deal
-         screen (#histBand is relocated here while the map is shown), fed the
-         player's accumulated deck so it densifies live as cards are picked up. -->
-    <div class="map-foot" id="mapFoot"></div>
   </div>
 
   <!-- Enlarged fossil detail (tap a cleared run's node). View-only; never starts
@@ -4654,7 +4680,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.19 · deck character: expressive Disney-like animation";
+const APP_VERSION = "v3.20 · thumb-reach deal layout (histogram top, buttons bottom)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11012,7 +11038,13 @@ const UIRenderer = (() => {
   }
   function unmountHistFromMap() {
     if (!el.histBand || !histBandHome) return;
-    if (el.histBand.parentNode !== histBandHome) histBandHome.appendChild(el.histBand);
+    if (el.histBand.parentNode !== histBandHome) {
+      // Restore to the TOP of <main> (under the HUD), before the play row — the
+      // thumb-reach layout keeps the histogram at the top on the deal screen too.
+      const playRow = histBandHome.querySelector(".play-row");
+      if (playRow) histBandHome.insertBefore(el.histBand, playRow);
+      else histBandHome.appendChild(el.histBand);
+    }
   }
   // Refresh the relocated panel from the accumulated deck (histogram + count).
   function refreshMapDeckPanel() {
@@ -11048,10 +11080,11 @@ const UIRenderer = (() => {
   function applyGuessLayout() {
     if (SWIPE_INPUT) document.body.classList.add("swipe-input");
     if (!GUESS_SIDE_LAYOUT) return;
-    document.body.classList.add("guess-side");
-    const rail = document.getElementById("rail");
-    // Bottom band = a CONTROL STRIP: histogram (fills) + the deck (prominent,
-    // right). The rail is left to the guess buttons alone (full-height targets).
+    // THUMB-REACH layout (frequency-of-use matches reachability): glance-only
+    // info (histogram + deck) rides at the TOP, the constantly-tapped guess
+    // buttons sit in the BOTTOM control strip (prime thumb zone), and the board
+    // is narrowed + centred so the outer columns pull in from the screen edges.
+    document.body.classList.add("guess-side", "thumb-deal");
     if (el.histBand) {
       if (el.deckStrip) el.histBand.appendChild(el.deckStrip);
       if (el.deckStat) el.histBand.appendChild(el.deckStat);
@@ -11060,8 +11093,12 @@ const UIRenderer = (() => {
       // strip); on release it reverts and the histogram returns. (See #peekInfo.)
       if (el.peekInfo) el.histBand.appendChild(el.peekInfo);
       el.histBand.classList.remove("hidden");
+      // Mount the band at the TOP of <main>, just under the HUD status line.
+      const main = document.querySelector("main");
+      if (main && main.firstElementChild !== el.histBand) main.insertBefore(el.histBand, main.firstElementChild);
     }
-    if (rail && el.actions) rail.appendChild(el.actions);
+    // The guess buttons STAY in the bottom .play-controls (the thumb zone); they
+    // are NOT moved to the side rail (which this layout hides).
   }
 
   function renderDeckStrip() {
@@ -11354,9 +11391,13 @@ const UIRenderer = (() => {
     document.body.classList.remove("play-active");         // setup keeps the full control row (Start Deal)
     if (el.actions) el.actions.classList.add("hidden");   // setup: no guessing → hide the buttons
     if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // setup phase: no guess help
-    // Histogram stays visible in setup; float the Start Deal / Redeal bar ABOVE
-    // it so the player can read the deck composition while placing.
-    if (el.playControls && el.histBand) el.playControls.style.bottom = (el.histBand.offsetHeight + 8) + "px";
+    // Histogram stays visible in setup. In the legacy bottom-histogram layout the
+    // Start Deal / Redeal bar floats ABOVE the band; in the thumb-reach layout the
+    // band is at the TOP, so the bar stays in the bottom thumb zone (no raise).
+    if (el.playControls && el.histBand) {
+      el.playControls.style.bottom = document.body.classList.contains("thumb-deal")
+        ? "" : (el.histBand.offsetHeight + 8) + "px";
+    }
     // Reveal the pillar slot row on every column for the whole setup phase, so
     // the player sees where Pillars go before placing any.
     el.board.classList.add("show-slots");
