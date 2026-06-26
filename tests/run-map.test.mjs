@@ -29,15 +29,40 @@ export function run() {
     r.ok(card, "a pickup adds a card");
     r.eq(c.deckSize(), before + 1, "the deck grew by one");
     r.eq(c.getRunDeck().length, c.deckSize(), "getRunDeck() reflects the bigger draft");
-    // A pack grants ONLY its displayed suit; on a fresh ♦ campaign the diamond
-    // pool is tight (10 reserved by +1 nodes), so it adds 1..3 — all diamonds.
+    // A pack grants ONLY its displayed suit, and EXACTLY its count — the deck is
+    // a growing draft, so once a suit's 13 unique cards are spoken for it mints
+    // duplicates rather than granting fewer (a +N pack always adds N).
     const added = c.resolvePack({ type: "pack", packCount: 3, suit: "♦" });
-    r.ok(added.length >= 1 && added.length <= 3, "a +3 ♦ pack adds 1..3 cards (capped by the suit pool)");
+    r.eq(added.length, 3, "a +3 ♦ pack adds EXACTLY 3 cards");
     r.ok(added.every(x => x.suit === "♦"), "a ♦ pack grants ONLY diamonds (no off-suit fill)");
-    r.eq(c.deckSize(), before + 1 + added.length, "the deck grew by exactly the cards added");
-    // No duplicate ids (the draft is a subset of distinct identities).
+    r.eq(c.deckSize(), before + 1 + 3, "the deck grew by exactly the cards added");
+    // Every card id in the draft is still unique (minted duplicates get fresh ids).
     const ids = c.getRunDeck().map(x => x.id);
-    r.eq(new Set(ids).size, ids.length, "the draft has no duplicate card ids");
+    r.eq(new Set(ids).size, ids.length, "every draft card has a unique id (incl. minted duplicates)");
+  }
+
+  // ---- packs ALWAYS grant exactly N, minting once the unique pool is dry ----
+  {
+    const c = CampaignState.create();
+    const before = c.deckSize();
+    // 13 ♣ exist; ~7 are reserved by +1 club nodes. Open six +5 packs = 30 clubs
+    // far beyond the unique pool → minting must keep each pack at exactly 5.
+    let total = 0;
+    for (let k = 0; k < 6; k++) {
+      const got = c.resolvePack({ type: "pack", packCount: 5, suit: "♣" });
+      r.eq(got.length, 5, "club pack #" + (k + 1) + " grants EXACTLY 5 (mints once base ♣ run out)");
+      r.ok(got.every(x => x.suit === "♣"), "minted pack cards are all ♣");
+      total += got.length;
+    }
+    r.eq(total, 30, "six +5 ♣ packs grant 30 clubs total (well past the 13 unique)");
+    r.eq(c.deckSize(), before + 30, "the deck grew by exactly 30 (now past 52)");
+    r.eq(c.getRunDeck().filter(x => x.suit === "♣").length, 30, "the run deck holds all 30 club cards");
+    // A grown (>52) deck must still serialize + restore intact.
+    const snap = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(snap), "a deck grown past 52 still restores from a save");
+    r.eq(c2.deckSize(), c.deckSize(), "restored deck size matches (minted cards persisted)");
+    r.eq(c2.getRunDeck().filter(x => x.suit === "♣").length, 30, "restored club cards preserved");
   }
 
   // ---- a pack grants ONLY its displayed suit, in every phase --------------

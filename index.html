@@ -8654,14 +8654,26 @@ const CampaignState = (() => {
       if (!pool.length) return null;
       return pool[Math.floor(Math.random() * pool.length)];
     }
-    /** Draft a card of EXACTLY `suit` (unowned + not reserved by a +1 node) — no
-        off-suit fallback. The displayed suit on a node is the source of truth for
-        what it grants, so a node only ever yields its own suit; if that suit is
-        exhausted it yields nothing (the caller grants fewer than the badge). */
+    /** Mint a fresh DUPLICATE card of `suit` (random rank, no stickers/mods) into
+        the persistent deck and return its id. The accumulated deck is a GROWING
+        draft: a suit has only 13 unique base cards, so once those are spoken for a
+        pack mints duplicates — that's how a +N pack always grants exactly N cards
+        of its suit (and how decks grow past 52, the "bigger deck = worse" knob). */
+    function mintSuitCardId(suit) {
+      const rank = MIN_RANK + Math.floor(Math.random() * (MAX_RANK - MIN_RANK + 1));
+      const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank,
+                     modifications: [], stickers: [], compoundHits: 0 };
+      baseDeck.push(card);
+      return card.id;
+    }
+    /** Draft a card of EXACTLY `suit` for a PACK: prefer an unowned base/duplicate
+        already in the deck, else MINT a fresh duplicate. Never off-suit, never
+        null — the displayed suit is the source of truth, and a +N pack grants
+        exactly N of that suit (duplicates once the 13 unique cards run out). */
     function pickSuitDraftId(suit) {
       const taken = reservedSet(null);
       const pool = idsOfSuit(suit).filter(id => !taken.has(id));
-      if (!pool.length) return null;
+      if (!pool.length) return mintSuitCardId(suit);   // unique suit pool exhausted → mint a duplicate
       return pool[Math.floor(Math.random() * pool.length)];
     }
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
@@ -9667,7 +9679,7 @@ const CampaignState = (() => {
           callers then fall back to a fresh campaign. */
       restore(s) {
         if (!s || s.schema !== 2) return false;   // schema-1 (old stages×deals) saves can't map onto the new run structure → fresh campaign
-        if (!Array.isArray(s.baseDeck) || s.baseDeck.length !== 52) return false;
+        if (!Array.isArray(s.baseDeck) || s.baseDeck.length < 52) return false;   // ≥52: the deck GROWS as packs mint duplicate cards
         // NEW run structure: restore the draft + position, regenerate the map.
         phaseIndex = Math.max(0, Math.min(PHASE_SUITS.length, s.phaseIndex || 0));
         runSeed = (s.runSeed >>> 0) || generateSeed();
