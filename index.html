@@ -507,6 +507,61 @@
     .deck-stack.revealed { animation: none; filter: drop-shadow(0 0 9px rgba(133,104,192,0.95)); }
   }
 
+  /* ── DECK CHARACTER ─────────────────────────────────────────────────────────
+     The deck IS a small card-box character (shares the map avatar's design
+     language). It fills the deck-pile footprint, so deckRect()/draws emit FROM
+     the character; the big cards-left count stays the dominant glanceable layer
+     on top. Expressions are driven by the DeckChar STATE SYSTEM (in the script):
+     each state just toggles a `.dc-*` class on `.deck-char`. To add a state,
+     add one CHAR_STATES entry + one rule here. Eye-aim is a cheap one-shot
+     transform via --eye-x/--eye-y (set once per pile selection, never per-frame).
+     Presentation/animation only. */
+  .deck-char { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .dc-body { position: absolute; inset: 0; border-radius: 9px;
+    background: linear-gradient(160deg, var(--dc-1, #e7d8ca), var(--dc-2, #c9b29c));
+    border: 1.5px solid rgba(255,255,255,0.55);
+    box-shadow: 0 3px 8px rgba(74,50,40,0.42), inset 0 1px 0 rgba(255,255,255,0.5);
+    animation: dcBob 3.2s ease-in-out infinite; }                          /* IDLE bob */
+  @keyframes dcBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+  .dc-lid { position: absolute; left: 13%; right: 13%; top: 5%; height: 11%;
+    border-radius: 6px 6px 3px 3px; transform-origin: 50% 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.12));
+    border: 1px solid rgba(255,255,255,0.45); }
+  .dc-face { position: absolute; left: 0; right: 0; top: 21%; display: flex; justify-content: center; gap: 30%; }
+  .dc-eye { position: relative; width: 17%; height: 14%; max-width: 8px; min-height: 7px;
+    border-radius: 50%; background: #241c28; aspect-ratio: 4 / 5;
+    transition: height 0.12s ease, width 0.12s ease, transform 0.12s ease; }
+  .dc-eye::after { content: ""; position: absolute; top: 18%; left: 22%; width: 36%; height: 28%;
+    border-radius: 50%; background: rgba(255,255,255,0.9);
+    transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)); transition: transform 0.13s ease; }
+  /* LOOKING: eyes widen + focus (pupils already aimed via --eye-x/--eye-y). */
+  .deck-char.dc-looking .dc-eye { transform: scale(1.14); }
+  /* HAPPY: big bright arched eyes + a hop. */
+  .deck-char.dc-happy .dc-eye { transform: translateY(-1px) scale(1.15, 1.4); }
+  .deck-char.dc-happy .dc-body { animation: dcHappy 0.5s ease; }
+  @keyframes dcHappy { 0%,100% { transform: translateY(0) scale(1,1); } 35% { transform: translateY(-4px) scale(1.05,0.95); } 65% { transform: translateY(0) scale(0.98,1.04); } }
+  /* SAD: droopy, outer-corner-down squints + a downward slump. */
+  .deck-char.dc-sad .dc-eye { height: 4px; min-height: 4px; width: 24%; border-radius: 40%; opacity: 0.85; }
+  .deck-char.dc-sad .dc-eye.l { transform: translateY(2.5px) rotate(22deg); }
+  .deck-char.dc-sad .dc-eye.r { transform: translateY(2.5px) rotate(-22deg); }
+  .deck-char.dc-sad .dc-eye::after { display: none; }   /* hide the highlight on a flat squint */
+  .deck-char.dc-sad .dc-body { animation: dcSad 0.6s ease; }
+  @keyframes dcSad { 0% { transform: translateY(0); } 40% { transform: translateY(3px) scale(1.03,0.95); } 100% { transform: translateY(0); } }
+  /* BLINK (JS-toggled, brief) — overrides any expression for a moment. */
+  .deck-char.dc-blink .dc-eye { height: 8% !important; transform: none !important; }
+  /* The big count sits in the lower body, below the eyes, still glanceable. The
+     "left" label is dropped here (the number alone reads as cards-left) to keep
+     the character's face clear. */
+  .deck-pile .deck-char ~ .deck-count { inset: 36% 0 0 0; justify-content: center; }
+  .deck-pile .deck-char ~ .deck-count .ds-lbl { display: none; }
+  /* Suit wash (follows the phase, matches the map avatar). */
+  .deck-char.dc-d { --dc-1:#ecd9cb; --dc-2:#cdb39c; }
+  .deck-char.dc-c { --dc-1:#cfd6e0; --dc-2:#9fb0c6; }
+  .deck-char.dc-s { --dc-1:#c7cede; --dc-2:#9aa6c2; }
+  @media (prefers-reduced-motion: reduce) {
+    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body { animation: none; }
+  }
+
   /* ============================================================
      DECK COMPOSITION STRIP — thin always-on bar graph at the bottom.
      Vertical bar per rank 2→A: grey = total (this stage), blue = remaining,
@@ -3975,7 +4030,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="ds-back"></span><span class="ds-back"></span><span class="ds-back ds-top"></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"></span><span class="dc-eye r"></span></span></span></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -4549,7 +4604,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.16 · map packs grant exactly N (mint duplicates)";
+const APP_VERSION = "v3.17 · deck is now a reactive character (state system)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10763,6 +10818,95 @@ const UIRenderer = (() => {
     pile.classList.add("peek-pulse");
   }
 
+  /* ── DECK CHARACTER — reactive state system ─────────────────────────────────
+     The deck is a little card-box character; this is the single place that maps
+     game-event TRIGGERS → character STATES → expressions. Design goals:
+       • Data-driven: CHAR_STATES is the state→expression(+hold) table. Add a new
+         reaction by adding one row here and one `.dc-<name>` CSS rule — then call
+         DeckChar.set("<name>") from wherever the trigger fires.
+       • Single setter: set() is the only way to change state; it always cancels a
+         pending auto-revert, so the LATEST event wins and nothing queues — robust
+         to rapid guesses (no stuck/stacked reactions).
+       • The RESTING state is derived from live game state (a pile selected →
+         "looking", else "idle"), so after a transient reaction the character
+         settles back into whatever the game is currently doing.
+     Presentation only — never reads or changes gameplay. */
+  const DeckChar = (() => {
+    // name → { cls: expression class on .deck-char, hold: ms a transient reaction
+    // holds before settling back to the resting state (0 = sticky until changed) }.
+    const CHAR_STATES = {
+      idle:    { cls: "",           hold: 0 },
+      looking: { cls: "dc-looking", hold: 0 },   // eyes track the selected pile
+      happy:   { cls: "dc-happy",   hold: 1100 },// a Same was won
+      sad:     { cls: "dc-sad",     hold: 1300 },// a pile was lost
+    };
+    let state = "idle";
+    let pileSelected = false;     // drives the resting state (looking vs idle)
+    let revertId = 0;
+    let blinkId = 0;
+    const node = () => document.getElementById("deckChar");
+    function applyExpression() {
+      const n = node(); if (!n) return;
+      Object.keys(CHAR_STATES).forEach(k => { const c = CHAR_STATES[k].cls; if (c) n.classList.remove(c); });
+      const cls = (CHAR_STATES[state] || CHAR_STATES.idle).cls;
+      if (cls) n.classList.add(cls);
+    }
+    function resting() { return pileSelected ? "looking" : "idle"; }
+    /** THE single state setter. Cancels any pending revert (latest event wins),
+        applies the expression, and — for a transient state — schedules a settle
+        back to the resting state. */
+    function set(name) {
+      if (!CHAR_STATES[name]) name = "idle";
+      if (revertId) { clearTimeout(revertId); revertId = 0; }
+      state = name;
+      applyExpression();
+      const hold = CHAR_STATES[name].hold;
+      if (hold > 0) revertId = setTimeout(() => { revertId = 0; set(resting()); }, hold);
+    }
+    /** Compute the pupil aim toward pile `index` as a one-shot transform (no
+        per-frame work; recomputed only when the selection changes). */
+    function aimAtPile(index) {
+      const n = node(); if (!n) return;
+      const pe = (typeof pileEls !== "undefined") && pileEls[index];
+      if (!pe) return aimReset();
+      const cr = n.getBoundingClientRect(), pr = pe.getBoundingClientRect();
+      const dx = (pr.left + pr.right) / 2 - (cr.left + cr.right) / 2;
+      const dy = (pr.top + pr.bottom) / 2 - (cr.top + cr.bottom) / 2;
+      const len = Math.hypot(dx, dy) || 1, MAX = 2.4;   // px the pupils may travel
+      n.style.setProperty("--eye-x", (dx / len * MAX).toFixed(2) + "px");
+      n.style.setProperty("--eye-y", (dy / len * MAX).toFixed(2) + "px");
+    }
+    function aimReset() {
+      const n = node(); if (!n) return;
+      n.style.setProperty("--eye-x", "0px");
+      n.style.setProperty("--eye-y", "0px");
+    }
+    return {
+      /** Player selected pile `index` → look at it and hold until resolved. */
+      lookAtPile(index) { pileSelected = true; aimAtPile(index); set("looking"); },
+      /** Selection cleared / resolved → drop the gaze (back to idle if looking). */
+      releasePile() { pileSelected = false; aimReset(); if (state === "looking") set("idle"); },
+      /** Trigger a named reaction (e.g. "happy", "sad"). */
+      react(name) { set(name); },
+      /** Hard reset to idle (new deal). */
+      reset() { pileSelected = false; aimReset(); set("idle"); },
+      /** Phase suit wash on the character (matches the map avatar). */
+      setSuit(sym) { const n = node(); if (!n) return; n.classList.remove("dc-d", "dc-c", "dc-s");
+        n.classList.add("dc-" + ((typeof SUIT_CLASS !== "undefined" && SUIT_CLASS[sym]) || "d")); },
+      /** Lightweight idle blink loop (one class toggle every few seconds; skipped
+          under reduced motion). Safe to call repeatedly — only one loop runs. */
+      startBlink() {
+        if (blinkId || prefersReduce()) return;
+        const tick = () => {
+          const n = node();
+          if (n) { n.classList.add("dc-blink"); setTimeout(() => { const m = node(); if (m) m.classList.remove("dc-blink"); }, 130); }
+          blinkId = setTimeout(tick, 3800 + Math.floor(Math.random() * 2600));
+        };
+        blinkId = setTimeout(tick, 2600);
+      },
+    };
+  })();
+
   /* ---- deck composition strip (always-on companion to the modal) ----
      Reads the SAME counts the modal uses — remaining (blue) vs this stage's
      total (grey) per rank, on a shared absolute scale (max total). Presentation
@@ -11063,6 +11207,7 @@ const UIRenderer = (() => {
     }
     selected = index;
     pileEls[index].classList.add("selected");
+    DeckChar.lookAtPile(index);   // the deck character's eyes track the selected pile until it resolves
     el.actions.classList.remove("hidden", "guess-disabled");   // a pile is selected → buttons active
     if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // first-turn help done
     const top = engine.getBoard().top(index);
@@ -11087,6 +11232,7 @@ const UIRenderer = (() => {
       pileEls[selected].classList.remove("selected");
     }
     selected = null;
+    DeckChar.releasePile();   // drop the deck character's gaze when nothing is selected
     // No selection → the buttons stay visible but greyed/disabled (setup hides
     // them explicitly via showStickerPhase).
     el.actions.classList.add("guess-disabled");
@@ -13104,6 +13250,11 @@ const UIRenderer = (() => {
         // store spending) → drives the end-of-run Interest payout.
         runStartCoins = campaign ? campaign.getCoins() : 0;
         renderBoard(payload.board, payload.deck);
+        // Deck character: settle to idle for the fresh deal, wash to the phase
+        // suit, and (re)start the gentle idle blink.
+        DeckChar.reset();
+        DeckChar.setSuit(campaign ? campaign.phaseSuit() : "♦");
+        DeckChar.startBlink();
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
         setScreenNav(true, true, false);   // menu + inventory; no map button in-game
@@ -13368,6 +13519,10 @@ const UIRenderer = (() => {
         }
 
         clearSelection();
+        // Deck character reaction: HAPPY on a won Same, SAD when a pile is lost.
+        // (clearSelection already dropped the gaze, so these settle back to idle.)
+        if (payload.correct && payload.guess === "same") DeckChar.react("happy");
+        else if (!payload.correct) DeckChar.react("sad");
         renderSetupInv();
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} kept — ${payload.board.aliveCount()} piles alive.`
