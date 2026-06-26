@@ -3550,6 +3550,64 @@
     .map-hdr .map-deck.gain { animation: none; }
   }
 
+  /* ============================================================
+     PLAYER AVATAR — a fixed-size, suit-tinted card-BOX with two eyes that marks
+     the current node, travels the trail on a move, and reacts to collecting
+     cards. Lives inside .phase-map (shares node coords, scrolls with the climb).
+     Animation/presentation only; transform/opacity; respects reduced motion.
+     ============================================================ */
+  .map-avatar { position: absolute; z-index: 5; transform: translate(-50%, -50%);
+    pointer-events: none; will-change: transform; }
+  .av-shift { position: relative; will-change: transform; }   /* TRAVEL tween target */
+  .av-body {
+    position: relative; width: 38px; height: 40px; border-radius: 7px;
+    background: linear-gradient(160deg, var(--av-1, #e0738f), var(--av-2, #b23a5c));
+    border: 1.5px solid rgba(255,255,255,0.5);
+    box-shadow: 0 5px 12px rgba(74,50,40,0.32), inset 0 1px 0 rgba(255,255,255,0.4);
+    animation: avBob 3s ease-in-out infinite;   /* IDLE bob */
+  }
+  @keyframes avBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  .av-lid {
+    position: absolute; left: 3px; right: 3px; top: 3px; height: 9px;
+    border-radius: 4px 4px 2px 2px; transform-origin: 50% 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.10));
+    border: 1px solid rgba(255,255,255,0.42);
+  }
+  .av-face { position: absolute; left: 0; right: 0; top: 17px; display: flex; justify-content: center; gap: 7px; }
+  .av-eye { position: relative; width: 7px; height: 9px; border-radius: 50%; background: #241c28;
+    transition: height 0.12s ease, width 0.12s ease, transform 0.12s ease; }
+  .av-eye::after { content: ""; position: absolute; top: 1px; left: 1.5px; width: 2.5px; height: 2.5px;
+    border-radius: 50%; background: rgba(255,255,255,0.85); }
+  .map-avatar.blink .av-eye { height: 1.5px; }                                   /* blink */
+  .map-avatar.mood-happy .av-eye { height: 11px; width: 8px; transform: translateY(-1px); }  /* collecting */
+  .map-avatar.mood-worried .av-eye { height: 5px; }                              /* near a hard deal/boss */
+  .map-avatar.mood-worried .av-eye.l { transform: rotate(13deg); }
+  .map-avatar.mood-worried .av-eye.r { transform: rotate(-13deg); }
+  .av-badge {
+    position: absolute; right: -8px; bottom: -7px; min-width: 18px; height: 18px; padding: 0 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel); color: var(--av-2, #b23a5c); border: 1.5px solid currentColor;
+    border-radius: 999px; font: 800 11px/1 var(--font-text); box-shadow: 0 2px 5px rgba(74,50,40,0.28); }
+  .av-badge b { color: var(--text); }
+  .av-badge.bump { animation: avBadgeBump 0.34s ease; }
+  @keyframes avBadgeBump { 0% { transform: scale(1); } 45% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  .map-avatar.collecting .av-body { animation: avBounce 0.46s ease; }
+  @keyframes avBounce { 0%,100% { transform: translateY(0) scale(1,1); } 30% { transform: translateY(-5px) scale(1.06,0.94); } 62% { transform: translateY(0) scale(0.97,1.05); } }
+  .map-avatar.collecting .av-lid { animation: avLid 0.46s ease; }
+  @keyframes avLid { 0%,100% { transform: translateY(0) scaleY(1); } 35% { transform: translateY(-3px) scaleY(0.66); } }
+  /* Suit tints (match the map wash). */
+  .map-avatar.av-d { --av-1: #e0738f; --av-2: #b23a5c; }
+  .map-avatar.av-c { --av-1: #7d8ca6; --av-2: #46566f; }
+  .map-avatar.av-s { --av-1: #5a6885; --av-2: #303c56; }
+  /* Collect fly-cards (reuse the board's flyCard arc helper). */
+  .av-fly { position: fixed; z-index: 61; pointer-events: none; }
+  .av-fly .mini-card { width: 26px; height: 35px; box-shadow: 0 4px 10px rgba(74,50,40,0.3); }
+  .av-fly-blank { width: 24px; height: 33px; border-radius: 4px; background: var(--card-face); border: 1px solid var(--card-border); box-shadow: 0 4px 10px rgba(74,50,40,0.3); }
+  @media (prefers-reduced-motion: reduce) {
+    .av-body { animation: none; }
+    .map-avatar.collecting .av-body, .map-avatar.collecting .av-lid, .av-badge.bump { animation: none; }
+  }
+
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
   .map-track-legacy::before {
     content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
@@ -4453,7 +4511,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.08 · map restyle (deal-screen language + live deck histogram)";
+const APP_VERSION = "v3.09 · map player avatar (card-box character: travel + collect)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15547,6 +15605,125 @@ const UIRenderer = (() => {
     if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
     return "A single card";
   }
+  /* ── Player AVATAR (the card-box character) ────────────────────────────────
+     A persistent element re-attached into the freshly-rendered .phase-map and
+     positioned at the current node; it travels the curved trail on a move and
+     reacts (eyes + bounce + count tick) when cards are collected. */
+  let mapAvatarEl = null, avatarTraveling = false, avatarBlinkTimer = 0;
+  function ensureAvatar() {
+    if (mapAvatarEl) return mapAvatarEl;
+    const a = document.createElement("div");
+    a.className = "map-avatar av-d";
+    a.innerHTML =
+      '<div class="av-shift">' +
+        '<div class="av-body"><span class="av-lid"></span>' +
+          '<span class="av-face"><span class="av-eye l"></span><span class="av-eye r"></span></span></div>' +
+        '<span class="av-badge"><b>0</b></span>' +
+      '</div>';
+    mapAvatarEl = a;
+    scheduleAvatarBlink();
+    return a;
+  }
+  function scheduleAvatarBlink() {
+    if (prefersReduce()) return;
+    clearTimeout(avatarBlinkTimer);
+    avatarBlinkTimer = setTimeout(() => {
+      if (mapAvatarEl && !avatarTraveling && !mapAvatarEl.classList.contains("mood-happy")) {
+        mapAvatarEl.classList.add("blink");
+        setTimeout(() => mapAvatarEl && mapAvatarEl.classList.remove("blink"), 150);
+      }
+      scheduleAvatarBlink();
+    }, 3600 + Math.random() * 3200);
+  }
+  function avatarSuitClass() { return "av-" + (SUIT_CLASS[campaign.phaseSuit()] || "d"); }
+  function setAvatarCount(n) { const b = mapAvatarEl && mapAvatarEl.querySelector(".av-badge b"); if (b) b.textContent = n; }
+  function setAvatarMood(mood) {
+    if (!mapAvatarEl) return;
+    mapAvatarEl.classList.remove("mood-happy", "mood-worried");
+    if (mood) mapAvatarEl.classList.add("mood-" + mood);
+  }
+  function bumpAvatarBadge() {
+    const b = mapAvatarEl && mapAvatarEl.querySelector(".av-badge");
+    if (!b) return; b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump");
+  }
+  /* Worried when a reachable next node is a low-pile (hard) deal or the boss. */
+  function avatarReachMood() {
+    const legal = (campaign.legalNextNodes && campaign.legalNextNodes()) || [];
+    return legal.some(n => n.type === "boss" || (n.type === "deal" && n.piles != null && n.piles <= 4)) ? "worried" : null;
+  }
+  /* The current node's centre in .phase-map px (or the virtual start point). */
+  function avatarXY() {
+    const map = campaign.getMap(); if (!map) return null;
+    const R = map.totalRows, pos = campaign.nodePos();
+    if (pos == null) return { x: MAP_W / 2, y: (MAP_PAD * 2 + (R - 1) * MAP_ROW_H) - MAP_PAD * 0.4 };
+    const n = map.byId[pos]; return n ? mapNodeXY(n, R) : null;
+  }
+  function positionAvatarAt(xy) {
+    if (!xy || !mapAvatarEl) return;
+    mapAvatarEl.style.left = xy.x.toFixed(1) + "px";
+    mapAvatarEl.style.top = xy.y.toFixed(1) + "px";
+    const sh = mapAvatarEl.querySelector(".av-shift"); if (sh) sh.style.transform = "";
+  }
+  /* Re-attach + position the box after a render (skips while a travel owns it). */
+  function placeAvatar() {
+    ensureAvatar();
+    const pm = el.mapTrack.querySelector(".phase-map"); if (!pm) return;
+    if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
+    mapAvatarEl.classList.remove("av-d", "av-c", "av-s");
+    mapAvatarEl.classList.add(avatarSuitClass());
+    if (!mapAvatarEl.classList.contains("mood-happy")) setAvatarMood(avatarReachMood());
+    setAvatarCount(campaign.deckSize());
+    if (!avatarTraveling) positionAvatarAt(avatarXY());
+  }
+  /* TRAVEL: tween the box along the SAME curved edge the trail draws, ~0.42s. */
+  function avatarTravelTo(fromXY, toXY, cb) {
+    ensureAvatar();
+    const sh = mapAvatarEl.querySelector(".av-shift");
+    const done = () => { avatarTraveling = false; if (sh) sh.style.transform = ""; if (cb) cb(); };
+    if (prefersReduce() || !fromXY || !toXY || !sh || typeof sh.animate !== "function") { positionAvatarAt(toXY); return void done(); }
+    avatarTraveling = true;
+    mapAvatarEl.style.left = toXY.x.toFixed(1) + "px";
+    mapAvatarEl.style.top = toXY.y.toFixed(1) + "px";
+    const A = fromXY, B = toXY, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const bow = Math.min(13, len * 0.12) * (((A.x | 0) + (A.y | 0)) % 2 ? 1 : -1);   // matches edgeSvg
+    const qx = mx + nx * bow, qy = my + ny * bow, frames = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, it = 1 - t;
+      const px = it * it * A.x + 2 * it * t * qx + t * t * B.x;
+      const py = it * it * A.y + 2 * it * t * qy + t * t * B.y;
+      const hop = -Math.sin(t * Math.PI) * 4;   // a small hop over the curve
+      frames.push({ transform: "translate(" + (px - B.x).toFixed(1) + "px," + (py - B.y + hop).toFixed(1) + "px)" });
+    }
+    const anim = sh.animate(frames, { duration: 420, easing: "cubic-bezier(0.4,0.05,0.3,1)", fill: "both" });
+    let fin = false; const end = () => { if (fin) return; fin = true; done(); };
+    if (anim.finished && anim.finished.then) anim.finished.then(end).catch(() => {}); else anim.addEventListener("finish", end);
+    setTimeout(end, 560);
+  }
+  /* COLLECT: fly the picked-up card(s) from the node into the box (reusing the
+     board flyCard arc), bounce the box + flap the lid, widen the eyes, tick the
+     badge up as each card lands. */
+  function avatarCollect(cards) {
+    ensureAvatar();
+    cards = (cards || []).filter(Boolean);
+    const total = campaign.deckSize(), n = cards.length;
+    mapAvatarEl.classList.add("collecting"); setAvatarMood("happy");
+    setTimeout(() => { if (mapAvatarEl) mapAvatarEl.classList.remove("collecting"); }, 480);
+    setTimeout(() => { if (mapAvatarEl) setAvatarMood(avatarReachMood()); }, 880);
+    if (prefersReduce() || !n) { setAvatarCount(total); bumpAvatarBadge(); return; }
+    let shown = Math.max(0, total - n); setAvatarCount(shown);
+    const body = mapAvatarEl.querySelector(".av-body");
+    const to = body ? body.getBoundingClientRect() : mapAvatarEl.getBoundingClientRect();
+    const from = { left: to.left, top: to.top + 18, width: to.width, height: to.height };
+    cards.slice(0, 5).forEach((card, i) => {
+      const mini = document.createElement("div");
+      mini.className = "av-fly";
+      mini.innerHTML = card ? miniCardHtml(card) : '<div class="av-fly-blank"></div>';
+      flyCard(mini, from, to, { duration: 300, delay: i * 70, startScale: 0.65, lift: -16,
+        onArrive: () => { shown = Math.min(total, shown + 1); setAvatarCount(shown); bumpAvatarBadge(); } });
+    });
+  }
   let mapArrive = false;   // true for ONE render right after the marker moves (arrival pop)
   function renderProgressionMap() {
     const map = campaign.getMap();
@@ -15619,6 +15796,7 @@ const UIRenderer = (() => {
         nodes +
       '</div>';
     mapArrive = false;   // the arrival pop is one-shot
+    placeAvatar();       // re-attach + reposition the player box on the current node
   }
 
   function showProgressionMap(onEnter) {
@@ -15667,6 +15845,7 @@ const UIRenderer = (() => {
   function onMapNodeTap(e) {
     const btn = e.target.closest(".pm-node[data-action='node']");
     if (!btn) return;
+    if (avatarTraveling) return;   // ignore taps while the box is in motion
     Sound.tap();
     resolveMapNode(Number(btn.dataset.node));
   }
@@ -15676,24 +15855,36 @@ const UIRenderer = (() => {
      a Deal/Boss node launches the deal. The boss is the chokepoint at the top of
      each phase. */
   function resolveMapNode(id) {
-    const node = campaign.moveToNode(id);
+    const target = campaign.getNode(id);
+    if (!target) return;
+    const fromXY = avatarXY();             // current position BEFORE the move
+    const node = campaign.moveToNode(id);  // traversal logic unchanged
     if (!node) return;
     mapArrive = true;   // the marker just travelled here → play the arrival pop on the next render
+    const map = campaign.getMap();
+    const toXY = map ? mapNodeXY(node, map.totalRows) : null;
+    // Avatar travels the trail edge to the chosen node, THEN the node resolves
+    // (instant if reduced motion). Timing only — no logic moved.
+    avatarTravelTo(fromXY, toXY, () => finishResolveNode(node, id));
+  }
+  function finishResolveNode(node, id) {
     if (node.type === "pickup") {
       const card = campaign.resolvePickup(node);
       campaign.markNodeCleared(id);
       persistCampaign("map");
       flashDeckGain(card ? 1 : 0);
       renderProgressionMap();
+      if (card) avatarCollect([card]);   // the card flies from the node into the box
     } else if (node.type === "pack") {
       // A sealed pack: its contents were hidden on the map. Grant the cards, then
-      // FLASH-REVEAL them with the SAME store pack-open animation/component.
+      // FLASH-REVEAL them with the SAME store pack-open animation/component; on
+      // close, the cards fly home into the box.
       const cards = campaign.resolvePack(node);
       campaign.markNodeCleared(id);
       persistCampaign("map");
       renderProgressionMap();   // mark the node done behind the reveal
       flashDeckGain(cards.length);   // deck panel + header update live as the pack lands
-      openMapPackReveal(cards);
+      openMapPackReveal(cards, (items) => avatarCollect(items));
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
       // the node cleared. Re-render now so the marker shows on this node behind it.
@@ -16025,9 +16216,9 @@ const UIRenderer = (() => {
      in a reveal-ONLY mode (mode:"show"). The cards are already granted (drafted by
      resolvePack) — this just shows exactly what was added; there's no pick/keep.
      Confirm returns to the map and flourishes the deck indicator. */
-  function openMapPackReveal(cards) {
-    if (!cards || !cards.length) { flashDeckGain(0); return; }
-    packRevealState = { kind: "card", mode: "show", items: cards, chosen: [], keep: cards.length, pending: null };
+  function openMapPackReveal(cards, onClose) {
+    if (!cards || !cards.length) { flashDeckGain(0); if (onClose) onClose(cards || []); return; }
+    packRevealState = { kind: "card", mode: "show", items: cards, chosen: [], keep: cards.length, pending: null, onClose: onClose || null };
     el.packReveal.classList.remove("hidden");
     renderPackReveal();
     staggerDealIn(el.packItems);   // identical reveal motion to the store
@@ -16108,13 +16299,14 @@ const UIRenderer = (() => {
   function confirmPackPick() {
     const st = packRevealState; if (!st || st.mode === "discard") return;
     if (st.mode === "show") {
-      // Map pack: cards are already in the deck — just close back to the map and
-      // flourish the deck indicator with the count revealed.
-      const added = st.items.length;
+      // Map pack: cards are already in the deck — close back to the map, flourish
+      // the deck indicator, then (onClose) fly the cards home into the avatar box.
+      const added = st.items.length, items = st.items.slice(), onClose = st.onClose;
       closePackItemInfo();
       closePackReveal();
       flashDeckGain(added);
       renderProgressionMap();
+      if (onClose) onClose(items);
       return;
     }
     if (st.chosen.length !== st.keep) return;          // guard (button is disabled too)
