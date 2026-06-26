@@ -516,9 +516,13 @@
      add one CHAR_STATES entry + one rule here. Eye-aim is a cheap one-shot
      transform via --eye-x/--eye-y (set once per pile selection, never per-frame).
      Presentation/animation only. */
+  /* On the MAP, the character lives on the trail (the avatar) — so the bottom
+     deck-slot character is hidden there; only the trail character shows. The
+     avatar's own badge carries the deck count while on the map. */
+  body.on-map #deckStat { display: none; }
   .deck-char { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
   .dc-body { position: absolute; inset: 0; border-radius: 9px;
-    background: linear-gradient(160deg, var(--dc-1, #e7d8ca), var(--dc-2, #c9b29c));
+    background: linear-gradient(160deg, var(--dc-1, #e0738f), var(--dc-2, #b23a5c));
     border: 1.5px solid rgba(255,255,255,0.55);
     box-shadow: 0 3px 8px rgba(74,50,40,0.42), inset 0 1px 0 rgba(255,255,255,0.5);
     animation: dcBob 3.2s ease-in-out infinite; }                          /* IDLE bob */
@@ -554,12 +558,22 @@
      the character's face clear. */
   .deck-pile .deck-char ~ .deck-count { inset: 36% 0 0 0; justify-content: center; }
   .deck-pile .deck-char ~ .deck-count .ds-lbl { display: none; }
-  /* Suit wash (follows the phase, matches the map avatar). */
-  .deck-char.dc-d { --dc-1:#ecd9cb; --dc-2:#cdb39c; }
-  .deck-char.dc-c { --dc-1:#cfd6e0; --dc-2:#9fb0c6; }
-  .deck-char.dc-s { --dc-1:#c7cede; --dc-2:#9aa6c2; }
+  /* Suit wash — SAME tints as the map avatar (.map-avatar.av-*), so the deck-slot
+     character is the SAME pink creature that travels the map (♦ = pink) and the
+     map→deck handoff reads as one continuous character. */
+  .deck-char.dc-d, .deck-char-jump.dc-d { --dc-1:#e0738f; --dc-2:#b23a5c; }
+  .deck-char.dc-c, .deck-char-jump.dc-c { --dc-1:#7d8ca6; --dc-2:#46566f; }
+  .deck-char.dc-s, .deck-char-jump.dc-s { --dc-1:#5a6885; --dc-2:#303c56; }
+  /* Count sits on the saturated body now → white with a soft dark halo reads
+     cleanly over the pink (replaces the cream-on-light treatment). */
+  .deck-pile .deck-char ~ .deck-count b { color: #fff; text-shadow: 0 1px 2px rgba(74,30,45,0.55), 0 0 5px rgba(74,30,45,0.4); }
+  /* The flying clone used for the map→deck JUMP: the same character body, sized
+     inline by flyCard(); a quick arrival pop lands it in the slot. */
+  .deck-char-jump { z-index: 61; pointer-events: none; filter: drop-shadow(0 6px 12px rgba(74,30,45,0.4)); }
+  .deck-char.dc-arrive .dc-body { animation: dcArrive 0.32s ease; }
+  @keyframes dcArrive { 0% { transform: scale(0.7); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) {
-    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body { animation: none; }
+    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body { animation: none; }
   }
 
   /* ============================================================
@@ -4604,7 +4618,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.17 · deck is now a reactive character (state system)";
+const APP_VERSION = "v3.18 · one character: map trail ↔ deck slot (pink + jump)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16252,6 +16266,7 @@ const UIRenderer = (() => {
       el.mapPhase.innerHTML = '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
         ' · phase ' + (campaign.getPhaseIndex() + 1) + '/' + campaign.phasesTotal();
     }
+    document.body.classList.add("on-map");   // hides the deck-slot character (trail char only)
     el.mapOverlay.classList.remove("hidden");
     mountHistOnMap();      // the deal-screen deck panel rides along, fed the accumulated deck
     updateBoardMotion();   // board covered by the map → pause its card animations
@@ -16268,7 +16283,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
   }
-  function hideProgressionMap() { el.mapOverlay.classList.add("hidden"); unmountHistFromMap(); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
+  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); unmountHistFromMap(); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
@@ -16326,11 +16341,48 @@ const UIRenderer = (() => {
       renderProgressionMap();
       showStore();
     } else {
-      // Deal / Boss: launch the deal with the full accumulated deck across the
-      // node's pile count. onRunEnd handles win (→ map, boss → advance) / loss.
+      // Deal / Boss: launch the deal. The SAME character that just travelled the
+      // trail to this node now "jumps" off the node into the bottom-right deck
+      // slot to enter the deal — one continuous character, never two at once.
+      // Capture the on-map avatar position BEFORE the map (and avatar) go away.
+      const jumpFrom = (mapAvatarEl && document.body.contains(mapAvatarEl))
+        ? mapAvatarEl.getBoundingClientRect() : null;
       hideProgressionMap();
       startRun();
+      jumpMapCharToDeck(jumpFrom);
     }
+  }
+
+  /* Bridge the map character into the deck slot: a pink character clone arcs from
+     the just-left deal node to the bottom-right deck slot, landing as the in-deal
+     deck character (which is hidden until the clone arrives, so it reads as ONE
+     character moving from the map into the deal). Presentation only — skipped
+     under reduced motion (the deck character simply appears). */
+  function jumpMapCharToDeck(fromRect) {
+    if (prefersReduce() || !fromRect) return;
+    // Wait one frame so the deal layout has settled and the deck slot has a rect.
+    requestAnimationFrame(() => {
+      const dc = document.getElementById("deckChar");
+      const slot = el.deckStat && el.deckStat.querySelector(".deck-pile");
+      if (!dc || !slot) return;
+      const toRect = slot.getBoundingClientRect();
+      if (!toRect.width || !toRect.height) return;
+      dc.style.visibility = "hidden";   // the real deck char appears only on landing
+      const suit = "dc-" + ((campaign && SUIT_CLASS[campaign.phaseSuit()]) || "d");
+      const fly = document.createElement("div");
+      fly.className = "deck-char-jump " + suit;
+      fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
+        '<span class="dc-face"><span class="dc-eye l"></span><span class="dc-eye r"></span></span></span>';
+      // Reuse the board flyCard arc; a strong lift sells the "jump".
+      flyCard(fly, fromRect, toRect, {
+        duration: 460, startScale: 0.9, lift: -46,
+        onArrive: () => {
+          dc.style.visibility = "";
+          dc.classList.remove("dc-arrive"); void dc.offsetWidth; dc.classList.add("dc-arrive");
+          setTimeout(() => dc && dc.classList.remove("dc-arrive"), 360);
+        },
+      });
+    });
   }
 
   /* Tiny "deck grew" flourish on the map's deck indicator (presentation only). */
