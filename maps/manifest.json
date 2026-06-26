@@ -1,0 +1,7 @@
+{
+  "_comment": "List every authored map file here. The game loads each, reads its PHASE + ORDER headers, and groups them. When several maps share a PHASE + ORDER, one is chosen at random per run. Adding a new map = drop a .map file in this folder and add its filename below.",
+  "maps": [
+    "diamonds-1.map",
+    "diamonds-2.map"
+  ]
+}

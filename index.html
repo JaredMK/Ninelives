@@ -390,6 +390,69 @@
       font-size: 0.72rem;
       color: var(--text-dim);
     }
+
+    /* ============================================================
+       MAP SCREEN (run navigation) + view switching
+       ============================================================ */
+    #mapScreen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    #mapStatus {
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    #mapMsg {
+      min-height: 1.1em;
+    }
+    #mapSvg {
+      width: 100%;
+      flex: 1;
+      min-height: 340px;
+      overflow: visible;
+    }
+    #mapError {
+      background: rgba(226, 87, 107, 0.1);
+      border: 1px solid var(--bad);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+    #mapError h3 { margin: 0 0 8px; color: var(--bad); font-size: 0.95rem; }
+    #mapError .mapfile { margin: 8px 0 2px; font-weight: 700; color: var(--text); }
+    #mapError ul { margin: 0 0 4px; padding-left: 18px; color: var(--text-dim); }
+    #mapError pre {
+      background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px 10px;
+      overflow-x: auto; font-size: 0.78rem;
+    }
+
+    /* Map node graph (auto-laid-out; intentionally plain — styling is a
+       separate pass). One <g.map-node> per node, links drawn underneath. */
+    .map-link { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 2; }
+    .map-node rect { fill: var(--panel); stroke: var(--panel-border); stroke-width: 1.5; }
+    .map-node text { fill: var(--text); font-weight: 700; text-anchor: middle; dominant-baseline: middle; font-size: 13px; }
+    .map-node .sub { fill: var(--text-dim); font-weight: 600; font-size: 10px; }
+    .map-node.card .main { font-size: 17px; }
+    .map-node.start rect { fill: rgba(90,209,194,0.16); }
+    .map-node.boss rect { fill: rgba(226,87,107,0.14); }
+    .map-node.store rect { fill: rgba(242,177,52,0.12); }
+    .map-node.locked { opacity: 0.42; }
+    .map-node.available rect { stroke: var(--accent); stroke-width: 2.5; }
+    .map-node.available { cursor: pointer; }
+    .map-node.done rect { fill: rgba(76,208,125,0.16); stroke: var(--good); }
+
+    /* View switching: map shown by default; .in-game shows the deal board. */
+    .in-game #mapScreen { display: none; }
+    .table-top, .board, .hint { display: none; }
+    .in-game .table-top { display: flex; }
+    .in-game .board { display: grid; }
+    .in-game .hint { display: block; }
   </style>
 </head>
 <body>
@@ -411,6 +474,13 @@
         </div>
       </div>
     </header>
+
+    <section id="mapScreen">
+      <div id="mapStatus">Loading map…</div>
+      <svg id="mapSvg" role="img" aria-label="Run map"></svg>
+      <div id="mapMsg" class="hint"></div>
+      <div id="mapError" style="display:none"></div>
+    </section>
 
     <div class="table-top">
       <div class="deck-wrap">
@@ -441,6 +511,7 @@
     </div>
   </div>
 
+  <script src="maps/map-engine.js"></script>
   <script>
   /* =================================================================
      NINE LIVES — a deck survival card game
@@ -585,11 +656,12 @@
       this.lastEvent = null; // describes the most recent action for the UI
     }
 
-    /** Start (or restart) a full game. */
-    newGame() {
+    /** Start (or restart) a full game. A map's DEAL/BOSS node passes its
+        pile count; falls back to the classic 9 when called bare. */
+    newGame(pileCount = BoardState.SIZE) {
       this.deck.build().shuffle();
       const opening = [];
-      for (let i = 0; i < BoardState.SIZE; i++) opening.push(this.deck.draw());
+      for (let i = 0; i < pileCount; i++) opening.push(this.deck.draw());
       this.board.init(opening);
       this.status = GameEngine.STATUS.PLAYING;
       this.lastEvent = { type: 'deal' };
@@ -707,15 +779,13 @@
      touch handler; the hook point is marked below.
   ----------------------------------------------------------------- */
   class UIRenderer {
-    constructor(refs, { onGuess, onNewGame }) {
+    constructor(refs, { onGuess }) {
       this.refs = refs;
       this.onGuess = onGuess;
-      this.onNewGame = onNewGame;
       this.selectedPile = null;  // view-only: which pile's choice is open
       this.firstRender = true;
-
-      this.refs.newGameBtn.addEventListener('click', () => this.onNewGame());
-      this.refs.overlayBtn.addEventListener('click', () => this.onNewGame());
+      // The New Game / overlay buttons are owned by RunController, which
+      // gives them run-aware behaviour (back to map, restart run, etc.).
     }
 
     render(state) {
@@ -883,10 +953,299 @@
   }
 
   /* -----------------------------------------------------------------
+     MapRenderer
+     Draws the authored map as an SVG node graph. Positions come entirely
+     from MapEngine.layout (row + order-in-row) — no pixel authoring. Links
+     are bezier "trail" curves drawn under the nodes. Deliberately plain;
+     visual styling is a separate pass.
+  ----------------------------------------------------------------- */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function nodeText(n) {
+    switch (n.type) {
+      case 'START': return { main: 'START', sub: '' };
+      case 'DEAL':  return { main: 'DEAL', sub: '×' + n.piles };
+      case 'BOSS':  return { main: 'BOSS', sub: '×' + n.piles };
+      case 'CARD':  return { main: n.rankLabel + n.suitSymbol, sub: 'card' };
+      case 'PACK':  return { main: '+' + n.count + n.suitSymbol, sub: 'pack' };
+      case 'STORE': return { main: 'STORE', sub: '' };
+      default:      return { main: n.type, sub: '' };
+    }
+  }
+
+  class MapRenderer {
+    constructor(svg) { this.svg = svg; }
+
+    _el(name, attrs) {
+      const e = document.createElementNS(SVG_NS, name);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    render(model, states, onNodeClick) {
+      const svg = this.svg;
+      const rect = svg.getBoundingClientRect();
+      const w = Math.max(240, rect.width || 320);
+      const h = Math.max(320, rect.height || 420);
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      svg.innerHTML = '';
+
+      const pos = MapEngine.layout(model, w, h);
+
+      // links first (under nodes)
+      for (const l of model.links) {
+        const a = pos[l.from], b = pos[l.to];
+        if (!a || !b) continue;
+        const my = (a.y + b.y) / 2;
+        svg.appendChild(this._el('path', {
+          d: `M ${a.x} ${a.y} C ${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`,
+          class: 'map-link',
+        }));
+      }
+
+      // nodes
+      for (const id in pos) {
+        const { x, y, node } = pos[id];
+        const state = states.get(id) || 'locked';
+        const g = this._el('g', {
+          class: `map-node ${node.type.toLowerCase()} ${state}`,
+          transform: `translate(${x},${y})`,
+        });
+        const W = 70, H = 56;
+        g.appendChild(this._el('rect', { x: -W / 2, y: -H / 2, width: W, height: H, rx: 12 }));
+        const t = nodeText(node);
+        const main = this._el('text', { class: 'main', y: t.sub ? -7 : 0 });
+        main.textContent = t.main;
+        g.appendChild(main);
+        if (t.sub) {
+          const sub = this._el('text', { class: 'sub', y: 14 });
+          sub.textContent = t.sub;
+          g.appendChild(sub);
+        }
+        if (state === 'available') g.addEventListener('click', () => onNodeClick(id));
+        svg.appendChild(g);
+      }
+    }
+  }
+
+  /* -----------------------------------------------------------------
+     RunController
+     Loads authored maps, validates them, picks one per phase, renders the
+     map, and drives traversal. A DEAL/BOSS node launches the existing
+     higher/lower GameEngine with that node's pile count; CARD/PACK/STORE
+     are authorable + validated now but their effects are placeholders.
+
+     Traversal rules here are intentionally simple (any node reachable from
+     a completed node becomes available) — final run rules are out of scope
+     for this task, which is the authoring/loading/layout/validation pipeline.
+  ----------------------------------------------------------------- */
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  }
+
+  class RunController {
+    constructor(refs, { engine, renderer }) {
+      this.refs = refs;
+      this.engine = engine;
+      this.renderer = renderer;
+      this.mapRenderer = new MapRenderer(refs.mapSvg);
+      this.phases = [];       // [{ phase, order, pool:[model,...] }]
+      this.phaseIndex = 0;
+      this.model = null;      // current map
+      this.states = null;     // Map id -> 'locked'|'available'|'done'
+      this.fwd = null;        // Map id -> [targetId,...]
+      this.activeNode = null; // node currently played as a deal
+
+      refs.newGameBtn.textContent = 'New Run';
+      refs.newGameBtn.onclick = () => this.startRun();
+
+      window.addEventListener('resize', () => {
+        if (!this.refs.app.classList.contains('in-game') && this.model) this.renderMap();
+      });
+    }
+
+    async boot() {
+      try {
+        const manifest = await fetch('maps/manifest.json').then(r => {
+          if (!r.ok) throw new Error('manifest.json → HTTP ' + r.status);
+          return r.json();
+        });
+        const loaded = [];
+        for (const file of (manifest.maps || [])) {
+          const text = await fetch('maps/' + file).then(r => {
+            if (!r.ok) throw new Error(file + ' → HTTP ' + r.status);
+            return r.text();
+          });
+          loaded.push({ file, ...MapEngine.parseAndValidate(text) });
+        }
+        const bad = loaded.filter(l => !l.ok);
+        if (bad.length) { this.showLoadErrors(bad); return; }
+        if (!loaded.length) { this.showFetchError(new Error('No maps listed in manifest.json.')); return; }
+
+        // group by phase + order; same key = a random-choice pool
+        const groups = new Map();
+        for (const l of loaded) {
+          const key = l.model.phase + '|' + (l.model.order ? l.model.order.n : 0);
+          if (!groups.has(key)) groups.set(key, { phase: l.model.phase, order: l.model.order, pool: [] });
+          groups.get(key).pool.push(l.model);
+        }
+        this.phases = [...groups.values()].sort((a, b) =>
+          (a.order ? a.order.n : 0) - (b.order ? b.order.n : 0) || a.phase.localeCompare(b.phase));
+        this.startRun();
+      } catch (e) {
+        this.showFetchError(e);
+      }
+    }
+
+    startRun() {
+      this.refs.overlay.classList.remove('show');
+      this.phaseIndex = 0;
+      this.enterPhase();
+    }
+
+    enterPhase() {
+      const phase = this.phases[this.phaseIndex];
+      const model = phase.pool[Math.floor(Math.random() * phase.pool.length)];
+      this.model = model;
+      this._buildStates(model);
+      this.flash('');
+      this.showMap();
+    }
+
+    _buildStates(model) {
+      this.fwd = new Map();
+      model.nodes.forEach(n => this.fwd.set(n.id, []));
+      model.links.forEach(l => this.fwd.get(l.from).push(l.to));
+      this.states = new Map();
+      model.nodes.forEach(n => this.states.set(n.id, 'locked'));
+      const start = model.nodes.find(n => n.type === 'START');
+      this.states.set(start.id, 'done');
+      this._unlock(start.id);
+    }
+
+    _unlock(id) {
+      for (const t of (this.fwd.get(id) || [])) {
+        if (this.states.get(t) !== 'done') this.states.set(t, 'available');
+      }
+    }
+
+    _markDone(id) {
+      this.states.set(id, 'done');
+      this._unlock(id);
+    }
+
+    onNodeClick(id) {
+      if (this.states.get(id) !== 'available') return;
+      const node = this.model.nodes.find(n => n.id === id);
+      if (node.type === 'DEAL' || node.type === 'BOSS') {
+        this.activeNode = node;
+        this.showGame();
+        this.engine.newGame(node.piles);
+      } else {
+        // CARD / PACK / STORE — effects are placeholders for now.
+        this._markDone(id);
+        this.flash(`${MapEngine.describe(node)} — effect TODO (placeholder). Node cleared.`);
+        this.renderMap();
+      }
+    }
+
+    /* engine state callback while a deal is being played */
+    handleEngineChange(state) {
+      this.renderer.render(state);
+      if (!this.activeNode) return;
+      if (state.status === GameEngine.STATUS.WON) this._onDealWon();
+      else if (state.status === GameEngine.STATUS.LOST) this._onDealLost();
+    }
+
+    _onDealWon() {
+      const node = this.activeNode;
+      this.activeNode = null;
+      this._markDone(node.id);
+      if (node.type === 'BOSS') {
+        this.phaseIndex++;
+        if (this.phaseIndex >= this.phases.length) {
+          this._overlay('Run complete!', 'win', 'You cleared every phase.', 'New Run', () => this.startRun());
+        } else {
+          this._overlay('Phase complete!', 'win', 'On to the next phase.', 'Continue',
+            () => { this.refs.overlay.classList.remove('show'); this.enterPhase(); });
+        }
+      } else {
+        this._overlay('Deal cleared!', 'win', 'Head back to the map and pick your next node.', 'Back to map',
+          () => this.returnToMap());
+      }
+    }
+
+    _onDealLost() {
+      this.activeNode = null;
+      this._overlay('Run over', 'lose', 'A pile died out. Restart the run?', 'New Run', () => this.startRun());
+    }
+
+    _overlay(title, cls, text, btn, fn) {
+      this.refs.overlayTitle.textContent = title;
+      this.refs.overlayTitle.className = cls;
+      this.refs.overlayText.textContent = text;
+      this.refs.overlayBtn.textContent = btn;
+      this.refs.overlayBtn.onclick = fn;
+      this.refs.overlay.classList.add('show');
+    }
+
+    returnToMap() {
+      this.refs.overlay.classList.remove('show');
+      this.showMap();
+    }
+
+    showMap() {
+      this.refs.app.classList.remove('in-game');
+      // wait a frame so the SVG has its laid-out size before measuring
+      requestAnimationFrame(() => this.renderMap());
+    }
+
+    showGame() {
+      this.refs.app.classList.add('in-game');
+    }
+
+    renderMap() {
+      const m = this.model;
+      const order = m.order ? ` (${m.order.n} of ${m.order.of})` : '';
+      this.refs.mapStatus.textContent = `Phase: ${m.phase}${order} · suit ${m.suit}`;
+      this.mapRenderer.render(m, this.states, id => this.onNodeClick(id));
+    }
+
+    flash(msg) { this.refs.mapMsg.textContent = msg; }
+
+    showLoadErrors(bad) {
+      let html = '<h3>⚠ Map validation failed</h3>';
+      for (const b of bad) {
+        html += `<p class="mapfile">${escapeHtml(b.file)}</p><ul>`;
+        for (const e of b.errors) html += `<li>${e.line ? 'line ' + e.line : 'file'}: ${escapeHtml(e.message)}</li>`;
+        html += '</ul>';
+      }
+      this.refs.mapError.innerHTML = html;
+      this.refs.mapError.style.display = 'block';
+      this.refs.mapStatus.textContent = 'Fix the map file(s) listed below, then reload.';
+      this.refs.mapSvg.style.display = 'none';
+    }
+
+    showFetchError(e) {
+      const fileProto = location.protocol === 'file:';
+      this.refs.mapError.innerHTML = fileProto
+        ? '<h3>⚠ Can\'t read map files over file://</h3>'
+          + '<p>Browsers block local file reads. Serve the folder over HTTP and reload:</p>'
+          + '<pre>python3 -m http.server 8000</pre>'
+          + '<p>then open <b>http://localhost:8000/</b></p>'
+        : '<h3>⚠ Failed to load maps</h3><pre>' + escapeHtml(String(e && e.message || e)) + '</pre>';
+      this.refs.mapError.style.display = 'block';
+      this.refs.mapStatus.textContent = '';
+      this.refs.mapSvg.style.display = 'none';
+    }
+  }
+
+  /* -----------------------------------------------------------------
      Bootstrap — wire the modules together.
   ----------------------------------------------------------------- */
   (function main() {
     const refs = {
+      app: document.getElementById('app'),
       board: document.getElementById('board'),
       deckCount: document.getElementById('deckCount'),
       aliveCount: document.getElementById('aliveCount'),
@@ -898,21 +1257,26 @@
       overlayText: document.getElementById('overlayText'),
       overlayBtn: document.getElementById('overlayBtn'),
       newGameBtn: document.getElementById('newGameBtn'),
+      mapScreen: document.getElementById('mapScreen'),
+      mapSvg: document.getElementById('mapSvg'),
+      mapStatus: document.getElementById('mapStatus'),
+      mapMsg: document.getElementById('mapMsg'),
+      mapError: document.getElementById('mapError'),
     };
 
-    let engine; // forward ref so the renderer can call into it
+    let engine, controller; // forward refs
 
     const renderer = new UIRenderer(refs, {
       onGuess: (id, guess) => engine.guess(id, guess),
-      onNewGame: () => engine.newGame(),
     });
 
     engine = new GameEngine({
-      onChange: (state) => renderer.render(state),
+      onChange: (state) => controller.handleEngineChange(state),
       hooks: Hooks,
     });
 
-    engine.newGame();
+    controller = new RunController(refs, { engine, renderer });
+    controller.boot();
   })();
   </script>
 </body>

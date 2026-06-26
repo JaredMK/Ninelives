@@ -1,0 +1,21 @@
+PHASE: Diamonds
+ORDER: 1 of 3
+SUIT: diamond
+
+# Rows go bottom (START) to top (BOSS). Each row lists its nodes left-to-right.
+ROW 0: START
+ROW 1: DEAL[piles:5]  DEAL[piles:4]
+ROW 2: PACK[+3 diamond]  CARD[Q diamond]  DEAL[piles:8]
+ROW 3: DEAL[piles:7]  STORE
+ROW 4: BOSS[piles:6]
+
+# Links: source -> upward targets. Address nodes as row.index (0-based, left-to-right).
+LINKS:
+  0.0 -> 1.0, 1.1
+  1.0 -> 2.0, 2.1
+  1.1 -> 2.1, 2.2
+  2.0 -> 3.0
+  2.1 -> 3.0, 3.1
+  2.2 -> 3.1
+  3.0 -> 4.0
+  3.1 -> 4.0

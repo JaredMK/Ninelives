@@ -1,0 +1,20 @@
+PHASE: Diamonds
+ORDER: 1 of 3
+SUIT: diamond
+
+# A second Diamonds map. Because it shares PHASE + ORDER with diamonds-1,
+# the game picks one of the two at random per run (variety without procgen).
+ROW 0: START
+ROW 1: DEAL[piles:6]
+ROW 2: CARD[A diamond]  DEAL[piles:9]  PACK[+2 any]
+ROW 3: STORE  DEAL[piles:7]
+ROW 4: BOSS[piles:8]
+
+LINKS:
+  0.0 -> 1.0
+  1.0 -> 2.0, 2.1, 2.2
+  2.0 -> 3.0
+  2.1 -> 3.0, 3.1
+  2.2 -> 3.1
+  3.0 -> 4.0
+  3.1 -> 4.0
