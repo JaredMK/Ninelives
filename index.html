@@ -3337,10 +3337,12 @@
      so the climb scrolls over it — atmospheric depth for free. */
   .map-depth {
     position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    /* Warm glowing cream to match the deal screen (#tissue): a soft amber bloom
+       at the foot, a gentle cream centre, and a faint CURRENT-SUIT wash up top. */
     background:
-      radial-gradient(120% 60% at 50% 112%, rgba(224,151,60,0.16), rgba(224,151,60,0) 60%),
-      radial-gradient(120% 55% at 50% -12%, rgba(110,81,166,0.13), rgba(110,81,166,0) 60%),
-      linear-gradient(180deg, rgba(236,227,217,0.0) 40%, rgba(248,242,235,0.0) 100%);
+      radial-gradient(120% 62% at 50% 112%, rgba(224,151,60,0.18), rgba(224,151,60,0) 60%),
+      radial-gradient(115% 66% at 50% 6%, var(--suit-wash, rgba(205,130,150,0.10)), transparent 58%),
+      radial-gradient(95% 60% at 50% 48%, rgba(255,244,226,0.55), rgba(255,244,226,0) 70%);
   }
   /* Faint star/dot field that drifts slower than the climb (JS sets --par on
      scroll → a gentle parallax). Two tiled dot layers at different scales. */
@@ -3348,8 +3350,8 @@
     position: absolute; left: 0; right: 0; top: -20%; height: 140%;
     transform: translateY(var(--par, 0px));
     background-image:
-      radial-gradient(circle, rgba(110,81,166,0.16) 1.1px, transparent 1.6px),
-      radial-gradient(circle, rgba(200,74,120,0.12) 1px, transparent 1.5px);
+      radial-gradient(circle, rgba(199,126,31,0.13) 1.1px, transparent 1.6px),
+      radial-gradient(circle, rgba(200,74,120,0.11) 1px, transparent 1.5px);
     background-size: 76px 76px, 119px 119px;
     background-position: 10px 0, 48px 30px;
     opacity: 0.7;
@@ -3374,31 +3376,48 @@
     display: flex; justify-content: center;
     padding: 3px 6px calc(5px + env(safe-area-inset-bottom));
   }
-  .map-foot .hist-band { margin: 0 auto; }
+  /* Give the relocated #histBand the deal screen's band height so its bars have
+     room (in <main> it's sized by flex; here we set it explicitly). */
+  .map-foot .hist-band { margin: 0 auto; height: 64px; align-items: stretch; }
   .map-foot:empty { display: none; }
+  /* The deal flow hides the strip between deals (body:not(.play-active)); on the
+     map it's always live, so re-show it here (2 ids out-specifies that rule). */
+  #mapFoot #histBand > .deck-strip,
+  #mapFoot #histBand > .deck-stack { visibility: visible; }
 
   /* ── NEW branching phase-map ──────────────────────────────────────────
      The new map draws its OWN edges (SVG), so the old centre climbing line is
      suppressed. Nodes are absolutely positioned within .phase-map. */
   .overlay.map .map-track::before { display: none; }
+  /* Header = the deal screen's STATUS PILL (rounded panel, shadow); the phase
+     text takes the current suit's colour (--suit-col, set by the tint class). */
   .map-hdr {
     position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; padding: 10px 14px calc(6px); width: 100%; max-width: 420px; margin: 0 auto;
-    font-family: var(--font-text); font-weight: 700;
+    gap: 10px; width: min(96vw, 420px); margin: 2px auto 0; padding: 5px 15px;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px; box-shadow: var(--shadow);
+    font-family: var(--font-text); font-weight: 800;
   }
-  .map-hdr .map-phase { font-size: 13px; color: var(--accent-2); letter-spacing: 0.3px; }
-  .map-hdr .map-phase b { font-family: var(--font-display); font-size: 15px; }
-  .map-hdr .map-deck { font-size: 12px; color: var(--ink); background: var(--panel);
-    border: 1px solid var(--edge-2); border-radius: 999px; padding: 4px 11px; box-shadow: var(--shadow); white-space: nowrap; }
+  .map-hdr .map-phase { font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase;
+    color: var(--suit-col, var(--accent-2)); white-space: nowrap; }
+  .map-hdr .map-phase b { font-family: var(--font-display); font-size: 14px; text-transform: none; margin-right: 3px; }
+  .map-hdr .map-deck { font-size: 11px; color: var(--ink); white-space: nowrap; }
   .map-hdr .map-deck b { font-size: 15px; color: var(--accent-2); margin: 0 1px; }
-  @keyframes deckGain { 0% { transform: scale(1); } 35% { transform: scale(1.18); box-shadow: 0 0 10px var(--accent-2); } 100% { transform: scale(1); } }
-  .map-hdr .map-deck.gain { animation: deckGain 0.5s ease; }
+  @keyframes deckGain { 0% { transform: scale(1); } 35% { transform: scale(1.2); color: var(--amber); } 100% { transform: scale(1); } }
+  .map-hdr .map-deck.gain b { display: inline-block; animation: deckGain 0.5s ease; }
+  /* Whole-map SUIT TINT: header colour + a faint suit wash agree with the deal. */
+  .overlay.map.tint-d { --suit-col: #c8506e; --suit-wash: rgba(200,80,110,0.12); }
+  .overlay.map.tint-c { --suit-col: #5a6b86; --suit-wash: rgba(90,107,134,0.13); }
+  .overlay.map.tint-s { --suit-col: #3c4864; --suit-wash: rgba(60,72,100,0.15); }
 
   .phase-map { position: relative; margin: 8px auto 0; }
   .phase-map .map-edges { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; }
-  .map-edge { stroke: rgba(120,100,90,0.30); stroke-width: 3; stroke-linecap: round; }
-  .map-edge.done { stroke: rgba(120,100,90,0.16); }
-  .map-edge.active { stroke: var(--accent-2); stroke-width: 4; }
+  /* TRAIL = the deal screen's rose SYNAPSE web: dusty-rose curves (--net) with a
+     small signal dot (--net-dot) on each, replacing the old neutral grey lines. */
+  .map-edge { fill: none; stroke: var(--net); stroke-width: 3; stroke-linecap: round; opacity: 0.5; }
+  .map-edge.done { opacity: 0.2; }
+  .map-edge.active { stroke-width: 4; opacity: 0.95; }
+  .map-dot { fill: var(--net-dot); opacity: 0.5; }
+  .map-dot.active { opacity: 0.95; }
 
   /* Continuous run-map: per-phase tint BANDS stacked up the climb (♦ foot →
      ♠ summit), each labelled where its suit takes over. Low alpha keeps every
@@ -3415,62 +3434,121 @@
   .pm-band-label.p-d { color: #c8506e; }
   .pm-band-label.p-c { color: #5a6b86; }
   .pm-band-label.p-s { color: #3c4864; }
-  /* Per-node phase tint: a coloured edge ribbon + active-edge stroke by suit. */
-  .pm-node.p-d.s-legal, .pm-node.p-d.s-here { border-color: #c8506e; }
-  .pm-node.p-c.s-legal, .pm-node.p-c.s-here { border-color: #5a6b86; }
-  .pm-node.p-s.s-legal, .pm-node.p-s.s-here { border-color: #3c4864; }
 
+  /* NODES — transparent click targets sized to their content (real cards, mini
+     clusters, pack stacks, shop tiles), so each node carries the deal screen's
+     own visual language. */
   .pm-node {
     position: absolute; transform: translate(-50%, -50%); z-index: 2;
-    width: 54px; height: 54px; border-radius: 14px; padding: 0; cursor: default;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-    background: var(--panel); border: 2px solid var(--edge-2); box-shadow: var(--shadow);
-    font-family: var(--font-text); color: var(--ink); transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    width: auto; height: auto; padding: 0; cursor: default; background: none; border: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-text); color: var(--ink);
+    transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
   }
-  .pm-node .mn-ico { font-size: 19px; line-height: 1; }
-  .pm-node .mn-piles { font-size: 13px; font-weight: 900; color: var(--accent-2); line-height: 1; }
-  .pm-node .mn-add { font-size: 11px; font-weight: 800; color: var(--accent-2); line-height: 1; }
-  .pm-node .mn-deal-ico { width: 16px; height: 12px; border: 2px solid var(--ink); border-radius: 2px; }
-  /* Node types */
-  .pm-node.t-boss { width: 64px; height: 64px; border-color: var(--amber); }
-  .pm-node.t-boss .mn-ico { font-size: 24px; color: var(--amber); }
-  .pm-node.t-store { border-color: #6E51A6; }
-  .pm-node.t-deal { border-color: #b06; }
-  /* Single-CARD node (grants exactly 1): the node frames the EXACT card, face-up
-     (rank + suit) when it's a reachable choice, or a face-DOWN back when it's not
-     yet reachable. Multi-card nodes are sealed PACKS instead (below). */
-  .pm-node.t-pickup { padding: 2px; }
-  .pm-node .mn-card, .pm-node .mn-cardback { display: block; }
-  .pm-node .mn-card .mini-card { width: 38px; height: 50px; border-radius: 5px; box-shadow: none; border: 1px solid rgba(0,0,0,0.16); }
-  .pm-node .mn-card .mini-card .mc-rank { font-size: 16px; }
-  .pm-node .mn-card .mini-card .mc-suit { font-size: 13px; }
-  .pm-node .mn-card .mini-card .mc-badges { font-size: 7px; top: 1px; right: 1px; }
-  .pm-node .mn-cardback {
-    width: 38px; height: 50px; border-radius: 5px; border: 1px solid rgba(40,20,60,0.45);
-    background:
-      repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
-      linear-gradient(155deg, var(--foil-1, #7e62a8) 0%, var(--foil-2, #4d2f78) 100%);
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.18);
+  /* Amber pile-count chip (deal/boss) — the deal screen's limiting-pile badge. */
+  .pm-node .mn-piles {
+    position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 900; line-height: 1; color: #1c1206;
+    background: var(--amber); border: 1.5px solid #e6a445;
+    box-shadow: 0 2px 6px rgba(74,50,40,0.28); z-index: 4;
   }
-  /* Sealed PACK node (grants 2+): the store's foil, shrunk — count only, hidden. */
-  .pm-node.t-pack { padding: 2px; }
-  .pm-node .pack-foil.pf-node { width: 36px; filter: none; }
-  .pm-node .pack-foil.pf-node .pf-cards i { width: 8px; height: 12px; }
-  .pm-node .pack-foil.pf-node .pf-name { font-size: 9px; }
-  /* Node states */
-  .pm-node.s-far { opacity: 0.42; filter: grayscale(0.4); }
-  .pm-node.s-done { opacity: 0.5; filter: grayscale(0.55); }
-  .pm-node.s-done::after { content: "✓"; position: absolute; right: -4px; top: -6px; font-size: 12px; font-weight: 900; color: #2e9e6b; }
-  .pm-node.s-legal { cursor: pointer; box-shadow: 0 0 0 3px rgba(188,66,112,0.35), var(--shadow); }
-  .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.08); }
-  @keyframes hereGlow { 0%,100% { box-shadow: 0 0 0 4px rgba(188,66,112,0.55), 0 0 14px 2px rgba(188,66,112,0.4); } 50% { box-shadow: 0 0 0 5px rgba(188,66,112,0.7), 0 0 20px 5px rgba(188,66,112,0.5); } }
-  .pm-node.s-here { transform: translate(-50%, -50%) scale(1.12); animation: hereGlow 1.6s ease-in-out infinite; border-color: var(--accent-2); }
-  /* Arrival cue: the marker "lands" on the node it just travelled to (a brief
-     upward pop), reinforcing the bottom→top progression. */
-  @keyframes pmArrive { 0% { transform: translate(-50%, 22px) scale(0.7); opacity: 0.4; } 60% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.12); } }
-  .pm-node.s-here.arrived { animation: pmArrive 0.42s ease-out, hereGlow 1.6s ease-in-out infinite 0.42s; }
-  @media (prefers-reduced-motion: reduce) { .pm-node.s-here.arrived { animation: none; } }
-  @media (prefers-reduced-motion: reduce) { .pm-node.s-here { animation: none; box-shadow: 0 0 0 4px rgba(188,66,112,0.6); } .map-hdr .map-deck.gain { animation: none; } }
+
+  /* PICKUP — a real white board card (reuses .rank-top/.pip + suitGlyph + card vars). */
+  .node-card { position: relative; display: block; width: 42px; height: 56px;
+    --pile-size: 46px; --ps: calc(var(--pile-size) * 0.9);
+    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+  .node-card .front {
+    position: absolute; inset: 0; border-radius: 7px; overflow: hidden;
+    background: var(--card-face); color: var(--card-ink);
+    border: 1px solid var(--card-border); display: flex; flex-direction: column;
+    justify-content: space-between; padding: calc(var(--ps) * 0.09);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .node-card .front.red { color: var(--card-red); }
+  .node-card .pip { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: calc(var(--ps) * 0.30); line-height: 1; opacity: 0.82; }
+  .node-card .s .suit-svg, .node-card .pip .suit-svg { width: 1em; height: 1em; display: block; }
+
+  /* DEAL / BOSS — a tilted mini CLUSTER of board-cards ("a deal"). */
+  .mn-cluster { position: relative; display: block; width: 52px; height: 46px;
+    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+  .mn-cluster .mcl-card { position: absolute; top: 50%; left: 50%; width: 25px; height: 34px;
+    border-radius: 4px; background: var(--card-face); border: 1px solid var(--card-border);
+    box-shadow: 0 1px 3px rgba(74,50,40,0.18); }
+  .mn-cluster .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-11px); }
+  .mn-cluster .mcl-card.b { transform: translate(-50%,-50%) rotate(2deg); z-index: 1; }
+  .mn-cluster .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(11px); }
+  .mn-cluster.big { width: 72px; height: 62px; }
+  .mn-cluster.big .mcl-card { width: 34px; height: 46px; }
+  .mn-cluster.big .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-15px); }
+  .mn-cluster.big .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(15px); }
+  /* Boss = climactic: a warm glow ring behind the larger cluster. */
+  .t-boss .mn-cluster.big::before { content: ""; position: absolute; inset: -12px; z-index: -1;
+    border-radius: 50%; background: radial-gradient(circle, rgba(199,126,31,0.40), rgba(199,126,31,0) 70%); }
+
+  /* PACK (2+) — purple stacked cards + a "+N ♦" count badge (artifact family). */
+  .mn-pack { position: relative; display: block; width: 42px; height: 50px;
+    filter: drop-shadow(0 4px 9px rgba(60,40,80,0.30)); }
+  .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 30px; height: 40px;
+    border-radius: 5px; border: 1px solid rgba(255,255,255,0.30);
+    background: linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
+  .mn-pack .mpk-card.a { transform: translate(-50%,-50%) rotate(-8deg) translate(-4px,2px); }
+  .mn-pack .mpk-card.b { transform: translate(-50%,-50%) rotate(0deg); z-index: 1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
+  .mn-pack .mpk-card.c { transform: translate(-50%,-50%) rotate(8deg) translate(4px,-2px); }
+  .mn-pack .mpk-badge { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+    z-index: 4; padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+    font-size: 11px; font-weight: 900; color: #fff; background: var(--pathway);
+    border: 1px solid var(--pathway-2); box-shadow: 0 2px 6px rgba(60,40,80,0.3); }
+  .mn-pack .mpk-badge i { font-style: normal; }
+
+  /* STORE — a shop tile resting on the same warm ground. */
+  .mn-shop { display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 12px; font-size: 22px;
+    background: var(--panel); border: 1.5px solid var(--pathway-2);
+    box-shadow: 0 4px 10px rgba(74,50,40,0.18); }
+
+  /* Fallback face-down card (only if a +1 node has no locked card). */
+  .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
+      linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
+
+  /* ---- STATES: where am I / where can I go / where have I been ---- */
+  .pm-node.s-far { opacity: 0.5; filter: grayscale(0.45); }
+  .pm-node.s-done { opacity: 0.5; filter: grayscale(0.5); }
+  .pm-node.s-done::after { content: "✓"; position: absolute; right: -3px; top: -7px; z-index: 5;
+    font-size: 12px; font-weight: 900; color: #2e9e6b; }
+  /* Reachable next move = pulsing ORANGE highlight. */
+  .pm-node.s-legal { cursor: pointer; }
+  .pm-node.s-legal::before { content: ""; position: absolute; inset: -7px; border-radius: 16px; z-index: -1;
+    animation: pmReachRing 1.4s ease-in-out infinite; }
+  @keyframes pmReachRing {
+    0%,100% { box-shadow: 0 0 0 2px rgba(224,151,60,0.45); }
+    50%     { box-shadow: 0 0 0 3px rgba(224,151,60,0.9), 0 0 15px 2px rgba(224,151,60,0.55); }
+  }
+  .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.06); }
+  /* Current position = unmistakable suit-coloured ring + glow. */
+  .pm-node.s-here { transform: translate(-50%, -50%) scale(1.1); z-index: 3; }
+  .pm-node.s-here::before { content: ""; position: absolute; inset: -8px; border-radius: 18px; z-index: -1;
+    animation: hereGlow 1.6s ease-in-out infinite; }
+  @keyframes hereGlow {
+    0%,100% { box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)), 0 0 16px 3px var(--here-glow, rgba(188,66,112,0.5)); }
+    50%     { box-shadow: 0 0 0 4px var(--here-col, var(--accent-2)), 0 0 24px 6px var(--here-glow, rgba(188,66,112,0.66)); }
+  }
+  .pm-node.p-d.s-here { --here-col: #c8506e; --here-glow: rgba(200,80,110,0.5); }
+  .pm-node.p-c.s-here { --here-col: #5a6b86; --here-glow: rgba(90,107,134,0.5); }
+  .pm-node.p-s.s-here { --here-col: #3c4864; --here-glow: rgba(60,72,100,0.5); }
+  /* Arrival cue: the marker "lands" on the node it just travelled to. */
+  @keyframes pmArrive { 0% { transform: translate(-50%, 22px) scale(0.7); opacity: 0.4; } 60% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.1); } }
+  .pm-node.s-here.arrived { animation: pmArrive 0.42s ease-out; }
+  @media (prefers-reduced-motion: reduce) {
+    .pm-node.s-legal::before, .pm-node.s-here::before, .pm-node.s-here.arrived { animation: none; }
+    .pm-node.s-legal::before { box-shadow: 0 0 0 3px rgba(224,151,60,0.75); }
+    .pm-node.s-here::before { box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)); }
+    .map-hdr .map-deck.gain { animation: none; }
+  }
 
   /* The dashed climbing path runs up the centre, BEHIND the nodes. */
   .map-track-legacy::before {
@@ -4375,7 +4453,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.07 · run-map M9 (every +1 node locks + shows its exact card)";
+const APP_VERSION = "v3.08 · map restyle (deal-screen language + live deck histogram)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15419,17 +15497,31 @@ const UIRenderer = (() => {
   function mapNodeXY(n, R) { return { x: MAP_PAD + n.x * (MAP_W - 2 * MAP_PAD), y: MAP_PAD + (R - 1 - n.row) * MAP_ROW_H }; }
   /** The suit a node belongs to (its own draft/deal/boss suit, else its phase's). */
   function nodeSuit(n, map) { return n.suit || (map.phases && map.phases[n.phase] && map.phases[n.phase].suit) || "♦"; }
-  /* A small SEALED PACK foil for a multi-card map node — the same foil component
-     the store uses (.pack-foil + pf-* parts), shrunk to fit a node, showing ONLY
-     the count (contents stay hidden until opened). */
-  function mapPackFoilHtml(n) {
-    return '<span class="pack-foil pf-node">' +
-        '<span class="pf-crimp top"></span>' +
-        '<span class="pf-body"><span class="pf-sheen"></span>' +
-          '<span class="pf-window"><span class="pf-cards"><i></i><i></i><i></i></span>' +
-            '<span class="pf-name">+' + (n.packCount || 3) + '</span></span>' +
-        '</span>' +
-        '<span class="pf-crimp bottom"></span>' +
+  /* A real DEAL-SCREEN card face, reusing the board card's exact markup + CSS
+     (.front / .rank-top / .pip / .rank-bottom + suitGlyph). Static, node-sized. */
+  function nodeCardHtml(card) {
+    const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
+    const g = suitGlyph(card.suit), lbl = miniRankLabel(card);
+    return '<span class="node-card"><span class="front' + (s.red ? " red" : "") + '">' +
+        '<span class="rank-top"><span class="r">' + lbl + '</span><span class="s">' + g + '</span></span>' +
+        '<span class="pip">' + g + '</span>' +
+        '<span class="rank-bottom"><span class="r">' + lbl + '</span><span class="s">' + g + '</span></span>' +
+      '</span></span>';
+  }
+  /* DEAL / BOSS → a tiny tilted CLUSTER of mini board-cards (reads as "a deal")
+     with an amber pile-count chip. `big` = the boss (larger, glow ring). */
+  function mapDealCluster(n, big) {
+    return '<span class="mn-cluster' + (big ? " big" : "") + '">' +
+        '<span class="mcl-card a"></span><span class="mcl-card b"></span><span class="mcl-card c"></span>' +
+        '<span class="mn-piles">' + n.piles + '</span>' +
+      '</span>';
+  }
+  /* PACK (2+) → a small stacked-cards motif in the artifact/pillar purple family,
+     with a "+N ♦" count badge. Contents stay hidden until opened. */
+  function mapPackStack(n) {
+    return '<span class="mn-pack">' +
+        '<span class="mpk-card a"></span><span class="mpk-card b"></span><span class="mpk-card c"></span>' +
+        '<span class="mpk-badge">+' + (n.packCount || 3) + ' <i>' + (n.suit || "") + '</i></span>' +
       '</span>';
   }
   /* A single-card node's inner content. Every +1 node is locked to an exact card
@@ -15438,14 +15530,14 @@ const UIRenderer = (() => {
      fallback only if a node somehow has no locked card, e.g. an exhausted pool.) */
   function mapPickupInner(n, state) {
     const card = campaign.nodeCard(n) || campaign.previewPickupCard(n);
-    if (card) return '<span class="mn-card">' + miniCardHtml(card) + '</span>';
+    if (card) return nodeCardHtml(card);
     return '<span class="mn-cardback"></span>';
   }
   function mapNodeInner(n, suit, state) {
-    if (n.type === "boss") return '<span class="mn-ico">♛</span><span class="mn-piles">' + n.piles + '</span>';
-    if (n.type === "deal") return '<span class="mn-ico mn-deal-ico"></span><span class="mn-piles">' + n.piles + '</span>';
-    if (n.type === "store") return '<span class="mn-ico">🛍</span>';
-    if (n.type === "pack") return mapPackFoilHtml(n);                   // 2+ cards → sealed pack (count only)
+    if (n.type === "boss") return mapDealCluster(n, true);
+    if (n.type === "deal") return mapDealCluster(n, false);
+    if (n.type === "store") return '<span class="mn-shop">🛍</span>';
+    if (n.type === "pack") return mapPackStack(n);                      // 2+ cards → sealed pack (count only)
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
@@ -15477,25 +15569,36 @@ const UIRenderer = (() => {
         '<div class="pm-band-label p-' + cls + '" style="top:' + (Math.min(height, yBot) - 22).toFixed(1) + 'px;">' +
         (SUIT_PHASE_NAME[ph.suit] || ph.suit) + ' ' + ph.suit + '</div>';
     });
-    // Edges: a line per directed edge; edges leaving the CURRENT node stand out.
-    // (Phase-boss → next-phase-opening edges are ordinary edges here, so the
-    // climb reads as one continuous path.)
+    // TRAIL: each edge is a gently-curved dusty-rose synapse (quoting the deal
+    // screen's connection web) with a small signal dot on the line. Edges leaving
+    // the CURRENT node stand out. (Phase-boss → next-phase-opening edges are
+    // ordinary edges here, so the climb reads as one continuous path.)
+    const edgeSvg = (a, b, active, done) => {
+      const cls = "map-edge" + (active ? " active" : "") + (done ? " done" : "");
+      const dotCls = "map-dot" + (active ? " active" : "");
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;                       // perpendicular
+      const bow = Math.min(13, len * 0.12) * (((a.x | 0) + (a.y | 0)) % 2 ? 1 : -1);
+      const qx = mx + nx * bow, qy = my + ny * bow;              // quadratic control
+      const dotX = mx + 0.5 * nx * bow, dotY = my + 0.5 * ny * bow;   // point at t=0.5
+      return '<path d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
+        ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '" class="' + cls + '"/>' +
+        '<circle cx="' + dotX.toFixed(1) + '" cy="' + dotY.toFixed(1) + '" r="2.2" class="' + dotCls + '"/>';
+    };
     let edges = "";
     const atStart = pos == null;
     map.nodes.forEach(n => {
       const a = mapNodeXY(n, R);
       n.next.forEach(mid => {
         const m = map.byId[mid]; if (!m) return;
-        const b = mapNodeXY(m, R);
-        const active = (n.id === pos);
-        const done = cleared.has(n.id) && cleared.has(m.id);
-        edges += '<line x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" class="map-edge' + (active ? " active" : "") + (done ? " done" : "") + '"/>';
+        edges += edgeSvg(a, mapNodeXY(m, R), n.id === pos, cleared.has(n.id) && cleared.has(m.id));
       });
     });
     // Virtual start → ♦ row-0 nodes (shown emphasised while at the start).
     if (atStart) {
       const startY = height - MAP_PAD * 0.4;
-      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; const b = mapNodeXY(m, R); edges += '<line x1="' + (MAP_W / 2).toFixed(1) + '" y1="' + startY.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" class="map-edge active"/>'; });
+      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; edges += edgeSvg({ x: MAP_W / 2, y: startY }, mapNodeXY(m, R), true, false); });
     }
     // Nodes — each tinted by ITS phase suit (not the current phase).
     let nodes = "";
@@ -15531,8 +15634,11 @@ const UIRenderer = (() => {
     updateStageRun();
     renderProgressionMap();
     updateDeckIndicator();
+    const suit = campaign.phaseSuit();
+    // Wash the whole map in the current phase suit's colour (header + ground).
+    el.mapOverlay.classList.remove("tint-d", "tint-c", "tint-s");
+    el.mapOverlay.classList.add("tint-" + (SUIT_CLASS[suit] || "d"));
     if (el.mapPhase) {
-      const suit = campaign.phaseSuit();
       el.mapPhase.innerHTML = '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
         ' · phase ' + (campaign.getPhaseIndex() + 1) + '/' + campaign.phasesTotal();
     }
