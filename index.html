@@ -1415,8 +1415,13 @@
      three clearly distinct colours so the buttons read apart at a glance. */
   .btn.higher { background: #6cbd86; color: #0e2417; }
   .btn.lower  { background: #db8794; color: #2a1014; }
-  /* Greyed during a drag-guess to show which guess is armed (non-chosen dim). */
+  /* During a drag-guess (swipe up / down / sideways) the armed direction's button
+     POPS (lifts, brightens, white ring) and the other two grey out — so a swipe
+     shows which guess is selected even though the finger is on the board. */
   .btn.dim { opacity: 0.28; filter: grayscale(0.85); }
+  .btn.lit { transform: translateY(-2px) scale(1.05); filter: brightness(1.1) saturate(1.12);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.85), 0 5px 14px rgba(0,0,0,0.3); z-index: 1; }
+  .btn.same.lit { transform: translateY(-2px) scale(1.05); }
   /* Disabled (no pile selected): present but visibly inert. */
   .actions.guess-disabled .btn { opacity: 0.42; filter: saturate(0.5); pointer-events: none; box-shadow: none; }
 
@@ -4680,7 +4685,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.20 · thumb-reach deal layout (histogram top, buttons bottom)";
+const APP_VERSION = "v3.21 · swipe lights the armed guess button, dims the rest";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12330,14 +12335,16 @@ const UIRenderer = (() => {
     // Feedback while dragging: SWIPE input → a floating label at the finger; button
     // (revert) mode → the original button-greying. Both read the same `armed`.
     function setDragGreying(armed) {
-      el.btnHigher.classList.toggle("dim", armed === "lower");
-      el.btnLower.classList.toggle("dim", armed === "higher");
-      el.btnSame.classList.toggle("dim", armed === "higher" || armed === "lower");
+      // The armed direction's button POPS (.lit); the other two grey out (.dim).
+      // Neutral (dead-zone / no armed dir) clears both so all three sit normal.
+      [["higher", el.btnHigher], ["same", el.btnSame], ["lower", el.btnLower]].forEach(([dir, btn]) => {
+        if (!btn) return;
+        btn.classList.toggle("lit", !!armed && dir === armed);
+        btn.classList.toggle("dim", !!armed && dir !== armed);
+      });
     }
     function clearDragGreying() {
-      el.btnHigher.classList.remove("dim");
-      el.btnLower.classList.remove("dim");
-      el.btnSame.classList.remove("dim");
+      [el.btnHigher, el.btnSame, el.btnLower].forEach(btn => { if (btn) btn.classList.remove("dim", "lit"); });
     }
     // The direction indicator is a big faded word CENTERED on the board — fixed in
     // place for the whole swipe (never follows the finger). Positioned once when a
@@ -12361,12 +12368,12 @@ const UIRenderer = (() => {
     }
     function hideSwipeLabel() { if (el.swipeLabel) el.swipeLabel.classList.add("hidden"); }
     function dragFeedback(armed) {
-      if (SWIPE_INPUT) showSwipeLabel(armed);
-      else setDragGreying(armed);
+      if (SWIPE_INPUT) showSwipeLabel(armed);   // floating board label
+      setDragGreying(armed);                    // AND light/dim the visible bottom guess buttons
     }
     function clearDragFeedback() {
       if (SWIPE_INPUT) hideSwipeLabel();
-      else clearDragGreying();
+      clearDragGreying();
     }
 
     el.board.addEventListener("pointerdown", (e) => {
