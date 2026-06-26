@@ -29,12 +29,27 @@ export function run() {
     r.ok(card, "a pickup adds a card");
     r.eq(c.deckSize(), before + 1, "the deck grew by one");
     r.eq(c.getRunDeck().length, c.deckSize(), "getRunDeck() reflects the bigger draft");
-    const added = c.resolvePack({ type: "pack", packCount: 3, mixed: false });
-    r.eq(added.length, 3, "a +3 pack adds three cards");
-    r.eq(c.deckSize(), before + 4, "deck size is start + pickup + pack");
+    // A pack grants ONLY its displayed suit; on a fresh ♦ campaign the diamond
+    // pool is tight (10 reserved by +1 nodes), so it adds 1..3 — all diamonds.
+    const added = c.resolvePack({ type: "pack", packCount: 3, suit: "♦" });
+    r.ok(added.length >= 1 && added.length <= 3, "a +3 ♦ pack adds 1..3 cards (capped by the suit pool)");
+    r.ok(added.every(x => x.suit === "♦"), "a ♦ pack grants ONLY diamonds (no off-suit fill)");
+    r.eq(c.deckSize(), before + 1 + added.length, "the deck grew by exactly the cards added");
     // No duplicate ids (the draft is a subset of distinct identities).
     const ids = c.getRunDeck().map(x => x.id);
     r.eq(new Set(ids).size, ids.length, "the draft has no duplicate card ids");
+  }
+
+  // ---- a pack grants ONLY its displayed suit, in every phase --------------
+  {
+    for (const suit of ["♦", "♣", "♠"]) {
+      const c = CampaignState.create();
+      let all = [];
+      // open several packs of `suit`; every granted card must be that suit.
+      for (let k = 0; k < 6; k++) all = all.concat(c.resolvePack({ type: "pack", packCount: 5, suit }));
+      r.ok(all.length >= 1, "a " + suit + " pack grants at least one card");
+      r.ok(all.every(x => x.suit === suit), "every card a " + suit + " pack grants is " + suit + " (no off-suit)");
+    }
   }
 
   // ---- phase advancement: ♦ → ♣ → ♠ → run won -----------------------------

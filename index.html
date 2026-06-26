@@ -695,11 +695,12 @@
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: var(--radius);
     box-shadow: var(--shadow); padding: 6px 8px;
   }
-  /* In SETUP the opaque control bar takes the bottom strip's place, so hide the
-     histogram + deck beneath it (the board has already reclaimed the control-row
-     space). Play shows the histogram normally. */
+  /* SETUP shows the histogram too (so the player reads the deck while placing).
+     The Start Deal / Redeal control bar is RAISED to float just above the histBand
+     in setup (showStickerPhase sets play-controls' bottom from the band height),
+     so the two stack instead of the bar covering the strip. */
   body.guess-side:not(.play-active) #histBand > .deck-strip,
-  body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: hidden; }
+  body.guess-side:not(.play-active) #histBand > .deck-stack { visibility: visible; }
 
   /* ============================================================
      SWIPE INPUT (isolated + revertable via SWIPE_INPUT / body.swipe-input)
@@ -3510,6 +3511,27 @@
     background: var(--panel); border: 1.5px solid var(--pathway-2);
     box-shadow: 0 4px 10px rgba(74,50,40,0.18); }
 
+  /* HOME / origin node — a little base camp where the run begins. Non-interactive;
+     visually distinct from every action node (a warm hut, not a card/foil). The
+     ⌂ glyph is hidden; the roof + body + heart-on-the-door are drawn in CSS. */
+  .pm-node.t-home { cursor: default; }
+  .mn-home { position: relative; display: block; width: 50px; height: 42px; font-size: 0; }
+  .mn-home::before {   /* roof */
+    content: ""; position: absolute; top: 1px; left: 50%; transform: translateX(-50%) rotate(45deg);
+    width: 26px; height: 26px; border-radius: 6px 0 0 0;
+    background: linear-gradient(135deg, #d98f6b, #b9613f);
+    box-shadow: 0 2px 5px rgba(74,50,40,0.25); }
+  .mn-home::after {    /* body */
+    content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 36px; height: 26px; border-radius: 5px;
+    background: linear-gradient(180deg, #f6ecdd, #e7d5bd); border: 1.5px solid var(--edge-2);
+    box-shadow: 0 4px 9px rgba(74,50,40,0.2); }
+  .mn-home-ico { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); z-index: 1;
+    font-size: 13px; line-height: 1; color: var(--card-red); }
+  .mn-home-ico::after { content: "♥"; }    /* heart on the door — the 13-heart start */
+  /* At home (before the first move) it sits at full strength; dimmed once you set out. */
+  .pm-node.t-home.s-done { opacity: 0.5; filter: grayscale(0.4); }
+
   /* Fallback face-down card (only if a +1 node has no locked card). */
   .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
@@ -4506,7 +4528,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.11 · edge routing — paths curve around non-endpoint nodes";
+const APP_VERSION = "v3.12 · setup histogram + home node + pack suit-correctness";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8546,6 +8568,16 @@ const CampaignState = (() => {
       if (!pool.length) return null;
       return pool[Math.floor(Math.random() * pool.length)];
     }
+    /** Draft a card of EXACTLY `suit` (unowned + not reserved by a +1 node) — no
+        off-suit fallback. The displayed suit on a node is the source of truth for
+        what it grants, so a node only ever yields its own suit; if that suit is
+        exhausted it yields nothing (the caller grants fewer than the badge). */
+    function pickSuitDraftId(suit) {
+      const taken = reservedSet(null);
+      const pool = idsOfSuit(suit).filter(id => !taken.has(id));
+      if (!pool.length) return null;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
         phaseIndex), so a not-yet-reached node previews from the right pool. */
     function suitForNode(node) { return (node && typeof node.phase === "number") ? PHASE_SUITS[node.phase] : phaseSuit(); }
@@ -8666,11 +8698,14 @@ const CampaignState = (() => {
         if (ownedIds.indexOf(id) === -1) ownedIds.push(id);   // the locked card is reserved, so never a dup — guarded anyway
         return findById(id);
       },
-      /** Resolve a pack node → add `packCount` drafted cards. Returns the added cards. */
+      /** Resolve a pack node → add up to `packCount` cards, all of the node's
+          DISPLAYED suit (node.suit). A pack showing diamonds grants only diamonds;
+          if that suit is exhausted it grants fewer (never off-suit). */
       resolvePack(node) {
         const out = [];
         const n = (node && node.packCount) || 3;
-        for (let i = 0; i < n; i++) { const id = pickDraftId(node && node.mixed); if (id == null) break; ownedIds.push(id); out.push(findById(id)); }
+        const suit = (node && node.suit) || phaseSuit();   // the displayed suit is the source of truth
+        for (let i = 0; i < n; i++) { const id = pickSuitDraftId(suit); if (id == null) break; ownedIds.push(id); out.push(findById(id)); }
         return out;
       },
       /** Advance to the next phase. On the CONTINUOUS map this no longer
@@ -11001,8 +11036,9 @@ const UIRenderer = (() => {
     document.body.classList.remove("play-active");         // setup keeps the full control row (Start Deal)
     if (el.actions) el.actions.classList.add("hidden");   // setup: no guessing → hide the buttons
     if (el.ctlHelp) el.ctlHelp.classList.add("hidden");   // setup phase: no guess help
-    // Bottom region shows the setup inventory (histogram hidden) — same height.
-    if (el.bottomRegion) { el.bottomRegion.classList.add("setup"); el.bottomRegion.classList.remove("run"); }
+    // Histogram stays visible in setup; float the Start Deal / Redeal bar ABOVE
+    // it so the player can read the deck composition while placing.
+    if (el.playControls && el.histBand) el.playControls.style.bottom = (el.histBand.offsetHeight + 8) + "px";
     // Reveal the pillar slot row on every column for the whole setup phase, so
     // the player sees where Pillars go before placing any.
     el.board.classList.add("show-slots");
@@ -11026,6 +11062,7 @@ const UIRenderer = (() => {
     // down to the bottom control strip; the activation prompt overlays the strip
     // when it fires (see body.play-active CSS).
     document.body.classList.add("play-active");
+    if (el.playControls) el.playControls.style.bottom = "";   // back to the default (over the bottom strip)
     // Guess buttons are present for the WHOLE deal — greyed (disabled) until a
     // pile is selected, active once one is. They never appear/disappear.
     if (el.actions) { el.actions.classList.remove("hidden"); el.actions.classList.add("guess-disabled"); }
@@ -15551,8 +15588,13 @@ const UIRenderer = (() => {
      to the next. */
   const MAP_ROW_H = 104, MAP_PAD = 46, MAP_W = 348;
   const MAP_MIN_GAP = 60;   // min horizontal centre-to-centre spacing within a row (node footprint + margin)
+  const MAP_HOME_GAP = 40;  // extra space below ♦ row 0 for the HOME/origin node (clear of the first deal)
   const SUIT_PHASE_NAME = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
   const SUIT_CLASS = { "♦": "d", "♣": "c", "♠": "s", "♥": "h" };
+  /* Total phase-map height + the HOME node centre, shared by the renderer, the
+     edges and the avatar so the marker, the home tile and the trail all agree. */
+  function mapHeightFor(R) { return MAP_PAD * 2 + (R - 1) * MAP_ROW_H + MAP_HOME_GAP; }
+  function homeXYof(R) { return { x: MAP_W / 2, y: mapHeightFor(R) - MAP_PAD * 0.55 }; }
   /* Per-row LAYOUT: the authored x's can place same-row nodes too close (cards
      overlapping). We keep the structure (rows/edges/order) and only SPACE nodes:
      each row's nodes are pushed apart to MAP_MIN_GAP, then re-centred in the
@@ -15730,7 +15772,7 @@ const UIRenderer = (() => {
   function avatarXY() {
     const map = campaign.getMap(); if (!map) return null;
     const R = map.totalRows, pos = campaign.nodePos();
-    if (pos == null) return { x: MAP_W / 2, y: (MAP_PAD * 2 + (R - 1) * MAP_ROW_H) - MAP_PAD * 0.4 };
+    if (pos == null) return homeXYof(R);   // the marker starts on the HOME node
     const n = map.byId[pos]; return n ? mapNodeXY(n, R) : null;
   }
   function positionAvatarAt(xy) {
@@ -15805,7 +15847,7 @@ const UIRenderer = (() => {
     const legal = new Set(campaign.legalNextNodes().map(n => n.id));
     const pos = campaign.nodePos();
     const R = map.totalRows;   // GLOBAL rows across all three stacked phases
-    const height = MAP_PAD * 2 + (R - 1) * MAP_ROW_H;
+    const height = mapHeightFor(R);   // includes the home gap below ♦ row 0
     // Per-phase tint bands + a hand-off label at the foot of each phase. Drawn
     // first so nodes/edges sit on top.
     let bands = "";
@@ -15841,11 +15883,10 @@ const UIRenderer = (() => {
         edges += edgeSvg(a, mapNodeXY(m, R), n.id === pos, cleared.has(n.id) && cleared.has(m.id), n.id, mid);
       });
     });
-    // Virtual start → ♦ row-0 nodes (shown emphasised while at the start).
-    if (atStart) {
-      const startY = height - MAP_PAD * 0.4;
-      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; edges += edgeSvg({ x: MAP_W / 2, y: startY }, mapNodeXY(m, R), true, false, null, id); });
-    }
+    // HOME → ♦ row-0 nodes: the origin trail, always drawn (active while you're
+    // still at home, done once you've set out).
+    const homeXY = homeXYof(R);
+    map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; edges += edgeSvg(homeXY, mapNodeXY(m, R), atStart, cleared.has(id), null, id); });
     // Nodes — each tinted by ITS phase suit (not the current phase).
     let nodes = "";
     map.nodes.forEach(n => {
@@ -15858,6 +15899,11 @@ const UIRenderer = (() => {
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + mapNodeLabel(n) + '">' +
         mapNodeInner(n, suit, state) + '</button>';
     });
+    // HOME / origin node: a distinct non-interactive base where the run begins
+    // (the 13-heart start). The marker starts here; it's dimmed once you set out.
+    nodes += '<button type="button" class="pm-node t-home s-' + (atStart ? "home-here" : "done") + '" disabled' +
+      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (13 hearts)">' +
+      '<span class="mn-home"><span class="mn-home-ico">⌂</span></span></button>';
     el.mapTrack.innerHTML =
       '<div class="phase-map run-map" style="width:' + MAP_W + 'px;height:' + height + 'px;">' +
         bands +
