@@ -4506,7 +4506,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.10 · camera-on-player + same-power in rotation + node spacing";
+const APP_VERSION = "v3.11 · edge routing — paths curve around non-endpoint nodes";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15585,6 +15585,51 @@ const UIRenderer = (() => {
   }
   /** The suit a node belongs to (its own draft/deal/boss suit, else its phase's). */
   function nodeSuit(n, map) { return n.suit || (map.phases && map.phases[n.phase] && map.phases[n.phase].suit) || "♦"; }
+
+  /* ── EDGE ROUTING ──────────────────────────────────────────────────────────
+     An edge connects ONLY its two endpoints — it must never pass over another
+     node. Most edges join adjacent rows and a tiny bow suffices, but a few skip
+     a tier (e.g. the +5 route, or a deal → store past another deal) and would cut
+     through the node(s) between. routeEdgeControl() picks the quadratic control
+     point: the small aesthetic bow first, then escalating bows (both sides) until
+     the curve clears every NON-endpoint node. Node footprints (+ a small margin)
+     are the obstacles. Shared by the rendered edges AND the avatar travel, so the
+     box follows the exact routed trail. Layout/visual only — structure untouched. */
+  const NODE_HALF = { pickup: [25, 31], pack: [25, 29], deal: [30, 27], boss: [40, 35], store: [26, 26] };
+  let _obsKey = null, _obs = null;
+  function mapObstacles() {
+    const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
+    if (!map) return [];
+    if (_obsKey !== map) {
+      const R = map.totalRows;
+      _obs = map.nodes.map(n => { const xy = mapNodeXY(n, R); const h = NODE_HALF[n.type] || [25, 29]; return { id: n.id, x: xy.x, y: xy.y, hw: h[0], hh: h[1] }; });
+      _obsKey = map;
+    }
+    return _obs;
+  }
+  function curveHitsObs(A, Q, B, avoid) {
+    for (let i = 1; i < 24; i++) {
+      const t = i / 24, it = 1 - t;
+      const px = it * it * A.x + 2 * it * t * Q.x + t * t * B.x;
+      const py = it * it * A.y + 2 * it * t * Q.y + t * t * B.y;
+      for (let k = 0; k < avoid.length; k++) { const o = avoid[k]; if (Math.abs(px - o.x) < o.hw && Math.abs(py - o.y) < o.hh) return true; }
+    }
+    return false;
+  }
+  /** Quadratic control point that routes A→B clear of every non-endpoint node. */
+  function routeEdgeControl(A, B, fromId, toId) {
+    const avoid = mapObstacles().filter(o => o.id !== fromId && o.id !== toId);
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len, sign = (((A.x | 0) + (A.y | 0)) % 2) ? 1 : -1;
+    const cands = [Math.min(13, len * 0.12) * sign];                 // small aesthetic bow first
+    for (let mag = 26; mag <= 175; mag += 16) { cands.push(mag * sign); cands.push(-mag * sign); }
+    for (let i = 0; i < cands.length; i++) {
+      const Q = { x: mx + nx * cands[i], y: my + ny * cands[i] };
+      if (!curveHitsObs(A, Q, B, avoid)) return Q;
+    }
+    return { x: mx + nx * 175 * sign, y: my + ny * 175 * sign };      // fallback: widest bow
+  }
   /* A real DEAL-SCREEN card face, reusing the board card's exact markup + CSS
      (.front / .rank-top / .pip / .rank-bottom + suitGlyph). Static, node-sized. */
   function nodeCardHtml(card) {
@@ -15706,7 +15751,7 @@ const UIRenderer = (() => {
     if (!avatarTraveling) positionAvatarAt(avatarXY());
   }
   /* TRAVEL: tween the box along the SAME curved edge the trail draws, ~0.42s. */
-  function avatarTravelTo(fromXY, toXY, cb) {
+  function avatarTravelTo(fromXY, toXY, cb, fromId, toId) {
     ensureAvatar();
     const sh = mapAvatarEl.querySelector(".av-shift");
     const done = () => { avatarTraveling = false; if (sh) sh.style.transform = ""; if (cb) cb(); };
@@ -15714,15 +15759,13 @@ const UIRenderer = (() => {
     avatarTraveling = true;
     mapAvatarEl.style.left = toXY.x.toFixed(1) + "px";
     mapAvatarEl.style.top = toXY.y.toFixed(1) + "px";
-    const A = fromXY, B = toXY, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
-    const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len, ny = dx / len;
-    const bow = Math.min(13, len * 0.12) * (((A.x | 0) + (A.y | 0)) % 2 ? 1 : -1);   // matches edgeSvg
-    const qx = mx + nx * bow, qy = my + ny * bow, frames = [];
+    // Follow the SAME routed curve the trail edge draws (so the box never cuts
+    // through an intervening node on a multi-tier move).
+    const A = fromXY, B = toXY, Q = routeEdgeControl(A, B, fromId, toId), frames = [];
     for (let i = 0; i <= 12; i++) {
       const t = i / 12, it = 1 - t;
-      const px = it * it * A.x + 2 * it * t * qx + t * t * B.x;
-      const py = it * it * A.y + 2 * it * t * qy + t * t * B.y;
+      const px = it * it * A.x + 2 * it * t * Q.x + t * t * B.x;
+      const py = it * it * A.y + 2 * it * t * Q.y + t * t * B.y;
       const hop = -Math.sin(t * Math.PI) * 4;   // a small hop over the curve
       frames.push({ transform: "translate(" + (px - B.x).toFixed(1) + "px," + (py - B.y + hop).toFixed(1) + "px)" });
     }
@@ -15778,18 +15821,14 @@ const UIRenderer = (() => {
     });
     // TRAIL: each edge is a gently-curved dusty-rose synapse (quoting the deal
     // screen's connection web) with a small signal dot on the line. Edges leaving
-    // the CURRENT node stand out. (Phase-boss → next-phase-opening edges are
-    // ordinary edges here, so the climb reads as one continuous path.)
-    const edgeSvg = (a, b, active, done) => {
+    // the CURRENT node stand out. Each is ROUTED (routeEdgeControl) so it touches
+    // only its two endpoints and never crosses another node.
+    const edgeSvg = (a, b, active, done, fromId, toId) => {
       const cls = "map-edge" + (active ? " active" : "") + (done ? " done" : "");
       const dotCls = "map-dot" + (active ? " active" : "");
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len, ny = dx / len;                       // perpendicular
-      const bow = Math.min(13, len * 0.12) * (((a.x | 0) + (a.y | 0)) % 2 ? 1 : -1);
-      const qx = mx + nx * bow, qy = my + ny * bow;              // quadratic control
-      const dotX = mx + 0.5 * nx * bow, dotY = my + 0.5 * ny * bow;   // point at t=0.5
-      return '<path d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + qx.toFixed(1) + ' ' + qy.toFixed(1) +
+      const Q = routeEdgeControl(a, b, fromId, toId);
+      const dotX = 0.25 * a.x + 0.5 * Q.x + 0.25 * b.x, dotY = 0.25 * a.y + 0.5 * Q.y + 0.25 * b.y;   // curve point at t=0.5
+      return '<path d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + Q.x.toFixed(1) + ' ' + Q.y.toFixed(1) +
         ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '" class="' + cls + '"/>' +
         '<circle cx="' + dotX.toFixed(1) + '" cy="' + dotY.toFixed(1) + '" r="2.2" class="' + dotCls + '"/>';
     };
@@ -15799,13 +15838,13 @@ const UIRenderer = (() => {
       const a = mapNodeXY(n, R);
       n.next.forEach(mid => {
         const m = map.byId[mid]; if (!m) return;
-        edges += edgeSvg(a, mapNodeXY(m, R), n.id === pos, cleared.has(n.id) && cleared.has(m.id));
+        edges += edgeSvg(a, mapNodeXY(m, R), n.id === pos, cleared.has(n.id) && cleared.has(m.id), n.id, mid);
       });
     });
     // Virtual start → ♦ row-0 nodes (shown emphasised while at the start).
     if (atStart) {
       const startY = height - MAP_PAD * 0.4;
-      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; edges += edgeSvg({ x: MAP_W / 2, y: startY }, mapNodeXY(m, R), true, false); });
+      map.row0.forEach(id => { const m = map.byId[id]; if (!m) return; edges += edgeSvg({ x: MAP_W / 2, y: startY }, mapNodeXY(m, R), true, false, null, id); });
     }
     // Nodes — each tinted by ITS phase suit (not the current phase).
     let nodes = "";
@@ -15889,15 +15928,16 @@ const UIRenderer = (() => {
   function resolveMapNode(id) {
     const target = campaign.getNode(id);
     if (!target) return;
+    const fromId = campaign.nodePos();     // node we're leaving (null at the start)
     const fromXY = avatarXY();             // current position BEFORE the move
     const node = campaign.moveToNode(id);  // traversal logic unchanged
     if (!node) return;
     mapArrive = true;   // the marker just travelled here → play the arrival pop on the next render
     const map = campaign.getMap();
     const toXY = map ? mapNodeXY(node, map.totalRows) : null;
-    // Avatar travels the trail edge to the chosen node, THEN the node resolves
-    // (instant if reduced motion). Timing only — no logic moved.
-    avatarTravelTo(fromXY, toXY, () => finishResolveNode(node, id));
+    // Avatar travels the trail edge (same routed curve) to the chosen node, THEN
+    // the node resolves (instant if reduced motion). Timing only — no logic moved.
+    avatarTravelTo(fromXY, toXY, () => finishResolveNode(node, id), fromId, id);
   }
   function finishResolveNode(node, id) {
     if (node.type === "pickup") {
