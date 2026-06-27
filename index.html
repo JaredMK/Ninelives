@@ -4284,6 +4284,12 @@
         <div class="debug-tools">
           <label class="debug-check"><input type="checkbox" id="debugMapAddr"> show node addresses</label>
         </div>
+        <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
+        <div class="debug-sub">jump to map node (by address) →</div>
+        <div class="debug-grant">
+          <select class="debug-sel" id="debugJumpSel"></select>
+          <button class="debug-btn" id="debugJumpBtn">↪ jump</button>
+        </div>
         <div class="debug-sub">auto-play X cards (correct guesses only) →</div>
         <div class="debug-grant">
           <input class="debug-sel" id="debugAutoN" type="number" min="1" step="1" value="10" inputmode="numeric" />
@@ -4742,7 +4748,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.27 · deck count below the eyes, anchored to the character body";
+const APP_VERSION = "v3.28 · debug: jump to any map node by address";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8978,6 +8984,24 @@ const CampaignState = (() => {
       nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
       clearedNodeIds() { return clearedNodes.slice(); },
       currentNode() { return (nodePos != null && runMap) ? runMap.byId[nodePos] : null; },
+      /** DEBUG ONLY — jump the run state so node `id` becomes the next PLAYABLE
+          node, exactly as if you'd legitimately travelled up to it: every node on
+          a lower global row is marked done, the position sits on a direct
+          predecessor (or the run start for an opening node) so `id` is the legal
+          next, and the phase is synced to `id`'s phase. The DECK IS LEFT AS-IS —
+          jumping skips the pickups along the way, so you play the jumped node with
+          whatever deck you currently have (simplest option that can't corrupt
+          state). Returns false if the node id is unknown. No-op on a normal run. */
+      debugJumpToNode(id) {
+        if (!runMap || !runMap.byId[id]) return false;
+        const target = runMap.byId[id];
+        clearedNodes = runMap.nodes.filter(n => n.row < target.row).map(n => n.id);  // before → done
+        const pred = runMap.nodes.find(n => (n.next || []).indexOf(id) !== -1
+          && clearedNodes.indexOf(n.id) !== -1);                                       // a done predecessor
+        nodePos = pred ? pred.id : null;                                              // null = run start (opening node)
+        if (typeof target.phase === "number") phaseIndex = target.phase;             // suit/draft pool follow the target
+        return true;
+      },
       /** True if `id` is the FINAL boss of the run (the ♠ boss). Beating it wins. */
       isRunBoss(id) { return !!(runMap && id === runMap.runBossId); },
       /** The EXACT card a single-card (pickup) node will grant — shown face-up on
@@ -10571,6 +10595,8 @@ const UIRenderer = (() => {
     debugLose: document.getElementById("debugLose"),
     debugNew: document.getElementById("debugNew"),
     debugMapAddr: document.getElementById("debugMapAddr"),   // DEBUG MAP ADDRESSES (removable)
+    debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
+    debugJumpBtn: document.getElementById("debugJumpBtn"),
     debugStickerSel: document.getElementById("debugStickerSel"),
     debugAddSticker: document.getElementById("debugAddSticker"),
     debugStickerNext: document.getElementById("debugStickerNext"),
@@ -12408,12 +12434,42 @@ const UIRenderer = (() => {
     el.debugPeekOut.textContent = "added " + n + " coins → balance " + campaign.getCoins();
   }
 
+  /* ── DEBUG JUMP TO NODE (removable) ─────────────────────────────────────────
+     Populate the address dropdown from the live run map (sorted bottom→top), and
+     jump the run state to the picked node so it becomes the next PLAYABLE node.
+     To remove: delete these two functions, the fillDebugJumpSel() call in
+     setDebug, the #debugJumpSel/#debugJumpBtn markup + el refs + click handler,
+     and CampaignState.debugJumpToNode. */
+  function fillDebugJumpSel() {
+    if (!el.debugJumpSel) return;
+    const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
+    if (!map) { el.debugJumpSel.innerHTML = '<option value="">(start a run first)</option>'; return; }
+    const addr = buildMapAddresses(map);
+    const prev = el.debugJumpSel.value;
+    const nodes = map.nodes.slice().sort((a, b) => (a.row - b.row)
+      || String(addr[a.id] || "").localeCompare(String(addr[b.id] || "")));
+    el.debugJumpSel.innerHTML = nodes.map(n => {
+      const extra = n.piles != null ? " " + n.piles + "p" : (n.packCount ? " +" + n.packCount : "");
+      return '<option value="' + n.id + '">' + (addr[n.id] || ("#" + n.id)) + " · " + n.type + extra + '</option>';
+    }).join("");
+    if (prev && el.debugJumpSel.querySelector('option[value="' + prev + '"]')) el.debugJumpSel.value = prev;
+  }
+  function debugJumpToSelectedNode() {
+    if (!campaign || !campaign.debugJumpToNode || !el.debugJumpSel || !el.debugJumpSel.value) return;
+    const id = Number(el.debugJumpSel.value);
+    if (Number.isNaN(id) || !campaign.debugJumpToNode(id)) return;
+    persistCampaign("map");
+    setDebug(false);                  // close the debug panel
+    showProgressionMap(startRun);     // show the map at the jumped position (tap the node to play it)
+  }
+
   function setDebug(on) {
     debugOn = on;
     el.debugOverlay.classList.toggle("hidden", !on);
     if (on) {
       if (!el.debugRanks.children.length) buildDebugRanks();
       if (!el.debugStickerSel.children.length) buildDebugGrants();
+      fillDebugJumpSel();   // DEBUG JUMP TO NODE (removable)
       refreshDebug();
     }
   }
@@ -13051,6 +13107,8 @@ const UIRenderer = (() => {
       mapAddrDebug = el.debugMapAddr.checked;
       if (mapVisible()) renderProgressionMap();
     });
+    // DEBUG JUMP TO NODE (removable): teleport position to the selected node.
+    if (el.debugJumpBtn) el.debugJumpBtn.addEventListener("click", debugJumpToSelectedNode);
     // Artifact telemetry (debug only): open the table, export CSV, reset.
     if (el.debugTelemView) el.debugTelemView.addEventListener("click", showTelemetry);
     if (el.debugTelemCsv) el.debugTelemCsv.addEventListener("click", exportTelemetryCSV);
