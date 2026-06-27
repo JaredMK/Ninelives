@@ -67,8 +67,10 @@
     --trim-common: #9c7b46; /* tarnished bronze */
     --trim-uncommon: #c3c9d0; /* silver */
     --trim-rare: #e6bb46;   /* gold */
-    --foil-1: #8a5cc6;      /* pack foil (cool metallic violet, distinct from plum) */
+    --foil-1: #8a5cc6;      /* CARD-pack foil (cool metallic violet, distinct from plum) */
     --foil-2: #5b3aa0;
+    --foil-sticker-1: #2fa39c; /* STICKER-pack foil (teal vinyl — instantly distinct from the violet card pack) */
+    --foil-sticker-2: #1d6e72;
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
     /* Shared item-info typography — ONE source for every info slot (store
@@ -2616,6 +2618,21 @@
   .pack-foil.big { width: 96px; }
   .pack-foil.big .pf-cards i { width: 16px; height: 23px; }
   .pack-foil.big .pf-name { font-size: 9.5px; }
+  /* ---- STICKER pack = a DISTINCT teal foil + die-cut sticker contents, so it
+     reads apart from the violet card pack at a glance (no label needed). Only the
+     material colour + the window contents change; it stays the same wrapped,
+     openable foil object. ---- */
+  .pack-foil.pf-sticker .pf-body {
+    background: linear-gradient(155deg, var(--foil-sticker-1) 0%, var(--foil-sticker-2) 100%);
+  }
+  .pack-foil.pf-sticker .pf-crimp {
+    background: repeating-linear-gradient(90deg, #8fe0d6 0 3px, #1f6f73 3px 6px);
+  }
+  /* Fanned die-cut stickers peeking out of the window (mirrors .pf-cards's fan). */
+  .pf-stickers { display: flex; align-items: center; justify-content: center; }
+  .pf-stickers .dcs { --dcs-size: 17px; margin: 0 -3px; }
+  .pf-stickers .dcs:nth-child(2) { margin-bottom: 7px; }   /* lift the middle chip */
+  .pack-foil.big .pf-stickers .dcs { --dcs-size: 25px; margin: 0 -4px; }
   /* Tear-open: a quick rip of the top crimp + a flash, then the reveal modal. */
   @keyframes packTear {
     0%   { transform: translateY(0) scale(1); }
@@ -4748,7 +4765,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.29 · cards scale with pile count; board fills its height";
+const APP_VERSION = "v3.30 · sticker packs visually distinct from card packs";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15604,17 +15621,37 @@ const UIRenderer = (() => {
       "</div>";
   }
 
-  /* Pack = a SEALED FOIL PACK: crimped foil strips top + bottom, a purple foil
-     body with a soft sheen, and an art window showing fanned card silhouettes +
-     the pack name. Shop-only object (opened on purchase). `opts.size` = "shop". */
+  /* A fixed, representative fan of three die-cut stickers shown in a STICKER
+     pack's window — varied effect-face colours + rarity edges so the wrapper
+     previews the circular vinyl "sticker" look (vs the card pack's white card
+     silhouettes). Purely decorative; the real contents are still rolled at open
+     time. */
+  const PACK_PREVIEW_STICKERS = [
+    { face: STICKER_FACE.coins, tier: "rare",     rot: -14 },
+    { face: STICKER_FACE.saves, tier: "uncommon", rot: 0 },
+    { face: STICKER_FACE.spark, tier: "common",   rot: 14 },
+  ];
+
+  /* Pack = a SEALED FOIL PACK: crimped foil strips top + bottom, a foil body with
+     a soft sheen, and an art window PREVIEWING THE CONTENTS + the pack name. The
+     two pack TYPES are made glanceable apart (no label-reading): a CARD pack is
+     violet foil showing fanned white card silhouettes; a STICKER pack is teal foil
+     showing fanned die-cut sticker chips (rarity-edged vinyl). Shop-only
+     object (opened on purchase). `opts.size` = "shop". */
   function packObjectHtml(t, opts) {
     opts = opts || {};
-    return '<div class="pack-foil' + (opts.size === "shop" ? " big" : "") + '">' +
+    const isSticker = (t && t.kind === "sticker");
+    const contents = isSticker
+      ? '<span class="pf-stickers">' + PACK_PREVIEW_STICKERS.map(s =>
+          dieCutChip("", s.tier, { face: s.face, rot: s.rot })).join("") + '</span>'
+      : '<span class="pf-cards"><i></i><i></i><i></i></span>';
+    return '<div class="pack-foil ' + (isSticker ? "pf-sticker" : "pf-card") +
+        (opts.size === "shop" ? " big" : "") + '">' +
         '<span class="pf-crimp top"></span>' +
         '<span class="pf-body">' +
           '<span class="pf-sheen"></span>' +
           '<span class="pf-window">' +
-            '<span class="pf-cards"><i></i><i></i><i></i></span>' +
+            contents +
             '<span class="pf-name">' + escHtml(t.label) + '</span>' +
           '</span>' +
         '</span>' +
