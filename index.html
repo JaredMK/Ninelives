@@ -4748,7 +4748,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.28 · debug: jump to any map node by address";
+const APP_VERSION = "v3.29 · cards scale with pile count; board fills its height";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15726,15 +15726,16 @@ const UIRenderer = (() => {
     const boardW = el.board.clientWidth;                    // fixed (min(96vw,460))
     if (!(availH > 0) || !(boardW > 0)) return;             // not laid out yet
 
-    // ONE FIXED card size for ALL deals — sized for the DENSEST deal (the tallest
-    // column anywhere in the campaign), so the 11-card deal fits with the network
-    // clearly visible. Cards NEVER resize deal-to-deal; only the SPACING changes
-    // (see --pile-v-gap). The actual deal's tallest column drives how much the
-    // same-size cards spread to fill the board in lighter deals.
-    const tall = CAMPAIGN_MAX_COLS;                         // densest deal's column height (4)
+    // CARD SIZE SCALES WITH THIS DEAL'S DENSITY (intentionally replaces the old
+    // one-fixed-size-for-all-deals rule). Card height divides the board's vertical
+    // room by liveTall — THIS deal's tallest column — not the campaign maximum. So
+    // a light 5-pile deal (2 rows) gets tall, bold cards that fill the board, while
+    // the densest 11-pile deal (4 rows) still fits with the network clearly
+    // visible. Because we always divide the SAME gridH by the ACTUAL row count, the
+    // tallest column can never overflow at any pile count.
     let liveTall = 0;
     el.board.querySelectorAll(".board-col").forEach(c => { liveTall = Math.max(liveTall, c.querySelectorAll(".pile").length); });
-    liveTall = liveTall || tall;
+    liveTall = liveTall || CAMPAIGN_MAX_COLS;
     // When the Pillar indicator row is shown it sits ABOVE the column grid
     // (its height + one board flex-column gap). Subtract it from the pile
     // budget so the tallest column (row + 4 piles + gaps) still fits one
@@ -15751,33 +15752,45 @@ const UIRenderer = (() => {
       footGap = rowGapPx;
     }
     const gridH = availH - headH - headGap - footH - footGap;   // vertical room for the pile rows
-    const byHeight = (gridH - (tall - 1) * gapPx) / tall;        // per-row budget at the DENSEST count
+    const byHeight = (gridH - (liveTall - 1) * gapPx) / liveTall; // per-row budget at THIS deal's row count
     const byWidth = (boardW - 2 * gapPx) / 3;               // 3 columns share the board width
-    // PORTRAIT cards that USE THE FULL WIDTH. The field is height-constrained, so
-    // height drives the card; width then grows toward the column budget (the
-    // columns are spread edge-to-edge with space-between), widening the card from
-    // the ideal portrait up to MAX_ASPECT so the freed side room is filled — but
-    // never past the column width (which would overlap a neighbour). When the
-    // column is the tighter limit, height follows to keep a true portrait.
+    // Cards take the LARGEST size that fits BOTH the column-width budget and this
+    // deal's per-row height budget, with the aspect free to FLEX so the card uses
+    // whichever budget is roomier. On a wide screen a light deal's freed WIDTH lets
+    // it square up toward MAX_ASPECT; on a narrow phone — where 3 columns always cap
+    // the width — a light deal's freed HEIGHT instead lets the card grow TALLER and
+    // bolder toward MIN_ASPECT, rather than leaving the room as dead gap. THIS is
+    // what makes a low-pile deal show big, substantial cards at EVERY viewport (not
+    // only wide ones); the densest deals stay compact because height is their limit.
     const ASPECT = 66 / 92;            // ideal portrait (w ÷ h ≈ 0.717)
-    const MAX_ASPECT = 0.80;           // widen up to here to consume freed width
-    const MIN_H = 76, MAX_H = 210;
+    const MAX_ASPECT = 0.80;           // squarer: widen to consume freed width
+    const MIN_ASPECT = 0.62;           // taller: lengthen to consume freed height (no skinny dominoes)
+    // Ceiling raised so light deals can go genuinely BIG on taller screens (the
+    // column-width + MIN_ASPECT caps below still keep a true card shape, no overlap).
+    const MIN_H = 76, MAX_H = 264;
     let h = Math.max(36, Math.min(MAX_H, byHeight));
     let w = Math.min(byWidth, h * MAX_ASPECT);              // grow into the column, aspect-capped
-    if (w < h * ASPECT) { h = Math.min(h, w / ASPECT); }    // width-limited → keep portrait
+    // Width-limited (the column is narrower than this height wants at ideal aspect):
+    // keep the card TALL to use the freed vertical room, but never thinner than
+    // MIN_ASPECT so it always reads as a card, never a skinny strip.
+    if (w < h * MIN_ASPECT) { h = w / MIN_ASPECT; }
     if (h < MIN_H && byHeight >= MIN_H) { h = MIN_H; w = Math.min(byWidth, h * MAX_ASPECT); }
     w = Math.max(28, w); h = Math.max(36, h);
     el.board.style.setProperty("--pile-w-fit", w + "px");
     el.board.style.setProperty("--pile-h-fit", h + "px");
     // Card-face type scales with the smaller dimension so glyphs never overflow.
     el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
-    // SPREAD the same-size cards to fill the board: a lighter deal (fewer rows)
-    // gets a LARGER vertical gap so its tallest column still spans gridH — airy +
-    // balanced (the grid centres the columns), never cramped or leaving an empty
-    // zone. The densest deal lands on the base gap (tight). Floored at the base
-    // gap and capped at one card-height so the network stays clearly readable.
+    // SPREAD the cards to FILL the board's height: when the column is width-limited
+    // (cards can't grow taller without overflowing their column), the leftover
+    // vertical room becomes inter-card gap so the tallest column still spans gridH —
+    // airy + balanced (the grid centres the columns), never leaving an empty zone at
+    // the bottom. The densest deal lands on the base gap (tight). Floored at the base
+    // gap and capped at 1.3× the card-height: the now-taller low-pile cards already
+    // absorb most of the vertical room, so the leftover gap stays modest and the
+    // board reads as full (not floaty) while the network stays clearly readable. Any
+    // slack beyond the cap is split evenly top/bottom by the grid's centring.
     let vGap = gapPx;
-    if (liveTall > 1) vGap = Math.max(gapPx, Math.min((gridH - liveTall * h) / (liveTall - 1), h));
+    if (liveTall > 1) vGap = Math.max(gapPx, Math.min((gridH - liveTall * h) / (liveTall - 1), 1.3 * h));
     el.board.style.setProperty("--pile-v-gap", vGap + "px");
     // Realign the connection network to the freshly-sized nodes.
     renderNetwork();
