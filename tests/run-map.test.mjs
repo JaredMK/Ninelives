@@ -195,7 +195,15 @@ export function run() {
     // the three parallel deals 4/6/10 and the 9-pile continuation exist.
     const dealPiles = ph.nodes.filter(n => n.type === "deal").map(n => n.piles).sort((a, b) => a - b);
     r.eq(dealPiles.join(","), "4,5,6,7,9,10", "deals are exactly 4,5,6,7,9,10 piles");
-    r.eq(ph.nodes.filter(n => n.type === "store").length, 4, "four store chokepoints (mid, recombine, two flanking)");
+    r.eq(ph.nodes.filter(n => n.type === "store").length, 5, "five store chokepoints (after-D1, mid, recombine, two flanking)");
+    // The opening deal (D1) feeds ONLY the new store, which fans back out to the
+    // two original D2 forks (a +3 pack and a +5 pack).
+    const d1 = open;                                  // the row-0 opening (5-pile deal)
+    r.eq(d1.next.length, 1, "D1 links to exactly one node");
+    const afterD1 = ph.byId[d1.next[0]];
+    r.eq(afterD1.type, "store", "the node right after D1 is the new store");
+    r.eq(afterD1.next.length, 2, "the after-D1 store fans out to the two D2 forks");
+    r.eq(afterD1.next.map(id => ph.byId[id].type).sort().join(","), "pack,pack", "both D2 forks are packs (the +3 / +5)");
     // +1 → pickup (single card); +2 or more → pack with that count.
     const packs = ph.nodes.filter(n => n.type === "pack").map(n => n.packCount).sort((a, b) => a - b);
     r.eq(packs.join(","), "3,3,3,5,5,5", "packs are the +3/+5 nodes (three each)");
