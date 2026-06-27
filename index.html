@@ -836,12 +836,14 @@
   .hist-band { width: min(99vw, 540px); margin: 5px auto 0; display: flex; align-items: stretch; gap: 8px;
     background: rgba(248,242,235,0.5); border: 1px solid var(--edge-2); border-radius: 14px; padding: 6px 9px; }
   .hist-band.hidden { display: none; }
-  /* #6 — Hold-to-see-help takes over the HISTOGRAM's room in active play: while a
-     help peek is held, the strip is hidden and the help flows into the band (more
-     room than the cramped floating popup); on release the histogram returns. The
-     popup's floating base style (position:fixed; top:15%) is overridden to flow
-     inside the band. Only applies in play (body.peek-band is set there only). */
-  body.peek-band #histBand .deck-strip { display: none; }
+  /* #6 — Hold-to-see-help takes over the WHOLE deck container's room in active
+     play: while a help peek is held, EVERY item in the band — the rank histogram,
+     the suit counts, AND the deck character — is hidden so the help text flows
+     into the full band (far more room than the cramped floating popup); on release
+     they all return. The popup's floating base style (position:fixed; top:15%) is
+     overridden to flow inside the band. Only applies in play (body.peek-band is set
+     there only). */
+  body.peek-band #histBand > :not(.peek-info) { display: none; }
   body.peek-band #histBand .peek-info {
     position: relative; left: auto; right: auto; top: auto; transform: none;
     flex: 1 1 auto; min-width: 0; width: auto; max-width: none; align-self: stretch;
@@ -4839,7 +4841,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.31 · drag-from-list placement dock (board stays visible)";
+const APP_VERSION = "v3.32 · held help clears the whole deck container for its text";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
