@@ -1992,9 +1992,13 @@
      actions pinned to the bottom. A soft warm radial light gives the objects a
      surface to rest ON rather than float over. */
   .overlay.store {
+    /* Starts BELOW the persistent top shell (banner + deck/histogram bar), which
+       shows on every screen. The flex shelves (flex:1 1 0) re-compact into the
+       reduced height so the store still fits one page with no scroll. */
+    top: var(--shell-h, 0px);
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
-    padding: 30px 12px max(8px, env(safe-area-inset-bottom));
+    padding: 12px 12px max(8px, env(safe-area-inset-bottom));
     background:
       radial-gradient(115% 70% at 50% 40%, rgba(255,238,212,0.66), rgba(255,238,212,0) 62%),
       radial-gradient(80% 50% at 50% 96%, rgba(214,178,140,0.20), rgba(214,178,140,0) 70%),
@@ -3525,9 +3529,11 @@
      descend below as "fossils" of their final surviving network. Display-only.
      ============================================================ */
   .overlay.map {
+    /* Starts BELOW the persistent top shell (banner + deck/histogram bar). */
+    top: var(--shell-h, 0px);
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
-    padding: max(10px, env(safe-area-inset-top)) 0 0;
+    padding: 6px 0 0;
   }
 
   /* Depth atmosphere behind the climb: warm + settled at the BOTTOM (the path
@@ -4755,7 +4761,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.25 · Same-Power equip lifecycle matches pillars/bases";
+const APP_VERSION = "v3.26 · persistent top shell (banner + deck/histogram) on every screen";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10903,6 +10909,7 @@ const UIRenderer = (() => {
     renderPileHints();  // Tell: per-pile higher/lower/same direction indicators
     updateSameCharge(); // Same Charge: charged/empty indicator + Same-button glow
     refreshActivatableIndicators();   // "tap to activate" cue on activatable Pillars
+    updateShellHeight();              // keep the persistent-shell offset in sync
   }
 
   /* Reflect the live Same Charge: the HUD chip lights/glows when a charge is
@@ -11102,11 +11109,12 @@ const UIRenderer = (() => {
      total (grey) per rank, on a shared absolute scale (max total). Presentation
      only; never reveals draw order. */
   function mapVisible() { return el.mapOverlay && !el.mapOverlay.classList.contains("hidden"); }
+  function storeVisible() { return el.storeOverlay && !el.storeOverlay.classList.contains("hidden"); }
   function deckStripStats() {
-    // On the MAP there's no active deal, so both bars show the whole accumulated
-    // deck: every owned card is "present", and the strip densifies live as cards
-    // are picked up while travelling.
-    if (mapVisible()) {
+    // On the MAP or in the STORE there's no active deal, so both bars show the
+    // whole accumulated deck: every owned card is "present" (the strip densifies
+    // live as cards are picked up).
+    if (mapVisible() || storeVisible()) {
       const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
       return { remaining: full, full };
     }
@@ -11120,23 +11128,24 @@ const UIRenderer = (() => {
   // map footer while the map is shown, then moved back for the deal — one
   // component, never a parallel copy. We remember its home to restore it.
   let histBandHome = null;
-  function mountHistOnMap() {
-    if (!el.histBand || !el.mapFoot) return;
-    if (!histBandHome) histBandHome = el.histBand.parentNode;
-    if (el.histBand.parentNode !== el.mapFoot) el.mapFoot.appendChild(el.histBand);
-    el.histBand.classList.remove("hidden");
-    refreshMapDeckPanel();
-  }
-  function unmountHistFromMap() {
-    if (!el.histBand || !histBandHome) return;
-    if (el.histBand.parentNode !== histBandHome) {
-      // Restore to the VERY TOP of <main> (under the HUD) — above the deal-status
-      // row and the play row — so the histogram stays at the top on the deal
-      // screen too (matching the thumb-reach layout / the map).
-      histBandHome.insertBefore(el.histBand, histBandHome.firstElementChild);
+  /* ── PERSISTENT TOP SHELL ────────────────────────────────────────────────────
+     The HUD banner + the deck/histogram band sit in normal flow at the top and
+     are the same on EVERY screen. Overlays (store, map) start BELOW them via
+     `top: var(--shell-h)`, so the banner + container stay visible everywhere. The
+     shell height is measured live (the deck-slot char hides on the map, changing
+     the band height), so the overlay offset always matches the rendered shell. */
+  function updateShellHeight() {
+    let h = 0;
+    if (el.histBand && !el.histBand.classList.contains("hidden")) {
+      h = Math.max(0, el.histBand.getBoundingClientRect().bottom);   // top of viewport → band bottom
+    } else if (el.hud) {
+      h = Math.max(0, el.hud.getBoundingClientRect().bottom);
     }
+    if (h > 0) document.documentElement.style.setProperty("--shell-h", Math.round(h) + "px");
   }
-  // Refresh the relocated panel from the accumulated deck (histogram + count).
+  // (mountHistOnMap/unmountHistFromMap removed: the band no longer relocates — it
+  // lives at the top of <main> on every screen and the overlays sit below it.)
+  // Refresh the deck panel (histogram + count) from the accumulated deck.
   function refreshMapDeckPanel() {
     if (!mapVisible()) return;
     renderDeckStrip();
@@ -11259,7 +11268,7 @@ const UIRenderer = (() => {
     if (!host || !campaign) return;
     const total = campaign.suitComposition ? campaign.suitComposition() : { "♥":0,"♦":0,"♣":0,"♠":0 };
     let remaining = total;
-    if (!mapVisible() && engine && engine.getDeck) {
+    if (!mapVisible() && !storeVisible() && engine && engine.getDeck) {
       const deck = engine.getDeck();
       if (deck && deck.remainingSuitCounts) remaining = deck.remainingSuitCounts();
     }
@@ -12443,7 +12452,7 @@ const UIRenderer = (() => {
       if (w === lastVW && h === lastVH) return;   // scroll / chrome toggle → ignore
       lastVW = w; lastVH = h;
       cancelAnimationFrame(fitRaf);
-      fitRaf = requestAnimationFrame(() => { if (pileEls.length) fitBoard(); });
+      fitRaf = requestAnimationFrame(() => { if (pileEls.length) fitBoard(); updateShellHeight(); });
     };
     window.addEventListener("resize", refitIfChanged);
     // Orientation change can report stale dimensions momentarily; force a fresh
@@ -16550,7 +16559,12 @@ const UIRenderer = (() => {
     }
     document.body.classList.add("on-map");   // hides the deck-slot character (trail char only)
     el.mapOverlay.classList.remove("hidden");
-    mountHistOnMap();      // the deal-screen deck panel rides along, fed the accumulated deck
+    // The persistent top shell (banner + deck/histogram band) stays in place and
+    // shows ABOVE the map; the map overlay starts just below it. Feed the band the
+    // accumulated deck and re-measure the shell (the deck-slot char is hidden on
+    // the map, so the band's height changes).
+    refreshMapDeckPanel();
+    updateShellHeight();
     updateBoardMotion();   // board covered by the map → pause its card animations
     // Camera DEFAULTS to the PLAYER: centre the view on the avatar (which marks
     // the current node, or the virtual start before the first move), so "you are
@@ -16565,7 +16579,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
   }
-  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); unmountHistFromMap(); closeFossilDetail(); startDriftSync(); updateBoardMotion(); }
+  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
@@ -16697,9 +16711,10 @@ const UIRenderer = (() => {
     hideOverlay();
     closeFossilDetail();
     if (el.mapOverlay) el.mapOverlay.classList.add("hidden");   // map → store closes the map
+    document.body.classList.remove("on-map");   // not the map → the deck-slot character shows in its container
     updateStageRun();
     setScreenNav(true, true, false);   // menu + inventory; Store button is map-only
-    if (el.stageRun) el.stageRun.classList.remove("off");   // badge shows over the store
+    if (el.stageRun) el.stageRun.classList.add("off");   // the persistent top shell carries stage/deck now
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
@@ -16707,6 +16722,9 @@ const UIRenderer = (() => {
     el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
+    // The persistent top shell shows over the store too: refresh the histogram +
+    // suit chart to the accumulated deck, then size the store below the shell.
+    renderDeckStrip(); renderSuitCounts(); updateShellHeight();
     updateBoardMotion();   // board covered by the store → pause its card animations
   }
 
@@ -17625,6 +17643,7 @@ const UIRenderer = (() => {
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
     updateBoardMotion();
+    updateShellHeight();
   }
 
   /* ---- inventory browser (store + in-play coin badge) ----
@@ -18172,6 +18191,7 @@ const UIRenderer = (() => {
     // Play-screen control layout: histogram → bottom, guess buttons → side rail
     // (isolated + revertable; see GUESS_SIDE_LAYOUT).
     applyGuessLayout();
+    updateShellHeight();   // set the persistent-shell offset for the overlays from the start
 
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
