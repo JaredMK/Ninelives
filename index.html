@@ -509,21 +509,19 @@
   .deck-pile .ds-face.red { color: var(--card-red); }
   .deck-pile .ds-face .dsf-rank { font-size: 22px; }
   .deck-pile .ds-face .dsf-suit { font-size: 17px; margin-top: 2px; }
-  /* Cards-remaining count rendered large + bold, centred ON the top card. A soft
-     cream halo keeps it legible over the striped back. */
-  .deck-count { position: absolute; inset: 0 0 0 6px; z-index: 2; pointer-events: none;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 0.82; }
-  .deck-count b { font-family: var(--font-display); font-size: 32px; font-weight: 800; color: var(--text);
-    text-shadow: 0 0 6px rgba(247,242,236,0.95), 0 1px 1px rgba(247,242,236,0.95); }
-  .deck-count .ds-lbl { font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted);
-    font-weight: 800; margin-top: 1px; text-shadow: 0 0 5px rgba(247,242,236,0.95); }
-  /* When the Scout look-ahead reveals the upcoming card face, demote the count to
-     a small dark badge in the bottom-right corner so the face stays readable. */
-  .deck-pile .ds-face:not(.hidden) ~ .deck-count {
-    inset: auto 2px 2px auto; flex-direction: row; gap: 2px; align-items: baseline;
-    background: rgba(36,28,40,0.80); border-radius: 6px; padding: 1px 5px; }
-  .deck-pile .ds-face:not(.hidden) ~ .deck-count b { font-size: 14px; color: #fff; text-shadow: none; }
-  .deck-pile .ds-face:not(.hidden) ~ .deck-count .ds-lbl { display: none; }
+  /* Cards-remaining count — a CHILD of the character's body (.dc-body), so it
+     bobs, sways, bounces and slumps WITH every body animation (it is part of the
+     character, not a fixed overlay). It sits in the LOWER body, clear of the eyes
+     (.dc-face, ~21% from the top), so the count and eyes are always both readable
+     at any value. White number with a soft dark halo reads over the pink body. */
+  .deck-count { position: absolute; left: 0; right: 0; top: 46%; bottom: 3%; z-index: 2; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; line-height: 0.82; }
+  .deck-count b { font-family: var(--font-display); font-size: 32px; font-weight: 800; color: #fff;
+    white-space: nowrap; text-shadow: 0 1px 2px rgba(74,30,45,0.6), 0 0 5px rgba(74,30,45,0.45); }
+  .deck-count .ds-lbl { display: none; }   /* the number alone reads as cards-left; keeps the face clear */
+  /* While a peek reveals the upcoming card (whole stack flagged .revealed), the
+     card covers the character — hide the count so it doesn't bleed past the card. */
+  .deck-stack.revealed .deck-count { opacity: 0; }
   /* Peek TRIGGER pulse: a single attention-drawing scale + violet glow when the
      upcoming card is first revealed, then it settles. Draws the eye to the small
      corner deck so the reveal isn't missed. One-shot (JS re-arms it per trigger). */
@@ -623,23 +621,18 @@
   }
   /* BLINK (JS-toggled, brief) — pupils squash shut; overrides any expression. */
   .deck-char.dc-blink .dc-pupil { transform: scaleY(0.12) !important; }
-  /* The big count sits in the lower body, below the eyes, still glanceable. The
-     "left" label is dropped here (the number alone reads as cards-left) to keep
-     the character's face clear. */
-  .deck-pile .deck-char ~ .deck-count { inset: 36% 0 0 0; justify-content: center; }
-  .deck-pile .deck-char ~ .deck-count .ds-lbl { display: none; }
+  /* (The count now lives INSIDE .dc-body — see the .deck-count rule above — so it
+     moves with the character; its position/colour are no longer set per-context.) */
   /* Suit wash — SAME tints as the map avatar (.map-avatar.av-*), so the deck-slot
      character is the SAME pink creature that travels the map (♦ = pink) and the
      map→deck handoff reads as one continuous character. */
   .deck-char.dc-d, .deck-char-jump.dc-d { --dc-1:#e0738f; --dc-2:#b23a5c; }
   .deck-char.dc-c, .deck-char-jump.dc-c { --dc-1:#7d8ca6; --dc-2:#46566f; }
   .deck-char.dc-s, .deck-char-jump.dc-s { --dc-1:#5a6885; --dc-2:#303c56; }
-  /* Count sits on the saturated body now → white with a soft dark halo reads
-     cleanly over the pink (replaces the cream-on-light treatment). */
-  .deck-pile .deck-char ~ .deck-count b { color: #fff; text-shadow: 0 1px 2px rgba(74,30,45,0.55), 0 0 5px rgba(74,30,45,0.4); }
   /* The flying clone used for the map→deck JUMP: the same character body, sized
      inline by flyCard(); a quick arrival pop lands it in the slot. */
   .deck-char-jump { z-index: 61; pointer-events: none; filter: drop-shadow(0 6px 12px rgba(74,30,45,0.4)); }
+  .deck-char-jump .deck-count b { font-size: 26px; }   /* match the in-slot count size for a seamless landing */
   .deck-char.dc-arrive .dc-body { animation: dcArrive 0.42s cubic-bezier(0.3, 0.8, 0.4, 1.3); }
   @keyframes dcArrive {
     0%   { transform: translateY(-3px) scale(0.62); }
@@ -708,9 +701,7 @@
   .rail .deck-pile .ds-face { left: 4px; top: 0; width: 31px; height: 45px; }
   .rail .deck-pile .ds-face .dsf-rank { font-size: 15px; }
   .rail .deck-pile .ds-face .dsf-suit { font-size: 11px; }
-  .rail .deck-count { inset: 0 0 0 4px; }
-  .rail .deck-count b { font-size: 18px; }
-  .rail .deck-count .ds-lbl { font-size: 6.5px; letter-spacing: 0.6px; }
+  .rail .deck-count b { font-size: 18px; }   /* position comes from the base .deck-count (in-body, bottom) */
   /* Scrubber readout — absolute overlay anchored to the rail's right so the wide
      higher/same/lower text reads over the field, never widening the rail. */
   .ds-scrub {
@@ -817,17 +808,7 @@
   body.guess-side #histBand .deck-pile .ds-face { left: 6px; top: 0; width: 40px; height: 56px; }
   body.guess-side #histBand .deck-pile .ds-face .dsf-rank { font-size: 19px; }
   body.guess-side #histBand .deck-pile .ds-face .dsf-suit { font-size: 13px; }
-  body.guess-side #histBand .deck-count { inset: 0 0 0 6px; }
-  body.guess-side #histBand .deck-count b { font-size: 26px; }
-  body.guess-side #histBand .deck-count .ds-lbl { font-size: 7.5px; letter-spacing: 1px; }
-  /* During a peek/Scout reveal, demote the count to a corner badge so the
-     revealed card stays readable. Re-declared here because the centered
-     #histBand rules above out-specificity the base demotion (lines ~454). */
-  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count {
-    inset: auto 2px 2px auto; flex-direction: row; gap: 2px; align-items: baseline;
-    background: rgba(36,28,40,0.82); border-radius: 6px; padding: 1px 5px; }
-  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count b { font-size: 13px; color: #fff; text-shadow: none; }
-  body.guess-side #histBand .deck-pile .ds-face:not(.hidden) ~ .deck-count .ds-lbl { display: none; }
+  body.guess-side #histBand .deck-count b { font-size: 26px; }   /* font only — position is the base in-body bottom */
   /* Scrubber readout floats ABOVE the bottom strip. */
   body.guess-side #histBand .ds-scrub { left: 50%; right: auto; top: auto; bottom: 100%;
     transform: translateX(-50%); margin: 0 0 5px 0; }
@@ -4185,7 +4166,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span></span></span><span class="ds-face hidden" id="deckFace"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -4761,7 +4742,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.26 · persistent top shell (banner + deck/histogram) on every screen";
+const APP_VERSION = "v3.27 · deck count below the eyes, anchored to the character body";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16667,9 +16648,11 @@ const UIRenderer = (() => {
       const suit = "dc-" + ((campaign && SUIT_CLASS[campaign.phaseSuit()]) || "d");
       const fly = document.createElement("div");
       fly.className = "deck-char-jump " + suit;
+      const flyCount = campaign && campaign.deckSize ? campaign.deckSize() : "";
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
-        '<span class="dc-eye r"><i class="dc-pupil"></i></span></span></span>';
+        '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
+        '<span class="deck-count"><b>' + flyCount + '</b></span></span>';   // the count rides with the jumping character
       // Reuse the board flyCard arc; a strong lift sells the "jump".
       flyCard(fly, fromRect, toRect, {
         duration: 460, startScale: 0.9, lift: -46,
