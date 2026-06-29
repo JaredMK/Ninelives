@@ -1548,7 +1548,19 @@
     padding: 7px 3px;
     font-size: 12px;
     align-self: center;
+    position: relative;        /* anchors the equipped Same-Power badge */
+    overflow: visible;
   }
+  /* The equipped Same-Power's unique logo as a small corner badge on the Same
+     button — the button then represents BOTH the Same guess (＝) and the power. */
+  .btn.same .sp-on-btn {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--net, #C84A78); color: #fff;
+    border: 1.5px solid #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .btn.same .sp-on-btn .ico { width: 12px; height: 12px; display: block; }
 
   /* Move-feedback line removed from the layout (kept in the DOM for JS writes). */
   .hint { display: none; }
@@ -2149,10 +2161,10 @@
     background: linear-gradient(180deg, rgba(200,74,120,0.14), rgba(142,47,78,0.20));
     border: 1.5px solid var(--net, #C84A78); box-shadow: 0 0 10px rgba(200,74,120,0.30); }
   .sp-badge-ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-  /* The equals-synapse mark (reused menu logo) as the Same-Power class symbol.
-     Background-less SVG; sized to sit where the old glyph did and read clearly on
-     the badge's light rose gradient. */
-  .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; user-select: none; -webkit-user-drag: none; }
+  /* Each Same-Power's UNIQUE inline-SVG logo (GLYPHS[id]); currentColor inks it in
+     the badge's dark rose so it reads clearly on the light rose gradient. */
+  .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; color: var(--net-dot, #8E2F4E); user-select: none; -webkit-user-drag: none; }
+  .sp-info-ico .ico { width: 20px; height: 20px; display: block; }
   .sp-badge-name { font-family: var(--font-text); font-size: 11px; font-weight: 700;
     letter-spacing: 0.3px; color: var(--net-dot, #8E2F4E); }
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
@@ -4865,7 +4877,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.39 · store deck character opens the deck view";
+const APP_VERSION = "v3.40 · Same-Power unique logos + on the Same button";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -4989,6 +5001,26 @@ const ENC = '<path d="M12 3v8" stroke="currentColor" stroke-width="2"/><path d="
 const T = (s, x) => '<text x="' + (x || 12) + '" y="16.5" text-anchor="middle" font-size="12.5" font-weight="800" font-family="Chakra Petch, sans-serif" fill="currentColor">' + s + "</text>";
 const GLYPHS = {
   dot: '<circle cx="12" cy="12" r="4"/>',
+  // Same-Power logos — unique per power, one consistent monoline style: every
+  // Same-Power acts on directly-LINKED piles, so each shares a "two linked nodes"
+  // motif up top, differentiated by its effect symbol below (bury / revive /
+  // coins). 24×24, stroke=currentColor.
+  linkBury:   '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M12 9.4v6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+              '<path d="M8.6 12.4L12 15.8l3.4-3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<path d="M5 20.4h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  linkRevive: '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M3 15.8h3.6l1.7-5 3 9.6 2-7 1.5 2.4H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  linkCoins:  '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="12" cy="16" r="5.3" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M12 12.6v6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+              '<path d="M13.8 14.1h-2.6a1.35 1.35 0 0 0 0 2.7h1.6a1.35 1.35 0 0 1 0 2.7h-2.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
   // rank editors — crisp SVG numerals
   rankup: T("+1"), rankdown: T("−1"), rankup2: T("+2"), rankdown2: T("−2"),
   die: '<rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="15" cy="15" r="1.5"/>',
@@ -11071,19 +11103,36 @@ const UIRenderer = (() => {
      none is equipped). The mark is the game's equals-synapse logo; the chip is
      tap/hold-able for the power's description (see its handler in attachInput). */
   function updateSamePowerHud() {
-    if (!el.hudSamePower) return;
     // The CAMPAIGN equip state is authoritative (it drives what the engine locks
-    // in at Start Run). Read it FIRST so the chip reflects a setup equip/unequip
+    // in at Start Run). Read it FIRST so it reflects a setup equip/unequip
     // immediately — engine.samePower() (run.samePower) is the previous deal's value
     // until Start Run, so preferring it would show a stale power during setup.
     const id = (campaign && campaign.getSamePower && campaign.getSamePower())
       || (engine && engine.samePower && engine.samePower()) || null;
     const t = id ? SamePowerTypes.get(id) : null;
-    if (!t) { el.hudSamePower.classList.add("hidden"); el.hudSamePower.dataset.power = ""; el.hudSamePower.innerHTML = ""; return; }
-    el.hudSamePower.dataset.power = id;
-    el.hudSamePower.title = t.label + " — tap or hold for its effect";
-    el.hudSamePower.innerHTML = '<img src="icons/logo.svg" alt="" draggable="false" />';
-    el.hudSamePower.classList.remove("hidden");
+    // The Same-Power is no longer shown in the TOP BANNER — keep that chip hidden.
+    // (It survives in the DOM only as the dock's transient same-power drop hint in
+    // setup, revealed mid-drag via .sp-drop; dockArm overrides this while dragging.)
+    if (el.hudSamePower && !el.hudSamePower.classList.contains("sp-drop")) {
+      el.hudSamePower.classList.add("hidden");
+      el.hudSamePower.dataset.power = id || "";
+    }
+    // The equipped Same-Power's UNIQUE logo rides ON the Same (＝) guess button, so
+    // that one button represents BOTH the Same guess and the equipped power. It's
+    // hold-for-info (see the btnSame handler) per the global help convention.
+    if (el.btnSame) {
+      el.btnSame.dataset.power = t ? id : "";
+      el.btnSame.classList.toggle("has-power", !!t);
+      let badge = el.btnSame.querySelector(".sp-on-btn");
+      if (t) {
+        if (!badge) { badge = document.createElement("span"); badge.className = "sp-on-btn"; badge.setAttribute("aria-hidden", "true"); el.btnSame.appendChild(badge); }
+        badge.innerHTML = glyph(t.id);
+        el.btnSame.title = "Same — " + t.label + " equipped (hold for its effect)";
+      } else {
+        if (badge) badge.remove();
+        el.btnSame.title = "Same";
+      }
+    }
   }
 
   /* Tell: paint each pile's directional hint (▲ higher / = same / ▼ lower) for its
@@ -11690,7 +11739,7 @@ const UIRenderer = (() => {
       && campaign.getSamePower && campaign.getSamePower() === id);
     el.cardInfoPanel.innerHTML =
       '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
-      '<img src="icons/logo.svg" alt="" width="20" height="20" draggable="false" />' +
+      '<span class="sp-info-ico" style="width:20px;height:20px;color:var(--net-dot,#8E2F4E);display:inline-flex;">' + glyph(t.id) + '</span>' +
       '<b style="font-size:15px;">' + escHtml(t.label) + '</b>' +
       '<span style="margin-left:auto;font-size:10px;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;">' + escHtml(t.tier || "") + '</span></div>' +
       '<div style="white-space:pre-line;font-size:12.5px;line-height:1.34;">' + escHtml(t.description || "") + '</div>' +
@@ -13004,33 +13053,8 @@ const UIRenderer = (() => {
     // pointerdown) guarantees pointerup still reaches the board on release.
     el.board.addEventListener("pointercancel", endPeek);
 
-    // Equipped Same-Power chip (beside the Same Charge): TAP toggles its
-    // description popup; HOLD shows it while held (release closes) — the same help
-    // idiom the Pillar/Base indicators use.
-    if (el.hudSamePower) {
-      let spHoldTimer = null, spHeld = false, suppressSpClick = false;
-      const spId = () => el.hudSamePower.dataset.power || null;
-      el.hudSamePower.addEventListener("pointerdown", (e) => {
-        spHeld = false; suppressSpClick = false;
-        // Capture so opening the info overlay (which sits over the chip) can't fire
-        // a pointerleave that would instantly close the held popup.
-        try { el.hudSamePower.setPointerCapture(e.pointerId); } catch (err) {}
-        clearTimeout(spHoldTimer);
-        spHoldTimer = setTimeout(() => { spHeld = true; openSamePowerInfo(spId()); }, 180);
-      });
-      const spRelease = () => {
-        clearTimeout(spHoldTimer);
-        if (spHeld) { spHeld = false; suppressSpClick = true; closeCardInfo(); }
-      };
-      el.hudSamePower.addEventListener("pointerup", spRelease);
-      el.hudSamePower.addEventListener("pointerleave", spRelease);
-      el.hudSamePower.addEventListener("pointercancel", spRelease);
-      el.hudSamePower.addEventListener("click", () => {
-        if (suppressSpClick) { suppressSpClick = false; return; }   // a hold already handled it
-        if (el.cardInfo && !el.cardInfo.classList.contains("hidden")) closeCardInfo();
-        else openSamePowerInfo(spId());
-      });
-    }
+    // (The equipped Same-Power's tap/hold-for-info now lives on the Same guess
+    // button — see the btnSame handler above. The old top-banner chip is gone.)
 
     // Tap a pile: apply an armed sticker (sticker phase) or select it (active).
     // A drag/peek sets suppressPileClick so the release doesn't also act.
@@ -13341,8 +13365,28 @@ const UIRenderer = (() => {
     });
 
     el.btnHigher.addEventListener("click", () => submitGuess("higher"));
-    el.btnSame.addEventListener("click", () => submitGuess("same"));
     el.btnLower.addEventListener("click", () => submitGuess("lower"));
+    // Same button: a normal TAP submits the Same guess; when a Same-Power is
+    // equipped, a HOLD shows its info (global hold-for-help convention) and
+    // suppresses the guess. (Moved here from the old top-banner chip.)
+    {
+      let spHoldTimer = null, spHeld = false, suppressSameClick = false;
+      const spId = () => (el.btnSame && el.btnSame.dataset.power) || null;
+      el.btnSame.addEventListener("pointerdown", (e) => {
+        spHeld = false;
+        if (!spId()) return;                 // no power equipped → plain guess button
+        try { el.btnSame.setPointerCapture(e.pointerId); } catch (err) {}
+        clearTimeout(spHoldTimer);
+        spHoldTimer = setTimeout(() => { spHeld = true; suppressSameClick = true; openSamePowerInfo(spId()); }, 180);
+      });
+      const spRelease = () => { clearTimeout(spHoldTimer); if (spHeld) { spHeld = false; closeCardInfo(); } };
+      el.btnSame.addEventListener("pointerup", spRelease);
+      el.btnSame.addEventListener("pointercancel", spRelease);
+      el.btnSame.addEventListener("click", () => {
+        if (suppressSameClick) { suppressSameClick = false; return; }   // a hold already showed info
+        submitGuess("same");
+      });
+    }
 
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
@@ -17189,8 +17233,10 @@ const UIRenderer = (() => {
      symbol everywhere it shows (store tiles + the setup equip chip). */
   function samePowerBadgeHtml(t) {
     if (!t) return "";
+    // Each Same-Power has its OWN unique inline-SVG logo (GLYPHS[t.id]); glyph()
+    // falls back to a dot for any unknown id.
     return '<span class="sp-badge"><span class="sp-badge-ico">' +
-      '<img class="sp-mark" src="icons/logo.svg" alt="Same-Power" width="22" height="22" draggable="false" />' +
+      glyph(t.id, "sp-mark") +
       '</span><span class="sp-badge-name">' + t.label + '</span></span>';
   }
   const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power" };
