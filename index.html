@@ -3289,6 +3289,18 @@
   .ip-col.ip-selected { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
   .ip-col-n { font-weight: 800; font-size: 14px; color: var(--text); }
   .ip-col-occ { font-size: 12px; color: var(--muted); }
+  /* Post-deal placement screen (Section 3) — the pickers (z-80) open on top. */
+  .pd-panel { background: linear-gradient(180deg, #FBF6F1, #F1E8DE); border: 1px solid var(--edge-2);
+    border-radius: 16px; width: min(94vw, 420px); max-height: 84vh; overflow-y: auto;
+    padding: 18px 18px calc(16px + env(safe-area-inset-bottom)); box-shadow: var(--shadow); }
+  .pd-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--accent-2); }
+  .pd-sub { color: var(--muted); font-size: 12.5px; margin: 3px 0 12px; }
+  .pd-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; text-align: left; }
+  .pd-item { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--edge-2);
+    border-radius: 12px; padding: 8px 12px; }
+  .pd-item .mini-card { width: 38px; height: 52px; flex: none; }
+  .pd-item-t { font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .pd-place-btn { width: 100%; }
   .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex; }
   .sa-card .mini-card { transition: transform 0.08s ease; }
   .sa-card:active .mini-card { transform: scale(0.95); }
@@ -4823,6 +4835,19 @@
     </div>
   </div>
 
+  <!-- POST-DEAL placement screen (Section 3): shown after a won deal IF items were
+       gained DURING it (e.g. a Duplicated card, a copied sticker). Lists the spoils,
+       then walks the player through placing each (via the same pickers) before the
+       deal summary. Skipped entirely if nothing was gained. -->
+  <div class="overlay postdeal hidden" id="postDealScreen">
+    <div class="pd-panel">
+      <div class="pd-title">Spoils of the deal</div>
+      <div class="pd-sub">You picked these up — place each one now.</div>
+      <div class="pd-list" id="postDealList"></div>
+      <button class="play-btn pd-place-btn" id="postDealPlaceBtn" type="button">Place items</button>
+    </div>
+  </div>
+
   <!-- Deck inspection: lightweight quick peek (press & hold) -->
   <div class="deck-quick hidden" id="deckQuick">
     <div class="deck-quick-total" id="deckQuickTotal"></div>
@@ -4960,7 +4985,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.45 · place-on-purchase for pillars/bases/same-powers";
+const APP_VERSION = "v3.46 · post-deal placement screen for mid-deal gains";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10835,6 +10860,9 @@ const UIRenderer = (() => {
     ipConfirmMsg: document.getElementById("ipConfirmMsg"),
     ipBack: document.getElementById("ipBack"),
     ipPlace: document.getElementById("ipPlace"),
+    postDealScreen: document.getElementById("postDealScreen"),   // post-deal placement (mid-deal gains)
+    postDealList: document.getElementById("postDealList"),
+    postDealPlaceBtn: document.getElementById("postDealPlaceBtn"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
@@ -13618,6 +13646,7 @@ const UIRenderer = (() => {
     if (el.ipColumns) el.ipColumns.addEventListener("click", (e) => { const c = e.target.closest(".ip-col"); if (c) selectPlaceColumn(Number(c.dataset.col)); });
     if (el.ipPlace) el.ipPlace.addEventListener("click", confirmItemPlace);
     if (el.ipBack) el.ipBack.addEventListener("click", () => { selectedPlaceCol = null; if (el.ipConfirm) el.ipConfirm.classList.add("hidden"); renderPlaceColumns(); });
+    if (el.postDealPlaceBtn) el.postDealPlaceBtn.addEventListener("click", startPostDealPlacement);
     el.storeStartBtn.addEventListener("click", () => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
@@ -16620,7 +16649,9 @@ const UIRenderer = (() => {
       // Show the coin breakdown, then continue back to the (current or new-phase)
       // map to pick the next node. Checkpoint so a refresh resumes at the map.
       persistCampaign("map");
-      playWinCinematic(board, () => showRunComplete(coins));
+      // If anything was GAINED mid-deal, place it first (post-deal screen), THEN
+      // show the summary. Nothing gained → straight to the summary.
+      playWinCinematic(board, () => showPostDealPlacement(() => showRunComplete(coins)));
     }
   }
 
@@ -17930,22 +17961,16 @@ const UIRenderer = (() => {
      Stickers never go to the setup dock. Any sticker still sitting in inventory
      (a "Later", or a pack-revealed sticker) is applied via the store's "Apply
      Sticker" button, which reopens this picker. */
+  let cardPickMode = "sticker";       // "sticker" (apply) | "swap" (replace with a pack card)
   let pendingApplyStickerId = null;   // the sticker TYPE id currently being applied
+  let pendingSwapTrayIndex = null;    // the pack-tray card index being swapped in (swap mode)
   let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
-  function pendingStickerCount() {
-    const inv = campaign ? campaign.getInventory() : {};
-    return Object.keys(inv).reduce((a, k) => a + (inv[k] || 0), 0);
-  }
-  function firstPendingStickerId() {
-    const inv = campaign ? campaign.getInventory() : {};
-    return StickerTypes.all().map(t => t.id).find(id => (inv[id] || 0) > 0) || null;
-  }
   function renderStickerApplyCards() {
     if (!el.saCards || !campaign) return;
     const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
     el.saCards.innerHTML = cards.map(c => {
-      const ok = campaign.canApplySticker(c, pendingApplyStickerId);
+      const ok = cardPickMode === "swap" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
       return '<button type="button" class="deck-card sa-card' + (ok ? "" : " sa-disabled") +
         (selectedApplyCardId === c.id ? " sa-selected" : "") + '" data-card-id="' + c.id + '"' +
         (ok ? "" : " disabled") + ">" + miniCardHtml(c) + "</button>";
@@ -17955,7 +17980,8 @@ const UIRenderer = (() => {
     if (!campaign || !typeId) return;
     const t = StickerTypes.get(typeId);
     if (!t) return;
-    pendingApplyStickerId = typeId;
+    cardPickMode = "sticker";
+    pendingApplyStickerId = typeId; pendingSwapTrayIndex = null;
     selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     if (el.saHead) el.saHead.textContent = "Apply " + t.label;
@@ -17966,37 +17992,71 @@ const UIRenderer = (() => {
     renderStickerApplyCards();
     el.stickerApplyModal.classList.remove("hidden");
   }
+  /* SWAP mode: a gained pack/Duplicate card replaces a deck card of the player's
+     choice (the chosen card — and its stickers — is removed; the deck stays 52). */
+  function openCardSwap(trayIndex) {
+    if (!campaign) return;
+    const pc = campaign.getPackTray()[trayIndex];
+    if (!pc) { continuePendingPlacement(); return; }
+    cardPickMode = "swap";
+    pendingSwapTrayIndex = trayIndex; pendingApplyStickerId = null;
+    selectedApplyCardId = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    const pcLabel = miniRankLabel(pc) + " " + pc.suit;
+    if (el.saHead) el.saHead.textContent = "Swap in " + pcLabel;
+    if (el.saBanner) el.saBanner.innerHTML = miniCardHtml(pc) +
+      '<span class="sa-name">' + escHtml(pcLabel) + "</span>" +
+      '<span class="sa-desc">Pick a card to replace with this one (the old card is removed; deck stays 52).</span>';
+    if (el.saHint) el.saHint.textContent = "Tap the card to replace.";
+    renderStickerApplyCards();
+    el.stickerApplyModal.classList.remove("hidden");
+  }
   function selectApplyCard(id) {
     const card = (campaign.getRunDeck() || []).find(c => c.id === id);
-    if (!card || !campaign.canApplySticker(card, pendingApplyStickerId)) return;
+    if (!card) return;
+    if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
     selectedApplyCardId = id;
     renderStickerApplyCards();
-    const t = StickerTypes.get(pendingApplyStickerId);
-    if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Add <b>" + escHtml((t && t.label) || "sticker") +
-      "</b> to <b>" + miniRankLabel(card) + " " + card.suit + "</b>?";
+    if (cardPickMode === "swap") {
+      const pc = campaign.getPackTray()[pendingSwapTrayIndex];
+      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
+        "</b> with <b>" + (pc ? miniRankLabel(pc) + " " + pc.suit : "the new card") + "</b>?";
+    } else {
+      const t = StickerTypes.get(pendingApplyStickerId);
+      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Add <b>" + escHtml((t && t.label) || "sticker") +
+        "</b> to <b>" + miniRankLabel(card) + " " + card.suit + "</b>?";
+    }
     if (el.saConfirm) el.saConfirm.classList.remove("hidden");
   }
   function confirmApplySticker() {
-    if (!selectedApplyCardId || !pendingApplyStickerId) return;
-    const t = StickerTypes.get(pendingApplyStickerId);
-    if (campaign.applySticker(selectedApplyCardId, pendingApplyStickerId)) {
-      campaign.useStickerFromInventory(pendingApplyStickerId);
-      if (engine) engine.logAction("Applied Sticker: " + ((t && t.label) || pendingApplyStickerId) + " → a deck card");
-      Sound.purchase();
-      persistCampaign("store");
+    if (!selectedApplyCardId) return;
+    if (cardPickMode === "swap") {
+      if (pendingSwapTrayIndex != null && campaign.replaceDeckCard(selectedApplyCardId, pendingSwapTrayIndex)) {
+        if (engine) engine.logAction("Swapped a gained card into the deck");
+        Sound.purchase();
+        persistCampaign("store");
+      }
+    } else if (pendingApplyStickerId) {
+      const t = StickerTypes.get(pendingApplyStickerId);
+      if (campaign.applySticker(selectedApplyCardId, pendingApplyStickerId)) {
+        campaign.useStickerFromInventory(pendingApplyStickerId);
+        if (engine) engine.logAction("Applied Sticker: " + ((t && t.label) || pendingApplyStickerId) + " → a deck card");
+        Sound.purchase();
+        persistCampaign("store");
+      }
     }
     el.stickerApplyModal.classList.add("hidden");
-    pendingApplyStickerId = null; selectedApplyCardId = null;
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
-    continuePendingPlacement();   // chain into the next pending item, else back to the store
+    continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
   }
   function closeStickerApply() {
-    // "Later"/✕ — leave the item(s) unplaced; the store "Place" button stays
-    // available to finish placing them (no browsable inventory, just a queue).
-    pendingApplyStickerId = null; selectedApplyCardId = null;
+    // "Later"/✕ — leave the item(s) unplaced; the store "Place" button (or the next
+    // store visit) finishes placing them (no browsable inventory, just a queue).
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     el.stickerApplyModal.classList.add("hidden");
-    renderStore(); refreshDebug();
+    (onPlacementQueueEmpty || defaultPlacementEmpty)();
   }
 
   /* ---- unified place-on-acquire queue (Section 1/2) ----------------------
@@ -18012,11 +18072,18 @@ const UIRenderer = (() => {
     if (!campaign) return 0;
     const sum = (o) => Object.keys(o || {}).reduce((a, k) => a + (o[k] || 0), 0);
     return sum(campaign.getInventory()) + sum(campaign.getPillarInventory())
-      + sum(campaign.getBaseInventory()) + sum(campaign.getSamePowerInventory());
+      + sum(campaign.getBaseInventory()) + sum(campaign.getSamePowerInventory())
+      + (campaign.packTrayCount ? campaign.packTrayCount() : 0);
   }
-  /* The next item awaiting placement (sticker → pillar → base → Same-Power), or null. */
+  // What runs when the placement queue empties: by default refresh the store, but
+  // the post-deal screen swaps in its own continuation (→ the deal summary).
+  let onPlacementQueueEmpty = null;
+  function defaultPlacementEmpty() { renderStore(); refreshDebug(); }
+  /* The next item awaiting placement (card → sticker → pillar → base → Same-Power),
+     or null. Cards (pack/Duplicate gains) come first so they swap before stickers. */
   function nextPendingItem() {
     if (!campaign) return null;
+    if (campaign.packTrayCount && campaign.packTrayCount() > 0) return { kind: "card", index: 0 };
     const sinv = campaign.getInventory();
     for (const t of StickerTypes.all()) if ((sinv[t.id] || 0) > 0) return { kind: "sticker", id: t.id };
     const pinv = campaign.getPillarInventory();
@@ -18028,7 +18095,8 @@ const UIRenderer = (() => {
     return null;
   }
   function placePendingItem(item) {
-    if (!item) { renderStore(); refreshDebug(); return; }
+    if (!item) { (onPlacementQueueEmpty || defaultPlacementEmpty)(); return; }
+    if (item.kind === "card") return openCardSwap(item.index);
     if (item.kind === "sticker") return openStickerApply(item.id);
     if (item.kind === "pillar" || item.kind === "base") return openItemPlace(item.kind, item.id);
     if (item.kind === "samepower") {
@@ -18046,6 +18114,38 @@ const UIRenderer = (() => {
     }
   }
   function continuePendingPlacement() { placePendingItem(nextPendingItem()); }
+
+  /* ---- post-deal placement screen (Section 3) ----
+     After a won deal, anything GAINED mid-deal (a Duplicated card → pack tray, a
+     copied sticker → hold, etc.) is still unplaced. List the spoils, then walk the
+     player through placing each via the same pickers, and continue to the summary.
+     Store purchases place at buy-time, so the only things here are mid-deal gains. */
+  let postDealOnDone = null;
+  function showPostDealPlacement(onDone) {
+    if (!campaign || !el.postDealScreen || pendingPlaceTotal() <= 0) { onDone(); return; }
+    let html = "";
+    campaign.getPackTray().forEach(c => { html += '<div class="pd-item">' + miniCardHtml(c) + '<span class="pd-item-t">Card ' + miniRankLabel(c) + " " + c.suit + " — swap into your deck</span></div>"; });
+    const sinv = campaign.getInventory();
+    StickerTypes.all().forEach(t => { const n = sinv[t.id] || 0; if (n > 0) html += '<div class="pd-item">' + stickerChip(t.id, { seed: "pd" }) + '<span class="pd-item-t">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + " — apply to a card</span></div>"; });
+    const pinv = campaign.getPillarInventory();
+    PillarTypes.all().forEach(t => { if ((pinv[t.id] || 0) > 0) html += '<div class="pd-item">' + pathwayBannerHtml(t) + '<span class="pd-item-t">' + escHtml(t.label) + " — place on a column</span></div>"; });
+    const binv = campaign.getBaseInventory();
+    BaseTypes.all().forEach(t => { if ((binv[t.id] || 0) > 0) html += '<div class="pd-item">' + baseBannerHtml(t, "charged") + '<span class="pd-item-t">' + escHtml(t.label) + " — place on a column</span></div>"; });
+    const spinv = campaign.getSamePowerInventory();
+    SamePowerTypes.all().forEach(t => { if ((spinv[t.id] || 0) > 0) html += '<div class="pd-item">' + samePowerBadgeHtml(t) + '<span class="pd-item-t">' + escHtml(t.label) + " — equip</span></div>"; });
+    el.postDealList.innerHTML = html;
+    postDealOnDone = onDone;
+    el.postDealScreen.classList.remove("hidden");
+  }
+  function startPostDealPlacement() {
+    if (el.postDealScreen) el.postDealScreen.classList.add("hidden");
+    onPlacementQueueEmpty = function () {
+      onPlacementQueueEmpty = null;
+      const cb = postDealOnDone; postDealOnDone = null;
+      if (cb) cb();   // → the deal summary
+    };
+    continuePendingPlacement();   // walk the spoils through their pickers
+  }
 
   /* ---- pillar/base column picker ---- */
   function renderPlaceColumns() {
@@ -18112,7 +18212,7 @@ const UIRenderer = (() => {
     pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
     if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
     el.itemPlaceModal.classList.add("hidden");
-    renderStore(); refreshDebug();
+    (onPlacementQueueEmpty || defaultPlacementEmpty)();
   }
 
   /* Confirm buying the selected offered sticker (the only place it's bought).
