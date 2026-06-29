@@ -147,41 +147,6 @@
   .stage-run.off { display: none; }
   .stage-run:active { transform: translateX(-50%) scale(0.97); }
 
-  /* In-play sticker inventory popup (tap-to-open, tap-out / × to close). */
-  .inv-popup {
-    /* Above the pack-reveal / confirm overlays (z-index 70) so the inventory the
-       player opens is viewable OVER an open store pack, not hidden behind it. */
-    position: fixed; inset: 0; z-index: 75;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(48, 36, 32, 0.55);
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-  }
-  .inv-popup.hidden { display: none; }
-  .inv-card {
-    width: min(92vw, 380px);
-    background: rgba(251, 246, 241, 0.98);
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    padding: 14px; box-shadow: var(--shadow);
-  }
-  .inv-card-head {
-    display: flex; justify-content: space-between; align-items: center;
-    font-weight: 800; font-size: 14px; color: var(--accent-2); margin-bottom: 10px;
-  }
-  .inv-close {
-    background: none; border: none; color: var(--text);
-    font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
-    position: relative;   /* anchors the invisible hit-area extension below */
-  }
-  /* Invisible touch-target extension (corner button, no neighbours). */
-  .inv-close::after { content: ""; position: absolute; inset: -8px; }
-  .inv-card-body { display: flex; flex-direction: column; gap: 11px; }
-  /* The store inventory hosts the SAME tabbed component as start-of-run setup
-     (.setup-inv), here in a read-only "browse" mode — see .setup-inv.browse. */
-  .setup-inv.browse { gap: 8px; height: auto; width: 100%; }
-  .setup-inv.browse .setup-tabs { flex: none; }
-  .setup-inv.browse .setup-strip { flex: none; min-height: 72px; max-height: 32vh; }
-  .setup-inv.browse .tray-help { flex: none; max-height: 30vh; margin-top: 2px; }
-  .setup-inv.browse .tray-help .th-desc { margin-top: 5px; }
   .tray-help .th-desc .bh-lede {
     display: block; font-size: 10px; font-weight: 800; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
@@ -410,67 +375,6 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  /* ============================================================
-     PLACEMENT DOCK — drag-from-list setup placement. Always visible
-     during setup, sits BELOW the board (its height is reserved by
-     fitBoard so cards + slots stay fully visible), scrolls
-     horizontally through every placeable item the player owns. TAP a
-     chip = info; PRESS-AND-DRAG = pick up + drop on a valid target.
-     Replaces the old slide-up sheet + tap-to-arm banner flow.
-     ============================================================ */
-  .place-dock {
-    --dock-h: 86px;
-    flex: none; width: min(100%, 700px); margin: 0 auto;
-    position: relative; display: flex; align-items: stretch; gap: 6px;
-    height: var(--dock-h); padding: 5px 7px;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: var(--shadow);
-  }
-  .place-dock.hidden { display: none; }
-  .pd-list {
-    flex: 1 1 auto; min-width: 0;
-    display: flex; align-items: center; gap: 8px;
-    overflow-x: auto; overflow-y: hidden; touch-action: pan-x; overscroll-behavior: contain;
-    padding: 2px 1px; -webkit-overflow-scrolling: touch;
-  }
-  .pd-list > * { flex: none; }
-  /* While dragging, the list must NOT pan (the ghost owns the gesture). */
-  .place-dock.dragging .pd-list { overflow-x: hidden; touch-action: none; }
-  /* The picked-up chip dims in place; a ghost follows the finger. */
-  .pd-list .dragging-src { opacity: 0.3; }
-  .pd-empty { flex: 1 1 auto; align-self: center; text-align: center; color: var(--muted); font-size: 12px; font-weight: 700; }
-  .pd-empty.hidden { display: none; }
-  /* Trash drop-zone — only while dragging a trashable item. */
-  .pd-trash {
-    flex: none; width: 58px; align-self: stretch;
-    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-    border: 1.5px dashed var(--danger); border-radius: 10px; color: var(--bad);
-    background: rgba(181,67,90,0.08);
-  }
-  .pd-trash .ico-slot { width: 20px; height: 20px; }
-  .pd-trash .pd-trash-l { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
-  .place-dock.dragging.show-trash .pd-trash { display: flex; }
-  .pd-trash.drop-hover { background: rgba(181,67,90,0.22); border-style: solid; }
-  /* The floating drag ghost (the chip art under the finger). */
-  .dock-ghost {
-    position: fixed; z-index: 90; left: 0; top: 0; pointer-events: none;
-    transform: translate(-50%, -50%) scale(1.05);
-    filter: drop-shadow(0 8px 16px rgba(40,26,20,0.45)); opacity: 0.96;
-  }
-  /* Emphasise the specific target under the finger (on top of the existing
-     dashed legal-target highlight the arming/placing-* classes already draw). */
-  .pile.drop-hover .card { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 22px; }
-  .bp-cell.drop-hover .cph-banner { outline: 3px solid var(--pathway) !important; }
-  .base-cell.drop-hover .base-banner { outline: 3px solid #b07a3c !important; }
-  /* Same-Power has one global slot in the HUD; reveal + highlight it while a
-     Same-Power is being dragged, so there's a visible bullseye to drop on. */
-  body.dragging-sp .hud { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: 12px; }
-  body.dragging-sp .hud.drop-hover { outline-style: solid; background: rgba(110,81,166,0.12); }
-  body.dragging-sp .hud-samepower.sp-drop {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 22px; height: 22px; border-radius: 6px; opacity: 1;
-    border: 1.5px dashed var(--accent); color: var(--accent-2); font-size: 11px;
-  }
 
   /* Light scrim behind the open sheet — NO blur, and only a faint tint, so the
      board (its cards + stickers) stays clearly visible while placing. */
@@ -1835,7 +1739,6 @@
     transition: transform 0.08s ease;
   }
   .menu-btn { left: calc(env(safe-area-inset-left) + 4px); }
-  .inv-btn  { right: calc(env(safe-area-inset-right) + 4px); }
   .nav-btn .ico { font-size: 17px; }
   .nav-btn.hidden { display: none; }
   .nav-btn:active { transform: scale(0.92); }
@@ -4332,18 +4235,6 @@
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
     </div>
 
-    <!-- PLACEMENT DOCK (setup only): a single horizontally-scrolling list of every
-         placeable item the player owns. TAP a chip → its info (standard help text);
-         PRESS-AND-DRAG a chip → pick it up and drop it on a highlighted valid target
-         (a card for stickers, a column's pillar/base slot for pillars/bases, the
-         Same-Power slot for Same-Powers). Sits BELOW the board so cards + slots stay
-         fully visible; its height is reserved by fitBoard. -->
-    <div class="place-dock hidden" id="placeDock">
-      <div class="pd-list" id="placeDockList" role="listbox" aria-label="Your items — tap for info, drag to place"></div>
-      <div class="pd-trash" id="placeDockTrash" aria-hidden="true"><span class="ico-slot" data-ico="trash"></span><span class="pd-trash-l">Trash</span></div>
-      <div class="pd-empty hidden" id="placeDockEmpty">No items to place — press Start Deal.</div>
-    </div>
-
     <!-- Move-feedback line: removed from the layout (kept hidden so existing JS
          can still write to it without consuming vertical space). -->
     <div class="hint" id="hint" aria-hidden="true">Tap a pile to begin.</div>
@@ -4858,46 +4749,6 @@
        indicator during play; dismissed on release. Reads registry descriptions. -->
   <div class="peek-info hidden" id="peekInfo"></div>
 
-  <!-- Inventory browser: opened by TAPPING the coin indicator (in play) or the
-       store's Inventory button. Hosts the SAME tabbed Cards/Stickers/Pillars
-       component as start-of-run setup (.setup-inv), here in READ-ONLY "browse"
-       mode — tap an item to read its description; no placement. Dismiss by
-       tapping the backdrop or the ×. -->
-  <div class="inv-popup hidden" id="invPopup">
-    <div class="inv-card">
-      <div class="inv-card-head">
-        <span><span class="ico-slot" data-ico="stash"></span> Inventory</span>
-        <button class="inv-close" id="invClose" type="button" aria-label="Close">×</button>
-      </div>
-      <div class="inv-card-body" id="invBody">
-        <div class="setup-inv browse" id="browseInv">
-          <div class="setup-tabs" id="browseTabs">
-            <button class="setup-tab" type="button" data-tab="cards"><span class="stab-l">Cards</span><span class="stab-n" id="bTabNCards">0</span></button>
-            <button class="setup-tab" type="button" data-tab="stickers"><span class="stab-l">Stickers</span><span class="stab-n" id="bTabNStickers">0</span></button>
-            <button class="setup-tab" type="button" data-tab="pillars"><span class="stab-l">Pillars</span><span class="stab-n" id="bTabNPillars">0</span></button>
-            <button class="setup-tab" type="button" data-tab="bases"><span class="stab-l">Bases</span><span class="stab-n" id="bTabNBases">0</span></button>
-            <button class="setup-tab" type="button" data-tab="samepowers"><span class="stab-l">Same</span><span class="stab-n" id="bTabNSame">0</span></button>
-          </div>
-          <div class="setup-strip" id="browseStrip">
-            <div class="pack-tray tab-panel hidden" id="browseCards" data-tab="cards"></div>
-            <div class="sticker-tray tab-panel hidden" id="browseStickers" data-tab="stickers"></div>
-            <div class="pillar-tray tab-panel hidden" id="browsePillars" data-tab="pillars"></div>
-            <div class="base-tray tab-panel hidden" id="browseBases" data-tab="bases"></div>
-            <div class="samepower-tray tab-panel hidden" id="browseSamePowers" data-tab="samepowers"></div>
-            <div class="setup-empty hidden" id="browseEmpty">You don't own any items yet.</div>
-          </div>
-          <div class="tray-help hidden" id="browseHelp">
-            <div class="th-row">
-              <span class="th-title" id="bThTitle"></span>
-              <button class="th-close" id="bThClose" type="button" aria-label="Close">✕</button>
-            </div>
-            <span class="th-desc" id="bThDesc"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <div class="menu-tagline">Higher or lower?</div>
@@ -4957,7 +4808,6 @@
        style; hidden on the main menu and the full-screen start/win/lose overlays
        (which carry their own actions). The map also shows a "Store" button. -->
   <button class="menu-btn nav-btn" id="menuBtn" type="button" aria-label="Menu"><span class="ico-slot" data-ico="menu"></span></button>
-  <button class="inv-btn nav-btn hidden" id="invBtn" type="button" aria-label="Inventory"><span class="ico-slot" data-ico="stash"></span></button>
   <!-- Map → Store: a back arrow on the LEFT — "back to the store" (one-way flow:
        store → map → game; no game → map). -->
   <button class="map-store-btn hidden" id="mapStoreBtn" type="button"><span class="ico-slot" data-ico="back"></span> Store</button>
@@ -4985,7 +4835,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.46 · post-deal placement screen for mid-deal gains";
+const APP_VERSION = "v3.47 · remove the inventory + setup dock entirely";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10671,7 +10521,6 @@ const UIRenderer = (() => {
     menuButtons: document.getElementById("menuButtons"),
     menuFoot: document.getElementById("menuFoot"),
     menuBtn: document.getElementById("menuBtn"),
-    invBtn: document.getElementById("invBtn"),
     mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
     statsGrid: document.getElementById("statsGrid"),
@@ -10695,10 +10544,6 @@ const UIRenderer = (() => {
     bottomRegion: document.getElementById("bottomRegion"),
     placeLauncher: document.getElementById("placeLauncher"),
     placeLauncherN: document.getElementById("placeLauncherN"),
-    placeDock: document.getElementById("placeDock"),               // drag-from-list setup dock
-    placeDockList: document.getElementById("placeDockList"),
-    placeDockTrash: document.getElementById("placeDockTrash"),
-    placeDockEmpty: document.getElementById("placeDockEmpty"),
     placeBackdrop: document.getElementById("placeBackdrop"),
     placeSheet: document.getElementById("placeSheet"),
     placeSheetDone: document.getElementById("placeSheetDone"),
@@ -10835,7 +10680,6 @@ const UIRenderer = (() => {
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
     fossilDetailArt: document.getElementById("fossilDetailArt"),
     fossilDetailSub: document.getElementById("fossilDetailSub"),
-    storeInvBtn: document.getElementById("storeInvBtn"),
     storeDeckStat: document.getElementById("storeDeckStat"),   // store deck character (tap → deck view)
     storeDeckCount: document.getElementById("storeDeckCount"),
     storeApplyStickersBtn: document.getElementById("storeApplyStickersBtn"),
@@ -10863,28 +10707,6 @@ const UIRenderer = (() => {
     postDealScreen: document.getElementById("postDealScreen"),   // post-deal placement (mid-deal gains)
     postDealList: document.getElementById("postDealList"),
     postDealPlaceBtn: document.getElementById("postDealPlaceBtn"),
-    invPopup: document.getElementById("invPopup"),
-    invBody: document.getElementById("invBody"),
-    invClose: document.getElementById("invClose"),
-    // Store/in-play inventory browser (read-only tabbed view; same component as setup)
-    browseInv: document.getElementById("browseInv"),
-    browseTabs: document.getElementById("browseTabs"),
-    browseStrip: document.getElementById("browseStrip"),
-    browseCards: document.getElementById("browseCards"),
-    browseStickers: document.getElementById("browseStickers"),
-    browsePillars: document.getElementById("browsePillars"),
-    browseBases: document.getElementById("browseBases"),
-    browseSamePowers: document.getElementById("browseSamePowers"),
-    browseEmpty: document.getElementById("browseEmpty"),
-    browseHelp: document.getElementById("browseHelp"),
-    bTabNCards: document.getElementById("bTabNCards"),
-    bTabNStickers: document.getElementById("bTabNStickers"),
-    bTabNPillars: document.getElementById("bTabNPillars"),
-    bTabNBases: document.getElementById("bTabNBases"),
-    bTabNSame: document.getElementById("bTabNSame"),
-    bThTitle: document.getElementById("bThTitle"),
-    bThDesc: document.getElementById("bThDesc"),
-    bThClose: document.getElementById("bThClose"),
     // debug
     title: document.querySelector("header h1"),
     debugOverlay: document.getElementById("debugOverlay"),
@@ -12224,7 +12046,6 @@ const UIRenderer = (() => {
     el.setupTabs.classList.toggle("hidden", !(open && anyItems));
     if (el.setupEmpty) el.setupEmpty.classList.add("hidden");
     renderPlacementUI(open, counts);
-    renderPlaceDock(open, counts);      // the always-visible drag-from-list dock
   }
 
   /* ---- placement sheet controller ----
@@ -12240,10 +12061,9 @@ const UIRenderer = (() => {
     return !!(armedSticker || armedPillar || armedBaseItem) || armedPack != null;
   }
   function renderPlacementUI() {
-    // The drag-from-list DOCK (renderPlaceDock) now replaces the old launcher +
-    // slide-up sheet + armed-item banner entirely, so keep all of them hidden.
-    // (The dock is always visible during setup and reserves its own space, so
-    // nothing here ever covers the board.)
+    // Setup no longer places anything (every item is placed at acquire-time — at
+    // purchase or on the post-deal screen), so keep the old launcher/sheet/banner
+    // permanently hidden. Setup is now just the board + Start Deal.
     placeSheetOpen = false;
     if (el.placeSheet) el.placeSheet.classList.remove("open");
     if (el.placeBackdrop) el.placeBackdrop.classList.add("hidden");
@@ -12251,213 +12071,6 @@ const UIRenderer = (() => {
     if (el.playControls) el.playControls.classList.remove("placing");
   }
 
-  /* ---- placement dock (drag-from-list) -----------------------------------
-     ONE continuous, horizontally-scrolling row of every placeable item the
-     player owns (pack cards, stickers, pillars, bases, Same-Powers), shown
-     below the board during setup. TAP a chip → its info; PRESS-AND-DRAG a chip
-     → pick it up and drop it on a highlighted valid target. Reuses the same
-     chip markup as the inventory browser and the same place-* functions as the
-     old tap flow — only the INTERACTION changes (no rule/legality change). */
-  let dockWasShown = false;
-  function renderPlaceDock(open, counts) {
-    if (!el.placeDock || !el.placeDockList) return;
-    const inSetup = open != null ? open : !!(engine && engine.canApplyStickers());
-    if (!inSetup) {
-      el.placeDockList.innerHTML = "";
-      el.placeDock.classList.add("hidden");
-      if (dockWasShown) { dockWasShown = false; fitBoard(); }
-      return;
-    }
-    const inv = campaign ? campaign.getInventory() : {};
-    const pinv = campaign ? campaign.getPillarInventory() : {};
-    const binv = campaign ? campaign.getBaseInventory() : {};
-    const spinv = campaign ? campaign.getSamePowerInventory() : {};
-    const tray = campaign ? campaign.getPackTray() : [];
-    let html = "";
-    // Cards (deck-replacement picks) — drag onto a pile to swap that card in.
-    // EVERYTHING ELSE places at ACQUIRE-time now (stickers/pillars/bases/Same-Power
-    // are placed in the store at purchase, or on the post-deal screen for mid-deal
-    // gains), so nothing else appears in this dock.
-    tray.forEach((card, i) => { html += invPackChipHtml(card, i, false, true); });
-    el.placeDockList.innerHTML = html;
-    const empty = html === "";
-    if (el.placeDockEmpty) el.placeDockEmpty.classList.add("hidden");
-    // Nothing to place (e.g. the opening deal) → hide the dock entirely so the
-    // board keeps the full height; only reserve space when there are items.
-    el.placeDock.classList.toggle("hidden", empty);
-    const show = !empty;
-    if (show !== dockWasShown) { dockWasShown = show; fitBoard(); }   // reserve/return its height
-  }
-
-  /* The active dock drag, or null. Quick tap (no movement past the threshold) =
-     info; movement past it = a pick-up-and-place drag. */
-  let dockDrag = null;
-  // Gesture intent split (scroll vs pick-up): a HORIZONTAL move within the list is
-  // a scroll (handled natively via touch-action: pan-x); a deliberate VERTICAL pull
-  // (up/out toward the board) past DOCK_DRAG_SLOP picks the item up. We do NOT
-  // capture the pointer until a drag is confirmed, so horizontal scrolling is never
-  // hijacked.
-  const DOCK_DRAG_SLOP = 12;    // vertical px to confirm a pick-up
-  const DOCK_SCROLL_SLOP = 6;   // horizontal px that means "scrolling" → abandon pick-up
-  function dockItemFromChip(chip) {
-    if (!chip) return null;
-    // Only deck-replacement pack cards remain in the dock — stickers/pillars/bases/
-    // Same-Power all place at acquire-time now (no setup placement for them).
-    if (chip.dataset.tray != null) return { kind: "card", index: Number(chip.dataset.tray) };
-    return null;
-  }
-  function dockItemTypeInfo(d) {
-    if (d.kind === "sticker") return StickerTypes.get(d.id);
-    if (d.kind === "pillar") return PillarTypes.get(d.id);
-    if (d.kind === "base") return BaseTypes.get(d.id);
-    if (d.kind === "samepower") return SamePowerTypes.get(d.id);
-    if (d.kind === "card" && campaign) { const c = campaign.getPackTray()[d.index]; return c ? { label: miniRankLabel(c) + " " + c.suit, icon: "", description: "Drag onto a pile to swap this card into your deck, replacing that pile's card." } : null; }
-    return null;
-  }
-  /* TAP → show the item's info as the standard help text (the peek panel). */
-  function showDockItemInfo(d) {
-    const t = dockItemTypeInfo(d);
-    if (!t || !el.peekInfo) return;
-    el.peekInfo.innerHTML =
-      '<div class="pk-head">' + (t.icon ? t.icon + " " : "") + escHtml(t.label || "") + "</div>" +
-      '<div class="pk-desc">' + escHtml(itemDescription(t)) + "</div>";
-    el.peekInfo.classList.remove("hidden");
-    document.body.classList.toggle("peek-band", peekInBand());
-  }
-  /* Set the matching armed-* state so the existing board highlight classes light
-     up the legal targets and the existing place-* functions can run on drop. */
-  function dockArm(d) {
-    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
-    if (d.kind === "sticker") armedSticker = d.id;
-    else if (d.kind === "pillar") armedPillar = d.id;
-    else if (d.kind === "base") armedBaseItem = d.id;
-    else if (d.kind === "card") armedPack = d.index;
-    updateArmingClass();
-    document.body.classList.toggle("dragging-sp", d.kind === "samepower");
-    if (d.kind === "samepower" && el.hudSamePower) {
-      el.hudSamePower.classList.add("sp-drop"); el.hudSamePower.classList.remove("hidden");
-      if (!el.hudSamePower.dataset.power) el.hudSamePower.textContent = "＝";
-    }
-  }
-  function dockDisarm() {
-    armedSticker = null; armedPillar = null; armedPack = null; armedBaseItem = null;
-    updateArmingClass();
-    document.body.classList.remove("dragging-sp");
-    if (el.hudSamePower) { el.hudSamePower.classList.remove("sp-drop"); }
-    updateSamePowerHud();   // restore the HUD chip to its real equipped state
-  }
-  function dockClearHover() {
-    document.querySelectorAll(".drop-hover").forEach(n => n.classList.remove("drop-hover"));
-  }
-  /* The element currently under the pointer that is a VALID target for `d`. */
-  function dockTargetAt(d, x, y) {
-    const node = document.elementFromPoint(x, y);
-    if (!node) return null;
-    if (el.placeDockTrash && el.placeDockTrash.contains(node) && d.kind !== "samepower") return { trash: true, node: el.placeDockTrash };
-    if (d.kind === "sticker" || d.kind === "card") {
-      const pile = node.closest(".pile");
-      if (pile && !pile.classList.contains("dead")) return { pileIndex: Number(pile.dataset.index), node: pile };
-    } else if (d.kind === "pillar") {
-      const bp = node.closest(".bp-cell"); if (bp) return { col: Number(bp.dataset.col), node: bp };
-      const pile = node.closest(".pile"); if (pile && pile.dataset.col != null) { const cell = el.board.querySelector('.bp-cell[data-col="' + pile.dataset.col + '"]'); return { col: Number(pile.dataset.col), node: cell || pile }; }
-    } else if (d.kind === "base") {
-      const bc = node.closest(".base-cell"); if (bc) return { col: Number(bc.dataset.col), node: bc };
-      const pile = node.closest(".pile"); if (pile && pile.dataset.col != null) { const cell = el.board.querySelector('.base-cell[data-col="' + pile.dataset.col + '"]'); return { col: Number(pile.dataset.col), node: cell || pile }; }
-    } else if (d.kind === "samepower") {
-      const hud = node.closest(".hud"); if (hud) return { samepower: true, node: hud };
-    }
-    return null;
-  }
-  function dockBeginDrag(d, e) {
-    d.started = true;
-    // Intent is now confirmed (vertical pull) → capture the pointer so the drag
-    // tracks the finger anywhere and the list stops scrolling (.dragging sets
-    // touch-action: none).
-    try { el.placeDockList.setPointerCapture(e.pointerId); } catch (_) {}
-    el.placeDock.classList.add("dragging");
-    if (d.kind !== "samepower") el.placeDock.classList.add("show-trash");
-    if (d.chipEl) d.chipEl.classList.add("dragging-src");
-    dockArm(d);
-    // Floating ghost = a clone of the chip's art, following the finger.
-    const ghost = d.chipEl.cloneNode(true);
-    ghost.classList.add("dock-ghost"); ghost.classList.remove("dragging-src");
-    ghost.style.width = d.chipEl.offsetWidth + "px";
-    document.body.appendChild(ghost);
-    d.ghost = ghost;
-    dockMoveGhost(d, e);
-    clearSelection();
-    if (el.hint) el.hint.textContent = "Drop on a highlighted target to place — or on Trash to discard.";
-  }
-  function dockMoveGhost(d, e) {
-    if (d.ghost) { d.ghost.style.left = e.clientX + "px"; d.ghost.style.top = e.clientY + "px"; }
-  }
-  function dockCleanup(d) {
-    if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
-    if (d.chipEl) d.chipEl.classList.remove("dragging-src");
-    el.placeDock.classList.remove("dragging", "show-trash");
-    dockClearHover();
-    dockDisarm();
-  }
-  function dockDrop(d, e) {
-    const tgt = dockTargetAt(d, e.clientX, e.clientY);
-    if (!tgt) return false;                        // invalid → snap back (handled by cleanup)
-    if (tgt.trash) { dockTrashItem(d); return true; }
-    if (d.kind === "sticker") { applyArmedSticker(tgt.pileIndex); return true; }
-    if (d.kind === "card") { attemptReplace(tgt.pileIndex); return true; }
-    if (d.kind === "pillar") { placePillarOnColumn(tgt.col); return true; }
-    if (d.kind === "base") { placeBaseOnColumn(tgt.col); return true; }
-    if (d.kind === "samepower") { toggleEquipSamePower(d.id); return true; }
-    return false;
-  }
-  /* Drag-to-trash routes through the existing confirm dialog (no accidental loss). */
-  function dockTrashItem(d) {
-    if (d.kind === "sticker") { const t = StickerTypes.get(d.id); trashPendingItem = { kind: "sticker", id: d.id }; el.trashConfirmMsg.textContent = "Permanently discard " + ((t && t.label) || "sticker") + "? It leaves your inventory for good."; el.trashConfirm.classList.remove("hidden"); }
-    else if (d.kind === "pillar") { const t = PillarTypes.get(d.id); trashPendingItem = { kind: "pillar", id: d.id }; el.trashConfirmMsg.textContent = "Permanently discard " + ((t && t.label) || "pillar") + "? It leaves your inventory for good."; el.trashConfirm.classList.remove("hidden"); }
-    else if (d.kind === "base") { const t = BaseTypes.get(d.id); trashPendingItem = { kind: "base", id: d.id }; el.trashConfirmMsg.textContent = "Permanently discard " + ((t && t.label) || "base") + "? It leaves your inventory for good."; el.trashConfirm.classList.remove("hidden"); }
-    else if (d.kind === "card" && campaign) { const c = campaign.getPackTray()[d.index]; if (!c) return; trashPendingItem = { kind: "card", index: d.index }; el.trashConfirmMsg.textContent = "Permanently discard " + miniRankLabel(c) + " " + c.suit + "? It leaves your inventory for good."; el.trashConfirm.classList.remove("hidden"); }
-  }
-  function attachDockDrag() {
-    if (!el.placeDockList) return;
-    el.placeDockList.addEventListener("pointerdown", (e) => {
-      if (dockDrag) return;
-      if (!(engine && engine.canApplyStickers())) return;
-      const chip = e.target.closest("[data-type],[data-pillar],[data-base],[data-samepower],[data-tray]");
-      if (!chip) return;
-      const item = dockItemFromChip(chip);
-      if (!item) return;
-      dockDrag = Object.assign(item, { chipEl: chip, started: false, startX: e.clientX, startY: e.clientY, pointerId: e.pointerId, ghost: null });
-      // NOTE: no setPointerCapture here — capturing now would hijack a horizontal
-      // scroll. We capture only once a vertical pick-up is confirmed (dockBeginDrag).
-    });
-    el.placeDockList.addEventListener("pointermove", (e) => {
-      const d = dockDrag; if (!d || e.pointerId !== d.pointerId) return;
-      if (!d.started) {
-        const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-        const adx = Math.abs(dx), ady = Math.abs(dy);
-        // Horizontal-dominant → the user is SCROLLING the list: abandon the
-        // potential pick-up and let native pan-x scroll take over.
-        if (adx > ady && adx > DOCK_SCROLL_SLOP) { dockDrag = null; return; }
-        // Deliberate VERTICAL pull (toward the board) → pick the item up.
-        if (ady >= DOCK_DRAG_SLOP && ady >= adx) dockBeginDrag(d, e);
-        else return;   // not enough/ambiguous movement yet — keep watching
-      }
-      dockMoveGhost(d, e);
-      dockClearHover();
-      const tgt = dockTargetAt(d, e.clientX, e.clientY);
-      if (tgt && tgt.node) tgt.node.classList.add("drop-hover");
-      e.preventDefault();
-    });
-    const end = (e) => {
-      const d = dockDrag; if (!d || (e.pointerId != null && e.pointerId !== d.pointerId)) return;
-      dockDrag = null;
-      try { el.placeDockList.releasePointerCapture(e.pointerId); } catch (_) {}
-      if (!d.started) { showDockItemInfo(d); return; }   // a tap → info
-      dockDrop(d, e);                                     // place / trash / snap-back
-      dockCleanup(d);
-    };
-    el.placeDockList.addEventListener("pointerup", end);
-    el.placeDockList.addEventListener("pointercancel", end);
-  }
 
   function openPlaceSheet() {
     if (!(engine && engine.canApplyStickers())) return;
@@ -13041,7 +12654,6 @@ const UIRenderer = (() => {
 
   /* ---- input wiring (tap now; swipe-ready later) ---- */
   function attachInput() {
-    attachDockDrag();   // placement dock: tap = info, press-and-drag = place
     // Re-fit the board ONLY on a genuine viewport change — a rotation or real
     // window resize — never on scroll or when Safari's chrome shows/hides. We
     // gate on stable dimensions: innerWidth (unchanged by vertical chrome) and
@@ -13467,58 +13079,6 @@ const UIRenderer = (() => {
 
     // Tap the coin indicator (top of screen) to open the sticker inventory
     // popup; tap the backdrop or the × to dismiss.
-    el.stageRun.addEventListener("click", openInvPopup);
-    el.invClose.addEventListener("click", closeInvPopup);
-    el.invPopup.addEventListener("click", (e) => {
-      if (e.target === el.invPopup) closeInvPopup();   // backdrop tap only
-    });
-    // Inventory browser (read-only): switch tabs; tap an item to read its
-    // description. No arming/placement here — viewing only.
-    if (el.browseTabs) el.browseTabs.addEventListener("click", (e) => {
-      const b = e.target.closest(".setup-tab");
-      if (b && !b.classList.contains("empty")) selectBrowseTab(b.dataset.tab);
-    });
-    // Inventory item help is HOLD-only (consistent with pillars/bases everywhere):
-    // press-and-hold a chip to show its description; release (or scroll) hides it.
-    // No tap-to-open help. A horizontal scroll-drag fires pointercancel → no help.
-    const INV_HOLD_MS = 180;
-    const attachBrowseHold = (container, resolvePick) => {
-      if (!container) return;
-      let holdT = null, shown = false;
-      const clearT = () => { if (holdT) { clearTimeout(holdT); holdT = null; } };
-      const hide = () => { clearT(); if (shown) { shown = false; browsePick = null; renderBrowse(); } };
-      container.addEventListener("pointerdown", (e) => {
-        const pick = resolvePick(e);
-        if (!pick) return;
-        clearT();
-        holdT = setTimeout(() => { holdT = null; shown = true; browsePick = pick; renderBrowse(); }, INV_HOLD_MS);
-      });
-      container.addEventListener("pointerup", hide);
-      container.addEventListener("pointerleave", hide);
-      container.addEventListener("pointercancel", hide);
-    };
-    attachBrowseHold(el.browseStickers, (e) => {
-      const b = e.target.closest(".tray-sticker"); return b ? { kind: "sticker", id: b.dataset.type } : null;
-    });
-    attachBrowseHold(el.browsePillars, (e) => {
-      const placed = e.target.closest(".tray-pillar.placed");
-      if (placed) return { kind: "placed", col: Number(placed.dataset.placedCol) };
-      const held = e.target.closest(".tray-pillar");
-      return held ? { kind: "pillar", id: held.dataset.pillar } : null;
-    });
-    attachBrowseHold(el.browseBases, (e) => {
-      const placed = e.target.closest(".tray-base.placed");
-      if (placed) return { kind: "placedBase", col: Number(placed.dataset.placedBase) };
-      const held = e.target.closest(".tray-base");
-      return held ? { kind: "base", id: held.dataset.base } : null;
-    });
-    attachBrowseHold(el.browseCards, (e) => {
-      const b = e.target.closest(".pt-card"); return b ? { kind: "card", index: Number(b.dataset.tray) } : null;
-    });
-    attachBrowseHold(el.browseSamePowers, (e) => {
-      const b = e.target.closest(".tray-samepower"); return b ? { kind: "samepower", id: b.dataset.samepower } : null;
-    });
-    if (el.bThClose) el.bThClose.addEventListener("click", () => { browsePick = null; renderBrowse(); });
 
     // Any arm action dismisses an open pre-run card peek (shared popup element).
     const dismissPilePeek = () => { if (peekTapPile != null) { closePeekInfo(); peekTapPile = null; } };
@@ -13627,7 +13187,6 @@ const UIRenderer = (() => {
     el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
     el.rerollBtn.addEventListener("click", rerollUI);
     // Store view buttons: owned inventory + the deck overview (both modal).
-    if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
     if (el.storeDeckStat) DeckInspector.attach(el.storeDeckStat);
     // Place-on-acquire pickers: the store "Place" button resumes any pending item.
@@ -14094,21 +13653,6 @@ const UIRenderer = (() => {
       setTimeout(() => pe.classList.remove("flash-good"), 520);
     }
   }
-  /* Replica: the copied pile card visibly flies from the pile toward the global
-     inventory button, so the player sees the copy go into their stash. */
-  function flyCopiedCardToInventory(index, board) {
-    if (prefersReduce() || !el.invBtn || index == null) return;
-    const pileEl = pileEls[index];
-    const cardEl = pileEl && pileEl.querySelector(".card");
-    const top = board && board.top(index);
-    if (!cardEl || !top || typeof cardEl.animate !== "function") return;
-    const from = cardEl.getBoundingClientRect();
-    const to = el.invBtn.getBoundingClientRect();
-    flyCard(flyRealCardEl(top, cardEl), from, to, { duration: 520, startScale: 1, onArrive: () => {
-      el.invBtn.classList.add("nav-pop");
-      setTimeout(() => el.invBtn.classList.remove("nav-pop"), 280);
-    } });
-  }
 
   /* ---- event handling from the engine ---- */
 
@@ -14260,7 +13804,6 @@ const UIRenderer = (() => {
             }
             break;
           case "copyToInventory":   // Replica — the copied card flies to the inventory button
-            flyCopiedCardToInventory(payload.index, board);
             break;
           case "randomSticker":     // a sticker landed on one pile card — pulse it
             if (payload.index != null && pileEls[payload.index]) {
@@ -14495,7 +14038,6 @@ const UIRenderer = (() => {
         if (campaign) {
           const copy = campaign.duplicateCard(payload.cardId);
           if (copy) {
-            flyCopiedCardToInventory(payload.index, payload.board);
             flashNotice("Duplicate — copied a card to your inventory.");
             persistCampaign("run");
             if (engine) engine.logAction("Duplicate: copied a card into the card inventory");
@@ -14992,7 +14534,6 @@ const UIRenderer = (() => {
      map's Store button are always in a consistent, correct state. */
   function setScreenNav(menu, inv, mapStore) {
     if (el.menuBtn) el.menuBtn.classList.toggle("hidden", !menu);
-    if (el.invBtn) el.invBtn.classList.toggle("hidden", !inv);
     if (el.mapStoreBtn) el.mapStoreBtn.classList.toggle("hidden", !mapStore);
   }
 
@@ -16339,14 +15880,10 @@ const UIRenderer = (() => {
     // The deal-status row (surviving piles × smallest pile) sits in-flow between
     // the histogram and the board — reserve its height so the board never overflows.
     const dealStatusH = (el.dealStatus && el.dealStatus.offsetParent) ? oh(el.dealStatus) : 0;
-    // The placement dock (setup only) sits in-flow BELOW the board — reserve its
-    // height so cards + base slots are never covered by it.
-    const dockH = (el.placeDock && el.placeDock.offsetParent && !el.placeDock.classList.contains("hidden")) ? oh(el.placeDock) : 0;
-    const belowH = bottomRegionH + histBandH + dealStatusH + dockH;
-    // main's IN-FLOW children: the play-row, the deal-status row, (setup only) the
-    // bottom inventory band, the placement dock, and the histogram band. The control
-    // row is absolute (out of flow) → it does NOT add a flex gap.
-    const visibleChildren = 1 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0) + (dealStatusH > 0 ? 1 : 0) + (dockH > 0 ? 1 : 0);
+    const belowH = bottomRegionH + histBandH + dealStatusH;
+    // main's IN-FLOW children: the play-row, the deal-status row, and the histogram
+    // band. The control row is absolute (out of flow) → it does NOT add a flex gap.
+    const visibleChildren = 1 + (bottomRegionH > 0 ? 1 : 0) + (histBandH > 0 ? 1 : 0) + (dealStatusH > 0 ? 1 : 0);
     const mainGaps = Math.max(0, visibleChildren - 1) * mainGap;
 
     // Breathing margin: no-scroll is the priority, so trade a little board size
@@ -17817,7 +17354,7 @@ const UIRenderer = (() => {
     if (st.kind === "card") {
       const card = st.items[st.chosen[0]];             // card packs keep exactly 1
       const res = campaign.addPackCard(card);
-      if (res.ok) { closePackReveal(); renderStore(); }
+      if (res.ok) { closePackReveal(); renderStore(); continuePendingPlacement(); }   // place-on-acquire (swap picker)
       else if (res.full) { st.mode = "discard"; st.pending = card; renderPackReveal(); }
       return;
     }
@@ -17828,6 +17365,7 @@ const UIRenderer = (() => {
     });
     try { Telem.flush(); } catch (e) {}
     closePackReveal(); renderStore();
+    continuePendingPlacement();   // place-on-acquire (apply the picked sticker(s) now)
   }
 
   /* Skip / take nothing: the pack was already paid for, so this just closes the
@@ -18629,164 +18167,6 @@ const UIRenderer = (() => {
     updateShellHeight();
   }
 
-  /* ---- inventory browser (store + in-play coin badge) ----
-     The SAME tabbed Cards/Stickers/Pillars component as start-of-run setup,
-     hosted in the inv-popup modal as a READ-ONLY view: browse tabs, scroll, and
-     tap an item to read its description. No placement (the run isn't in its
-     setup window here). The Pillars tab lists held (unplaced) pillars AND the
-     ones active on the board, tagged by column. UI only — reads campaign state. */
-  let browseTab = "stickers";          // active tab in the browser
-  let browsePick = null;               // { kind, id|col|index } whose description shows, or null
-
-  function browseIsPick(kind, key) {
-    if (!browsePick || browsePick.kind !== kind) return false;
-    return kind === "card" ? browsePick.index === key
-         : (kind === "placed" || kind === "placedBase") ? browsePick.col === key
-         : browsePick.id === key;
-  }
-  function browseCounts() {
-    const inv = campaign ? campaign.getInventory() : {};
-    const pinv = campaign ? campaign.getPillarInventory() : {};
-    const binv = campaign ? campaign.getBaseInventory() : {};
-    const pBinding = campaign ? campaign.getColumnPillars() : [];
-    const bBinding = campaign ? campaign.getColumnBases() : [];
-    const spinv = campaign ? campaign.getSamePowerInventory() : {};
-    const equipped = campaign && campaign.getSamePower() ? 1 : 0;
-    const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
-    return {
-      cards: campaign ? campaign.packTrayCount() : 0,
-      stickers: sum(inv),
-      pillars: sum(pinv) + pBinding.filter(Boolean).length,   // held + active (both in the Pillars tab)
-      bases: sum(binv) + bBinding.filter(Boolean).length,     // held + active (both in the Bases tab)
-      samepowers: sum(spinv) + equipped,                      // held + the equipped one
-    };
-  }
-  function renderBrowseTrays() {
-    const inv = campaign ? campaign.getInventory() : {};
-    const pinv = campaign ? campaign.getPillarInventory() : {};
-    const binv = campaign ? campaign.getBaseInventory() : {};
-    const pBinding = campaign ? campaign.getColumnPillars() : [];
-    const bBinding = campaign ? campaign.getColumnBases() : [];
-    const tray = campaign ? campaign.getPackTray() : [];
-    el.browseStickers.innerHTML = StickerTypes.all().filter(t => (inv[t.id] || 0) > 0)
-      .map(t => invStickerChipHtml(t, inv[t.id], browseIsPick("sticker", t.id))).join("");
-    // Pillars: held (unplaced) first, then ACTIVE (placed) chips, tagged by column.
-    let pill = PillarTypes.all().filter(t => (pinv[t.id] || 0) > 0)
-      .map(t => invPillarChipHtml(t, pinv[t.id], browseIsPick("pillar", t.id))).join("");
-    pBinding.forEach((pid, col) => {
-      if (!pid) return;
-      const t = PillarTypes.get(pid);
-      if (t) pill += invPlacedPillarChipHtml(t, col, browseIsPick("placed", col));
-    });
-    el.browsePillars.innerHTML = pill;
-    // Bases: held (unplaced) first, then ACTIVE (placed) chips, tagged by column.
-    let bs = BaseTypes.all().filter(t => (binv[t.id] || 0) > 0)
-      .map(t => invBaseChipHtml(t, binv[t.id], browseIsPick("base", t.id))).join("");
-    bBinding.forEach((bid, col) => {
-      if (!bid) return;
-      const t = BaseTypes.get(bid);
-      if (t) bs += invPlacedBaseChipHtml(t, col, browseIsPick("placedBase", col));
-    });
-    if (el.browseBases) el.browseBases.innerHTML = bs;
-    // Same-Powers: the equipped one (tagged) first, then any held (unequipped).
-    if (el.browseSamePowers) {
-      const spinv = campaign ? campaign.getSamePowerInventory() : {};
-      const equipped = campaign ? campaign.getSamePower() : null;
-      let sp = "";
-      if (equipped) { const t = SamePowerTypes.get(equipped); if (t) sp += invSamePowerChipHtml(t, "equipped", browseIsPick("samepower", equipped)); }
-      SamePowerTypes.all().forEach(t => { if ((spinv[t.id] || 0) > 0) sp += invSamePowerChipHtml(t, "×" + spinv[t.id], browseIsPick("samepower", t.id)); });
-      el.browseSamePowers.innerHTML = sp;
-    }
-    el.browseCards.innerHTML = tray.map((c, i) => invPackChipHtml(c, i, browseIsPick("card", i), false)).join("");
-  }
-  function renderBrowseHelp() {
-    if (!el.browseHelp) return;
-    const info = browsePick ? browseDescribe(browsePick) : null;
-    if (!info) { el.browseHelp.classList.add("hidden"); return; }
-    el.bThTitle.innerHTML = info.title;
-    if (info.descHtml != null) el.bThDesc.innerHTML = info.descHtml;   // multi-sticker list
-    else el.bThDesc.textContent = info.desc;
-    el.browseHelp.classList.remove("hidden");
-  }
-  function browseDescribe(pick) {
-    if (pick.kind === "sticker") { const t = StickerTypes.get(pick.id); return t ? { title: t.icon + " " + escHtml(t.label), desc: t.description || "" } : null; }
-    if (pick.kind === "pillar")  { const t = PillarTypes.get(pick.id);  return t ? { title: t.icon + " " + escHtml(t.label), desc: t.description || "" } : null; }
-    if (pick.kind === "placed") {
-      const binding = campaign ? campaign.getColumnPillars() : [];
-      const t = PillarTypes.get(binding[pick.col]);
-      return t ? { title: t.icon + " " + escHtml(t.label),
-        desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
-    }
-    if (pick.kind === "base") { const t = BaseTypes.get(pick.id); return t ? { title: (t.icon || "") + " " + escHtml(t.label), desc: t.description || "" } : null; }
-    if (pick.kind === "samepower") {
-      const t = SamePowerTypes.get(pick.id);
-      if (!t) return null;
-      const equipped = campaign && campaign.getSamePower() === pick.id;
-      return { title: "Same-Power · " + escHtml(t.label), desc: (t.description || "") + (equipped ? " — equipped." : "") };
-    }
-    if (pick.kind === "placedBase") {
-      const binding = campaign ? campaign.getColumnBases() : [];
-      const t = BaseTypes.get(binding[pick.col]);
-      return t ? { title: (t.icon || "") + " " + escHtml(t.label),
-        desc: (t.description || "") + " — active on Column " + (pick.col + 1) + "." } : null;
-    }
-    if (pick.kind === "card") {
-      const card = campaign ? campaign.getPackTray()[pick.index] : null;
-      if (!card) return null;
-      const title = escHtml(miniRankLabel(card) + " " + card.suit);
-      // List EVERY sticker on the card and what it does — not just the card.
-      const counts = {};
-      (card.stickers || []).forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
-      const lines = [];
-      StickerTypes.all().forEach(t => {
-        const n = counts[t.id]; if (!n) return;
-        lines.push('<b>' + t.icon + " " + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</b> — " + escHtml(t.description || ""));
-      });
-      if (!lines.length) return { title, desc: "A plain card, no stickers." };
-      return { title, descHtml: '<span class="bh-lede">Stickers on this card:</span>' + lines.join("<br><br>") };
-    }
-    return null;
-  }
-  function renderBrowse() {
-    renderBrowseTrays();
-    const counts = browseCounts();
-    const order = ["cards", "stickers", "pillars", "bases", "samepowers"];
-    const panels = { cards: el.browseCards, stickers: el.browseStickers, pillars: el.browsePillars, bases: el.browseBases, samepowers: el.browseSamePowers };
-    const badges = { cards: el.bTabNCards, stickers: el.bTabNStickers, pillars: el.bTabNPillars, bases: el.bTabNBases, samepowers: el.bTabNSame };
-    order.forEach(k => { if (badges[k]) badges[k].textContent = counts[k]; });
-    if (counts[browseTab] === 0) { const n = order.find(k => counts[k] > 0); if (n) browseTab = n; }
-    const anyItems = order.some(k => counts[k] > 0);
-    el.browseTabs.querySelectorAll(".setup-tab").forEach(btn => {
-      const k = btn.dataset.tab;
-      btn.classList.toggle("empty", counts[k] === 0);
-      btn.classList.toggle("active", k === browseTab);
-    });
-    order.forEach(k => { const p = panels[k]; if (p) p.classList.toggle("hidden", !(k === browseTab && counts[k] > 0)); });
-    el.browseTabs.classList.toggle("hidden", !anyItems);
-    if (el.browseEmpty) el.browseEmpty.classList.toggle("hidden", anyItems);
-    renderBrowseHelp();
-  }
-  function selectBrowseTab(tab) {
-    if (!tab) return;
-    browseTab = tab; browsePick = null;   // switching tabs clears the read selection
-    renderBrowse();
-  }
-  function browsePickItem(pick) {
-    // Tapping the highlighted item again clears it; otherwise show its description.
-    const key = pick.kind === "card" ? pick.index
-      : (pick.kind === "placed" || pick.kind === "placedBase") ? pick.col : pick.id;
-    browsePick = (browsePick && browseIsPick(pick.kind, key)) ? null : pick;
-    renderBrowse();
-  }
-  function openInvPopup() {
-    browsePick = null;
-    const counts = browseCounts();
-    const order = ["cards", "stickers", "pillars", "bases"];
-    if (counts[browseTab] === 0) { browseTab = order.find(k => counts[k] > 0) || "stickers"; }
-    renderBrowse();
-    el.invPopup.classList.remove("hidden");
-  }
-  function closeInvPopup() { browsePick = null; el.invPopup.classList.add("hidden"); }
 
   /* ============================================================
      MENUS & SCREENS — main menu (§7), in-game menu (§8), Stats (§9),
@@ -19224,7 +18604,6 @@ const UIRenderer = (() => {
 
     // Wire the menus/sheets (§7/§8/§9/§12) and the corner menu button.
     el.menuBtn.addEventListener("click", () => { Sound.tap(); showGameMenu(); });
-    if (el.invBtn) el.invBtn.addEventListener("click", () => { Sound.tap(); openInvPopup(); });
     if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
     el.statsReset.addEventListener("click", () => { Stats.reset(); showStats(); });
