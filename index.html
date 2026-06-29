@@ -669,6 +669,21 @@
     80%  { transform: translateY(-2px) scale(0.98, 1.04); }   /* follow-through bounce */
     100% { transform: translateY(0) scale(1, 1); }
   }
+  /* CELEBRATE: a DEAL CLEARED — a little happy DANCE: two springy hops with a
+     side-to-side wiggle + squash-&-stretch, then settle to idle. Bigger + longer
+     than the single Same-win pop. Eyes arch up (reuse the happy pupil look). */
+  .deck-char.dc-celebrate .dc-pupil { transform: translateY(-0.5px) scale(1.18, 1.5); border-radius: 50% 50% 46% 46%; }
+  .deck-char.dc-celebrate .dc-body { animation: dcCelebrate 1.4s cubic-bezier(0.28, 0.7, 0.4, 1.2); }
+  @keyframes dcCelebrate {
+    0%   { transform: translateY(0) rotate(0deg) scale(1, 1); }
+    10%  { transform: translateY(2px) rotate(0deg) scale(1.08, 0.9); }     /* dip + squash */
+    26%  { transform: translateY(-9px) rotate(-7deg) scale(0.9, 1.14); }   /* hop 1, lean left */
+    42%  { transform: translateY(0) rotate(0deg) scale(1.08, 0.92); }      /* land squash */
+    58%  { transform: translateY(-9px) rotate(7deg) scale(0.9, 1.14); }    /* hop 2, lean right */
+    74%  { transform: translateY(0) rotate(0deg) scale(1.08, 0.92); }      /* land squash */
+    86%  { transform: translateY(-3px) rotate(-2deg) scale(0.98, 1.04); }  /* follow-through */
+    100% { transform: translateY(0) rotate(0deg) scale(1, 1); }
+  }
   /* SAD: slow + heavy — droopy outer-down eyes (highlight fades), a weighted
      slump with squash, settling low. Slow easing reads as sadness/weight. */
   .deck-char.dc-sad .dc-pupil { height: 46%; opacity: 0.82; border-radius: 46% 46% 50% 50%; }
@@ -705,7 +720,7 @@
     100% { transform: translateY(0) scale(1, 1); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body,
+    .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-celebrate .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body,
     .deck-char.dc-looking .dc-pupil { animation: none; }
     .deck-char, .dc-eye, .dc-pupil { transition: none; }
   }
@@ -4840,7 +4855,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.36 · remove interest payout mechanic";
+const APP_VERSION = "v3.37 · deck happy dance on deal clear";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11121,6 +11136,7 @@ const UIRenderer = (() => {
       idle:    { cls: "",           hold: 0 },
       looking: { cls: "dc-looking", hold: 0 },   // eyes track the selected pile
       happy:   { cls: "dc-happy",   hold: 1100 },// a Same was won
+      celebrate: { cls: "dc-celebrate", hold: 1500 }, // a deal was cleared → happy dance
       sad:     { cls: "dc-sad",     hold: 1300 },// a pile was lost
     };
     let state = "idle";
@@ -16291,6 +16307,11 @@ const UIRenderer = (() => {
     // must reconcile exactly. Display-only — payout above is already computed.
     run.bonusCoins = payout.total - payout.product;
     renderHud(board, payload.deck);
+
+    // DEAL CLEARED → the deck character does a little happy dance, then settles
+    // back to idle (the celebrate state auto-reverts after its hold). Win-only:
+    // a loss returns above, so reaching here always means a cleared deal.
+    DeckChar.react("celebrate");
 
     // CONTINUOUS map: a deal/boss node was just cleared. Mark it. Beating a
     // PHASE boss doesn't advance anything here — its edges already lead into the
