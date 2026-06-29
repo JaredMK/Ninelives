@@ -4841,7 +4841,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.34 · fix Pillar Scout (per-column) + Tell one-flip";
+const APP_VERSION = "v3.35 · debug log: card landed-on";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8276,7 +8276,7 @@ const GameEngine = (() => {
         // Optional post-landing actions (Shuffle / Donate) queue here; they
         // surface only after any paid-bury prompt drains (surfaceActionOffer).
         maybeStickerActions(index, drawn);
-        logLine("→ pile survived (" + board.piles[index].cards.length + " cards)");
+        logLine("→ " + cardName(drawn) + " landed on " + cardName(current) + " · pile survived (" + board.piles[index].cards.length + " cards)");
         emit("resolved", { index, guess, current, drawn, correct: true, board, deck, run });
         surfaceActionOffer();
         // Revive: if a pile in this column just reached 10 and a dead pile exists,
@@ -8334,13 +8334,13 @@ const GameEngine = (() => {
         // becomes the new pile card; the pile survives and continues from it.
         sameCharge = false;
         board.push(index, drawn);
-        logLine("Same Charge consumed — pile saved (the killing card landed as the new pile card)");
+        logLine("Same Charge consumed — pile saved (" + cardName(drawn) + " landed on " + cardName(current) + " as the new pile card)");
         emit("same-saved", { index, guess, current, drawn, board, deck, run, sameCharge });
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
         board.kill(index);
-        logLine("→ pile died");
+        logLine("→ " + cardName(drawn) + " landed on " + cardName(current) + " · pile died");
         // Last Rites: a pile in this column just died — peek the next upcoming card.
         if (pillar && pillar.effect === "lastRites") peekPillar(col, pillar);
         // Death Bounty: the DRAWN (killing) card pays a consolation into the tally.
