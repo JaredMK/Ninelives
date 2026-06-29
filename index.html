@@ -4929,7 +4929,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.42 · stickers apply at buy via a card picker (not setup)";
+const APP_VERSION = "v3.43 · synapses fire continuously again on deal-win";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10870,6 +10870,9 @@ const UIRenderer = (() => {
   let networkPulses = false;  // CONSTANT travelling pulses are OFF — signals are now
                               // EVENT-DRIVEN: a one-shot pulse fires from a pile on a
                               // correct landing (see firePulseFromPile). Idle = quiet.
+  let cinematicPulses = false; // EXCEPTION: on the DEAL-WON cinematic the synapses
+                              // fire REGULARLY/continuously again (the celebration);
+                              // gates pulse creation alongside networkPulses.
   let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
@@ -15633,7 +15636,7 @@ const UIRenderer = (() => {
       m += '<circle class="lk-bulge" data-t="' + t + '" r="' + s.bulgeR.toFixed(2) + '" fill-opacity="' + fill +
         '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '"/>';
     }
-    if (networkPulses) {                                  // signal pulses
+    if (networkPulses || cinematicPulses) {               // signal pulses (constant, or the win celebration)
       const count = Math.max(1, Math.round(w * 0.2));      // # pings scales with the smaller pile (min size), kept sparse
       const sp = s.pulseSp.toFixed(3);
       const phase = edgeRand(key, 7);                      // per-edge start offset (desync)
@@ -16328,7 +16331,14 @@ const UIRenderer = (() => {
     if (reduce || !el.board || !pileEls.length || !networkEl) { done(); return; }
     clearSelection();
     paintPileCounts(board);                 // ensure .limit is current on the smallest alive pile
-    renderNetwork();                         // make sure the live network is showing
+    // DEAL WON: the synapses fire REGULARLY/continuously again for the celebration
+    // (normal play keeps the event-driven fire-on-correct behaviour). Turn the
+    // constant travelling pulses on, then REBUILD the network so every edge is
+    // recreated WITH pulses (existing edges otherwise carry none).
+    cinematicPulses = true;
+    if (networkEl) networkEl.innerHTML = "";
+    edgeMap.clear(); netEdges = []; lastNetKeys = new Set();
+    renderNetwork();                         // rebuild the live network, now with pulses
     el.board.classList.add("win-cine");      // beats 1+2 (CSS): faces recede, limiting node glows
     const minSize = Math.max(1, Math.min(5, board.minAliveCards() || 1));   // the weakest node's level
     // Beat 3: collapse every connection DOWN to the limiting node's level.
@@ -16337,11 +16347,11 @@ const UIRenderer = (() => {
       networkEl.style.transition = "opacity 0.3s ease";
       networkEl.style.opacity = "0.15";
       setTimeout(() => {
-        renderNetwork(minSize);              // force ALL links to the weakest size
+        renderNetwork(minSize);              // force ALL links to the weakest size (pulses persist)
         if (networkEl) networkEl.style.opacity = "";
       }, 280);
     }, 1500);
-    setTimeout(done, RUN_SUMMARY_DELAY_MS);  // then resolve into the payout
+    setTimeout(() => { cinematicPulses = false; done(); }, RUN_SUMMARY_DELAY_MS);  // celebration over → resolve into the payout
   }
 
   /* Does survivor `c` block the straight sightline between survivors `a` and `b`?
