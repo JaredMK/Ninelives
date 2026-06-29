@@ -1445,6 +1445,10 @@
   .btn.same.lit { transform: translateY(-2px) scale(1.05); }
   /* Disabled (no pile selected): present but visibly inert. */
   .actions.guess-disabled .btn { opacity: 0.42; filter: saturate(0.5); pointer-events: none; box-shadow: none; }
+  /* #6: the Same button still accepts press-and-hold so its equipped Same-Power's
+     help can be read at any time (a TAP-guess is separately guarded on selection,
+     so this never lets you guess with no pile selected). */
+  .actions.guess-disabled .btn.same { pointer-events: auto; }
 
   /* "Same" is a smaller, secondary option wedged between higher/lower. */
   .btn.same {
@@ -4816,7 +4820,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.50 · deals start straight into play (no Start Deal/Redeal)";
+const APP_VERSION = "v3.51 · Same-button hold help; pack deselect hides help";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17254,12 +17258,16 @@ const UIRenderer = (() => {
   function packSelect(i) {
     const st = packRevealState; if (!st || st.mode === "discard") return;
     const at = st.chosen.indexOf(i);
-    if (at !== -1) st.chosen.splice(at, 1);            // tap again → deselect
+    const wasSelected = at !== -1;
+    if (wasSelected) st.chosen.splice(at, 1);          // tap again → deselect
     else if (st.keep === 1) st.chosen = [i];           // single-pick → replace
     else if (st.chosen.length < st.keep) st.chosen.push(i);  // multi → add until full
     // else (multi, already at cap): ignore — deselect one to change a pick
     renderPackReveal();
-    showPackItemInfo(i);   // tapping an item auto-shows its info in the help slot
+    // BUGFIX (#7): a DESELECT must also hide the item's help text — only a SELECT
+    // shows it. (Was unconditionally re-showing the help even when deselecting.)
+    if (wasSelected) closePackItemInfo();
+    else showPackItemInfo(i);   // selecting an item auto-shows its info in the help slot
   }
 
   /* Confirm: finalize the selected pick(s). Card pick → pending tray (which may
