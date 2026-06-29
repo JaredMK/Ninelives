@@ -2124,6 +2124,42 @@
     display: flex; flex-direction: column; gap: 7px; padding-top: 4px; }
   #storeMsg { display: none; }   /* legacy feedback line kept for existing writes; not shown */
 
+  /* ---- Equipped-loadout reference (read-only) ----
+     A compact strip mirroring the board: three columns (pillar chip over base
+     chip) plus the Same-Power, so the player can compare an offer against what
+     they'd replace. Fixed height (flex:0) so it never steals room from the
+     scroll-free offer shelves above. Each cell taps/holds to its help text. */
+  .store-loadout { width: min(94vw, 440px); flex: 0 0 auto; margin-top: 2px; }
+  .loadout-grid { display: flex; align-items: stretch; gap: 8px; }
+  .lo-cols { flex: 1 1 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .lo-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .lo-col-n { font-size: 8.5px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    color: var(--muted); text-align: center; opacity: 0.7; }
+  .lo-same { flex: 0 0 auto; display: flex; align-items: stretch; }
+  /* An equipped chip: small icon glyph + label. Pillar = violet identity, base =
+     amber, same-power = synapse rose, matching their board/shelf colour-coding. */
+  .lo-chip { display: flex; align-items: center; gap: 5px; min-width: 0;
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 9px;
+    padding: 5px 7px; cursor: pointer; touch-action: manipulation;
+    font-size: 10.5px; font-weight: 700; color: var(--text); transition: transform 0.1s ease; }
+  .lo-chip:active { transform: scale(0.96); }
+  .lo-chip .lo-ico { width: 15px; height: 15px; flex: 0 0 auto; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; line-height: 1; }
+  .lo-chip .lo-ico .ico, .lo-chip .lo-ico svg { width: 15px; height: 15px; display: block; }
+  .lo-chip .lo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lo-chip.pillar { background: rgba(110,81,166,0.12); border-color: var(--pathway); color: var(--pathway-2); }
+  .lo-chip.base   { background: rgba(214,150,60,0.13); border-color: var(--amber); color: #8a5a14; }
+  .lo-chip.samepower { background: linear-gradient(180deg, rgba(200,74,120,0.12), rgba(142,47,78,0.16));
+    border-color: var(--net, #C84A78); color: var(--net-dot, #8E2F4E);
+    flex-direction: column; gap: 3px; padding: 6px 10px; justify-content: center; }
+  .lo-chip.samepower .lo-ico { width: 18px; height: 18px; font-size: 16px; }
+  .lo-chip.samepower .lo-ico .sp-mark { width: 18px; height: 18px; }
+  /* Empty slot: a muted, non-interactive placeholder so the column structure
+     still reads even when nothing is equipped there. */
+  .lo-empty { display: flex; align-items: center; justify-content: center;
+    border: 1px dashed var(--edge-2); border-radius: 9px; padding: 5px 7px;
+    font-size: 10px; font-weight: 600; color: var(--muted); opacity: 0.7; }
+
   /* ---- Shop item detail overlay: a focused look at one object ----
      Dim/blur backdrop; the object rendered larger; rarity, name, description,
      and Buy. Tap the backdrop or ✕ to dismiss. */
@@ -4482,6 +4518,19 @@
       <div class="store-row big" id="storeMixed"></div>
     </div>
 
+    <!-- Equipped loadout (read-only reference): what the player ALREADY has on the
+         board — pillars on top of bases, per column, plus the Same-Power — so a
+         purchase can be compared against what it would replace BEFORE buying. Each
+         cell is tappable/holdable for its standard help text. Mirrors the board
+         layout (columns left→right; pillar above base). Buying is unchanged. -->
+    <div class="store-loadout" id="storeLoadout">
+      <div class="shelf-h"><span class="lbl">Equipped</span><span class="rule"></span><span class="tag">tap to compare</span></div>
+      <div class="loadout-grid">
+        <div class="lo-cols" id="loadoutCols"></div>
+        <div class="lo-same" id="loadoutSame"></div>
+      </div>
+    </div>
+
     <div class="store-msg" id="storeMsg"></div>
 
     <!-- actions pinned to the bottom -->
@@ -4820,7 +4869,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.51 · Same-button hold help; pack deselect hides help";
+const APP_VERSION = "v3.52 · store shows equipped pillars/bases/Same-Power";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10613,6 +10662,8 @@ const UIRenderer = (() => {
     storeItems: document.getElementById("storeItems"),
     storeMixed: document.getElementById("storeMixed"),
     storeSame: document.getElementById("storeSame"),
+    loadoutCols: document.getElementById("loadoutCols"),     // equipped pillars/bases (per column)
+    loadoutSame: document.getElementById("loadoutSame"),     // equipped Same-Power
     storeDetail: document.getElementById("storeDetail"),
     sdObj: document.getElementById("sdObj"),
     sdTier: document.getElementById("sdTier"),
@@ -13098,6 +13149,14 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) openStoreDetail("samepower", Number(tile.dataset.spslot));
     });
+    // Equipped-loadout reference: tap/hold an equipped chip → its read-only help
+    // (the same focused detail card, no Buy) so it can be compared to an offer.
+    const onLoadoutTap = (e) => {
+      const chip = e.target.closest(".lo-chip");
+      if (chip) openEquippedDetail(chip.dataset.loKind, chip.dataset.loId);
+    };
+    if (el.loadoutCols) el.loadoutCols.addEventListener("click", onLoadoutTap);
+    if (el.loadoutSame) el.loadoutSame.addEventListener("click", onLoadoutTap);
     // The detail overlay's Buy confirms the focused object (Stickers + mixed
     // Pillars/Bases go to inventory; mixed Packs open on buy; Same-Powers go to
     // the Same-Power inventory). Hide the detail first, keeping the selected slot
@@ -17046,11 +17105,62 @@ const UIRenderer = (() => {
     // it's bought via confirmBuyMixed (which dispatches on the slot's kind).
     el.sdBuy.dataset.kind = row === "sticker" ? "sticker" : "mixed";
     el.sdBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
+    el.sdBuy.classList.remove("hidden");   // restore Buy (a read-only equipped view hides it)
+    el.storeDetail.classList.remove("hidden");
+  }
+  /* Read-only info for an EQUIPPED item (loadout reference): the SAME focused
+     detail card the offers use, but with no Buy — it's a "what you already have"
+     comparison view, never a purchase. */
+  function openEquippedDetail(kind, id) {
+    const info = describeItem(kind, id);
+    if (!info) return;
+    const t = kind === "pillar" ? PillarTypes.get(id)
+      : kind === "base" ? BaseTypes.get(id)
+      : kind === "samepower" ? SamePowerTypes.get(id) : null;
+    if (!t) return;
+    el.sdObj.className = "sd-obj obj-" + kind;
+    el.sdObj.innerHTML =
+        kind === "pillar" ? pathwayBannerHtml(t, { size: "shop" })
+      : kind === "base"   ? baseBannerHtml(t, "charged", { size: "shop" })
+      :                     samePowerBadgeHtml(t);
+    el.sdTier.textContent = info.tier || "";
+    el.sdTier.dataset.tier = info.tier || "";
+    el.sdName.textContent = info.label;
+    el.sdDesc.textContent = info.desc || "";
+    el.sdBuy.classList.add("hidden");   // equipped = reference only, no purchase
     el.storeDetail.classList.remove("hidden");
   }
   function closeStoreDetail() {
     el.storeDetail.classList.add("hidden");
+    el.sdBuy.classList.remove("hidden");   // leave the panel ready for the next offer
     selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
+  }
+  /* The equipped-loadout reference: pillars over bases per column + the Same-Power,
+     mirroring the board so a purchase can be compared to what it would replace. */
+  function loadoutChip(kind, id) {
+    const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : SamePowerTypes;
+    const t = id ? reg.get(id) : null;
+    if (!t) return '<div class="lo-empty">empty</div>';
+    const ico = kind === "samepower"
+      ? '<span class="lo-ico">' + glyph(id, "sp-mark") + '</span>'
+      : '<span class="lo-ico">' + (t.icon || "") + '</span>';
+    return '<button type="button" class="lo-chip ' + kind + '" data-lo-kind="' + kind + '" data-lo-id="' + escHtml(id) + '">' +
+      ico + '<span class="lo-name">' + escHtml(t.label) + '</span></button>';
+  }
+  function renderStoreLoadout() {
+    if (!el.loadoutCols || !campaign) return;
+    const pillars = campaign.getColumnPillars ? campaign.getColumnPillars() : [];
+    const bases = campaign.getColumnBases ? campaign.getColumnBases() : [];
+    const n = Math.max(pillars.length, bases.length, 3);
+    let cols = "";
+    for (let c = 0; c < n; c++) {
+      cols += '<div class="lo-col"><span class="lo-col-n">Col ' + (c + 1) + '</span>' +
+        loadoutChip("pillar", pillars[c]) + loadoutChip("base", bases[c]) + '</div>';
+    }
+    el.loadoutCols.innerHTML = cols;
+    const sp = campaign.getSamePower ? campaign.getSamePower() : null;
+    el.loadoutSame.innerHTML =
+      '<div class="lo-col"><span class="lo-col-n">Same</span>' + loadoutChip("samepower", sp) + '</div>';
   }
 
   function renderStore() {
@@ -17080,6 +17190,7 @@ const UIRenderer = (() => {
     (offer && offer.mixed ? offer.mixed : []).forEach((s, slot) =>
       el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
     padRow(el.storeMixed, STORE_MIXED_SLOTS);
+    renderStoreLoadout();   // equipped pillars/bases/Same-Power reference (read-only)
     updateRerollButton();
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
