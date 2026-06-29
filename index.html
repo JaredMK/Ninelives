@@ -2280,6 +2280,8 @@
   /* Bottom action row: a compact Cards (deck) button + the full-width Start. */
   .store-actions { display: flex; gap: 9px; align-items: stretch; }
   .store-actions .store-view-btn { flex: 0 0 auto; padding: 9px 14px; }
+  /* The store deck character sits at the action row's left, tappable like in a deal. */
+  .store-actions .store-deckchar { flex: 0 0 auto; align-self: center; }
   .play-btn.store-start { flex: 1; margin: 0; padding: 11px 18px; font-size: 15px; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
@@ -4536,7 +4538,12 @@
       <!-- Inventory now lives in the global top-right button; the store keeps the
            Cards (deck) view inline with Start to save a whole row. -->
       <div class="store-actions">
-        <button class="store-view-btn" id="storeCardsBtn" type="button"><span class="ico-slot" data-ico="deck"></span> Cards</button>
+        <!-- The deck CHARACTER is interactive here just like in a deal: TAP to see
+             all your cards (same deck-view UI), HOLD for a quick peek. -->
+        <div class="deck-stack store-deckchar" id="storeDeckStat" role="button" tabindex="0"
+             title="Tap to see all your cards · hold for a quick peek" aria-label="View your cards">
+          <span class="deck-pile"><span class="deck-char" id="storeDeckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="deck-count"><b id="storeDeckCount">0</b><span class="ds-lbl">cards</span></span></span></span></span>
+        </div>
         <button class="play-btn store-start" id="storeStartBtn" type="button">GO TO MAP</button>
       </div>
     </div>
@@ -4858,7 +4865,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.38 · synapses fire event-driven on correct landing";
+const APP_VERSION = "v3.39 · store deck character opens the deck view";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10299,17 +10306,11 @@ const DeckInspector = (() => {
     renderCard = opts.renderCard || renderCard;
     canInspect = opts.canInspect || canInspect;
 
-    const deckEl = opts.deckEl;
-    deckEl.addEventListener("pointerdown", onDown);
-    deckEl.addEventListener("pointerup", onUp);
-    deckEl.addEventListener("pointerleave", onCancel);
-    deckEl.addEventListener("pointercancel", onCancel);
-    deckEl.addEventListener("contextmenu", (e) => e.preventDefault());
-    deckEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (canInspect()) openFull(); }
-    });
+    attach(opts.deckEl);
 
     refs.modalClose.addEventListener("click", closeFull);
+    // (attach is also exported so other surfaces — e.g. the store deck character —
+    // get the SAME tap-view / hold-peek gestures on their own element.)
     // Tap the backdrop (outside the panel) to dismiss.
     refs.modal.addEventListener("click", (e) => { if (e.target === refs.modal) closeFull(); });
 
@@ -10362,6 +10363,21 @@ const DeckInspector = (() => {
         '<span class="sc-lo">↓ ' + below + " lower</span>";
       refs.scrub.classList.remove("hidden");
     }
+  }
+
+  /* Wire the tap-view / hold-peek gestures onto a deck element. Used for the
+     in-deal deck (at init) and any other surface that should open the same deck
+     view from its own element (e.g. the store deck character). */
+  function attach(deckEl) {
+    if (!deckEl) return;
+    deckEl.addEventListener("pointerdown", onDown);
+    deckEl.addEventListener("pointerup", onUp);
+    deckEl.addEventListener("pointerleave", onCancel);
+    deckEl.addEventListener("pointercancel", onCancel);
+    deckEl.addEventListener("contextmenu", (e) => e.preventDefault());
+    deckEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (canInspect()) openFull(); }
+    });
   }
 
   function onDown() {
@@ -10487,7 +10503,7 @@ const DeckInspector = (() => {
     });
   }
 
-  return { init, close, openFull };
+  return { init, close, openFull, attach };
 })();
 
 /* ----------------------------------------------------------------
@@ -10680,7 +10696,8 @@ const UIRenderer = (() => {
     fossilDetailArt: document.getElementById("fossilDetailArt"),
     fossilDetailSub: document.getElementById("fossilDetailSub"),
     storeInvBtn: document.getElementById("storeInvBtn"),
-    storeCardsBtn: document.getElementById("storeCardsBtn"),
+    storeDeckStat: document.getElementById("storeDeckStat"),   // store deck character (tap → deck view)
+    storeDeckCount: document.getElementById("storeDeckCount"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
@@ -13382,7 +13399,8 @@ const UIRenderer = (() => {
     el.rerollBtn.addEventListener("click", rerollUI);
     // Store view buttons: owned inventory + the deck overview (both modal).
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
-    if (el.storeCardsBtn) el.storeCardsBtn.addEventListener("click", () => DeckInspector.openFull());
+    // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
+    if (el.storeDeckStat) DeckInspector.attach(el.storeDeckStat);
     el.storeStartBtn.addEventListener("click", () => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
@@ -17311,6 +17329,12 @@ const UIRenderer = (() => {
     // so the top HUD badge and the "to spend" counter can never drift apart.
     el.storeCoins.textContent = campaign.getCoins();
     updateStageRun();   // refresh the top HUD Stage·Run badge + dopamine counter
+    // Store deck character: show the full accumulated deck size + the phase suit
+    // wash, so tapping it opens the deck view onto the player's whole deck.
+    if (el.storeDeckCount) el.storeDeckCount.textContent = campaign.deckSize();
+    const sdc = document.getElementById("storeDeckChar");
+    if (sdc) { sdc.classList.remove("dc-d", "dc-c", "dc-s", "dc-h");
+      sdc.classList.add("dc-" + (SUIT_CLASS[campaign.phaseSuit()] || "d")); }
     // Row 1: three individual sticker slots.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
@@ -18658,7 +18682,11 @@ const UIRenderer = (() => {
         return { cards, remaining };
       },
       renderCard: (c) => miniCardHtml(c),
-      canInspect: () => !!engine && engine.getStatus() === "playing",
+      // Inspectable during active play AND whenever the store is open (the store
+      // deck character shows the full accumulated deck — getStats/getCards already
+      // fall back to the whole deck when there's no run in progress).
+      canInspect: () => (!!engine && engine.getStatus() === "playing")
+        || !!(el.storeOverlay && !el.storeOverlay.classList.contains("hidden")),
     });
 
     // Wire the menus/sheets (§7/§8/§9/§12) and the corner menu button.
