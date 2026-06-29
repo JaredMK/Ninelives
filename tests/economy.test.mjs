@@ -46,14 +46,11 @@ export function run() {
   r.eq(lost.total, 0, "breakdown on a loss totals 0");
   r.eq(lost.extraCoinBonus, 0, "no Extra Coin bonus on a loss");
 
-  // --- Interest: +1 coin per 10 coins held at the start of the run ---------
-  const withInterest = Economy.breakdown({ won: true, aliveCount: 2, minAliveCards: 1, interest: 4 });
-  r.eq(withInterest.interest, 4, "interest itemized on the breakdown");
-  r.eq(withInterest.total, 2 * 1 + 4, "interest folds into the total (product + interest)");
-  // Interest is paid on a win only.
-  const lostInterest = Economy.breakdown({ won: false, aliveCount: 2, minAliveCards: 1, interest: 4 });
-  r.eq(lostInterest.interest, 0, "no interest on a loss");
-  r.eq(lostInterest.total, 0, "loss with interest still totals 0");
+  // Interest (the +1/10-coins-held payout) has been REMOVED — passing a stray
+  // interest stat must NOT affect the total any more.
+  const noInterest = Economy.breakdown({ won: true, aliveCount: 2, minAliveCards: 1, interest: 4 });
+  r.eq(noInterest.interest, undefined, "interest is no longer itemized on the breakdown");
+  r.eq(noInterest.total, 2 * 1, "total ignores any interest stat (product only)");
 
   // --- BoardState.minAliveCards (dead piles excluded) --------------------
   {

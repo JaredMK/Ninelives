@@ -2883,7 +2883,6 @@
     display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 2px; }
   .dc-sub .dc-sv { font-style: normal; font-weight: 600; color: var(--text); white-space: nowrap; }
   .dc-sub .coin-ico { vertical-align: -0.15em; }
-  .dc-int-note { font-style: normal; opacity: 0.55; }
   .dc-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
     margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--edge-2); }
   .dc-total .dc-lab { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 18px; }
@@ -4841,7 +4840,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.35 · debug log: card landed-on";
+const APP_VERSION = "v3.36 · remove interest payout mechanic";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5860,9 +5859,6 @@ const Economy = (() => {
     // Live in-run bonus coins (already accrued during play; may be negative).
     const eventBonus = won ? (stats.eventBonus || 0) : 0;
     const eventLines = won ? (stats.eventLines || []) : [];
-    // Interest: +1 coin per 10 coins the player STARTED this run with (paid on
-    // a win only). Passed in already computed (floor of startCoins / 10).
-    const interest = won ? (stats.interest || 0) : 0;
     // Product of alive piles and the smallest alive pile's card count. The
     // guard keeps it 0 (never NaN) when there are no alive piles.
     const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
@@ -5873,10 +5869,9 @@ const Economy = (() => {
       extraCoinUnits, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
       pillarBonus, pillarLines,
       eventBonus, eventLines,
-      interest,
       // The product can't go negative, but a Tribute cost can drag the bonus
       // below zero; clamp the TOTAL at 0 so a win never charges the player coins.
-      total: Math.max(0, product + extraCoinBonus + pillarBonus + eventBonus + interest),
+      total: Math.max(0, product + extraCoinBonus + pillarBonus + eventBonus),
     };
   }
   /** Coins earned (the total of breakdown()). */
@@ -10744,7 +10739,6 @@ const UIRenderer = (() => {
   let networkPulses = true;   // signal pulses on links (Phase 4)
   let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
-  let runStartCoins = 0;      // coins the player started this run with → Interest payout
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
   let edgeMap = new Map();    // edge key ("a-b") → live edge record, for in-place network updates
   let driftRAF = null;        // single rAF loop: JS-driven card drift + attached network (one clock, one rate)
@@ -13887,9 +13881,6 @@ const UIRenderer = (() => {
         armedRevive = null; armedBaseAct = null;
         if (el.board) el.board.classList.remove("armed-revive", "armed-base");
         hideActionBar();
-        // Snapshot the coin balance the player enters this run with (after any
-        // store spending) → drives the end-of-run Interest payout.
-        runStartCoins = campaign ? campaign.getCoins() : 0;
         renderBoard(payload.board, payload.deck);
         // Deck character: settle to idle for the fresh deal, wash to the phase
         // suit, and (re)start the gentle idle blink.
@@ -14604,10 +14595,10 @@ const UIRenderer = (() => {
      the view multiplies/sums nothing. */
   /* Deal-cleared payout breakdown. PRESENTATION ONLY — it regroups the SAME
      itemized values from Economy.breakdown into four reward sections (deal /
-     stickers / pillars / interest) with italic sub-bullets, then the grand Total.
+     stickers / pillars) with italic sub-bullets, then the grand Total.
      No value is recomputed: every number comes straight from `b`; the sections
      sum to b.total exactly (b.total = product + extraCoinBonus + pillarBonus +
-     eventBonus + interest). Live in-run bonuses (b.eventLines) are split into
+     eventBonus). Live in-run bonuses (b.eventLines) are split into
      sticker- vs pillar-driven by label (pillar live-bonuses use a Pillar's label:
      Suit Bonus / Streak Bank / Fibonacci — everything else is sticker-driven). */
   function coinBreakdownHtml(coins) {
@@ -14648,12 +14639,6 @@ const UIRenderer = (() => {
     const pillarTotal = (b.pillarBonus || 0) + pillarEvents.reduce((a, p) => a + p.amount, 0);
     html += mainLine("Pillar rewards", pillarTotal) +
       subWrap(pillarBullets.length ? pillarBullets.join("") : subRow("None", ""));
-
-    // 4) Interest — ALWAYS shown (even at 0). Coin icons for the amount + the note.
-    const coins10 = new Array(Math.max(0, Math.min(b.interest, 10))).fill(COIN_SVG).join("");
-    html += mainLine("Interest", b.interest) +
-      subWrap('<div><span>' + coins10 + '<span class="dc-int-note">1 per 10 coins held</span></span>' +
-        '<span class="dc-sv">' + sign(b.interest) + "</span></div>");
 
     // Grand total (this deal's earnings) …
     html += '<div class="dc-total"><span class="dc-lab">Total</span>' +
@@ -16292,8 +16277,6 @@ const UIRenderer = (() => {
       pillarLines: pp.lines,
       eventBonus: run.bonusCoins || 0,
       eventLines,
-      // Interest: +1 coin per 10 coins held at the start of this run.
-      interest: Math.floor(runStartCoins / 10),
     });
     if (payout.total > 0) campaign.earnCoins(payout.total);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
