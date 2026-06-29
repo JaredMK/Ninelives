@@ -1,0 +1,299 @@
+NINE LIVES — STICKERS (42)
+Format: each block is one sticker. Edit Label / Price / Description freely and send back.
+id is the internal key — please DO NOT change it (it ties the entry to the code).
+======================================================================
+
+id:    changeSuitSpade
+Label: Change to ♠
+Tier:  common  (suit-gated: ♠)
+Price: 1
+Description: Permanently change this card's suit to ♠; rank unchanged.
+----------------------------------------------------------------------
+
+id:    changeSuitClub
+Label: Change to ♣
+Tier:  common  (suit-gated: ♣)
+Price: 1
+Description: Permanently change this card's suit to ♣; rank unchanged.
+----------------------------------------------------------------------
+
+id:    changeSuitRandom
+Label: Random Suit
+Tier:  common
+Price: 1
+Description: Permanently change this card's suit to a random different one; rank unchanged.
+----------------------------------------------------------------------
+
+id:    changeSuitHeart
+Label: Change to ♥
+Tier:  common  (suit-gated: ♥)
+Price: 2
+Description: Permanently change this card's suit to ♥; rank unchanged.
+----------------------------------------------------------------------
+
+id:    changeSuitDiamond
+Label: Change to ♦
+Tier:  common  (suit-gated: ♦)
+Price: 2
+Description: Permanently change this card's suit to ♦; rank unchanged.
+----------------------------------------------------------------------
+
+id:    donate
+Label: Donate
+Tier:  common
+Price: 2
+Description: On a correct placement, if this isn't the smallest pile, optionally move 1 buried card from it to the smallest pile (asked first).
+----------------------------------------------------------------------
+
+id:    deathBounty
+Label: Last Coin
+Tier:  common
+Price: 2
+Description: Trigger: This card is the drawn card on a wrong guess that kills the pile / Effect: +5 coins
+----------------------------------------------------------------------
+
+id:    suitImmunity
+Label: Spade Guard
+Tier:  uncommon  (suit-gated: ♠)
+Price: 2
+Description: When THIS card is drawn onto a pile showing a ♠, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal.
+----------------------------------------------------------------------
+
+id:    tell
+Label: Tell
+Tier:  uncommon
+Price: 2
+Description: When this lands correctly and becomes the pile card, hint the next drawn card vs this pile card: higher, lower, or same. Direction only — not the card. Lasts exactly one draw (the next flip).
+----------------------------------------------------------------------
+
+id:    rankUp
+Label: +1 Rank
+Tier:  common
+Price: 3
+Description: Permanently raise this card's rank by 1 (stops at Ace).
+----------------------------------------------------------------------
+
+id:    rankDown
+Label: −1 Rank
+Tier:  common
+Price: 3
+Description: Permanently lower this card's rank by 1 (stops at 2).
+----------------------------------------------------------------------
+
+id:    baseScout
+Label: Base Scout
+Tier:  uncommon
+Price: 3
+Description: On a correct placement, peek at the next upcoming card — only while a column has no Base.
+----------------------------------------------------------------------
+
+id:    gainCoin
+Label: Bonus Coin
+Tier:  common
+Price: 3
+Description: Trigger: This card lands correctly (the pile survives) / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    clubGuard
+Label: Club Guard
+Tier:  uncommon  (suit-gated: ♣)
+Price: 3
+Description: When THIS card is drawn onto a pile showing a ♣, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal.
+----------------------------------------------------------------------
+
+id:    collector
+Label: Collector
+Tier:  uncommon
+Price: 3
+Description: Trigger: This card lands correctly (the pile survives) / Effect: +1 coin per OTHER sticker on this card
+----------------------------------------------------------------------
+
+id:    duplicate
+Label: Duplicate
+Tier:  uncommon
+Price: 3
+Description: When this card survives a correct Same guess — as the drawn or pile card — copy it (stickers and all) into your card inventory.
+----------------------------------------------------------------------
+
+id:    middleColumnReward
+Label: Focus
+Tier:  uncommon
+Price: 3
+Description: Trigger: This card lands correctly on a pile in the middle column / Effect: +3 coins
+----------------------------------------------------------------------
+
+id:    heavy
+Label: Heavy
+Tier:  common
+Price: 3
+Description: Counts as 2 toward pile size everywhere, even buried.
+----------------------------------------------------------------------
+
+id:    momentum
+Label: Momentum
+Tier:  rare
+Price: 3
+Description: Trigger: A correct placement / Effect: Earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0
+----------------------------------------------------------------------
+
+id:    extraCoin
+Label: Payout
+Tier:  uncommon
+Price: 3
+Description: Trigger: Deal cleared with this as the pile card / Effect: +1 coin per card in the pile
+----------------------------------------------------------------------
+
+id:    pillarScout
+Label: Pillar Scout
+Tier:  uncommon
+Price: 3
+Description: On a correct placement, peek at the next upcoming card — only while a column has no Pillar.
+----------------------------------------------------------------------
+
+id:    suitSnob
+Label: Suit Snob
+Tier:  uncommon
+Price: 3
+Description: On a correct placement onto a same-suit pile card, peek at the next upcoming card (a Wild Suit on either counts).
+----------------------------------------------------------------------
+
+id:    rankUp2
+Label: +2 Rank
+Tier:  uncommon
+Price: 4
+Description: Permanently raise this card's rank by 2 (stops at Ace).
+----------------------------------------------------------------------
+
+id:    rankDown2
+Label: −2 Rank
+Tier:  uncommon
+Price: 4
+Description: Permanently lower this card's rank by 2 (stops at 2).
+----------------------------------------------------------------------
+
+id:    deepPockets
+Label: Deep Pockets
+Tier:  uncommon
+Price: 4
+Description: Trigger: A correct placement / Effect: +1 coin per 10 cards left in the deck
+----------------------------------------------------------------------
+
+id:    diamondGuard
+Label: Diamond Guard
+Tier:  uncommon  (suit-gated: ♦)
+Price: 4
+Description: When THIS card is drawn onto a pile showing a ♦, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal.
+----------------------------------------------------------------------
+
+id:    heartGuard
+Label: Heart Guard
+Tier:  uncommon  (suit-gated: ♥)
+Price: 4
+Description: When THIS card is drawn onto a pile showing a ♥, one wrong guess on that pile is absorbed: the pile survives and this card returns to the deck. Once per deal.
+----------------------------------------------------------------------
+
+id:    looseChange
+Label: Loose Change
+Tier:  uncommon
+Price: 4
+Description: Trigger: A correct placement / Effect: Earn a random 0–2 coins
+----------------------------------------------------------------------
+
+id:    quickBury
+Label: Quick Bury
+Tier:  uncommon
+Price: 4
+Description: On a correct placement, bury 1 deck card under the pile — then a 25% chance this sticker peels off (destroyed).
+----------------------------------------------------------------------
+
+id:    randomFixedValue
+Label: Random Rank
+Tier:  uncommon
+Price: 4
+Description: Permanently set this card's rank to a random one (2–Ace); suit unchanged.
+----------------------------------------------------------------------
+
+id:    shuffle
+Label: Shuffle
+Tier:  uncommon
+Price: 4
+Description: On a correct placement, optionally shuffle the pile so a different card tops it (order stays hidden).
+----------------------------------------------------------------------
+
+id:    tieSafe
+Label: Tie-Safe
+Tier:  common
+Price: 4
+Description: A drawn card that ties this pile card's rank no longer kills the pile.
+----------------------------------------------------------------------
+
+id:    centerTribute
+Label: Center Bury
+Tier:  rare
+Price: 5
+Description: On a correct placement in the middle column, bury 1 deck card under the pile.
+----------------------------------------------------------------------
+
+id:    compound
+Label: Compound
+Tier:  rare
+Price: 5
+Description: Trigger: A correct guess lands on this pile card / Effect: Pay rising coins on the spot — +0, +1, +2, … on each successive landing. The count carries across the run until a reset
+----------------------------------------------------------------------
+
+id:    oneTribute
+Label: Bury 1
+Tier:  rare
+Price: 6
+Description: On a correct placement, bury 1 deck card under the pile.
+----------------------------------------------------------------------
+
+id:    revealNext
+Label: Scout
+Tier:  rare
+Price: 6
+Description: On a correct placement, peek at the next upcoming card until it's drawn.
+----------------------------------------------------------------------
+
+id:    snowball
+Label: Snowball Bury
+Tier:  rare
+Price: 6
+Description: On a correct placement, bury X deck cards under the pile. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0.
+----------------------------------------------------------------------
+
+id:    twinSpark
+Label: Twin Spark
+Tier:  rare
+Price: 6
+Description: On a correct placement, add a random sticker to every alive pile card of this card's rank, board-wide, for this deal.
+----------------------------------------------------------------------
+
+id:    anchor
+Label: Anchor
+Tier:  common
+Price: 7
+Description: While this is the pile card, the pile is left out of the smallest-pile score.
+----------------------------------------------------------------------
+
+id:    extraHeart
+Label: Shield
+Tier:  rare
+Price: 7
+Description: When a drawn card lands wrong on this pile card, the pile survives and the drawn card returns to the deck. Once a deal.
+----------------------------------------------------------------------
+
+id:    twoTribute
+Label: Bury 2
+Tier:  rare
+Price: 8
+Description: On a correct placement, optionally bury 2 deck cards under the pile for 4 coins (asked first).
+----------------------------------------------------------------------
+
+id:    wildSuit
+Label: Wild Suit
+Tier:  rare
+Price: 8
+Description: Counts as every suit at once — satisfies any suit guard, suit Bonus Pillar, or all-suit Pillar.
+----------------------------------------------------------------------
+
