@@ -4877,7 +4877,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.40 · Same-Power unique logos + on the Same button";
+const APP_VERSION = "v3.41 · dock scroll-vs-drag intent split";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12122,7 +12122,13 @@ const UIRenderer = (() => {
   /* The active dock drag, or null. Quick tap (no movement past the threshold) =
      info; movement past it = a pick-up-and-place drag. */
   let dockDrag = null;
-  const DOCK_DRAG_SLOP = 9;   // px the finger must travel to turn a press into a drag
+  // Gesture intent split (scroll vs pick-up): a HORIZONTAL move within the list is
+  // a scroll (handled natively via touch-action: pan-x); a deliberate VERTICAL pull
+  // (up/out toward the board) past DOCK_DRAG_SLOP picks the item up. We do NOT
+  // capture the pointer until a drag is confirmed, so horizontal scrolling is never
+  // hijacked.
+  const DOCK_DRAG_SLOP = 12;    // vertical px to confirm a pick-up
+  const DOCK_SCROLL_SLOP = 6;   // horizontal px that means "scrolling" → abandon pick-up
   function dockItemFromChip(chip) {
     if (!chip) return null;
     if (chip.dataset.type != null) return { kind: "sticker", id: chip.dataset.type };
@@ -12196,6 +12202,10 @@ const UIRenderer = (() => {
   }
   function dockBeginDrag(d, e) {
     d.started = true;
+    // Intent is now confirmed (vertical pull) → capture the pointer so the drag
+    // tracks the finger anywhere and the list stops scrolling (.dragging sets
+    // touch-action: none).
+    try { el.placeDockList.setPointerCapture(e.pointerId); } catch (_) {}
     el.placeDock.classList.add("dragging");
     if (d.kind !== "samepower") el.placeDock.classList.add("show-trash");
     if (d.chipEl) d.chipEl.classList.add("dragging-src");
@@ -12248,13 +12258,20 @@ const UIRenderer = (() => {
       const item = dockItemFromChip(chip);
       if (!item) return;
       dockDrag = Object.assign(item, { chipEl: chip, started: false, startX: e.clientX, startY: e.clientY, pointerId: e.pointerId, ghost: null });
-      try { el.placeDockList.setPointerCapture(e.pointerId); } catch (_) {}
+      // NOTE: no setPointerCapture here — capturing now would hijack a horizontal
+      // scroll. We capture only once a vertical pick-up is confirmed (dockBeginDrag).
     });
     el.placeDockList.addEventListener("pointermove", (e) => {
       const d = dockDrag; if (!d || e.pointerId !== d.pointerId) return;
       if (!d.started) {
-        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DOCK_DRAG_SLOP) return;
-        dockBeginDrag(d, e);
+        const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        // Horizontal-dominant → the user is SCROLLING the list: abandon the
+        // potential pick-up and let native pan-x scroll take over.
+        if (adx > ady && adx > DOCK_SCROLL_SLOP) { dockDrag = null; return; }
+        // Deliberate VERTICAL pull (toward the board) → pick the item up.
+        if (ady >= DOCK_DRAG_SLOP && ady >= adx) dockBeginDrag(d, e);
+        else return;   // not enough/ambiguous movement yet — keep watching
       }
       dockMoveGhost(d, e);
       dockClearHover();
