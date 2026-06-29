@@ -1978,7 +1978,9 @@
   .overlay.store {
     /* Starts BELOW the persistent top shell (banner + deck/histogram bar), which
        shows on every screen. The flex shelves (flex:1 1 0) re-compact into the
-       reduced height so the store still fits one page with no scroll. */
+       reduced height so the store still fits one page with no scroll. The shop
+       objects flex to fill the remaining shelf height (capped), so they shrink to
+       fit short screens / the equipped panel below without ever overflowing. */
     top: var(--shell-h, 0px);
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
@@ -2077,33 +2079,46 @@
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
   .tray-samepower.armed { outline: 2px solid var(--net, #C84A78); outline-offset: 2px; border-radius: 12px; }
 
-  /* One row of THREE objects, vertically centred in the shelf's grown space. */
+  /* One row of THREE objects. The row STRETCHES to fill the shelf's grown space so
+     each tile gets the full height; the object inside is then capped (max 116px) and
+     centred within it. (Stretch — not align-content:center — so .store-tile can be
+     height:100% and the object area can flex-fill/shrink without collapsing.) */
   .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px;
-    flex: 1 1 0; min-height: 0; align-content: center; }
+    flex: 1 1 0; min-height: 0; align-content: stretch; }
 
   /* The shop tile is NOT a card — it's a transparent tap target. The physical
      object (sticker/pillar/base/pack) IS the item; only a small white coin-chip
      price pill sits beneath it. No card chrome, no name, no rarity text. */
   .store-tile {
-    position: relative; min-width: 0; background: none; border: none;
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    position: relative; min-width: 0; height: 100%; background: none; border: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
     padding: 4px 2px 6px; cursor: pointer;
     transition: transform 0.12s ease;
   }
   .store-tile:active { transform: scale(0.96); }
   .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the detail */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
-  /* Object area — a fixed-height slot so all three objects in a row align. A
-     slight per-object rotation (set inline) makes them read as merchandise laid
-     out on a surface, with a soft contact shadow grounding each one. */
+  /* Object area — FLEXES to fill whatever row height remains, capped at 116px, so
+     all three objects align AND shrink together when the shelves compress (short
+     screens / the equipped panel below) instead of spilling past their tile. Every
+     object kind is sized off this slot's height, so none can ever exceed it. A
+     slight per-object rotation (set inline) makes them read as merchandise laid out
+     on a surface, with a soft contact shadow grounding each one. */
   .store-tile .ti-obj {
-    width: 100%; height: 116px; display: flex; align-items: center; justify-content: center;
-    position: relative;
+    width: 100%; flex: 1 1 0; min-height: 0; max-height: 116px;
+    display: flex; align-items: center; justify-content: center; position: relative;
   }
   .store-tile .ti-obj.obj-pillar { align-items: flex-start; }   /* hangs from the top */
-  .store-tile .ti-obj.obj-base { align-items: flex-end; padding-bottom: 8px; }
-  .store-tile .ti-obj.obj-base .base-banner.plaque { height: 46px; }   /* short plaque rests on the shelf */
-  .store-tile .ti-obj.obj-pack .pack-foil.big { width: 90px; }
+  .store-tile .ti-obj.obj-base { align-items: flex-end; padding-bottom: 6px; }
+  /* Each object sizes BY the slot height so its footprint can never exceed it:
+     - pillar pennant + pack foil fill 100% height (pack's 3:4 width then follows);
+       (the old pack width:90px forced ~120px tall — past the 116px slot).
+     - the sticker vinyl is a circle locked to the slot height (aspect 1).
+     - the base plaque rests short on the shelf, capped at the slot. */
+  .store-tile .ti-obj.obj-pack .pack-foil.big { width: auto; height: 100%; }
+  .store-tile .ti-obj.obj-sticker .dcs { width: auto; height: min(88px, 100%); aspect-ratio: 1; --dcs-size: 78px; }
+  .store-tile .ti-obj.obj-base .base-banner.plaque { height: min(46px, 100%); }
+  .store-tile .ti-obj.obj-samepower .sp-badge { max-height: 100%; box-sizing: border-box; }
   /* Soft contact shadow so each object sits ON the surface, not floating. */
   .store-tile .ti-obj::after {
     content: ""; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
@@ -2125,11 +2140,20 @@
   #storeMsg { display: none; }   /* legacy feedback line kept for existing writes; not shown */
 
   /* ---- Equipped-loadout reference (read-only) ----
-     A compact strip mirroring the board: three columns (pillar chip over base
-     chip) plus the Same-Power, so the player can compare an offer against what
-     they'd replace. Fixed height (flex:0) so it never steals room from the
-     scroll-free offer shelves above. Each cell taps/holds to its help text. */
-  .store-loadout { width: min(94vw, 440px); flex: 0 0 auto; margin-top: 2px; }
+     Its OWN distinct, enclosed panel — a bordered, tinted card clearly set apart
+     from the open offer shelves above, so it reads as "what you already have"
+     (reference) rather than "what's for sale". A compact grid mirrors the board:
+     three columns (pillar chip over base chip) plus the Same-Power. Fixed height
+     (flex:0) so it never steals room from the scroll-free offer shelves. Each cell
+     taps/holds to its help text. */
+  .store-loadout { width: min(94vw, 440px); flex: 0 0 auto; margin-top: 6px;
+    background: rgba(74,52,44,0.05);
+    border: 1px solid rgba(74,52,44,0.16); border-radius: 13px;
+    padding: 7px 10px 9px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.5); }
+  /* The panel's own header rule, tinted neutral so it's clearly NOT one of the
+     coloured offer shelves (rose/violet). */
+  .store-loadout .shelf-h { color: var(--muted); margin: 0 1px 6px; }
+  .store-loadout .shelf-h .tag { opacity: 0.7; }
   .loadout-grid { display: flex; align-items: stretch; gap: 8px; }
   .lo-cols { flex: 1 1 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .lo-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -2196,6 +2220,22 @@
   .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 21px; color: #fff;
     line-height: 1.1; }
   .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; white-space: pre-line; }
+  /* Placement chooser inside the buy popup (pillars / bases / Same-Power): pick the
+     slot, then confirm buy+place with the button below. */
+  .sd-place { width: 100%; display: flex; flex-direction: column; gap: 6px; margin: 2px 0 2px; }
+  .sd-place.hidden { display: none; }
+  .sd-place-h { font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+    color: rgba(255,255,255,0.74); text-transform: uppercase; }
+  .sd-cols { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
+  .sd-col { flex: 1 1 0; min-width: 78px; max-width: 130px; display: flex; flex-direction: column; gap: 2px;
+    background: rgba(255,255,255,0.10); border: 1.5px solid rgba(255,255,255,0.22);
+    border-radius: 10px; padding: 7px 8px; cursor: pointer; touch-action: manipulation;
+    color: #fff; transition: transform 0.1s ease, border-color 0.12s ease, background 0.12s ease; }
+  .sd-col:active { transform: scale(0.97); }
+  .sd-col.sd-col-sel { border-color: #fff; background: rgba(255,255,255,0.22); }
+  .sd-col .sdc-n { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; }
+  .sd-col .sdc-occ { font-size: 11.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sd-col .sdc-occ.sdc-empty { opacity: 0.6; font-weight: 600; font-style: italic; }
   .sd-buy { margin-top: 4px; }
   .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
     color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
@@ -4558,6 +4598,14 @@
       <div class="sd-tier" id="sdTier"></div>
       <div class="sd-name" id="sdName"></div>
       <div class="sd-desc" id="sdDesc"></div>
+      <!-- Placement chooser (pillars / bases / Same-Power): pick WHERE it lands as
+           part of the buy — the column slot (pillar/base) or the Same button — then
+           the button below confirms buy + placement in one action. Hidden for
+           stickers (their own card-pick flow) and packs (no placement). -->
+      <div class="sd-place hidden" id="sdPlace">
+        <div class="sd-place-h" id="sdPlaceH">Choose where to place it</div>
+        <div class="sd-cols" id="sdCols"></div>
+      </div>
       <button class="sh-buy sd-buy" id="sdBuy" type="button">Buy</button>
     </div>
   </div>
@@ -4869,7 +4917,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.52 · store shows equipped pillars/bases/Same-Power";
+const APP_VERSION = "v3.53 · store: fit objects, separate loadout, buy-then-place";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10669,6 +10717,9 @@ const UIRenderer = (() => {
     sdTier: document.getElementById("sdTier"),
     sdName: document.getElementById("sdName"),
     sdDesc: document.getElementById("sdDesc"),
+    sdPlace: document.getElementById("sdPlace"),     // buy-time placement chooser (pillar/base/same-power)
+    sdPlaceH: document.getElementById("sdPlaceH"),
+    sdCols: document.getElementById("sdCols"),
     sdBuy: document.getElementById("sdBuy"),
     sdClose: document.getElementById("sdClose"),
     packReveal: document.getElementById("packReveal"),
@@ -10856,6 +10907,10 @@ const UIRenderer = (() => {
   let selectedStickerSlot = null;
   let selectedMixedSlot = null;
   let selectedSamePowerSlot = null;   // offered Same-Power slot (0) awaiting Buy
+  // Buy-time placement chooser state (pillars/bases/Same-Powers): the focused
+  // detail's kind/id and the column the player has picked to place it into (the
+  // Same-Power has a single slot, pre-selected as 0). Drives confirmBuyAndPlace.
+  let sdDetailKind = null, sdDetailId = null, sdPlaceCol = null, sdDetailPrice = 0;
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
@@ -13162,15 +13217,32 @@ const UIRenderer = (() => {
     // the Same-Power inventory). Hide the detail first, keeping the selected slot
     // so the existing confirm logic runs.
     el.sdBuy.addEventListener("click", () => {
+      // Pillars / bases / Same-Powers buy AND place in one action (the placement was
+      // chosen in the popup) — the detail closes itself when that completes. Stickers
+      // and packs keep the plain buy (sticker → card-pick flow; pack → reveal).
+      if (sdDetailKind === "pillar" || sdDetailKind === "base" || sdDetailKind === "samepower") {
+        confirmBuyAndPlace();
+        return;
+      }
       const kind = el.sdBuy.dataset.kind;
       el.storeDetail.classList.add("hidden");
       if (kind === "sticker") confirmBuySticker();
-      else confirmBuyMixed();   // mixed slot: base / pillar / pack / same-power
+      else confirmBuyMixed();   // mixed slot: pack
+    });
+    // Buy-time placement chooser: pick the column / Same slot the item will land in.
+    if (el.sdCols) el.sdCols.addEventListener("click", (e) => {
+      const c = e.target.closest(".sd-col"); if (!c) return;
+      sdPlaceCol = Number(c.dataset.col);
+      renderSdPlace(sdDetailKind, sdDetailId);
+      updateSdBuy();
     });
     // Dismiss the detail: tap the backdrop or the ✕ (a tap on the panel is kept).
+    // Match the backdrop element itself (not "outside .sd-panel") so a tap on a
+    // panel control that RE-RENDERS itself mid-click — e.g. a placement chooser
+    // button replacing the row — can't be misread as an outside tap once detached.
     el.sdClose.addEventListener("click", closeStoreDetail);
     el.storeDetail.addEventListener("click", (e) => {
-      if (!e.target.closest(".sd-panel")) closeStoreDetail();
+      if (e.target === el.storeDetail) closeStoreDetail();
     });
     // Pick screen: open the read-only deck composition to inform the choice.
     el.packDeckBtn.addEventListener("click", () => DeckInspector.openFull());
@@ -17099,14 +17171,105 @@ const UIRenderer = (() => {
     el.sdTier.dataset.tier = info.tier || "";
     el.sdName.textContent = info.label;
     el.sdDesc.textContent = info.desc || "";
-    const afford = campaign.getCoins() >= price;
-    el.sdBuy.disabled = !afford;
     // Dispatch by ROW, not item kind: a Same-Power now lives in a mixed slot, so
     // it's bought via confirmBuyMixed (which dispatches on the slot's kind).
     el.sdBuy.dataset.kind = row === "sticker" ? "sticker" : "mixed";
-    el.sdBuy.innerHTML = afford ? ("Buy · " + COIN_SVG + price) : ("Need " + COIN_SVG + price);
     el.sdBuy.classList.remove("hidden");   // restore Buy (a read-only equipped view hides it)
+    // Place-then-confirm: pillars/bases/Same-Powers carry a placement chooser in the
+    // popup, so the player picks WHERE it lands (and sees what it replaces) and the
+    // button confirms buy + placement together. Stickers (own card-pick flow) and
+    // packs (no placement) keep the plain Buy.
+    sdDetailKind = kind; sdDetailId = id; sdDetailPrice = price;
+    if (kind === "pillar" || kind === "base" || kind === "samepower") {
+      sdPlaceCol = (kind === "samepower") ? 0 : null;   // Same-Power has a single slot
+      renderSdPlace(kind, id);
+      el.sdPlace.classList.remove("hidden");
+    } else {
+      sdPlaceCol = null;
+      el.sdPlace.classList.add("hidden");
+    }
+    updateSdBuy();
     el.storeDetail.classList.remove("hidden");
+  }
+  /* The buy-time placement chooser: column slots (pillar/base) or the single Same
+     button (Same-Power), each showing its current occupant so the player sees what
+     a purchase would replace before confirming. */
+  function renderSdPlace(kind, id) {
+    if (kind === "samepower") {
+      el.sdPlaceH.textContent = "Equip to the Same (=) button";
+      const cur = campaign.getSamePower && campaign.getSamePower();
+      const ct = cur ? SamePowerTypes.get(cur) : null;
+      el.sdCols.innerHTML =
+        '<button type="button" class="sd-col sd-col-sel" data-col="0">' +
+        '<span class="sdc-n">Same</span><span class="sdc-occ' + (ct ? '' : ' sdc-empty') + '">' +
+        (ct ? escHtml(ct.label) : 'empty') + '</span></button>';
+      return;
+    }
+    const reg = kind === "pillar" ? PillarTypes : BaseTypes;
+    const occ = kind === "pillar" ? campaign.getColumnPillars() : campaign.getColumnBases();
+    el.sdPlaceH.textContent = "Choose a column — replaces what's there";
+    let html = "";
+    for (let c = 0; c < occ.length; c++) {
+      const ot = occ[c] ? reg.get(occ[c]) : null;
+      html += '<button type="button" class="sd-col' + (sdPlaceCol === c ? ' sd-col-sel' : '') + '" data-col="' + c + '">' +
+        '<span class="sdc-n">Col ' + (c + 1) + '</span><span class="sdc-occ' + (ot ? '' : ' sdc-empty') + '">' +
+        (ot ? escHtml(ot.label) : 'empty') + '</span></button>';
+    }
+    el.sdCols.innerHTML = html;
+  }
+  /* Buy button label + enabled state for the focused detail. Pillars/bases need a
+     column chosen first; the label names the combined action (Buy & Place/Equip). */
+  function updateSdBuy() {
+    const price = sdDetailPrice;
+    const afford = campaign.getCoins() >= price;
+    const needSlot = (sdDetailKind === "pillar" || sdDetailKind === "base") && sdPlaceCol == null;
+    el.sdBuy.disabled = !afford || needSlot;
+    let label;
+    if (!afford) label = "Need " + COIN_SVG + price;
+    else if (needSlot) label = "Pick a column";
+    else if (sdDetailKind === "samepower") label = "Buy & Equip · " + COIN_SVG + price;
+    else if (sdDetailKind === "pillar" || sdDetailKind === "base") label = "Buy & Place · " + COIN_SVG + price;
+    else label = "Buy · " + COIN_SVG + price;
+    el.sdBuy.innerHTML = label;
+  }
+  /* Combined buy + placement for a pillar/base/Same-Power: buy the offered slot,
+     then place it into the chosen column / equip it to the Same button (selling any
+     displaced occupant, exactly like the standalone placement flow) — one action. */
+  function confirmBuyAndPlace() {
+    const kind = sdDetailKind, id = sdDetailId, slot = selectedMixedSlot;
+    if (slot == null) return;
+    if ((kind === "pillar" || kind === "base") && sdPlaceCol == null) return;
+    const res = campaign.buyMixedSlot(slot, Math.random);
+    if (!res.ok) return;   // unaffordable / empty slot
+    selectedMixedSlot = null;
+    Sound.purchase();
+    if (kind === "samepower") {
+      const prev = campaign.getSamePower && campaign.getSamePower();
+      campaign.equipSamePower(id);
+      if (prev && prev !== id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
+      const t = SamePowerTypes.get(id);
+      if (engine) engine.logAction("Store: equipped Same-Power " + ((t && t.label) || id));
+      try { Telem.purchase("samepower", id, t && t.label); Telem.flush(); } catch (e) {}
+      updateSamePowerHud();
+    } else {
+      const reg = kind === "pillar" ? PillarTypes : BaseTypes;
+      const col = sdPlaceCol;
+      // Replacing an occupied column sells the old one (coins back), mirroring the
+      // standalone placement confirm so net cost + rules are unchanged.
+      const oldId = kind === "pillar" ? campaign.columnPillar(col) : campaign.columnBase(col);
+      if (oldId) {
+        if (kind === "pillar") campaign.removeColumnPillar(col); else campaign.removeColumnBase(col);
+        campaign.addCoins(sellValueOf(reg.get(oldId)));
+      }
+      const ok = kind === "pillar" ? campaign.placePillar(id, col) : campaign.placeBase(id, col);
+      const t = reg.get(id);
+      if (ok && engine) engine.logAction("Store: bought " + KIND_LABEL[kind] + " " + ((t && t.label) || id) + " → column " + (col + 1));
+      try { Telem.purchase(kind, id, t && t.label); Telem.flush(); } catch (e) {}
+    }
+    persistCampaign("store");
+    closeStoreDetail();
+    renderStore();
+    refreshDebug();
   }
   /* Read-only info for an EQUIPPED item (loadout reference): the SAME focused
      detail card the offers use, but with no Buy — it's a "what you already have"
@@ -17128,11 +17291,15 @@ const UIRenderer = (() => {
     el.sdName.textContent = info.label;
     el.sdDesc.textContent = info.desc || "";
     el.sdBuy.classList.add("hidden");   // equipped = reference only, no purchase
+    el.sdPlace.classList.add("hidden"); // and no placement chooser (read-only)
+    sdDetailKind = null; sdDetailId = null; sdPlaceCol = null;
     el.storeDetail.classList.remove("hidden");
   }
   function closeStoreDetail() {
     el.storeDetail.classList.add("hidden");
     el.sdBuy.classList.remove("hidden");   // leave the panel ready for the next offer
+    el.sdPlace.classList.add("hidden");
+    sdDetailKind = null; sdDetailId = null; sdPlaceCol = null; sdDetailPrice = 0;
     selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
   }
   /* The equipped-loadout reference: pillars over bases per column + the Same-Power,
