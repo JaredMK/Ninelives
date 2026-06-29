@@ -3274,6 +3274,32 @@
   .deck-modal-suits .dsuit-n { font-size: 13px; font-variant-numeric: tabular-nums; }
   .deck-modal-suits .dsuit-of { color: var(--muted); font-weight: 700; font-size: 11px; }
 
+  /* ---- buy-time sticker apply picker (Section 3) ---- */
+  .sa-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 8px; }
+  .sa-banner .sa-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--accent-2); }
+  .sa-banner .sa-desc { flex-basis: 100%; font-size: 11.5px; line-height: 1.35; color: var(--muted); white-space: pre-line; }
+  .sa-cards { max-height: 50vh; }
+  .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex; }
+  .sa-card .mini-card { transition: transform 0.08s ease; }
+  .sa-card:active .mini-card { transform: scale(0.95); }
+  .sa-card.sa-disabled { opacity: 0.3; filter: grayscale(0.5); cursor: not-allowed; }
+  .sa-card.sa-selected .mini-card { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .sa-confirm { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 81;
+    width: min(100%, 460px); display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--edge-2); box-shadow: 0 -6px 20px rgba(0,0,0,0.3); }
+  .sa-confirm.hidden { display: none; }
+  .sa-confirm-msg { flex: 1 1 auto; font-size: 12.5px; line-height: 1.3; color: var(--text); }
+  .sa-confirm-btns { flex: none; display: flex; gap: 8px; }
+  .sa-back, .sa-apply { border: none; border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+  .sa-back { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2); }
+  .sa-apply { background: linear-gradient(180deg, #7bf08a, var(--good)); color: #0c1124; }
+  .sa-apply:active, .sa-back:active { transform: scale(0.97); }
+  .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
+    padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
+  .store-apply-btn.hidden { display: none; }
+  .store-apply-btn:active { transform: scale(0.97); }
+
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
     background: rgba(232, 139, 176, 0.10);
@@ -4556,6 +4582,9 @@
              title="Tap to see all your cards · hold for a quick peek" aria-label="View your cards">
           <span class="deck-pile"><span class="deck-char" id="storeDeckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="deck-count"><b id="storeDeckCount">0</b><span class="ds-lbl">cards</span></span></span></span></span>
         </div>
+        <!-- Shown only when stickers are waiting to be applied (a "Later" or a
+             pack-revealed sticker): re-opens the apply picker. -->
+        <button class="store-apply-btn hidden" id="storeApplyStickersBtn" type="button">Apply Sticker<span id="storeApplyStickersN"></span></button>
         <button class="play-btn store-start" id="storeStartBtn" type="button">GO TO MAP</button>
       </div>
     </div>
@@ -4740,6 +4769,29 @@
     </div>
   </div>
 
+  <!-- STICKER APPLY picker: buying (or holding) a sticker opens this — tap one of
+       your cards to apply it, with a confirm. Replaces setup-placement for
+       stickers (pillars/bases/Same-Power still place during setup). -->
+  <div class="deck-modal hidden" id="stickerApplyModal">
+    <div class="deck-modal-panel">
+      <div class="deck-modal-head">
+        <span id="saHead">Apply sticker</span>
+        <button class="deck-modal-close" id="saClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="sa-banner" id="saBanner"></div>
+      <div class="deck-modal-total" id="saHint">Tap a card to apply this sticker.</div>
+      <div class="deck-cards sa-cards" id="saCards"></div>
+    </div>
+    <!-- confirm bar (appears when a card is chosen) -->
+    <div class="sa-confirm hidden" id="saConfirm">
+      <div class="sa-confirm-msg" id="saConfirmMsg"></div>
+      <div class="sa-confirm-btns">
+        <button class="sa-back" id="saBack" type="button">Back</button>
+        <button class="sa-apply" id="saApply" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Deck inspection: lightweight quick peek (press & hold) -->
   <div class="deck-quick hidden" id="deckQuick">
     <div class="deck-quick-total" id="deckQuickTotal"></div>
@@ -4877,7 +4929,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.41 · dock scroll-vs-drag intent split";
+const APP_VERSION = "v3.42 · stickers apply at buy via a card picker (not setup)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10730,6 +10782,18 @@ const UIRenderer = (() => {
     storeInvBtn: document.getElementById("storeInvBtn"),
     storeDeckStat: document.getElementById("storeDeckStat"),   // store deck character (tap → deck view)
     storeDeckCount: document.getElementById("storeDeckCount"),
+    storeApplyStickersBtn: document.getElementById("storeApplyStickersBtn"),
+    storeApplyStickersN: document.getElementById("storeApplyStickersN"),
+    stickerApplyModal: document.getElementById("stickerApplyModal"),   // buy-time sticker apply picker
+    saHead: document.getElementById("saHead"),
+    saClose: document.getElementById("saClose"),
+    saBanner: document.getElementById("saBanner"),
+    saHint: document.getElementById("saHint"),
+    saCards: document.getElementById("saCards"),
+    saConfirm: document.getElementById("saConfirm"),
+    saConfirmMsg: document.getElementById("saConfirmMsg"),
+    saBack: document.getElementById("saBack"),
+    saApply: document.getElementById("saApply"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
@@ -12101,8 +12165,8 @@ const UIRenderer = (() => {
     let html = "";
     // Cards (deck-replacement picks) — drag onto a pile to swap that card in.
     tray.forEach((card, i) => { html += invPackChipHtml(card, i, false, true); });
-    // Stickers — drag onto a pile's face-up card.
-    StickerTypes.all().forEach(t => { if ((inv[t.id] || 0) > 0) html += invStickerChipHtml(t, inv[t.id], false); });
+    // Stickers are NO LONGER placed here — they apply at BUY-time via the store
+    // card picker (Section 3). Only pillars/bases/Same-Power place during setup.
     // Pillars — drag onto a column's pillar slot.
     PillarTypes.all().forEach(t => { if ((pinv[t.id] || 0) > 0) html += invPillarChipHtml(t, pinv[t.id], false); });
     // Bases — drag onto a column's base slot.
@@ -12131,7 +12195,7 @@ const UIRenderer = (() => {
   const DOCK_SCROLL_SLOP = 6;   // horizontal px that means "scrolling" → abandon pick-up
   function dockItemFromChip(chip) {
     if (!chip) return null;
-    if (chip.dataset.type != null) return { kind: "sticker", id: chip.dataset.type };
+    // (Stickers are applied at buy-time now — they never appear in the dock.)
     if (chip.dataset.pillar != null) return { kind: "pillar", id: chip.dataset.pillar };
     if (chip.dataset.base != null) return { kind: "base", id: chip.dataset.base };
     if (chip.dataset.samepower != null) return { kind: "samepower", id: chip.dataset.samepower };
@@ -13462,6 +13526,13 @@ const UIRenderer = (() => {
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
     if (el.storeDeckStat) DeckInspector.attach(el.storeDeckStat);
+    // Buy-time sticker apply picker (Section 3) — open / pick a card / confirm.
+    if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => { const id = firstPendingStickerId(); if (id) openStickerApply(id); });
+    if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
+    if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
+    if (el.saCards) el.saCards.addEventListener("click", (e) => { const c = e.target.closest(".sa-card"); if (c && !c.disabled) selectApplyCard(Number(c.dataset.cardId)); });
+    if (el.saApply) el.saApply.addEventListener("click", confirmApplySticker);
+    if (el.saBack) el.saBack.addEventListener("click", () => { selectedApplyCardId = null; if (el.saConfirm) el.saConfirm.classList.add("hidden"); renderStickerApplyCards(); });
     el.storeStartBtn.addEventListener("click", () => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
@@ -17398,6 +17469,13 @@ const UIRenderer = (() => {
     const sdc = document.getElementById("storeDeckChar");
     if (sdc) { sdc.classList.remove("dc-d", "dc-c", "dc-s", "dc-h");
       sdc.classList.add("dc-" + (SUIT_CLASS[campaign.phaseSuit()] || "d")); }
+    // "Apply Sticker(s)" button — shown only when stickers are waiting (a "Later"
+    // or a pack-revealed sticker); reopens the apply picker.
+    if (el.storeApplyStickersBtn) {
+      const n = pendingStickerCount();
+      el.storeApplyStickersBtn.classList.toggle("hidden", n <= 0);
+      if (el.storeApplyStickersN) el.storeApplyStickersN.textContent = n > 1 ? "s (" + n + ")" : "";
+    }
     // Row 1: three individual sticker slots.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
@@ -17753,6 +17831,83 @@ const UIRenderer = (() => {
     el.rerollBtn.innerHTML = glyph("reroll") + " Refresh · " + COIN_SVG + cost;
   }
 
+  /* ---- buy-time sticker application (replaces setup placement for stickers) ----
+     Buying (or holding) a sticker opens a CARD PICKER showing the player's whole
+     deck; tap a card → confirm → the sticker is permanently applied to that card.
+     Stickers never go to the setup dock. Any sticker still sitting in inventory
+     (a "Later", or a pack-revealed sticker) is applied via the store's "Apply
+     Sticker" button, which reopens this picker. */
+  let pendingApplyStickerId = null;   // the sticker TYPE id currently being applied
+  let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
+  function pendingStickerCount() {
+    const inv = campaign ? campaign.getInventory() : {};
+    return Object.keys(inv).reduce((a, k) => a + (inv[k] || 0), 0);
+  }
+  function firstPendingStickerId() {
+    const inv = campaign ? campaign.getInventory() : {};
+    return StickerTypes.all().map(t => t.id).find(id => (inv[id] || 0) > 0) || null;
+  }
+  function renderStickerApplyCards() {
+    if (!el.saCards || !campaign) return;
+    const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
+      (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
+    el.saCards.innerHTML = cards.map(c => {
+      const ok = campaign.canApplySticker(c, pendingApplyStickerId);
+      return '<button type="button" class="deck-card sa-card' + (ok ? "" : " sa-disabled") +
+        (selectedApplyCardId === c.id ? " sa-selected" : "") + '" data-card-id="' + c.id + '"' +
+        (ok ? "" : " disabled") + ">" + miniCardHtml(c) + "</button>";
+    }).join("");
+  }
+  function openStickerApply(typeId) {
+    if (!campaign || !typeId) return;
+    const t = StickerTypes.get(typeId);
+    if (!t) return;
+    pendingApplyStickerId = typeId;
+    selectedApplyCardId = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    if (el.saHead) el.saHead.textContent = "Apply " + t.label;
+    if (el.saBanner) el.saBanner.innerHTML = stickerChip(typeId, { seed: "apply" }) +
+      '<span class="sa-name">' + escHtml(t.label) + "</span>" +
+      '<span class="sa-desc">' + escHtml(t.description || "") + "</span>";
+    if (el.saHint) el.saHint.textContent = "Tap a card to apply " + t.label + " to it.";
+    renderStickerApplyCards();
+    el.stickerApplyModal.classList.remove("hidden");
+  }
+  function selectApplyCard(id) {
+    const card = (campaign.getRunDeck() || []).find(c => c.id === id);
+    if (!card || !campaign.canApplySticker(card, pendingApplyStickerId)) return;
+    selectedApplyCardId = id;
+    renderStickerApplyCards();
+    const t = StickerTypes.get(pendingApplyStickerId);
+    if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Add <b>" + escHtml((t && t.label) || "sticker") +
+      "</b> to <b>" + miniRankLabel(card) + " " + card.suit + "</b>?";
+    if (el.saConfirm) el.saConfirm.classList.remove("hidden");
+  }
+  function confirmApplySticker() {
+    if (!selectedApplyCardId || !pendingApplyStickerId) return;
+    const t = StickerTypes.get(pendingApplyStickerId);
+    if (campaign.applySticker(selectedApplyCardId, pendingApplyStickerId)) {
+      campaign.useStickerFromInventory(pendingApplyStickerId);
+      if (engine) engine.logAction("Applied Sticker: " + ((t && t.label) || pendingApplyStickerId) + " → a deck card");
+      Sound.purchase();
+      persistCampaign("store");
+    }
+    el.stickerApplyModal.classList.add("hidden");
+    pendingApplyStickerId = null; selectedApplyCardId = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    // Chain straight into the next pending sticker, else return to the refreshed store.
+    if (pendingStickerCount() > 0) openStickerApply(firstPendingStickerId());
+    else { renderStore(); refreshDebug(); }
+  }
+  function closeStickerApply() {
+    // "Later"/✕ — leave the sticker(s) in inventory; the store "Apply Sticker"
+    // button stays available to finish applying them.
+    pendingApplyStickerId = null; selectedApplyCardId = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    el.stickerApplyModal.classList.add("hidden");
+    renderStore(); refreshDebug();
+  }
+
   /* Confirm buying the selected offered sticker (the only place it's bought).
      Empties just that slot; the rest of the offer stays. */
   function confirmBuySticker() {
@@ -17765,7 +17920,11 @@ const UIRenderer = (() => {
       try { Telem.purchase("sticker", id, st && st.label); Telem.flush(); } catch (e) {}
       selectedStickerSlot = null;
       Sound.purchase();
-      el.storeMsg.textContent = "Sticker bought — apply it during the next deal.";
+      el.storeMsg.textContent = "Sticker bought — pick a card to apply it.";
+      renderStore();
+      refreshDebug();
+      openStickerApply(id);   // apply immediately at buy (card picker → confirm)
+      return;
     }
     renderStore();
     refreshDebug();
@@ -18153,6 +18312,8 @@ const UIRenderer = (() => {
     closeTrashConfirm();
     closePackReveal();
     closePackReplace();
+    if (el.stickerApplyModal) el.stickerApplyModal.classList.add("hidden");
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
     updateBoardMotion();
