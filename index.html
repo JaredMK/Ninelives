@@ -1068,6 +1068,9 @@
   #network .lk { fill: var(--net); stroke: none; }
   #network .lk-bulge { fill: var(--net); }
   #network .pulse { fill: var(--net-dot); }
+  /* EVENT-DRIVEN firing signal: a bright, glowing dot that travels a link ONCE,
+     fired from the pile a correct card just landed on (opacity tweened in JS). */
+  #network .net-pulse { fill: var(--net-dot); filter: drop-shadow(0 0 3.5px var(--net-dot)); }
   /* a brand-new connection (a sightline that just opened) fades in */
   #network .edge.forming { animation: edgeForm 0.55s ease both; }
   @keyframes edgeForm { from { opacity: 0; } to { opacity: 1; } }
@@ -4855,7 +4858,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.37 · deck happy dance on deal clear";
+const APP_VERSION = "v3.38 · synapses fire event-driven on correct landing";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10751,7 +10754,9 @@ const UIRenderer = (() => {
   let debugOn = false;        // debug panel visible?
   const pileEls = [];         // cached .pile elements by index
   let networkEl = null;       // the per-board SVG connection layer (Phase 3)
-  let networkPulses = true;   // signal pulses on links (Phase 4)
+  let networkPulses = false;  // CONSTANT travelling pulses are OFF — signals are now
+                              // EVENT-DRIVEN: a one-shot pulse fires from a pile on a
+                              // correct landing (see firePulseFromPile). Idle = quiet.
   let lastNetKeys = new Set();// connection keys from the previous draw (fade-in new ones)
   let lastAliveCount = null;  // detect a death → sever-and-reform the network (Phase 5)
   let netEdges = [];          // [{a,b,lines,pulses}] — refs for the drift sync loop
@@ -14115,6 +14120,7 @@ const UIRenderer = (() => {
             }
             Sound.good();
             refreshNetwork(payload.board);
+            firePulseFromPile(payload.index);   // signal fires FROM this pile to its links
             if (compoundPay > 0) floatCoins(pileEl, compoundPay, "pile-float");   // was silent
           } else {
             // Wrong → the pile dies. Order: land/resolve → DEATH FLASH →
@@ -15324,6 +15330,45 @@ const UIRenderer = (() => {
     const refs = parseEdgeRefs(gEl);
     return { key, a: nodeA.i, b: nodeB.i, bow, diag, w, hasHalo: refs.paths.length >= 2, gEl,
       paths: refs.paths, bulges: refs.bulges, pulses: refs.pulses };
+  }
+
+  /* EVENT-DRIVEN SIGNAL: on a CORRECT landing, a bright dot fires FROM the landed
+     pile outward along each of its current links to the linked neighbour, then
+     fades. The static synapse network is otherwise quiet (no constant firing).
+     Self-contained rAF tween — recomputes live endpoints (base centre + this
+     frame's drift) each tick so the dot tracks the floating cards, and removes
+     itself when done. Skipped under reduced motion (the network stays still). */
+  function firePulseFromPile(index) {
+    if (prefersReduce() || !networkEl || !netBaseCenter || !edgeMap) return;
+    const PULSE_MS = 520;
+    const now0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    for (const rec of edgeMap.values()) {
+      if (rec.a !== index && rec.b !== index) continue;
+      const fromA = rec.a === index;            // walk from the landed pile → its neighbour
+      const aIdx = rec.a, bIdx = rec.b, bow = rec.bow;
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("class", "net-pulse");
+      dot.setAttribute("r", "3.4");
+      networkEl.appendChild(dot);
+      const tick = (t) => {
+        const ca = netBaseCenter[aIdx], cb = netBaseCenter[bIdx];
+        if (!ca || !cb || !dot.isConnected || !networkEl) { if (dot.parentNode) dot.remove(); return; }
+        const oa = driftOffCache[aIdx] || DRIFT_ZERO, ob = driftOffCache[bIdx] || DRIFT_ZERO;
+        const ax = ca.x + oa.x, ay = ca.y + oa.y, bx = cb.x + ob.x, by = cb.y + ob.y;
+        const c = synapseControl(ax, ay, bx, by, bow);
+        const p = Math.min(1, (t - now0) / PULSE_MS);
+        const tt = fromA ? p : 1 - p;           // travel from the landed end toward the other
+        const pt = bezPt(ax, ay, c, bx, by, tt);
+        dot.setAttribute("cx", pt.x.toFixed(1));
+        dot.setAttribute("cy", pt.y.toFixed(1));
+        // quick brighten in, hold, fade out over the last third
+        const op = p < 0.15 ? p / 0.15 : (p > 0.66 ? Math.max(0, (1 - p) / 0.34) : 1);
+        dot.setAttribute("opacity", op.toFixed(2));
+        if (p >= 1) { dot.remove(); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
   }
   /* Mutate an existing edge's STRENGTH-derived attributes in place (no element
      churn). Positions are set separately by applyEdge. Uses the SAME edgeScalars
