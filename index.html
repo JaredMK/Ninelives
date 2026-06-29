@@ -4238,13 +4238,10 @@
          can still write to it without consuming vertical space). -->
     <div class="hint" id="hint" aria-hidden="true">Tap a pile to begin.</div>
 
-    <!-- Control row (FIXED height): in setup it holds Start Deal (+ Redeal) and
-         the placement launcher / armed-item bar; in play the guess buttons — all
-         mutually exclusive and clipped to a constant height, so the board has the
-         SAME size/position in setup and play (no reflow at Start). -->
+    <!-- Control row (FIXED height): in play it holds the guess buttons. Entering a
+         deal now goes straight into play (#4) — there's no setup-confirm step, so the
+         former Start Deal button and the pre-run Redeal button are both gone. -->
     <div class="play-controls" id="playControls">
-      <button class="play-btn start-run hidden" id="startRunBtn" type="button">START DEAL</button>
-      <button class="play-btn redeal hidden" id="redealBtn" type="button">REDEAL</button>
       <button class="place-launcher hidden" id="placeLauncher" type="button">
         <span class="pl-ico">▲</span><span class="pl-label">Place</span><span class="pl-n" id="placeLauncherN">0</span>
       </button>
@@ -4548,19 +4545,8 @@
     </div>
   </div>
 
-  <!-- Redeal confirmation — reshuffles the WHOLE deck and deals a fresh
-       starting board. Applied stickers/replacements ride with the deck. Only
-       prompted once a sticker/replacement was applied this phase (otherwise the
-       redeal fires immediately). -->
-  <div class="confirm-overlay hidden" id="redealConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="redealConfirmMsg">Redeal?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="redealCancelBtn" type="button">Cancel</button>
-        <button class="confirm-danger" id="redealOkBtn" type="button">Redeal</button>
-      </div>
-    </div>
-  </div>
+  <!-- (Redeal confirmation removed in #4 — entering a deal goes straight to play,
+       so there's no pre-deal setup window to host the paid reshuffle.) -->
 
   <!-- Trash-Pillar confirmation — destroys the column's Pillar permanently
        (no refund, no return to inventory). Guards against an accidental tap. -->
@@ -4830,7 +4816,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.49 · store: single deck + Same-Power equip prompt";
+const APP_VERSION = "v3.50 · deals start straight into play (no Start Deal/Redeal)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10579,8 +10565,6 @@ const UIRenderer = (() => {
     btnLower: document.getElementById("btnLower"),
     cardInfo: document.getElementById("cardInfo"),
     cardInfoPanel: document.getElementById("cardInfoPanel"),
-    startRunBtn: document.getElementById("startRunBtn"),
-    redealBtn: document.getElementById("redealBtn"),
     hint: document.getElementById("hint"),
     overlay: document.getElementById("overlay"),
     lossFossils: document.getElementById("lossFossils"),
@@ -10665,10 +10649,6 @@ const UIRenderer = (() => {
     actionNoBtn: document.getElementById("actionNoBtn"),
     buryYesBtn: document.getElementById("buryYesBtn"),
     buryNoBtn: document.getElementById("buryNoBtn"),
-    redealConfirm: document.getElementById("redealConfirm"),
-    redealConfirmMsg: document.getElementById("redealConfirmMsg"),
-    redealCancelBtn: document.getElementById("redealCancelBtn"),
-    redealOkBtn: document.getElementById("redealOkBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     mapOverlay: document.getElementById("mapOverlay"),
@@ -11771,7 +11751,7 @@ const UIRenderer = (() => {
     // the player sees where Pillars go before placing any.
     el.board.classList.add("show-slots");
     fitBoard();
-    el.startRunBtn.classList.remove("hidden");
+    if (el.startRunBtn) el.startRunBtn.classList.remove("hidden");   // #4: button removed → null-guarded
     renderSetupInv();                         // builds the drag-from-list placement dock
     renderRedealBtn();                        // pre-run reshuffle button + price
     const hasStickers = campaign && Object.values(campaign.getInventory()).some(n => n > 0);
@@ -11782,7 +11762,7 @@ const UIRenderer = (() => {
   }
 
   function showActivePhase() {
-    el.startRunBtn.classList.add("hidden");
+    if (el.startRunBtn) el.startRunBtn.classList.add("hidden");   // #4: button removed → null-guarded
     // Active play: collapse the (usually empty) control row so the board fills
     // down to the bottom control strip; the activation prompt overlays the strip
     // when it fires (see body.play-active CSS).
@@ -11814,60 +11794,11 @@ const UIRenderer = (() => {
     fitBoard();
   }
 
-  /* ---- redeal (pre-run reshuffle) ----
-     Shown only during the pre-run window. Reshuffles the WHOLE deck into a
-     fresh starting board (new top card on every pile). Rule B: applied
-     stickers/replacements stay on their cards — the redeal re-snapshots the
-     current campaign deck (via startRun's engine recreation), so applications
-     ride into the new shuffle and are never lost. Cost rises 5→6→7… per redeal
-     this phase; disabled/greyed when unaffordable. */
-  function renderRedealBtn() {
-    if (!el.redealBtn) return;
-    const open = engine && engine.canApplyStickers();
-    if (!open) { el.redealBtn.classList.add("hidden"); return; }
-    el.redealBtn.classList.remove("hidden");
-    const coins = campaign ? campaign.getCoins() : 0;
-    const afford = coins >= redealCost;
-    el.redealBtn.disabled = !afford;
-    el.redealBtn.innerHTML = "REDEAL · " + redealCost + " " + COIN_SVG;
-    el.redealBtn.title = afford
-      ? "Reshuffle the whole deck for " + redealCost + " coins (applied stickers stay)."
-      : "Need " + redealCost + " coins to redeal (you have " + coins + ").";
-  }
-
-  function requestRedeal() {
-    if (!engine || !engine.canApplyStickers()) return;
-    if (!campaign || campaign.getCoins() < redealCost) return;
-    // Warn before reshuffling on top of work already done this phase. The
-    // applications themselves are kept (Rule B) — only the starting board is
-    // re-rolled — but the prompt makes that explicit so it isn't a surprise.
-    if (appliedThisPhase) {
-      el.redealConfirmMsg.textContent =
-        "Redeal for " + redealCost + " coins? Your applied stickers stay on their "
-        + "cards. Only the starting board is reshuffled.";
-      el.redealConfirm.classList.remove("hidden");
-      return;
-    }
-    doRedeal();
-  }
-
-  function closeRedealConfirm() { el.redealConfirm.classList.add("hidden"); }
-
-  function doRedeal() {
-    closeRedealConfirm();
-    if (!engine || !engine.canApplyStickers()) return;
-    if (!campaign || !campaign.spendCoins(redealCost)) return;
-    engine.logAction("Redeal", ["Reshuffled the deck for " + redealCost + " coins"]);
-    redealCost += REDEAL_STEP;                // next redeal this phase costs more
-    appliedThisPhase = false;                 // fresh board; nothing applied to it yet
-    updateStageRun();                         // reflect the coin spend in the HUD
-    // Re-deal from the CURRENT campaign deck with a fresh RANDOM seed. startRun()
-    // rebuilds the engine off campaign.getRunDeck(), so any stickers/replacements
-    // applied so far are baked into the new shuffle (Rule B), and a brand-new
-    // seed genuinely re-randomizes draw order. Pass redealCost through so the
-    // re-deal persists the escalated price (no reset via the new "dealt" event).
-    startRun(undefined, redealCost);
-  }
+  /* (#4: the pre-run Redeal — renderRedealBtn/requestRedeal/doRedeal — was removed
+     along with the setup-confirm step. Entering a deal now goes straight into play,
+     so there's no pre-run window in which to offer a paid reshuffle. The redealCost
+     state + startRun's redealCostOverride param are kept inert for save compat.) */
+  function renderRedealBtn() { /* removed in #4 — no-op (no pre-run window) */ }
 
   function startRunUI() {
     // Lock in the current column→Pillar, column→Base, and equipped Same-Power as
@@ -13054,14 +12985,8 @@ const UIRenderer = (() => {
     if (el.actionNoBtn) el.actionNoBtn.addEventListener("click", () => answerAction(false));
     // Kamikaze look-ahead dismiss.
 
-    // Start Run: ends the sticker phase and begins active play.
-    el.startRunBtn.addEventListener("click", startRunUI);
-
-    // Redeal: pay to reshuffle the whole deck into a fresh pre-run board.
-    el.redealBtn.addEventListener("click", requestRedeal);
-    el.redealCancelBtn.addEventListener("click", closeRedealConfirm);
-    el.redealOkBtn.addEventListener("click", doRedeal);
-    // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
+    // (#4: Start Deal + Redeal buttons removed — entering a deal goes straight into
+    // play via startRunUI() in the "dealt" handler, with no pre-run setup window.)
 
     // Deck composition histogram (left rail): drag to scrub higher/same/lower.
     // Capture the pointer on press so move events keep flowing once the finger
@@ -13722,7 +13647,12 @@ const UIRenderer = (() => {
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
         setScreenNav(true, true, false);   // menu + inventory; no map button in-game
-        showStickerPhase();   // Start Run button + sticker tray; guess buttons hidden
+        // #4: items are no longer placed at deal setup, so there's no setup-confirm
+        // step. Lay the board out, then begin active play immediately (no Start Deal
+        // button). showActivePhase fires synchronously via the run-started event, so
+        // the brief setup look never paints.
+        showStickerPhase();
+        startRunUI();
         lastAliveCount = payload.board.aliveCount();
         renderNetwork();
         // Redraw once the staggered deal-in settles so links align to the
