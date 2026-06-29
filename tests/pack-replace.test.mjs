@@ -50,6 +50,12 @@ export function run() {
     r.ok(boardTop.tieSafe, "board top carries the pack card's Tie-Safe flag (toCard projected it)");
     // 4) pack card removed from the tray on success
     r.eq(c.packTrayCount(), 0, "pack card left the tray after the swap");
+    // 4b) the OWNED set follows the swap so the deck VIEW matches the COUNT (#1):
+    // deckSize() (ownedIds) and getRunDeck() (baseDeck ∩ ownedIds) must agree, and
+    // the inserted card must be visible while the old one is gone.
+    r.eq(c.getRunDeck().length, c.deckSize(), "deck view (getRunDeck) matches the count (deckSize) after a swap");
+    r.ok(c.getRunDeck().some(x => x.id === pack.id), "swapped-in card appears in the deck view");
+    r.ok(!c.getRunDeck().some(x => x.id === dealtId), "swapped-out card is gone from the deck view");
 
     // 5) persisted: a serialize/restore round-trip keeps the replacement
     const wire = JSON.parse(JSON.stringify(c.serialize()));

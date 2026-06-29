@@ -4835,7 +4835,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.47 · remove the inventory + setup dock entirely";
+const APP_VERSION = "v3.48 · fix swapped-in card missing from deck view";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9941,6 +9941,14 @@ const CampaignState = (() => {
         const packCard = packTray.splice(trayIndex, 1)[0];
         baseDeck.splice(di, 1);          // remove the replaced identity (+ its stickers) forever
         baseDeck.push(packCard);         // deck stays 52
+        // BUGFIX (#1): the OWNED set (which drives both deckSize and the deck VIEW
+        // via getRunDeck) must follow the swap too — replace the removed id with the
+        // new card's id IN PLACE. Otherwise the count (ownedIds.length) stays right
+        // while getRunDeck() — baseDeck ∩ ownedIds — drops the old slot and excludes
+        // the new card, so the viewer shows one fewer than the count.
+        const oi = ownedIds.indexOf(dealtId);
+        if (oi !== -1) ownedIds[oi] = packCard.id;
+        else ownedIds.push(packCard.id);   // (dealt card wasn't owned — still own the new one)
         return packCard;
       },
 
