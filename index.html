@@ -2196,7 +2196,6 @@
   .store-actions { display: flex; gap: 9px; align-items: stretch; }
   .store-actions .store-view-btn { flex: 0 0 auto; padding: 9px 14px; }
   /* The store deck character sits at the action row's left, tappable like in a deal. */
-  .store-actions .store-deckchar { flex: 0 0 auto; align-self: center; }
   .play-btn.store-start { flex: 1; margin: 0; padding: 11px 18px; font-size: 15px; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
@@ -4489,15 +4488,11 @@
       <!-- Inventory now lives in the global top-right button; the store keeps the
            Cards (deck) view inline with Start to save a whole row. -->
       <div class="store-actions">
-        <!-- The deck CHARACTER is interactive here just like in a deal: TAP to see
-             all your cards (same deck-view UI), HOLD for a quick peek. -->
-        <div class="deck-stack store-deckchar" id="storeDeckStat" role="button" tabindex="0"
-             title="Tap to see all your cards · hold for a quick peek" aria-label="View your cards">
-          <span class="deck-pile"><span class="deck-char" id="storeDeckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="deck-count"><b id="storeDeckCount">0</b><span class="ds-lbl">cards</span></span></span></span></span>
-        </div>
-        <!-- Shown only when stickers are waiting to be applied (a "Later" or a
-             pack-revealed sticker): re-opens the apply picker. -->
-        <button class="store-apply-btn hidden" id="storeApplyStickersBtn" type="button">Apply Sticker<span id="storeApplyStickersN"></span></button>
+        <!-- The deck is viewed via the TOP-RIGHT HUD deck character (tap/hold), so
+             no second deck lives here. -->
+        <!-- Shown only when items are waiting to be placed (a "Later" or a
+             pack-revealed item): re-opens the placement queue. -->
+        <button class="store-apply-btn hidden" id="storeApplyStickersBtn" type="button">Place item<span id="storeApplyStickersN"></span></button>
         <button class="play-btn store-start" id="storeStartBtn" type="button">GO TO MAP</button>
       </div>
     </div>
@@ -4835,7 +4830,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.48 · fix swapped-in card missing from deck view";
+const APP_VERSION = "v3.49 · store: single deck + Same-Power equip prompt";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10688,8 +10683,6 @@ const UIRenderer = (() => {
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
     fossilDetailArt: document.getElementById("fossilDetailArt"),
     fossilDetailSub: document.getElementById("fossilDetailSub"),
-    storeDeckStat: document.getElementById("storeDeckStat"),   // store deck character (tap → deck view)
-    storeDeckCount: document.getElementById("storeDeckCount"),
     storeApplyStickersBtn: document.getElementById("storeApplyStickersBtn"),
     storeApplyStickersN: document.getElementById("storeApplyStickersN"),
     stickerApplyModal: document.getElementById("stickerApplyModal"),   // buy-time sticker apply picker
@@ -13196,7 +13189,6 @@ const UIRenderer = (() => {
     el.rerollBtn.addEventListener("click", rerollUI);
     // Store view buttons: owned inventory + the deck overview (both modal).
     // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
-    if (el.storeDeckStat) DeckInspector.attach(el.storeDeckStat);
     // Place-on-acquire pickers: the store "Place" button resumes any pending item.
     if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => continuePendingPlacement());
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
@@ -13212,7 +13204,10 @@ const UIRenderer = (() => {
     if (el.itemPlaceModal) el.itemPlaceModal.addEventListener("click", (e) => { if (e.target === el.itemPlaceModal) closeItemPlace(); });
     if (el.ipColumns) el.ipColumns.addEventListener("click", (e) => { const c = e.target.closest(".ip-col"); if (c) selectPlaceColumn(Number(c.dataset.col)); });
     if (el.ipPlace) el.ipPlace.addEventListener("click", confirmItemPlace);
-    if (el.ipBack) el.ipBack.addEventListener("click", () => { selectedPlaceCol = null; if (el.ipConfirm) el.ipConfirm.classList.add("hidden"); renderPlaceColumns(); });
+    if (el.ipBack) el.ipBack.addEventListener("click", () => {
+      if (pendingPlaceKind === "samepower") return closeItemPlace();   // no column grid to fall back to
+      selectedPlaceCol = null; if (el.ipConfirm) el.ipConfirm.classList.add("hidden"); renderPlaceColumns();
+    });
     if (el.postDealPlaceBtn) el.postDealPlaceBtn.addEventListener("click", startPostDealPlacement);
     el.storeStartBtn.addEventListener("click", () => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
@@ -17131,12 +17126,7 @@ const UIRenderer = (() => {
     // so the top HUD badge and the "to spend" counter can never drift apart.
     el.storeCoins.textContent = campaign.getCoins();
     updateStageRun();   // refresh the top HUD Stage·Run badge + dopamine counter
-    // Store deck character: show the full accumulated deck size + the phase suit
-    // wash, so tapping it opens the deck view onto the player's whole deck.
-    if (el.storeDeckCount) el.storeDeckCount.textContent = campaign.deckSize();
-    const sdc = document.getElementById("storeDeckChar");
-    if (sdc) { sdc.classList.remove("dc-d", "dc-c", "dc-s", "dc-h");
-      sdc.classList.add("dc-" + (SUIT_CLASS[campaign.phaseSuit()] || "d")); }
+    // (The deck is viewed via the TOP-RIGHT HUD deck character; no store-local one.)
     // "Place item(s)" button — shown only when items are waiting to be placed (a
     // "Later", a pack-revealed sticker, or a displaced item); resumes the queue.
     if (el.storeApplyStickersBtn) {
@@ -17645,19 +17635,7 @@ const UIRenderer = (() => {
     if (item.kind === "card") return openCardSwap(item.index);
     if (item.kind === "sticker") return openStickerApply(item.id);
     if (item.kind === "pillar" || item.kind === "base") return openItemPlace(item.kind, item.id);
-    if (item.kind === "samepower") {
-      // ONE global slot: equip the new power; any displaced one is SOLD (coins back)
-      // so nothing is ever left held.
-      const prev = campaign.getSamePower && campaign.getSamePower();
-      campaign.equipSamePower(item.id);
-      if (prev && prev !== item.id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
-      const t = SamePowerTypes.get(item.id);
-      if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || item.id));
-      el.storeMsg && (el.storeMsg.textContent = ((t && t.label) || "Same-Power") + " equipped to the Same button.");
-      persistCampaign("equip-samepower");
-      updateSamePowerHud();
-      return continuePendingPlacement();   // chain to the next pending item
-    }
+    if (item.kind === "samepower") return openSamePowerEquip(item.id);
   }
   function continuePendingPlacement() { placePendingItem(nextPendingItem()); }
 
@@ -17734,7 +17712,48 @@ const UIRenderer = (() => {
       : "Place <b>" + escHtml((t && t.label) || "") + "</b> on column " + (col + 1) + "?";
     if (el.ipConfirm) el.ipConfirm.classList.remove("hidden");
   }
+  /* Same-Power has ONE global slot (the Same button), not a column — so it reuses
+     this same place-modal but with no column grid: the banner shows the power, and
+     the confirm bar is armed immediately with a single "Equip" action. */
+  function openSamePowerEquip(id) {
+    const t = SamePowerTypes.get(id);
+    if (!t) return continuePendingPlacement();
+    pendingPlaceKind = "samepower"; pendingPlaceId = id; selectedPlaceCol = null;
+    if (el.ipHead) el.ipHead.textContent = "Equip " + t.label;
+    if (el.ipBanner) el.ipBanner.innerHTML =
+      '<span class="ip-art">' + samePowerBadgeHtml(t) + "</span>" +
+      '<span class="sa-name">' + escHtml(t.label) + "</span>" +
+      '<span class="sa-desc">' + escHtml(t.description || "") + "</span>";
+    if (el.ipHint) el.ipHint.textContent = "This Same-Power fits the Same (=) button.";
+    if (el.ipColumns) el.ipColumns.innerHTML = "";   // no column grid — one global slot
+    const prev = campaign.getSamePower && campaign.getSamePower();
+    const old = prev ? SamePowerTypes.get(prev) : null;
+    if (el.ipConfirmMsg) el.ipConfirmMsg.innerHTML = old
+      ? "Replace <b>" + escHtml(old.label) + "</b> on the Same button with <b>" + escHtml(t.label) + "</b>? (the old one sells for " + COIN_SVG + " " + sellValueOf(old) + ")"
+      : "Equip <b>" + escHtml(t.label) + "</b> to the Same (=) button?";
+    if (el.ipPlace) el.ipPlace.textContent = "Equip";
+    if (el.ipConfirm) el.ipConfirm.classList.remove("hidden");
+    el.itemPlaceModal.classList.remove("hidden");
+  }
+  function confirmSamePowerEquip() {
+    const id = pendingPlaceId;
+    const prev = campaign.getSamePower && campaign.getSamePower();
+    campaign.equipSamePower(id);
+    if (prev && prev !== id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
+    const t = SamePowerTypes.get(id);
+    if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || id));
+    el.storeMsg && (el.storeMsg.textContent = ((t && t.label) || "Same-Power") + " equipped to the Same button.");
+    Sound.purchase();
+    persistCampaign("equip-samepower");
+    updateSamePowerHud();
+    el.itemPlaceModal.classList.add("hidden");
+    pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
+    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    if (el.ipPlace) el.ipPlace.textContent = "Place";   // restore the pillar/base label
+    continuePendingPlacement();
+  }
   function confirmItemPlace() {
+    if (pendingPlaceKind === "samepower") return confirmSamePowerEquip();
     if (selectedPlaceCol == null || !pendingPlaceId) return;
     const col = selectedPlaceCol, kind = pendingPlaceKind, id = pendingPlaceId;
     const reg = kind === "pillar" ? PillarTypes : BaseTypes;
@@ -17757,6 +17776,7 @@ const UIRenderer = (() => {
   function closeItemPlace() {
     pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
     if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    if (el.ipPlace) el.ipPlace.textContent = "Place";   // restore label (samepower equip sets "Equip")
     el.itemPlaceModal.classList.add("hidden");
     (onPlacementQueueEmpty || defaultPlacementEmpty)();
   }
