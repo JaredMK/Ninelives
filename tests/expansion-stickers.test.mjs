@@ -153,6 +153,17 @@ export function run() {
     const e3 = game();   // no bases bound → empty base slots
     land(e3, 0, ["baseScout"]);
     r.ok(e3.getRun().revealNextActive, "Base Scout peeks when a base slot is empty");
+
+    // BUGFIX: the peek gates on the LANDING column only, not the whole board.
+    // Pillar on col 0 only; landing a Scout on col 0 (occupied) must NOT peek even
+    // though cols 1 & 2 are empty (the old board-wide check wrongly peeked here).
+    const e4 = game(["columnGuardian", null, null]);
+    land(e4, 0, ["pillarScout"]);                 // pile 0 → col 0 (has a pillar)
+    r.ok(!e4.getRun().revealNextActive, "Pillar Scout does NOT peek when the LANDING column has a pillar (other columns empty)");
+    // Same single pillar on col 0; landing on col 1 (empty) DOES peek.
+    const e5 = game(["columnGuardian", null, null]);
+    land(e5, 3, ["pillarScout"]);                 // pile 3 → col 1 (empty)
+    r.ok(e5.getRun().revealNextActive, "Pillar Scout peeks when the LANDING column is empty (even with a pillar elsewhere)");
   }
 
   // ---- Momentum (per-card X, like Snowball): pays X then X++, reset on wrong ----

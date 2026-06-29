@@ -1,8 +1,9 @@
 // Tell — a partial-information sticker. When the stickered card lands correctly
-// and becomes the pile card, it arms a DIRECTIONAL hint for that pile's NEXT
-// draw: higher / lower / same vs the pile card. Display-only (engine.pileHint is
-// a pure peek — never changes draw order/RNG), correctly reports "same" on a tie,
-// and clears the moment that pile is next drawn.
+// and becomes the pile card, it arms a DIRECTIONAL hint for the NEXT drawn card:
+// higher / lower / same vs the pile card. Display-only (engine.pileHint is a pure
+// peek — never changes draw order/RNG), correctly reports "same" on a tie, and is
+// a strict ONE-FLIP one-shot: the next draw on ANY pile consumes the predicted
+// next card, so it clears then (not only when its own pile is drawn).
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -71,6 +72,20 @@ export function run() {
     e.debug.setNextCard(2);                       // a plain 2 (no stickers)
     e.guess(0, "lower");                          // 2 < 9 → correct, lands a non-Tell card
     r.eq(e.pileHint(0), null, "hint cleared after the next draw on that pile (non-Tell card)");
+  }
+
+  // --- one-flip: a draw on a DIFFERENT pile also clears the hint ----------
+  {
+    // The hint predicts the deck's single NEXT card; drawing it on ANY pile spends
+    // it, so a Tell armed on pile 0 must clear after a draw on pile 1 (no lingering
+    // re-prediction across other-pile flips).
+    const e = armTell(5, 9, "higher");
+    e.debug.setNextCard(11);
+    r.eq(e.pileHint(0), "higher", "Tell armed on pile 0");
+    e.getBoard().top(1).value = 5;
+    e.debug.setNextCard(2);                       // a plain 2 (no stickers)
+    e.guess(1, "lower");                          // draw on a DIFFERENT pile (1)
+    r.eq(e.pileHint(0), null, "hint on pile 0 cleared by a flip on pile 1 (one-flip one-shot)");
   }
 
   // --- "same" landing (a correct Same guess) also arms correctly --------

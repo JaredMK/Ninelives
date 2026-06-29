@@ -4841,7 +4841,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.33 · store node inserted after D1 (D1 → store → D2 forks)";
+const APP_VERSION = "v3.34 · fix Pillar Scout (per-column) + Tell one-flip";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5272,7 +5272,7 @@ const StickerTypes = (() => {
     momentum:   { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", tier: "rare", price: 3,
                   description: "Trigger: A correct placement\nEffect: Earn X coins. X starts at 0 and grows by 1 each correct placement (persists across deals); a wrong placement resets it to 0" },
     tell:       { id: "tell",       label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 2,
-                  description: "When this lands correctly and becomes the pile card, hint that pile's NEXT drawn card: higher, lower, or same as this pile card. Direction only — not the card. Lasts one draw on that pile." },
+                  description: "When this lands correctly and becomes the pile card, hint the next drawn card vs this pile card: higher, lower, or same. Direction only — not the card. Lasts exactly one draw (the next flip)." },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -7144,8 +7144,11 @@ const GameEngine = (() => {
         if (targets.length) { firePillar(col, "twinSpark", "Twin Spark", 0); recT("sticker", "twinSpark", "Twin Spark", { applied: targets.length }); }
       }
       // --- scouts (peek at the next upcoming card; deck-reveal treatment) ---
-      const emptyPillarSlot = run.pillars ? run.pillars.some(p => !p) : false;
-      const emptyBaseSlot = run.bases ? run.bases.some(b => !b) : false;
+      // BUGFIX: only peek while THIS column (where the card just landed) has no
+      // Pillar/Base — not whenever ANY column is empty. run.pillars/bases are
+      // indexed by column, so check the current `col` slot, not the whole array.
+      const emptyPillarSlot = (run.pillars && col != null) ? !run.pillars[col] : false;
+      const emptyBaseSlot = (run.bases && col != null) ? !run.bases[col] : false;
       const psPeek = n("pillarScout") > 0 && emptyPillarSlot;
       const bsPeek = n("baseScout") > 0 && emptyBaseSlot;
       if (psPeek || bsPeek) {
@@ -8123,9 +8126,12 @@ const GameEngine = (() => {
       // Scout: drawing this card consumes any active reveal (the revealed card has
       // now been played). It may be re-armed below if a Scout card lands.
       run.revealNextActive = false;
-      // Tell: this draw IS the "next draw on this pile" the hint was for — consume
-      // it (re-armed below only if the landing card carries Tell).
-      if (run.tellPiles) run.tellPiles.delete(index);
+      // Tell: a flip consumes the deck's NEXT card — the very card every armed Tell
+      // hint predicts (pileHint reads deck.peek(1)). So ONE draw on ANY pile spends
+      // every active hint (BUGFIX: was deleting only THIS pile, so a hint armed on
+      // pile A lingered and re-predicted while you drew elsewhere). A Tell card
+      // landing THIS guess re-arms its own pile below — a fresh one-shot.
+      if (run.tellPiles) run.tellPiles.clear();
       // Kamikaze deck-reveal counts down one per draw; after the 3rd the deck
       // returns to its normal hidden state (display-only — no order change).
       if (run.kamikazeRevealLeft > 0) run.kamikazeRevealLeft -= 1;
