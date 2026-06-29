@@ -3278,7 +3278,17 @@
   .sa-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 8px; }
   .sa-banner .sa-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--accent-2); }
   .sa-banner .sa-desc { flex-basis: 100%; font-size: 11.5px; line-height: 1.35; color: var(--muted); white-space: pre-line; }
+  .sa-banner .ip-art { display: inline-flex; align-items: center; }
   .sa-cards { max-height: 50vh; }
+  /* Pillar/Base column picker (place-on-purchase). */
+  .ip-columns { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
+  .ip-col { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--panel); border: 1.5px solid var(--edge-2); border-radius: 12px; padding: 13px 14px;
+    cursor: pointer; touch-action: manipulation; }
+  .ip-col:active { transform: scale(0.99); }
+  .ip-col.ip-selected { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .ip-col-n { font-weight: 800; font-size: 14px; color: var(--text); }
+  .ip-col-occ { font-size: 12px; color: var(--muted); }
   .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex; }
   .sa-card .mini-card { transition: transform 0.08s ease; }
   .sa-card:active .mini-card { transform: scale(0.95); }
@@ -4792,6 +4802,27 @@
     </div>
   </div>
 
+  <!-- ITEM PLACE picker: buying a Pillar/Base opens this — tap a COLUMN to place
+       it (Section 1, place-on-purchase). Replaces the setup-dock placement. -->
+  <div class="deck-modal hidden" id="itemPlaceModal">
+    <div class="deck-modal-panel">
+      <div class="deck-modal-head">
+        <span id="ipHead">Place item</span>
+        <button class="deck-modal-close" id="ipClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="sa-banner" id="ipBanner"></div>
+      <div class="deck-modal-total" id="ipHint">Tap a column to place this.</div>
+      <div class="ip-columns" id="ipColumns"></div>
+    </div>
+    <div class="sa-confirm hidden" id="ipConfirm">
+      <div class="sa-confirm-msg" id="ipConfirmMsg"></div>
+      <div class="sa-confirm-btns">
+        <button class="sa-back" id="ipBack" type="button">Back</button>
+        <button class="sa-apply" id="ipPlace" type="button">Place</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Deck inspection: lightweight quick peek (press & hold) -->
   <div class="deck-quick hidden" id="deckQuick">
     <div class="deck-quick-total" id="deckQuickTotal"></div>
@@ -4929,7 +4960,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.44 · hold-for-help on cards in the card viewer";
+const APP_VERSION = "v3.45 · place-on-purchase for pillars/bases/same-powers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10794,6 +10825,16 @@ const UIRenderer = (() => {
     saConfirmMsg: document.getElementById("saConfirmMsg"),
     saBack: document.getElementById("saBack"),
     saApply: document.getElementById("saApply"),
+    itemPlaceModal: document.getElementById("itemPlaceModal"),   // pillar/base buy-time column picker
+    ipHead: document.getElementById("ipHead"),
+    ipClose: document.getElementById("ipClose"),
+    ipBanner: document.getElementById("ipBanner"),
+    ipHint: document.getElementById("ipHint"),
+    ipColumns: document.getElementById("ipColumns"),
+    ipConfirm: document.getElementById("ipConfirm"),
+    ipConfirmMsg: document.getElementById("ipConfirmMsg"),
+    ipBack: document.getElementById("ipBack"),
+    ipPlace: document.getElementById("ipPlace"),
     invPopup: document.getElementById("invPopup"),
     invBody: document.getElementById("invBody"),
     invClose: document.getElementById("invClose"),
@@ -12206,15 +12247,10 @@ const UIRenderer = (() => {
     const tray = campaign ? campaign.getPackTray() : [];
     let html = "";
     // Cards (deck-replacement picks) — drag onto a pile to swap that card in.
+    // EVERYTHING ELSE places at ACQUIRE-time now (stickers/pillars/bases/Same-Power
+    // are placed in the store at purchase, or on the post-deal screen for mid-deal
+    // gains), so nothing else appears in this dock.
     tray.forEach((card, i) => { html += invPackChipHtml(card, i, false, true); });
-    // Stickers are NO LONGER placed here — they apply at BUY-time via the store
-    // card picker (Section 3). Only pillars/bases/Same-Power place during setup.
-    // Pillars — drag onto a column's pillar slot.
-    PillarTypes.all().forEach(t => { if ((pinv[t.id] || 0) > 0) html += invPillarChipHtml(t, pinv[t.id], false); });
-    // Bases — drag onto a column's base slot.
-    BaseTypes.all().forEach(t => { if ((binv[t.id] || 0) > 0) html += invBaseChipHtml(t, binv[t.id], false); });
-    // Same-Powers — drag onto the Same-Power slot (the HUD chip).
-    SamePowerTypes.all().forEach(t => { if ((spinv[t.id] || 0) > 0) html += invSamePowerChipHtml(t, "×" + spinv[t.id], false); });
     el.placeDockList.innerHTML = html;
     const empty = html === "";
     if (el.placeDockEmpty) el.placeDockEmpty.classList.add("hidden");
@@ -12237,10 +12273,8 @@ const UIRenderer = (() => {
   const DOCK_SCROLL_SLOP = 6;   // horizontal px that means "scrolling" → abandon pick-up
   function dockItemFromChip(chip) {
     if (!chip) return null;
-    // (Stickers are applied at buy-time now — they never appear in the dock.)
-    if (chip.dataset.pillar != null) return { kind: "pillar", id: chip.dataset.pillar };
-    if (chip.dataset.base != null) return { kind: "base", id: chip.dataset.base };
-    if (chip.dataset.samepower != null) return { kind: "samepower", id: chip.dataset.samepower };
+    // Only deck-replacement pack cards remain in the dock — stickers/pillars/bases/
+    // Same-Power all place at acquire-time now (no setup placement for them).
     if (chip.dataset.tray != null) return { kind: "card", index: Number(chip.dataset.tray) };
     return null;
   }
@@ -13568,8 +13602,8 @@ const UIRenderer = (() => {
     if (el.storeInvBtn) el.storeInvBtn.addEventListener("click", openInvPopup);
     // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
     if (el.storeDeckStat) DeckInspector.attach(el.storeDeckStat);
-    // Buy-time sticker apply picker (Section 3) — open / pick a card / confirm.
-    if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => { const id = firstPendingStickerId(); if (id) openStickerApply(id); });
+    // Place-on-acquire pickers: the store "Place" button resumes any pending item.
+    if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => continuePendingPlacement());
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
     if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
     // Sticker picker cards: TAP = select to apply, HOLD = the card's sticker help.
@@ -13578,6 +13612,12 @@ const UIRenderer = (() => {
     if (el.deckBreakdown) attachCardHoldHelp(el.deckBreakdown);
     if (el.saApply) el.saApply.addEventListener("click", confirmApplySticker);
     if (el.saBack) el.saBack.addEventListener("click", () => { selectedApplyCardId = null; if (el.saConfirm) el.saConfirm.classList.add("hidden"); renderStickerApplyCards(); });
+    // Pillar/Base column picker handlers.
+    if (el.ipClose) el.ipClose.addEventListener("click", closeItemPlace);
+    if (el.itemPlaceModal) el.itemPlaceModal.addEventListener("click", (e) => { if (e.target === el.itemPlaceModal) closeItemPlace(); });
+    if (el.ipColumns) el.ipColumns.addEventListener("click", (e) => { const c = e.target.closest(".ip-col"); if (c) selectPlaceColumn(Number(c.dataset.col)); });
+    if (el.ipPlace) el.ipPlace.addEventListener("click", confirmItemPlace);
+    if (el.ipBack) el.ipBack.addEventListener("click", () => { selectedPlaceCol = null; if (el.ipConfirm) el.ipConfirm.classList.add("hidden"); renderPlaceColumns(); });
     el.storeStartBtn.addEventListener("click", () => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
@@ -17521,11 +17561,12 @@ const UIRenderer = (() => {
     const sdc = document.getElementById("storeDeckChar");
     if (sdc) { sdc.classList.remove("dc-d", "dc-c", "dc-s", "dc-h");
       sdc.classList.add("dc-" + (SUIT_CLASS[campaign.phaseSuit()] || "d")); }
-    // "Apply Sticker(s)" button — shown only when stickers are waiting (a "Later"
-    // or a pack-revealed sticker); reopens the apply picker.
+    // "Place item(s)" button — shown only when items are waiting to be placed (a
+    // "Later", a pack-revealed sticker, or a displaced item); resumes the queue.
     if (el.storeApplyStickersBtn) {
-      const n = pendingStickerCount();
+      const n = pendingPlaceTotal();
       el.storeApplyStickersBtn.classList.toggle("hidden", n <= 0);
+      el.storeApplyStickersBtn.firstChild && (el.storeApplyStickersBtn.childNodes[0].nodeValue = "Place item");
       if (el.storeApplyStickersN) el.storeApplyStickersN.textContent = n > 1 ? "s (" + n + ")" : "";
     }
     // Row 1: three individual sticker slots.
@@ -17582,10 +17623,9 @@ const UIRenderer = (() => {
     if (res.kind === "samepower") {
       const t = SamePowerTypes.get(s.id);
       try { Telem.purchase("samepower", s.id, t && t.label); Telem.flush(); } catch (e) {}
-      if (engine) engine.logAction("Store: bought Same-Power " + ((t && t.label) || s.id) + " → inventory");
-      el.storeMsg.textContent = "Same-Power bought — equip it during setup.";
       renderStore();
       refreshDebug();
+      placePendingItem({ kind: "samepower", id: s.id });   // equip immediately
     } else if (res.kind === "pack") {
       if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
       // Tear-open: rip the foil on the bought pack, THEN reveal its real objects.
@@ -17599,12 +17639,14 @@ const UIRenderer = (() => {
         finish();   // reduced motion / no tile: instant reveal of real objects
       }
     } else {
+      // Pillar / Base → place it on a column RIGHT NOW (place-on-purchase).
       const reg = res.kind === "pillar" ? PillarTypes : BaseTypes;
       const t = reg.get(s.id);
-      if (engine) engine.logAction("Store: bought " + KIND_LABEL[res.kind] + " " + ((t && t.label) || s.id) + " → inventory");
-      el.storeMsg.textContent = KIND_LABEL[res.kind] + " bought — place it on a column during setup.";
+      if (engine) engine.logAction("Store: bought " + KIND_LABEL[res.kind] + " " + ((t && t.label) || s.id));
+      el.storeMsg.textContent = KIND_LABEL[res.kind] + " bought — choose a column.";
       renderStore();
       refreshDebug();
+      openItemPlace(res.kind, s.id);
     }
   }
 
@@ -17621,10 +17663,9 @@ const UIRenderer = (() => {
     Sound.purchase();
     const t = SamePowerTypes.get(id);
     try { Telem.purchase("samepower", id, t && t.label); Telem.flush(); } catch (e) {}
-    if (engine) engine.logAction("Store: bought Same-Power " + ((t && t.label) || id) + " → inventory");
-    el.storeMsg.textContent = "Same-Power bought — equip it during setup.";
     renderStore();
     refreshDebug();
+    placePendingItem({ kind: "samepower", id });   // equip immediately at buy
   }
 
   /* ---- reveal → pick modal (both pack families) ----
@@ -17947,16 +17988,130 @@ const UIRenderer = (() => {
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
-    // Chain straight into the next pending sticker, else return to the refreshed store.
-    if (pendingStickerCount() > 0) openStickerApply(firstPendingStickerId());
-    else { renderStore(); refreshDebug(); }
+    continuePendingPlacement();   // chain into the next pending item, else back to the store
   }
   function closeStickerApply() {
-    // "Later"/✕ — leave the sticker(s) in inventory; the store "Apply Sticker"
-    // button stays available to finish applying them.
+    // "Later"/✕ — leave the item(s) unplaced; the store "Place" button stays
+    // available to finish placing them (no browsable inventory, just a queue).
     pendingApplyStickerId = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     el.stickerApplyModal.classList.add("hidden");
+    renderStore(); refreshDebug();
+  }
+
+  /* ---- unified place-on-acquire queue (Section 1/2) ----------------------
+     Buying ANY item (or gaining one mid-deal, Section 3) puts it transiently in
+     the matching campaign hold; it is then PLACED immediately via the right modal:
+     sticker → card picker, pillar/base → column picker, Same-Power → equip. There
+     is no browsable inventory — only this short place-it-now queue. `continuePending
+     Placement` walks the queue until empty, then returns to the store. */
+  let pendingPlaceKind = null;   // "pillar" | "base" being placed in the column picker
+  let pendingPlaceId = null;
+  let selectedPlaceCol = null;
+  function pendingPlaceTotal() {
+    if (!campaign) return 0;
+    const sum = (o) => Object.keys(o || {}).reduce((a, k) => a + (o[k] || 0), 0);
+    return sum(campaign.getInventory()) + sum(campaign.getPillarInventory())
+      + sum(campaign.getBaseInventory()) + sum(campaign.getSamePowerInventory());
+  }
+  /* The next item awaiting placement (sticker → pillar → base → Same-Power), or null. */
+  function nextPendingItem() {
+    if (!campaign) return null;
+    const sinv = campaign.getInventory();
+    for (const t of StickerTypes.all()) if ((sinv[t.id] || 0) > 0) return { kind: "sticker", id: t.id };
+    const pinv = campaign.getPillarInventory();
+    for (const t of PillarTypes.all()) if ((pinv[t.id] || 0) > 0) return { kind: "pillar", id: t.id };
+    const binv = campaign.getBaseInventory();
+    for (const t of BaseTypes.all()) if ((binv[t.id] || 0) > 0) return { kind: "base", id: t.id };
+    const spinv = campaign.getSamePowerInventory();
+    for (const t of SamePowerTypes.all()) if ((spinv[t.id] || 0) > 0) return { kind: "samepower", id: t.id };
+    return null;
+  }
+  function placePendingItem(item) {
+    if (!item) { renderStore(); refreshDebug(); return; }
+    if (item.kind === "sticker") return openStickerApply(item.id);
+    if (item.kind === "pillar" || item.kind === "base") return openItemPlace(item.kind, item.id);
+    if (item.kind === "samepower") {
+      // ONE global slot: equip the new power; any displaced one is SOLD (coins back)
+      // so nothing is ever left held.
+      const prev = campaign.getSamePower && campaign.getSamePower();
+      campaign.equipSamePower(item.id);
+      if (prev && prev !== item.id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
+      const t = SamePowerTypes.get(item.id);
+      if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || item.id));
+      el.storeMsg && (el.storeMsg.textContent = ((t && t.label) || "Same-Power") + " equipped to the Same button.");
+      persistCampaign("equip-samepower");
+      updateSamePowerHud();
+      return continuePendingPlacement();   // chain to the next pending item
+    }
+  }
+  function continuePendingPlacement() { placePendingItem(nextPendingItem()); }
+
+  /* ---- pillar/base column picker ---- */
+  function renderPlaceColumns() {
+    if (!el.ipColumns || !campaign) return;
+    const reg = pendingPlaceKind === "pillar" ? PillarTypes : BaseTypes;
+    const occ = pendingPlaceKind === "pillar" ? campaign.getColumnPillars() : campaign.getColumnBases();
+    let html = "";
+    for (let c = 0; c < occ.length; c++) {
+      const ot = occ[c] ? reg.get(occ[c]) : null;
+      html += '<button type="button" class="ip-col' + (selectedPlaceCol === c ? " ip-selected" : "") + '" data-col="' + c + '">' +
+        '<span class="ip-col-n">Column ' + (c + 1) + '</span>' +
+        '<span class="ip-col-occ">' + (ot ? escHtml(ot.label) : "empty") + '</span></button>';
+    }
+    el.ipColumns.innerHTML = html;
+  }
+  function openItemPlace(kind, id) {
+    const reg = kind === "pillar" ? PillarTypes : BaseTypes;
+    const t = reg.get(id);
+    if (!t) return;
+    pendingPlaceKind = kind; pendingPlaceId = id; selectedPlaceCol = null;
+    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    if (el.ipHead) el.ipHead.textContent = "Place " + t.label;
+    if (el.ipBanner) el.ipBanner.innerHTML =
+      '<span class="ip-art">' + (kind === "pillar" ? pathwayBannerHtml(t) : baseBannerHtml(t, "charged")) + "</span>" +
+      '<span class="sa-name">' + escHtml(t.label) + "</span>" +
+      '<span class="sa-desc">' + escHtml(t.description || "") + "</span>";
+    if (el.ipHint) el.ipHint.textContent = "Tap a column to place " + t.label + " on it.";
+    renderPlaceColumns();
+    el.itemPlaceModal.classList.remove("hidden");
+  }
+  function selectPlaceColumn(col) {
+    selectedPlaceCol = col;
+    renderPlaceColumns();
+    const reg = pendingPlaceKind === "pillar" ? PillarTypes : BaseTypes;
+    const occ = pendingPlaceKind === "pillar" ? campaign.getColumnPillars() : campaign.getColumnBases();
+    const t = reg.get(pendingPlaceId);
+    const old = occ[col] ? reg.get(occ[col]) : null;
+    if (el.ipConfirmMsg) el.ipConfirmMsg.innerHTML = old
+      ? "Replace <b>" + escHtml(old.label) + "</b> on column " + (col + 1) + " with <b>" + escHtml((t && t.label) || "") + "</b>? (the old one sells for " + COIN_SVG + " " + sellValueOf(old) + ")"
+      : "Place <b>" + escHtml((t && t.label) || "") + "</b> on column " + (col + 1) + "?";
+    if (el.ipConfirm) el.ipConfirm.classList.remove("hidden");
+  }
+  function confirmItemPlace() {
+    if (selectedPlaceCol == null || !pendingPlaceId) return;
+    const col = selectedPlaceCol, kind = pendingPlaceKind, id = pendingPlaceId;
+    const reg = kind === "pillar" ? PillarTypes : BaseTypes;
+    // Replacing an occupied column SELLS the old one (coins back) and frees the slot,
+    // so placePillar/placeBase never displaces anything back into a hold.
+    const oldId = kind === "pillar" ? campaign.columnPillar(col) : campaign.columnBase(col);
+    if (oldId) {
+      if (kind === "pillar") campaign.removeColumnPillar(col); else campaign.removeColumnBase(col);
+      campaign.addCoins(sellValueOf(reg.get(oldId)));
+    }
+    const ok = kind === "pillar" ? campaign.placePillar(id, col) : campaign.placeBase(id, col);
+    if (ok && engine) engine.logAction("Placed " + KIND_LABEL[kind] + " " + ((reg.get(id) || {}).label || id) + " on column " + (col + 1));
+    Sound.purchase();
+    persistCampaign("store");
+    el.itemPlaceModal.classList.add("hidden");
+    pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
+    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    continuePendingPlacement();
+  }
+  function closeItemPlace() {
+    pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
+    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    el.itemPlaceModal.classList.add("hidden");
     renderStore(); refreshDebug();
   }
 
@@ -18366,6 +18521,8 @@ const UIRenderer = (() => {
     closePackReplace();
     if (el.stickerApplyModal) el.stickerApplyModal.classList.add("hidden");
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    if (el.itemPlaceModal) el.itemPlaceModal.classList.add("hidden");
+    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
     updateBoardMotion();
