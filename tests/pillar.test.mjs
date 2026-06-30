@@ -74,16 +74,16 @@ export function run() {
   // --- Fixed sticker prices --------------------------------------------
   {
     const c = CampaignState.create();
-    r.eq(c.priceOf("rankUp"), 3, "+1 Rank = 3");
-    r.eq(c.priceOf("changeSuitSpade"), 1, "Change to ♠ = 1 (suit-timing: ♠ enters Stage 3)");
-    r.eq(c.priceOf("changeSuitHeart"), 2, "Change to ♥ = 2");
-    r.eq(c.priceOf("tieSafe"), 4, "Tie-Safe = 4");
-    r.eq(c.priceOf("extraCoin"), 3, "Extra Coin = 3");
-    r.eq(c.priceOf("extraHeart"), 7, "Extra Heart = 7");
-    r.eq(c.priceOf("anchor"), 7, "Anchor = 7");
+    r.eq(c.priceOf("rankUp"), 1, "+1 Rank = 1");
+    r.eq(c.priceOf("changeSuitSpade"), 1, "Change to ♠ = 1");
+    r.eq(c.priceOf("changeSuitHeart"), 1, "Change to ♥ = 1");
+    r.eq(c.priceOf("tieSafe"), 2, "Same-Safe = 2");
+    r.eq(c.priceOf("extraCoin"), 2, "Payout = 2");
+    r.eq(c.priceOf("extraHeart"), 5, "Shield = 5");
+    r.eq(c.priceOf("anchor"), 3, "Anchor = 3");
     // Buying never changes a price.
     c.addCoins(100); c.buySticker("rankUp"); c.buySticker("rankUp");
-    r.eq(c.priceOf("rankUp"), 3, "sticker price stays fixed after buying");
+    r.eq(c.priceOf("rankUp"), 1, "sticker price stays fixed after buying");
   }
 
   // --- reset() wipes the Pillar binding (prices are fixed regardless) ----

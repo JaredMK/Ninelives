@@ -36,12 +36,13 @@ export function run() {
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
       "suitSnob", "momentum"];
     r.ok(ids.every(id => !!StickerTypes.get(id)), "all 11 new stickers registered");
-    r.eq(StickerTypes.all().length, 42, "sticker registry totals 42 (Mirror removed)");
+    r.eq(StickerTypes.all().length, 41, "sticker registry totals 41 (Duplicate removed)");
     r.ok(!StickerTypes.get("mirror"), "Mirror sticker is gone from the registry");
-    r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank now costs 4");
+    r.ok(!StickerTypes.get("duplicate"), "Duplicate sticker is gone from the registry");
+    r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank now costs 1");
     r.eq(StickerTypes.get("changeSuitDiamond").suit, "♦", "Change to ♦ locked to ♦");
-    r.eq(StickerTypes.get("changeSuitDiamond").price, 2, "Change to ♦ = 2 (Stage-1 suit)");
-    r.eq(StickerTypes.get("changeSuitClub").price, 1, "Change to ♣ = 1 (♣ enters Stage 2)");
+    r.eq(StickerTypes.get("changeSuitDiamond").price, 1, "Change to ♦ = 1");
+    r.eq(StickerTypes.get("changeSuitClub").price, 1, "Change to ♣ = 1");
     r.ok(StickerTypes.all().every(t => t.description && t.icon), "every sticker has a description + icon");
   }
 
@@ -55,14 +56,14 @@ export function run() {
     r.ok(seen.has("quickBury") && seen.has("momentum"), "suit-free new stickers offer from Stage 1");
   }
 
-  // ---- Loose Change: emits a sticker-coins payout (0..2) every correct land ----
+  // ---- Loose Change: emits a sticker-coins payout (0..3) every correct land ----
   {
     const e = game();
     let coinEvents = 0, maxAmt = -1, minAmt = 99;
     e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === "Loose Change") { coinEvents++; maxAmt = Math.max(maxAmt, p.amount); minAmt = Math.min(minAmt, p.amount); } });
     for (let k = 0; k < 8; k++) land(e, 0, ["looseChange"]);
     r.eq(coinEvents, 8, "Loose Change fires a payout event on every correct land (incl. +0)");
-    r.ok(minAmt >= 0 && maxAmt <= 2, "Loose Change payout stays within 0..2");
+    r.ok(minAmt >= 0 && maxAmt <= 3, "Loose Change payout stays within 0..3");
   }
 
   // ---- Deep Pockets: +1 coin per 10 cards left in the deck -------------
@@ -166,22 +167,22 @@ export function run() {
     r.ok(e5.getRun().revealNextActive, "Pillar Scout peeks when the LANDING column is empty (even with a pillar elsewhere)");
   }
 
-  // ---- Momentum (per-card X, like Snowball): pays X then X++, reset on wrong ----
+  // ---- Momentum (per-card X): pays X then X grows by 2, reset on wrong ----
   {
     const e = game();
     const paid = [];
     e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === "Momentum") paid.push(p.amount); });
-    land(e, 0, ["momentum"]);                        // fresh card: pays 0 (no event), X→1
-    r.eq(e.getBoard().top(0).momentum, 1, "fresh Momentum card → X=1 after its first placement");
+    land(e, 0, ["momentum"]);                        // fresh card: pays 0 (no event), X→2
+    r.eq(e.getBoard().top(0).momentum, 2, "fresh Momentum card → X=2 after its first placement (grows by 2)");
     r.eq(paid.length, 0, "first placement pays 0 (no payout event)");
-    // A card whose X is already 2 pays 2 and advances to 3.
+    // A card whose X is already 2 pays 2 and advances to 4.
     const top1 = e.getBoard().top(1).value;
     const up1 = top1 < 14;
     const nc = e.debug.setNextCard(up1 ? top1 + 1 : top1 - 1);
     nc.stickers = [{ type: "momentum" }]; nc.momentum = 2;
     e.guess(1, up1 ? "higher" : "lower");
     r.eq(paid[paid.length - 1], 2, "a Momentum card with X=2 pays +2 on placement");
-    r.eq(e.getBoard().top(1).momentum, 3, "that card's X advanced to 3");
+    r.eq(e.getBoard().top(1).momentum, 4, "that card's X advanced to 4 (grows by 2)");
     // A WRONG placement of a Momentum card resets its X to 0.
     const top2 = e.getBoard().top(2).value;
     const nb = e.debug.setNextCard(top2);   // a tie → death (no save stickers)

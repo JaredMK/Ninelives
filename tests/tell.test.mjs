@@ -16,7 +16,7 @@ export function run() {
     r.ok(!!t, "Tell is registered");
     r.eq(t.behavior, "tell", "Tell carries the tell behavior");
     r.eq(t.tier, "uncommon", "Tell is Uncommon");
-    r.eq(t.price, 2, "Tell costs 2");
+    r.eq(t.price, 7, "Tell costs 7");
     r.ok(!t.suit, "Tell is not suit-gated (always offerable)");
     r.ok(t.description && t.icon, "Tell has a description + icon");
   }

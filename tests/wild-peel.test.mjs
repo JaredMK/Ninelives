@@ -12,7 +12,7 @@ export function run() {
     const t = StickerTypes.get("wildSuit");
     r.ok(!!t, "Wild Suit is registered");
     r.eq(t && t.behavior, "wildSuit", "Wild Suit uses the wildSuit behavior");
-    r.eq(t && t.tier, "rare", "Wild Suit is Rare");
+    r.eq(t && t.tier, "uncommon", "Wild Suit is Uncommon");
     r.ok(!t.suit, "Wild Suit carries no fixed suit (it's all suits)");
     const specs = DeckManager.buildStandardDeck();
     specs[0].stickers.push({ type: "wildSuit" });

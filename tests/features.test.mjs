@@ -34,15 +34,15 @@ export function run() {
   {
     r.eq(StickerTypes.get("rankUp2").rankDelta, +2, "+2 Rank delta");
     r.eq(StickerTypes.get("rankDown2").rankDelta, -2, "−2 Rank delta");
-    r.eq(StickerTypes.get("rankUp2").price, 4, "+2 Rank price 4");
-    r.eq(StickerTypes.get("randomFixedValue").price, 4, "Random Rank price 4");
-    r.eq(StickerTypes.get("suitImmunity").price, 2, "Spade Guard price 2 (suit-timing: ♠ enters Stage 3)");
+    r.eq(StickerTypes.get("rankUp2").price, 2, "+2 Rank price 2");
+    r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank price 1");
+    r.eq(StickerTypes.get("suitImmunity").price, 3, "Spade Guard price 3");
     r.eq(StickerTypes.get("middleColumnReward").value, 3, "Middle Reward pays 3");
     r.eq(StickerTypes.get("gainCoin").value, 1, "Lucky Coin pays 1");
-    r.eq(StickerTypes.get("oneTribute").price, 6, "Tribute I price 6");
-    r.eq(StickerTypes.get("twoTribute").price, 8, "Tribute II price 8");
-    r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Tribute II costs 4 bonus coins");
-    r.eq(StickerTypes.get("centerTribute").price, 5, "Center Tribute price 5");
+    r.eq(StickerTypes.get("oneTribute").price, 10, "Bury 1 price 10");
+    r.eq(StickerTypes.get("twoTribute").price, 16, "Bury 2 price 16");
+    r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Bury 2 costs 4 bonus coins");
+    r.eq(StickerTypes.get("centerTribute").price, 4, "Middle Bury price 4");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
     r.eq(PillarTypes.get("allHeartsCoin").price, 4, "All Hearts price 4 (Common)");
     r.eq(PillarTypes.get("allHeartsCoin").value, 5, "All Hearts pays 5");
@@ -86,18 +86,17 @@ export function run() {
   // suit. A guard fires ONLY when the GUARD CARD is DRAWN onto a top of its
   // guarded suit; a matching card drawn onto a guard card does nothing.
   {
-    // Prices follow the suit-timing rule: ♦/♥ guards (Stage 1 suits) = 4, the
-    // ♣ guard (suit enters Stage 2) = 3, the ♠ guard (Stage 3) = 2.
+    // All four suit guards now share a flat price of 3.
     const SUIT_GUARDS = [
-      ["suitImmunity", "♠", 2], ["heartGuard", "♥", 4],
-      ["diamondGuard", "♦", 4], ["clubGuard", "♣", 3],
+      ["suitImmunity", "♠", 3], ["heartGuard", "♥", 3],
+      ["diamondGuard", "♦", 3], ["clubGuard", "♣", 3],
     ];
     SUIT_GUARDS.forEach(([id, suit, price]) => {
       const t = StickerTypes.get(id);
       r.eq(t && t.behavior, "suitImmunity", id + " reuses the shared suitImmunity behavior");
       r.eq(t && t.suit, suit, id + " is locked to " + suit);
       r.eq(t && t.tier, "uncommon", id + " tier matches the family (uncommon)");
-      r.eq(t && t.price, price, id + " price follows the suit-timing rule (" + price + ")");
+      r.eq(t && t.price, price, id + " price is " + price);
 
       const e = GameEngine.create(specsWith(id), 9);
       e.start(); e.startRun();
