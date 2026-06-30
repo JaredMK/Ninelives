@@ -3230,6 +3230,17 @@
     font-size: 14px;
     cursor: pointer;
   }
+  /* Trash action for a bought sticker that must be placed-or-trashed (no defer).
+     Reads as a destructive escape: muted until armed, then a clear warning red. */
+  .sa-trash-btn {
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--edge-2); border-radius: 8px;
+    padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .sa-trash-btn.hidden { display: none; }
+  .sa-trash-btn:active { transform: scale(0.96); }
+  .sa-trash-btn.armed { background: #c0392b; color: #fff; border-color: #97271c; }
   .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
 
   /* Rank histogram in the deck view (reuses .ds-* bar styling at a fixed height). */
@@ -4778,6 +4789,9 @@
     <div class="deck-modal-panel">
       <div class="deck-modal-head">
         <span id="saHead">Apply sticker</span>
+        <!-- Bought stickers must be placed OR trashed before leaving (no defer): in
+             that forced mode the ✕ is hidden and this Trash action is shown. -->
+        <button class="sa-trash-btn hidden" id="saTrash" type="button">Trash</button>
         <button class="deck-modal-close" id="saClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="sa-banner" id="saBanner"></div>
@@ -4924,7 +4938,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.56 · deal-out cascade: blank board, then cards dealt one by one";
+const APP_VERSION = "v3.57 · store: bought sticker must be placed or trashed (no defer)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10779,6 +10793,7 @@ const UIRenderer = (() => {
     stickerApplyModal: document.getElementById("stickerApplyModal"),   // buy-time sticker apply picker
     saHead: document.getElementById("saHead"),
     saClose: document.getElementById("saClose"),
+    saTrash: document.getElementById("saTrash"),   // forced place-or-trash for a bought sticker
     saBanner: document.getElementById("saBanner"),
     saHint: document.getElementById("saHint"),
     saCards: document.getElementById("saCards"),
@@ -13257,6 +13272,7 @@ const UIRenderer = (() => {
     // Place-on-acquire pickers: the store "Place" button resumes any pending item.
     if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => continuePendingPlacement());
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
+    if (el.saTrash) el.saTrash.addEventListener("click", trashStickerApply);
     if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
     // Sticker picker cards: TAP = select to apply, HOLD = the card's sticker help.
     if (el.saCards) attachCardHoldHelp(el.saCards, (id) => selectApplyCard(id));
@@ -17789,10 +17805,22 @@ const UIRenderer = (() => {
     if (el.saBanner) el.saBanner.innerHTML = stickerChip(typeId, { seed: "apply" }) +
       '<span class="sa-name">' + escHtml(t.label) + "</span>" +
       '<span class="sa-desc">' + escHtml(t.description || "") + "</span>";
-    if (el.saHint) el.saHint.textContent = "Tap a card to apply " + t.label + " to it.";
+    if (el.saHint) el.saHint.textContent = "Tap a card to apply " + t.label + ", or Trash it.";
+    setStickerApplyForced(true);   // a bought sticker must be applied or trashed — no defer
     renderStickerApplyCards();
     el.stickerApplyModal.classList.remove("hidden");
   }
+  /* Forced place-or-trash mode (bought sticker): the ✕ + backdrop-dismiss "Later"
+     escape is removed and a Trash action is shown instead, so the player can't
+     leave the store with an unplaced sticker. Off for the gained-card SWAP flow,
+     which keeps its deferrable Later. */
+  let saForced = false, trashArmed = false;
+  function setStickerApplyForced(on) {
+    saForced = !!on; trashArmed = false;
+    if (el.saTrash) { el.saTrash.classList.toggle("hidden", !on); el.saTrash.classList.remove("armed"); el.saTrash.textContent = "Trash"; }
+    if (el.saClose) el.saClose.classList.toggle("hidden", !!on);
+  }
+  function disarmTrash() { trashArmed = false; if (el.saTrash) { el.saTrash.classList.remove("armed"); el.saTrash.textContent = "Trash"; } }
   /* SWAP mode: a gained pack/Duplicate card replaces a deck card of the player's
      choice (the chosen card — and its stickers — is removed; the deck stays 52). */
   function openCardSwap(trayIndex) {
@@ -17809,6 +17837,7 @@ const UIRenderer = (() => {
       '<span class="sa-name">' + escHtml(pcLabel) + "</span>" +
       '<span class="sa-desc">Pick a card to replace with this one (the old card is removed; deck stays 52).</span>';
     if (el.saHint) el.saHint.textContent = "Tap the card to replace.";
+    setStickerApplyForced(false);   // gained-card swap keeps its deferrable Later (✕)
     renderStickerApplyCards();
     el.stickerApplyModal.classList.remove("hidden");
   }
@@ -17816,6 +17845,7 @@ const UIRenderer = (() => {
     const card = (campaign.getRunDeck() || []).find(c => c.id === id);
     if (!card) return;
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
+    disarmTrash();   // changed mind about trashing → reset the armed Trash button
     selectedApplyCardId = id;
     renderStickerApplyCards();
     if (cardPickMode === "swap") {
@@ -17849,10 +17879,31 @@ const UIRenderer = (() => {
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    setStickerApplyForced(false);
     continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
   }
+  /* Trash a bought sticker instead of applying it (two-tap confirm, so a stray tap
+     can't forfeit the purchase). Consumes it from inventory — no refund — then
+     continues the queue. The ONLY non-apply exit in forced mode. */
+  function trashStickerApply() {
+    if (!trashArmed) { trashArmed = true; if (el.saTrash) { el.saTrash.classList.add("armed"); el.saTrash.textContent = "Trash — sure?"; } return; }
+    if (pendingApplyStickerId && campaign) {
+      const t = StickerTypes.get(pendingApplyStickerId);
+      campaign.useStickerFromInventory(pendingApplyStickerId);   // discard one (no refund)
+      if (engine) engine.logAction("Trashed Sticker: " + ((t && t.label) || pendingApplyStickerId));
+      persistCampaign("store");
+    }
+    el.stickerApplyModal.classList.add("hidden");
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    setStickerApplyForced(false);
+    continuePendingPlacement();
+  }
   function closeStickerApply() {
-    // "Later"/✕ — leave the item(s) unplaced; the store "Place" button (or the next
+    // In FORCED mode (a bought sticker) there is no defer: the player must apply or
+    // Trash it. Ignore ✕/backdrop so they can't leave the store with it unplaced.
+    if (saForced) return;
+    // SWAP/Later: leave the item(s) unplaced; the store "Place" button (or the next
     // store visit) finishes placing them (no browsable inventory, just a queue).
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
