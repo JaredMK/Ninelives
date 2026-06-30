@@ -5019,7 +5019,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.59 · new-run deck picker (Pink Deck + locked); character stays pink";
+const APP_VERSION = "v3.60 · locked decks reveal nothing (? / Not unlocked yet)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15050,12 +15050,14 @@ const UIRenderer = (() => {
     el.overlay.classList.add("hidden");
     el.dsCarousel.innerHTML = DECKS.map(d =>
       '<div class="ds-panel' + (d.unlocked ? "" : " locked") + '" data-deck="' + d.id + '">' +
+        // Locked decks reveal NOTHING — name/blurb are just "?", the action reads
+        // "Not unlocked yet". The character is greyed under the lock either way.
         '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span></div>' +
-        '<div class="ds-name">' + escHtml(d.name) + '</div>' +
-        '<div class="ds-sub">' + escHtml(d.sub || "") + '</div>' +
+        '<div class="ds-name">' + escHtml(d.unlocked ? d.name : "?") + '</div>' +
+        '<div class="ds-sub">' + escHtml(d.unlocked ? (d.sub || "") : "?") + '</div>' +
         (d.unlocked
           ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
-          : '<div class="ds-lock">' + escHtml(d.unlock || "Locked") + '</div>') +
+          : '<div class="ds-lock">Not unlocked yet</div>') +
       '</div>').join("");
     el.dsDots.innerHTML = DECKS.map((d, i) =>
       '<span class="ds-dot' + (i === 0 ? " on" : "") + (d.unlocked ? "" : " locked-dot") + '"></span>').join("");
