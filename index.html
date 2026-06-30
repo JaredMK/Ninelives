@@ -1299,6 +1299,13 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
   .pile.dealing { animation: dealIn 0.4s ease both; }
+  /* Initial deal-out cascade: while a pile is awaiting its dealt card, its card
+     (front + badges + count, all inside .card) is hidden so the board reads BLANK;
+     playDealCascade flies a card in from the deck character, then clears this to
+     reveal the real card exactly where the clone lands. Opacity keeps layout, so
+     pile positions (and the synapse links) never shift. */
+  .pile.predeal .card { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .pile.predeal .card { opacity: 1; } }
 
   /* pulse feedback for correct/incorrect */
   @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(63,157,106,0.6);} 100%{box-shadow:0 0 0 15px rgba(63,157,106,0);} }
@@ -4917,7 +4924,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.55 · sticker rebalance: prices, labels, descriptions; remove Duplicate";
+const APP_VERSION = "v3.56 · deal-out cascade: blank board, then cards dealt one by one";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13516,6 +13523,46 @@ const UIRenderer = (() => {
     });
   }
 
+  /* Initial deal-out cascade (presentation only): when a deal begins, hide the
+     freshly-painted pile cards so the board reads BLANK for a beat, then fly a card
+     out of the deck character to each pile ONE BY ONE (reusing the draw's flyCard
+     arc), revealing each pile's real card as its clone lands. No state/logic/RNG is
+     touched — the cards, piles, and order are exactly what renderBoard already laid
+     out; this only animates their first appearance. Returns true if it ran (so the
+     caller can skip the legacy all-at-once drop-in), false under reduced motion / no
+     Web Animations support (board just shows normally). */
+  let dealCascadeToken = 0;
+  function playDealCascade(board) {
+    if (!board || !el.board || prefersReduce() || typeof el.board.animate !== "function") return false;
+    const token = ++dealCascadeToken;   // a newer deal cancels a stale cascade's reveals
+    const piles = [];
+    for (let i = 0; i < board.size; i++) {
+      const pe = pileEls[i];
+      const cardEl = pe && pe.querySelector(".card");
+      if (!pe || !cardEl) continue;
+      pe.classList.remove("dealing");   // suppress the legacy drop-in; the fly IS the deal-in
+      pe.classList.add("predeal");      // hide the card until its clone lands
+      piles.push({ pe, cardEl, top: board.top(i) });
+    }
+    if (!piles.length) return false;
+    const reveal = (p) => { if (p.pe.classList.contains("predeal")) p.pe.classList.remove("predeal"); };
+    const BLANK = 150;   // brief blank-board beat before the first card flies
+    const STEP = 80;     // snappy cascade between cards
+    const DUR = 230;     // per-card travel time
+    piles.forEach((p, k) => {
+      setTimeout(() => {
+        if (token !== dealCascadeToken) { reveal(p); return; }   // a new deal started — don't animate a stale board
+        const to = p.cardEl.getBoundingClientRect();
+        if (!to.width) { reveal(p); return; }                    // not laid out (hidden) — just show it
+        flyCard(flyRealCardEl(p.top, p.cardEl), deckRect(), to, { duration: DUR, onArrive: () => reveal(p) });
+      }, BLANK + k * STEP);
+    });
+    // Safety net: guarantee every card is revealed even if a flight's finish is missed.
+    setTimeout(() => { if (token === dealCascadeToken) piles.forEach(reveal); },
+      BLANK + piles.length * STEP + DUR + 250);
+    return true;
+  }
+
   /* ---- card-movement animation QUEUE -------------------------------------
      Card-movement animations triggered by one action play in CAUSAL order,
      never overlapping: the triggering move (a draw) animates first, then the
@@ -13772,6 +13819,10 @@ const UIRenderer = (() => {
         if (el.board) el.board.classList.remove("armed-revive", "armed-base");
         hideActionBar();
         renderBoard(payload.board, payload.deck);
+        // Deal-out cascade (presentation): hide the just-painted pile cards NOW
+        // (before first paint) so the board reads blank, then fly them in from the
+        // deck character one by one. No-op under reduced motion (cards just show).
+        playDealCascade(payload.board);
         // Deck character: settle to idle for the fresh deal, wash to the phase
         // suit, and (re)start the gentle idle blink.
         DeckChar.reset();
