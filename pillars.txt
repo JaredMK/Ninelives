@@ -1,0 +1,264 @@
+NINE LIVES — PILLARS (37)
+Format: each block is one item. Edit Label / Price / Description freely and send back.
+id is the internal key — please DO NOT change it (it ties the entry to the code).
+======================================================================
+
+id:    allSpadesCoin
+Label: All Spades
+Tier:  common
+Price: 2
+Description: Trigger: Deal cleared / Effect: +5 coins if every surviving pile in this column shows a ♠ pile card
+----------------------------------------------------------------------
+
+id:    allClubsCoin
+Label: All Clubs
+Tier:  common
+Price: 3
+Description: Trigger: Deal cleared / Effect: +5 coins if every surviving pile in this column shows a ♣ pile card
+----------------------------------------------------------------------
+
+id:    allDiamondsCoin
+Label: All Diamonds
+Tier:  common
+Price: 4
+Description: Trigger: Deal cleared / Effect: +5 coins if every surviving pile in this column shows a ♦ pile card
+----------------------------------------------------------------------
+
+id:    allHeartsCoin
+Label: All Hearts
+Tier:  common
+Price: 4
+Description: Trigger: Deal cleared / Effect: +5 coins if every surviving pile in this column shows a ♥ pile card
+----------------------------------------------------------------------
+
+id:    spadeBounty
+Label: Spade Bonus
+Tier:  uncommon
+Price: 4
+Description: Trigger: A ♠ card lands correctly in this column / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    clubBounty
+Label: Club Bonus
+Tier:  uncommon
+Price: 5
+Description: Trigger: A ♣ card lands correctly in this column / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    columnGuardian
+Label: Guardian
+Tier:  uncommon
+Price: 5
+Description: Trigger: Deal cleared / Effect: +7 coins if every pile in this column survived
+----------------------------------------------------------------------
+
+id:    lastRites
+Label: Last Rites
+Tier:  rare
+Price: 5
+Description: Trigger: A pile in this column dies / Effect: Peek the next upcoming card
+----------------------------------------------------------------------
+
+id:    queensEye
+Label: Queen's Eye
+Tier:  uncommon
+Price: 5
+Description: Trigger: A Queen lands correctly in this column / Effect: Peek the next upcoming card until it's drawn
+----------------------------------------------------------------------
+
+id:    diamondBounty
+Label: Diamond Bonus
+Tier:  uncommon
+Price: 6
+Description: Trigger: A ♦ card lands correctly in this column / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    echo
+Label: Echo
+Tier:  uncommon
+Price: 6
+Description: Trigger: A Pillar in an adjacent column pays out coins (never another Echo) / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    envy
+Label: Envy
+Tier:  uncommon
+Price: 6
+Description: Trigger: Deal cleared / Effect: +1 coin per surviving pile in every OTHER column
+----------------------------------------------------------------------
+
+id:    gambler
+Label: Gambler
+Tier:  uncommon
+Price: 6
+Description: Trigger: Deal cleared / Effect: A 50/50 flip — +7 coins or nothing (the result is shown)
+----------------------------------------------------------------------
+
+id:    heartBounty
+Label: Heart Bonus
+Tier:  uncommon
+Price: 6
+Description: Trigger: A ♥ card lands correctly in this column / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    prime
+Label: Prime
+Tier:  uncommon
+Price: 6
+Description: Trigger: A prime-rank card (2/3/5/7) lands correctly in this column / Effect: +1 coin
+----------------------------------------------------------------------
+
+id:    static
+Label: Static
+Tier:  rare
+Price: 6
+Description: Trigger: A card is drawn into this column / Effect: Peek the next upcoming card — 10% chance per sticker on the drawn card, rolled once
+----------------------------------------------------------------------
+
+id:    excavator
+Label: Excavator
+Tier:  uncommon
+Price: 7
+Description: Trigger: Deal cleared / Effect: +1 coin per buried card in this column's largest alive pile
+----------------------------------------------------------------------
+
+id:    royalCourt
+Label: Royal Court
+Tier:  uncommon
+Price: 7
+Description: Trigger: A face card (J/Q/K) lands correctly in this column / Effect: +2 coins
+----------------------------------------------------------------------
+
+id:    secondWind
+Label: Second Wind
+Tier:  rare
+Price: 7
+Description: Trigger: The first pile in this column dies (once per deal) / Effect: It returns with one fresh pile card (its old cards shuffle into the deck). The one-card pile counts as surviving — it can lower your smallest-pile score
+----------------------------------------------------------------------
+
+id:    stickerCount
+Label: Sticker Count
+Tier:  uncommon
+Price: 7
+Description: Trigger: Deal cleared / Effect: +1 coin per sticker across this column's alive piles (buried cards included)
+----------------------------------------------------------------------
+
+id:    symmetry
+Label: Symmetry
+Tier:  uncommon
+Price: 7
+Description: Trigger: Deal cleared / Effect: +6 coins if this column has as many survivors as the column to its right (rightmost wraps to leftmost)
+----------------------------------------------------------------------
+
+id:    unearth
+Label: Unearth
+Tier:  rare
+Price: 7
+Description: Trigger: A card is buried in this column / Effect: 50% chance to peek the next upcoming card
+----------------------------------------------------------------------
+
+id:    eightTribute
+Label: 8 Bury
+Tier:  rare
+Price: 8
+Description: Trigger: An 8 lands correctly in this column / Effect: Bury 3 deck cards under that pile
+----------------------------------------------------------------------
+
+id:    insurance
+Label: Insurance
+Tier:  rare
+Price: 8
+Description: Trigger: Deal cleared / Effect: +20 coins if exactly one pile is alive board-wide and it's in this column
+----------------------------------------------------------------------
+
+id:    revive
+Label: Revive
+Tier:  uncommon
+Price: 8
+Description: Trigger: A pile in this column first reaches 10 cards (once per deal) / Effect: Revive any one dead pile with a fresh pile card. Waits and stays ready if no pile is dead
+----------------------------------------------------------------------
+
+id:    streakBank
+Label: Streak Bank
+Tier:  rare
+Price: 8
+Description: Trigger: A correct guess in this column, from the 3rd in a row onward / Effect: +1 coin. Resets on a wrong guess here, or any guess in another column
+----------------------------------------------------------------------
+
+id:    ditto
+Label: Ditto
+Tier:  rare
+Price: 9
+Description: Trigger: Passive / Effect: Mirror the center column's Pillar, applied to this column (updates if it changes). Nothing if Ditto is in the center, or the center has no Pillar
+----------------------------------------------------------------------
+
+id:    highestOdd
+Label: Highest Odd
+Tier:  uncommon
+Price: 9
+Description: Trigger: Deal cleared / Effect: Coins equal to the highest odd-rank pile card (3/5/7/9) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify
+----------------------------------------------------------------------
+
+id:    greedy
+Label: Greedy
+Tier:  rare
+Price: 10
+Description: Trigger: Deal cleared / Effect: +20 coins if every pile in this column survived AND no other Pillar is on the board
+----------------------------------------------------------------------
+
+id:    highestEven
+Label: Highest Even
+Tier:  uncommon
+Price: 10
+Description: Trigger: Deal cleared / Effect: Coins equal to the highest even-rank pile card (2/4/6/8/10) among this column's alive piles. Pile cards only — buried cards, face cards and Aces never count; 0 if none qualify
+----------------------------------------------------------------------
+
+id:    sameSpark
+Label: Same Spark
+Tier:  rare
+Price: 10
+Description: Trigger: A correct Same guess in this column / Effect: Add a random sticker to every alive pile card in the column (this deal)
+----------------------------------------------------------------------
+
+id:    streakTribute
+Label: Streak Bury
+Tier:  rare
+Price: 10
+Description: Trigger: A correct guess in this column, from the 4th in a row onward / Effect: Bury 1 deck card under that pile. Resets on a wrong guess here, or any guess in another column
+----------------------------------------------------------------------
+
+id:    columnTieSafe
+Label: Column Tie-Safe
+Tier:  rare
+Price: 12
+Description: Trigger: Passive / Effect: Every pile in this column survives a tie, on any guess
+----------------------------------------------------------------------
+
+id:    fibonacci
+Label: Fibonacci
+Tier:  rare
+Price: 12
+Description: Trigger: A Fibonacci-rank card (A/2/3/5/8) is drawn into this column / Effect: +1 coin, paid live as it's drawn (however the guess resolves)
+----------------------------------------------------------------------
+
+id:    denseBury
+Label: Dense Bury
+Tier:  rare
+Price: 15
+Description: Trigger: A card carrying 2+ stickers lands correctly in this column / Effect: Bury 1 deck card under that pile
+----------------------------------------------------------------------
+
+id:    sameTribute
+Label: Tie Bury
+Tier:  rare
+Price: 15
+Description: Trigger: A pile in this column survives a tie (a correct Same, or a Tie-Safe save) / Effect: Bury 2 deck cards under that pile
+----------------------------------------------------------------------
+
+id:    broadcast
+Label: Broadcast
+Tier:  rare
+Price: 18
+Description: Trigger: Passive / Effect: Every one of your column Bases reaches the WHOLE board, not just its own column — Upheaval shuffles every pile, Cast sets every pile, Phoenix can revive any dead pile, and so on. Each Base still fires once per deal. Already board-wide Bases (Kamikaze, Tax) are unchanged. Works the same in any column
+----------------------------------------------------------------------
+

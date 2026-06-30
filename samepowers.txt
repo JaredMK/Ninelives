@@ -1,0 +1,26 @@
+NINE LIVES — SAME-POWERS (3)
+Format: each block is one item. Edit Label / Price / Description freely and send back.
+id is the internal key — please DO NOT change it (it ties the entry to the code).
+======================================================================
+
+id:    linkBury
+Label: Burrow
+Tier:  uncommon
+Price: 5
+Description: Trigger: You make a correct Same / Effect: Bury 1 card under each pile directly linked to the pile you called Same on
+----------------------------------------------------------------------
+
+id:    linkCoins
+Label: Dividend
+Tier:  uncommon
+Price: 5
+Description: Trigger: You make a correct Same / Effect: Gain 2 coins × the size of your largest directly-linked pile
+----------------------------------------------------------------------
+
+id:    linkRevive
+Label: Rekindle
+Tier:  rare
+Price: 7
+Description: Trigger: You make a correct Same / Effect: Revive one dead pile directly linked to the pile you called Same on, keeping its size
+----------------------------------------------------------------------
+

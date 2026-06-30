@@ -1,0 +1,138 @@
+NINE LIVES — BASES (19)
+Format: each block is one item. Edit Label / Price / Description freely and send back.
+id is the internal key — please DO NOT change it (it ties the entry to the code).
+======================================================================
+
+id:    buryLargest
+Label: Sinkhole
+Tier:  common
+Price: 7
+Description: Trigger: Activated, once per deal / Effect: Bury 1 deck card under the largest pile in this column
+----------------------------------------------------------------------
+
+id:    evenOut
+Label: Ballast
+Tier:  common
+Price: 8
+Description: Trigger: Activated, once per deal / Effect: Move buried cards from larger to smaller piles in this column until they're balanced (composition only — nothing revealed)
+----------------------------------------------------------------------
+
+id:    diamondDig
+Label: Diamond Dig
+Tier:  common
+Price: 8
+Description: Trigger: Activated, once per deal / Effect: Bury 1 deck card under each ♦ pile card in this column
+----------------------------------------------------------------------
+
+id:    heartDig
+Label: Heart Dig
+Tier:  common
+Price: 8
+Description: Trigger: Activated, once per deal / Effect: Bury 1 deck card under each ♥ pile card in this column
+----------------------------------------------------------------------
+
+id:    spadeDig
+Label: Spade Dig
+Tier:  uncommon
+Price: 9
+Description: Trigger: Activated, once per deal / Effect: Bury 2 deck cards under each ♠ pile card in this column
+----------------------------------------------------------------------
+
+id:    tax
+Label: Tax
+Tier:  uncommon
+Price: 9
+Description: Trigger: Activated, once per deal / Effect: +1 coin per black pile card (♠/♣) on the board
+----------------------------------------------------------------------
+
+id:    shuffleColumn
+Label: Upheaval
+Tier:  common
+Price: 9
+Description: Trigger: Activated, once per deal / Effect: Shuffle every pile in this column (a different card may top each; order stays hidden). Lose 1 coin per alive pile in the column
+----------------------------------------------------------------------
+
+id:    demolish
+Label: Demolish
+Tier:  uncommon
+Price: 10
+Description: Trigger: Activated (choose a Pillar), once per deal / Effect: Destroy the chosen placed Pillar for good; gain +15 coins
+----------------------------------------------------------------------
+
+id:    buryAll
+Label: Landslide
+Tier:  uncommon
+Price: 10
+Description: Trigger: Activated, once per deal / Effect: Bury 1 deck card under each alive pile in this column. Lose 5 coins per pile buried
+----------------------------------------------------------------------
+
+id:    randomSticker
+Label: Wild Sticker
+Tier:  uncommon
+Price: 10
+Description: Trigger: Activated, once per deal / Effect: Apply a random sticker to a random pile card in this column. Lasts the rest of the run
+----------------------------------------------------------------------
+
+id:    clubDig
+Label: Club Dig
+Tier:  uncommon
+Price: 11
+Description: Trigger: Activated, once per deal / Effect: Bury 3 deck cards under each ♣ pile card in this column
+----------------------------------------------------------------------
+
+id:    stickerHarvest
+Label: Sticker Harvest
+Tier:  uncommon
+Price: 11
+Description: Trigger: Activated (choose a pile), once per deal / Effect: Bury 1 deck card under the chosen pile per sticker on its pile card, then strip every sticker off it
+----------------------------------------------------------------------
+
+id:    suitTally
+Label: Suit Tally
+Tier:  uncommon
+Price: 12
+Description: Trigger: Activated, once per deal / Effect: Gain coins equal to the total value of the rolled suit among this column's cards (face cards count 10). The suit changes each deal
+----------------------------------------------------------------------
+
+id:    randomStickerAll
+Label: Sticker Storm
+Tier:  rare
+Price: 13
+Description: Trigger: Activated, once per deal / Effect: Apply a random sticker to every pile card in this column (lasts the run). Lose 1 coin per sticker applied
+----------------------------------------------------------------------
+
+id:    revive
+Label: Phoenix
+Tier:  uncommon
+Price: 14
+Description: Trigger: Activated, once per deal / Effect: Revive a random dead pile in this column with one fresh pile card (its buried cards shuffle into the deck). Nothing if none is dead
+----------------------------------------------------------------------
+
+id:    kamikaze
+Label: Kamikaze
+Tier:  uncommon
+Price: 15
+Description: Trigger: Activated (tap a pile), once per deal / Effect: Kill the chosen pile, then peek the next 3 upcoming cards (draw order unchanged). Unavailable while only one pile is alive
+----------------------------------------------------------------------
+
+id:    refreshBases
+Label: Reactor
+Tier:  rare
+Price: 17
+Description: Trigger: Activated, once per deal / Effect: Recharge your other two Bases if they've been spent this deal (never another Reactor)
+----------------------------------------------------------------------
+
+id:    setValue
+Label: Cast
+Tier:  rare
+Price: 18
+Description: Trigger: Activated, once per deal / Effect: Set every pile card in this column to the same secret value — a blind gamble (you won't see the new rank until those cards come up in play). Lasts the rest of the run
+----------------------------------------------------------------------
+
+id:    copyToInventory
+Label: Replica
+Tier:  rare
+Price: 18
+Description: Trigger: Activated, once per deal / Effect: Copy a random pile card in this column (with its stickers) into your card inventory
+----------------------------------------------------------------------
+
