@@ -47,6 +47,13 @@
     --card-red: #C0364F;
     --card-border: #D8CCC0;
     --radius: 14px;
+    /* Canonical object aspect ratios (width/height). Each game object keeps ONE
+       shape everywhere it's drawn — store, board, detail, loadout, post-deal — by
+       locking to its ratio and SCALING TO FIT its slot (contain), so a pillar /
+       base / card never stretches to a different shape per context. */
+    --card-ar: 0.70;      /* playing card — a real portrait card */
+    --pennant-ar: 0.82;   /* Pillar pennant — banner, slightly portrait */
+    --plaque-ar: 2.4;     /* Base plaque — wide engraved nameplate */
     --gap: clamp(8px, 2.6vw, 16px);
     --shadow: 0 6px 18px rgba(74, 50, 40, 0.16);
     /* ---- Type system ----------------------------------------------------- */
@@ -1021,10 +1028,14 @@
 
   .card {
     position: relative;
-    /* 90% of the cell (≈10% smaller card) — centred by the pile's flexbox so
-       the node centre is unchanged and the connections read better. */
-    width: 90%;
-    height: 90%;
+    /* Fixed playing-card SHAPE (--card-ar) at every size, CONTAINED within 90% of
+       the cell (so the card is the same portrait shape regardless of the cell's
+       aspect, which varies with the run's column count). Width = the largest that
+       fits both 90% of the cell width AND 90%·height·ratio; height follows the
+       ratio. Centred by the pile flexbox, so the node centre is unchanged. */
+    width: min(calc(var(--pile-w-fit, 80px) * 0.9), calc(var(--pile-h-fit, 110px) * 0.9 * var(--card-ar)));
+    height: auto;
+    aspect-ratio: var(--card-ar);
     /* Portrait cards: corner radius scales with the card so it reads as a real
        playing card (not a squat oval) at any size. */
     border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
@@ -1674,7 +1685,7 @@
   .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 999px;
     background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; box-shadow: var(--shadow); }
   .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
-  .wt-smallboard .mini-card { width: 34px; height: 46px; }
+  .wt-smallboard .mini-card { width: 34px; }
   .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
   .wt-smallboard .mini-card .mc-suit { font-size: 11px; }
 
@@ -1731,7 +1742,7 @@
   .wt-pillar-tag .ico { font-size: 12px; }
   .wt-mini-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .wt-mini-col .col-cards { display: flex; flex-direction: column; gap: 4px; }
-  .wt-mini-col .mini-card { width: 38px; height: 50px; }
+  .wt-mini-col .mini-card { width: 38px; }
   .wt-mini-col .mini-card .mc-rank { font-size: 14px; }
   .wt-mini-col .mini-card .mc-suit { font-size: 12px; }
 
@@ -2219,7 +2230,7 @@
      rod + icon). Give the shop pennant a definite box HERE — same component, same
      proportions as the shelf — then .sd-obj scales it up. Detail-scoped, so the
      shelf tile is untouched. */
-  .sd-obj.obj-pillar .cph-banner.pennant.big { width: 132px; height: 116px; }
+  .sd-obj.obj-pillar .cph-banner.pennant.big { height: 116px; width: auto; }
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(255,255,255,0.6); }
   .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
@@ -2388,7 +2399,10 @@
 
   /* Mini playing card (revealed card-pack item + held pack-tray cards). */
   .mini-card {
-    position: relative; width: 52px; height: 70px; border-radius: 7px;
+    /* Same canonical card SHAPE (--card-ar) as the board card: set the width per
+       context, height follows the ratio — so mini cards never read as a different
+       shape than the board's. */
+    position: relative; width: 52px; aspect-ratio: var(--card-ar); border-radius: 7px;
     background: var(--card-face); color: var(--card-ink);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
@@ -2415,7 +2429,7 @@
   }
   /* In the setup Cards tab, cards are sized to fit the fixed bottom region under
      the tab bar (kept legible; the strip scrolls horizontally for many cards). */
-  .setup-strip .pack-tray .mini-card { width: 44px; height: 60px; }
+  .setup-strip .pack-tray .mini-card { width: 44px; }
   .setup-strip .pack-tray .mini-card .mc-rank { font-size: 16px; }
   .pack-tray.hidden { display: none; }
   .pack-tray .pt-card { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; position: relative; }
@@ -2517,7 +2531,10 @@
   .cph-banner.pennant {
     --pb-trim: var(--trim-common);
     background: none; border: none; box-shadow: none; border-radius: 0; overflow: visible;
-    width: 100%; height: 100%;
+    /* Fixed pennant shape everywhere (no stretch): fill the slot's HEIGHT and derive
+       width from --pennant-ar, clamped to the slot width. The board's thin pillar row
+       is height-limited, so the pennant just scales down keeping its shape. */
+    height: 100%; width: auto; aspect-ratio: var(--pennant-ar); max-width: 100%; margin: 0 auto;
     display: flex; flex-direction: column; align-items: center;
   }
   .cph-banner.pennant.srt-uncommon { --pb-trim: var(--trim-uncommon); }
@@ -2592,7 +2609,10 @@
   .base-banner.plaque {
     /* Default = utility purple; the .fam-* class sets the real family colour. */
     --mtl-hi: #c59cff; --mtl-mid: #8a4fd6; --mtl-lo: #5e2f9e; --mtl-edge: #44226f;
-    position: relative; width: 96%; height: 100%; overflow: hidden;   /* match the column width */
+    /* Fixed plaque shape everywhere (no stretch): fill the slot's HEIGHT, derive
+       width from --plaque-ar, clamp to the slot width. */
+    position: relative; height: 100%; width: auto; aspect-ratio: var(--plaque-ar);
+    max-width: 96%; margin: 0 auto; overflow: hidden;
     border-radius: 6px;
     display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 9px;
     background: linear-gradient(180deg, var(--mtl-hi) 0%, var(--mtl-mid) 46%, var(--mtl-lo) 100%);
@@ -3023,7 +3043,7 @@
   .tray-obj .to-art { display: block; flex: none; }
   .tray-pillar.tray-obj .to-art { width: 30px; height: 44px; }
   .tray-base.tray-obj .to-art { width: 58px; height: 24px; }
-  .tray-obj .to-art .cph-banner.pennant, .tray-obj .to-art .base-banner.plaque { width: 100%; height: 100%; }
+  .tray-obj .to-art .cph-banner.pennant, .tray-obj .to-art .base-banner.plaque { height: 100%; width: auto; max-width: 100%; }
   .tray-obj .to-art .base-banner.plaque { padding: 0 6px; }
   .tray-obj .cph-streak, .tray-obj .cph-count, .tray-obj .cph-sw, .tray-obj .base-charge { display: none; }   /* live badges are board-only */
 
@@ -4938,7 +4958,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.57 · store: bought sticker must be placed or trashed (no defer)";
+const APP_VERSION = "v3.58 · consistent object ratios (pillar/base/card) across all contexts";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
