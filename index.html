@@ -1521,6 +1521,55 @@
   @media (prefers-reduced-motion: reduce) { .menu-screen::before { animation: none; } }
   /* Keep the content above the ambient glow. */
   .menu-screen > * { position: relative; z-index: 1; }
+
+  /* ---- DECK SELECT carousel (new-run deck picker) ---- */
+  #deckSelect { gap: clamp(10px, 2.4vh, 18px); padding: 20px 0; }
+  .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 24px; color: var(--text); letter-spacing: 0.3px; }
+  .ds-hint { font-size: 12px; color: var(--muted); margin-top: -6px; }
+  /* Horizontal scroll-snap track: one deck panel per page; native swipe. */
+  .ds-carousel {
+    width: 100%; flex: 1 1 0; min-height: 0;
+    display: flex; overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory; scroll-behavior: smooth;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; touch-action: pan-x;
+  }
+  .ds-carousel::-webkit-scrollbar { display: none; }
+  .ds-panel {
+    flex: 0 0 100%; scroll-snap-align: center; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    padding: 8px 26px;
+  }
+  /* The deck's character, rendered large. Reuses the in-game .deck-char art (so a
+     deck's colour = its character's colour); locked decks are greyed. */
+  .ds-deckchar {
+    position: relative; width: min(46vw, 168px); aspect-ratio: 56 / 76;
+    filter: drop-shadow(0 10px 20px rgba(74,40,55,0.32));
+  }
+  .ds-deckchar .deck-char { pointer-events: none; }
+  /* Scale the eyes up for the big render (the in-game cap is sized for the 56px slot). */
+  .ds-deckchar .dc-eye { max-width: none; width: 15%; height: 17%; }
+  .ds-panel.locked .ds-deckchar { filter: grayscale(0.92) brightness(0.86) drop-shadow(0 8px 16px rgba(50,40,45,0.28)); opacity: 0.7; }
+  .ds-panel.locked .ds-deckchar::after {
+    content: "🔒"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 40px; filter: grayscale(0); opacity: 0.92; text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .ds-name { font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--text); }
+  .ds-panel.locked .ds-name { color: var(--muted); }
+  .ds-sub { font-size: 13px; color: var(--muted); text-align: center; max-width: 80%; line-height: 1.4; min-height: 2.6em; }
+  .ds-lock { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center;
+    background: rgba(74,52,44,0.07); border: 1px solid rgba(74,52,44,0.16); border-radius: 999px; padding: 6px 14px; }
+  .ds-start { min-width: 180px; }
+  /* Pager dots. */
+  .ds-dots { display: flex; gap: 8px; justify-content: center; }
+  .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--edge-2); transition: background 0.2s, transform 0.2s; }
+  .ds-dot.on { background: var(--accent-2); transform: scale(1.25); }
+  .ds-dot.locked-dot { box-shadow: inset 0 0 0 1.5px var(--muted); background: transparent; }
+  .ds-back {
+    background: var(--panel); color: var(--muted); border: 1px solid var(--edge-2);
+    border-radius: 999px; padding: 9px 22px; font-weight: 800; font-size: 13px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .ds-back:active { transform: scale(0.97); }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
      stacked title. SVG = crisp at any size. Negative margin trims the SVG's
@@ -4884,6 +4933,18 @@
     <div class="menu-foot" id="menuFoot"></div>
   </div>
 
+  <!-- DECK SELECT — shown when starting a new run. A swipeable carousel of decks:
+       only the Pink Deck is playable now; the rest are locked placeholders
+       ("Unlock after beating Pink Deck"). Infrastructure for future decks/maps —
+       the roster is data-driven (see DECKS), so adding a deck is data-only. -->
+  <div class="menu-screen hidden" id="deckSelect">
+    <div class="ds-title">Choose your deck</div>
+    <div class="ds-hint">Swipe to browse decks</div>
+    <div class="ds-carousel" id="dsCarousel"></div>
+    <div class="ds-dots" id="dsDots"></div>
+    <button class="ds-back" id="dsBack" type="button">Back</button>
+  </div>
+
   <!-- Artifact telemetry table (debug only — playtest balancing). -->
   <div class="sheet-overlay hidden" id="telemOverlay">
     <div class="sheet-panel telem-panel">
@@ -4958,7 +5019,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.58 · consistent object ratios (pillar/base/card) across all contexts";
+const APP_VERSION = "v3.59 · new-run deck picker (Pink Deck + locked); character stays pink";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10649,6 +10710,10 @@ const UIRenderer = (() => {
     mainMenu: document.getElementById("mainMenu"),
     menuButtons: document.getElementById("menuButtons"),
     menuFoot: document.getElementById("menuFoot"),
+    deckSelect: document.getElementById("deckSelect"),     // new-run deck picker
+    dsCarousel: document.getElementById("dsCarousel"),
+    dsDots: document.getElementById("dsDots"),
+    dsBack: document.getElementById("dsBack"),
     menuBtn: document.getElementById("menuBtn"),
     mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
@@ -11356,9 +11421,10 @@ const UIRenderer = (() => {
       react(name) { set(name); },
       /** Hard reset to idle (new deal). */
       reset() { pileSelected = false; aimReset(); set("idle"); },
-      /** Phase suit wash on the character (matches the map avatar). */
-      setSuit(sym) { const n = node(); if (!n) return; n.classList.remove("dc-d", "dc-c", "dc-s");
-        n.classList.add("dc-" + ((typeof SUIT_CLASS !== "undefined" && SUIT_CLASS[sym]) || "d")); },
+      /** The character keeps its DECK colour (pink for the Pink Deck) the whole run
+          — it no longer washes to the phase suit as the stages progress. (`sym` is
+          ignored for now; future decks would map their own colour here.) */
+      setSuit(sym) { const n = node(); if (!n) return; n.classList.remove("dc-c", "dc-s"); n.classList.add("dc-d"); },
       /** Lightweight ambient-life loop (skipped under reduced motion; only one
           runs). Each tick blinks, and now and then sneaks a tiny idle GLANCE so
           the character feels alive and waiting — never frozen. Both are cheap
@@ -13213,6 +13279,20 @@ const UIRenderer = (() => {
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
 
+    // Deck picker: a Start button runs the (unlocked) Pink Deck; locked decks have
+    // none. Back returns to the menu we came from. Dots track the swiped page.
+    if (el.dsCarousel) el.dsCarousel.addEventListener("click", (e) => {
+      const start = e.target.closest(".ds-start");
+      if (start) { hideDeckSelect(); startCampaign(); }
+    });
+    if (el.dsCarousel) el.dsCarousel.addEventListener("scroll", () => {
+      const w = el.dsCarousel.clientWidth || 1;
+      const i = Math.round(el.dsCarousel.scrollLeft / w);
+      const dots = el.dsDots.children;
+      for (let k = 0; k < dots.length; k++) dots[k].classList.toggle("on", k === i);
+    }, { passive: true });
+    if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
+
     // Hold-to-peek the final board on run-complete screens: pressing the
     // overlay (anywhere except the button) fades it away to reveal the board
     // underneath; releasing restores it. Read-only — never mutates state.
@@ -14940,6 +15020,50 @@ const UIRenderer = (() => {
     SaveStore.save(blob);
   }
   function clearSave() { SaveStore.clear(); }
+
+  /* ---- DECK ROSTER (infrastructure for future decks/maps) ----------------
+     Data-driven so adding a deck is data-only. Only the Pink Deck is playable
+     now; the rest render LOCKED in the new-run picker. `color` reuses the
+     character's suit-palette class (d = pink). When a future deck ships, set
+     unlocked (and wire its own map/deck build) — nothing else here changes. */
+  const DECKS = [
+    { id: "pink", name: "Pink Deck", color: "d", unlocked: true,
+      sub: "The original climb — nine lives across four suits." },
+    { id: "blue", name: "Blue Deck", color: "c", unlocked: false,
+      sub: "A colder, deeper descent.", unlock: "Unlock after beating Pink Deck" },
+    { id: "noir", name: "Noir Deck", color: "s", unlocked: false,
+      sub: "High stakes in the dark.", unlock: "Unlock after beating Pink Deck" },
+  ];
+  const DECK_CHAR_HTML =
+    '<span class="dc-body"><span class="dc-lid"></span>' +
+    '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
+    '<span class="dc-eye r"><i class="dc-pupil"></i></span></span></span>';
+  let deckSelectReturn = null;   // how the Back button returns (to the right menu)
+
+  /* The new-run deck picker: a swipeable carousel of decks. The unlocked Pink
+     Deck has a Start Run; locked decks are greyed with their unlock note.
+     Presentation/flow only — picking the Pink Deck just runs startCampaign(). */
+  function showDeckSelect(canContinue) {
+    deckSelectReturn = () => showMainMenu(canContinue);
+    el.stageRun.classList.add("off");
+    setScreenNav(false, false, false);
+    el.overlay.classList.add("hidden");
+    el.dsCarousel.innerHTML = DECKS.map(d =>
+      '<div class="ds-panel' + (d.unlocked ? "" : " locked") + '" data-deck="' + d.id + '">' +
+        '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span></div>' +
+        '<div class="ds-name">' + escHtml(d.name) + '</div>' +
+        '<div class="ds-sub">' + escHtml(d.sub || "") + '</div>' +
+        (d.unlocked
+          ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
+          : '<div class="ds-lock">' + escHtml(d.unlock || "Locked") + '</div>') +
+      '</div>').join("");
+    el.dsDots.innerHTML = DECKS.map((d, i) =>
+      '<span class="ds-dot' + (i === 0 ? " on" : "") + (d.unlocked ? "" : " locked-dot") + '"></span>').join("");
+    el.dsCarousel.scrollLeft = 0;
+    el.deckSelect.classList.remove("hidden");
+    updateBoardMotion();
+  }
+  function hideDeckSelect() { el.deckSelect.classList.add("hidden"); }
 
   function startCampaign() {
     hideMainMenu();   // every entry path leaves the title menu (so the board, once
@@ -16747,8 +16871,10 @@ const UIRenderer = (() => {
     ensureAvatar();
     const pm = el.mapTrack.querySelector(".phase-map"); if (!pm) return;
     if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
+    // The character keeps its DECK colour (pink) across all stages — it doesn't
+    // re-tint to the phase suit as it climbs the map.
     mapAvatarEl.classList.remove("av-d", "av-c", "av-s");
-    mapAvatarEl.classList.add(avatarSuitClass());
+    mapAvatarEl.classList.add("av-d");
     if (!mapAvatarEl.classList.contains("mood-happy")) setAvatarMood(avatarReachMood());
     setAvatarCount(campaign.deckSize());
     if (!avatarTraveling) positionAvatarAt(avatarXY());
@@ -17051,9 +17177,8 @@ const UIRenderer = (() => {
       const toRect = slot.getBoundingClientRect();
       if (!toRect.width || !toRect.height) return;
       dc.style.visibility = "hidden";   // the real deck char appears only on landing
-      const suit = "dc-" + ((campaign && SUIT_CLASS[campaign.phaseSuit()]) || "d");
       const fly = document.createElement("div");
-      fly.className = "deck-char-jump " + suit;
+      fly.className = "deck-char-jump dc-d";   // character stays its deck colour (pink)
       const flyCount = campaign && campaign.deckSize ? campaign.deckSize() : "";
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
@@ -18561,7 +18686,7 @@ const UIRenderer = (() => {
     const items = [];
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
     items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
-      action: () => { hideMainMenu(); startCampaign(); } });
+      action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
