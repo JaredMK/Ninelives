@@ -10620,6 +10620,16 @@ const Sound = (() => {
     purchase() { chord([[700, 0.07, 0, "square", 0.04], [1047, 0.1, 0.06, "square", 0.035]]); },
     death() { chord([[210, 0.18, 0, "sawtooth", 0.06], [120, 0.28, 0.09, "sawtooth", 0.05]]); },
     runClear() { chord([[523, 0.12, 0, "sine", 0.05], [659, 0.12, 0.11, "sine", 0.05], [784, 0.12, 0.22, "sine", 0.05], [1047, 0.22, 0.33, "sine", 0.05]]); },
+    // A soft riffle for any pile shuffle (Upheaval, Shuffle sticker, Shuffler /
+    // Diamond Distribution pillars, Link Shuffler Same-Power) — same sound
+    // everywhere so a shuffle always reads the same.
+    shuffle() { chord([[520, 0.05, 0, "triangle", 0.03], [420, 0.05, 0.04, "triangle", 0.03], [340, 0.06, 0.08, "triangle", 0.028]]); },
+    // A gentle rising whoosh when a fresh deal's cards are dealt out.
+    deal() { chord([[300, 0.07, 0, "sine", 0.03], [400, 0.07, 0.05, "sine", 0.03], [520, 0.08, 0.1, "sine", 0.03]]); },
+    // A light, VERY short ping for coins gained (fires a lot — kept subtle).
+    coin() { blip(1180, 0.05, "triangle", 0.028); },
+    // A quick shuffled-riffle reveal for opening a pack.
+    pack() { chord([[420, 0.06, 0, "square", 0.03], [640, 0.06, 0.05, "square", 0.03], [960, 0.09, 0.1, "square", 0.03]]); },
   };
   return API;
 })();
@@ -12439,6 +12449,7 @@ const UIRenderer = (() => {
     if (!engine || !engine.canApplyStickers() || !armedPillar) return;
     const t = PillarTypes.get(armedPillar);
     if (!campaign.placePillar(armedPillar, col)) return;
+    Sound.place();
     if (engine) engine.logAction("Placed Pillar " + ((t && t.label) || armedPillar) + " on column " + (col + 1));
     armedPillar = null;
     updateArmingClass();
@@ -12542,6 +12553,7 @@ const UIRenderer = (() => {
     if (!engine || !engine.canApplyStickers() || !campaign) return;
     if (campaign.equipSamePower(typeId)) {
       const t = SamePowerTypes.get(typeId);
+      Sound.place();
       el.hint.textContent = (t ? t.label : "Same-Power") + " equipped — a correct Same will trigger it.";
       if (engine) engine.logAction("Equipped Same-Power: " + ((t && t.label) || typeId));
     }
@@ -12573,6 +12585,7 @@ const UIRenderer = (() => {
     if (!engine || !engine.canApplyStickers() || !armedBaseItem) return;
     const t = BaseTypes.get(armedBaseItem);
     if (!campaign.placeBase(armedBaseItem, col)) return;
+    Sound.place();
     if (engine) engine.logAction("Placed Base " + ((t && t.label) || armedBaseItem) + " on column " + (col + 1));
     armedBaseItem = null;
     updateArmingClass();
@@ -12623,6 +12636,7 @@ const UIRenderer = (() => {
     campaign.applySticker(top.id, typeId);
     campaign.useStickerFromInventory(typeId);
     applyStickerToBoardCard(top, typeId);
+    Sound.place();             // a sticker was placed on a card
 
     appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
     armedSticker = null;
@@ -13967,9 +13981,16 @@ const UIRenderer = (() => {
   /* THE single coin float: a signed +N / −N chip over an anchor (a pile element OR
      a Pillar/Base banner cell). Every coin gain floats through here so the cue is
      identical regardless of which artifact paid. */
+  let lastCoinSoundAt = -1e9;
   function floatCoins(anchorEl, amount, cls) {
     if (!anchorEl || amount == null) return;
     floatChip(anchorEl, (amount < 0 ? "−" : "+") + Math.abs(amount), (cls || "") + (amount < 0 ? " neg" : ""));
+    // A subtle coin chime on a GAIN. Throttled so an end-of-deal burst of floats
+    // reads as one shimmer, not a machine-gun (tasteful — it fires a lot).
+    if (amount > 0) {
+      const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : 0;
+      if (now - lastCoinSoundAt > 70) { Sound.coin(); lastCoinSoundAt = now; }
+    }
   }
   /* THE shared pile-SAVED indicator — every save path (Shield, Suit Guard,
      Tie-Safe, Second Wind, Same Charge) calls this so a rescue always looks the
@@ -14136,6 +14157,7 @@ const UIRenderer = (() => {
         // (before first paint) so the board reads blank, then fly them in from the
         // deck character one by one. No-op under reduced motion (cards just show).
         playDealCascade(payload.board);
+        Sound.deal();   // pile cards dealt out for the fresh deal
         // Deck character: settle to idle for the fresh deal, wash to the phase
         // suit, and (re)start the gentle idle blink.
         DeckChar.reset();
@@ -14244,6 +14266,8 @@ const UIRenderer = (() => {
             pulseBaseColumn(payload.col);
             break;
         }
+        // Upheaval / Ballast reshuffle or re-order piles → the shared shuffle sound.
+        if (payload.effect === "shuffleColumn" || payload.effect === "evenOut") Sound.shuffle();
         // Spade Peeker reveals the next X upcoming cards — refresh the peek strip.
         if (payload.effect === "spadePeek") renderDeckReveal();
 
@@ -14480,6 +14504,8 @@ const UIRenderer = (() => {
         // A Pillar effect just fired on a column — pulse it (+ float "+N" for a
         // coin reward) so the player sees which Pillar acted. Feedback only.
         flashPillar(payload.col, payload.amount);
+        // Shuffle-producing pillars share the common shuffle sound.
+        if (payload.effect === "shuffler" || payload.effect === "diamondDistribution") Sound.shuffle();
         break;
       }
 
@@ -14540,7 +14566,7 @@ const UIRenderer = (() => {
               cardEl.classList.remove("shuffling"); void cardEl.offsetWidth;
               cardEl.classList.add("shuffling");
               setTimeout(() => cardEl.classList.remove("shuffling"), 900);
-              Sound.tap();
+              Sound.shuffle();
             }
             paintPileCounts(payload.board);
             renderHud(payload.board, payload.deck);
@@ -14813,7 +14839,9 @@ const UIRenderer = (() => {
         if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
         renderNetwork();
         if (payload.label) el.hint && (el.hint.textContent = "Same-Power · " + payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
-        Sound.good && Sound.good();
+        // Link Shuffler uses the shared shuffle sound; every other Same-Power keeps
+        // the firing chime.
+        if (payload.effect === "linkShuffle") Sound.shuffle(); else Sound.good && Sound.good();
         break;
       }
 
@@ -17948,6 +17976,7 @@ const UIRenderer = (() => {
     el.packReveal.classList.remove("hidden");
     renderPackReveal();
     staggerDealIn(el.packItems);   // reveal items pop in (same motion language)
+    Sound.pack();                  // a pack was opened / revealed
   }
   function closePackReveal() {
     packRevealState = null; closePackItemInfo();
@@ -17964,6 +17993,7 @@ const UIRenderer = (() => {
     el.packReveal.classList.remove("hidden");
     renderPackReveal();
     staggerDealIn(el.packItems);   // identical reveal motion to the store
+    Sound.pack();                  // a pack was opened / revealed
   }
 
   /* One revealed-item button: just the card/sticker face. Tapping it selects the
