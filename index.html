@@ -5074,7 +5074,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.66 · random map generator: planar 3-lane stages, route-validated, difficulty from real deck size; authored maps stay as override";
+const APP_VERSION = "v3.67 · map rules: 2-3 stores per stage; no fake forks (every fork branch differs in type/cards/deals/piles)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6387,7 +6387,9 @@ const RunMap = (() => {
     // row → row+1, same or adjacent lane, and never cross (by construction).
     lanes: 3,
     laneX: [0.17, 0.50, 0.83],   // render x per lane
-    rows: [7, 9],                // total rows per stage INCLUDING the boss row
+    rows: [9, 10],               // total rows per stage INCLUDING the boss row
+                                 // (floor: boss + 3 deal rows + 2 stores + 3 card
+                                 //  rows = 9; a 10th row fits a 3rd store / extras)
     openings: [2, 3],            // row-0 nodes (stage 0 forces a single opening deal)
     rowNodes: [2, 3],            // nodes on a normal body row
 
@@ -6395,7 +6397,7 @@ const RunMap = (() => {
     dealRows: [3, 4],            // full deal rows (every route passes each one)
     mixedDealRowChance: 0.35,    // chance of one draft row carrying an optional deal
     dealsPerRouteMax: 5,         // hard cap validated on every route (excl. boss)
-    stores: [1, 2],              // stores per stage (never two in a row on any path)
+    stores: [2, 3],              // stores per stage (never two in a row on any path)
 
     // Card pickups (CARD +1, PACK +2..+5). Every route totals ≥ minRouteCards;
     // at least one route stays ≤ maxLightRouteCards.
@@ -6460,6 +6462,45 @@ const RunMap = (() => {
     return ext;
   }
 
+  /* ── Fork analysis (the NO-FAKE-FORKS rule): for every fork — any node with
+     two or more children, including the virtual run-start over row 0 — compare
+     each pair of branches over the SEGMENT until they first rejoin (or the
+     boss). A branch's signature is the sorted multiset of (type, cards added,
+     piles) in its segment; identical signatures mean the branches tie on ALL
+     of: type composition, cards picked up, deals faced, and deal difficulty —
+     a FAKE fork (no real choice). */
+  function analyzeForks(ph) {
+    const reach = {};                                   // id → Set of reachable ids
+    const nodesDesc = ph.nodes.slice().sort((a, b) => b.row - a.row);
+    for (const n of nodesDesc) {
+      const s = new Set([n.id]);
+      for (const t of n.next) reach[t].forEach(x => s.add(x));
+      reach[n.id] = s;
+    }
+    const nodeSig = (id) => {
+      const n = ph.byId[id];
+      return n.type + (addOf(n) ? "+" + addOf(n) : "") + (n.piles ? "(" + n.piles + "p)" : "");
+    };
+    const segSig = (ids) => ids.map(nodeSig).sort().join(" ") || "(empty)";
+    const forks = [];
+    const parents = [{ id: "start", next: ph.row0 }].concat(ph.nodes);
+    for (const p of parents) {
+      if (!p.next || p.next.length < 2) continue;
+      for (let a = 0; a < p.next.length; a++) for (let b = a + 1; b < p.next.length; b++) {
+        const c1 = p.next[a], c2 = p.next[b];
+        const common = [];
+        reach[c1].forEach(x => { if (reach[c2].has(x)) common.push(x); });
+        const rejoinRow = common.length ? Math.min.apply(null, common.map(id => ph.byId[id].row)) : Infinity;
+        const seg = (c) => { const out = []; reach[c].forEach(id => { if (ph.byId[id].row < rejoinRow) out.push(id); }); return out; };
+        const s1 = segSig(seg(c1)), s2 = segSig(seg(c2));
+        forks.push({ from: p.id, branches: [c1, c2],
+                     rejoinRow: rejoinRow === Infinity ? null : rejoinRow,
+                     sigs: [s1, s2], distinct: s1 !== s2 });
+      }
+    }
+    return forks;
+  }
+
   /* ── validateStage: enumerate ALL routes and check the full spec — card
      totals, deal counts, store adjacency, and difficulty bands at the min/max
      deck of every deal. Applies to GENERATED and AUTHORED stages alike.
@@ -6495,6 +6536,16 @@ const RunMap = (() => {
     if (dealRMin < 3) errors.push("a route passes only " + dealRMin + " regular deals (< 3)");
     if (dealRMax > C.dealsPerRouteMax) errors.push("a route passes " + dealRMax + " regular deals (> " + C.dealsPerRouteMax + ")");
     if (storeAdj) errors.push(storeAdj + " route(s) pass two stores in a row");
+    // RULE 1: 2–3 stores per STAGE (adjacency already checked per route above).
+    const storeCount = ph.nodes.filter(n => n.type === "store").length;
+    if (storeCount < C.stores[0] || storeCount > C.stores[1])
+      errors.push("stage has " + storeCount + " store(s) (spec: " + C.stores[0] + "\u2013" + C.stores[1] + ")");
+    // RULE 2: every fork's branches must differ (type / cards / deals / piles).
+    const forks = analyzeForks(ph);
+    for (const f of forks) {
+      if (!f.distinct) errors.push("FAKE fork at node " + f.from + ": branches " + f.branches.join("/")
+        + " are identical until rejoin (" + f.sigs[0] + ")");
+    }
     // Difficulty at BOTH deck extremes of every deal + the boss.
     const ext = deckExtremes(ph, entryDeck);
     const perDeal = [];
@@ -6524,7 +6575,8 @@ const RunMap = (() => {
     return {
       ok: !errors.length, errors, warnings,
       report: { routes: routes.length, cards: [cardMin, cardMax],
-                dealsPerRoute: [dealRMin, dealRMax], storesPerRoute: [storesMin, storesMax], perDeal },
+                dealsPerRoute: [dealRMin, dealRMax], storesPerRoute: [storesMin, storesMax],
+                stores: storeCount, forks, perDeal },
     };
   }
 
@@ -6562,7 +6614,11 @@ const RunMap = (() => {
   }
 
   /* ── ONE build attempt: skeleton → types → pickup adds → piles. Returns a
-     phase map or null (caller retries). Failures are cheap by design. */
+     phase map or null (caller retries). Failures are cheap by design.
+     FORK RULE: every fork's branches must differ (type / cards / deals / piles)
+     — deal-row siblings get DISTINCT pile counts (free), draft-row siblings get
+     DISTINCT consecutive adds (paid from the boss-band spread budget; rows the
+     budget can't afford become single-node rows so no fake fork can exist). */
   function tryBuildStage(phaseIndex, rng, entryDeck, relax) {
     const C = GEN_CONFIG;
     const suit = C.phaseSuits[phaseIndex];
@@ -6572,22 +6628,31 @@ const RunMap = (() => {
     const maxAdd = Math.max(2, C.packMax - relax);
     const allowedAdds = C.addOptions.filter(a => a <= maxAdd);
 
-    // ── row roles ──
+    // ── row roles. Floors: the card minimum needs 3 PURE draft rows (max +5
+    //    each); every route needs its deal rows; stores are solo chokepoints.
+    const PURE_DRAFTS = 3;
+    const spare = R - 1 - PURE_DRAFTS;          // rows left for deal + store rows
+    const combos = [];
+    for (let d = C.dealRows[0]; d <= C.dealRows[1]; d++)
+      for (let s = C.stores[0]; s <= C.stores[1]; s++)
+        if (d + s <= spare) combos.push([d, s]);
+    if (!combos.length) return null;            // rows config can't hold the floors
+    const combo = pick(rng, combos);
+    const dealTarget = combo[0], storeTarget = combo[1];
+
     const roles = new Array(R).fill("draft");
     roles[bossRow] = "boss";
     if (firstRowDeal) roles[0] = "deal";
-    const dealTarget = ri(rng, C.dealRows);
     const bodyRows = [];
     for (let r = 1; r < bossRow; r++) bodyRows.push(r);
-    for (let i = bodyRows.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bodyRows[i], bodyRows[j]] = [bodyRows[j], bodyRows[i]]; }
+    for (let i = bodyRows.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = bodyRows[i]; bodyRows[i] = bodyRows[j]; bodyRows[j] = t; }
     const storeRows = [];
-    const storeTarget = ri(rng, C.stores);
     for (const r of bodyRows) {
       if (storeRows.length >= storeTarget) break;
       if (storeRows.some(s => Math.abs(s - r) <= 1)) continue;   // stores never on adjacent rows
       storeRows.push(r); roles[r] = "store";
     }
-    if (!storeRows.length) return null;
+    if (storeRows.length < storeTarget) return null;
     let dealsToPlace = dealTarget - (firstRowDeal ? 1 : 0);
     for (const r of bodyRows) {
       if (dealsToPlace <= 0) break;
@@ -6597,28 +6662,85 @@ const RunMap = (() => {
     if (dealsToPlace > 0) return null;
     const draftRows = [];
     for (let r = 0; r < bossRow; r++) if (roles[r] === "draft") draftRows.push(r);
-    // Enough draft rows to reach the card minimum at all?
-    if (draftRows.length * maxAdd < C.minRouteCards) return null;
-    // Optional mixed row: ONE draft row also offers a deal (the card-light gate).
+    if (draftRows.length < PURE_DRAFTS) return null;
+    // Optional mixed row: an EXTRA draft row (beyond the 3 pure) also offers a
+    // deal — a type-distinct fork whose light path collects 0 cards.
     let mixedRow = -1;
-    if (dealTarget < C.dealsPerRouteMax && rng() < C.mixedDealRowChance) {
-      const cands = draftRows.filter(r => r > 0 && draftRows.length * maxAdd - maxAdd >= C.minRouteCards);
-      if (cands.length) mixedRow = pick(rng, cands);
+    if (dealTarget < C.dealsPerRouteMax && draftRows.length > PURE_DRAFTS && rng() < C.mixedDealRowChance) {
+      mixedRow = pick(rng, draftRows);
+    }
+
+    // ── spread budget → draft-row WIDTHS. Distinct sibling adds cost 1 spread
+    //    per extra sibling. The budget is anchored to an INTEGER boss pile count
+    //    p: the light route must reach (bLo+1)·p cards, the heavy route may not
+    //    exceed (bHi+1)·p — real-valued ratios alone can leave the integer pile
+    //    interval empty for some entry decks. Where needed the card-target FLOOR
+    //    rises (still ≤ the light-route ceiling) instead of failing.
+    const bossBand = C.bossBands[phaseIndex];
+    const bLo = bossBand[0], bHi = bossBand[1];
+    let widthBudget = -1, targetFloor = C.minRouteCards;
+    {
+      const pLow = Math.max(C.minPiles, Math.ceil((entryDeck + C.minRouteCards) / (bHi + 1) - 1e-9));
+      const draftCount = draftRows.length - (mixedRow >= 0 ? 1 : 0);
+      let best = null, bestCheap = null;
+      for (let p = pLow; p <= pLow + 3 && p <= C.maxPiles; p++) {
+        const needMinSum = Math.max(C.minRouteCards, Math.ceil((bLo + 1) * p - entryDeck - 1e-9));
+        if (needMinSum > C.maxLightRouteCards - 1) break;   // larger p only needs more
+        const budget = Math.floor((bHi + 1) * p - (entryDeck + needMinSum) + 1e-9);
+        if (budget < 0) continue;
+        // Can a cheap (+1 card) row still exist under this floor? Prefer anchors
+        // where it can, so stages keep offering CARD nodes (not only packs).
+        const cheapOK = draftCount >= 2 && (allowedAdds[0] + (draftCount - 1) * maxAdd) >= needMinSum;
+        if (cheapOK && (!bestCheap || budget > bestCheap.budget)) bestCheap = { budget, needMinSum };
+        if (!best || budget > best.budget) best = { budget, needMinSum };
+      }
+      const chosen = bestCheap || best;
+      if (!chosen) return null;                             // boss band unsatisfiable here
+      widthBudget = chosen.budget;
+      targetFloor = chosen.needMinSum;
+    }
+    const width = {};
+    const orderForWidth = draftRows.slice().sort((a, b) => (a === 0 ? -1 : 0) - (b === 0 ? -1 : 0));
+    for (const r of orderForWidth) {
+      if (r === mixedRow) {
+        // mixed = 1 deal + 1 draft(+1 card); the draft add is pure spread (cost 1)
+        if (widthBudget >= 1) { width[r] = 2; widthBudget -= 1; }
+        else { width[r] = 1; mixedRow = -1; }     // can't afford → pure single row
+      } else {
+        const want = (r === 0 && !firstRowDeal) ? ri(rng, C.openings) : ri(rng, C.rowNodes);
+        const w = Math.max(1, Math.min(want, 1 + widthBudget));
+        width[r] = w;
+        widthBudget -= (w - 1);
+      }
     }
 
     // ── lane composition per row (chokepoints sit on the center lane) ──
+    const stageBand = C.stageBands[phaseIndex];
+    const sLo = stageBand[0], sHi = stageBand[1];
+    const regHi = Math.min(sHi, bLo - 0.05);   // regular deals cap below the boss
     const laneSets2 = [[0, 1], [1, 2], [0, 2]];
     const rowLanes = [];
     for (let r = 0; r < R; r++) {
       let lanes;
-      if (r === bossRow || roles[r] === "store" || (r === 0 && firstRowDeal)) lanes = [1];
+      let count;
+      if (r === bossRow || roles[r] === "store" || (r === 0 && firstRowDeal)) count = 1;
+      else if (roles[r] === "deal") {
+        // Sibling deals must take DISTINCT pile counts — only fork where the
+        // band's INTEGER pile range (estimated at this row's deck) has room.
+        // Low decks against narrow bands (early ♣/♠ rows) go single-node.
+        const dEst = entryDeck + Math.round(C.minRouteCards * (r / Math.max(1, bossRow)));
+        const hiInt = Math.min(C.maxPiles, Math.floor(dEst / (sLo + 1) + 1e-9));
+        const loInt = Math.max(C.minPiles, Math.ceil(dEst / (regHi + 1) - 1e-9));
+        const roomW = hiInt - loInt + 1;
+        const maxSib = Math.max(1, Math.min(C.rowNodes[1], roomW));
+        count = maxSib <= 1 ? 1 : ri(rng, [Math.min(C.rowNodes[0], maxSib), maxSib]);
+      }
+      else count = width[r];
+      if (count <= 1) lanes = [1];
+      else if (count >= 3) lanes = [0, 1, 2];
       else {
-        const count = (r === 0) ? ri(rng, C.openings) : ri(rng, C.rowNodes);
-        if (count >= 3) lanes = [0, 1, 2];
-        else {
-          const opts2 = laneSets2.filter(ls => lanesCompatible(rowLanes[r - 1], ls));
-          lanes = opts2.length ? pick(rng, opts2).slice() : [0, 1, 2];
-        }
+        const opts2 = laneSets2.filter(ls => lanesCompatible(rowLanes[r - 1], ls));
+        lanes = opts2.length ? pick(rng, opts2).slice() : [0, 1, 2].slice(0, 2);
       }
       rowLanes.push(lanes);
     }
@@ -6647,110 +6769,93 @@ const RunMap = (() => {
       const d = pick(rng, rowsArr[mixedRow]); d.type = "deal"; d.suit = suit;
     } else mixedRow = -1;
 
-    // ── pickup adds: row minima hit the card floor; the SPREAD (heaviest −
-    //    lightest) is budgeted from the boss band so piles can exist at both
-    //    deck extremes. Mixed-row drafts count as pure spread (deal path = 0). ──
-    const minima = {};                       // draft row → its lightest add
+    // ── pickup adds: row minima hit the card floor; siblings take DISTINCT
+    //    consecutive adds (min, min+1, …) — the width budget already paid for
+    //    the spread, so the boss band stays satisfiable. ──
+    const minima = {};
+    const rowCap = (r) => maxAdd - ((width[r] || 1) - 1);   // room for min..min+w−1
     draftRows.forEach(r => minima[r] = allowedAdds[0]);
-    let target = ri(rng, [C.minRouteCards, C.maxLightRouteCards - 1]);
+    let target = ri(rng, [targetFloor, Math.max(targetFloor, C.maxLightRouteCards - 1)]);
     const minSum = () => draftRows.reduce((s, r) => s + (r === mixedRow ? 0 : minima[r]), 0);
-    // Keep ONE row cheap (+1 card territory) so every stage offers CARD nodes,
-    // not just packs — capping the light-route target to what the OTHER rows can
-    // carry whenever that still clears the card floor.
     const nonMixed = draftRows.filter(r => r !== mixedRow);
-    const cheapCap = allowedAdds[0] + Math.max(0, nonMixed.length - 1) * maxAdd;
+    const capSum = nonMixed.reduce((s, r) => s + rowCap(r), 0);
+    if (capSum < targetFloor) return null;
+    target = Math.min(target, capSum);
+    if (target < targetFloor) return null;
+    // Keep ONE row cheap (+1 card territory) so every stage offers CARD nodes.
+    const cheapCap = allowedAdds[0] + nonMixed.filter(r => r !== nonMixed[0]).reduce((s, r) => s + rowCap(r), 0);
     let cheapRow = null;
-    if (nonMixed.length >= 2 && cheapCap >= C.minRouteCards) {
-      cheapRow = pick(rng, nonMixed);
-      target = Math.min(target, cheapCap);
+    if (nonMixed.length >= 2) {
+      const cand = pick(rng, nonMixed);
+      const others = nonMixed.filter(r => r !== cand).reduce((s, r) => s + rowCap(r), 0);
+      if (others + allowedAdds[0] >= targetFloor) { cheapRow = cand; target = Math.min(target, others + allowedAdds[0]); }
     }
     let guard = 0;
     while (minSum() < target && guard++ < 200) {
-      const cands = draftRows.filter(x => x !== mixedRow && x !== cheapRow && minima[x] < maxAdd);
+      const cands = draftRows.filter(x => x !== mixedRow && x !== cheapRow && minima[x] < rowCap(x));
       if (!cands.length) break;
-      // Concentrate bumps (rich-get-richer) so low rows survive as card rows.
       let r;
-      if (rng() < 0.7) { const top = Math.max(...cands.map(x => minima[x])); r = pick(rng, cands.filter(x => minima[x] === top)); }
+      if (rng() < 0.7) { const top = Math.max.apply(null, cands.map(x => minima[x])); r = pick(rng, cands.filter(x => minima[x] === top)); }
       else r = pick(rng, cands);
       minima[r] = allowedAdds[allowedAdds.indexOf(minima[r]) + 1] || minima[r] + 1;
     }
-    if (minSum() < C.minRouteCards || minSum() > C.maxLightRouteCards) return null;
-    // Spread budget from the boss band: maxArr ≤ minArr·(hi+1)/(lo+1). This is
-    // what lets pile counts exist at BOTH deck extremes of every later deal.
-    const [bLo, bHi] = C.bossBands[phaseIndex];
-    const minArrBoss = entryDeck + minSum();
-    let budget = Math.floor(minArrBoss * ((bHi + 1) / (bLo + 1)) - minArrBoss - 1e-9);
-    // Row MAXIMA: spend the budget in rotation so routes genuinely differ in
-    // cards (only rows that can express a spread — ≥2 draft nodes, or the mixed
-    // row whose deal path collects 0).
-    const draftsIn = (r) => rowsArr[r].filter(n => !n.type);
-    const maxima = {};
-    draftRows.forEach(r => maxima[r] = (r === mixedRow) ? allowedAdds[0] : minima[r]);
-    let bguard = 0;
-    while (budget > 0 && bguard++ < 100) {
-      const cands = draftRows.filter(r => {
-        if (r !== mixedRow && draftsIn(r).length < 2) return false;   // no fork → no spread
-        const next = allowedAdds.find(a => a > maxima[r]);
-        return next != null && (next - maxima[r]) <= budget;
-      });
-      if (!cands.length) break;
-      const r = pick(rng, cands);
-      const next = allowedAdds.find(a => a > maxima[r]);
-      budget -= next - maxima[r];
-      maxima[r] = next;
-      if (rng() < 0.3) break;                 // sometimes leave a tight stage
-    }
-    // Per-node adds: one node per draft row carries the row MINIMUM (the light
-    // path); the others sample between the row min and the budgeted row max.
+    if (minSum() < targetFloor || minSum() > C.maxLightRouteCards) return null;
     for (const r of draftRows) {
-      const row = draftsIn(r);
-      if (!row.length) continue;
-      const minIdx = Math.floor(rng() * row.length);
-      row.forEach((n, k) => {
-        let add;
-        if (r === mixedRow) add = pick(rng, allowedAdds.filter(a => a <= maxima[r]));
-        else if (k === minIdx) add = minima[r];
-        else add = pick(rng, allowedAdds.filter(a => a >= minima[r] && a <= maxima[r]));
+      const drafts = rowsArr[r].filter(n => !n.type);
+      if (!drafts.length) continue;
+      // DISTINCT consecutive adds, shuffled across lanes (mixed row: a +1 draft).
+      const base = (r === mixedRow) ? allowedAdds[0] : minima[r];
+      const adds = drafts.map((_, k) => base + k);
+      for (let i = adds.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = adds[i]; adds[i] = adds[j]; adds[j] = t; }
+      drafts.forEach((n, k) => {
+        const add = adds[k];
         n.type = add >= 2 ? "pack" : "pickup";
         if (add >= 2) n.packCount = add;
         n.suit = suit; n.mixed = false;
-        n.add = add;   // informational (validators/read-outs use addOf)
+        n.add = add;
       });
     }
 
     const ph = { phaseIndex, suit, rows: R, bossRow, nodes: all, byId,
                  bossId: rowsArr[bossRow][0].id, row0: rowsArr[0].map(n => n.id) };
 
-    // ── piles: per deal, choose a count keeping (deck−p)/p inside the stage
-    //    band at BOTH deck extremes; target difficulty ascends by row and stays
-    //    under the boss band so the boss is the stage's hardest. ──
+    // ── piles: per deal, keep (deck−p)/p inside the stage band at BOTH deck
+    //    extremes; SIBLING deals take DISTINCT pile counts (a real choice);
+    //    regular deals stay below the boss band so the boss is the hardest. ──
     const ext = deckExtremes(ph, entryDeck);
-    const [sLo, sHi] = C.stageBands[phaseIndex];
     const dealRowsAsc = [];
     for (let r = 0; r < bossRow; r++) if (rowsArr[r].some(n => n.type === "deal")) dealRowsAsc.push(r);
     const K = dealRowsAsc.length;
-    const regHi = Math.min(sHi, bLo - 0.05);              // keep regular deals below the boss
-    let prevMid = -Infinity;
     for (let k = 0; k < K; k++) {
       const r = dealRowsAsc[k];
       const isFirst = (phaseIndex === 0 && r === 0);
       const band = isFirst ? C.firstDealBand : [sLo, sHi];
+      const capHi = isFirst ? C.firstDealBand[1] : regHi;
       const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
         : sLo + (regHi - sLo) * ((k + 1) / (K + 1));
+      const used = [];
       for (const n of rowsArr[r]) {
         if (n.type !== "deal") continue;
         const e = ext[n.id];
-        let pMin = Math.ceil(e.max / (band[1] + 1) - 1e-9);
-        let pMax = Math.floor(e.min / (band[0] + 1) + 1e-9);
-        pMin = Math.max(pMin, C.minPiles); pMax = Math.min(pMax, C.maxPiles);
-        if (pMin > pMax) return null;                      // band unsatisfiable here → retry
+        // feasible ints: band holds at both extremes AND the midpoint stays ≤ capHi
         const midDeck = (e.min + e.max) / 2;
-        let p = Math.round(midDeck / (Math.max(targetD, prevMid + 0.05) + 1));
-        p = Math.min(pMax, Math.max(pMin, p));
-        // ascend by row: shrink piles (harder) while the light-route band holds
-        while ((midDeck - p) / p < prevMid + 1e-6 && p > pMin) p--;
+        let pMin = Math.max(C.minPiles,
+          Math.ceil(e.max / (band[1] + 1) - 1e-9),
+          Math.ceil(midDeck / (capHi + 1) - 1e-9));
+        let pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
+        if (pMin > pMax) return null;
+        // distinct from row siblings: walk outward from the target
+        const pT = Math.max(pMin, Math.min(pMax, Math.round(midDeck / (targetD + 1))));
+        let p = null;
+        for (let d = 0; d <= (pMax - pMin); d++) {
+          for (const cand of [pT + d, pT - d]) {
+            if (cand >= pMin && cand <= pMax && used.indexOf(cand) === -1) { p = cand; break; }
+          }
+          if (p != null) break;
+        }
+        if (p == null) return null;                      // siblings can't differ here → retry
+        used.push(p);
         n.piles = p;
-        prevMid = Math.max(prevMid, (midDeck - p) / p);
       }
     }
     // Boss piles from the boss band at both extremes.
@@ -6766,6 +6871,39 @@ const RunMap = (() => {
     return ph;
   }
 
+  /* ── Mutation fallback for a FAKE fork the construction missed: nudge one
+     branch's entry node (a deal's piles / a draft's add) and let the caller
+     re-run FULL validation — bands, floors and fork checks all re-assert. */
+  function mutateFakeForks(ph, entryDeck, phaseIndex) {
+    const C = GEN_CONFIG;
+    const fakes = analyzeForks(ph).filter(f => !f.distinct);
+    if (!fakes.length) return false;
+    const ext = deckExtremes(ph, entryDeck);
+    let changed = false;
+    for (const f of fakes) {
+      const n = ph.byId[f.branches[1]];
+      if (!n) continue;
+      if (n.type === "deal") {
+        const band = C.stageBands[phaseIndex];
+        const e = ext[n.id];
+        const pMin = Math.max(C.minPiles, Math.ceil(e.max / (band[1] + 1) - 1e-9));
+        const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
+        const cands = [n.piles + 1, n.piles - 1];
+        for (const cand of cands) { if (cand >= pMin && cand <= pMax) { n.piles = cand; changed = true; break; } }
+      } else if (n.type === "pickup" || n.type === "pack") {
+        const cur = addOf(n);
+        const cands = [cur + 1, cur - 1];
+        for (const cand of cands) {
+          if (cand < 1 || cand > C.packMax) continue;
+          if (cand >= 2) { n.type = "pack"; n.packCount = cand; } else { n.type = "pickup"; delete n.packCount; }
+          n.add = cand; changed = true; break;
+        }
+      }
+    }
+    return changed;
+  }
+
+
   /* ── generateStage: build → validate (full route enumeration) → retry; after
      the attempt cap, RELAX pack sizes and keep trying. If the spec is truly
      unsatisfiable, log the conflict and return the best effort (playable). ──
@@ -6780,7 +6918,13 @@ const RunMap = (() => {
       const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
       const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax);
       if (!ph) continue;
-      const v = validateStage(ph, entryDeck, { phaseIndex });
+      let v = validateStage(ph, entryDeck, { phaseIndex });
+      // A surviving FAKE fork gets one mutation pass (nudge a branch's piles /
+      // pack size), then FULL re-validation — every other rule re-asserts too.
+      if (!v.ok && v.errors.every(e => e.indexOf("FAKE fork") === 0)
+          && mutateFakeForks(ph, entryDeck, phaseIndex)) {
+        v = validateStage(ph, entryDeck, { phaseIndex });
+      }
       ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
       if (v.ok) return ph;
       if (v.errors.length < bestErrs) { best = ph; bestErrs = v.errors.length; lastErrors = v.errors; }
@@ -7155,7 +7299,7 @@ const RunMap = (() => {
   }
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
-           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes };
+           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks };
 })();
 
 /* ----------------------------------------------------------------

@@ -125,6 +125,11 @@ export function run() {
       r.ok(v.report.cards[0] >= 11, "stage " + s + ": every route collects ≥11 cards");
       r.ok(v.report.cards[0] <= 15, "stage " + s + ": a route ≤15 cards exists");
       r.ok(v.report.dealsPerRoute[0] >= 3 && v.report.dealsPerRoute[1] <= 5, "stage " + s + ": 3–5 deals on every route");
+      // RULE 1: 2–3 stores per stage.
+      r.ok(v.report.stores >= 2 && v.report.stores <= 3, "stage " + s + ": has 2–3 stores (" + v.report.stores + ")");
+      // RULE 2: no fake forks — every fork's branches differ in type/cards/deals/piles.
+      r.ok(v.report.forks.length >= 1, "stage " + s + ": the map actually forks");
+      r.ok(v.report.forks.every(f => f.distinct), "stage " + s + ": every fork offers a REAL choice (no identical branches)");
       // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
       let swaps = 0;
       const rows = {};
