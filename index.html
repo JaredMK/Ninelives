@@ -5205,6 +5205,21 @@ const GLYPHS = {
               '<circle cx="12" cy="16" r="5.3" fill="none" stroke="currentColor" stroke-width="2"/>' +
               '<path d="M12 12.6v6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
               '<path d="M13.8 14.1h-2.6a1.35 1.35 0 0 0 0 2.7h1.6a1.35 1.35 0 0 1 0 2.7h-2.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  linkShuffle: '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M4 12h9l-2.4-2.4M13 12l-2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+              '<path d="M20 18h-9l2.4-2.4M11 18l2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  samePeek:   '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M3.5 15c3-4.4 14-4.4 17 0-3 4.4-14 4.4-17 0z" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="12" cy="15" r="2.2"/>',
+  linkHeavy:  '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+              '<rect x="6.5" y="11.5" width="11" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>' +
+              '<path d="M12 13.3v4.4M9.8 15.5h4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   // rank editors — crisp SVG numerals
   rankup: T("+1"), rankdown: T("−1"), rankup2: T("+2"), rankdown2: T("−2"),
   die: '<rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="15" cy="15" r="1.5"/>',
@@ -5223,6 +5238,14 @@ const GLYPHS = {
   rcpt_spade: suitPath("spade", 0.62) + CUP, rcpt_heart: suitPath("heart", 0.62) + CUP,
   rcpt_diamond: suitPath("diamond", 0.62) + CUP, rcpt_club: suitPath("club", 0.62) + CUP,
   tie: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 10h6M9 13.5h6" stroke="currentColor" stroke-width="2"/>',
+  // Column Tie-Safe: a shield with THREE vertical bars (the column of piles it
+  // protects) — distinct from the Same-Safe sticker's two-horizontal-bar shield.
+  tie_column: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.4 8.4v7M12 8v8M14.6 8.4v7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  // All Hearts: a trio of hearts (every pile in the column shows a ♥) — distinct
+  // from the single-heart Change-to-♥ sticker glyph.
+  hearts_all: '<g transform="translate(6.2 1.8) scale(0.4)"><path d="' + SUITP.heart + '" fill="var(--card-red)"/></g>' +
+              '<g transform="translate(1 11) scale(0.4)"><path d="' + SUITP.heart + '" fill="var(--card-red)"/></g>' +
+              '<g transform="translate(11.4 11) scale(0.4)"><path d="' + SUITP.heart + '" fill="var(--card-red)"/></g>',
   yield: '<path d="M12 3v8" stroke="currentColor" stroke-width="2"/><path d="M8 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="2.6"/>',
   focus: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3"/>',
   spark: '<path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/>',
@@ -5334,8 +5357,8 @@ const ELEM_GLYPH = {
   snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
   baseScout: "basescout", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
-  columnTieSafe: "tie", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
-  allHeartsCoin: "heart", allSpadesCoin: "spade",
+  columnTieSafe: "tie_column", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
+  allHeartsCoin: "hearts_all", allSpadesCoin: "spade",
   allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
   fibonacci: "fibonacci", highestOdd: "highestOdd", highestEven: "highestEven",
@@ -5859,7 +5882,7 @@ const BaseTypes = (() => {
       // Distribution: balance the SIZES of every alive pile in this column that
       // contains at least one ♦ card (top or buried) by moving buried cards among
       // just those piles. Non-♦ piles are untouched. Composition only (no reveal).
-      id: "evenOut", label: "Ballast", icon: "⚖️",
+      id: "evenOut", label: "Ballast", icon: "🪨",
       kind: "active", effect: "evenOut", tier: "common", price: 9,
       description: "Trigger: Activated, once per deal\nEffect: Distribute the piles in this column that hold ♦ cards (top card or buried) so they end up the same pile size (composition only — nothing revealed)",
     },
@@ -5962,7 +5985,7 @@ const SamePowerTypes = (() => {
     linkBury: {
       // Flagship / survival. On a correct Same, bury 1 deck card under each pile
       // directly linked to the called pile (deeper neighbours = more buffer).
-      id: "linkBury", label: "Burrow", icon: "🕳️",
+      id: "linkBury", label: "Burrow", icon: "🦫",
       effect: "linkBury", value: 1, tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Bury 1 card under each pile directly linked to the pile you called Same on",
     },
