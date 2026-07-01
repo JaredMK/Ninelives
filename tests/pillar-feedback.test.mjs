@@ -10,9 +10,9 @@ export function run() {
   const r = makeRunner("pillar-feedback.test.mjs");
 
   const byEffect = (eff) => PillarTypes.all().find((t) => t.effect === eff);
-  const spade = byEffect("suitBounty");
-  const streak = byEffect("streakBank");
-  const eight = byEffect("eightTribute");
+  const spade = byEffect("suitBounty");        // now the ♥ Heart Bonus
+  const streak = byEffect("streakSize");        // Streak Bank → Streak Size
+  const club = byEffect("clubTribute");         // 8 Bury (♣ no-sticker)
   const guardian = byEffect("columnAllAlive");
   const specs = () => DeckManager.buildStandardDeck();
   const landHigher = (e, idx, v = 9) => { e.getBoard().top(idx).value = 5; e.debug.setNextCard(v); e.guess(idx, "higher"); };
@@ -34,28 +34,30 @@ export function run() {
     r.eq(e.getRun().bonusCoins - before, spade.value || 0, "coins paid are UNCHANGED (value untouched)");
   }
 
-  // --- Streak Bank: silent below threshold, fires once at 3-in-a-row.
+  // --- Streak Size: silent below threshold, pulses once at 3-in-a-row (amount 0).
   {
     const e = GameEngine.create(specs(), 9, { cols: [3, 3, 3] });
     const fired = [];
-    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "streakBank") fired.push(p); });
+    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "streakSize") fired.push(p); });
     e.start(); e.startRun([streak.id, null, null]);
     landHigher(e, 0); landHigher(e, 0);
-    r.eq(fired.length, 0, "Streak Bank stays silent below its threshold");
+    r.eq(fired.length, 0, "Streak Size stays silent below its threshold");
     landHigher(e, 0);
-    r.eq(fired.length, 1, "Streak Bank fires once at 3 in a row");
-    r.eq(fired[0].col, 0, "Streak Bank pillar-fired column is 0");
-    r.ok(fired[0].amount >= 1, "Streak Bank pillar-fired carries a coin amount");
+    r.eq(fired.length, 1, "Streak Size pulses once at 3 in a row");
+    r.eq(fired[0].col, 0, "Streak Size pillar-fired column is 0");
+    r.eq(fired[0].amount, 0, "Streak Size is a size effect (pulse, amount 0)");
   }
 
-  // --- 8 Bury: a non-coin effect → pillar-fired with amount 0 (pulse only).
+  // --- 8 Bury (clubTribute): non-coin effect → pillar-fired with amount 0.
   {
     const e = GameEngine.create(specs(), 9, { cols: [3, 3, 3] });
     const fired = [];
-    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "eightTribute") fired.push(p); });
-    e.start(); e.startRun([eight.id, null, null]);
+    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "clubTribute") fired.push(p); });
+    e.start(); e.startRun([club.id, null, null]);
     const deckBefore = e.getDeck().remaining();
-    e.getBoard().top(0).value = 5; e.debug.setNextCard(8); e.guess(0, "higher");   // land an 8
+    e.getBoard().top(0).value = 5;
+    const d = e.debug.setNextCard(9); d.suit = "♣"; d.stickers = [];   // a sticker-free ♣ lands
+    e.guess(0, "higher");
     r.eq(fired.length, 1, "8 Bury emits a pillar-fired event");
     r.eq(fired[0].amount, 0, "8 Bury is non-coin (amount 0)");
     r.ok(e.getDeck().remaining() < deckBefore, "8 Bury still buries (behaviour unchanged)");

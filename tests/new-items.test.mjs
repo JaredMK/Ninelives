@@ -24,7 +24,7 @@ export function run() {
     r.eq(PillarTypes.get("highestOdd").tier, "rare", "Highest Odd is Rare");
     r.eq(PillarTypes.get("highestEven").price, 15, "Highest Even costs 15");
     r.eq(PillarTypes.get("highestEven").price - PillarTypes.get("highestOdd").price, 3, "Highest Even is priced 3 above Highest Odd");
-    r.eq(PillarTypes.get("denseBury").price, 15, "Dense Bury costs 15");
+    r.eq(PillarTypes.get("denseBury").price, 20, "Dense Bury costs 20");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
     r.eq(PillarTypes.get("revive").price, 25, "Revive costs 25");
     r.eq(PillarTypes.get("revive").tier, "rare", "Revive is Rare");
@@ -104,24 +104,34 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 5, "Highest Odd counts only TOP cards (buried 9 ignored → highest odd top = 5)");
   }
 
-  // --- Dense Bury: a 2+ sticker landing buries 1 from the deck bottom ----
+  // --- Dense Bury: a ♣ card with 2+ stickers landing buries 1 -----------
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["denseBury", null, null]);
     e.getBoard().top(0).value = 5;
-    const d = e.debug.setNextCard(9);
-    d.stickers = [{ type: "heavy" }, { type: "tieSafe" }];   // 2 stickers (the new threshold)
+    const d = e.debug.setNextCard(9); d.suit = "♣";
+    d.stickers = [{ type: "heavy" }, { type: "tieSafe" }];   // a ♣ with 2 stickers
     const before = e.getBoard().piles[0].cards.length;
     e.guess(0, "higher");
-    r.eq(e.getBoard().piles[0].cards.length, before + 2, "2-sticker landing buries 1 (pile +2: drawn + buried)");
-    r.eq(e.getRun().denseBuryUsed[0], 1, "Dense Bury fires at 2 stickers");
+    r.eq(e.getBoard().piles[0].cards.length, before + 2, "♣ 2-sticker landing buries 1 (pile +2: drawn + buried)");
+    r.eq(e.getRun().denseBuryUsed[0], 1, "Dense Bury fires on a ♣ at 2 stickers");
+  }
+  {
+    // A NON-♣ card with 2 stickers does NOT fire (suit gate).
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun(["denseBury", null, null]);
+    e.getBoard().top(0).value = 5;
+    const d = e.debug.setNextCard(9); d.suit = "♥";
+    d.stickers = [{ type: "heavy" }, { type: "tieSafe" }];
+    e.guess(0, "higher");
+    r.eq(e.getRun().denseBuryUsed[0], 0, "a non-♣ 2-sticker card does not fire Dense Bury");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["denseBury", null, null]);
     e.getBoard().top(0).value = 5;
-    const d = e.debug.setNextCard(9);
-    d.stickers = [{ type: "heavy" }];   // only 1 — below the 2+ threshold
+    const d = e.debug.setNextCard(9); d.suit = "♣";
+    d.stickers = [{ type: "heavy" }];   // a ♣ with only 1 — below the 2+ threshold
     const before = e.getBoard().piles[0].cards.length;
     e.guess(0, "higher");
     r.eq(e.getBoard().piles[0].cards.length, before + 1, "1 sticker → no Dense Bury (pile +1: drawn only)");

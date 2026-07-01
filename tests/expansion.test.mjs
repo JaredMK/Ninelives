@@ -16,93 +16,66 @@ export function run() {
 
   // ===== Pillars =========================================================
 
-  // --- Envy: +1 per surviving pile across EVERY OTHER column ------------
-  // (cols [3,4,3] → col 0 = 3 piles, col 1 = 4, col 2 = 3. Envy on col 0 counts
-  //  every OTHER column's survivors, regardless of whether they hold a Pillar.)
+  // --- Envy: +4 coins per ALIVE pile with a ♥ top card (board-wide) ------
   {
-    // Envy alone still counts every other column's survivors: col1(4)+col2(3)=7.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["envy", null, null]);
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";   // clear all ♥ tops first
+    b.top(0).suit = "♥"; b.top(3).suit = "♥"; b.top(7).suit = "♥";   // exactly 3 ♥ tops
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 7, "Envy counts every other column (4+3 = +7)");
+    r.eq(won().pillarPayout.bonus, 12, "Envy pays +4 per ♥-top pile (3 × 4 = 12)");
   }
   {
-    // Whether the other columns hold Pillars makes no difference.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["envy", null, "secondWind"]);
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 7, "Envy ignores whether other columns are pillared (4+3 = +7)");
-  }
-  {
-    // Only SURVIVING piles count — a death in another column lowers it.
+    // Dead piles don't count — a ♥ top on a dead pile is ignored.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["envy", null, null]);
-    e.getBoard().kill(8);   // col 2 → 2 survivors
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";
+    b.top(0).suit = "♥"; b.top(1).suit = "♥"; b.kill(1);   // pile 1 is ♥ but dead
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Envy counts only SURVIVING piles (4+2 = +6)");
-  }
-  {
-    // Envy's OWN column never counts toward itself.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["envy", null, null]);
-    e.getBoard().kill(0);   // col 0 (Envy's own) — should not change the score
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 7, "Envy excludes its own column (4+3 = +7)");
+    r.eq(won().pillarPayout.bonus, 4, "Envy counts only ALIVE ♥-top piles (1 × 4)");
   }
 
   // (Symmetry was removed in the rebalance — its tests are gone.)
 
-  // --- Streak Bank: +1 from the 3rd consecutive in-column correct -------
+  // --- Streak Size: +1 pile size per streak step from the 3rd, in-column -
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["streakBank", null, null]);
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 0, "Streak Bank: 1st correct, no bonus");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 0, "2nd correct, no bonus");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 1, "3rd consecutive → +1");
-    winGuess(e, 0); r.eq(e.getRun().bonusCoins, 2, "4th consecutive → +1 (total 2)");
+    e.start(); e.startRun(["streakBank", null, null]);   // now "Streak Size"
+    // pile 1 (col 0) is not guessed on, so its physical count stays 1; its
+    // pileSize reflects the column streak bonus.
+    winGuess(e, 0); r.eq(e.getBoard().pileSize(1), 1, "Streak Size: 1st correct, no size bonus");
+    winGuess(e, 0); r.eq(e.getBoard().pileSize(1), 1, "2nd correct, still none");
+    winGuess(e, 0); r.eq(e.getBoard().pileSize(1), 2, "3rd consecutive → +1 pile size");
+    winGuess(e, 0); r.eq(e.getBoard().pileSize(1), 3, "4th consecutive → +2 pile size");
   }
   {
-    // A guess in ANOTHER column resets the streak (right or wrong).
+    // A guess in ANOTHER column resets the streak → the size bonus drops.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["streakBank", null, null]);
-    winGuess(e, 0); winGuess(e, 0); winGuess(e, 0);   // streak 3 → bonus 1
-    r.eq(e.getRun().bonusCoins, 1, "reached 3 in column 0");
-    winGuess(e, 3);   // a correct guess in column 1 — resets column 0's streak
-    winGuess(e, 0); winGuess(e, 0);   // rebuild 1,2 — no new bonus
-    r.eq(e.getRun().bonusCoins, 1, "a guess in another column reset the streak");
-    winGuess(e, 0);   // 3rd again → +1
-    r.eq(e.getRun().bonusCoins, 2, "streak rebuilt to 3 → +1");
-  }
-  {
-    // An in-column WRONG guess resets the streak (and kills that pile).
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["streakBank", null, null]);
-    winGuess(e, 0); winGuess(e, 0); winGuess(e, 0);   // streak 3 → bonus 1
-    e.getBoard().top(0).value = 9; e.debug.setNextCard(2); e.guess(0, "higher");   // wrong, in column → reset
-    r.ok(!e.getBoard().isActive(0), "in-column wrong guess killed the pile");
-    winGuess(e, 1); winGuess(e, 1);   // rebuild on another col-0 pile: 1,2
-    r.eq(e.getRun().bonusCoins, 1, "in-column wrong reset the streak (no bonus at 2)");
-    winGuess(e, 1);   // 3rd → +1
-    r.eq(e.getRun().bonusCoins, 2, "streak rebuilt → +1");
+    winGuess(e, 0); winGuess(e, 0); winGuess(e, 0);   // streak 3 → +1 size
+    r.eq(e.getBoard().pileSize(1), 2, "reached 3 in column 0 → +1 size");
+    winGuess(e, 3);   // a guess in column 1 resets column 0's streak
+    r.eq(e.getBoard().pileSize(1), 1, "a guess in another column reset the size bonus");
   }
 
-  // --- Streak Tribute: buries from the 4th consecutive, uncapped --------
+  // --- Streak Bury: buries (streak − 2) from the 3rd consecutive, uncapped -
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["streakTribute", null, null]);
-    // Pile grows by 1 per correct guess until a tribute fires, then by 2 (drawn
-    // + 1 buried). Pile size is the deterministic signal (deck counts aren't,
-    // because forcing the same rank can synthesize cards once the deck's run out).
-    winGuess(e, 0); winGuess(e, 0); winGuess(e, 0);   // streak 3 → no tribute yet
-    r.eq(e.getBoard().piles[0].cards.length, 4, "no tribute through the 3rd (pile = 1 deal + 3 drawn)");
-    winGuess(e, 0);   // streak 4 → tribute: drawn + 1 buried
-    r.eq(e.getBoard().piles[0].cards.length, 6, "4th consecutive buries a tribute (pile +2: drawn + 1 hidden)");
-    winGuess(e, 0);   // streak 5 → tribute again (uncapped)
-    r.eq(e.getBoard().piles[0].cards.length, 8, "5th consecutive tributes again, uncapped (pile +2)");
+    // Each correct guess adds the drawn card (+1); from the 3rd, ALSO bury
+    // (streak − 2) more. Pile size is the deterministic signal.
+    winGuess(e, 0); winGuess(e, 0);   // streak 1,2 → +1 each, no tribute
+    r.eq(e.getBoard().piles[0].cards.length, 3, "no tribute through the 2nd (pile = 1 deal + 2 drawn)");
+    winGuess(e, 0);   // streak 3 → drawn + bury 1 (=+2)
+    r.eq(e.getBoard().piles[0].cards.length, 5, "3rd buries 1 (pile +2: drawn + 1 hidden)");
+    winGuess(e, 0);   // streak 4 → drawn + bury 2 (=+3)
+    r.eq(e.getBoard().piles[0].cards.length, 8, "4th buries 2 (pile +3: drawn + 2 hidden)");
+    winGuess(e, 0);   // streak 5 → drawn + bury 3 (=+4)
+    r.eq(e.getBoard().piles[0].cards.length, 12, "5th buries 3, uncapped (pile +4)");
   }
 
   // --- Second Wind: first death per column revives once -----------------
@@ -331,12 +304,13 @@ export function run() {
   {
     // No-revelation: a buried tribute logs a COUNT only — never a card identity.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["eightTribute", null, null]);
+    e.start(); e.startRun(["clubTribute", null, null]);
     e.getBoard().top(0).value = 5;
-    e.debug.setNextCard(8); e.guess(0, "higher");   // an 8 lands → tribute buries 3
+    const d = e.debug.setNextCard(8); d.suit = "♣"; d.stickers = [];   // a sticker-free ♣ lands → bury 1
+    e.guess(0, "higher");
     const turn = e.getRun().log[e.getRun().log.length - 1];
     const buryLine = turn.lines.find(l => /buried/.test(l));
-    r.ok(!!buryLine && /deck −3/.test(buryLine), "logbook: tribute logs a buried count + deck delta");
+    r.ok(!!buryLine && /deck −1/.test(buryLine), "logbook: tribute logs a buried count + deck delta");
     r.ok(!/[♠♥♦♣]/.test(buryLine), "logbook: buried card is counts-only — no suit/identity leaked");
   }
 

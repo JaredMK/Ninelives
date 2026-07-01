@@ -3211,6 +3211,39 @@
     color: var(--amber);
     border-color: var(--amber);
   }
+  /* Static volatility indicator: a brief toast over the column at deal end saying
+     the Static Pillar is Safe (green) or Destroyed (red), with a pop. A destroyed
+     Pillar's column cell also shatter-shakes. Fixed overlay, self-removing. */
+  .static-toast {
+    position: fixed; z-index: 90; transform: translate(-50%, -130%);
+    padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
+    white-space: nowrap; pointer-events: none; box-shadow: 0 4px 12px rgba(40,24,30,0.35);
+    display: inline-flex; align-items: center; gap: 5px;
+    animation: staticToast 1.7s cubic-bezier(0.3,0.9,0.4,1) forwards;
+  }
+  .static-toast .st-ic { font-size: 13px; }
+  .static-toast.safe { background: #eafaf0; color: #1d6e3b; border: 1px solid #34a85c; }
+  .static-toast.boom { background: #fdecea; color: #9c281c; border: 1px solid #db4233; }
+  @keyframes staticToast {
+    0%   { opacity: 0; transform: translate(-50%, -100%) scale(0.8); }
+    14%  { opacity: 1; transform: translate(-50%, -140%) scale(1.06); }
+    24%  { transform: translate(-50%, -130%) scale(1); }
+    78%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -150%) scale(0.96); }
+  }
+  .bp-cell.static-boom { animation: staticBoom 0.6s ease-in-out; }
+  @keyframes staticBoom {
+    0%,100% { transform: translateX(0) rotate(0); filter: none; }
+    15% { transform: translateX(-3px) rotate(-4deg); filter: brightness(1.5) saturate(0); }
+    30% { transform: translateX(3px) rotate(4deg); }
+    45% { transform: translateX(-2px) rotate(-2deg); filter: brightness(0.7) saturate(0); }
+    60% { transform: translateX(2px) rotate(2deg); opacity: 0.5; }
+    80% { transform: translateX(-1px); opacity: 0.8; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .static-toast { animation: none; opacity: 1; }
+    .bp-cell.static-boom { animation: none; }
+  }
   /* Tell hint — a small directional pill at the TOP-CENTRE of a pile: ▲ higher,
      = same, ▼ lower for the NEXT draw here. It shows a DIRECTION (not a card), so
      it's deliberately distinct from the deck peek-reveal (which renders an actual
@@ -5019,7 +5052,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.62 · pillar rebalance ph1: delete 11, reprice/retier the rest";
+const APP_VERSION = "v3.63 · pillar rebalance ph2: mechanic reworks + new pillars (wildAces, clubTribute, diamondAnchor, diamondDistribution, static self-destruct)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5531,13 +5564,12 @@ const PillarTypes = (() => {
       kind: "scoring", effect: "columnAllAlive", value: 7, tier: "uncommon", price: 7,
       description: "+7 coins if every pile in this column is alive at end of deal",
     },
-    eightTribute: {
-      // When a drawn 8 lands as a new top on a pile in this column, pull the
-      // deck's BOTTOM card under that pile (hidden). Uncapped — fires every time
-      // (bounded only by the draw deck). Pure composition shift — no reveal.
-      id: "eightTribute", label: "8 Bury", icon: "8️⃣",
-      kind: "composition", effect: "eightTribute", tier: "rare", price: 8,
-      description: "Trigger: An 8 lands correctly in this column\nEffect: Bury 3 deck cards under that pile",
+    clubTribute: {
+      // When a ♣ card carrying NO stickers lands correctly on a pile in this
+      // column, bury one deck-bottom card under it (hidden). Uncapped.
+      id: "clubTribute", label: "8 Bury", icon: "8️⃣",
+      kind: "composition", effect: "clubTribute", tier: "rare", price: 25,
+      description: "Bury a card if a ♣ card with no stickers lands correctly in this column",
     },
     allHeartsCoin: {
       // End-of-run, column-scoped (win only): +value if EVERY surviving pile in
@@ -5548,26 +5580,27 @@ const PillarTypes = (() => {
       description: "+8 coins at end of deal if every surviving pile in this column shows a ♥ on top",
     },
     envy: {
-      // End-of-run: +1 per surviving pile across EVERY OTHER column (all columns
-      // except this one, whether or not they hold a Pillar). Scored in computePillarPayout.
+      // End-of-deal: +value per alive pile (board-wide) whose TOP card is a ♥.
       id: "envy", label: "Envy", icon: "💚",
-      kind: "scoring", effect: "envyOthers", value: 1, tier: "uncommon", price: 6,
-      description: "Trigger: Deal cleared\nEffect: +1 coin per surviving pile in every OTHER column",
+      kind: "scoring", effect: "heartPiles", value: 4, tier: "common", price: 8,
+      description: "+4 coins per pile with a ♥ top card at end of deal",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
       // pay +1 from the 3rd in a row onward. A wrong in-column guess — or ANY
       // guess in another column — resets the streak. Paid via addBonus.
-      id: "streakBank", label: "Streak Bank", icon: "🏦",
-      kind: "live", effect: "streakBank", value: 1, tier: "rare", price: 8,
-      description: "Trigger: A correct guess in this column, from the 3rd in a row onward\nEffect: +1 coin. Resets on a wrong guess here, or any guess in another column",
+      // Pile-SIZE (not coins): from the 3rd consecutive in-column correct guess
+      // onward, this column's piles each count as +1 size per streak step.
+      id: "streakBank", label: "Streak Size", icon: "🏦",
+      kind: "modifier", effect: "streakSize", tier: "rare", price: 8,
+      description: "+1 pile size per consecutive correct guess in this column, from the 3rd guess onward. Resets on a wrong guess or any guess in another column",
     },
     streakTribute: {
-      // Composition: from the 4th consecutive correct guess in this column
-      // onward, bury a deck-bottom card under the pile. Uncapped, no reveal.
+      // Composition: from the 3rd consecutive correct guess in this column onward,
+      // bury one deck-bottom card PER guess in the streak (escalating). No reveal.
       id: "streakTribute", label: "Streak Bury", icon: "🔥",
-      kind: "composition", effect: "streakTribute", tier: "rare", price: 10,
-      description: "Trigger: A correct guess in this column, from the 4th in a row onward\nEffect: Bury 1 deck card under that pile. Resets on a wrong guess here, or any guess in another column",
+      kind: "composition", effect: "streakTribute", tier: "rare", price: 20,
+      description: "Bury 1 deck card per consecutive correct guess in this column, from the 3rd guess onward. Resets on a wrong guess or any guess in another column",
     },
     secondWind: {
       // Guess-time: the FIRST pile to die in this column each run revives once
@@ -5613,11 +5646,11 @@ const PillarTypes = (() => {
       description: "Receive coins equal to the highest even-rank (2/4/6/8/10) top card in this column at end of deal",
     },
     denseBury: {
-      // Composition: when a correct guess lands a card carrying 2+ stickers on a
-      // pile in this column, bury 1 deck-bottom card under it. Uncapped, no reveal.
+      // Composition: when a ♣ card carrying 2+ stickers lands correctly on a pile
+      // in this column, bury 1 deck-bottom card under it. Uncapped, no reveal.
       id: "denseBury", label: "Dense Bury", icon: "🧊",
-      kind: "composition", effect: "denseBury", tier: "rare", price: 15,
-      description: "Trigger: A card carrying 2+ stickers lands correctly in this column\nEffect: Bury 1 deck card under that pile",
+      kind: "composition", effect: "denseBury", tier: "rare", price: 20,
+      description: "Bury a card if a ♣ card carrying 2+ stickers lands correctly in this column",
     },
     revive: {
       // Guess-time, one-shot per deal: the first time a pile in this column reaches
@@ -5644,11 +5677,12 @@ const PillarTypes = (() => {
       description: "Mirror the center column's Pillar",
     },
     stickerCount: {
-      // End-of-deal: +value per sticker across this column's alive piles,
-      // counting stickers on BURIED cards too (not just the pile card).
-      id: "stickerCount", label: "Sticker Count", icon: "🏷️",
-      kind: "scoring", effect: "stickerCount", value: 1, tier: "uncommon", price: 7,
-      description: "Trigger: Deal cleared\nEffect: +1 coin per sticker across this column's alive piles (buried cards included)",
+      // Pile-SIZE modifier: every ♦ card in this column (anywhere in a pile, buried
+      // too) counts as +1 toward that pile's size (like the Heavy sticker, but for
+      // ♦ in this column). Read live via the board's pillar size hook.
+      id: "stickerCount", label: "Heavy Diamond", icon: "🏷️",
+      kind: "modifier", effect: "heavyDiamond", tier: "uncommon", price: 7,
+      description: "Diamond ♦ cards in this column all count as +1 toward pile size",
     },
     prime: {
       // Live: +value each time a prime-ranked drawn card (2, 3, 5, 7) is placed
@@ -5658,32 +5692,32 @@ const PillarTypes = (() => {
       description: "Trigger: A prime-rank card (2/3/5/7) lands correctly in this column\nEffect: +1 coin",
     },
     queensEye: {
-      // Live: when a Queen lands correctly in this column, peek the next upcoming
-      // card (deck-reveal treatment, like Scout).
+      // Live: when a royal (J/Q/K) ♠ card lands correctly in this column, peek the
+      // next upcoming card (deck-reveal treatment, like Scout).
       id: "queensEye", label: "Queen's Eye", icon: "👁️",
-      kind: "live", effect: "queensEye", tier: "uncommon", price: 5,
-      description: "Trigger: A Queen lands correctly in this column\nEffect: Peek the next upcoming card until it's drawn",
+      kind: "live", effect: "queensEye", tier: "uncommon", price: 8,
+      description: "Peek next card if a royal (J/Q/K) spade ♠ card lands correctly in this column",
     },
     royalCourt: {
-      // Live: +value each time a face card (J/Q/K) is placed correctly in this
-      // column.
-      id: "royalCourt", label: "Royal Court", icon: "👑",
-      kind: "live", effect: "royalCourt", value: 2, tier: "uncommon", price: 7,
-      description: "Trigger: A face card (J/Q/K) lands correctly in this column\nEffect: +2 coins",
+      // Live: a ♦ landing correctly in this column shuffles the column's OTHER
+      // piles (a different card may top each; order stays hidden).
+      id: "royalCourt", label: "Shuffler", icon: "👑",
+      kind: "guess", effect: "shuffler", tier: "uncommon", price: 5,
+      description: "Shuffle other piles in this column if a ♦ lands in this column",
     },
     excavator: {
       // End-of-deal: +value per BURIED card in this column's LARGEST alive pile
-      // only (the most-cards survivor; ties bury the same count either way).
+      // whose TOP card is a ♥ (the most-cards ♥-topped survivor).
       id: "excavator", label: "Excavator", icon: "⛏️",
-      kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 7,
-      description: "Trigger: Deal cleared\nEffect: +1 coin per buried card in this column's largest alive pile",
+      kind: "scoring", effect: "excavator", value: 2, tier: "uncommon", price: 6,
+      description: "+2 coins per buried card in this column's largest pile with a ♥ top card at end of deal",
     },
     gambler: {
-      // End-of-deal: a 50/50 coin flip — +value or nothing. The outcome is
-      // always shown in the payout breakdown.
+      // End-of-deal: a 50/50 coin flip for +value — but ONLY if this column has at
+      // least one alive pile with a ♥ top card. The outcome is always shown.
       id: "gambler", label: "Gambler", icon: "🎲",
-      kind: "scoring", effect: "gambler", value: 7, tier: "uncommon", price: 6,
-      description: "Trigger: Deal cleared\nEffect: A 50/50 flip — +7 coins or nothing (the result is shown)",
+      kind: "scoring", effect: "gambler", value: 10, tier: "uncommon", price: 10,
+      description: "50/50 chance to receive +10 coins or nothing if there is a ♥ top card in column at end of deal",
     },
     broadcast: {
       // Passive force-multiplier (no coins of its own): while in play, every one
@@ -5706,24 +5740,48 @@ const PillarTypes = (() => {
       description: "Peek the next upcoming card if a pile in this column dies",
     },
     static: {
-      // Live, column-scoped: when a card is DRAWN into this column, roll ONCE to
-      // peek the next upcoming card, with a 10% chance per sticker on that drawn
-      // card (0 stickers → never; 3 stickers → 30%, single roll).
+      // Live, column-scoped: a ♠ landing correctly in this column peeks the next
+      // upcoming card. Volatile: at the end of each deal there's a 25% chance the
+      // Static Pillar itself is destroyed (removed from its column).
       id: "static", label: "Static", icon: "🔌",
-      kind: "live", effect: "static", tier: "rare", price: 6,
-      description: "Trigger: A card is drawn into this column\nEffect: Peek the next upcoming card — 10% chance per sticker on the drawn card, rolled once",
+      kind: "live", effect: "static", tier: "rare", price: 6, selfDestruct: 0.25,
+      description: "Peek the next card if a ♠ card lands in this column; 25% chance pillar is destroyed at end of each deal",
+    },
+    wildAces: {
+      // Guess-time, column-scoped: an Ace landing in this column counts as HIGH or
+      // LOW — whichever makes the guess correct (drawn Ace or pile-card Ace).
+      id: "wildAces", label: "Wild Aces", icon: "🃏",
+      kind: "guess", effect: "wildAces", tier: "rare", price: 25,
+      description: "Aces count as high or low when landing in this column",
+    },
+    diamondAnchor: {
+      // Pile-anchor modifier: while a pile in this column shows a ♦ on top, that
+      // pile is left out of the smallest-pile payout score (like the Anchor
+      // sticker). Read live via the board's pillar anchor hook.
+      id: "diamondAnchor", label: "Diamond Anchor", icon: "⚓", noGlyph: true,
+      kind: "modifier", effect: "diamondAnchor", tier: "rare", price: 12,
+      description: "If a diamond ♦ card is the top card, the pile is left out of the smallest-pile score",
+    },
+    diamondDistribution: {
+      // Guess-time, column-scoped: a ♦ landing correctly in this column redistributes
+      // the column's alive piles so their sizes are as even as possible (composition
+      // shift — buried cards move; each pile keeps its own top; no reveal).
+      id: "diamondDistribution", label: "Diamond Distribution", icon: "⚖️", noGlyph: true,
+      kind: "guess", effect: "diamondDistribution", tier: "uncommon", price: 6,
+      description: "Redistribute all piles in column to make pile sizes even if a diamond ♦ lands in this column",
     },
   };
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
   // Kamikaze used to live here as a Pillar; it is now a Base (see BaseTypes).
   const ORDER = ["heartBounty",
-    "columnTieSafe", "columnGuardian", "eightTribute",
+    "columnTieSafe", "columnGuardian", "clubTribute",
     "allHeartsCoin",
     "envy", "streakBank", "streakTribute", "secondWind", "greedy",
     "fibonacci", "highestOdd", "highestEven", "denseBury", "revive",
     "insurance", "ditto", "stickerCount", "prime",
     "queensEye", "royalCourt", "excavator", "gambler", "broadcast",
-    "lastRites", "static"];
+    "lastRites", "static",
+    "wildAces", "diamondAnchor", "diamondDistribution"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -6750,10 +6808,19 @@ const BoardState = (() => {
     // pile's whole stack; the physical count is still piles[i].cards.length.
     const cardWeight = (c) =>
       1 + (c && c.stickers ? c.stickers.filter(s => s.type === "heavy").length : 0);
-    const sizeOf = (p) => p.cards.reduce((n, c) => n + cardWeight(c), 0);
+    // Optional PILLAR hooks (set by the engine after startRun): pillarSize(index)
+    // returns extra size a column Pillar grants this pile (Heavy Diamond, Streak
+    // Size); pillarAnchor(index) forces a pile to be anchored (Diamond Anchor).
+    // Board-only sizing/anchor stays pillar-agnostic; the engine injects context.
+    let pillarSize = null, pillarAnchor = null;
+    const sizeOf = (p) => p.cards.reduce((n, c) => n + cardWeight(c), 0) + (pillarSize ? (pillarSize(p.index) || 0) : 0);
     return {
       size,
       piles,
+      /** Engine-injected pillar context for size/anchor (see pillarSize/pillarAnchor). */
+      setPillarSizeHook(fn) { pillarSize = fn || null; },
+      setPillarAnchorHook(fn) { pillarAnchor = fn || null; },
+      __pillarAnchor(index) { return !!(pillarAnchor && pillarAnchor(index)); },
       /** Weighted pile size (Heavy counts double). The single source for every
           pile-size read — payout factors, Extra Coin, and the count badge. */
       pileSize(index) { return sizeOf(piles[index]); },
@@ -6801,7 +6868,8 @@ const BoardState = (() => {
         const p = piles[index];
         if (!p || p.dead) return false;
         const top = p.cards[p.cards.length - 1];
-        return !!(top && top.stickers && top.stickers.some(s => s.type === "anchor"));
+        if (top && top.stickers && top.stickers.some(s => s.type === "anchor")) return true;
+        return this.__pillarAnchor(index);   // Diamond Anchor (a ♦ top in a Diamond-Anchor column)
       },
       /** Smallest card count among ALL alive piles (anchors ignored). 0 if none.
           Used by the HUD to mark the board's true-lowest anchored pile. */
@@ -6958,14 +7026,22 @@ const GameEngine = (() => {
     function maybeLivePillarExtras(index, pillar, drawn, guess, isTie, col) {
       if (!pillar || col == null) return;
       const v = drawn.value;
+      const isDiamond = drawn.suit === "♦" || drawn.wildSuit;
       if (pillar.effect === "prime" && (v === 2 || v === 3 || v === 5 || v === 7)) {
         payPillar(col, "prime", pillar.label, pillar.value || 1);
-      } else if (pillar.effect === "royalCourt" && v >= 11 && v <= 13) {
-        payPillar(col, "royalCourt", pillar.label, pillar.value || 2);
-      } else if (pillar.effect === "queensEye" && v === 12) {
+      } else if (pillar.effect === "shuffler" && isDiamond) {
+        // Shuffler: a ♦ landed → shuffle every OTHER alive pile in this column.
+        let n = 0;
+        for (const i of colAlivePiles(col)) { if (i === index) continue; board.shufflePile(i, rng); n++; }
+        if (n > 0) { firePillar(col, "shuffler", pillar.label, 0); logLine(pillar.label + ": shuffled " + n + " other pile" + (n === 1 ? "" : "s") + " in the column"); recT("pillar", pillar.id, pillar.label, { shuffled: n }); }
+      } else if (pillar.effect === "queensEye" && v >= 11 && v <= 13 && (drawn.suit === "♠" || drawn.wildSuit)) {
         run.revealNextActive = true;
         firePillar(col, "queensEye", pillar.label, 0);
         recT("pillar", pillar.id, pillar.label, { peeks: 1 });   // telemetry
+      } else if (pillar.effect === "diamondDistribution" && isDiamond) {
+        // Diamond Distribution: a ♦ landed → even out the column's alive pile sizes.
+        const moved = redistributeColumn(col);
+        if (moved > 0) { firePillar(col, "diamondDistribution", pillar.label, 0); logLine(pillar.label + ": redistributed " + moved + " buried card" + (moved === 1 ? "" : "s") + " to even the column"); recT("pillar", pillar.id, pillar.label, { moved }); }
       } else if (pillar.effect === "sameSpark" && isTie === true && guess === "same") {
         let n = 0;
         for (const i of colAlivePiles(col)) {
@@ -6976,6 +7052,33 @@ const GameEngine = (() => {
         }
         if (n > 0) { firePillar(col, "sameSpark", pillar.label, 0); logLine("Same Spark: stickered " + n + " pile cards in the column"); recT("pillar", pillar.id, pillar.label, { applied: n }); }
       }
+    }
+
+    /** Diamond Distribution: even out the alive piles' sizes in `col`. Each pile
+        keeps its own TOP card; the BURIED cards are pooled and dealt back as evenly
+        as possible (a composition shift — no identities/order surfaced). Returns
+        how many buried cards were redistributed. */
+    function redistributeColumn(col) {
+      const idxs = colAlivePiles(col);
+      if (idxs.length < 2) return 0;
+      const tops = {}, pool = [];
+      for (const i of idxs) {
+        const cards = board.piles[i].cards;
+        if (!cards.length) continue;
+        tops[i] = cards.pop();                       // hold each pile's top aside
+        while (cards.length) pool.push(cards.pop()); // buried cards → shared pool
+      }
+      const per = Math.floor(pool.length / idxs.length);
+      let extra = pool.length - per * idxs.length, k = 0, moved = 0;
+      for (const i of idxs) {
+        const want = per + (extra > 0 ? 1 : 0); if (extra > 0) extra--;
+        const buried = [];
+        for (let j = 0; j < want && k < pool.length; j++) buried.push(pool[k++]);
+        board.piles[i].cards = buried;               // buried at the bottom …
+        if (tops[i]) board.piles[i].cards.push(tops[i]);   // … its own top back on top
+        moved += buried.length;
+      }
+      return moved;
     }
 
     /** Map each pile index to its column. Piles fill DOWN each column in turn
@@ -7082,22 +7185,18 @@ const GameEngine = (() => {
     function maybeTribute(index, pillar, drawn, isTie) {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
-      if (pillar.effect === "eightTribute" && drawn.value === 8) {
-        const nb = buryTribute(index, 3, pillar.label);
+      const isClub = drawn.suit === "♣" || drawn.wildSuit;
+      const nStk = drawn.stickers ? drawn.stickers.length : 0;
+      if (pillar.effect === "clubTribute" && isClub && nStk === 0) {
+        // "8 Bury": a ♣ card carrying NO stickers landed → bury 1 from the deck
+        // bottom under this pile. Uncapped.
+        const nb = buryTribute(index, 1, pillar.label);
         if (nb > 0) {
-          if (run.eightTributesUsed) run.eightTributesUsed[col] += 1;
-          firePillar(col, "eightTribute", pillar.label, 0);
+          firePillar(col, "clubTribute", pillar.label, 0);
           recT("pillar", pillar.id, pillar.label, { buried: nb });
         }
-      } else if (pillar.effect === "sameTribute" && isTie === true) {
-        const nb = buryTribute(index, pillar.tributeCount || 2, pillar.label);
-        if (nb > 0) {
-          if (run.sameTributesUsed) run.sameTributesUsed[col] += 1;
-          firePillar(col, "sameTribute", pillar.label, 0);
-          recT("pillar", pillar.id, pillar.label, { buried: nb });
-        }
-      } else if (pillar.effect === "denseBury" && (drawn.stickers ? drawn.stickers.length : 0) >= 2) {
-        // Dense Bury: a card carrying 2+ stickers just landed → bury 1 from the
+      } else if (pillar.effect === "denseBury" && isClub && nStk >= 2) {
+        // Dense Bury: a ♣ card carrying 2+ stickers just landed → bury 1 from the
         // deck bottom under this pile. Uncapped.
         const nb = buryTribute(index, 1, pillar.label);
         if (nb > 0) {
@@ -7938,18 +8037,19 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value, col });
           }
-        } else if (t.effect === "envyOthers") {
-          // +value per surviving pile across EVERY OTHER column (all columns
-          // except this one, whether or not they hold a Pillar).
+        } else if (t.effect === "heartPiles") {
+          // Envy: +value per ALIVE pile board-wide whose TOP card is a ♥ (a Wild
+          // Suit top counts as ♥).
           let n = 0;
-          for (let c = 0; c < run.cols.length; c++) {
-            if (c === col) continue;   // every OTHER column
-            n += aliveInCol(c);
+          for (let i = 0; i < board.size; i++) {
+            if (!board.isActive(i)) continue;
+            const top = board.top(i);
+            if (top && (top.suit === "♥" || top.wildSuit)) n++;
           }
           const amt = n * (t.value || 0);
           if (amt > 0) {
             bonus += amt;
-            lines.push({ label: t.label, detail: n + " alive in other columns", amount: amt, col });
+            lines.push({ label: t.label, detail: n + " ♥ top" + (n === 1 ? "" : "s"), amount: amt, col });
           }
         } else if (t.effect === "symmetryRight") {
           // +value if this column's alive count equals the RIGHT column's
@@ -8001,21 +8101,29 @@ const GameEngine = (() => {
           }
           if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " stickers (buried included)", amount: amt, col }); }
         } else if (t.effect === "excavator") {
-          // +value per BURIED card in this column's LARGEST alive pile only (most
-          // cards). Ties don't matter — equally-large piles bury the same count.
+          // +value per BURIED card in this column's LARGEST alive pile whose TOP is
+          // a ♥ (a Wild Suit top counts). 0 if no ♥-topped alive pile in column.
           let best = 0;
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;
+            const top = board.top(i);
+            if (!top || !(top.suit === "♥" || top.wildSuit)) continue;
             best = Math.max(best, board.piles[i].cards.length);
           }
           const n = Math.max(0, best - 1);   // cards beneath the top of that pile
-          if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " buried (largest pile)", amount: amt, col }); }
+          if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " buried (largest ♥ pile)", amount: amt, col }); }
         } else if (t.effect === "gambler") {
-          // 50/50: +value or nothing. Always emit a line so the result shows.
-          const won = rng() < 0.5;
-          const amt = won ? (t.value || 0) : 0;
-          bonus += amt;
-          lines.push({ label: t.label, detail: won ? "won the flip (+" + amt + ")" : "lost the flip (+0)", amount: amt, col, effect: "gambler" });
+          // 50/50: +value or nothing — but ONLY if this column has an alive pile
+          // with a ♥ top. Always emit a line so the outcome shows.
+          const hasHeart = colIdxs(col).some(i => { if (!board.isActive(i)) return false; const top = board.top(i); return top && (top.suit === "♥" || top.wildSuit); });
+          if (!hasHeart) {
+            lines.push({ label: t.label, detail: "no ♥ top in column — no flip", amount: 0, col, effect: "gambler" });
+          } else {
+            const won = rng() < 0.5;
+            const amt = won ? (t.value || 0) : 0;
+            bonus += amt;
+            lines.push({ label: t.label, detail: won ? "won the flip (+" + amt + ")" : "lost the flip (+0)", amount: amt, col, effect: "gambler" });
+          }
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
         // the bonus tally (see guess()), so adding it again here would double it.
@@ -8206,6 +8314,34 @@ const GameEngine = (() => {
       // to the campaign binding can't affect a run in progress). A plain copy
       // of the 3-slot array (column index → Pillar id | null).
       run.pillars = Array.isArray(pillars) ? pillars.slice() : null;
+      // Install the board's PILLAR size/anchor hooks for this run. They read LIVE
+      // run state each call, so Heavy Diamond (♦ cards → +1 size), Streak Size
+      // (+1 per streak step from the 3rd), and Diamond Anchor (♦ top → anchored)
+      // stay correct as cards/streaks change. Board sizing itself stays generic.
+      board.setPillarSizeHook((pileIndex) => {
+        const col = run.pileColumns ? run.pileColumns[pileIndex] : null;
+        if (col == null) return 0;
+        const def = resolvePillarDef(col);
+        if (!def) return 0;
+        if (def.effect === "heavyDiamond") {
+          let n = 0;
+          for (const c of board.piles[pileIndex].cards) if (c && (c.suit === "♦" || c.wildSuit)) n++;
+          return n;
+        }
+        if (def.effect === "streakSize") {
+          const s = run.colStreak ? (run.colStreak[col] || 0) : 0;
+          return s >= 3 ? (s - 2) : 0;
+        }
+        return 0;
+      });
+      board.setPillarAnchorHook((pileIndex) => {
+        const col = run.pileColumns ? run.pileColumns[pileIndex] : null;
+        if (col == null) return false;
+        const def = resolvePillarDef(col);
+        if (!def || def.effect !== "diamondAnchor") return false;
+        const top = board.top(pileIndex);
+        return !!(top && (top.suit === "♦" || top.wildSuit));
+      });
       // Lock the per-column Base binding the same way (column index → Base id |
       // null). basesUsed was already reset to "charged" when the deal was dealt.
       run.bases = Array.isArray(bases) ? bases.slice() : null;
@@ -8268,6 +8404,14 @@ const GameEngine = (() => {
         guess === "higher" ? drawn.value > current.value :
         guess === "lower"  ? drawn.value < current.value :
                              drawn.value === current.value; // "same"
+      // Wild Aces (column Pillar): an Ace landing in this column counts as HIGH or
+      // LOW — pick the value(s) for any Ace involved that make the guess correct.
+      if (pillar && pillar.effect === "wildAces" && (drawn.value === 14 || current.value === 14)) {
+        const dAce = drawn.value === 14, cAce = current.value === 14;
+        if (guess === "higher")      correct = (dAce ? 14 : drawn.value) > (cAce ? 1 : current.value);
+        else if (guess === "lower")  correct = (dAce ? 1 : drawn.value) < (cAce ? 14 : current.value);
+        else /* same */              correct = dAce && cAce ? true : (dAce ? (current.value === 14 || current.value === 1) : (drawn.value === 14 || drawn.value === 1));
+      }
       // Tie-Safe: any tie that involves a Tie-Safe card is safe and counts as a
       // "same" guess, whatever the guess was. A tie is current.value ===
       // drawn.value, so Tie-Safe on the top card or the drawn card (or a Column
@@ -8283,12 +8427,12 @@ const GameEngine = (() => {
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
-      // Static: a card was drawn into this column — roll ONCE to peek the next
-      // upcoming card, 10% per sticker on the DRAWN card (correct or wrong; 0
-      // stickers never peeks). Set after the reveal reset above so it persists.
-      if (pillar && pillar.effect === "static") {
-        const chance = 0.10 * (drawn.stickers ? drawn.stickers.length : 0);
-        if (chance > 0 && rng() < chance) peekPillar(col, pillar);
+      // Static: a ♠ landing correctly in this column peeks the next upcoming
+      // card. Set after the reveal reset above so it persists. (The pillar also
+      // has a 25% chance of self-destructing at the end of each deal — see
+      // resolveStaticSelfDestruct in onRunEnd.)
+      if (pillar && pillar.effect === "static" && correct && (drawn.suit === "♠" || drawn.wildSuit)) {
+        peekPillar(col, pillar);   // a ♠ landed in this column → peek the next card
       }
 
       // Fibonacci: +value the moment a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) is
@@ -8322,8 +8466,13 @@ const GameEngine = (() => {
         if (correct) {
           run.colStreak[col] += 1;
           const s = run.colStreak[col];
-          if (pillar && pillar.effect === "streakBank" && s >= 3) { addBonus(pillar.label, pillar.value || 1); firePillar(col, "streakBank", pillar.label, pillar.value || 1); echoAdjacent(col); recT("pillar", pillar.id, pillar.label, { coins: pillar.value || 1 }); }
-          if (pillar && pillar.effect === "streakTribute" && s >= 4) { const nb = buryTribute(index, 1, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); if (nb > 0) recT("pillar", pillar.id, pillar.label, { buried: nb }); }
+          // Streak Size (streakSize) adds PILE SIZE, not coins — it's read live via
+          // the board size hook off run.colStreak, so nothing is paid here; we just
+          // pulse the column when the streak crosses the 3rd step.
+          if (pillar && pillar.effect === "streakSize" && s === 3) { firePillar(col, "streakSize", pillar.label, 0); }
+          // Streak Bury: from the 3rd correct in a row, bury (streak − 2) cards —
+          // 1 at the 3rd, 2 at the 4th, 3 at the 5th, … (escalating).
+          if (pillar && pillar.effect === "streakTribute" && s >= 3) { const nb = buryTribute(index, s - 2, pillar.label); firePillar(col, "streakTribute", pillar.label, 0); if (nb > 0) recT("pillar", pillar.id, pillar.label, { buried: nb }); }
         } else {
           run.colStreak[col] = 0;
         }
@@ -16286,8 +16435,46 @@ const UIRenderer = (() => {
     return { alive: nodes.length, total: pileColumns.length, nodes, edges };
   }
 
+  /* Static Pillar volatility: at the end of EACH deal, every placed Static Pillar
+     (any Pillar carrying selfDestruct) rolls its chance to be destroyed — removed
+     from its column with no refund. A brief indicator shows Safe vs Destroyed over
+     the column, with a matching sound; a destroyed one gets a shatter pulse. */
+  function resolveStaticSelfDestruct() {
+    if (!campaign || !campaign.getColumnPillars) return;
+    const cols = campaign.getColumnPillars();
+    let changed = false;
+    for (let c = 0; c < cols.length; c++) {
+      const id = cols[c];
+      if (!id) continue;
+      const t = PillarTypes.get(id);
+      if (!t || !t.selfDestruct) continue;
+      const destroyed = Math.random() < t.selfDestruct;
+      showStaticIndicator(c, t, destroyed);
+      if (destroyed) {
+        campaign.removeColumnPillar(c);   // destroyed → cleared, no refund
+        changed = true;
+        if (engine) engine.logAction(t.label + " was destroyed (volatility)");
+      }
+    }
+    if (changed) { persistCampaign("run"); renderNetwork(); }
+  }
+  function showStaticIndicator(col, t, destroyed) {
+    try { if (Sound && Sound.isOn && Sound.isOn()) (destroyed ? Sound.death() : Sound.good()); } catch (e) {}
+    const cells = el.board ? el.board.querySelectorAll(".bp-cell") : [];
+    const cell = cells[col] || null;
+    const toast = document.createElement("div");
+    toast.className = "static-toast " + (destroyed ? "boom" : "safe");
+    toast.innerHTML = '<span class="st-ic">⚡</span>' + escHtml((t.label || "Static") + (destroyed ? " destroyed!" : " — Safe"));
+    if (cell) { const r = cell.getBoundingClientRect(); toast.style.left = (r.left + r.width / 2) + "px"; toast.style.top = r.top + "px"; }
+    else { toast.style.left = "50%"; toast.style.top = "40%"; }
+    document.body.appendChild(toast);
+    if (destroyed && cell) { cell.classList.add("static-boom"); setTimeout(() => { if (cell) cell.classList.remove("static-boom"); }, 700); }
+    setTimeout(() => toast.remove(), 1700);
+  }
+
   function onRunEnd(result, payload) {
     DeckInspector.close();   // no inspection overlays bleeding into end screens
+    resolveStaticSelfDestruct();   // deal end → roll Static volatility (indicator + maybe destroy)
 
     const won = result === "win";
     const board = payload.board;

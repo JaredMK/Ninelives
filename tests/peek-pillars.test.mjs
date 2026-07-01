@@ -1,7 +1,7 @@
-// Three column-scoped peek Pillars — Unearth (bury → 50% peek), Last Rites
-// (pile death → peek), Static (drawn card → 10%/sticker peek, rolled once). All
-// reuse the existing deck-reveal (run.revealNextActive). The engine is DOM-free,
-// so we drive guess()/baseActivate() and read run.revealNextActive directly.
+// Two column-scoped peek Pillars — Last Rites (pile death → peek) and Static
+// (a ♠ landing correctly → peek). Both reuse the existing deck-reveal
+// (run.revealNextActive). The engine is DOM-free, so we drive guess()/
+// baseActivate() and read run.revealNextActive directly.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -54,30 +54,28 @@ export function run() {
     r.ok(!e2.getRun().revealNextActive, "Last Rites is column-scoped: a death elsewhere does not peek");
   }
 
-  // --- Static: peek chance scales with the DRAWN card's sticker count ----
+  // --- Static: a ♠ landing correctly in its column peeks the next card ---
   {
-    // 0 stickers → chance 0 → never peeks (deterministic).
-    const e0 = game(["static", null, null], [null, null, null]);
-    e0.getBoard().piles[0].cards = [card(5, "♠")];
-    e0.debug.setNextCard(6);            // a 0-sticker card
-    e0.guess(0, "higher");             // 6 > 5 correct, drawn into col 0
-    r.ok(!e0.getRun().revealNextActive, "Static: a 0-sticker drawn card never peeks");
-
-    // 10 stickers → chance 1.0 → always peeks (deterministic).
+    // A ♠ lands correctly in col 0 → peek (deterministic).
     const e1 = game(["static", null, null], [null, null, null]);
-    e1.getBoard().piles[0].cards = [card(5, "♠")];
-    const nxt = e1.debug.setNextCard(6);
-    nxt.stickers = Array.from({ length: 10 }, () => ({ type: "anchor" }));
+    e1.getBoard().piles[0].cards = [card(5, "♥")];
+    const nxt = e1.debug.setNextCard(6); nxt.suit = "♠";   // a ♠ lands
     e1.guess(0, "higher");
-    r.ok(e1.getRun().revealNextActive, "Static: a heavily-stickered drawn card peeks (chance ≥ 1)");
+    r.ok(e1.getRun().revealNextActive, "Static: a ♠ landing in its column peeks the next card");
 
-    // Column scope: a stickered draw into a NON-Static column does not peek.
+    // A NON-♠ landing does not peek.
+    const e0 = game(["static", null, null], [null, null, null]);
+    e0.getBoard().piles[0].cards = [card(5, "♥")];
+    const n0 = e0.debug.setNextCard(6); n0.suit = "♥";
+    e0.guess(0, "higher");
+    r.ok(!e0.getRun().revealNextActive, "Static: a non-♠ landing does not peek");
+
+    // Column scope: a ♠ landing in a NON-Static column does not peek.
     const e2 = game(["static", null, null], [null, null, null]);
-    e2.getBoard().piles[5].cards = [card(5, "♠")];   // pile 5 = col 1 (no Static)
-    const nxt2 = e2.debug.setNextCard(6);
-    nxt2.stickers = Array.from({ length: 10 }, () => ({ type: "anchor" }));
+    e2.getBoard().piles[5].cards = [card(5, "♥")];   // pile 5 = col 1 (no Static)
+    const n2 = e2.debug.setNextCard(6); n2.suit = "♠";
     e2.guess(5, "higher");
-    r.ok(!e2.getRun().revealNextActive, "Static is column-scoped: a stickered draw elsewhere does not peek");
+    r.ok(!e2.getRun().revealNextActive, "Static is column-scoped: a ♠ landing elsewhere does not peek");
   }
 
   // (Unearth was removed from the roster — its bury-peek test is gone with it.)

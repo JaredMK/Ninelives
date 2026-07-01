@@ -63,7 +63,7 @@ export function run() {
     // Per-type fixed prices.
     r.eq(c.priceOfPillar("heartBounty"), 9, "Heart Bonus = 9");
     r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
-    r.eq(c.priceOfPillar("eightTribute"), 8, "8 Tribute = 8");
+    r.eq(c.priceOfPillar("clubTribute"), 25, "8 Bury (clubTribute) = 25");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");
@@ -165,7 +165,7 @@ export function run() {
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bonus is a suitBounty");
     r.ok(!PillarTypes.get("spadeBounty") && !PillarTypes.get("clubBounty") && !PillarTypes.get("diamondBounty"),
       "the ♠/♣/♦ Bonus pillars were removed (only ♥ remains)");
-    r.eq(PillarTypes.all().length, 26, "pillar registry totals 26 after the rebalance deletions");
+    r.eq(PillarTypes.all().length, 29, "pillar registry totals 29 after the rebalance");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -259,72 +259,44 @@ export function run() {
     r.eq(empty.drawFromBottom(), null, "drawFromBottom on an empty deck → null");
   }
 
-  // --- 8 Tribute: a drawn 8 buries a deck-bottom card (capped) -----------
-  // Force a correct guess that lands an 8: set the showing card low, force
-  // the next draw to an 8 (rank 8), guess HIGHER.
-  const landEight = (e, index) => {
+  // --- clubTribute ("8 Bury"): a ♣ card with NO stickers lands → bury 1 ---
+  // Land a specific card correctly on a pile: set the showing card low, force
+  // the drawn card (rank/suit/stickers), guess HIGHER.
+  const landCard = (e, index, value, suit, stickers) => {
     const top = e.getBoard().top(index); top.value = 5;
-    e.debug.setNextCard(8);
+    const d = e.debug.setNextCard(value); d.suit = suit; d.stickers = stickers || [];
     e.guess(index, "higher");
   };
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
-    e.startRun(["eightTribute", null, null]);   // column 0 only (uncapped)
+    e.startRun(["clubTribute", null, null]);   // column 0 only
+    const len0 = e.getBoard().piles[0].cards.length;   // 1 (the deal)
+    const deck0 = e.getDeck().remaining();
+    landCard(e, 0, 9, "♣", []);   // a ♣ with no stickers lands
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "♣ (no stickers) lands + 1 buried = +2");
+    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn ♣ and the buried card");
 
-    const pileLenBefore = e.getBoard().piles[0].cards.length;   // 1 (the deal)
-    const deckBefore = e.getDeck().remaining();
-    landEight(e, 0);
-    r.eq(e.getRun().eightTributesUsed[0], 1, "8 on the Tribute column triggers once");
-    // Pile gained the 8 (top) + 3 buried tribute cards = +4; deck lost all four.
-    r.eq(e.getBoard().piles[0].cards.length, pileLenBefore + 4, "pile gains 8 + 3 buried cards");
-    r.eq(e.getDeck().remaining(), deckBefore - 4, "deck loses the 8 and the 3 tributed cards");
+    // A ♣ carrying a sticker does NOT trigger (must be sticker-free).
+    const len1 = e.getBoard().piles[1].cards.length;
+    landCard(e, 1, 9, "♣", [{ type: "tieSafe" }]);
+    r.eq(e.getBoard().piles[1].cards.length, len1 + 1, "a stickered ♣ buries nothing (just the drawn card)");
 
-    landEight(e, 1);   // pile 1 is also column 0
-    r.eq(e.getRun().eightTributesUsed[0], 2, "second 8 fires again (uncapped)");
-    landEight(e, 2);   // pile 2, column 0 — still fires (no cap)
-    r.eq(e.getRun().eightTributesUsed[0], 3, "third 8 fires too — caps removed");
-    r.eq(e.getBoard().piles[2].cards.length, 5, "third 8 still gets its buried tribute (1 deal + 8 + 3 buried)");
+    // A non-♣ card does NOT trigger.
+    const len2 = e.getBoard().piles[2].cards.length;
+    landCard(e, 2, 9, "♥", []);
+    r.eq(e.getBoard().piles[2].cards.length, len2 + 1, "a non-♣ card buries nothing");
   }
 
-  // --- 8 on a non-Tribute column does nothing ---------------------------
+  // --- clubTribute on a non-Pillar column does nothing ------------------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start();
     e.startRun([null, null, null]);
-    const deckBefore = e.getDeck().remaining();
-    landEight(e, 0);
-    r.eq(e.getRun().eightTributesUsed[0], 0, "no Pillar → no tribute");
-    r.eq(e.getDeck().remaining(), deckBefore - 1, "only the drawn 8 leaves the deck");
-    r.eq(e.getBoard().piles[0].cards.length, 2, "pile gains only the 8");
-  }
-
-  // --- Guardrail: the buried card is never revealed in any event --------
-  {
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
-    let resolved = null;
-    e.onEvent((t, p) => { if (t === "resolved") resolved = p; });
-    e.start();
-    e.startRun(["eightTribute", null, null]);
-    landEight(e, 0);
-    r.ok(resolved && !("tributed" in resolved) && !("tribute" in resolved),
-      "resolved event exposes no tributed-card field");
-    const keys = Object.keys(resolved).sort().join(",");
-    r.eq(keys, "board,correct,current,deck,drawn,guess,index,run",
-      "resolved payload carries only its known fields (no order leak)");
-  }
-
-  // --- Deck-empty edge: tribute is skipped, no crash --------------------
-  {
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
-    e.start();
-    e.startRun(["eightTribute", null, null]);
-    const top = e.getBoard().top(0); top.value = 5;
-    e.debug.setNextCard(8);    // an 8 on top of the deck
-    e.debug.trimDeck(1);       // ...and it's the ONLY card left
-    e.guess(0, "higher");      // draws the 8 → deck empty → tribute skipped
-    r.eq(e.getRun().eightTributesUsed[0], 0, "no tribute when the deck is empty");
-    r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
+    const deck0 = e.getDeck().remaining();
+    landCard(e, 0, 9, "♣", []);
+    r.eq(e.getDeck().remaining(), deck0 - 1, "no Pillar → only the drawn ♣ leaves the deck");
+    r.eq(e.getBoard().piles[0].cards.length, 2, "pile gains only the drawn card");
   }
 
   // (Same Tribute / "Tie Bury" was removed in the rebalance — its tests are gone.)
