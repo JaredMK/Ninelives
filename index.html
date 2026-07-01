@@ -3109,6 +3109,14 @@
   .tray-obj .to-art .cph-banner.pennant, .tray-obj .to-art .base-banner.plaque { height: 100%; width: auto; max-width: 100%; }
   .tray-obj .to-art .base-banner.plaque { padding: 0 6px; }
   .tray-obj .cph-streak, .tray-obj .cph-count, .tray-obj .cph-sw, .tray-obj .base-charge { display: none; }   /* live badges are board-only */
+  /* Same rule for every OTHER off-board pillar render: the store shelf + detail,
+     the placement pickers, the post-deal spoils list, and the loadout reference.
+     Without this the store pennant carried a stray live "0" counter chip. */
+  .ti-obj .cph-streak, .ti-obj .cph-count, .ti-obj .cph-sw,
+  .sd-obj .cph-streak, .sd-obj .cph-count, .sd-obj .cph-sw,
+  .ip-art .cph-streak, .ip-art .cph-count, .ip-art .cph-sw,
+  .pd-item .cph-streak, .pd-item .cph-count, .pd-item .cph-sw,
+  .lo-chip .cph-streak, .lo-chip .cph-count, .lo-chip .cph-sw { display: none; }
 
   /* Placing a Pillar: columns are the target (highlight piles in the Pillar hue). */
   /* Placing a Pillar: the PILLAR SLOTS (top of each column) are the drop targets,
@@ -5066,7 +5074,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.64 · base + same-power rebalance: reworks, new bases (Spade Peeker, Suit Setter, Heart Demolish), new same-powers (Link Shuffler, Same Peeker, Same Heavy)";
+const APP_VERSION = "v3.65 · store fixes: pillar emblems for 7 fallback pillars; pending-placement no longer hijacks store buys";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5348,6 +5356,33 @@ const GLYPHS = {
   // Tell — the three possible reads stacked: ▲ higher, = same, ▼ lower (a
   // directional hint, not a card reveal).
   tell: '<path d="M7 8l5-4 5 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 16l5 4 5-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // ---- pillar emblems that previously fell back to the generic guardian ----
+  // 8 Bury (clubTribute): a ♣ buried under the ground bar (club + down arrow).
+  club_bury: '<g transform="translate(6.6 0.6) scale(0.45)"><path d="' + SUITP.club + '" fill="currentColor"/></g>' +
+    '<path d="M12 11.6v4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M9 13.8l3 3 3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<rect x="5" y="19" width="14" height="2.8" rx="1.4"/>',
+  // Broadcast: a transmitter mast with radiating arcs.
+  broadcast: '<circle cx="12" cy="11.5" r="2.1"/><path d="M12 13.6V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M8.4 8a5.1 5.1 0 0 1 7.2 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M5.7 5.2a8.9 8.9 0 0 1 12.6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // Last Rites: a lit candle.
+  lastrites: '<path d="M12 2.6c1.9 2.1 2.5 3.3 1.2 4.6a1.9 1.9 0 0 1-2.4 0C9.5 5.9 10.1 4.7 12 2.6z"/>' +
+    '<path d="M12 8v2.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<rect x="8.8" y="10.8" width="6.4" height="10" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // Static: a charge bolt in a ring.
+  static_bolt: '<circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M13.4 5.8L8.2 13h3.2l-1 5.2 5.4-7.2h-3.2z"/>',
+  // Wild Aces: the Ace flexing high or low.
+  wildaces: T("A", 9) +
+    '<path d="M16.4 9.6l2.3-2.6 2.3 2.6M16.4 14.4l2.3 2.6 2.3-2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Diamond Anchor: an anchor with a ♦ head.
+  diamond_anchor: '<path d="M12 2.4l2.8 3.6L12 9.6 9.2 6z" fill="var(--card-red)"/>' +
+    '<path d="M12 9.6V20M6 13.8a6 6 0 0 0 12 0M8.5 11.4h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // Diamond Distribution: a ♦ redistributing both ways.
+  diamond_spread: '<path d="M12 6.6l3.4 4.4-3.4 4.4-3.4-4.4z" fill="var(--card-red)"/>' +
+    '<path d="M6 11H2.8M4.9 8.9L2.7 11l2.2 2.1M18 11h3.2M19.1 8.9l2.2 2.1-2.2 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M4.5 19h4M10 19h4M15.5 19h4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
@@ -5371,6 +5406,11 @@ const ELEM_GLYPH = {
   sameSpark: "samespark", insurance: "insurance", ditto: "ditto",
   stickerCount: "stickercount", prime: "prime", queensEye: "queenseye",
   royalCourt: "royalcourt", excavator: "excavator", echo: "echo", gambler: "gambler",
+  // Newest pillars — each gets its OWN emblem (no entry = the generic guardian
+  // fallback, which is exactly the store/board "wrong pillar art" bug).
+  clubTribute: "club_bury", broadcast: "broadcast", lastRites: "lastrites",
+  static: "static_bolt", wildAces: "wildaces",
+  diamondAnchor: "diamond_anchor", diamondDistribution: "diamond_spread",
   shuffle: "shuffle", donate: "donate",
   cardPack: "cardstack", stickerPack: "cache",
 };
@@ -5795,7 +5835,7 @@ const PillarTypes = (() => {
       // Pile-anchor modifier: while a pile in this column shows a ♦ on top, that
       // pile is left out of the smallest-pile payout score (like the Anchor
       // sticker). Read live via the board's pillar anchor hook.
-      id: "diamondAnchor", label: "Diamond Anchor", icon: "⚓", noGlyph: true,
+      id: "diamondAnchor", label: "Diamond Anchor", icon: "⚓",
       kind: "modifier", effect: "diamondAnchor", tier: "rare", price: 12,
       description: "If a diamond ♦ card is the top card, the pile is left out of the smallest-pile score",
     },
@@ -5803,7 +5843,7 @@ const PillarTypes = (() => {
       // Guess-time, column-scoped: a ♦ landing correctly in this column redistributes
       // the column's alive piles so their sizes are as even as possible (composition
       // shift — buried cards move; each pile keeps its own top; no reveal).
-      id: "diamondDistribution", label: "Diamond Distribution", icon: "⚖️", noGlyph: true,
+      id: "diamondDistribution", label: "Diamond Distribution", icon: "⚖️",
       kind: "guess", effect: "diamondDistribution", tier: "uncommon", price: 6,
       description: "Redistribute all piles in column to make pile sizes even if a diamond ♦ lands in this column",
     },
@@ -13614,7 +13654,7 @@ const UIRenderer = (() => {
     // Store view buttons: owned inventory + the deck overview (both modal).
     // Store deck CHARACTER: same tap(view)/hold(peek) gestures as the in-deal deck.
     // Place-on-acquire pickers: the store "Place" button resumes any pending item.
-    if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => continuePendingPlacement());
+    if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => { placementWalk = true; continuePendingPlacement(); });
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
     if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
     // Sticker picker cards: TAP = select to apply, HOLD = the card's sticker help.
@@ -18349,6 +18389,14 @@ const UIRenderer = (() => {
   let pendingApplyStickerId = null;   // the sticker TYPE id currently being applied
   let pendingSwapTrayIndex = null;    // the pack-tray card index being swapped in (swap mode)
   let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
+  // Suit display order for the card picker (same order as the deck inspector's).
+  // NB: the inspector's SUIT_ORDER is scoped inside ITS module — referencing it
+  // here threw "SUIT_ORDER is not defined" the moment the deck held two cards of
+  // the same rank (the sort's tiebreak), which killed openStickerApply and made
+  // the store's sticker Buy do nothing. The 13-heart starter deck has no rank
+  // twins, so the FIRST store always worked; every store after a pack/pickup
+  // gain broke.
+  const SUIT_ORDER = { "♠": 0, "♥": 1, "♣": 2, "♦": 3 };
   function renderStickerApplyCards() {
     if (!el.saCards || !campaign) return;
     const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
@@ -18474,6 +18522,7 @@ const UIRenderer = (() => {
     pendingBuyStickerSlot = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     el.stickerApplyModal.classList.add("hidden");
+    placementWalk = false;   // a cancel ends any walk (the queue keeps its items)
     (onPlacementQueueEmpty || defaultPlacementEmpty)();
   }
 
@@ -18496,6 +18545,16 @@ const UIRenderer = (() => {
   // What runs when the placement queue empties: by default refresh the store, but
   // the post-deal screen swaps in its own continuation (→ the deal summary).
   let onPlacementQueueEmpty = null;
+  // A placement WALK is an explicit multi-item pass over the pending queue (the
+  // post-deal spoils walk, or the store's "Place item" button). Only a walk may
+  // AUTO-CHAIN from one placement into the next. Without this gate, the tail of
+  // every purchase confirm (continuePendingPlacement) would pull UNRELATED
+  // pending items — e.g. a card kept from a pack in an EARLIER store sits in the
+  // pack tray forever, so every later store purchase got hijacked by a forced
+  // "Swap in …" modal and the shelf behind it never re-rendered (the slot looked
+  // unbought). Store buys now end with a plain shelf refresh; pending items are
+  // placed only when the player asks (Place item) or in the post-deal walk.
+  let placementWalk = false;
   function defaultPlacementEmpty() { renderStore(); refreshDebug(); }
   /* The next item awaiting placement (card → sticker → pillar → base → Same-Power),
      or null. Cards (pack/Duplicate gains) come first so they swap before stickers. */
@@ -18513,13 +18572,18 @@ const UIRenderer = (() => {
     return null;
   }
   function placePendingItem(item) {
-    if (!item) { (onPlacementQueueEmpty || defaultPlacementEmpty)(); return; }
+    if (!item) { placementWalk = false; (onPlacementQueueEmpty || defaultPlacementEmpty)(); return; }
     if (item.kind === "card") return openCardSwap(item.index);
     if (item.kind === "sticker") return openStickerApply(item.id);
     if (item.kind === "pillar" || item.kind === "base") return openItemPlace(item.kind, item.id);
     if (item.kind === "samepower") return openSamePowerEquip(item.id);
   }
-  function continuePendingPlacement() { placePendingItem(nextPendingItem()); }
+  /** Continue an ACTIVE placement walk; outside a walk this is just the shared
+      "placement step finished" refresh (see placementWalk above). */
+  function continuePendingPlacement() {
+    if (!placementWalk) { defaultPlacementEmpty(); return; }
+    placePendingItem(nextPendingItem());
+  }
 
   /* ---- post-deal placement screen (Section 3) ----
      After a won deal, anything GAINED mid-deal (a Duplicated card → pack tray, a
@@ -18550,6 +18614,7 @@ const UIRenderer = (() => {
       const cb = postDealOnDone; postDealOnDone = null;
       if (cb) cb();   // → the deal summary
     };
+    placementWalk = true;         // explicit multi-item walk begins
     continuePendingPlacement();   // walk the spoils through their pickers
   }
 
@@ -18660,6 +18725,7 @@ const UIRenderer = (() => {
     if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
     if (el.ipPlace) el.ipPlace.textContent = "Place";   // restore label (samepower equip sets "Equip")
     el.itemPlaceModal.classList.add("hidden");
+    placementWalk = false;   // a cancel ends any walk (the queue keeps its items)
     (onPlacementQueueEmpty || defaultPlacementEmpty)();
   }
 
@@ -19072,6 +19138,8 @@ const UIRenderer = (() => {
   function closeStore() {
     selectedStickerSlot = null;
     selectedMixedSlot = null;
+    placementWalk = false;         // leaving the store ends any placement walk
+    pendingBuyStickerSlot = null;  // an un-confirmed buy is abandoned (never charged)
     closeTrashConfirm();
     closePackReveal();
     closePackReplace();
