@@ -103,33 +103,74 @@ export function run() {
     r.eq(inPhase(), ["♥", "♦", "♣", "♠"].sort().join(""), "phase ♠: all four");
   }
 
-  // ---- the generated graph is valid + connected ---------------------------
+  // ---- the GENERATED stage graph meets the full map spec ------------------
   {
     for (let s = 1; s <= 6; s++) {
-      const m = RunMap.generatePhase(0, s * 12345 + 7);
-      r.ok(m && m.nodes.length > 4, "phase " + s + ": a non-trivial graph");
-      r.ok(m.row0.length >= 1, "phase " + s + ": has at least one opening node");
+      const entry = 13;
+      const m = RunMap.generateStage(0, s * 12345 + 7, entry);
+      r.ok(m && m.nodes.length > 4, "stage " + s + ": a non-trivial graph");
+      r.ok(m.row0.length >= 1, "stage " + s + ": has at least one opening node");
       const boss = m.byId[m.bossId];
-      r.eq(boss.type, "boss", "phase " + s + ": the top node is the boss");
-      r.ok(boss.piles >= 1, "phase " + s + ": the boss shows a pile count");
-      // every non-boss node has an outgoing edge (can reach upward).
-      r.ok(m.nodes.every(n => n.type === "boss" || n.next.length >= 1), "phase " + s + ": every node leads upward");
-      // the boss is reachable from a row-0 node (BFS).
+      r.eq(boss.type, "boss", "stage " + s + ": the top node is the boss");
+      r.ok(boss.piles >= 1, "stage " + s + ": the boss shows a pile count");
+      r.ok(m.nodes.every(n => n.type === "boss" || n.next.length >= 1), "stage " + s + ": every node leads upward");
       const seen = new Set(), q = m.row0.slice();
       while (q.length) { const id = q.shift(); if (seen.has(id)) continue; seen.add(id); (m.byId[id].next || []).forEach(x => q.push(x)); }
-      r.ok(seen.has(m.bossId), "phase " + s + ": the boss is reachable from the start");
-      // deal/boss nodes carry a pile count; pickups/packs carry the phase suit.
-      r.ok(m.nodes.filter(n => n.type === "deal").every(n => n.piles >= 1), "phase " + s + ": deals show pile counts");
-      r.ok(m.nodes.some(n => n.type === "deal"), "phase " + s + ": has at least one deal node");
+      r.ok(seen.has(m.bossId), "stage " + s + ": the boss is reachable from the start");
+      r.ok(m.nodes.filter(n => n.type === "deal").every(n => n.piles >= 1), "stage " + s + ": deals show pile counts");
+      // The FULL spec holds (route cards, deal counts, stores, difficulty bands
+      // at both deck extremes) — the same validator the generator accepted with.
+      const v = RunMap.validateStage(m, entry, { phaseIndex: 0 });
+      r.ok(v.ok, "stage " + s + ": validateStage passes (" + (v.errors[0] || "") + ")");
+      r.ok(v.report.cards[0] >= 11, "stage " + s + ": every route collects ≥11 cards");
+      r.ok(v.report.cards[0] <= 15, "stage " + s + ": a route ≤15 cards exists");
+      r.ok(v.report.dealsPerRoute[0] >= 3 && v.report.dealsPerRoute[1] <= 5, "stage " + s + ": 3–5 deals on every route");
+      // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
+      let swaps = 0;
+      const rows = {};
+      m.nodes.forEach(n => (rows[n.row] = rows[n.row] || []).push(n));
+      for (const rr in rows) {
+        const A = rows[rr].slice().sort((a, b) => a.lane - b.lane);
+        for (let i = 0; i < A.length; i++) for (let k = i + 1; k < A.length; k++) {
+          if (!A[i].next.length || !A[k].next.length) continue;
+          const maxI = Math.max(...A[i].next.map(id => m.byId[id].lane));
+          const minK = Math.min(...A[k].next.map(id => m.byId[id].lane));
+          if (maxI > minK) swaps++;
+        }
+      }
+      r.eq(swaps, 0, "stage " + s + ": no edge ever swaps sides (planar by construction)");
+      // Adjacent lanes only, one row up.
+      r.ok(m.nodes.every(n => n.next.every(id => {
+        const t = m.byId[id];
+        return t.row === n.row + 1 && Math.abs((t.lane != null ? t.lane : 1) - (n.lane != null ? n.lane : 1)) <= 1;
+      })), "stage " + s + ": edges go one row up, same/adjacent lane");
+      // The run's FIRST deal sits at row 0 in its band at deck 13.
+      const first = m.byId[m.row0[0]];
+      r.eq(first.type, "deal", "stage " + s + ": stage 0 opens on the run's first deal");
+      const d0 = (entry - first.piles) / first.piles;
+      r.ok(d0 >= 1.25 - 1e-9 && d0 <= 1.75 + 1e-9, "stage " + s + ": first deal difficulty " + d0.toFixed(2) + " ∈ [1.25,1.75]");
     }
   }
 
-  // ---- generateRun: all 3 phases stacked into ONE continuous graph --------
+  // ---- later stages generate against their REAL entry deck ----------------
+  {
+    for (const [p, entry] of [[1, 27], [2, 40]]) {
+      const m = RunMap.generateStage(p, 4242 + p, entry);
+      const v = RunMap.validateStage(m, entry, { phaseIndex: p });
+      r.ok(v.ok, "stage " + p + " (entry " + entry + "): validateStage passes (" + (v.errors[0] || "") + ")");
+      const boss = v.report.perDeal.find(d => d.type === "boss");
+      const band = RunMap.GEN_CONFIG.bossBands[p];
+      r.ok(boss.dMin >= band[0] - 1e-6 && boss.dMax <= band[1] + 1e-6,
+        "stage " + p + ": boss difficulty [" + boss.dMin + "," + boss.dMax + "] inside its band [" + band + "]");
+    }
+  }
+
+  // ---- generateRun: stages stack; later stages appear as they're entered --
   {
     for (let s = 1; s <= 4; s++) {
-      const run = RunMap.generateRun(s * 9001 + 3);
+      const run = RunMap.generateRun(s * 9001 + 3, [13, 27, 40]);
       r.ok(run && run.nodes.length > 12, "run " + s + ": a large combined graph");
-      r.eq(run.phases.length, 3, "run " + s + ": three phases");
+      r.eq(run.phases.length, 3, "run " + s + ": three phases when all entries are known");
       // ids are unique across the whole run (namespaced per phase).
       const ids = run.nodes.map(n => n.id);
       r.eq(new Set(ids).size, ids.length, "run " + s + ": no duplicate ids across phases");
@@ -148,6 +189,15 @@ export function run() {
       while (q.length) { const id = q.shift(); if (seen.has(id)) continue; seen.add(id); (run.byId[id].next || []).forEach(x => q.push(x)); }
       r.ok(seen.has(run.runBossId), "run " + s + ": the ♠ boss is reachable from the ♦ start");
     }
+    // LAZY: with only stage 0 entered, only stage 0 exists — and no node can
+    // falsely count as the run boss until the ♠ stage is generated.
+    const partial = RunMap.generateRun(777, [13]);
+    r.eq(partial.phases.length, 1, "a fresh run generates only the ♦ stage");
+    r.eq(partial.runBossId, null, "no run boss until the ♠ stage exists");
+    const two = RunMap.generateRun(777, [13, 26]);
+    r.eq(two.phases.length, 2, "entering ♣ generates the second stage");
+    r.eq(two.phases[0].bossId, partial.phases[0].bossId, "the ♦ stage regenerates IDENTICALLY (same seed + entry)");
+    r.eq(two.runBossId, null, "still no run boss before the ♠ stage");
   }
 
   // ---- a single-card node shows EXACTLY the card it grants ----------------
@@ -320,16 +370,39 @@ export function run() {
     r.ok(clean, "packs never reveal a card reserved by a +1 node");
   }
 
-  // ---- moveToNode across a phase boss syncs the phase/suit ----------------
+  // ---- stages generate as they're ENTERED (real deck size at generation) --
   {
     const c = CampaignState.create();
-    const map = c.getMap();
-    r.ok(map && map.phases && map.phases.length === 3, "getMap() returns the continuous 3-phase run");
+    let map = c.getMap();
+    r.ok(map && map.phases && map.phases.length === 1, "a fresh run's map holds only the ♦ stage");
+    r.ok(!c.isRunBoss(map.phases[0].bossId), "the ♦ boss is NOT the run boss (map still grows)");
+    // grow the deck a little, then fell the ♦ boss → the ♣ stage generates
+    // against the REAL deck size at that moment.
+    c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
+    c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
+    const deckAtEntry = c.deckSize();
+    c.markNodeCleared(map.phases[0].bossId);
+    map = c.getMap();
+    r.eq(map.phases.length, 2, "clearing the ♦ boss generates the ♣ stage");
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    r.eq(wire.stageEntryDecks[1], deckAtEntry, "the ♣ stage's entry deck is the REAL deck size when it generated");
     // moving onto a ♣ (phase-1) node flips the campaign into phase ♣.
     const clubNode = map.nodes.find(n => n.phase === 1);
     c.moveToNode(clubNode.id);
     r.eq(c.getPhaseIndex(), 1, "moveToNode onto a ♣ node → phase 1");
     r.eq(c.phaseSuit(), "♣", "…and the suit follows to clubs");
+    // the grown map restores IDENTICALLY from the save (seed + entry decks).
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire), "a mid-run save with a grown map restores");
+    const m2 = c2.getMap();
+    r.eq(m2.phases.length, 2, "the restored map holds the same two stages");
+    r.eq(m2.phases[1].bossId, map.phases[1].bossId, "the restored ♣ stage is IDENTICAL (same seed + entry deck)");
+    // felling the ♣ then ♠ bosses completes the ladder; only the ♠ boss is the run boss.
+    c.markNodeCleared(map.phases[1].bossId);
+    const m3 = c.getMap();
+    r.eq(m3.phases.length, 3, "clearing the ♣ boss generates the ♠ stage");
+    r.ok(c.isRunBoss(m3.phases[2].bossId), "the ♠ boss IS the run boss");
+    const v = RunMap.validateStage ? null : null;   // (stage validity is covered above)
   }
 
   // ---- layoutForPiles: any pile count → a valid board ---------------------

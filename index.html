@@ -5074,7 +5074,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.65 · store fixes: pillar emblems for 7 fallback pillars; pending-placement no longer hijacks store buys";
+const APP_VERSION = "v3.66 · random map generator: planar 3-lane stages, route-validated, difficulty from real deck size; authored maps stay as override";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6373,145 +6373,422 @@ const DeckManager = (() => {
    re-balance phases; generation is parameter-driven, never hardcoded.
 ================================================================ */
 const RunMap = (() => {
-  const MAP_CONFIG = {
+  /* ══ GEN_CONFIG — every tunable of the random stage generator ══════════
+     Tune these by playtest; generation is parameter-driven, never hardcoded.
+     difficulty = (deck − piles) / piles, checked at BOTH deck extremes
+     (lightest and heaviest possible route into each deal). */
+  const GEN_CONFIG = {
     // Traveled phases, in order. Hearts are NOT here — they are pre-held.
     phaseSuits: ["♦", "♣", "♠"],
     startSuit: "♥",
     startDeckSize: 13,            // 13 hearts pre-held at run start
 
-    // Graph shape (per phase). rows includes the boss row (the top row).
-    rows: [7, 9],                // min..max body rows incl. boss
-    nodesPerRow: [1, 3],         // nodes on a normal (non-chokepoint) row
+    // Graph shape (per stage). Nodes live on a 3-lane grid; edges only go
+    // row → row+1, same or adjacent lane, and never cross (by construction).
+    lanes: 3,
+    laneX: [0.17, 0.50, 0.83],   // render x per lane
+    rows: [7, 9],                // total rows per stage INCLUDING the boss row
+    openings: [2, 3],            // row-0 nodes (stage 0 forces a single opening deal)
+    rowNodes: [2, 3],            // nodes on a normal body row
 
-    // Node-type budget per phase (approximate; gen fits the graph to these).
-    deals: [3, 4],               // normal deal nodes per phase (excl. boss)
-    stores: [1, 2],              // store chokepoint rows per phase
-    // Remaining body nodes are DRAFT nodes (card pickups / packs):
-    packChance: 0.28,            // a draft node is a PACK (else a single pickup)
-    packCount: [3, 5],           // cards a pack adds
-    mixedChance: 0.22,           // a draft pulls an off-phase (mixed) suit card
+    // Deals / stores per stage.
+    dealRows: [3, 4],            // full deal rows (every route passes each one)
+    mixedDealRowChance: 0.35,    // chance of one draft row carrying an optional deal
+    dealsPerRouteMax: 5,         // hard cap validated on every route (excl. boss)
+    stores: [1, 2],              // stores per stage (never two in a row on any path)
 
-    // Pile counts — FEWER piles = HARDER (the visible difficulty on the node).
-    dealPiles: [5, 9],           // a normal deal's pile count
-    leanDealPiles: [3, 5],       // a deal offered AS THE ALTERNATIVE to a pickup
-                                 // (gates lean/card-light routes behind harder deals)
-    bossPiles: [3, 5],           // the phase boss (a hard chokepoint)
+    // Card pickups (CARD +1, PACK +2..+5). Every route totals ≥ minRouteCards;
+    // at least one route stays ≤ maxLightRouteCards.
+    minRouteCards: 11,
+    maxLightRouteCards: 15,
+    addOptions: [1, 2, 3, 4, 5], // allowed node adds (1 = card, ≥2 = pack)
+    packMax: 5,                  // the relax ladder lowers this when stuck
+
+    // Pile bounds for any deal.
+    minPiles: 3, maxPiles: 12,
+
+    // Difficulty bands per stage (regular deals) + per-stage boss bands.
+    firstDealBand: [1.25, 1.75], // the very first deal of the run (stage 0, row 0)
+    stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
+    bossBands:  [[2.5, 3.0], [4.0, 4.5], [5.5, 6.0]],
+
+    // Generation control.
+    attempts: 80,                // tries per relax step before widening the ladder
+    relaxSteps: 2,               // pack-size relax passes after the attempt cap
+    maxRoutes: 40000,            // route-enumeration safety cap
   };
+  const MAP_CONFIG = GEN_CONFIG;  // legacy alias (CampaignState reads phaseSuits/startSuit)
 
   const ri = (rng, range) => range[0] + Math.floor(rng() * (range[1] - range[0] + 1));
   const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+  /** Cards a node adds to the deck (0 for deals/stores/boss). */
+  const addOf = (n) => n.type === "pickup" ? 1 : (n.type === "pack" ? (n.packCount || 2) : 0);
 
-  /* Generate ONE phase map. Returns { phaseIndex, suit, rows, nodes:[...],
-     bossId }. Each node: { id, row, x (0..1), type, piles?, packCount?,
-     suit?, next:[ids] }. The player starts BELOW row 0 (position = null) and
-     may move to any row-0 node; thereafter only `next` edges are legal. The
-     graph forks AND recombines; stores + the boss are chokepoints every route
-     passes. */
-  function generatePhase(phaseIndex, seed) {
-    const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1));
-    const C = MAP_CONFIG;
-    const suit = C.phaseSuits[phaseIndex];
-    const R = ri(rng, C.rows);                 // total rows (row R-1 = boss)
-    const bossRow = R - 1;
+  /* ── Route enumeration: every row0→boss path (arrays of node ids). The DAG
+     is small (≤ ~27 nodes), so full enumeration is cheap; `cap` is a safety. */
+  function enumerateRoutes(ph, cap) {
+    cap = cap || GEN_CONFIG.maxRoutes;
+    const routes = [];
+    const walk = (id, path) => {
+      if (routes.length >= cap) return;
+      const n = ph.byId[id];
+      path.push(id);
+      if (!n.next || !n.next.length) { routes.push(path.slice()); }
+      else for (const t of n.next) walk(t, path);
+      path.pop();
+    };
+    ph.row0.forEach(id => walk(id, []));
+    return routes;
+  }
 
-    // Choose store chokepoint rows (single-node rows) in the middle band.
-    const storeCount = Math.min(ri(rng, C.stores), Math.max(0, R - 3));
-    const storeRows = new Set();
-    const lo = Math.max(1, Math.floor(R * 0.35)), hi = Math.max(lo, Math.floor(R * 0.8));
+  /* ── Deck extremes: the MIN and MAX possible deck size ARRIVING at each
+     node (lightest vs heaviest route from the stage entry). DP over rows. */
+  function deckExtremes(ph, entryDeck) {
+    const ext = {};
+    ph.row0.forEach(id => ext[id] = { min: entryDeck, max: entryDeck });
+    const sorted = ph.nodes.slice().sort((a, b) => a.row - b.row);
+    for (const n of sorted) {
+      const e = ext[n.id];
+      if (!e) continue;
+      const oMin = e.min + addOf(n), oMax = e.max + addOf(n);
+      for (const id of n.next) {
+        const t = ext[id];
+        if (!t) ext[id] = { min: oMin, max: oMax };
+        else { t.min = Math.min(t.min, oMin); t.max = Math.max(t.max, oMax); }
+      }
+    }
+    return ext;
+  }
+
+  /* ── validateStage: enumerate ALL routes and check the full spec — card
+     totals, deal counts, store adjacency, and difficulty bands at the min/max
+     deck of every deal. Applies to GENERATED and AUTHORED stages alike.
+     Returns { ok, errors, warnings, report }. */
+  function validateStage(ph, entryDeck, opts) {
+    opts = opts || {};
+    const C = GEN_CONFIG;
+    const p = (opts.phaseIndex != null) ? opts.phaseIndex : ph.phaseIndex;
+    const errors = [], warnings = [];
+    const routes = enumerateRoutes(ph, C.maxRoutes);
+    if (!routes.length) errors.push("no route reaches the boss");
+    let cardMin = Infinity, cardMax = -Infinity, dealRMin = Infinity, dealRMax = -Infinity, storeAdj = 0;
+    let storesMin = Infinity, storesMax = -Infinity;
+    for (const route of routes) {
+      let cards = 0, deals = 0, stores = 0, prevStore = false;
+      for (const id of route) {
+        const n = ph.byId[id];
+        cards += addOf(n);
+        if (n.type === "deal") deals++;
+        const isStore = n.type === "store";
+        if (isStore) { stores++; if (prevStore) storeAdj++; }
+        prevStore = isStore;
+      }
+      if (cards < cardMin) cardMin = cards;
+      if (cards > cardMax) cardMax = cards;
+      if (deals < dealRMin) dealRMin = deals;
+      if (deals > dealRMax) dealRMax = deals;
+      if (stores < storesMin) storesMin = stores;
+      if (stores > storesMax) storesMax = stores;
+    }
+    if (cardMin < C.minRouteCards) errors.push("a route collects only " + cardMin + " cards (< " + C.minRouteCards + ")");
+    if (cardMin > C.maxLightRouteCards) errors.push("the lightest route collects " + cardMin + " cards (> " + C.maxLightRouteCards + ") — no restrained route exists");
+    if (dealRMin < 3) errors.push("a route passes only " + dealRMin + " regular deals (< 3)");
+    if (dealRMax > C.dealsPerRouteMax) errors.push("a route passes " + dealRMax + " regular deals (> " + C.dealsPerRouteMax + ")");
+    if (storeAdj) errors.push(storeAdj + " route(s) pass two stores in a row");
+    // Difficulty at BOTH deck extremes of every deal + the boss.
+    const ext = deckExtremes(ph, entryDeck);
+    const perDeal = [];
+    const dealNodes = ph.nodes.filter(n => n.type === "deal" || n.type === "boss").sort((a, b) => (a.row - b.row) || (a.id - b.id));
+    let prevRowMid = -Infinity, prevRow = -1, bossMid = null, maxRegMid = -Infinity;
+    for (const n of dealNodes) {
+      const e = ext[n.id] || { min: entryDeck, max: entryDeck };
+      const band = n.type === "boss" ? C.bossBands[p]
+        : (p === 0 && n.row === 0 && opts.firstDeal !== false ? C.firstDealBand : C.stageBands[p]);
+      const dMin = (e.min - n.piles) / n.piles;
+      const dMax = (e.max - n.piles) / n.piles;
+      const mid = ((e.min + e.max) / 2 - n.piles) / n.piles;
+      const label = (n.type === "boss" ? "boss" : "deal") + "#" + n.id + " (row " + n.row + ", " + n.piles + " piles)";
+      if (dMin < band[0] - 1e-6) errors.push(label + " too easy on the light route: " + dMin.toFixed(2) + " < " + band[0]);
+      if (dMax > band[1] + 1e-6) errors.push(label + " too hard on the heavy route: " + dMax.toFixed(2) + " > " + band[1]);
+      if (n.type === "boss") bossMid = mid;
+      else {
+        if (n.row > prevRow && mid < prevRowMid - 1e-6) warnings.push("difficulty dips at " + label + " (" + mid.toFixed(2) + " after " + prevRowMid.toFixed(2) + ")");
+        if (n.row > prevRow) { prevRowMid = mid; prevRow = n.row; } else prevRowMid = Math.max(prevRowMid, mid);
+        maxRegMid = Math.max(maxRegMid, mid);
+      }
+      perDeal.push({ id: n.id, row: n.row, type: n.type, piles: n.piles,
+                     deckMin: e.min, deckMax: e.max,
+                     dMin: +dMin.toFixed(3), dMax: +dMax.toFixed(3), band: band.slice() });
+    }
+    if (bossMid != null && bossMid < maxRegMid - 1e-6) errors.push("the boss (" + bossMid.toFixed(2) + ") is not the stage's hardest deal (a deal reaches " + maxRegMid.toFixed(2) + ")");
+    return {
+      ok: !errors.length, errors, warnings,
+      report: { routes: routes.length, cards: [cardMin, cardMax],
+                dealsPerRoute: [dealRMin, dealRMax], storesPerRoute: [storesMin, storesMax], perDeal },
+    };
+  }
+
+  /* ── Planar wiring between two consecutive rows: a monotone two-pointer
+     staircase over the lane-sorted nodes. Only same/adjacent lanes connect,
+     intervals never decrease (no side-swaps), merges/forks happen by advancing
+     one pointer — crossings are IMPOSSIBLE by construction, never checked. */
+  function wireRows(A, B, rng) {
+    const adj = (a, b) => Math.abs(a.lane - b.lane) <= 1;
+    if (!adj(A[0], B[0])) return false;
+    let i = 0, j = 0;
+    A[0].next.push(B[0].id);
     let guard = 0;
-    while (storeRows.size < storeCount && guard++ < 40) {
-      const r = lo + Math.floor(rng() * (hi - lo + 1));
-      if (r > 0 && r < bossRow) storeRows.add(r);
+    while ((i < A.length - 1 || j < B.length - 1) && guard++ < 40) {
+      const moves = [];
+      if (j < B.length - 1 && adj(A[i], B[j + 1])) moves.push("fork");     // A[i] also feeds B[j+1]
+      if (i < A.length - 1 && adj(A[i + 1], B[j])) moves.push("merge");    // A[i+1] also feeds B[j]
+      if (i < A.length - 1 && j < B.length - 1 && adj(A[i + 1], B[j + 1])) moves.push("step");
+      if (!moves.length) return false;
+      const m = pick(rng, moves);
+      if (m === "fork") j++;
+      else if (m === "merge") i++;
+      else { i++; j++; }
+      A[i].next.push(B[j].id);
+    }
+    return i === A.length - 1 && j === B.length - 1;
+  }
+
+  /** Lane-set compatibility: every lane of one row is within 1 lane of some
+      node in the other (both directions), so wireRows can always cover both. */
+  function lanesCompatible(a, b) {
+    if (!a || !b) return true;
+    const near = (l, set) => set.some(x => Math.abs(x - l) <= 1);
+    return a.every(l => near(l, b)) && b.every(l => near(l, a));
+  }
+
+  /* ── ONE build attempt: skeleton → types → pickup adds → piles. Returns a
+     phase map or null (caller retries). Failures are cheap by design. */
+  function tryBuildStage(phaseIndex, rng, entryDeck, relax) {
+    const C = GEN_CONFIG;
+    const suit = C.phaseSuits[phaseIndex];
+    const R = ri(rng, C.rows);
+    const bossRow = R - 1;
+    const firstRowDeal = phaseIndex === 0;      // the run's very first deal opens stage 0
+    const maxAdd = Math.max(2, C.packMax - relax);
+    const allowedAdds = C.addOptions.filter(a => a <= maxAdd);
+
+    // ── row roles ──
+    const roles = new Array(R).fill("draft");
+    roles[bossRow] = "boss";
+    if (firstRowDeal) roles[0] = "deal";
+    const dealTarget = ri(rng, C.dealRows);
+    const bodyRows = [];
+    for (let r = 1; r < bossRow; r++) bodyRows.push(r);
+    for (let i = bodyRows.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bodyRows[i], bodyRows[j]] = [bodyRows[j], bodyRows[i]]; }
+    const storeRows = [];
+    const storeTarget = ri(rng, C.stores);
+    for (const r of bodyRows) {
+      if (storeRows.length >= storeTarget) break;
+      if (storeRows.some(s => Math.abs(s - r) <= 1)) continue;   // stores never on adjacent rows
+      storeRows.push(r); roles[r] = "store";
+    }
+    if (!storeRows.length) return null;
+    let dealsToPlace = dealTarget - (firstRowDeal ? 1 : 0);
+    for (const r of bodyRows) {
+      if (dealsToPlace <= 0) break;
+      if (roles[r] !== "draft") continue;
+      roles[r] = "deal"; dealsToPlace--;
+    }
+    if (dealsToPlace > 0) return null;
+    const draftRows = [];
+    for (let r = 0; r < bossRow; r++) if (roles[r] === "draft") draftRows.push(r);
+    // Enough draft rows to reach the card minimum at all?
+    if (draftRows.length * maxAdd < C.minRouteCards) return null;
+    // Optional mixed row: ONE draft row also offers a deal (the card-light gate).
+    let mixedRow = -1;
+    if (dealTarget < C.dealsPerRouteMax && rng() < C.mixedDealRowChance) {
+      const cands = draftRows.filter(r => r > 0 && draftRows.length * maxAdd - maxAdd >= C.minRouteCards);
+      if (cands.length) mixedRow = pick(rng, cands);
     }
 
-    // Build rows of nodes (ids assigned globally).
-    let nid = 0;
-    const rowsArr = [];           // rowsArr[r] = array of node objects
+    // ── lane composition per row (chokepoints sit on the center lane) ──
+    const laneSets2 = [[0, 1], [1, 2], [0, 2]];
+    const rowLanes = [];
     for (let r = 0; r < R; r++) {
-      let count;
-      if (r === bossRow) count = 1;            // boss = single chokepoint
-      else if (storeRows.has(r)) count = 1;    // store = single chokepoint
-      else if (r === 0) count = ri(rng, [Math.min(2, C.nodesPerRow[1]), C.nodesPerRow[1]]); // a couple of openings
-      else count = ri(rng, C.nodesPerRow);
-      const row = [];
-      for (let i = 0; i < count; i++) {
-        row.push({ id: nid++, row: r, x: count === 1 ? 0.5 : (i + 0.5) / count, type: null, next: [] });
+      let lanes;
+      if (r === bossRow || roles[r] === "store" || (r === 0 && firstRowDeal)) lanes = [1];
+      else {
+        const count = (r === 0) ? ri(rng, C.openings) : ri(rng, C.rowNodes);
+        if (count >= 3) lanes = [0, 1, 2];
+        else {
+          const opts2 = laneSets2.filter(ls => lanesCompatible(rowLanes[r - 1], ls));
+          lanes = opts2.length ? pick(rng, opts2).slice() : [0, 1, 2];
+        }
       }
-      rowsArr.push(row);
+      rowLanes.push(lanes);
     }
 
-    // Edges: connect each row r to r+1 so the graph is fully connected and
-    // recombines at chokepoints. Every node gets ≥1 outgoing; every next-row
-    // node gets ≥1 incoming.
-    for (let r = 0; r < R - 1; r++) {
-      const cur = rowsArr[r], nxt = rowsArr[r + 1];
-      if (nxt.length === 1) {                  // recombine: everyone → the one
-        cur.forEach(n => n.next.push(nxt[0].id));
-      } else if (cur.length === 1) {           // fan-out: the one → everyone
-        nxt.forEach(m => cur[0].next.push(m.id));
-      } else {
-        // Connect each cur node to its nearest nxt node(s) by x; a chance of a
-        // second edge makes diagonal forks. Then guarantee incoming for all nxt.
-        const incoming = new Set();
-        cur.forEach(n => {
-          const sorted = nxt.slice().sort((a, b) => Math.abs(a.x - n.x) - Math.abs(b.x - n.x));
-          n.next.push(sorted[0].id); incoming.add(sorted[0].id);
-          if (sorted[1] && rng() < 0.45) { n.next.push(sorted[1].id); incoming.add(sorted[1].id); }
-        });
-        nxt.forEach(m => {
-          if (incoming.has(m.id)) return;
-          // hook the nearest cur node to this orphan next-node
-          const c = cur.slice().sort((a, b) => Math.abs(a.x - m.x) - Math.abs(b.x - m.x))[0];
-          c.next.push(m.id); incoming.add(m.id);
-        });
-      }
+    // ── nodes + planar edges ──
+    let nid = 0;
+    const rowsArr = [];
+    for (let r = 0; r < R; r++) {
+      rowsArr.push(rowLanes[r].map(l => ({
+        id: nid++, row: r, lane: l,
+        x: rowLanes[r].length === 1 ? 0.5 : C.laneX[l],
+        type: null, next: [],
+      })));
     }
+    for (let r = 0; r < R - 1; r++) if (!wireRows(rowsArr[r], rowsArr[r + 1], rng)) return null;
 
-    // ── Assign TYPES ──────────────────────────────────────────────────────
+    // ── types ──
     const all = rowsArr.flat();
-    const byId = {};
-    all.forEach(n => byId[n.id] = n);
-    // Boss + stores first.
-    rowsArr[bossRow][0].type = "boss";
-    rowsArr[bossRow][0].piles = ri(rng, C.bossPiles);
-    rowsArr[bossRow][0].suit = suit;
+    const byId = {}; all.forEach(n => byId[n.id] = n);
+    rowsArr[bossRow][0].type = "boss"; rowsArr[bossRow][0].suit = suit;
     storeRows.forEach(r => { rowsArr[r][0].type = "store"; });
+    for (let r = 0; r < bossRow; r++) {
+      if (roles[r] === "deal") rowsArr[r].forEach(n => { n.type = "deal"; n.suit = suit; });
+    }
+    if (mixedRow >= 0 && rowsArr[mixedRow].length >= 2) {
+      const d = pick(rng, rowsArr[mixedRow]); d.type = "deal"; d.suit = suit;
+    } else mixedRow = -1;
 
-    // Spread normal DEAL nodes across distinct body rows (not row 0, not store/boss).
-    const dealTarget = ri(rng, C.deals);
-    const candidateRows = [];
-    for (let r = 1; r < bossRow; r++) if (!storeRows.has(r)) candidateRows.push(r);
-    // shuffle candidate rows
-    for (let i = candidateRows.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [candidateRows[i], candidateRows[j]] = [candidateRows[j], candidateRows[i]]; }
-    let dealsPlaced = 0;
-    for (const r of candidateRows) {
-      if (dealsPlaced >= dealTarget) break;
-      const row = rowsArr[r];
-      if (row.length >= 2) {
-        // FORK GATE: make ONE node a (harder, fewer-pile) deal; the rest stay
-        // draft (pickups) — so the lean choice (the deal) is the card-light path
-        // gated behind a punishing pile count, exactly as the spine intends.
-        const d = pick(rng, row); d.type = "deal"; d.piles = ri(rng, C.leanDealPiles); d.suit = suit;
-      } else {
-        const d = row[0]; d.type = "deal"; d.piles = ri(rng, C.dealPiles); d.suit = suit;
-      }
-      dealsPlaced++;
+    // ── pickup adds: row minima hit the card floor; the SPREAD (heaviest −
+    //    lightest) is budgeted from the boss band so piles can exist at both
+    //    deck extremes. Mixed-row drafts count as pure spread (deal path = 0). ──
+    const minima = {};                       // draft row → its lightest add
+    draftRows.forEach(r => minima[r] = allowedAdds[0]);
+    let target = ri(rng, [C.minRouteCards, C.maxLightRouteCards - 1]);
+    const minSum = () => draftRows.reduce((s, r) => s + (r === mixedRow ? 0 : minima[r]), 0);
+    // Keep ONE row cheap (+1 card territory) so every stage offers CARD nodes,
+    // not just packs — capping the light-route target to what the OTHER rows can
+    // carry whenever that still clears the card floor.
+    const nonMixed = draftRows.filter(r => r !== mixedRow);
+    const cheapCap = allowedAdds[0] + Math.max(0, nonMixed.length - 1) * maxAdd;
+    let cheapRow = null;
+    if (nonMixed.length >= 2 && cheapCap >= C.minRouteCards) {
+      cheapRow = pick(rng, nonMixed);
+      target = Math.min(target, cheapCap);
+    }
+    let guard = 0;
+    while (minSum() < target && guard++ < 200) {
+      const cands = draftRows.filter(x => x !== mixedRow && x !== cheapRow && minima[x] < maxAdd);
+      if (!cands.length) break;
+      // Concentrate bumps (rich-get-richer) so low rows survive as card rows.
+      let r;
+      if (rng() < 0.7) { const top = Math.max(...cands.map(x => minima[x])); r = pick(rng, cands.filter(x => minima[x] === top)); }
+      else r = pick(rng, cands);
+      minima[r] = allowedAdds[allowedAdds.indexOf(minima[r]) + 1] || minima[r] + 1;
+    }
+    if (minSum() < C.minRouteCards || minSum() > C.maxLightRouteCards) return null;
+    // Spread budget from the boss band: maxArr ≤ minArr·(hi+1)/(lo+1). This is
+    // what lets pile counts exist at BOTH deck extremes of every later deal.
+    const [bLo, bHi] = C.bossBands[phaseIndex];
+    const minArrBoss = entryDeck + minSum();
+    let budget = Math.floor(minArrBoss * ((bHi + 1) / (bLo + 1)) - minArrBoss - 1e-9);
+    // Row MAXIMA: spend the budget in rotation so routes genuinely differ in
+    // cards (only rows that can express a spread — ≥2 draft nodes, or the mixed
+    // row whose deal path collects 0).
+    const draftsIn = (r) => rowsArr[r].filter(n => !n.type);
+    const maxima = {};
+    draftRows.forEach(r => maxima[r] = (r === mixedRow) ? allowedAdds[0] : minima[r]);
+    let bguard = 0;
+    while (budget > 0 && bguard++ < 100) {
+      const cands = draftRows.filter(r => {
+        if (r !== mixedRow && draftsIn(r).length < 2) return false;   // no fork → no spread
+        const next = allowedAdds.find(a => a > maxima[r]);
+        return next != null && (next - maxima[r]) <= budget;
+      });
+      if (!cands.length) break;
+      const r = pick(rng, cands);
+      const next = allowedAdds.find(a => a > maxima[r]);
+      budget -= next - maxima[r];
+      maxima[r] = next;
+      if (rng() < 0.3) break;                 // sometimes leave a tight stage
+    }
+    // Per-node adds: one node per draft row carries the row MINIMUM (the light
+    // path); the others sample between the row min and the budgeted row max.
+    for (const r of draftRows) {
+      const row = draftsIn(r);
+      if (!row.length) continue;
+      const minIdx = Math.floor(rng() * row.length);
+      row.forEach((n, k) => {
+        let add;
+        if (r === mixedRow) add = pick(rng, allowedAdds.filter(a => a <= maxima[r]));
+        else if (k === minIdx) add = minima[r];
+        else add = pick(rng, allowedAdds.filter(a => a >= minima[r] && a <= maxima[r]));
+        n.type = add >= 2 ? "pack" : "pickup";
+        if (add >= 2) n.packCount = add;
+        n.suit = suit; n.mixed = false;
+        n.add = add;   // informational (validators/read-outs use addOf)
+      });
     }
 
-    // Everything still untyped is a DRAFT node (pickup / pack).
-    all.forEach(n => {
-      if (n.type) return;
-      if (rng() < C.packChance) {
-        n.type = "pack"; n.packCount = ri(rng, C.packCount);
-      } else {
-        n.type = "pickup";
-      }
-      n.suit = suit;
-      n.mixed = rng() < C.mixedChance;          // pulls an off-phase card sometimes
-    });
+    const ph = { phaseIndex, suit, rows: R, bossRow, nodes: all, byId,
+                 bossId: rowsArr[bossRow][0].id, row0: rowsArr[0].map(n => n.id) };
 
-    return { phaseIndex, suit, rows: R, bossRow, nodes: all, byId, bossId: rowsArr[bossRow][0].id,
-             row0: rowsArr[0].map(n => n.id) };
+    // ── piles: per deal, choose a count keeping (deck−p)/p inside the stage
+    //    band at BOTH deck extremes; target difficulty ascends by row and stays
+    //    under the boss band so the boss is the stage's hardest. ──
+    const ext = deckExtremes(ph, entryDeck);
+    const [sLo, sHi] = C.stageBands[phaseIndex];
+    const dealRowsAsc = [];
+    for (let r = 0; r < bossRow; r++) if (rowsArr[r].some(n => n.type === "deal")) dealRowsAsc.push(r);
+    const K = dealRowsAsc.length;
+    const regHi = Math.min(sHi, bLo - 0.05);              // keep regular deals below the boss
+    let prevMid = -Infinity;
+    for (let k = 0; k < K; k++) {
+      const r = dealRowsAsc[k];
+      const isFirst = (phaseIndex === 0 && r === 0);
+      const band = isFirst ? C.firstDealBand : [sLo, sHi];
+      const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
+        : sLo + (regHi - sLo) * ((k + 1) / (K + 1));
+      for (const n of rowsArr[r]) {
+        if (n.type !== "deal") continue;
+        const e = ext[n.id];
+        let pMin = Math.ceil(e.max / (band[1] + 1) - 1e-9);
+        let pMax = Math.floor(e.min / (band[0] + 1) + 1e-9);
+        pMin = Math.max(pMin, C.minPiles); pMax = Math.min(pMax, C.maxPiles);
+        if (pMin > pMax) return null;                      // band unsatisfiable here → retry
+        const midDeck = (e.min + e.max) / 2;
+        let p = Math.round(midDeck / (Math.max(targetD, prevMid + 0.05) + 1));
+        p = Math.min(pMax, Math.max(pMin, p));
+        // ascend by row: shrink piles (harder) while the light-route band holds
+        while ((midDeck - p) / p < prevMid + 1e-6 && p > pMin) p--;
+        n.piles = p;
+        prevMid = Math.max(prevMid, (midDeck - p) / p);
+      }
+    }
+    // Boss piles from the boss band at both extremes.
+    {
+      const boss = rowsArr[bossRow][0];
+      const e = ext[boss.id];
+      let pMin = Math.ceil(e.max / (bHi + 1) - 1e-9);
+      let pMax = Math.floor(e.min / (bLo + 1) + 1e-9);
+      pMin = Math.max(pMin, C.minPiles); pMax = Math.min(pMax, C.maxPiles);
+      if (pMin > pMax) return null;
+      boss.piles = Math.round((pMin + pMax) / 2);
+    }
+    return ph;
+  }
+
+  /* ── generateStage: build → validate (full route enumeration) → retry; after
+     the attempt cap, RELAX pack sizes and keep trying. If the spec is truly
+     unsatisfiable, log the conflict and return the best effort (playable). ──
+     Each returned phase carries `_gen` = { attempt, relax, report } — the
+     route-enumeration proof used to accept it. */
+  function generateStage(phaseIndex, seed, entryDeck) {
+    const C = GEN_CONFIG;
+    entryDeck = entryDeck || C.startDeckSize;
+    let best = null, bestErrs = Infinity, lastErrors = null;
+    for (let attempt = 0; attempt < C.attempts * (1 + C.relaxSteps); attempt++) {
+      const relax = Math.min(C.relaxSteps, Math.floor(attempt / C.attempts));
+      const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
+      const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax);
+      if (!ph) continue;
+      const v = validateStage(ph, entryDeck, { phaseIndex });
+      ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
+      if (v.ok) return ph;
+      if (v.errors.length < bestErrs) { best = ph; bestErrs = v.errors.length; lastErrors = v.errors; }
+    }
+    console.warn("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck + "): spec conflict after "
+      + (C.attempts * (1 + C.relaxSteps)) + " attempts — returning best effort. "
+      + (lastErrors ? lastErrors.join(" | ") : "no candidate built"));
+    return best;
   }
 
   /* ── HARDCODED PHASE MAPS (the generator seam) ────────────────────────────
@@ -6799,10 +7076,24 @@ const RunMap = (() => {
       row0: nodes.filter(n => n.row === 0).map(n => n.id),
     };
   }
-  /* A phase map: a hardcoded definition if one exists, else the generator. */
-  function buildPhase(phaseIndex, seed) {
-    return PHASE_DEFS[phaseIndex] ? definitionToPhase(PHASE_DEFS[phaseIndex], phaseIndex)
-                                  : generatePhase(phaseIndex, seed);
+  /* ── AUTHORED override designation ──
+     Stages GENERATE by default. To pin a stage to a hand-authored map, designate
+     it here (the PHASE_DEFS library above keeps the authored format + loader
+     alive), e.g.:  AUTHORED[0] = PHASE_DEFS[0];
+     Authored stages run through the SAME validateStage; violations are logged
+     (console.warn), never silently accepted. */
+  const AUTHORED = {};
+
+  /* A stage map: the designated authored definition if one exists, else the
+     random generator (with the REAL entry deck size for difficulty). */
+  function buildPhase(phaseIndex, seed, entryDeck) {
+    if (AUTHORED[phaseIndex]) {
+      const ph = definitionToPhase(AUTHORED[phaseIndex], phaseIndex);
+      const v = validateStage(ph, entryDeck || GEN_CONFIG.startDeckSize, { phaseIndex });
+      if (!v.ok) console.warn("[RunMap] authored stage " + phaseIndex + " violates the map spec: " + v.errors.join(" | "));
+      return ph;
+    }
+    return generateStage(phaseIndex, seed, entryDeck);
   }
 
   /* Generate the WHOLE run as ONE continuous graph: the three phase-maps
@@ -6815,14 +7106,20 @@ const RunMap = (() => {
 
      Returns { nodes:[...], byId, phases:[perPhaseMeta], row0:[ids], totalRows,
      runBossId }. Each node gains `.phase` (0..2) and a GLOBAL `.row`. */
-  function generateRun(seed) {
+  function generateRun(seed, entryDecks) {
+    // entryDecks[p] = the REAL deck size entering stage p (difficulty input).
+    // A null/absent entry means that stage hasn't been entered yet — it is NOT
+    // generated; the map grows as each stage's boss falls (the caller records
+    // the live deck size and regenerates). Defaults to stage 0 only.
+    if (!Array.isArray(entryDecks)) entryDecks = [GEN_CONFIG.startDeckSize];
     const phases = [];
     const nodes = [];
     const byId = {};
     let rowOffset = 0;
     const NS = 1000;                                   // id namespace stride/phase
-    for (let p = 0; p < MAP_CONFIG.phaseSuits.length; p++) {
-      const ph = buildPhase(p, seed);
+    for (let p = 0; p < GEN_CONFIG.phaseSuits.length; p++) {
+      if (entryDecks[p] == null) break;                // later stages: not yet entered
+      const ph = buildPhase(p, seed, entryDecks[p]);
       const remap = id => p * NS + id;
       ph.nodes.forEach(n => {
         n.id = remap(n.id);
@@ -6850,11 +7147,15 @@ const RunMap = (() => {
       nodes, byId, phases,
       row0: phases[0].row0,
       totalRows: rowOffset,
-      runBossId: phases[phases.length - 1].bossId,
+      // The RUN boss exists only once the final (♠) stage has been generated;
+      // until then no boss can falsely end the run.
+      runBossId: phases.length === GEN_CONFIG.phaseSuits.length ? phases[phases.length - 1].bossId : null,
+      stagesGenerated: phases.length,
     };
   }
 
-  return { MAP_CONFIG, PHASE_DEFS, definitionToPhase, parseMapSpec, generatePhase, generateRun };
+  return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
+           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes };
 })();
 
 /* ----------------------------------------------------------------
@@ -9278,10 +9579,14 @@ const CampaignState = (() => {
     // pickup/pack nodes). It is the WHOLE deck dealt every deal — bigger = worse.
     let phaseIndex = 0;            // 0=♦, 1=♣, 2=♠ (which phase the CURRENT node is in)
     let ownedIds = [];            // base-deck ids in the accumulated deck
-    let runMap = null;            // RunMap.generateRun(...) — ALL 3 phases, one continuous map
+    let runMap = null;            // RunMap.generateRun(...) — the stages generated SO FAR (grows per stage)
     let nodePos = null;           // current node id, or null = at the run start (below ♦ row 0)
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
     let runSeed = 0;              // seeds deterministic map generation
+    // The REAL deck size entering each stage, captured the moment the stage is
+    // generated (stage 0 at run start; stage p+1 when stage p's boss falls).
+    // Together with runSeed this makes the whole map deterministic for restore.
+    let stageEntryDecks = [RunMap.GEN_CONFIG.startDeckSize, null, null];
     // Single-card (pickup) nodes commit to ONE exact card so the map can show it
     // face-up before it's taken: { nodeId: baseDeckCardId }. Assigned the first
     // time a pickup node is previewed/resolved (deterministic from runSeed+nodeId),
@@ -9367,7 +9672,27 @@ const CampaignState = (() => {
     function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
-    function genRunMap() { runMap = RunMap.generateRun(runSeed); nodePos = null; clearedNodes = []; nodeCards = {}; lockAllPickupCards(); }
+    function genRunMap() {
+      stageEntryDecks = [ownedIds.length || RunMap.GEN_CONFIG.startDeckSize, null, null];
+      runMap = RunMap.generateRun(runSeed, stageEntryDecks);
+      nodePos = null; clearedNodes = []; nodeCards = {};
+      lockAllPickupCards();
+    }
+    /** Clearing a PHASE BOSS unlocks the next stage: capture the REAL deck size
+        entering it, generate that stage (deterministic from runSeed + entry),
+        and re-stitch the map. Existing node ids/positions are untouched (each
+        stage regenerates identically from the same seed + entry deck). */
+    function maybeExtendMap(clearedId) {
+      if (!runMap) return;
+      for (let p = 0; p < runMap.phases.length; p++) {
+        if (runMap.phases[p].bossId !== clearedId) continue;
+        if (p + 1 >= PHASE_SUITS.length || stageEntryDecks[p + 1] != null) return;
+        stageEntryDecks[p + 1] = ownedIds.length;
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks);
+        lockAllPickupCards();          // lock the NEW stage's +1 nodes (old locks cached)
+        return;
+      }
+    }
     /** Cards that are SPOKEN FOR: every owned card + every card a +1 node has
         locked to display on the map (so a roll never picks a card already shown
         on another node, and a pack never steals a card a +1 node shows).
@@ -9511,7 +9836,10 @@ const CampaignState = (() => {
         }
         return null;
       },
-      markNodeCleared(id) { if (clearedNodes.indexOf(id) === -1) clearedNodes.push(id); },
+      markNodeCleared(id) {
+        if (clearedNodes.indexOf(id) === -1) clearedNodes.push(id);
+        maybeExtendMap(id);   // a phase boss falling generates the next stage (real deck size)
+      },
       nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
       clearedNodeIds() { return clearedNodes.slice(); },
       currentNode() { return (nodePos != null && runMap) ? runMap.byId[nodePos] : null; },
@@ -9527,6 +9855,9 @@ const CampaignState = (() => {
         if (!runMap || !runMap.byId[id]) return false;
         const target = runMap.byId[id];
         clearedNodes = runMap.nodes.filter(n => n.row < target.row).map(n => n.id);  // before → done
+        // Jumping past a phase boss must still unlock the following stage(s)
+        // (normal play does this via markNodeCleared).
+        clearedNodes.slice().forEach(cid => maybeExtendMap(cid));
         const pred = runMap.nodes.find(n => (n.next || []).indexOf(id) !== -1
           && clearedNodes.indexOf(n.id) !== -1);                                       // a done predecessor
         nodePos = pred ? pred.id : null;                                              // null = run start (opening node)
@@ -10426,6 +10757,7 @@ const CampaignState = (() => {
           // NEW run structure: the map is deterministic from (phaseIndex, runSeed),
           // so we persist only the seed + position + draft, not the whole graph.
           phaseIndex, runSeed, nodePos,
+          stageEntryDecks: stageEntryDecks.slice(),   // per-stage entry deck sizes (map regen input)
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
           nodeCards: { ...nodeCards },   // single-card nodes' committed exact cards (shown == granted)
@@ -10469,7 +10801,18 @@ const CampaignState = (() => {
         clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
         nodeCards = (s.nodeCards && typeof s.nodeCards === "object") ? { ...s.nodeCards } : {};
         nodePos = (s.nodePos != null) ? s.nodePos : null;
-        runMap = RunMap.generateRun(runSeed);   // the whole continuous run regenerates from the seed
+        // Per-stage entry decks: the map regenerates deterministically from
+        // (runSeed, stageEntryDecks). Legacy saves (no field) get a one-time
+        // migration: every stage up to the CURRENT phase is assumed entered at
+        // the restored deck size (13 for stage 0) — approximate but playable.
+        if (Array.isArray(s.stageEntryDecks)) {
+          stageEntryDecks = [null, null, null].map((_, p) => (s.stageEntryDecks[p] != null ? s.stageEntryDecks[p] : null));
+          if (stageEntryDecks[0] == null) stageEntryDecks[0] = RunMap.GEN_CONFIG.startDeckSize;
+        } else {
+          stageEntryDecks = [RunMap.GEN_CONFIG.startDeckSize, null, null];
+          for (let p = 1; p <= phaseIndex && p < PHASE_SUITS.length; p++) stageEntryDecks[p] = ownedIds.length;
+        }
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks);   // the generated-so-far run regenerates from seed + entries
         lockAllPickupCards();                   // re-lock any +1 node missing a card (old saves) — committed ones are kept
         currentStage = s.currentStage || 1;
         currentRunIndex = s.currentRunIndex || 1;
