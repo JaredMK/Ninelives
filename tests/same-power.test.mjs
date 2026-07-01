@@ -30,15 +30,15 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
-    const ids = ["linkBury", "linkRevive", "linkCoins"];
-    r.eq(SamePowerTypes.all().length, 3, "three starter Same-Powers registered");
-    r.ok(ids.every(id => !!SamePowerTypes.get(id)), "all three by id");
+    const ids = ["linkBury", "linkRevive", "linkCoins", "linkShuffle", "samePeek", "linkHeavy"];
+    r.eq(SamePowerTypes.all().length, 6, "six Same-Powers registered");
+    r.ok(ids.every(id => !!SamePowerTypes.get(id)), "all six by id");
     r.ok(SamePowerTypes.all().every(t => t.description && t.icon && typeof t.price === "number" && t.tier),
       "every Same-Power has a description + icon + price + tier");
     r.ok(SamePowerTypes.all().every(t => /Trigger:.*\n.*Effect:/s.test(t.description)),
       "every Same-Power uses the Trigger/Effect description format");
-    r.eq(SamePowerTypes.get("linkBury").tier, "uncommon", "Burrow is uncommon (flagship/accessible)");
-    r.eq(SamePowerTypes.get("linkRevive").tier, "rare", "Rekindle is rare (revive is strong)");
+    r.ok(SamePowerTypes.all().every(t => t.tier === "rare"), "every Same-Power is Rare");
+    r.ok(SamePowerTypes.all().every(t => t.price === 5), "every Same-Power costs 5");
   }
 
   // --- CampaignState: buy → equip → swap → unequip → persistence ---------
@@ -168,21 +168,51 @@ export function run() {
     r.ok(!b.isActive(8), "a NON-linked dead pile stays dead");
   }
 
-  // --- Dividend: +2 coins × the largest directly-linked pile's size -------
+  // --- Dividend: +5 coins for EACH directly-linked pile (flat per-link) ---
   {
     const e = mk({ samePower: "linkCoins" });
     const b = e.getBoard();
-    const fill = (i, n) => { b.piles[i].cards = Array.from({ length: n }, () => ({ value: 4, suit: "♠", label: "4", stickers: [] })); };
-    fill(1, 3); fill(2, 6);          // linked: sizes 3 and 6 → largest = 6
-    fill(5, 9);                      // NOT linked → ignored even though bigger
-    e.setLinks({ 0: [1, 2], 1: [0], 2: [0] });
+    e.setLinks({ 0: [1, 2], 1: [0], 2: [0], 5: [] });   // 2 links; pile 5 not linked
     const before = e.getRun().bonusCoins;
     let evt = null;
     e.onEvent((t, p) => { if (t === "same-power") evt = p; });
     sameOn(e, 0, 7);
-    r.eq(e.getRun().bonusCoins - before, 12, "Dividend paid 2 × largest linked size (2×6=12)");
-    r.eq(evt.amount, 12, "the event reports the coins paid");
-    r.eq(JSON.stringify(evt.targets), JSON.stringify([2]), "the event names the largest linked pile");
+    r.eq(e.getRun().bonusCoins - before, 10, "Dividend paid 5 × 2 linked piles = 10");
+    r.eq(evt.amount, 10, "the event reports the coins paid");
+    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "the event names every linked pile");
+  }
+
+  // --- Link Shuffler: shuffles every ALIVE directly-linked pile ----------
+  {
+    const e = mk({ samePower: "linkShuffle" });
+    const b = e.getBoard();
+    e.setLinks({ 0: [1, 2], 1: [0], 2: [0], 5: [] });
+    let evt = null;
+    e.onEvent((t, p) => { if (t === "same-power") evt = p; });
+    sameOn(e, 0, 7);
+    r.ok(evt && evt.power === "linkShuffle", "a same-power event fired naming Link Shuffler");
+    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "shuffled exactly the hub's direct links");
+  }
+
+  // --- Same Peeker: peeks the next upcoming card -------------------------
+  {
+    const e = mk({ samePower: "samePeek" });
+    e.setLinks({ 0: [1] });
+    r.ok(!e.getRun().revealNextActive, "no peek before the Same");
+    sameOn(e, 0, 7);
+    r.ok(e.getRun().revealNextActive, "Same Peeker peeks the next card on a correct Same");
+  }
+
+  // --- Same Heavy: +5 pile size to each directly-linked pile -------------
+  {
+    const e = mk({ samePower: "linkHeavy" });
+    const b = e.getBoard();
+    e.setLinks({ 0: [1, 2], 1: [0], 2: [0], 5: [] });
+    const s1 = b.pileSize(1), s2 = b.pileSize(2), s5 = b.pileSize(5);
+    sameOn(e, 0, 7);
+    r.eq(b.pileSize(1), s1 + 5, "linked pile 1 gained +5 size");
+    r.eq(b.pileSize(2), s2 + 5, "linked pile 2 gained +5 size");
+    r.eq(b.pileSize(5), s5, "a NON-linked pile is untouched");
   }
 
   // --- the power fires ONLY on a correct Same, not other correct guesses --

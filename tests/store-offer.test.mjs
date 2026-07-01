@@ -241,7 +241,7 @@ export function run() {
       "the removed ♠/♣/♦ Bonus pillars never appear");
   }
 
-  // --- Suit-lock: suited BASES (the Dig family) in mixed obey the gate -
+  // --- Suit-lock: suited BASES (Club Dig ♣, Heart Tax ♥) obey the gate -
   {
     const sampleBases = (c, n) => {
       const seen = new Set();
@@ -249,14 +249,14 @@ export function run() {
         c.openStore().mixed.forEach(s => { if (s && s.kind === "base") seen.add(s.id); });
       return seen;
     };
-    const b1 = sampleBases(CampaignState.create(), 700);      // Stage 1: ♦ ♥
+    const b1 = sampleBases(CampaignState.create(), 900);      // Stage 1: ♦ ♥
     r.ok(!b1.has("clubDig"), "Stage 1 NEVER offers Club Dig (♣ not in play)");
-    r.ok(!b1.has("spadeDig"), "Stage 1 NEVER offers Spade Dig (♠ not in play)");
+    r.ok(b1.has("tax"), "Stage 1 offers Heart Tax (♥ in play)");
 
-    const cb3 = CampaignState.create();
-    cb3.advancePhase(); cb3.advancePhase();                 // → Stage 3: all four
-    const b3 = sampleBases(cb3, 700);
-    r.ok(b3.has("spadeDig"), "Stage 3 offers Spade Dig (all four suits in play)");
+    const cb2 = CampaignState.create();
+    cb2.advancePhase();                                      // → Stage 2: ♦ ♥ ♣
+    const b2 = sampleBases(cb2, 900);
+    r.ok(b2.has("clubDig"), "Stage 2 offers Club Dig (♣ now in play)");
   }
 
   return r.summary();

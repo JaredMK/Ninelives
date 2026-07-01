@@ -48,10 +48,11 @@ export function run() {
     const e = game([null, "broadcast", null], ["setValue", null, null]);
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.piles[i].cards = [card(3, "♠")];
+    b.piles[2].cards = [card(7, "♠")];                    // bottom of col 0 → source rank 7
     const res = e.baseActivate(0);                         // Cast lives in col 0
-    const y = res.valueApplied[0].value;                  // Cast's own rolled value
-    r.ok([0,1,2,3,4,5,6,7,8,9].every(i => b.top(i).value === y),
-      "Broadcast: Cast set EVERY pile on the board to its rolled value");
+    r.eq(res.sourceValue, 7, "Cast's source is col 0's bottom pile rank (7)");
+    r.ok([0,1,2,3,4,5,6,7,8,9].every(i => b.top(i).value === 7),
+      "Broadcast: Cast set EVERY pile on the board to the source rank");
   }
 
   // --- Control: without Broadcast, Cast stays inside its own column -------
@@ -59,9 +60,10 @@ export function run() {
     const e = game([null, null, null], ["setValue", null, null]);
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.piles[i].cards = [card(3, "♠")];
+    b.piles[2].cards = [card(7, "♠")];                    // bottom of col 0 → source rank 7
     const res = e.baseActivate(0);
-    const y = res.valueApplied[0].value;
-    r.ok([0,1,2].every(i => b.top(i).value === y), "no Broadcast: col-0 piles set");
+    r.eq(res.sourceValue, 7, "Cast's source is col 0's bottom pile rank (7)");
+    r.ok([0,1,2].every(i => b.top(i).value === 7), "no Broadcast: col-0 piles set to the source rank");
     r.ok([3,4,5,6,7,8,9].every(i => b.top(i).value === 3), "no Broadcast: other columns untouched");
   }
 
@@ -103,23 +105,19 @@ export function run() {
     r.ok(res && res.harvested === 1, "Broadcast: harvested a pile in another column");
   }
 
-  // --- already-board-wide Bases (Tax) are unchanged by Broadcast ---------
+  // --- Heart Tax is column-scoped; Broadcast widens it board-wide --------
   {
     const measure = (pillars) => {
       const e = game(pillars, ["tax", null, null]);
       const b = e.getBoard();
-      // 4 black pile cards spread across all three columns.
-      b.piles[0].cards = [card(5, "♠")];
-      b.piles[3].cards = [card(6, "♣")];
-      b.piles[7].cards = [card(4, "♠")];
-      b.piles[9].cards = [card(2, "♣")];
-      for (const i of [1,2,4,5,6,8]) b.piles[i].cards = [card(5, "♥")];   // red — not taxed
+      b.piles[0].cards = [card(5, "♥"), card(3, "♥")];   // col 0: 2 hearts
+      b.piles[3].cards = [card(6, "♥")];                 // col 1: 1 heart
+      b.piles[7].cards = [card(4, "♥")];                 // col 2: 1 heart
+      for (const i of [1, 2, 4, 5, 6, 8, 9]) b.piles[i].cards = [card(5, "♠")];   // no hearts
       return e.baseActivate(0).gained;
     };
-    const plain = measure([null, null, null]);
-    r.eq(plain, 4, "Tax counts all 4 black pile cards board-wide");
-    r.eq(plain, measure(["broadcast", null, null]),
-      "Tax is unchanged by Broadcast (already global)");
+    r.eq(measure([null, null, null]), 2, "Heart Tax counts only its own column's hearts (2)");
+    r.eq(measure(["broadcast", null, null]), 4, "Broadcast widens Heart Tax board-wide (all 4 hearts)");
   }
 
   return r.summary();

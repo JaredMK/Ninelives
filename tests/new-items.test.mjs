@@ -262,10 +262,11 @@ export function run() {
     let fired = null;
     e.onEvent((t, p) => { if (t === "base-fired") fired = p; });
     e.start(); e.startRun([null, null, null], ["kamikaze", null, null]);
-    r.ok(e.baseAvailable(0), "Kamikaze Base available during play with >1 pile alive");
+    e.getBoard().top(5).suit = "♠";     // Kamikaze now only sacrifices a ♠-top pile
+    r.ok(e.baseAvailable(0), "Kamikaze Base available during play with a ♠ pile + >1 alive");
     r.ok(e.baseNeedsTarget(0), "Kamikaze is a target Base (player picks a pile)");
     const nextBefore = e.getDeck().peek(1)[0].value;
-    const res = e.baseActivate(0, 5);   // kill pile 5
+    const res = e.baseActivate(0, 5);   // kill the ♠ pile 5
     r.ok(res && res.cards && res.cards.length === 3, "Kamikaze peeks the next 3 cards");
     r.ok(!e.getBoard().isActive(5), "the chosen pile is killed");
     r.ok(e.getRun().basesUsed[0], "the Base is spent for the deal");

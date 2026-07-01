@@ -1,8 +1,7 @@
 // Run-level persistence + live behaviors:
-//  #1 Cast (setValue) and Sticker Storm / Wild Sticker (randomStickerAll /
-//     randomSticker) record durable per-card mods (cardId + change) that the UI
-//     writes onto the PERSISTENT campaign card — so they last the rest of the run.
-//  #3 Each Cast rolls its OWN value (no shared per-deal roll).
+//  #1 Cast (setValue) and Wild Sticker (randomSticker) record durable per-card
+//     mods (cardId + change) that the UI writes onto the PERSISTENT campaign card
+//     — so they last the rest of the run.
 //  #5 Fibonacci pays live the moment a fib-rank card is drawn into its column,
 //     win or lose, not only for survivors at end of deal.
 import { loadGame, makeRunner } from "./_harness.mjs";
@@ -15,41 +14,46 @@ export function run() {
   const card = (value, suit) => ({ value, suit, label: String(value), stickers: [], red: suit === "♥" || suit === "♦" });
 
   // --- #1 Cast: value change persists onto the campaign card -------------
-  // Mimic the real flow: engine fires Cast → res.valueApplied → UI writes each
-  // change to the persistent deck (campaign.randomizeCard) → re-materialize.
+  // Cast copies the column's bottom pile RANK onto the other tops. Mimic the real
+  // flow: engine fires Cast → res.valueApplied → UI writes each change to the
+  // persistent deck (campaign.randomizeCard) → re-materialize.
   {
     const camp = CampaignState.create();
     const e = GameEngine.create(camp.getCards(), 7, { cols: COLS });
     e.start();
     e.startRun([null, null, null], ["setValue", null, null]);   // Cast on col 0
+    const b = e.getBoard();
+    b.top(0).value = 5; b.top(1).value = 9; b.top(2).value = 3;   // bottom pile (2) → source rank 3
     const res = e.baseActivate(0);
-    const y = res.valueApplied[0].value;
-    r.ok(res.valueApplied.length === 3, "Cast recorded all 3 column cards for persistence");
-    r.ok(res.valueApplied.every(v => v.value === y && v.cardId != null), "each record carries cardId + the rolled value");
+    r.eq(res.sourceValue, 3, "Cast's source is the bottom pile's rank (3)");
+    r.eq(res.valueApplied.length, 2, "Cast recorded the 2 changed tops (bottom pile is the source, unchanged)");
+    r.ok(res.valueApplied.every(v => v.value === 3 && v.cardId != null), "each record carries cardId + the copied rank");
 
     for (const v of res.valueApplied) camp.randomizeCard(v.cardId, v.value);   // what the UI does
     for (const v of res.valueApplied) {
       const cc = camp.getCards().find(x => x.id === v.cardId);
-      r.eq(cc.currentRank, y, "campaign card " + v.cardId + " holds the Cast value");
-      r.eq(DeckManager.toCard(cc).value, y, "a fresh deal materializes card " + v.cardId + " at the Cast value");
+      r.eq(cc.currentRank, 3, "campaign card " + v.cardId + " holds the Cast rank");
+      r.eq(DeckManager.toCard(cc).value, 3, "a fresh deal materializes card " + v.cardId + " at the Cast rank");
     }
   }
 
-  // --- #1 Sticker Storm: stickers persist onto the campaign cards --------
+  // --- #1 Suit Setter: suit change persists onto the campaign cards ------
   {
     const camp = CampaignState.create();
     const e = GameEngine.create(camp.getCards(), 7, { cols: COLS });
     e.start();
-    e.startRun([null, null, null], ["randomStickerAll", null, null]);   // Sticker Storm on col 0
+    e.startRun([null, null, null], ["setSuit", null, null]);   // Suit Setter on col 0
+    const b = e.getBoard();
+    b.top(0).suit = "♠"; b.top(1).suit = "♥"; b.top(2).suit = "♣";   // bottom pile (2) → source suit ♣
     const res = e.baseActivate(0);
-    r.ok(res.stickersApplied && res.stickersApplied.length > 0, "Sticker Storm recorded the stickers it applied");
-    r.ok(res.stickersApplied.every(a => a.cardId != null && a.typeId), "each record carries cardId + sticker type");
+    r.eq(res.sourceSuit, "♣", "Suit Setter's source is the bottom pile's suit (♣)");
+    r.ok(res.suitApplied.length >= 1 && res.suitApplied.every(s => s.suit === "♣" && s.cardId != null), "each record carries cardId + the copied suit");
 
-    for (const a of res.stickersApplied) camp.applySticker(a.cardId, a.typeId);   // what the UI does
-    for (const a of res.stickersApplied) {
-      const cc = camp.getCards().find(x => x.id === a.cardId);
-      r.ok(cc.stickers.some(s => s.type === a.typeId), "campaign card " + a.cardId + " keeps the Storm sticker");
-      r.ok(DeckManager.toCard(cc).stickers.some(s => s.type === a.typeId), "a fresh deal materializes the sticker");
+    for (const s of res.suitApplied) camp.setCardSuit(s.cardId, s.suit);   // what the UI does
+    for (const s of res.suitApplied) {
+      const cc = camp.getCards().find(x => x.id === s.cardId);
+      r.eq(cc.suit, "♣", "campaign card " + s.cardId + " holds the new suit");
+      r.eq(DeckManager.toCard(cc).suit, "♣", "a fresh deal materializes card " + s.cardId + " at the new suit");
     }
   }
 
@@ -64,26 +68,6 @@ export function run() {
     camp.applySticker(res.stickerApplied.cardId, res.stickerApplied.typeId);
     const cc = camp.getCards().find(x => x.id === res.stickerApplied.cardId);
     r.ok(cc.stickers.some(s => s.type === res.stickerApplied.typeId), "Wild Sticker persists on the campaign card");
-  }
-
-  // --- #3 Multiple Casts roll INDEPENDENT values ------------------------
-  {
-    // Two Casts in one deal each roll their OWN value. A SHARED per-deal roll
-    // would force a === b on EVERY deal; independent rolls differ on at least some
-    // deals. (Robust: 10 piles = sum(COLS) so both columns are live, and we loop
-    // fresh deals — each a fresh random seed — until a pair differs.)
-    let differs = false, both = 0;
-    for (let i = 0; i < 20 && !differs; i++) {
-      const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: COLS });
-      e.start();
-      e.startRun([null, null, null], ["setValue", "setValue", null]);   // Cast on col 0 AND col 1
-      const ra = e.baseActivate(0), rb = e.baseActivate(1);
-      if (!ra || !rb) continue;
-      both++;
-      if (ra.valueApplied[0].value !== rb.valueApplied[0].value) differs = true;
-    }
-    r.ok(both > 0, "both Casts activated (10-pile board has live cols)");
-    r.ok(differs, "two Casts roll INDEPENDENT values (some deal gives a≠b — a shared roll never could)");
   }
 
   // --- #5 Fibonacci pays LIVE per fib-rank draw, win or lose -------------
