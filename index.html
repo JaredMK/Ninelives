@@ -2183,7 +2183,7 @@
      - the sticker vinyl is a circle locked to the slot height (aspect 1).
      - the base plaque rests short on the shelf, capped at the slot. */
   .store-tile .ti-obj.obj-pack .pack-foil.big { width: auto; height: 100%; }
-  .store-tile .ti-obj.obj-sticker .dcs { width: auto; height: min(88px, 100%); aspect-ratio: 1; --dcs-size: 78px; }
+  .store-tile .ti-obj.obj-sticker .dcs { width: auto; height: min(68px, 100%); aspect-ratio: 1; --dcs-size: 60px; }
   .store-tile .ti-obj.obj-base .base-banner.plaque { height: min(46px, 100%); }
   .store-tile .ti-obj.obj-samepower .sp-badge { max-height: 100%; box-sizing: border-box; }
   /* Soft contact shadow so each object sits ON the surface, not floating. */
@@ -2719,15 +2719,20 @@
     background: radial-gradient(circle at 35% 30%, #c9ffd9, var(--good) 60%, #1f7a4a);
     box-shadow: 0 0 5px 1px rgba(63,157,106,0.8), inset 0 0 1px rgba(0,0,0,0.3);
   }
-  /* Heart Tax live count: a small dark chip on the plaque's top-left showing the
-     current ♥ count in the column (its payout at any moment). */
+  /* Base live counter: a small dark chip on the plaque's top-left showing the
+     Base's current "if activated now" value (Heart Tax ♥ count, Heart Demolish
+     coins, Spade Peeker peek count, Landslide/Club Dig cards buried). */
   .base-count-badge {
     position: absolute; left: 3px; top: 2px;
     min-width: 13px; height: 13px; padding: 0 3px; box-sizing: border-box;
     border-radius: 7px; background: rgba(20,12,30,0.78); color: #ffd9e0;
     font-size: 9px; font-weight: 800; line-height: 13px; text-align: center;
     border: 1px solid rgba(255,180,200,0.55); pointer-events: none; z-index: 2;
+    transition: transform 0.12s ease;
   }
+  .base-count-badge.zero { opacity: 0.5; }
+  .base-count-badge.bump { transform: scale(1.35); }
+  .tray-obj .base-count-badge { display: none; }   /* live counter is board-only */
   .base-banner.spent { filter: brightness(0.97); opacity: 0.82; }
   .base-banner.spent .base-charge {
     background: radial-gradient(circle at 35% 30%, #6a6258, #3a342c 70%); box-shadow: inset 0 0 1px rgba(0,0,0,0.4);
@@ -11344,6 +11349,10 @@ const UIRenderer = (() => {
       // The limiting pile's CARD gets the amber ring (Phase 2).
       pileEls[i].classList.toggle("limit", isSolid);
     }
+    // Board composition just changed → keep the live Base + scoring Pillar
+    // counters current (Heart Tax, Heart Demolish, Envy, Excavator, Highest …).
+    refreshBaseCounters();
+    updateScoringCounters();
   }
 
   /* Render the sticker badges for a pile's top card. DATA-DRIVEN: every sticker
@@ -16064,7 +16073,17 @@ const UIRenderer = (() => {
     return { d, cd };
   }
   // Streak Pathways and the threshold at which their effect starts paying.
-  const STREAK_THRESHOLD = { streakBank: 3, streakTribute: 4 };
+  // Keyed by EFFECT (both streak pillars pay from the 3rd consecutive correct).
+  const STREAK_THRESHOLD = { streakSize: 3, streakTribute: 3 };
+  // Pillars whose live "current would-be value" is worth showing, keyed by effect.
+  // The tooltip states exactly what the number is (mirrors the engine's math).
+  const PILLAR_COUNTER_TITLES = {
+    heavyDiamond: "Current +pile size (♦ cards in this column, buried included)",
+    excavator: "Current payout (buried cards in the column's largest ♥-top pile × value)",
+    heartPiles: "Current payout (coins per pile on the board with a ♥ top card)",
+    highestOdd: "Current payout (highest odd-rank top card: 3/5/7/9)",
+    highestEven: "Current payout (highest even-rank top card: 2/4/6/8/10)",
+  };
   /* Pillar = a plum cloth PENNANT hanging from a rod: rod across the top, cloth
      below with a swallowtail bottom, a dark circular emblem holding the Pillar's
      icon near the top. Rarity = the cloth's trim colour (richer = rarer). Keeps
@@ -16078,11 +16097,10 @@ const UIRenderer = (() => {
     const streakBadge = thr
       ? '<span class="cph-streak zero" data-threshold="' + thr + '" title="Streak (effect at ' + thr + ' in a row)">0</span>'
       : "";
-    // Accumulating scoring Pathways show their live would-be payout.
-    const countTitle = t.effect === "excavator"
-      ? "Current payout (buried cards in this column's largest pile)"
-      : "Current payout (stickers in this column, buried included)";
-    const countBadge = (t.effect === "stickerCount" || t.effect === "excavator")
+    // Accumulating / variable scoring Pathways show their live would-be value.
+    // Each title mirrors the effect's ACTUAL end-of-deal calculation.
+    const countTitle = PILLAR_COUNTER_TITLES[t.effect] || "";
+    const countBadge = countTitle
       ? '<span class="cph-streak cph-count zero" title="' + countTitle + '">0</span>'
       : "";
     // Second Wind: a charged/used pip so the player sees if the revive is still
@@ -16160,17 +16178,33 @@ const UIRenderer = (() => {
       if (!badge) return;
       const t = binding[col] ? PillarTypes.get(binding[col]) : null;
       if (!t) return;
+      const isHeart = (c) => c && (c.suit === "♥" || c.wildSuit);
+      const isDiamond = (c) => c && (c.suit === "♦" || c.wildSuit);
       const alive = [];
       for (let i = 0; i < board.size; i++) if (run.pileColumns[i] === col && board.isActive(i)) alive.push(i);
-      let units = 0;
-      if (t.effect === "stickerCount") {
-        for (const i of alive) for (const c of board.piles[i].cards) units += (c.stickers ? c.stickers.length : 0);
+      let payout = 0;
+      if (t.effect === "heavyDiamond") {
+        // +1 pile size per ♦ card in the column's alive piles (buried included).
+        let d = 0;
+        for (const i of alive) for (const c of board.piles[i].cards) if (isDiamond(c)) d++;
+        payout = d * (t.value || 1);
       } else if (t.effect === "excavator") {
+        // value × buried cards in the LARGEST alive pile whose TOP is a ♥.
         let best = 0;
-        for (const i of alive) best = Math.max(best, board.piles[i].cards.length);
-        units = Math.max(0, best - 1);
+        for (const i of alive) { const top = board.top(i); if (isHeart(top)) best = Math.max(best, board.piles[i].cards.length); }
+        payout = Math.max(0, best - 1) * (t.value || 2);
+      } else if (t.effect === "heartPiles") {
+        // value × every alive pile BOARD-WIDE whose top card is a ♥ (Envy).
+        let p = 0;
+        for (let i = 0; i < board.size; i++) if (board.isActive(i) && isHeart(board.top(i))) p++;
+        payout = p * (t.value || 4);
+      } else if (t.effect === "highestOdd") {
+        for (const i of alive) { const v = board.top(i) && board.top(i).value; if (v === 3 || v === 5 || v === 7 || v === 9) payout = Math.max(payout, v); }
+      } else if (t.effect === "highestEven") {
+        for (const i of alive) { const v = board.top(i) && board.top(i).value; if (v === 2 || v === 4 || v === 6 || v === 8 || v === 10) payout = Math.max(payout, v); }
+      } else {
+        return;
       }
-      const payout = units * (t.value || 1);
       const prev = Number(badge.textContent) || 0;
       badge.textContent = payout;
       badge.classList.toggle("zero", payout === 0);
@@ -16178,6 +16212,71 @@ const UIRenderer = (() => {
         badge.classList.add("bump");
         setTimeout(() => badge.classList.remove("bump"), 220);
       }
+    });
+  }
+
+  /* The live "if activated now" value for a Base whose effect scales with the
+     current board — its actual calculation, not a simplified proxy. Returns
+     { count, title } or null for Bases with no meaningful variable value.
+     Respects Broadcast (widens the scope board-wide, exactly like the engine). */
+  function baseLiveCounter(t, col, board, run, bc) {
+    if (!t) return null;
+    const inScope = (i) => board.isActive(i) && (bc || run.pileColumns[i] === col);
+    const topIs = (i, s) => { const c = board.top(i); return !!c && (c.suit === s || c.wildSuit); };
+    const topCount = (s) => { let n = 0; for (let i = 0; i < board.size; i++) if (inScope(i) && topIs(i, s)) n++; return n; };
+    switch (t.effect) {
+      case "tax": {
+        // Heart Tax: +1 coin per ♥ card (top + buried) across alive piles in scope.
+        let n = 0;
+        for (let i = 0; i < board.size; i++) if (inScope(i)) n += board.piles[i].cards.filter(c => c.suit === "♥" || c.wildSuit).length;
+        return { count: n, title: n + " ♥ in this column → Heart Tax pays +" + n + " coins" };
+      }
+      case "heartDemolish": {
+        const p = topCount("♥");
+        return { count: p * 7, title: p + " ♥-top pile" + (p === 1 ? "" : "s") + " → +" + (p * 7) + " coins if activated now" };
+      }
+      case "spadePeek": {
+        const p = topCount("♠");
+        return { count: p, title: p + " ♠-top pile" + (p === 1 ? "" : "s") + " → peek " + p + " card" + (p === 1 ? "" : "s") };
+      }
+      case "buryAll": {
+        const cards = topCount("♣") * (t.digCount || 2);
+        return { count: cards, title: cards + " card" + (cards === 1 ? "" : "s") + " buried if activated now (♣-top piles × " + (t.digCount || 2) + ")" };
+      }
+      case "suitDig": {
+        if (t.suit !== "♣") return null;   // only Club Dig survives in the roster
+        const cards = topCount("♣") * (t.digCount || 1);
+        return { count: cards, title: cards + " card" + (cards === 1 ? "" : "s") + " buried if activated now (each ♣-top pile)" };
+      }
+      default: return null;
+    }
+  }
+
+  /* Live counter for value-scaling Bases (Heart Tax, Heart Demolish, Spade Peeker,
+     Landslide, Club Dig) — a persistent chip on the plaque, refreshed on every
+     board change (created/updated/removed in place, no row rebuild). */
+  function refreshBaseCounters() {
+    if (!engine || !engine.getRun || !engine.getBoard || !campaign) return;
+    const run = engine.getRun();
+    const board = engine.getBoard();
+    const started = engine.isRunStarted && engine.isRunStarted();
+    if (!run || !board || !started || !run.pileColumns) return;
+    const bc = engine.broadcastActive && engine.broadcastActive();
+    const binding = campaign.getColumnBases();
+    const cells = el.board.querySelectorAll(".base-cell");
+    cells.forEach((cell, col) => {
+      const banner = cell.querySelector(".base-banner");
+      if (!banner) return;
+      const t = binding[col] ? BaseTypes.get(binding[col]) : null;
+      const info = t ? baseLiveCounter(t, col, board, run, bc) : null;
+      let badge = banner.querySelector(".base-count-badge");
+      if (!info) { if (badge) badge.remove(); return; }
+      if (!badge) { badge = document.createElement("span"); badge.className = "base-count-badge"; banner.appendChild(badge); }
+      const prev = Number(badge.textContent);
+      badge.textContent = info.count;
+      badge.title = info.title;
+      badge.classList.toggle("zero", info.count === 0);
+      if (info.count > prev) { badge.classList.add("bump"); setTimeout(() => badge.classList.remove("bump"), 220); }
     });
   }
 
@@ -16340,25 +16439,8 @@ const UIRenderer = (() => {
       if (t && started && run && run.basesUsed) state = run.basesUsed[col] ? "spent" : "charged";
       cell.innerHTML = baseBannerHtml(t, t ? state : "empty");
       cell.title = t ? t.label : "";
-      // Heart Tax: live badge showing how many ♥ are in this column right now
-      // (top + buried across ALIVE piles; dead piles don't count) — its payout.
-      if (t && t.effect === "tax" && started && run && engine.getBoard) {
-        const board = engine.getBoard();
-        let hearts = 0;
-        for (let i = 0; i < board.size; i++) {
-          if (run.pileColumns[i] !== col || !board.isActive(i)) continue;
-          hearts += board.piles[i].cards.filter(c => c.suit === "♥" || c.wildSuit).length;
-        }
-        const banner = cell.querySelector(".base-banner");
-        if (banner) {
-          const badge = document.createElement("span");
-          badge.className = "base-count-badge";
-          badge.textContent = hearts;
-          badge.title = hearts + " ♥ in this column (Heart Tax payout)";
-          banner.appendChild(badge);
-        }
-      }
     });
+    refreshBaseCounters();            // (re)draw live "if activated now" counters
     refreshActivatableIndicators();   // re-mark which Bases can be tapped right now
   }
 
@@ -17657,7 +17739,12 @@ const UIRenderer = (() => {
   }
   function attachStoreHoldHelp(container, resolve) {
     if (!container) return;
-    const HOLD_MS = 350;
+    // A DELIBERATE long-press shows help; a normal tap buys. 350ms was too short —
+    // ordinary mobile taps often exceed it, so the timer would fire (showing help
+    // AND setting storeHoldSuppress), and the ensuing click was swallowed → tapping
+    // a sticker to buy "did nothing". 500ms is the standard long-press threshold,
+    // well above a normal tap, so a buy tap always starts its flow.
+    const HOLD_MS = 500;
     let holdTimer = null, held = false;
     const tileOf = (e) => (e.target && e.target.closest) ? e.target.closest(".store-tile:not(.empty)") : null;
     container.addEventListener("pointerdown", (e) => {
