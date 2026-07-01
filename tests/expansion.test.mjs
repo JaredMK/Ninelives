@@ -54,32 +54,7 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 7, "Envy excludes its own column (4+3 = +7)");
   }
 
-  // --- Symmetry: +6 if alive count equals the RIGHT column (wraparound) -
-  {
-    // Symmetry on column 2 → right wraps to the LEFTMOST column (0). 3 == 3.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun([null, null, "symmetry"]);
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Symmetry (col 2) right-wraps to col 0; 3 == 3 → +6");
-  }
-  {
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun([null, null, "symmetry"]);
-    e.getBoard().kill(0);   // col 0 → 2 alive, col 2 → 3 alive (mismatch)
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 0, "Symmetry right-wrap: 3 != 2 → no bonus");
-  }
-  {
-    // Symmetry on column 0 → right is column 1 (no wrap). Make 3 == 3.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["symmetry", null, null]);
-    e.getBoard().kill(3);   // col 1 → 3 alive, equals col 0's 3
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Symmetry (col 0) reads col 1 (no wrap); 3 == 3 → +6");
-  }
+  // (Symmetry was removed in the rebalance — its tests are gone.)
 
   // --- Streak Bank: +1 from the 3rd consecutive in-column correct -------
   {
@@ -174,7 +149,7 @@ export function run() {
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["greedy", "spadeBounty", null]);   // a second Pillar exists
+    e.start(); e.startRun(["greedy", "heartBounty", null]);   // a second Pillar exists
     e.debug.winNow();
     r.eq(won().pillarPayout.bonus, 0, "Greedy voided by ANY second Pillar on the board");
   }
@@ -336,17 +311,17 @@ export function run() {
     e.start();
     const log = e.getRun().log;
     r.ok(log.length >= 1 && /Run dealt/.test(log[0].title), "logbook: 'Run dealt' entry at run start");
-    e.startRun(["spadeBounty", null, null]);
+    e.startRun(["heartBounty", null, null]);
     r.ok(log.some(en => /Start Run/.test(en.title)), "logbook: 'Start Run' entry");
 
-    // Land a ♠ on pile 1 (column 0 holds the Spade Bonus pillar) via a correct guess.
+    // Land a ♥ on pile 1 (column 0 holds the Heart Bonus pillar) via a correct guess.
     e.getBoard().top(0).value = 5;
-    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♥";
     e.guess(0, "higher");
     const turn = log[log.length - 1];
     r.ok(/Guess HIGHER on pile 1/.test(turn.title), "logbook: turn titled with the action + pile/column");
-    r.ok(turn.lines.some(l => /drew 9♠/.test(l)), "logbook: logs the drawn (already-revealed) card");
-    r.ok(turn.lines.some(l => /Spade Bonus/.test(l) && /\+1 coins/.test(l)), "logbook: Pillar coin effect logged");
+    r.ok(turn.lines.some(l => /drew 9♥/.test(l)), "logbook: logs the drawn (already-revealed) card");
+    r.ok(turn.lines.some(l => /Heart Bonus/.test(l) && /\+1 coins/.test(l)), "logbook: Pillar coin effect logged");
     r.ok(turn.lines.some(l => /pile survived/.test(l)), "logbook: pile outcome logged");
     r.ok(turn.lines.some(l => /Coins this turn/.test(l)), "logbook: per-turn coins footer");
 

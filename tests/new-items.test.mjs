@@ -19,15 +19,15 @@ export function run() {
   {
     r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
     r.eq(PillarTypes.get("fibonacci").tier, "rare", "Fibonacci is Rare");
-    r.eq(PillarTypes.get("fibonacci").price, 12, "Fibonacci costs 12");
-    r.eq(PillarTypes.get("highestOdd").price, 9, "Highest Odd costs 9 (1 less than Highest Even)");
-    r.eq(PillarTypes.get("highestOdd").tier, "uncommon", "Highest Odd is Uncommon");
-    r.eq(PillarTypes.get("highestEven").price, 10, "Highest Even costs 10");
-    r.eq(PillarTypes.get("highestEven").price - PillarTypes.get("highestOdd").price, 1, "Highest Odd is priced 1 below Highest Even (strictly worse stats)");
+    r.eq(PillarTypes.get("fibonacci").price, 8, "Fibonacci costs 8");
+    r.eq(PillarTypes.get("highestOdd").price, 12, "Highest Odd costs 12");
+    r.eq(PillarTypes.get("highestOdd").tier, "rare", "Highest Odd is Rare");
+    r.eq(PillarTypes.get("highestEven").price, 15, "Highest Even costs 15");
+    r.eq(PillarTypes.get("highestEven").price - PillarTypes.get("highestOdd").price, 3, "Highest Even is priced 3 above Highest Odd");
     r.eq(PillarTypes.get("denseBury").price, 15, "Dense Bury costs 15");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
-    r.eq(PillarTypes.get("revive").price, 8, "Revive costs 8");
-    r.eq(PillarTypes.get("revive").tier, "uncommon", "Revive is Uncommon");
+    r.eq(PillarTypes.get("revive").price, 25, "Revive costs 25");
+    r.eq(PillarTypes.get("revive").tier, "rare", "Revive is Rare");
     r.ok(!PillarTypes.get("kamikaze"), "Kamikaze is no longer a Pillar (moved to Bases)");
     r.ok(!!StickerTypes.get("shuffle"), "Shuffle sticker registered");
     r.ok(!!StickerTypes.get("donate"), "Donate sticker registered");

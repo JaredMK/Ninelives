@@ -16,7 +16,7 @@ export function run() {
     r.eq(g.kind, "scoring", "columnGuardian is a scoring Pillar");
     r.eq(g.effect, "columnAllAlive", "columnGuardian effect key");
     r.eq(g.value, 7, "columnGuardian pays 7");
-    r.eq(g.price, 5, "columnGuardian fixed price 5");
+    r.eq(g.price, 7, "columnGuardian fixed price 7");
     r.eq(PillarTypes.get("nope"), null, "unknown Pillar id → null");
     r.ok(PillarTypes.all().length === PillarTypes.ids.length, "all() matches ids");
   }
@@ -49,22 +49,21 @@ export function run() {
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    r.eq(c.priceOfPillar("columnGuardian"), 5, "fixed Pillar price (Column Guardian = 5)");
+    r.eq(c.priceOfPillar("columnGuardian"), 7, "fixed Pillar price (Column Guardian = 7)");
     r.ok(c.buyPillar("columnGuardian", 0), "buy onto column 0");
     r.eq(c.columnPillar(0), "columnGuardian", "purchase placed it on the column");
-    r.eq(c.priceOfPillar("columnGuardian"), 5, "price does NOT escalate after a buy");
-    r.eq(c.getCoins(), 95, "spent the fixed price (5)");
+    r.eq(c.priceOfPillar("columnGuardian"), 7, "price does NOT escalate after a buy");
+    r.eq(c.getCoins(), 93, "spent the fixed price (7)");
 
     // Buying onto an occupied column overwrites it (the replace path).
     r.ok(c.buyPillar("columnGuardian", 0), "buy again onto the same column");
     r.eq(c.pillarCount(), 1, "replace keeps the slot count at one");
-    r.eq(c.getCoins(), 90, "second buy also cost the fixed 5 (no escalation)");
+    r.eq(c.getCoins(), 86, "second buy also cost the fixed 7 (no escalation)");
 
     // Per-type fixed prices.
-    r.eq(c.priceOfPillar("spadeBounty"), 4, "Spade Bounty = 4 (suit-timing: ♠ enters Stage 3)");
+    r.eq(c.priceOfPillar("heartBounty"), 9, "Heart Bonus = 9");
     r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
     r.eq(c.priceOfPillar("eightTribute"), 8, "8 Tribute = 8");
-    r.eq(c.priceOfPillar("sameTribute"), 15, "Same Tribute = 15");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");
@@ -93,7 +92,7 @@ export function run() {
     c.buyPillar("columnGuardian", 2);
     c.reset();
     r.eq(c.pillarCount(), 0, "reset clears the column binding");
-    r.eq(c.priceOfPillar("columnGuardian"), 5, "Pillar price is fixed at 5");
+    r.eq(c.priceOfPillar("columnGuardian"), 7, "Pillar price is fixed at 7");
   }
 
   // --- Engine pile→column mapping (fill DOWN each column) ----------------
@@ -162,9 +161,11 @@ export function run() {
   // --- Phase 3 registry additions --------------------------------------
   {
     r.eq(PillarTypes.get("columnTieSafe").kind, "guess", "Column Tie-Safe is a guess Pillar");
-    r.eq(PillarTypes.get("spadeBounty").suit, "♠", "Spade Bounty matches the ♠ symbol");
-    r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bounty is a suitBounty");
-    r.eq(PillarTypes.all().length, 37, "all Pillars registered (23 originals + 10 expansion + Broadcast + 3 peek Pillars)");
+    r.eq(PillarTypes.get("heartBounty").suit, "♥", "Heart Bonus matches the ♥ symbol");
+    r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bonus is a suitBounty");
+    r.ok(!PillarTypes.get("spadeBounty") && !PillarTypes.get("clubBounty") && !PillarTypes.get("diamondBounty"),
+      "the ♠/♣/♦ Bonus pillars were removed (only ♥ remains)");
+    r.eq(PillarTypes.all().length, 26, "pillar registry totals 26 after the rebalance deletions");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------
@@ -192,31 +193,31 @@ export function run() {
     let payload = null;
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start();
-    e.startRun(["spadeBounty", null, null]);   // column 0 earns when a ♠ lands
+    e.startRun(["heartBounty", null, null]);   // column 0 earns when a ♥ lands
 
-    // Pile 0 (col 0): land a ♠ via a correct HIGHER guess → one bounty hit.
+    // Pile 0 (col 0): land a ♥ via a correct HIGHER guess → one bounty hit.
     e.getBoard().top(0).value = 5;
-    const d0 = e.debug.setNextCard(9); d0.suit = "♠";
+    const d0 = e.debug.setNextCard(9); d0.suit = "♥";
     e.guess(0, "higher");
-    r.eq(e.getRun().suitBountyHits[0], 1, "a ♠ landing on the Bounty column tallies a hit");
+    r.eq(e.getRun().suitBountyHits[0], 1, "a ♥ landing on the Bounty column tallies a hit");
 
-    // Pile 1 (also col 0): land a ♥ → no hit (suit mismatch).
+    // Pile 1 (also col 0): land a ♠ → no hit (suit mismatch).
     e.getBoard().top(1).value = 5;
-    const d1 = e.debug.setNextCard(9); d1.suit = "♥";
+    const d1 = e.debug.setNextCard(9); d1.suit = "♠";
     e.guess(1, "higher");
-    r.eq(e.getRun().suitBountyHits[0], 1, "a non-♠ landing doesn't tally");
+    r.eq(e.getRun().suitBountyHits[0], 1, "a non-♥ landing doesn't tally");
 
-    // Pile 3 (col 1, no Pillar): land a ♠ → no hit (wrong column).
+    // Pile 3 (col 1, no Pillar): land a ♥ → no hit (wrong column).
     e.getBoard().top(3).value = 5;
-    const d3 = e.debug.setNextCard(9); d3.suit = "♠";
+    const d3 = e.debug.setNextCard(9); d3.suit = "♥";
     e.guess(3, "higher");
-    r.eq(e.getRun().suitBountyHits[1], 0, "a ♠ landing in an unbountied column doesn't tally");
+    r.eq(e.getRun().suitBountyHits[1], 0, "a ♥ landing in an unbountied column doesn't tally");
 
     // A WRONG guess (the card doesn't LAND on a surviving pile) → no bounty.
     e.getBoard().top(2).value = 9;
-    const d2 = e.debug.setNextCard(2); d2.suit = "♠";
+    const d2 = e.debug.setNextCard(2); d2.suit = "♥";
     e.guess(2, "higher");   // 2 < 9 → wrong, pile dies
-    r.eq(e.getRun().suitBountyHits[0], 1, "a ♠ on a wrong guess (pile dies) earns no bounty");
+    r.eq(e.getRun().suitBountyHits[0], 1, "a ♥ on a wrong guess (pile dies) earns no bounty");
 
     // Suit Bounty is paid LIVE into the bonus tally as it resolves (not at run
     // end via pillarPayout) — one ♠ landing → +1 in the live bonus.
@@ -326,59 +327,7 @@ export function run() {
     r.eq(e.getStatus(), "won", "emptying the deck still wins the run");
   }
 
-  // --- Same Tribute: burns on a SURVIVED TIE (correct Same OR shield-saved) ---
-  {
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
-    let resolved = null;
-    e.onEvent((t, p) => { if (t === "resolved") resolved = p; });
-    e.start();
-    e.startRun(["sameTribute", null, null]);   // column 0 (cap 2)
-    const deck0 = e.getDeck().remaining();
-    const len0 = e.getBoard().piles[0].cards.length;
-
-    // (a) a correctly-called Same guess (drawn ties the showing card).
-    const a = e.getBoard().top(0); a.value = 7;
-    e.debug.setNextCard(7);
-    e.guess(0, "same");
-    r.eq(e.getRun().sameTributesUsed[0], 1, "fires on a correct Same guess");
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 3, "pile gains the Same card + 2 buried tributes");
-    r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses the drawn card and 2 tributed cards");
-    r.eq(Object.keys(resolved).sort().join(","), "board,correct,current,deck,drawn,guess,index,run",
-      "resolved payload carries no tributed-card field (no order leak)");
-
-    // (b) a tie SAVED by the card's Tie-Safe (guessed higher) — also counts.
-    const b = e.getBoard().top(1); b.value = 7; b.tieSafe = true;
-    e.debug.setNextCard(7);
-    e.guess(1, "higher");
-    r.ok(e.getBoard().isActive(1), "Tie-Safe saved the tie (pile survives)");
-    r.eq(e.getRun().sameTributesUsed[0], 2, "ALSO fires on a shield-saved tie (cap now reached)");
-
-    // (c) uncapped: a third survived tie buries again.
-    const c2 = e.getBoard().top(2); c2.value = 7;
-    e.debug.setNextCard(7);
-    e.guess(2, "same");
-    r.eq(e.getRun().sameTributesUsed[0], 3, "third survived tie fires too — caps removed");
-    r.eq(e.getBoard().piles[2].cards.length, 4, "survived tie still buries 2 (1 deal + Same card + 2 buried)");
-  }
-
-  // --- Same Tribute does NOT fire on a non-tie win or an off-column tie ---
-  {
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
-    e.start();
-    e.startRun(["sameTribute", null, null]);
-    const a = e.getBoard().top(0); a.value = 5;
-    const deck0 = e.getDeck().remaining();
-    e.debug.setNextCard(9);
-    e.guess(0, "higher");   // 9 > 5, correct but NOT a tie
-    r.eq(e.getRun().sameTributesUsed[0], 0, "no burn on a non-tie correct guess");
-    r.eq(e.getDeck().remaining(), deck0 - 1, "only the drawn card leaves the deck");
-
-    // A survived tie in a column WITHOUT the Pillar burns nothing.
-    const d = e.getBoard().top(3); d.value = 7;   // pile 3 = column 1 (no Pillar)
-    e.debug.setNextCard(7);
-    e.guess(3, "same");
-    r.eq(e.getRun().sameTributesUsed[1], 0, "a survived tie in a non-tribute column doesn't burn");
-  }
+  // (Same Tribute / "Tie Bury" was removed in the rebalance — its tests are gone.)
 
   // --- Suit-change stickers (Defined + Random; Suit Bounty enablers) -----
   {

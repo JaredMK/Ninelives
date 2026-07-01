@@ -44,16 +44,14 @@ export function run() {
     r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Bury 2 costs 4 bonus coins");
     r.eq(StickerTypes.get("centerTribute").price, 4, "Middle Bury price 4");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
-    r.eq(PillarTypes.get("allHeartsCoin").price, 4, "All Hearts price 4 (Common)");
-    r.eq(PillarTypes.get("allHeartsCoin").value, 5, "All Hearts pays 5");
+    r.eq(PillarTypes.get("allHeartsCoin").price, 8, "All Hearts price 8");
+    r.eq(PillarTypes.get("allHeartsCoin").value, 8, "All Hearts pays 8");
     r.eq(PillarTypes.get("allHeartsCoin").tier, "common", "All Hearts is Common");
-    // Equivalent all-suit Pillars exist for every suit, end-of-run scoring.
-    for (const [id, suit] of [["allSpadesCoin", "♠"], ["allDiamondsCoin", "♦"], ["allClubsCoin", "♣"]]) {
-      r.eq(PillarTypes.get(id).suit, suit, id + " is for " + suit);
-      r.eq(PillarTypes.get(id).effect, "allSuitTop", id + " uses the shared end-of-run effect");
-      r.eq(PillarTypes.get(id).value, 5, id + " pays 5");
+    // The other-suit All-* Pillars were removed in the rebalance; only ♥ remains.
+    for (const id of ["allSpadesCoin", "allDiamondsCoin", "allClubsCoin"]) {
+      r.ok(!PillarTypes.get(id), id + " was removed");
     }
-    r.eq(PillarTypes.get("allHeartsCoin").effect, "allSuitTop", "All Hearts now end-of-run scoring");
+    r.eq(PillarTypes.get("allHeartsCoin").effect, "allSuitTop", "All Hearts is end-of-run scoring");
   }
 
   // --- ±2 Rank clamps at the rank boundaries ----------------------------
@@ -274,7 +272,7 @@ export function run() {
     b.top(0).suit = "♥";                  // col 0's only surviving pile shows ♥
     b.top(1).suit = "♠";                  // another column, ignored (column-scoped)
     r.eq(e.getRun().bonusCoins, 0, "no LIVE payout — All Hearts is end-of-run now");
-    r.eq(e.pillarPayout().bonus, 5, "All Hearts scores +5 at run end: its column's survivors are all ♥");
+    r.eq(e.pillarPayout().bonus, 8, "All Hearts scores +8 at run end: its column's survivors are all ♥");
     b.top(0).suit = "♠";                  // col 0 no longer all-♥
     r.eq(e.pillarPayout().bonus, 0, "no score when a surviving pile in the column isn't a ♥");
   }
@@ -286,18 +284,7 @@ export function run() {
     b.top(0).suit = "♥"; b.top(1).suit = "♠";   // both in column 0; pile 1 not ♥
     r.eq(e.pillarPayout().bonus, 0, "in-column non-♥ surviving top blocks the bonus");
     b.top(1).suit = "♥";                        // now all survivors in col 0 are ♥
-    r.eq(e.pillarPayout().bonus, 5, "all surviving piles in the column ♥ → +5");
-  }
-  {
-    // The same end-of-run, surviving-piles rule for the other suits (Stage 1
-    // can exercise ♠; the rule is identical for ♦/♣).
-    const e = GameEngine.create(DeckManager.buildStandardDeck(), 3, { cols: [1, 1, 1] });
-    e.start(); e.startRun(["allSpadesCoin", null, null]);
-    const b = e.getBoard();
-    b.top(0).suit = "♠";
-    r.eq(e.pillarPayout().bonus, 5, "All Spades scores +5 when its column's survivors are all ♠");
-    b.top(0).suit = "♥";
-    r.eq(e.pillarPayout().bonus, 0, "All Spades scores 0 when a survivor isn't a ♠");
+    r.eq(e.pillarPayout().bonus, 8, "all surviving piles in the column ♥ → +8");
   }
   // --- One-directional Suit Guard: the DRAWN guard card saves when it lands
   //     ONTO a top of the guarded suit. --------------------------------------
@@ -319,11 +306,11 @@ export function run() {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     let payload = null;
     e.onEvent((t, p) => { if (t === "won") payload = p; });
-    e.start(); e.startRun(["spadeBounty", null, null]);
+    e.start(); e.startRun(["heartBounty", null, null]);
     e.getBoard().top(0).value = 5;
-    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";   // a ♠ LANDS on the column
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♥";   // a ♥ LANDS on the column
     e.guess(0, "higher");
-    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as a ♠ lands");
+    r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as a ♥ lands");
     e.debug.winNow();
     r.eq(payload.pillarPayout.bonus, 0, "Suit Bounty is NOT re-paid at run end (no double-count)");
   }
@@ -370,9 +357,9 @@ export function run() {
     let payload = null;
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start();
-    e.startRun(["spadeBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
+    e.startRun(["heartBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
     e.getBoard().top(0).value = 5;
-    const dsb = e.debug.setNextCard(9); dsb.suit = "♠";    // one ♠ lands → +1 live
+    const dsb = e.debug.setNextCard(9); dsb.suit = "♥";    // one ♥ lands → +1 live
     e.guess(0, "higher");
     r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
     e.debug.winNow();                                      // all piles alive → Guardian +5

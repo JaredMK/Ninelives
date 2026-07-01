@@ -21,17 +21,16 @@ export function run() {
 
   // --- registry: rarity (rare), costs, effects, copy --------------------
   {
-    const u = PillarTypes.get("unearth"), l = PillarTypes.get("lastRites"), s = PillarTypes.get("static");
-    r.ok(u && l && s, "all three Pillars registered");
-    r.ok([u, l, s].every(t => t.tier === "rare"), "all three are Rare");
-    r.eq(u.price, 7, "Unearth costs 7");
-    r.eq(l.price, 5, "Last Rites costs 5");
+    const l = PillarTypes.get("lastRites"), s = PillarTypes.get("static");
+    r.ok(!PillarTypes.get("unearth"), "Unearth was removed from the registry");
+    r.ok(l && s, "Last Rites + Static registered");
+    r.ok([l, s].every(t => t.tier === "rare"), "both are Rare");
+    r.eq(l.price, 25, "Last Rites costs 25");
     r.eq(s.price, 6, "Static costs 6");
-    r.eq(u.effect, "unearth", "Unearth effect id");
     r.eq(l.effect, "lastRites", "Last Rites effect id");
     r.eq(s.effect, "static", "Static effect id");
-    r.ok([u, l, s].every(t => t.description && t.icon), "each has a description + icon");
-    r.ok([u, l, s].every(t => !t.suit), "none are suit-gated (always offerable)");
+    r.ok([l, s].every(t => t.description && t.icon), "each has a description + icon");
+    r.ok([l, s].every(t => !t.suit), "none are suit-gated (always offerable)");
   }
 
   // --- Last Rites: any pile death in its column peeks (deterministic) ----
@@ -81,27 +80,7 @@ export function run() {
     r.ok(!e2.getRun().revealNextActive, "Static is column-scoped: a stickered draw elsewhere does not peek");
   }
 
-  // --- Unearth: a bury in its column rolls ~50% to peek (any bury source) -
-  {
-    // Statistical over fixed seeds (deterministic): a Sinkhole bury under a pile
-    // in the Unearth column rolls 50% each time → roughly half should peek.
-    const trial = (pillars, seed) => {
-      const e = GameEngine.create(deck(), seed, { cols: COLS });
-      e.start();
-      e.startRun(pillars, ["buryLargest", null, null]);   // Sinkhole on col 0
-      e.baseActivate(0);                                   // buries 1 under col-0's largest pile
-      return e.getRun().revealNextActive;
-    };
-    let peeks = 0;
-    const N = 40;
-    for (let s = 0; s < N; s++) if (trial(["unearth", null, null], s)) peeks++;
-    r.ok(peeks > 5 && peeks < N - 5, "Unearth: ~50% of buries peek (got " + peeks + "/" + N + ")");
-
-    // Control: with no Unearth, the same bury never peeks on its own.
-    let ctrl = 0;
-    for (let s = 0; s < 12; s++) if (trial([null, null, null], s)) ctrl++;
-    r.eq(ctrl, 0, "no Unearth: a bury never peeks by itself");
-  }
+  // (Unearth was removed from the roster — its bury-peek test is gone with it.)
 
   return r.summary();
 }

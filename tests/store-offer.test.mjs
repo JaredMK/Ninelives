@@ -225,8 +225,9 @@ export function run() {
   }
 
   // --- Suit-lock: suited PILLARS in mixed slots obey the same gate -----
-  // The four suit Bonus pillars carry a `suit`; ♣/♠ Bonus must not appear in a
-  // mixed slot before their stage introduces that suit. ♦/♥ are always eligible.
+  // The rebalance removed the ♠/♣/♦ Bonus pillars — only the ♥ Heart Bonus
+  // remains (a Stage-1 suit), so it's always eligible and the deleted ones never
+  // surface in any stage.
   {
     const samplePillars = (c, n) => {
       const seen = new Set();
@@ -235,33 +236,9 @@ export function run() {
       return seen;
     };
     const p1 = samplePillars(CampaignState.create(), 700);    // Stage 1: ♦ ♥
-    r.ok(p1.has("diamondBounty") && p1.has("heartBounty"), "Stage 1 offers the ♦ and ♥ Bonus pillars");
-    r.ok(!p1.has("clubBounty"), "Stage 1 NEVER offers the ♣ Bonus pillar (suit not in play)");
-    r.ok(!p1.has("spadeBounty"), "Stage 1 NEVER offers the ♠ Bonus pillar (suit not in play)");
-
-    const cp2 = CampaignState.create();
-    cp2.advancePhase();                 // → Stage 2: ♦ ♥ ♣
-    const p2 = samplePillars(cp2, 700);
-    r.ok(p2.has("clubBounty"), "Stage 2 offers the ♣ Bonus pillar (its suit is now in play)");
-    r.ok(!p2.has("spadeBounty"), "Stage 2 still NEVER offers the ♠ Bonus pillar");
-
-    const cp3 = CampaignState.create();
-    cp3.advancePhase(); cp3.advancePhase();                 // → Stage 3: ♦ ♥ ♣ ♠
-    const p3 = samplePillars(cp3, 700);
-    r.ok(p3.has("spadeBounty"), "Stage 3 offers the ♠ Bonus pillar (all four suits in play)");
-
-    // Reroll obeys the same lock (it shares freshOffer's pillar pool).
-    const cr = CampaignState.create();
-    cr.addCoins(100000);
-    cr.openStore();
-    const rerollSeen = new Set();
-    for (let i = 0; i < 700 && cr.canReroll(); i++) {
-      cr.getStoreOffer().mixed.forEach(s => { if (s && s.kind === "pillar") rerollSeen.add(s.id); });
-      cr.rerollStore();
-      cr.addCoins(100000);   // keep rerolls affordable
-    }
-    r.ok(!rerollSeen.has("clubBounty") && !rerollSeen.has("spadeBounty"),
-      "Stage 1 rerolls never surface a ♣/♠ Bonus pillar either");
+    r.ok(p1.has("heartBounty"), "Stage 1 offers the ♥ Heart Bonus pillar");
+    r.ok(!p1.has("clubBounty") && !p1.has("spadeBounty") && !p1.has("diamondBounty"),
+      "the removed ♠/♣/♦ Bonus pillars never appear");
   }
 
   // --- Suit-lock: suited BASES (the Dig family) in mixed obey the gate -

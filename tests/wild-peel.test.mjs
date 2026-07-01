@@ -49,24 +49,24 @@ export function run() {
   // --- Wild Suit satisfies any Suit Bonus pillar (as the drawn card) -----
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: [3, 3, 3] });
-    e.start(); e.startRun(["spadeBounty", null, null]);   // Spade Bonus on column 0
+    e.start(); e.startRun(["heartBounty", null, null]);   // Heart Bonus on column 0
     const b = e.getBoard();
     b.top(0).value = 5;
-    const d = e.debug.setNextCard(9); d.suit = "♥"; d.wildSuit = true;   // a ♥ WILD lands correctly
+    const d = e.debug.setNextCard(9); d.suit = "♠"; d.wildSuit = true;   // a ♠ WILD lands correctly
     e.guess(0, "higher");
-    r.eq(e.getRun().bonusCoins, 1, "a Wild ♥ card earns the ♠ Bonus (counts as ♠)");
+    r.eq(e.getRun().bonusCoins, 1, "a Wild ♠ card earns the ♥ Bonus (counts as ♥)");
   }
 
   // --- Wild Suit counts as the matching suit for an all-suit pillar ------
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: [3, 3, 3] });
-    e.start(); e.startRun(["allSpadesCoin", null, null]);   // All Spades on column 0 (piles 0,1,2)
+    e.start(); e.startRun(["allHeartsCoin", null, null]);   // All Hearts on column 0 (piles 0,1,2)
     const b = e.getBoard();
-    b.top(0).suit = "♠"; b.top(1).suit = "♠";
-    b.top(2).suit = "♥"; b.top(2).wildSuit = true;   // a wild ♥ top
-    r.eq(e.pillarPayout().bonus, 5, "a Wild top counts as ♠ for All Spades (+5)");
+    b.top(0).suit = "♥"; b.top(1).suit = "♥";
+    b.top(2).suit = "♠"; b.top(2).wildSuit = true;   // a wild ♠ top
+    r.eq(e.pillarPayout().bonus, 8, "a Wild top counts as ♥ for All Hearts (+8)");
     b.top(2).wildSuit = false;
-    r.eq(e.pillarPayout().bonus, 0, "without wild, the ♥ top breaks All Spades (0)");
+    r.eq(e.pillarPayout().bonus, 0, "without wild, the ♠ top breaks All Hearts (0)");
   }
 
   // --- Peel: revert to base state; stickers destroyed -------------------

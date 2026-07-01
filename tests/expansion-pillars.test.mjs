@@ -37,11 +37,12 @@ export function run() {
 
   // ---- registry --------------------------------------------------------
   {
-    const ids = ["sameSpark", "insurance", "ditto", "stickerCount", "prime",
-      "queensEye", "royalCourt", "excavator", "echo", "gambler"];
-    r.ok(ids.every(id => !!PillarTypes.get(id)), "all 10 new Pillars registered");
-    r.eq(PillarTypes.all().length, 37, "pillar registry now totals 37 (Broadcast + 3 peek Pillars)");
-    r.ok(ids.every(id => { const t = PillarTypes.get(id); return t.description && t.icon; }), "every new Pillar has a description + icon");
+    const ids = ["insurance", "ditto", "stickerCount", "prime",
+      "queensEye", "royalCourt", "excavator", "gambler"];
+    r.ok(ids.every(id => !!PillarTypes.get(id)), "expansion Pillars registered");
+    r.ok(!PillarTypes.get("sameSpark") && !PillarTypes.get("echo"), "Same Spark + Echo were removed");
+    r.eq(PillarTypes.all().length, 26, "pillar registry totals 26 after the rebalance deletions");
+    r.ok(ids.every(id => { const t = PillarTypes.get(id); return t.description && t.icon; }), "every expansion Pillar has a description + icon");
   }
 
   // ---- Prime: +1 per prime-ranked land in this column ------------------
@@ -78,19 +79,7 @@ export function run() {
     r.ok(!e2.getRun().revealNextActive, "a Queen outside the pillar's column does not peek");
   }
 
-  // ---- Same Spark: a correct Same sprays stickers in-column ------------
-  {
-    const e = game(["sameSpark", null, null]);
-    const b = e.getBoard();
-    const before = [0, 1, 2].map(i => (b.top(i).stickers || []).length);
-    const top0 = b.top(0).value;
-    e.debug.setNextCard(top0);    // a tie → a correct Same
-    e.guess(0, "same");
-    const after = [0, 1, 2].map(i => (b.top(i).stickers || []).length);
-    r.ok(after.every((n, i) => n > before[i]), "Same Spark stickered every alive pile card in the column");
-    // (Sanity: a pile OUTSIDE the column is untouched.)
-    r.eq((b.top(5).stickers || []).length, 0, "Same Spark leaves other columns untouched");
-  }
+  // (Same Spark was removed in the rebalance — its test is gone.)
 
   // ---- Insurance: +20 if the board's sole survivor is in this column ----
   {
@@ -147,25 +136,7 @@ export function run() {
     r.ok(sawWin && sawLoss, "Gambler produces both +7 and +0 outcomes across seeds");
   }
 
-  // ---- Echo: +1 when an adjacent column's Pillar pays out --------------
-  {
-    // Echo in col 0, Spade Bounty in col 1 (adjacent). A ♠ land in col 1 pays
-    // the bounty AND echoes col 0.
-    const e = game(["echo", "spadeBounty", null]);
-    const before = e.getRun().bonusCoins;
-    const top3 = e.getBoard().top(3).value;   // pile 3 is in col 1
-    const nc = e.debug.setNextCard(top3 < 14 ? top3 + 1 : top3 - 1);
-    nc.suit = "♠";
-    e.guess(3, top3 < 14 ? "higher" : "lower");
-    r.ok((e.getRun().bonusEvents["Echo"] || 0) >= 1, "Echo earned +1 from the adjacent Spade Bounty payout");
-    // Echo never chains: an Echo's own payout doesn't re-trigger another Echo.
-    const e2 = game(["echo", "spadeBounty", "echo"]);   // both col 0 and col 2 are Echoes
-    const t3 = e2.getBoard().top(3).value;
-    const n2 = e2.debug.setNextCard(t3 < 14 ? t3 + 1 : t3 - 1); n2.suit = "♠";
-    e2.guess(3, t3 < 14 ? "higher" : "lower");
-    // col 1 pays → both adjacent Echoes (col 0, col 2) get exactly +1 each; no chain.
-    r.eq(e2.getRun().bonusEvents["Echo"], 2, "two adjacent Echoes each earn +1, with no chaining");
-  }
+  // (Echo was removed in the rebalance — its test is gone.)
 
   // ---- Ditto: mirrors the center column's Pillar onto this column ------
   {
