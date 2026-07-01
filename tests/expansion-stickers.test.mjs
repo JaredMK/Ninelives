@@ -124,21 +124,34 @@ export function run() {
     r.eq(e.getBoard().top(2).snowball, 0, "a wrong placement reset Snowball X to 0");
   }
 
-  // ---- Twin Spark: rank-matched alive pile cards each gain a sticker ----
+  // ---- Twin Spark: peek the next card if another alive pile shares the rank ----
   {
     const e = game();
     const b = e.getBoard();
     const top0 = b.top(0).value;
     const up = top0 < 14;
     const drawnVal = up ? top0 + 1 : top0 - 1;
-    // A second alive pile whose top shares the DRAWN rank → must gain a sticker.
-    const target = 5;
-    b.top(target).value = drawnVal; b.top(target).label = String(drawnVal);
-    const before = (b.top(target).stickers || []).length;
+    // A second alive pile whose top shares the DRAWN rank → the peek arms.
+    b.top(5).value = drawnVal; b.top(5).label = String(drawnVal);
     const nc = e.debug.setNextCard(drawnVal);
     nc.stickers = [{ type: "twinSpark" }];
     e.guess(0, up ? "higher" : "lower");
-    r.ok((b.top(target).stickers || []).length > before, "Twin Spark stickered a rank-matched alive pile card");
+    r.ok(e.getRun().revealNextActive, "Twin Spark peeks the next card when another pile shares the drawn rank");
+  }
+
+  // ---- Twin Spark: no matching pile → no peek ----
+  {
+    const e = game();
+    const b = e.getBoard();
+    const top0 = b.top(0).value;
+    const up = top0 < 14;
+    const drawnVal = up ? top0 + 1 : top0 - 1;
+    // Make sure NO other alive pile shares the drawn rank.
+    for (let i = 1; i < b.size; i++) { const v = drawnVal === 2 ? 3 : 2; b.top(i).value = v; b.top(i).label = String(v); }
+    const nc = e.debug.setNextCard(drawnVal);
+    nc.stickers = [{ type: "twinSpark" }];
+    e.guess(0, up ? "higher" : "lower");
+    r.ok(!e.getRun().revealNextActive, "Twin Spark does NOT peek when no other pile shares the drawn rank");
   }
 
   // ---- Pillar Scout / Base Scout: peek only when a matching slot is empty ----

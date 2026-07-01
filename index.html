@@ -5634,7 +5634,7 @@ const PillarTypes = (() => {
       // dies. No streak, no escalation, no reset.
       id: "fibonacci", label: "Fibonacci", icon: "🌀",
       kind: "live", effect: "fibonacci", value: 1, tier: "rare", price: 8,
-      description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) lands in this column",
+      description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) is drawn into this column, whether the guess is right or wrong",
     },
     highestOdd: {
       // End-of-deal: +the highest ODD NUMBER card (3/5/7/9) showing ON TOP of an
@@ -5667,7 +5667,7 @@ const PillarTypes = (() => {
       // Skipped (charge kept) when no pile is dead at trigger time.
       id: "revive", label: "Revive", icon: "♻️",
       kind: "guess", effect: "revive", tier: "rare", price: 25,
-      description: "Immediately revive one dead pile on the board if a pile in this column reaches 10 cards size",
+      description: "Immediately revive one dead pile on the board if a pile in this column reaches 10 cards",
     },
     // ---- expansion Pillars ------------------------------------------------
     insurance: {
@@ -7375,25 +7375,22 @@ const GameEngine = (() => {
         run.snowballUpdates[drawn.id] = drawn.snowball;
         recT("sticker", "snowball", "Snowball Bury", { buried: sbBuried });
       }
-      // --- projections (live, this deal only) ---
-      const ts = n("twinSpark");
-      for (let k = 0; k < ts; k++) {
-        // Snapshot the match rank AND the target piles BEFORE applying any
-        // sticker — a random sticker can be a rank sticker that mutates a card's
-        // value (incl. the just-placed drawn card), which would otherwise break
-        // the rank match for the remaining piles mid-loop. Rank match is
-        // suit-blind, so Wild Suit is irrelevant here.
+      // --- Twin Spark: peek the next upcoming card if the top card of ANOTHER
+      // alive pile shares this drawn card's rank (rank match is suit-blind, so
+      // Wild Suit is irrelevant). One peek regardless of how many piles match. ---
+      if (n("twinSpark") > 0) {
         const matchRank = drawn.value;
-        const targets = [];
+        let twin = false;
         for (let i = 0; i < board.size; i++) {
-          const top = board.isActive(i) ? board.top(i) : null;
-          if (top && top.value === matchRank) targets.push(i);
+          if (i === index || !board.isActive(i)) continue;
+          const top = board.top(i);
+          if (top && top.value === matchRank) { twin = true; break; }
         }
-        for (const i of targets) {
-          const typeId = pickOne(baseStickerPool().map(t => t.id));
-          if (typeId) projectStickerOntoCard(board.top(i), typeId);
+        if (twin) {
+          run.revealNextActive = true;
+          firePillar(col, "twinSpark", "Twin Spark", 0);
+          recT("sticker", "twinSpark", "Twin Spark", { peeks: 1 });
         }
-        if (targets.length) { firePillar(col, "twinSpark", "Twin Spark", 0); recT("sticker", "twinSpark", "Twin Spark", { applied: targets.length }); }
       }
       // --- scouts (peek at the next upcoming card; deck-reveal treatment) ---
       // BUGFIX: only peek while THIS column (where the card just landed) has no
