@@ -130,11 +130,12 @@ export function run() {
       r.ok(v.report.stores >= 2 && v.report.stores <= 3, "stage " + s + ": has 2–3 stores (" + v.report.stores + ")");
       // ≥2 starting nodes (player picks where to start).
       r.ok(m.row0.length >= 2, "stage " + s + ": has " + m.row0.length + " starting nodes (≥2)");
-      // 1–2 bosses, all terminal on the top row.
+      // EXACTLY ONE boss, terminal on the top row (twin bosses removed — they
+      // were a fork with no information behind the choice).
       const bosses = m.nodes.filter(n => n.type === "boss");
-      r.ok(bosses.length >= 1 && bosses.length <= 2, "stage " + s + ": 1–2 bosses (" + bosses.length + ")");
-      r.ok(bosses.every(n => n.row === m.bossRow && n.next.length === 0), "stage " + s + ": every boss is terminal on the top row");
-      r.eq(m.bossIds.length, bosses.length, "stage " + s + ": bossIds lists every boss");
+      r.eq(bosses.length, 1, "stage " + s + ": exactly 1 boss");
+      r.ok(bosses.every(n => n.row === m.bossRow && n.next.length === 0), "stage " + s + ": the boss is terminal on the top row");
+      r.eq(m.bossIds.length, 1, "stage " + s + ": bossIds lists the single boss");
       // The map actually forks (braiding is emergent from overlapping paths).
       // Fake/dominated forks are no longer hard errors — the StS-style random
       // rolls + vetoes replace the old construction gates (fakes are a soft
@@ -194,22 +195,15 @@ export function run() {
     }
   }
 
-  // ---- twin bosses appear, are valid choices, and stitch into the next stage
+  // ---- every stage ends at a SINGLE boss all routes converge on ----------
   {
-    let twinStage = null, twinSeed = null, p = 1, entry = 26;
-    for (let s = 1; s <= 60 && !twinStage; s++) {
-      const m = RunMap.generateStage(p, s * 6007, entry);
-      if (m && m.bossIds.length === 2) { twinStage = m; twinSeed = s * 6007; }
+    const p = 1, entry = 26;
+    for (let s2 = 1; s2 <= 5; s2++) {
+      const m = RunMap.generateStage(p, s2 * 6007, entry);
+      r.eq(m.bossIds.length, 1, "seed " + s2 + ": exactly one boss (twins removed)");
+      const routes = RunMap.enumerateRoutes(m);
+      r.ok(routes.every(rt => rt[rt.length - 1] === m.bossId), "seed " + s2 + ": every route converges on THE boss");
     }
-    r.ok(!!twinStage, "a twin-boss stage appears within 60 seeds (~" + RunMap.GEN_CONFIG.twinBossChance * 100 + "% chance each)");
-    const v = RunMap.validateStage(twinStage, entry, { phaseIndex: p });
-    r.ok(v.ok, "the twin-boss stage passes full validation");
-    r.eq(v.report.bosses.length, 2, "validation reports both bosses");
-    // every route ends at exactly one of the two bosses
-    const routes = RunMap.enumerateRoutes(twinStage);
-    r.ok(routes.every(rt => twinStage.bossIds.indexOf(rt[rt.length - 1]) !== -1), "every route ends at one of the two bosses");
-    r.ok(routes.some(rt => rt[rt.length - 1] === twinStage.bossIds[0])
-      && routes.some(rt => rt[rt.length - 1] === twinStage.bossIds[1]), "both bosses are reachable");
   }
 
   // ---- generateRun: stages stack; later stages appear as they're entered --

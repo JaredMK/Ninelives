@@ -5094,7 +5094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.76 · card-pack options: Joker (always-correct + banks Same) & Blank (deck removal)";
+const APP_VERSION = "v3.77 · map: 13 rows, single boss, common CARD pickups";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6417,11 +6417,12 @@ const RunMap = (() => {
     // not baked into construction.
     lanes: 3,
     laneX: [0.17, 0.50, 0.83],   // render x per lane
-    rows: [8, 9],                // total rows per stage INCLUDING the boss row.
-                                 // Floor is 8, not the spec's 7: a route needs
-                                 // 3 deals + boss + >=3 card/pack nodes to clear
-                                 // the 11-card floor, and 7 rows leave only 5
-                                 // body slots (3 deals + 2 packs = max 10 < 11).
+    rows: [13, 13],              // total rows per stage INCLUDING the boss row.
+                                 // 13 rows = long routes with room for packs,
+                                 // individual CARD nodes and stores. The card
+                                 // budget per route is UNCHANGED (11+, one <=15),
+                                 // so long routes carry mostly +1 CARDs and small
+                                 // packs — more nodes, same totals.
     paths: [4, 6],               // random bottom->top paths drawn per stage; their
                                  // union is the DAG (overlaps = the braiding)
     minForksPerRoute: 2,         // SOFT/report only now — braiding is emergent
@@ -6431,17 +6432,18 @@ const RunMap = (() => {
 
     // Node-type roll. Every non-boss node is DEAL/PACK/CARD by these weights;
     // STORES are then placed to quota (2-3) over eligible nodes. Tune these to
-    // move the failure histogram (e.g. raise pack weight/size if the 11-card
-    // floor fails most). packWeights = the +N size distribution for a PACK.
-    typeWeights: { deal: 40, pack: 45, card: 15 },
-    packWeights: [[2, 3], [3, 4], [4, 2]],
+    // move the failure histogram. packWeights = the +N size distribution.
+    // 13-row tuning: routes have ~8 add slots but the SAME 11-15 card budget,
+    // so the average add must sit near 1.5 — CARD weight up (15 -> 40) and
+    // packs skew small. This is what makes individual +1 CARD nodes common.
+    typeWeights: { deal: 26, pack: 32, card: 42 },
+    packWeights: [[2, 4], [3, 2]],
 
     // Deals / stores per stage.
     dealsPerRouteMax: 5,         // hard cap validated on every route (excl. boss)
     stores: [2, 3],              // stores per stage (never 2 adjacent on a path,
                                  // >=1 deal between consecutive stores, every
                                  // start can reach a store)
-    twinBossChance: 0.5,         // chance a stage tops out in TWO boss nodes (pick one)
 
     // Card pickups (CARD +1, PACK +2..+5). Every route totals ≥ minRouteCards;
     // at least one route stays ≤ maxLightRouteCards.
@@ -6461,7 +6463,10 @@ const RunMap = (() => {
     bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
 
     // Generation control.
-    attempts: 180,               // tries per relax step before widening the ladder
+    attempts: 60,                // tries per relax step before widening the ladder
+                                 // (feasible configs settle in ~25 tries now that
+                                 // the repairs cycle; a low cap fails fast to the
+                                 // next relax step instead of grinding)
     structAttempts: 40,          // planar path-set redraws within ONE build attempt
     relaxSteps: 3,               // boss-band stretch passes after the attempt cap:
     relaxBandStep: 0.15,         // each step lifts the boss band TOP by this much
@@ -6688,10 +6693,12 @@ const RunMap = (() => {
     const widthPerRow = new Array(ph.rows).fill(0);
     ph.nodes.forEach(n => widthPerRow[n.row]++);
     if (widthPerRow[0] < 2) errors.push("row 0 has " + widthPerRow[0] + " starting node(s) (need 2+)");
-    // Boss variety: 1 or 2 boss nodes, all on the top row.
+    // EXACTLY ONE boss, on the top row — every route converges on it. (Twin
+    // bosses were removed: they were usually one fork with no information
+    // behind the choice — a fake decision.)
     const bossNodes = ph.nodes.filter(n => n.type === "boss");
-    if (bossNodes.length < 1 || bossNodes.length > 2)
-      errors.push("stage has " + bossNodes.length + " boss nodes (spec: 1-2)");
+    if (bossNodes.length !== 1)
+      errors.push("stage has " + bossNodes.length + " boss nodes (spec: exactly 1)");
     // PLANARITY (hard): no two edges in a transition may cross.
     let crossings = 0;
     for (let r = 0; r < ph.bossRow; r++) {
@@ -6765,18 +6772,18 @@ const RunMap = (() => {
 
   /* ── STRUCTURE: draw `paths` random monotone lane-walks bottom->top; their
      union is the graph (shared cells = merges/braids). Paths are drawn
-     PLANAR-BY-CONSTRUCTION: start lanes are sorted and boss targets assigned
-     left→right (laminar), and each step forbids any lane that would cross an
+     PLANAR-BY-CONSTRUCTION: start lanes are sorted, every path converges on
+     the ONE boss lane, and each step forbids any lane that would cross an
      already-committed edge. So the union never has an edge crossing and needs
-     no rejection pass. Returns { R, bossRow, cells, edges, bossLanes } or null. */
+     no rejection pass. Returns { R, bossRow, cells, edges, bossLane } or null. */
   function drawStructure(rng, phaseIndex) {
     const C = GEN_CONFIG;
     const L = C.lanes;
-    const R = phaseIndex === 0 ? 9 : (9 - (rng() < 0.30 ? 1 : 0));  // stage 0 always 9 (tightest deck); others mostly 9 (an 8-row
-    const bossRow = R - 1;                                   // lightest route rarely
-                                                             // clears the 11-card floor)
-    const twin = rng() < C.twinBossChance;
-    const bossLanes = (twin ? pick(rng, [[0, 2], [0, 1], [1, 2]]) : [pick(rng, [0, 1, 2])]).slice().sort((a, b) => a - b);
+    const R = ri(rng, C.rows);                               // 13 rows every stage
+    const bossRow = R - 1;
+    // EXACTLY ONE boss per stage: twin bosses were usually a single fork with
+    // no information behind the choice — a fake decision. All routes converge.
+    const bossLane = pick(rng, [0, 1, 2]);
     const P = ri(rng, C.paths);
     for (let attempt = 0; attempt < C.structAttempts; attempt++) {
       const trans = []; for (let r = 0; r < bossRow; r++) trans.push([]);   // committed [from,to] per transition
@@ -6784,7 +6791,6 @@ const RunMap = (() => {
       startLanes.sort((a, b) => a - b);
       const paths = []; let bad = false;
       for (let i = 0; i < P && !bad; i++) {
-        const bossLane = bossLanes[Math.floor(i * bossLanes.length / P)];   // left paths -> left bosses
         const lane = new Array(R); lane[0] = startLanes[i];
         for (let r = 1; r <= bossRow; r++) {
           const prev = lane[r - 1];
@@ -6810,15 +6816,13 @@ const RunMap = (() => {
       if (bad) continue;
       const starts = new Set(paths.map(pt => pt[0]));
       if (starts.size < 2) continue;                          // >=2 distinct openings
-      const bossHit = new Set(paths.map(pt => pt[bossRow]));
-      if (bossLanes.some(bl => !bossHit.has(bl))) continue;   // every boss reached
       const cellSet = new Set(), edgeSet = new Set();
       for (const path of paths) {
         for (let r = 0; r <= bossRow; r++) cellSet.add(r + ":" + path[r]);
         for (let r = 0; r < bossRow; r++) edgeSet.add(r + ":" + path[r] + ">" + path[r + 1]);
       }
       const edges = [...edgeSet].map(e => { const m = e.split(/[:>]/); return { r: +m[0], from: +m[1], to: +m[2] }; });
-      return { R, bossRow, cells: [...cellSet], edges, bossLanes };
+      return { R, bossRow, cells: [...cellSet], edges, bossLane };
     }
     return null;
   }
@@ -6832,9 +6836,32 @@ const RunMap = (() => {
     const C = GEN_CONFIG;
     const suit = C.phaseSuits[phaseIndex];
     const bandHiExtra = relax * C.relaxBandStep;
+    // ── CARD-BUDGET anchor (STRUCTURE-FREE, so infeasible relax rungs fail in
+    //    microseconds and the ladder escalates instantly): the boss band caps
+    //    how heavy any route may run RELATIVE to the lightest — an integer
+    //    boss pile count must fit both extremes. Pick the window and derive
+    //    the LIGHT TARGET (>= the 11 floor; ♠ decks often need 12-15) and the
+    //    HEAVY CAP; the repairs push the roll into that window. Windows
+    //    narrower than 2 cards almost never converge — treat as infeasible. ──
+    const bossBand0 = C.bossBands[phaseIndex];
+    const bHiA = bossBand0[1] + bandHiExtra;
+    let lightTarget = C.minRouteCards, heavyCap = Infinity, bestScore = -Infinity, bestSlack = -1;
+    for (let p2 = C.minPiles; p2 <= C.maxPiles; p2++) {
+      const lm = Math.max(C.minRouteCards, Math.ceil((bossBand0[0] + 1) * p2 - entryDeck - 1e-9));
+      const hm = Math.floor((bHiA + 1) * p2 - entryDeck + 1e-9);
+      if (lm > C.maxLightRouteCards || hm < lm) continue;
+      // widest window first, but prefer LOW light targets (they need far less
+      // raising from the natural roll, so the repairs converge in fewer moves)
+      // and heavily penalize lm == maxLight windows (the lightest route would
+      // have to land EXACTLY on the cap — brittle; only used when sole option)
+      const score = (hm - lm) * 2 - (lm - C.minRouteCards) - (lm >= C.maxLightRouteCards ? 6 : 0);
+      if (score > bestScore) { bestScore = score; lightTarget = lm; heavyCap = hm; bestSlack = hm - lm; }
+    }
+    if (bestSlack < 2) return __genFail(6);   // no workable window at this relax rung
+
     const st = drawStructure(rng, phaseIndex);
     if (!st) return __genFail(1);
-    const { R, bossRow, cells, edges, bossLanes } = st;
+    const { R, bossRow, cells, edges } = st;
     const L = C.lanes;
 
     // ── nodes, id row-major (row asc, lane asc) ──
@@ -6849,7 +6876,7 @@ const RunMap = (() => {
       for (const l of rowsArr[r]) {
         const isBoss = r === bossRow;
         const n = { id: nid, row: r, lane: l,
-          x: isBoss ? (bossLanes.length === 1 ? 0.5 : (l < 1.5 ? 0.28 : 0.72)) : C.laneX[l],
+          x: isBoss ? 0.5 : C.laneX[l],   // the single boss sits centered
           type: null, next: [] };
         cellId[r + ":" + l] = nid;
         all.push(n); nid++;
@@ -6912,16 +6939,19 @@ const RunMap = (() => {
     //    routes <3 or >5 deals. Nudge toward [3,5] — reroll a deal on an
     //    over-full route to a pack, or a pack/card on a starved route to a
     //    deal — a few passes. Validation still enforces [3,5] hard. ──
-    const localRoutes = () => {
+    // The STRUCTURE is fixed for the whole attempt — only node TYPES/values
+    // change below — so the route list is enumerated ONCE and reused by every
+    // repair (re-walking the DAG per pass dominated generation time at 13 rows).
+    const ROUTES = (() => {
       const rts = []; const walk = (id, path) => { path.push(id); const nx = byId[id].next; if (!nx.length) rts.push(path.slice()); else nx.forEach(t => walk(t, path)); path.pop(); };
       rowsArr[0].forEach(l => walk(cellId["0:" + l], [])); return rts;
-    };
+    })();
+    const localRoutes = () => ROUTES;
     const dealCount = (rt) => rt.reduce((s, id) => s + (byId[id].type === "deal" ? 1 : 0), 0);
-    // Cap the repair target at 4 (not the hard max 5): a 5-deal route on 9 rows
-    // that also hits a store has only 2 card slots (max +10) and can never
-    // clear the 11-card floor. 4 deals leaves >=3 card slots.
+    // Cap the repair target at 4 (not the hard max 5): a 5-deal route with a
+    // store stop leaves too few card slots to clear the 11-card floor.
     const dealCap = Math.min(4, C.dealsPerRouteMax);
-    for (let pass = 0; pass < 24; pass++) {
+    for (let pass = 0; pass < 60; pass++) {
       const rts = localRoutes();
       const over = rts.filter(rt => dealCount(rt) > dealCap);
       const under = rts.filter(rt => dealCount(rt) < 3);
@@ -6979,38 +7009,103 @@ const RunMap = (() => {
     }
     if (placed < C.stores[0]) return __genFail(2);
 
-    // ── CARD-FLOOR repair (runs AFTER stores so it sees the real card slots):
-    //    raise packs on the lightest route to clear the 11-card floor; if a
-    //    route is deal-heavy and out of raisable packs, convert one of its
-    //    deals to a pack (freeing a slot). Then a final deal-min top-up in case
-    //    a conversion dropped a shared route below 3 deals. Bounded; validation
-    //    still enforces [11,15] cards and [3,5] deals hard. ──
-    const routeCards = (rt) => rt.reduce((s, id) => s + addOf(byId[id]), 0);
-    for (let pass = 0; pass < 30; pass++) {
-      const rts = localRoutes();
-      let lo = Infinity, loRt = null;
-      for (const rt of rts) { const c = routeCards(rt); if (c < lo) { lo = c; loRt = rt; } }
-      if (lo >= C.minRouteCards) break;
-      const raisable = loRt.map(id => byId[id]).filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
-      if (raisable.length && (dealCount(loRt) <= 3 || rng() < 0.55)) {
-        const n = pick(rng, raisable); const nv = addOf(n) + 1;
-        n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false;
-      } else {
-        // free a card slot: convert a (non-opening) deal on this route to a +3 pack
-        const dealCand = loRt.filter(id => byId[id].type === "deal" && !(firstRowDeal && byId[id].row === 0));
-        if (dealCand.length && dealCount(loRt) > 3) setType(byId[pick(rng, dealCand)], "pack");
-        else if (raisable.length) { const n = pick(rng, raisable); const nv = addOf(n) + 1; n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false; }
-        else break;
+    // ── The two tail repairs ALTERNATE until both ends of the window hold:
+    //    the floor repair raises shared nodes (pushing the top up) and the
+    //    heavy repair shrinks shared nodes (dragging the floor down), so one
+    //    sequential pass of each rarely settles — cycle them. ──
+    const routeCards = (rt) => rt.reduce((s2, id) => s2 + addOf(byId[id]), 0);
+    const raiseNode = (n) => { const nv = addOf(n) + 1; n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false; };
+    for (let cycle = 0; cycle < 6; cycle++) {
+      {
+        const rts0 = localRoutes();
+        let lo0 = Infinity, hi0 = -Infinity;
+        for (const rt of rts0) { const c0 = routeCards(rt); if (c0 < lo0) lo0 = c0; if (c0 > hi0) hi0 = c0; }
+        if (lo0 >= lightTarget && hi0 <= heavyCap) break;   // both ends inside the window
+      }
+      // ── CARD-FLOOR repair (runs AFTER stores so it sees the real card slots):
+      //    raise packs on the lightest route to the anchor's LIGHT TARGET; if a
+      //    route is deal-heavy and out of raisable packs, convert one of its
+      //    deals to a pack (freeing a slot). Then a final deal-min top-up in case
+      //    a conversion dropped a shared route below 3 deals. Bounded; validation
+      //    still enforces [11,15] cards and [3,5] deals hard. ──
+      // BULK PRE-SCALE: nudge the AVERAGE route into the anchor window first so
+      // the tail repairs below only trim outliers (random rolls land well under
+      // ♠'s 15-19-card window, and per-route repairs alone oscillate).
+      {
+        const mid = Math.min((lightTarget + heavyCap) / 2, C.maxLightRouteCards + 2);
+        for (let pass = 0; pass < 90; pass++) {
+          const rts = localRoutes();
+          const mean = rts.reduce((s2, rt) => s2 + routeCards(rt), 0) / rts.length;
+          if (mean >= mid - 0.5) break;
+          const cand = body.filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
+          if (!cand.length) break;
+          raiseNode(pick(rng, cand));
+        }
+      }
+      for (let pass = 0; pass < 120; pass++) {
+        const rts = localRoutes();
+        let lo = Infinity, loRt = null, hi = -Infinity;
+        for (const rt of rts) { const c = routeCards(rt); if (c < lo) { lo = c; loRt = rt; } if (c > hi) hi = c; }
+        if (lo >= lightTarget) break;
+        let raisable = loRt.map(id => byId[id]).filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
+        // prefer raising a node the HEAVIEST routes don't share (don't push the top)
+        if (hi >= heavyCap - 1 && raisable.length > 1) {
+          const heavyIds = new Set();
+          for (const rt of rts) if (routeCards(rt) >= heavyCap - 1) rt.forEach(id => heavyIds.add(id));
+          const safe = raisable.filter(n => !heavyIds.has(n.id));
+          if (safe.length) raisable = safe;
+        }
+        if (raisable.length && (dealCount(loRt) <= 3 || rng() < 0.55)) {
+          raiseNode(pick(rng, raisable));
+        } else {
+          // free a card slot: convert a (non-opening) deal on this route to a pack
+          const dealCand = loRt.filter(id => byId[id].type === "deal" && !(firstRowDeal && byId[id].row === 0));
+          if (dealCand.length && dealCount(loRt) > 3) setType(byId[pick(rng, dealCand)], "pack");
+          else if (raisable.length) raiseNode(pick(rng, raisable));
+          else break;
+        }
+      }
+      // final deal-min top-up (a conversion may have dropped a route under 3).
+      // Only convert a node if NO route through it would exceed the deal cap —
+      // shared nodes sit on many routes, and a blind top-up pushed crossing
+      // routes to 6 deals.
+      for (let pass = 0; pass < 12; pass++) {
+        const rts2 = localRoutes();
+        const under = rts2.filter(rt => dealCount(rt) < 3);
+        if (!under.length) break;
+        const rt = pick(rng, under);
+        const cand = rt.filter(id => { const n = byId[id];
+          if (n.type !== "pack" && n.type !== "pickup") return false;
+          return rts2.every(r2 => r2.indexOf(id) === -1 || dealCount(r2) < C.dealsPerRouteMax);
+        });
+        if (cand.length) setType(byId[pick(rng, cand)], "deal"); else break;
+      }
+      // ── HEAVY-ROUTE repair (the 13-row bind): long routes hold ~8 add nodes
+      //    but the anchor's HEAVY CAP bounds the heaviest route. Downgrade packs
+      //    on the heaviest route (+N -> +N-1, a +2 becomes a +1 CARD) until the
+      //    spread fits — which is also what makes individual CARD nodes common
+      //    on long maps. ──
+      for (let pass = 0; pass < 120; pass++) {
+        const rts = localRoutes();
+        let hi = -Infinity, hiRt = null, lo2 = Infinity;
+        for (const rt of rts) { const cds = routeCards(rt); if (cds > hi) { hi = cds; hiRt = rt; } if (cds < lo2) lo2 = cds; }
+        if (hi <= heavyCap) break;
+        let shrinkable = hiRt.map(id => byId[id]).filter(n => n.type === "pack");
+        // prefer shrinking a node the LIGHTEST routes don't share (protect the floor)
+        if (lo2 <= lightTarget && shrinkable.length > 1) {
+          const lightIds = new Set();
+          for (const rt of rts) if (routeCards(rt) <= lightTarget) rt.forEach(id => lightIds.add(id));
+          const safe = shrinkable.filter(n => !lightIds.has(n.id));
+          if (safe.length) shrinkable = safe;
+        }
+        if (!shrinkable.length) break;                       // validation will arbitrate
+        const n = shrinkable.sort((a, b) => addOf(b) - addOf(a))[0];   // biggest pack first
+        const nv = addOf(n) - 1;
+        if (nv <= 1) { setType(n, "card"); }                 // +2 pack -> a +1 CARD node
+        else { n.packCount = nv; n.add = nv; }
       }
     }
-    // final deal-min top-up (a conversion may have dropped a route under 3)
-    for (let pass = 0; pass < 12; pass++) {
-      const under = localRoutes().filter(rt => dealCount(rt) < 3);
-      if (!under.length) break;
-      const rt = pick(rng, under);
-      const cand = rt.filter(id => { const n = byId[id]; return n.type === "pack" || n.type === "pickup"; });
-      if (cand.length) setType(byId[pick(rng, cand)], "deal"); else break;
-    }
+
     // ── FINAL UNIFORM-ROW veto (re-asserted after the repairs, which can
     //    re-uniform a row). Flip ONE node in an all-same-kind body row to a
     //    different type — but only a flip that keeps every route's cards >=11
@@ -7044,71 +7139,80 @@ const RunMap = (() => {
 
     // ── DEAL PILES: bands hold at both deck extremes; distinct within a row.
     //    Deals use their FULL stage band (no "boss must be hardest" cap — that
-    //    isn't a hard rule under random assignment; it's a soft warning only). ──
-    const ext = deckExtremes(ph, entryDeck);
+    //    isn't a hard rule under random assignment; it's a soft warning only).
+    //    On 13-row maps a same-row deal pair often can't take two distinct
+    //    in-band pile counts (tight integer windows) — instead of failing the
+    //    whole attempt, the colliding deal CONVERTS to a +1 CARD node (another
+    //    source of card pickups) and the pass restarts with fresh extremes.
+    //    Deal-count minimums are re-validated afterwards. ──
     const stageBand = C.stageBands[phaseIndex];
     const sLo = stageBand[0], sHi = stageBand[1];
     const regHi = sHi;
-    const dealRowsAsc = [];
-    for (let r = 0; r < bossRow; r++) if (all.some(n => n.row === r && n.type === "deal")) dealRowsAsc.push(r);
-    for (let k = 0; k < dealRowsAsc.length; k++) {
-      const r = dealRowsAsc[k];
-      const isFirst = firstRowDeal && r === 0;
-      const band = isFirst ? C.firstDealBand : [sLo, sHi];
-      const capHi = isFirst ? C.firstDealBand[1] : regHi;
-      const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
-        : sLo + (regHi - sLo) * ((k + 1) / (dealRowsAsc.length + 1));   // ascending by row
-      const group = all.filter(n => n.row === r && n.type === "deal");
-      const used = new Set();
-      for (const n of group) {
-        const e = ext[n.id];
-        const pMin = Math.max(C.minPiles, Math.ceil(e.max / (band[1] + 1) - 1e-9), Math.ceil((e.min + e.max) / 2 / (capHi + 1) - 1e-9));
-        const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
-        if (pMin > pMax) return __genFail(3);
-        const pT = Math.max(pMin, Math.min(pMax, Math.round(((e.min + e.max) / 2) / (targetD + 1))));
-        // The stage-0 opening deals are band-locked (deck 13, firstDealBand is
-        // narrow → often a single valid pile count), so they may tie. Every
-        // OTHER same-row deal takes a DISTINCT in-band value (the veto: left vs
-        // right is a real difficulty choice).
-        let p = null;
-        for (let d = 0; d <= C.maxPiles && p == null; d++) for (const cand of [pT + d, pT - d]) {
-          if (cand >= pMin && cand <= pMax && (isFirst || !used.has(cand))) { p = cand; break; }
+    for (let restart = 0; restart < 4; restart++) {
+      const ext = deckExtremes(ph, entryDeck);
+      let converted = false;
+      const dealRowsAsc = [];
+      for (let r = 0; r < bossRow; r++) if (all.some(n => n.row === r && n.type === "deal")) dealRowsAsc.push(r);
+      for (let k = 0; k < dealRowsAsc.length && !converted; k++) {
+        const r = dealRowsAsc[k];
+        const isFirst = firstRowDeal && r === 0;
+        const band = isFirst ? C.firstDealBand : [sLo, sHi];
+        const capHi = isFirst ? C.firstDealBand[1] : regHi;
+        const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
+          : sLo + (regHi - sLo) * ((k + 1) / (dealRowsAsc.length + 1));   // ascending by row
+        const group = all.filter(n => n.row === r && n.type === "deal");
+        const used = new Set();
+        for (const n of group) {
+          const e = ext[n.id];
+          const pMin = Math.max(C.minPiles, Math.ceil(e.max / (band[1] + 1) - 1e-9), Math.ceil((e.min + e.max) / 2 / (capHi + 1) - 1e-9));
+          const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
+          if (pMin > pMax) {
+            if (isFirst) return __genFail(3);              // the openings must stay deals
+            setType(n, "card"); converted = true; break;   // no in-band pile count → +1 CARD
+          }
+          const pT = Math.max(pMin, Math.min(pMax, Math.round(((e.min + e.max) / 2) / (targetD + 1))));
+          // The stage-0 opening deals are band-locked (deck 13, firstDealBand is
+          // narrow → often a single valid pile count), so they may tie. Every
+          // OTHER same-row deal takes a DISTINCT in-band value (the veto: left
+          // vs right is a real difficulty choice).
+          let p = null;
+          for (let d = 0; d <= C.maxPiles && p == null; d++) for (const cand of [pT + d, pT - d]) {
+            if (cand >= pMin && cand <= pMax && (isFirst || !used.has(cand))) { p = cand; break; }
+          }
+          if (p == null) {                                 // distinct value impossible on this row
+            // Convert to a +1 CARD — unless that would starve a route below 3
+            // deals; then accept a DUPLICATE pile value (the same-row variety
+            // veto is best-effort, the deal floor is a hard rule).
+            const starves = localRoutes().some(rt => rt.indexOf(n.id) !== -1 && dealCount(rt) <= 3);
+            if (!starves) { setType(n, "card"); converted = true; break; }
+            for (let d = 0; d <= C.maxPiles && p == null; d++) for (const cand of [pT + d, pT - d]) {
+              if (cand >= pMin && cand <= pMax) { p = cand; break; }
+            }
+            if (p == null) { setType(n, "card"); converted = true; break; }
+          }
+          used.add(p); n.piles = p;
         }
-        if (p == null) return __genFail(4);   // same-row deals can't take distinct in-band piles
-        used.add(p); n.piles = p;
       }
+      if (!converted) break;                               // all deals piled cleanly
+      if (restart === 3) return __genFail(4);              // conversions didn't settle
     }
     if (!assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra)) return __genFail(5);
     return ph;
   }
 
-  /* ── Boss pile assignment from CURRENT deck extremes. Twins get piles
-     ASCENDING with their arriving deck (lighter arrival -> smaller pile count,
-     the harder boss on the lighter deck), so neither twin dominates. ── */
+  /* ── Boss pile assignment from CURRENT deck extremes: the SINGLE boss's
+     band must hold at both the lightest and heaviest arriving deck. ── */
   function assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra) {
     const C = GEN_CONFIG;
     const band = C.bossBands[phaseIndex];
     const hi = band[1] + (bandHiExtra || 0);
     const ext = deckExtremes(ph, entryDeck);
-    const bosses = ph.nodes.filter(n => n.type === "boss")
-      .sort((a, b) => (ext[a.id] || { min: 0 }).min - (ext[b.id] || { min: 0 }).min);
-    let prev = -Infinity;
-    for (const boss of bosses) {
+    for (const boss of ph.nodes.filter(n => n.type === "boss")) {
       const e = ext[boss.id] || { min: entryDeck, max: entryDeck };
       const pMin = Math.max(C.minPiles, Math.ceil(e.max / (hi + 1) - 1e-9));
       const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
       if (pMin > pMax) return false;
-      const pT = Math.round((pMin + pMax) / 2);
-      let p = null;
-      for (const strict of [1, 0]) {
-        const floor2 = prev === -Infinity ? pMin : Math.max(pMin, prev + strict);
-        for (let d = 0; d <= pMax - pMin && p == null; d++) for (const cand of [pT + d, pT - d]) {
-          if (cand >= floor2 && cand <= pMax) { p = cand; break; }
-        }
-        if (p != null) break;
-      }
-      if (p == null) return false;
-      prev = p; boss.piles = p;
+      boss.piles = Math.round((pMin + pMax) / 2);
     }
     return true;
   }
@@ -7519,18 +7623,11 @@ const RunMap = (() => {
       phases.push(meta);
       rowOffset += ph.rows;
     }
-    // Wire each phase's boss(es) → the next phase's openings, monotone by lane
-    // so twin bosses never cross: the low-lane boss feeds the left openings,
-    // the high-lane boss the right, sharing the middle for full coverage.
+    // Wire each phase's single boss → all of the next phase's openings.
     for (let p = 0; p < phases.length - 1; p++) {
-      const bosses = phases[p].bossIds.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
+      const boss = byId[phases[p].bossId];
       const opens = phases[p + 1].row0.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
-      if (bosses.length === 1) bosses[0].next = opens.map(o => o.id);
-      else {
-        const m = Math.ceil(opens.length / 2);
-        bosses[0].next = opens.slice(0, m).map(o => o.id);
-        bosses[1].next = opens.slice(Math.max(0, m - 1)).map(o => o.id);
-      }
+      boss.next = opens.map(o => o.id);
     }
     if (!phases.length) {
       // Stage 0 failed to generate (should be unreachable — logged above).
@@ -7542,9 +7639,9 @@ const RunMap = (() => {
       row0: phases[0].row0,
       totalRows: rowOffset,
       // The RUN boss exists only once the final (♠) stage has been generated;
-      // until then no boss can falsely end the run.
+      // until then no boss can falsely end the run. (bossIds is kept as a
+      // 1-element array for save/API compatibility — always exactly one now.)
       runBossId: phases.length === GEN_CONFIG.phaseSuits.length ? phases[phases.length - 1].bossId : null,
-      // Beating EITHER twin boss of the final stage wins the run.
       runBossIds: phases.length === GEN_CONFIG.phaseSuits.length ? phases[phases.length - 1].bossIds.slice() : null,
       stagesGenerated: phases.length,
     };
@@ -18253,9 +18350,7 @@ const UIRenderer = (() => {
       row.forEach((n, i) => {
         const P = PH[nodeSuit(n, map)] || "?";
         if (n.type === "boss") {
-          const twins = map.nodes.filter(x => x.type === "boss" && x.phase === n.phase)
-            .sort((a, b) => (a.x || 0) - (b.x || 0));
-          addr[n.id] = P + "-BOSS" + (twins.length > 1 ? (twins.indexOf(n) === 0 ? "-L" : "-R") : "");
+          addr[n.id] = P + "-BOSS";   // exactly one boss per stage
           return;
         }
         const pos = row.length === 1 ? "" :
