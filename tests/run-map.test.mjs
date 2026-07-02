@@ -137,6 +137,15 @@ export function run() {
       // No fake forks AND no dominated branches — every fork is a real choice.
       r.ok(v.report.forks.length >= 1, "stage " + s + ": the map actually forks");
       r.ok(v.report.forks.every(f => f.verdict === "DISTINCT"), "stage " + s + ": every fork is DISTINCT (no fake, no dominated)");
+      // DECISION DENSITY: every route walked start→boss meets ≥3 forks —
+      // routes must braid and fork MID-MAP, not just at the start.
+      r.ok(v.report.forksPerRoute[0] >= RunMap.GEN_CONFIG.minForksPerRoute,
+        "stage " + s + ": every route faces ≥" + RunMap.GEN_CONFIG.minForksPerRoute + " forks (worst route: " + v.report.forksPerRoute[0] + ")");
+      // CROSS-LINKS: adjacent lanes exchange edges ≥2× (no sealed tracks).
+      r.ok(v.report.crossLinks >= 2, "stage " + s + ": lanes cross-link " + v.report.crossLinks + "× (≥2)");
+      // STORE ACCESS: every starting node reaches EVERY store.
+      r.ok(v.report.storeReach.every(sr => sr.reaches === sr.of),
+        "stage " + s + ": every start reaches every store (no store-locked route)");
       // SUSTAINED PARALLEL RAILS: 2-3 route-carrying nodes on every body row.
       const widths = v.report.widthPerRow;
       let par = true;
@@ -236,12 +245,12 @@ export function run() {
   }
 
   // ---- a single-card node shows EXACTLY the card it grants ----------------
+  // (The braided generator's card floor makes every generated draft node a
+  //  pack, so +1 CARD nodes now come from authored definitions — the preview/
+  //  grant contract is exercised on a node object directly.)
   {
     const c = CampaignState.create();
-    const map = c.getMap();
-    // any pickup (single-card) node carrying an id
-    const pickup = map.nodes.find(n => n.type === "pickup" && n.id != null);
-    r.ok(pickup, "the map has a single-card (pickup) node");
+    const pickup = { id: 900001, type: "pickup", suit: "♦", mixed: false };
     const shown = c.previewPickupCard(pickup);
     r.ok(shown && shown.id != null, "previewPickupCard shows a concrete card (rank+suit)");
     const before = c.deckSize();
@@ -345,27 +354,25 @@ export function run() {
     r.ok(seen.has(ph.bossId) && seen.size === ph.nodes.length, "every node reachable, boss included");
   }
 
-  // ---- every +1 node locks an EXACT card at generation, distinct + fixed --
+  // ---- +1 nodes lock an EXACT card, distinct + fixed -----------------------
+  // (The braided generator's card floor makes every generated draft node a
+  //  pack; the +1 lock contract is exercised on node objects directly —
+  //  authored maps route through the same commit/preview API.)
   {
     const c = CampaignState.create();
-    const map = c.getMap();
-    const rankLabel = card => (DeckManager.RANKS.find(r => r.value === card.currentRank) || {}).label;
-    const pickups = map.nodes.filter(n => n.type === "pickup");
-    r.ok(pickups.length > 0, "the map has +1 single-card nodes");
-    // EVERY +1 node shows an exact card up front (no lazy/face-down nodes).
-    r.ok(pickups.every(n => !!c.nodeCard(n)), "every +1 node is locked to a card at generation");
-    // its phase suit (Phase 1 +1 nodes are diamonds).
-    r.ok(pickups.filter(n => n.phase === 0).every(n => c.nodeCard(n).suit === "♦"), "Phase 1 +1 nodes lock diamonds");
-    // the locked cards are DISTINCT (no two +1 nodes show the same identity).
-    const ids = pickups.map(n => c.nodeCard(n).id);
-    r.eq(new Set(ids).size, ids.length, "no two +1 nodes lock the same card");
+    const nA = { id: 910001, type: "pickup", suit: "♦", mixed: false };
+    const nB = { id: 910002, type: "pickup", suit: "♦", mixed: false };
+    const a = c.previewPickupCard(nA), b = c.previewPickupCard(nB);
+    r.ok(a && b, "+1 nodes lock a concrete card on first preview");
+    r.eq(a.suit, "♦", "a ♦ +1 node locks a diamond");
+    r.ok(a.id !== b.id, "no two +1 nodes lock the same card");
     // FIXED for the run: re-reading (re-render) returns the same card.
-    const n0 = pickups[0], first = c.nodeCard(n0).id;
-    c.nodeCard(n0); c.previewPickupCard(n0);
-    r.eq(c.nodeCard(n0).id, first, "a +1 node's card never re-randomizes");
+    const first = c.nodeCard(nA).id;
+    c.nodeCard(nA); c.previewPickupCard(nA);
+    r.eq(c.nodeCard(nA).id, first, "a +1 node's card never re-randomizes");
     // taking it adds EXACTLY that locked card.
     const before = c.deckSize();
-    const granted = c.resolvePickup(n0);
+    const granted = c.resolvePickup(nA);
     r.eq(granted.id, first, "taking a +1 node adds exactly its locked card");
     r.eq(c.deckSize(), before + 1, "the deck grew by exactly one");
   }
@@ -435,7 +442,11 @@ export function run() {
     const m2 = c2.getMap();
     r.eq(m2.phases.length, 2, "the restored map holds the same two stages");
     r.eq(m2.phases[1].bossId, map.phases[1].bossId, "the restored ♣ stage is IDENTICAL (same seed + entry deck)");
-    // felling the ♣ then ♠ bosses completes the ladder; only the ♠ boss is the run boss.
+    // felling the ♣ then ♠ bosses completes the ladder; only the ♠ boss is the
+    // run boss. Grow the deck like a real ♣ traversal would (every route
+    // collects 11+ cards) — the ♠ stage generates against that REAL deck.
+    c.resolvePack({ type: "pack", packCount: 5, suit: "♣" });
+    c.resolvePack({ type: "pack", packCount: 5, suit: "♣" });
     c.markNodeCleared(map.phases[1].bossId);
     const m3 = c.getMap();
     r.eq(m3.phases.length, 3, "clearing the ♣ boss generates the ♠ stage");
