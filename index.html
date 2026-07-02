@@ -585,6 +585,30 @@
     background-size: 42% 36%, 34% 30%, 26% 22%, 40% 26%;
     background-position: 6% 82%, 88% 30%, 55% 96%, 80% 62%;
     background-repeat: no-repeat; }
+  /* PERMANENT WEAR (mood-independent, all sizes, every render of the character):
+     the little box isn't flat pink any more — uneven darker scuff patches, one
+     light faded spot, a diagonal scrape, and a small mended PATCH (darker
+     square with pale stitch dashes) at the lower left. Lives on ::after so the
+     mood grime (::before) fades with the journey while this never does; the
+     face/lid/count are z-lifted above both layers. Percent-sized, so it scales
+     from the 38px map avatar to the big deck-select render. */
+  :root {
+    --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%23963a55' fill-opacity='.5'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23ffe3ec' stroke-opacity='.7' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .dc-body::after, .av-body::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
+    pointer-events: none; z-index: 0;
+    background:
+      var(--char-patch) no-repeat,
+      radial-gradient(closest-side, rgba(96,50,58,0.16), rgba(96,50,58,0) 72%) no-repeat,
+      radial-gradient(closest-side, rgba(96,50,58,0.12), rgba(96,50,58,0) 70%) no-repeat,
+      radial-gradient(closest-side, rgba(255,236,228,0.18), rgba(255,236,228,0) 72%) no-repeat,
+      linear-gradient(64deg, transparent 46%, rgba(96,50,58,0.12) 48.5%, rgba(96,50,58,0.12) 51.5%, transparent 54%) no-repeat;
+    background-size: 30% 24%, 44% 34%, 30% 26%, 36% 30%, 52% 34%;
+    background-position: 12% 86%, 94% 34%, 42% 2%, 90% 80%, 0% 58%; }
+  /* Face furniture rides ABOVE both texture layers (the wear ::after is the
+     body's LAST child, so without the lift it would paint over the eyes). */
+  .dc-lid, .dc-face, .dc-tear { z-index: 1; }
+  .av-lid, .av-face, .av-tear { z-index: 1; }
   /* Single TEAR (loss only): fades in at the left eye and slides slowly down. */
   .dc-tear { position: absolute; left: 31%; top: 33%; width: 3px; height: 5px;
     border-radius: 45% 45% 55% 55%; background: rgba(130,190,225,0.92);
@@ -1586,15 +1610,28 @@
   /* ============================================================
      MAIN MENU · SHEETS (stats / manual / in-game menu) · MENU BUTTON
      ============================================================ */
+  /* LOST-PATHS texture: tangled, wandering string paths that double back and
+     DEAD-END in a small dot — the visual language for "he's lost". One muted
+     warm-grey SVG tile shared by every character-facing surface (menus + the
+     phase overlays); bolder than a watermark, but low-contrast so text, buttons
+     and the character always win. Never used on the in-deal board or the map
+     (the map's REAL paths must stay unambiguous). */
+  :root {
+    --lost-paths: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%238a6f63' stroke-opacity='.16' stroke-width='2.5'%3E%3Cpath d='M28 452 C86 392 148 428 156 348 C163 276 92 262 112 202 C130 148 202 172 212 122'/%3E%3Cpath d='M300 474 C258 402 362 384 352 312 C344 258 272 272 286 212'/%3E%3Cpath d='M424 236 C472 214 476 276 424 264 C384 255 402 200 362 212'/%3E%3Cpath d='M56 58 C122 82 98 152 162 162 C224 172 208 92 262 100'/%3E%3Cpath d='M470 96 C420 58 384 132 332 102 C294 80 322 34 284 24'/%3E%3Cpath d='M198 470 C208 424 152 404 168 366'/%3E%3Cpath d='M8 300 C60 310 74 262 40 246'/%3E%3Cpath d='M470 380 C428 366 440 320 396 312 C356 305 356 348 318 338'/%3E%3C/g%3E%3Cg fill='%238a6f63' fill-opacity='.22'%3E%3Ccircle cx='214' cy='114' r='3.5'/%3E%3Ccircle cx='289' cy='203' r='3.5'/%3E%3Ccircle cx='355' cy='214' r='3.5'/%3E%3Ccircle cx='270' cy='101' r='3.5'/%3E%3Ccircle cx='277' cy='22' r='3.5'/%3E%3Ccircle cx='171' cy='358' r='3.5'/%3E%3Ccircle cx='36' cy='242' r='3.5'/%3E%3Ccircle cx='311' cy='336' r='3.5'/%3E%3C/g%3E%3C/svg%3E");
+  }
   .menu-screen {
     position: fixed; inset: 0; z-index: 1400; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: clamp(8px, 2vh, 14px); padding: 24px;
+    /* OPAQUE base (was rgba …0.94 + backdrop blur): the live board's piles
+       ghosted through the see-through backdrop as blurred grey patches — on
+       deck select they read as a weird smudged shadow behind the pink deck.
+       Nothing should show through a full menu screen, so nothing does. */
     background:
+      var(--lost-paths) 0 0 / 460px repeat,
       radial-gradient(125% 90% at 50% 16%, rgba(200,120,145,0.18), transparent 56%),
       radial-gradient(115% 80% at 50% 102%, rgba(150,128,200,0.13), transparent 56%),
-      rgba(250, 245, 239, 0.94);
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+      #faf5ef;
   }
   .menu-screen.hidden { display: none; }
   /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
@@ -1943,6 +1980,14 @@
     transition: opacity 0.3s ease;
   }
   .overlay.hidden { opacity: 0; pointer-events: none; }
+  /* LOST-PATHS texture on every phase overlay (start / deal summary / win /
+     loss / store / post-deal placement) — the same tangled dead-ending paths
+     as the menus. z-index -1 keeps it under all content while still painting
+     over the overlay's own backdrop; it fades with the overlay (peek intact).
+     (The overlay backdrop KEEPS its slight translucency — hold-to-peek needs
+     the board underneath.) */
+  .overlay::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: var(--lost-paths) 0 0 / 460px repeat; }
   /* Hold-to-peek: fade the overlay to reveal the final board underneath. It
      keeps capturing the pointer (no pointer-events:none) so release restores. */
   .overlay.peek { opacity: 0; transition: opacity 0.12s ease; }
@@ -5258,7 +5303,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.80 · picker histogram, live suit chart, map lock, win music timing";
+const APP_VERSION = "v3.81 · lost-paths texture, worn character, 14 rows, pre-boss store";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6581,8 +6626,8 @@ const RunMap = (() => {
     // not baked into construction.
     lanes: 3,
     laneX: [0.17, 0.50, 0.83],   // render x per lane
-    rows: [13, 13],              // total rows per stage INCLUDING the boss row.
-                                 // 13 rows = long routes with room for packs,
+    rows: [14, 14],              // total rows per stage INCLUDING the boss row.
+                                 // 14 rows = long routes with room for packs,
                                  // individual CARD nodes and stores. The card
                                  // budget per route is UNCHANGED (11+, one <=15),
                                  // so long routes carry mostly +1 CARDs and small
@@ -6608,6 +6653,9 @@ const RunMap = (() => {
     stores: [2, 3],              // stores per stage (never 2 adjacent on a path,
                                  // >=1 deal between consecutive stores, every
                                  // start can reach a store)
+    preBossStoreRows: 3,         // GUARANTEED PRE-BOSS SHOP: >=1 store must sit
+                                 // in the last N body rows before the boss (not
+                                 // on every route — just present in that region)
 
     // Card pickups (CARD +1, PACK +2..+5). Every route totals ≥ minRouteCards;
     // at least one route stays ≤ maxLightRouteCards.
@@ -6853,6 +6901,10 @@ const RunMap = (() => {
     const storeCount = ph.nodes.filter(n => n.type === "store").length;
     if (storeCount < C.stores[0] || storeCount > C.stores[1])
       errors.push("stage has " + storeCount + " store(s) (spec: " + C.stores[0] + "-" + C.stores[1] + ")");
+    // GUARANTEED PRE-BOSS SHOP: >=1 store in the last preBossStoreRows body rows.
+    const bossRowV = ph.nodes.reduce((m, n) => n.type === "boss" ? n.row : m, 0);
+    if (!ph.nodes.some(n => n.type === "store" && n.row >= bossRowV - C.preBossStoreRows))
+      errors.push("no store in the final " + C.preBossStoreRows + " rows before the boss");
     // Structure report: row widths (informational — no fixed width band now).
     const widthPerRow = new Array(ph.rows).fill(0);
     ph.nodes.forEach(n => widthPerRow[n.row]++);
@@ -7159,19 +7211,31 @@ const RunMap = (() => {
       && !edgeAdjToStore(n) && !rowHasStore(n.row) && gapOK(n));
     const makeStore = (n) => { delete n.add; delete n.packCount; delete n.suit; n.type = "store"; };
     let placed = 0;
+    // GUARANTEED PRE-BOSS SHOP: the last C.preBossStoreRows body rows must end
+    // up holding >=1 store, so there's always a shop near the top of the climb
+    // (a last stock-up before the boss). Not per-route — just present.
+    const lateRowMin = bossRow - C.preBossStoreRows;
+    const hasLateStore = () => all.some(n => storeOf(n) && n.row >= lateRowMin);
     while (placed < desiredStores) {
       let cands = storeCands();
       if (!cands.length) break;
       // the FIRST store goes low + central so every start can reach it; the
-      // rest are random among the eligible.
+      // SECOND is forced into the pre-boss region if none is there yet (all
+      // the usual eligibility — distinct rows, non-adjacent, deal-between —
+      // still applies via storeCands); the rest are random among the eligible.
       if (placed === 0) {
         const minRow = Math.min.apply(null, cands.map(n => n.row));
         cands = cands.filter(n => n.row <= minRow + 1);
+      } else if (!hasLateStore()) {
+        const late = cands.filter(n => n.row >= lateRowMin);
+        if (!late.length) break;   // no legal pre-boss slot → this attempt fails below
+        cands = late;
       }
       makeStore(pick(rng, cands));
       placed++;
     }
     if (placed < C.stores[0]) return __genFail(2);
+    if (!hasLateStore()) return __genFail(7);   // pre-boss shop guarantee unmet
 
     // ── The two tail repairs ALTERNATE until both ends of the window hold:
     //    the floor repair raises shared nodes (pushing the top up) and the
@@ -11764,12 +11828,49 @@ const Sound = (() => {
     purchase() { seq([[784, 0.08, 0, "sine", 0.045, 988], [1175, 0.12, 0.07, "sine", 0.04]]); sparkle(0.12, 0.016); },
     // A pile DIED this deal (non-fatal death of one pile): soft "boing" down.
     death() { voice({ freq: 330, glideTo: 150, dur: 0.28, type: "triangle", gain: 0.055, vibrato: 12, vibratoDepth: 14 }); },
-    // DEAL WON — the character's happy dance: a cheerful ascending arpeggio + sparkle.
-    dealWon() { seq([[523, 0.1, 0, "sine", 0.05, 587], [659, 0.1, 0.09, "sine", 0.05], [784, 0.1, 0.18, "sine", 0.05], [1047, 0.16, 0.27, "sine", 0.05, 1175]]); sparkle(0.34, 0.02); },
+    // DEAL WON — plays from the final card's LANDING all the way to the summary
+    // screen (~3.4s of win cinematic), so it's a little victory TUNE now, not a
+    // stinger: the opening arpeggio (the dance), a skipping second phrase, and
+    // a settle-home cadence, sparkled throughout. Same cute voice as everything.
+    dealWon() {
+      seq([
+        // phrase 1 — the original happy arpeggio (the dance kick-off)
+        [523, 0.1, 0,    "sine", 0.05, 587], [659, 0.1, 0.09, "sine", 0.05],
+        [784, 0.1, 0.18, "sine", 0.05],      [1047, 0.16, 0.27, "sine", 0.05, 1175],
+        // phrase 2 — a skipping answer
+        [784, 0.09, 0.62, "sine", 0.042], [880, 0.09, 0.73, "sine", 0.044],
+        [1047, 0.12, 0.84, "sine", 0.046, 988], [880, 0.09, 1.04, "sine", 0.042],
+        [988, 0.09, 1.15, "sine", 0.044],  [1175, 0.15, 1.26, "sine", 0.046, 1047],
+        // phrase 3 — wander down, then the big settle-home cadence
+        [1047, 0.1, 1.62, "sine", 0.04], [880, 0.1, 1.74, "sine", 0.038],
+        [784, 0.12, 1.86, "sine", 0.036], [659, 0.12, 2.0, "sine", 0.036, 587],
+        [784, 0.14, 2.22, "sine", 0.042, 880], [1047, 0.26, 2.4, "sine", 0.048, 1175],
+        [1319, 0.4, 2.72, "sine", 0.042, 1397],
+      ]);
+      sparkle(0.34, 0.02); sparkle(1.35, 0.017); sparkle(2.45, 0.02); sparkle(2.95, 0.015);
+    },
     // DEAL LOST — a gentle, cute descending "aww" (not a harsh buzzer).
     dealLost() { seq([[494, 0.16, 0, "triangle", 0.05, 440], [392, 0.18, 0.14, "triangle", 0.05, 349], [294, 0.34, 0.3, "triangle", 0.05, 233]]); },
-    // Full RUN cleared — a bright fanfare with a sparkle tail.
-    runClear() { seq([[523, 0.12, 0, "sine", 0.05, 587], [659, 0.12, 0.11, "sine", 0.05], [784, 0.12, 0.22, "sine", 0.05], [1047, 0.24, 0.33, "sine", 0.05, 1319]]); sparkle(0.5, 0.024); },
+    // Full RUN cleared — the same landing-to-summary span as dealWon but
+    // grander: a taller fanfare, a triumphant echo phrase, and a long ringing
+    // home chord with extra sparkle. He made it back to mama.
+    runClear() {
+      seq([
+        // fanfare
+        [523, 0.12, 0,    "sine", 0.05, 587], [659, 0.12, 0.11, "sine", 0.05],
+        [784, 0.12, 0.22, "sine", 0.05],      [1047, 0.24, 0.33, "sine", 0.05, 1319],
+        // triumphant echo, higher
+        [784, 0.1, 0.72, "sine", 0.044], [988, 0.1, 0.83, "sine", 0.046],
+        [1175, 0.14, 0.94, "sine", 0.048, 1319], [1047, 0.1, 1.14, "sine", 0.044],
+        [1175, 0.1, 1.25, "sine", 0.046], [1319, 0.2, 1.36, "sine", 0.05, 1568],
+        // the long walk home — down, breathe, and the ringing final chord
+        [1175, 0.12, 1.72, "sine", 0.04], [1047, 0.12, 1.86, "sine", 0.038],
+        [880, 0.14, 2.0, "sine", 0.036, 784], [1047, 0.16, 2.24, "sine", 0.044, 1175],
+        [1319, 0.5, 2.44, "sine", 0.05, 1397], [1568, 0.55, 2.6, "sine", 0.032],
+        [2093, 0.5, 2.72, "sine", 0.02],
+      ]);
+      sparkle(0.5, 0.024); sparkle(1.4, 0.02); sparkle(2.5, 0.024); sparkle(2.95, 0.02); sparkle(3.2, 0.016);
+    },
     // A soft riffle for any pile shuffle (same everywhere a shuffle happens).
     shuffle() { seq([[520, 0.05, 0, "triangle", 0.03], [430, 0.05, 0.04, "triangle", 0.03], [360, 0.06, 0.08, "triangle", 0.028], [300, 0.06, 0.12, "triangle", 0.024]]); },
     // A gentle rising whoosh when a fresh deal's cards are dealt out to piles.
@@ -18091,11 +18192,6 @@ const UIRenderer = (() => {
     run.bonusCoins = payout.total - payout.product;
     renderHud(board, payload.deck);
 
-    // DEAL CLEARED → the deck character does a little happy dance, then settles
-    // back to idle (the celebrate state auto-reverts after its hold). Win-only:
-    // a loss returns above, so reaching here always means a cleared deal.
-    DeckChar.react("celebrate");
-
     // CONTINUOUS map: a deal/boss node was just cleared. Mark it. Beating a
     // PHASE boss doesn't advance anything here — its edges already lead into the
     // next phase's openings, so the player just keeps travelling the one map
@@ -18105,11 +18201,20 @@ const UIRenderer = (() => {
     if (clearedNode) campaign.markNodeCleared(clearedNode.id);
     const runWon = !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
 
-    // WIN MUSIC fires HERE — the same synchronous frame as the celebrate dance
-    // above, not on the summary overlays (those appear only after the win
-    // cinematic's RUN_SUMMARY_DELAY_MS + any placement screen, which is where
-    // the audible lag came from). Deal win and run win each keep their jingle.
-    if (runWon) Sound.runClear(); else Sound.dealWon();
+    // DEAL CLEARED → happy dance + WIN MUSIC, both at the instant the FINAL
+    // CARD LANDS on its pile. The engine emits "resolved" then "won" in the
+    // same synchronous batch: the resolved handler QUEUES the winning draw's
+    // flight (flyCard → onArrive → land), while this handler runs immediately —
+    // so anything played here directly leads the visible landing by the whole
+    // flight. Queuing this step slots it right after that flight's arrival
+    // (and degrades to "immediately" under reduced motion, where the landing
+    // is synchronous). The jingles are long enough to carry through the win
+    // cinematic into the summary screen.
+    queueAnim((done) => {
+      DeckChar.react("celebrate");
+      if (runWon) Sound.runClear(); else Sound.dealWon();
+      done();
+    });
 
     if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared
