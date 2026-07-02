@@ -2280,6 +2280,12 @@
      proportions as the shelf — then .sd-obj scales it up. Detail-scoped, so the
      shelf tile is untouched. */
   .sd-obj.obj-pillar .cph-banner.pennant.big { height: 116px; width: auto; }
+  /* SAME collapse for the base plaque: .base-banner.big pins width to
+     min(100%,144px), but the shrink-to-fit .sd-obj takes ITS width from the
+     child, so 100% is circular and the plaque caves to a sliver. Give it a
+     DEFINITE height here (same fix as the pennant above); aspect-ratio then
+     derives a real width from it. Detail-scoped — the shelf tile is untouched. */
+  .sd-obj.obj-base .base-banner.plaque.big { height: 62px; width: auto; max-width: none; }
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(255,255,255,0.6); }
   .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
@@ -2417,7 +2423,11 @@
   }
   .pack-deck-btn:active { transform: scale(0.98); }
   .pack-deck-btn.hidden { display: none; }
-  .pack-item { position: relative; background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; }
+  /* Center each option's content: the cell flexes to 1fr but the sticker chip /
+     mini-card inside is a FIXED width, so without centering it hugs the cell's
+     left edge and the whole row reads shifted left. */
+  .pack-item { position: relative; background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation;
+    display: flex; justify-content: center; align-items: center; }
   .pack-item:active { transform: scale(0.95); }
   .pack-item.dim { opacity: 0.3; }
   .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
@@ -5075,7 +5085,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.73 · cute/playful sound overhaul + line-by-line coin tally";
+const APP_VERSION = "v3.74 · store detail fixes (base size, sticker-pack centering)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
