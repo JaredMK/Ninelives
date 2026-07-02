@@ -137,6 +137,11 @@ export function run() {
       // No fake forks AND no dominated branches — every fork is a real choice.
       r.ok(v.report.forks.length >= 1, "stage " + s + ": the map actually forks");
       r.ok(v.report.forks.every(f => f.verdict === "DISTINCT"), "stage " + s + ": every fork is DISTINCT (no fake, no dominated)");
+      // SUSTAINED PARALLEL RAILS: 2-3 route-carrying nodes on every body row.
+      const widths = v.report.widthPerRow;
+      let par = true;
+      for (let rr = 1; rr <= m.bossRow - 2; rr++) if (widths[rr] < 2 || widths[rr] > 3) par = false;
+      r.ok(par, "stage " + s + ": every body row runs 2-3 routes wide (" + widths.join(",") + ")");
       // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
       let swaps = 0;
       const rows = {};
