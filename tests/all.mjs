@@ -16,6 +16,7 @@ import { run as persistence } from "./persistence.test.mjs";
 import { run as expansion } from "./expansion.test.mjs";
 import { run as packs } from "./packs.test.mjs";
 import { run as packReplace } from "./pack-replace.test.mjs";
+import { run as jokerBlank } from "./joker-blank.test.mjs";
 import { run as redeal } from "./redeal.test.mjs";
 import { run as pillarFeedback } from "./pillar-feedback.test.mjs";
 import { run as wildPeel } from "./wild-peel.test.mjs";
@@ -47,6 +48,7 @@ const SUITES = [
   ["expansion", expansion],
   ["packs", packs],
   ["pack-replace", packReplace],
+  ["joker-blank", jokerBlank],
   ["redeal", redeal],
   ["pillar-feedback", pillarFeedback],
   ["wild-peel", wildPeel],

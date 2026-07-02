@@ -2467,6 +2467,15 @@
     font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
   }
   .mini-card.red { color: var(--card-red); }
+  /* Joker + Blank pack options: their own faces (a symbol + a name), distinct
+     from a rank/suit card so they read as special picks at a glance. */
+  .mini-card.mc-special { gap: 3px; }
+  .mini-card.mc-special .mcs-sym { font-size: 22px; line-height: 1; }
+  .mini-card.mc-special .mcs-lab { font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .mini-card.mc-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a); color: #7a5300;
+    border-color: #e6b74a; box-shadow: 0 0 8px rgba(230,183,74,0.5), var(--shadow); }
+  .mini-card.mc-blank { background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
+    color: #6a6076; border-color: #ccc2d6; }
   /* Balatro-style deck grid (modal): every stage card; faded = already drawn. */
   .deck-cards { display: grid; grid-template-columns: repeat(auto-fill, 52px);
     gap: 7px; justify-content: center; padding: 2px; }
@@ -5085,7 +5094,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.75 · removed Sinkhole base";
+const APP_VERSION = "v3.76 · card-pack options: Joker (always-correct + banks Same) & Blank (deck removal)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6238,6 +6247,14 @@ const DeckManager = (() => {
   //   heartsRemaining (one per Extra Heart) and tieSafe. These reset on every
   //   deal — so an Extra Heart spent mid-run "refreshes" next run.
   function toCard(card) {
+    // JOKER: a wild card that is ALWAYS a correct guess and banks a Same Charge
+    // on any guess (see engine.guess). value 0 so it triggers no rank effects;
+    // suit "★" renders a star. No stickers/behaviors.
+    if (card.joker) {
+      return { id: card.id, label: "★", value: 0, suit: "★", red: false, joker: true,
+        stickers: [], heartsRemaining: 0, tieSafe: false, wildSuit: false, revealNext: false,
+        suitGuards: {} };
+    }
     const r = RANKS.find(r => r.value === card.currentRank) || RANKS[0];
     const s = SUITS.find(s => s.symbol === card.suit) || SUITS[0];
     const stickers = card.stickers || [];
@@ -6355,6 +6372,8 @@ const DeckManager = (() => {
         cards.unshift(card);
         return card;
       },
+      // Inject an arbitrary card object as the next draw (QA — e.g. a Joker).
+      _setNextCard(card) { cards.unshift(card); return card; },
       _trimTo(n) { if (cards.length > n) cards.length = Math.max(0, n); return cards.length; },
       _drain() { const n = cards.length; cards.length = 0; return n; },
     };
@@ -7881,7 +7900,7 @@ const GameEngine = (() => {
     function logAction(title, lines) {
       if (run && run.log) run.log.push({ title, lines: Array.isArray(lines) ? lines.slice() : [] });
     }
-    const cardName = (c) => c ? (c.label + c.suit) : "?";
+    const cardName = (c) => !c ? "?" : c.joker ? "★ Joker" : (c.label + c.suit);
 
     /** Bury `count` cards from the deck's BOTTOM under pile `index` (hidden).
         Stops early if the deck empties. Returns how many were actually buried.
@@ -9239,6 +9258,8 @@ const GameEngine = (() => {
       // Tie-Safe Pillar on the column) lets that tie survive.
       const tieSafe = current.tieSafe || drawn.tieSafe || (pillar && pillar.effect === "columnTieSafe");
       if (isTie && tieSafe) correct = true;
+      // JOKER: never wrong — a correct guess for ANY call (higher / lower / same).
+      if (drawn.joker) correct = true;
       // Telemetry: a Tie-Safe STICKER turned a directional tie (would-die) into a
       // save (a same-guess tie survives without it, so only count directional).
       if (isTie && correct && guess !== "same" && (current.tieSafe || drawn.tieSafe)) recT("sticker", "tieSafe", "Tie-Safe", { saves: 1 });
@@ -9382,7 +9403,12 @@ const GameEngine = (() => {
         // (max 1; a Same at full charge does not stack a second), and (2) trigger
         // the equipped Same-Power on this pile's directly-linked piles. The
         // backstop above auto-spends the charge to save a pile from death.
-        if (guess === "same") {
+        if (drawn.joker) {
+          // JOKER banks a Same Charge on ANY guess (max 1, the backstop-save
+          // charge) but NEVER fires the equipped Same-Power — it only banks.
+          sameCharge = true;
+          emit("same-banked", { index, board, deck, run, sameCharge });
+        } else if (guess === "same") {
           sameCharge = true;
           fireSamePower(index);
           emit("same-banked", { index, board, deck, run, sameCharge });
@@ -9526,6 +9552,10 @@ const GameEngine = (() => {
       // Force the next drawn card to be a given rank value (2..14).
       setNextCard(value) {
         return (deck && status === "playing") ? deck._setNext(value) : null;
+      },
+      // Force the next draw to be a raw card object (QA — e.g. a Joker).
+      setNextCardObj(card) {
+        return (deck && status === "playing") ? deck._setNextCard(card) : null;
       },
       // Set the equipped Same-Power for THIS deal live (debug/QA only — normal
       // play snapshots it from runConfig at deal start).
@@ -10407,7 +10437,7 @@ const CampaignState = (() => {
       composition() {
         const counts = {};
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
-        for (const c of baseDeck) counts[c.currentRank]++;
+        for (const c of baseDeck) if (counts[c.currentRank] != null) counts[c.currentRank]++;   // skip rankless Jokers
         return counts;
       },
 
@@ -10418,7 +10448,7 @@ const CampaignState = (() => {
         const active = new Set(ownedIds);
         const counts = {};
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
-        for (const c of baseDeck) if (active.has(c.id)) counts[c.currentRank]++;
+        for (const c of baseDeck) if (active.has(c.id) && counts[c.currentRank] != null) counts[c.currentRank]++;   // skip rankless Jokers
         return counts;
       },
 
@@ -10957,6 +10987,18 @@ const CampaignState = (() => {
           locked and applied to the card (rank/suit stickers mutate it; Change-
           Suit Random stays in-play). */
       genPackCard(rng = Math.random) {
+        // SPECIAL PACK OPTIONS — Joker + Blank. Each appears at HALF a normal
+        // rank's frequency: the roll space is the 13 ranks (weight 1 each) PLUS
+        // Joker (0.5) + Blank (0.5), so P(a given rank) = 1/14 and P(Joker) =
+        // P(Blank) = 0.5/14. A slot is "special" with probability 1/14; inside
+        // that it's a 50/50 Joker or Blank.
+        const RANK_COUNT = MAX_RANK - MIN_RANK + 1;   // 13
+        if (rng() < 1 / (RANK_COUNT + 1)) {
+          const isJoker = rng() < 0.5;
+          return isJoker
+            ? { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 }
+            : { id: nextCardId++, blank: true, suit: "∅", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+        }
         const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
         const suit = suits[Math.floor(rng() * suits.length)];
         const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
@@ -11087,7 +11129,14 @@ const CampaignState = (() => {
         if (trayIndex < 0 || trayIndex >= packTray.length) return null;
         const packCard = packTray.splice(trayIndex, 1)[0];
         baseDeck.splice(di, 1);          // remove the replaced identity (+ its stickers) forever
-        baseDeck.push(packCard);         // deck stays 52
+        // BLANK: a removal tool — it swaps in over the chosen card, then removes
+        // itself, so the deck permanently SHRINKS by one (nothing is added).
+        if (packCard.blank) {
+          const oiB = ownedIds.indexOf(dealtId);
+          if (oiB !== -1) ownedIds.splice(oiB, 1);   // the deck loses the chosen card, gains nothing
+          return packCard;
+        }
+        baseDeck.push(packCard);         // normal pick: deck size unchanged
         // BUGFIX (#1): the OWNED set (which drives both deckSize and the deck VIEW
         // via getRunDeck) must follow the swap too — replace the removed id with the
         // new card's id IN PLACE. Otherwise the count (ownedIds.length) stays right
@@ -13135,7 +13184,7 @@ const UIRenderer = (() => {
   }
   function invPackChipHtml(card, i, sel, withSwap) {
     return '<button type="button" class="pt-card' + (sel ? " armed" : "") + '" data-tray="' + i + '">' +
-      miniCardHtml(card) + (withSwap ? '<div class="pt-label">swap</div>' : "") + "</button>";
+      miniCardHtml(card) + (withSwap ? '<div class="pt-label">' + (card.blank ? "remove" : "swap") + '</div>' : "") + "</button>";
   }
 
   /* ---- in-run sticker application ----
@@ -18873,6 +18922,9 @@ const UIRenderer = (() => {
     return r ? r.label : String(v);
   }
   function miniCardHtml(card) {
+    // Joker / Blank pack options render as their own faces (no rank/suit).
+    if (card.joker) return '<div class="mini-card mc-special mc-joker"><span class="mcs-sym">★</span><span class="mcs-lab">Joker</span></div>';
+    if (card.blank) return '<div class="mini-card mc-special mc-blank"><span class="mcs-sym">∅</span><span class="mcs-lab">Blank</span></div>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? stickerChip(st.type, { seed: "mc" }) : ""; }).join("");
     return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
@@ -19107,6 +19159,8 @@ const UIRenderer = (() => {
   function packItemInfoHtml(st, i) {
     if (st.kind === "card") {
       const c = st.items[i];
+      if (c.joker) return { title: "★ Joker", body: "A wild card. When it's drawn and placed on a pile it counts as a CORRECT guess for ANY call — higher, lower, or same — so it can never be wrong. It also banks 1 Same Charge (the backstop save) on any guess. It does not fire your equipped Same-Power." };
+      if (c.blank) return { title: "∅ Blank", body: "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck." };
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];
       const body = stk.length === 0
@@ -19152,12 +19206,19 @@ const UIRenderer = (() => {
     const top = engine.getBoard().top(pileIndex);
     if (!top) return;
     const dealtName = top.label + top.suit;
-    const packName = miniRankLabel(campaign.getPackTray()[armedPack]) + campaign.getPackTray()[armedPack].suit;
+    const trayCard = campaign.getPackTray()[armedPack];
     const nSt = (top.stickers || []).length;
     packReplaceState = { pileIndex, dealtId: top.id, trayIndex: armedPack };
-    el.packReplaceMsg.innerHTML =
-      "Permanently swap <b>" + escHtml(dealtName) + "</b> for <b>" + escHtml(packName) + "</b> in your deck?" +
-      (nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "");
+    const stickerWarn = nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "";
+    if (trayCard.blank) {
+      // BLANK is a removal — it takes the card OUT and adds nothing (deck −1).
+      el.packReplaceMsg.innerHTML =
+        "Permanently REMOVE <b>" + escHtml(dealtName) + "</b> from your deck? Your deck shrinks by one card." + stickerWarn;
+    } else {
+      const packName = trayCard.joker ? "★ Joker" : (miniRankLabel(trayCard) + trayCard.suit);
+      el.packReplaceMsg.innerHTML =
+        "Permanently swap <b>" + escHtml(dealtName) + "</b> for <b>" + escHtml(packName) + "</b> in your deck?" + stickerWarn;
+    }
     el.packReplaceConfirm.classList.remove("hidden");
   }
   function closePackReplace() { packReplaceState = null; el.packReplaceConfirm.classList.add("hidden"); }
@@ -19170,9 +19231,22 @@ const UIRenderer = (() => {
     // Source rect: the armed pack-tray chip (captured before the tray re-renders).
     const chip = el.packTrayEl && el.packTrayEl.querySelector('[data-tray="' + st.trayIndex + '"]');
     const fromRect = chip ? chip.getBoundingClientRect() : null;
+    const wasBlank = (campaign.getPackTray()[st.trayIndex] || {}).blank;
     const packCard = campaign.replaceDeckCard(st.dealtId, st.trayIndex);
     closePackReplace();
     if (!packCard) return;
+    // BLANK: the card was removed from the deck (deck −1) and nothing takes its
+    // place — no live-board mirror (a Blank has no playable form). The current
+    // deal keeps this pile's card for now; it's gone from every future deal.
+    if (wasBlank) {
+      if (pileEls[st.pileIndex]) floatChip(pileEls[st.pileIndex], "Removed −1", "save-float");
+      if (engine) engine.logAction("Blank removed a card from the deck (pile " + (st.pileIndex + 1) + ")");
+      Sound.pack();
+      appliedThisPhase = true; armedPack = null;
+      el.board.classList.toggle("arming", !!armedSticker);
+      renderSetupInv(); renderDeckStrip(); persistCampaign("run");
+      return;
+    }
     // Mirror onto the live board so THIS run uses the new card.
     const top = engine.getBoard().top(st.pileIndex);
     if (top) {

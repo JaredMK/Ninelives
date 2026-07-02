@@ -41,10 +41,11 @@ export function run() {
     const cards = c.revealPack("cardPack", rngFrom(1));
     r.eq(cards.length, 5, "the card pack reveals 5 cards");
     const okShape = cards.every(card =>
-      card.currentRank >= 2 && card.currentRank <= 14 &&
+      (card.joker || card.blank) ||    // special options carry no rank/suit
+      (card.currentRank >= 2 && card.currentRank <= 14 &&
       inPlay.has(card.suit) && card.id >= 52 &&
-      Array.isArray(card.modifications) && Array.isArray(card.stickers) && card.compoundHits === 0);
-    r.ok(okShape, "every revealed card: rank 2–A, in-play suit, fresh id ≥52, proper shape");
+      Array.isArray(card.modifications) && Array.isArray(card.stickers) && card.compoundHits === 0));
+    r.ok(okShape, "every revealed card: rank 2–A, in-play suit, fresh id ≥52, proper shape (Jokers/Blanks exempt)");
     const ids = cards.map(c2 => c2.id);
     r.eq(new Set(ids).size, 5, "revealed card ids are unique");
     r.ok(cards.every(card => card.stickers.every(s => stickerIds.has(s.type))),
@@ -70,9 +71,12 @@ export function run() {
     const rng = rngFrom(7);
     let withAny = 0, withTwo = 0, withThree = 0;
     const N = 8000;
+    let normal = 0, specials = 0;
     let allInPlay = true, allValidRank = true, allStickersReal = true;
     for (let i = 0; i < N; i++) {
       const card = c.genPackCard(rng);
+      if (card.joker || card.blank) { specials++; continue; }    // special options (no rank/suit/stickers)
+      normal++;
       if (!inPlay.has(card.suit)) allInPlay = false;             // includes post-Change-Suit-Random
       if (!(card.currentRank >= 2 && card.currentRank <= 14)) allValidRank = false;
       if (!card.stickers.every(s => stickerIds.has(s.type))) allStickersReal = false;
@@ -80,13 +84,17 @@ export function run() {
       if (card.stickers.length >= 2) withTwo++;
       if (card.stickers.length >= 3) withThree++;
     }
+    // Joker + Blank each appear at HALF a rank's frequency → P(special) = 1/14
+    // (Joker or Blank), so ≈7% of options are special.
+    const pSpecial = specials / N;
+    r.ok(pSpecial > 0.045 && pSpecial < 0.10, "≈7% of options are Joker/Blank (got " + pSpecial.toFixed(3) + ")");
     r.ok(allInPlay, "generated card suits stay in-play (Change-Suit Random respects in-play suits)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");
     // New odds: 33% one / 11% two / 3% three / 1% four → ≈48% ≥1, ≈15% ≥2, ≈4% ≥3.
     // (A rank sticker that lands on an at-boundary card doesn't attach, so observed
     //  rates run a touch under nominal; bounds are kept generous for that.)
-    const pAny = withAny / N, pTwo = withTwo / N, pThree = withThree / N;
+    const pAny = withAny / normal, pTwo = withTwo / normal, pThree = withThree / normal;
     r.ok(pAny > 0.42 && pAny < 0.53, "≈48% of cards carry ≥1 sticker (got " + pAny.toFixed(3) + ")");
     r.ok(pTwo > 0.10 && pTwo < 0.19, "≈15% of cards carry ≥2 stickers (got " + pTwo.toFixed(3) + ")");
     r.ok(pThree > 0.015 && pThree < 0.065, "≈4% of cards carry ≥3 stickers (got " + pThree.toFixed(3) + ")");
@@ -99,7 +107,7 @@ export function run() {
     r.eq(c.currentStage, 2, "advanced to Stage 2");
     const ok = ["♦", "♥", "♣"];
     const cards = c.revealPack("cardPack", rngFrom(9));
-    r.ok(cards.every(card => ok.includes(card.suit)), "Stage-2 pack cards never roll ♠ (not in play yet)");
+    r.ok(cards.every(card => (card.joker || card.blank) || ok.includes(card.suit)), "Stage-2 pack cards never roll ♠ (not in play yet)");
   }
 
   // --- Pending tray: UNLIMITED (cap removed), discard, take -------------
@@ -237,6 +245,7 @@ export function run() {
       let cardsOk = true, cardStickersOk = true, packStickersOk = true;
       for (let i = 0; i < 200; i++) {
         const card = fresh.genPackCard(rngFrom(1000 + i));
+        if (card.joker || card.blank) continue;                 // special options carry no suit
         if (!allowed.has(card.suit)) cardsOk = false;
         if (!card.stickers.every(s => { const t = StickerTypes.get(s.type); return !t.suit || allowed.has(t.suit); })) cardStickersOk = false;
       }
