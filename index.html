@@ -568,13 +568,9 @@
      reactions below (later rules win, so a happy pop still overrides anxious
      eyes for its moment). One state machine (CharMood in the script) stamps the
      same mood-* classes on BOTH characters (deck slot + map avatar).
+     The character has NO MOUTH — every emotion reads through the EYES (lids,
+     pupil shape/size/direction, highlight) and BODY (bounce, slump, tilt).
      Transform/opacity only — WebView-safe. */
-  /* Small MOUTH: an arc that flips smile/frown per mood; hidden when neutral so
-     the resting face stays exactly as it was. */
-  .dc-mouth { position: absolute; left: 50%; top: 39%; width: 22%; max-width: 9px; height: 5px;
-    border: 1.5px solid transparent; border-bottom-color: rgba(36,28,40,0.85); border-radius: 50%;
-    transform: translateX(-50%); opacity: 0; pointer-events: none;
-    transition: opacity 0.35s ease, transform 0.35s ease; }
   /* DIRT: 2-3 soft smudges + a diagonal scuff on the body, opacity driven by
      --grime (full when anxious/lost far from mama, fading each stage, gone on
      the win). Background-only pseudo layer; face/count paint above it. */
@@ -593,36 +589,32 @@
   .dc-tear { position: absolute; left: 31%; top: 33%; width: 3px; height: 5px;
     border-radius: 45% 45% 55% 55%; background: rgba(130,190,225,0.92);
     opacity: 0; pointer-events: none; }
-  /* ANXIOUS (run start / ♦): droopy flat-topped eyes glancing a touch down,
-     an occasional small dart left/right, downturned mouth, crooked lid, dirty. */
+  /* ANXIOUS (run start / ♦): droopy upper lids over flat-topped pupils glancing
+     a touch down, an occasional small dart left/right, crooked lid, dirty. */
   .deck-char.mood-anxious { --grime: 0.15; }
   .deck-char.mood-anxious .dc-lid { transform: rotate(-2.5deg) translateY(0.5px); }
   .deck-char.mood-anxious .dc-pupil { height: 68%; border-radius: 30% 30% 50% 50%; transform: translateY(1px); }
-  .deck-char.mood-anxious .dc-mouth { opacity: 0.7; transform: translateX(-50%) rotate(180deg) scale(0.85); }
   .deck-char.mood-anxious .dc-face { animation: moodDart 7s ease-in-out infinite; }
   @keyframes moodDart {
     0%, 76%, 100% { transform: translateX(0); }
     80%, 84%      { transform: translateX(-1.3px); }   /* a nervous glance left… */
     89%, 93%      { transform: translateX(1.1px); }    /* …then right, then settle */
   }
-  /* HOPEFUL (♣): dirt fading, a hint of a smile — getting closer to mama. */
+  /* HOPEFUL (♣): dirt fading, eyes lift and open a touch — getting closer to mama. */
   .deck-char.mood-hopeful { --grime: 0.08; }
-  .deck-char.mood-hopeful .dc-mouth { opacity: 0.45; transform: translateX(-50%) scale(0.8); }
-  /* BRIGHT (♠): wide sparkling eyes, upturned mouth, dirt nearly gone. */
+  .deck-char.mood-hopeful .dc-pupil { transform: translateY(-0.3px) scale(1.06); }
+  /* BRIGHT (♠): wide sparkling eyes looking up, dirt nearly gone. */
   .deck-char.mood-bright { --grime: 0.035; }
-  .deck-char.mood-bright .dc-pupil { transform: scale(1.14); }
+  .deck-char.mood-bright .dc-pupil { transform: translateY(-0.5px) scale(1.14); }
   .deck-char.mood-bright .dc-pupil::after { width: 44%; height: 34%; }
-  .deck-char.mood-bright .dc-mouth { opacity: 0.8; }
-  /* WIN: clean at last — big smile, sparkle eyes (a second glint). The dance
-     itself is the transient celebrate animation. */
+  /* WIN: clean at last — arced happy squint + sparkle eyes (a second glint).
+     The dance itself is the transient celebrate animation. */
   .deck-char.mood-win { --grime: 0; }
   .deck-char.mood-win .dc-pupil { transform: translateY(-0.5px) scale(1.2, 1.5); border-radius: 50% 50% 46% 46%; }
   .deck-char.mood-win .dc-pupil::after { width: 46%; height: 36%; box-shadow: 2.5px 3.5px 0 -1px rgba(255,255,255,0.85); }
-  .deck-char.mood-win .dc-mouth { opacity: 0.95; transform: translateX(-50%) scale(1.4); border-bottom-width: 2px; }
   /* LOSS: eyes close, one small tear, a slow gentle slump. Brief, not cruel. */
   .deck-char.mood-loss .dc-pupil { transform: scaleY(0.14) !important; }
   .deck-char.mood-loss .dc-pupil::after { opacity: 0; }
-  .deck-char.mood-loss .dc-mouth { opacity: 0.6; transform: translateX(-50%) rotate(180deg) scale(0.75); }
   .deck-char.mood-loss .dc-body { animation: none; transform: translateY(3px) rotate(-1.5deg);
     transition: transform 1.4s cubic-bezier(0.33, 0, 0.45, 1); }
   .deck-char.mood-loss .dc-tear { animation: moodTear 2.6s ease-in 0.35s forwards; }
@@ -641,6 +633,25 @@
     35%  { transform: translateY(-4px) scale(0.95, 1.08); }
     70%  { transform: translateY(0) scale(1.04, 0.95); }
     100% { transform: translateY(0) scale(1, 1); }
+  }
+  /* PERK (deck select): the highlighted deck's character perks up — eyes widen
+     (sticky while highlighted) with a single small bounce on arrival. */
+  .deck-char.dc-perk .dc-pupil { transform: scale(1.16); }
+  .deck-char.dc-perk .dc-pupil::after { width: 42%; height: 33%; }
+  .deck-char.dc-perk .dc-body { animation: dcPerk 0.45s cubic-bezier(0.3, 0.7, 0.4, 1.15); }
+  @keyframes dcPerk {
+    0%   { transform: translateY(0) scale(1, 1); }
+    38%  { transform: translateY(-3px) scale(0.96, 1.06); }
+    72%  { transform: translateY(0) scale(1.03, 0.96); }
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+  /* Neutral-curious idle for the deck-select render: an occasional ambient
+     blink (CSS-only — these carousel characters have no JS blink loop).
+     Explicit open-eye holds bracket the squash so nothing drifts between. */
+  .ds-deckchar .deck-char:not(.dc-perk) .dc-pupil { animation: dsIdleBlink 6.2s linear infinite; }
+  @keyframes dsIdleBlink {
+    0%, 90%, 96%, 100% { transform: scaleY(1); }
+    92%, 94%           { transform: scaleY(0.12); }
   }
   /* LOOKING: alert — slightly bigger pupils with a tiny living micro-pulse (the
      glance translate is on .dc-eye, the body lean on .deck-char, both via JS). */
@@ -710,9 +721,10 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .dc-body, .deck-char.dc-happy .dc-body, .deck-char.dc-celebrate .dc-body, .deck-char.dc-sad .dc-body, .deck-char.dc-arrive .dc-body,
-    .deck-char.dc-glad .dc-body, .deck-char.dc-looking .dc-pupil,
+    .deck-char.dc-glad .dc-body, .deck-char.dc-perk .dc-body, .deck-char.dc-looking .dc-pupil,
+    .ds-deckchar .deck-char:not(.dc-perk) .dc-pupil,
     .deck-char.mood-anxious .dc-face, .deck-char.mood-loss .dc-tear { animation: none; }
-    .deck-char, .dc-eye, .dc-pupil, .dc-mouth, .dc-body::before, .deck-char.mood-loss .dc-body { transition: none; }
+    .deck-char, .dc-eye, .dc-pupil, .dc-body::before, .deck-char.mood-loss .dc-body { transition: none; }
     .deck-char.mood-loss .dc-tear { opacity: 0.9; }   /* static tear, no slide */
   }
 
@@ -4185,11 +4197,7 @@
   /* ── EMOTIONAL BASE (CharMood) at avatar scale — the SAME mood-* classes the
      deck-slot character gets, sized to read at 38×40px. Placed BEFORE the
      transient blink/mood-happy/mood-worried rules so those still win their
-     moment. Transform/opacity only. */
-  .av-mouth { position: absolute; left: 50%; top: 29px; width: 9px; height: 4px;
-    border: 1.5px solid transparent; border-bottom-color: rgba(36,28,40,0.85); border-radius: 50%;
-    transform: translateX(-50%); opacity: 0; pointer-events: none;
-    transition: opacity 0.35s ease, transform 0.35s ease; }
+     moment. No mouth — eyes + body only. Transform/opacity only. */
   /* Dirt smudges + scuff, fading via --grime as he gets closer to mama. */
   .map-avatar { --grime: 0; }
   .av-body::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
@@ -4205,27 +4213,25 @@
   .av-tear { position: absolute; left: 12px; top: 23px; width: 3px; height: 5px;
     border-radius: 45% 45% 55% 55%; background: rgba(130,190,225,0.92);
     opacity: 0; pointer-events: none; }
-  /* ANXIOUS (run start / ♦): droopy eyes, nervous darting glances, small frown,
+  /* ANXIOUS (run start / ♦): droopy upper lids, nervous darting glances,
      crooked lid, dirty body. */
   .map-avatar.mood-anxious { --grime: 0.15; }
   .map-avatar.mood-anxious .av-lid { transform: rotate(-2.5deg) translateY(0.5px); }
   .map-avatar.mood-anxious .av-eye { height: 6.5px; border-radius: 30% 30% 50% 50%; transform: translateY(1px); }
-  .map-avatar.mood-anxious .av-mouth { opacity: 0.7; transform: translateX(-50%) rotate(180deg) scale(0.85); }
   .map-avatar.mood-anxious .av-face { animation: moodDart 7s ease-in-out infinite; }
-  /* HOPEFUL (♣): dirt fading, the ghost of a smile. */
+  /* HOPEFUL (♣): dirt fading, eyes lift and open a touch. */
   .map-avatar.mood-hopeful { --grime: 0.08; }
-  .map-avatar.mood-hopeful .av-mouth { opacity: 0.45; transform: translateX(-50%) scale(0.8); }
-  /* BRIGHT (♠): wide sparkly eyes, upturned mouth, dirt nearly gone. */
+  .map-avatar.mood-hopeful .av-eye { width: 7.5px; height: 9.5px; transform: translateY(-0.5px); }
+  /* BRIGHT (♠): wide sparkly eyes, dirt nearly gone. */
   .map-avatar.mood-bright { --grime: 0.035; }
-  .map-avatar.mood-bright .av-eye { width: 8px; height: 10px; }
+  .map-avatar.mood-bright .av-eye { width: 8px; height: 10px; transform: translateY(-1px); }
   .map-avatar.mood-bright .av-eye::after { width: 3px; height: 3px; }
-  .map-avatar.mood-bright .av-mouth { opacity: 0.8; }
-  /* WIN: clean, big smile, sparkle eyes + a one-shot happy dance. */
+  /* WIN: clean — arced sparkle eyes + a one-shot happy dance. */
   .map-avatar.mood-win { --grime: 0; }
-  .map-avatar.mood-win .av-eye { width: 8px; height: 11px; transform: translateY(-1px); }
+  .map-avatar.mood-win .av-eye { width: 8px; height: 11px; transform: translateY(-1px);
+    border-radius: 50% 50% 42% 42%; }
   .map-avatar.mood-win .av-eye::after { width: 3px; height: 3px;
     box-shadow: 2px 3.5px 0 -0.5px rgba(255,255,255,0.85); }
-  .map-avatar.mood-win .av-mouth { opacity: 0.95; transform: translateX(-50%) scale(1.35); border-bottom-width: 2px; }
   .map-avatar.mood-win .av-body { animation: avDance 1.4s cubic-bezier(0.28, 0.7, 0.4, 1.2); }
   @keyframes avDance {
     0%   { transform: translateY(0) rotate(0deg) scale(1, 1); }
@@ -4240,7 +4246,6 @@
   /* LOSS: eyes close, one tear, a slow gentle slump. */
   .map-avatar.mood-loss .av-eye { height: 1.5px; transform: none; }
   .map-avatar.mood-loss .av-eye::after { opacity: 0; }
-  .map-avatar.mood-loss .av-mouth { opacity: 0.6; transform: translateX(-50%) rotate(180deg) scale(0.75); }
   .map-avatar.mood-loss .av-body { animation: none; transform: translateY(3px) rotate(-1.5deg);
     transition: transform 1.4s cubic-bezier(0.33, 0, 0.45, 1); }
   .map-avatar.mood-loss .av-tear { animation: moodTear 2.6s ease-in 0.35s forwards; }
@@ -4275,7 +4280,7 @@
     /* Mood layer: static expressions only — no dart, no dance, no sliding tear. */
     .map-avatar.mood-anxious .av-face, .map-avatar.mood-win .av-body,
     .map-avatar.mood-loss .av-tear { animation: none; }
-    .av-mouth, .av-body::before, .map-avatar.mood-loss .av-body { transition: none; }
+    .av-body::before, .map-avatar.mood-loss .av-body { transition: none; }
     .map-avatar.mood-loss .av-tear { opacity: 0.9; }   /* static tear, no slide */
   }
 
@@ -4617,7 +4622,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-mouth"></span><span class="dc-tear"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-tear"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -5241,7 +5246,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.78 · character emotional-state system (CharMood)";
+const APP_VERSION = "v3.79 · character moods: eyes-only (no mouth) + deck-select perk";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12794,13 +12799,14 @@ const UIRenderer = (() => {
   })();
 
   /* ── EMOTIONAL BASE (CharMood) — ONE persistent mood machine for the character
-     everywhere it appears (deck-slot char AND map avatar). Where DeckChar above
-     handles brief transient REACTIONS (a happy pop, a sad slump), CharMood is the
-     slow arc UNDERNEATH them: how the little box feels about the journey home.
+     everywhere it appears (deck select, map avatar, deal screen, store). Where
+     DeckChar above handles brief transient REACTIONS (a happy pop, a sad slump),
+     CharMood is the slow arc UNDERNEATH them: how the little box feels about the
+     journey home. No mouth — every state is eyes + body language.
        anxious (run start / ♦)  → hopeful (♣) → bright (♠) — dirt fading each
-       stage as he gets closer to mama — then win (clean, beaming) or loss
+       stage as he gets closer to mama — then win (clean, sparkling) or loss
        (eyes closed, one small tear).
-     It only stamps `mood-*` classes (and the CSS drives everything via
+     It only stamps `mood-*`/`dc-perk` classes (and the CSS drives everything via
      transform/opacity), so transient reactions still win their moment — the CSS
      mood rules sit BEFORE the reaction rules on purpose. Presentation only. */
   const CharMood = (() => {
@@ -12819,7 +12825,7 @@ const UIRenderer = (() => {
     return {
       /** Stage arc: ♦ (phase 0) anxious+lost, ♣ neutral-hopeful, ♠ bright. */
       setStage(phaseIdx) { set(phaseIdx >= 2 ? "mood-bright" : phaseIdx === 1 ? "mood-hopeful" : "mood-anxious"); },
-      /** Run won — clean at last, big smile, sparkle eyes. */
+      /** Run won — clean at last, arced sparkle eyes. */
       win() { set("mood-win"); },
       /** Run lost — eyes close, one small tear, a gentle slump. */
       loss() { set("mood-loss"); },
@@ -12827,6 +12833,12 @@ const UIRenderer = (() => {
       reset() { set(""); },
       /** Re-stamp the current mood (call after (re)building either character). */
       apply,
+      /** DECK SELECT: perk up the highlighted deck's character (wider eyes stick
+          while highlighted; the bounce replays on each arrival) and settle any
+          that lost the highlight. Takes the panel characters since the carousel
+          renders its own copies (they carry no persistent mood). */
+      perk(n) { if (!n) return; n.classList.remove("dc-perk"); void n.offsetWidth; n.classList.add("dc-perk"); },
+      unperk(n) { if (n) n.classList.remove("dc-perk"); },
     };
   })();
 
@@ -14669,6 +14681,7 @@ const UIRenderer = (() => {
       const i = Math.round(el.dsCarousel.scrollLeft / w);
       const dots = el.dsDots.children;
       for (let k = 0; k < dots.length; k++) dots[k].classList.toggle("on", k === i);
+      perkDeckPanel(i);   // the newly highlighted deck's character perks up
     }, { passive: true });
     if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
 
@@ -16493,8 +16506,23 @@ const UIRenderer = (() => {
     '<span class="dc-body"><span class="dc-lid"></span>' +
     '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
     '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
-    '<span class="dc-mouth"></span><span class="dc-tear"></span></span>';
+    '<span class="dc-tear"></span></span>';
   let deckSelectReturn = null;   // how the Back button returns (to the right menu)
+  let dsPerkIndex = -1;          // which carousel panel's character is perked
+
+  /* DECK SELECT: the highlighted panel's character perks up (wider eyes + one
+     small bounce, via CharMood). Locked decks stay dim under their padlock —
+     only a playable character reacts. De-duped so scroll spam can't re-bounce. */
+  function perkDeckPanel(i) {
+    if (i === dsPerkIndex) return;
+    dsPerkIndex = i;
+    const panels = el.dsCarousel ? el.dsCarousel.children : [];
+    for (let k = 0; k < panels.length; k++) {
+      const ch = panels[k].querySelector(".deck-char");
+      if (k === i && !panels[k].classList.contains("locked")) CharMood.perk(ch);
+      else CharMood.unperk(ch);
+    }
+  }
 
   /* The new-run deck picker: a swipeable carousel of decks. The unlocked Pink
      Deck has a Start Run; locked decks are greyed with their unlock note.
@@ -16518,6 +16546,8 @@ const UIRenderer = (() => {
     el.dsDots.innerHTML = DECKS.map((d, i) =>
       '<span class="ds-dot' + (i === 0 ? " on" : "") + (d.unlocked ? "" : " locked-dot") + '"></span>').join("");
     el.dsCarousel.scrollLeft = 0;
+    dsPerkIndex = -1;
+    perkDeckPanel(0);   // the first (pink) deck opens highlighted → it perks up
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
   }
@@ -18415,7 +18445,7 @@ const UIRenderer = (() => {
       '<div class="av-shift">' +
         '<div class="av-body"><span class="av-lid"></span>' +
           '<span class="av-face"><span class="av-eye l"></span><span class="av-eye r"></span></span>' +
-          '<span class="av-mouth"></span><span class="av-tear"></span></div>' +
+          '<span class="av-tear"></span></div>' +
         '<span class="av-badge"><b>0</b></span>' +
       '</div>';
     mapAvatarEl = a;
@@ -18786,7 +18816,6 @@ const UIRenderer = (() => {
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
         '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
-        '<span class="dc-mouth"></span>' +
         '<span class="deck-count"><b>' + flyCount + '</b></span></span>';   // the count rides with the jumping character
       // Reuse the board flyCard arc; a strong lift sells the "jump".
       flyCard(fly, fromRect, toRect, {
