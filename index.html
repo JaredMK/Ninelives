@@ -5085,7 +5085,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.74 · store detail fixes (base size, sticker-pack centering)";
+const APP_VERSION = "v3.75 · removed Sinkhole base";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -5942,11 +5942,6 @@ const BaseTypes = (() => {
       kind: "active", effect: "evenOut", tier: "common", price: 9,
       description: "Trigger: Activated, once per deal\nEffect: Distribute the piles in this column that hold ♦ cards (top card or buried) so they end up the same pile size (composition only — nothing revealed)",
     },
-    buryLargest: {
-      id: "buryLargest", label: "Sinkhole", icon: "🕳️",
-      kind: "active", effect: "buryLargest", tier: "common", price: 7,
-      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under the largest pile in this column",
-    },
     buryAll: {
       // Clubs bury: bury 2 deck cards under each alive pile whose TOP card is a ♣
       // (a Wild Suit top counts), then lose 3 coins for every card buried.
@@ -6010,7 +6005,7 @@ const BaseTypes = (() => {
   // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
   // override), so the whole class shares one distinct visual style.
   const ORDER = ["kamikaze", "spadePeek", "shuffleColumn", "revive", "randomSticker",
-    "evenOut", "buryLargest", "buryAll", "setValue", "setSuit",
+    "evenOut", "buryAll", "setValue", "setSuit",
     "stickerHarvest", "refreshBases",
     "clubDig", "demolish", "heartDemolish", "tax"];
   return {
@@ -8378,7 +8373,6 @@ const GameEngine = (() => {
         case "reviveBase":       return colDeadPiles(col).length > 0;
         case "randomSticker":    return alive.length > 0;
         case "evenOut":          return diamondPiles.length >= 2;
-        case "buryLargest":      return alive.length > 0 && !deck.isEmpty();
         case "buryAll":          return !deck.isEmpty() && alive.some(i => topIsSuit(i, "♣"));
         case "setValue":         return alive.length > 0;
         case "setSuit":          return alive.length > 0;
@@ -8547,14 +8541,6 @@ const GameEngine = (() => {
           logLine("evened out the ♦ piles: " + moves + " buried cards moved (hidden)");
           break;
         }
-        case "buryLargest": {
-          const alive = colAlivePiles(col);
-          let big = alive[0];
-          for (const i of alive) if (board.pileSize(i) > board.pileSize(big)) big = i;
-          buryTribute(big, 1, base.label);
-          res.index = big;
-          break;
-        }
         case "buryAll": {
           // Bury digCount cards under each alive pile whose TOP is a ♣ (Wild Suit
           // top counts); lose 3 coins per CARD buried.
@@ -8707,7 +8693,6 @@ const GameEngine = (() => {
         if (res.coins > 0) imp.coins = res.coins;
         if (res.coins < 0) imp.coinsLost = -res.coins;
         let bd = (typeof res.buried === "number" ? res.buried : 0) + (typeof res.harvested === "number" ? res.harvested : 0);
-        if (base.effect === "buryLargest") bd += 1;
         if (bd) imp.buried = bd;
         if (res.shuffled) imp.shuffled = res.shuffled;
         if (res.moves) imp.moved = res.moves;
@@ -15109,7 +15094,7 @@ const UIRenderer = (() => {
         // (1) Always pulse the fired Base's banner + float its net coin delta —
         //     this also draws the eye to the now-spent banner.
         flashBase(payload.col, payload.coins || 0);
-        // (2) Effect-specific cues. Bury effects (suitDig / buryLargest / buryAll /
+        // (2) Effect-specific cues. Bury effects (suitDig / buryAll /
         //     stickerHarvest) already animate via the "buried" event; Kamikaze
         //     played the death animation above; Demolish removed the Pillar banner
         //     (+ the coin float from flashBase); Reactor's re-armed banners + Suit
@@ -17191,7 +17176,7 @@ const UIRenderer = (() => {
      filled WHITE symbol distinguishes the specific base (suit Digs add a ×N
      strength count). Rarity is re-homed to a small store-only gem strip — bar
      colour no longer carries rarity. Categorisation (base → family → colour):
-       DIG/bury  (green):  heart/diamond/spade/club Dig, Sinkhole, Landslide, Sticker Harvest
+       DIG/bury  (green):  heart/diamond/spade/club Dig, Landslide, Sticker Harvest
        DESTROY   (red):    Kamikaze, Demolish
        COINS     (gold):   Suit Tally, Tax
        UTILITY   (purple): Upheaval, Phoenix, Wild Sticker, Sticker Storm, Ballast,
@@ -17199,7 +17184,7 @@ const UIRenderer = (() => {
        PEEK/reveal (blue): reserved — no base is primarily peek today. */
   const BASE_FAMILY = {
     clubDig: "dig",
-    buryLargest: "dig", buryAll: "dig", stickerHarvest: "dig",
+    buryAll: "dig", stickerHarvest: "dig",
     kamikaze: "destroy", demolish: "destroy", heartDemolish: "destroy",
     tax: "coins",
     spadePeek: "peek",
@@ -17212,7 +17197,6 @@ const UIRenderer = (() => {
   // Dark detail uses a translucent black so it reads on any family colour.
   const DK = 'fill="rgba(0,0,0,0.34)"', DKS = 'stroke="rgba(0,0,0,0.32)"';
   const BASE_SYM = {
-    buryLargest: '<path d="M9 3h6v8.4h4.2L12 20 4.8 11.4H9z"/>',
     buryAll: '<path d="M9 2.4h6v7.2h4L12 17 5 9.6h4z"/><rect x="3.6" y="20" width="16.8" height="2.6" rx="1.3"/>',
     stickerHarvest: '<circle cx="12" cy="6.6" r="4.2"/><path d="M9.4 11.4h5.2v3h2.9L12 20.6 6.5 14.4h2.9z"/>',
     kamikaze: '<path d="M12 2l1.8 4.3 3.6-2.9-.6 4.5 4.5-.6-2.9 3.6L22.2 12l-4.2 1.6 2.9 3.6-4.5-.6.6 4.5-3.6-2.9L12 22.2l-1.8-4.3-3.6 2.9.6-4.5-4.5.6 2.9-3.6L1.8 12l4.2-1.6L3.1 6.8l4.5.6L7 2.9l3.6 2.9z"/>',

@@ -23,7 +23,7 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
-    r.eq(BaseTypes.all().length, 16, "all 16 Bases registered");
+    r.eq(BaseTypes.all().length, 15, "all 15 Bases registered");
     r.ok(!!BaseTypes.get("kamikaze"), "Kamikaze is a Base");
     r.eq(BaseTypes.get("kamikaze").kind, "active", "Bases are the 'active' kind");
     r.eq(BaseTypes.get("kamikaze").target, "pile", "Kamikaze is a target Base");
@@ -95,7 +95,7 @@ export function run() {
 
   // --- charged/spent lifecycle ------------------------------------------
   {
-    const e = game(["buryLargest", null, null]);
+    const e = game(["randomSticker", null, null]);
     r.eq(e.getRun().basesUsed[0], false, "Base is charged at deal start");
     r.ok(e.baseAvailable(0), "a charged Base in active play is available");
     r.ok(!e.baseAvailable(1), "an empty column has no Base");
@@ -154,20 +154,6 @@ export function run() {
     e.baseActivate(0);
     r.eq(b.pileSize(2), 3, "the non-♦ pile is left completely untouched");
     r.ok(Math.abs(b.pileSize(0) - b.pileSize(1)) <= 1, "the two ♦ piles end within 1 card of each other");
-  }
-
-  // --- effect: Bury Largest (one deck card under the biggest pile) -------
-  {
-    const e = game(["buryLargest", null, null]);
-    const b = e.getBoard();
-    b.piles[0].cards = [card(2, "♠")];
-    b.piles[1].cards = [card(2, "♠")];
-    b.piles[2].cards = [card(2, "♠"), card(3, "♠"), card(4, "♠"), card(5, "♠")];   // largest
-    const before = e.getDeck().remaining();
-    const res = e.baseActivate(0);
-    r.eq(res.index, 2, "the largest pile is chosen");
-    r.eq(b.piles[2].cards.length, 5, "one card buried under it");
-    r.eq(e.getDeck().remaining(), before - 1, "one card left the deck");
   }
 
   // --- effect: Landslide (bury 2 under each ♣-top pile, −3 coins per card) --
@@ -296,16 +282,16 @@ export function run() {
 
   // --- effect: Refresh Bases (re-arm spent non-Refresh Bases) ------------
   {
-    const e = game(["refreshBases", "kamikaze", "buryLargest"]);
+    const e = game(["refreshBases", "kamikaze", "randomSticker"]);
     const b = e.getBoard();
     b.top(5).suit = "♠";              // give the Kamikaze target a ♠ top
     e.baseActivate(1, 5);            // spend Kamikaze (col 1) on the ♠ pile
-    e.baseActivate(2);              // spend Bury Largest (col 2)
+    e.baseActivate(2);              // spend Wild Sticker (col 2)
     r.ok(e.getRun().basesUsed[1] && e.getRun().basesUsed[2], "both other Bases are spent");
     const res = e.baseActivate(0);
     r.ok(res.refreshed.includes(1) && res.refreshed.includes(2), "both spent Bases re-armed");
     r.eq(e.getRun().basesUsed[1], false, "Kamikaze re-armed");
-    r.eq(e.getRun().basesUsed[2], false, "Bury Largest re-armed");
+    r.eq(e.getRun().basesUsed[2], false, "Wild Sticker re-armed");
     r.ok(e.getRun().basesUsed[0], "Refresh Bases itself is spent");
   }
 

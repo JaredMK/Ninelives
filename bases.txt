@@ -1,14 +1,7 @@
-NINE LIVES — BASES (19)
+NINE LIVES — BASES (18)
 Format: each block is one item. Edit Label / Price / Description freely and send back.
 id is the internal key — please DO NOT change it (it ties the entry to the code).
 ======================================================================
-
-id:    buryLargest
-Label: Sinkhole
-Tier:  common
-Price: 7
-Description: Trigger: Activated, once per deal / Effect: Bury 1 deck card under the largest pile in this column
-----------------------------------------------------------------------
 
 id:    evenOut
 Label: Ballast
