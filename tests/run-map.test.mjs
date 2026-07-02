@@ -125,11 +125,18 @@ export function run() {
       r.ok(v.report.cards[0] >= 11, "stage " + s + ": every route collects ≥11 cards");
       r.ok(v.report.cards[0] <= 15, "stage " + s + ": a route ≤15 cards exists");
       r.ok(v.report.dealsPerRoute[0] >= 3 && v.report.dealsPerRoute[1] <= 5, "stage " + s + ": 3–5 deals on every route");
-      // RULE 1: 2–3 stores per stage.
+      // 2–3 stores per stage.
       r.ok(v.report.stores >= 2 && v.report.stores <= 3, "stage " + s + ": has 2–3 stores (" + v.report.stores + ")");
-      // RULE 2: no fake forks — every fork's branches differ in type/cards/deals/piles.
+      // ≥2 starting nodes (player picks where to start).
+      r.ok(m.row0.length >= 2, "stage " + s + ": has " + m.row0.length + " starting nodes (≥2)");
+      // 1–2 bosses, all terminal on the top row.
+      const bosses = m.nodes.filter(n => n.type === "boss");
+      r.ok(bosses.length >= 1 && bosses.length <= 2, "stage " + s + ": 1–2 bosses (" + bosses.length + ")");
+      r.ok(bosses.every(n => n.row === m.bossRow && n.next.length === 0), "stage " + s + ": every boss is terminal on the top row");
+      r.eq(m.bossIds.length, bosses.length, "stage " + s + ": bossIds lists every boss");
+      // No fake forks AND no dominated branches — every fork is a real choice.
       r.ok(v.report.forks.length >= 1, "stage " + s + ": the map actually forks");
-      r.ok(v.report.forks.every(f => f.distinct), "stage " + s + ": every fork offers a REAL choice (no identical branches)");
+      r.ok(v.report.forks.every(f => f.verdict === "DISTINCT"), "stage " + s + ": every fork is DISTINCT (no fake, no dominated)");
       // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
       let swaps = 0;
       const rows = {};
@@ -168,6 +175,24 @@ export function run() {
       r.ok(boss.dMin >= band[0] - 1e-6 && boss.dMax <= band[1] + 1e-6,
         "stage " + p + ": boss difficulty [" + boss.dMin + "," + boss.dMax + "] inside its band [" + band + "]");
     }
+  }
+
+  // ---- twin bosses appear, are valid choices, and stitch into the next stage
+  {
+    let twinStage = null, twinSeed = null, p = 1, entry = 26;
+    for (let s = 1; s <= 60 && !twinStage; s++) {
+      const m = RunMap.generateStage(p, s * 6007, entry);
+      if (m && m.bossIds.length === 2) { twinStage = m; twinSeed = s * 6007; }
+    }
+    r.ok(!!twinStage, "a twin-boss stage appears within 60 seeds (~" + RunMap.GEN_CONFIG.twinBossChance * 100 + "% chance each)");
+    const v = RunMap.validateStage(twinStage, entry, { phaseIndex: p });
+    r.ok(v.ok, "the twin-boss stage passes full validation");
+    r.eq(v.report.bosses.length, 2, "validation reports both bosses");
+    // every route ends at exactly one of the two bosses
+    const routes = RunMap.enumerateRoutes(twinStage);
+    r.ok(routes.every(rt => twinStage.bossIds.indexOf(rt[rt.length - 1]) !== -1), "every route ends at one of the two bosses");
+    r.ok(routes.some(rt => rt[rt.length - 1] === twinStage.bossIds[0])
+      && routes.some(rt => rt[rt.length - 1] === twinStage.bossIds[1]), "both bosses are reachable");
   }
 
   // ---- generateRun: stages stack; later stages appear as they're entered --
@@ -386,9 +411,12 @@ export function run() {
     c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
     c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
     const deckAtEntry = c.deckSize();
-    c.markNodeCleared(map.phases[0].bossId);
+    // clear via the LAST boss id — with twin bosses this exercises the
+    // either-boss membership path (a single boss is just bossIds[0]).
+    const dBossIds = map.phases[0].bossIds || [map.phases[0].bossId];
+    c.markNodeCleared(dBossIds[dBossIds.length - 1]);
     map = c.getMap();
-    r.eq(map.phases.length, 2, "clearing the ♦ boss generates the ♣ stage");
+    r.eq(map.phases.length, 2, "clearing EITHER ♦ boss generates the ♣ stage");
     const wire = JSON.parse(JSON.stringify(c.serialize()));
     r.eq(wire.stageEntryDecks[1], deckAtEntry, "the ♣ stage's entry deck is the REAL deck size when it generated");
     // moving onto a ♣ (phase-1) node flips the campaign into phase ♣.
@@ -406,7 +434,7 @@ export function run() {
     c.markNodeCleared(map.phases[1].bossId);
     const m3 = c.getMap();
     r.eq(m3.phases.length, 3, "clearing the ♣ boss generates the ♠ stage");
-    r.ok(c.isRunBoss(m3.phases[2].bossId), "the ♠ boss IS the run boss");
+    r.ok(m3.phases[2].bossIds.every(id => c.isRunBoss(id)), "EVERY ♠ boss is a run boss (either one wins)");
     const v = RunMap.validateStage ? null : null;   // (stage validity is covered above)
   }
 
