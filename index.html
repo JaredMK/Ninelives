@@ -5075,7 +5075,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.72 · map: Slay-the-Spire paths (3 lanes, weighted-random node types, validated)";
+const APP_VERSION = "v3.73 · cute/playful sound overhaul + line-by-line coin tally";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11395,45 +11395,98 @@ const Sound = (() => {
       return ctx;
     } catch (e) { return null; }
   }
-  function blip(freq, dur, type, gain, at) {
+  /* ── CUTE / PLAYFUL voice. A single flexible tone with an optional pitch
+     GLIDE (the bounce) and gentle vibrato — warm sine/triangle timbres, quick
+     attacks, soft tails. This is the character's voice, not an arcade. ── */
+  function voice(opts) {
     const c = ac(); if (!c) return;
     try {
-      const t = (at || c.currentTime), d = dur || 0.12;
+      const t = (opts.at || c.currentTime);
+      const d = opts.dur || 0.12;
+      const type = opts.type || "sine";
+      const gain = opts.gain || 0.05;
+      const f0 = opts.freq, f1 = opts.glideTo;
       const o = c.createOscillator(), g = c.createGain();
-      o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + d * (opts.glideFrac || 0.85));
+      // gentle vibrato for character (a little wobble)
+      let lfo, lg;
+      if (opts.vibrato) {
+        lfo = c.createOscillator(); lg = c.createGain();
+        lfo.frequency.setValueAtTime(opts.vibrato, t); lg.gain.setValueAtTime(opts.vibratoDepth || 8, t);
+        lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + d + 0.02);
+      }
       o.connect(g); g.connect(c.destination);
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(gain || 0.05, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(gain, t + (opts.attack || 0.01));
       g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.start(t); o.stop(t + d + 0.02);
+      o.start(t); o.stop(t + d + 0.03);
     } catch (e) { /* ignore */ }
   }
-  function chord(notes) {
+  // convenience: a plain bouncy blip
+  function blip(freq, dur, type, gain, at) { voice({ freq, dur, type, gain, at }); }
+  // a sequence of notes at time offsets: [freq, dur, offset, type, gain, glideTo]
+  function seq(notes) {
     const c = ac(); if (!c) return;
     const base = c.currentTime;
-    notes.forEach(([f, d, off, ty, g]) => blip(f, d, ty, g, base + (off || 0)));
+    notes.forEach(n => voice({ freq: n[0], dur: n[1], at: base + (n[2] || 0), type: n[3] || "sine", gain: n[4], glideTo: n[5] }));
+  }
+  // a quick high sparkle (twinkly triad) for celebratory moments
+  function sparkle(off, g) {
+    const c = ac(); if (!c) return;
+    const base = c.currentTime + (off || 0);
+    [1568, 2093, 2637].forEach((f, i) => voice({ freq: f, dur: 0.09, type: "sine", gain: (g || 0.022), at: base + i * 0.035 }));
   }
   const API = {
     isOn: () => !!enabled,
-    setOn(on) { enabled = !!on; if (typeof SaveStore !== "undefined") SaveStore.setPref("sound", on ? "1" : "0"); if (on) blip(660, 0.09, "sine", 0.05); },
+    setOn(on) { enabled = !!on; if (typeof SaveStore !== "undefined") SaveStore.setPref("sound", on ? "1" : "0"); if (on) seq([[660, 0.09, 0, "sine", 0.05, 880]]); },
     toggle() { API.setOn(!enabled); return API.isOn(); },
-    tap() { blip(440, 0.05, "sine", 0.035); },
-    place() { blip(320, 0.07, "triangle", 0.05); },
-    good() { chord([[523, 0.09, 0, "sine", 0.055], [784, 0.12, 0.07, "sine", 0.05]]); },
-    bad() { blip(150, 0.22, "sawtooth", 0.06); },
-    purchase() { chord([[700, 0.07, 0, "square", 0.04], [1047, 0.1, 0.06, "square", 0.035]]); },
-    death() { chord([[210, 0.18, 0, "sawtooth", 0.06], [120, 0.28, 0.09, "sawtooth", 0.05]]); },
-    runClear() { chord([[523, 0.12, 0, "sine", 0.05], [659, 0.12, 0.11, "sine", 0.05], [784, 0.12, 0.22, "sine", 0.05], [1047, 0.22, 0.33, "sine", 0.05]]); },
-    // A soft riffle for any pile shuffle (Upheaval, Shuffle sticker, Shuffler /
-    // Diamond Distribution pillars, Link Shuffler Same-Power) — same sound
-    // everywhere so a shuffle always reads the same.
-    shuffle() { chord([[520, 0.05, 0, "triangle", 0.03], [420, 0.05, 0.04, "triangle", 0.03], [340, 0.06, 0.08, "triangle", 0.028]]); },
-    // A gentle rising whoosh when a fresh deal's cards are dealt out.
-    deal() { chord([[300, 0.07, 0, "sine", 0.03], [400, 0.07, 0.05, "sine", 0.03], [520, 0.08, 0.1, "sine", 0.03]]); },
-    // A light, VERY short ping for coins gained (fires a lot — kept subtle).
-    coin() { blip(1180, 0.05, "triangle", 0.028); },
-    // A quick shuffled-riffle reveal for opening a pack.
-    pack() { chord([[420, 0.06, 0, "square", 0.03], [640, 0.06, 0.05, "square", 0.03], [960, 0.09, 0.1, "square", 0.03]]); },
+    // UI tap: a soft little pop.
+    tap() { voice({ freq: 560, glideTo: 720, dur: 0.06, type: "sine", gain: 0.03 }); },
+    // A card correctly PLACED on a pile: a bouncy "boop" that hops up.
+    place() { voice({ freq: 380, glideTo: 560, dur: 0.09, type: "triangle", gain: 0.045 }); },
+    // A correct guess: two bright rising notes (a happy little "yay").
+    good() { seq([[587, 0.09, 0, "sine", 0.05, 660], [880, 0.13, 0.075, "sine", 0.048]]); },
+    // A non-fatal miss / gentle "aw": a soft downward wobble.
+    bad() { voice({ freq: 300, glideTo: 200, dur: 0.2, type: "triangle", gain: 0.05, vibrato: 14, vibratoDepth: 10 }); },
+    // A card SAVED by the Same backstop: a cute little ELECTRIC zap (fast
+    // up-glide with a shimmer buzz) — magical, not harsh.
+    save() { voice({ freq: 520, glideTo: 1400, dur: 0.16, type: "triangle", gain: 0.05, vibrato: 40, vibratoDepth: 35 }); sparkle(0.06, 0.018); },
+    // The "shoulda said same" tease: a playful two-note "wah-waah" descent.
+    sameMiss() { seq([[520, 0.14, 0, "triangle", 0.05, 440], [392, 0.22, 0.12, "triangle", 0.05, 330]]); },
+    // A purchase: a warm little "cha-ching" + sparkle.
+    purchase() { seq([[784, 0.08, 0, "sine", 0.045, 988], [1175, 0.12, 0.07, "sine", 0.04]]); sparkle(0.12, 0.016); },
+    // A pile DIED this deal (non-fatal death of one pile): soft "boing" down.
+    death() { voice({ freq: 330, glideTo: 150, dur: 0.28, type: "triangle", gain: 0.055, vibrato: 12, vibratoDepth: 14 }); },
+    // DEAL WON — the character's happy dance: a cheerful ascending arpeggio + sparkle.
+    dealWon() { seq([[523, 0.1, 0, "sine", 0.05, 587], [659, 0.1, 0.09, "sine", 0.05], [784, 0.1, 0.18, "sine", 0.05], [1047, 0.16, 0.27, "sine", 0.05, 1175]]); sparkle(0.34, 0.02); },
+    // DEAL LOST — a gentle, cute descending "aww" (not a harsh buzzer).
+    dealLost() { seq([[494, 0.16, 0, "triangle", 0.05, 440], [392, 0.18, 0.14, "triangle", 0.05, 349], [294, 0.34, 0.3, "triangle", 0.05, 233]]); },
+    // Full RUN cleared — a bright fanfare with a sparkle tail.
+    runClear() { seq([[523, 0.12, 0, "sine", 0.05, 587], [659, 0.12, 0.11, "sine", 0.05], [784, 0.12, 0.22, "sine", 0.05], [1047, 0.24, 0.33, "sine", 0.05, 1319]]); sparkle(0.5, 0.024); },
+    // A soft riffle for any pile shuffle (same everywhere a shuffle happens).
+    shuffle() { seq([[520, 0.05, 0, "triangle", 0.03], [430, 0.05, 0.04, "triangle", 0.03], [360, 0.06, 0.08, "triangle", 0.028], [300, 0.06, 0.12, "triangle", 0.024]]); },
+    // A gentle rising whoosh when a fresh deal's cards are dealt out to piles.
+    deal() { voice({ freq: 260, glideTo: 620, dur: 0.28, type: "sine", gain: 0.035, glideFrac: 0.9 }); },
+    // Cards added to the deck ON THE MAP (pickup / pack node): a soft shuffle-in
+    // — a little downward riffle that "tucks" the cards into the deck.
+    mapAdd() { seq([[720, 0.05, 0, "triangle", 0.03, 620], [560, 0.05, 0.05, "triangle", 0.03, 480], [430, 0.08, 0.1, "sine", 0.035, 360]]); },
+    // A light, VERY short bright ping for coins gained (fires a lot — subtle).
+    coin() { voice({ freq: 1180, glideTo: 1400, dur: 0.05, type: "triangle", gain: 0.026 }); },
+    // Post-game coin-tally line: a coin ping that RISES per line (idx) so the
+    // tally builds musically toward the total.
+    coinTallyLine(idx) { const steps = [784, 880, 988, 1047, 1175, 1319, 1397]; const f = steps[Math.min(idx || 0, steps.length - 1)]; voice({ freq: f, glideTo: f * 1.18, dur: 0.11, type: "sine", gain: 0.04 }); },
+    // Opening a pack: a satisfying "pop" then a little sparkle reveal.
+    pack() { voice({ freq: 300, glideTo: 700, dur: 0.1, type: "triangle", gain: 0.05 }); sparkle(0.09, 0.02); },
+    // A sticker being applied: a quick "peel" squeak + a soft press tap.
+    sticker() { voice({ freq: 900, glideTo: 1500, dur: 0.12, type: "sawtooth", gain: 0.022, vibrato: 30, vibratoDepth: 20 }); voice({ freq: 420, dur: 0.06, type: "triangle", gain: 0.04, at: (ctx ? ctx.currentTime + 0.1 : 0) }); },
+    // Store REFRESH button: a quick whoosh-up into a bright ding.
+    refresh() { voice({ freq: 360, glideTo: 780, dur: 0.14, type: "sine", gain: 0.038 }); voice({ freq: 1047, dur: 0.1, type: "sine", gain: 0.035, at: (ctx ? ctx.currentTime + 0.12 : 0) }); },
+    // A SAME-POWER firing: a little magical shimmer (distinct from a plain good).
+    samePower() { seq([[784, 0.08, 0, "sine", 0.04, 988], [1175, 0.1, 0.07, "sine", 0.04, 1319], [1568, 0.14, 0.15, "sine", 0.038]]); sparkle(0.2, 0.02); },
+    // Clicking CONTINUE after a game: a friendly forward "boop-beep".
+    continueTap() { seq([[523, 0.07, 0, "sine", 0.04, 587], [784, 0.11, 0.07, "sine", 0.042]]); },
   };
   return API;
 })();
@@ -13444,7 +13497,7 @@ const UIRenderer = (() => {
     campaign.applySticker(top.id, typeId);
     campaign.useStickerFromInventory(typeId);
     applyStickerToBoardCard(top, typeId);
-    Sound.place();             // a sticker was placed on a card
+    Sound.sticker();           // peel + press — a sticker was applied to a card
 
     appliedThisPhase = true;   // warn before a redeal reshuffles on top of this
     armedSticker = null;
@@ -14277,7 +14330,7 @@ const UIRenderer = (() => {
 
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
-    el.playBtn.addEventListener("click", () => { if (overlayAction) overlayAction(); });
+    el.playBtn.addEventListener("click", () => { Sound.continueTap(); if (overlayAction) overlayAction(); });
 
     // Deck picker: a Start button runs the (unlocked) Pink Deck; locked decks have
     // none. Back returns to the menu we came from. Dots track the swiped page.
@@ -14531,6 +14584,7 @@ const UIRenderer = (() => {
     const delay = reduce ? 0 : (atMs || 0);
     setTimeout(() => {
       nudge.classList.add("show");
+      Sound.sameMiss();                              // the teasing "shoulda…" nudge
       if (cardEl && !reduce) {                       // quick wince/shake on the card
         cardEl.classList.add("wince");
         setTimeout(() => cardEl.classList.remove("wince"), 360);
@@ -14808,6 +14862,7 @@ const UIRenderer = (() => {
   function savedIndicator(index, label) {
     const pe = pileEls[index];
     if (!pe) return;
+    Sound.save();                                // the little electric rescue zap
     pe.classList.remove("saved-pulse");
     if (!prefersReduce()) void pe.offsetWidth;   // restart the ring on rapid repeats
     pe.classList.add("saved-pulse");
@@ -15647,9 +15702,9 @@ const UIRenderer = (() => {
         if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
         renderNetwork();
         if (payload.label) el.hint && (el.hint.textContent = "Same-Power · " + payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
-        // Link Shuffler uses the shared shuffle sound; every other Same-Power keeps
-        // the firing chime.
-        if (payload.effect === "linkShuffle") Sound.shuffle(); else Sound.good && Sound.good();
+        // Link Shuffler uses the shared shuffle sound; every other Same-Power
+        // gets its own magical shimmer (distinct from a plain correct guess).
+        if (payload.effect === "linkShuffle") Sound.shuffle(); else Sound.samePower();
         break;
       }
 
@@ -15695,6 +15750,41 @@ const UIRenderer = (() => {
      eventBonus). Live in-run bonuses (b.eventLines) are split into
      sticker- vs pillar-driven by label (pillar live-bonuses use a Pillar's label:
      Suit Bonus / Streak Bank / Fibonacci — everything else is sticker-driven). */
+  /* Reveal the coin breakdown line-by-line with a per-line rising ping, then
+     the total, then the running balance — the post-game tally that builds up
+     before the total lands. Each main reward line pulls its sub-rows in with
+     it. Reduced-motion shows everything at once (silent). */
+  function animateCoinTally(container) {
+    const kids = Array.from(container.children);
+    if (!kids.length) return;
+    // group each main line with the sub-rows that follow it; total/balance solo
+    const steps = [];
+    kids.forEach(k => {
+      if (k.classList.contains("dc-sub") && steps.length) steps[steps.length - 1].push(k);
+      else steps.push([k]);
+    });
+    if (prefersReduce()) return;   // no hide/animate; the ping loop is skipped
+    kids.forEach(k => { k.style.opacity = "0"; k.style.transform = "translateY(7px)"; k.style.transition = "opacity .26s ease, transform .26s ease"; });
+    let idx = 0;
+    const startDelay = 460;        // let the happy-dance flourish land first
+    const revealNext = () => {
+      // guard: overlay may have been dismissed before the tally finished
+      if (idx >= steps.length || el.overlayCoins.classList.contains("hidden")) {
+        kids.forEach(k => { k.style.opacity = "1"; k.style.transform = "none"; });
+        return;
+      }
+      const group = steps[idx];
+      group.forEach(k => { k.style.opacity = "1"; k.style.transform = "none"; });
+      const head = group[0];
+      if (head.classList.contains("dc-total")) Sound.coinTallyLine(6);       // the total lands high
+      else if (head.classList.contains("dc-balance")) Sound.coin();          // soft balance tick
+      else Sound.coinTallyLine(idx);                                         // rising per reward line
+      idx++;
+      setTimeout(revealNext, head.classList.contains("dc-total") ? 360 : 300);
+    };
+    setTimeout(revealNext, startDelay);
+  }
+
   function coinBreakdownHtml(coins) {
     const b = coins.breakdown;
     if (!b) return '<div class="dc-total"><span class="dc-lab">Total</span><span class="dc-val">' + COIN_SVG + coins.balance + "</span></div>";
@@ -15782,8 +15872,10 @@ const UIRenderer = (() => {
     }
     el.endGuessTiles.classList.toggle("hidden", !opts.guessStats);
 
-    // Coins earned this run + running balance (shown on run-complete).
-    if (opts.coins) el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins);
+    // Coins earned this run + running balance (shown on run-complete). The
+    // reward lines appear ONE BY ONE, each with a rising coin ping, building to
+    // the total — the deal-won payoff moment.
+    if (opts.coins) { el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins); animateCoinTally(el.overlayCoins); }
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
 
     // Hold-to-peek the final board (run-complete / campaign screens only).
@@ -15941,7 +16033,7 @@ const UIRenderer = (() => {
   // the between-runs intermission: just the stage/run indicator and the coin
   // breakdown — no "This Run" / "Campaign" totals.
   function showRunComplete(coins) {
-    Sound.runClear();
+    Sound.dealWon();   // the character's happy dance
     showOverlay({
       kind: "win",
       cls: "deal-cleared",
@@ -15987,7 +16079,7 @@ const UIRenderer = (() => {
   // Any run loss ends the whole campaign (shown before the wipe, so we can
   // report how far you got). The continue action returns to the MAIN MENU.
   function showCampaignFailed(run) {
-    Sound.death();
+    Sound.dealLost();
     // Whole-run totals (every deal played this run, including the final losing
     // one), not just the last deal — onRunEnd folded this deal in before us.
     const total = campaign.allGuessesTotal;
@@ -18302,6 +18394,7 @@ const UIRenderer = (() => {
       campaign.markNodeCleared(id);
       persistCampaign("map");
       flashDeckGain(card ? 1 : 0);
+      if (card) Sound.mapAdd();           // a card shuffled into the deck
       renderProgressionMap();
       if (card) avatarCollect([card]);   // the card flies from the node into the box
     } else if (node.type === "pack") {
@@ -18313,7 +18406,7 @@ const UIRenderer = (() => {
       persistCampaign("map");
       renderProgressionMap();   // mark the node done behind the reveal
       flashDeckGain(cards.length);   // deck panel + header update live as the pack lands
-      openMapPackReveal(cards, (items) => avatarCollect(items));
+      openMapPackReveal(cards, (items) => { Sound.mapAdd(); avatarCollect(items); });   // shuffle-in as they fly home
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
       // the node cleared. Re-render now so the marker shows on this node behind it.
@@ -19492,6 +19585,7 @@ const UIRenderer = (() => {
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
   function rerollUI() {
     if (campaign.rerollStore()) {
+      Sound.refresh();           // whoosh-ding on a store refresh
       selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
       el.storeMsg.textContent = "Refreshed the offer.";
       if (engine) engine.logAction("Store: refreshed the offer");
