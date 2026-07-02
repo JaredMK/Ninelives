@@ -72,8 +72,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          # Pages deployments occasionally sit in GitHub's queue well past the
-          # action's 10-minute default (two consecutive runs died that way on
-          # 2026-07-02); give an attempt 30 minutes to outlast a backlog.
-          timeout: 1800000
+        # NOTE: deploy-pages clamps its `timeout` input to a 600000 ms maximum
+        # (verified 2026-07-02 when a Pages queue backlog outlasted it), so a
+        # longer timeout cannot be configured — a backlogged deploy can only be
+        # retried once GitHub's queue drains.
