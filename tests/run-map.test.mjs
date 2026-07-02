@@ -135,24 +135,19 @@ export function run() {
       r.ok(bosses.length >= 1 && bosses.length <= 2, "stage " + s + ": 1–2 bosses (" + bosses.length + ")");
       r.ok(bosses.every(n => n.row === m.bossRow && n.next.length === 0), "stage " + s + ": every boss is terminal on the top row");
       r.eq(m.bossIds.length, bosses.length, "stage " + s + ": bossIds lists every boss");
-      // No fake forks AND no dominated branches — every fork is a real choice.
+      // The map actually forks (braiding is emergent from overlapping paths).
+      // Fake/dominated forks are no longer hard errors — the StS-style random
+      // rolls + vetoes replace the old construction gates (fakes are a soft
+      // warning only), so we no longer assert every fork is DISTINCT.
       r.ok(v.report.forks.length >= 1, "stage " + s + ": the map actually forks");
-      r.ok(v.report.forks.every(f => f.verdict === "DISTINCT"), "stage " + s + ": every fork is DISTINCT (no fake, no dominated)");
-      // DECISION DENSITY: every route walked start→boss meets ≥3 forks —
-      // routes must braid and fork MID-MAP, not just at the start.
-      r.ok(v.report.forksPerRoute[0] >= RunMap.GEN_CONFIG.minForksPerRoute,
-        "stage " + s + ": every route faces ≥" + RunMap.GEN_CONFIG.minForksPerRoute + " forks (worst route: " + v.report.forksPerRoute[0] + ")");
-      // CROSS-LINKS: adjacent lanes exchange edges ≥2× (no sealed tracks).
-      r.ok(v.report.crossLinks >= 2, "stage " + s + ": lanes cross-link " + v.report.crossLinks + "× (≥2)");
-      // STORE ACCESS: every starting node reaches EVERY store.
-      r.ok(v.report.storeReach.every(sr => sr.reaches === sr.of),
-        "stage " + s + ": every start reaches every store (no store-locked route)");
-      // BRAIDED COUPLES: 3-4 route-carrying nodes on every body row (the
-      // openings row and the boss row are the spec's narrow ends).
+      // STORE ACCESS: no start is locked out of ALL stores (reaches ≥1).
+      r.ok(v.report.storeReach.every(sr => sr.reaches >= 1),
+        "stage " + s + ": every start reaches at least one store (not store-locked)");
+      // Row widths are informational now (no fixed 3-4 band under random paths),
+      // but the openings row still has ≥2 starts and the boss row ≤2.
       const widths = v.report.widthPerRow;
-      let par = true;
-      for (let rr = 1; rr <= m.bossRow - 1; rr++) if (widths[rr] < 3 || widths[rr] > 4) par = false;
-      r.ok(par, "stage " + s + ": every body row runs 3-4 routes wide (" + widths.join(",") + ")");
+      r.ok(widths[0] >= 2, "stage " + s + ": ≥2 opening nodes (" + widths[0] + ")");
+      r.ok(widths[m.bossRow] <= 2, "stage " + s + ": ≤2 boss nodes (" + widths[m.bossRow] + ")");
       // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
       let swaps = 0;
       const rows = {};

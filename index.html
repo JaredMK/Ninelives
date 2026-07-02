@@ -3955,16 +3955,15 @@
   .node-card .s .suit-svg, .node-card .pip .suit-svg { width: 1em; height: 1em; display: block; }
 
   /* DEAL / BOSS — a tilted mini CLUSTER of board-cards ("a deal"). Sized for
-     the FOUR-lane grid (~83px lane pitch on a 348px map): body-node art stays
-     under ~46px so neighbours keep clear air; only the boss row runs big. */
-  .mn-cluster { position: relative; display: block; width: 46px; height: 42px;
+     the 3-lane grid (~115px lane pitch on a 348px map). */
+  .mn-cluster { position: relative; display: block; width: 52px; height: 46px;
     filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
-  .mn-cluster .mcl-card { position: absolute; top: 50%; left: 50%; width: 22px; height: 30px;
+  .mn-cluster .mcl-card { position: absolute; top: 50%; left: 50%; width: 25px; height: 34px;
     border-radius: 4px; background: var(--card-face); border: 1px solid var(--card-border);
     box-shadow: 0 1px 3px rgba(74,50,40,0.18); }
-  .mn-cluster .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-9px); }
+  .mn-cluster .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-11px); }
   .mn-cluster .mcl-card.b { transform: translate(-50%,-50%) rotate(2deg); z-index: 1; }
-  .mn-cluster .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(9px); }
+  .mn-cluster .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(11px); }
   .mn-cluster.big { width: 72px; height: 62px; }
   .mn-cluster.big .mcl-card { width: 34px; height: 46px; }
   .mn-cluster.big .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-15px); }
@@ -3974,9 +3973,9 @@
     border-radius: 50%; background: radial-gradient(circle, rgba(199,126,31,0.40), rgba(199,126,31,0) 70%); }
 
   /* PACK (2+) — purple stacked cards + a "+N ♦" count badge (artifact family). */
-  .mn-pack { position: relative; display: block; width: 38px; height: 46px;
+  .mn-pack { position: relative; display: block; width: 42px; height: 50px;
     filter: drop-shadow(0 4px 9px rgba(60,40,80,0.30)); }
-  .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 26px; height: 36px;
+  .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 30px; height: 40px;
     border-radius: 5px; border: 1px solid rgba(255,255,255,0.30);
     background: linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
   .mn-pack .mpk-card.a { transform: translate(-50%,-50%) rotate(-8deg) translate(-4px,2px); }
@@ -3991,7 +3990,7 @@
 
   /* STORE — a shop tile resting on the same warm ground. */
   .mn-shop { display: inline-flex; align-items: center; justify-content: center;
-    width: 38px; height: 38px; border-radius: 11px; font-size: 19px;
+    width: 44px; height: 44px; border-radius: 12px; font-size: 22px;
     background: var(--panel); border: 1.5px solid var(--pathway-2);
     box-shadow: 0 4px 10px rgba(74,50,40,0.18); }
 
@@ -4017,7 +4016,7 @@
   .pm-node.t-home.s-done { opacity: 0.5; filter: grayscale(0.4); }
 
   /* Fallback face-down card (only if a +1 node has no locked card). */
-  .mn-cardback { width: 36px; height: 48px; border-radius: 6px; border: 1px solid rgba(40,20,60,0.45);
+  .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
       linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
 
@@ -5076,7 +5075,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.71 · map: 4 lanes, 3-4 wide braided couples (forks ≥3/route, no fake/dominated forks)";
+const APP_VERSION = "v3.72 · map: Slay-the-Spire paths (3 lanes, weighted-random node types, validated)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6385,34 +6384,39 @@ const RunMap = (() => {
     startSuit: "♥",
     startDeckSize: 13,            // 13 hearts pre-held at run start
 
-    // Graph shape (per stage). Nodes live on a FOUR-lane grid built as two
-    // 2-lane COUPLES ({0,1} and {2,3}); edges only go row -> row+1, same or
-    // adjacent lane, and never cross (planar by construction). Two starting
-    // nodes EXPAND into the couples at the first transition (every route
-    // forks there), body rows run 4 wide, R/L shift transitions exchange
-    // routes between the couples (the lane 1-2 cross-links + store access).
-    lanes: 4,
-    laneX: [0.14, 0.38, 0.62, 0.86],  // render x per lane
-    rows: [10, 10],              // total rows per stage INCLUDING the boss row.
-                                 // 4-wide rows need 10: the 7 mid transitions
-                                 // must fit 4 chase braids (fork density) + 2
-                                 // couple crossers + 1 parallel (protected row).
-    minForksPerRoute: 3,         // DECISION DENSITY: every route faces >=3 forks
-                                 // = 1 (the start expansion forks every route)
-                                 // + 2 (two alternating E/O braid runs of 2 -
-                                 // a route can dodge at most every other fork)
-    braidBias: 0.9,              // walker fallback preference for fork/merge over
-                                 // straight steps (pattern braids are deterministic)
+    // Graph shape (per stage). Slay-the-Spire style: nodes sit on a 3-lane
+    // grid; 5-6 random monotone PATHS are drawn bottom->top (row N -> row N+1,
+    // same/adjacent lane, no edge crossings). The union of the paths is the
+    // graph — cells no path visits don't exist — so overlapping paths braid
+    // and merge organically. Node TYPES are then rolled at random (weighted),
+    // with a few vetoes; the hard rules are enforced by post-gen validation,
+    // not baked into construction.
+    lanes: 3,
+    laneX: [0.17, 0.50, 0.83],   // render x per lane
+    rows: [8, 9],                // total rows per stage INCLUDING the boss row.
+                                 // Floor is 8, not the spec's 7: a route needs
+                                 // 3 deals + boss + >=3 card/pack nodes to clear
+                                 // the 11-card floor, and 7 rows leave only 5
+                                 // body slots (3 deals + 2 packs = max 10 < 11).
+    paths: [4, 6],               // random bottom->top paths drawn per stage; their
+                                 // union is the DAG (overlaps = the braiding)
+    minForksPerRoute: 2,         // SOFT/report only now — braiding is emergent
+                                 // from overlapping paths, not constructed. Logged
+                                 // (min/max forks per route) so it can be tuned by
+                                 // path count; never a hard gate.
+
+    // Node-type roll. Every non-boss node is DEAL/PACK/CARD by these weights;
+    // STORES are then placed to quota (2-3) over eligible nodes. Tune these to
+    // move the failure histogram (e.g. raise pack weight/size if the 11-card
+    // floor fails most). packWeights = the +N size distribution for a PACK.
+    typeWeights: { deal: 40, pack: 45, card: 15 },
+    packWeights: [[2, 3], [3, 4], [4, 2]],
 
     // Deals / stores per stage.
-    dealRows: [3, 3],            // guaranteed deal rows per route (stage 0: the
-                                 // opening deal + 2 body rows; later stages: 3
-                                 // body rows). Store-row deal siblings add the
-                                 // optional 4th/5th deal.
     dealsPerRouteMax: 5,         // hard cap validated on every route (excl. boss)
-    stores: [2, 3],              // stores per stage (never two in a row on any
-                                 // path); built as ONE double-store row - a
-                                 // store per couple, both middle-reachable
+    stores: [2, 3],              // stores per stage (never 2 adjacent on a path,
+                                 // >=1 deal between consecutive stores, every
+                                 // start can reach a store)
     twinBossChance: 0.5,         // chance a stage tops out in TWO boss nodes (pick one)
 
     // Card pickups (CARD +1, PACK +2..+5). Every route totals ≥ minRouteCards;
@@ -6425,19 +6429,16 @@ const RunMap = (() => {
     // Pile bounds for any deal.
     minPiles: 3, maxPiles: 12,
 
-    // Difficulty bands per stage (regular deals) + per-stage boss bands.
-    // Boss bands are OUR tunables inside/above the stage bands ("boss is the
-    // stage's hardest deal"); the FINAL boss band is spec-fixed at 5.5-6.0.
-    // 4-wide maps carry 5 pickup rows whose distinct forks force 4-6 cards of
-    // heavy-route spread, so the ♦/♣ boss bands open wider than at 2-wide:
-    // ♦ floor 2.2 (was 2.5) and ♣ top 4.75 (a +0.25 overhang above the ♣
-    // stage band, the same shape the spec gives the final boss over ♠'s).
+    // Difficulty bands per stage (regular deals) + per-stage boss bands. Boss
+    // bands are our tunables inside/above the stage bands ("boss is the stage's
+    // hardest deal"); the FINAL boss band is spec-fixed at 5.5-6.0.
     firstDealBand: [1.25, 1.75], // the very first deal of the run (stage 0, row 0)
     stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
-    bossBands:  [[2.2, 3.0], [4.0, 4.75], [5.5, 6.0]],
+    bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
 
     // Generation control.
-    attempts: 80,                // tries per relax step before widening the ladder
+    attempts: 180,               // tries per relax step before widening the ladder
+    structAttempts: 40,          // planar path-set redraws within ONE build attempt
     relaxSteps: 3,               // boss-band stretch passes after the attempt cap:
     relaxBandStep: 0.15,         // each step lifts the boss band TOP by this much
                                  // (logged as a warning — some entry decks are
@@ -6614,7 +6615,8 @@ const RunMap = (() => {
     }
     if (storeGapViol) errors.push(storeGapViol + " route(s) hit two stores with NO deal between them");
     if (badEnd) errors.push(badEnd + " route(s) do not end at a boss");
-    // DECISION DENSITY: every route must face >= minForksPerRoute forks.
+    // DECISION DENSITY (report only — braiding is emergent from overlapping
+    // paths now, no longer a hard gate). minForksPerRoute is a soft floor.
     let forkMin = Infinity, forkMax = -Infinity;
     for (const route of routes) {
       let f = 0;
@@ -6623,10 +6625,9 @@ const RunMap = (() => {
       if (f > forkMax) forkMax = f;
     }
     if (forkMin < C.minForksPerRoute)
-      errors.push("a route meets only " + forkMin + " fork(s) (decision density needs " + C.minForksPerRoute + ")");
-    // CROSS-LINKS: EVERY adjacent lane pair must exchange edges >=2× (no
-    // sealed tracks — the lane 1-2 pair is the couple seam the R/L crossers
-    // serve). The boss merge doesn't count: it is not a route exchange.
+      warnings.push("a route meets only " + forkMin + " fork(s) (soft floor " + C.minForksPerRoute + " — consider more paths)");
+    // Lane cross-links: report only (no sealed-track gate — 3-lane maps braid
+    // as the random paths overlap).
     let crossLinks = 0;
     const nLanes = C.lanes || 3;
     const pairLinks = new Array(Math.max(0, nLanes - 1)).fill(0);
@@ -6637,11 +6638,8 @@ const RunMap = (() => {
       crossLinks++;
       if (tn.row < ph.bossRow && Math.min(a, b) < pairLinks.length) pairLinks[Math.min(a, b)]++;
     }));
-    for (let i = 0; i < pairLinks.length; i++) {
-      if (pairLinks[i] < 2) errors.push("lanes " + i + "-" + (i + 1) + " cross-link only " + pairLinks[i] + "× (need >=2 — a sealed track)");
-    }
-    // STORE ACCESS: every starting node must reach EVERY store (no route can
-    // be store-locked-out when every shop stays reachable from every start).
+    // STORE ACCESS: no start may be locked out of ALL stores (every start can
+    // reach at least one shop).
     const reachV = {};
     ph.nodes.slice().sort((a, b) => b.row - a.row).forEach(nd => {
       const st = new Set([nd.id]);
@@ -6651,44 +6649,50 @@ const RunMap = (() => {
     const storeIds = ph.nodes.filter(nd => nd.type === "store").map(nd => nd.id);
     const storeReach = ph.row0.map(s0 => ({ start: s0, reaches: storeIds.filter(st => reachV[s0].has(st)).length, of: storeIds.length }));
     for (const sr of storeReach) {
-      if (sr.reaches < sr.of) errors.push("start " + sr.start + " reaches only " + sr.reaches + "/" + sr.of + " stores (store-locked routes exist)");
+      if (storeIds.length && sr.reaches < 1) errors.push("start " + sr.start + " cannot reach any store (store-locked)");
     }
     if (cardMin < C.minRouteCards) errors.push("a route collects only " + cardMin + " cards (< " + C.minRouteCards + ")");
     if (cardMin > C.maxLightRouteCards) errors.push("the lightest route collects " + cardMin + " cards (> " + C.maxLightRouteCards + ") — no restrained route exists");
     if (dealRMin < 3) errors.push("a route passes only " + dealRMin + " regular deals (< 3)");
     if (dealRMax > C.dealsPerRouteMax) errors.push("a route passes " + dealRMax + " regular deals (> " + C.dealsPerRouteMax + ")");
     if (storeAdj) errors.push(storeAdj + " route(s) pass two stores in a row");
-    // RULE 1: 2–3 stores per STAGE (adjacency already checked per route above).
+    // 2-3 stores per STAGE (adjacency + deal-gap already checked per route above).
     const storeCount = ph.nodes.filter(n => n.type === "store").length;
     if (storeCount < C.stores[0] || storeCount > C.stores[1])
-      errors.push("stage has " + storeCount + " store(s) (spec: " + C.stores[0] + "\u2013" + C.stores[1] + ")");
-    // ROUTE WIDTH: 3-4 route-carrying nodes on every row except the first
-    // (the 2+ openings) and the boss row.
+      errors.push("stage has " + storeCount + " store(s) (spec: " + C.stores[0] + "-" + C.stores[1] + ")");
+    // Structure report: row widths (informational — no fixed width band now).
     const widthPerRow = new Array(ph.rows).fill(0);
     ph.nodes.forEach(n => widthPerRow[n.row]++);
     if (widthPerRow[0] < 2) errors.push("row 0 has " + widthPerRow[0] + " starting node(s) (need 2+)");
-    for (let r = 1; r <= ph.bossRow - 1; r++) {
-      if (widthPerRow[r] < 3) errors.push("row " + r + " runs only " + widthPerRow[r] + " wide (body rows must run 3-4 wide)");
-      if (widthPerRow[r] > 4) errors.push("row " + r + " runs " + widthPerRow[r] + " wide (target 3-4)");
-    }
     // Boss variety: 1 or 2 boss nodes, all on the top row.
     const bossNodes = ph.nodes.filter(n => n.type === "boss");
     if (bossNodes.length < 1 || bossNodes.length > 2)
       errors.push("stage has " + bossNodes.length + " boss nodes (spec: 1-2)");
-    // NO FAKE FORKS + NO DOMINATED ROUTES: every fork's branches must differ,
-    // and no branch may be strictly worse than its sibling.
-    const forks = analyzeForks(ph);
-    for (const f of forks) {
-      if (f.verdict === "FAKE") errors.push("FAKE fork at node " + f.from + ": branches " + f.branches.join("/")
-        + " are identical until rejoin (" + f.sigs[0] + ")");
-      else if (f.verdict === "DOMINATED") {
-        const d = f.dominated, o = 1 - d;
-        errors.push("DOMINATED fork at node " + f.from + ": branch " + f.branches[d]
-          + " [deals " + f.stats[d].deals.join(",") + "p / +" + f.stats[d].cardsMin + " cards / " + f.stats[d].storesMax + " stores]"
-          + " is strictly worse than " + f.branches[o]
-          + " [deals " + f.stats[o].deals.join(",") + "p / +" + f.stats[o].cardsMin + " cards / " + f.stats[o].storesMax + " stores]");
+    // PLANARITY (hard): no two edges in a transition may cross.
+    let crossings = 0;
+    for (let r = 0; r < ph.bossRow; r++) {
+      const es = [];
+      ph.nodes.filter(n => n.row === r).forEach(n => n.next.forEach(t => {
+        const tn = ph.byId[t]; if (tn.row === r + 1) es.push([n.lane, tn.lane]);
+      }));
+      for (let i = 0; i < es.length; i++) for (let j = i + 1; j < es.length; j++) {
+        if ((es[i][0] < es[j][0] && es[i][1] > es[j][1]) || (es[j][0] < es[i][0] && es[j][1] > es[i][1])) crossings++;
       }
     }
+    if (crossings) errors.push(crossings + " edge crossing(s) (map is not planar)");
+    // MERGES RE-SPLIT (soft): a node many paths merge into should be able to
+    // diverge again — warn where it can't (and it isn't the boss approach).
+    const inDeg = {};
+    ph.nodes.forEach(n => n.next.forEach(t => inDeg[t] = (inDeg[t] || 0) + 1));
+    let mergeNoSplit = 0;
+    ph.nodes.forEach(n => { if ((inDeg[n.id] || 0) >= 2 && n.type !== "boss" && n.next.length < 2 && n.row < ph.bossRow - 1) mergeNoSplit++; });
+    if (mergeNoSplit) warnings.push(mergeNoSplit + " merge node(s) don't re-split");
+    // LIGHT fork warning (log, don't fail): sibling branches identical until
+    // rejoin. The randomness + vetoes replace the old fake/dominance gates.
+    const forks = analyzeForks(ph);
+    const fakes = forks.filter(f => f.verdict === "FAKE");
+    if (fakes.length) warnings.push(fakes.length + " sibling fork(s) identical until rejoin ("
+      + fakes.slice(0, 3).map(f => f.branches.join("/")).join(", ") + ")");
     // Difficulty at BOTH deck extremes of every deal + the boss.
     const ext = deckExtremes(ph, entryDeck);
     const perDeal = [];
@@ -6714,7 +6718,7 @@ const RunMap = (() => {
                      deckMin: e.min, deckMax: e.max,
                      dMin: +dMin.toFixed(3), dMax: +dMax.toFixed(3), band: band.slice() });
     }
-    if (bossMid != null && bossMid < maxRegMid - 1e-6) errors.push("the boss (" + bossMid.toFixed(2) + ") is not the stage's hardest deal (a deal reaches " + maxRegMid.toFixed(2) + ")");
+    if (bossMid != null && bossMid < maxRegMid - 1e-6) warnings.push("the boss (" + bossMid.toFixed(2) + ") is not the stage's hardest deal (a deal reaches " + maxRegMid.toFixed(2) + ") — soft");
     return {
       ok: !errors.length, errors, warnings,
       report: { routes: routes.length, cards: [cardMin, cardMax],
@@ -6725,358 +6729,338 @@ const RunMap = (() => {
     };
   }
 
-  /* ── Planar wiring, 4-lane edition. The map is TWO 2-lane couples; every
-     transition between 4-wide rows is one of five PATTERNS (edge tables by
-     node index; all monotone ⇒ planar by construction):
-       E: couple braid, LOW side of each couple forks   {0→0,1 · 1→1 · 2→2,3 · 3→3}
-       O: couple braid, HIGH side forks                 {0→0 · 1→0,1 · 2→2 · 3→2,3}
-       R: shift right — routes cross couple A → B       {0→0,1 · 1→2 · 2→3 · 3→3}
-       L: shift left  — routes cross couple B → A       {0→0 · 1→0 · 2→1 · 3→2,3}
-       P: parallel (protected rows)                     {i→i}
-     E/O forks CHASE: alternating them means a route dodges at most every
-     other fork. R/L each carry every adjacent-lane cross edge once, so one of
-     each gives lanes 1-2 their two cross-links and lets every start reach the
-     stores of both couples. Every fork's children are a same-couple adjacent
-     pair, so all pair-content rules (distinct piles/adds, orientation,
-     protected rows) work per couple exactly as on the 2-wide map. */
-  const PATTERNS = {
-    E: [[0, 1], [1], [2, 3], [3]],
-    O: [[0], [0, 1], [2], [2, 3]],
-    R: [[0, 1], [2], [3], [3]],
-    L: [[0], [0], [1], [2, 3]],
-    P: [[0], [1], [2], [3]],
-  };
-  /** Wire rows A→B by pattern name; X = the 2→4 start expansion; B1/B2 = the
-      boss merge (all→one / couple→own boss). Index-based: rows are lane-sorted. */
-  function wirePattern(A, B, name) {
-    let table;
-    if (name === "X") table = [[0, 1], [2, 3]];
-    else if (name === "B1") table = [[0], [0], [0], [0]].slice(0, A.length);
-    else if (name === "B2") table = [[0], [0], [1], [1]];
-    else table = PATTERNS[name];
-    if (!table || A.length !== table.length) return false;
-    A.forEach((a, i) => table[i].forEach(j => { if (B[j]) a.next.push(B[j].id); }));
-    return B.every(b => A.some(a => a.next.indexOf(b.id) !== -1));
+  /* ── Weighted pick: entries = [[value, weight], ...]. ── */
+  function wpick(rng, entries) {
+    let tot = 0; for (const e of entries) tot += e[1];
+    let x = rng() * tot;
+    for (const e of entries) { if ((x -= e[1]) < 0) return e[0]; }
+    return entries[entries.length - 1][0];
   }
-  /** Per-couple fork/forced info for a 4-wide transition pattern.
-      For couple c (nodes 2c, 2c+1): which index forks, which is FORCED and
-      into which target index — the content-orientation rules key off this. */
-  function coupleInfo(name, c) {
-    const base = 2 * c;
-    if (name === "E") return { fork: base, forced: base + 1, target: base + 1 };
-    if (name === "O") return { fork: base + 1, forced: base, target: base };
-    return null;   // R/L/P: no full couple braid on this side
+  const rollType = (rng) => wpick(rng, [["deal", GEN_CONFIG.typeWeights.deal],
+    ["pack", GEN_CONFIG.typeWeights.pack], ["card", GEN_CONFIG.typeWeights.card]]);
+
+  /* ── STRUCTURE: draw `paths` random monotone lane-walks bottom->top; their
+     union is the graph (shared cells = merges/braids). Paths are drawn
+     PLANAR-BY-CONSTRUCTION: start lanes are sorted and boss targets assigned
+     left→right (laminar), and each step forbids any lane that would cross an
+     already-committed edge. So the union never has an edge crossing and needs
+     no rejection pass. Returns { R, bossRow, cells, edges, bossLanes } or null. */
+  function drawStructure(rng, phaseIndex) {
+    const C = GEN_CONFIG;
+    const L = C.lanes;
+    const R = phaseIndex === 0 ? 9 : (9 - (rng() < 0.30 ? 1 : 0));  // stage 0 always 9 (tightest deck); others mostly 9 (an 8-row
+    const bossRow = R - 1;                                   // lightest route rarely
+                                                             // clears the 11-card floor)
+    const twin = rng() < C.twinBossChance;
+    const bossLanes = (twin ? pick(rng, [[0, 2], [0, 1], [1, 2]]) : [pick(rng, [0, 1, 2])]).slice().sort((a, b) => a - b);
+    const P = ri(rng, C.paths);
+    for (let attempt = 0; attempt < C.structAttempts; attempt++) {
+      const trans = []; for (let r = 0; r < bossRow; r++) trans.push([]);   // committed [from,to] per transition
+      const startLanes = []; for (let i = 0; i < P; i++) startLanes.push(pick(rng, [0, 1, 2]));
+      startLanes.sort((a, b) => a - b);
+      const paths = []; let bad = false;
+      for (let i = 0; i < P && !bad; i++) {
+        const bossLane = bossLanes[Math.floor(i * bossLanes.length / P)];   // left paths -> left bosses
+        const lane = new Array(R); lane[0] = startLanes[i];
+        for (let r = 1; r <= bossRow; r++) {
+          const prev = lane[r - 1];
+          const remain = bossRow - r;
+          const cands = [];
+          for (let d = -1; d <= 1; d++) {
+            const nl = prev + d;
+            if (nl < 0 || nl >= L) continue;
+            if (Math.abs(bossLane - nl) > remain) continue;                 // must still reach the boss
+            let crosses = false;
+            for (const e of trans[r - 1]) { if ((prev < e[0] && nl > e[1]) || (prev > e[0] && nl < e[1])) { crosses = true; break; } }
+            if (crosses) continue;
+            cands.push(nl);
+          }
+          if (!cands.length) { bad = true; break; }
+          const nl = pick(rng, cands);
+          lane[r] = nl;
+          if (!trans[r - 1].some(e => e[0] === prev && e[1] === nl)) trans[r - 1].push([prev, nl]);
+        }
+        if (bad) break;
+        paths.push(lane);
+      }
+      if (bad) continue;
+      const starts = new Set(paths.map(pt => pt[0]));
+      if (starts.size < 2) continue;                          // >=2 distinct openings
+      const bossHit = new Set(paths.map(pt => pt[bossRow]));
+      if (bossLanes.some(bl => !bossHit.has(bl))) continue;   // every boss reached
+      const cellSet = new Set(), edgeSet = new Set();
+      for (const path of paths) {
+        for (let r = 0; r <= bossRow; r++) cellSet.add(r + ":" + path[r]);
+        for (let r = 0; r < bossRow; r++) edgeSet.add(r + ":" + path[r] + ">" + path[r + 1]);
+      }
+      const edges = [...edgeSet].map(e => { const m = e.split(/[:>]/); return { r: +m[0], from: +m[1], to: +m[2] }; });
+      return { R, bossRow, cells: [...cellSet], edges, bossLanes };
+    }
+    return null;
   }
 
-  /* ── ONE build attempt: schedule → roles → anchor → nodes → content.
-     Returns a phase map or null (caller retries). Failures are cheap.
-
-     The 4-lane map is TWO 2-lane COUPLES braided side by side:
-     - Row 0 holds TWO OPENING DEALS (stage 0: the run's identical first
-       deals; later stages: distinct pile counts at the real entry deck).
-       t0 EXPANDS them into the couples — every route forks immediately.
-     - Mid transitions carry alternating E/O couple braids (the CHASE: a
-       route dodges at most every other fork — two runs of two are 2 more
-       guaranteed forks), one R and one L crosser (routes exchange couples,
-       lanes 1-2 cross-link, every start reaches both couples' stores), and
-       at most one PARALLEL (the protected row).
-     - Row roles: 2 body deal rows (guaranteed deals #2/#3; the store row's
-       deal siblings are the optional #4), ONE double-store row
-       (deal, store | store, deal), 5 draft rows.
-     - The top transition merges into 1 boss, or 2 with twins (couple split:
-       riding a couple past the last crosser commits to its boss).
-
-     Fork children are always a same-couple adjacent pair rejoining a row
-     later, so each row differentiates per couple: deal rows take distinct
-     sibling piles (the harder deal forks to the lighter continuation, or is
-     pushed into the store — a guaranteed shop compensates too); draft rows
-     take distinct adds (m/m+1), or the equal PROTECTED quad behind the
-     parallel. The two OPENINGS are the long comparison (their branches live
-     in separate couples until the first crosser): the ASYM draft row below
-     that crosser (couple A a/a+1, couple B a+1/a+2) makes the segments
-     differ, and couple A — the lighter side — carries the HARDER opening
-     (lighter deck ↔ harder deal, never dominated). Twin stages additionally
-     asym their feeder row so the two couple TAILS differ the same way.
-
-     The ANCHOR solves boss piles p and the light floor L against the
-     layout's total heavy spread S so [entry+L, entry+L+S] sits inside the
-     boss band at BOTH extremes; the relax ladder stretches the band top in
-     small LOGGED steps where integer piles + the 11-card floor + the fork
-     spread leave no strict solution (the ♠ 5.5-6.0 band mostly). */
+  /* ── ONE build attempt: draw structure -> roll node types (weighted) with
+     vetoes -> place stores to quota -> assign pack sizes + deal piles (bands at
+     both deck extremes, distinct within a row). Returns a phase map or null;
+     the caller re-validates and retries. Difficulty/store/card rules are the
+     validator's job, not construction's — this just rolls and lightly repairs. */
   function tryBuildStage(phaseIndex, rng, entryDeck, relax) {
     const C = GEN_CONFIG;
     const suit = C.phaseSuits[phaseIndex];
-    const R = ri(rng, C.rows);
-    const bossRow = R - 1;
-    const firstRowDeal = phaseIndex === 0;      // stage 0 opens on the run's FIRST deal
-    const maxAdd = C.packMax;
     const bandHiExtra = relax * C.relaxBandStep;
-    // twins cost +1 heavy spread (the asym feeder), which the relax passes
-    // exist to absorb — roll them rarely there so attempts aren't wasted
-    const twinBoss = rng() < C.twinBossChance * (relax > 0 ? 0.25 : 1);
+    const st = drawStructure(rng, phaseIndex);
+    if (!st) return __genFail(1);
+    const { R, bossRow, cells, edges, bossLanes } = st;
+    const L = C.lanes;
 
-    // ── schedule + roles, jointly. Mid slots t1..t(bossRow-2). ──
-    const midLo = 1, midHi = bossRow - 2;
-    const bodyDeals = 2;
-    let sched = null, roles = null, storeRow = -1, protRow = -1, asymRow = -1;
-    for (let tries = 0; tries < 120 && !sched; tries++) {
-      const shuffled = [];
-      for (let t = midLo; t <= midHi; t++) shuffled.push(t);
-      for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t2 = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t2; }
-      const slotR = shuffled[0], slotL = shuffled[1];
-      const slotP = rng() < 0.95 ? shuffled[2] : -1;
-      // the SECOND crosser's crossing lane must be repopulated after the
-      // first empties it: >=2 E/O braids strictly between them
-      let between = 0;
-      for (let t = Math.min(slotR, slotL) + 1; t < Math.max(slotR, slotL); t++) {
-        if (t !== slotP) between++;
-      }
-      if (between < 2) continue;
-      // guaranteed E/O chase forks: R/L break a run, the parallel doesn't
-      let run = 0, forks = 0;
-      for (let t = midLo; t <= midHi; t++) {
-        if (t === slotR || t === slotL) { forks += Math.floor(run / 2); run = 0; }
-        else if (t !== slotP) run++;
-      }
-      forks += Math.floor(run / 2);
-      if (1 + forks < C.minForksPerRoute) continue;   // +1: the start expansion
-      const rr = new Array(R).fill("draft");
-      rr[bossRow] = "boss";
-      rr[0] = "deal";                                  // the two openings
-      // protected row: parallel-entered; never a crosser's source row (its
-      // equal quad would make that long fork pair read fake)
-      const pr = slotP >= 0 ? slotP + 1 : -1;
-      if (pr > bossRow - 1 || pr === slotR || pr === slotL) continue;
-      if (twinBoss && pr === bossRow - 1) continue;    // the twin feeder must be the asym row
-      // store row: at/above both crosser landings (cross below, walk up)
-      const landHi = Math.max(slotR, slotL) + 1;
-      const storeCands = [];
-      for (let r2 = landHi; r2 <= bossRow - 1; r2++) {
-        if (r2 === pr) continue;
-        if (twinBoss && r2 === bossRow - 1) continue;  // feeder stays a draft for twins
-        storeCands.push(r2);
-      }
-      if (!storeCands.length) continue;
-      const sRow = pick(rng, storeCands);
-      rr[sRow] = "store";
-      if (pr >= 0 && rr[pr] !== "draft") continue;
-      // body deal rows: exits must stay E/O (orientation keys off the couple
-      // braid), pairwise non-adjacent
-      const dealCands = [];
-      // stage 0 needs its deal rows above ~row 3: the deck below is still
-      // near 13 cards and integer pile ranges there are width-1 (no distinct
-      // sibling piles fit)
-      for (let r2 = (firstRowDeal ? 3 : 1); r2 <= bossRow - 2; r2++) {
-        if (rr[r2] !== "draft" || r2 === pr) continue;
-        if (r2 === slotR || r2 === slotL || r2 === slotP) continue;
-        dealCands.push(r2);
-      }
-      for (let i = dealCands.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t2 = dealCands[i]; dealCands[i] = dealCands[j]; dealCands[j] = t2; }
-      const deals = [];
-      for (const r2 of dealCands) {
-        if (deals.length >= bodyDeals) break;
-        if (deals.some(d => Math.abs(d - r2) <= 1)) continue;
-        deals.push(r2);
-      }
-      if (deals.length < bodyDeals) continue;
-      deals.forEach(r2 => rr[r2] = "deal");
-      // the ASYM row differentiates the openings INSIDE their pre-crosser
-      // segment (strictly below the first crosser landing)
-      const landLo = Math.min(slotR, slotL) + 1;
-      const aCands = [];
-      for (let r2 = 1; r2 < landLo; r2++) if (rr[r2] === "draft" && r2 !== pr) aCands.push(r2);
-      if (!aCands.length) continue;
-      const aRow = pick(rng, aCands);
-      const names = new Array(R - 1).fill(null);
-      names[0] = "X";
-      names[bossRow - 1] = twinBoss ? "B2" : "B1";
-      let flip = rng() < 0.5;
-      for (let t = midLo; t <= midHi; t++) {
-        if (t === slotR) names[t] = "R";
-        else if (t === slotL) names[t] = "L";
-        else if (t === slotP) names[t] = "P";
-        else { names[t] = flip ? "O" : "E"; flip = !flip; }
-      }
-      sched = names; roles = rr; storeRow = sRow; protRow = pr; asymRow = aRow;
-    }
-    if (!sched) return __genFail(2);
-    // twins: the feeder row is a SECOND asym row — the two couple TAILS must
-    // differ (they never rejoin), and the lighter couple takes the harder boss
-    const feederAsym = twinBoss ? bossRow - 1 : -1;
-
-    // ── ANCHOR: boss piles p + light floor L vs the layout's heavy spread. ──
-    const addRows = [];
-    for (let r2 = 1; r2 < bossRow; r2++) if (roles[r2] === "draft") addRows.push(r2);
-    const isAsym = (r2) => r2 === asymRow || r2 === feederAsym;
-    const spreadOf = (r2) => r2 === protRow ? 0 : (isAsym(r2) ? 2 : 1);
-    const capOf = (r2) => r2 === protRow ? maxAdd : (isAsym(r2) ? maxAdd - 2 : maxAdd - 1);
-    const S = addRows.reduce((s2, r2) => s2 + spreadOf(r2), 0);
-    const Lcap = Math.min(C.maxLightRouteCards, addRows.reduce((s2, r2) => s2 + capOf(r2), 0));
-    const bossBand = C.bossBands[phaseIndex];
-    const bLo = bossBand[0], bHi = bossBand[1] + bandHiExtra;
-    let plan = null;
-    const pLow = Math.max(C.minPiles, Math.ceil((entryDeck + C.minRouteCards) / (bHi + 1) - 1e-9));
-    for (let p = pLow; p <= pLow + 4 && p <= C.maxPiles; p++) {
-      const L = Math.max(C.minRouteCards, Math.ceil((bLo + 1) * p - entryDeck - 1e-9));
-      if (L > Lcap) continue;
-      const slack = (bHi + 1) * p - (entryDeck + L + S);
-      if (slack < -1e-9) continue;
-      if (!plan || slack > plan.slack + 1e-9) plan = { p, L, slack };
-    }
-    if (!plan) return __genFail(6);
-    const dealRowsPicked = () => { const out = []; for (let r2 = 1; r2 < bossRow; r2++) if (roles[r2] === "deal") out.push(r2); return out; };
-    const minima = {};
-    addRows.forEach(r2 => minima[r2] = 1);
-    let rem = plan.L - addRows.length, guard = 0;
-    // fatten the rows BELOW the first deal row first: the deal needs deck
-    // depth for a width-2 integer pile range (matters at stage 0's 13 cards)
-    const firstDealAt = Math.min.apply(null, dealRowsPicked());
-    while (rem > 0 && guard++ < 300) {
-      let cands = addRows.filter(r2 => r2 < firstDealAt && minima[r2] < capOf(r2));
-      if (!cands.length) cands = addRows.filter(r2 => minima[r2] < capOf(r2));
-      if (!cands.length) return __genFail(9);
-      minima[pick(rng, cands)]++; rem--;
-    }
-
-    // ── nodes + wiring ──
-    let nid = 0;
+    // ── nodes, id row-major (row asc, lane asc) ──
     const rowsArr = [];
-    for (let r2 = 0; r2 < R; r2++) {
-      let lanes;
-      if (r2 === 0) lanes = [1, 2];                    // the two openings
-      else if (r2 === bossRow) lanes = twinBoss ? [1, 2] : [1];
-      else lanes = [0, 1, 2, 3];
-      rowsArr.push(lanes.map(l => ({ id: nid++, row: r2, lane: l, x: C.laneX[l], type: null, next: [] })));
-    }
-    if (twinBoss) { rowsArr[bossRow][0].x = 0.26; rowsArr[bossRow][1].x = 0.74; }
-    else rowsArr[bossRow][0].x = 0.5;
-    for (let r2 = 0; r2 < R - 1; r2++) {
-      if (!wirePattern(rowsArr[r2], rowsArr[r2 + 1], sched[r2])) return __genFail(8);
-    }
-
-    // ── types ──
-    const all = rowsArr.flat();
-    const byId = {}; all.forEach(n => byId[n.id] = n);
-    rowsArr[bossRow].forEach(n => { n.type = "boss"; n.suit = suit; });
-    rowsArr[storeRow].forEach((n, i) => {
-      if (i === 1 || i === 2) n.type = "store";        // one shop per couple, middle lanes
-      else { n.type = "deal"; n.suit = suit; }
-    });
-    for (let r2 = 0; r2 < bossRow; r2++) {
-      if (roles[r2] === "deal") rowsArr[r2].forEach(n => { n.type = "deal"; n.suit = suit; });
-    }
-
-    // ── pickup adds ──
-    for (const r2 of addRows) {
-      const nodes2 = rowsArr[r2];
-      const base = minima[r2];
-      let vals;
-      if (r2 === protRow) vals = [base, base, base, base];
-      else if (isAsym(r2)) vals = [base, base + 1, base + 1, base + 2];  // couple A = the LIGHT side
-      else vals = [base, base + 1, base, base + 1];
-      const below = r2 - 1;
-      if (r2 !== protRow && below >= 1 && roles[below] === "deal") {
-        // the deal row below pushes its easier deal here: each couple's
-        // FORCED-target lane carries the bigger add (the harder deal keeps
-        // the fork to the lighter pick — its edge)
-        for (let c2 = 0; c2 < 2; c2++) {
-          const info = coupleInfo(sched[below], c2);
-          if (!info) continue;
-          const lo2 = Math.min(vals[2 * c2], vals[2 * c2 + 1]);
-          const hi2 = Math.max(vals[2 * c2], vals[2 * c2 + 1]);
-          vals[info.target] = hi2;
-          vals[info.target === 2 * c2 ? 2 * c2 + 1 : 2 * c2] = lo2;
-        }
-      } else if (r2 !== protRow && !isAsym(r2) && rng() < 0.5) {
-        vals = [vals[1], vals[0], vals[3], vals[2]];
+    for (let r = 0; r < R; r++) rowsArr.push([]);
+    cells.forEach(c => { const m = c.split(":"); rowsArr[+m[0]].push(+m[1]); });
+    let nid = 0;
+    const cellId = {};
+    const all = [];
+    for (let r = 0; r < R; r++) {
+      rowsArr[r].sort((a, b) => a - b);
+      for (const l of rowsArr[r]) {
+        const isBoss = r === bossRow;
+        const n = { id: nid, row: r, lane: l,
+          x: isBoss ? (bossLanes.length === 1 ? 0.5 : (l < 1.5 ? 0.28 : 0.72)) : C.laneX[l],
+          type: null, next: [] };
+        cellId[r + ":" + l] = nid;
+        all.push(n); nid++;
       }
-      nodes2.forEach((n, i) => {
-        const add = vals[i];
-        n.type = add >= 2 ? "pack" : "pickup";
-        if (add >= 2) n.packCount = add;
-        n.suit = suit; n.mixed = false; n.add = add;
+    }
+    const byId = {}; all.forEach(n => byId[n.id] = n);
+    edges.forEach(e => { byId[cellId[e.r + ":" + e.from]].next.push(cellId[(e.r + 1) + ":" + e.to]); });
+    all.forEach(n => n.next.sort((a, b) => byId[a].lane - byId[b].lane));
+
+    const bossNodes = all.filter(n => n.row === bossRow);
+    bossNodes.forEach(n => { n.type = "boss"; n.suit = suit; });
+    const body = all.filter(n => n.row < bossRow);
+    const firstRowDeal = phaseIndex === 0;   // stage 0 opens on the run's first deal(s)
+
+    // ── roll types (DEAL/PACK/CARD); stage-0 row-0 forced to deal ──
+    const setType = (n, t) => {
+      n.type = t;
+      if (t === "pack") { n.packCount = wpick(rng, C.packWeights); n.add = n.packCount; n.suit = suit; n.mixed = false; }
+      else if (t === "card") { n.type = "pickup"; n.add = 1; n.suit = suit; n.mixed = false; delete n.packCount; }
+      else { delete n.add; delete n.packCount; if (t === "deal") n.suit = suit; }
+    };
+    body.forEach(n => {
+      if (firstRowDeal && n.row === 0) { setType(n, "deal"); return; }
+      setType(n, rollType(rng));
+    });
+
+    // ── VETOES: no uniform row; a parent's children not all one type. Run
+    //    BEFORE store placement so a reroll can never turn a store-separating
+    //    deal into a pack (which would re-open a store gap). ──
+    const storeOf = (n) => n.type === "store";
+    const rowTypeKey = (n) => n.type === "pickup" ? "card" : n.type;   // pack/deal/card/store
+    for (let pass = 0; pass < 3; pass++) {
+      // uniform rows (skip stage-0 forced opening row, boss row, 1-node rows)
+      for (let r = firstRowDeal ? 1 : 0; r < bossRow; r++) {
+        const row = all.filter(n => n.row === r);
+        if (row.length < 2) continue;
+        const kinds = new Set(row.map(rowTypeKey));
+        if (kinds.size > 1) continue;
+        const flip = row.filter(n => !storeOf(n));           // never reroll a placed store
+        if (!flip.length) continue;
+        const n = pick(rng, flip);
+        let t, guard = 0; do { t = rollType(rng); } while (t === row[0].type && rowTypeKey(row[0]) !== "card" && guard++ < 8);
+        setType(n, t);
+      }
+      // sibling children all one type
+      all.forEach(par => {
+        if (par.next.length < 2) return;
+        const kids = par.next.map(id => byId[id]);
+        const kinds = new Set(kids.map(rowTypeKey));
+        if (kinds.size > 1) return;
+        const flip = kids.filter(n => !storeOf(n) && n.type !== "boss");
+        if (!flip.length) return;
+        const n = pick(rng, flip);
+        let t, guard = 0; do { t = rollType(rng); } while (rowTypeKey(n) === t && guard++ < 8);
+        setType(n, t);
       });
     }
 
-    const bossIds = rowsArr[bossRow].map(n => n.id);
-    const ph = { phaseIndex, suit, rows: R, bossRow, nodes: all, byId,
-                 bossId: bossIds[0], bossIds, row0: rowsArr[0].map(n => n.id) };
+    // ── DEAL-COUNT repair (a veto, not construction): random rolls give some
+    //    routes <3 or >5 deals. Nudge toward [3,5] — reroll a deal on an
+    //    over-full route to a pack, or a pack/card on a starved route to a
+    //    deal — a few passes. Validation still enforces [3,5] hard. ──
+    const localRoutes = () => {
+      const rts = []; const walk = (id, path) => { path.push(id); const nx = byId[id].next; if (!nx.length) rts.push(path.slice()); else nx.forEach(t => walk(t, path)); path.pop(); };
+      rowsArr[0].forEach(l => walk(cellId["0:" + l], [])); return rts;
+    };
+    const dealCount = (rt) => rt.reduce((s, id) => s + (byId[id].type === "deal" ? 1 : 0), 0);
+    // Cap the repair target at 4 (not the hard max 5): a 5-deal route on 9 rows
+    // that also hits a store has only 2 card slots (max +10) and can never
+    // clear the 11-card floor. 4 deals leaves >=3 card slots.
+    const dealCap = Math.min(4, C.dealsPerRouteMax);
+    for (let pass = 0; pass < 24; pass++) {
+      const rts = localRoutes();
+      const over = rts.filter(rt => dealCount(rt) > dealCap);
+      const under = rts.filter(rt => dealCount(rt) < 3);
+      if (!over.length && !under.length) break;
+      if (over.length) {
+        const rt = pick(rng, over);
+        const cand = rt.filter(id => byId[id].type === "deal" && !(firstRowDeal && byId[id].row === 0));
+        if (cand.length) setType(byId[pick(rng, cand)], "pack"); else break;
+      } else {
+        const rt = pick(rng, under);
+        const cand = rt.filter(id => { const n = byId[id]; return n.type === "pack" || n.type === "pickup"; });
+        if (cand.length) setType(byId[pick(rng, cand)], "deal"); else break;
+      }
+    }
+    // ── place STORES to quota over eligible nodes. Eligibility bakes in the
+    //    store rules so few placements get thrown out at validation: distinct
+    //    rows, not edge-adjacent to a store, and — the big one — a candidate
+    //    must not be joinable to an existing store by a DEAL-FREE path (that
+    //    would be "two stores with no deal between"). ──
+    const desiredStores = ri(rng, C.stores);
+    const edgeAdjToStore = (n) => all.some(m => storeOf(m) && (n.next.indexOf(m.id) !== -1 || m.next.indexOf(n.id) !== -1));
+    const rowHasStore = (row) => all.some(m => storeOf(m) && m.row === row);
+    // Is there a DEAL-FREE directed path srcId -> targetId? (deals fill the
+    //  gap so they block; an intervening store blocks too.) Used both ways so
+    //  the candidate need not be a store yet — plain target reachability.
+    const dealFreeReaches = (srcId, targetId) => {
+      const seen = new Set(), stack = byId[srcId].next.slice();
+      while (stack.length) {
+        const id = stack.pop(); if (seen.has(id)) continue; seen.add(id);
+        if (id === targetId) return true;
+        const nd = byId[id];
+        if (nd.type === "store" || nd.type === "deal" || nd.type === "boss") continue;  // gap filled / other store
+        for (const t of nd.next) stack.push(t);
+      }
+      return false;
+    };
+    const gapOK = (c) => all.filter(storeOf).every(s =>
+      !dealFreeReaches(c.id, s.id) && !dealFreeReaches(s.id, c.id));
+    const storeCands = () => body.filter(n => !storeOf(n) && n.type !== "boss" && n.type !== "deal"
+      && !(firstRowDeal && n.row === 0)
+      && !edgeAdjToStore(n) && !rowHasStore(n.row) && gapOK(n));
+    const makeStore = (n) => { delete n.add; delete n.packCount; delete n.suit; n.type = "store"; };
+    let placed = 0;
+    while (placed < desiredStores) {
+      let cands = storeCands();
+      if (!cands.length) break;
+      // the FIRST store goes low + central so every start can reach it; the
+      // rest are random among the eligible.
+      if (placed === 0) {
+        const minRow = Math.min.apply(null, cands.map(n => n.row));
+        cands = cands.filter(n => n.row <= minRow + 1);
+      }
+      makeStore(pick(rng, cands));
+      placed++;
+    }
+    if (placed < C.stores[0]) return __genFail(2);
 
-    // ── piles: bands hold at BOTH deck extremes of every deal ──
+    // ── CARD-FLOOR repair (runs AFTER stores so it sees the real card slots):
+    //    raise packs on the lightest route to clear the 11-card floor; if a
+    //    route is deal-heavy and out of raisable packs, convert one of its
+    //    deals to a pack (freeing a slot). Then a final deal-min top-up in case
+    //    a conversion dropped a shared route below 3 deals. Bounded; validation
+    //    still enforces [11,15] cards and [3,5] deals hard. ──
+    const routeCards = (rt) => rt.reduce((s, id) => s + addOf(byId[id]), 0);
+    for (let pass = 0; pass < 30; pass++) {
+      const rts = localRoutes();
+      let lo = Infinity, loRt = null;
+      for (const rt of rts) { const c = routeCards(rt); if (c < lo) { lo = c; loRt = rt; } }
+      if (lo >= C.minRouteCards) break;
+      const raisable = loRt.map(id => byId[id]).filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
+      if (raisable.length && (dealCount(loRt) <= 3 || rng() < 0.55)) {
+        const n = pick(rng, raisable); const nv = addOf(n) + 1;
+        n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false;
+      } else {
+        // free a card slot: convert a (non-opening) deal on this route to a +3 pack
+        const dealCand = loRt.filter(id => byId[id].type === "deal" && !(firstRowDeal && byId[id].row === 0));
+        if (dealCand.length && dealCount(loRt) > 3) setType(byId[pick(rng, dealCand)], "pack");
+        else if (raisable.length) { const n = pick(rng, raisable); const nv = addOf(n) + 1; n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false; }
+        else break;
+      }
+    }
+    // final deal-min top-up (a conversion may have dropped a route under 3)
+    for (let pass = 0; pass < 12; pass++) {
+      const under = localRoutes().filter(rt => dealCount(rt) < 3);
+      if (!under.length) break;
+      const rt = pick(rng, under);
+      const cand = rt.filter(id => { const n = byId[id]; return n.type === "pack" || n.type === "pickup"; });
+      if (cand.length) setType(byId[pick(rng, cand)], "deal"); else break;
+    }
+    // ── FINAL UNIFORM-ROW veto (re-asserted after the repairs, which can
+    //    re-uniform a row). Flip ONE node in an all-same-kind body row to a
+    //    different type — but only a flip that keeps every route's cards >=11
+    //    and deals in [3,5] (a pack<->card swap, or a card->deal). Never touch
+    //    stores/deals-that-would-starve. Cheap, best-effort mixing. ──
+    const kindOf = (n) => n.type === "pickup" ? "card" : n.type;
+    const safeFlip = (n, t) => {
+      const save = { type: n.type, add: n.add, packCount: n.packCount };
+      setType(n, t);
+      const rts = localRoutes();
+      const ok = rts.every(rt => routeCards(rt) >= C.minRouteCards
+        && dealCount(rt) >= 3 && dealCount(rt) <= C.dealsPerRouteMax);
+      if (!ok) { n.type = save.type; n.add = save.add; if (save.packCount != null) n.packCount = save.packCount; else delete n.packCount; }
+      return ok;
+    };
+    for (let r = firstRowDeal ? 1 : 0; r < bossRow; r++) {
+      const row = all.filter(n => n.row === r && n.type !== "store");
+      if (row.length < 2) continue;
+      const kinds = new Set(all.filter(n => n.row === r).map(kindOf));
+      if (kinds.size > 1) continue;                       // already mixed
+      const kind = kindOf(row[0]);
+      // a pack row -> make one a +1 card; a card row -> make one a +2 pack; a
+      // deal row -> make one a pack (only if deal count allows)
+      const alt = kind === "pack" ? "card" : kind === "card" ? "pack" : "pack";
+      safeFlip(pick(rng, row), alt);
+    }
+
+    const bossIds = bossNodes.map(n => n.id);
+    const ph = { phaseIndex, suit, rows: R, bossRow, nodes: all, byId,
+                 bossId: bossIds[0], bossIds, row0: rowsArr[0].map(l => cellId["0:" + l]) };
+
+    // ── DEAL PILES: bands hold at both deck extremes; distinct within a row.
+    //    Deals use their FULL stage band (no "boss must be hardest" cap — that
+    //    isn't a hard rule under random assignment; it's a soft warning only). ──
     const ext = deckExtremes(ph, entryDeck);
     const stageBand = C.stageBands[phaseIndex];
     const sLo = stageBand[0], sHi = stageBand[1];
-    const regHi = Math.min(sHi, bLo - 0.05);
+    const regHi = sHi;
     const dealRowsAsc = [];
-    for (let r2 = 0; r2 < bossRow; r2++) if (rowsArr[r2].some(n => n.type === "deal")) dealRowsAsc.push(r2);
-    const K = dealRowsAsc.length;
-    for (let k = 0; k < K; k++) {
-      const r2 = dealRowsAsc[k];
-      const isOpening = r2 === 0;
-      const isFirst = isOpening && firstRowDeal;
+    for (let r = 0; r < bossRow; r++) if (all.some(n => n.row === r && n.type === "deal")) dealRowsAsc.push(r);
+    for (let k = 0; k < dealRowsAsc.length; k++) {
+      const r = dealRowsAsc[k];
+      const isFirst = firstRowDeal && r === 0;
       const band = isFirst ? C.firstDealBand : [sLo, sHi];
-      // openings skip the boss-guard mid-cap (they may open at the stage
-      // band's top — the boss check still validates "hardest" globally)
-      const capHi = isFirst ? C.firstDealBand[1] : (isOpening ? sHi : regHi);
+      const capHi = isFirst ? C.firstDealBand[1] : regHi;
       const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
-        : sLo + (regHi - sLo) * ((k + 1) / (K + 1));   // ascending by row
-      const deals = rowsArr[r2].filter(n => n.type === "deal");
-      let pMin = C.minPiles, pMax = C.maxPiles, midSum = 0;
-      for (const n of deals) {
+        : sLo + (regHi - sLo) * ((k + 1) / (dealRowsAsc.length + 1));   // ascending by row
+      const group = all.filter(n => n.row === r && n.type === "deal");
+      const used = new Set();
+      for (const n of group) {
         const e = ext[n.id];
-        const midDeck = (e.min + e.max) / 2; midSum += midDeck;
-        pMin = Math.max(pMin, Math.ceil(e.max / (band[1] + 1) - 1e-9), Math.ceil(midDeck / (capHi + 1) - 1e-9));
-        pMax = Math.min(pMax, Math.floor(e.min / (band[0] + 1) + 1e-9));
-      }
-      if (pMin > pMax) return __genFail(12);
-      const pT = Math.max(pMin, Math.min(pMax, Math.round((midSum / deals.length) / (targetD + 1))));
-      if (isOpening) {
-        // stage 0: identical (the first-deal band is that tight). Later
-        // stages: distinct piles when the range allows — couple A rides the
-        // ASYM row's light side, so it takes the HARDER opening (lighter
-        // deck ↔ harder deal); with a width-1 range the openings tie and the
-        // asym row alone differentiates them.
-        if (!isFirst && pMax - pMin >= 1) {
-          const lo2 = Math.min(Math.max(pT, pMin), pMax - 1);
-          deals[0].piles = lo2; deals[1].piles = lo2 + 1;
-        } else deals.forEach(n => { n.piles = pT; });
-        continue;
-      }
-      if (r2 === storeRow) {
-        // one shop-deal per couple; twins give couple A (the light, harder-
-        // boss side) the EASIER shop deal when the range allows
-        let pA = pT, pB = pT;
-        if (twinBoss && pMax - pMin >= 1) { pA = Math.min(pMax, pT + 1); pB = pA - 1; }
-        rowsArr[r2].forEach((n, i) => { if (n.type === "deal") n.piles = (i === 0) ? pA : pB; });
-        continue;
-      }
-      // full deal row: per-couple distinct piles; the harder deal takes the
-      // forking lane — unless the forced lane lands on a STORE, where the
-      // guaranteed shop is the harder deal's compensation instead
-      if (pMax - pMin < 1) return __genFail(12);
-      const lo = Math.min(Math.max(pT, pMin), pMax - 1);
-      const above = rowsArr[r2 + 1];
-      for (let c2 = 0; c2 < 2; c2++) {
-        const info = coupleInfo(sched[r2], c2);
-        if (!info) return __genFail(12);               // deal rows always exit E/O
-        const harderIdx = (above[info.target] && above[info.target].type === "store") ? info.forced : info.fork;
-        rowsArr[r2][2 * c2].piles = (2 * c2 === harderIdx) ? lo : lo + 1;
-        rowsArr[r2][2 * c2 + 1].piles = (2 * c2 + 1 === harderIdx) ? lo : lo + 1;
+        const pMin = Math.max(C.minPiles, Math.ceil(e.max / (band[1] + 1) - 1e-9), Math.ceil((e.min + e.max) / 2 / (capHi + 1) - 1e-9));
+        const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
+        if (pMin > pMax) return __genFail(3);
+        const pT = Math.max(pMin, Math.min(pMax, Math.round(((e.min + e.max) / 2) / (targetD + 1))));
+        // The stage-0 opening deals are band-locked (deck 13, firstDealBand is
+        // narrow → often a single valid pile count), so they may tie. Every
+        // OTHER same-row deal takes a DISTINCT in-band value (the veto: left vs
+        // right is a real difficulty choice).
+        let p = null;
+        for (let d = 0; d <= C.maxPiles && p == null; d++) for (const cand of [pT + d, pT - d]) {
+          if (cand >= pMin && cand <= pMax && (isFirst || !used.has(cand))) { p = cand; break; }
+        }
+        if (p == null) return __genFail(4);   // same-row deals can't take distinct in-band piles
+        used.add(p); n.piles = p;
       }
     }
-    // Boss piles from each boss's OWN extremes, ascending with arrival —
-    // couple A (the asym-light side) arrives lighter and takes the smaller
-    // pile count: the harder boss rides the lighter deck.
-    if (!assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra)) return __genFail(13);
+    if (!assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra)) return __genFail(5);
     return ph;
   }
 
   /* ── Boss pile assignment from CURRENT deck extremes. Twins get piles
-     ASCENDING with their arriving deck: the lighter arrival takes the smaller
-     pile count (strictly, when the ranges allow) — the harder boss rides the
-     lighter deck, so neither twin dominates. Shared by construction AND the
-     mutation loop: any mutation that shifts the route extremes must re-derive
-     the boss piles or the band drifts. */
+     ASCENDING with their arriving deck (lighter arrival -> smaller pile count,
+     the harder boss on the lighter deck), so neither twin dominates. ── */
   function assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra) {
     const C = GEN_CONFIG;
     const band = C.bossBands[phaseIndex];
@@ -7092,122 +7076,65 @@ const RunMap = (() => {
       if (pMin > pMax) return false;
       const pT = Math.round((pMin + pMax) / 2);
       let p = null;
-      for (const strict of [1, 0]) {           // prefer strictly ascending twins
+      for (const strict of [1, 0]) {
         const floor2 = prev === -Infinity ? pMin : Math.max(pMin, prev + strict);
-        for (let d = 0; d <= pMax - pMin && p == null; d++) {
-          for (const cand of [pT + d, pT - d]) {
-            if (cand >= floor2 && cand <= pMax) { p = cand; break; }
-          }
+        for (let d = 0; d <= pMax - pMin && p == null; d++) for (const cand of [pT + d, pT - d]) {
+          if (cand >= floor2 && cand <= pMax) { p = cand; break; }
         }
         if (p != null) break;
       }
       if (p == null) return false;
-      prev = p;
-      boss.piles = p;
+      prev = p; boss.piles = p;
     }
     return true;
   }
 
-
-  /* ── Mutation fallback for FAKE or DOMINATED forks the construction missed:
-     nudge the offending branch (swap sibling pickup sizes so the harder-deal
-     branch rides lighter; ease a dominated branch's deal; or shift a fake
-     branch's entry node), then the caller re-runs FULL validation — bands,
-     floors, store rules and fork checks all re-assert. */
-  function mutateForkIssues(ph, entryDeck, phaseIndex) {
-    const C = GEN_CONFIG;
-    const issues = analyzeForks(ph).filter(f => f.verdict !== "DISTINCT");
-    if (!issues.length) return false;
-    let ext = deckExtremes(ph, entryDeck);
-    let changed = false;
-    const easeDeal = (segIds) => {
-      // +1 pile on the segment's hardest deal (easier + better reward) —
-      // NEVER onto a value a same-row sibling already holds (that would just
-      // trade a dominated fork for a fake one).
-      const deals = segIds.map(id => ph.byId[id]).filter(n => n.type === "deal" || n.type === "boss")
-        .sort((a, b) => a.piles - b.piles);
-      for (const n of deals) {
-        const band = n.type === "boss" ? C.bossBands[phaseIndex] : C.stageBands[phaseIndex];
-        const e = ext[n.id];
-        const pMax = Math.min(C.maxPiles, Math.floor(e.min / (band[0] + 1) + 1e-9));
-        const sibs = ph.nodes.filter(x => x.row === n.row && x.id !== n.id && (x.type === "deal" || x.type === "boss"))
-          .map(x => x.piles);
-        for (const cand of [n.piles + 1, n.piles + 2]) {
-          if (cand <= pMax && sibs.indexOf(cand) === -1) { n.piles = cand; return true; }
-        }
-      }
-      return false;
-    };
-    const bumpAdd = (segIds, delta) => {
-      const drafts = segIds.map(id => ph.byId[id]).filter(n => n.type === "pickup" || n.type === "pack");
-      for (const n of drafts) {
-        const sibs = ph.nodes.filter(x => x.row === n.row && x.id !== n.id && (x.type === "pickup" || x.type === "pack"))
-          .map(addOf);
-        // Lowering may never drop BELOW the row's current minimum: the light
-        // route's total is the boss anchor's guarantee (the 11-card floor is
-        // looser and would not catch the erosion).
-        const rowMin = Math.min.apply(null, [addOf(n)].concat(sibs));
-        for (const cand of [addOf(n) + delta, addOf(n) + delta * 2]) {
-          if (cand < 1 || cand > C.packMax || sibs.indexOf(cand) !== -1) continue;
-          if (delta < 0 && cand < rowMin) continue;
-          if (cand >= 2) { n.type = "pack"; n.packCount = cand; } else { n.type = "pickup"; delete n.packCount; }
-          n.add = cand;
-          return true;
-        }
-      }
-      return false;
-    };
-    for (const f of issues) {
-      if (changed) ext = deckExtremes(ph, entryDeck);   // earlier mutations shift the extremes
-      if (f.verdict === "DOMINATED") {
-        const d = f.dominated, o = 1 - d;    // index of the dominated branch
-        // favor the dominated (harder) branch: lighten its pickups, else ease
-        // its hardest deal, else weigh the easier branch down.
-        if (bumpAdd(f.segIds[d], -1) || easeDeal(f.segIds[d]) || bumpAdd(f.segIds[o], +1)) changed = true;
-      } else {   // FAKE — nudge the second branch's content
-        if (bumpAdd(f.segIds[1], +1) || easeDeal(f.segIds[1])) changed = true;
-      }
-    }
-    return changed;
+  /* ── Failure category: collapse an error string to a short bucket so the
+     retry loop can report WHICH constraint blocks convergence (weight-tuning
+     signal). ── */
+  function failCategory(err) {
+    if (!err) return "no-candidate";
+    if (err.indexOf("cards (<") !== -1) return "cards<11";
+    if (err.indexOf("no restrained") !== -1) return "cards>15";
+    if (err.indexOf("regular deals (<") !== -1) return "deals<3";
+    if (err.indexOf("regular deals (>") !== -1) return "deals>5";
+    if (err.indexOf("too easy") !== -1) return "band-too-easy";
+    if (err.indexOf("too hard") !== -1) return "band-too-hard";
+    if (err.indexOf("hardest deal") !== -1) return "boss-not-hardest";
+    if (err.indexOf("store") !== -1) return "store-rule";
+    if (err.indexOf("planar") !== -1) return "planarity";
+    if (err.indexOf("boss nodes") !== -1) return "boss-count";
+    return "other";
   }
-
 
   /* ── generateStage: build → validate (full route enumeration) → retry; after
      the attempt cap, RELAX the boss band top step by step (logged) and keep
-     trying. If the spec is truly unsatisfiable, log the conflict and return
-     the best effort (playable). ──
-     Each returned phase carries `_gen` = { attempt, relax, report } — the
-     route-enumeration proof used to accept it. */
+     trying. Capped attempts; on non-convergence, log the FAILURE HISTOGRAM
+     (which constraint failed most — the weight-tuning signal) and return the
+     best effort (playable). Each returned phase carries `_gen`. */
   function generateStage(phaseIndex, seed, entryDeck) {
     const C = GEN_CONFIG;
     entryDeck = entryDeck || C.startDeckSize;
     let best = null, bestErrs = Infinity, lastErrors = null;
+    const hist = {};
     for (let attempt = 0; attempt < C.attempts * (1 + C.relaxSteps); attempt++) {
       const relax = Math.min(C.relaxSteps, Math.floor(attempt / C.attempts));
       const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
       const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax);
-      if (!ph) continue;
+      if (!ph) { hist["build-null"] = (hist["build-null"] || 0) + 1; continue; }
       const bandX = relax * C.relaxBandStep;
-      let v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
-      // Surviving FAKE or DOMINATED forks get mutation passes (lighten the
-      // harder branch / ease a deal / nudge a pack), each followed by FULL
-      // re-validation — every other rule re-asserts too. Anything else
-      // regenerates. Parallel rails carry more fork pairs, so allow a few
-      // passes before giving up on the attempt.
-      let mutPasses = 0;
-      while (!v.ok && mutPasses++ < 3
-          && v.errors.every(e => e.indexOf("FAKE fork") === 0 || e.indexOf("DOMINATED fork") === 0)
-          && mutateForkIssues(ph, entryDeck, phaseIndex)) {
-        if (!assignBossPiles(ph, entryDeck, phaseIndex, bandX)) break;   // extremes moved → re-derive
-        v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
-      }
+      const v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
       ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
       if (v.ok) return ph;
+      const cat = failCategory(v.errors[0]);
+      hist[cat] = (hist[cat] || 0) + 1;
       if (v.errors.length < bestErrs) { best = ph; bestErrs = v.errors.length; lastErrors = v.errors; }
     }
-    console.warn("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck + "): spec conflict after "
-      + (C.attempts * (1 + C.relaxSteps)) + " attempts — returning best effort. "
-      + (lastErrors ? lastErrors.join(" | ") : "no candidate built"));
+    const top = Object.keys(hist).sort((a, b) => hist[b] - hist[a])
+      .slice(0, 4).map(k => k + "×" + hist[k]).join(", ");
+    console.warn("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck + "): no valid map after "
+      + (C.attempts * (1 + C.relaxSteps)) + " attempts. Failure histogram: " + top
+      + ". Best effort had: " + (lastErrors ? lastErrors.slice(0, 2).join(" | ") : "no candidate"));
     return best;
   }
 
