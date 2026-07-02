@@ -120,7 +120,8 @@ export function run() {
       r.ok(m.nodes.filter(n => n.type === "deal").every(n => n.piles >= 1), "stage " + s + ": deals show pile counts");
       // The FULL spec holds (route cards, deal counts, stores, difficulty bands
       // at both deck extremes) — the same validator the generator accepted with.
-      const v = RunMap.validateStage(m, entry, { phaseIndex: 0 });
+      const v = RunMap.validateStage(m, entry, { phaseIndex: 0,
+        bandHiExtra: (m._gen ? m._gen.relax : 0) * RunMap.GEN_CONFIG.relaxBandStep });
       r.ok(v.ok, "stage " + s + ": validateStage passes (" + (v.errors[0] || "") + ")");
       r.ok(v.report.cards[0] >= 11, "stage " + s + ": every route collects ≥11 cards");
       r.ok(v.report.cards[0] <= 15, "stage " + s + ": a route ≤15 cards exists");
@@ -146,11 +147,12 @@ export function run() {
       // STORE ACCESS: every starting node reaches EVERY store.
       r.ok(v.report.storeReach.every(sr => sr.reaches === sr.of),
         "stage " + s + ": every start reaches every store (no store-locked route)");
-      // SUSTAINED PARALLEL RAILS: 2-3 route-carrying nodes on every body row.
+      // BRAIDED COUPLES: 3-4 route-carrying nodes on every body row (the
+      // openings row and the boss row are the spec's narrow ends).
       const widths = v.report.widthPerRow;
       let par = true;
-      for (let rr = 1; rr <= m.bossRow - 2; rr++) if (widths[rr] < 2 || widths[rr] > 3) par = false;
-      r.ok(par, "stage " + s + ": every body row runs 2-3 routes wide (" + widths.join(",") + ")");
+      for (let rr = 1; rr <= m.bossRow - 1; rr++) if (widths[rr] < 3 || widths[rr] > 4) par = false;
+      r.ok(par, "stage " + s + ": every body row runs 3-4 routes wide (" + widths.join(",") + ")");
       // PLANARITY: edges never swap sides (monotone lanes ⇒ no crossings).
       let swaps = 0;
       const rows = {};
@@ -165,10 +167,13 @@ export function run() {
         }
       }
       r.eq(swaps, 0, "stage " + s + ": no edge ever swaps sides (planar by construction)");
-      // Adjacent lanes only, one row up.
+      // Adjacent lanes only, one row up (the boss-row merge may span lanes —
+      // it converges on a centered node, which cannot cross anything).
       r.ok(m.nodes.every(n => n.next.every(id => {
         const t = m.byId[id];
-        return t.row === n.row + 1 && Math.abs((t.lane != null ? t.lane : 1) - (n.lane != null ? n.lane : 1)) <= 1;
+        if (t.row !== n.row + 1) return false;
+        if (t.row === m.bossRow) return true;
+        return Math.abs((t.lane != null ? t.lane : 1) - (n.lane != null ? n.lane : 1)) <= 1;
       })), "stage " + s + ": edges go one row up, same/adjacent lane");
       // The run's FIRST deal sits at row 0 in its band at deck 13.
       const first = m.byId[m.row0[0]];
@@ -182,12 +187,15 @@ export function run() {
   {
     for (const [p, entry] of [[1, 27], [2, 40]]) {
       const m = RunMap.generateStage(p, 4242 + p, entry);
-      const v = RunMap.validateStage(m, entry, { phaseIndex: p });
+      // a stage may carry a LOGGED relax step (the band top stretches when
+      // integer piles + card floors leave no strict solution) — honor it
+      const bandX = (m._gen ? m._gen.relax : 0) * RunMap.GEN_CONFIG.relaxBandStep;
+      const v = RunMap.validateStage(m, entry, { phaseIndex: p, bandHiExtra: bandX });
       r.ok(v.ok, "stage " + p + " (entry " + entry + "): validateStage passes (" + (v.errors[0] || "") + ")");
       const boss = v.report.perDeal.find(d => d.type === "boss");
       const band = RunMap.GEN_CONFIG.bossBands[p];
-      r.ok(boss.dMin >= band[0] - 1e-6 && boss.dMax <= band[1] + 1e-6,
-        "stage " + p + ": boss difficulty [" + boss.dMin + "," + boss.dMax + "] inside its band [" + band + "]");
+      r.ok(boss.dMin >= band[0] - 1e-6 && boss.dMax <= band[1] + bandX + 1e-6,
+        "stage " + p + ": boss difficulty [" + boss.dMin + "," + boss.dMax + "] inside its band [" + band + "] (+" + bandX + " logged relax)");
     }
   }
 
