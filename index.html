@@ -2442,6 +2442,9 @@
   .store-actions .store-view-btn { flex: 0 0 auto; padding: 9px 14px; }
   /* The store deck character sits at the action row's left, tappable like in a deal. */
   .play-btn.store-start { flex: 1; margin: 0; padding: 11px 18px; font-size: 15px; }
+  /* Locked while items await placement: clearly out of play, no press feedback. */
+  .play-btn.store-start:disabled { opacity: 0.45; filter: grayscale(0.55); cursor: not-allowed; box-shadow: none; }
+  .play-btn.store-start:disabled:active { transform: none; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
   .confirm-overlay {
@@ -3481,7 +3484,12 @@
   /* Rank histogram in the deck view (reuses .ds-* bar styling at a fixed height). */
   .deck-modal-hist { margin: 0 0 12px; }
   .deck-modal-hist.hidden { display: none; }
-  .deck-modal-hist .dh-bars { height: 64px; }
+  .deck-modal-hist .dh-bars { height: 64px; align-items: stretch; }
+  /* Each bar must FILL the band's height or its flex-fill .ds-track collapses
+     to 0 and the histogram renders as labels with no bars (the base .ds-bars
+     rule bottom-aligns content-sized items — right for the pip strip, not for
+     the % -height track bars used here). */
+  .deck-modal-hist .ds-bar { height: 100%; }
   .deck-modal-hist .dh-legend { display: flex; align-items: center; justify-content: center; gap: 5px;
     font-size: 9px; font-weight: 700; color: var(--muted); margin-top: 5px; }
   .deck-modal-hist .dh-k { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-left: 8px; }
@@ -5091,6 +5099,10 @@
         <button class="deck-modal-close" id="saClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="sa-banner" id="saBanner"></div>
+      <!-- Same composition view as the deck inspector (rank histogram + suit
+           counts), so placement decisions can weigh the whole deck's shape. -->
+      <div class="deck-modal-hist hidden" id="saHist"></div>
+      <div class="deck-modal-suits hidden" id="saSuits"></div>
       <div class="deck-modal-total" id="saHint">Tap a card to apply this sticker.</div>
       <div class="deck-cards sa-cards" id="saCards"></div>
     </div>
@@ -5246,7 +5258,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.79 · character moods: eyes-only (no mouth) + deck-select perk";
+const APP_VERSION = "v3.80 · picker histogram, live suit chart, map lock, win music timing";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11935,12 +11947,13 @@ const DeckInspector = (() => {
      bar = the full current-stage count, the bright overlay = how many of that
      rank are still in the draw pile. Same shared-scale, order-free composition
      the play-screen strip uses. Read-only. */
-  function renderHistogram() {
-    if (!refs.hist) return;
+  function renderHistogram(intoEl) {
+    const host = intoEl || refs.hist;
+    if (!host) return;
     const stats = getStats() || { remaining: EMPTY, full: EMPTY };
     const rem = stats.remaining || EMPTY;
     const full = stats.full || EMPTY;
-    if (!rem.rows || !rem.rows.length) { refs.hist.classList.add("hidden"); refs.hist.innerHTML = ""; return; }
+    if (!rem.rows || !rem.rows.length) { host.classList.add("hidden"); host.innerHTML = ""; return; }
     let scaleMax = 1;
     full.rows.forEach(r => { if (r.count > scaleMax) scaleMax = r.count; });
     const bars = rem.rows.map((row, i) => {
@@ -11953,11 +11966,11 @@ const DeckInspector = (() => {
           '<div class="ds-blue" style="height:' + bluePct + '%"></div>' +
         "</div><div class=\"ds-rank\">" + row.label + "</div></div>";
     }).join("");
-    refs.hist.innerHTML =
+    host.innerHTML =
       '<div class="dh-bars ds-bars">' + bars + "</div>" +
       '<div class="dh-legend"><span class="dh-k dh-k-rem"></span>remaining' +
         '<span class="dh-k dh-k-all"></span>total this stage</div>';
-    refs.hist.classList.remove("hidden");
+    host.classList.remove("hidden");
   }
 
   /* Balatro-style deck view: every card of the current stage, rank AND suit,
@@ -11986,8 +11999,9 @@ const DeckInspector = (() => {
      suit, in suit-ENTRY order (DeckManager.SUITS) so the in-play suits always
      lead and any dormant suit (0/0) trails. Read-only — counts only, derived
      from the same card list as the grid. */
-  function renderSuitBreakdown(cards, isRem) {
-    if (!refs.suits) return;
+  function renderSuitBreakdown(cards, isRem, intoEl) {
+    const host = intoEl || refs.suits;
+    if (!host) return;
     const SUITS = DeckManager.SUITS.map(s => s.symbol);
     const rem = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
     const tot = { "♠": 0, "♥": 0, "♣": 0, "♦": 0 };
@@ -12003,8 +12017,18 @@ const DeckInspector = (() => {
         '<span class="dsuit-n">' + rem[s] + "<span class=\"dsuit-of\">/" + tot[s] + "</span></span>" +
       "</span>";
     }).join("");
-    refs.suits.innerHTML = '<span class="dsuit-lbl">by suit</span>' + cells;
-    refs.suits.classList.remove("hidden");
+    host.innerHTML = '<span class="dsuit-lbl">by suit</span>' + cells;
+    host.classList.remove("hidden");
+  }
+
+  /** Render the SAME rank histogram + suit breakdown into foreign elements —
+      used by the sticker/swap card picker so it carries the same composition
+      view as the deck inspector. Read-only; same data callbacks. */
+  function renderCompositionInto(histEl, suitsEl) {
+    renderHistogram(histEl);
+    const data = getCards() || { cards: [], remaining: null };
+    const remSet = data.remaining;   // Set of remaining ids, or null = all remaining
+    renderSuitBreakdown(data.cards || [], (c) => remSet ? remSet.has(c.id) : true, suitsEl);
   }
 
   /* Hold view: lightweight remaining-only breakdown (unchanged). */
@@ -12021,7 +12045,7 @@ const DeckInspector = (() => {
     });
   }
 
-  return { init, close, openFull, attach };
+  return { init, close, openFull, attach, renderCompositionInto };
 })();
 
 /* ----------------------------------------------------------------
@@ -12218,6 +12242,8 @@ const UIRenderer = (() => {
     saClose: document.getElementById("saClose"),
     saTrash: document.getElementById("saTrash"),   // forced place-or-trash for a bought sticker
     saBanner: document.getElementById("saBanner"),
+    saHist: document.getElementById("saHist"),     // composition histogram in the card picker
+    saSuits: document.getElementById("saSuits"),   // suit-count breakdown in the card picker
     saHint: document.getElementById("saHint"),
     saCards: document.getElementById("saCards"),
     saConfirm: document.getElementById("saConfirm"),
@@ -14802,6 +14828,9 @@ const UIRenderer = (() => {
     });
     if (el.postDealPlaceBtn) el.postDealPlaceBtn.addEventListener("click", startPostDealPlacement);
     el.storeStartBtn.addEventListener("click", () => {
+      // Backstop for the disabled state: never leave with a placeable item
+      // pending (the button is already greyed via renderStore).
+      if (pendingBlockCount() > 0) return;
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
       const node = campaign.currentNode();
@@ -16376,7 +16405,8 @@ const UIRenderer = (() => {
   // the between-runs intermission: just the stage/run indicator and the coin
   // breakdown — no "This Run" / "Campaign" totals.
   function showRunComplete(coins) {
-    Sound.dealWon();   // the character's happy dance
+    // (The deal-won jingle already played at the run-end trigger, in the same
+    // frame as the character's happy dance — not here, this screen shows late.)
     showOverlay({
       kind: "win",
       cls: "deal-cleared",
@@ -16447,7 +16477,8 @@ const UIRenderer = (() => {
   }
 
   function showCampaignComplete() {
-    Sound.runClear();
+    // (The run-clear music already played at the run-end trigger, in the same
+    // frame as the win dance — this overlay arrives a full cinematic later.)
     showOverlay({
       kind: "win",
       icon: glyph("complete"),
@@ -18074,6 +18105,12 @@ const UIRenderer = (() => {
     if (clearedNode) campaign.markNodeCleared(clearedNode.id);
     const runWon = !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
 
+    // WIN MUSIC fires HERE — the same synchronous frame as the celebrate dance
+    // above, not on the summary overlays (those appear only after the win
+    // cinematic's RUN_SUMMARY_DELAY_MS + any placement screen, which is where
+    // the audible lag came from). Deal win and run win each keep their jingle.
+    if (runWon) Sound.runClear(); else Sound.dealWon();
+
     if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared
       // He made it home to mama: dirt gone, big smile, sparkle eyes — the
@@ -19223,6 +19260,16 @@ const UIRenderer = (() => {
       el.storeApplyStickersBtn.firstChild && (el.storeApplyStickersBtn.childNodes[0].nodeValue = "Place item");
       if (el.storeApplyStickersN) el.storeApplyStickersN.textContent = n > 1 ? "s (" + n + ")" : "";
     }
+    // GO TO MAP locks while anything placeable is still unplaced (a picked pack
+    // card in the tray, a held sticker/pillar/base/Same-Power). Store buys
+    // deliberately don't auto-chain into placement (see placementWalk), so
+    // without this lock a picked pack card could ride the tray out of the store
+    // unplaced. Only this exit is blocked; every other store action stays live.
+    if (el.storeStartBtn) {
+      const blocked = pendingBlockCount() > 0;
+      el.storeStartBtn.disabled = blocked;
+      el.storeStartBtn.textContent = blocked ? "PLACE ITEMS FIRST" : "GO TO MAP";
+    }
     // Row 1: three individual sticker slots.
     el.storeItems.innerHTML = "";
     (offer ? offer.stickers : []).forEach((id, slot) =>
@@ -19667,6 +19714,7 @@ const UIRenderer = (() => {
     if (el.saHint) el.saHint.textContent = "Tap a card to apply " + t.label + " to it.";
     stickerApplyChrome();
     renderStickerApplyCards();
+    DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
     el.stickerApplyModal.classList.remove("hidden");
   }
   /* SWAP mode: a gained pack/Duplicate card replaces a deck card of the player's
@@ -19688,6 +19736,7 @@ const UIRenderer = (() => {
     pendingBuyStickerSlot = null;   // not a sticker purchase
     stickerApplyChrome();
     renderStickerApplyCards();
+    DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
     el.stickerApplyModal.classList.remove("hidden");
   }
   function selectApplyCard(id) {
@@ -19743,6 +19792,11 @@ const UIRenderer = (() => {
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    // The apply/swap above may have changed the deck's composition (a suit- or
+    // rank-changing sticker, or a swapped-in card) → refresh the persistent
+    // histogram + suit chart NOW. renderStore alone doesn't touch the band, so
+    // without this the store showed the pre-apply counts until the next screen.
+    renderDeckStrip();
     continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
   }
   function closeStickerApply() {
@@ -19773,6 +19827,24 @@ const UIRenderer = (() => {
     return sum(campaign.getInventory()) + sum(campaign.getPillarInventory())
       + sum(campaign.getBaseInventory()) + sum(campaign.getSamePowerInventory())
       + (campaign.packTrayCount ? campaign.packTrayCount() : 0);
+  }
+  /* Pending items that can actually BE placed right now — the GO TO MAP lock
+     keys off this, not pendingPlaceTotal, so it can never soft-lock the store:
+     a rank sticker with no eligible card (e.g. +1 Rank when every card is an
+     Ace) has no legal target and must not bar the exit. Cards, pillars, bases
+     and Same-Powers always have a target, so they always count. */
+  function pendingBlockCount() {
+    if (!campaign) return 0;
+    const deck = campaign.getRunDeck() || [];
+    let n = campaign.packTrayCount ? campaign.packTrayCount() : 0;
+    const sinv = campaign.getInventory();
+    for (const t of StickerTypes.all()) {
+      const held = sinv[t.id] || 0;
+      if (held > 0 && deck.some(c => campaign.canApplySticker(c, t.id))) n += held;
+    }
+    const sum = (o) => Object.keys(o || {}).reduce((a, k) => a + (o[k] || 0), 0);
+    return n + sum(campaign.getPillarInventory()) + sum(campaign.getBaseInventory())
+      + sum(campaign.getSamePowerInventory());
   }
   // What runs when the placement queue empties: by default refresh the store, but
   // the post-deal screen swaps in its own continuation (→ the deal summary).
