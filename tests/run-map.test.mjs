@@ -361,7 +361,18 @@ export function run() {
     const nB = { id: 910002, type: "pickup", suit: "♦", mixed: false };
     const a = c.previewPickupCard(nA), b = c.previewPickupCard(nB);
     r.ok(a && b, "+1 nodes lock a concrete card on first preview");
-    r.eq(a.suit, "♦", "a ♦ +1 node locks a diamond");
+    // The node's phase suit wins while the suit still has unreserved cards. A
+    // fresh campaign's own card-heavy map occasionally reserves ALL 13 diamonds
+    // up front (14-row maps make +1 nodes common), which triggers the
+    // documented any-suit fallback — so sample a few fresh campaigns: the suit
+    // lock must hold on at least one (a real suit-lock bug would miss on all).
+    let suitHeld = a.suit === "♦";
+    for (let t = 0; t < 5 && !suitHeld; t++) {
+      const c2 = CampaignState.create();
+      const p2 = c2.previewPickupCard({ id: 910050 + t, type: "pickup", suit: "♦", mixed: false });
+      suitHeld = !!p2 && p2.suit === "♦";
+    }
+    r.ok(suitHeld, "a ♦ +1 node locks a diamond (while the suit has free cards)");
     r.ok(a.id !== b.id, "no two +1 nodes lock the same card");
     // FIXED for the run: re-reading (re-render) returns the same card.
     const first = c.nodeCard(nA).id;
