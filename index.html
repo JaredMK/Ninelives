@@ -744,6 +744,7 @@
      character is the SAME pink creature that travels the map (♦ = pink) and the
      map→deck handoff reads as one continuous character. */
   .deck-char.dc-d, .deck-char-jump.dc-d { --dc-1:#e0738f; --dc-2:#b23a5c; }
+  .deck-char.dc-h, .deck-char-jump.dc-h { --dc-1:#e2606e; --dc-2:#a02a3c; }   /* Mamma — warm heart red */
   .deck-char.dc-c, .deck-char-jump.dc-c { --dc-1:#7d8ca6; --dc-2:#46566f; }
   .deck-char.dc-s, .deck-char-jump.dc-s { --dc-1:#5a6885; --dc-2:#303c56; }
   /* The flying clone used for the map→deck JUMP: the same character body, sized
@@ -4465,6 +4466,7 @@
   @keyframes avLid { 0%,100% { transform: translateY(0) scaleY(1); } 35% { transform: translateY(-3px) scaleY(0.66); } }
   /* Suit tints (match the map wash). */
   .map-avatar.av-d { --av-1: #e0738f; --av-2: #b23a5c; }
+  .map-avatar.av-h { --av-1: #e2606e; --av-2: #a02a3c; }   /* Mamma — warm heart red */
   .map-avatar.av-c { --av-1: #7d8ca6; --av-2: #46566f; }
   .map-avatar.av-s { --av-1: #5a6885; --av-2: #303c56; }
   /* Collect fly-cards (reuse the board's flyCard arc helper). */
@@ -5511,7 +5513,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.99 · Joker rework + deal reshuffle + deck-select copy + pink ★ bar";
+const APP_VERSION = "v4.00 · deck unlock chain: Pinky → Mamma → Mr. Smith → Lammy";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12198,6 +12200,42 @@ const Stats = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   DeckUnlocks — which decks the player has WON a run with, and therefore
+   which are selectable. Its OWN localStorage key: separate from the
+   campaign save (a loss/new-run wipe never touches it) and from Stats.
+   THE CHAIN: Pinky → Mamma → Mr. Smith → Lammy — winning a run with one
+   deck permanently unlocks the next (recordWin fires in the ♠-boss win
+   flow, the same place the win banks into lifetime stats).
+   RETROACTIVE GRANT: wins recorded in lifetime stats BEFORE this system
+   existed could only have been won with Pinky (the one playable deck),
+   so on load a recorded win with no per-deck entries credits Pinky once
+   — an existing winner finds Mamma already unlocked.
+---------------------------------------------------------------- */
+const DeckUnlocks = (() => {
+  const KEY = "ninelives.deckwins.v1";
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  function get() {
+    if (!ok()) return {};
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
+  }
+  function put(w) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) { /* ignore */ } }
+  return {
+    /** A campaign was WON with `deckId` — its successor unlocks (persisted). */
+    recordWin(deckId) { if (!deckId) return; const w = get(); if (!w[deckId]) { w[deckId] = true; put(w); } },
+    /** Has any campaign ever been won with `deckId`? */
+    wonWith(deckId) { return !!get()[deckId]; },
+    /** One-time migration for pre-tracking wins (see the header comment). */
+    grantRetroactive(campaignsWon) {
+      const w = get();
+      if ((campaignsWon || 0) > 0 && Object.keys(w).length === 0) { w.pink = true; put(w); }
+    },
+  };
+})();
+// Retroactive grant runs at load: an already-recorded lifetime win (from
+// before deck tracking) unlocks Pinky's successor immediately.
+DeckUnlocks.grantRetroactive(Stats.get().campaignsWon);
+
+/* ----------------------------------------------------------------
    Sound — tiny WebAudio cues for key actions. Subtle, synthesized (no
    asset files), feature-detected, and fully gated by a saved on/off pref.
    Never blocks gameplay: any failure (no AudioContext, autoplay policy)
@@ -13418,10 +13456,15 @@ const UIRenderer = (() => {
       react(name) { set(name); },
       /** Hard reset to idle (new deal). */
       reset() { pileSelected = false; aimReset(); set("idle"); },
-      /** The character keeps its DECK colour (pink for the Pink Deck) the whole run
-          — it no longer washes to the phase suit as the stages progress. (`sym` is
-          ignored for now; future decks would map their own colour here.) */
-      setSuit(sym) { const n = node(); if (!n) return; n.classList.remove("dc-c", "dc-s"); n.classList.add("dc-d"); },
+      /** The character keeps its DECK colour the whole run — it no longer
+          washes to the phase suit as the stages progress. The colour comes
+          from the SELECTED DECK (Pinky pink / Mamma heart-red / Mr. Smith
+          steel / Lammy slate); `sym` is ignored. */
+      setSuit(sym) {
+        const n = node(); if (!n) return;
+        n.classList.remove("dc-d", "dc-h", "dc-c", "dc-s");
+        n.classList.add("dc-" + ((typeof selectedDeck === "function" && selectedDeck().color) || "d"));
+      },
       /** Lightweight ambient-life loop (skipped under reduced motion; only one
           runs). Each tick blinks, and now and then sneaks a tiny idle GLANCE so
           the character feels alive and waiting — never frozen. Both are cheap
@@ -15661,7 +15704,10 @@ const UIRenderer = (() => {
     // none. Back returns to the menu we came from. Dots track the swiped page.
     if (el.dsCarousel) el.dsCarousel.addEventListener("click", (e) => {
       const start = e.target.closest(".ds-start");
-      if (start) { hideDeckSelect(); startCampaign(); }
+      if (start) {
+        selectedDeckId = start.dataset.deck || "pink";   // the deck this campaign's win will credit
+        hideDeckSelect(); startCampaign();
+      }
     });
     if (el.dsCarousel) el.dsCarousel.addEventListener("scroll", () => {
       const w = el.dsCarousel.clientWidth || 1;
@@ -17509,7 +17555,7 @@ const UIRenderer = (() => {
      clearSave() wipes it (new campaign, loss, or campaign complete). */
   function persistCampaign(phase) {
     if (!campaign) return;
-    const blob = { schema: 1, phase, campaign: campaign.serialize() };
+    const blob = { schema: 1, phase, deckId: selectedDeckId, campaign: campaign.serialize() };
     // For an in-progress run, also checkpoint the deal: the seed replays the
     // EXACT starting board on resume (so a refresh can't be used to fish for a
     // better board — that's what Redeal costs coins for) and the redeal price +
@@ -17523,19 +17569,29 @@ const UIRenderer = (() => {
   }
   function clearSave() { SaveStore.clear(); }
 
-  /* ---- DECK ROSTER (infrastructure for future decks/maps) ----------------
-     Data-driven so adding a deck is data-only. Only the Pink Deck is playable
-     now; the rest render LOCKED in the new-run picker. `color` reuses the
-     character's suit-palette class (d = pink). When a future deck ships, set
-     unlocked (and wire its own map/deck build) — nothing else here changes. */
+  /* ---- DECK ROSTER — Pinky → Mamma → Mr. Smith → Lammy --------------------
+     Winning a run with a deck PERMANENTLY unlocks the next (DeckUnlocks,
+     localStorage — survives losses, new runs and reloads). `requires` is the
+     chain link; `color` picks the character palette (d pink / h heart-red /
+     c steel-blue / s slate). NOTE: the three unlockable decks currently play
+     the SAME campaign ruleset as Pinky, wearing their own character — their
+     distinct decks/maps/rules are future content. */
   const DECKS = [
-    { id: "pink", name: "Pink Deck", color: "d", unlocked: true,
+    { id: "pink", name: "Pinky", color: "d", requires: null,
       sub: "The original climb — nine lives across four suits." },
-    { id: "blue", name: "Blue Deck", color: "c", unlocked: false,
-      sub: "A colder, deeper descent.", unlock: "Unlock after beating Pink Deck" },
-    { id: "noir", name: "Noir Deck", color: "s", unlocked: false,
-      sub: "High stakes in the dark.", unlock: "Unlock after beating Pink Deck" },
+    { id: "mamma", name: "Mamma", color: "h", requires: "pink",
+      sub: "Mama takes the trail herself.", unlockNote: "Win a run with Pinky to unlock" },
+    { id: "smith", name: "Mr. Smith", color: "c", requires: "mamma",
+      sub: "A colder, deeper descent.", unlockNote: "Win a run with Mamma to unlock" },
+    { id: "lammy", name: "Lammy", color: "s", requires: "smith",
+      sub: "High stakes in the dark.", unlockNote: "Win a run with Mr. Smith to unlock" },
   ];
+  /** A deck is selectable when its predecessor has a recorded win. */
+  function deckUnlocked(d) { return !d.requires || DeckUnlocks.wonWith(d.requires); }
+  /** The deck the CURRENT campaign is being played with (win credit target).
+      Set on Start Run; restored with a resumed save; defaults to Pinky. */
+  let selectedDeckId = "pink";
+  function selectedDeck() { return DECKS.find(d => d.id === selectedDeckId) || DECKS[0]; }
   const DECK_CHAR_HTML =
     '<span class="dc-body"><span class="dc-lid"></span>' +
     '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
@@ -17566,19 +17622,21 @@ const UIRenderer = (() => {
     el.stageRun.classList.add("off");
     setScreenNav(false, false, false);
     el.overlay.classList.add("hidden");
-    el.dsCarousel.innerHTML = DECKS.map(d =>
-      '<div class="ds-panel' + (d.unlocked ? "" : " locked") + '" data-deck="' + d.id + '">' +
-        // Locked decks reveal NOTHING — name/blurb are just "?", the action reads
-        // "Not unlocked yet". The character is greyed under the lock either way.
+    el.dsCarousel.innerHTML = DECKS.map(d => {
+      const open = deckUnlocked(d);
+      return '<div class="ds-panel' + (open ? "" : " locked") + '" data-deck="' + d.id + '">' +
+        // Locked decks conceal the NAME/blurb ("?"), but show HOW to unlock
+        // (the chain: win a run with the previous deck).
         '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span></div>' +
-        '<div class="ds-name">' + escHtml(d.unlocked ? d.name : "?") + '</div>' +
-        '<div class="ds-sub">' + escHtml(d.unlocked ? (d.sub || "") : "?") + '</div>' +
-        (d.unlocked
+        '<div class="ds-name">' + escHtml(open ? d.name : "?") + '</div>' +
+        '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : (d.unlockNote || "?")) + '</div>' +
+        (open
           ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
           : '<div class="ds-lock">Locked</div>') +
-      '</div>').join("");
+      '</div>';
+    }).join("");
     el.dsDots.innerHTML = DECKS.map((d, i) =>
-      '<span class="ds-dot' + (i === 0 ? " on" : "") + (d.unlocked ? "" : " locked-dot") + '"></span>').join("");
+      '<span class="ds-dot' + (i === 0 ? " on" : "") + (deckUnlocked(d) ? "" : " locked-dot") + '"></span>').join("");
     el.dsCarousel.scrollLeft = 0;
     dsPerkIndex = -1;
     perkDeckPanel(0);   // the first (pink) deck opens highlighted → it perks up
@@ -19204,6 +19262,9 @@ const UIRenderer = (() => {
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+      // DECK CHAIN: a win with this deck permanently unlocks the next
+      // (Pinky → Mamma → Mr. Smith → Lammy; persisted in localStorage).
+      DeckUnlocks.recordWin(selectedDeckId);
       // The campaign is NOT over: Pinky's HOME sits just above the fallen boss
       // (and endless mode beyond it) — so the boss resolves like any other won
       // deal: summary → map, where the home node is now the legal next step.
@@ -19677,8 +19738,8 @@ const UIRenderer = (() => {
     if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
     // The character keeps its DECK colour (pink) across all stages — it doesn't
     // re-tint to the phase suit as it climbs the map.
-    mapAvatarEl.classList.remove("av-d", "av-c", "av-s");
-    mapAvatarEl.classList.add("av-d");
+    mapAvatarEl.classList.remove("av-d", "av-h", "av-c", "av-s");
+    mapAvatarEl.classList.add("av-" + selectedDeck().color);
     // Stage mood: anxious in ♦, hopeful in ♣, bright in ♠ — dirt fading as he
     // climbs (CharMood stamps both this avatar and the deck-slot character).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
@@ -20033,7 +20094,7 @@ const UIRenderer = (() => {
       if (!toRect.width || !toRect.height) return;
       dc.style.visibility = "hidden";   // the real deck char appears only on landing
       const fly = document.createElement("div");
-      fly.className = "deck-char-jump dc-d";   // character stays its deck colour (pink)
+      fly.className = "deck-char-jump dc-" + selectedDeck().color;   // character stays its deck colour
       const flyCount = campaign && campaign.deckSize ? campaign.deckSize() : "";
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
@@ -21758,6 +21819,7 @@ const UIRenderer = (() => {
   function resumeSavedGame() {
     const saved = savedSnapshot;
     if (!saved) { startCampaign(); return; }
+    selectedDeckId = saved.deckId || selectedDeckId;   // the resumed campaign's deck keeps win credit
     el.stageRun.classList.remove("off"); setScreenNav(true, true, false);
     buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
     if (saved.phase === "store") showStore(false);
@@ -22167,10 +22229,22 @@ const UIRenderer = (() => {
     // backdrop behind the menu.
     const saved = SaveStore.load();
     let canContinue = false;
-    if (saved && saved.campaign && campaign.restore(saved.campaign) && !campaign.isComplete()) {
-      canContinue = true; savedSnapshot = saved;
+    if (saved && saved.campaign && campaign.restore(saved.campaign)) {
+      // A cleared ♠ boss no longer means FINISHED: the campaign continues to
+      // Pinky's home (victory screen pending) and through endless mode — only
+      // discard when it's complete AND neither of those states is live.
+      const cur = campaign.currentNode && campaign.currentNode();
+      const stillGoing = !campaign.isComplete()
+        || (campaign.isEndless && campaign.isEndless())
+        || (cur && cur.type === "home");
+      if (stillGoing) {
+        canContinue = true; savedSnapshot = saved;
+        selectedDeckId = saved.deckId || "pink";   // win credit follows the resumed campaign's deck
+      } else {
+        clearSave();   // genuinely finished — discard it
+      }
     } else if (saved) {
-      clearSave();   // missing/incompatible/finished — discard it
+      clearSave();   // missing/incompatible — discard it
     }
     updateStageRun();   // reflect restored stage/run/coins
     buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
