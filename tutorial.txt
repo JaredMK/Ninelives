@@ -25,7 +25,7 @@ STEP 2 — map goal
   POINTS AT: Pinky's avatar at the bottom of the trail
   BUTTON:    Next
   TEXT:
-  Pinky starts down here. The goal: climb to the *very top of the map*.
+  Pinky starts down here and must climb up.
 
 
 STEP 3 — first node
@@ -33,7 +33,7 @@ STEP 3 — first node
   POINTS AT: The glowing (reachable) first node
   BUTTON:    Got it
   TEXT:
-  Tap the *glowing node* to set off — it's your first deal.
+  Tap the *glowing node* to set off to your first deal.
 
 
 STEP 4 — survive
@@ -46,11 +46,14 @@ STEP 4 — survive
 
 STEP 5 — how to guess
   SCREEN:    First deal
-  POINTS AT: The Higher / Same / Lower button rail
+  POINTS AT: A pile
   BUTTON:    Next
   TEXT:
-  Pick a pile, then *swipe*: ↑ higher · ↓ lower · sideways same.
-  Or tap the pile and use these buttons.
+  Pick a pile, then *swipe*:
+  ↑ higher
+  ↓ lower
+  sideways for same.
+  Or tap the pile and use these buttons
 
 
 STEP 6 — the deck
@@ -59,9 +62,9 @@ STEP 6 — the deck
   BUTTON:    Next
   TEXT:
   Every guess draws from *Pinky's deck*.
-  Right → the card tops the pile and it grows.
-  Wrong → the pile dies.
-  Outlast the *whole deck* before every pile is gone.
+  Correct guess → the pile grows
+  Wrong guess → the pile dies
+  Beat the *whole deck* before every pile is gone.
 
 
 STEP 7 — same shield
@@ -69,7 +72,7 @@ STEP 7 — same shield
   POINTS AT: The Same-shield chip in the HUD
   BUTTON:    Next
   TEXT:
-  *Same* calls are rare and hard — a correct Same charges this *shield*, which saves your next miss.
+  *Same* guesses are hard. A correct Same call charges this *shield*, which saves your next miss.
 
 
 STEP 8 — your turn
@@ -82,11 +85,11 @@ STEP 8 — your turn
 
 STEP 9 — coins
   SCREEN:    First deal summary (Deal cleared)
-  POINTS AT: The Total line of the coin breakdown
+  POINTS AT: The deal reward line of the coin breakdown
   BUTTON:    Got it
   TEXT:
-  Coins = *surviving piles × smallest pile* — keeping piles even pays more.
-  Spend them on upgrades.
+  Coins = *surviving piles × smallest pile*
+  Spend coins on upgrades.
 
 
 STEP 10 — drafting
@@ -98,21 +101,29 @@ STEP 10 — drafting
   Shops along the way sell upgrades.
 
 
-STEP 11 — the shop
+STEP 11 — the shop: stickers
   SCREEN:    First shop visit
   POINTS AT: The sticker shelf
   BUTTON:    Next
   TEXT:
   The shop:
   *Stickers* change single cards.
+
+
+STEP 12 — the shop: items
+  SCREEN:    First shop visit
+  POINTS AT: The other items shelf
+  BUTTON:    Next
+  TEXT:
+  The shop:
   *Pillars* power a whole column.
   *Bases* give a once-per-deal power.
   *Same-Powers* fire on every correct Same.
 
 
-STEP 12 — good luck
+STEP 13 — good luck
   SCREEN:    First shop (final bubble; ends the tour)
   POINTS AT: (nothing — centered)
   BUTTON:    Done
   TEXT:
-  That's everything — good luck, Pinky ♥
+  Good luck. Now go help Pinky find mamma♥

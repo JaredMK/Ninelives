@@ -5350,7 +5350,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.82 · first-run tutorial (play-as-you-learn coach bubbles)";
+const APP_VERSION = "v3.83 · tutorial copy pass (edited text, new anchors, split shop tips)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13134,9 +13134,9 @@ const UIRenderer = (() => {
         if (!active) return;
         if (!fired.map1) {
           group("map1", [
-            { html: "Pinky starts down here. The goal: climb to the <b>very top of the map</b>.",
+            { html: "Pinky starts down here and must climb up.",
               anchor: () => $(".map-avatar") },
-            { html: "Tap the <b>glowing node</b> to set off — it's your first deal.",
+            { html: "Tap the <b>glowing node</b> to set off to your first deal.",
               anchor: () => $(".pm-node.s-legal"), next: "Got it" },
           ]);
         } else if (fired.coins && !fired.draft) {
@@ -13151,11 +13151,11 @@ const UIRenderer = (() => {
         group("deal", [
           { html: "<b>Goal: survive.</b> Every pile is a life.",
             anchor: () => $(".board-grid") },
-          { html: "Pick a pile, then <b>swipe</b>: ↑ higher · ↓ lower · sideways same.<br>Or tap the pile and use these buttons.",
-            anchor: () => { const b = $("#btnSame"); return b ? b.parentElement : null; } },
-          { html: "Every guess draws from <b>Pinky's deck</b>.<br>Right → the card tops the pile and it grows.<br>Wrong → the pile dies.<br>Outlast the <b>whole deck</b> before every pile is gone.",
+          { html: "Pick a pile, then <b>swipe</b>:<br>↑ higher<br>↓ lower<br>sideways for same.<br>Or tap the pile and use these buttons",
+            anchor: () => $(".pile:not(.dead)") },
+          { html: "Every guess draws from <b>Pinky's deck</b>.<br>Correct guess → the pile grows<br>Wrong guess → the pile dies<br>Beat the <b>whole deck</b> before every pile is gone.",
             anchor: () => $("#deckChar") },
-          { html: "<b>Same</b> calls are rare and hard — a correct Same charges this <b>shield</b>, which saves your next miss.",
+          { html: "<b>Same</b> guesses are hard. A correct Same call charges this <b>shield</b>, which saves your next miss.",
             anchor: () => $("#hudSame") },
           { html: "Your turn — make a guess!", anchor: null, next: "Go" },
         ]);
@@ -13167,16 +13167,18 @@ const UIRenderer = (() => {
       /** FIRST DEAL SUMMARY: the payout formula. */
       onDealCleared() {
         group("coins", [
-          { html: "Coins = <b>surviving piles × smallest pile</b> — keeping piles even pays more.<br>Spend them on upgrades.",
-            anchor: () => $(".dc-total"), next: "Got it" },
+          { html: "Coins = <b>surviving piles × smallest pile</b><br>Spend coins on upgrades.",
+            anchor: () => $(".dc-line"), next: "Got it" },   // the Deal reward line
         ]);
       },
-      /** FIRST SHOP: the four upgrade kinds, then send them off. */
+      /** FIRST SHOP: stickers, then the mixed shelf's three kinds, then send off. */
       onStore() {
         group("shop", [
-          { html: "The shop:<br><b>Stickers</b> change single cards.<br><b>Pillars</b> power a whole column.<br><b>Bases</b> give a once-per-deal power.<br><b>Same-Powers</b> fire on every correct Same.",
+          { html: "The shop:<br><b>Stickers</b> change single cards.",
             anchor: () => $("#storeItems") },
-          { html: "That's everything — good luck, Pinky ♥", anchor: null, next: "Done", final: true },
+          { html: "The shop:<br><b>Pillars</b> power a whole column.<br><b>Bases</b> give a once-per-deal power.<br><b>Same-Powers</b> fire on every correct Same.",
+            anchor: () => $("#storeMixed") },
+          { html: "Good luck. Now go help Pinky find mamma♥", anchor: null, next: "Done", final: true },
         ]);
       },
     };
