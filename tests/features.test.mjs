@@ -14,10 +14,26 @@ export function run() {
     specs.forEach(c => c.stickers.push({ type }));
     return specs;
   };
-  // Force a guaranteed-correct HIGHER landing on pile `index`: show low, draw high.
-  const landHigher = (e, index, drawVal = 9) => {
+  // A GUARANTEED next draw: setNextCard(v) returns undefined when every copy of
+  // v was already dealt onto the opening piles (rare shuffle — a real observed
+  // flake), so inject a concrete card object instead (the same path the Joker
+  // tests use), immune to the shuffle. `extra` merges extra fields (guards…).
+  let __nid = 880001;
+  const forceNext = (e, value, suit, extra) => e.debug.setNextCardObj(Object.assign({
+    id: __nid++, label: String(value), value, suit: suit || "\u2660",
+    red: suit === "\u2665" || suit === "\u2666", stickers: [], suitGuards: {}, heartsRemaining: 0,
+  }, extra || {}));
+  // Force a guaranteed-correct HIGHER landing on pile `index`: show low, draw
+  // high. Uses setNextCard (REORDERS the real deck — its cards carry the
+  // specsWith stickers and the deck count is unchanged, which the Tribute
+  // blocks assert on); setNextCard returns undefined when every copy of a
+  // value was dealt onto the opening piles (rare shuffle), so walk the high
+  // ranks until one is still in the deck — any value above 5 lands.
+  const landHigher = (e, index) => {
     e.getBoard().top(index).value = 5;
-    e.debug.setNextCard(drawVal);
+    let c = null;
+    for (const v of [9, 10, 11, 12, 13, 8, 7, 6]) { c = e.debug.setNextCard(v); if (c) break; }
+    if (!c) throw new Error("landHigher: no high card left in the deck");
     e.guess(index, "higher");
   };
 
@@ -101,12 +117,14 @@ export function run() {
       const b = e.getBoard();
       r.ok(b.top(0).suitGuards && b.top(0).suitGuards[suit], id + " projects a " + suit + " charge");
 
-      // The GUARD CARD (drawn — specsWith stickers every card) lands ONTO a top
-      // of its guarded suit → the wrong guess is safe.
-      const before = e.getDeck().remaining();
+      // The GUARD CARD (drawn — carries this family's charge) lands ONTO a top
+      // of its guarded suit → the wrong guess is safe. (`before` is read AFTER
+      // the injection: forceNext ADDS a card, unlike the old reorder-only
+      // setNextCard, so the baseline must include it.)
       b.top(0).value = 10; b.top(0).suit = suit;          // top IS the guarded suit
-      const d = e.debug.setNextCard(3); d.suit = "♠";     // loses on HIGHER (drawn's own suit irrelevant)
-      e.guess(0, "higher");
+      const d = forceNext(e, 3, "♠", { suitGuards: { [suit]: true } });   // a drawn guard card
+      const before = e.getDeck().remaining();
+      e.guess(0, "higher");                               // loses on HIGHER (drawn suit irrelevant)
       r.ok(b.isActive(0), id + ": a guard card drawn onto a " + suit + " absorbs the wrong guess");
       r.ok(!d.suitGuards[suit], id + ": the DRAWN guard card's " + suit + " charge is spent");
       r.eq(b.top(0).value, 10, id + ": the showing card is unchanged (drawn not pushed)");
@@ -115,7 +133,7 @@ export function run() {
       // A guard card drawn onto a NON-guarded-suit top does NOT fire (pile dies).
       const otherSuit = suit === "♠" ? "♥" : "♠";
       b.top(0).suit = otherSuit;
-      const d2 = e.debug.setNextCard(3); d2.suit = "♠";
+      forceNext(e, 3, "♠", { suitGuards: { [suit]: true } });
       e.guess(0, "higher");
       r.ok(!b.isActive(0), id + ": a guard card onto a NON-" + suit + " top does nothing (pile dies)");
     });
@@ -127,7 +145,7 @@ export function run() {
     e.start(); e.startRun();
     const b = e.getBoard();
     b.top(0).value = 10; b.top(0).suit = "♣"; b.top(0).suitGuards = { "♠": true };  // guard rides the TOP
-    const d = e.debug.setNextCard(3); d.suit = "♠"; d.suitGuards = {};               // plain ♠ drawn onto it
+    forceNext(e, 3, "♠");               // plain ♠ drawn onto it (no guards)
     e.guess(0, "higher");
     r.ok(!b.isActive(0), "a ♠ drawn onto a ♠-guard TOP does nothing (one-directional → pile dies)");
   }
@@ -138,7 +156,7 @@ export function run() {
     e.start(); e.startRun();
     const b = e.getBoard();
     b.top(1).value = 10; b.top(1).suit = "♠";
-    const d = e.debug.setNextCard(3); d.suit = "♥";
+    forceNext(e, 3, "♥", { suitGuards: { "♥": true } });   // a ♥-guard card, wrong top suit
     e.guess(1, "higher");
     r.ok(!b.isActive(1), "Heart Guard onto a ♠ top does nothing (pile dies)");
   }
@@ -151,7 +169,7 @@ export function run() {
     e.start(); e.startRun();
     const b = e.getBoard();
     b.top(0).value = 10; b.top(0).suit = "♠";
-    const ds = e.debug.setNextCard(3); ds.suit = "♣";   // guard card lands onto a ♠ top
+    const ds = forceNext(e, 3, "♣", { suitGuards: { "♠": true, "♥": true } });   // guard card lands onto a ♠ top
     e.guess(0, "higher");
     r.ok(b.isActive(0) && !ds.suitGuards["♠"], "the drawn card's ♠ charge is spent (top was ♠)");
     r.ok(ds.suitGuards["♥"], "the ♥ charge on that card is still ready (independent)");
@@ -163,7 +181,7 @@ export function run() {
     e1.start(); e1.startRun();
     const b1 = e1.getBoard();
     b1.top(0).value = 10; b1.top(0).suit = "♠";
-    const d = e1.debug.setNextCard(3); d.suit = "♣";
+    const d = forceNext(e1, 3, "♣", { suitGuards: { "♠": true } });
     e1.guess(0, "higher");
     r.ok(b1.isActive(0) && !d.suitGuards["♠"], "the drawn guard's ♠ charge is spent in run 1");
     const e2 = GameEngine.create(specs, 9);
@@ -294,7 +312,7 @@ export function run() {
     const b = e.getBoard();
     const top = b.top(0);
     top.suit = "♠"; top.value = 14; top.suitGuards = {};   // ♠ on top, NO guard of its own
-    const d = e.debug.setNextCard(3); d.suit = "♥"; d.suitGuards = { "♠": true };   // drawn carries a ♠ guard
+    const d = forceNext(e, 3, "♥", { suitGuards: { "♠": true } });   // drawn carries a ♠ guard
     e.guess(0, "higher");                 // wrong (3 ≤ Ace); the guard card landed onto a ♠
     r.ok(b.isActive(0), "drawn ♠-guard card saves the pile (it landed onto a ♠)");
     r.ok(!d.suitGuards["♠"], "the DRAWN card's ♠ charge is spent");
@@ -308,7 +326,7 @@ export function run() {
     e.onEvent((t, p) => { if (t === "won") payload = p; });
     e.start(); e.startRun(["heartBounty", null, null]);
     e.getBoard().top(0).value = 5;
-    const dsb = e.debug.setNextCard(9); dsb.suit = "♥";   // a ♥ LANDS on the column
+    forceNext(e, 9, "♥");   // a ♥ LANDS on the column
     e.guess(0, "higher");
     r.eq(e.getRun().bonusCoins, 1, "Suit Bounty ticks the live tally as a ♥ lands");
     e.debug.winNow();
@@ -326,7 +344,7 @@ export function run() {
     const b = e.getBoard();
     for (let i = 1; i < b.size; i++) b.kill(i);             // reduce to a single alive pile (0)
     r.eq(b.aliveCount(), 1, "exactly one pile alive going into the final card");
-    e.debug.setNextCard(b.top(0).value);                   // a tie → wrong on a Higher guess
+    forceNext(e, b.top(0).value);                   // a tie → wrong on a Higher guess
     e.debug.trimDeck(1);                                    // that tie is the deck's LAST card
     e.guess(0, "higher");
     r.ok(e.getDeck().isEmpty(), "the final deck card was drawn");
@@ -344,7 +362,7 @@ export function run() {
     const b = e.getBoard();
     for (let i = 1; i < b.size; i++) b.kill(i);             // one survivor (pile 0)
     b.top(0).value = 5;
-    e.debug.setNextCard(9);                                 // a correct Higher → survives
+    forceNext(e, 9);                                 // a correct Higher → survives
     e.debug.trimDeck(1);
     e.guess(0, "higher");
     r.ok(e.getDeck().isEmpty() && b.anyAlive(), "deck empty with a survivor");
@@ -359,7 +377,7 @@ export function run() {
     e.start();
     e.startRun(["heartBounty", null, "columnGuardian"]);   // col 0 bounty, col 2 guardian
     e.getBoard().top(0).value = 5;
-    const dsb = e.debug.setNextCard(9); dsb.suit = "♥";    // one ♥ lands → +1 live
+    forceNext(e, 9, "♥");    // one ♥ lands → +1 live
     e.guess(0, "higher");
     r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
     e.debug.winNow();                                      // all piles alive → Guardian +5

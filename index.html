@@ -5367,7 +5367,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.86 · tutorial edits: buttons-on-the-left, full payout ring";
+const APP_VERSION = "v3.87 · fix: Wild Sticker rank roll; stable debug draws + tests";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6583,6 +6583,7 @@ const DeckManager = (() => {
     return {
       id: -value, label: r.label, value: r.value, suit: s.symbol, red: s.red,
       stickers: [], heartsRemaining: 0, tieSafe: false, revealNext: false,
+      suitGuards: {},   // real cards always carry the map — consumers index into it
     };
   }
 
@@ -6639,10 +6640,16 @@ const DeckManager = (() => {
       _inject(extraCards) { cards = shuffle(cards.concat(extraCards), rng); },
       // --- debug-only deck overrides (see GameEngine.debug) ---
       _setNext(value) {
-        // Move an existing card of this rank to the top, or synthesize one.
+        // Move an existing card of this rank to the top; when every copy is
+        // already OUT of the deck (dealt onto piles / drawn — a rare shuffle),
+        // SWAP the next card for a synthesized one instead of adding it. The
+        // deck count must never change here: tests and the debug panel both
+        // reason about remaining(), and the old add-on-synthesize branch was
+        // the source of rare off-by-one flakes.
         const i = cards.findIndex(c => c.value === value);
-        const card = i >= 0 ? cards.splice(i, 1)[0] : cardForValue(value);
-        cards.unshift(card);
+        if (i >= 0) { const card = cards.splice(i, 1)[0]; cards.unshift(card); return card; }
+        const card = cardForValue(value);
+        if (cards.length) cards[0] = card; else cards.unshift(card);
         return card;
       },
       // Inject an arbitrary card object as the next draw (QA — e.g. a Joker).
@@ -8917,8 +8924,14 @@ const GameEngine = (() => {
           // Targets a RANDOM alive pile card in the column (no player choice).
           const target = pickOne(colAlivePiles(col).filter(i => board.top(i)));
           if (target == null) break;
-          const typeId = pickOne(baseStickerPool().map(t => t.id));
           const top = board.top(target);
+          // Never roll a RANK sticker the target can't take (a +1 on an Ace /
+          // a −1 on a 2): the in-deal projection would show it, but the
+          // campaign-side persist (canApplySticker) refuses it at run end, so
+          // the sticker would silently vanish from the card.
+          const pool = baseStickerPool().filter(t => t.kind !== "rank" ||
+            ((t.rankDelta <= 0 || top.value < 14) && (t.rankDelta >= 0 || top.value > 2)));
+          const typeId = pickOne(pool.map(t => t.id));
           projectStickerOntoCard(top, typeId);
           res.index = target;
           res.stickerApplied = { pileIndex: target, cardId: top.id, typeId };

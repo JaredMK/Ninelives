@@ -13,6 +13,17 @@ export function run() {
     specs.forEach(c => c.stickers.push({ type }));
     return specs;
   };
+  // A GUARANTEED next draw: setNextCard(v) returns undefined when every copy
+  // of v was already dealt onto the opening piles (rare shuffle — an observed
+  // flake for "force a tie" on the top's value), so inject a concrete card
+  // object instead. `extra` merges projected flags/stickers when the drawn
+  // card itself must carry them. NB: injection ADDS a card to the deck, so
+  // count baselines must be read AFTER the inject.
+  let __nid = 990001;
+  const forceNext = (e, value, extra) => e.debug.setNextCardObj(Object.assign({
+    id: __nid++, label: String(value), value, suit: "\u2660", red: false,
+    stickers: [], suitGuards: {}, heartsRemaining: 0,
+  }, extra || {}));
 
   // --- Tie-Safe: a tie counts as safe on any guess ----------------------
   {
@@ -20,7 +31,7 @@ export function run() {
     e.start();
     e.startRun();   // explicit Start Run begins active play (guessing gated on it)
     const top = e.getBoard().top(0).value;
-    e.debug.setNextCard(top);   // force a tie
+    forceNext(e, top, { tieSafe: true, stickers: [{ type: "tieSafe" }] });   // force a tie
     e.guess(0, "higher");       // would normally die on a tie
     r.ok(e.getBoard().isActive(0), "Tie-Safe: tie on HIGHER survives");
   }
@@ -37,10 +48,10 @@ export function run() {
     const topCard = board.top(0);
     r.eq(topCard.heartsRemaining, 1, "dealt card has 1 heart from its sticker");
 
-    const before = e.getDeck().remaining();
     const topVal = topCard.value;
     // Force a guaranteed-wrong guess: draw the same value but guess "higher".
-    e.debug.setNextCard(topVal);
+    forceNext(e, topVal);
+    const before = e.getDeck().remaining();   // AFTER the inject (it adds a card)
     e.guess(0, "higher");
 
     r.ok(board.isActive(0), "Extra Heart: pile survives a wrong guess");
@@ -50,7 +61,7 @@ export function run() {
     r.eq(heartBroken, 1, "a heart-broken event fired");
 
     // With the heart spent, a second wrong guess kills the pile.
-    e.debug.setNextCard(board.top(0).value);
+    forceNext(e, board.top(0).value);
     e.guess(0, "higher");
     r.ok(!board.isActive(0), "without a heart, the next wrong guess kills the pile");
   }
@@ -61,7 +72,7 @@ export function run() {
     const e1 = GameEngine.create(specs, 9);
     e1.start();
     e1.startRun();
-    e1.debug.setNextCard(e1.getBoard().top(0).value);
+    forceNext(e1, e1.getBoard().top(0).value);
     e1.guess(0, "higher");                       // spend the heart in run 1
     r.eq(e1.getBoard().top(0).heartsRemaining, 0, "heart spent in run 1");
 
@@ -79,11 +90,11 @@ export function run() {
     e.startRun();
     r.eq(e.getBoard().top(0).heartsRemaining, 2, "two Extra Hearts -> heartsRemaining 2");
     const top = e.getBoard().top(0).value;
-    e.debug.setNextCard(top); e.guess(0, "higher");   // wrong -> break 1
+    forceNext(e, top); e.guess(0, "higher");   // wrong -> break 1
     r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 1, "1st wrong: survive, 1 heart left");
-    e.debug.setNextCard(e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> break 2
+    forceNext(e, e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> break 2
     r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 0, "2nd wrong: survive, 0 hearts left");
-    e.debug.setNextCard(e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> die
+    forceNext(e, e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> die
     r.ok(!e.getBoard().isActive(0), "3rd wrong with no hearts: pile dies");
   }
 
@@ -93,8 +104,7 @@ export function run() {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9);
     e.start(); e.startRun();
     let copies = 0; e.onEvent((t) => { if (t === "card-duplicated") copies++; });
-    const nc = e.debug.setNextCard(e.getBoard().top(0).value);   // a tie
-    nc.stickers = [{ type: "duplicate" }];
+    forceNext(e, e.getBoard().top(0).value, { stickers: [{ type: "duplicate" }] });   // a tie, drawn carries Duplicate
     e.guess(0, "same");
     r.eq(copies, 1, "Duplicate copies when its (drawn) card survives a correct Same");
     r.ok(e.getBoard().isActive(0), "the pile survives the same");
@@ -104,7 +114,7 @@ export function run() {
     e2.start(); e2.startRun();
     e2.getBoard().top(0).stickers = [{ type: "duplicate" }];
     let copies2 = 0; e2.onEvent((t) => { if (t === "card-duplicated") copies2++; });
-    e2.debug.setNextCard(e2.getBoard().top(0).value);
+    forceNext(e2, e2.getBoard().top(0).value);
     e2.guess(0, "same");
     r.eq(copies2, 1, "Duplicate fires with the sticker on the PILE card too");
 
@@ -114,7 +124,7 @@ export function run() {
     let copies3 = 0; e3.onEvent((t) => { if (t === "card-duplicated") copies3++; });
     const top = e3.getBoard().top(0).value;
     const v = top < 14 ? top + 1 : top - 1;
-    e3.debug.setNextCard(v);
+    forceNext(e3, v, { stickers: [{ type: "duplicate" }] });
     e3.guess(0, v > top ? "higher" : "lower");
     r.eq(copies3, 0, "Duplicate does NOT copy on a correct non-Same guess");
   }
@@ -156,7 +166,7 @@ export function run() {
 
     // Land a Scout card with a guaranteed-correct guess.
     const top = e.getBoard().top(0); top.value = 5;
-    const d = e.debug.setNextCard(9); d.revealNext = true; d.stickers = [{ type: "revealNext" }];
+    forceNext(e, 9, { revealNext: true, stickers: [{ type: "revealNext" }] });
     const realNext = e.getDeck().peek(2)[1];   // the card AFTER the Scout card (its reveal target)
     e.guess(0, "higher");                      // 9 > 5 → correct → Scout lands
     r.ok(e.getBoard().isActive(0), "Scout card landed on the pile");
