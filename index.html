@@ -1771,6 +1771,54 @@
     touch-action: manipulation;
   }
   .ds-back:active { transform: scale(0.97); }
+
+  /* ── DECK-UNLOCK CELEBRATION (presentation only) ───────────────────────────
+     Fires ONCE, at run termination after the FIRST win with a deck: the next
+     character starts greyed under a padlock (the deck-select locked look),
+     then the lock pops away and the colour floods in with a bounce, sparkles
+     and a ta-daa (Sound.deckUnlock). CONTINUE resumes the normal flow. */
+  .deck-unlock-pop { position: fixed; inset: 0; z-index: 2000; display: flex;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(22, 58, 44, 0.95); }
+  .duc-panel { text-align: center; max-width: 330px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .duc-eyebrow { font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--on-felt-muted); }
+  .duc-charwrap { position: relative; width: min(46vw, 168px); aspect-ratio: 56 / 76;
+    filter: grayscale(0.92) brightness(0.86) drop-shadow(0 8px 16px rgba(50,40,45,0.28));
+    opacity: 0.72; transition: filter 0.9s ease, opacity 0.9s ease; }
+  .duc-charwrap .deck-char { pointer-events: none; }
+  .duc-charwrap .dc-eye { max-width: none; width: 15%; height: 17%; }
+  .duc-lock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 40px; opacity: 0.92; text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: opacity 0.4s ease, transform 0.45s ease; z-index: 2; }
+  .deck-unlock-pop.revealed .duc-charwrap {
+    filter: grayscale(0) brightness(1) drop-shadow(0 10px 22px rgba(74,40,55,0.4)); opacity: 1;
+    animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+  .deck-unlock-pop.revealed .duc-lock { opacity: 0; transform: scale(1.7) rotate(-14deg); }
+  @keyframes ducBounce { 0% { transform: scale(1); } 45% { transform: scale(1.12); } 70% { transform: scale(0.96); } 100% { transform: scale(1); } }
+  .duc-spark { position: absolute; font-size: 20px; color: #ffd97a; opacity: 0; pointer-events: none;
+    text-shadow: 0 0 10px rgba(230,183,74,0.8); z-index: 3; }
+  .duc-spark.s1 { top: -6%; left: -8%; }  .duc-spark.s2 { top: 4%; right: -12%; font-size: 15px; }
+  .duc-spark.s3 { bottom: 10%; left: -14%; font-size: 16px; } .duc-spark.s4 { bottom: -4%; right: -6%; }
+  .deck-unlock-pop.revealed .duc-spark { animation: ducSpark 1.1s ease-out forwards; }
+  .deck-unlock-pop.revealed .duc-spark.s2 { animation-delay: 0.18s; }
+  .deck-unlock-pop.revealed .duc-spark.s3 { animation-delay: 0.32s; }
+  .deck-unlock-pop.revealed .duc-spark.s4 { animation-delay: 0.46s; }
+  @keyframes ducSpark { 0% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+    30% { opacity: 1; transform: scale(1.25) rotate(25deg); }
+    100% { opacity: 0; transform: scale(0.6) rotate(60deg) translateY(-14px); } }
+  .duc-name { font-family: var(--font-display); font-weight: 800; font-size: 26px; color: var(--on-felt-muted);
+    transition: color 0.5s ease; min-height: 1.2em; }
+  .deck-unlock-pop.revealed .duc-name { color: var(--on-felt); }
+  .duc-copy { font-size: 14.5px; line-height: 1.5; color: var(--on-felt-muted); max-width: 280px;
+    opacity: 0; transition: opacity 0.6s ease 0.35s; }
+  .deck-unlock-pop.revealed .duc-copy { opacity: 1; }
+  .duc-continue { margin-top: 8px; opacity: 0; pointer-events: none; transition: opacity 0.5s ease 0.75s; }
+  .deck-unlock-pop.revealed .duc-continue { opacity: 1; pointer-events: auto; }
+  @media (prefers-reduced-motion: reduce) {
+    .duc-charwrap, .duc-lock, .duc-name, .duc-copy, .duc-continue { transition: none; }
+    .deck-unlock-pop.revealed .duc-charwrap, .deck-unlock-pop.revealed .duc-spark { animation: none; }
+    .deck-unlock-pop.revealed .duc-spark { opacity: 0.9; }
+  }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
      stacked title. SVG = crisp at any size. Negative margin trims the SVG's
@@ -5513,7 +5561,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.00 · deck unlock chain: Pinky → Mamma → Mr. Smith → Lammy";
+const APP_VERSION = "v4.01 · deck-unlock celebration at run's end";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12220,8 +12268,16 @@ const DeckUnlocks = (() => {
   }
   function put(w) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) { /* ignore */ } }
   return {
-    /** A campaign was WON with `deckId` — its successor unlocks (persisted). */
-    recordWin(deckId) { if (!deckId) return; const w = get(); if (!w[deckId]) { w[deckId] = true; put(w); } },
+    /** A campaign was WON with `deckId` — its successor unlocks (persisted).
+        Returns TRUE only when this is the FIRST recorded win with the deck
+        (the caller uses it to arm the one-time unlock celebration). */
+    recordWin(deckId) {
+      if (!deckId) return false;
+      const w = get();
+      if (w[deckId]) return false;
+      w[deckId] = true; put(w);
+      return true;
+    },
     /** Has any campaign ever been won with `deckId`? */
     wonWith(deckId) { return !!get()[deckId]; },
     /** One-time migration for pre-tracking wins (see the header comment). */
@@ -12319,6 +12375,19 @@ const Sound = (() => {
     sameMiss() { seq([[520, 0.14, 0, "triangle", 0.05, 440], [392, 0.22, 0.12, "triangle", 0.05, 330]]); },
     // A purchase: a warm little "cha-ching" + sparkle.
     purchase() { seq([[784, 0.08, 0, "sine", 0.045, 988], [1175, 0.12, 0.07, "sine", 0.04]]); sparkle(0.12, 0.016); },
+    // NEW DECK UNLOCKED — a sparkly "ta-daa!": a quick rising arpeggio, a proud
+    // held top note as the colour floods in, and shimmer throughout. Same cute
+    // voice as everything else, brighter than a purchase, shorter than a win.
+    deckUnlock() {
+      seq([
+        [262, 0.5, 0.3, "triangle", 0.03], [330, 0.55, 0.84, "triangle", 0.03],   // warm roots
+        [392, 0.09, 0, "sine", 0.048, 440], [523, 0.09, 0.1, "sine", 0.05],
+        [659, 0.09, 0.2, "sine", 0.05], [784, 0.22, 0.3, "sine", 0.052, 880],     // ta-
+        [659, 0.1, 0.62, "sine", 0.044], [784, 0.1, 0.73, "sine", 0.046],
+        [1047, 0.42, 0.84, "sine", 0.05, 1175],                                    // -daa!
+      ]);
+      sparkle(0.35, 0.017, 0.5); sparkle(0.9, 0.018, 0.6); sparkle(1.25, 0.014, 0.5);
+    },
     // A pile DIED this deal (non-fatal death of one pile): soft "boing" down.
     death() { voice({ freq: 330, glideTo: 150, dur: 0.28, type: "triangle", gain: 0.055, vibrato: 12, vibratoDepth: 14 }); },
     // DEAL WON — plays from the final card's LANDING all the way to the summary
@@ -17492,7 +17561,10 @@ const UIRenderer = (() => {
       },
       peek: false,             // no hold-to-peek-the-board on the loss screen
       btnLabel: "MAIN MENU",
-      action: () => showMainMenu(false),
+      // The run TERMINATES here — after an ENDLESS death this is where a first
+      // win's unlock celebration plays (armed at the ♠ boss; null on plain
+      // losses and repeat wins, so those go straight to the menu).
+      action: () => maybeShowUnlockCelebration(() => showMainMenu(false)),
     });
     startLossFossils();        // bounce/collide the deals beaten this run behind the content
   }
@@ -17525,8 +17597,9 @@ const UIRenderer = (() => {
       btn2Label: "GO TO MAIN MENU",
       btn2Action: () => {
         // The campaign is complete (win banked at the boss). Nothing to resume.
+        // The run TERMINATES here → a first win's unlock celebration plays now.
         clearSave();
-        showMainMenu(false);
+        maybeShowUnlockCelebration(() => showMainMenu(false));
       },
     });
   }
@@ -17588,6 +17661,50 @@ const UIRenderer = (() => {
   ];
   /** A deck is selectable when its predecessor has a recorded win. */
   function deckUnlocked(d) { return !d.requires || DeckUnlocks.wonWith(d.requires); }
+  // The deck NEWLY unlocked by this run's first win — armed at the ♠-boss win,
+  // consumed by the one-time celebration when the run TERMINATES (main menu
+  // from home, or an endless death). SESSION-ONLY by design: a retroactive /
+  // load-time grant can never arm it, so it can never fire spuriously.
+  let pendingUnlockCelebration = null;
+
+  /* THE UNLOCK CELEBRATION (presentation only): the newly-unlocked character
+     appears greyed under a padlock, then the lock pops away, the colour floods
+     in with a bounce + sparkles + a ta-daa, and the name is revealed. Shown at
+     most once per unlock; CONTINUE resumes the normal flow (`onDone`). */
+  function maybeShowUnlockCelebration(onDone) {
+    const d = pendingUnlockCelebration;
+    pendingUnlockCelebration = null;               // consume — never repeats
+    if (!d) { onDone(); return; }
+    const prev = DECKS.find(x => x.id === d.requires);
+    const wrap = document.createElement("div");
+    wrap.className = "deck-unlock-pop";
+    wrap.innerHTML =
+      '<div class="duc-panel">' +
+        '<div class="duc-eyebrow">New deck unlocked</div>' +
+        '<div class="duc-charwrap"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span>' +
+          '<span class="duc-lock">🔒</span>' +
+          '<span class="duc-spark s1">✦</span><span class="duc-spark s2">✦</span>' +
+          '<span class="duc-spark s3">✦</span><span class="duc-spark s4">✦</span>' +
+        '</div>' +
+        '<div class="duc-name">???</div>' +
+        '<div class="duc-copy">' + escHtml((prev ? prev.name : "You") + " made it home — say hello to " + d.name + "!") + '</div>' +
+        '<button class="play-btn duc-continue" type="button">CONTINUE</button>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    // A breath on the locked state first, THEN the reveal (instant under
+    // reduced motion — the CSS drops the transitions there too).
+    setTimeout(() => {
+      if (!wrap.parentNode) return;
+      wrap.classList.add("revealed");
+      wrap.querySelector(".duc-name").textContent = d.name;
+      Sound.deckUnlock();
+    }, prefersReduce() ? 80 : 800);
+    wrap.querySelector(".duc-continue").addEventListener("click", () => {
+      Sound.continueTap();
+      wrap.remove();
+      onDone();
+    });
+  }
   /** The deck the CURRENT campaign is being played with (win credit target).
       Set on Start Run; restored with a resumed save; defaults to Pinky. */
   let selectedDeckId = "pink";
@@ -19264,7 +19381,13 @@ const UIRenderer = (() => {
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
       // DECK CHAIN: a win with this deck permanently unlocks the next
       // (Pinky → Mamma → Mr. Smith → Lammy; persisted in localStorage).
-      DeckUnlocks.recordWin(selectedDeckId);
+      // A FIRST win arms the one-time unlock celebration, shown when the run
+      // TERMINATES (main menu from home, or an endless death) — session-only,
+      // so a retroactive/load-time grant can never fire it.
+      if (DeckUnlocks.recordWin(selectedDeckId)) {
+        const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
+        pendingUnlockCelebration = DECKS[wonIdx + 1] || null;   // the last deck unlocks nothing
+      }
       // The campaign is NOT over: Pinky's HOME sits just above the fallen boss
       // (and endless mode beyond it) — so the boss resolves like any other won
       // deal: summary → map, where the home node is now the legal next step.
