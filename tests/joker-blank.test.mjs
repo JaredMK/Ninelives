@@ -1,6 +1,7 @@
 // Joker + Blank card-pack options.
-//  JOKER: a wild card — drawn/placed it is a CORRECT guess for ANY call and
-//         banks 1 Same Charge on any guess (never firing the Same-Power).
+//  JOKER: a wild card — ANY guess it's part of is CORRECT (drawn AND as the
+//         pile top being guessed against) and banks 1 Same Charge on any
+//         landing it's in (never firing the Same-Power).
 //  BLANK: a removal — swapped in over a chosen card, it removes that card so
 //         the deck permanently shrinks by one.
 //  Both appear as pack options at HALF a normal rank's frequency.
@@ -27,6 +28,33 @@ export function run() {
     e.guess(0, dir);
     r.ok(b.isActive(0), "Joker survives a '" + dir + "' guess (never wrong)");
     r.ok(b.top(0).joker, "the Joker landed as the pile's new top card");
+  }
+
+  // --- JOKER as the PILE TOP: any guess ON TOP of it is safe too -----------
+  // (regression: a "lower" onto a rankless Joker top compared against value 0
+  //  and killed the pile)
+  for (const dir of ["higher", "lower", "same"]) {
+    const e = mk();
+    const b = e.getBoard();
+    Object.assign(b.top(0), joker(9100));   // the pile's top card IS a Joker
+    e.debug.setNextCard(7);                 // a perfectly ordinary drawn card
+    e.guess(0, dir);
+    r.ok(b.isActive(0), "a '" + dir + "' guess ON a Joker top is safe (pile survives)");
+    r.eq(b.top(0).value, 7, "the drawn card landed on top of the Joker");
+  }
+
+  // --- JOKER top: a Same call onto it banks but does NOT fire the power ----
+  {
+    let firedPower = false;
+    const e = mk();
+    e.debug.setSamePower("linkShuffle");
+    e.onEvent((t) => { if (t === "same-power") firedPower = true; });
+    Object.assign(e.getBoard().top(0), joker(9101));
+    e.debug.setNextCard(9);
+    e.guess(0, "same");                     // freebie-correct on a Joker top
+    r.ok(e.getBoard().isActive(0), "the Same call on a Joker top survives");
+    r.ok(e.sameCharge(), "…and banks the Same Charge");
+    r.ok(!firedPower, "…but does NOT fire the equipped Same-Power (no guaranteed trigger)");
   }
 
   // --- JOKER: banks a Same Charge on ANY guess (not just a Same call) ------

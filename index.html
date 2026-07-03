@@ -5494,7 +5494,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.93 · gold Joker card face (board, flight, deck peek)";
+const APP_VERSION = "v3.94 · fix: guessing on top of a Joker is always safe";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9787,8 +9787,11 @@ const GameEngine = (() => {
       // Tie-Safe Pillar on the column) lets that tie survive.
       const tieSafe = current.tieSafe || drawn.tieSafe || (pillar && pillar.effect === "columnTieSafe");
       if (isTie && tieSafe) correct = true;
-      // JOKER: never wrong — a correct guess for ANY call (higher / lower / same).
-      if (drawn.joker) correct = true;
+      // JOKER: never wrong — a correct guess for ANY call (higher / lower /
+      // same), whichever SIDE it's on: a drawn Joker landing on any pile, OR
+      // any card landing ON a Joker top (a rankless ★ can't be compared, so a
+      // guess against it must always be safe).
+      if (drawn.joker || current.joker) correct = true;
       // Telemetry: a Tie-Safe STICKER turned a directional tie (would-die) into a
       // save (a same-guess tie survives without it, so only count directional).
       if (isTie && correct && guess !== "same" && (current.tieSafe || drawn.tieSafe)) recT("sticker", "tieSafe", "Tie-Safe", { saves: 1 });
@@ -9932,9 +9935,12 @@ const GameEngine = (() => {
         // (max 1; a Same at full charge does not stack a second), and (2) trigger
         // the equipped Same-Power on this pile's directly-linked piles. The
         // backstop above auto-spends the charge to save a pile from death.
-        if (drawn.joker) {
+        if (drawn.joker || current.joker) {
           // JOKER banks a Same Charge on ANY guess (max 1, the backstop-save
           // charge) but NEVER fires the equipped Same-Power — it only banks.
+          // Same rule on EITHER side: a "same" called onto a Joker top is a
+          // freebie (any call is correct there), so it must not become a
+          // guaranteed Same-Power trigger.
           sameCharge = true;
           emit("same-banked", { index, board, deck, run, sameCharge });
         } else if (guess === "same") {
@@ -20424,7 +20430,7 @@ const UIRenderer = (() => {
   function packItemInfoHtml(st, i) {
     if (st.kind === "card") {
       const c = st.items[i];
-      if (c.joker) return { title: "★ Joker", body: "A wild card. When it's drawn and placed on a pile it counts as a CORRECT guess for ANY call — higher, lower, or same — so it can never be wrong. It also banks 1 Same Charge (the backstop save) on any guess. It does not fire your equipped Same-Power." };
+      if (c.joker) return { title: "★ Joker", body: "A wild card. Any guess it's part of is CORRECT — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. A Joker landing also banks 1 Same Charge (the backstop save). It does not fire your equipped Same-Power." };
       if (c.blank) return { title: "∅ Blank", body: "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck." };
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];
