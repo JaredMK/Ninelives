@@ -230,7 +230,12 @@ export function run() {
       r.ok(cBoss.next.every(id => run.byId[id].phase === 2), "run " + s + ": ♣ boss feeds the ♠ openings");
       // the run boss is the ♠ boss and is reachable from the ♦ start via BFS.
       r.eq(run.runBossId, run.phases[2].bossId, "run " + s + ": run boss = the ♠ boss");
-      r.ok(run.byId[run.runBossId].next.length === 0, "run " + s + ": the ♠ boss is the terminal node");
+      // Above the ♠ boss sits PINKY'S HOME — the run's true terminal node.
+      const bossNext = run.byId[run.runBossId].next;
+      r.ok(bossNext.length === 1 && run.byId[bossNext[0]].type === "home", "run " + s + ": the ♠ boss feeds exactly Pinky's home");
+      r.eq(run.homeId, bossNext[0], "run " + s + ": the map exposes the home node id");
+      r.ok(run.byId[run.homeId].next.length === 0, "run " + s + ": home is the terminal node (until endless)");
+      r.ok(run.byId[run.homeId].row > run.byId[run.runBossId].row, "run " + s + ": home sits ABOVE the boss");
       const seen = new Set(), q = run.row0.slice();
       while (q.length) { const id = q.shift(); if (seen.has(id)) continue; seen.add(id); (run.byId[id].next || []).forEach(x => q.push(x)); }
       r.ok(seen.has(run.runBossId), "run " + s + ": the ♠ boss is reachable from the ♦ start");
@@ -516,6 +521,29 @@ export function run() {
     r.eq(c.getPhaseIndex(), 0, "reset → phase 0");
     r.eq(c.deckSize(), 13, "reset → 13 hearts");
     r.eq(c.phaseSuit(), "♦", "reset → diamonds phase");
+  }
+
+  // ---- PINKY'S HOME: legal after the ♠ boss; the win banks exactly once ----
+  {
+    const c = CampaignState.create();
+    const map = c.getMap();
+    r.ok(map.homeId != null, "the campaign map carries Pinky's home");
+    c.moveToNode(map.phases[2].bossId);
+    c.markNodeCleared(map.phases[2].bossId);          // the ♠ boss falls
+    const legal = c.legalNextNodes();
+    r.ok(legal.length === 1 && legal[0].type === "home", "after the ♠ boss, HOME is the only legal next node");
+    r.ok(!c.runWonBanked(), "the win isn't banked until the boss-win flow banks it");
+    c.markRunWon();
+    r.ok(c.runWonBanked(), "markRunWon banks the win");
+    r.eq(c.unbankedCardsFlipped(), 0, "no unbanked flips right at the banking");
+    c.addCardsFlipped(7);                             // endless-mode flips after the bank
+    r.eq(c.unbankedCardsFlipped(), 7, "flips made after the bank count as unbanked (endless death adds only these)");
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire), "a banked-win save restores");
+    r.ok(c2.runWonBanked(), "…and the banked win survives the round-trip");
+    c.reset();
+    r.ok(!c.runWonBanked(), "reset() clears the bank for the next campaign");
   }
 
   // ---- MAP SPECIALS: Joker + Blank as +1 pickups (roll pinned) -------------

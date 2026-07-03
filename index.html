@@ -4285,6 +4285,16 @@
   .mn-home-ico::after { content: "♥"; }    /* heart on the door — the 13-heart start */
   /* At home (before the first move) it sits at full strength; dimmed once you set out. */
   .pm-node.t-home.s-done { opacity: 0.5; filter: grayscale(0.4); }
+  /* PINKY'S HOME — the top-of-map finish line (mama's house). Same hut art,
+     slightly larger, with a visible warm ♥; interactive once the ♠ boss falls. */
+  .pm-node.t-home.s-legal, .pm-node.t-home.s-here { cursor: pointer; }
+  .mn-mama { width: 58px; height: 50px; }
+  .mn-mama::before { width: 32px; height: 32px; }
+  .mn-mama::after { width: 44px; height: 30px; }
+  .mn-mama .mn-home-ico { font-size: 15px; }
+  .mn-mama .mn-mama-heart { position: absolute; top: -7px; right: -3px; z-index: 2;
+    font-size: 15px; line-height: 1; color: var(--card-red);
+    text-shadow: 0 0 8px rgba(200, 80, 110, 0.65); }
 
   /* Fallback face-down card (only if a +1 node has no locked card). */
   .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
@@ -5497,7 +5507,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.96 · stage gating removed (all items any time) + permanent gold ★ histogram slot";
+const APP_VERSION = "v3.97 · Pinky is home — the victory screen atop the map";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8021,6 +8031,9 @@ const RunMap = (() => {
 
      Returns { nodes:[...], byId, phases:[perPhaseMeta], row0:[ids], totalRows,
      runBossId }. Each node gains `.phase` (0..2) and a GLOBAL `.row`. */
+  // Pinky's HOME node id — far above every phase namespace (phase p uses
+  // p·1000 + local id, local ids stay well under 1000).
+  const HOME_NODE_ID = 900000;
   function generateRun(seed, entryDecks) {
     // entryDecks[p] = the REAL deck size entering stage p (difficulty input).
     // A null/absent entry means that stage hasn't been entered yet — it is NOT
@@ -8070,9 +8083,22 @@ const RunMap = (() => {
       return { nodes: [], byId: {}, phases: [], row0: [], totalRows: 0,
                runBossId: null, runBossIds: null, stagesGenerated: 0 };
     }
+    // PINKY'S HOME — one single node directly ABOVE the final (♠) boss, the
+    // run's true finish line: felling the boss makes it the legal next step,
+    // and stepping onto it shows the "Pinky is home" victory screen. It only
+    // exists once the ♠ stage does (always, under full-map generation).
+    if (phases.length >= GEN_CONFIG.phaseSuits.length) {
+      const finalMeta = phases[GEN_CONFIG.phaseSuits.length - 1];
+      const home = { id: HOME_NODE_ID, type: "home", row: rowOffset, localRow: finalMeta.rows,
+                     lane: 1, x: 0.5, suit: "♥", phase: finalMeta.phase, next: [] };
+      nodes.push(home); byId[home.id] = home;
+      byId[finalMeta.bossId].next.push(home.id);
+      rowOffset += 1;
+    }
     return {
       nodes, byId, phases,
       row0: phases[0].row0,
+      homeId: phases.length >= GEN_CONFIG.phaseSuits.length ? HOME_NODE_ID : null,
       totalRows: rowOffset,
       // The RUN boss exists only once the final (♠) stage has been generated;
       // until then no boss can falsely end the run. (bossIds is kept as a
@@ -10534,6 +10560,13 @@ const CampaignState = (() => {
     //   totalCoinsEarned  — GROSS coins earned (before spending), all runs.
     let totalCardsFlipped = 0;
     let totalCoinsEarned = 0;
+    // THE WIN IS BANKED at the ♠ boss: lifetime stats record the campaign as
+    // WON right there, whatever happens after (going home, or dying deep in
+    // endless mode can never undo or double-count it). cardsFlippedBanked
+    // remembers how many flips were already folded into the lifetime tally at
+    // that moment, so an endless death only adds the flips made SINCE.
+    let runWonBanked = false;
+    let cardsFlippedBanked = 0;
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     // Lifetime-stats guard: has THIS campaign already been counted as a "run
@@ -10957,6 +10990,14 @@ const CampaignState = (() => {
          Persisted, so a resume of the same campaign never re-counts it. */
       isPlayedCounted() { return playedCounted; },
       markPlayed() { playedCounted = true; },
+
+      /* ---- WIN BANKING (the ♠ boss fell — the campaign counts as WON) ----
+         Set exactly once, at the final boss's win; persisted. An endless-mode
+         death after this never re-records the campaign (see runWonBanked) and
+         only adds the cards flipped SINCE the banking to the lifetime tally. */
+      markRunWon() { runWonBanked = true; cardsFlippedBanked = totalCardsFlipped; },
+      runWonBanked() { return runWonBanked; },
+      unbankedCardsFlipped() { return Math.max(0, totalCardsFlipped - cardsFlippedBanked); },
 
       /* ---- Same Charge (persists across deals, resets per run) ---- */
       getSameCharge() { return sameCharge; },
@@ -11797,6 +11838,8 @@ const CampaignState = (() => {
         baseDeck = DeckManager.buildStandardDeck();
         coins = 0;
         playedCounted = false;
+        runWonBanked = false;
+        cardsFlippedBanked = 0;
         sameCharge = false;
         stickerInventory = {};
         pillarInventory = {};
@@ -11833,6 +11876,7 @@ const CampaignState = (() => {
           allGuessesCorrect, allGuessesTotal,
           coins,
           playedCounted,
+          runWonBanked, cardsFlippedBanked,   // ♠-boss win banking (endless death can't undo/duplicate it)
           sameCharge,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
@@ -11897,6 +11941,8 @@ const CampaignState = (() => {
         totalCoinsEarned = s.totalCoinsEarned || 0;
         coins = s.coins || 0;
         playedCounted = !!s.playedCounted;   // default false for pre-guard saves
+        runWonBanked = !!s.runWonBanked;     // default false for pre-home saves
+        cardsFlippedBanked = s.cardsFlippedBanked || 0;
         sameCharge = !!s.sameCharge;
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
@@ -17254,19 +17300,35 @@ const UIRenderer = (() => {
     startLossFossils();        // bounce/collide the deals beaten this run behind the content
   }
 
-  function showCampaignComplete() {
-    // (The run-clear music already played at the run-end trigger, in the same
-    // frame as the win dance — this overlay arrives a full cinematic later.)
+  /* PINKY IS HOME — the victory screen, shown when the player steps onto the
+     home node above the fallen ♠ boss. The run summary (deals cleared, cards
+     drawn, guess accuracy, coins, the ending board) plus the exit choice.
+     The WIN was already banked at the boss (markRunWon) — whichever option is
+     chosen (or even a death later in endless mode) can't change that. */
+  function showPinkyHome() {
+    Sound.runClear();   // he's HOME — the run-clear music again, for mama
+    const total = campaign.allGuessesTotal;
+    const correct = campaign.allGuessesCorrect;
     showOverlay({
       kind: "win",
       icon: glyph("complete"),
-      title: "RUN CLEARED",
-      msg: "You survived every card to the end. All " + (campaign.maxStages * campaign.maxRunsPerStage) + " deals cleared.",
-      progress: stageRunShort(),
+      title: "Pinky is home",
+      msg: "He made it back to mama ♥ — " + campaign.runsCompleted + " deal" + (campaign.runsCompleted === 1 ? "" : "s") + " cleared.",
+      progress: campaign.runsCompleted + " deal" + (campaign.runsCompleted === 1 ? "" : "s") + " · "
+        + campaign.totalCardsFlipped + " cards played · Deck " + campaign.deckSize(),
       endStats: endStats(),
-      peek: true,
-      btnLabel: "NEW RUN",
-      action: startCampaign,
+      guessStats: {
+        correct,
+        wrong: Math.max(0, total - correct),
+        pct: total > 0 ? Math.round((correct / total) * 100) : 0,
+      },
+      peek: false,
+      btnLabel: "GO TO MAIN MENU",
+      action: () => {
+        // The campaign is complete (win banked at the boss). Nothing to resume.
+        clearSave();
+        showMainMenu(false);
+      },
     });
   }
 
@@ -18852,10 +18914,17 @@ const UIRenderer = (() => {
       // (persistent mood on both characters; cleared on the next run start).
       CharMood.loss();
       clearSave();   // a loss wipes the campaign — no resume of a dead run
-      // Lifetime stats (isolated store): record how far this game got.
-      Stats.addCardsFlipped(campaign.totalCardsFlipped);
-      Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
-        campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+      if (campaign.runWonBanked && campaign.runWonBanked()) {
+        // ENDLESS death: the campaign was already banked as WON at the ♠ boss.
+        // Normal game-over flow, but never a recorded loss — only the cards
+        // flipped SINCE the banking join the lifetime tally.
+        Stats.addCardsFlipped(campaign.unbankedCardsFlipped());
+      } else {
+        // Lifetime stats (isolated store): record how far this game got.
+        Stats.addCardsFlipped(campaign.totalCardsFlipped);
+        Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
+          campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+      }
       showCampaignFailed(payload.run);
       return;
     }
@@ -18957,14 +19026,22 @@ const UIRenderer = (() => {
 
     if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared
-      // He made it home to mama: dirt gone, big smile, sparkle eyes — the
+      // Almost home to mama: dirt gone, big smile, sparkle eyes — the
       // celebrate dance above carries the bounce/wiggle.
       CharMood.win();
-      clearSave();   // campaign finished — nothing left to resume
+      // THE WIN IS BANKED RIGHT HERE, whatever happens after: lifetime stats
+      // record the campaign as WON at the ♠ boss. Going home or dying deep in
+      // endless mode later can neither undo nor double-count it (the banked
+      // flag guards the loss path; only post-boss flips get added there).
+      campaign.markRunWon();
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
-      playWinCinematic(board, showCampaignComplete);
+      // The campaign is NOT over: Pinky's HOME sits just above the fallen boss
+      // (and endless mode beyond it) — so the boss resolves like any other won
+      // deal: summary → map, where the home node is now the legal next step.
+      persistCampaign("map");
+      playWinCinematic(board, () => showPostDealPlacement(() => showRunComplete(coins)));
     } else {
       // Show the coin breakdown, then continue back to the (current or new-phase)
       // map to pick the next node. Checkpoint so a refresh resumes at the map.
@@ -19228,7 +19305,7 @@ const UIRenderer = (() => {
      the curve clears every NON-endpoint node. Node footprints (+ a small margin)
      are the obstacles. Shared by the rendered edges AND the avatar travel, so the
      box follows the exact routed trail. Layout/visual only — structure untouched. */
-  const NODE_HALF = { pickup: [25, 31], pack: [25, 29], deal: [30, 27], boss: [40, 35], store: [26, 26] };
+  const NODE_HALF = { pickup: [25, 31], pack: [25, 29], deal: [30, 27], boss: [40, 35], store: [26, 26], home: [30, 30] };
   let _obsKey = null, _obs = null;
   function mapObstacles() {
     const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
@@ -19335,12 +19412,15 @@ const UIRenderer = (() => {
     if (n.type === "deal") return mapDealCluster(n, false);
     if (n.type === "store") return mapShopStall();
     if (n.type === "pack") return mapPackStack(n);                      // 2+ cards → sealed pack (count only)
+    // PINKY'S HOME (the top-of-map finish line): mama's house with a warm ♥.
+    if (n.type === "home") return '<span class="mn-home mn-mama"><span class="mn-home-ico">⌂</span><span class="mn-mama-heart">♥</span></span>';
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
     if (n.type === "boss") return n.piles + " piles · BOSS";
     if (n.type === "deal") return n.piles + " piles";
     if (n.type === "store") return "Shop";
+    if (n.type === "home") return "Home — mama ♥ is waiting";
     if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
     const card = campaign.nodeCard(n);
     if (card && card.joker) return "★ Joker — never a wrong guess";
@@ -19621,6 +19701,14 @@ const UIRenderer = (() => {
   }
 
   function showProgressionMap(onEnter) {
+    // PINKY AT HOME with nowhere further to go (no endless stages generated):
+    // the victory screen IS this state's screen — a resume/refresh landing
+    // here must re-show it, never a dead-end map with no legal node.
+    const curHome = campaign.currentNode && campaign.currentNode();
+    if (curHome && curHome.type === "home" && campaign.legalNextNodes().length === 0) {
+      showPinkyHome();
+      return;
+    }
     mapOnEnter = (typeof onEnter === "function") ? onEnter : null;
     hideOverlay();
     closeStore();
@@ -19737,6 +19825,15 @@ const UIRenderer = (() => {
       // the node cleared. Re-render now so the marker shows on this node behind it.
       renderProgressionMap();
       showStore();
+    } else if (node.type === "home") {
+      // PINKY IS HOME — the run's true finish line. Deliberately NOT marked
+      // cleared here: the victory screen's choice decides what happens next
+      // (endless mode clears it and climbs on; main menu ends the campaign).
+      // Persist the position so a refresh on the victory screen resumes to it
+      // (showProgressionMap re-detects home-with-nowhere-to-go → this screen).
+      persistCampaign("map");
+      hideProgressionMap();   // the map overlay sits ABOVE #overlay — drop it so the victory screen shows
+      showPinkyHome();
     } else {
       // Deal / Boss: launch the deal. The SAME character that just travelled the
       // trail to this node now "jumps" off the node into the bottom-right deck
