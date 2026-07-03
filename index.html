@@ -4685,21 +4685,14 @@
   body.guess-side #histBand .ds-pip:not(.filled) { background: rgba(240,234,224,0.26); }
   body.guess-side #histBand .ds-bar.ds-active .ds-pip:not(.filled) { background: rgba(240,234,224,0.44); }
   body.guess-side #histBand .ds-bar.ds-active .ds-rank { color: var(--on-felt); }
-  /* JOKER histogram column — GOLD (it counts as high, low AND same, so it sits
-     outside the pink/grey rank scheme): gold = remaining, muted gold = drawn.
-     Scoped tighter than the felt pip rules above so gold wins on every screen
-     (including while scrub-active). */
+  /* JOKER histogram column — the ★ SYMBOL reads gold (it's the Joker's colour
+     everywhere), but its bar segments use the STANDARD scheme (grey = drawn,
+     pink = remaining) so the axis reads uniformly. */
   .ds-bar.ds-joker .ds-rank { color: #c9a23f; font-weight: 800; }
-  .ds-bar.ds-joker .ds-pip { background: rgba(201,162,63,0.30); }
-  .ds-bar.ds-joker .ds-pip.filled { background: linear-gradient(90deg, #e6b74a, #ffd97a); }
-  .ds-bar.ds-joker.ds-active .ds-pip { background: rgba(201,162,63,0.48); }
-  .ds-bar.ds-joker.ds-active .ds-pip.filled { background: linear-gradient(90deg, #e6b74a, #ffd97a); }
   .ds-bar.ds-joker.ds-active .ds-rank { color: #e6b74a; }
-  body.guess-side #histBand .ds-bar.ds-joker .ds-pip:not(.filled) { background: rgba(230,183,74,0.30); }
-  body.guess-side #histBand .ds-bar.ds-joker.ds-active .ds-pip:not(.filled) { background: rgba(230,183,74,0.48); }
   body.guess-side #histBand .ds-bar.ds-joker .ds-rank,
   body.guess-side #histBand .ds-bar.ds-joker.ds-active .ds-rank { color: #ecc25a; }
-  /* Suit-count chart's 5th cell: the suitless Jokers, in the same gold. */
+  /* Suit-count chart's 5th cell: the suitless Jokers' ★, in the same gold. */
   .suit-counts .sc-cell.sc-joker .sc-suit { color: #c9a23f; }
   /* Deck-select heading + the deal-status score row + the page footer */
   .ds-title { color: var(--on-felt); }
@@ -4904,6 +4897,9 @@
       <button class="place-launcher hidden" id="placeLauncher" type="button">
         <span class="pl-ico">▲</span><span class="pl-label">Place</span><span class="pl-n" id="placeLauncherN">0</span>
       </button>
+      <!-- RESHUFFLE the initial deal-out (before the FIRST guess only): re-deals
+           the piles from the same deck for an escalating coin price. -->
+      <button class="play-btn redeal hidden" id="reshuffleBtn" type="button"></button>
       <div class="actions hidden" id="actions">
         <button class="btn higher" id="btnHigher" aria-label="Higher" title="Higher">▲</button>
         <button class="btn same" id="btnSame" aria-label="Same" title="Same">＝</button>
@@ -5436,7 +5432,6 @@
        the roster is data-driven (see DECKS), so adding a deck is data-only. -->
   <div class="menu-screen hidden" id="deckSelect">
     <div class="ds-title">Choose your deck</div>
-    <div class="ds-hint">Swipe to browse decks</div>
     <div class="ds-carousel" id="dsCarousel"></div>
     <div class="ds-dots" id="dsDots"></div>
     <button class="ds-back" id="dsBack" type="button">Back</button>
@@ -5516,7 +5511,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.98 · Endless Mode — keep climbing past home, rising stakes";
+const APP_VERSION = "v3.99 · Joker rework + deal reshuffle + deck-select copy + pink ★ bar";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10008,15 +10003,12 @@ const GameEngine = (() => {
         // (max 1; a Same at full charge does not stack a second), and (2) trigger
         // the equipped Same-Power on this pile's directly-linked piles. The
         // backstop above auto-spends the charge to save a pile from death.
-        if (drawn.joker || current.joker) {
-          // JOKER banks a Same Charge on ANY guess (max 1, the backstop-save
-          // charge) but NEVER fires the equipped Same-Power — it only banks.
-          // Same rule on EITHER side: a "same" called onto a Joker top is a
-          // freebie (any call is correct there), so it must not become a
-          // guaranteed Same-Power trigger.
-          sameCharge = true;
-          emit("same-banked", { index, board, deck, run, sameCharge });
-        } else if (guess === "same") {
+        // JOKER REWORK: a Joker on EITHER side makes any call safe (see the
+        // correct rule) but grants NOTHING extra on higher/lower — no more
+        // auto-banked charge. Call SAME with a Joker involved and it counts as
+        // a fully correct Same: it lands here and banks AND fires, like any
+        // other correct Same.
+        if (guess === "same") {
           sameCharge = true;
           fireSamePower(index);
           emit("same-banked", { index, board, deck, run, sameCharge });
@@ -12698,6 +12690,7 @@ const UIRenderer = (() => {
     actions: document.getElementById("actions"),
     ctlHelp: document.getElementById("ctlHelp"),
     playControls: document.getElementById("playControls"),
+    reshuffleBtn: document.getElementById("reshuffleBtn"),
     actionPrompt: document.getElementById("actionPrompt"),
     actionPromptText: document.getElementById("actionPromptText"),
     actionPromptBtns: document.getElementById("actionPromptBtns"),
@@ -12948,8 +12941,8 @@ const UIRenderer = (() => {
   // (no free redeal). `appliedThisPhase` tracks whether a sticker/replacement
   // was applied since the last deal, to warn before a reshuffle re-deals on top
   // of those (Rule B: the applications stay; only the starting board changes).
-  const REDEAL_BASE_COST = 5;
-  const REDEAL_STEP = 1;
+  const REDEAL_BASE_COST = 10;   // reshuffle price at the start of EVERY deal
+  const REDEAL_STEP = 1;         // +1 per reshuffle within the same deal
   let redealCost = REDEAL_BASE_COST;
   let appliedThisPhase = false;
 
@@ -13208,6 +13201,42 @@ const UIRenderer = (() => {
     // strip rebuild / screen change) — the per-guess in-place pip update can't,
     // and the measure is a forced reflow right after the writes above.
     if (shellDirty) updateShellHeight();
+  }
+
+  /* RESHUFFLE the initial deal-out: offered only BEFORE the first guess of the
+     deal. Costs redealCost coins (starts at REDEAL_BASE_COST every deal, +1 per
+     use within the deal); pays, then re-deals the piles from the SAME deck via
+     startRun with a fresh random seed — the normal dealing animation plays and
+     the escalated price rides along (and persists across a refresh). */
+  let reshuffleKey = "";   // skip identical re-renders (runs per guess via renderHud)
+  function renderReshuffleBtn() {
+    const b = el.reshuffleBtn;
+    if (!b) return;
+    const run = engine && engine.getRun ? engine.getRun() : null;
+    const show = !!(run && run.totalGuesses === 0 && engine.getStatus && engine.getStatus() === "playing");
+    const cost = redealCost;
+    const poor = !campaign || campaign.getCoins() < cost;
+    const key = show + "|" + cost + "|" + poor;
+    if (key === reshuffleKey) return;
+    reshuffleKey = key;
+    b.classList.toggle("hidden", !show);
+    if (show) {
+      b.innerHTML = glyph("reroll") + " Reshuffle · " + COIN_SVG + " " + cost;
+      b.disabled = poor;
+      b.title = poor ? "Not enough coins (" + cost + " needed)" : "Re-deal the piles from the same deck";
+    }
+  }
+  function doReshuffle() {
+    if (!engine || !campaign) return;
+    const run = engine.getRun && engine.getRun();
+    if (!run || run.totalGuesses > 0 || (engine.getStatus && engine.getStatus() !== "playing")) return;   // first guess made → gone
+    if (!campaign.spendCoins(redealCost)) return;                  // can't afford
+    Sound.pack();
+    if (engine.logAction) engine.logAction("Reshuffled the deal-out (−" + redealCost + " coins)");
+    // Fresh random seed = a new deal-out of the SAME deck; the escalated price
+    // carries into the re-dealt run (startRun persists both).
+    startRun(undefined, redealCost + REDEAL_STEP);
+    updateStageRun();   // coin balance changed
   }
 
   /* Reflect the live Same Charge: the HUD chip lights/glows when a charge is
@@ -13965,7 +13994,7 @@ const UIRenderer = (() => {
     if (bar.dataset.joker) {
       el.deckStripBars.querySelectorAll(".ds-active").forEach(n => n.classList.remove("ds-active"));
       bar.classList.add("ds-active");
-      el.deckStripScrub.innerHTML = "<b>★</b> · a Joker counts as higher, same AND lower";
+      el.deckStripScrub.innerHTML = "<b>★</b> · a Joker is safe on any call";
       el.deckStripScrub.classList.remove("hidden");
       return;
     }
@@ -14019,6 +14048,10 @@ const UIRenderer = (() => {
   let stageRunLast = "";   // last-rendered pill/tracker — skip identical rebuilds (runs per guess)
   function updateStageRun() {
     if (!campaign) return;
+    // The reshuffle offer keys off guesses made AND the coin balance — this is
+    // the one refresh point every coin change and every HUD render funnels
+    // through (renderReshuffleBtn itself is string-keyed, so this is cheap).
+    renderReshuffleBtn();
     const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
     const phaseIdx = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;
     const phases = campaign.phasesTotal ? campaign.phasesTotal() : 3;
@@ -15622,6 +15655,7 @@ const UIRenderer = (() => {
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { Sound.continueTap(); if (overlayAction) overlayAction(); });
     if (el.playBtn2) el.playBtn2.addEventListener("click", () => { Sound.continueTap(); if (overlayAction2) overlayAction2(); });
+    if (el.reshuffleBtn) el.reshuffleBtn.addEventListener("click", doReshuffle);
 
     // Deck picker: a Start button runs the (unlocked) Pink Deck; locked decks have
     // none. Back returns to the menu we came from. Dots track the swiped page.
@@ -17541,7 +17575,7 @@ const UIRenderer = (() => {
         '<div class="ds-sub">' + escHtml(d.unlocked ? (d.sub || "") : "?") + '</div>' +
         (d.unlocked
           ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
-          : '<div class="ds-lock">Not unlocked yet</div>') +
+          : '<div class="ds-lock">Locked</div>') +
       '</div>').join("");
     el.dsDots.innerHTML = DECKS.map((d, i) =>
       '<span class="ds-dot' + (i === 0 ? " on" : "") + (d.unlocked ? "" : " locked-dot") + '"></span>').join("");
@@ -17625,6 +17659,7 @@ const UIRenderer = (() => {
     // Checkpoint the run start: a refresh now resumes this run's sticker phase
     // with the same board + redeal price.
     persistCampaign("run");
+    renderReshuffleBtn();   // fresh deal, zero guesses → the reshuffle offer shows
   }
 
   /* Largest single-column pile count across every run (4, from Run 1's middle
@@ -20690,7 +20725,7 @@ const UIRenderer = (() => {
   function packItemInfoHtml(st, i) {
     if (st.kind === "card") {
       const c = st.items[i];
-      if (c.joker) return { title: "★ Joker", body: "A wild card. Any guess it's part of is CORRECT — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. A Joker landing also banks 1 Same Charge (the backstop save). It does not fire your equipped Same-Power." };
+      if (c.joker) return { title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power." };
       if (c.blank) return { title: "∅ Blank", body: "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck." };
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];

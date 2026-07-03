@@ -1,7 +1,9 @@
 // Joker + Blank card-pack options.
-//  JOKER: a wild card — ANY guess it's part of is CORRECT (drawn AND as the
-//         pile top being guessed against) and banks 1 Same Charge on any
-//         landing it's in (never firing the Same-Power).
+//  JOKER (rework): ANY guess it's part of is SAFE (drawn AND as the pile top
+//         being guessed against). No freebies on higher/lower — the old
+//         auto-banked Same Charge is GONE. A SAME call with a Joker on either
+//         side counts as a fully correct Same: banks the charge AND fires the
+//         equipped Same-Power.
 //  BLANK: a removal — swapped in over a chosen card, it removes that card so
 //         the deck permanently shrinks by one.
 //  Both appear as pack options at HALF a normal rank's frequency.
@@ -43,7 +45,7 @@ export function run() {
     r.eq(b.top(0).value, 7, "the drawn card landed on top of the Joker");
   }
 
-  // --- JOKER top: a Same call onto it banks but does NOT fire the power ----
+  // --- JOKER top + SAME call: a fully correct Same — banks AND fires -------
   {
     let firedPower = false;
     const e = mk();
@@ -51,23 +53,32 @@ export function run() {
     e.onEvent((t) => { if (t === "same-power") firedPower = true; });
     Object.assign(e.getBoard().top(0), joker(9101));
     e.debug.setNextCard(9);
-    e.guess(0, "same");                     // freebie-correct on a Joker top
+    e.guess(0, "same");                     // Joker top makes the Same correct
     r.ok(e.getBoard().isActive(0), "the Same call on a Joker top survives");
-    r.ok(e.sameCharge(), "…and banks the Same Charge");
-    r.ok(!firedPower, "…but does NOT fire the equipped Same-Power (no guaranteed trigger)");
+    r.ok(e.sameCharge(), "…banks the Same Charge");
+    r.ok(firedPower, "…AND fires the equipped Same-Power (full Same, Joker on the pile side)");
   }
 
-  // --- JOKER: banks a Same Charge on ANY guess (not just a Same call) ------
+  // --- JOKER: NO auto-banked charge on a non-Same guess (rework) -----------
   {
     const e = mk();
     r.ok(!e.sameCharge(), "no charge to start");
     e.getBoard().top(0).value = 5;
     e.debug.setNextCardObj(joker());
     e.guess(0, "higher");                 // a HIGHER call, not a Same
-    r.ok(e.sameCharge(), "the Joker banked a Same Charge on a non-Same guess");
+    r.ok(e.getBoard().isActive(0), "the Joker landing is safe on higher");
+    r.ok(!e.sameCharge(), "a non-Same Joker landing banks NOTHING (auto-charge removed)");
+  }
+  {
+    const e = mk();
+    Object.assign(e.getBoard().top(0), joker(9102));
+    e.debug.setNextCard(4);
+    e.guess(0, "lower");                  // any call on a Joker top is safe
+    r.ok(e.getBoard().isActive(0), "lower onto a Joker top is safe");
+    r.ok(!e.sameCharge(), "…and banks nothing (auto-charge removed on the pile side too)");
   }
 
-  // --- JOKER: banks the charge but does NOT fire the equipped Same-Power ---
+  // --- DRAWN JOKER + SAME call: a fully correct Same — banks AND fires -----
   {
     let firedPower = false;
     const e = mk();
@@ -75,9 +86,9 @@ export function run() {
     e.onEvent((t) => { if (t === "same-power") firedPower = true; });
     e.getBoard().top(0).value = 6;
     e.debug.setNextCardObj(joker());
-    e.guess(0, "same");                   // even on a Same call, the Joker only banks
-    r.ok(e.sameCharge(), "Joker banked the charge on a Same call");
-    r.ok(!firedPower, "Joker did NOT fire the equipped Same-Power (only banked)");
+    e.guess(0, "same");                   // Same call with the drawn Joker
+    r.ok(e.sameCharge(), "a drawn-Joker Same banks the charge");
+    r.ok(firedPower, "…AND fires the equipped Same-Power (full Same, Joker on the drawn side)");
   }
 
   // --- control: a REAL same (non-Joker) DOES fire the Same-Power ----------
