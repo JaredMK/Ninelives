@@ -22,8 +22,11 @@ export function run() {
   }
 
   // ---- pickups + packs grow the accumulated deck --------------------------
+  // (map specials pinned OFF — this block asserts the NORMAL-card contract;
+  //  the Joker/Blank special contract has its own block below)
   {
     const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);
     const before = c.deckSize();
     const card = c.resolvePickup({ type: "pickup", mixed: false });
     r.ok(card, "a pickup adds a card");
@@ -44,6 +47,7 @@ export function run() {
   // ---- packs ALWAYS grant exactly N, minting once the unique pool is dry ----
   {
     const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
     const before = c.deckSize();
     // 13 ♣ exist; ~7 are reserved by +1 club nodes. Open six +5 packs = 30 clubs
     // far beyond the unique pool → minting must keep each pack at exactly 5.
@@ -69,6 +73,7 @@ export function run() {
   {
     for (const suit of ["♦", "♣", "♠"]) {
       const c = CampaignState.create();
+      c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
       let all = [];
       // open several packs of `suit`; every granted card must be that suit.
       for (let k = 0; k < 6; k++) all = all.concat(c.resolvePack({ type: "pack", packCount: 5, suit }));
@@ -247,6 +252,7 @@ export function run() {
   //  grant contract is exercised on a node object directly.)
   {
     const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
     const pickup = { id: 900001, type: "pickup", suit: "♦", mixed: false };
     const shown = c.previewPickupCard(pickup);
     r.ok(shown && shown.id != null, "previewPickupCard shows a concrete card (rank+suit)");
@@ -357,6 +363,7 @@ export function run() {
   //  authored maps route through the same commit/preview API.)
   {
     const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
     const nA = { id: 910001, type: "pickup", suit: "♦", mixed: false };
     const nB = { id: 910002, type: "pickup", suit: "♦", mixed: false };
     const a = c.previewPickupCard(nA), b = c.previewPickupCard(nB);
@@ -369,6 +376,7 @@ export function run() {
     let suitHeld = a.suit === "♦";
     for (let t = 0; t < 5 && !suitHeld; t++) {
       const c2 = CampaignState.create();
+      c2._setMapSpecialRoll(() => null);
       const p2 = c2.previewPickupCard({ id: 910050 + t, type: "pickup", suit: "♦", mixed: false });
       suitHeld = !!p2 && p2.suit === "♦";
     }
@@ -409,6 +417,11 @@ export function run() {
   // ---- packs never draw a card a +1 node is showing (reserved) -----------
   {
     const c = CampaignState.create();
+    // Specials pinned OFF, and the map re-locked under the pin: the fresh map's
+    // +1 nodes committed at create() (production rolls could lock a Joker/Blank
+    // sentinel, which has no base-card id to reserve — not this test's subject).
+    c._setMapSpecialRoll(() => null);
+    c.startNewRun();
     const map = c.getMap();
     const lockedIds = new Set(map.nodes.filter(n => n.type === "pickup").map(n => c.nodeCard(n).id));
     // open several packs; none of their cards should be a +1 node's locked card.
@@ -497,6 +510,76 @@ export function run() {
     r.eq(c.getPhaseIndex(), 0, "reset → phase 0");
     r.eq(c.deckSize(), 13, "reset → 13 hearts");
     r.eq(c.phaseSuit(), "♦", "reset → diamonds phase");
+  }
+
+  // ---- MAP SPECIALS: Joker + Blank as +1 pickups (roll pinned) -------------
+  {
+    // JOKER on a +1 node: previews face-up as a Joker, grants an OWNED Joker.
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => true);   // every special roll → Joker
+    const nJ = { id: 920001, type: "pickup", suit: "♦", mixed: false };
+    const shown = c.previewPickupCard(nJ);
+    r.ok(shown && shown.joker, "a special +1 node previews as a JOKER (shown on the map)");
+    const before = c.deckSize();
+    const granted = c.resolvePickup(nJ);
+    r.ok(granted && granted.joker, "taking the node grants a Joker");
+    r.eq(c.deckSize(), before + 1, "the Joker joins the deck like any card (+1)");
+    r.ok(c.getRunDeck().some(x => x.joker), "the run deck holds the Joker");
+    r.eq(c.jokerCount(), 1, "jokerCount() sees the owned Joker (histogram feed)");
+    // A save round-trips both the owned Joker and any still-locked sentinel.
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire), "a save with an owned Joker restores");
+    r.eq(c2.jokerCount(), 1, "the restored deck still holds the Joker");
+    r.eq(c2.deckSize(), c.deckSize(), "restored deck size matches");
+    r.ok(c2.nodeCard(nJ) && c2.nodeCard(nJ).joker, "the cleared node still displays its Joker after restore");
+  }
+  {
+    // BLANK on a +1 node: previews face-up as a Blank; grants a REMOVAL, not a
+    // card — the deck only changes when removeDeckCard applies the choice.
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => false);   // every special roll → Blank
+    const nB = { id: 920002, type: "pickup", suit: "♦", mixed: false };
+    const shown = c.previewPickupCard(nB);
+    r.ok(shown && shown.blank, "a special +1 node previews as a BLANK (shown on the map)");
+    r.ok(c.nodeCard(nB) && c.nodeCard(nB).blank, "the committed Blank persists for node display");
+    const before = c.deckSize();
+    const granted = c.resolvePickup(nB);
+    r.ok(granted && granted.blank, "resolving returns the Blank marker");
+    r.eq(c.deckSize(), before, "a Blank adds NOTHING to the deck");
+    // Its effect — choose a card to remove; the deck permanently shrinks by 1.
+    const victim = c.getRunDeck()[0];
+    r.ok(c.removeDeckCard(victim.id), "removeDeckCard removes the chosen card");
+    r.eq(c.deckSize(), before - 1, "the deck permanently shrank by one");
+    r.ok(!c.getRunDeck().some(x => x.id === victim.id), "the removed card is gone");
+    r.ok(!c.removeDeckCard(victim.id), "removing it again fails (already gone)");
+  }
+  // ---- MAP SPECIALS: Joker + Blank inside map packs ------------------------
+  {
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => true);
+    const before = c.deckSize();
+    const cards = c.resolvePack({ type: "pack", packCount: 3, suit: "♦" });
+    r.eq(cards.length, 3, "an all-special +3 pack still reveals 3 items");
+    r.ok(cards.every(x => x.joker), "…all Jokers (roll pinned)");
+    r.eq(c.deckSize(), before + 3, "every pack Joker joined the deck");
+    r.eq(c.jokerCount(), 3, "jokerCount() reflects all three");
+    c._setMapSpecialRoll(() => false);
+    const blanks = c.resolvePack({ type: "pack", packCount: 2, suit: "♦" });
+    r.eq(blanks.length, 2, "an all-Blank +2 pack reveals 2 items");
+    r.ok(blanks.every(x => x.blank), "…both Blanks (roll pinned)");
+    r.eq(c.deckSize(), before + 3, "Blanks added NOTHING to the deck");
+  }
+  // ---- MAP SPECIALS: a new run prunes stale Joker identities ---------------
+  {
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => true);
+    c.resolvePickup({ id: 930001, type: "pickup", suit: "♦" });
+    r.eq(c.jokerCount(), 1, "a Joker owned mid-run");
+    c._setMapSpecialRoll(() => null);   // the fresh map's locks roll normally
+    c.startNewRun();
+    r.eq(c.jokerCount(), 0, "a new run's deck starts without the old Joker");
+    r.ok(!c.getDeck().some(x => x.joker), "…and the stale Joker identity was pruned from the base deck");
   }
 
   return r.summary();

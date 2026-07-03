@@ -4199,6 +4199,15 @@
   .node-card .pip { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
     font-size: calc(var(--ps) * 0.30); line-height: 1; opacity: 0.82; }
   .node-card .s .suit-svg, .node-card .pip .suit-svg { width: 1em; height: 1em; display: block; }
+  /* PICKUP specials — Joker (gold) / Blank (stitched grey), the same palette as
+     the pack-reveal mini cards so the special reads identically everywhere. */
+  .node-card .front.nc-special { align-items: center; justify-content: center; gap: 2px; }
+  .node-card .nc-special .ncs-sym { font-size: 20px; line-height: 1; font-weight: 800; }
+  .node-card .nc-special .ncs-lab { font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
+  .node-card .front.nc-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a); color: #7a5300;
+    border-color: #e6b74a; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 8px rgba(230,183,74,0.5); }
+  .node-card .front.nc-blank { background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
+    color: #6a6076; border-color: #ccc2d6; }
 
   /* DEAL / BOSS — a tilted mini CLUSTER of board-cards ("a deal"). Sized for
      the 3-lane grid (~115px lane pitch on a 348px map). */
@@ -4627,6 +4636,22 @@
   body.guess-side #histBand .ds-pip:not(.filled) { background: rgba(240,234,224,0.26); }
   body.guess-side #histBand .ds-bar.ds-active .ds-pip:not(.filled) { background: rgba(240,234,224,0.44); }
   body.guess-side #histBand .ds-bar.ds-active .ds-rank { color: var(--on-felt); }
+  /* JOKER histogram column — GOLD (it counts as high, low AND same, so it sits
+     outside the pink/grey rank scheme): gold = remaining, muted gold = drawn.
+     Scoped tighter than the felt pip rules above so gold wins on every screen
+     (including while scrub-active). */
+  .ds-bar.ds-joker .ds-rank { color: #c9a23f; font-weight: 800; }
+  .ds-bar.ds-joker .ds-pip { background: rgba(201,162,63,0.30); }
+  .ds-bar.ds-joker .ds-pip.filled { background: linear-gradient(90deg, #e6b74a, #ffd97a); }
+  .ds-bar.ds-joker.ds-active .ds-pip { background: rgba(201,162,63,0.48); }
+  .ds-bar.ds-joker.ds-active .ds-pip.filled { background: linear-gradient(90deg, #e6b74a, #ffd97a); }
+  .ds-bar.ds-joker.ds-active .ds-rank { color: #e6b74a; }
+  body.guess-side #histBand .ds-bar.ds-joker .ds-pip:not(.filled) { background: rgba(230,183,74,0.30); }
+  body.guess-side #histBand .ds-bar.ds-joker.ds-active .ds-pip:not(.filled) { background: rgba(230,183,74,0.48); }
+  body.guess-side #histBand .ds-bar.ds-joker .ds-rank,
+  body.guess-side #histBand .ds-bar.ds-joker.ds-active .ds-rank { color: #ecc25a; }
+  /* Suit-count chart's 5th cell: the suitless Jokers, in the same gold. */
+  .suit-counts .sc-cell.sc-joker .sc-suit { color: #c9a23f; }
   /* Deck-select heading + the deal-status score row + the page footer */
   .ds-title { color: var(--on-felt); }
   .deal-status .hud-score { color: var(--on-felt); }
@@ -5441,7 +5466,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.90 · perf: late-stage heat pass — slow drift tick, cached geometry, incremental HUD";
+const APP_VERSION = "v3.91 · Joker & Blank on the map (+1 nodes and packs) + gold Joker histogram column";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10549,6 +10574,12 @@ const CampaignState = (() => {
       stageEntryDecks = [ownedIds.length || RunMap.GEN_CONFIG.startDeckSize, null, null];
       runMap = RunMap.generateRun(runSeed, stageEntryDecks);
       nodePos = null; clearedNodes = []; nodeCards = {};
+      // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
+      // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
+      // stale one is unreachable junk). Normal ranks never need this — they're
+      // the permanent base-52 identities. Blanks never enter baseDeck at all.
+      const own = new Set(ownedIds);
+      baseDeck = baseDeck.filter(c => !(c.joker || c.blank) || own.has(c.id));
       lockAllPickupCards();
     }
     /** Clearing a PHASE BOSS unlocks the next stage: capture the REAL deck size
@@ -10583,7 +10614,9 @@ const CampaignState = (() => {
       const taken = reservedSet(null);
       let pool = idsOfSuit(phaseSuit()).filter(id => !taken.has(id));
       if (mixed || pool.length === 0) {
-        const any = baseDeck.map(c => c.id).filter(id => !taken.has(id));
+        // any-card fallback: never a Joker/Blank (specials are only ever granted
+        // by their own explicit roll, not as a stand-in for a normal card)
+        const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
         if (any.length) pool = any;
       }
       if (!pool.length) return null;
@@ -10614,19 +10647,56 @@ const CampaignState = (() => {
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
         phaseIndex), so a not-yet-reached node previews from the right pool. */
     function suitForNode(node) { return (node && typeof node.phase === "number") ? PHASE_SUITS[node.phase] : phaseSuit(); }
+    /** MAP SPECIALS — Joker + Blank as map pickups, at the SAME rule as store
+        card packs (genPackCard): each at HALF a normal rank's frequency (roll
+        space = 13 ranks + 0.5 + 0.5, so P(special) = 1/14, then a 50/50 Joker
+        or Blank). Returns true (Joker) / false (Blank) / null (normal card).
+        `_setMapSpecialRoll` is a TEST/QA hook (like deck._setNext): tests pin
+        the roll to exercise both the normal-card and the special contracts. */
+    let mapSpecialRoll = null;   // null = production rule; fn() → true|false|null
+    function rollMapSpecial(rng) {
+      if (mapSpecialRoll) return mapSpecialRoll();
+      const RANK_COUNT = MAX_RANK - MIN_RANK + 1;   // 13
+      if (rng() < 1 / (RANK_COUNT + 1)) return rng() < 0.5;
+      return null;
+    }
+    // +1 nodes LOCK a special as a sentinel ("J"/"B") in nodeCards — nothing is
+    // minted into baseDeck until the special is actually GRANTED, so display-only
+    // specials never pollute the persistent deck (and never skew deck size,
+    // nextCardId, or any whole-deck enumeration).
+    const SPECIAL_JOKER = "J", SPECIAL_BLANK = "B";
+    /** A transient display card for a locked-but-untaken special (never enters
+        baseDeck; nodeCardHtml/miniCardHtml key off .joker/.blank). */
+    function specialCardFor(id) {
+      if (id === SPECIAL_JOKER) return { joker: true, suit: "★", currentRank: 0, stickers: [] };
+      if (id === SPECIAL_BLANK) return { blank: true, suit: "∅", currentRank: 0, stickers: [] };
+      return null;
+    }
+    /** Mint a JOKER persistent card into the base deck and return its id — the
+        exact shape store card packs generate (genPackCard). Only called when a
+        Joker is GRANTED (it joins the deck like any card). Blanks are never
+        minted: they grant a removal, not a card. */
+    function mintJokerId() {
+      const card = { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+      baseDeck.push(card);
+      return card.id;
+    }
     /** DETERMINISTIC roll for a specific +1 node: seeded by (runSeed, node.id)
         over the unclaimed pool (skips owned + cards already locked to OTHER nodes),
         so each +1 node locks a DISTINCT card and the same node always rolls the
-        same one. */
+        same one. May instead lock a SPECIAL sentinel (see rollMapSpecial). */
     function draftIdForNode(node) {
+      const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0));
+      const special = rollMapSpecial(rng);
+      if (special != null) return special ? SPECIAL_JOKER : SPECIAL_BLANK;
       const taken = reservedSet(node.id);
       let pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
       if ((node && node.mixed) || pool.length === 0) {
-        const any = baseDeck.map(c => c.id).filter(id => !taken.has(id));
+        // any-card fallback: never a Joker/Blank (see pickDraftId)
+        const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
         if (any.length) pool = any;
       }
       if (!pool.length) return null;
-      const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0));
       return pool[Math.floor(rng() * pool.length)];
     }
     /** Resolve a node's optional `forceCard` (e.g. "K♦", "10♠") to a base-deck id,
@@ -10741,7 +10811,10 @@ const CampaignState = (() => {
             ? rowNodes.find(n => n.type === "pickup" || n.type === "pack") : null;
           if (draft && draft.type === "pickup") {
             const cid = commitNodeCard(draft);
-            if (cid != null && ownedIds.indexOf(cid) === -1) ownedIds.push(cid);
+            // SPECIALS: a Joker grants a real card (mint + own); a Blank grants
+            // a removal — skip it on a debug jump (no picker mid-jump).
+            if (cid === SPECIAL_JOKER) ownedIds.push(mintJokerId());
+            else if (cid != null && cid !== SPECIAL_BLANK && ownedIds.indexOf(cid) === -1) ownedIds.push(cid);
           } else if (draft) {
             const count = draft.packCount || 3;
             for (let i = 0; i < count; i++) { const c = pickSuitDraftId(draft.suit || phaseSuit()); if (c == null) break; ownedIds.push(c); }
@@ -10762,29 +10835,52 @@ const CampaignState = (() => {
       isRunBoss(id) { return !!(runMap && (runMap.runBossIds ? runMap.runBossIds.indexOf(id) !== -1 : id === runMap.runBossId)); },
       /** The EXACT card a single-card (pickup) node will grant — shown face-up on
           the map so the choice is precise. Commits the node's card on first call
-          (deterministic), so the previewed card is exactly what resolvePickup adds. */
-      previewPickupCard(node) { const id = commitNodeCard(node); return id == null ? null : findById(id); },
+          (deterministic), so the previewed card is exactly what resolvePickup adds.
+          A locked SPECIAL previews as a transient Joker/Blank display card. */
+      previewPickupCard(node) { const id = commitNodeCard(node); return id == null ? null : (specialCardFor(id) || findById(id)); },
       /** Peek a node's already-committed card WITHOUT assigning one (for display of
           already-cleared nodes); null if the node never committed a card. */
-      nodeCard(node) { const id = node && node.id != null ? nodeCards[node.id] : null; return id == null ? null : findById(id); },
+      nodeCard(node) { const id = node && node.id != null ? nodeCards[node.id] : null; return id == null ? null : (specialCardFor(id) || findById(id)); },
       /** Resolve a pickup node → add its committed exact card (the one shown on the
-          map). Falls back to a random draft for node literals without an id (tests). */
+          map). Falls back to a random draft for node literals without an id (tests).
+          SPECIALS: a Joker is minted into the deck NOW and owned like any card; a
+          Blank is returned WITHOUT being owned — it's a removal tool, not a card —
+          and the caller opens the choose-a-card-to-remove flow instead. */
       resolvePickup(node) {
         const id = (node && node.id != null) ? commitNodeCard(node) : pickDraftId(node && node.mixed);
         if (id == null) return null;
+        if (id === SPECIAL_JOKER) { const jid = mintJokerId(); ownedIds.push(jid); return findById(jid); }
+        if (id === SPECIAL_BLANK) return specialCardFor(id);
+        const card = findById(id);
+        if (!card) return null;
         if (ownedIds.indexOf(id) === -1) ownedIds.push(id);   // the locked card is reserved, so never a dup — guarded anyway
-        return findById(id);
+        return card;
       },
       /** Resolve a pack node → add up to `packCount` cards, all of the node's
           DISPLAYED suit (node.suit). A pack showing diamonds grants only diamonds;
-          if that suit is exhausted it grants fewer (never off-suit). */
+          if that suit is exhausted it grants fewer (never off-suit). Each slot may
+          instead be a SPECIAL — Joker or Blank — at the store card packs' rule
+          (P(special) = 1/14, then 50/50): a Joker joins the deck like any card; a
+          Blank is returned un-owned (the caller runs its choose-to-remove flow). */
       resolvePack(node) {
         const out = [];
         const n = (node && node.packCount) || 3;
         const suit = (node && node.suit) || phaseSuit();   // the displayed suit is the source of truth
-        for (let i = 0; i < n; i++) { const id = pickSuitDraftId(suit); if (id == null) break; ownedIds.push(id); out.push(findById(id)); }
+        for (let i = 0; i < n; i++) {
+          const special = rollMapSpecial(Math.random);
+          if (special != null) {
+            if (special) { const jid = mintJokerId(); ownedIds.push(jid); out.push(findById(jid)); }
+            else out.push(specialCardFor(SPECIAL_BLANK));   // a removal, never a deck slot
+            continue;
+          }
+          const id = pickSuitDraftId(suit); if (id == null) break; ownedIds.push(id); out.push(findById(id));
+        }
         return out;
       },
+      /** TEST/QA hook — pin the map-special roll (see rollMapSpecial): pass
+          () => null (never special), () => true (always Joker), () => false
+          (always Blank), or null to restore the production rule. */
+      _setMapSpecialRoll(fn) { mapSpecialRoll = fn || null; },
       /** Advance to the next phase. On the CONTINUOUS map this no longer
           regenerates anything — the player simply crosses a phase-boss edge into
           the next phase's openings (moveToNode syncs phaseIndex). Kept as a
@@ -10926,6 +11022,15 @@ const CampaignState = (() => {
         for (let v = MIN_RANK; v <= MAX_RANK; v++) counts[v] = 0;
         for (const c of baseDeck) if (active.has(c.id) && counts[c.currentRank] != null) counts[c.currentRank]++;   // skip rankless Jokers
         return counts;
+      },
+
+      /** Owned JOKERS (rankless — stageComposition skips them) for the
+          histogram's gold ★ column and the suit-count chart's ★ cell. */
+      jokerCount() {
+        const active = new Set(ownedIds);
+        let n = 0;
+        for (const c of baseDeck) if (c.joker && active.has(c.id)) n++;
+        return n;
       },
 
       /** Card count per SUIT for the ACCUMULATED DRAFT (the whole owned deck) —
@@ -11624,6 +11729,19 @@ const CampaignState = (() => {
         return packCard;
       },
 
+      /** PERMANENT removal of one owned card (a map Blank's effect): the card —
+          and its stickers — leaves the campaign deck forever; the deck shrinks
+          by one. Same semantics as replaceDeckCard's Blank branch, minus the
+          pile swap (the map has no live board). Returns true if removed. */
+      removeDeckCard(id) {
+        const di = baseDeck.findIndex(c => c.id === id);
+        if (di < 0) return false;
+        baseDeck.splice(di, 1);
+        const oi = ownedIds.indexOf(id);
+        if (oi !== -1) ownedIds.splice(oi, 1);
+        return true;
+      },
+
       /* ---- the full wipe (THE tuning seam for loss harshness) ----
          Returns the campaign to a vanilla Stage 1 / Run 1 state: a fresh
          52-card deck (all stickers + modifications gone), zero coins, empty
@@ -11726,7 +11844,9 @@ const CampaignState = (() => {
           for (let p = 1; p <= phaseIndex && p < PHASE_SUITS.length; p++) stageEntryDecks[p] = ownedIds.length;
         }
         runMap = RunMap.generateRun(runSeed, stageEntryDecks);   // the generated-so-far run regenerates from seed + entries
-        lockAllPickupCards();                   // re-lock any +1 node missing a card (old saves) — committed ones are kept
+        // (re-locking any +1 node missing a card happens BELOW, after baseDeck +
+        // nextCardId restore — a re-lock must roll against the RESTORED deck, and
+        // a special re-lock MINTS into it, so the order matters.)
         currentStage = s.currentStage || 1;
         currentRunIndex = s.currentRunIndex || 1;
         totalCorrectGuesses = s.totalCorrectGuesses || 0;
@@ -11765,6 +11885,7 @@ const CampaignState = (() => {
         const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
         nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
           ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
+        lockAllPickupCards();   // re-lock any +1 node missing a card (old saves) — committed ones are kept
         // Progression-map fossils (default [] for saves written before the map).
         runFossils = Array.isArray(s.runFossils)
           ? s.runFossils
@@ -13342,17 +13463,24 @@ const UIRenderer = (() => {
   function mapVisible() { return el.mapOverlay && !el.mapOverlay.classList.contains("hidden"); }
   function storeVisible() { return el.storeOverlay && !el.storeOverlay.classList.contains("hidden"); }
   function deckStripStats() {
+    // JOKERS are rankless (engine value 0) so they live OUTSIDE the 2..A rows:
+    // the gold ★ column reads these two counts instead. Full = owned Jokers;
+    // remaining = Jokers still in the draw deck (the rank-0 bucket).
+    const jokerFull = campaign && campaign.jokerCount ? campaign.jokerCount() : 0;
     // On the MAP or in the STORE there's no active deal, so both bars show the
     // whole accumulated deck: every owned card is "present" (the strip densifies
     // live as cards are picked up).
     if (mapVisible() || storeVisible()) {
       const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
-      return { remaining: full, full };
+      return { remaining: full, full, jokerFull, jokerRemaining: jokerFull };
     }
     const deck = engine && engine.getDeck();
+    const rc = deck ? deck.remainingCounts() : {};
     return {
-      remaining: DeckStats.fromCounts(deck ? deck.remainingCounts() : {}),
+      remaining: DeckStats.fromCounts(rc),
       full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
+      jokerFull,
+      jokerRemaining: Math.min(jokerFull, rc[0] || 0),
     };
   }
   // The deal-screen histogram + deck component (#histBand) is RELOCATED into the
@@ -13460,15 +13588,17 @@ const UIRenderer = (() => {
   window.addEventListener("resize", () => { stripCache = null; stripScrubGeom = null; pileGeomCache = null; });
   function renderDeckStrip() {
     if (!el.deckStrip || !deckStripOn) return;
-    const { remaining, full } = deckStripStats();
+    const { remaining, full, jokerFull, jokerRemaining } = deckStripStats();
     stripRemaining = remaining;                 // the scrubber sums these
     // Dynamic axis: the largest single-rank TOTAL sets the scale (not a fixed 4),
-    // so every notch is the same width and the longest bar fills its slot.
+    // so every notch is the same width and the longest bar fills its slot. The
+    // Joker column shares the axis so its pips line up with the rank pips.
     let axisMax = 1;
     full.rows.forEach(r => { if (r.count > axisMax) axisMax = r.count; });
+    if (jokerFull > axisMax) axisMax = jokerFull;
     // Same composition + context as the last full build → in-place pip update.
     const stripCtx = document.body.classList.contains("on-map") ? "m" : (storeVisible() ? "s" : "b");
-    const sig = stripCtx + "|" + guessSide() + "|" + axisMax + "|" + full.rows.map(r => r.count).join(",");
+    const sig = stripCtx + "|" + guessSide() + "|" + axisMax + "|" + full.rows.map(r => r.count).join(",") + "|J" + jokerFull;
     if (stripCache && stripCache.sig === sig) {
       for (let i = 0; i < remaining.rows.length; i++) {
         const total = (full.rows[i] && full.rows[i].count) || 0;
@@ -13477,6 +13607,14 @@ const UIRenderer = (() => {
         stripCache.remaining[i] = rem;
         const pips = stripCache.pipEls[i] || [];
         for (let k = 0; k < pips.length; k++) pips[k].classList.toggle("filled", k < rem);
+      }
+      if (stripCache.jokerPips) {
+        const jrem = Math.max(0, Math.min(jokerFull, jokerRemaining));
+        if (stripCache.jokerRem !== jrem) {
+          stripCache.jokerRem = jrem;
+          const jp = stripCache.jokerPips;
+          for (let k = 0; k < jp.length; k++) jp[k].classList.toggle("filled", k < jrem);
+        }
       }
       renderSuitCounts();
       return;
@@ -13507,7 +13645,7 @@ const UIRenderer = (() => {
     // .ds-rank are kept so the drag-scrubber works in either orientation.
     const seq = remaining.rows.map((r, i) => ({ r, total: (full.rows[i] && full.rows[i].count) || 0 }));
     const rows = guessSide() ? seq : seq.reverse();
-    el.deckStripBars.innerHTML = rows.map(({ r, total }) => {
+    let barsHtml = rows.map(({ r, total }) => {
       const rem = Math.max(0, Math.min(total, r.count));
       let pips = "";
       for (let i = 0; i < total; i++) pips += '<span class="ds-pip' + (i < rem ? " filled" : "") + '"></span>';
@@ -13515,17 +13653,35 @@ const UIRenderer = (() => {
         '<div class="ds-rank">' + r.label + "</div>" +
         '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + pips + "</div></div>";
     }).join("");
+    // JOKER column — GOLD, shown only while the deck holds a Joker, seated all
+    // the way PAST the Ace: last on the bottom band (rightmost), first on the
+    // side rail (topmost, above A). Same total/remaining pip logic in gold tones.
+    if (jokerFull > 0) {
+      const jrem = Math.max(0, Math.min(jokerFull, jokerRemaining));
+      let jpips = "";
+      for (let i = 0; i < jokerFull; i++) jpips += '<span class="ds-pip' + (i < jrem ? " filled" : "") + '"></span>';
+      const jokerBar = '<div class="ds-bar ds-joker" data-joker="1">' +
+        '<div class="ds-rank">★</div>' +
+        '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + jpips + "</div></div>";
+      barsHtml = guessSide() ? barsHtml + jokerBar : jokerBar + barsHtml;
+    }
+    el.deckStripBars.innerHTML = barsHtml;
     // Capture the built pips for the in-place fast path above (row order via
     // data-value, so the reversed bottom-band orientation maps back correctly).
     stripScrubGeom = null;   // fresh bars → drop the scrub gesture's rect cache
-    stripCache = { sig, remaining: [], pipEls: [] };
+    stripCache = { sig, remaining: [], pipEls: [], jokerPips: null, jokerRem: -1 };
     const byValue = {};
-    el.deckStripBars.querySelectorAll(".ds-bar").forEach(b => { byValue[b.dataset.value] = b; });
+    el.deckStripBars.querySelectorAll(".ds-bar").forEach(b => { if (b.dataset.value !== undefined) byValue[b.dataset.value] = b; });
     remaining.rows.forEach((r, i) => {
       const bar = byValue[r.value];
       stripCache.pipEls[i] = bar ? Array.prototype.slice.call(bar.querySelectorAll(".ds-pip")) : [];
       stripCache.remaining[i] = Math.max(0, Math.min((full.rows[i] && full.rows[i].count) || 0, r.count));
     });
+    const jbar = el.deckStripBars.querySelector(".ds-joker");
+    if (jbar) {
+      stripCache.jokerPips = Array.prototype.slice.call(jbar.querySelectorAll(".ds-pip"));
+      stripCache.jokerRem = Math.max(0, Math.min(jokerFull, jokerRemaining));
+    }
     shellDirty = true;   // a full rebuild can change the band's height
     renderSuitCounts();   // keep the suit-count chart in sync with the histogram
   }
@@ -13545,11 +13701,24 @@ const UIRenderer = (() => {
       const deck = engine.getDeck();
       if (deck && deck.remainingSuitCounts) remaining = deck.remainingSuitCounts();
     }
-    const html = ["♥", "♦", "♣", "♠"].map(s => {
+    let html = ["♥", "♦", "♣", "♠"].map(s => {
       const red = (s === "♥" || s === "♦") ? " sc-red" : "";
       return '<span class="sc-cell' + red + '"><span class="sc-suit">' + s + '</span>' +
         '<span class="sc-num"><b>' + (remaining[s] || 0) + '</b>/' + (total[s] || 0) + '</span></span>';
     }).join("");
+    // Jokers are suitless (★), so the 4-suit split can't represent them — a
+    // 5th GOLD cell appears only while the deck holds one (mirrors the gold
+    // histogram column: remaining in the draw deck / owned total).
+    const jTotal = campaign.jokerCount ? campaign.jokerCount() : 0;
+    if (jTotal > 0) {
+      let jRem = jTotal;
+      if (!mapVisible() && !storeVisible() && engine && engine.getDeck) {
+        const deck = engine.getDeck();
+        if (deck && deck.remainingCounts) jRem = Math.min(jTotal, (deck.remainingCounts() || {})[0] || 0);
+      }
+      html += '<span class="sc-cell sc-joker"><span class="sc-suit">★</span>' +
+        '<span class="sc-num"><b>' + jRem + '</b>/' + jTotal + '</span></span>';
+    }
     if (html === suitCountsHtml) return;
     suitCountsHtml = html;
     host.innerHTML = html;
@@ -13595,7 +13764,17 @@ const UIRenderer = (() => {
   }
   function stripScrubApply(e) {
     const bar = stripBarAt(e);
-    if (!bar || bar.dataset.value === undefined) return;
+    if (!bar) return;
+    // The gold ★ column: a Joker counts as higher, same AND lower on every
+    // guess, so no ↑/=/↓ split applies — say exactly that instead.
+    if (bar.dataset.joker) {
+      el.deckStripBars.querySelectorAll(".ds-active").forEach(n => n.classList.remove("ds-active"));
+      bar.classList.add("ds-active");
+      el.deckStripScrub.innerHTML = "<b>★</b> · a Joker counts as higher, same AND lower";
+      el.deckStripScrub.classList.remove("hidden");
+      return;
+    }
+    if (bar.dataset.value === undefined) return;
     const value = Number(bar.dataset.value);
     el.deckStripBars.querySelectorAll(".ds-active").forEach(n => n.classList.remove("ds-active"));
     bar.classList.add("ds-active");
@@ -19021,6 +19200,10 @@ const UIRenderer = (() => {
   /* A real DEAL-SCREEN card face, reusing the board card's exact markup + CSS
      (.front / .rank-top / .pip / .rank-bottom + suitGlyph). Static, node-sized. */
   function nodeCardHtml(card) {
+    // Joker / Blank pickups show their own faces (same look as the pack-reveal
+    // mini cards: gold star / stitched grey), face-up like any +1 node card.
+    if (card.joker) return '<span class="node-card"><span class="front nc-special nc-joker"><span class="ncs-sym">★</span><span class="ncs-lab">Joker</span></span></span>';
+    if (card.blank) return '<span class="node-card"><span class="front nc-special nc-blank"><span class="ncs-sym">∅</span><span class="ncs-lab">Blank</span></span></span>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const g = suitGlyph(card.suit), lbl = miniRankLabel(card);
     return '<span class="node-card"><span class="front' + (s.red ? " red" : "") + '">' +
@@ -19093,6 +19276,9 @@ const UIRenderer = (() => {
     if (n.type === "deal") return n.piles + " piles";
     if (n.type === "store") return "Shop";
     if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
+    const card = campaign.nodeCard(n);
+    if (card && card.joker) return "★ Joker — never a wrong guess";
+    if (card && card.blank) return "∅ Blank — remove a card from your deck";
     return "A single card";
   }
   /* ── Player AVATAR (the card-box character) ────────────────────────────────
@@ -19427,6 +19613,14 @@ const UIRenderer = (() => {
       const card = campaign.resolvePickup(node);
       campaign.markNodeCleared(id);
       persistCampaign("map");
+      // BLANK pickup: nothing was added — it grants a REMOVAL. Open the
+      // choose-a-card-to-remove flow (the store Blank's effect, chosen from
+      // the whole deck since the map has no live board).
+      if (card && card.blank) {
+        renderProgressionMap();
+        openMapBlankRemove(1);
+        return;
+      }
       flashDeckGain(card ? 1 : 0);
       if (card) Sound.mapAdd();           // a card shuffled into the deck
       renderProgressionMap();
@@ -19434,13 +19628,20 @@ const UIRenderer = (() => {
     } else if (node.type === "pack") {
       // A sealed pack: its contents were hidden on the map. Grant the cards, then
       // FLASH-REVEAL them with the SAME store pack-open animation/component; on
-      // close, the cards fly home into the box.
+      // close, the cards fly home into the box. Any BLANK revealed in the pack
+      // grants a removal instead of a card — its choose flow runs after the
+      // reveal closes (one picker per Blank).
       const cards = campaign.resolvePack(node);
+      const gained = cards.filter(c => !c.blank);
+      const blanks = cards.length - gained.length;
       campaign.markNodeCleared(id);
       persistCampaign("map");
       renderProgressionMap();   // mark the node done behind the reveal
-      flashDeckGain(cards.length);   // deck panel + header update live as the pack lands
-      openMapPackReveal(cards, (items) => { Sound.mapAdd(); avatarCollect(items); });   // shuffle-in as they fly home
+      flashDeckGain(gained.length);   // deck panel + header update live as the pack lands
+      openMapPackReveal(cards, (items) => {
+        Sound.mapAdd(); avatarCollect((items || []).filter(c => c && !c.blank));
+        if (blanks > 0) openMapBlankRemove(blanks);
+      });   // shuffle-in as they fly home
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
       // the node cleared. Re-render now so the marker shows on this node behind it.
@@ -20048,8 +20249,11 @@ const UIRenderer = (() => {
       if (el.packDeckBtn) el.packDeckBtn.classList.add("hidden");
       el.packItems.innerHTML = st.items.map((c, i) => packItemButton(miniCardHtml(c), "data-info", i, false)).join("");
       const m = st.items.length;
+      const nBlank = st.items.filter(c => c && c.blank).length;
       el.packTitle.textContent = m + " card" + (m > 1 ? "s" : "") + " added";
-      el.packMsg.textContent = "These join your deck.";
+      el.packMsg.textContent = nBlank > 0
+        ? "These join your deck — each ∅ Blank instead removes a card of your choice."
+        : "These join your deck.";
       el.packConfirmBtn.classList.remove("hidden");
       el.packConfirmBtn.disabled = false;
       el.packConfirmBtn.textContent = "Add to deck";
@@ -20292,7 +20496,7 @@ const UIRenderer = (() => {
      Stickers never go to the setup dock. Any sticker still sitting in inventory
      (a "Later", or a pack-revealed sticker) is applied via the store's "Apply
      Sticker" button, which reopens this picker. */
-  let cardPickMode = "sticker";       // "sticker" (apply) | "swap" (replace with a pack card)
+  let cardPickMode = "sticker";       // "sticker" (apply) | "swap" (replace with a pack card) | "remove" (map Blank)
   let pendingApplyStickerId = null;   // the sticker TYPE id currently being applied
   let pendingSwapTrayIndex = null;    // the pack-tray card index being swapped in (swap mode)
   let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
@@ -20309,7 +20513,7 @@ const UIRenderer = (() => {
     const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
     el.saCards.innerHTML = cards.map(c => {
-      const ok = cardPickMode === "swap" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
+      const ok = cardPickMode !== "sticker" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
       return '<button type="button" class="deck-card sa-card' + (ok ? "" : " sa-disabled") +
         (selectedApplyCardId === c.id ? " sa-selected" : "") + '" data-card-id="' + c.id + '"' +
         (ok ? "" : " disabled") + ">" + miniCardHtml(c) + "</button>";
@@ -20345,6 +20549,33 @@ const UIRenderer = (() => {
     DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
     el.stickerApplyModal.classList.remove("hidden");
   }
+  /* REMOVE mode (map Blank): the player picks any deck card and it's permanently
+     removed — the deck shrinks by one. Chained once per Blank when a map pack
+     reveals several. Cancelling (✕ / backdrop) skips the removal — declining the
+     thinning is allowed; nothing else is lost. */
+  let pendingBlankRemovals = 0;
+  function openMapBlankRemove(count) {
+    pendingBlankRemovals = Math.max(1, count || 1);
+    openCardRemove();
+  }
+  function openCardRemove() {
+    if (!campaign) return;
+    cardPickMode = "remove";
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null;
+    selectedApplyCardId = null; pendingBuyStickerSlot = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    const more = pendingBlankRemovals > 1 ? " (" + pendingBlankRemovals + " left)" : "";
+    if (el.saHead) el.saHead.textContent = "Blank — remove a card" + more;
+    if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
+      '<span class="sa-name">∅ Blank</span>' +
+      '<span class="sa-desc">Pick a card to permanently remove from your deck. Your deck shrinks by one card.</span>';
+    if (el.saHint) el.saHint.textContent = "Tap the card to remove.";
+    stickerApplyChrome();
+    renderStickerApplyCards();
+    DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
+    el.stickerApplyModal.classList.remove("hidden");
+  }
+
   /* SWAP mode: a gained pack/Duplicate card replaces a deck card of the player's
      choice (the chosen card — and its stickers — is removed; the deck stays 52). */
   function openCardSwap(trayIndex) {
@@ -20373,7 +20604,15 @@ const UIRenderer = (() => {
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
     selectedApplyCardId = id;
     renderStickerApplyCards();
-    if (cardPickMode === "swap") {
+    if (cardPickMode === "remove") {
+      const nSt = (card.stickers || []).length;
+      const stickerWarn = nSt > 0
+        ? ' <span class="warn-stickers">It carries ' + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "";
+      const name = card.joker ? "★ Joker" : miniRankLabel(card) + " " + card.suit;
+      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Permanently REMOVE <b>" + name +
+        "</b> from your deck? Your deck shrinks by one card." + stickerWarn;
+      if (el.saApply) el.saApply.textContent = "Remove";
+    } else if (cardPickMode === "swap") {
       const pc = campaign.getPackTray()[pendingSwapTrayIndex];
       if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
         "</b> with <b>" + (pc ? miniRankLabel(pc) + " " + pc.suit : "the new card") + "</b>?";
@@ -20392,6 +20631,27 @@ const UIRenderer = (() => {
   }
   function confirmApplySticker() {
     if (!selectedApplyCardId) return;
+    if (cardPickMode === "remove") {
+      // Map Blank: permanent removal — never touches the store's placement queue
+      // (this picker was opened FROM THE MAP, so it must return there, not to the
+      // store that continuePendingPlacement's default refresh implies).
+      if (campaign.removeDeckCard(selectedApplyCardId)) {
+        if (engine) engine.logAction("Blank removed a card from the deck (map)");
+        Sound.pack();
+        persistCampaign("map");
+      }
+      selectedApplyCardId = null;
+      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      pendingBlankRemovals--;
+      if (pendingBlankRemovals > 0) { openCardRemove(); return; }   // one picker per Blank
+      cardPickMode = "sticker";
+      el.stickerApplyModal.classList.add("hidden");
+      renderDeckStrip();          // the deck shrank → histogram + suit counts refresh
+      updateDeckIndicator();      // map header deck count
+      refreshMapDeckPanel();
+      setAvatarCount(campaign.deckSize());
+      return;
+    }
     if (cardPickMode === "swap") {
       if (pendingSwapTrayIndex != null && campaign.replaceDeckCard(selectedApplyCardId, pendingSwapTrayIndex)) {
         if (engine) engine.logAction("Swapped a gained card into the deck");
@@ -20428,6 +20688,17 @@ const UIRenderer = (() => {
     continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
   }
   function closeStickerApply() {
+    // MAP-BLANK remove mode: ✕ / backdrop DECLINES the removal (and any still
+    // queued) — the player keeps their deck as-is and stays on the map. Never
+    // falls through to the store's placement-queue continuation below.
+    if (cardPickMode === "remove") {
+      cardPickMode = "sticker";
+      pendingBlankRemovals = 0;
+      selectedApplyCardId = null;
+      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      el.stickerApplyModal.classList.add("hidden");
+      return;
+    }
     // ✕ / backdrop CANCELS. A store-purchase sticker was never charged (payment only
     // happens on Apply), so it simply stays available in the offer — nothing spent,
     // nothing trashed. An owned (post-deal) sticker stays in the place-on-acquire
