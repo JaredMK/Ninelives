@@ -93,9 +93,9 @@
        paper ON the felt table. Text that sits DIRECTLY on the felt uses the
        on-felt inks below. --felt-grain is a tiny turbulence tile (soft white
        speckle) that gives the surface its fabric nap. */
-    --felt: #123227;         /* deep casino-green base */
-    --felt-2: #1B4634;       /* lifted table centre */
-    --felt-3: #0B241B;       /* deepest vignette edge */
+    --felt: #1D4E3B;         /* casino-green base (lightened from #123227) */
+    --felt-2: #2C6B53;       /* lifted table centre (lightened from #1B4634) */
+    --felt-3: #153B2C;       /* deepest vignette edge (lightened from #0B241B) */
     --on-felt: #F0EAE0;      /* light ink directly on the felt */
     --on-felt-muted: rgba(240, 234, 224, 0.62);
     --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
@@ -2031,7 +2031,7 @@
     inset: 0;
     /* Dark felt-green glass (was translucent cream) — panels/cards float on it
        like paper on the table; hold-to-peek still needs the see-through. */
-    background: rgba(11, 34, 25, 0.93);
+    background: rgba(22, 58, 44, 0.93);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     display: flex;
@@ -2256,7 +2256,7 @@
     /* Felt table with the shop's warm LAMPLIGHT dimmed to suit the dark base. */
     background:
       radial-gradient(115% 70% at 50% 40%, rgba(255,220,170,0.10), rgba(255,238,212,0) 62%),
-      rgba(11, 34, 25, 0.95);
+      rgba(22, 58, 44, 0.95);
   }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
@@ -3990,7 +3990,7 @@
   #tissue {
     position: fixed; inset: 0;
     z-index: -1; pointer-events: none; overflow: hidden;
-    --vein: #2E5C48;   /* felt-visible deep sage veins */
+    --vein: #3E7C62;   /* felt-visible deep sage veins (lifted with the felt) */
     /* deep casino-green felt: lifted table centre, darker vignette edges */
     background:
       radial-gradient(circle at 28% 22%, rgba(64, 150, 110, 0.12), transparent 46%),
@@ -4320,6 +4320,25 @@
      cards. Lives inside .phase-map (shares node coords, scrolls with the climb).
      Animation/presentation only; transform/opacity; respects reduced motion.
      ============================================================ */
+  /* ── SPOTLIGHT ON PINKY (presentation only) ────────────────────────────────
+     A gentle uniform dim over the whole map plus a warm radial glow that rides
+     the avatar's exact position (and its travel tween), so the area around
+     Pinky reads lit while the rest of the map recedes — atmosphere, not
+     fog-of-war: the dim is light enough that every node stays readable. Both
+     layers are pointer-events:none and sit BETWEEN the nodes (z 2-3) and the
+     avatar (z 5); the glow moves by composited transform only (the same
+     keyframes as the avatar's hop), so tracking costs no layout reads. */
+  .map-dim { position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    background: rgba(8, 22, 16, 0.26); }
+  .map-spot { position: absolute; width: 0; height: 0; z-index: 4;
+    pointer-events: none; transform: translate(0, 0); }
+  .map-spot::before { content: ""; position: absolute; left: -420px; top: -420px;
+    width: 840px; height: 840px; border-radius: 50%;
+    background: radial-gradient(circle,
+      rgba(255, 240, 200, 0.38) 0%,
+      rgba(255, 240, 200, 0.22) 26%,
+      rgba(255, 240, 200, 0.08) 46%,
+      rgba(255, 240, 200, 0) 66%); }
   .map-avatar { position: absolute; z-index: 5; transform: translate(-50%, -50%);
     pointer-events: none; will-change: transform; }
   .av-shift { position: relative; will-change: transform; }   /* TRAVEL tween target */
@@ -5466,7 +5485,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.91 · Joker & Blank on the map (+1 nodes and packs) + gold Joker histogram column";
+const APP_VERSION = "v3.92 · lighter felt green + map spotlight on Pinky";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -19335,16 +19354,32 @@ const UIRenderer = (() => {
     if (pos == null) return homeXYof(R);   // the marker starts on the HOME node
     const n = map.byId[pos]; return n ? mapNodeXY(n, R) : null;
   }
+  /* SPOTLIGHT layers (presentation only): a full-map dim + the warm glow that
+     rides Pinky. Persistent elements re-attached per render, like the avatar. */
+  let mapDimEl = null, mapSpotEl = null;
+  function ensureSpotlight(pm) {
+    if (!mapDimEl) { mapDimEl = document.createElement("div"); mapDimEl.className = "map-dim"; }
+    if (!mapSpotEl) { mapSpotEl = document.createElement("div"); mapSpotEl.className = "map-spot"; }
+    if (mapDimEl.parentNode !== pm) pm.appendChild(mapDimEl);
+    if (mapSpotEl.parentNode !== pm) pm.appendChild(mapSpotEl);
+  }
   function positionAvatarAt(xy) {
     if (!xy || !mapAvatarEl) return;
     mapAvatarEl.style.left = xy.x.toFixed(1) + "px";
     mapAvatarEl.style.top = xy.y.toFixed(1) + "px";
     const sh = mapAvatarEl.querySelector(".av-shift"); if (sh) sh.style.transform = "";
+    // The spotlight sits wherever Pinky sits (same map coordinates — no reads).
+    if (mapSpotEl) {
+      mapSpotEl.style.left = xy.x.toFixed(1) + "px";
+      mapSpotEl.style.top = xy.y.toFixed(1) + "px";
+      mapSpotEl.style.transform = "";
+    }
   }
   /* Re-attach + position the box after a render (skips while a travel owns it). */
   function placeAvatar() {
     ensureAvatar();
     const pm = el.mapTrack.querySelector(".phase-map"); if (!pm) return;
+    ensureSpotlight(pm);
     if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
     // The character keeps its DECK colour (pink) across all stages — it doesn't
     // re-tint to the phase suit as it climbs the map.
@@ -19368,13 +19403,21 @@ const UIRenderer = (() => {
     mapAvatarEl.style.top = toXY.y.toFixed(1) + "px";
     // Follow the SAME routed curve the trail edge draws (so the box never cuts
     // through an intervening node on a multi-tier move).
-    const A = fromXY, B = toXY, Q = routeEdgeControl(A, B, fromId, toId), frames = [];
+    const A = fromXY, B = toXY, Q = routeEdgeControl(A, B, fromId, toId), frames = [], glide = [];
     for (let i = 0; i <= 12; i++) {
       const t = i / 12, it = 1 - t;
       const px = it * it * A.x + 2 * it * t * Q.x + t * t * B.x;
       const py = it * it * A.y + 2 * it * t * Q.y + t * t * B.y;
       const hop = -Math.sin(t * Math.PI) * 4;   // a small hop over the curve
       frames.push({ transform: "translate(" + (px - B.x).toFixed(1) + "px," + (py - B.y + hop).toFixed(1) + "px)" });
+      glide.push({ transform: "translate(" + (px - B.x).toFixed(1) + "px," + (py - B.y).toFixed(1) + "px)" });   // spotlight: same curve, no hop
+    }
+    // The SPOTLIGHT rides the identical tween (composited transform only), so
+    // the light tracks Pinky exactly through the whole travel.
+    if (mapSpotEl && typeof mapSpotEl.animate === "function") {
+      mapSpotEl.style.left = toXY.x.toFixed(1) + "px";
+      mapSpotEl.style.top = toXY.y.toFixed(1) + "px";
+      mapSpotEl.animate(glide, { duration: 420, easing: "cubic-bezier(0.4,0.05,0.3,1)", fill: "both" });
     }
     const anim = sh.animate(frames, { duration: 420, easing: "cubic-bezier(0.4,0.05,0.3,1)", fill: "both" });
     let fin = false; const end = () => { if (fin) return; fin = true; done(); };
