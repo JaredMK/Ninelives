@@ -3904,6 +3904,9 @@
     gap: 5px;
     margin-bottom: 10px;
   }
+  /* The ★ (force-a-Joker) cell reads gold like the card it injects. */
+  .debug-btn.debug-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a);
+    color: #7a5300; border-color: #e6b74a; font-weight: 800; }
 
   .debug-btn {
     background: var(--panel-2);
@@ -5494,7 +5497,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.94 · fix: guessing on top of a Joker is always safe";
+const APP_VERSION = "v3.95 · full run map at start + debug ★ (force a Joker)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6859,6 +6862,13 @@ const RunMap = (() => {
     // at least one route stays ≤ maxLightRouteCards.
     minRouteCards: 11,
     maxLightRouteCards: 15,
+    // FULL-MAP GENERATION: the whole run (all 3 stages) generates at run
+    // start, so later stages need a PREDICTED entry-deck size (their real one
+    // isn't known yet). A route through a stage collects 11-15 cards (the
+    // min/maxLight budget above), so the midpoint is the prediction:
+    // entry[p+1] = entry[p] + predictedRouteCards. The map is FIXED for the
+    // whole run — stages no longer regenerate when a boss falls.
+    predictedRouteCards: 13,
     addOptions: [1, 2, 3, 4, 5], // allowed node adds (1 = card, ≥2 = pack)
     packMax: 5,                  // biggest pack
 
@@ -10605,7 +10615,13 @@ const CampaignState = (() => {
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
     function genRunMap() {
-      stageEntryDecks = [ownedIds.length || RunMap.GEN_CONFIG.startDeckSize, null, null];
+      // THE WHOLE RUN generates up front (all 3 stages, rendered from the
+      // start). Later stages use PREDICTED entry decks — entry + the average
+      // route collection per stage (see GEN_CONFIG.predictedRouteCards) — and
+      // the map stays FIXED for the run (no regeneration at a boss fall).
+      const entry0 = ownedIds.length || RunMap.GEN_CONFIG.startDeckSize;
+      const prc = RunMap.GEN_CONFIG.predictedRouteCards;
+      stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
       runMap = RunMap.generateRun(runSeed, stageEntryDecks);
       nodePos = null; clearedNodes = []; nodeCards = {};
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
@@ -10616,10 +10632,10 @@ const CampaignState = (() => {
       baseDeck = baseDeck.filter(c => !(c.joker || c.blank) || own.has(c.id));
       lockAllPickupCards();
     }
-    /** Clearing a PHASE BOSS unlocks the next stage: capture the REAL deck size
-        entering it, generate that stage (deterministic from runSeed + entry),
-        and re-stitch the map. Existing node ids/positions are untouched (each
-        stage regenerates identically from the same seed + entry deck). */
+    /** LEGACY grow-as-you-go path: with full-map generation (genRunMap) every
+        stage already exists, so this is a NO-OP on current runs (the entry
+        guard below returns immediately). It only still fires for an old save
+        restored with un-entered (null) stages — kept so those can't strand. */
     function maybeExtendMap(clearedId) {
       if (!runMap) return;
       for (let p = 0; p < runMap.phases.length; p++) {
@@ -11877,7 +11893,12 @@ const CampaignState = (() => {
           stageEntryDecks = [RunMap.GEN_CONFIG.startDeckSize, null, null];
           for (let p = 1; p <= phaseIndex && p < PHASE_SUITS.length; p++) stageEntryDecks[p] = ownedIds.length;
         }
-        runMap = RunMap.generateRun(runSeed, stageEntryDecks);   // the generated-so-far run regenerates from seed + entries
+        // FULL-MAP: fill any un-entered stage with its PREDICTED entry so the
+        // whole run renders. Entries a (pre-full-map) save had already
+        // committed are kept — those stages regenerate identically.
+        for (let p = 1; p < PHASE_SUITS.length; p++)
+          if (stageEntryDecks[p] == null) stageEntryDecks[p] = stageEntryDecks[p - 1] + RunMap.GEN_CONFIG.predictedRouteCards;
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks);   // the whole run regenerates from seed + entries
         // (re-locking any +1 node missing a card happens BELOW, after baseDeck +
         // nextCardId restore — a re-lock must roll against the RESTORED deck, and
         // a special re-lock MINTS into it, so the order matters.)
@@ -14675,6 +14696,7 @@ const UIRenderer = (() => {
   }
 
   /* ---- debug mode (toggle via ?debug URL or triple-tap title) ---- */
+  let debugJokerId = 990001;   // unique ids for debug-injected Jokers (never collide with deck ids)
   function buildDebugRanks() {
     el.debugRanks.innerHTML = "";
     DeckManager.RANKS.forEach(r => {
@@ -14693,6 +14715,26 @@ const UIRenderer = (() => {
       });
       el.debugRanks.appendChild(b);
     });
+    // ★ — force the next draw to be a JOKER (engine.debug.setNextCardObj): the
+    // same engine-card shape DeckManager.toCard mints for a real owned Joker.
+    const j = document.createElement("button");
+    j.className = "debug-btn debug-joker";
+    j.textContent = "★";
+    j.title = "force next draw: Joker";
+    j.addEventListener("click", () => {
+      if (!engine) return;
+      const card = engine.debug.setNextCardObj({
+        id: debugJokerId++, joker: true, label: "★", value: 0, suit: "★", red: false,
+        stickers: [], heartsRemaining: 0, tieSafe: false, wildSuit: false,
+        revealNext: false, suitGuards: {},
+      });
+      if (card) {
+        el.debugRanks.querySelectorAll(".armed").forEach(n => n.classList.remove("armed"));
+        j.classList.add("armed");
+      }
+      refreshDebug();
+    });
+    el.debugRanks.appendChild(j);
   }
 
   function refreshDebug() {

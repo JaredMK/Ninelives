@@ -433,46 +433,52 @@ export function run() {
     r.ok(clean, "packs never reveal a card reserved by a +1 node");
   }
 
-  // ---- stages generate as they're ENTERED (real deck size at generation) --
+  // ---- FULL-MAP generation: the whole run exists (and is FIXED) at start ---
   {
     const c = CampaignState.create();
-    let map = c.getMap();
-    r.ok(map && map.phases && map.phases.length === 1, "a fresh run's map holds only the ♦ stage");
-    r.ok(!c.isRunBoss(map.phases[0].bossId), "the ♦ boss is NOT the run boss (map still grows)");
-    // grow the deck a little, then fell the ♦ boss → the ♣ stage generates
-    // against the REAL deck size at that moment.
+    const map = c.getMap();
+    r.eq(map.phases.length, 3, "a fresh run's map holds ALL THREE stages (full-map generation)");
+    r.ok(!c.isRunBoss(map.phases[0].bossId), "the ♦ boss is NOT the run boss");
+    r.ok(map.phases[2].bossIds.every(id => c.isRunBoss(id)), "the ♠ boss IS the run boss, known from the start");
+    // Later stages generate from PREDICTED entry decks: entry + k × the
+    // average per-stage route collection (GEN_CONFIG.predictedRouteCards).
+    const prc = RunMap.GEN_CONFIG.predictedRouteCards;
+    const wire0 = JSON.parse(JSON.stringify(c.serialize()));
+    r.eq(wire0.stageEntryDecks[1], 13 + prc, "the ♣ stage's entry deck is the PREDICTION (13 + " + prc + ")");
+    r.eq(wire0.stageEntryDecks[2], 13 + 2 * prc, "the ♠ stage's entry deck is the PREDICTION (13 + " + 2 * prc + ")");
+    // The map is FIXED for the run: felling the ♦ boss changes NOTHING (no
+    // regeneration — the visible upper stages never reshuffle).
+    const clubBossBefore = map.phases[1].bossId;
     c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
     c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
-    const deckAtEntry = c.deckSize();
-    // clear via the LAST boss id — with twin bosses this exercises the
-    // either-boss membership path (a single boss is just bossIds[0]).
     const dBossIds = map.phases[0].bossIds || [map.phases[0].bossId];
     c.markNodeCleared(dBossIds[dBossIds.length - 1]);
-    map = c.getMap();
-    r.eq(map.phases.length, 2, "clearing EITHER ♦ boss generates the ♣ stage");
+    const after = c.getMap();
+    r.eq(after.phases.length, 3, "the map still holds three stages after the ♦ boss falls");
+    r.eq(after.phases[1].bossId, clubBossBefore, "…and the ♣ stage did NOT regenerate (map fixed for the run)");
     const wire = JSON.parse(JSON.stringify(c.serialize()));
-    r.eq(wire.stageEntryDecks[1], deckAtEntry, "the ♣ stage's entry deck is the REAL deck size when it generated");
+    r.eq(wire.stageEntryDecks[1], 13 + prc, "the ♣ entry stays the prediction (never overwritten by the real deck)");
     // moving onto a ♣ (phase-1) node flips the campaign into phase ♣.
-    const clubNode = map.nodes.find(n => n.phase === 1);
+    const clubNode = after.nodes.find(n => n.phase === 1);
     c.moveToNode(clubNode.id);
     r.eq(c.getPhaseIndex(), 1, "moveToNode onto a ♣ node → phase 1");
     r.eq(c.phaseSuit(), "♣", "…and the suit follows to clubs");
-    // the grown map restores IDENTICALLY from the save (seed + entry decks).
+    // the full map restores IDENTICALLY from the save (seed + entry decks).
     const c2 = CampaignState.create();
-    r.ok(c2.restore(wire), "a mid-run save with a grown map restores");
+    r.ok(c2.restore(wire), "a mid-run save restores");
     const m2 = c2.getMap();
-    r.eq(m2.phases.length, 2, "the restored map holds the same two stages");
-    r.eq(m2.phases[1].bossId, map.phases[1].bossId, "the restored ♣ stage is IDENTICAL (same seed + entry deck)");
-    // felling the ♣ then ♠ bosses completes the ladder; only the ♠ boss is the
-    // run boss. Grow the deck like a real ♣ traversal would (every route
-    // collects 11+ cards) — the ♠ stage generates against that REAL deck.
-    c.resolvePack({ type: "pack", packCount: 5, suit: "♣" });
-    c.resolvePack({ type: "pack", packCount: 5, suit: "♣" });
-    c.markNodeCleared(map.phases[1].bossId);
-    const m3 = c.getMap();
-    r.eq(m3.phases.length, 3, "clearing the ♣ boss generates the ♠ stage");
-    r.ok(m3.phases[2].bossIds.every(id => c.isRunBoss(id)), "EVERY ♠ boss is a run boss (either one wins)");
-    const v = RunMap.validateStage ? null : null;   // (stage validity is covered above)
+    r.eq(m2.phases.length, 3, "the restored map holds the same three stages");
+    r.eq(m2.phases[1].bossId, after.phases[1].bossId, "the restored ♣ stage is IDENTICAL (same seed + entry deck)");
+    r.eq(m2.phases[2].bossId, after.phases[2].bossId, "the restored ♠ stage is IDENTICAL too");
+  }
+  // ---- OLD SAVES (grow-as-you-go, null tail entries) still restore ---------
+  {
+    const c = CampaignState.create();
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    wire.stageEntryDecks = [13, null, null];   // a pre-full-map save shape
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire), "an old save with un-entered stages restores");
+    r.eq(c2.getMap().phases.length, 3, "…and gets the full 3-stage map (null entries backfilled with predictions)");
   }
 
   // ---- layoutForPiles: any pile count → a valid board ---------------------
