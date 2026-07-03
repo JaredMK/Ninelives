@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- Reference: unique deck-character designs (provided spec). Mirrors the
+     in-game implementations of Mamma / Mr. Smith / Lammy. -->
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+body{margin:0;font-family:-apple-system,sans-serif;background:#eee;padding:16px}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.tile{width:90px;height:110px;border-radius:16px;position:relative;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -14px 20px rgba(0,0,0,.2), inset 0 10px 16px rgba(255,255,255,.2), 0 3px 6px rgba(0,0,0,.15)}
+.label{font-size:10px;text-align:center;margin-top:5px;color:#555;width:90px}
+
+.mamma{background:radial-gradient(circle at 35% 28%, #e997b3, #c25f83 85%)}
+.mamma .eye{position:absolute;width:14px;height:16px;background:radial-gradient(circle at 40% 30%, #fff, #e8e2e4 90%);border-radius:50%;top:32px;box-shadow:0 1px 2px rgba(0,0,0,.25), inset 0 -2px 3px rgba(0,0,0,.1)}
+.mamma .eye.l{left:22px}.mamma .eye.r{left:50px}
+.mamma .pupil{position:absolute;width:6px;height:6px;background:#3a1c28;border-radius:50%;top:37px}
+.mamma .pupil.l{left:26px}.mamma .pupil.r{left:54px}
+.mamma .lash{position:absolute;width:10px;height:2px;background:#3a1c28;top:32px;border-radius:2px}
+.mamma .lash.l{left:23px;transform:rotate(-20deg)}.mamma .lash.r{left:53px;transform:rotate(20deg)}
+.mamma .blush{position:absolute;width:12px;height:7px;background:radial-gradient(circle,#f0a8bf,transparent 75%);border-radius:50%;top:52px}
+.mamma .blush.l{left:18px}.mamma .blush.r{left:60px}
+
+.smith{background:radial-gradient(circle at 35% 28%, #96a687, #5f6f52 85%)}
+.smith .eye{position:absolute;width:6px;height:6px;background:#151015;border-radius:50%;top:38px;box-shadow:0 1px 1px rgba(0,0,0,.4)}
+.smith .eye.l{left:27px}.smith .eye.r{left:53px}
+.smith .monocle{position:absolute;top:32px;left:48px;width:18px;height:18px;border:2px solid #d4af37;border-radius:50%;background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,.05));box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.smith .chain{position:absolute;top:48px;left:64px;width:1px;height:12px;background:#d4af37}
+.smith .tophat{position:absolute;top:-6px;left:30px;width:30px;height:16px;background:linear-gradient(135deg,#3a3a3a,#151515);border-radius:2px 2px 0 0;box-shadow:0 2px 3px rgba(0,0,0,.3)}
+.smith .brim{position:absolute;top:8px;left:22px;width:46px;height:5px;background:linear-gradient(180deg,#3a3a3a,#151515);border-radius:3px;box-shadow:0 2px 2px rgba(0,0,0,.3)}
+
+.lammy{background:radial-gradient(circle at 35% 28%, #a494b4, #6c5c82 85%)}
+.lammy .eye{position:absolute;width:9px;height:3px;background:#241c28;border-radius:2px;top:40px;box-shadow:0 1px 1px rgba(0,0,0,.3)}
+.lammy .eye.l{left:25px;transform:rotate(-8deg)}.lammy .eye.r{left:51px;transform:rotate(8deg)}
+.lammy .smirk{position:absolute;top:56px;left:35px;width:20px;height:8px;border-bottom:2px solid #241c28;border-radius:0 0 20px 5px}
+.lammy .drip{position:absolute;top:70px;left:40px;width:4px;height:10px;background:linear-gradient(180deg,rgba(120,100,140,.6),rgba(120,100,140,.1));border-radius:0 0 4px 4px}
+</style></head>
+<body>
+
+<div class="row">
+<div><div class="tile mamma">
+<div class="eye l"></div><div class="eye r"></div>
+<div class="pupil l"></div><div class="pupil r"></div>
+<div class="lash l"></div><div class="lash r"></div>
+<div class="blush l"></div><div class="blush r"></div>
+</div><div class="label">Mamma: shaded rose, white doe eyes, blush, lash curl</div></div>
+
+<div><div class="tile smith">
+<div class="tophat"></div><div class="brim"></div>
+<div class="eye l"></div><div class="eye r"></div>
+<div class="monocle"></div><div class="chain"></div>
+</div><div class="label">Mr Smith: shaded green/gold, top hat, monocle+chain</div></div>
+
+<div><div class="tile lammy">
+<div class="eye l"></div><div class="eye r"></div>
+<div class="smirk"></div><div class="drip"></div>
+</div><div class="label">Lammy: shaded violet-grey, slit eyes, smirk, drip</div></div>
+</div>
+
+</body></html>

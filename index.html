@@ -4529,6 +4529,285 @@
   .map-avatar.av-h { --av-1: #e2606e; --av-2: #a02a3c; }   /* Mamma — warm heart red */
   .map-avatar.av-c { --av-1: #7d8ca6; --av-2: #46566f; }
   .map-avatar.av-s { --av-1: #5a6885; --av-2: #303c56; }
+
+  /* ═══ UNIQUE DECK CHARACTERS — Mamma · Mr. Smith · Lammy ═══════════════════
+     (deck-characters.html is the design reference.) Each unlockable deck's
+     character is a DISTINCT creature, not Pinky recolored: its own shaded
+     body (radial light from the upper-left + inset depth), face anatomy,
+     accessories, palette-matched wear patch, and its OWN take on every state
+     (idle, looking, glad/happy, sad/loss, celebrate/win-dance, map idle).
+     The features are extra .dc-x nodes in the shared markup — hidden by
+     default so Pinky is untouched — revealed by a ch-* class on the character
+     root (.deck-char / .map-avatar / .deck-char-jump). Presentation only. */
+  .dc-x { display: none; position: absolute; pointer-events: none; z-index: 2; }
+
+  /* ── MAMMA — loving: shaded rose, big white doe eyes, lash curls, blush ── */
+  .ch-mamma .dc-body, .ch-mamma .av-body {
+    background: radial-gradient(circle at 35% 28%, #e997b3, #c25f83 85%);
+    box-shadow: 0 3px 8px rgba(74,50,40,0.42),
+      inset 0 -8px 12px rgba(0,0,0,0.18), inset 0 5px 9px rgba(255,255,255,0.22); }
+  .ch-mamma { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%23a24467' fill-opacity='.5'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23ffe3ec' stroke-opacity='.7' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* white doe eyes: the wrapper becomes the shaded eyeball, the pupil a dot */
+  .deck-char.ch-mamma .dc-eye { width: 23%; max-width: 11px; min-height: 9px; aspect-ratio: 4.4 / 5;
+    background: radial-gradient(circle at 40% 30%, #fff, #e8e2e4 90%); border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25), inset 0 -2px 3px rgba(0,0,0,0.1); }
+  .deck-char.ch-mamma .dc-pupil { inset: 27% 26%; background: #3a1c28; }
+  .deck-char.ch-mamma .dc-eye::before { content: ""; position: absolute; top: -14%; width: 78%; height: 2px;
+    background: #3a1c28; border-radius: 2px; }
+  .deck-char.ch-mamma .dc-eye.l::before { left: -6%; transform: rotate(-20deg); }
+  .deck-char.ch-mamma .dc-eye.r::before { right: -6%; transform: rotate(20deg); }
+  .map-avatar.ch-mamma .av-eye { background: radial-gradient(circle at 40% 30%, #fff, #e8e2e4 90%);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25), inset 0 -1.5px 2px rgba(0,0,0,0.1); }
+  .map-avatar.ch-mamma .av-eye::after { background: #3a1c28; width: 45%; height: 42%; top: 30%; left: 28%; opacity: 1; }
+  .ch-mamma .x-blush { display: block; width: 17%; height: 6.5%; border-radius: 50%; top: 37%;
+    background: radial-gradient(circle, #f0a8bf, transparent 75%); transition: opacity 0.5s ease; }
+  .ch-mamma .x-blush.bl { left: 11%; }  .ch-mamma .x-blush.br { right: 11%; }
+  /* IDLE — a gentle rocking sway (a lullaby rock, not Pinky's breathe) */
+  .deck-char.ch-mamma .dc-body, .map-avatar.ch-mamma .av-body { animation: mammaIdle 4.6s ease-in-out infinite; }
+  @keyframes mammaIdle {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    28%      { transform: rotate(1.4deg) translateY(-1px); }
+    72%      { transform: rotate(-1.4deg) translateY(-1px); }
+  }
+  /* LOOKING — a fond head-tilt with softened, bigger pupils (adoring gaze) */
+  .deck-char.ch-mamma.dc-looking .dc-body { animation: none; transform: rotate(2deg); transition: transform 0.4s ease; }
+  .deck-char.ch-mamma.dc-looking .dc-pupil { transform: scale(1.2); animation: none; }
+  /* GLAD/HAPPY — a warm swaying double-bounce; the blush brightens */
+  .deck-char.ch-mamma.dc-glad .dc-body, .deck-char.ch-mamma.dc-happy .dc-body {
+    animation: mammaGlad 0.8s cubic-bezier(0.3, 0.7, 0.4, 1.1); }
+  @keyframes mammaGlad {
+    0%   { transform: rotate(0deg) translateY(0) scale(1, 1); }
+    22%  { transform: rotate(-2.5deg) translateY(-3px) scale(0.97, 1.05); }
+    48%  { transform: rotate(2.5deg) translateY(-4px) scale(0.97, 1.05); }
+    74%  { transform: rotate(-1deg) translateY(0) scale(1.03, 0.96); }
+    100% { transform: rotate(0deg) translateY(0) scale(1, 1); }
+  }
+  .deck-char.ch-mamma.dc-glad .x-blush, .deck-char.ch-mamma.dc-happy .x-blush { opacity: 1; filter: saturate(1.5); }
+  /* SAD/LOSS — lashes droop flat, blush fades, one slow heavy rock down */
+  .deck-char.ch-mamma.dc-sad .dc-eye::before,
+  .deck-char.ch-mamma.mood-loss .dc-eye::before { transform: rotate(0deg) translateY(1px); }
+  .deck-char.ch-mamma.dc-sad .x-blush, .deck-char.ch-mamma.mood-loss .x-blush { opacity: 0.3; }
+  .deck-char.ch-mamma.dc-sad .dc-body { animation: mammaSad 1.3s cubic-bezier(0.33, 0, 0.45, 1); }
+  @keyframes mammaSad {
+    0%   { transform: rotate(0deg) translateY(0); }
+    35%  { transform: rotate(-2deg) translateY(1px); }
+    70%  { transform: rotate(1.4deg) translateY(3.5px) scale(1.04, 0.93); }
+    100% { transform: rotate(0deg) translateY(1.5px) scale(1.01, 0.98); }
+  }
+  /* CELEBRATE / WIN-DANCE — a graceful waltz: slow full sways with lift
+     (no hopping — she GLIDES) */
+  .deck-char.ch-mamma.dc-celebrate .dc-body,
+  .map-avatar.ch-mamma.mood-win .av-body { animation: mammaWaltz 1.6s ease-in-out; }
+  @keyframes mammaWaltz {
+    0%   { transform: rotate(0deg) translate(0, 0); }
+    18%  { transform: rotate(-6deg) translate(-2px, -4px); }
+    38%  { transform: rotate(6deg) translate(2px, -5px); }
+    58%  { transform: rotate(-5deg) translate(-2px, -4px); }
+    78%  { transform: rotate(4deg) translate(1px, -2px); }
+    100% { transform: rotate(0deg) translate(0, 0); }
+  }
+  /* MAP IDLE — the lullaby rock rides the trail; collecting = a curtsy dip */
+  .map-avatar.ch-mamma.collecting .av-body { animation: mammaCurtsy 0.5s ease; }
+  @keyframes mammaCurtsy {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    45%      { transform: translateY(2.5px) scale(1.05, 0.9) rotate(1.5deg); }
+  }
+  /* blink: the whole white eye closes (not just the pupil) */
+  .deck-char.ch-mamma.dc-blink .dc-eye { transform: scaleY(0.14); transition: transform 0.08s ease; }
+
+  /* Big deck-select render: lift the small-box px caps so each face scales
+     with the panel (the base .ds-deckchar rule does the same for Pinky). */
+  .ds-deckchar .deck-char.ch-mamma .dc-eye { max-width: none; width: 20%; }
+  .ds-deckchar .deck-char.ch-smith .dc-eye { max-width: none; width: 9%; }
+  .ds-deckchar .deck-char.ch-lammy .dc-eye { max-width: none; width: 19%; }
+
+  /* ── MR. SMITH — wealthy: shaded olive-green, sharp eyes, monocle, top hat ── */
+  .ch-smith .dc-body, .ch-smith .av-body {
+    background: radial-gradient(circle at 35% 28%, #96a687, #5f6f52 85%);
+    box-shadow: 0 3px 8px rgba(40,50,35,0.45),
+      inset 0 -8px 12px rgba(0,0,0,0.2), inset 0 5px 9px rgba(255,255,255,0.2); }
+  .ch-smith { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%2346543c' fill-opacity='.55'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23d9e4cf' stroke-opacity='.65' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* the top hat replaces the box lid */
+  .ch-smith .dc-lid, .ch-smith .av-lid { opacity: 0; }
+  .ch-smith .x-hat { display: block; left: 27%; width: 46%; height: 15%; top: -10%;
+    background: linear-gradient(135deg, #3a3a3a, #151515); border-radius: 3px 3px 0 0;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.3); transform-origin: 50% 100%; }
+  .ch-smith .x-hat::after { content: ""; position: absolute; left: -20%; right: -20%; bottom: -3px; height: 4px;
+    background: linear-gradient(180deg, #3a3a3a, #151515); border-radius: 3px;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.3); }
+  /* small, sharp dark eyes (appraising) */
+  .deck-char.ch-smith .dc-eye { width: 11%; max-width: 5.5px; min-height: 5.5px; aspect-ratio: 1; }
+  .deck-char.ch-smith .dc-pupil { background: #151015; }
+  .deck-char.ch-smith .dc-pupil::after { width: 30%; height: 26%; }
+  .map-avatar.ch-smith .av-eye { width: 5px; height: 5px; border-radius: 50%; }
+  /* gold-rimmed monocle + thin chain over the RIGHT eye */
+  .ch-smith .x-mono { display: block; width: 27%; aspect-ratio: 1; border-radius: 50%; top: 17%; right: 18.5%;
+    border: 2px solid #d4af37; z-index: 3;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.05));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3); transform-origin: 80% 100%; }
+  .ch-smith .x-mono::after { content: ""; position: absolute; top: 96%; left: 76%; width: 1.5px; height: 120%;
+    background: #d4af37; transform-origin: top; }
+  /* monocle GLINT (a highlight sweep) — used by the looking state */
+  @keyframes monoGlint {
+    0%, 100% { background-position: -120% 0, 0 0; }
+    50%      { background-position: 120% 0, 0 0; }
+  }
+  /* IDLE — bolt upright, the barest dignified bob; the hat settles a beat late */
+  .deck-char.ch-smith .dc-body, .map-avatar.ch-smith .av-body { animation: smithIdle 3.4s ease-in-out infinite; }
+  @keyframes smithIdle {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    50%      { transform: translateY(-0.7px) scale(0.998, 1.005); }
+  }
+  .ch-smith .x-hat { animation: smithHatSettle 3.4s ease-in-out infinite; }
+  @keyframes smithHatSettle {
+    0%, 100% { transform: translateY(0); }
+    56%      { transform: translateY(-0.6px); }   /* trails the body — inertia */
+  }
+  /* LOOKING — scrutiny: eyes NARROW, the monocle glints and leans in */
+  .deck-char.ch-smith.dc-looking .dc-pupil { transform: scale(0.86); animation: none; }
+  .deck-char.ch-smith.dc-looking .x-mono {
+    background: linear-gradient(115deg, rgba(255,255,255,0.05) 38%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.05) 62%) no-repeat,
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.05));
+    background-size: 220% 100%, 100% 100%;
+    animation: monoGlint 1.8s ease-in-out infinite; transform: scale(1.08); }
+  /* GLAD/HAPPY — a curt, precise double NOD (no bouncing about) */
+  .deck-char.ch-smith.dc-glad .dc-body, .deck-char.ch-smith.dc-happy .dc-body {
+    animation: smithNod 0.6s cubic-bezier(0.4, 0, 0.3, 1); }
+  @keyframes smithNod {
+    0%   { transform: translateY(0) rotate(0deg); }
+    22%  { transform: translateY(1.6px) rotate(1.6deg); }
+    44%  { transform: translateY(0) rotate(0deg); }
+    66%  { transform: translateY(1.4px) rotate(1.4deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  /* SAD/LOSS — the MONOCLE DROPS (the chain catches it), a stiff small slump */
+  .deck-char.ch-smith.dc-sad .x-mono, .deck-char.ch-smith.mood-loss .x-mono {
+    animation: monoDrop 0.9s cubic-bezier(0.34, 1.3, 0.5, 1) forwards; }
+  @keyframes monoDrop {
+    0%   { transform: translateY(0) rotate(0deg); }
+    55%  { transform: translateY(140%) rotate(-24deg); }
+    75%  { transform: translateY(118%) rotate(-14deg); }
+    100% { transform: translateY(128%) rotate(-18deg); }
+  }
+  .deck-char.ch-smith.dc-sad .dc-body { animation: smithSlump 1s cubic-bezier(0.33, 0, 0.45, 1); }
+  @keyframes smithSlump {
+    0%   { transform: translateY(0) scale(1, 1); }
+    60%  { transform: translateY(2.5px) scale(1.02, 0.95); }
+    100% { transform: translateY(1.5px) scale(1.01, 0.975); }
+  }
+  /* CELEBRATE / WIN-DANCE — the HAT TIP: the hat lifts and tilts twice while
+     the body gives a restrained rock */
+  .deck-char.ch-smith.dc-celebrate .dc-body,
+  .map-avatar.ch-smith.mood-win .av-body { animation: smithRock 1.5s ease-in-out; }
+  @keyframes smithRock {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    25%      { transform: rotate(-2.5deg) translateY(-2px); }
+    50%      { transform: rotate(0deg) translateY(0); }
+    75%      { transform: rotate(2.5deg) translateY(-2px); }
+  }
+  .deck-char.ch-smith.dc-celebrate .x-hat, .map-avatar.ch-smith.mood-win .x-hat {
+    animation: smithHatTip 1.5s ease-in-out; }
+  @keyframes smithHatTip {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    18%      { transform: translate(-8%, -46%) rotate(-16deg); }
+    36%      { transform: translateY(0) rotate(0deg); }
+    58%      { transform: translate(-8%, -46%) rotate(-16deg); }
+    80%      { transform: translateY(0) rotate(0deg); }
+  }
+  /* MAP IDLE — an occasional sharp glance-tick (checking his pocket watch) */
+  .map-avatar.ch-smith .av-face { animation: smithTick 6.4s ease-in-out infinite; }
+  @keyframes smithTick {
+    0%, 84%, 100% { transform: translateX(0); }
+    87%, 92%      { transform: translateX(1.6px); }   /* one crisp look aside */
+  }
+  .map-avatar.ch-smith.collecting .av-body { animation: smithNod 0.6s cubic-bezier(0.4, 0, 0.3, 1); }
+
+  /* ── LAMMY — slippery: shaded violet-grey, slit eyes, smirk, oily drip ── */
+  .ch-lammy .dc-body, .ch-lammy .av-body {
+    background: radial-gradient(circle at 35% 28%, #a494b4, #6c5c82 85%);
+    box-shadow: 0 3px 8px rgba(45,35,60,0.45),
+      inset 0 -8px 12px rgba(0,0,0,0.2), inset 0 5px 9px rgba(255,255,255,0.2); }
+  .ch-lammy { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%2355486a' fill-opacity='.55'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23e6ddf0' stroke-opacity='.65' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* narrow angled slit eyes */
+  .deck-char.ch-lammy .dc-eye { width: 20%; max-width: 9px; min-height: 3px; aspect-ratio: 3 / 1; }
+  .deck-char.ch-lammy .dc-eye.l { transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) rotate(-8deg); }
+  .deck-char.ch-lammy .dc-eye.r { transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) rotate(8deg); }
+  .deck-char.ch-lammy .dc-pupil { border-radius: 2px; box-shadow: 0 1px 1px rgba(0,0,0,0.3); }
+  .deck-char.ch-lammy .dc-pupil::after { display: none; }
+  .map-avatar.ch-lammy .av-eye { width: 9px; height: 3px; border-radius: 2px; }
+  .map-avatar.ch-lammy .av-eye.l { transform: rotate(-8deg); }
+  .map-avatar.ch-lammy .av-eye.r { transform: rotate(8deg); }
+  .map-avatar.ch-lammy .av-eye::after { display: none; }
+  /* smug smirk + a small oily drip */
+  .ch-lammy .x-mouth { display: block; top: 46%; left: 37%; width: 25%; height: 9%;
+    border-bottom: 2px solid #241c28; border-radius: 0 0 20px 5px; }
+  .ch-lammy .x-drip { display: block; top: 64%; left: 45%; width: 6%; min-width: 3px; height: 12%;
+    background: linear-gradient(180deg, rgba(120,100,140,0.6), rgba(120,100,140,0.1));
+    border-radius: 0 0 4px 4px; animation: lammyDrip 5.2s ease-in-out infinite; transform-origin: top; }
+  @keyframes lammyDrip {
+    0%, 55%, 100% { transform: scaleY(1); opacity: 0.9; }
+    72%           { transform: scaleY(1.45); opacity: 1; }
+    86%           { transform: scaleY(0.85); opacity: 0.7; }
+  }
+  /* IDLE — a slow slinky lean-drift (he never sits quite straight) */
+  .deck-char.ch-lammy .dc-body, .map-avatar.ch-lammy .av-body { animation: lammyIdle 5.4s ease-in-out infinite; }
+  @keyframes lammyIdle {
+    0%, 100% { transform: skewX(0deg) translate(0, 0); }
+    30%      { transform: skewX(2.4deg) translate(0.6px, -0.6px); }
+    65%      { transform: skewX(-2.2deg) translate(-0.6px, 0.3px); }
+  }
+  /* LOOKING — the shifty stare: slits narrow further, body leans in */
+  .deck-char.ch-lammy.dc-looking .dc-pupil { transform: scaleY(0.7); animation: none; }
+  .deck-char.ch-lammy.dc-looking .dc-body { animation: none; transform: skewX(3deg) translateY(0.5px);
+    transition: transform 0.4s ease; }
+  /* GLAD/HAPPY — a smug little shimmy-wiggle (all sideways, no honest bounce) */
+  .deck-char.ch-lammy.dc-glad .dc-body, .deck-char.ch-lammy.dc-happy .dc-body {
+    animation: lammyWiggle 0.65s ease-in-out; }
+  @keyframes lammyWiggle {
+    0%, 100% { transform: skewX(0deg) translateX(0); }
+    20%      { transform: skewX(6deg) translateX(1.5px); }
+    45%      { transform: skewX(-6deg) translateX(-1.5px); }
+    70%      { transform: skewX(4deg) translateX(1px); }
+  }
+  /* SAD/LOSS — deflates: a flattening squash; the smirk shrinks; the drip stops */
+  .deck-char.ch-lammy.dc-sad .dc-body { animation: lammyDeflate 1.1s cubic-bezier(0.33, 0, 0.45, 1); }
+  @keyframes lammyDeflate {
+    0%   { transform: scale(1, 1) translateY(0); }
+    60%  { transform: scale(1.08, 0.82) translateY(4px); }
+    100% { transform: scale(1.04, 0.92) translateY(2px); }
+  }
+  .deck-char.ch-lammy.dc-sad .x-mouth, .deck-char.ch-lammy.mood-loss .x-mouth {
+    width: 14%; left: 43%; border-radius: 0 0 8px 8px; }
+  .deck-char.ch-lammy.dc-sad .x-drip, .deck-char.ch-lammy.mood-loss .x-drip { animation: none; opacity: 0.4; }
+  /* CELEBRATE / WIN-DANCE — the liquid shimmy: fast alternating skew with
+     squash-and-stretch, drip flinging (nothing like a hop) */
+  .deck-char.ch-lammy.dc-celebrate .dc-body,
+  .map-avatar.ch-lammy.mood-win .av-body { animation: lammyShimmy 1.4s ease-in-out; }
+  @keyframes lammyShimmy {
+    0%, 100% { transform: skewX(0deg) scale(1, 1); }
+    15%      { transform: skewX(9deg) scale(0.96, 1.06); }
+    32%      { transform: skewX(-9deg) scale(1.05, 0.94); }
+    49%      { transform: skewX(8deg) scale(0.96, 1.06); }
+    66%      { transform: skewX(-7deg) scale(1.04, 0.95); }
+    83%      { transform: skewX(4deg) scale(0.99, 1.02); }
+  }
+  .deck-char.ch-lammy.dc-celebrate .x-drip, .map-avatar.ch-lammy.mood-win .x-drip {
+    animation: lammyDripFling 1.4s ease-in-out; }
+  @keyframes lammyDripFling {
+    0%, 100% { transform: rotate(0deg) scaleY(1); }
+    25%      { transform: rotate(14deg) scaleY(1.5); }
+    60%      { transform: rotate(-12deg) scaleY(1.4); }
+  }
+  /* MAP IDLE — the slink + the drip's slow pulse ride the trail; collecting =
+     a quick pocketing wiggle */
+  .map-avatar.ch-lammy.collecting .av-body { animation: lammyWiggle 0.65s ease-in-out; }
+
+  /* Reduced motion: every character-specific animation stops (static skins). */
+  @media (prefers-reduced-motion: reduce) {
+    .ch-mamma .dc-body, .ch-mamma .av-body, .ch-smith .dc-body, .ch-smith .av-body,
+    .ch-lammy .dc-body, .ch-lammy .av-body, .ch-smith .x-hat, .ch-smith .x-mono,
+    .ch-lammy .x-drip, .map-avatar.ch-smith .av-face { animation: none !important; }
+  }
   /* Collect fly-cards (reuse the board's flyCard arc helper). */
   .av-fly { position: fixed; z-index: 61; pointer-events: none; }
   .av-fly .mini-card { width: 26px; height: 35px; box-shadow: 0 4px 10px rgba(74,50,40,0.3); }
@@ -4942,7 +5221,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-tear"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-tear"></span><span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -5573,7 +5852,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.02 · fix: Same-Power store items readable on the felt";
+const APP_VERSION = "v4.03 · unique deck characters: Mamma, Mr. Smith, Lammy";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13543,8 +13822,10 @@ const UIRenderer = (() => {
           steel / Lammy slate); `sym` is ignored. */
       setSuit(sym) {
         const n = node(); if (!n) return;
-        n.classList.remove("dc-d", "dc-h", "dc-c", "dc-s");
-        n.classList.add("dc-" + ((typeof selectedDeck === "function" && selectedDeck().color) || "d"));
+        n.classList.remove("dc-d", "dc-h", "dc-c", "dc-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy");
+        const d = (typeof selectedDeck === "function") ? selectedDeck() : null;
+        n.classList.add("dc-" + ((d && d.color) || "d"));
+        n.classList.add("ch-" + ((d && d.id) || "pink"));   // unique character skin (Mamma/Smith/Lammy)
       },
       /** Lightweight ambient-life loop (skipped under reduced motion; only one
           runs). Each tick blinks, and now and then sneaks a tiny idle GLANCE so
@@ -17693,7 +17974,7 @@ const UIRenderer = (() => {
     wrap.innerHTML =
       '<div class="duc-panel">' +
         '<div class="duc-eyebrow">New deck unlocked</div>' +
-        '<div class="duc-charwrap"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span>' +
+        '<div class="duc-charwrap"><span class="deck-char dc-' + d.color + ' ch-' + d.id + '">' + DECK_CHAR_HTML + '</span>' +
           '<span class="duc-lock">🔒</span>' +
           '<span class="duc-spark s1">✦</span><span class="duc-spark s2">✦</span>' +
           '<span class="duc-spark s3">✦</span><span class="duc-spark s4">✦</span>' +
@@ -17725,7 +18006,10 @@ const UIRenderer = (() => {
     '<span class="dc-body"><span class="dc-lid"></span>' +
     '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
     '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
-    '<span class="dc-tear"></span></span>';
+    '<span class="dc-tear"></span>' +
+    // per-character accessory nodes (hats/monocle/blush/smirk/drip) — hidden
+    // unless the ch-* character class reveals them (see UNIQUE DECK CHARACTERS)
+    '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span></span>';
   let deckSelectReturn = null;   // how the Back button returns (to the right menu)
   let dsPerkIndex = -1;          // which carousel panel's character is perked
 
@@ -17754,11 +18038,10 @@ const UIRenderer = (() => {
     el.dsCarousel.innerHTML = DECKS.map(d => {
       const open = deckUnlocked(d);
       return '<div class="ds-panel' + (open ? "" : " locked") + '" data-deck="' + d.id + '">' +
-        // Locked decks conceal the NAME/blurb ("?"), but show HOW to unlock
-        // (the chain: win a run with the previous deck).
-        '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + '">' + DECK_CHAR_HTML + '</span></div>' +
+        // Locked decks reveal NOTHING — name AND description are just "?".
+        '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + ' ch-' + d.id + '">' + DECK_CHAR_HTML + '</span></div>' +
         '<div class="ds-name">' + escHtml(open ? d.name : "?") + '</div>' +
-        '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : (d.unlockNote || "?")) + '</div>' +
+        '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : "?") + '</div>' +
         (open
           ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
           : '<div class="ds-lock">Locked</div>') +
@@ -19803,7 +20086,8 @@ const UIRenderer = (() => {
       '<div class="av-shift">' +
         '<div class="av-body"><span class="av-lid"></span>' +
           '<span class="av-face"><span class="av-eye l"></span><span class="av-eye r"></span></span>' +
-          '<span class="av-tear"></span></div>' +
+          '<span class="av-tear"></span>' +
+          '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span></div>' +
         '<span class="av-badge"><b>0</b></span>' +
       '</div>';
     mapAvatarEl = a;
@@ -19873,8 +20157,9 @@ const UIRenderer = (() => {
     if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
     // The character keeps its DECK colour (pink) across all stages — it doesn't
     // re-tint to the phase suit as it climbs the map.
-    mapAvatarEl.classList.remove("av-d", "av-h", "av-c", "av-s");
+    mapAvatarEl.classList.remove("av-d", "av-h", "av-c", "av-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy");
     mapAvatarEl.classList.add("av-" + selectedDeck().color);
+    mapAvatarEl.classList.add("ch-" + selectedDeck().id);   // unique character skin
     // Stage mood: anxious in ♦, hopeful in ♣, bright in ♠ — dirt fading as he
     // climbs (CharMood stamps both this avatar and the deck-slot character).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
@@ -20229,11 +20514,12 @@ const UIRenderer = (() => {
       if (!toRect.width || !toRect.height) return;
       dc.style.visibility = "hidden";   // the real deck char appears only on landing
       const fly = document.createElement("div");
-      fly.className = "deck-char-jump dc-" + selectedDeck().color;   // character stays its deck colour
+      fly.className = "deck-char-jump dc-" + selectedDeck().color + " ch-" + selectedDeck().id;   // character stays its deck colour + skin
       const flyCount = campaign && campaign.deckSize ? campaign.deckSize() : "";
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
         '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
+        '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span>' +
         '<span class="deck-count"><b>' + flyCount + '</b></span></span>';   // the count rides with the jumping character
       // Reuse the board flyCard arc; a strong lift sells the "jump".
       flyCard(fly, fromRect, toRect, {
