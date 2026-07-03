@@ -53,7 +53,7 @@ STEP 5 — how to guess
   ↑ higher
   ↓ lower
   sideways for same.
-  Or tap the pile and use these buttons
+  Or tap the pile and use the buttons on the left
 
 
 STEP 6 — the deck
@@ -85,7 +85,7 @@ STEP 8 — your turn
 
 STEP 9 — coins
   SCREEN:    First deal summary (Deal cleared)
-  POINTS AT: The deal reward line of the coin breakdown
+  POINTS AT: The deal reward line, surviving piles line, and smallest pile line of the coin breakdown
   BUTTON:    Got it
   TEXT:
   Coins = *surviving piles × smallest pile*

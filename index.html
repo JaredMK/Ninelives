@@ -5367,7 +5367,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.85 · fix: pillar/base art collapsing to a sliver in popups (iOS)";
+const APP_VERSION = "v3.86 · tutorial edits: buttons-on-the-left, full payout ring";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13080,7 +13080,17 @@ const UIRenderer = (() => {
     }
     function reposition() { if (bubble && !bubble.classList.contains("hidden")) place(); }
     function place() {
-      const a = (anchorEl && document.contains(anchorEl)) ? anchorEl.getBoundingClientRect() : null;
+      // An anchor may be one element or an ARRAY of elements (the ring then
+      // wraps their union — e.g. the payout line plus its sub-rows).
+      const els = (Array.isArray(anchorEl) ? anchorEl : [anchorEl]).filter(e => e && document.contains(e));
+      let a = null;
+      for (const e2 of els) {
+        const r2 = e2.getBoundingClientRect();
+        if (!r2.width) continue;
+        a = a ? { left: Math.min(a.left, r2.left), top: Math.min(a.top, r2.top),
+                  right: Math.max(a.right, r2.right), bottom: Math.max(a.bottom, r2.bottom) } : { left: r2.left, top: r2.top, right: r2.right, bottom: r2.bottom };
+      }
+      if (a) { a.width = a.right - a.left; a.height = a.bottom - a.top; }
       const usable = a && a.width > 0 && a.bottom > 0 && a.top < innerHeight;
       if (usable) {
         ring.classList.remove("hidden");
@@ -13168,7 +13178,7 @@ const UIRenderer = (() => {
         group("deal", [
           { html: "<b>Goal: survive.</b> Every pile is a life.",
             anchor: () => $(".board-grid") },
-          { html: "Pick a pile, then <b>swipe</b>:<br>↑ higher<br>↓ lower<br>sideways for same.<br>Or tap the pile and use these buttons",
+          { html: "Pick a pile, then <b>swipe</b>:<br>↑ higher<br>↓ lower<br>sideways for same.<br>Or tap the pile and use the buttons on the left",
             anchor: () => $(".pile:not(.dead)") },
           { html: "Every guess draws from <b>Pinky's deck</b>.<br>Correct guess → the pile grows<br>Wrong guess → the pile dies<br>Beat the <b>whole deck</b> before every pile is gone.",
             anchor: () => $("#deckChar") },
@@ -13185,7 +13195,12 @@ const UIRenderer = (() => {
       onDealCleared() {
         group("coins", [
           { html: "Coins = <b>surviving piles × smallest pile</b><br>Spend coins on upgrades.",
-            anchor: () => $(".dc-line"), next: "Got it" },   // the Deal reward line
+            // Ring the Deal reward line PLUS its Surviving piles / Smallest pile
+            // sub-rows (array anchor = union rect).
+            anchor: () => { const line = $(".dc-line");
+              const sub = line && line.nextElementSibling;
+              return (sub && sub.classList.contains("dc-sub")) ? [line, sub] : line; },
+            next: "Got it" },
         ]);
       },
       /** FIRST SHOP: stickers, then the mixed shelf's three kinds, then send off. */
