@@ -494,6 +494,8 @@
   }
   .deck-pile .ds-face.hidden { display: none; }
   .deck-pile .ds-face.red { color: var(--card-red); }
+  .deck-pile .ds-face.joker { background: linear-gradient(160deg, #fff3c9, #ffd97a);
+    color: #7a5300; border-color: #e6b74a; }
   .deck-pile .ds-face .dsf-rank { font-size: 22px; }
   .deck-pile .ds-face .dsf-suit { font-size: 17px; margin-top: 2px; }
   /* Cards-remaining count — a CHILD of the character's body (.dc-body), so it
@@ -1308,6 +1310,13 @@
   @media (prefers-reduced-motion: reduce) { .card-fx { animation: none !important; } }
 
   .card .front.red { color: var(--card-red); }
+  /* JOKER — a GOLD card face (the mini-card / map-node palette): gold cloth,
+     dark-gold ink for the ★ ranks/pip, and a soft gilt glow. */
+  .card .front.joker {
+    background: linear-gradient(160deg, #fff3c9, #ffd97a);
+    color: #7a5300; border-color: #e6b74a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 10px rgba(230,183,74,0.5);
+  }
   /* Classic suit symbols, drawn crisp; inherit the front's ink/red colour. */
   .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
   .card .pip .suit-svg { opacity: 0.9; }
@@ -5485,7 +5494,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.92 · lighter felt green + map spotlight on Pinky";
+const APP_VERSION = "v3.93 · gold Joker card face (board, flight, deck peek)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12989,6 +12998,9 @@ const UIRenderer = (() => {
   function paintFront(pileEl, card) {
     const front = pileEl.querySelector(".front");
     front.classList.toggle("red", !!card.red);
+    // JOKER face reads GOLD everywhere (same palette as its mini-card / map
+    // node face) instead of black stars on the plain white front.
+    front.classList.toggle("joker", !!card.joker);
     // (Matte cards: the old per-card --glow halo was removed — no setter needed.)
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
@@ -13117,6 +13129,7 @@ const UIRenderer = (() => {
     // pulses exactly once when a peek fires, not on every re-render while it's up.
     const wasRevealed = el.deckStat && el.deckStat.classList.contains("revealed");
     el.deckFace.classList.toggle("red", !!next.red);
+    el.deckFace.classList.toggle("joker", !!next.joker);   // gold, like every Joker face
     el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>";
     el.deckFace.classList.remove("hidden");
     if (el.deckStat) el.deckStat.classList.add("revealed");
