@@ -1634,6 +1634,53 @@
       #faf5ef;
   }
   .menu-screen.hidden { display: none; }
+
+  /* ── FIRST-RUN TUTORIAL — coach bubbles anchored to the live UI ───────────
+     A fixed layer (pointer-events:none — gameplay input is never blocked; only
+     the bubble itself is tappable) with a pulsing RING around the thing being
+     explained and a speech BUBBLE beside it, fronted by a tiny Pinky face.
+     Driven by the Tutorial module; appears once, ever (ninelives.pref.tutorial);
+     Skip ends it any time. The How to Play manual in the menu is unchanged. */
+  .tut-layer { position: fixed; inset: 0; z-index: 1600; pointer-events: none; }
+  .tut-ring { position: fixed; border-radius: 14px; pointer-events: none;
+    border: 2.5px solid var(--accent-2);
+    transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
+    animation: tutPulse 1.5s ease-in-out infinite; }
+  @keyframes tutPulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(188,66,112,0.16), 0 0 12px 2px rgba(188,66,112,0.30); }
+    50%     { box-shadow: 0 0 0 6px rgba(188,66,112,0.28), 0 0 22px 4px rgba(188,66,112,0.45); }
+  }
+  .tut-ring.hidden, .tut-bubble.hidden { display: none; }
+  .tut-bubble { position: fixed; max-width: 300px; pointer-events: auto;
+    background: var(--panel, #fff); border: 2px solid var(--accent-2); border-radius: 14px;
+    padding: 11px 13px 9px; box-shadow: 0 8px 24px rgba(74,30,45,0.25);
+    font-size: 13.5px; line-height: 1.45; color: var(--text); }
+  .tut-bubble::before {   /* the little pointer toward the anchor */
+    content: ""; position: absolute; width: 12px; height: 12px;
+    background: var(--panel, #fff); border: 2px solid var(--accent-2);
+    transform: rotate(45deg); left: var(--arrow-x, 50%); margin-left: -6px; }
+  .tut-bubble.arrow-up::before   { top: -8px;    border-right: none; border-bottom: none; }
+  .tut-bubble.arrow-down::before { bottom: -8px; border-left: none;  border-top: none; }
+  .tut-bubble.no-arrow::before   { display: none; }
+  .tut-row { display: flex; gap: 9px; align-items: flex-start; }
+  /* Tiny static Pinky face so every tip clearly comes FROM him. */
+  .tut-face { flex: none; width: 20px; height: 23px; margin-top: 2px; border-radius: 5px;
+    background: linear-gradient(160deg, #e0738f, #b23a5c); position: relative;
+    border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 1px 3px rgba(74,50,40,0.35); }
+  .tut-face::before, .tut-face::after { content: ""; position: absolute; top: 7px;
+    width: 4px; height: 5px; border-radius: 50%; background: #241c28; }
+  .tut-face::before { left: 4px; } .tut-face::after { right: 4px; }
+  .tut-text b { color: var(--accent-2); }
+  .tut-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; }
+  .tut-skip { background: none; border: none; color: var(--muted); font-size: 12px;
+    cursor: pointer; padding: 4px 2px; text-decoration: underline; }
+  .tut-next { background: linear-gradient(180deg, var(--accent), #ff9d4d); color: #fff;
+    border: none; border-radius: 999px; padding: 7px 18px; font-weight: 800; font-size: 13px;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(74,30,45,0.25); }
+  .tut-next:active { transform: scale(0.96); }
+  @media (prefers-reduced-motion: reduce) { .tut-ring { animation: none; transition: none;
+    box-shadow: 0 0 0 4px rgba(188,66,112,0.25); } }
+
   /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
      a single cheap composited animation (no per-frame JS), holds still under
      reduced motion. Evokes the game's neural warmth without clutter. */
@@ -5303,7 +5350,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.81 · lost-paths texture, worn character, 14 rows, pre-boss store";
+const APP_VERSION = "v3.82 · first-run tutorial (play-as-you-learn coach bubbles)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12969,6 +13016,172 @@ const UIRenderer = (() => {
     };
   })();
 
+  /* ── FIRST-RUN TUTORIAL — play-as-you-learn coach bubbles ──────────────────
+     Replaces the auto-shown How to Play walkthrough on a player's very first
+     game (the manual itself stays in the menu). A short chain of bubbles rides
+     each screen as it appears — deck select (meet Pinky), the map (climb to
+     the top), the first deal (piles, swipe/buttons, deck, the Same shield),
+     the first deal summary (the payout formula), the map again (drafting) and
+     the first shop (the four upgrade kinds) — each anchored with a pulsing
+     ring around the exact thing being described.
+     Presentation only: gameplay input is never blocked (the layer is
+     pointer-events:none; only the bubble is tappable), any guess mid-tip just
+     dismisses the tip, and Skip ends the whole tour. Appears ONCE by default
+     (ninelives.pref.tutorial is stamped the moment it starts). */
+  const Tutorial = (() => {
+    const PREF = "tutorial";
+    let active = false;
+    const fired = {};                      // step-group keys that already ran
+    let layer = null, ring = null, bubble = null, textEl = null, nextBtn = null;
+    let queue = [];                        // remaining steps of the current group
+    let anchorEl = null, isFinal = false;
+    const $ = (sel) => document.querySelector(sel);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    function shouldRun() { return SaveStore.getPref(PREF) !== "1"; }
+    function ensureLayer() {
+      if (layer) return;
+      layer = document.createElement("div");
+      layer.className = "tut-layer";
+      layer.innerHTML =
+        '<div class="tut-ring hidden"></div>' +
+        '<div class="tut-bubble hidden"><div class="tut-row"><span class="tut-face"></span>' +
+        '<div class="tut-text"></div></div>' +
+        '<div class="tut-actions"><button type="button" class="tut-skip">Skip tips</button>' +
+        '<button type="button" class="tut-next">Next</button></div></div>';
+      document.body.appendChild(layer);
+      ring = layer.querySelector(".tut-ring");
+      bubble = layer.querySelector(".tut-bubble");
+      textEl = layer.querySelector(".tut-text");
+      nextBtn = layer.querySelector(".tut-next");
+      nextBtn.addEventListener("click", advance);
+      layer.querySelector(".tut-skip").addEventListener("click", end);
+      // Keep the ring/bubble glued to the anchor across resizes and any scroll
+      // (capture-phase so the map's inner scroller counts too).
+      window.addEventListener("resize", reposition);
+      window.addEventListener("scroll", reposition, true);
+    }
+    function reposition() { if (bubble && !bubble.classList.contains("hidden")) place(); }
+    function place() {
+      const a = (anchorEl && document.contains(anchorEl)) ? anchorEl.getBoundingClientRect() : null;
+      const usable = a && a.width > 0 && a.bottom > 0 && a.top < innerHeight;
+      if (usable) {
+        ring.classList.remove("hidden");
+        ring.style.left = (a.left - 7) + "px"; ring.style.top = (a.top - 7) + "px";
+        ring.style.width = (a.width + 14) + "px"; ring.style.height = (a.height + 14) + "px";
+      } else ring.classList.add("hidden");
+      const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+      bubble.classList.remove("arrow-up", "arrow-down", "no-arrow");
+      let x, y;
+      if (usable) {
+        x = clamp(a.left + a.width / 2 - bw / 2, 10, innerWidth - bw - 10);
+        if (a.bottom + 16 + bh < innerHeight - 10) { y = a.bottom + 16; bubble.classList.add("arrow-up"); }
+        else { y = Math.max(10, a.top - bh - 16); bubble.classList.add("arrow-down"); }
+        bubble.style.setProperty("--arrow-x", clamp(a.left + a.width / 2 - x, 18, bw - 18) + "px");
+      } else {
+        x = (innerWidth - bw) / 2; y = innerHeight * 0.40;
+        bubble.classList.add("no-arrow");
+      }
+      bubble.style.left = x + "px"; bubble.style.top = y + "px";
+    }
+    function showStep(s) {
+      ensureLayer();
+      anchorEl = s.anchor ? s.anchor() : null;
+      isFinal = !!s.final;
+      textEl.innerHTML = s.html;
+      nextBtn.textContent = s.next || "Next";
+      bubble.classList.remove("hidden");
+      place();
+    }
+    function hideBubble() {
+      if (!bubble) return;
+      bubble.classList.add("hidden"); ring.classList.add("hidden"); anchorEl = null;
+    }
+    function advance() {
+      Sound.tap();
+      if (queue.length) showStep(queue.shift());
+      else if (isFinal) end();
+      else hideBubble();
+    }
+    function group(key, steps) {
+      if (!active || fired[key]) return;
+      fired[key] = true;
+      queue = steps.slice();
+      showStep(queue.shift());
+    }
+    function end() {
+      active = false; queue = [];
+      if (layer) { layer.remove(); layer = ring = bubble = textEl = nextBtn = null; }
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    }
+
+    return {
+      /** DECK SELECT (the first "Play"): arm the tour + meet Pinky. */
+      onDeckSelect() {
+        if (!active) {
+          if (!shouldRun()) return;
+          active = true;
+          SaveStore.setPref(PREF, "1");   // by-default once, ever — Skip included
+        }
+        group("pinky", [
+          { html: "This is <b>Pinky</b> — he's lost, a long way from mama.<br>Help him climb home.",
+            anchor: () => $("#deckSelect .ds-deckchar"), next: "Let's go" },
+        ]);
+      },
+      /** MAP: first visit = the goal; the visit after the first payout = drafting. */
+      onMap() {
+        if (!active) return;
+        if (!fired.map1) {
+          group("map1", [
+            { html: "Pinky starts down here. The goal: climb to the <b>very top of the map</b>.",
+              anchor: () => $(".map-avatar") },
+            { html: "Tap the <b>glowing node</b> to set off — it's your first deal.",
+              anchor: () => $(".pm-node.s-legal"), next: "Got it" },
+          ]);
+        } else if (fired.coins && !fired.draft) {
+          group("draft", [
+            { html: "Travel on to <b>draft new cards</b> — Pinky's deck grows as he climbs.<br>Shops along the way sell upgrades.",
+              anchor: () => $(".pm-node.t-pickup, .pm-node.t-pack") || $(".map-avatar"), next: "Got it" },
+          ]);
+        }
+      },
+      /** FIRST DEAL: survive → how to guess → the deck → the Same shield. */
+      onDealStart() {
+        group("deal", [
+          { html: "<b>Goal: survive.</b> Every pile is a life.",
+            anchor: () => $(".board-grid") },
+          { html: "Pick a pile, then <b>swipe</b>: ↑ higher · ↓ lower · sideways same.<br>Or tap the pile and use these buttons.",
+            anchor: () => { const b = $("#btnSame"); return b ? b.parentElement : null; } },
+          { html: "Every guess draws from <b>Pinky's deck</b>.<br>Right → the card tops the pile and it grows.<br>Wrong → the pile dies.<br>Outlast the <b>whole deck</b> before every pile is gone.",
+            anchor: () => $("#deckChar") },
+          { html: "<b>Same</b> calls are rare and hard — a correct Same charges this <b>shield</b>, which saves your next miss.",
+            anchor: () => $("#hudSame") },
+          { html: "Your turn — make a guess!", anchor: null, next: "Go" },
+        ]);
+      },
+      /** Any resolved guess mid-tour: the player is playing — stop talking. */
+      onGuessResolved() {
+        if (active && fired.deal && !fired.coins) { queue = []; hideBubble(); }
+      },
+      /** FIRST DEAL SUMMARY: the payout formula. */
+      onDealCleared() {
+        group("coins", [
+          { html: "Coins = <b>surviving piles × smallest pile</b> — keeping piles even pays more.<br>Spend them on upgrades.",
+            anchor: () => $(".dc-total"), next: "Got it" },
+        ]);
+      },
+      /** FIRST SHOP: the four upgrade kinds, then send them off. */
+      onStore() {
+        group("shop", [
+          { html: "The shop:<br><b>Stickers</b> change single cards.<br><b>Pillars</b> power a whole column.<br><b>Bases</b> give a once-per-deal power.<br><b>Same-Powers</b> fire on every correct Same.",
+            anchor: () => $("#storeItems") },
+          { html: "That's everything — good luck, Pinky ♥", anchor: null, next: "Done", final: true },
+        ]);
+      },
+    };
+  })();
+
   /* ---- deck composition strip (always-on companion to the modal) ----
      Reads the SAME counts the modal uses — remaining (blue) vs this stage's
      total (grey) per rank, on a shared absolute scale (max total). Presentation
@@ -15497,6 +15710,7 @@ const UIRenderer = (() => {
         DeckChar.startBlink();
         // …and re-stamp the stage mood (anxious ♦ → hopeful ♣ → bright ♠).
         CharMood.setStage(campaign && campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
+        Tutorial.onDealStart();   // first-run tour: survive / guessing / deck / Same shield
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
         setScreenNav(true, true, false);   // menu + inventory; no map button in-game
@@ -15774,6 +15988,7 @@ const UIRenderer = (() => {
         if (payload.correct && payload.guess === "same") DeckChar.react("happy");
         else if (payload.correct) DeckChar.react("glad");
         else DeckChar.react("sad");
+        Tutorial.onGuessResolved();   // playing now — any lingering tip steps aside
         renderSetupInv();
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} kept — ${payload.board.aliveCount()} piles alive.`
@@ -16520,6 +16735,7 @@ const UIRenderer = (() => {
       btnLabel: "CONTINUE",
       action: continueCampaign,
     });
+    Tutorial.onDealCleared();   // first-run tour: the payout formula, on the real numbers
   }
 
   /** Cumulative end-of-campaign stats, read from existing campaign state. */
@@ -16682,28 +16898,24 @@ const UIRenderer = (() => {
     perkDeckPanel(0);   // the first (pink) deck opens highlighted → it perks up
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
+    Tutorial.onDeckSelect();   // very first Play → the tour starts here (meets Pinky)
   }
   function hideDeckSelect() { el.deckSelect.classList.add("hidden"); }
 
   function startCampaign() {
     hideMainMenu();   // every entry path leaves the title menu (so the board, once
                       // dealt, is the active surface and its card motion runs)
-    // First-time players (never played a guess before) get the How to Play
-    // walkthrough on New Game, with a Skip — then on to the map. It never
-    // auto-shows again once they've actually played (gamesPlayed now bumps on
-    // the first guess, not here — see the "resolved" handler).
-    let firstTime = false;
-    try { firstTime = Stats.get().gamesPlayed === 0; } catch (e) { firstTime = false; }
     clearSave();          // a fresh campaign supersedes any saved one
     track("game_started");   // analytics (fail-silent)
     campaign.reset();
     // A fresh run starts far from mama: anxious, a little lost, a little dirty.
     CharMood.setStage(0);
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
-    // dealing — same store → map → run rhythm as every later run.
-    const toMap = () => showProgressionMap(startRun);
-    if (firstTime) showManual(toMap);   // walkthrough first, then the map
-    else toMap();
+    // dealing — same store → map → run rhythm as every later run. First-time
+    // players learn IN PLAY now (the Tutorial coach bubbles, armed on deck
+    // select) — the old auto-shown How to Play walkthrough is retired; the
+    // manual itself stays available from the menu.
+    showProgressionMap(startRun);
   }
 
   /**
@@ -18865,6 +19077,7 @@ const UIRenderer = (() => {
     } else {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
+    Tutorial.onMap();   // first-run tour: goal (first visit) / drafting (after the first payout)
   }
   function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); }
   function enterRunFromMap() {
@@ -19018,6 +19231,7 @@ const UIRenderer = (() => {
     // suit chart to the accumulated deck, then size the store below the shell.
     renderDeckStrip(); renderSuitCounts(); updateShellHeight();
     updateBoardMotion();   // board covered by the store → pause its card animations
+    Tutorial.onStore();    // first-run tour: the four upgrade kinds, then good luck
   }
 
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
