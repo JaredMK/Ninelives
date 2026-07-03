@@ -2397,12 +2397,22 @@
   .store-shelf.z-same .store-row.big { grid-template-columns: 1fr; justify-items: center; }
   .store-shelf.z-same { flex: 0 0 auto; min-height: 96px; }
 
-  /* Same-Power badge: the power's glyph over its name, ringed in synapse-violet
-     so it reads as a "links" artifact. Used on store tiles + the setup chip. */
+  /* Same-Power badge: the power's glyph over its name, ringed in synapse-rose
+     so it reads as a "links" artifact. Used on store tiles + the setup chip.
+     OPAQUE light-rose plate (was a translucent wash that inherited the dark
+     felt behind the store shelves, leaving dark ink on a dark chip): like the
+     sticker vinyls / base slabs, the object is a light-faced plate with dark
+     ink, so it reads identically on the felt and on light panels. */
   .sp-badge { display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
     padding: 8px 12px; border-radius: 12px;
-    background: linear-gradient(180deg, rgba(200,74,120,0.14), rgba(142,47,78,0.20));
-    border: 1.5px solid var(--net, #C84A78); box-shadow: 0 0 10px rgba(200,74,120,0.30); }
+    background: linear-gradient(180deg, #FCF4F7, #F1DCE6);
+    border: 1.5px solid var(--net, #C84A78);
+    box-shadow: 0 4px 10px rgba(74,40,55,0.30), 0 0 10px rgba(200,74,120,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.75); }
+  /* On the SHELF, size the badge up toward its pennant/pack neighbours. */
+  .store-tile .sp-badge { padding: 12px 16px; gap: 5px; }
+  .store-tile .sp-badge .sp-mark { width: 32px; height: 32px; }
+  .store-tile .sp-badge-name { font-size: 12.5px; }
   .sp-badge-ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   /* Each Same-Power's UNIQUE inline-SVG logo (GLYPHS[id]); currentColor inks it in
      the badge's dark rose so it reads clearly on the light rose gradient. */
@@ -2507,7 +2517,9 @@
   .lo-chip .lo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lo-chip.pillar { background: rgba(110,81,166,0.12); border-color: var(--pathway); color: var(--pathway-2); }
   .lo-chip.base   { background: rgba(214,150,60,0.13); border-color: var(--amber); color: #8a5a14; }
-  .lo-chip.samepower { background: linear-gradient(180deg, rgba(200,74,120,0.12), rgba(142,47,78,0.16));
+  /* Same opaque light-rose plate as .sp-badge (the translucent wash went
+     dark-on-dark over the felt loadout panel). */
+  .lo-chip.samepower { background: linear-gradient(180deg, #FCF4F7, #F1DCE6);
     border-color: var(--net, #C84A78); color: var(--net-dot, #8E2F4E);
     flex-direction: column; gap: 3px; padding: 6px 10px; justify-content: center; }
   .lo-chip.samepower .lo-ico { width: 18px; height: 18px; font-size: 16px; }
@@ -5561,7 +5573,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.01 · deck-unlock celebration at run's end";
+const APP_VERSION = "v4.02 · fix: Same-Power store items readable on the felt";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
