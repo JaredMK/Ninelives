@@ -4618,8 +4618,12 @@
   .deck-strip { background: rgba(252,248,242,0.92); }
   .rail .deck-stack { background: rgba(252,248,242,0.92); }
   body.guess-side #histBand .ds-rank { color: var(--on-felt-muted); }
-  body.guess-side #histBand .ds-pip { background: rgba(240,234,224,0.26); }
-  body.guess-side #histBand .ds-bar.ds-active .ds-pip { background: rgba(240,234,224,0.44); }
+  /* UNFILLED pips only (:not(.filled)) — the felt recolor must never touch the
+     pink REMAINING pips: this selector's #id out-ranks the class-only
+     .ds-pip.filled rule, and an unscoped version painted every pip the same
+     pale overlay (the histogram showed no remaining counts at all). */
+  body.guess-side #histBand .ds-pip:not(.filled) { background: rgba(240,234,224,0.26); }
+  body.guess-side #histBand .ds-bar.ds-active .ds-pip:not(.filled) { background: rgba(240,234,224,0.44); }
   body.guess-side #histBand .ds-bar.ds-active .ds-rank { color: var(--on-felt); }
   /* Deck-select heading + the deal-status score row + the page footer */
   .ds-title { color: var(--on-felt); }
@@ -5435,7 +5439,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.88 · casino felt base, mellow win tunes, Sticker Harvest x2";
+const APP_VERSION = "v3.89 · fix: histogram remaining-counts lost their colour (felt pass)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
