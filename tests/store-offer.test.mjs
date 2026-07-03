@@ -198,7 +198,7 @@ export function run() {
     r.ok(!c.canReroll(), "can't reroll after a wipe");
   }
 
-  // --- Suit-lock: suited STICKERS only roll once their suit is in play -
+  // --- Stage gating REMOVED: suited STICKERS can roll at ANY stage ------
   {
     const sample = (c, n) => {
       const seen = new Set();
@@ -207,21 +207,8 @@ export function run() {
     };
     const s1 = sample(CampaignState.create(), 400);          // Stage 1: ♦ ♥
     r.ok(s1.has("diamondGuard") && s1.has("heartGuard"), "Stage 1 offers the ♦ and ♥ guards");
-    r.ok(!s1.has("clubGuard"), "Stage 1 NEVER offers the ♣ guard (suit not in play)");
-    r.ok(!s1.has("suitImmunity"), "Stage 1 NEVER offers the ♠ guard (suit not in play)");
-
-    const c2 = CampaignState.create();
-    c2.advancePhase();                 // → Stage 2: ♦ ♥ ♣
-    r.eq(c2.currentStage, 2, "advanced to Stage 2");
-    const s2 = sample(c2, 400);
-    r.ok(s2.has("clubGuard"), "Stage 2 offers the ♣ guard (its suit is now in play)");
-    r.ok(!s2.has("suitImmunity"), "Stage 2 still NEVER offers the ♠ guard");
-
-    const c3 = CampaignState.create();
-    c3.advancePhase(); c3.advancePhase();                 // → Stage 3: ♦ ♥ ♣ ♠
-    r.eq(c3.currentStage, 3, "advanced to Stage 3");
-    const s3 = sample(c3, 400);
-    r.ok(s3.has("suitImmunity"), "Stage 3 offers the ♠ guard (all four suits in play)");
+    r.ok(s1.has("clubGuard"), "Stage 1 offers the ♣ guard too (gating removed)");
+    r.ok(s1.has("suitImmunity"), "…and the ♠ guard (all items any time)");
   }
 
   // --- Suit-lock: suited PILLARS in mixed slots obey the same gate -----
@@ -241,7 +228,7 @@ export function run() {
       "the removed ♠/♣/♦ Bonus pillars never appear");
   }
 
-  // --- Suit-lock: suited BASES (Club Dig ♣, Heart Tax ♥) obey the gate -
+  // --- Stage gating REMOVED: suited BASES can roll at ANY stage ---------
   {
     const sampleBases = (c, n) => {
       const seen = new Set();
@@ -250,13 +237,8 @@ export function run() {
       return seen;
     };
     const b1 = sampleBases(CampaignState.create(), 900);      // Stage 1: ♦ ♥
-    r.ok(!b1.has("clubDig"), "Stage 1 NEVER offers Club Dig (♣ not in play)");
+    r.ok(b1.has("clubDig"), "Stage 1 CAN offer Club Dig (gating removed)");
     r.ok(b1.has("tax"), "Stage 1 offers Heart Tax (♥ in play)");
-
-    const cb2 = CampaignState.create();
-    cb2.advancePhase();                                      // → Stage 2: ♦ ♥ ♣
-    const b2 = sampleBases(cb2, 900);
-    r.ok(b2.has("clubDig"), "Stage 2 offers Club Dig (♣ now in play)");
   }
 
   return r.summary();

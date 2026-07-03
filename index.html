@@ -5497,7 +5497,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.95 · full run map at start + debug ★ (force a Joker)";
+const APP_VERSION = "v3.96 · stage gating removed (all items any time) + permanent gold ★ histogram slot";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10407,31 +10407,16 @@ const CampaignState = (() => {
   // All suit symbols (for the default — unrestricted — Change-Suit Random pick).
   const ALL_SUITS = DeckManager.SUITS.map(s => s.symbol);
 
-  /** Sticker types whose required suit (if any) is currently in play — so a
-      rolled sticker never depends on a not-yet-present suit. Carriers of a
-      `suit`: Change-to-♥ (in from Stage 1) and Change-to-♠ (waits for Stage 3),
-      plus the four Suit Guards — ♦/♥ guards are in from Stage 1, the ♣ guard
-      from Stage 2, the ♠ guard from Stage 3. Used by the store roll AND the
-      pack / pack-card sticker rolls, so the lock is uniform. */
-  function stickerPoolForSuits(suitsInPlay) {
-    return StickerTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
-  }
-
-  /** Pillar types whose required suit (if any) is currently in play — the same
-      lock as stickers, applied to the Pillar roll. Carriers of a `suit`: the
-      four suit Bonus pillars (Diamond/Heart in from Stage 1; Club from Stage 2;
-      Spade from Stage 3). Used by the store roll so a suit-locked Pillar can
-      never be offered before its suit exists. */
-  function pillarPoolForSuits(suitsInPlay) {
-    return PillarTypes.all().filter(t => !t.suit || suitsInPlay.indexOf(t.suit) !== -1);
-  }
-
-  /** Base types whose required suit (if any) is in play — the Dig family is
-      suit-gated exactly like the suit Guards/Bonuses; every other Base is
-      suit-free and always eligible. */
-  function basePoolForSuits(suitsInPlay) {
-    return BaseTypes.all().filter(t => !t.suit || (suitsInPlay && suitsInPlay.indexOf(t.suit) !== -1));
-  }
+  /* STAGE GATING REMOVED (by design): items used to be offerable only once
+     their suit was in play (♦♥ → +♣ → +♠). Every sticker, Pillar and Base can
+     now show at ANY time — a ♠ Guard or Club Dig may appear in the very first
+     store. The pool helpers stay (uniform call sites for the store roll, pack
+     rolls and Wild Sticker) but no longer filter; their suit-set argument is
+     ignored. Pack-CARD suit generation is untouched — a pack still mints cards
+     of the suits actually in play (deck composition pacing, not item gating). */
+  function stickerPoolForSuits() { return StickerTypes.all(); }
+  function pillarPoolForSuits() { return PillarTypes.all(); }
+  function basePoolForSuits() { return BaseTypes.all(); }
 
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
       deck cards) and pack-card generation. opts.rng seeds the random rank/suit
@@ -13712,10 +13697,12 @@ const UIRenderer = (() => {
         '<div class="ds-rank">' + r.label + "</div>" +
         '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + pips + "</div></div>";
     }).join("");
-    // JOKER column — GOLD, shown only while the deck holds a Joker, seated all
-    // the way PAST the Ace: last on the bottom band (rightmost), first on the
-    // side rail (topmost, above A). Same total/remaining pip logic in gold tones.
-    if (jokerFull > 0) {
+    // JOKER column — GOLD, ALWAYS shown, seated all the way PAST the Ace:
+    // last on the bottom band (rightmost), first on the side rail (topmost,
+    // above A). Same total/remaining pip logic in gold tones; with no Joker
+    // owned yet it renders as an empty gold slot (exactly like a rank you own
+    // zero copies of), so the column's place in the axis never comes and goes.
+    {
       const jrem = Math.max(0, Math.min(jokerFull, jokerRemaining));
       let jpips = "";
       for (let i = 0; i < jokerFull; i++) jpips += '<span class="ds-pip' + (i < jrem ? " filled" : "") + '"></span>';
@@ -13766,18 +13753,17 @@ const UIRenderer = (() => {
         '<span class="sc-num"><b>' + (remaining[s] || 0) + '</b>/' + (total[s] || 0) + '</span></span>';
     }).join("");
     // Jokers are suitless (★), so the 4-suit split can't represent them — a
-    // 5th GOLD cell appears only while the deck holds one (mirrors the gold
-    // histogram column: remaining in the draw deck / owned total).
+    // permanent 5th GOLD cell carries them (mirrors the always-shown gold
+    // histogram column: remaining in the draw deck / owned total, 0/0 when
+    // none are owned yet).
     const jTotal = campaign.jokerCount ? campaign.jokerCount() : 0;
-    if (jTotal > 0) {
-      let jRem = jTotal;
-      if (!mapVisible() && !storeVisible() && engine && engine.getDeck) {
-        const deck = engine.getDeck();
-        if (deck && deck.remainingCounts) jRem = Math.min(jTotal, (deck.remainingCounts() || {})[0] || 0);
-      }
-      html += '<span class="sc-cell sc-joker"><span class="sc-suit">★</span>' +
-        '<span class="sc-num"><b>' + jRem + '</b>/' + jTotal + '</span></span>';
+    let jRem = jTotal;
+    if (jTotal > 0 && !mapVisible() && !storeVisible() && engine && engine.getDeck) {
+      const deck = engine.getDeck();
+      if (deck && deck.remainingCounts) jRem = Math.min(jTotal, (deck.remainingCounts() || {})[0] || 0);
     }
+    html += '<span class="sc-cell sc-joker"><span class="sc-suit">★</span>' +
+      '<span class="sc-num"><b>' + jRem + '</b>/' + jTotal + '</span></span>';
     if (html === suitCountsHtml) return;
     suitCountsHtml = html;
     host.innerHTML = html;

@@ -43,9 +43,9 @@ export function run() {
     const okShape = cards.every(card =>
       (card.joker || card.blank) ||    // special options carry no rank/suit
       (card.currentRank >= 2 && card.currentRank <= 14 &&
-      inPlay.has(card.suit) && card.id >= 52 &&
+      ["♦", "♥", "♣", "♠"].includes(card.suit) && card.id >= 52 &&
       Array.isArray(card.modifications) && Array.isArray(card.stickers) && card.compoundHits === 0));
-    r.ok(okShape, "every revealed card: rank 2–A, in-play suit, fresh id ≥52, proper shape (Jokers/Blanks exempt)");
+    r.ok(okShape, "every revealed card: rank 2–A, a real suit, fresh id ≥52, proper shape (Jokers/Blanks exempt)");
     const ids = cards.map(c2 => c2.id);
     r.eq(new Set(ids).size, 5, "revealed card ids are unique");
     r.ok(cards.every(card => card.stickers.every(s => stickerIds.has(s.type))),
@@ -58,10 +58,8 @@ export function run() {
     const ids = c.revealPack("stickerPack", rngFrom(2));
     r.eq(ids.length, 3, "the sticker pack reveals 3 stickers");
     r.ok(ids.every(id => stickerIds.has(id)), "all revealed stickers are real");
-    // Suit-locked: no revealed sticker requires a not-yet-present suit.
-    const inPlay = new Set(["♦", "♥"]);
-    r.ok(ids.every(id => { const t = StickerTypes.get(id); return !t.suit || inPlay.has(t.suit); }),
-      "revealed stickers never require an out-of-play suit");
+    // (Stage gating REMOVED: a revealed sticker may be ANY registry sticker —
+    //  suit-locked ones included — at any stage. "All real" above covers it.)
   }
 
   // --- On-card stickers stay in-play even via Change-Suit Random + rough dist
@@ -77,7 +75,11 @@ export function run() {
       const card = c.genPackCard(rng);
       if (card.joker || card.blank) { specials++; continue; }    // special options (no rank/suit/stickers)
       normal++;
-      if (!inPlay.has(card.suit)) allInPlay = false;             // includes post-Change-Suit-Random
+      // The ROLLED suit stays in-play (deck-composition pacing). An ungated
+      // suit-changing sticker may then move it anywhere — recover the rolled
+      // suit from the card's modification history before checking.
+      const firstChange = (card.modifications || []).find(m => m.op === "changeSuit");
+      if (!inPlay.has(firstChange ? firstChange.from : card.suit)) allInPlay = false;
       if (!(card.currentRank >= 2 && card.currentRank <= 14)) allValidRank = false;
       if (!card.stickers.every(s => stickerIds.has(s.type))) allStickersReal = false;
       if (card.stickers.length >= 1) withAny++;
@@ -88,7 +90,7 @@ export function run() {
     // (Joker or Blank), so ≈7% of options are special.
     const pSpecial = specials / N;
     r.ok(pSpecial > 0.045 && pSpecial < 0.10, "≈7% of options are Joker/Blank (got " + pSpecial.toFixed(3) + ")");
-    r.ok(allInPlay, "generated card suits stay in-play (Change-Suit Random respects in-play suits)");
+    r.ok(allInPlay, "generated card ROLLED suits stay in-play (ungated stickers may re-suit them after)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");
     // New odds: 33% one / 11% two / 3% three / 1% four → ≈48% ≥1, ≈15% ≥2, ≈4% ≥3.
@@ -242,18 +244,21 @@ export function run() {
     for (const st of stages) {
       while (totalAdv < st.advances) { fresh.advancePhase(); totalAdv++; }
       const allowed = new Set(st.ok);
-      let cardsOk = true, cardStickersOk = true, packStickersOk = true;
+      let cardsOk = true, stickersReal = true;
       for (let i = 0; i < 200; i++) {
         const card = fresh.genPackCard(rngFrom(1000 + i));
         if (card.joker || card.blank) continue;                 // special options carry no suit
-        if (!allowed.has(card.suit)) cardsOk = false;
-        if (!card.stickers.every(s => { const t = StickerTypes.get(s.type); return !t.suit || allowed.has(t.suit); })) cardStickersOk = false;
+        // The ROLLED suit follows the stage (composition pacing); an ungated
+        // suit-changing sticker may re-suit it — recover the roll from the
+        // modification history. (Sticker gating itself is REMOVED by design.)
+        const firstChange = (card.modifications || []).find(m => m.op === "changeSuit");
+        if (!allowed.has(firstChange ? firstChange.from : card.suit)) cardsOk = false;
+        if (!card.stickers.every(s => !!StickerTypes.get(s.type))) stickersReal = false;
       }
       const ids = fresh.revealPack("stickerPack", rngFrom(2000 + st.advances));
-      if (!ids.every(id => { const t = StickerTypes.get(id); return !t.suit || allowed.has(t.suit); })) packStickersOk = false;
-      r.ok(cardsOk, "Stage " + fresh.currentStage + ": pack-card suits stay in play");
-      r.ok(cardStickersOk, "Stage " + fresh.currentStage + ": on-card stickers never require an out-of-play suit");
-      r.ok(packStickersOk, "Stage " + fresh.currentStage + ": sticker-pack stickers never require an out-of-play suit");
+      if (!ids.every(id => !!StickerTypes.get(id))) stickersReal = false;
+      r.ok(cardsOk, "Stage " + fresh.currentStage + ": pack-card ROLLED suits stay in play");
+      r.ok(stickersReal, "Stage " + fresh.currentStage + ": every rolled sticker is a real registry sticker");
     }
   }
 

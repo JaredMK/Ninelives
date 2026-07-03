@@ -110,8 +110,16 @@ export function run() {
   // --- FREQUENCY: Joker/Blank each ≈ half a rank's rate -------------------
   {
     const c = CampaignState.create();
-    let rng = 12345;
-    const rand = () => { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng / 0x7fffffff; };
+    // mulberry32 — the old LCG's lattice structure aliased against the roll's
+    // variable rng-consumption pattern (ungated sticker pools shifted it) and
+    // skewed the observed special rate far beyond binomial noise.
+    let seed = 12345;
+    const rand = () => {
+      seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
     const N = 40000;
     let jok = 0, bl = 0, ranks = {};
     for (let i = 0; i < N; i++) {

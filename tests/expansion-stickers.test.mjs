@@ -46,14 +46,15 @@ export function run() {
     r.ok(StickerTypes.all().every(t => t.description && t.icon), "every sticker has a description + icon");
   }
 
-  // ---- suit gating moves in lockstep (no item before its suit is in play) ----
+  // ---- stage gating REMOVED: every sticker can offer at any time ----------
   {
     const c = CampaignState.create();   // Stage 1 = ♦ ♥
     const seen = new Set();
     for (let i = 0; i < 400; i++) c.openStore().stickers.forEach(id => seen.add(id));
-    r.ok(seen.has("changeSuitDiamond"), "Stage 1 offers Change to ♦ (♦ in play)");
-    r.ok(!seen.has("changeSuitClub"), "Stage 1 NEVER offers Change to ♣ (♣ not in play yet)");
-    r.ok(seen.has("quickBury") && seen.has("momentum"), "suit-free new stickers offer from Stage 1");
+    r.ok(seen.has("changeSuitDiamond"), "Stage 1 offers Change to ♦");
+    r.ok(seen.has("changeSuitClub"), "Stage 1 offers Change to ♣ too (gating removed — all items any time)");
+    r.ok(seen.has("changeSuitSpade"), "…and Change to ♠");
+    r.ok(seen.has("quickBury") && seen.has("momentum"), "suit-free stickers offer from Stage 1 as before");
   }
 
   // ---- Loose Change: emits a sticker-coins payout (0..3) every correct land ----
