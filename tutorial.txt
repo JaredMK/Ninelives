@@ -1,0 +1,118 @@
+SHOULDA SAID SAME — FIRST-RUN TUTORIAL TEXT
+=============================================
+Edit freely and hand back — I'll apply it verbatim.
+- *asterisks* mark the pink BOLD words in a bubble.
+- Line breaks inside a TEXT block are real line breaks in the bubble.
+- BUTTON is the label on the advance button ("Next" if unchanged).
+- Every bubble also carries the small "Skip tips" link (label below).
+
+GLOBAL
+  SKIP LINK LABEL: Skip tips
+  DEFAULT BUTTON:  Next
+
+
+STEP 1 — pinky
+  SCREEN:    Deck select (the first Play)
+  POINTS AT: The big Pinky character
+  BUTTON:    Let's go
+  TEXT:
+  This is *Pinky* — he's lost, a long way from mama.
+  Help him climb home.
+
+
+STEP 2 — map goal
+  SCREEN:    Map (first visit)
+  POINTS AT: Pinky's avatar at the bottom of the trail
+  BUTTON:    Next
+  TEXT:
+  Pinky starts down here. The goal: climb to the *very top of the map*.
+
+
+STEP 3 — first node
+  SCREEN:    Map (immediately after step 2)
+  POINTS AT: The glowing (reachable) first node
+  BUTTON:    Got it
+  TEXT:
+  Tap the *glowing node* to set off — it's your first deal.
+
+
+STEP 4 — survive
+  SCREEN:    First deal (as the board appears)
+  POINTS AT: The board of piles
+  BUTTON:    Next
+  TEXT:
+  *Goal: survive.* Every pile is a life.
+
+
+STEP 5 — how to guess
+  SCREEN:    First deal
+  POINTS AT: The Higher / Same / Lower button rail
+  BUTTON:    Next
+  TEXT:
+  Pick a pile, then *swipe*: ↑ higher · ↓ lower · sideways same.
+  Or tap the pile and use these buttons.
+
+
+STEP 6 — the deck
+  SCREEN:    First deal
+  POINTS AT: The deck character (Pinky in the corner)
+  BUTTON:    Next
+  TEXT:
+  Every guess draws from *Pinky's deck*.
+  Right → the card tops the pile and it grows.
+  Wrong → the pile dies.
+  Outlast the *whole deck* before every pile is gone.
+
+
+STEP 7 — same shield
+  SCREEN:    First deal
+  POINTS AT: The Same-shield chip in the HUD
+  BUTTON:    Next
+  TEXT:
+  *Same* calls are rare and hard — a correct Same charges this *shield*, which saves your next miss.
+
+
+STEP 8 — your turn
+  SCREEN:    First deal (hands control to the player)
+  POINTS AT: (nothing — centered)
+  BUTTON:    Go
+  TEXT:
+  Your turn — make a guess!
+
+
+STEP 9 — coins
+  SCREEN:    First deal summary (Deal cleared)
+  POINTS AT: The Total line of the coin breakdown
+  BUTTON:    Got it
+  TEXT:
+  Coins = *surviving piles × smallest pile* — keeping piles even pays more.
+  Spend them on upgrades.
+
+
+STEP 10 — drafting
+  SCREEN:    Map (first visit after the payout)
+  POINTS AT: A card/pack pickup node (or Pinky if none is visible)
+  BUTTON:    Got it
+  TEXT:
+  Travel on to *draft new cards* — Pinky's deck grows as he climbs.
+  Shops along the way sell upgrades.
+
+
+STEP 11 — the shop
+  SCREEN:    First shop visit
+  POINTS AT: The sticker shelf
+  BUTTON:    Next
+  TEXT:
+  The shop:
+  *Stickers* change single cards.
+  *Pillars* power a whole column.
+  *Bases* give a once-per-deal power.
+  *Same-Powers* fire on every correct Same.
+
+
+STEP 12 — good luck
+  SCREEN:    First shop (final bubble; ends the tour)
+  POINTS AT: (nothing — centered)
+  BUTTON:    Done
+  TEXT:
+  That's everything — good luck, Pinky ♥
