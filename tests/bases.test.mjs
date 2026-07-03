@@ -200,7 +200,7 @@ export function run() {
     r.ok(res.suitApplied.every(s => s.suit === "♣"), "each recorded change carries the copied suit");
   }
 
-  // --- effect: Sticker Harvest (bury per sticker, then strip them) -------
+  // --- effect: Sticker Harvest (bury 2 per sticker, then peel them) ------
   {
     const e = game(["stickerHarvest", null, null]);
     const b = e.getBoard();
@@ -210,9 +210,10 @@ export function run() {
     const before = e.getDeck().remaining();
     const res = e.baseActivate(0, 0);
     r.eq(res.harvested, 2, "harvested both stickers");
-    r.eq(b.piles[0].cards.length, 1 + 2, "two cards buried under the pile (one per sticker)");
-    r.eq(e.getDeck().remaining(), before - 2, "two cards left the deck");
-    r.eq(b.top(0).stickers.length, 0, "every sticker removed from the pile card");
+    r.eq(res.buried, 4, "reported 4 buried (2 per sticker)");
+    r.eq(b.piles[0].cards.length, 1 + 4, "four cards buried under the pile (two per sticker)");
+    r.eq(e.getDeck().remaining(), before - 4, "four cards left the deck");
+    r.eq(b.top(0).stickers.length, 0, "every counted sticker peeled off the pile card");
     r.ok(!b.top(0).tieSafe, "the projected sticker flag is cleared too");
   }
 

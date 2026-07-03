@@ -77,7 +77,7 @@ id:    stickerHarvest
 Label: Sticker Harvest
 Tier:  uncommon
 Price: 11
-Description: Trigger: Activated (choose a pile), once per deal / Effect: Bury 1 deck card under the chosen pile per sticker on its pile card, then strip every sticker off it
+Description: Trigger: Activated (choose a pile), once per deal / Effect: Bury 2 deck cards under the chosen pile per sticker on its pile card, then peel those stickers off it
 ----------------------------------------------------------------------
 
 id:    suitTally

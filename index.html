@@ -87,6 +87,18 @@
     --info-desc-size: 11.5px;
     --info-desc-lh: 1.4;
     --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band (run: hidden) */
+    /* ---- CASINO FELT — the table everything sits on ----------------------
+       Deep dark casino-green base across every screen. The light-cream panel
+       tokens above are untouched on purpose: panels/cards/buttons read as
+       paper ON the felt table. Text that sits DIRECTLY on the felt uses the
+       on-felt inks below. --felt-grain is a tiny turbulence tile (soft white
+       speckle) that gives the surface its fabric nap. */
+    --felt: #123227;         /* deep casino-green base */
+    --felt-2: #1B4634;       /* lifted table centre */
+    --felt-3: #0B241B;       /* deepest vignette edge */
+    --on-felt: #F0EAE0;      /* light ink directly on the felt */
+    --on-felt-muted: rgba(240, 234, 224, 0.62);
+    --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -100,9 +112,9 @@
     overflow: hidden;
     overscroll-behavior: none;
   }
-  /* The plum base lives on <html> so the fixed #tissue layer (z-index:-1) paints
+  /* The FELT base lives on <html> so the fixed #tissue layer (z-index:-1) paints
      ABOVE it; <body> stays transparent so the tissue shows through behind play. */
-  html { background: var(--bg); }
+  html { background: var(--felt-3); }
 
   body {
     background: transparent;
@@ -1617,21 +1629,24 @@
      and the character always win. Never used on the in-deal board or the map
      (the map's REAL paths must stay unambiguous). */
   :root {
-    --lost-paths: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%238a6f63' stroke-opacity='.16' stroke-width='2.5'%3E%3Cpath d='M28 452 C86 392 148 428 156 348 C163 276 92 262 112 202 C130 148 202 172 212 122'/%3E%3Cpath d='M300 474 C258 402 362 384 352 312 C344 258 272 272 286 212'/%3E%3Cpath d='M424 236 C472 214 476 276 424 264 C384 255 402 200 362 212'/%3E%3Cpath d='M56 58 C122 82 98 152 162 162 C224 172 208 92 262 100'/%3E%3Cpath d='M470 96 C420 58 384 132 332 102 C294 80 322 34 284 24'/%3E%3Cpath d='M198 470 C208 424 152 404 168 366'/%3E%3Cpath d='M8 300 C60 310 74 262 40 246'/%3E%3Cpath d='M470 380 C428 366 440 320 396 312 C356 305 356 348 318 338'/%3E%3C/g%3E%3Cg fill='%238a6f63' fill-opacity='.22'%3E%3Ccircle cx='214' cy='114' r='3.5'/%3E%3Ccircle cx='289' cy='203' r='3.5'/%3E%3Ccircle cx='355' cy='214' r='3.5'/%3E%3Ccircle cx='270' cy='101' r='3.5'/%3E%3Ccircle cx='277' cy='22' r='3.5'/%3E%3Ccircle cx='171' cy='358' r='3.5'/%3E%3Ccircle cx='36' cy='242' r='3.5'/%3E%3Ccircle cx='311' cy='336' r='3.5'/%3E%3C/g%3E%3C/svg%3E");
+    /* Recoloured for the FELT base: light sage strands so the "lost" tangle
+       reads on the dark green (was warm brown on cream). */
+    --lost-paths: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%23cfe0d4' stroke-opacity='.14' stroke-width='2.5'%3E%3Cpath d='M28 452 C86 392 148 428 156 348 C163 276 92 262 112 202 C130 148 202 172 212 122'/%3E%3Cpath d='M300 474 C258 402 362 384 352 312 C344 258 272 272 286 212'/%3E%3Cpath d='M424 236 C472 214 476 276 424 264 C384 255 402 200 362 212'/%3E%3Cpath d='M56 58 C122 82 98 152 162 162 C224 172 208 92 262 100'/%3E%3Cpath d='M470 96 C420 58 384 132 332 102 C294 80 322 34 284 24'/%3E%3Cpath d='M198 470 C208 424 152 404 168 366'/%3E%3Cpath d='M8 300 C60 310 74 262 40 246'/%3E%3Cpath d='M470 380 C428 366 440 320 396 312 C356 305 356 348 318 338'/%3E%3C/g%3E%3Cg fill='%23cfe0d4' fill-opacity='.20'%3E%3Ccircle cx='214' cy='114' r='3.5'/%3E%3Ccircle cx='289' cy='203' r='3.5'/%3E%3Ccircle cx='355' cy='214' r='3.5'/%3E%3Ccircle cx='270' cy='101' r='3.5'/%3E%3Ccircle cx='277' cy='22' r='3.5'/%3E%3Ccircle cx='171' cy='358' r='3.5'/%3E%3Ccircle cx='36' cy='242' r='3.5'/%3E%3Ccircle cx='311' cy='336' r='3.5'/%3E%3C/g%3E%3C/svg%3E");
   }
   .menu-screen {
     position: fixed; inset: 0; z-index: 1400; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: clamp(8px, 2vh, 14px); padding: 24px;
-    /* OPAQUE base (was rgba …0.94 + backdrop blur): the live board's piles
-       ghosted through the see-through backdrop as blurred grey patches — on
-       deck select they read as a weird smudged shadow behind the pink deck.
-       Nothing should show through a full menu screen, so nothing does. */
+    /* OPAQUE base (was translucent + backdrop blur: the live board ghosted
+       through as smudges). FELT-GREEN table with the fabric grain, the rose
+       glow accents kept, and the lost-paths tangle layered ON TOP. */
     background:
       var(--lost-paths) 0 0 / 460px repeat,
-      radial-gradient(125% 90% at 50% 16%, rgba(200,120,145,0.18), transparent 56%),
-      radial-gradient(115% 80% at 50% 102%, rgba(150,128,200,0.13), transparent 56%),
-      #faf5ef;
+      var(--felt-grain) 0 0 / 160px repeat,
+      radial-gradient(125% 90% at 50% 16%, rgba(200,120,145,0.14), transparent 56%),
+      radial-gradient(115% 80% at 50% 102%, rgba(46,124,110,0.20), transparent 56%),
+      radial-gradient(ellipse at 50% 45%, var(--felt-2), var(--felt) 60%, var(--felt-3));
+    color: var(--on-felt);   /* text directly on the felt reads light */
   }
   .menu-screen.hidden { display: none; }
 
@@ -2014,7 +2029,9 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(249, 244, 238, 0.93);
+    /* Dark felt-green glass (was translucent cream) — panels/cards float on it
+       like paper on the table; hold-to-peek still needs the see-through. */
+    background: rgba(11, 34, 25, 0.93);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     display: flex;
@@ -2236,10 +2253,10 @@
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
     padding: 12px 12px max(8px, env(safe-area-inset-bottom));
+    /* Felt table with the shop's warm LAMPLIGHT dimmed to suit the dark base. */
     background:
-      radial-gradient(115% 70% at 50% 40%, rgba(255,238,212,0.66), rgba(255,238,212,0) 62%),
-      radial-gradient(80% 50% at 50% 96%, rgba(214,178,140,0.20), rgba(214,178,140,0) 70%),
-      rgba(249, 244, 238, 0.95);
+      radial-gradient(115% 70% at 50% 40%, rgba(255,220,170,0.10), rgba(255,238,212,0) 62%),
+      rgba(11, 34, 25, 0.95);
   }
 
   /* Coin balance + inventory: pinned to the top of the shop, always visible. */
@@ -3973,13 +3990,16 @@
   #tissue {
     position: fixed; inset: 0;
     z-index: -1; pointer-events: none; overflow: hidden;
-    --vein: #d8c3b3;
-    /* warm cream radial base (soft, light) */
+    --vein: #2E5C48;   /* felt-visible deep sage veins */
+    /* deep casino-green felt: lifted table centre, darker vignette edges */
     background:
-      radial-gradient(circle at 28% 22%, rgba(205, 130, 150, 0.10), transparent 46%),
-      radial-gradient(circle at 78% 72%, rgba(160, 140, 200, 0.08), transparent 48%),
-      radial-gradient(ellipse at 50% 45%, var(--bg-2), var(--bg) 55%, #E2D6CB);
+      radial-gradient(circle at 28% 22%, rgba(64, 150, 110, 0.12), transparent 46%),
+      radial-gradient(circle at 78% 72%, rgba(28, 96, 88, 0.12), transparent 48%),
+      radial-gradient(ellipse at 50% 45%, var(--felt-2), var(--felt) 55%, var(--felt-3));
   }
+  /* Felt NAP: a static fine speckle over the whole surface — the fabric grain. */
+  #tissue::after { content: ""; position: absolute; inset: 0;
+    background: var(--felt-grain); background-size: 160px 160px; }
   /* Layer A — soft warm haze blobs, drifting very slowly. */
   #tissue .haze { position: absolute; inset: 0; }
   #tissue .blob {
@@ -3987,9 +4007,9 @@
     filter: blur(46px); opacity: 0.22;
     will-change: transform;
   }
-  #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #e9b9c8; animation: hazeDrift 34s ease-in-out infinite alternate; }
-  #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #cdbfe6; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
-  #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #ecd0b6; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
+  #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #2E7C5C; animation: hazeDrift 34s ease-in-out infinite alternate; }
+  #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #1E6A63; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
+  #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #35754A; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
   /* Perf: hold the slow background blobs while the on-board scene is idle (the
      accepted idle-settle) — imperceptible at their speed, but no per-frame
      compositing. They resume on any board action. */
@@ -4567,6 +4587,54 @@
   }
   .fd-art .fossil { width: 100%; height: 100%; }
   .fd-sub { font-size: 12px; color: var(--muted); margin-top: 12px; }
+  /* ============================================================
+     FELT CONTRAST PASS — every rule that put dark ink DIRECTLY on the old
+     cream background gets a light on-felt ink here (late in the sheet so it
+     wins ties). Panels, cards, buttons and chips deliberately KEEP the light
+     palette — they read as paper sitting on the felt table.
+     ============================================================ */
+  /* Menus + deck select */
+  .menu-title .mt-a, .menu-title .mt-b { color: #F2ECE2; }
+  .menu-tagline { color: var(--on-felt); }
+  .menu-foot { color: var(--on-felt-muted); }
+  .ds-name { color: var(--on-felt); }
+  .ds-panel.locked .ds-name { color: var(--on-felt-muted); }
+  .ds-sub { color: var(--on-felt-muted); }
+  .ds-lock { color: var(--on-felt-muted); background: rgba(240,234,224,0.08);
+    border-color: rgba(240,234,224,0.22); }
+  /* Overlays (start / deal summary / win / loss + the store/map shells) */
+  .overlay h2 { color: var(--on-felt); }
+  .overlay p { color: var(--on-felt-muted); }
+  .peek-hint { color: var(--on-felt-muted); }
+  /* Map: labels + band names directly on the felt ground */
+  .map-meta .mm-name { color: var(--on-felt); }
+  .map-meta .mm-name.mm-dim { color: var(--on-felt-muted); }
+  .pm-band-label.p-d { color: #E58BA4; }
+  .pm-band-label.p-c { color: #A9BCD9; }
+  .pm-band-label.p-s { color: #96A8CC; }
+  .map-stage .ms-line { background: rgba(240,234,224,0.22); }
+  /* Play screen: firm up the translucent-white strips (their inner ink is
+     dark), and light-ink the guess-side band that sits bare on the felt. */
+  .deck-strip { background: rgba(252,248,242,0.92); }
+  .rail .deck-stack { background: rgba(252,248,242,0.92); }
+  body.guess-side #histBand .ds-rank { color: var(--on-felt-muted); }
+  body.guess-side #histBand .ds-pip { background: rgba(240,234,224,0.26); }
+  body.guess-side #histBand .ds-bar.ds-active .ds-pip { background: rgba(240,234,224,0.44); }
+  body.guess-side #histBand .ds-bar.ds-active .ds-rank { color: var(--on-felt); }
+  /* Deck-select heading + the deal-status score row + the page footer */
+  .ds-title { color: var(--on-felt); }
+  .deal-status .hud-score { color: var(--on-felt); }
+  .deal-status .hud-score .hl, .deal-status .hud-score .hx { color: var(--on-felt-muted); }
+  footer { color: var(--on-felt-muted); }
+  /* Store shell text (the shelves' objects are already light-plated) */
+  .store-title { color: var(--on-felt); }
+  .store-balance { color: var(--on-felt-muted); }
+  .shelf-h .tag { color: var(--on-felt-muted); }
+  .store-shelf.z-mix .shelf-h { color: #9B82CF; }   /* violet, brightened for the felt */
+  .store-msg { color: var(--on-felt-muted); }
+  .store-loadout { background: rgba(240,234,224,0.07); border-color: rgba(240,234,224,0.20);
+    box-shadow: none; }
+  .store-loadout .shelf-h, .store-loadout .lo-col-n { color: var(--on-felt-muted); }
 </style>
 </head>
 <body>
@@ -5367,7 +5435,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.87 · fix: Wild Sticker rank roll; stable debug draws + tests";
+const APP_VERSION = "v3.88 · casino felt base, mellow win tunes, Sticker Harvest x2";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6249,7 +6317,7 @@ const BaseTypes = (() => {
     stickerHarvest: {
       id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
       kind: "active", effect: "stickerHarvest", target: "pile", tier: "uncommon", price: 11,
-      description: "Trigger: Activated (choose a pile), once per deal\nEffect: Bury 1 deck card under the chosen pile per sticker on its pile card, then strip every sticker off it",
+      description: "Trigger: Activated (choose a pile), once per deal\nEffect: Bury 2 deck cards under the chosen pile per sticker on its pile card, then peel those stickers off it",
     },
     refreshBases: {
       id: "refreshBases", label: "Reactor", icon: "⚛️",
@@ -9032,13 +9100,13 @@ const GameEngine = (() => {
         case "stickerHarvest": {
           const top = board.top(targetIndex);
           const n = (top.stickers || []).length;
-          if (n > 0) buryTribute(targetIndex, n, base.label);
-          // Strip every sticker + its projected flags off the live pile card.
+          const buried = n > 0 ? buryTribute(targetIndex, n * 2, base.label) : 0;   // 2 per sticker
+          // Peel every counted sticker + its projected flags off the live pile card.
           top.stickers = [];
           delete top.tieSafe; delete top.wildSuit; delete top.revealNext;
           delete top.heartsRemaining; delete top.suitGuards;
-          res.index = targetIndex; res.harvested = n;
-          logLine("buried " + n + " cards and removed " + n + " stickers from the pile card of pile " + (targetIndex + 1));
+          res.index = targetIndex; res.harvested = n; res.buried = buried;
+          logLine("buried " + buried + " cards and peeled " + n + " sticker" + (n === 1 ? "" : "s") + " off the pile card of pile " + (targetIndex + 1));
           break;
         }
         case "refreshBases": {
@@ -11878,11 +11946,14 @@ const Sound = (() => {
     const base = c.currentTime;
     notes.forEach(n => voice({ freq: n[0], dur: n[1], at: base + (n[2] || 0), type: n[3] || "sine", gain: n[4], glideTo: n[5] }));
   }
-  // a quick high sparkle (twinkly triad) for celebratory moments
-  function sparkle(off, g) {
+  // a quick high sparkle (twinkly triad) for celebratory moments. `scale`
+  // shifts the whole triad's pitch (0.5 = an octave down — the win tunes use
+  // it so their glitter isn't squeaky).
+  function sparkle(off, g, scale) {
     const c = ac(); if (!c) return;
     const base = c.currentTime + (off || 0);
-    [1568, 2093, 2637].forEach((f, i) => voice({ freq: f, dur: 0.09, type: "sine", gain: (g || 0.022), at: base + i * 0.035 }));
+    const k = scale || 1;
+    [1568, 2093, 2637].forEach((f, i) => voice({ freq: f * k, dur: 0.09, type: "sine", gain: (g || 0.022), at: base + i * 0.035 }));
   }
   const API = {
     isOn: () => !!enabled,
@@ -11910,21 +11981,26 @@ const Sound = (() => {
     // stinger: the opening arpeggio (the dance), a skipping second phrase, and
     // a settle-home cadence, sparkled throughout. Same cute voice as everything.
     dealWon() {
+      // An octave LOWER than the first pass (it was squeaky) with soft triangle
+      // roots underneath for warmth — same joyful shape, mellower register.
       seq([
-        // phrase 1 — the original happy arpeggio (the dance kick-off)
-        [523, 0.1, 0,    "sine", 0.05, 587], [659, 0.1, 0.09, "sine", 0.05],
-        [784, 0.1, 0.18, "sine", 0.05],      [1047, 0.16, 0.27, "sine", 0.05, 1175],
+        // warm roots under each phrase
+        [131, 0.5, 0,    "triangle", 0.034], [175, 0.5, 0.62, "triangle", 0.03],
+        [196, 0.5, 1.26, "triangle", 0.03],  [131, 0.7, 2.4,  "triangle", 0.034],
+        // phrase 1 — the happy arpeggio (the dance kick-off)
+        [262, 0.1, 0,    "sine", 0.05, 294], [330, 0.1, 0.09, "sine", 0.05],
+        [392, 0.1, 0.18, "sine", 0.05],      [523, 0.16, 0.27, "sine", 0.05, 587],
         // phrase 2 — a skipping answer
-        [784, 0.09, 0.62, "sine", 0.042], [880, 0.09, 0.73, "sine", 0.044],
-        [1047, 0.12, 0.84, "sine", 0.046, 988], [880, 0.09, 1.04, "sine", 0.042],
-        [988, 0.09, 1.15, "sine", 0.044],  [1175, 0.15, 1.26, "sine", 0.046, 1047],
-        // phrase 3 — wander down, then the big settle-home cadence
-        [1047, 0.1, 1.62, "sine", 0.04], [880, 0.1, 1.74, "sine", 0.038],
-        [784, 0.12, 1.86, "sine", 0.036], [659, 0.12, 2.0, "sine", 0.036, 587],
-        [784, 0.14, 2.22, "sine", 0.042, 880], [1047, 0.26, 2.4, "sine", 0.048, 1175],
-        [1319, 0.4, 2.72, "sine", 0.042, 1397],
+        [392, 0.09, 0.62, "sine", 0.044], [440, 0.09, 0.73, "sine", 0.046],
+        [523, 0.12, 0.84, "sine", 0.048, 494], [440, 0.09, 1.04, "sine", 0.044],
+        [494, 0.09, 1.15, "sine", 0.046],  [587, 0.15, 1.26, "sine", 0.048, 523],
+        // phrase 3 — wander down, then the settle-home cadence
+        [523, 0.1, 1.62, "sine", 0.042], [440, 0.1, 1.74, "sine", 0.04],
+        [392, 0.12, 1.86, "sine", 0.038], [330, 0.12, 2.0, "sine", 0.038, 294],
+        [392, 0.14, 2.22, "sine", 0.044, 440], [523, 0.26, 2.4, "sine", 0.05, 587],
+        [659, 0.4, 2.72, "sine", 0.044, 698],
       ]);
-      sparkle(0.34, 0.02); sparkle(1.35, 0.017); sparkle(2.45, 0.02); sparkle(2.95, 0.015);
+      sparkle(0.34, 0.015, 0.5); sparkle(1.35, 0.013, 0.5); sparkle(2.45, 0.015, 0.5); sparkle(2.95, 0.011, 0.5);
     },
     // DEAL LOST — a gentle, cute descending "aww" (not a harsh buzzer).
     dealLost() { seq([[494, 0.16, 0, "triangle", 0.05, 440], [392, 0.18, 0.14, "triangle", 0.05, 349], [294, 0.34, 0.3, "triangle", 0.05, 233]]); },
@@ -11932,21 +12008,26 @@ const Sound = (() => {
     // grander: a taller fanfare, a triumphant echo phrase, and a long ringing
     // home chord with extra sparkle. He made it back to mama.
     runClear() {
+      // Same landing-to-summary span, an octave DOWN with triangle roots —
+      // grand but mellow. He made it back to mama.
       seq([
+        // roots
+        [131, 0.6, 0,    "triangle", 0.036], [165, 0.6, 0.72, "triangle", 0.032],
+        [196, 0.6, 1.36, "triangle", 0.032], [131, 1.0, 2.44, "triangle", 0.038],
         // fanfare
-        [523, 0.12, 0,    "sine", 0.05, 587], [659, 0.12, 0.11, "sine", 0.05],
-        [784, 0.12, 0.22, "sine", 0.05],      [1047, 0.24, 0.33, "sine", 0.05, 1319],
-        // triumphant echo, higher
-        [784, 0.1, 0.72, "sine", 0.044], [988, 0.1, 0.83, "sine", 0.046],
-        [1175, 0.14, 0.94, "sine", 0.048, 1319], [1047, 0.1, 1.14, "sine", 0.044],
-        [1175, 0.1, 1.25, "sine", 0.046], [1319, 0.2, 1.36, "sine", 0.05, 1568],
+        [262, 0.12, 0,    "sine", 0.05, 294], [330, 0.12, 0.11, "sine", 0.05],
+        [392, 0.12, 0.22, "sine", 0.05],      [523, 0.24, 0.33, "sine", 0.05, 659],
+        // triumphant echo
+        [392, 0.1, 0.72, "sine", 0.046], [494, 0.1, 0.83, "sine", 0.048],
+        [587, 0.14, 0.94, "sine", 0.05, 659], [523, 0.1, 1.14, "sine", 0.046],
+        [587, 0.1, 1.25, "sine", 0.048], [659, 0.2, 1.36, "sine", 0.052, 784],
         // the long walk home — down, breathe, and the ringing final chord
-        [1175, 0.12, 1.72, "sine", 0.04], [1047, 0.12, 1.86, "sine", 0.038],
-        [880, 0.14, 2.0, "sine", 0.036, 784], [1047, 0.16, 2.24, "sine", 0.044, 1175],
-        [1319, 0.5, 2.44, "sine", 0.05, 1397], [1568, 0.55, 2.6, "sine", 0.032],
-        [2093, 0.5, 2.72, "sine", 0.02],
+        [587, 0.12, 1.72, "sine", 0.042], [523, 0.12, 1.86, "sine", 0.04],
+        [440, 0.14, 2.0, "sine", 0.038, 392], [523, 0.16, 2.24, "sine", 0.046, 587],
+        [659, 0.5, 2.44, "sine", 0.052, 698], [784, 0.55, 2.6, "sine", 0.034],
+        [1047, 0.5, 2.72, "sine", 0.02],
       ]);
-      sparkle(0.5, 0.024); sparkle(1.4, 0.02); sparkle(2.5, 0.024); sparkle(2.95, 0.02); sparkle(3.2, 0.016);
+      sparkle(0.5, 0.018, 0.5); sparkle(1.4, 0.015, 0.5); sparkle(2.5, 0.018, 0.5); sparkle(2.95, 0.015, 0.5); sparkle(3.2, 0.012, 0.5);
     },
     // A soft riffle for any pile shuffle (same everywhere a shuffle happens).
     shuffle() { seq([[520, 0.05, 0, "triangle", 0.03], [430, 0.05, 0.04, "triangle", 0.03], [360, 0.06, 0.08, "triangle", 0.028], [300, 0.06, 0.12, "triangle", 0.024]]); },
