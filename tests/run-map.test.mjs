@@ -546,6 +546,82 @@ export function run() {
     r.ok(!c.runWonBanked(), "reset() clears the bank for the next campaign");
   }
 
+  // ---- ENDLESS MODE: lazy stages above home, real entries, save round-trip --
+  {
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);
+    const map0 = c.getMap();
+    // Grow the deck like a real 3-stage traversal would (routes guarantee 11+
+    // cards per stage, so a real player reaches home with 46+): the endless
+    // bands are tuned for that reality, not a bare 13-card deck.
+    for (let k = 0; k < 8; k++) c.resolvePack({ type: "pack", packCount: 5, suit: "♦" });
+    c.moveToNode(map0.phases[2].bossId);
+    c.markNodeCleared(map0.phases[2].bossId);        // the ♠ boss falls
+    c.markRunWon();
+    c.moveToNode(map0.homeId);                        // Pinky steps home
+    r.ok(!c.isEndless(), "not endless before the choice");
+    c.startEndless();
+    r.ok(c.isEndless(), "startEndless flips the mode on");
+    r.eq(c.endlessStagesReached(), 1, "the first endless stage generated immediately");
+    const map1 = c.getMap();
+    r.eq(map1.phases.length, 4, "the map now holds a 4th (endless) stage");
+    const e1 = map1.phases[3];
+    r.eq(e1.suit, "★", "the endless stage is suit-★ (mixed)");
+    r.ok(c.nodeCleared(map1.homeId), "going endless clears home");
+    const homeN = map1.byId[map1.homeId];
+    r.ok(homeN.next.length >= 1 && homeN.next.every(id => map1.byId[id].phase === 3),
+      "home feeds the endless stage's openings (Pinky climbs past his house)");
+    r.ok(e1.rowStart > homeN.row, "the endless stage stacks ABOVE home");
+    r.ok(!c.isRunBoss(e1.bossId), "an endless boss is never the run boss");
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    r.eq(wire.stageEntryDecks.length, 4, "the endless entry joined stageEntryDecks");
+    r.eq(wire.stageEntryDecks[3], c.deckSize(), "…recorded at the REAL deck size (lazy rule)");
+    r.ok(wire.endless, "endless persists in the save");
+    // felling the endless boss generates the NEXT endless stage — lazily
+    c.markNodeCleared(e1.bossId);
+    r.eq(c.getMap().phases.length, 5, "felling the endless boss generates the next stage");
+    r.eq(c.endlessStagesReached(), 2, "two endless stages reached");
+    // the endless map restores IDENTICALLY (seed + real entries)
+    const wire2 = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire2), "an endless save restores");
+    r.ok(c2.isEndless(), "…still endless");
+    r.eq(c2.getMap().phases.length, 5, "…with all 5 stages");
+    r.eq(c2.getMap().phases[4].bossId, c.getMap().phases[4].bossId, "…identical (same seed + entries)");
+    c.reset();
+    r.ok(!c.isEndless(), "reset() leaves endless mode");
+  }
+
+  // ---- ENDLESS: bands rise per stage; pickups + packs grant all four suits --
+  {
+    const b2 = RunMap.bandsFor(2), b3 = RunMap.bandsFor(3), b4 = RunMap.bandsFor(4);
+    r.ok(b3.stage[0] > b2.stage[0] && b3.stage[1] > b2.stage[1]
+      && b3.boss[0] > b2.boss[0] && b3.boss[1] > b2.boss[1],
+      "endless stage 1 bands sit ABOVE the ♠ bands (deals " + b3.stage + " / boss " + b3.boss + ")");
+    r.ok(b4.stage[0] > b3.stage[0] && b4.boss[0] > b3.boss[0], "…and keep rising each endless stage");
+    const step = RunMap.GEN_CONFIG.endlessBandStep;
+    r.ok(Math.abs((b4.stage[0] - b3.stage[0]) - step) < 1e-9, "the rise per stage is endlessBandStep (" + step + ")");
+
+    // +1 nodes on endless stages lock cards from ALL FOUR suits (hearts too —
+    // dupes mint when a suit's unique cards are all owned).
+    const c = CampaignState.create();
+    c._setMapSpecialRoll(() => null);
+    const suits = new Set();
+    for (let i = 0; i < 60 && suits.size < 4; i++) {
+      const card = c.previewPickupCard({ id: 940000 + i, type: "pickup", phase: 3 });
+      if (card && card.suit) suits.add(card.suit);
+    }
+    r.eq(suits.size, 4, "endless +1 nodes lock all four suits (got " + [...suits].join("") + ")");
+
+    // endless packs mix suits per slot
+    const c2 = CampaignState.create();
+    c2._setMapSpecialRoll(() => null);
+    const packSuits = new Set();
+    for (let k = 0; k < 20 && packSuits.size < 4; k++)
+      c2.resolvePack({ type: "pack", packCount: 4, suit: "★", phase: 3 }).forEach(x => { if (x.suit) packSuits.add(x.suit); });
+    r.eq(packSuits.size, 4, "endless packs grant all four suits (got " + [...packSuits].join("") + ")");
+  }
+
   // ---- MAP SPECIALS: Joker + Blank as +1 pickups (roll pinned) -------------
   {
     // JOKER on a +1 node: previews face-up as a Joker, grants an OWNED Joker.

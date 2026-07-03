@@ -2127,6 +2127,14 @@
     box-shadow: var(--shadow);
   }
   .play-btn:active { transform: scale(0.97); }
+  /* Second overlay action (the victory screen's main-menu exit): a quieter,
+     outlined pill under the primary — the primary keeps the warm gradient. */
+  .play-btn.play-btn-2 {
+    margin-top: 10px; background: none; color: var(--on-felt);
+    border: 2px solid rgba(240, 234, 224, 0.45); box-shadow: none;
+    font-size: 15px; padding: 12px 32px;
+  }
+  .play-btn.play-btn-2.hidden { display: none; }
   /* In-board Start Run button (sticker phase). Sized like the guess row so the
      layout doesn't jump when it's swapped for the buttons. */
   /* Pre-deal action row: START DEAL is the wide primary that flex-grows; REDEAL
@@ -5100,6 +5108,7 @@
     </div>
     <div class="overlay-coins hidden" id="overlayCoins"></div>
     <button class="play-btn" id="playBtn">PLAY</button>
+    <button class="play-btn play-btn-2 hidden" id="playBtn2"></button>
     <div class="peek-hint hidden" id="peekHint"><span class="ico-slot" data-ico="eye"></span> Hold anywhere to peek the board</div>
   </div>
 
@@ -5507,7 +5516,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.97 · Pinky is home — the victory screen atop the map";
+const APP_VERSION = "v3.98 · Endless Mode — keep climbing past home, rising stakes";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6891,6 +6900,15 @@ const RunMap = (() => {
     firstDealBand: [1.25, 1.75], // the very first deal of the run (stage 0, row 0)
     stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
     bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
+    // ENDLESS band progression (bandsFor): every endless stage past ♠ lifts
+    // BOTH edges of both bands by +endlessBandStep over the previous stage —
+    // endless 1: deals [5.25, 6.75] / boss [6.75, 7.25]; endless 2: [6.5, 8.0]
+    // / [8.0, 8.5]; and so on, always above the ♠ bands and always rising.
+    // The step (1.25/stage) outpaces the deck's own growth rate against the
+    // 12-pile cap (~1.08/stage at +13 cards/stage), so the (deck − piles) /
+    // piles targets stay reachable indefinitely; the retry/relax ladder is
+    // untouched. TUNING KNOB: raise/lower for a steeper/gentler endless ramp.
+    endlessBandStep: 1.25,
 
     // Generation control.
     attempts: 60,                // tries per relax step before widening the ladder
@@ -6905,6 +6923,21 @@ const RunMap = (() => {
     maxRoutes: 40000,            // route-enumeration safety cap
   };
   const MAP_CONFIG = GEN_CONFIG;  // legacy alias (CampaignState reads phaseSuits/startSuit)
+
+  /* Per-stage difficulty bands, extended UPWARD for endless stages: stage p
+     past the authored arrays gets the ♠ bands lifted by endlessBandStep per
+     endless step (see the GEN_CONFIG comment for the exact progression). */
+  function bandsFor(phaseIndex) {
+    const C = GEN_CONFIG;
+    const last = C.stageBands.length - 1;
+    if (phaseIndex <= last) return { stage: C.stageBands[phaseIndex], boss: C.bossBands[phaseIndex] };
+    const lift = C.endlessBandStep * (phaseIndex - last);
+    const s = C.stageBands[last], b = C.bossBands[last];
+    return { stage: [s[0] + lift, s[1] + lift], boss: [b[0] + lift, b[1] + lift] };
+  }
+  /** A stage's suit: the authored ♦/♣/♠ schedule, then "★" for every endless
+      stage (mixed — pickups grant all four suits; see CampaignState). */
+  function suitFor(phaseIndex) { return GEN_CONFIG.phaseSuits[phaseIndex] || "★"; }
 
   const __genFails = {};
   function __genFail(tag) { __genFails[tag] = (__genFails[tag] || 0) + 1; return null; }
@@ -7165,8 +7198,9 @@ const RunMap = (() => {
     let prevRowMid = -Infinity, prevRow = -1, bossMid = null, maxRegMid = -Infinity;
     for (const n of dealNodes) {
       const e = ext[n.id] || { min: entryDeck, max: entryDeck };
-      const band = n.type === "boss" ? [C.bossBands[p][0], C.bossBands[p][1] + bandHiX]
-        : (p === 0 && n.row === 0 && opts.firstDeal !== false ? C.firstDealBand : C.stageBands[p]);
+      const pBands = bandsFor(p);
+      const band = n.type === "boss" ? [pBands.boss[0], pBands.boss[1] + bandHiX]
+        : (p === 0 && n.row === 0 && opts.firstDeal !== false ? C.firstDealBand : pBands.stage);
       const dMin = (e.min - n.piles) / n.piles;
       const dMax = (e.max - n.piles) / n.piles;
       const mid = ((e.min + e.max) / 2 - n.piles) / n.piles;
@@ -7268,7 +7302,7 @@ const RunMap = (() => {
      validator's job, not construction's — this just rolls and lightly repairs. */
   function tryBuildStage(phaseIndex, rng, entryDeck, relax) {
     const C = GEN_CONFIG;
-    const suit = C.phaseSuits[phaseIndex];
+    const suit = suitFor(phaseIndex);
     const bandHiExtra = relax * C.relaxBandStep;
     // ── CARD-BUDGET anchor (STRUCTURE-FREE, so infeasible relax rungs fail in
     //    microseconds and the ladder escalates instantly): the boss band caps
@@ -7277,7 +7311,7 @@ const RunMap = (() => {
     //    the LIGHT TARGET (>= the 11 floor; ♠ decks often need 12-15) and the
     //    HEAVY CAP; the repairs push the roll into that window. Windows
     //    narrower than 2 cards almost never converge — treat as infeasible. ──
-    const bossBand0 = C.bossBands[phaseIndex];
+    const bossBand0 = bandsFor(phaseIndex).boss;
     const bHiA = bossBand0[1] + bandHiExtra;
     let lightTarget = C.minRouteCards, heavyCap = Infinity, bestScore = -Infinity, bestSlack = -1;
     for (let p2 = C.minPiles; p2 <= C.maxPiles; p2++) {
@@ -7591,7 +7625,7 @@ const RunMap = (() => {
     //    whole attempt, the colliding deal CONVERTS to a +1 CARD node (another
     //    source of card pickups) and the pass restarts with fresh extremes.
     //    Deal-count minimums are re-validated afterwards. ──
-    const stageBand = C.stageBands[phaseIndex];
+    const stageBand = bandsFor(phaseIndex).stage;
     const sLo = stageBand[0], sHi = stageBand[1];
     const regHi = sHi;
     for (let restart = 0; restart < 4; restart++) {
@@ -7650,7 +7684,7 @@ const RunMap = (() => {
      band must hold at both the lightest and heaviest arriving deck. ── */
   function assignBossPiles(ph, entryDeck, phaseIndex, bandHiExtra) {
     const C = GEN_CONFIG;
-    const band = C.bossBands[phaseIndex];
+    const band = bandsFor(phaseIndex).boss;
     const hi = band[1] + (bandHiExtra || 0);
     const ext = deckExtremes(ph, entryDeck);
     for (const boss of ph.nodes.filter(n => n.type === "boss")) {
@@ -8044,8 +8078,10 @@ const RunMap = (() => {
     const nodes = [];
     const byId = {};
     let rowOffset = 0;
+    let homeNode = null;
     const NS = 1000;                                   // id namespace stride/phase
-    for (let p = 0; p < GEN_CONFIG.phaseSuits.length; p++) {
+    const BASE = GEN_CONFIG.phaseSuits.length;         // authored stages (3); p ≥ BASE = ENDLESS
+    for (let p = 0; p < entryDecks.length; p++) {
       if (entryDecks[p] == null) break;                // later stages: not yet entered
       const ph = buildPhase(p, seed, entryDecks[p]);
       if (!ph) {                                       // truly unsatisfiable → stop growing
@@ -8071,46 +8107,47 @@ const RunMap = (() => {
       };
       phases.push(meta);
       rowOffset += ph.rows;
+      // PINKY'S HOME — one single node directly ABOVE the final (♠) boss, the
+      // run's true finish line: felling the boss makes it the legal next step,
+      // and stepping onto it shows the "Pinky is home" victory screen. Endless
+      // stages (p ≥ BASE) stack ABOVE home — he climbs on past his own house.
+      if (p === BASE - 1) {
+        homeNode = { id: HOME_NODE_ID, type: "home", row: rowOffset, localRow: ph.rows,
+                     lane: 1, x: 0.5, suit: "♥", phase: p, next: [] };
+        nodes.push(homeNode); byId[homeNode.id] = homeNode;
+        byId[meta.bossId].next.push(homeNode.id);
+        rowOffset += 1;
+      }
     }
-    // Wire each phase's single boss → all of the next phase's openings.
+    // Wire each phase's single boss → all of the next phase's openings. The
+    // ♠ boss → home edge already exists; HOME feeds the first endless stage.
     for (let p = 0; p < phases.length - 1; p++) {
-      const boss = byId[phases[p].bossId];
       const opens = phases[p + 1].row0.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
-      boss.next = opens.map(o => o.id);
+      if (p === BASE - 1 && homeNode) homeNode.next = opens.map(o => o.id);
+      else byId[phases[p].bossId].next = opens.map(o => o.id);
     }
     if (!phases.length) {
       // Stage 0 failed to generate (should be unreachable — logged above).
       return { nodes: [], byId: {}, phases: [], row0: [], totalRows: 0,
                runBossId: null, runBossIds: null, stagesGenerated: 0 };
     }
-    // PINKY'S HOME — one single node directly ABOVE the final (♠) boss, the
-    // run's true finish line: felling the boss makes it the legal next step,
-    // and stepping onto it shows the "Pinky is home" victory screen. It only
-    // exists once the ♠ stage does (always, under full-map generation).
-    if (phases.length >= GEN_CONFIG.phaseSuits.length) {
-      const finalMeta = phases[GEN_CONFIG.phaseSuits.length - 1];
-      const home = { id: HOME_NODE_ID, type: "home", row: rowOffset, localRow: finalMeta.rows,
-                     lane: 1, x: 0.5, suit: "♥", phase: finalMeta.phase, next: [] };
-      nodes.push(home); byId[home.id] = home;
-      byId[finalMeta.bossId].next.push(home.id);
-      rowOffset += 1;
-    }
     return {
       nodes, byId, phases,
       row0: phases[0].row0,
-      homeId: phases.length >= GEN_CONFIG.phaseSuits.length ? HOME_NODE_ID : null,
+      homeId: homeNode ? homeNode.id : null,
       totalRows: rowOffset,
-      // The RUN boss exists only once the final (♠) stage has been generated;
-      // until then no boss can falsely end the run. (bossIds is kept as a
-      // 1-element array for save/API compatibility — always exactly one now.)
-      runBossId: phases.length === GEN_CONFIG.phaseSuits.length ? phases[phases.length - 1].bossId : null,
-      runBossIds: phases.length === GEN_CONFIG.phaseSuits.length ? phases[phases.length - 1].bossIds.slice() : null,
+      // The RUN boss is ALWAYS the ♠ (stage-3) boss — endless bosses above it
+      // never end the run. (bossIds is kept as a 1-element array for save/API
+      // compatibility — always exactly one now.)
+      runBossId: phases.length >= BASE ? phases[BASE - 1].bossId : null,
+      runBossIds: phases.length >= BASE ? phases[BASE - 1].bossIds.slice() : null,
       stagesGenerated: phases.length,
     };
   }
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
-           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks, __genFails };
+           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
+           bandsFor, __genFails };
 })();
 
 /* ----------------------------------------------------------------
@@ -10567,6 +10604,11 @@ const CampaignState = (() => {
     // that moment, so an endless death only adds the flips made SINCE.
     let runWonBanked = false;
     let cardsFlippedBanked = 0;
+    // ENDLESS MODE: chosen on the victory screen. Stages past the ♠ boss
+    // generate LAZILY (each endless boss's fall generates the next, from the
+    // REAL deck size — the original grow-as-you-go rule) with rising bands
+    // (RunMap.bandsFor) and all-four-suit pickups. Persisted.
+    let endless = false;
     let baseDeck = DeckManager.buildStandardDeck(); // PERSISTENT 52-card identity set
     let coins = 0;                 // spendable currency, persists across runs
     // Lifetime-stats guard: has THIS campaign already been counted as a "run
@@ -10626,7 +10668,9 @@ const CampaignState = (() => {
     const PHASE_SUITS = RunMap.MAP_CONFIG.phaseSuits;   // ["♦","♣","♠"]
     const START_SUIT = RunMap.MAP_CONFIG.startSuit;     // "♥"
     function idsOfSuit(suit) { return baseDeck.filter(c => c.suit === suit).map(c => c.id); }
-    function phaseSuit() { return PHASE_SUITS[phaseIndex]; }
+    // Clamped: endless phases (index ≥ 3) read as ♠ for every suit-flavoured
+    // display (tints, labels); endless-specific behavior keys off node.phase.
+    function phaseSuit() { return PHASE_SUITS[Math.min(phaseIndex, PHASE_SUITS.length - 1)]; }
     /** Suits currently in play (drives item suit-gating): hearts (pre-held) +
         every phase suit traveled so far, including the current one. */
     function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
@@ -10648,6 +10692,15 @@ const CampaignState = (() => {
       // the permanent base-52 identities. Blanks never enter baseDeck at all.
       const own = new Set(ownedIds);
       baseDeck = baseDeck.filter(c => !(c.joker || c.blank) || own.has(c.id));
+      lockAllPickupCards();
+    }
+    /** ENDLESS growth: push the REAL deck size as the next stage's entry and
+        regenerate the run — the new stage stacks above everything, home
+        included. lockAllPickupCards re-locks only the NEW stage's +1 nodes
+        (committed ones are cached in nodeCards). */
+    function extendEndless() {
+      stageEntryDecks.push(ownedIds.length);
+      runMap = RunMap.generateRun(runSeed, stageEntryDecks);
       lockAllPickupCards();
     }
     /** LEGACY grow-as-you-go path: with full-map generation (genRunMap) every
@@ -10758,11 +10811,23 @@ const CampaignState = (() => {
       const special = rollMapSpecial(rng);
       if (special != null) return special ? SPECIAL_JOKER : SPECIAL_BLANK;
       const taken = reservedSet(node.id);
-      let pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
-      if ((node && node.mixed) || pool.length === 0) {
-        // any-card fallback: never a Joker/Blank (see pickDraftId)
-        const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
-        if (any.length) pool = any;
+      // ENDLESS stages: +1 nodes grant ALL FOUR suits at random — a seeded
+      // suit roll first (hearts included), then that suit's unclaimed pool,
+      // minting a duplicate when the suit's unique cards are all spoken for
+      // (exactly how packs keep granting an exhausted suit).
+      const endlessNode = node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length;
+      let pool;
+      if (endlessNode) {
+        const suit = ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)];
+        pool = idsOfSuit(suit).filter(id => !taken.has(id));
+        if (!pool.length) pool = [mintSuitCardId(suit)];
+      } else {
+        pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
+        if ((node && node.mixed) || pool.length === 0) {
+          // any-card fallback: never a Joker/Blank (see pickDraftId)
+          const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
+          if (any.length) pool = any;
+        }
       }
       if (!pool.length) return null;
       return pool[Math.floor(rng() * pool.length)];
@@ -10851,6 +10916,13 @@ const CampaignState = (() => {
       markNodeCleared(id) {
         if (clearedNodes.indexOf(id) === -1) clearedNodes.push(id);
         maybeExtendMap(id);   // a phase boss falling generates the next stage (real deck size)
+        // ENDLESS: the TOP endless stage's boss falling generates the next
+        // stage — lazily, from the REAL deck size at that moment (the
+        // original grow-as-you-go rule, revived above home).
+        if (endless && runMap && runMap.phases.length > PHASE_SUITS.length) {
+          const top = runMap.phases[runMap.phases.length - 1];
+          if (top.phase >= PHASE_SUITS.length && (top.bossIds || [top.bossId]).indexOf(id) !== -1) extendEndless();
+        }
       },
       nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
       clearedNodeIds() { return clearedNodes.slice(); },
@@ -10933,7 +11005,12 @@ const CampaignState = (() => {
       resolvePack(node) {
         const out = [];
         const n = (node && node.packCount) || 3;
-        const suit = (node && node.suit) || phaseSuit();   // the displayed suit is the source of truth
+        // ENDLESS packs (node suit "★" / endless phase) grant ALL FOUR suits:
+        // each slot rolls its own random suit. Base-run packs keep granting
+        // exactly their displayed suit. Specials roll the same either way.
+        const endlessNode = (node && node.suit === "★")
+          || (node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length);
+        const suit = (node && node.suit && node.suit !== "★") ? node.suit : phaseSuit();
         for (let i = 0; i < n; i++) {
           const special = rollMapSpecial(Math.random);
           if (special != null) {
@@ -10941,7 +11018,8 @@ const CampaignState = (() => {
             else out.push(specialCardFor(SPECIAL_BLANK));   // a removal, never a deck slot
             continue;
           }
-          const id = pickSuitDraftId(suit); if (id == null) break; ownedIds.push(id); out.push(findById(id));
+          const slotSuit = endlessNode ? ALL_SUITS[Math.floor(Math.random() * ALL_SUITS.length)] : suit;
+          const id = pickSuitDraftId(slotSuit); if (id == null) break; ownedIds.push(id); out.push(findById(id));
         }
         return out;
       },
@@ -10998,6 +11076,21 @@ const CampaignState = (() => {
       markRunWon() { runWonBanked = true; cardsFlippedBanked = totalCardsFlipped; },
       runWonBanked() { return runWonBanked; },
       unbankedCardsFlipped() { return Math.max(0, totalCardsFlipped - cardsFlippedBanked); },
+
+      /* ---- ENDLESS MODE (chosen on the victory screen) ---- */
+      isEndless() { return endless; },
+      /** Turn endless on: home is cleared, and the FIRST endless stage
+          generates right now from the REAL deck size. Every later stage
+          generates as its predecessor's boss falls (markNodeCleared). */
+      startEndless() {
+        if (endless) return;
+        endless = true;
+        if (runMap && runMap.homeId != null && clearedNodes.indexOf(runMap.homeId) === -1)
+          clearedNodes.push(runMap.homeId);
+        extendEndless();
+      },
+      /** Endless stages ENTERED so far (1 = the first stage above home). */
+      endlessStagesReached() { return Math.max(0, stageEntryDecks.length - PHASE_SUITS.length); },
 
       /* ---- Same Charge (persists across deals, resets per run) ---- */
       getSameCharge() { return sameCharge; },
@@ -11840,6 +11933,7 @@ const CampaignState = (() => {
         playedCounted = false;
         runWonBanked = false;
         cardsFlippedBanked = 0;
+        endless = false;
         sameCharge = false;
         stickerInventory = {};
         pillarInventory = {};
@@ -11877,6 +11971,7 @@ const CampaignState = (() => {
           coins,
           playedCounted,
           runWonBanked, cardsFlippedBanked,   // ♠-boss win banking (endless death can't undo/duplicate it)
+          endless,                            // endless mode chosen (stages past ♠ in stageEntryDecks)
           sameCharge,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
@@ -11916,7 +12011,10 @@ const CampaignState = (() => {
         // migration: every stage up to the CURRENT phase is assumed entered at
         // the restored deck size (13 for stage 0) — approximate but playable.
         if (Array.isArray(s.stageEntryDecks)) {
-          stageEntryDecks = [null, null, null].map((_, p) => (s.stageEntryDecks[p] != null ? s.stageEntryDecks[p] : null));
+          // Variable length: entries past the base 3 are ENDLESS stages
+          // (real deck sizes) — keep them all so the endless map regenerates.
+          stageEntryDecks = s.stageEntryDecks.slice();
+          while (stageEntryDecks.length < PHASE_SUITS.length) stageEntryDecks.push(null);
           if (stageEntryDecks[0] == null) stageEntryDecks[0] = RunMap.GEN_CONFIG.startDeckSize;
         } else {
           stageEntryDecks = [RunMap.GEN_CONFIG.startDeckSize, null, null];
@@ -11943,6 +12041,7 @@ const CampaignState = (() => {
         playedCounted = !!s.playedCounted;   // default false for pre-guard saves
         runWonBanked = !!s.runWonBanked;     // default false for pre-home saves
         cardsFlippedBanked = s.cardsFlippedBanked || 0;
+        endless = !!s.endless;               // default false for pre-endless saves
         sameCharge = !!s.sameCharge;
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
@@ -12052,6 +12151,7 @@ const Stats = (() => {
     lifetimeCardsDrawn: 0,
     lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
+    bestEndless: 0,   // deepest ENDLESS stage ever entered (0 = never went endless)
   };
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
   function get() {
@@ -12088,6 +12188,8 @@ const Stats = (() => {
     },
     /** Add to the lifetime cards-flipped tally (called once per campaign end). */
     addCardsFlipped(n) { const s = get(); s.lifetimeCardsFlipped += Math.max(0, n || 0); put(s); },
+    /** Deepest endless stage entered — recorded as each endless stage opens. */
+    endlessReached(n) { const s = get(); s.bestEndless = Math.max(s.bestEndless || 0, n || 0); put(s); },
     /** Fold a finished deal's draw/guess counts into the lifetime tallies (every
         deal end — win or loss). `drawn` = cards drawn during play (guesses plus
         non-guess movements like bury/donate); `correct`/`total` are the guess
@@ -12622,6 +12724,7 @@ const UIRenderer = (() => {
     overlayCoins: document.getElementById("overlayCoins"),
     peekHint: document.getElementById("peekHint"),
     playBtn: document.getElementById("playBtn"),
+    playBtn2: document.getElementById("playBtn2"),
     buildTag: document.getElementById("buildTag"),
     // deck inspection
     deckStat: document.getElementById("deckStat"),
@@ -12778,7 +12881,8 @@ const UIRenderer = (() => {
 
   let engine = null;
   let campaign = null;        // persists across runs (campaign-level only)
-  let overlayAction = null;   // what the single overlay button does right now
+  let overlayAction = null;   // what the primary overlay button does right now
+  let overlayAction2 = null;  // the optional second overlay button's action (victory screen)
   let overlayPeekable = false; // run-complete screens allow hold-to-peek the board
   let selected = null;        // currently selected pile index, or null
   let peelPendingIndex = null; // pile index whose card awaits a peel confirmation
@@ -13916,9 +14020,12 @@ const UIRenderer = (() => {
   function updateStageRun() {
     if (!campaign) return;
     const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
-    const phaseNo = (campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0) + 1;
+    const phaseIdx = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;
     const phases = campaign.phasesTotal ? campaign.phasesTotal() : 3;
-    const sr = suit + " " + (PHASE_LABEL[suit] || "") + " " + phaseNo + "/" + phases
+    // Past the base phases = ENDLESS: label by endless stage, not "4/3".
+    const sr = (phaseIdx >= phases
+      ? "★ Endless " + (phaseIdx - phases + 1)
+      : suit + " " + (PHASE_LABEL[suit] || "") + " " + (phaseIdx + 1) + "/" + phases)
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
     const tracker = suitTrackerHtml();
@@ -15514,6 +15621,7 @@ const UIRenderer = (() => {
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
     el.playBtn.addEventListener("click", () => { Sound.continueTap(); if (overlayAction) overlayAction(); });
+    if (el.playBtn2) el.playBtn2.addEventListener("click", () => { Sound.continueTap(); if (overlayAction2) overlayAction2(); });
 
     // Deck picker: a Start button runs the (unlocked) Pink Deck; locked decks have
     // none. Back returns to the menu we came from. Dots track the swiped page.
@@ -17080,6 +17188,12 @@ const UIRenderer = (() => {
 
     el.playBtn.textContent = opts.btnLabel;
     overlayAction = opts.action;
+    // Optional SECOND action (e.g. the victory screen's main-menu exit).
+    if (el.playBtn2) {
+      el.playBtn2.classList.toggle("hidden", !opts.btn2Label);
+      if (opts.btn2Label) el.playBtn2.textContent = opts.btn2Label;
+      overlayAction2 = opts.btn2Label ? (opts.btn2Action || null) : null;
+    }
   }
 
   /* Single source of truth for the global nav corner buttons. Each screen's
@@ -17174,9 +17288,12 @@ const UIRenderer = (() => {
   /* ---- phase screens ---- */
   /** Concise phase + deck-size summary for the end screen (no score — survival). */
   function stageRunShort() {
+    const pi = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;
+    const totalP = campaign.phasesTotal ? campaign.phasesTotal() : 3;
+    // Past the base phases = ENDLESS: label by endless stage number instead.
+    if (pi >= totalP) return "ENDLESS stage " + (pi - totalP + 1) + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
-    return suit + " phase " + ((campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0) + 1)
-      + "/" + (campaign.phasesTotal ? campaign.phasesTotal() : 3)
+    return suit + " phase " + (pi + 1) + "/" + totalP
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
   }
 
@@ -17323,13 +17440,25 @@ const UIRenderer = (() => {
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
       peek: false,
-      btnLabel: "GO TO MAIN MENU",
-      action: () => {
+      btnLabel: "CONTINUE — ENDLESS MODE",
+      action: enterEndlessMode,
+      btn2Label: "GO TO MAIN MENU",
+      btn2Action: () => {
         // The campaign is complete (win banked at the boss). Nothing to resume.
         clearSave();
         showMainMenu(false);
       },
     });
+  }
+
+  /* ENDLESS MODE: home clears, the first endless stage generates from the real
+     deck size, and Pinky keeps climbing — same map, stages now stack above his
+     own house. Every later stage generates as its predecessor's boss falls. */
+  function enterEndlessMode() {
+    campaign.startEndless();
+    Stats.endlessReached(campaign.endlessStagesReached());   // endless stage 1 entered
+    persistCampaign("map");
+    showProgressionMap(startRun);
   }
 
   /* ---- campaign / run lifecycle ----
@@ -19007,6 +19136,9 @@ const UIRenderer = (() => {
     // boss = runMap.runBossId) ends the run as a WIN.
     const clearedNode = campaign.currentNode();
     if (clearedNode) campaign.markNodeCleared(clearedNode.id);
+    // ENDLESS: an endless boss falling just generated the NEXT stage — record
+    // the new depth in lifetime stats as each stage opens.
+    if (campaign.isEndless && campaign.isEndless()) Stats.endlessReached(campaign.endlessStagesReached());
     const runWon = !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
 
     // DEAL CLEARED → happy dance + WIN MUSIC, both at the instant the FINAL
@@ -19257,7 +19389,7 @@ const UIRenderer = (() => {
   const MAP_ROW_H = 104, MAP_PAD = 46, MAP_W = 348;
   const MAP_MIN_GAP = 60;   // min horizontal centre-to-centre spacing within a row (node footprint + margin)
   const MAP_HOME_GAP = 40;  // extra space below ♦ row 0 for the HOME/origin node (clear of the first deal)
-  const SUIT_PHASE_NAME = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts" };
+  const SUIT_PHASE_NAME = { "♦": "Diamonds", "♣": "Clubs", "♠": "Spades", "♥": "Hearts", "★": "Endless" };
   const SUIT_CLASS = { "♦": "d", "♣": "c", "♠": "s", "♥": "h" };
   /* Total phase-map height + the HOME node centre, shared by the renderer, the
      edges and the avatar so the marker, the home tile and the trail all agree. */
@@ -19591,7 +19723,7 @@ const UIRenderer = (() => {
      markup + its `el.debugMapAddr` ref, and its change handler. */
   let mapAddrDebug = false;
   function buildMapAddresses(map) {
-    const PH = { "♦": "D", "♣": "C", "♠": "S", "♥": "H" };
+    const PH = { "♦": "D", "♣": "C", "♠": "S", "♥": "H", "★": "E" };   // E = endless stages
     const groups = {};                                  // "phase|localRow" → [nodes]
     map.nodes.forEach(n => { const k = n.phase + "|" + n.localRow; (groups[k] = groups[k] || []).push(n); });
     const addr = {};
@@ -19726,8 +19858,11 @@ const UIRenderer = (() => {
     el.mapOverlay.classList.remove("tint-d", "tint-c", "tint-s");
     el.mapOverlay.classList.add("tint-" + (SUIT_CLASS[suit] || "d"));
     if (el.mapPhase) {
-      el.mapPhase.innerHTML = '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
-        ' · phase ' + (campaign.getPhaseIndex() + 1) + '/' + campaign.phasesTotal();
+      const pIdx = campaign.getPhaseIndex();
+      el.mapPhase.innerHTML = pIdx >= campaign.phasesTotal()
+        ? '<b>Endless</b> ★ · stage ' + (pIdx - campaign.phasesTotal() + 1)
+        : '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
+          ' · phase ' + (pIdx + 1) + '/' + campaign.phasesTotal();
     }
     document.body.classList.add("on-map");   // hides the deck-slot character (trail char only)
     el.mapOverlay.classList.remove("hidden");
@@ -21638,6 +21773,7 @@ const UIRenderer = (() => {
       [s.lifetimeCorrectGuesses + pct(acc), "Correct draws"],
       [s.lifetimeDopamine, "Lifetime coins"],
       [s.bestCampaignDopamine, "Most coins in a run"],
+      [s.bestEndless || 0, "Deepest endless stage"],
     ];
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
       '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
