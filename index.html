@@ -4167,43 +4167,47 @@
 
   /* DEAL / BOSS — a tilted mini CLUSTER of board-cards ("a deal"). Sized for
      the 3-lane grid (~115px lane pitch on a 348px map). */
-  .mn-cluster { position: relative; display: block; width: 52px; height: 46px;
-    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
-  .mn-cluster .mcl-card { position: absolute; top: 50%; left: 50%; width: 25px; height: 34px;
-    border-radius: 4px; background: var(--card-face); border: 1px solid var(--card-border);
-    box-shadow: 0 1px 3px rgba(74,50,40,0.18); }
-  .mn-cluster .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-11px); }
-  .mn-cluster .mcl-card.b { transform: translate(-50%,-50%) rotate(2deg); z-index: 1; }
-  .mn-cluster .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(11px); }
-  .mn-cluster.big { width: 72px; height: 62px; }
-  .mn-cluster.big .mcl-card { width: 34px; height: 46px; }
-  .mn-cluster.big .mcl-card.a { transform: translate(-50%,-50%) rotate(-13deg) translateX(-15px); }
-  .mn-cluster.big .mcl-card.c { transform: translate(-50%,-50%) rotate(13deg) translateX(15px); }
-  /* Boss = climactic: a warm glow ring behind the larger cluster. */
-  .t-boss .mn-cluster.big::before { content: ""; position: absolute; inset: -12px; z-index: -1;
+  /* DEAL (and BOSS = .big) — a SYNAPSE WEB: four nodes linked to a central hub,
+     with a jagged CRACK/burst at the centre (battle/danger). Rose links/nodes,
+     dark crack with a light rose edge — the game's rose/dark palette. */
+  .mn-synapse { position: relative; display: block; width: 52px; height: 46px;
+    filter: drop-shadow(0 3px 6px rgba(120,45,70,0.28)); }
+  .mn-synapse svg { width: 100%; height: 100%; display: block; }
+  .mn-synapse .syn-links path { stroke: #b23a5c; stroke-width: 2; fill: none; }
+  .mn-synapse .syn-links .syn-faint { stroke-opacity: 0.35; stroke-width: 1.4; }
+  .mn-synapse .syn-nodes circle { fill: #b23a5c; }
+  .mn-synapse .syn-crack { fill: #3b2433; stroke: #e0738f; stroke-width: 1.2; stroke-linejoin: bevel; }
+  .mn-synapse.big { width: 72px; height: 62px; }
+  /* Boss = climactic: the same warm glow ring behind the larger web. */
+  .t-boss .mn-synapse.big::before { content: ""; position: absolute; inset: -12px; z-index: -1;
     border-radius: 50%; background: radial-gradient(circle, rgba(199,126,31,0.40), rgba(199,126,31,0) 70%); }
 
-  /* PACK (2+) — purple stacked cards + a "+N ♦" count badge (artifact family). */
+  /* PACK (2+) — stacked cards in the DECK CHARACTER's pink (they join Pinky's
+     deck, so they wear his colour) + a "+N ♦" count badge. */
   .mn-pack { position: relative; display: block; width: 42px; height: 50px;
-    filter: drop-shadow(0 4px 9px rgba(60,40,80,0.30)); }
+    filter: drop-shadow(0 4px 9px rgba(120,45,70,0.30)); }
   .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 30px; height: 40px;
-    border-radius: 5px; border: 1px solid rgba(255,255,255,0.30);
-    background: linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
+    border-radius: 5px; border: 1px solid rgba(255,255,255,0.40);
+    background: linear-gradient(155deg, #e0738f, #b23a5c); }   /* --dc-1 / --dc-2 */
   .mn-pack .mpk-card.a { transform: translate(-50%,-50%) rotate(-8deg) translate(-4px,2px); }
   .mn-pack .mpk-card.b { transform: translate(-50%,-50%) rotate(0deg); z-index: 1;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
   .mn-pack .mpk-card.c { transform: translate(-50%,-50%) rotate(8deg) translate(4px,-2px); }
   .mn-pack .mpk-badge { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
     z-index: 4; padding: 1px 6px; border-radius: 999px; white-space: nowrap;
-    font-size: 11px; font-weight: 900; color: #fff; background: var(--pathway);
-    border: 1px solid var(--pathway-2); box-shadow: 0 2px 6px rgba(60,40,80,0.3); }
+    font-size: 11px; font-weight: 900; color: #fff; background: #b23a5c;
+    border: 1px solid #93304c; box-shadow: 0 2px 6px rgba(120,45,70,0.3); }
   .mn-pack .mpk-badge i { font-style: normal; }
 
-  /* STORE — a shop tile resting on the same warm ground. */
-  .mn-shop { display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 12px; font-size: 22px;
-    background: var(--panel); border: 1.5px solid var(--pathway-2);
-    box-shadow: 0 4px 10px rgba(74,50,40,0.18); }
+  /* STORE — a little SHOP STALL: striped triangular awning over a rectangular
+     stall body with a doorway, in the rose/dark palette. */
+  .mn-shop { position: relative; display: block; width: 44px; height: 40px;
+    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+  .mn-shop svg { width: 100%; height: 100%; display: block; }
+  .mn-shop .st-body { fill: #f6ecdd; stroke: #3b2433; stroke-width: 1.5; }
+  .mn-shop .st-door { fill: #3b2433; }
+  .mn-shop .st-awn-a { fill: #b23a5c; }   /* awning stripes — deep rose… */
+  .mn-shop .st-awn-b { fill: #e0738f; }   /* …alternating with light rose */
 
   /* HOME / origin node — a little base camp where the run begins. Non-interactive;
      visually distinct from every action node (a warm hut, not a card/foil). The
@@ -5350,7 +5354,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.83 · tutorial copy pass (edited text, new anchors, split shop tips)";
+const APP_VERSION = "v3.84 · map icons: synapse-crack deals, stall stores, pink packs";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -18749,11 +18753,24 @@ const UIRenderer = (() => {
         '<span class="rank-bottom"><span class="r">' + lbl + '</span><span class="s">' + g + '</span></span>' +
       '</span></span>';
   }
-  /* DEAL / BOSS → a tiny tilted CLUSTER of mini board-cards (reads as "a deal")
-     with an amber pile-count chip. `big` = the boss (larger, glow ring). */
+  /* DEAL / BOSS → a SYNAPSE WEB: four nodes linked to a central hub, a jagged
+     crack/burst at the centre (battle/danger), plus the amber pile-count chip.
+     `big` = the boss (larger, glow ring via .t-boss CSS). */
   function mapDealCluster(n, big) {
-    return '<span class="mn-cluster' + (big ? " big" : "") + '">' +
-        '<span class="mcl-card a"></span><span class="mcl-card b"></span><span class="mcl-card c"></span>' +
+    return '<span class="mn-synapse' + (big ? " big" : "") + '">' +
+        '<svg viewBox="0 0 48 44" aria-hidden="true">' +
+          '<g class="syn-links">' +
+            '<path d="M24 22 L9 9"/><path d="M24 22 L39 8"/>' +
+            '<path d="M24 22 L7 35"/><path d="M24 22 L41 33"/>' +
+            '<path class="syn-faint" d="M9 9 L39 8"/><path class="syn-faint" d="M7 35 L41 33"/>' +
+          '</g>' +
+          '<g class="syn-nodes">' +
+            '<circle cx="9" cy="9" r="4"/><circle cx="39" cy="8" r="3.4"/>' +
+            '<circle cx="7" cy="35" r="3.4"/><circle cx="41" cy="33" r="4"/>' +
+          '</g>' +
+          '<path class="syn-crack" d="M24 10 L26.5 17.5 L34 13 L28.5 21 L37 25 L28 26 ' +
+            'L29 34 L23.5 27.5 L17 33 L20 25.5 L11 24 L19.5 20 L16 11 L23 16.5 Z"/>' +
+        '</svg>' +
         '<span class="mn-piles">' + n.piles + '</span>' +
       '</span>';
   }
@@ -18763,6 +18780,20 @@ const UIRenderer = (() => {
     return '<span class="mn-pack">' +
         '<span class="mpk-card a"></span><span class="mpk-card b"></span><span class="mpk-card c"></span>' +
         '<span class="mpk-badge">+' + (n.packCount || 3) + ' <i>' + (n.suit || "") + '</i></span>' +
+      '</span>';
+  }
+  /* STORE → a little SHOP STALL: striped triangular awning over a stall body
+     with a doorway (rose/dark palette; colours in the .mn-shop CSS). */
+  function mapShopStall() {
+    return '<span class="mn-shop">' +
+        '<svg viewBox="0 0 44 40" aria-hidden="true">' +
+          '<rect class="st-body" x="7" y="15" width="30" height="21" rx="2"/>' +
+          '<rect class="st-door" x="18.5" y="23" width="9" height="13" rx="1.5"/>' +
+          '<path class="st-awn-a" d="M22 3 L4 16 L13 16 Z"/>' +
+          '<path class="st-awn-b" d="M22 3 L13 16 L22 16 Z"/>' +
+          '<path class="st-awn-a" d="M22 3 L22 16 L31 16 Z"/>' +
+          '<path class="st-awn-b" d="M22 3 L31 16 L40 16 Z"/>' +
+        '</svg>' +
       '</span>';
   }
   /* A single-card node's inner content. Every +1 node is locked to an exact card
@@ -18777,7 +18808,7 @@ const UIRenderer = (() => {
   function mapNodeInner(n, suit, state) {
     if (n.type === "boss") return mapDealCluster(n, true);
     if (n.type === "deal") return mapDealCluster(n, false);
-    if (n.type === "store") return '<span class="mn-shop">🛍</span>';
+    if (n.type === "store") return mapShopStall();
     if (n.type === "pack") return mapPackStack(n);                      // 2+ cards → sealed pack (count only)
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
