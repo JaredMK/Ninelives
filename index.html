@@ -4546,7 +4546,23 @@
     background: radial-gradient(circle at 35% 28%, #e997b3, #c25f83 85%);
     box-shadow: 0 3px 8px rgba(74,50,40,0.42),
       inset 0 -8px 12px rgba(0,0,0,0.18), inset 0 5px 9px rgba(255,255,255,0.22); }
-  .ch-mamma { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%23a24467' fill-opacity='.5'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23ffe3ec' stroke-opacity='.7' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* CLEAN AND WARM — the dirt/scuff/patch wear belongs to PINKY only. Mamma's
+     body layers become a soft warm sheen; the silhouette softens; a small
+     rose BOW sits centred on the lid (the x-mouth node repurposed — knot +
+     two ::before/::after wings). No grime ever (::before layer off). */
+  .ch-mamma .dc-body::before, .ch-mamma .av-body::before { display: none; }
+  .ch-mamma .dc-body::after, .ch-mamma .av-body::after {
+    background: radial-gradient(70% 45% at 32% 20%, rgba(255,255,255,0.22), transparent 72%),
+      radial-gradient(80% 50% at 50% 108%, rgba(120,40,70,0.18), transparent 70%); }
+  .ch-mamma .dc-body, .ch-mamma .av-body { border-radius: 14px; }   /* softer, rounder */
+  .ch-mamma .x-mouth { display: block; top: 3%; left: 50%; width: 9%; height: 8%;
+    margin-left: -4.5%; background: #a83a5e; border-radius: 32%; z-index: 3;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.25); }
+  .ch-mamma .x-mouth::before, .ch-mamma .x-mouth::after { content: ""; position: absolute;
+    top: -16%; width: 135%; height: 132%; background: #c94f74;
+    box-shadow: inset 0 -1px 1px rgba(0,0,0,0.18); }
+  .ch-mamma .x-mouth::before { right: 88%; border-radius: 62% 14% 58% 62%; transform: rotate(15deg); }
+  .ch-mamma .x-mouth::after { left: 88%; border-radius: 14% 62% 62% 58%; transform: rotate(-15deg); }
   /* white doe eyes: the wrapper becomes the shaded eyeball, the pupil a dot */
   .deck-char.ch-mamma .dc-eye { width: 23%; max-width: 11px; min-height: 9px; aspect-ratio: 4.4 / 5;
     background: radial-gradient(circle at 40% 30%, #fff, #e8e2e4 90%); border-radius: 50%;
@@ -4626,7 +4642,13 @@
     background: radial-gradient(circle at 35% 28%, #96a687, #5f6f52 85%);
     box-shadow: 0 3px 8px rgba(40,50,35,0.45),
       inset 0 -8px 12px rgba(0,0,0,0.2), inset 0 5px 9px rgba(255,255,255,0.2); }
-  .ch-smith { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%2346543c' fill-opacity='.55'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23d9e4cf' stroke-opacity='.65' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* GROOMED AND POLISHED — no dirt (Pinky-only). The wear layers become a
+     crisp diagonal SHEEN over faint tailored pinstripes; grime layer off. */
+  .ch-smith .dc-body::before, .ch-smith .av-body::before { display: none; }
+  .ch-smith .dc-body::after, .ch-smith .av-body::after {
+    background:
+      linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.26) 42%, rgba(255,255,255,0.06) 54%, transparent 64%),
+      repeating-linear-gradient(90deg, transparent 0 9%, rgba(255,255,255,0.055) 9% 10.5%); }
   /* the top hat replaces the box lid */
   .ch-smith .dc-lid, .ch-smith .av-lid { opacity: 0; }
   .ch-smith .x-hat { display: block; left: 27%; width: 46%; height: 15%; top: -10%;
@@ -4727,7 +4749,16 @@
     background: radial-gradient(circle at 35% 28%, #a494b4, #6c5c82 85%);
     box-shadow: 0 3px 8px rgba(45,35,60,0.45),
       inset 0 -8px 12px rgba(0,0,0,0.2), inset 0 5px 9px rgba(255,255,255,0.2); }
-  .ch-lammy { --char-patch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 38'%3E%3Cg transform='rotate(-7 22 19)'%3E%3Crect x='4' y='4' width='36' height='30' rx='6' fill='%2355486a' fill-opacity='.55'/%3E%3Crect x='7.5' y='7.5' width='29' height='23' rx='4' fill='none' stroke='%23e6ddf0' stroke-opacity='.65' stroke-width='2.4' stroke-dasharray='4.5 3.5'/%3E%3C/g%3E%3C/svg%3E"); }
+  /* SLICK, NOT DIRTY — no wear (Pinky-only). The body reads WET: strong
+     curved specular highlights + a low glisten band; the lid sits slightly
+     OFF-CENTRE and tilted (shifty); grime layer off. */
+  .ch-lammy .dc-body::before, .ch-lammy .av-body::before { display: none; }
+  .ch-lammy .dc-body::after, .ch-lammy .av-body::after {
+    background:
+      radial-gradient(58% 28% at 28% 14%, rgba(255,255,255,0.42), transparent 72%),
+      radial-gradient(30% 14% at 68% 50%, rgba(255,255,255,0.2), transparent 72%),
+      linear-gradient(160deg, transparent 58%, rgba(255,255,255,0.12) 76%, transparent 92%); }
+  .ch-lammy .dc-lid, .ch-lammy .av-lid { transform: rotate(-3deg) translateX(-5%); }
   /* narrow angled slit eyes */
   .deck-char.ch-lammy .dc-eye { width: 20%; max-width: 9px; min-height: 3px; aspect-ratio: 3 / 1; }
   .deck-char.ch-lammy .dc-eye.l { transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) rotate(-8deg); }
@@ -4738,9 +4769,7 @@
   .map-avatar.ch-lammy .av-eye.l { transform: rotate(-8deg); }
   .map-avatar.ch-lammy .av-eye.r { transform: rotate(8deg); }
   .map-avatar.ch-lammy .av-eye::after { display: none; }
-  /* smug smirk + a small oily drip */
-  .ch-lammy .x-mouth { display: block; top: 46%; left: 37%; width: 25%; height: 9%;
-    border-bottom: 2px solid #241c28; border-radius: 0 0 20px 5px; }
+  /* a small oily drip (a body detail — no mouths on any character) */
   .ch-lammy .x-drip { display: block; top: 64%; left: 45%; width: 6%; min-width: 3px; height: 12%;
     background: linear-gradient(180deg, rgba(120,100,140,0.6), rgba(120,100,140,0.1));
     border-radius: 0 0 4px 4px; animation: lammyDrip 5.2s ease-in-out infinite; transform-origin: top; }
@@ -4776,8 +4805,6 @@
     60%  { transform: scale(1.08, 0.82) translateY(4px); }
     100% { transform: scale(1.04, 0.92) translateY(2px); }
   }
-  .deck-char.ch-lammy.dc-sad .x-mouth, .deck-char.ch-lammy.mood-loss .x-mouth {
-    width: 14%; left: 43%; border-radius: 0 0 8px 8px; }
   .deck-char.ch-lammy.dc-sad .x-drip, .deck-char.ch-lammy.mood-loss .x-drip { animation: none; opacity: 0.4; }
   /* CELEBRATE / WIN-DANCE — the liquid shimmy: fast alternating skew with
      squash-and-stretch, drip flinging (nothing like a hop) */
@@ -5852,7 +5879,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.03 · unique deck characters: Mamma, Mr. Smith, Lammy";
+const APP_VERSION = "v4.04 · per-character body treatments — the dirt is Pinky's alone";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
