@@ -4010,9 +4010,11 @@
   #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #2E7C5C; animation: hazeDrift 34s ease-in-out infinite alternate; }
   #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #1E6A63; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
   #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #35754A; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
-  /* Perf: hold the slow background blobs while the on-board scene is idle (the
-     accepted idle-settle) — imperceptible at their speed, but no per-frame
-     compositing. They resume on any board action. */
+  /* Perf: hold the slow background blobs while the BOARD IS COVERED (opaque
+     menus / the ~95%-opaque phase overlays hide them anyway) — no per-frame
+     compositing of three half-screen blurred layers behind screens where their
+     drift can't be seen. updateBoardMotion toggles the class; the blobs resume
+     the moment the live board is showing. */
   body.scene-idle #tissue .blob { animation-play-state: paused; }
   /* Translate-only drift (no scale): scaling a 46px-blurred half-screen layer
      forces Safari to re-rasterise the blur every frame; a pure translate stays
@@ -5439,7 +5441,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.89 · fix: histogram remaining-counts lost their colour (felt pass)";
+const APP_VERSION = "v3.90 · perf: late-stage heat pass — slow drift tick, cached geometry, incremental HUD";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12596,6 +12598,15 @@ const UIRenderer = (() => {
   let netBaseCenter = {};     // pileIndex → static grid centre {x,y}, cached once per network build
   let driftOffCache = {};     // pileIndex → this frame's drift offset {x,y} (cards + network share it)
   const DRIFT_ZERO = { x: 0, y: 0 };
+  /* Static-per-board element caches (perf pass 3): the pillar/base indicator
+     cells and the pile geometry never change between buildBoard/fitBoard calls,
+     so the per-guess counter refreshes and renderNetwork reuse these instead of
+     re-querying/re-measuring the DOM on every event. Reset in buildBoard. */
+  let bpCellCache = null;     // NodeList of .bp-cell (top pillar row)
+  let baseCellCache = null;   // NodeList of .base-cell (bottom base row)
+  let pileGeomCache = null;   // { gw, gh, centers[pileIndex]:{x,y}, rad } in grid space
+  const bpCells = () => bpCellCache || (bpCellCache = el.board.querySelectorAll(".bp-cell"));
+  const baseCells = () => baseCellCache || (baseCellCache = el.board.querySelectorAll(".base-cell"));
   // A link's curve only needs its `d` rebuilt when its A→B vector (its SHAPE)
   // genuinely changes; pure drift translation is carried by a composited group
   // transform. Rebuild once the shape drifts past this many px (sub-pixel → the
@@ -12777,7 +12788,14 @@ const UIRenderer = (() => {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
-    const n = (type) => stickers.filter(s => s.type === type).length;
+    // Bail before any registry work for the common bare card (nothing to draw,
+    // nothing drawn) — most piles most of the time.
+    if (!stickers.length && !(card && card.heartsRemaining) && !badges.firstChild) return;
+    // One pass over the card's stickers → per-type counts (the registry loop
+    // below asks for every type; a filter() per type was O(registry × stickers)).
+    const counts = {};
+    for (const s of stickers) counts[s.type] = (counts[s.type] || 0) + 1;
+    const n = (type) => counts[type] || 0;
     const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
     const faceOf = (id) => stickerFaceColor(StickerTypes.get(id));
     // Each vinyl leans toward the top-right corner (~−11°) and fans a little as
@@ -12872,7 +12890,10 @@ const UIRenderer = (() => {
     renderPileHints();  // Tell: per-pile higher/lower/same direction indicators
     updateSameCharge(); // Same Charge: charged/empty indicator + Same-button glow
     refreshActivatableIndicators();   // "tap to activate" cue on activatable Pillars
-    updateShellHeight();              // keep the persistent-shell offset in sync
+    // Re-measure the shell only when something could have moved it (a full
+    // strip rebuild / screen change) — the per-guess in-place pip update can't,
+    // and the measure is a forced reflow right after the writes above.
+    if (shellDirty) updateShellHeight();
   }
 
   /* Reflect the live Same Charge: the HUD chip lights/glows when a charge is
@@ -13344,7 +13365,14 @@ const UIRenderer = (() => {
      `top: var(--shell-h)`, so the banner + container stay visible everywhere. The
      shell height is measured live (the deck-slot char hides on the map, changing
      the band height), so the overlay offset always matches the rendered shell. */
+  /* shellDirty gates the PER-GUESS re-measure in renderHud: the band's height
+     only changes when the strip fully rebuilds or the screen changes — an
+     in-place pip update can't move it, so renderHud skips the forced-reflow
+     getBoundingClientRect unless something marked the shell dirty. Screen
+     transitions keep calling updateShellHeight() directly (always measures). */
+  let shellDirty = true;
   function updateShellHeight() {
+    shellDirty = false;
     let h = 0;
     if (el.histBand && !el.histBand.classList.contains("hidden")) {
       h = Math.max(0, el.histBand.getBoundingClientRect().bottom);   // top of viewport → band bottom
@@ -13423,6 +13451,13 @@ const UIRenderer = (() => {
     if (rail && el.actions) rail.appendChild(el.actions);
   }
 
+  /* Incremental-histogram cache (perf pass 3): a guess only moves REMAINING
+     counts, so the per-guess path flips pip classes in place; the full
+     innerHTML rebuild runs only when the deck's COMPOSITION, the axis, or the
+     layout context (deal / map / store — pip sizing differs) changes.
+     Invalidated on resize (pip sizing re-measures on the next full build). */
+  let stripCache = null;   // { sig, remaining: number[], pipEls: HTMLElement[][] }
+  window.addEventListener("resize", () => { stripCache = null; stripScrubGeom = null; pileGeomCache = null; });
   function renderDeckStrip() {
     if (!el.deckStrip || !deckStripOn) return;
     const { remaining, full } = deckStripStats();
@@ -13431,6 +13466,21 @@ const UIRenderer = (() => {
     // so every notch is the same width and the longest bar fills its slot.
     let axisMax = 1;
     full.rows.forEach(r => { if (r.count > axisMax) axisMax = r.count; });
+    // Same composition + context as the last full build → in-place pip update.
+    const stripCtx = document.body.classList.contains("on-map") ? "m" : (storeVisible() ? "s" : "b");
+    const sig = stripCtx + "|" + guessSide() + "|" + axisMax + "|" + full.rows.map(r => r.count).join(",");
+    if (stripCache && stripCache.sig === sig) {
+      for (let i = 0; i < remaining.rows.length; i++) {
+        const total = (full.rows[i] && full.rows[i].count) || 0;
+        const rem = Math.max(0, Math.min(total, remaining.rows[i].count));
+        if (stripCache.remaining[i] === rem) continue;
+        stripCache.remaining[i] = rem;
+        const pips = stripCache.pipEls[i] || [];
+        for (let k = 0; k < pips.length; k++) pips[k].classList.toggle("filled", k < rem);
+      }
+      renderSuitCounts();
+      return;
+    }
     // DYNAMIC FIT (guess-side vertical columns): scale the pip height AND the
     // inter-pip gap so the TALLEST column (axisMax pips) always fits the strip's
     // actual pixel height — so it never overflows as a rank accumulates copies in
@@ -13465,6 +13515,18 @@ const UIRenderer = (() => {
         '<div class="ds-rank">' + r.label + "</div>" +
         '<div class="ds-pips" style="grid-template-columns:repeat(' + axisMax + ',1fr)">' + pips + "</div></div>";
     }).join("");
+    // Capture the built pips for the in-place fast path above (row order via
+    // data-value, so the reversed bottom-band orientation maps back correctly).
+    stripScrubGeom = null;   // fresh bars → drop the scrub gesture's rect cache
+    stripCache = { sig, remaining: [], pipEls: [] };
+    const byValue = {};
+    el.deckStripBars.querySelectorAll(".ds-bar").forEach(b => { byValue[b.dataset.value] = b; });
+    remaining.rows.forEach((r, i) => {
+      const bar = byValue[r.value];
+      stripCache.pipEls[i] = bar ? Array.prototype.slice.call(bar.querySelectorAll(".ds-pip")) : [];
+      stripCache.remaining[i] = Math.max(0, Math.min((full.rows[i] && full.rows[i].count) || 0, r.count));
+    });
+    shellDirty = true;   // a full rebuild can change the band's height
     renderSuitCounts();   // keep the suit-count chart in sync with the histogram
   }
 
@@ -13473,6 +13535,7 @@ const UIRenderer = (() => {
      histogram's data sources exactly: total = the whole owned deck per suit,
      remaining = the draw pile per suit (on the map, everything is "present", so
      remaining == total). Presentation only; reads counts, never order. */
+  let suitCountsHtml = "";   // last-rendered chart — skip identical rebuilds (runs per guess)
   function renderSuitCounts() {
     const host = document.getElementById("suitCounts");
     if (!host || !campaign) return;
@@ -13482,11 +13545,14 @@ const UIRenderer = (() => {
       const deck = engine.getDeck();
       if (deck && deck.remainingSuitCounts) remaining = deck.remainingSuitCounts();
     }
-    host.innerHTML = ["♥", "♦", "♣", "♠"].map(s => {
+    const html = ["♥", "♦", "♣", "♠"].map(s => {
       const red = (s === "♥" || s === "♦") ? " sc-red" : "";
       return '<span class="sc-cell' + red + '"><span class="sc-suit">' + s + '</span>' +
         '<span class="sc-num"><b>' + (remaining[s] || 0) + '</b>/' + (total[s] || 0) + '</span></span>';
     }).join("");
+    if (html === suitCountsHtml) return;
+    suitCountsHtml = html;
+    host.innerHTML = html;
   }
 
   /* Strip scrubber: drag to see how many REMAINING cards are higher / same /
@@ -13496,24 +13562,34 @@ const UIRenderer = (() => {
      so the scrub keeps tracking even when the finger slides off the rail (the
      pointer is captured on press). Clamps to the ends: above the top row stays on
      the topmost rank (Ace), below the bottom row stays on the bottommost (2). */
+  /* The rank bars don't move under the finger, so measure every bar's span ONCE
+     on the first event of a scrub gesture and serve the cached numbers to every
+     pointermove after it (a full rect read per bar per move forced a layout
+     storm mid-drag). Cleared on release and whenever the strip rebuilds. */
+  let stripScrubGeom = null;   // { horiz, bars: [{ el, lo, hi, mid }] }
   function stripBarAt(e) {
-    const bars = el.deckStripBars ? el.deckStripBars.querySelectorAll(".ds-bar") : [];
-    if (!bars.length) return null;
-    // Side rail = vertical (map finger Y → rank row); bottom band = horizontal
-    // (map finger X → rank column). Clamps to the end rank past the bounds.
-    const horiz = guessSide();
-    const c = horiz ? e.clientX : e.clientY;
-    const lo = (b) => { const r = b.getBoundingClientRect(); return horiz ? r.left : r.top; };
-    const hi = (b) => { const r = b.getBoundingClientRect(); return horiz ? r.right : r.bottom; };
-    const mid = (b) => { const r = b.getBoundingClientRect(); return horiz ? (r.left + r.right) / 2 : (r.top + r.bottom) / 2; };
-    if (c <= lo(bars[0])) return bars[0];
+    if (!stripScrubGeom) {
+      const bars = el.deckStripBars ? el.deckStripBars.querySelectorAll(".ds-bar") : [];
+      if (!bars.length) return null;
+      // Side rail = vertical (map finger Y → rank row); bottom band = horizontal
+      // (map finger X → rank column). Clamps to the end rank past the bounds.
+      const horiz = guessSide();
+      stripScrubGeom = { horiz, bars: [...bars].map(b => {
+        const r = b.getBoundingClientRect();
+        return horiz ? { el: b, lo: r.left, hi: r.right, mid: (r.left + r.right) / 2 }
+                     : { el: b, lo: r.top, hi: r.bottom, mid: (r.top + r.bottom) / 2 };
+      }) };
+    }
+    const bars = stripScrubGeom.bars;
+    const c = stripScrubGeom.horiz ? e.clientX : e.clientY;
+    if (c <= bars[0].lo) return bars[0].el;
     const last = bars[bars.length - 1];
-    if (c >= hi(last)) return last;
-    let best = bars[0], bestDist = Infinity;
+    if (c >= last.hi) return last.el;
+    let best = bars[0].el, bestDist = Infinity;
     for (const b of bars) {
-      if (c >= lo(b) && c <= hi(b)) return b;          // inside this rank's span
-      const d = Math.abs(c - mid(b));
-      if (d < bestDist) { bestDist = d; best = b; }    // fallback: nearest centre (gaps)
+      if (c >= b.lo && c <= b.hi) return b.el;         // inside this rank's span
+      const d = Math.abs(c - b.mid);
+      if (d < bestDist) { bestDist = d; best = b.el; } // fallback: nearest centre (gaps)
     }
     return best;
   }
@@ -13537,6 +13613,7 @@ const UIRenderer = (() => {
     el.deckStripScrub.classList.remove("hidden");
   }
   function stripScrubEnd() {
+    stripScrubGeom = null;                 // re-measure on the next gesture
     if (!stripScrubbing) return;
     stripScrubbing = false;
     el.deckStripScrub.classList.add("hidden");
@@ -13565,6 +13642,7 @@ const UIRenderer = (() => {
       return '<span class="st-suit st-' + state + red + '">' + s + '</span>';
     }).join("");
   }
+  let stageRunLast = "";   // last-rendered pill/tracker — skip identical rebuilds (runs per guess)
   function updateStageRun() {
     if (!campaign) return;
     const suit = campaign.phaseSuit ? campaign.phaseSuit() : "♦";
@@ -13573,8 +13651,12 @@ const UIRenderer = (() => {
     const sr = suit + " " + (PHASE_LABEL[suit] || "") + " " + phaseNo + "/" + phases
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
+    const tracker = suitTrackerHtml();
+    const key = sr + "|" + dop + "|" + tracker;
+    if (key === stageRunLast) return;   // nothing changed — no innerHTML churn
+    stageRunLast = key;
     // Slim HUD bar (play screen): the four-suit phase tracker.
-    if (el.hudStageRun) el.hudStageRun.innerHTML = suitTrackerHtml();
+    if (el.hudStageRun) el.hudStageRun.innerHTML = tracker;
     if (el.hudDopamine) el.hudDopamine.textContent = dop;
     // Global fixed badge (shown over the store/modals only) keeps the text form.
     el.stageRun.innerHTML = sr + " · " + COIN_SVG + " " + dop;
@@ -15732,7 +15814,7 @@ const UIRenderer = (() => {
 
   function flashPillar(col, amount) {
     if (col == null || !el.board) return;
-    const cell = el.board.querySelectorAll(".bp-cell")[col];
+    const cell = bpCells()[col];
     if (!cell) return;
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const banner = cell.querySelector(".cph-banner");
@@ -16121,7 +16203,9 @@ const UIRenderer = (() => {
         else if (payload.correct) DeckChar.react("glad");
         else DeckChar.react("sad");
         Tutorial.onGuessResolved();   // playing now — any lingering tip steps aside
-        renderSetupInv();
+        // Setup trays are closed during play — rebuilding them per guess is
+        // pure waste; the setup flow re-renders them when the window reopens.
+        if (engine && engine.canApplyStickers()) renderSetupInv();
         el.hint.textContent = payload.correct
           ? `${payload.drawn.label} kept — ${payload.board.aliveCount()} piles alive.`
           : `${payload.drawn.label} wrong — the pile died.`;
@@ -16295,7 +16379,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
         clearSelection();
-        renderSetupInv();
+        if (engine && engine.canApplyStickers()) renderSetupInv();   // trays are closed during play
         el.hint.textContent = `${payload.current.label} held on — a Shield soaked the hit.`;
         refreshDebug();
 
@@ -16357,7 +16441,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);
         updateStreakCounters();           // a wrong guess reset this column's streak
         clearSelection();
-        renderSetupInv();
+        if (engine && engine.canApplyStickers()) renderSetupInv();   // trays are closed during play
         el.hint.textContent = `${payload.current.label} held on — the ${payload.drawn.suit} Guard kicked in.`;
         refreshDebug();
 
@@ -16418,7 +16502,7 @@ const UIRenderer = (() => {
         updateStreakCounters();           // a wrong guess reset this column's streak
         updateSecondWind();               // this column's Second Wind is now spent
         clearSelection();
-        renderSetupInv();
+        if (engine && engine.canApplyStickers()) renderSetupInv();   // trays are closed during play
         el.hint.textContent = "Second Wind — that pile revived with a fresh card!";
         refreshDebug();
 
@@ -16467,7 +16551,7 @@ const UIRenderer = (() => {
         renderHud(payload.board, payload.deck);   // updates the now-EMPTY Same indicator
         updateStreakCounters();                   // a wrong guess reset this column's streak
         clearSelection();
-        renderSetupInv();
+        if (engine && engine.canApplyStickers()) renderSetupInv();   // trays are closed during play
         el.hint.textContent = "Same Charge — the pile was saved; the card landed as its new card.";
         refreshDebug();
 
@@ -17131,6 +17215,7 @@ const UIRenderer = (() => {
     edgeMap.clear();                          // the SVG is rebuilt per board — drop stale edge records
     pileEls.length = 0;
     cardEls.length = 0; pileDriftParams.length = 0; netBaseCenter = {}; driftOffCache = {};
+    bpCellCache = null; baseCellCache = null; pileGeomCache = null;
     // Single Pillar-indicator row across the top — one cell per column, so all
     // icons sit on one level line (see .board-pillars CSS).
     const pillarRow = document.createElement("div");
@@ -17199,6 +17284,29 @@ const UIRenderer = (() => {
     return Math.hypot(cx - px, cy - py) < rad;
   }
 
+  /* Measure the network's grid box + EVERY pile's centre (grid-relative) + the
+     shared blocking radius ONCE, then serve the cached copy: pile boxes are
+     static in layout (only the card CHILD drifts, via transform, and a dead
+     pile keeps its box), so the geometry only changes when the layout does.
+     Invalidated in buildBoard, fitBoard, the Pillar/Base row painters (their
+     has-pillars/has-bases toggles resize the grid) and on window resize. */
+  function measurePileGeom() {
+    if (pileGeomCache) return pileGeomCache;
+    const net = networkEl; if (!net) return null;
+    const grid = net.parentNode; if (!grid) return null;
+    const gr = grid.getBoundingClientRect();
+    if (!gr.width || !gr.height) return null;    // hidden → don't cache zeros
+    const centers = [];
+    let rad = 60;
+    for (let i = 0; i < pileEls.length; i++) {
+      const r = pileEls[i].getBoundingClientRect();
+      centers.push({ x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
+      if (i === 0) rad = 0.65 * Math.min(r.width, r.height);
+    }
+    pileGeomCache = { gw: gr.width, gh: gr.height, centers, rad };
+    return pileGeomCache;
+  }
+
   /* (Re)draw the connection network using a LINE-OF-SIGHT rule (presentation
      only; game adjacency unchanged). Two live cards connect iff no OTHER live
      card sits in the straight path between their centres (centre-distance test
@@ -17224,24 +17332,20 @@ const UIRenderer = (() => {
       if (aj) return si;
       return Math.min(si, sj);
     };
-    const gr = grid.getBoundingClientRect();
-    if (!gr.width || !gr.height) return;
-    net.setAttribute("viewBox", "0 0 " + gr.width.toFixed(1) + " " + gr.height.toFixed(1));
+    const geom = measurePileGeom();
+    if (!geom) return;
+    const vb = "0 0 " + geom.gw.toFixed(1) + " " + geom.gh.toFixed(1);
+    if (net.getAttribute("viewBox") !== vb) net.setAttribute("viewBox", vb);
 
     // Live node centres (grid-pixel space) + the shared blocking radius from the
-    // actual card size (all piles are the same size).
-    let rad = 60;
-    for (let i = 0; i < pileEls.length; i++) {
-      if (!board.isActive(i)) continue;
-      const r0 = pileEls[i].getBoundingClientRect();
-      rad = 0.65 * Math.min(r0.width, r0.height);
-      break;
-    }
+    // actual card size (all piles are the same size) — both from the cache.
+    const rad = geom.rad;
     const nodes = [];
     for (let i = 0; i < pileEls.length; i++) {
       if (!board.isActive(i)) continue;
-      const r = pileEls[i].getBoundingClientRect();
-      nodes.push({ i, x: r.left + r.width / 2 - gr.left, y: r.top + r.height / 2 - gr.top });
+      const c = geom.centers[i];
+      if (!c) continue;
+      nodes.push({ i, x: c.x, y: c.y });
     }
     if (nodes.length < 2) {
       net.innerHTML = ""; edgeMap.clear(); netEdges = []; lastNetKeys = new Set();
@@ -17292,11 +17396,12 @@ const UIRenderer = (() => {
         (adj[a] || (adj[a] = [])).push(b);
         (adj[b] || (adj[b] = [])).push(a);
       }
-      // Dead-pile centres (same measurement; the pile box persists when dead).
+      // Dead-pile centres (same cached measurement; the pile box persists when dead).
       for (let d = 0; d < pileEls.length; d++) {
         if (board.isActive(d)) continue;
-        const rd = pileEls[d].getBoundingClientRect();
-        const dx = rd.left + rd.width / 2 - gr.left, dy = rd.top + rd.height / 2 - gr.top;
+        const cd = geom.centers[d];
+        if (!cd) continue;
+        const dx = cd.x, dy = cd.y;
         for (const a of nodes) {
           let blocked = false;
           for (let k = 0; k < nodes.length && !blocked; k++) {
@@ -17623,10 +17728,17 @@ const UIRenderer = (() => {
   }
   /* Pause the board's perpetual card breathing (CSS) whenever a full overlay
      covers the board. The JS drift loop pauses itself separately (boardVisible).
-     No idle-settle freeze any more — a visible board always drifts. */
+     No idle-settle freeze any more — a visible board always drifts.
+     ALSO pauses the #tissue haze blobs (body.scene-idle) while the board is
+     covered: menus are opaque and the phase overlays are ~95% opaque, so three
+     half-screen blur(46px) layers compositing at 60fps behind them was pure
+     heat with no visible motion (perf pass 3 — the CSS pause rule existed but
+     nothing ever set the class). On the live deal the blobs keep drifting. */
   function updateBoardMotion() {
     if (!el.board) return;
-    el.board.classList.toggle("cards-paused", !boardVisible());
+    const covered = !boardVisible();
+    el.board.classList.toggle("cards-paused", covered);
+    document.body.classList.toggle("scene-idle", covered);
   }
 
   /* Compute a card's drift offset at time `now` (seconds) from its phase params —
@@ -17656,29 +17768,60 @@ const UIRenderer = (() => {
     if (driftRAF != null) return;
     if (prefersReduce()) return;
     if (!boardVisible()) return;
+    // Does this edge need per-frame updates RIGHT NOW? Only while its thickness
+    // is easing toward a new target or a (win-cinematic) pulse is travelling —
+    // both are time-based animations whose SPEED depends on call frequency, so
+    // they keep the full display rate. A settled edge only moves with the
+    // ambient drift, which ticks on the shared slow clock below.
+    const edgeAnimating = (e) => {
+      if (e.pulses.length) return true;
+      for (const p of e.paths) if (p.mwTo != null && p.mw !== p.mwTo) return true;
+      for (const bg of e.bulges) if (bg.rTo != null && bg.r !== bg.rTo) return true;
+      return false;
+    };
+    let frame = 0;
     const step = (t) => {
       if (!boardVisible()) { stopDriftSync(); return; }
       driftRAF = requestAnimationFrame(step);
       if (document.hidden) return;                // tab hidden: keep scheduling, skip work
       const now = t / 1000;
-      // (a) Cards — pure compute + a composited transform write each.
-      for (let i = 0; i < cardEls.length; i++) {
-        const d = pileDriftParams[i], ce = cardEls[i];
-        if (!d || !ce) continue;
-        const o = driftOffset(now, d);
-        driftOffCache[i] = o;
-        // Don't stomp a transient transform animation on the card (the wince).
-        if (!ce.classList.contains("wince"))
-          ce.style.transform = "translate(" + o.x.toFixed(2) + "px," + o.y.toFixed(2) + "px)";
+      // SHARED SLOW TICK: the ambient drift moves ~0.5-1.5px/s and every offset
+      // is QUANTIZED to a 0.1px grid before writing, so each value only steps a
+      // few times a second — but with many cards, SOME element used to change on
+      // almost every frame, forcing a style/paint pass per frame board-wide.
+      // Sampling the drift on every 4th frame (~15Hz) instead makes the browser
+      // do that invalidation work at a quarter rate while landing on exactly the
+      // same 0.1px-grid positions (a step arrives at most ~50ms later than it
+      // would at 60Hz — far below perception for a slow ambient float). Edges
+      // with a LIVE animation (thickness ease / win pulses) keep full rate so
+      // their speeds are pixel-identical (perf pass 3).
+      const slowTick = (frame = (frame + 1) & 3) === 0;
+      // (a) Cards — pure compute + a composited transform write each, on the
+      //     slow tick only. Unchanged frames skip the style write entirely, and
+      //     because the network below reads the SAME quantized offsets, the
+      //     per-edge transform writes skip in lockstep.
+      if (slowTick) {
+        for (let i = 0; i < cardEls.length; i++) {
+          const d = pileDriftParams[i], ce = cardEls[i];
+          if (!d || !ce) continue;
+          const o = driftOffset(now, d);
+          const qx = Math.round(o.x * 10) / 10, qy = Math.round(o.y * 10) / 10;
+          const prev = driftOffCache[i];
+          if (prev && prev.x === qx && prev.y === qy) continue;   // sub-visible move
+          driftOffCache[i] = { x: qx, y: qy };
+          // Don't stomp a transient transform animation on the card (the wince).
+          if (!ce.classList.contains("wince"))
+            ce.style.transform = "translate(" + qx + "px," + qy + "px)";
+        }
       }
-      // (b) Network — SAME frame, SAME clock as the cards. Endpoints are seated
-      //     from the offsets JUST computed above, so the links move in exact
-      //     lockstep with the cards (no separate, slower network rate to judder
-      //     against). Per edge this is one composited group-translate plus a few
-      //     pulse cx/cy writes; a path-d rebuild fires only when an edge's shape
-      //     genuinely changes (see applyEdge).
+      // (b) Network — SAME clock as the cards. Endpoints are seated from the
+      //     offsets computed above, so the links move in exact lockstep with
+      //     the cards. Per edge this is one composited group-translate plus a
+      //     few pulse cx/cy writes; a path-d rebuild fires only when an edge's
+      //     shape genuinely changes (see applyEdge).
       if (networkEl && netEdges.length) {
         for (const e of netEdges) {
+          if (!slowTick && !edgeAnimating(e)) continue;   // settled edge: slow clock
           const ba = netBaseCenter[e.a], bb = netBaseCenter[e.b];
           if (!ba || !bb) continue;
           const oa = driftOffCache[e.a] || DRIFT_ZERO, ob = driftOffCache[e.b] || DRIFT_ZERO;
@@ -17831,7 +17974,7 @@ const UIRenderer = (() => {
     if (!engine || !engine.getRun) return;
     const run = engine.getRun();
     if (!run || !run.secondWindUsed) return;
-    const cells = el.board.querySelectorAll(".bp-cell");
+    const cells = bpCells();
     cells.forEach((cell, col) => {
       const pip = cell.querySelector(".cph-sw");
       if (!pip) return;
@@ -17850,7 +17993,7 @@ const UIRenderer = (() => {
     if (!engine || !engine.getRun) return;
     const run = engine.getRun();
     if (!run || !run.colStreak) return;
-    const cells = el.board.querySelectorAll(".bp-cell");
+    const cells = bpCells();
     cells.forEach((cell, col) => {
       const badge = cell.querySelector(".cph-streak[data-threshold]");
       if (!badge) return;
@@ -17865,7 +18008,6 @@ const UIRenderer = (() => {
         setTimeout(() => badge.classList.remove("bump"), 220);
       }
     });
-    updateScoringCounters();
   }
 
   /* Live "current would-be payout" counter for the accumulating SCORING Pathways
@@ -17879,7 +18021,7 @@ const UIRenderer = (() => {
     const board = engine.getBoard();
     if (!run || !run.pileColumns || !board) return;
     const binding = campaign.getColumnPillars();
-    const cells = el.board.querySelectorAll(".bp-cell");
+    const cells = bpCells();
     cells.forEach((cell, col) => {
       const badge = cell.querySelector(".cph-count");
       if (!badge) return;
@@ -17970,7 +18112,7 @@ const UIRenderer = (() => {
     if (!run || !board || !started || !run.pileColumns) return;
     const bc = engine.broadcastActive && engine.broadcastActive();
     const binding = campaign.getColumnBases();
-    const cells = el.board.querySelectorAll(".base-cell");
+    const cells = baseCells();
     cells.forEach((cell, col) => {
       const banner = cell.querySelector(".base-banner");
       if (!banner) return;
@@ -17997,8 +18139,10 @@ const UIRenderer = (() => {
     if (!campaign) return;
     const binding = campaign.getColumnPillars();
     const hasAny = cols.some((_, col) => !!binding[col]);
+    // Toggling has-pillars reserves/collapses the top row → the grid box moves.
+    if (el.board.classList.contains("has-pillars") !== hasAny) pileGeomCache = null;
     el.board.classList.toggle("has-pillars", hasAny);
-    const cells = el.board.querySelectorAll(".bp-cell");
+    const cells = bpCells();
     cols.forEach((count, col) => {
       const cell = cells[col];
       if (!cell) return;
@@ -18006,8 +18150,10 @@ const UIRenderer = (() => {
       cell.innerHTML = t ? pathwayBannerHtml(t) : '<div class="cph-banner empty"></div>';
       cell.title = t ? t.label : "";
     });
-    // Re-apply live streak values + Second Wind charge state onto the rebuilt row.
+    // Re-apply live streak values, scoring counters + Second Wind charge state
+    // onto the rebuilt row (the badges were just recreated at their defaults).
     updateStreakCounters();
+    updateScoringCounters();
     updateSecondWind();
   }
 
@@ -18133,10 +18279,12 @@ const UIRenderer = (() => {
     if (!campaign) return;
     const binding = campaign.getColumnBases();
     const hasAny = cols.some((_, col) => !!binding[col]);
+    // Toggling has-bases reserves/collapses the bottom row → the grid box moves.
+    if (el.board.classList.contains("has-bases") !== hasAny) pileGeomCache = null;
     el.board.classList.toggle("has-bases", hasAny);
     const run = engine && engine.getRun ? engine.getRun() : null;
     const started = engine && engine.isRunStarted && engine.isRunStarted();
-    const cells = el.board.querySelectorAll(".base-cell");
+    const cells = baseCells();
     cols.forEach((count, col) => {
       const cell = cells[col];
       if (!cell) return;
@@ -18296,7 +18444,9 @@ const UIRenderer = (() => {
     let vGap = gapPx;
     if (liveTall > 1) vGap = Math.max(gapPx, Math.min((gridH - liveTall * h) / (liveTall - 1), 1.3 * h));
     el.board.style.setProperty("--pile-v-gap", vGap + "px");
-    // Realign the connection network to the freshly-sized nodes.
+    // Realign the connection network to the freshly-sized nodes (the geometry
+    // cache is stale the moment the pile-size vars above change — drop it).
+    pileGeomCache = null;
     renderNetwork();
   }
 
@@ -18414,7 +18564,7 @@ const UIRenderer = (() => {
   }
   function showStaticIndicator(col, t, destroyed) {
     try { if (Sound && Sound.isOn && Sound.isOn()) (destroyed ? Sound.death() : Sound.good()); } catch (e) {}
-    const cells = el.board ? el.board.querySelectorAll(".bp-cell") : [];
+    const cells = el.board ? bpCells() : [];
     const cell = cells[col] || null;
     const toast = document.createElement("div");
     toast.className = "static-toast " + (destroyed ? "boom" : "safe");
@@ -20721,7 +20871,7 @@ const UIRenderer = (() => {
   function refreshActivatableIndicators() {
     if (!el.board) return;
     // Bases live on the BOTTOM row; pulse the ones the engine says can fire now.
-    const cells = el.board.querySelectorAll(".base-cell");
+    const cells = baseCells();
     for (let col = 0; col < cells.length; col++) {
       const banner = cells[col].querySelector(".base-banner");
       if (!banner) continue;
