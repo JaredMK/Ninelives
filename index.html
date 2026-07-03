@@ -2463,13 +2463,16 @@
      rod + icon). Give the shop pennant a definite box HERE — same component, same
      proportions as the shelf — then .sd-obj scales it up. Detail-scoped, so the
      shelf tile is untouched. */
-  .sd-obj.obj-pillar .cph-banner.pennant.big { height: 116px; width: auto; }
-  /* SAME collapse for the base plaque: .base-banner.big pins width to
-     min(100%,144px), but the shrink-to-fit .sd-obj takes ITS width from the
-     child, so 100% is circular and the plaque caves to a sliver. Give it a
-     DEFINITE height here (same fix as the pennant above); aspect-ratio then
-     derives a real width from it. Detail-scoped — the shelf tile is untouched. */
-  .sd-obj.obj-base .base-banner.plaque.big { height: 62px; width: auto; max-width: none; }
+  /* EXPLICIT width too (not width:auto): with a fixed height the width should
+     come from aspect-ratio, but iOS Safari fails to TRANSFER aspect-ratio
+     width to a flex item whose children are all %-sized/absolute — the
+     pennant collapsed to a rod-and-cloth sliver in this popup on iPhone
+     (fine in Chromium). Hard-code the box instead: 116 × var(--pennant-ar
+     0.82) ≈ 95. Detail-scoped, the shelf tile is untouched. */
+  .sd-obj.obj-pillar .cph-banner.pennant.big { height: 116px; width: 95px; }
+  /* SAME collapse for the base plaque (and the same Safari transfer failure):
+     explicit 62 × var(--plaque-ar 2.4) ≈ 149. Detail-scoped. */
+  .sd-obj.obj-base .base-banner.plaque.big { height: 62px; width: 149px; max-width: none; }
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(255,255,255,0.6); }
   .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
@@ -3614,6 +3617,16 @@
   .sa-banner .sa-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--accent-2); }
   .sa-banner .sa-desc { flex-basis: 100%; font-size: 11.5px; line-height: 1.35; color: var(--muted); white-space: pre-line; }
   .sa-banner .ip-art { display: inline-flex; align-items: center; }
+  /* The placement-modal banner art gets an explicit box for the same reason as
+     the store-detail popup above: the pennant/plaque size themselves off the
+     parent (height:100% + aspect-ratio width), which collapses in a
+     content-sized row — and iOS Safari won't transfer aspect-ratio width at
+     all. Fixed boxes at the components' native proportions. */
+  .ip-art .cph-banner.pennant { height: 56px; width: 46px; }
+  .ip-art .base-banner.plaque { height: 40px; width: 96px; max-width: none; }
+  /* Post-deal spoils list rows show the same components — same explicit boxes. */
+  .pd-item .cph-banner.pennant { height: 46px; width: 38px; flex: none; }
+  .pd-item .base-banner.plaque { height: 32px; width: 77px; max-width: none; flex: none; }
   .sa-cards { max-height: 50vh; }
   /* Pillar/Base column picker (place-on-purchase). */
   .ip-columns { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
@@ -5354,7 +5367,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v3.84 · map icons: synapse-crack deals, stall stores, pink packs";
+const APP_VERSION = "v3.85 · fix: pillar/base art collapsing to a sliver in popups (iOS)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
