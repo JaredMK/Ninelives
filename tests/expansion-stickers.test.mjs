@@ -50,7 +50,8 @@ export function run() {
   {
     const c = CampaignState.create();   // Stage 1 = ♦ ♥
     const seen = new Set();
-    for (let i = 0; i < 400; i++) c.openStore().stickers.forEach(id => seen.add(id));
+    for (let i = 0; i < 1500; i++)
+      c.openStore().slots.forEach(s => { if (s && s.kind === "sticker") seen.add(s.id); });
     r.ok(seen.has("changeSuitDiamond"), "Stage 1 offers Change to ♦");
     r.ok(seen.has("changeSuitClub"), "Stage 1 offers Change to ♣ too (gating removed — all items any time)");
     r.ok(seen.has("changeSuitSpade"), "…and Change to ♠");

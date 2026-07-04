@@ -2377,9 +2377,8 @@
   .store-reroll:disabled { background: var(--panel-2); color: var(--muted); border-color: var(--edge-2); box-shadow: none; cursor: default; }
   .store-reroll:active { transform: scale(0.97); }
 
-  /* A shelf: a labelled section holding one row of objects. The two shelves grow
-     to fill the middle of the screen so the rows distribute vertically (stickers
-     on top, items below) with no scroll. */
+  /* THE shelf: one unlabelled section holding the unified offer grid. It grows
+     to fill the middle of the screen with no scroll. */
   .store-shelf { width: min(94vw, 440px); flex: 1 1 0; min-height: 0;
     display: flex; flex-direction: column; }
   /* Section label as a thin understated rule (not a box): small caps label, a
@@ -2390,12 +2389,6 @@
   .shelf-h .rule { flex: 1; height: 1px; background: currentColor; opacity: 0.22; }
   .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 500; font-style: italic;
     letter-spacing: 0.2px; opacity: 0.62; text-transform: none; color: var(--muted); }
-  .store-shelf.z-imp .shelf-h { color: var(--accent-2); }   /* rose — stickers */
-  .store-shelf.z-mix .shelf-h { color: #6E51A6; }           /* violet — mixed items */
-  .store-shelf.z-same .shelf-h { color: var(--net, #C84A78); }  /* synapse rose — Same-Power */
-  /* The Same-Power shelf holds a single object; let its one tile sit centred. */
-  .store-shelf.z-same .store-row.big { grid-template-columns: 1fr; justify-items: center; }
-  .store-shelf.z-same { flex: 0 0 auto; min-height: 96px; }
 
   /* Same-Power badge: the power's glyph over its name, ringed in synapse-rose
      so it reads as a "links" artifact. Used on store tiles + the setup chip.
@@ -2423,10 +2416,11 @@
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
   .tray-samepower.armed { outline: 2px solid var(--net, #C84A78); outline-offset: 2px; border-radius: 12px; }
 
-  /* One row of THREE objects. The row STRETCHES to fill the shelf's grown space so
-     each tile gets the full height; the object inside is then capped (max 116px) and
-     centred within it. (Stretch — not align-content:center — so .store-tile can be
-     height:100% and the object area can flex-fill/shrink without collapsing.) */
+  /* FIVE objects flowing a 3-wide grid (3 + 2). The grid STRETCHES to fill the
+     shelf's grown space so each tile gets the full height; the object inside is
+     then capped (max 116px) and centred within it. (Stretch — not
+     align-content:center — so .store-tile can be height:100% and the object
+     area can flex-fill/shrink without collapsing.) */
   .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px;
     flex: 1 1 0; min-height: 0; align-content: stretch; }
 
@@ -5071,7 +5065,6 @@
   .store-title { color: var(--on-felt); }
   .store-balance { color: var(--on-felt-muted); }
   .shelf-h .tag { color: var(--on-felt-muted); }
-  .store-shelf.z-mix .shelf-h { color: #9B82CF; }   /* violet, brightened for the felt */
   .store-msg { color: var(--on-felt-muted); }
   .store-loadout { background: rgba(240,234,224,0.07); border-color: rgba(240,234,224,0.20);
     box-shadow: none; }
@@ -5489,17 +5482,12 @@
       <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
     </div>
 
-    <!-- Two shelves of physical objects resting on the warm shop surface. Each
-         object IS the item — no card/panel around it. Section labels are thin
-         understated rules, not boxes. Tap an object to open its detail. -->
+    <!-- ONE unified shelf of physical objects resting on the warm shop surface.
+         Each object IS the item — no card/panel around it, and no section
+         labels: every slot can hold any kind (sticker / pillar / base / pack /
+         Same-Power). Tap an object to open its detail. -->
     <div class="store-shelf z-imp">
-      <div class="shelf-h"><span class="lbl">Stickers</span><span class="rule"></span><span class="tag">change what a card does</span></div>
       <div class="store-row big" id="storeItems"></div>
-    </div>
-
-    <div class="store-shelf z-mix">
-      <div class="shelf-h"><span class="lbl">Items</span><span class="rule"></span><span class="tag">base · pillar · pack · same-power</span></div>
-      <div class="store-row big" id="storeMixed"></div>
     </div>
 
     <!-- Equipped loadout (read-only reference): what the player ALREADY has on the
@@ -5879,7 +5867,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.04 · per-character body treatments — the dirt is Pinky's alone";
+const APP_VERSION = "v4.05 · one unified store — five slots, any kind, rarity decides";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6889,12 +6877,12 @@ const SamePowerTypes = (() => {
 const PackTypes = (() => {
   const TYPES = {
     cardPack: {
-      id: "cardPack", label: "Card Pack", icon: "🎴", kind: "card",
-      size: 5, keep: 1, price: 12,
+      id: "cardPack", label: "Card Pack", icon: "🎴", kind: "card", tier: "common",
+      size: 5, keep: 1, price: 10,
       description: "Reveals 5 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded.",
     },
     stickerPack: {
-      id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker",
+      id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
       size: 3, keep: 1, price: 5,
       description: "Reveals 3 random stickers. Keep 1 for your inventory. The rest are discarded.",
     },
@@ -10784,22 +10772,17 @@ const CampaignState = (() => {
   const MAX_RANK = 14;  // Ace is the ceiling for Increase
 
   /* ---- Store offering (Balatro-style limited random roll) ----------------
-     Each store visit offers EXACTLY 6 slots: STORE_STICKER_SLOTS individual
-     stickers + STORE_MIXED_SLOTS "mixed" slots (each one independently a Base,
-     Pillar, or Pack). Buying empties only that slot (the rest stay). A reroll
-     replaces ALL slots and costs REROLL_BASE_COST, climbing REROLL_STEP per
-     reroll within a visit; it resets to base when the store re-opens. */
-  const STORE_STICKER_SLOTS = 3;       // three individual sticker slots per visit
-  const STORE_MIXED_SLOTS = 3;         // three mixed slots: Base / Pillar / Pack / Same-Power
+     ONE UNIFIED POOL: each visit offers exactly STORE_SLOTS slots, every slot
+     independently rolled from ALL item types together (stickers, pillars,
+     bases, card packs, sticker packs, Same-Powers) weighted purely by RARITY
+     (TIER_WEIGHTS) — no per-category sections or quotas. A per-TYPE cap keeps
+     any one type from flooding the shelf (draws over the cap are rejected and
+     redrawn). Buying empties only that slot; a reroll replaces ALL slots for
+     REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit. */
+  const STORE_SLOTS = 5;               // one unified shelf of five slots
+  const STORE_TYPE_CAP = 3;            // max slots of one item TYPE per visit
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
-  // Category odds for ONE mixed slot (drawn independently per slot). Bases and
-  // Pillars are the core build items (equal weight); Packs and Same-Powers are
-  // the less-frequent bonuses. Same-Powers fold into the normal rotation here
-  // (no dedicated slot) — base:pillar:pack:samepower = 2:2:1:1 → samepower is
-  // 1/6 (≈16.7%) per slot, so with 3 slots a Same-Power surfaces in ≈42% of
-  // store visits (1 − (5/6)^3). Tune freely.
-  const MIXED_KIND_WEIGHTS = { base: 2, pillar: 2, pack: 1, samepower: 1 };
 
   // Store-offer rarity weights by tier: commons show up most, rares least.
   // These only bias HOW OFTEN a type is OFFERED — never its price.
@@ -10879,44 +10862,50 @@ const CampaignState = (() => {
     return true;
   }
 
-  /** Pick ONE mixed-slot category (base / pillar / pack / samepower) by MIXED_KIND_WEIGHTS. */
-  function rollMixedKind(rng = Math.random) {
-    const entries = [["base", MIXED_KIND_WEIGHTS.base], ["pillar", MIXED_KIND_WEIGHTS.pillar],
-                     ["pack", MIXED_KIND_WEIGHTS.pack], ["samepower", MIXED_KIND_WEIGHTS.samepower]];
-    const total = entries.reduce((a, e) => a + e[1], 0) || 1;
-    let r = rng() * total;
-    for (const [kind, w] of entries) { if ((r -= w) < 0) return kind; }
-    return "base";
+  /** The TYPE a slot counts against for the per-visit cap. Card packs and
+      sticker packs are DIFFERENT types (max 3 of each), matching the sticker /
+      pillar / base / Same-Power categories. */
+  function slotTypeKey(kind, id) {
+    if (kind !== "pack") return kind;
+    const t = PackTypes.get(id);
+    return t && t.kind === "card" ? "cardpack" : "stickerpack";
   }
-  /** Roll `n` INDEPENDENT mixed slots. Each picks a category by weight, then one
-      id from that category's pool by the SAME rarity weighting as every other
-      slot. Each slot is { kind, id }. Dupes across slots are allowed (the draws
-      are independent). Same-Powers (not suit-gated) share this rotation now. */
-  function rollMixed(n, rng, pillarPool, basePool) {
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      const kind = rollMixedKind(rng);
-      const pool = kind === "pillar"    ? (pillarPool || PillarTypes.all())
-                 : kind === "base"      ? (basePool || BaseTypes.all())
-                 : kind === "samepower" ? SamePowerTypes.all()
-                 : PackTypes.all();
-      const id = rollIds(pool, 1, rng)[0];
-      out.push(id ? { kind, id } : null);
+  /** Roll STORE_SLOTS unified slots: one flat pool across EVERY registry, each
+      entry weighted purely by rarity (TIER_WEIGHTS). Dupes allowed; a draw that
+      would put a TYPE past STORE_TYPE_CAP is rejected and redrawn. Each slot is
+      { kind, id }. */
+  function rollUnifiedSlots(rng = Math.random) {
+    const pool = [];
+    const add = (types, kind) => types.forEach(t =>
+      pool.push({ kind, id: t.id, weight: t.weight || TIER_WEIGHTS[t.tier] || 1 }));
+    add(StickerTypes.all(), "sticker");
+    add(PillarTypes.all(), "pillar");
+    add(BaseTypes.all(), "base");
+    add(PackTypes.all(), "pack");
+    add(SamePowerTypes.all(), "samepower");
+    const total = pool.reduce((a, x) => a + x.weight, 0) || 1;
+    const slots = [];
+    const perType = {};
+    for (let i = 0; i < STORE_SLOTS; i++) {
+      let pick = null;
+      // Reject-and-redraw over the type cap. With 6 types and a cap of 3 on
+      // 5 slots this always terminates fast; 80 tries is a paranoid ceiling.
+      for (let attempt = 0; attempt < 80 && !pick; attempt++) {
+        let r = rng() * total, cand = pool[pool.length - 1];
+        for (const x of pool) { if ((r -= x.weight) < 0) { cand = x; break; } }
+        if ((perType[slotTypeKey(cand.kind, cand.id)] || 0) < STORE_TYPE_CAP) pick = cand;
+      }
+      if (!pick) { slots.push(null); continue; }   // unreachable in practice
+      const key = slotTypeKey(pick.kind, pick.id);
+      perType[key] = (perType[key] || 0) + 1;
+      slots.push({ kind: pick.kind, id: pick.id });
     }
-    return out;
+    return slots;
   }
 
-  /** A fresh offering: STORE_STICKER_SLOTS individual stickers + STORE_MIXED_SLOTS
-      mixed (base/pillar/pack) slots, reroll cost at base. Both sections roll by
-      rarity weight; the pools passed in are the suit-locked ones for the stage
-      (so e.g. ♣/♠ Guards and ♣/♠ Bonus Pillars can't appear before their suit). */
-  function freshOffer(rng = Math.random, stickerPool, pillarPool, basePool) {
-    return {
-      stickers: rollIds(stickerPool || StickerTypes.all(), STORE_STICKER_SLOTS, rng),
-      // Mixed slots now include Same-Powers in the normal rotation (no dedicated slot).
-      mixed: rollMixed(STORE_MIXED_SLOTS, rng, pillarPool, basePool),
-      rerollCost: REROLL_BASE_COST,
-    };
+  /** A fresh offering: STORE_SLOTS unified rarity-weighted slots, reroll at base. */
+  function freshOffer(rng = Math.random) {
+    return { slots: rollUnifiedSlots(rng), rerollCost: REROLL_BASE_COST };
   }
 
   function create() {
@@ -11941,8 +11930,7 @@ const CampaignState = (() => {
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
-        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
-        storeOffer = freshOffer(rng, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
+        storeOffer = freshOffer(rng);   // one unified rarity-weighted pool
         return storeOffer;
       },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
@@ -11956,43 +11944,27 @@ const CampaignState = (() => {
       rerollStore() {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
-        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
-        const f = freshOffer(Math.random, stickerPoolForSuits(suits), pillarPoolForSuits(suits), basePoolForSuits(suits));
-        storeOffer.stickers = f.stickers;
-        storeOffer.mixed = f.mixed;
+        storeOffer.slots = rollUnifiedSlots(Math.random);
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
       /** Buy the offered sticker in slot `i` (to inventory); empties that slot
           only, leaving the rest. Returns true on success. */
       buyOfferedSticker(i) {
-        if (!storeOffer) return false;
-        const id = storeOffer.stickers[i];
-        if (!id || !this.buySticker(id)) return false;
-        storeOffer.stickers[i] = null;
-        return true;
-      },
-      /** Price of the Same-Power offered in slot `i` (0 for an empty slot). */
-      priceOfSamePowerSlot(i) {
-        const id = storeOffer && storeOffer.samePowers ? storeOffer.samePowers[i] : null;
-        return id ? this.priceOfSamePower(id) : 0;
-      },
-      /** Buy the offered Same-Power in slot `i` (to the Same-Power inventory);
-          empties that slot only. Returns true on success. */
-      buyOfferedSamePower(i) {
-        if (!storeOffer || !storeOffer.samePowers) return false;
-        const id = storeOffer.samePowers[i];
-        if (!id || !this.buySamePowerToInventory(id)) return false;
-        storeOffer.samePowers[i] = null;
+        if (!storeOffer || !storeOffer.slots) return false;
+        const slot = storeOffer.slots[i];
+        if (!slot || slot.kind !== "sticker" || !this.buySticker(slot.id)) return false;
+        storeOffer.slots[i] = null;
         return true;
       },
       /** Fixed price of a pack type. */
       priceOfPack(packId) { const t = PackTypes.get(packId); return t ? t.price : Infinity; },
       /** Price of a mixed slot's item (dispatches by its kind). 0 for an empty slot. */
       priceOfMixed(i) {
-        const s = storeOffer && storeOffer.mixed ? storeOffer.mixed[i] : null;
+        const s = storeOffer && storeOffer.slots ? storeOffer.slots[i] : null;
         if (!s) return 0;
-        return s.kind === "pillar"    ? this.priceOfPillar(s.id)
+        return s.kind === "sticker"   ? this.priceOf(s.id)
+             : s.kind === "pillar"    ? this.priceOfPillar(s.id)
              : s.kind === "base"      ? this.priceOfBase(s.id)
              : s.kind === "samepower" ? this.priceOfSamePower(s.id)
              : this.priceOfPack(s.id);
@@ -12004,26 +11976,26 @@ const CampaignState = (() => {
           Returns { ok, kind, reveal? } — `reveal` ({ packId, kind, keep, items })
           is present only for packs, so the UI can show the reveal modal. */
       buyMixedSlot(i, rng) {
-        if (!storeOffer || !storeOffer.mixed) return { ok: false };
-        const s = storeOffer.mixed[i];
-        if (!s) return { ok: false };
+        if (!storeOffer || !storeOffer.slots) return { ok: false };
+        const s = storeOffer.slots[i];
+        if (!s || s.kind === "sticker") return { ok: false };   // stickers buy via buyOfferedSticker (place-then-pay)
         if (s.kind === "pillar") {
           if (!this.buyPillarToInventory(s.id)) return { ok: false };
-          storeOffer.mixed[i] = null; return { ok: true, kind: "pillar" };
+          storeOffer.slots[i] = null; return { ok: true, kind: "pillar" };
         }
         if (s.kind === "base") {
           if (!this.buyBaseToInventory(s.id)) return { ok: false };
-          storeOffer.mixed[i] = null; return { ok: true, kind: "base" };
+          storeOffer.slots[i] = null; return { ok: true, kind: "base" };
         }
         if (s.kind === "samepower") {
           if (!this.buySamePowerToInventory(s.id)) return { ok: false };
-          storeOffer.mixed[i] = null; return { ok: true, kind: "samepower" };
+          storeOffer.slots[i] = null; return { ok: true, kind: "samepower" };
         }
         if (s.kind === "pack") {
           const t = PackTypes.get(s.id);
           if (!t || coins < t.price) return { ok: false };
           coins -= t.price;
-          storeOffer.mixed[i] = null;
+          storeOffer.slots[i] = null;
           return { ok: true, kind: "pack", reveal: { packId: s.id, kind: t.kind, keep: t.keep, items: this.revealPack(s.id, rng) } };
         }
         return { ok: false };
@@ -12413,10 +12385,10 @@ const CampaignState = (() => {
         samePowerInventory = { ...(s.samePowerInventory || {}) };   // default {} for pre-Same-Power saves
         equippedSamePower = s.equippedSamePower || null;
         storeOffer = s.storeOffer || null;
-        // Pre-rework saves used the old { stickers, pillars, bases, packs } shape.
-        // The new store is { stickers, mixed }; drop any old-shape offer so the
-        // next store open rolls a fresh, valid 6-slot offer (no data to migrate).
-        if (storeOffer && !Array.isArray(storeOffer.mixed)) storeOffer = null;
+        // Pre-unification saves used sectioned offer shapes ({stickers, mixed}
+        // or older). The store is one unified { slots } now; drop any old-shape
+        // offer so the next store open rolls a fresh 5-slot one.
+        if (storeOffer && !Array.isArray(storeOffer.slots)) storeOffer = null;
         baseDeck = s.baseDeck.map(c => ({
           ...c,
           modifications: (c.modifications || []).slice(),
@@ -13167,8 +13139,6 @@ const UIRenderer = (() => {
     storeMsg: document.getElementById("storeMsg"),
     storeCoins: document.getElementById("storeCoins"),
     storeItems: document.getElementById("storeItems"),
-    storeMixed: document.getElementById("storeMixed"),
-    storeSame: document.getElementById("storeSame"),
     loadoutCols: document.getElementById("loadoutCols"),     // equipped pillars/bases (per column)
     loadoutSame: document.getElementById("loadoutSame"),     // equipped Same-Power
     storeDetail: document.getElementById("storeDetail"),
@@ -13373,12 +13343,11 @@ const UIRenderer = (() => {
 
   // Store selection state, keyed to the current offering's SLOTS:
   //   selectedStickerSlot — offered sticker slot (0..2) awaiting the Buy button.
-  //   selectedMixedSlot   — offered mixed slot (0..2) awaiting the Buy button.
-  // Mutually exclusive (selecting one clears the other); the mixed slot's kind
-  // (base/pillar/pack) is read from the offer when buying.
+  //   selectedMixedSlot   — selected non-sticker slot awaiting the Buy button.
+  // Mutually exclusive (selecting one clears the other); the slot's kind
+  // (pillar/base/pack/samepower) is read from the offer when buying.
   let selectedStickerSlot = null;
   let selectedMixedSlot = null;
-  let selectedSamePowerSlot = null;   // offered Same-Power slot (0) awaiting Buy
   // Buy-time placement chooser state (pillars/bases/Same-Powers): the focused
   // detail's kind/id and the column the player has picked to place it into (the
   // Same-Power has a single slot, pre-selected as 0). Drives confirmBuyAndPlace.
@@ -14098,13 +14067,11 @@ const UIRenderer = (() => {
             next: "Got it" },
         ]);
       },
-      /** FIRST SHOP: stickers, then the mixed shelf's three kinds, then send off. */
+      /** FIRST SHOP: the one unified shelf (any slot, any kind), then send off. */
       onStore() {
         group("shop", [
-          { html: "The shop:<br><b>Stickers</b> change single cards.",
+          { html: "The shop:<br><b>Stickers</b> change single cards.<br><b>Pillars</b> power a whole column.<br><b>Bases</b> give a once-per-deal power.<br><b>Same-Powers</b> fire on every correct Same.",
             anchor: () => $("#storeItems") },
-          { html: "The shop:<br><b>Pillars</b> power a whole column.<br><b>Bases</b> give a once-per-deal power.<br><b>Same-Powers</b> fire on every correct Same.",
-            anchor: () => $("#storeMixed") },
           { html: "Good luck. Now go help Pinky find mamma♥", anchor: null, next: "Done", final: true },
         ]);
       },
@@ -16130,33 +16097,13 @@ const UIRenderer = (() => {
     el.storeItems.addEventListener("click", (e) => {
       if (storeHoldSuppress) { storeHoldSuppress = false; return; }
       const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) openStoreDetail("sticker", Number(tile.dataset.slot));
+      if (tile && !tile.classList.contains("empty")) openStoreDetail(Number(tile.dataset.slot));
     });
-    el.storeMixed.addEventListener("click", (e) => {
-      if (storeHoldSuppress) { storeHoldSuppress = false; return; }
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) openStoreDetail("mixed", Number(tile.dataset.mslot));
-    });
-    if (el.storeSame) el.storeSame.addEventListener("click", (e) => {
-      if (storeHoldSuppress) { storeHoldSuppress = false; return; }
-      const tile = e.target.closest(".store-tile");
-      if (tile && !tile.classList.contains("empty")) openStoreDetail("samepower", Number(tile.dataset.spslot));
-    });
-    // Hold-for-help on every store shelf (sticker / mixed / same-power rows).
+    // Hold-for-help on the one unified shelf (any slot, any kind).
     attachStoreHoldHelp(el.storeItems, (tile) => {
       const offer = campaign && campaign.getStoreOffer();
-      const id = offer && offer.stickers ? offer.stickers[Number(tile.dataset.slot)] : null;
-      return id ? { kind: "sticker", id } : null;
-    });
-    attachStoreHoldHelp(el.storeMixed, (tile) => {
-      const offer = campaign && campaign.getStoreOffer();
-      const s = offer && offer.mixed ? offer.mixed[Number(tile.dataset.mslot)] : null;
+      const s = offer && offer.slots ? offer.slots[Number(tile.dataset.slot)] : null;
       return s ? { kind: s.kind, id: s.id } : null;
-    });
-    if (el.storeSame) attachStoreHoldHelp(el.storeSame, (tile) => {
-      const offer = campaign && campaign.getStoreOffer();
-      const id = offer && offer.samePowers ? offer.samePowers[Number(tile.dataset.spslot)] : null;
-      return id ? { kind: "samepower", id } : null;
     });
     // Equipped-loadout reference: tap/hold an equipped chip → its read-only help
     // (the same focused detail card, no Buy) so it can be compared to an offer.
@@ -20599,7 +20546,7 @@ const UIRenderer = (() => {
     // The deck-slot character shows in the store — keep its stage mood current
     // (same anxious → hopeful → bright arc as the map).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
-    selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
+    selectedStickerSlot = null; selectedMixedSlot = null;
     el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
@@ -20613,11 +20560,9 @@ const UIRenderer = (() => {
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
      read from the SAME campaign inventory the store buys into. Shared by the
      store header and the in-play inventory popup. */
-  /* One large offered tile. `kind` is "sticker" | "pillar" | "base" | "pack".
-     Sticker tiles set data-slot; the three mixed kinds set data-mslot. A null id
-     renders the empty/sold placeholder so the grid never jumps. The tile carries
-     its rarity color (top accent + tier chip) and a category chip so a mixed slot
-     reads as Base / Pillar / Pack at a glance. */
+  /* One large offered tile. `kind` is "sticker" | "pillar" | "base" | "pack" |
+     "samepower"; every tile sets data-slot (one unified shelf). A null id
+     renders the empty/sold placeholder so the grid never jumps. */
   /* A simple shelf badge for a Same-Power (no bespoke object art): the power's
      glyph over its name, in the synapse-violet of the connection network so it
      reads as "links" at a glance. Used on store tiles + the setup equip chip. */
@@ -20635,9 +20580,8 @@ const UIRenderer = (() => {
   }
   const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power" };
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
-  // Indexed deterministically by (row, slot) so a given slot always tilts the same.
+  // Indexed deterministically by slot so a given slot always tilts the same.
   const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
-  const STORE_KIND_ROW = { sticker: 0, pillar: 1, base: 1, pack: 1, samepower: 1 };
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -20660,16 +20604,13 @@ const UIRenderer = (() => {
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
     btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled");
-    // Slot key is by ROW: stickers → slot; everything else (incl. same-power,
-    // which now lives in a mixed slot) → mslot, so the mixed-row click handler
-    // reads it correctly.
-    btn.dataset[kind === "sticker" ? "slot" : "mslot"] = slot;
+    btn.dataset.slot = slot;
     // The OBJECT ITSELF is the shelf item — the SAME component shown when
     // installed in-game. No name / kind / tier text tags: rarity lives in the
     // object (sticker die-cut border, pillar cloth trim, base metal tone, pack
     // foil). A slight deterministic rotation makes objects read as merchandise
     // laid on a surface; only a small white coin-chip price sits beneath.
-    const rot = DCS_ROT_SHOP[(STORE_KIND_ROW[kind] * 3 + slot) % DCS_ROT_SHOP.length];
+    const rot = DCS_ROT_SHOP[slot % DCS_ROT_SHOP.length];
     const obj = (kind === "pillar")
       ? '<span class="ti-obj obj-pillar">' + pathwayBannerHtml(t, { size: "shop" }) + '</span>'
       : (kind === "base")
@@ -20744,23 +20685,17 @@ const UIRenderer = (() => {
   }
   /* Tap a shelf object → a focused detail overlay: the object rendered larger,
      then its rarity, name, description, and a Buy action. Selecting an object
-     also sets the matching slot so the EXISTING confirm-buy logic runs unchanged.
-     `row` is "sticker" (top shelf) or "mixed" (the base/pillar/pack shelf). */
-  function openStoreDetail(row, slot) {
+     also sets the matching selection so the EXISTING confirm-buy logic runs
+     unchanged (stickers keep their pick-a-card flow; every other kind goes
+     through the mixed confirm, which dispatches on the slot's kind). */
+  function openStoreDetail(slot) {
     const offer = campaign.getStoreOffer();
-    if (!offer) return;
-    let kind, id, price;
-    if (row === "sticker") {
-      id = offer.stickers[slot];
-      if (!id) return;
-      kind = "sticker"; price = campaign.priceOf(id);
-      selectedStickerSlot = slot; selectedMixedSlot = null; selectedSamePowerSlot = null;
-    } else {
-      const s = offer.mixed[slot];
-      if (!s) return;
-      kind = s.kind; id = s.id; price = campaign.priceOfMixed(slot);   // kind may be samepower now
-      selectedMixedSlot = slot; selectedStickerSlot = null; selectedSamePowerSlot = null;
-    }
+    if (!offer || !offer.slots) return;
+    const s = offer.slots[slot];
+    if (!s) return;
+    const kind = s.kind, id = s.id, price = campaign.priceOfMixed(slot);
+    if (kind === "sticker") { selectedStickerSlot = slot; selectedMixedSlot = null; }
+    else { selectedMixedSlot = slot; selectedStickerSlot = null; }
     const info = describeItem(kind, id);
     if (!info) return;
     const t = kind === "pillar" ? PillarTypes.get(id)
@@ -20780,9 +20715,9 @@ const UIRenderer = (() => {
     el.sdTier.dataset.tier = info.tier || "";
     el.sdName.textContent = info.label;
     el.sdDesc.textContent = info.desc || "";
-    // Dispatch by ROW, not item kind: a Same-Power now lives in a mixed slot, so
-    // it's bought via confirmBuyMixed (which dispatches on the slot's kind).
-    el.sdBuy.dataset.kind = row === "sticker" ? "sticker" : "mixed";
+    // Stickers keep their own pick-a-card confirm; every other kind is bought
+    // via confirmBuyMixed (which dispatches on the slot's kind).
+    el.sdBuy.dataset.kind = kind === "sticker" ? "sticker" : "mixed";
     el.sdBuy.classList.remove("hidden");   // restore Buy (a read-only equipped view hides it)
     // Place-then-confirm: pillars/bases/Same-Powers carry a placement chooser in the
     // popup, so the player picks WHERE it lands (and sees what it replaces) and the
@@ -20909,7 +20844,7 @@ const UIRenderer = (() => {
     el.sdBuy.classList.remove("hidden");   // leave the panel ready for the next offer
     el.sdPlace.classList.add("hidden");
     sdDetailKind = null; sdDetailId = null; sdPlaceCol = null; sdDetailPrice = 0;
-    selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
+    selectedStickerSlot = null; selectedMixedSlot = null;
   }
   /* The equipped-loadout reference: pillars over bases per column + the Same-Power,
      mirroring the board so a purchase can be compared to what it would replace. */
@@ -20965,24 +20900,20 @@ const UIRenderer = (() => {
       el.storeStartBtn.disabled = blocked;
       el.storeStartBtn.textContent = blocked ? "PLACE ITEMS FIRST" : "GO TO MAP";
     }
-    // Row 1: three individual sticker slots.
+    // ONE unified shelf: five slots, each independently any kind (sticker /
+    // pillar / base / pack / Same-Power), rolled together purely by rarity.
     el.storeItems.innerHTML = "";
-    (offer ? offer.stickers : []).forEach((id, slot) =>
-      el.storeItems.appendChild(offerTile(id, slot, "sticker", selectedStickerSlot === slot)));
-    padRow(el.storeItems, STORE_STICKER_SLOTS);
-    // Row 2: three mixed slots — each a base / pillar / pack / same-power, per
-    // its kind (Same-Powers now fold into this normal rotation; no own slot).
-    el.storeMixed.innerHTML = "";
-    (offer && offer.mixed ? offer.mixed : []).forEach((s, slot) =>
-      el.storeMixed.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "base", selectedMixedSlot === slot)));
-    padRow(el.storeMixed, STORE_MIXED_SLOTS);
+    (offer && offer.slots ? offer.slots : []).forEach((s, slot) =>
+      el.storeItems.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "sticker",
+        (s && s.kind === "sticker" ? selectedStickerSlot : selectedMixedSlot) === slot)));
+    padRow(el.storeItems, STORE_SLOTS);
     renderStoreLoadout();   // equipped pillars/bases/Same-Power reference (read-only)
     updateRerollButton();
     // Checkpoint store state so a refresh while shopping keeps every purchase.
     persistCampaign("store");
   }
-  // Slot counts the UI mirrors from the engine config (kept in sync there).
-  const STORE_STICKER_SLOTS = 3, STORE_MIXED_SLOTS = 3;
+  // Slot count the UI mirrors from the engine config (kept in sync there).
+  const STORE_SLOTS = 5;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
@@ -21011,7 +20942,7 @@ const UIRenderer = (() => {
     if (selectedMixedSlot == null) return;
     const slot = selectedMixedSlot;
     const offer = campaign.getStoreOffer();
-    const s = offer ? offer.mixed[slot] : null;
+    const s = offer && offer.slots ? offer.slots[slot] : null;
     if (!s) return;
     const res = campaign.buyMixedSlot(slot, Math.random);
     if (!res.ok) return;   // unaffordable / empty slot
@@ -21029,7 +20960,7 @@ const UIRenderer = (() => {
     } else if (res.kind === "pack") {
       if (engine) engine.logAction("Store: opened " + ((PackTypes.get(s.id) || {}).label || s.id));
       // Tear-open: rip the foil on the bought pack, THEN reveal its real objects.
-      const tile = el.storeMixed.querySelector('.store-tile[data-mslot="' + slot + '"] .pack-foil');
+      const tile = el.storeItems.querySelector('.store-tile[data-slot="' + slot + '"] .pack-foil');
       const reveal = res.reveal;
       const finish = () => { renderStore(); openPackReveal(reveal); };
       if (tile && !prefersReduce() && typeof tile.animate === "function") {
@@ -21048,24 +20979,6 @@ const UIRenderer = (() => {
       refreshDebug();
       openItemPlace(res.kind, s.id);
     }
-  }
-
-  /* Confirm buying the offered Same-Power. It banks to the Same-Power inventory;
-     the player equips one (the single slot) during pre-run setup. */
-  function confirmBuySamePower() {
-    if (selectedSamePowerSlot == null) return;
-    const slot = selectedSamePowerSlot;
-    const offer = campaign.getStoreOffer();
-    const id = offer && offer.samePowers ? offer.samePowers[slot] : null;
-    if (!id) return;
-    if (!campaign.buyOfferedSamePower(slot)) return;   // unaffordable / empty
-    selectedSamePowerSlot = null;
-    Sound.purchase();
-    const t = SamePowerTypes.get(id);
-    try { Telem.purchase("samepower", id, t && t.label); Telem.flush(); } catch (e) {}
-    renderStore();
-    refreshDebug();
-    placePendingItem({ kind: "samepower", id });   // equip immediately at buy
   }
 
   /* ---- reveal → pick modal (both pack families) ----
@@ -21803,7 +21716,8 @@ const UIRenderer = (() => {
   function confirmBuySticker() {
     if (selectedStickerSlot == null) return;
     const offer = campaign.getStoreOffer();
-    const id = offer ? offer.stickers[selectedStickerSlot] : null;
+    const s = offer && offer.slots ? offer.slots[selectedStickerSlot] : null;
+    const id = s && s.kind === "sticker" ? s.id : null;
     if (!id) return;
     // PLACE-then-confirm-then-pay (consistent with pillars/bases/Same-Powers): open
     // the card picker WITHOUT charging. The coins are deducted only when the player
@@ -21821,7 +21735,7 @@ const UIRenderer = (() => {
   function rerollUI() {
     if (campaign.rerollStore()) {
       Sound.refresh();           // whoosh-ding on a store refresh
-      selectedStickerSlot = null; selectedMixedSlot = null; selectedSamePowerSlot = null;
+      selectedStickerSlot = null; selectedMixedSlot = null;
       el.storeMsg.textContent = "Refreshed the offer.";
       if (engine) engine.logAction("Store: refreshed the offer");
       renderStore();

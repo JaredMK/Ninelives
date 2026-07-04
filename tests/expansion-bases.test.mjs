@@ -100,8 +100,8 @@ export function run() {
 
   // ---- stage gating REMOVED: every Base can offer at any time -------------
   {
-    const sample = (c, n) => { const seen = new Set(); for (let i = 0; i < n; i++) c.openStore().mixed.forEach(s => { if (s && s.kind === "base") seen.add(s.id); }); return seen; };
-    const s1 = sample(CampaignState.create(), 900);          // Stage 1 = ♦ ♥
+    const sample = (c, n) => { const seen = new Set(); for (let i = 0; i < n; i++) c.openStore().slots.forEach(s => { if (s && s.kind === "base") seen.add(s.id); }); return seen; };
+    const s1 = sample(CampaignState.create(), 3000);         // Stage 1 = ♦ ♥
     r.ok(s1.has("clubDig"), "Stage 1 CAN offer Club Dig (gating removed — all items any time)");
     r.ok(s1.has("tax"), "Heart Tax (♥) offers from Stage 1");
     r.ok(s1.has("demolish"), "suit-free Base (Demolish) offers from Stage 1");

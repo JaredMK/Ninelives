@@ -24,7 +24,7 @@ export function run() {
     r.ok(!PackTypes.get("stickerPack5") && !PackTypes.get("stickerPack3"), "the larger sticker-pack variants are gone");
     r.eq(PackTypes.get("cardPack").size, 5, "the card pack reveals 5");
     r.eq(PackTypes.get("cardPack").keep, 1, "the card pack keeps 1");
-    r.eq(PackTypes.get("cardPack").price, 12, "the card pack costs 12");
+    r.eq(PackTypes.get("cardPack").price, 10, "the card pack costs 10");
     r.eq(PackTypes.get("stickerPack").size, 3, "the sticker pack reveals 3");
     r.eq(PackTypes.get("stickerPack").keep, 1, "the sticker pack keeps 1");
     r.eq(PackTypes.get("stickerPack").price, 5, "the sticker pack costs 5");
@@ -171,15 +171,15 @@ export function run() {
     r.eq(packKeys, baseKeys, "pack card carries the same identity fields as a deck card");
   }
 
-  // ===== Phase 2: store roll + buy/reveal (packs live in MIXED slots) =====
-  // Find a store visit whose mixed slots include a pack; return { c, slot, id }.
+  // ===== Phase 2: store roll + buy/reveal (packs live in unified slots) ===
+  // Find a store visit whose slots include a pack; return { c, slot, id }.
   const findMixedPack = (c) => {
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 400; i++) {
       const offer = c.openStore();
-      const slot = offer.mixed.findIndex(s => s && s.kind === "pack");
-      if (slot !== -1) return { slot, id: offer.mixed[slot].id };
+      const slot = offer.slots.findIndex(s => s && s.kind === "pack");
+      if (slot !== -1) return { slot, id: offer.slots[slot].id };
     }
-    throw new Error("never offered a mixed pack");
+    throw new Error("never offered a pack slot");
   };
   {
     const c = CampaignState.create();
@@ -191,7 +191,7 @@ export function run() {
     r.ok(res.ok && res.kind === "pack" && res.reveal && res.reveal.packId === packId, "buyMixedSlot reveals the bought pack");
     r.eq(res.reveal.items.length, t.size, "reveals `size` items");
     r.eq(res.reveal.keep, t.keep, "carries the keep count");
-    r.eq(c.getStoreOffer().mixed[slot], null, "buying empties only that mixed slot");
+    r.eq(c.getStoreOffer().slots[slot], null, "buying empties only that slot");
     r.eq(c.getCoins(), before - t.price, "charged the fixed pack price (no escalation)");
     r.ok(!c.buyMixedSlot(slot, rngFrom(1)).ok, "can't buy an already-empty mixed slot");
 
@@ -200,13 +200,13 @@ export function run() {
     r.ok(!broke.buyMixedSlot(m.slot, rngFrom(2)).ok, "can't buy a pack with no coins");
   }
 
-  // --- Mixed pack draws: both pack TYPES can appear across many visits ----
+  // --- Pack draws: both pack TYPES can appear across many visits ----------
   {
     const c = CampaignState.create();
     const kinds = new Set();
-    for (let i = 0; i < 400; i++)
-      c.openStore().mixed.forEach(s => { if (s && s.kind === "pack") kinds.add((PackTypes.get(s.id) || {}).kind); });
-    r.ok(kinds.has("card") && kinds.has("sticker"), "mixed pack slots can roll BOTH a Card Pack and a Sticker Pack");
+    for (let i = 0; i < 1200; i++)
+      c.openStore().slots.forEach(s => { if (s && s.kind === "pack") kinds.add((PackTypes.get(s.id) || {}).kind); });
+    r.ok(kinds.has("card") && kinds.has("sticker"), "pack slots can roll BOTH a Card Pack and a Sticker Pack");
   }
 
   // ===== Phase 3: permanent deck replacement =============================
