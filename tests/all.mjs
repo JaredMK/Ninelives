@@ -32,6 +32,7 @@ import { run as runMods } from "./run-mods.test.mjs";
 import { run as tell } from "./tell.test.mjs";
 import { run as sameCharge } from "./same-charge.test.mjs";
 import { run as samePower } from "./same-power.test.mjs";
+import { run as subsetDeals } from "./subset-deals.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -64,6 +65,7 @@ const SUITES = [
   ["tell", tell],
   ["same-charge", sameCharge],
   ["same-power", samePower],
+  ["subset-deals", subsetDeals],
 ];
 
 let pass = 0,
