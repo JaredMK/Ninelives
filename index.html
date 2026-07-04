@@ -5922,7 +5922,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.12 · a subset deal fans your deck first — this many of that many, faces hidden";
+const APP_VERSION = "v4.13 · the histogram ticks down again on subset deals — drawn cards count";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13519,12 +13519,21 @@ const UIRenderer = (() => {
   let appliedThisPhase = false;
   // SUBSET DEALS: once the deck grows past RunMap.SUBSET.threshold, a regular
   // (non-boss) deal plays a random SUBSET of the deck (see startRun). While a
-  // subset deal is live the histogram + suit counts show the FULL deck (the
-  // subset is hidden — that uncertainty is the intended drafting risk).
+  // subset deal is live the histogram tracks the FULL deck but decrements ONLY
+  // by the cards actually DRAWN this deal — never revealing which cards the
+  // subset holds (the undrawn subset + the excluded cards lump together as
+  // "remaining", indistinguishable). See deckStripStats.
   let subsetDealActive = false;
   // The live deal's subset, persisted so a RESUME reproduces the same board:
   // { ids:[cardId...], piles }. null for a full-deck deal (small deck / boss).
   let currentDealSubset = null;
+  // Snapshot (at deal start) of the SUBSET's own composition, so the full-deck
+  // histogram can compute remaining = full − drawnThisDeal, where drawnThisDeal
+  // = subsetInitial − (engine draw-pile remaining). Keyed by current rank / suit;
+  // jokers counted apart (rankless). Null for a full-deck deal.
+  let subsetInitialCounts = null;   // { rankValue: count }
+  let subsetInitialSuits = null;    // { "♥":n, "♦":n, "♣":n, "♠":n }
+  let subsetInitialJokers = 0;
 
   // Store selection state, keyed to the current offering's SLOTS:
   //   selectedStickerSlot — offered sticker slot (0..2) awaiting the Buy button.
@@ -14274,23 +14283,35 @@ const UIRenderer = (() => {
     // the gold ★ column reads these two counts instead. Full = owned Jokers;
     // remaining = Jokers still in the draw deck (the rank-0 bucket).
     const jokerFull = campaign && campaign.jokerCount ? campaign.jokerCount() : 0;
+    const fullCounts = campaign ? campaign.stageComposition() : {};
+    const full = DeckStats.fromCounts(fullCounts);
     // On the MAP or in the STORE there's no active deal, so both bars show the
     // whole accumulated deck: every owned card is "present" (the strip densifies
     // live as cards are picked up).
-    // On the MAP / in the STORE — and during a SUBSET DEAL — both bars show the
-    // whole accumulated deck: the subset is deliberately hidden, so the player
-    // estimates odds from their full deck (the drafting risk is not knowing the
-    // exact subset). A full-deck deal ticks the remaining bars down as usual.
-    if (mapVisible() || storeVisible() || subsetDealActive) {
-      const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
+    if (mapVisible() || storeVisible()) {
       return { remaining: full, full, jokerFull, jokerRemaining: jokerFull };
     }
     const deck = engine && engine.getDeck();
     const rc = deck ? deck.remainingCounts() : {};
+    if (subsetDealActive && subsetInitialCounts) {
+      // SUBSET DEAL: track the FULL deck, but tick a rank down ONLY as its cards
+      // are actually DRAWN. remaining = full − drawnThisDeal, and
+      //   drawnThisDeal = subsetInitial − (engine draw-pile remaining, rc).
+      // The excluded cards (full − subsetInitial) plus the undrawn subset (rc)
+      // sit together as "remaining", so which cards are IN the subset stays
+      // hidden — only the count of cards you've drawn (all visible) moves.
+      const rem = {};
+      for (const v in fullCounts) {
+        rem[v] = Math.max(0, (fullCounts[v] || 0) - (subsetInitialCounts[v] || 0) + (rc[v] || 0));
+      }
+      return {
+        remaining: DeckStats.fromCounts(rem), full, jokerFull,
+        jokerRemaining: Math.max(0, jokerFull - subsetInitialJokers + (rc[0] || 0)),
+      };
+    }
+    // FULL-DECK DEAL: remaining = the engine's live draw pile.
     return {
-      remaining: DeckStats.fromCounts(rc),
-      full: DeckStats.fromCounts(campaign ? campaign.stageComposition() : {}),
-      jokerFull,
+      remaining: DeckStats.fromCounts(rc), full, jokerFull,
       jokerRemaining: Math.min(jokerFull, rc[0] || 0),
     };
   }
@@ -14510,9 +14531,20 @@ const UIRenderer = (() => {
     if (!host || !campaign) return;
     const total = campaign.suitComposition ? campaign.suitComposition() : { "♥":0,"♦":0,"♣":0,"♠":0 };
     let remaining = total;
-    if (!mapVisible() && !storeVisible() && !subsetDealActive && engine && engine.getDeck) {
+    if (!mapVisible() && !storeVisible() && engine && engine.getDeck) {
       const deck = engine.getDeck();
-      if (deck && deck.remainingSuitCounts) remaining = deck.remainingSuitCounts();
+      const rsc = (deck && deck.remainingSuitCounts) ? deck.remainingSuitCounts() : null;
+      if (rsc) {
+        if (subsetDealActive && subsetInitialSuits) {
+          // Same full − drawnThisDeal accounting as the histogram, per suit.
+          remaining = {};
+          for (const s of ["♥", "♦", "♣", "♠"]) {
+            remaining[s] = Math.max(0, (total[s] || 0) - (subsetInitialSuits[s] || 0) + (rsc[s] || 0));
+          }
+        } else {
+          remaining = rsc;
+        }
+      }
     }
     let html = ["♥", "♦", "♣", "♠"].map(s => {
       const red = (s === "♥" || s === "♦") ? " sc-red" : "";
@@ -14527,7 +14559,10 @@ const UIRenderer = (() => {
     let jRem = jTotal;
     if (jTotal > 0 && !mapVisible() && !storeVisible() && engine && engine.getDeck) {
       const deck = engine.getDeck();
-      if (deck && deck.remainingCounts) jRem = Math.min(jTotal, (deck.remainingCounts() || {})[0] || 0);
+      const rc0 = (deck && deck.remainingCounts) ? ((deck.remainingCounts() || {})[0] || 0) : 0;
+      jRem = (subsetDealActive && subsetInitialSuits)
+        ? Math.max(0, jTotal - subsetInitialJokers + rc0)   // full − drawn this deal
+        : Math.min(jTotal, rc0);
     }
     html += '<span class="sc-cell sc-joker"><span class="sc-suit">★</span>' +
       '<span class="sc-num"><b>' + jRem + '</b>/' + jTotal + '</span></span>';
@@ -18375,6 +18410,20 @@ const UIRenderer = (() => {
     }
     subsetDealActive = wantSubset;
     currentDealSubset = wantSubset ? { ids: deckForDeal.map(c => c.id), piles } : null;
+    // Snapshot the subset's OWN composition (by current rank / suit; jokers apart)
+    // so the histogram can decrement the full-deck view by cards drawn this deal
+    // without ever exposing the subset's makeup. Cleared for a full-deck deal.
+    if (wantSubset) {
+      subsetInitialCounts = {}; subsetInitialSuits = { "♥": 0, "♦": 0, "♣": 0, "♠": 0 }; subsetInitialJokers = 0;
+      for (const c of deckForDeal) {
+        if (c.joker) { subsetInitialJokers++; continue; }
+        const v = (c.currentRank != null) ? c.currentRank : c.value;
+        subsetInitialCounts[v] = (subsetInitialCounts[v] || 0) + 1;
+        if (subsetInitialSuits[c.suit] != null) subsetInitialSuits[c.suit]++;
+      }
+    } else {
+      subsetInitialCounts = null; subsetInitialSuits = null; subsetInitialJokers = 0;
+    }
     // Observability hook (invisible data attributes — never rendered): the deal's
     // deck size, pile count, and whether it's a subset. Used by tests/debug; the
     // subset COMPOSITION is never surfaced, so the hidden-subset contract holds.
