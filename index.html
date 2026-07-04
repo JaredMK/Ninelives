@@ -5867,7 +5867,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.05 · one unified store — five slots, any kind, rarity decides";
+const APP_VERSION = "v4.06 · the card picker stops repainting the whole deck per tap";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16159,7 +16159,7 @@ const UIRenderer = (() => {
     // Deck inspector grid: HOLD a card for its sticker help (display-only list).
     if (el.deckBreakdown) attachCardHoldHelp(el.deckBreakdown);
     if (el.saApply) el.saApply.addEventListener("click", confirmApplySticker);
-    if (el.saBack) el.saBack.addEventListener("click", () => { selectedApplyCardId = null; if (el.saConfirm) el.saConfirm.classList.add("hidden"); renderStickerApplyCards(); });
+    if (el.saBack) el.saBack.addEventListener("click", () => { selectedApplyCardId = null; if (el.saConfirm) el.saConfirm.classList.add("hidden"); refreshApplySelection(); });
     // Pillar/Base column picker handlers.
     if (el.ipClose) el.ipClose.addEventListener("click", closeItemPlace);
     if (el.itemPlaceModal) el.itemPlaceModal.addEventListener("click", (e) => { if (e.target === el.itemPlaceModal) closeItemPlace(); });
@@ -21287,16 +21287,34 @@ const UIRenderer = (() => {
   // twins, so the FIRST store always worked; every store after a pack/pickup
   // gain broke.
   const SUIT_ORDER = { "♠": 0, "♥": 1, "♣": 2, "♦": 3 };
+  // The cards behind the current picker grid, by id — filled at render time so a
+  // selection tap can find its card without re-copying the whole campaign deck
+  // (getRunDeck deep-copies every card + its stickers; per-tap that both burned
+  // CPU and churned garbage on late-game 40+ card decks).
+  let applyCardsById = new Map();
   function renderStickerApplyCards() {
     if (!el.saCards || !campaign) return;
     const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
+    applyCardsById = new Map(cards.map(c => [c.id, c]));
     el.saCards.innerHTML = cards.map(c => {
       const ok = cardPickMode !== "sticker" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
       return '<button type="button" class="deck-card sa-card' + (ok ? "" : " sa-disabled") +
         (selectedApplyCardId === c.id ? " sa-selected" : "") + '" data-card-id="' + c.id + '"' +
         (ok ? "" : " disabled") + ">" + miniCardHtml(c) + "</button>";
     }).join("");
+  }
+  /* Move the .sa-selected ring to the current selection IN PLACE. Selecting a
+     card changes nothing else in the grid, so tearing the whole innerHTML down
+     and re-parsing 40+ card buttons (plus every sticker badge) on EVERY tap was
+     pure waste — the visible lag spike on late-game decks. Same DOM, same look. */
+  function refreshApplySelection() {
+    if (!el.saCards) return;
+    el.saCards.querySelectorAll(".sa-selected").forEach(n => n.classList.remove("sa-selected"));
+    if (selectedApplyCardId != null) {
+      const btn = el.saCards.querySelector('[data-card-id="' + selectedApplyCardId + '"]');
+      if (btn) btn.classList.add("sa-selected");
+    }
   }
   /* Card picker for a sticker. Two entry contexts share it:
        - STORE PURCHASE (pendingBuyStickerSlot set): place-then-pay — the coins are
@@ -21378,11 +21396,11 @@ const UIRenderer = (() => {
     el.stickerApplyModal.classList.remove("hidden");
   }
   function selectApplyCard(id) {
-    const card = (campaign.getRunDeck() || []).find(c => c.id === id);
+    const card = applyCardsById.get(id);
     if (!card) return;
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
     selectedApplyCardId = id;
-    renderStickerApplyCards();
+    refreshApplySelection();
     if (cardPickMode === "remove") {
       const nSt = (card.stickers || []).length;
       const stickerWarn = nSt > 0
