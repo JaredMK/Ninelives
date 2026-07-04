@@ -5867,7 +5867,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.07 · Jokers and Blanks answer to the full 52, not the narrowed suit";
+const APP_VERSION = "v4.08 · the card picker lets go of its snapshot when it closes";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -21481,6 +21481,7 @@ const UIRenderer = (() => {
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
+    applyCardsById = new Map();   // release the picker's card snapshot with the modal
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     // The apply/swap above may have changed the deck's composition (a suit- or
     // rank-changing sticker, or a swapped-in card) → refresh the persistent
@@ -21490,6 +21491,7 @@ const UIRenderer = (() => {
     continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
   }
   function closeStickerApply() {
+    applyCardsById = new Map();   // release the picker's card snapshot with the modal
     // MAP-BLANK remove mode: ✕ / backdrop DECLINES the removal (and any still
     // queued) — the player keeps their deck as-is and stays on the map. Never
     // falls through to the store's placement-queue continuation below.
