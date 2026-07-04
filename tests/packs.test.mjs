@@ -86,10 +86,10 @@ export function run() {
       if (card.stickers.length >= 2) withTwo++;
       if (card.stickers.length >= 3) withThree++;
     }
-    // Joker + Blank each appear at HALF a rank's frequency → P(special) = 1/14
-    // (Joker or Blank), so ≈7% of options are special.
+    // Joker + Blank each carry weight 0.5 against the FULL 52-card pool →
+    // P(special) = 1/53 ≈ 1.9% of options (regardless of suit gating).
     const pSpecial = specials / N;
-    r.ok(pSpecial > 0.045 && pSpecial < 0.10, "≈7% of options are Joker/Blank (got " + pSpecial.toFixed(3) + ")");
+    r.ok(pSpecial > 0.010 && pSpecial < 0.028, "≈1.9% of options are Joker/Blank (got " + pSpecial.toFixed(4) + ")");
     r.ok(allInPlay, "generated card ROLLED suits stay in-play (ungated stickers may re-suit them after)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");

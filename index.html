@@ -5867,7 +5867,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.06 · the card picker stops repainting the whole deck per tap";
+const APP_VERSION = "v4.07 · Jokers and Blanks answer to the full 52, not the narrowed suit";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11117,17 +11117,24 @@ const CampaignState = (() => {
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
         phaseIndex), so a not-yet-reached node previews from the right pool. */
     function suitForNode(node) { return (node && typeof node.phase === "number") ? PHASE_SUITS[node.phase] : phaseSuit(); }
-    /** MAP SPECIALS — Joker + Blank as map pickups, at the SAME rule as store
-        card packs (genPackCard): each at HALF a normal rank's frequency (roll
-        space = 13 ranks + 0.5 + 0.5, so P(special) = 1/14, then a 50/50 Joker
-        or Blank). Returns true (Joker) / false (Blank) / null (normal card).
+    /** SPECIALS RATE — Joker + Blank each carry weight 0.5 against the FULL
+        52-card deck at weight 1 per card (total roll space 52 + 0.5 + 0.5 =
+        53), NO MATTER how narrow the pool a normal pick actually draws from.
+        A suit-gated stage narrows normal picks to 13 cards, but the specials
+        still compete as if in the 52-wide pool — so gating never inflates
+        their rate. P(special) = 1/53 per slot (≈1.9%), then a 50/50 Joker or
+        Blank (≈0.94% each). ONE rule for every roll site: store card packs
+        (genPackCard), map +1 card nodes, and map packs. */
+    const SPECIAL_ROLL_SPACE = 52 + 0.5 + 0.5;              // full deck + both specials
+    const SPECIAL_CHANCE = (0.5 + 0.5) / SPECIAL_ROLL_SPACE; // = 1/53 per slot
+    /** MAP SPECIALS — Joker + Blank as map pickups, at the shared full-52 rule
+        above. Returns true (Joker) / false (Blank) / null (normal card).
         `_setMapSpecialRoll` is a TEST/QA hook (like deck._setNext): tests pin
         the roll to exercise both the normal-card and the special contracts. */
     let mapSpecialRoll = null;   // null = production rule; fn() → true|false|null
     function rollMapSpecial(rng) {
       if (mapSpecialRoll) return mapSpecialRoll();
-      const RANK_COUNT = MAX_RANK - MIN_RANK + 1;   // 13
-      if (rng() < 1 / (RANK_COUNT + 1)) return rng() < 0.5;
+      if (rng() < SPECIAL_CHANCE) return rng() < 0.5;
       return null;
     }
     // +1 nodes LOCK a special as a sentinel ("J"/"B") in nodeCards — nothing is
@@ -11348,8 +11355,8 @@ const CampaignState = (() => {
       /** Resolve a pack node → add up to `packCount` cards, all of the node's
           DISPLAYED suit (node.suit). A pack showing diamonds grants only diamonds;
           if that suit is exhausted it grants fewer (never off-suit). Each slot may
-          instead be a SPECIAL — Joker or Blank — at the store card packs' rule
-          (P(special) = 1/14, then 50/50): a Joker joins the deck like any card; a
+          instead be a SPECIAL — Joker or Blank — at the shared full-52 rule
+          (P(special) = 1/53, then 50/50): a Joker joins the deck like any card; a
           Blank is returned un-owned (the caller runs its choose-to-remove flow). */
       resolvePack(node) {
         const out = [];
@@ -12069,13 +12076,11 @@ const CampaignState = (() => {
           locked and applied to the card (rank/suit stickers mutate it; Change-
           Suit Random stays in-play). */
       genPackCard(rng = Math.random) {
-        // SPECIAL PACK OPTIONS — Joker + Blank. Each appears at HALF a normal
-        // rank's frequency: the roll space is the 13 ranks (weight 1 each) PLUS
-        // Joker (0.5) + Blank (0.5), so P(a given rank) = 1/14 and P(Joker) =
-        // P(Blank) = 0.5/14. A slot is "special" with probability 1/14; inside
-        // that it's a 50/50 Joker or Blank.
-        const RANK_COUNT = MAX_RANK - MIN_RANK + 1;   // 13
-        if (rng() < 1 / (RANK_COUNT + 1)) {
+        // SPECIAL PACK OPTIONS — Joker + Blank at the shared full-52 rule
+        // (SPECIAL_CHANCE): weight 0.5 each against the whole 52-card deck,
+        // regardless of the suit gating applied to the normal pick below.
+        // P(special) = 1/53 per slot, then a 50/50 Joker or Blank.
+        if (rng() < SPECIAL_CHANCE) {
           const isJoker = rng() < 0.5;
           return isJoker
             ? { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 }

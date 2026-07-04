@@ -118,7 +118,7 @@ export function run() {
     r.ok(!c.getRunDeck().some(x => x.blank), "the Blank itself is NOT added to the deck");
   }
 
-  // --- FREQUENCY: Joker/Blank each ≈ half a rank's rate -------------------
+  // --- FREQUENCY: Joker/Blank weight 0.5 each vs the FULL 52-card pool ----
   {
     const c = CampaignState.create();
     // mulberry32 — the old LCG's lattice structure aliased against the roll's
@@ -141,10 +141,16 @@ export function run() {
     }
     const rankVals = Object.values(ranks);
     const avgRank = rankVals.reduce((a, b) => a + b, 0) / rankVals.length;   // avg per-rank count
-    // Each specific rank appears ~N/14; Joker and Blank each ~N/28 (half a rank).
+    // Roll space = 52 cards (weight 1) + Joker (0.5) + Blank (0.5) = 53:
+    // P(Joker) = P(Blank) = 0.5/53 ≈ 0.94% each. Normal picks spread evenly
+    // over 13 ranks (each ≈ (52/53)/13 of all rolls), so each special lands at
+    // 0.5·13/52 = 1/8 of a rank's observed frequency.
     r.ok(jok > 0 && bl > 0, "both Joker and Blank appear in the roll");
-    r.ok(Math.abs(jok - avgRank / 2) / (avgRank / 2) < 0.25, "Joker ≈ half a rank's frequency (joker " + jok + " vs half-rank " + Math.round(avgRank / 2) + ")");
-    r.ok(Math.abs(bl - avgRank / 2) / (avgRank / 2) < 0.25, "Blank ≈ half a rank's frequency (blank " + bl + " vs half-rank " + Math.round(avgRank / 2) + ")");
+    r.ok(Math.abs(jok - avgRank / 8) / (avgRank / 8) < 0.3, "Joker ≈ 1/8 of a rank's frequency (joker " + jok + " vs rank/8 " + Math.round(avgRank / 8) + ")");
+    r.ok(Math.abs(bl - avgRank / 8) / (avgRank / 8) < 0.3, "Blank ≈ 1/8 of a rank's frequency (blank " + bl + " vs rank/8 " + Math.round(avgRank / 8) + ")");
+    const pJoker = jok / N, pBlank = bl / N;
+    r.ok(pJoker > 0.005 && pJoker < 0.015, "P(Joker) ≈ 0.5/53 ≈ 0.94% (got " + (pJoker * 100).toFixed(2) + "%)");
+    r.ok(pBlank > 0.005 && pBlank < 0.015, "P(Blank) ≈ 0.5/53 ≈ 0.94% (got " + (pBlank * 100).toFixed(2) + "%)");
   }
 
   return r.summary();
