@@ -23,7 +23,7 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
-    r.eq(BaseTypes.all().length, 15, "all 15 Bases registered");
+    r.eq(BaseTypes.all().length, 17, "all 17 Bases registered (added Recharge Cell + Power Surge)");
     r.ok(!!BaseTypes.get("kamikaze"), "Kamikaze is a Base");
     r.eq(BaseTypes.get("kamikaze").kind, "active", "Bases are the 'active' kind");
     r.eq(BaseTypes.get("kamikaze").target, "pile", "Kamikaze is a target Base");

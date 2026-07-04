@@ -5884,7 +5884,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.10 · deal difficulty is graded against its own stage, not an absolute scale";
+const APP_VERSION = "v4.11 · four Same-charged trinkets — recharge the shield, tap the power";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6145,6 +6145,10 @@ const GLYPHS = {
   // ---- expansion pillars (same monoline neural style) ----
   // Same Spark — an equals sign throwing off a spark.
   samespark: '<path d="M5 9h8M5 14h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 4l1 3.4 3.4 1-3.4 1L18 13l-1-3.6-3.4-1 3.4-1z"/>',
+  // Recharge Same Shield — a guard shield with an upward recharge arrow.
+  recharge_same: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 15.5V9m0 0l-2.6 2.6M12 9l2.6 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Activate Same Power — an equals sign (Same) firing a lightning bolt.
+  activate_same: '<path d="M3.5 9.5h7M3.5 14h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M15 3.5l-3.2 7.2h3l-1.3 5.8 5.6-8h-3.2l1.6-5z" fill="currentColor"/>',
   // Insurance — a life ring.
   insurance: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 3.5v4M12 16.5v4M3.5 12h4M16.5 12h4" stroke="currentColor" stroke-width="2.2"/>',
   // Ditto — two quote-mark dots (the "ditto" mark).
@@ -6206,6 +6210,7 @@ const ELEM_GLYPH = {
   quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
   snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
   baseScout: "basescout", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
+  rechargeSameShield: "recharge_same", activateSamePower: "activate_same",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie_column", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "hearts_all", allSpadesCoin: "spade",
@@ -6245,7 +6250,8 @@ const STICKER_FACE = { coins: "#c9982f", saves: "#2f9ca0", bury: "#8a6038", peek
 const STICKER_BEHAVIOR_CAT = {
   extraCoin: "coins", middleColumnReward: "coins", gainCoin: "coins", collector: "coins",
   compound: "coins", deathBounty: "coins", looseChange: "coins", deepPockets: "coins", momentum: "coins",
-  tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves",
+  tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves", rechargeSameShield: "saves",
+  activateSamePower: "spark",
   tribute: "bury", quickBury: "bury", snowball: "bury",
   revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek", tell: "peek",
   duplicate: "spark", twinSpark: "spark",
@@ -6389,6 +6395,11 @@ const StickerTypes = (() => {
                   description: "Earn X coins. X starts at 0 and grows by 2 after each correct placement. An incorrect guess resets X to 0" },
     tell:       { id: "tell",       label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 7,
                   description: "Tells you if the next drawn card is higher, lower, or same as this card" },
+    // ---- Same-charge / Same-power stickers (fire on correct placement) ----
+    rechargeSameShield: { id: "rechargeSameShield", label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 15,
+                  description: "Trigger: Correct placement of this card\nEffect: Bank a Same Charge — the auto-save shield (max 1; does nothing if already charged)" },
+    activateSamePower: { id: "activateSamePower", label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 12,
+                  description: "Trigger: Correct placement of this card\nEffect: Fire your equipped Same-Power on this card's pile (its linked piles). Does not bank a charge; nothing if no Same-Power is equipped" },
   };
   // Bake the neural SVG glyph onto each type's icon (replaces the emoji).
   for (const k in TYPES) if (ELEM_GLYPH[k]) TYPES[k].icon = glyph(ELEM_GLYPH[k]);
@@ -6402,7 +6413,8 @@ const StickerTypes = (() => {
     "deathBounty", "heavy", "collector", "compound", "revealNext", "wildSuit",
     "shuffle", "donate",
     "quickBury", "twinSpark", "looseChange", "snowball", "deepPockets",
-    "pillarScout", "baseScout", "suitSnob", "momentum", "tell"];
+    "pillarScout", "baseScout", "suitSnob", "momentum", "tell",
+    "rechargeSameShield", "activateSamePower"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -6800,13 +6812,29 @@ const BaseTypes = (() => {
       kind: "active", effect: "tax", suit: "♥", tier: "uncommon", price: 9,
       description: "Trigger: Activated, once per deal\nEffect: +1 coin for each ♥ card in this column (includes top cards and buried; dead piles don't count)",
     },
+    // ---- Same-charge / Same-power bases (activated, once per deal) ----
+    rechargeSame: {
+      // Bank a Same Charge (the auto-save shield; max 1). Unavailable while
+      // already charged, so it can never be wasted.
+      id: "rechargeSame", label: "Recharge Cell", icon: "🔋",
+      kind: "active", effect: "rechargeSameShield", tier: "rare", price: 25,
+      description: "Trigger: Activated, once per deal\nEffect: Bank a Same Charge — the auto-save shield (max 1; unavailable while already charged)",
+    },
+    activateSame: {
+      // Fire the equipped Same-Power on a RANDOM alive pile in this column (its
+      // linked piles). Does not bank a charge. Needs a Same-Power equipped.
+      id: "activateSame", label: "Power Surge", icon: "⚡",
+      kind: "active", effect: "activateSamePower", tier: "rare", price: 20,
+      description: "Trigger: Activated, once per deal\nEffect: Fire your equipped Same-Power on a random pile in this column (its linked piles). Does not bank a charge; needs a Same-Power equipped",
+    },
   };
   // Bases render their emoji icon uniformly on the bronze Base slab (no glyph
   // override), so the whole class shares one distinct visual style.
   const ORDER = ["kamikaze", "spadePeek", "shuffleColumn", "revive", "randomSticker",
     "evenOut", "buryAll", "setValue", "setSuit",
     "stickerHarvest", "refreshBases",
-    "clubDig", "demolish", "heartDemolish", "tax"];
+    "clubDig", "demolish", "heartDemolish", "tax",
+    "rechargeSame", "activateSame"];
   return {
     ids: ORDER,
     get(id) { return TYPES[id] || null; },
@@ -9185,6 +9213,23 @@ const GameEngine = (() => {
         if (psPeek) recT("sticker", "pillarScout", "Pillar Scout", { peeks: 1 });
         if (bsPeek) recT("sticker", "baseScout", "Base Scout", { peeks: 1 });
       }
+      // --- Same-charge / Same-power stickers ---
+      // Recharge Shield: bank a Same Charge (the auto-save shield; max 1 — a no-op
+      // if already charged). Emit "same-banked" so the HUD's charge indicator
+      // refreshes exactly like a correct Same does.
+      if (n("rechargeSameShield") > 0) {
+        const was = sameCharge;
+        sameCharge = true;
+        if (!was) logLine("Recharge Shield: banked a Same Charge");
+        recT("sticker", "rechargeSameShield", "Recharge Shield", { saves: was ? 0 : 1 });
+        emit("same-banked", { index, board, deck, run, sameCharge });
+      }
+      // Tap Power: fire the equipped Same-Power on THIS pile's linked piles, once
+      // per instance. It banks NO charge, and fireSamePower is a no-op when nothing
+      // is equipped (intended). Each firing emits its own "same-power" flourish.
+      const tp = n("activateSamePower");
+      for (let k = 0; k < tp; k++) fireSamePower(index);
+      if (tp > 0) recT("sticker", "activateSamePower", "Tap Power", { copies: tp });
     }
 
     /** Optional post-landing sticker ACTIONS carried by the DRAWN card that just
@@ -9416,6 +9461,10 @@ const GameEngine = (() => {
         case "demolish":         return !!run.pillars && run.pillars.some(Boolean);
         case "heartDemolish":    return alive.some(i => topIsSuit(i, "♥"));
         case "tax":              return colHearts > 0;
+        // Recharge Cell: only when a charge can actually be banked (never wasted).
+        case "rechargeSameShield": return !sameCharge;
+        // Power Surge: needs a Same-Power equipped AND an alive pile to fire on.
+        case "activateSamePower":  return !!run.samePower && alive.length > 0;
         default:                 return false;
       }
     }
@@ -9496,6 +9545,23 @@ const GameEngine = (() => {
           res.index = targetIndex;
           res.cards = deck.peek(3).map(c => ({ ...c }));      // read-only snapshot (no order change)
           logLine("killed pile " + (targetIndex + 1) + ", peeking the next 3 upcoming cards");
+          break;
+        }
+        case "rechargeSameShield": {
+          // Bank a Same Charge (the auto-save shield; max 1). Availability already
+          // gated this to the un-charged case, so it always banks here.
+          sameCharge = true;
+          res.sameCharge = true;
+          logLine("banked a Same Charge");
+          break;
+        }
+        case "activateSamePower": {
+          // Fire the equipped Same-Power on a RANDOM alive pile in this column
+          // (its linked piles). Banks no charge. fireSamePower no-ops if nothing
+          // is equipped — but the precondition already required an equipped power.
+          const hub = pickOne(colAlivePiles(col));
+          if (hub != null) { fireSamePower(hub); res.hub = hub; res.index = hub; }
+          logLine("fired the equipped Same-Power on pile " + (hub != null ? (hub + 1) : "—"));
           break;
         }
         case "spadePeek": {

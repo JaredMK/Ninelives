@@ -33,6 +33,7 @@ import { run as tell } from "./tell.test.mjs";
 import { run as sameCharge } from "./same-charge.test.mjs";
 import { run as samePower } from "./same-power.test.mjs";
 import { run as subsetDeals } from "./subset-deals.test.mjs";
+import { run as sameItems } from "./same-items.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -66,6 +67,7 @@ const SUITES = [
   ["same-charge", sameCharge],
   ["same-power", samePower],
   ["subset-deals", subsetDeals],
+  ["same-items", sameItems],
 ];
 
 let pass = 0,

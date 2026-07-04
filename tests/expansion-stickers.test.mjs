@@ -36,7 +36,7 @@ export function run() {
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
       "suitSnob", "momentum"];
     r.ok(ids.every(id => !!StickerTypes.get(id)), "all 11 new stickers registered");
-    r.eq(StickerTypes.all().length, 41, "sticker registry totals 41 (Duplicate removed)");
+    r.eq(StickerTypes.all().length, 43, "sticker registry totals 43 (added Recharge Shield + Tap Power)");
     r.ok(!StickerTypes.get("mirror"), "Mirror sticker is gone from the registry");
     r.ok(!StickerTypes.get("duplicate"), "Duplicate sticker is gone from the registry");
     r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank now costs 1");
