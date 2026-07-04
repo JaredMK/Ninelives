@@ -16,19 +16,35 @@ export function run() {
     r.eq(S.threshold, 35, "subset kicks in past a 35-card deck");
     r.eq(S.min, 15, "survive subset floor is 15");
     r.eq(S.max, 35, "survive subset ceiling is 35");
-    r.ok(S.scoreT1 < S.scoreT2, "score thresholds ascend (T1 < T2)");
+    r.eq(S.scoreT1, undefined, "no fixed global score thresholds (now stage-relative)");
   }
 
-  // --- difficultyScore buckets a target danger into 1 | 2 | 3 -----------
+  // --- difficultyScore is STAGE-RELATIVE: each stage's own band → thirds ----
   {
-    r.eq(RunMap.difficultyScore(1.5), 1, "D 1.5 → score 1 (easy)");
-    r.eq(RunMap.difficultyScore(S.scoreT1 - 0.01), 1, "just below T1 → 1");
-    r.eq(RunMap.difficultyScore(S.scoreT1), 2, "at T1 → 2 (medium)");
-    r.eq(RunMap.difficultyScore(4.0), 2, "D 4.0 → score 2");
-    r.eq(RunMap.difficultyScore(S.scoreT2 - 0.01), 2, "just below T2 → 2");
-    r.eq(RunMap.difficultyScore(S.scoreT2), 3, "at T2 → 3 (hard)");
-    r.eq(RunMap.difficultyScore(6.0), 3, "D 6.0 → score 3");
-    r.eq(RunMap.difficultyScore(0), 2, "no/invalid target → neutral 2");
+    // No stage context → neutral 2 (never a fixed global scale).
+    r.eq(RunMap.difficultyScore(4.0), 2, "no phase arg → neutral 2");
+    r.eq(RunMap.difficultyScore(0, 0), 2, "invalid target → neutral 2");
+    // For every base stage, the band [lo,hi] splits at lo+span/3 and lo+2span/3;
+    // a D in the low/mid/high third buckets to 1/2/3 RELATIVE to that stage.
+    for (let phase = 0; phase <= 2; phase++) {
+      const tiers = RunMap.difficultyTiers(phase, false);
+      const [lo, hi] = tiers.band, span = hi - lo;
+      r.eq(RunMap.difficultyScore(lo + span * 0.01, phase), 1, "stage " + phase + ": bottom of band → 1");
+      r.eq(RunMap.difficultyScore(lo + span * 0.5, phase), 2, "stage " + phase + ": middle of band → 2");
+      r.eq(RunMap.difficultyScore(hi - span * 0.01, phase), 3, "stage " + phase + ": top of band → 3");
+      r.eq(RunMap.difficultyScore(tiers.t1 - 1e-6, phase), 1, "stage " + phase + ": just below t1 → 1");
+      r.eq(RunMap.difficultyScore(tiers.t1, phase), 2, "stage " + phase + ": at t1 → 2");
+      r.eq(RunMap.difficultyScore(tiers.t2, phase), 3, "stage " + phase + ": at t2 → 3");
+    }
+    // The SAME absolute danger scores DIFFERENTLY per stage — a mid-stage-2
+    // danger reads as HARD (3) in the easier stage 0 but EASY (1) in stage 2.
+    const midStage1 = (RunMap.difficultyTiers(1, false).band[0] + RunMap.difficultyTiers(1, false).band[1]) / 2;
+    const s0 = RunMap.difficultyScore(midStage1, 0);
+    const s2 = RunMap.difficultyScore(midStage1, 2);
+    r.ok(s0 > s2, "the same danger scores higher in an easier stage (" + s0 + " @stage0 > " + s2 + " @stage2)");
+    // bands ascend across stages, so a "3" means a harder deal each stage.
+    const t = [0, 1, 2].map(ph => RunMap.difficultyTiers(ph, false).t2);
+    r.ok(t[0] < t[1] && t[1] < t[2], "the '3' threshold rises stage to stage (" + t.map(x => x.toFixed(2)).join(" < ") + ")");
   }
 
   // --- solveSubsetPiles: piles = nearest(S / D), clamped to board range --
@@ -59,8 +75,8 @@ export function run() {
   // Generate stages at a big entry deck (subset territory) and assert every
   // deal/boss carries a positive targetD that buckets to a sane 1-3 score.
   {
-    let deals = 0, bosses = 0, missing = 0;
-    const scores = new Set();
+    let deals = 0, bosses = 0, missing = 0, outOfRange = 0;
+    const perStageScores = { 0: new Set(), 1: new Set(), 2: new Set() };
     for (let phase = 0; phase <= 2; phase++) {
       const entry = [20, 40, 55][phase];
       const ph = RunMap.generateStage(phase, 12345 + phase, entry);
@@ -68,13 +84,20 @@ export function run() {
         if (n.type !== "deal" && n.type !== "boss") continue;
         if (n.type === "boss") bosses++; else deals++;
         if (!(typeof n.targetD === "number" && n.targetD > 0)) { missing++; continue; }
-        scores.add(RunMap.difficultyScore(n.targetD));
+        const isBoss = n.type === "boss";
+        const sc = RunMap.difficultyScore(n.targetD, phase, isBoss);   // generateStage nodes carry no .phase; pass the known one
+        if (sc < 1 || sc > 3) outOfRange++;
+        if (!isBoss && perStageScores[phase]) perStageScores[phase].add(sc);
       }
     }
     r.ok(deals > 0 && bosses > 0, "stages produced deal + boss nodes (" + deals + " deals, " + bosses + " bosses)");
     r.eq(missing, 0, "every deal/boss node carries a positive targetD");
-    r.ok([...scores].every(s => s >= 1 && s <= 3), "all node scores fall in 1..3");
-    r.ok(scores.size >= 2, "difficulty scores vary across the run (got " + [...scores].sort().join(",") + ")");
+    r.eq(outOfRange, 0, "every node score falls in 1..3");
+    // Within a SINGLE stage the deals should span more than one tier (the point:
+    // it shows which deals are hardest among that stage's own choices).
+    const spread = [0, 1, 2].filter(ph => perStageScores[ph].size >= 2).length;
+    r.ok(spread >= 1, "at least one stage's deals span multiple relative tiers "
+      + "(sizes " + [0,1,2].map(ph => perStageScores[ph].size).join("/") + ")");
   }
 
   return r.summary();

@@ -5884,7 +5884,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.09 · big decks now play a random subset — bosses still face them whole";
+const APP_VERSION = "v4.10 · deal difficulty is graded against its own stage, not an absolute scale";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7321,12 +7321,33 @@ const RunMap = (() => {
      (from its stage band), and SOLVE piles = nearest(S / D), clamped to the board's
      [minPiles, maxPiles]. The realized danger ≈ D; if the clamp bites, the band
      is accepted slightly off (report-only). The 1..3 difficulty SCORE shown on a
-     map node is that target D bucketed by scoreT1/scoreT2. */
-  const SUBSET = { threshold: 35, min: 15, max: 35, scoreT1: 3.0, scoreT2: 4.5 };
-  /** Bucket a target danger ratio into the player-facing 1..3 difficulty score. */
-  function difficultyScore(targetD) {
+     map node is STAGE-RELATIVE (see difficultyScore): it segments THAT stage's own
+     band into thirds, so a "3" flags the hardest deals AVAILABLE at that point —
+     a stage-3 "3" is far harder in absolute terms than a stage-1 "3". */
+  const SUBSET = { threshold: 35, min: 15, max: 35 };
+  /** The player-facing 1..3 difficulty score for a deal, RELATIVE TO ITS STAGE.
+      Each stage owns a difficulty band [lo,hi] in GEN_CONFIG (bandsFor: the
+      regular-deal band, or the boss band for a boss). We split THAT band into
+      three equal tiers — low (1), medium (2), high (3) at lo+span/3 and
+      lo+2·span/3 — and bucket the node's own danger (targetD) into them. So the
+      score answers "how hard is this deal among the choices THIS stage offers",
+      not "how hard on an absolute scale". Absent a stage context (or a
+      degenerate band) it falls back to a neutral 2. */
+  function difficultyScore(targetD, phaseIndex, isBoss) {
     if (!(targetD > 0)) return 2;
-    return targetD < SUBSET.scoreT1 ? 1 : targetD < SUBSET.scoreT2 ? 2 : 3;
+    if (typeof phaseIndex !== "number") return 2;   // no stage context → neutral
+    const b = isBoss ? bandsFor(phaseIndex).boss : bandsFor(phaseIndex).stage;
+    const lo = b[0], hi = b[1], span = hi - lo;
+    if (!(span > 0)) return 2;
+    const t1 = lo + span / 3, t2 = lo + (2 * span) / 3;
+    return targetD < t1 ? 1 : targetD < t2 ? 2 : 3;
+  }
+  /** The two stage-relative tier edges [t1, t2] for a phase's band — exposed so
+      the UI/tests can report exactly how each stage was segmented. */
+  function difficultyTiers(phaseIndex, isBoss) {
+    const b = isBoss ? bandsFor(phaseIndex).boss : bandsFor(phaseIndex).stage;
+    const lo = b[0], hi = b[1], span = hi - lo;
+    return { band: [lo, hi], t1: lo + span / 3, t2: lo + (2 * span) / 3 };
   }
   /** Solve the pile count for a rolled survive count at a target danger D:
       piles = nearest(S / D), clamped to [minP, maxP]. */
@@ -8545,7 +8566,7 @@ const RunMap = (() => {
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
            generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
-           bandsFor, SUBSET, difficultyScore, solveSubsetPiles, __genFails };
+           bandsFor, SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
 
 /* ----------------------------------------------------------------
@@ -20126,7 +20147,7 @@ const UIRenderer = (() => {
      numbers. A boss shows a distinct FULL marker (it always plays the whole
      deck). The score is the node's target danger bucketed by RunMap. */
   function dealBadge(n, big) {
-    const score = RunMap.difficultyScore(n && n.targetD);
+    const score = RunMap.difficultyScore(n && n.targetD, n && n.phase, big);
     if (big) return '<span class="mn-piles mn-full">FULL</span>';
     let pips = "";
     for (let i = 1; i <= 3; i++) pips += '<i' + (i <= score ? ' class="on"' : "") + '></i>';
@@ -20173,8 +20194,8 @@ const UIRenderer = (() => {
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
-    if (n.type === "boss") return "BOSS — full deck · difficulty " + RunMap.difficultyScore(n.targetD) + "/3";
-    if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD) + "/3";
+    if (n.type === "boss") return "BOSS — full deck · difficulty " + RunMap.difficultyScore(n.targetD, n.phase, true) + "/3 (this stage)";
+    if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 (this stage)";
     if (n.type === "store") return "Shop";
     if (n.type === "home") return "Home — mama ♥ is waiting";
     if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
