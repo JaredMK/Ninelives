@@ -1456,6 +1456,44 @@
   .pile.predeal .card { opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .pile.predeal .card { opacity: 1; } }
 
+  /* ── SUBSET REVEAL (presentation only) ───────────────────────────────────
+     A quick anonymous flourish before a SUBSET deal: the whole deck fans out as
+     FACE-DOWN blank card backs (no ranks — identities never shown), then the
+     out-of-play portion greys/fades while the in-play portion stays lit, over a
+     "X of Y in play" count. Conveys PROPORTION only. Casino-felt vignette. */
+  .subset-reveal { position: fixed; inset: 0; z-index: 90;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    background: radial-gradient(circle at 50% 42%, rgba(20,46,34,0.70), rgba(7,18,13,0.93));
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    opacity: 0; transition: opacity 0.16s ease; }
+  .subset-reveal.in { opacity: 1; }
+  .subset-reveal.out { opacity: 0; }
+  .sr-fan { position: relative; width: min(92vw, 430px); height: 168px; }
+  /* Each card is a FACE-DOWN back (rose/dark diagonal weave — the deck-character
+     palette), fanned by rotating around a low pivot. No face, no rank: anonymous. */
+  .sr-card { position: absolute; left: 50%; top: 34%; width: 30px; height: 44px; margin: -22px 0 0 -15px;
+    border-radius: 4px; transform-origin: 50% 150%;
+    transform: rotate(var(--a)) scale(0.55); opacity: 0;
+    background: repeating-linear-gradient(135deg, #b23a5c, #b23a5c 3px, #8e2f4e 3px, #8e2f4e 6px);
+    border: 1px solid rgba(255,255,255,0.32);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.18);
+    animation: srDeal 0.32s cubic-bezier(0.3,0.9,0.4,1.25) forwards;
+    transition: filter 0.36s ease, opacity 0.36s ease, box-shadow 0.36s ease; }
+  @keyframes srDeal { to { transform: rotate(var(--a)) scale(1); opacity: 1; } }
+  /* The unused portion greys out; the in-play portion stays lit with a soft glow.
+     Both remain anonymous backs — this only ever shows how MANY, never which. */
+  .subset-reveal.dimmed .sr-card.dim { filter: grayscale(1) brightness(0.42); opacity: 0.4; }
+  .subset-reveal.dimmed .sr-card.lit { box-shadow: 0 2px 8px rgba(0,0,0,0.42), 0 0 9px rgba(226,140,172,0.55); }
+  .sr-label { font-family: var(--font-display); font-weight: 800; font-size: 21px; letter-spacing: 0.3px;
+    color: #fbeef2; text-shadow: 0 2px 7px rgba(0,0,0,0.6); opacity: 0; transform: translateY(6px);
+    transition: opacity 0.3s ease 0.12s, transform 0.3s ease 0.12s; }
+  .sr-label b { color: #ffd9e4; }
+  .subset-reveal.in .sr-label { opacity: 1; transform: translateY(0); }
+  .sr-sub { font-family: var(--font-text); font-size: 12px; color: rgba(240,230,235,0.72);
+    opacity: 0; transition: opacity 0.3s ease 0.2s; }
+  .subset-reveal.in .sr-sub { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .sr-card { animation: none; opacity: 1; transform: rotate(var(--a)); } }
+
   /* pulse feedback for correct/incorrect */
   @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(63,157,106,0.6);} 100%{box-shadow:0 0 0 15px rgba(63,157,106,0);} }
   /* The ripple rides a dedicated overlay (::after) rather than .card itself: the
@@ -5884,7 +5922,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.11 · four Same-charged trinkets — recharge the shield, tap the power";
+const APP_VERSION = "v4.12 · a subset deal fans your deck first — this many of that many, faces hidden";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16582,6 +16620,59 @@ const UIRenderer = (() => {
      out; this only animates their first appearance. Returns true if it ran (so the
      caller can skip the legacy all-at-once drop-in), false under reduced motion / no
      Web Animations support (board just shows normally). */
+  /* ── SUBSET REVEAL (presentation only) ──────────────────────────────────
+     A quick anonymous flourish shown before a SUBSET deal (see startRun): the
+     full deck (`total` cards) fans out as FACE-DOWN blank backs; the out-of-play
+     portion then greys/fades while the `inPlay` portion stays lit, over an
+     "X of Y in play" count. Conveys PROPORTION + COUNT only — every card is an
+     anonymous back, so which cards are in the subset is NEVER shown. Snappy
+     (~1.2s), then removes itself. Reduced motion → a brief static frame. */
+  function playSubsetReveal(inPlay, total) {
+    if (!total || total <= 0 || inPlay < 0) return;
+    // Cap how many card backs we DRAW (deep endless decks can be large); the
+    // label always shows the true counts, and the drawn lit/dim split stays
+    // proportional. Anonymity is unaffected (all backs are blank).
+    const CAP = 55;
+    const drawN = Math.min(total, CAP);
+    const litN = total > 0 ? Math.round(drawN * (inPlay / total)) : 0;
+    // The lit (in-play) cards are ONE contiguous wedge, the faded (sitting-out)
+    // cards the rest — so the split reads as a clear proportion at a glance
+    // instead of hiding the dim backs under overlapping lit ones. This is purely
+    // a proportion visual: the backs are blank and map to NOTHING in the real
+    // deck, so a contiguous wedge exposes count, never any card's identity.
+    const lit = Array.from({ length: drawN }, (_, i) => i < litN);
+    const wrap = document.createElement("div");
+    wrap.className = "subset-reveal";
+    const fan = document.createElement("div");
+    fan.className = "sr-fan";
+    const SPREAD = Math.min(84, 10 + drawN * 1.4);   // total arc degrees
+    for (let i = 0; i < drawN; i++) {
+      const c = document.createElement("span");
+      c.className = "sr-card " + (lit[i] ? "lit" : "dim");
+      const t = drawN > 1 ? i / (drawN - 1) : 0.5;
+      c.style.setProperty("--a", ((t - 0.5) * SPREAD).toFixed(2) + "deg");
+      c.style.animationDelay = (i * 6) + "ms";
+      fan.appendChild(c);
+    }
+    const label = document.createElement("div");
+    label.className = "sr-label";
+    label.innerHTML = "<b>" + inPlay + "</b> of <b>" + total + "</b> cards in play";
+    const sub = document.createElement("div");
+    sub.className = "sr-sub";
+    sub.textContent = "A random hand from your deck — the rest sit this one out";
+    wrap.appendChild(fan); wrap.appendChild(label); wrap.appendChild(sub);
+    document.body.appendChild(wrap);
+    try { Sound.shuffle(); } catch (e) {}
+    requestAnimationFrame(() => wrap.classList.add("in"));
+    const fanDone = drawN * 6 + 340;
+    const t1 = setTimeout(() => wrap.classList.add("dimmed"), Math.min(560, fanDone));
+    const t2 = setTimeout(() => {
+      wrap.classList.add("out");
+      setTimeout(() => wrap.remove(), 220);
+    }, prefersReduce() ? 620 : 1220);
+    void t1; void t2;
+  }
+
   let dealCascadeToken = 0;
   function playDealCascade(board) {
     if (!board || !el.board || prefersReduce() || typeof el.board.animate !== "function") return false;
@@ -18316,6 +18407,12 @@ const UIRenderer = (() => {
     // with the same board + redeal price.
     persistCampaign("run");
     renderReshuffleBtn();   // fresh deal, zero guesses → the reshuffle offer shows
+    // SUBSET REVEAL: a quick anonymous "X of Y in play" flourish, ONLY for a
+    // subset deal entered fresh or reshuffled (a resume — seedOverride set —
+    // reproduces the deal silently; full-deck deals and bosses never subset).
+    if (subsetDealActive && seedOverride == null) {
+      playSubsetReveal(deckForDeal.length, fullDeck.length);
+    }
   }
 
   /* Largest single-column pile count across every run (4, from Run 1's middle
