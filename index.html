@@ -4247,10 +4247,16 @@
   /* TRAIL = the deal screen's rose SYNAPSE web: dusty-rose curves (--net) with a
      small signal dot (--net-dot) on each, replacing the old neutral grey lines. */
   .map-edge { fill: none; stroke: var(--net); stroke-width: 3; stroke-linecap: round; opacity: 0.5; }
-  .map-edge.done { opacity: 0.2; }
+  /* TRAVELED edges (both endpoints cleared) are the route the player took — make
+     them the BOLDEST line on the map: clearly THICKER and BRIGHTER than the
+     untraveled rest, in a luminous rose with a soft glow so the path up the map
+     reads at a glance. (Untraveled base + current-node `active` edges unchanged.) */
+  .map-edge.done { stroke: var(--net-trail, #F79ABC); stroke-width: 6; opacity: 1;
+    filter: drop-shadow(0 0 3px rgba(247,154,188,0.85)); }
   .map-edge.active { stroke-width: 4; opacity: 0.95; }
   .map-dot { fill: var(--net-dot); opacity: 0.5; }
   .map-dot.active { opacity: 0.95; }
+  .map-dot.done { fill: var(--net-trail, #F79ABC); opacity: 1; }
 
   /* Continuous run-map: per-phase tint BANDS stacked up the climb (♦ foot →
      ♠ summit), each labelled where its suit takes over. Low alpha keeps every
@@ -5922,7 +5928,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.13 · the histogram ticks down again on subset deals — drawn cards count";
+const APP_VERSION = "v4.14 · the trail you climbed now glows — traveled edges thick and bright";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -20632,7 +20638,7 @@ const UIRenderer = (() => {
     // only its two endpoints and never crosses another node.
     const edgeSvg = (a, b, active, done, fromId, toId) => {
       const cls = "map-edge" + (active ? " active" : "") + (done ? " done" : "");
-      const dotCls = "map-dot" + (active ? " active" : "");
+      const dotCls = "map-dot" + (active ? " active" : "") + (done ? " done" : "");
       const Q = routeEdgeControl(a, b, fromId, toId);
       const dotX = 0.25 * a.x + 0.5 * Q.x + 0.25 * b.x, dotY = 0.25 * a.y + 0.5 * Q.y + 0.25 * b.y;   // curve point at t=0.5
       return '<path d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + Q.x.toFixed(1) + ' ' + Q.y.toFixed(1) +
