@@ -982,7 +982,9 @@
   /* BOARD — fills the width right of the strip and the full vertical space; only a
      slim bottom zone is reserved for the Start Deal / prompt bar. */
   body.thumb-deal .play-row .board { flex: 1 1 auto; }
-  body.thumb-deal main { padding-bottom: 50px; }
+  /* Extra bottom padding reserves the floating Reshuffle pill's strip so the
+     board's bottom row (incl. a Pillar/Base row) never reaches it. */
+  body.thumb-deal main { padding-bottom: 72px; }
   body.thumb-deal .play-controls { bottom: 8px; width: min(96vw, 460px); }
   body.thumb-deal .play-controls .play-btn { padding: 13px 22px; font-size: 15px; }
 
@@ -5928,7 +5930,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.14 · the trail you climbed now glows — traveled edges thick and bright";
+const APP_VERSION = "v4.15 · Envy pays per heart pile · a sixth store slot · Blank is now Removal";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6526,7 +6528,7 @@ const PillarTypes = (() => {
       // End-of-deal: +value per alive pile (board-wide) whose TOP card is a ♥.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "heartPiles", value: 4, tier: "common", price: 8,
-      description: "+4 coins per pile with a ♥ top card at end of deal",
+      description: "Trigger: End of deal\nEffect: +4 coins for each pile whose top card is a ♥ (counted per pile, board-wide)",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -10957,7 +10959,7 @@ const CampaignState = (() => {
      any one type from flooding the shelf (draws over the cap are rejected and
      redrawn). Buying empties only that slot; a reroll replaces ALL slots for
      REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit. */
-  const STORE_SLOTS = 5;               // one unified shelf of five slots
+  const STORE_SLOTS = 6;               // one unified shelf of six slots
   const STORE_TYPE_CAP = 3;            // max slots of one item TYPE per visit
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
@@ -20330,7 +20332,7 @@ const UIRenderer = (() => {
     // Joker / Blank pickups show their own faces (same look as the pack-reveal
     // mini cards: gold star / stitched grey), face-up like any +1 node card.
     if (card.joker) return '<span class="node-card"><span class="front nc-special nc-joker"><span class="ncs-sym">★</span><span class="ncs-lab">Joker</span></span></span>';
-    if (card.blank) return '<span class="node-card"><span class="front nc-special nc-blank"><span class="ncs-sym">∅</span><span class="ncs-lab">Blank</span></span></span>';
+    if (card.blank) return '<span class="node-card"><span class="front nc-special nc-blank"><span class="ncs-sym">∅</span><span class="ncs-lab">Removal</span></span></span>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const g = suitGlyph(card.suit), lbl = miniRankLabel(card);
     return '<span class="node-card"><span class="front' + (s.red ? " red" : "") + '">' +
@@ -20419,7 +20421,7 @@ const UIRenderer = (() => {
     if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
     const card = campaign.nodeCard(n);
     if (card && card.joker) return "★ Joker — never a wrong guess";
-    if (card && card.blank) return "∅ Blank — remove a card from your deck";
+    if (card && card.blank) return "∅ Removal — remove a card from your deck";
     return "A single card";
   }
   /* ── Player AVATAR (the card-box character) ────────────────────────────────
@@ -21288,7 +21290,7 @@ const UIRenderer = (() => {
     persistCampaign("store");
   }
   // Slot count the UI mirrors from the engine config (kept in sync there).
-  const STORE_SLOTS = 5;
+  const STORE_SLOTS = 6;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the
@@ -21302,7 +21304,7 @@ const UIRenderer = (() => {
   function miniCardHtml(card) {
     // Joker / Blank pack options render as their own faces (no rank/suit).
     if (card.joker) return '<div class="mini-card mc-special mc-joker"><span class="mcs-sym">★</span><span class="mcs-lab">Joker</span></div>';
-    if (card.blank) return '<div class="mini-card mc-special mc-blank"><span class="mcs-sym">∅</span><span class="mcs-lab">Blank</span></div>';
+    if (card.blank) return '<div class="mini-card mc-special mc-blank"><span class="mcs-sym">∅</span><span class="mcs-lab">Removal</span></div>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? stickerChip(st.type, { seed: "mc" }) : ""; }).join("");
     return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
@@ -21406,7 +21408,7 @@ const UIRenderer = (() => {
       const nBlank = st.items.filter(c => c && c.blank).length;
       el.packTitle.textContent = m + " card" + (m > 1 ? "s" : "") + " added";
       el.packMsg.textContent = nBlank > 0
-        ? "These join your deck — each ∅ Blank instead removes a card of your choice."
+        ? "These join your deck — each ∅ Removal instead removes a card of your choice."
         : "These join your deck.";
       el.packConfirmBtn.classList.remove("hidden");
       el.packConfirmBtn.disabled = false;
@@ -21523,7 +21525,7 @@ const UIRenderer = (() => {
     if (st.kind === "card") {
       const c = st.items[i];
       if (c.joker) return { title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power." };
-      if (c.blank) return { title: "∅ Blank", body: "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck." };
+      if (c.blank) return { title: "∅ Removal", body: "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck." };
       const title = escHtml(miniRankLabel(c) + " " + c.suit);
       const stk = c.stickers || [];
       const body = stk.length === 0
@@ -21603,7 +21605,7 @@ const UIRenderer = (() => {
     // deal keeps this pile's card for now; it's gone from every future deal.
     if (wasBlank) {
       if (pileEls[st.pileIndex]) floatChip(pileEls[st.pileIndex], "Removed −1", "save-float");
-      if (engine) engine.logAction("Blank removed a card from the deck (pile " + (st.pileIndex + 1) + ")");
+      if (engine) engine.logAction("Removal took a card from the deck (pile " + (st.pileIndex + 1) + ")");
       Sound.pack();
       appliedThisPhase = true; armedPack = null;
       el.board.classList.toggle("arming", !!armedSticker);
@@ -21737,9 +21739,9 @@ const UIRenderer = (() => {
     selectedApplyCardId = null; pendingBuyStickerSlot = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     const more = pendingBlankRemovals > 1 ? " (" + pendingBlankRemovals + " left)" : "";
-    if (el.saHead) el.saHead.textContent = "Blank — remove a card" + more;
+    if (el.saHead) el.saHead.textContent = "Removal — remove a card" + more;
     if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
-      '<span class="sa-name">∅ Blank</span>' +
+      '<span class="sa-name">∅ Removal</span>' +
       '<span class="sa-desc">Pick a card to permanently remove from your deck. Your deck shrinks by one card.</span>';
     if (el.saHint) el.saHint.textContent = "Tap the card to remove.";
     stickerApplyChrome();
@@ -21808,7 +21810,7 @@ const UIRenderer = (() => {
       // (this picker was opened FROM THE MAP, so it must return there, not to the
       // store that continuePendingPlacement's default refresh implies).
       if (campaign.removeDeckCard(selectedApplyCardId)) {
-        if (engine) engine.logAction("Blank removed a card from the deck (map)");
+        if (engine) engine.logAction("Removal took a card from the deck (map)");
         Sound.pack();
         persistCampaign("map");
       }

@@ -16,16 +16,22 @@ export function run() {
 
   // ===== Pillars =========================================================
 
-  // --- Envy: +4 coins per ALIVE pile with a ♥ top card (board-wide) ------
+  // --- Envy: at deal END, +4 coins PER PILE (board-wide) with a ♥ top ----
   {
+    // Registry + Trigger/Effect description.
+    r.eq(PillarTypes.get("envy").effect, "heartPiles", "Envy fires the per-♥-top-pile scoring effect");
+    r.eq(PillarTypes.get("envy").value, 4, "Envy pays 4 per ♥-top pile");
+    r.ok(/Trigger:[\s\S]*Effect:/.test(PillarTypes.get("envy").description), "Envy uses the Trigger/Effect description");
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", null, null]);
+    e.start(); e.startRun(["envy", null, null]);   // Envy bound to column 0 ONLY
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";   // clear all ♥ tops first
-    b.top(0).suit = "♥"; b.top(3).suit = "♥"; b.top(7).suit = "♥";   // exactly 3 ♥ tops
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 12, "Envy pays +4 per ♥-top pile (3 × 4 = 12)");
+    // Three ♥ tops in THREE DIFFERENT columns (0, 1, 2) — proves it counts
+    // per-pile across the whole board, not just Envy's own column.
+    b.top(0).suit = "♥"; b.top(3).suit = "♥"; b.top(7).suit = "♥";
+    e.debug.winNow();   // end of deal
+    r.eq(won().pillarPayout.bonus, 12, "Envy pays +4 per ♥-top pile at deal end, board-wide (3 × 4 = 12)");
   }
   {
     // Dead piles don't count — a ♥ top on a dead pile is ignored.

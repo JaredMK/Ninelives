@@ -1,4 +1,4 @@
-// Store offering: ONE unified pool — exactly 5 slots per visit, every slot
+// Store offering: ONE unified pool — exactly 6 slots per visit, every slot
 // independently rolled from ALL item types together (stickers, pillars, bases,
 // card packs, sticker packs, Same-Powers) weighted purely by rarity
 // (TIER_WEIGHTS), with a per-TYPE cap of 3 slots (card packs and sticker packs
@@ -34,13 +34,13 @@ export function run() {
     throw new Error("never offered a " + kind + " slot");
   };
 
-  // --- Shape of a fresh offer: exactly 5 unified slots, always filled ---
+  // --- Shape of a fresh offer: exactly 6 unified slots, always filled ---
   {
     const c = CampaignState.create();
     r.eq(c.getStoreOffer(), null, "no offer until the store opens");
     const offer = c.openStore();
-    r.eq(offer.slots.length, 5, "offer has exactly 5 slots");
-    r.ok(offer.slots.every(s => s != null), "all 5 slots are FILLED on a fresh roll");
+    r.eq(offer.slots.length, 6, "offer has exactly 6 slots");
+    r.ok(offer.slots.every(s => s != null), "all 6 slots are FILLED on a fresh roll");
     r.ok(offer.slots.every(s => ["sticker", "base", "pillar", "pack", "samepower"].includes(s.kind)),
       "every slot is a sticker / base / pillar / pack / same-power");
     r.ok(offer.slots.every(s => idOk(s.kind, s.id)), "every slot's id is real for its kind");
@@ -49,10 +49,10 @@ export function run() {
     r.eq(offer.mixed, undefined, "no segmented mixed section (one unified pool)");
   }
 
-  // --- 5 slots always filled + per-TYPE cap ≤ 3 across MANY rolls -------
+  // --- 6 slots always filled + per-TYPE cap ≤ 3 across MANY rolls -------
   {
     const c = CampaignState.create();
-    let minFilled = 5, maxOfOneType = 0;
+    let minFilled = 6, maxOfOneType = 0;
     for (let i = 0; i < 2000; i++) {
       const offer = c.openStore();
       const filled = offer.slots.filter(Boolean);
@@ -61,8 +61,8 @@ export function run() {
       filled.forEach(s => { const k = typeKey(s); perType[k] = (perType[k] || 0) + 1; });
       maxOfOneType = Math.max(maxOfOneType, ...Object.values(perType));
     }
-    r.eq(minFilled, 5, "every one of 2000 rolls fills all 5 slots");
-    r.ok(maxOfOneType <= 3, "no type ever exceeds 3 of the 5 slots (saw max " + maxOfOneType + ")");
+    r.eq(minFilled, 6, "every one of 2000 rolls fills all 6 slots");
+    r.ok(maxOfOneType <= 3, "no type ever exceeds 3 of the 6 slots (saw max " + maxOfOneType + ")");
     r.eq(maxOfOneType, 3, "the cap is reachable — some roll uses all 3 of one type");
   }
 
