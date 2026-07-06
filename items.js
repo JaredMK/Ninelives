@@ -195,9 +195,10 @@ const NINELIVES_ITEMS = {
     { id: "streakBank", label: "Streak Size", icon: "🏦",
       kind: "modifier", effect: "streakSize", threshold: 3, tier: "rare", price: 8,
       description: "+1 pile size per consecutive correct guess in this column, from the 3rd guess onward. Resets on a wrong guess or any guess in another column" },
-    // threshold = the streak step burials start at (buries streak−threshold+1).
+    // threshold = the streak step burials start at; digCount = cards buried
+    // per correct in-column guess from that step onward (flat, no escalation).
     { id: "streakTribute", label: "Streak Bury", icon: "🔥",
-      kind: "composition", effect: "streakTribute", threshold: 3, tier: "rare", price: 20,
+      kind: "composition", effect: "streakTribute", threshold: 3, digCount: 1, tier: "rare", price: 20,
       description: "Bury 1 deck card per consecutive correct guess in this column, from the 3rd guess onward. Resets on a wrong guess or any guess in another column" },
     { id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 12,
@@ -381,9 +382,12 @@ const NINELIVES_ITEMS = {
      sticker-pack picks go straight to the sticker inventory.
   -------------------------------------------------------------------- */
   packs: [
-    { id: "cardPack", label: "Card Pack", icon: "🎴", kind: "card", tier: "common",
+    { id: "cardPack", label: "Large Card Pack", icon: "🎴", kind: "card", tier: "common",
       size: 5, keep: 1, price: 10,
       description: "Reveals 5 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded." },
+    { id: "smallCardPack", label: "Small Card Pack", icon: "🎴", kind: "card", tier: "common",
+      size: 3, keep: 1, price: 8,
+      description: "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded." },
     { id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
       size: 3, keep: 1, price: 5,
       description: "Reveals 3 random stickers. Keep 1 for your inventory. The rest are discarded." },

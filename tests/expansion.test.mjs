@@ -71,20 +71,20 @@ export function run() {
     r.eq(e.getBoard().pileSize(1), 1, "a guess in another column reset the size bonus");
   }
 
-  // --- Streak Bury: buries (streak − 2) from the 3rd consecutive, uncapped -
+  // --- Streak Bury: buries a FLAT 1 per correct guess from the 3rd on -------
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun(["streakTribute", null, null]);
-    // Each correct guess adds the drawn card (+1); from the 3rd, ALSO bury
-    // (streak − 2) more. Pile size is the deterministic signal.
+    // Each correct guess adds the drawn card (+1); from the 3rd, ALSO bury a
+    // flat 1 (no escalation). Pile size is the deterministic signal.
     winGuess(e, 0); winGuess(e, 0);   // streak 1,2 → +1 each, no tribute
     r.eq(e.getBoard().piles[0].cards.length, 3, "no tribute through the 2nd (pile = 1 deal + 2 drawn)");
     winGuess(e, 0);   // streak 3 → drawn + bury 1 (=+2)
     r.eq(e.getBoard().piles[0].cards.length, 5, "3rd buries 1 (pile +2: drawn + 1 hidden)");
-    winGuess(e, 0);   // streak 4 → drawn + bury 2 (=+3)
-    r.eq(e.getBoard().piles[0].cards.length, 8, "4th buries 2 (pile +3: drawn + 2 hidden)");
-    winGuess(e, 0);   // streak 5 → drawn + bury 3 (=+4)
-    r.eq(e.getBoard().piles[0].cards.length, 12, "5th buries 3, uncapped (pile +4)");
+    winGuess(e, 0);   // streak 4 → drawn + bury 1 again (=+2, FLAT)
+    r.eq(e.getBoard().piles[0].cards.length, 7, "4th buries 1 more (flat — no escalation)");
+    winGuess(e, 0);   // streak 5 → drawn + bury 1 again (=+2)
+    r.eq(e.getBoard().piles[0].cards.length, 9, "5th buries 1 more (still flat)");
   }
 
   // --- Second Wind: first death per column revives once -----------------
