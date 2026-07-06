@@ -34,6 +34,7 @@ import { run as sameCharge } from "./same-charge.test.mjs";
 import { run as samePower } from "./same-power.test.mjs";
 import { run as subsetDeals } from "./subset-deals.test.mjs";
 import { run as sameItems } from "./same-items.test.mjs";
+import { run as stickerSuits } from "./sticker-suits.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -68,6 +69,7 @@ const SUITES = [
   ["same-power", samePower],
   ["subset-deals", subsetDeals],
   ["same-items", sameItems],
+  ["sticker-suits", stickerSuits],
 ];
 
 let pass = 0,

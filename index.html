@@ -5968,7 +5968,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.20 · every shop item now lives in items.js — prices, rarities and effect numbers are hand-editable data";
+const APP_VERSION = "v4.21 · stickers can carry a suits restriction (items.js) — Jokers and Removal cards never take stickers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6410,6 +6410,12 @@ const ItemData = (() => {
       if (typeof e.price !== "number" || !isFinite(e.price) || e.price < 0) bad("`price` must be a non-negative number (got " + JSON.stringify(e.price) + ")");
       if (typeof e.description !== "string" || !e.description) bad("missing/invalid `description` (string)");
       if (e.weight != null && (typeof e.weight !== "number" || !(e.weight > 0))) bad("`weight` must be a positive number when set");
+      if (e.suits != null) {
+        const SUIT_SYMS = ["♠", "♥", "♦", "♣"];
+        if (!Array.isArray(e.suits) || !e.suits.length) bad("`suits` must be a non-empty array of suit symbols when set");
+        else for (const s of e.suits)
+          if (SUIT_SYMS.indexOf(s) === -1) bad("`suits` entry " + JSON.stringify(s) + " is not one of " + SUIT_SYMS.join(" "));
+      }
       for (const f of required || [])
         if (typeof e[f] !== "string" || !e[f]) bad("missing/invalid `" + f + "` (string)");
       // Every other bare numeric knob just has to BE a number if present.
@@ -6442,6 +6448,21 @@ const ItemData = (() => {
 function itemNum(def, key, fallback) {
   const v = def ? def[key] : undefined;
   return typeof v === "number" && isFinite(v) ? v : fallback;
+}
+/** The GLOBAL sticker-application gate — may `card` receive sticker `typeId`?
+    Works on both card shapes (persistent deck cards and live board cards; it
+    only reads .suit/.joker/.blank). Two rules, enforced at EVERY application
+    path (pickers, store purchase, pack-card generation, Wild Sticker, Same
+    Spark, debug tools):
+      1. Jokers and Removal cards NEVER take stickers, from any source.
+      2. A sticker with a `suits` restriction (items.js) only attaches to
+         cards of those printed suits; no field = any suit.
+    Rank-boundary rules (no +1 on an Ace…) stay with the callers. */
+function stickerCardEligible(card, typeId) {
+  if (!card || card.joker || card.blank) return false;
+  const t = StickerTypes.get(typeId);
+  if (!t) return false;
+  return !(Array.isArray(t.suits) && t.suits.length) || t.suits.indexOf(card.suit) !== -1;
 }
 /** Build the standard registry API ({ids, get, all}) over one items.js group. */
 function makeRegistry(list) {
@@ -8510,8 +8531,10 @@ const GameEngine = (() => {
         for (const i of colAlivePiles(col)) {
           const top = board.top(i);
           if (!top) continue;
-          const sid = pickOne(baseStickerPool().map(t => t.id));
-          if (sid) { projectStickerOntoCard(top, sid); n++; }
+          // Only stickers this top may carry (Joker/Removal tops are skipped;
+          // `suits` restrictions filter the roll).
+          const sid = pickOne(baseStickerPool().filter(t => stickerCardEligible(top, t.id)).map(t => t.id));
+          if (sid && projectStickerOntoCard(top, sid)) n++;
         }
         if (n > 0) { firePillar(col, "sameSpark", pillar.label, 0); logLine("Same Spark: stickered " + n + " pile cards in the column"); recT("pillar", pillar.id, pillar.label, { applied: n }); }
       }
@@ -9018,6 +9041,17 @@ const GameEngine = (() => {
       return StickerTypes.all().filter(t =>
         !t.suit && t.behavior !== "changeSuitRandom" && t.behavior !== "duplicate");
     }
+    /** The stickers Wild Sticker may roll for THIS top: never onto a Joker or
+        Removal card, `suits` restrictions respected (stickerCardEligible), and
+        never a rank sticker at its boundary (+1 on an Ace / −1 on a 2 — the
+        campaign-side persist would refuse it at run end and the sticker would
+        silently vanish). Empty ⇒ this top is not a Wild Sticker target. */
+    function wildStickerPoolFor(top) {
+      if (!top) return [];
+      return baseStickerPool().filter(t =>
+        stickerCardEligible(top, t.id) && (t.kind !== "rank" ||
+        ((t.rankDelta <= 0 || top.value < 14) && (t.rankDelta >= 0 || top.value > 2))));
+    }
     /** Pick one id from a list using the run rng (uniform). */
     function pickOne(list) { return list.length ? list[Math.floor(rng() * list.length)] : null; }
 
@@ -9028,6 +9062,7 @@ const GameEngine = (() => {
     function projectStickerOntoCard(card, typeId) {
       const t = StickerTypes.get(typeId);
       if (!card || !t) return false;
+      if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
       card.stickers = card.stickers || [];
       card.stickers.push({ type: typeId });
       const setRank = (v) => {
@@ -9082,7 +9117,7 @@ const GameEngine = (() => {
         case "spadePeek":        return alive.some(i => topIsSuit(i, "♠"));
         case "shuffleColumn":    return alive.length > 0;
         case "reviveBase":       return colDeadPiles(col).length > 0;
-        case "randomSticker":    return alive.length > 0;
+        case "randomSticker":    return alive.some(i => wildStickerPoolFor(board.top(i)).length > 0);
         case "evenOut":          return diamondPiles.length >= 2;
         case "buryAll":          return !deck.isEmpty() && alive.some(i => topIsSuit(i, "♣"));
         case "setValue":         return alive.length > 0;
@@ -9240,16 +9275,18 @@ const GameEngine = (() => {
           break;
         }
         case "randomSticker": {
-          // Targets a RANDOM alive pile card in the column (no player choice).
-          const target = pickOne(colAlivePiles(col).filter(i => board.top(i)));
+          // Targets a RANDOM ELIGIBLE pile card in the column (no player choice).
+          // Eligible = the top can receive at least one sticker: never a Joker or
+          // Removal card, and its suit must pass any `suits` restriction. Never
+          // roll a RANK sticker the target can't take (a +1 on an Ace / a −1 on
+          // a 2): the in-deal projection would show it, but the campaign-side
+          // persist (canApplySticker) refuses it at run end, so the sticker
+          // would silently vanish from the card.
+          const target = pickOne(colAlivePiles(col).filter(i =>
+            wildStickerPoolFor(board.top(i)).length > 0));
           if (target == null) break;
           const top = board.top(target);
-          // Never roll a RANK sticker the target can't take (a +1 on an Ace /
-          // a −1 on a 2): the in-deal projection would show it, but the
-          // campaign-side persist (canApplySticker) refuses it at run end, so
-          // the sticker would silently vanish from the card.
-          const pool = baseStickerPool().filter(t => t.kind !== "rank" ||
-            ((t.rankDelta <= 0 || top.value < 14) && (t.rankDelta >= 0 || top.value > 2)));
+          const pool = wildStickerPoolFor(top);
           const typeId = pickOne(pool.map(t => t.id));
           projectStickerOntoCard(top, typeId);
           res.index = target;
@@ -10324,6 +10361,7 @@ const GameEngine = (() => {
         const next = deck.peek(1)[0];
         const t = StickerTypes.get(typeId);
         if (!next || !t) return null;
+        if (!stickerCardEligible(next, typeId)) return null;   // Joker/Removal + `suits` gate
         next.stickers = next.stickers || [];
         next.stickers.push({ type: typeId });
         const setRank = (v) => {
@@ -10615,6 +10653,7 @@ const CampaignState = (() => {
     const suits = opts.suits || ALL_SUITS;
     const t = StickerTypes.get(typeId);
     if (!t) return false;
+    if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
     if (t.kind === "rank") {
       if (t.rankDelta > 0 && card.currentRank >= MAX_RANK) return false;
       if (t.rankDelta < 0 && card.currentRank <= MIN_RANK) return false;
@@ -11818,7 +11857,7 @@ const CampaignState = (() => {
          block is at a rank boundary: no +1 on an Ace, no -1 on a 2 (so stacked
          rank stickers clamp instead of being wasted). */
       canApplySticker(card, typeId) {
-        if (!card) return false;
+        if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
         const t = StickerTypes.get(typeId);
         if (!t) return false;
         if (t.kind === "rank") {
@@ -11895,10 +11934,12 @@ const CampaignState = (() => {
         const roll = rng();
         // 1% four, 3% three, 11% two, 33% one, 52% none (cumulative thresholds).
         const n = roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
-        const pool = stickerPoolForSuits(suits);
+        // Only stickers this card may carry (`suits` restrictions in items.js);
+        // Jokers/Removal never reach here (the special branch returned above).
+        const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
         for (let k = 0; k < n; k++) {
           const sid = rollIds(pool, 1, rng)[0];
-          applyStickerToCard(card, sid, { rng, suits });
+          if (sid) applyStickerToCard(card, sid, { rng, suits });
         }
         return card;
       },

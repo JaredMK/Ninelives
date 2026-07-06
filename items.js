@@ -18,6 +18,14 @@
                   it (see store.tierWeights below); independent of price
      weight       OPTIONAL store-offer weight override; when set it replaces
                   the tier weight for this one item
+     suits        OPTIONAL (stickers only): the suit symbols this sticker may
+                  be applied to, e.g. suits: ["♥"] or suits: ["♥","♦"]. A
+                  sticker carrying the field only ever attaches to cards of
+                  those suits (matched against the card's printed suit at
+                  apply time — pickers grey out other cards, and effects that
+                  apply stickers pick only eligible targets). Omit the field
+                  for an any-suit sticker. Jokers and Removal cards can NEVER
+                  receive stickers from any source, regardless of this field.
      price        fixed store price in coins (no per-purchase escalation)
      description  the store/help popup text — the single source of truth
                   (the game never hardcodes effect text)
