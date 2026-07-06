@@ -41,9 +41,12 @@ export function run() {
     const offer = c.openStore();
     r.eq(offer.slots.length, 6, "offer has exactly 6 slots");
     r.ok(offer.slots.every(s => s != null), "all 6 slots are FILLED on a fresh roll");
-    r.ok(offer.slots.every(s => ["sticker", "base", "pillar", "pack", "samepower"].includes(s.kind)),
-      "every slot is a sticker / base / pillar / pack / same-power");
-    r.ok(offer.slots.every(s => idOk(s.kind, s.id)), "every slot's id is real for its kind");
+    // Default: slot 6 is the permanent Removal; the first 5 roll from the pool.
+    r.eq(offer.slots[5].kind, "removal", "slot 6 is the permanent Removal (default ON)");
+    const rolled0 = offer.slots.slice(0, 5);
+    r.ok(rolled0.every(s => ["sticker", "base", "pillar", "pack", "samepower"].includes(s.kind)),
+      "the 5 rolled slots are a sticker / base / pillar / pack / same-power");
+    r.ok(rolled0.every(s => idOk(s.kind, s.id)), "every rolled slot's id is real for its kind");
     r.eq(offer.rerollCost, 3, "reroll cost starts at 3");
     r.eq(offer.stickers, undefined, "no segmented sticker section (one unified pool)");
     r.eq(offer.mixed, undefined, "no segmented mixed section (one unified pool)");
@@ -58,11 +61,11 @@ export function run() {
       const filled = offer.slots.filter(Boolean);
       minFilled = Math.min(minFilled, filled.length);
       const perType = {};
-      filled.forEach(s => { const k = typeKey(s); perType[k] = (perType[k] || 0) + 1; });
+      filled.filter(s => s.kind !== "removal").forEach(s => { const k = typeKey(s); perType[k] = (perType[k] || 0) + 1; });
       maxOfOneType = Math.max(maxOfOneType, ...Object.values(perType));
     }
     r.eq(minFilled, 6, "every one of 2000 rolls fills all 6 slots");
-    r.ok(maxOfOneType <= 3, "no type ever exceeds 3 of the 6 slots (saw max " + maxOfOneType + ")");
+    r.ok(maxOfOneType <= 3, "no type ever exceeds 3 of the rolled slots (saw max " + maxOfOneType + ")");
     r.eq(maxOfOneType, 3, "the cap is reachable — some roll uses all 3 of one type");
   }
 
@@ -73,7 +76,7 @@ export function run() {
     const tierCount = { common: 0, uncommon: 0, rare: 0 };
     const reg = { sticker: StickerTypes, pillar: PillarTypes, base: BaseTypes, pack: PackTypes, samepower: SamePowerTypes };
     for (let i = 0; i < 3000; i++) c.openStore().slots.forEach(s => {
-      if (!s) return;
+      if (!s || s.kind === "removal") return;
       kindCount[s.kind]++;
       const t = reg[s.kind].get(s.id);
       if (t && tierCount[t.tier] != null) tierCount[t.tier]++;
@@ -214,7 +217,7 @@ export function run() {
     r.eq(c.storeRerollCost(), 3, "first reroll costs 3");
     const before = c.getCoins();
     r.ok(c.rerollStore(), "reroll #1");
-    r.ok(c.getStoreOffer().slots.every(x => x && idOk(x.kind, x.id)), "reroll refills ALL 5 slots");
+    r.ok(c.getStoreOffer().slots.every(x => x && (x.kind === "removal" || idOk(x.kind, x.id))), "reroll refills ALL rolled slots (Removal slot stays)");
     r.eq(c.getCoins(), before - 3, "reroll #1 charged 3");
     r.eq(c.storeRerollCost(), 4, "cost climbs to 4");
     r.ok(c.rerollStore(), "reroll #2");
@@ -285,6 +288,48 @@ export function run() {
     const b1 = sampleBases(CampaignState.create(), 3000);      // Stage 1: ♦ ♥
     r.ok(b1.has("clubDig"), "Stage 1 CAN offer Club Dig (gating removed)");
     r.ok(b1.has("tax"), "Stage 1 offers Heart Tax (♥ in play)");
+  }
+
+  // --- Removal store slot (default ON): permanent slot 6, fixed 20, repeatable
+  {
+    const c = CampaignState.create();
+    r.ok(c.removalSlotOn(), "the Removal slot defaults ON");
+    r.eq(c.removalPrice(), 20, "a Removal costs 20");
+    const offer = c.openStore();
+    r.eq(offer.slots.filter(s => s && s.kind === "removal").length, 1, "exactly one Removal slot");
+    r.eq(offer.slots[5].kind, "removal", "the Removal is the last slot");
+    r.eq(c.priceOfMixed(5), 20, "priceOfMixed reports 20 for the Removal slot");
+    r.ok(!c.buyMixedSlot(5, Math.random).ok, "buyMixedSlot rejects the Removal slot (bought via buyRemoval)");
+    // buyRemoval charges + removes a chosen card; the slot is NOT consumed.
+    c.addCoins(100);
+    const before = c.deckSize();
+    const coins0 = c.getCoins();
+    const victim = c.getRunDeck()[0].id;
+    r.ok(c.buyRemoval(victim), "buyRemoval succeeds when affordable");
+    r.eq(c.getCoins(), coins0 - 20, "charged the fixed 20");
+    r.eq(c.deckSize(), before - 1, "the deck shrank by one");
+    r.ok(!c.getRunDeck().some(x => x.id === victim), "the chosen card is gone from the deck");
+    r.eq(c.getStoreOffer().slots[5].kind, "removal", "the Removal slot is NOT depleted — repeatable");
+    // repeatable: buy again.
+    const v2 = c.getRunDeck()[0].id;
+    r.ok(c.buyRemoval(v2), "a SECOND Removal purchase works (repeatable)");
+    r.eq(c.deckSize(), before - 2, "the deck shrank again");
+    // affordability guard.
+    const poor = CampaignState.create(); poor.openStore();
+    r.ok(!poor.buyRemoval(poor.getRunDeck()[0].id), "can't buy a Removal with no coins");
+    r.eq(poor.deckSize(), poor.getRunDeck().length, "a blocked Removal removes nothing");
+    // toggle OFF → 6 rolled slots, no Removal.
+    const off = CampaignState.create();
+    off.setRemovalSlot(false);
+    r.ok(!off.removalSlotOn(), "setRemovalSlot(false) turns it off");
+    const o2 = off.openStore();
+    r.eq(o2.slots.length, 6, "OFF: still exactly 6 slots");
+    r.ok(o2.slots.every(s => s && s.kind !== "removal"), "OFF: no Removal slot — all 6 roll from the pool");
+    r.ok(o2.slots.every(s => idOk(s.kind, s.id)), "OFF: every slot is a real rolled item");
+    // reroll keeps it off.
+    off.addCoins(20);
+    off.rerollStore();
+    r.ok(off.getStoreOffer().slots.every(s => s && s.kind !== "removal"), "OFF: reroll stays Removal-free");
   }
 
   return r.summary();

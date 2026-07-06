@@ -2511,6 +2511,21 @@
     background: #fff; border-radius: 999px; padding: 2px 9px 2px 7px;
     box-shadow: 0 2px 6px rgba(74,44,52,0.18); }
   .store-tile .ti-price .coin-ico { font-size: 12px; color: var(--amber); }
+  /* Removal store object — a stitched-grey ∅ card (matches the Removal pack/map
+     face), so the permanent slot reads as "thin your deck". */
+  .removal-obj { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    width: 46px; height: 64px; border-radius: 8px; box-sizing: border-box;
+    background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
+    border: 1.5px solid #ccc2d6; color: #6a6076;
+    box-shadow: 0 3px 8px rgba(74,52,44,0.28), inset 0 1px 0 rgba(255,255,255,0.7); }
+  .removal-obj .ro-sym { font-size: 26px; line-height: 1; font-weight: 800; }
+  .removal-obj .ro-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
+  .store-tile .ti-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
+  .sd-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
+  .sd-obj.obj-removal .removal-obj { width: 72px; height: 100px; }
+  .sd-obj.obj-removal .ro-sym { font-size: 42px; }
+  .sd-obj.obj-removal .ro-lab { font-size: 11px; }
+  .store-tile.tile-removal.sel .removal-obj { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Footer pinned to the bottom of the no-scroll store: the action row only. */
   .store-foot { margin-top: auto; width: min(94vw, 440px);
@@ -5428,6 +5443,11 @@
         <div class="debug-tools">
           <label class="debug-check"><input type="checkbox" id="debugMapAddr"> show node addresses</label>
         </div>
+        <div class="debug-sub">gameplay toggles →</div>
+        <div class="debug-tools">
+          <label class="debug-check"><input type="checkbox" id="debugSubsetDeals" checked> subset deals (decks &gt; 35)</label>
+          <label class="debug-check"><input type="checkbox" id="debugRemovalSlot" checked> store slot 6 = Removal</label>
+        </div>
         <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
         <div class="debug-sub">jump to map node (by address) →</div>
         <div class="debug-grant">
@@ -5936,7 +5956,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.17 · the sticker picker reuses its grid — one card repaints, not fifty";
+const APP_VERSION = "v4.18 · debug toggles for subset deals and a permanent Removal in store slot 6";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10969,6 +10989,13 @@ const CampaignState = (() => {
   const STORE_TYPE_CAP = 3;            // max slots of one item TYPE per visit
   const REROLL_BASE_COST = 3;
   const REROLL_STEP = 1;
+  // REMOVAL SLOT (debug-toggleable, default ON): when enabled the store's LAST
+  // slot is ALWAYS a permanent "Removal" card (fixed price, never depletes,
+  // repeatable — each buy runs the choose-a-card-to-remove flow); the other
+  // slots roll from the unified pool (cap applies across just those rolled
+  // slots). When OFF, all STORE_SLOTS slots roll and Removal never appears here.
+  const REMOVAL_PRICE = 20;
+  const removalSlot = () => ({ kind: "removal", id: "removal" });
 
   // Store-offer rarity weights by tier: commons show up most, rares least.
   // These only bias HOW OFTEN a type is OFFERED — never its price.
@@ -11060,7 +11087,7 @@ const CampaignState = (() => {
       entry weighted purely by rarity (TIER_WEIGHTS). Dupes allowed; a draw that
       would put a TYPE past STORE_TYPE_CAP is rejected and redrawn. Each slot is
       { kind, id }. */
-  function rollUnifiedSlots(rng = Math.random) {
+  function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS) {
     const pool = [];
     const add = (types, kind) => types.forEach(t =>
       pool.push({ kind, id: t.id, weight: t.weight || TIER_WEIGHTS[t.tier] || 1 }));
@@ -11072,7 +11099,7 @@ const CampaignState = (() => {
     const total = pool.reduce((a, x) => a + x.weight, 0) || 1;
     const slots = [];
     const perType = {};
-    for (let i = 0; i < STORE_SLOTS; i++) {
+    for (let i = 0; i < count; i++) {
       let pick = null;
       // Reject-and-redraw over the type cap. With 6 types and a cap of 3 on
       // 5 slots this always terminates fast; 80 tries is a paranoid ceiling.
@@ -11090,8 +11117,11 @@ const CampaignState = (() => {
   }
 
   /** A fresh offering: STORE_SLOTS unified rarity-weighted slots, reroll at base. */
-  function freshOffer(rng = Math.random) {
-    return { slots: rollUnifiedSlots(rng), rerollCost: REROLL_BASE_COST };
+  function freshOffer(rng = Math.random, removalOn = false) {
+    const rolled = removalOn ? STORE_SLOTS - 1 : STORE_SLOTS;
+    const slots = rollUnifiedSlots(rng, rolled);
+    if (removalOn) slots.push(removalSlot());   // permanent last slot
+    return { slots, rerollCost: REROLL_BASE_COST };
   }
 
   function create() {
@@ -11182,6 +11212,7 @@ const CampaignState = (() => {
     // (so a re-render can't re-roll for free); regenerated on each store open;
     // wiped on reset(). null until the first store opens.
     let storeOffer = null;
+    let removalSlotEnabled = true;   // permanent Removal slot (debug-toggleable, default ON)
     // Card Packs: pending CARD-pack picks (≤ PACK_TRAY_CAP), held until used to
     // replace a dealt card in the pre-run phase. Persists across runs; wiped on
     // loss. nextCardId mints unique ids for pack cards (base deck is ids 0..51).
@@ -12123,7 +12154,7 @@ const CampaignState = (() => {
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
-        storeOffer = freshOffer(rng);   // one unified rarity-weighted pool
+        storeOffer = freshOffer(rng, removalSlotEnabled);   // unified pool (+ Removal slot when on)
         return storeOffer;
       },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
@@ -12137,7 +12168,9 @@ const CampaignState = (() => {
       rerollStore() {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
-        storeOffer.slots = rollUnifiedSlots(Math.random);
+        const rolled = removalSlotEnabled ? STORE_SLOTS - 1 : STORE_SLOTS;
+        storeOffer.slots = rollUnifiedSlots(Math.random, rolled);
+        if (removalSlotEnabled) storeOffer.slots.push(removalSlot());
         storeOffer.rerollCost += REROLL_STEP;
         return true;
       },
@@ -12160,6 +12193,7 @@ const CampaignState = (() => {
              : s.kind === "pillar"    ? this.priceOfPillar(s.id)
              : s.kind === "base"      ? this.priceOfBase(s.id)
              : s.kind === "samepower" ? this.priceOfSamePower(s.id)
+             : s.kind === "removal"   ? REMOVAL_PRICE
              : this.priceOfPack(s.id);
       },
 
@@ -12191,7 +12225,22 @@ const CampaignState = (() => {
           storeOffer.slots[i] = null;
           return { ok: true, kind: "pack", reveal: { packId: s.id, kind: t.kind, keep: t.keep, items: this.revealPack(s.id, rng) } };
         }
-        return { ok: false };
+        return { ok: false };   // removal is bought via buyRemoval (choose-a-card flow), not here
+      },
+      /* ---- Removal store slot (debug-toggleable) ---- */
+      /** Turn the permanent Removal slot on/off. Takes effect on the NEXT store
+          open or reroll (a live offer keeps its current slot layout until then). */
+      setRemovalSlot(on) { removalSlotEnabled = !!on; },
+      removalSlotOn() { return removalSlotEnabled; },
+      /** Fixed price of a Removal purchase. */
+      removalPrice() { return REMOVAL_PRICE; },
+      /** Buy a Removal: charge the fixed price and permanently remove card `id`.
+          The offer slot is NOT consumed (repeatable). Returns true on success. */
+      buyRemoval(id) {
+        if (coins < REMOVAL_PRICE) return false;
+        if (!this.removeDeckCard(id)) return false;
+        coins -= REMOVAL_PRICE;
+        return true;
       },
 
       /* ---- sticker application (permanent, per-card, validated) ----
@@ -13430,6 +13479,8 @@ const UIRenderer = (() => {
     debugLose: document.getElementById("debugLose"),
     debugNew: document.getElementById("debugNew"),
     debugMapAddr: document.getElementById("debugMapAddr"),   // DEBUG MAP ADDRESSES (removable)
+    debugSubsetDeals: document.getElementById("debugSubsetDeals"),   // DEBUG: subset deals on/off
+    debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
     debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
     debugJumpBtn: document.getElementById("debugJumpBtn"),
     debugStickerSel: document.getElementById("debugStickerSel"),
@@ -13538,6 +13589,13 @@ const UIRenderer = (() => {
   // subset holds (the undrawn subset + the excluded cards lump together as
   // "remaining", indistinguishable). See deckStripStats.
   let subsetDealActive = false;
+  // DEBUG TOGGLE (default ON): whether regular deals past the 35-card threshold
+  // draw a subset. OFF → every deal uses the full deck. Read in startRun; takes
+  // effect on the next deal entry / reshuffle (not a deal already in progress).
+  let subsetDealsEnabled = true;
+  // A store Removal purchase is in flight (the choose-a-card picker was opened by
+  // the permanent Removal slot; on confirm it charges + removes, keeps the slot).
+  let removalPurchase = false;
   // The live deal's subset, persisted so a RESUME reproduces the same board:
   // { ids:[cardId...], piles }. null for a full-deck deal (small deck / boss).
   let currentDealSubset = null;
@@ -16359,6 +16417,15 @@ const UIRenderer = (() => {
       // Pillars / bases / Same-Powers buy AND place in one action (the placement was
       // chosen in the popup) — the detail closes itself when that completes. Stickers
       // and packs keep the plain buy (sticker → card-pick flow; pack → reveal).
+      if (sdDetailKind === "removal") {
+        // Open the choose-a-card-to-remove flow; the charge + removal happen on
+        // confirm (place-then-pay). Guarded on affordability (the Buy button is
+        // also disabled when short — see updateSdBuy).
+        if (campaign.getCoins() < campaign.removalPrice()) return;
+        el.storeDetail.classList.add("hidden");
+        openStoreRemoval();
+        return;
+      }
       if (sdDetailKind === "pillar" || sdDetailKind === "base" || sdDetailKind === "samepower") {
         confirmBuyAndPlace();
         return;
@@ -16449,6 +16516,16 @@ const UIRenderer = (() => {
     if (el.debugMapAddr) el.debugMapAddr.addEventListener("change", () => {
       mapAddrDebug = el.debugMapAddr.checked;
       if (mapVisible()) renderProgressionMap();
+    });
+    // DEBUG: subset deals on/off. Applies at the NEXT deal entry / reshuffle
+    // (a deal already in progress is unaffected).
+    if (el.debugSubsetDeals) el.debugSubsetDeals.addEventListener("change", () => {
+      subsetDealsEnabled = el.debugSubsetDeals.checked;
+    });
+    // DEBUG: store slot-6 Removal on/off. Applies at the NEXT store open or
+    // reroll; if a store is open now, re-render so the tile updates on reroll.
+    if (el.debugRemovalSlot) el.debugRemovalSlot.addEventListener("change", () => {
+      if (campaign) campaign.setRemovalSlot(el.debugRemovalSlot.checked);
     });
     // DEBUG JUMP TO NODE (removable): teleport position to the selected node.
     if (el.debugJumpBtn) el.debugJumpBtn.addEventListener("click", debugJumpToSelectedNode);
@@ -18393,7 +18470,7 @@ const UIRenderer = (() => {
     const nodePiles = (node && node.piles) ? node.piles : 9;
     const fullDeck = campaign.getRunDeck();
     const SS = RunMap.SUBSET;
-    const wantSubset = !isBoss && fullDeck.length > SS.threshold;
+    const wantSubset = subsetDealsEnabled && !isBoss && fullDeck.length > SS.threshold;
 
     let deckForDeal, piles;
     if (wantSubset && subsetOverride && Array.isArray(subsetOverride.ids)) {
@@ -20961,13 +21038,28 @@ const UIRenderer = (() => {
       glyph(t.id, "sp-mark") +
       '</span><span class="sp-badge-name">' + t.label + '</span></span>';
   }
-  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power" };
+  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power", removal: "Removal" };
+  /* The Removal store object: a stitched-grey ∅ card (the same palette as a
+     Removal pack/map card), so the permanent slot 6 reads as "thin your deck". */
+  function removalBadgeHtml() {
+    return '<span class="removal-obj"><span class="ro-sym">∅</span><span class="ro-lab">Removal</span></span>';
+  }
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
   // Indexed deterministically by slot so a given slot always tilts the same.
   const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
   function offerTile(id, slot, kind, selected) {
     const btn = document.createElement("button");
     btn.type = "button";
+    if (kind === "removal") {   // the permanent Removal slot — fixed price, never sold out
+      const price = campaign.removalPrice();
+      const affordable = campaign.getCoins() >= price;
+      btn.className = "store-tile tile-removal" + (affordable ? "" : " disabled") + (selected ? " sel" : "");
+      btn.dataset.slot = slot;
+      const rot = DCS_ROT_SHOP[slot % DCS_ROT_SHOP.length];
+      btn.innerHTML = '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj obj-removal">' + removalBadgeHtml() + '</span>' +
+        '<span class="ti-price">' + COIN_SVG + price + '</span>';
+      return btn;
+    }
     const t = !id ? null
       : kind === "pillar" ? PillarTypes.get(id)
       : kind === "base" ? BaseTypes.get(id)
@@ -21021,6 +21113,8 @@ const UIRenderer = (() => {
     return t.description;
   }
   function describeItem(kind, id) {
+    if (kind === "removal") return { icon: "∅", label: "Removal", tier: "",
+      desc: "Permanently remove a card of your choice from your deck. Repeatable — this slot never runs out (" + (campaign ? campaign.removalPrice() : 20) + " coins each)." };
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
@@ -21076,6 +21170,21 @@ const UIRenderer = (() => {
     if (!offer || !offer.slots) return;
     const s = offer.slots[slot];
     if (!s) return;
+    if (s.kind === "removal") {   // permanent Removal slot → its own focused detail
+      selectedMixedSlot = slot; selectedStickerSlot = null;
+      el.sdObj.className = "sd-obj obj-removal";
+      el.sdObj.innerHTML = removalBadgeHtml();
+      el.sdTier.textContent = ""; el.sdTier.dataset.tier = "";
+      el.sdName.textContent = "Removal";
+      el.sdDesc.textContent = "Permanently remove a card of your choice. Repeatable — this slot never runs out.";
+      el.sdBuy.dataset.kind = "removal";
+      el.sdBuy.classList.remove("hidden");
+      el.sdPlace.classList.add("hidden");
+      sdDetailKind = "removal"; sdDetailId = "removal"; sdDetailPrice = campaign.removalPrice(); sdPlaceCol = null;
+      updateSdBuy();
+      el.storeDetail.classList.remove("hidden");
+      return;
+    }
     const kind = s.kind, id = s.id, price = campaign.priceOfMixed(slot);
     if (kind === "sticker") { selectedStickerSlot = slot; selectedMixedSlot = null; }
     else { selectedMixedSlot = slot; selectedStickerSlot = null; }
@@ -21156,6 +21265,7 @@ const UIRenderer = (() => {
     else if (needSlot) label = "Pick a column";
     else if (sdDetailKind === "samepower") label = "Buy & Equip · " + COIN_SVG + price;
     else if (sdDetailKind === "pillar" || sdDetailKind === "base") label = "Buy & Place · " + COIN_SVG + price;
+    else if (sdDetailKind === "removal") label = "Remove a card · " + COIN_SVG + price;
     else label = "Buy · " + COIN_SVG + price;
     el.sdBuy.innerHTML = label;
   }
@@ -21773,6 +21883,27 @@ const UIRenderer = (() => {
     pendingBlankRemovals = Math.max(1, count || 1);
     openCardRemove();
   }
+  /* STORE Removal purchase: the same choose-a-card-to-remove picker as the map
+     Removal, but a buy — it charges on confirm and the offer slot is NOT consumed
+     (repeatable). Returns to the store (not the map) on confirm/cancel. */
+  function openStoreRemoval() {
+    if (!campaign) return;
+    removalPurchase = true;
+    cardPickMode = "remove";
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null; pendingBuyStickerSlot = null;
+    pendingBlankRemovals = 0;
+    const price = campaign.removalPrice();
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    if (el.saHead) el.saHead.textContent = "Removal — remove a card";
+    if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
+      '<span class="sa-name">∅ Removal</span>' +
+      '<span class="sa-desc">Pick a card to permanently remove (' + COIN_SVG + " " + price + '). Your deck shrinks by one; the slot stays.</span>';
+    if (el.saHint) el.saHint.textContent = "Tap the card to remove.";
+    stickerApplyChrome();
+    renderStickerApplyCards();
+    DeckInspector.renderCompositionInto(el.saHist, el.saSuits);
+    el.stickerApplyModal.classList.remove("hidden");
+  }
   function openCardRemove() {
     if (!campaign) return;
     cardPickMode = "remove";
@@ -21824,9 +21955,10 @@ const UIRenderer = (() => {
       const stickerWarn = nSt > 0
         ? ' <span class="warn-stickers">It carries ' + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "";
       const name = card.joker ? "★ Joker" : miniRankLabel(card) + " " + card.suit;
+      const cost = removalPurchase ? ' <span class="sa-cost">(' + COIN_SVG + " " + campaign.removalPrice() + ")</span>" : "";
       if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Permanently REMOVE <b>" + name +
-        "</b> from your deck? Your deck shrinks by one card." + stickerWarn;
-      if (el.saApply) el.saApply.textContent = "Remove";
+        "</b> from your deck? Your deck shrinks by one card." + cost + stickerWarn;
+      if (el.saApply) el.saApply.innerHTML = removalPurchase ? ("Remove · " + COIN_SVG + " " + campaign.removalPrice()) : "Remove";
     } else if (cardPickMode === "swap") {
       const pc = campaign.getPackTray()[pendingSwapTrayIndex];
       if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
@@ -21847,7 +21979,25 @@ const UIRenderer = (() => {
   function confirmApplySticker() {
     if (!selectedApplyCardId) return;
     if (cardPickMode === "remove") {
-      // Map Blank: permanent removal — never touches the store's placement queue
+      // STORE Removal purchase: charge + remove, then return to the store with the
+      // slot INTACT (repeatable — buy again for another removal).
+      if (removalPurchase) {
+        if (campaign.buyRemoval(selectedApplyCardId)) {
+          if (engine) engine.logAction("Store: bought a Removal — a card was removed (−" + campaign.removalPrice() + ")");
+          Sound.purchase();
+          persistCampaign("store");
+        }
+        removalPurchase = false;
+        cardPickMode = "sticker";
+        selectedApplyCardId = null;
+        if (el.saConfirm) el.saConfirm.classList.add("hidden");
+        el.stickerApplyModal.classList.add("hidden");
+        renderDeckStrip();
+        renderStore();     // the Removal slot stays — never depleted
+        refreshDebug();
+        return;
+      }
+      // Map Removal: permanent removal — never touches the store's placement queue
       // (this picker was opened FROM THE MAP, so it must return there, not to the
       // store that continuePendingPlacement's default refresh implies).
       if (campaign.removeDeckCard(selectedApplyCardId)) {
@@ -21905,7 +22055,18 @@ const UIRenderer = (() => {
   }
   function closeStickerApply() {
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
-    // MAP-BLANK remove mode: ✕ / backdrop DECLINES the removal (and any still
+    // STORE Removal purchase: ✕ / backdrop cancels — nothing charged, the slot
+    // stays, and we simply return to the store.
+    if (removalPurchase) {
+      removalPurchase = false;
+      cardPickMode = "sticker";
+      selectedApplyCardId = null;
+      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      el.stickerApplyModal.classList.add("hidden");
+      renderStore();
+      return;
+    }
+    // MAP-Removal mode: ✕ / backdrop DECLINES the removal (and any still
     // queued) — the player keeps their deck as-is and stays on the map. Never
     // falls through to the store's placement-queue continuation below.
     if (cardPickMode === "remove") {
