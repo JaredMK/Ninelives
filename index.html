@@ -2987,6 +2987,13 @@
   .cph-banner.pennant.big .pb-rod { width: min(100%, 132px); height: 7px; }
   .cph-banner.pennant.big .pb-cloth { width: min(92%, 116px); }
   .cph-banner.pennant.big .pb-emblem { max-width: 44px; }
+  /* ON THE BOARD the pennant goes WIDE: its width matches the base plaque at the
+     column's foot (30px-tall plaque × --plaque-ar, clamped like the plaque to 96%
+     of the column), height unchanged. The emblem is pinned to its pre-widening
+     size — 54% of the old cloth face (48px row × --pennant-ar, 92% cloth, minus
+     the 4px cloth padding) — so only the cloth stretches, never the icon. */
+  .bp-cell .cph-banner.pennant { width: min(calc(30px * var(--plaque-ar)), 96%); }
+  .bp-cell .pennant .pb-emblem { width: calc((48px * var(--pennant-ar) * 0.92 - 4px) * 0.54); }
 
   /* ---- BASES: the bottom-of-column active-artifact row ----
      A deliberately DISTINCT look from the Pillar synapse ribbon: a flat, light
@@ -5956,7 +5963,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.18 · debug toggles for subset deals and a permanent Removal in store slot 6";
+const APP_VERSION = "v4.19 · board pillar banners now span the column like the base bars below";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
