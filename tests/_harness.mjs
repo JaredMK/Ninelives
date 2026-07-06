@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HTML = join(HERE, "..", "index.html");
+const ITEMS = join(HERE, "..", "items.js");
 
 /** Load the game's modules with a stubbed DOM. Returns the engine modules. */
 export function loadGame() {
@@ -19,10 +20,13 @@ export function loadGame() {
   // The page has more than one inline <script> (e.g. the GA4/gtag init in <head>);
   // pick the GAME script — the one that defines the engine modules.
   const blocks = html.match(/<script>([\s\S]*?)<\/script>/g) || [];
-  const code = blocks
+  const gameCode = blocks
     .map((b) => b.replace(/^<script>/, "").replace(/<\/script>$/, ""))
     .find((c) => c.includes("const GameEngine"));
-  if (!code) throw new Error("No game <script> block found in index.html");
+  if (!gameCode) throw new Error("No game <script> block found in index.html");
+  // The page loads the shop-item DATA from items.js (<script src>) before the
+  // game script; mirror that here so ItemData finds NINELIVES_ITEMS.
+  const code = readFileSync(ITEMS, "utf8") + "\n;" + gameCode;
 
   // Every DOM access returns a chainable no-op proxy. The modules under test
   // never touch the DOM; this only keeps UIRenderer.init() (which runs on
