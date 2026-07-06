@@ -16,33 +16,36 @@ export function run() {
 
   // ===== Pillars =========================================================
 
-  // --- Envy: at deal END, +4 coins PER PILE (board-wide) with a ♥ top ----
+  // --- Envy: at deal END, +4 coins PER PILE IN THIS COLUMN with a ♥ top --
+  // (col 0 = piles 0-2, col 1 = piles 3-6, col 2 = piles 7-9)
   {
-    // Registry + Trigger/Effect description.
+    // Registry + Trigger/Effect description (column-scoped wording).
     r.eq(PillarTypes.get("envy").effect, "heartPiles", "Envy fires the per-♥-top-pile scoring effect");
     r.eq(PillarTypes.get("envy").value, 4, "Envy pays 4 per ♥-top pile");
     r.ok(/Trigger:[\s\S]*Effect:/.test(PillarTypes.get("envy").description), "Envy uses the Trigger/Effect description");
+    r.ok(/this column/.test(PillarTypes.get("envy").description), "Envy's description scopes to this column");
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", null, null]);   // Envy bound to column 0 ONLY
+    e.start(); e.startRun(["envy", null, null]);   // Envy bound to COLUMN 0
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";   // clear all ♥ tops first
-    // Three ♥ tops in THREE DIFFERENT columns (0, 1, 2) — proves it counts
-    // per-pile across the whole board, not just Envy's own column.
-    b.top(0).suit = "♥"; b.top(3).suit = "♥"; b.top(7).suit = "♥";
+    // ♥ tops in col 0 (piles 0,1) AND in other columns (piles 3,7): only the two
+    // in ENVY'S OWN COLUMN count — proves it is column-scoped, not board-wide.
+    b.top(0).suit = "♥"; b.top(1).suit = "♥";   // col 0 — counted
+    b.top(3).suit = "♥"; b.top(7).suit = "♥";   // cols 1 & 2 — ignored
     e.debug.winNow();   // end of deal
-    r.eq(won().pillarPayout.bonus, 12, "Envy pays +4 per ♥-top pile at deal end, board-wide (3 × 4 = 12)");
+    r.eq(won().pillarPayout.bonus, 8, "Envy pays +4 per ♥-top pile IN ITS COLUMN at deal end (2 × 4 = 8)");
   }
   {
-    // Dead piles don't count — a ♥ top on a dead pile is ignored.
+    // Dead piles don't count — a ♥ top on a dead pile (in the column) is ignored.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["envy", null, null]);
+    e.start(); e.startRun(["envy", null, null]);   // column 0
     const b = e.getBoard();
     for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";
-    b.top(0).suit = "♥"; b.top(1).suit = "♥"; b.kill(1);   // pile 1 is ♥ but dead
+    b.top(0).suit = "♥"; b.top(2).suit = "♥"; b.kill(2);   // pile 2 (col 0) is ♥ but dead
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 4, "Envy counts only ALIVE ♥-top piles (1 × 4)");
+    r.eq(won().pillarPayout.bonus, 4, "Envy counts only ALIVE ♥-top piles in its column (1 × 4)");
   }
 
   // (Symmetry was removed in the rebalance — its tests are gone.)

@@ -5930,7 +5930,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.15 · Envy pays per heart pile · a sixth store slot · Blank is now Removal";
+const APP_VERSION = "v4.16 · Envy pays per heart pile IN ITS COLUMN";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6528,7 +6528,7 @@ const PillarTypes = (() => {
       // End-of-deal: +value per alive pile (board-wide) whose TOP card is a ♥.
       id: "envy", label: "Envy", icon: "💚",
       kind: "scoring", effect: "heartPiles", value: 4, tier: "common", price: 8,
-      description: "Trigger: End of deal\nEffect: +4 coins for each pile whose top card is a ♥ (counted per pile, board-wide)",
+      description: "Trigger: End of deal\nEffect: +4 coins for each pile in this column whose top card is a ♥ (counted per pile)",
     },
     streakBank: {
       // During-run (live): consecutive correct guesses on THIS column's piles
@@ -10011,10 +10011,10 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value, col });
           }
         } else if (t.effect === "heartPiles") {
-          // Envy: +value per ALIVE pile board-wide whose TOP card is a ♥ (a Wild
-          // Suit top counts as ♥).
+          // Envy: +value per ALIVE pile IN THIS COLUMN whose TOP card is a ♥ (a
+          // Wild Suit top counts as ♥). Column-scoped like a Pillar should be.
           let n = 0;
-          for (let i = 0; i < board.size; i++) {
+          for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;
             const top = board.top(i);
             if (top && (top.suit === "♥" || top.wildSuit)) n++;
@@ -19324,9 +19324,9 @@ const UIRenderer = (() => {
         for (const i of alive) { const top = board.top(i); if (isHeart(top)) best = Math.max(best, board.piles[i].cards.length); }
         payout = Math.max(0, best - 1) * (t.value || 2);
       } else if (t.effect === "heartPiles") {
-        // value × every alive pile BOARD-WIDE whose top card is a ♥ (Envy).
+        // value × alive piles IN THIS COLUMN whose top card is a ♥ (Envy).
         let p = 0;
-        for (let i = 0; i < board.size; i++) if (board.isActive(i) && isHeart(board.top(i))) p++;
+        for (const i of alive) if (isHeart(board.top(i))) p++;
         payout = p * (t.value || 4);
       } else if (t.effect === "highestOdd") {
         for (const i of alive) { const v = board.top(i) && board.top(i).value; if (v === 3 || v === 5 || v === 7 || v === 9) payout = Math.max(payout, v); }
