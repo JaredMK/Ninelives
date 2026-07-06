@@ -244,6 +244,12 @@
   .suit-track .st-suit.st-red { color: #c8506e; }
   .suit-track .st-done { opacity: 1; }
   .suit-track .st-active { opacity: 1; transform: scale(1.28); text-shadow: 0 0 8px var(--amber), 0 0 3px var(--amber); }
+  /* Alt decks (Mamma/Smith/Lammy): a plain stage 1·2·3 indicator replaces the
+     four-suit tracker — same states (done/active/todo), numbered coins. */
+  .suit-track .st-suit.st-stage { font-size: 12px; width: 19px; height: 19px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1.5px solid currentColor; color: #3c4356; }
+  .suit-track .st-suit.st-stage.st-active { transform: scale(1.15); }
 
   /* ── #1 SUIT-COUNT CHART (beside the rank histogram) — 2×2 of "♥ rem/total",
      plain numbers (not bars, to avoid confusion with the rank histogram). ────── */
@@ -2475,6 +2481,9 @@
   }
   .store-tile:active { transform: scale(0.96); }
   .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the detail */
+  /* Lammy — stickers unusable: sticker items / sticker packs on the shelf are
+     LOCKED — flat grey, no pointer, not tappable (the button is disabled). */
+  .store-tile.tile-stickerlock { opacity: 0.32; filter: grayscale(0.85); cursor: not-allowed; }
   .store-tile.empty { visibility: hidden; pointer-events: none; }
   /* Object area — FLEXES to fill whatever row height remains, capped at 116px, so
      all three objects align AND shrink together when the shelves compress (short
@@ -5968,7 +5977,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.21 · stickers can carry a suits restriction (items.js) — Jokers and Removal cards never take stickers";
+const APP_VERSION = "v4.22 · the decks play differently now — Mamma mixes suits, Mr. Smith pays double, Lammy shuns stickers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6464,6 +6473,29 @@ function stickerCardEligible(card, typeId) {
   if (!t) return false;
   return !(Array.isArray(t.suits) && t.suits.length) || t.suits.indexOf(card.suit) !== -1;
 }
+/* ----------------------------------------------------------------
+   DECK_RULES — per-deck gameplay modifiers (the deck characters).
+   Pinky is the baseline and carries NO modifiers (completely unchanged).
+     altSuits      shared alt-deck rules: 13-card start with one card of each
+                   rank at a RANDOM suit; stages are plain 1/2/3 (not
+                   suit-segmented) — every pickup/pack rolls all four suits;
+                   the top bar shows a stage indicator instead of the suit
+                   tracker. Difficulty keeps the same per-stage band values.
+     priceMult     shop price multiplier (every item price, incl. Removal)
+     startStickers a random ELIGIBLE sticker on each of the 13 starting cards
+     noStickers    stickers unusable: store sticker/sticker-pack slots roll
+                   normally but are greyed + unpurchasable, card packs mint no
+                   stickered cards, and no effect can sticker a card
+     preEquip      3 random Pillars + 3 random Bases fill the six column
+                   slots at run start
+---------------------------------------------------------------- */
+const DECK_RULES = {
+  pink:  { altSuits: false, priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
+  mamma: { altSuits: true,  priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
+  smith: { altSuits: true,  priceMult: 2, startStickers: true,  noStickers: false, preEquip: false },
+  lammy: { altSuits: true,  priceMult: 1, startStickers: false, noStickers: true,  preEquip: true },
+};
+function deckRulesFor(id) { return DECK_RULES[id] || DECK_RULES.pink; }
 /** Build the standard registry API ({ids, get, all}) over one items.js group. */
 function makeRegistry(list) {
   const TYPES = {};
@@ -9047,7 +9079,7 @@ const GameEngine = (() => {
         campaign-side persist would refuse it at run end and the sticker would
         silently vanish). Empty ⇒ this top is not a Wild Sticker target. */
     function wildStickerPoolFor(top) {
-      if (!top) return [];
+      if (!top || runConfig.noStickers) return [];   // Lammy: Wild Sticker never has a target
       return baseStickerPool().filter(t =>
         stickerCardEligible(top, t.id) && (t.kind !== "rank" ||
         ((t.rankDelta <= 0 || top.value < 14) && (t.rankDelta >= 0 || top.value > 2))));
@@ -9062,6 +9094,7 @@ const GameEngine = (() => {
     function projectStickerOntoCard(card, typeId) {
       const t = StickerTypes.get(typeId);
       if (!card || !t) return false;
+      if (runConfig.noStickers) return false;   // Lammy: no effect may sticker a card
       if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
       card.stickers = card.stickers || [];
       card.stickers.push({ type: typeId });
@@ -10357,7 +10390,7 @@ const GameEngine = (() => {
       // its behaviour/rank/suit flags projected (so it behaves like a real sticker
       // when drawn). Returns the affected card, or null.
       applyStickerToNext(typeId) {
-        if (!deck || status !== "playing") return null;
+        if (!deck || status !== "playing" || runConfig.noStickers) return null;
         const next = deck.peek(1)[0];
         const t = StickerTypes.get(typeId);
         if (!next || !t) return null;
@@ -10830,6 +10863,12 @@ const CampaignState = (() => {
     // end-of-run board. Each: { stage, run, alive, total, nodes:[{x,y}], edges:[[i,j]] }.
     // Persisted with the campaign and wiped on reset() like everything else.
     let runFossils = [];
+    // The deck CHARACTER this campaign plays (gameplay rules, not just skin).
+    // Set by the UI before reset() on a fresh campaign; restored with a save.
+    let deckId = "pink";
+    const rules = () => deckRulesFor(deckId);
+    /** Shop price with the deck's multiplier applied (Mr. Smith pays 2x). */
+    const shopPrice = (p) => (isFinite(p) ? Math.round(p * rules().priceMult) : p);
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -10845,7 +10884,12 @@ const CampaignState = (() => {
     function phaseSuit() { return PHASE_SUITS[Math.min(phaseIndex, PHASE_SUITS.length - 1)]; }
     /** Suits currently in play (drives item suit-gating): hearts (pre-held) +
         every phase suit traveled so far, including the current one. */
-    function suitsInPlay() { return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1)); }
+    function suitsInPlay() {
+      // Alt decks (Mamma/Smith/Lammy) are NOT suit-segmented: all four suits
+      // are in play from the very start (pickups, packs, minting).
+      if (rules().altSuits) return [START_SUIT].concat(PHASE_SUITS);
+      return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1));
+    }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
     function genRunMap() {
@@ -10994,7 +11038,8 @@ const CampaignState = (() => {
       // suit roll first (hearts included), then that suit's unclaimed pool,
       // minting a duplicate when the suit's unique cards are all spoken for
       // (exactly how packs keep granting an exhausted suit).
-      const endlessNode = node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length;
+      const endlessNode = (node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length)
+        || rules().altSuits;   // alt decks: EVERY +1 node rolls all four suits
       let pool;
       if (endlessNode) {
         const suit = ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)];
@@ -11046,12 +11091,49 @@ const CampaignState = (() => {
         .sort((a, b) => ((a.forceCard ? 0 : 1) - (b.forceCard ? 0 : 1)) || (a.id - b.id))
         .forEach(n => commitNodeCard(n));
     }
-    /** Start a fresh run: 13 hearts pre-held, phase 0 (♦), a new map. */
+    /** Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
+        Pinky pre-holds the 13 hearts; alt decks (Mamma/Smith/Lammy) hold one
+        card of EACH RANK at a random suit. Mr. Smith's start cards each roll
+        one random eligible sticker; Lammy's six column slots pre-fill with 3
+        random Pillars + 3 random Bases. */
     function startNewRun() {
       phaseIndex = 0;
-      ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
+      if (rules().altSuits) {
+        ownedIds = DeckManager.RANKS.map(r => {
+          const four = baseDeck.filter(c => !c.joker && !c.blank && c.originalRank === r.value);
+          return four[Math.floor(Math.random() * four.length)].id;
+        });
+      } else {
+        ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
+      }
       runSeed = generateSeed();
       genRunMap();
+      if (rules().startStickers) {
+        // One random sticker per starting card, drawn ONLY from the stickers
+        // that card may take (suits restrictions, Joker/Removal exclusion,
+        // rank boundaries) — the same eligibility every picker enforces.
+        for (const id of ownedIds) {
+          const card = findById(id);
+          if (!card) continue;
+          card.stickers = [];   // idempotent: a re-rolled start never stacks
+          const elig = StickerTypes.all().filter(t => stickerCardEligible(card, t.id)
+            && (t.kind !== "rank" || (t.rankDelta > 0 ? card.currentRank < MAX_RANK : card.currentRank > MIN_RANK)));
+          const t = elig[Math.floor(Math.random() * elig.length)];
+          if (t) applyStickerToCard(card, t.id);
+        }
+      }
+      if (rules().preEquip) {
+        // 3 random DISTINCT Pillars + 3 random distinct Bases straight into the
+        // six column slots. The sticker-centric Bases (Wild Sticker / Sticker
+        // Harvest) are excluded — under noStickers they could never do anything.
+        const roll3 = (ids) => {
+          const pool = ids.slice();
+          for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+          return pool.slice(0, COLUMN_SLOTS);
+        };
+        columnPillars = roll3(PillarTypes.ids);
+        columnBases = roll3(BaseTypes.ids.filter(id => id !== "randomSticker" && id !== "stickerHarvest"));
+      }
     }
     // A freshly-CREATED campaign is immediately playable (13 hearts + a phase-0
     // map), so getRunDeck() is never empty before the first reset()/restore().
@@ -11062,6 +11144,14 @@ const CampaignState = (() => {
       maxStages: MAX_STAGES,
       layoutForRun,
       layoutForPiles,
+      // ── Deck character (gameplay rules) ──
+      /** Bind this campaign to a deck character. Call BEFORE reset() on a new
+          campaign — the rules shape the starting deck / pricing / stickers. */
+      setDeck(id) { deckId = DECK_RULES[id] ? id : "pink"; },
+      getDeckId() { return deckId; },
+      deckRules() { return rules(); },
+      /** Lammy: stickers are unusable everywhere (store, packs, effects). */
+      stickersLocked() { return rules().noStickers; },
       // ── Run-map / deck API (NEW structure) ──
       startNewRun,
       getPhaseIndex() { return phaseIndex; },
@@ -11188,7 +11278,8 @@ const CampaignState = (() => {
         // each slot rolls its own random suit. Base-run packs keep granting
         // exactly their displayed suit. Specials roll the same either way.
         const endlessNode = (node && node.suit === "★")
-          || (node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length);
+          || (node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length)
+          || rules().altSuits;   // alt decks: pack slots roll all four suits
         const suit = (node && node.suit && node.suit !== "★") ? node.suit : phaseSuit();
         for (let i = 0; i < n; i++) {
           const special = rollMapSpecial(Math.random);
@@ -11454,7 +11545,7 @@ const CampaignState = (() => {
       /** FIXED price of a sticker type (no per-purchase escalation). */
       priceOf(typeId) {
         const t = StickerTypes.get(typeId);
-        return t ? t.price : Infinity;
+        return t ? shopPrice(t.price) : Infinity;
       },
 
       /** Buy one sticker if affordable. Returns true on success. Price is fixed
@@ -11583,7 +11674,7 @@ const CampaignState = (() => {
       /** FIXED price of a Pillar type (no per-purchase escalation). */
       priceOfPillar(typeId) {
         const t = PillarTypes.get(typeId);
-        return t ? t.price : Infinity;
+        return t ? shopPrice(t.price) : Infinity;
       },
 
       /** Buy a Pillar and place it on column `col`, if affordable and in range.
@@ -11630,7 +11721,7 @@ const CampaignState = (() => {
       /** FIXED price of a Base type (no per-purchase escalation). */
       priceOfBase(typeId) {
         const t = BaseTypes.get(typeId);
-        return t ? t.price : Infinity;
+        return t ? shopPrice(t.price) : Infinity;
       },
       /** Buy one Base into inventory if affordable. Placement happens later. */
       buyBaseToInventory(typeId) {
@@ -11698,7 +11789,7 @@ const CampaignState = (() => {
       /** FIXED price of a Same-Power type. */
       priceOfSamePower(typeId) {
         const t = SamePowerTypes.get(typeId);
-        return t ? t.price : Infinity;
+        return t ? shopPrice(t.price) : Infinity;
       },
       /** Buy one Same-Power into inventory if affordable. Equip happens later. */
       buySamePowerToInventory(typeId) {
@@ -11783,6 +11874,7 @@ const CampaignState = (() => {
       /** Buy the offered sticker in slot `i` (to inventory); empties that slot
           only, leaving the rest. Returns true on success. */
       buyOfferedSticker(i) {
+        if (rules().noStickers) return false;   // Lammy: stickers unusable
         if (!storeOffer || !storeOffer.slots) return false;
         const slot = storeOffer.slots[i];
         if (!slot || slot.kind !== "sticker" || !this.buySticker(slot.id)) return false;
@@ -11790,7 +11882,7 @@ const CampaignState = (() => {
         return true;
       },
       /** Fixed price of a pack type. */
-      priceOfPack(packId) { const t = PackTypes.get(packId); return t ? t.price : Infinity; },
+      priceOfPack(packId) { const t = PackTypes.get(packId); return t ? shopPrice(t.price) : Infinity; },
       /** Price of a mixed slot's item (dispatches by its kind). 0 for an empty slot. */
       priceOfMixed(i) {
         const s = storeOffer && storeOffer.slots ? storeOffer.slots[i] : null;
@@ -11812,6 +11904,11 @@ const CampaignState = (() => {
         if (!storeOffer || !storeOffer.slots) return { ok: false };
         const s = storeOffer.slots[i];
         if (!s || s.kind === "sticker") return { ok: false };   // stickers buy via buyOfferedSticker (place-then-pay)
+        // Lammy: sticker packs still roll into the shelf but can't be bought.
+        if (rules().noStickers && s.kind === "pack") {
+          const pt = PackTypes.get(s.id);
+          if (pt && pt.kind === "sticker") return { ok: false };
+        }
         if (s.kind === "pillar") {
           if (!this.buyPillarToInventory(s.id)) return { ok: false };
           storeOffer.slots[i] = null; return { ok: true, kind: "pillar" };
@@ -11839,13 +11936,14 @@ const CampaignState = (() => {
       setRemovalSlot(on) { removalSlotEnabled = !!on; },
       removalSlotOn() { return removalSlotEnabled; },
       /** Fixed price of a Removal purchase. */
-      removalPrice() { return REMOVAL_PRICE; },
+      removalPrice() { return shopPrice(REMOVAL_PRICE); },
       /** Buy a Removal: charge the fixed price and permanently remove card `id`.
           The offer slot is NOT consumed (repeatable). Returns true on success. */
       buyRemoval(id) {
-        if (coins < REMOVAL_PRICE) return false;
+        const price = this.removalPrice();
+        if (coins < price) return false;
         if (!this.removeDeckCard(id)) return false;
-        coins -= REMOVAL_PRICE;
+        coins -= price;
         return true;
       },
 
@@ -11857,6 +11955,7 @@ const CampaignState = (() => {
          block is at a rank boundary: no +1 on an Ace, no -1 on a 2 (so stacked
          rank stickers clamp instead of being wasted). */
       canApplySticker(card, typeId) {
+        if (rules().noStickers) return false;   // Lammy: stickers unusable, full stop
         if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
         const t = StickerTypes.get(typeId);
         if (!t) return false;
@@ -11933,7 +12032,9 @@ const CampaignState = (() => {
         const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
         const roll = rng();
         // 1% four, 3% three, 11% two, 33% one, 52% none (cumulative thresholds).
-        const n = roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
+        // Lammy (noStickers): pack cards never mint with stickers.
+        const n = rules().noStickers ? 0
+          : roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
         // Only stickers this card may carry (`suits` restrictions in items.js);
         // Jokers/Removal never reach here (the special branch returned above).
         const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
@@ -12137,6 +12238,7 @@ const CampaignState = (() => {
       serialize() {
         return {
           schema: 2,
+          deckId,
           // NEW run structure: the map is deterministic from (phaseIndex, runSeed),
           // so we persist only the seed + position + draft, not the whole graph.
           phaseIndex, runSeed, nodePos,
@@ -12179,6 +12281,7 @@ const CampaignState = (() => {
       restore(s) {
         if (!s || s.schema !== 2) return false;   // schema-1 (old stages×deals) saves can't map onto the new run structure → fresh campaign
         if (!Array.isArray(s.baseDeck) || s.baseDeck.length < 52) return false;   // ≥52: the deck GROWS as packs mint duplicate cards
+        deckId = DECK_RULES[s.deckId] ? s.deckId : "pink";   // pre-deck-rules saves are Pinky campaigns
         // NEW run structure: restore the draft + position, regenerate the map.
         phaseIndex = Math.max(0, Math.min(PHASE_SUITS.length, s.phaseIndex || 0));
         runSeed = (s.runSeed >>> 0) || generateSeed();
@@ -14341,6 +14444,17 @@ const UIRenderer = (() => {
   const SUIT_TRACK_PHASE = { "♥": -1, "♦": 0, "♣": 1, "♠": 2 };   // ♥ pre-held; phases 0..2
   function suitTrackerHtml() {
     const pi = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;   // 0=♦,1=♣,2=♠; ≥3 = run cleared
+    // Alt decks (Mamma/Smith/Lammy) aren't suit-segmented: a plain stage
+    // 1·2·3 indicator replaces the four-suit phase tracker.
+    if (campaign.deckRules && campaign.deckRules().altSuits) {
+      const total = campaign.phasesTotal ? campaign.phasesTotal() : 3;
+      let out = "";
+      for (let p = 0; p < total; p++) {
+        const state = pi > p ? "done" : (pi === p ? "active" : "todo");
+        out += '<span class="st-suit st-stage st-' + state + '">' + (p + 1) + '</span>';
+      }
+      return out;
+    }
     return SUIT_TRACK_ORDER.map(s => {
       const ph = SUIT_TRACK_PHASE[s];
       const state = (ph < 0 || pi > ph) ? "done" : (pi === ph ? "active" : "todo");
@@ -14359,9 +14473,12 @@ const UIRenderer = (() => {
     const phaseIdx = campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0;
     const phases = campaign.phasesTotal ? campaign.phasesTotal() : 3;
     // Past the base phases = ENDLESS: label by endless stage, not "4/3".
+    const altSuits = campaign.deckRules && campaign.deckRules().altSuits;
     const sr = (phaseIdx >= phases
       ? "★ Endless " + (phaseIdx - phases + 1)
-      : suit + " " + (PHASE_LABEL[suit] || "") + " " + (phaseIdx + 1) + "/" + phases)
+      : altSuits
+        ? "Stage " + (phaseIdx + 1) + "/" + phases
+        : suit + " " + (PHASE_LABEL[suit] || "") + " " + (phaseIdx + 1) + "/" + phases)
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
     const tracker = suitTrackerHtml();
@@ -18017,7 +18134,8 @@ const UIRenderer = (() => {
                       // dealt, is the active surface and its card motion runs)
     clearSave();          // a fresh campaign supersedes any saved one
     track("game_started");   // analytics (fail-silent)
-    campaign.reset();
+    campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
+    campaign.reset();                   // reset builds the start deck from them
     // A fresh run starts far from mama: anxious, a little lost, a little dirty.
     CharMood.setStage(0);
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
@@ -18143,7 +18261,7 @@ const UIRenderer = (() => {
     // is the rolled random subset. Pass the column layout so the engine can
     // resolve Pillars; the per-column Pillar binding is snapshotted later, at
     // Start Run, after the pre-run assignment phase.
-    engine = GameEngine.create(deckForDeal, cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge(), samePower: campaign.getSamePower() });
+    engine = GameEngine.create(deckForDeal, cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge(), samePower: campaign.getSamePower(), noStickers: campaign.stickersLocked() });
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -20324,9 +20442,13 @@ const UIRenderer = (() => {
       const yBot = MAP_PAD + (R - 1 - botRow) * MAP_ROW_H + MAP_ROW_H * 0.55;
       const top = Math.max(0, yTop), h = Math.min(height, yBot) - top;
       const cls = SUIT_CLASS[ph.suit] || "d";
+      const altBands = campaign.deckRules && campaign.deckRules().altSuits;
+      const label = altBands
+        ? (ph.phaseIndex >= campaign.phasesTotal() ? 'Endless ★' : 'Stage ' + (ph.phaseIndex + 1))
+        : (SUIT_PHASE_NAME[ph.suit] || ph.suit) + ' ' + ph.suit;
       bands += '<div class="pm-band p-' + cls + '" style="top:' + top.toFixed(1) + 'px;height:' + h.toFixed(1) + 'px;"></div>' +
         '<div class="pm-band-label p-' + cls + '" style="top:' + (Math.min(height, yBot) - 22).toFixed(1) + 'px;">' +
-        (SUIT_PHASE_NAME[ph.suit] || ph.suit) + ' ' + ph.suit + '</div>';
+        label + '</div>';
     });
     // TRAIL: each edge is a gently-curved dusty-rose synapse (quoting the deal
     // screen's connection web) with a small signal dot on the line. Edges leaving
@@ -20369,7 +20491,7 @@ const UIRenderer = (() => {
     // HOME / origin node: a distinct non-interactive base where the run begins
     // (the 13-heart start). The marker starts here; it's dimmed once you set out.
     nodes += '<button type="button" class="pm-node t-home s-' + (atStart ? "home-here" : "done") + '" disabled' +
-      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (13 hearts)">' +
+      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (' + ((campaign.deckRules && campaign.deckRules().altSuits) ? '13 cards' : '13 hearts') + ')">' +
       '<span class="mn-home"><span class="mn-home-ico">⌂</span></span></button>';
     // DEBUG MAP ADDRESSES (removable): stamp each node with its address tag, just
     // above the node, when the debug overlay is toggled on. Off → empty string.
@@ -20420,10 +20542,13 @@ const UIRenderer = (() => {
     el.mapOverlay.classList.add("tint-" + (SUIT_CLASS[suit] || "d"));
     if (el.mapPhase) {
       const pIdx = campaign.getPhaseIndex();
+      const altStages = campaign.deckRules && campaign.deckRules().altSuits;
       el.mapPhase.innerHTML = pIdx >= campaign.phasesTotal()
         ? '<b>Endless</b> ★ · stage ' + (pIdx - campaign.phasesTotal() + 1)
-        : '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
-          ' · phase ' + (pIdx + 1) + '/' + campaign.phasesTotal();
+        : altStages
+          ? '<b>Stage ' + (pIdx + 1) + '</b> / ' + campaign.phasesTotal()
+          : '<b>' + (SUIT_PHASE_NAME[suit] || suit) + '</b> ' + suit +
+            ' · phase ' + (pIdx + 1) + '/' + campaign.phasesTotal();
     }
     document.body.classList.add("on-map");   // hides the deck-slot character (trail char only)
     el.mapOverlay.classList.remove("hidden");
@@ -20689,7 +20814,12 @@ const UIRenderer = (() => {
       : kind === "samepower" ? campaign.priceOfSamePower(id)
       : campaign.priceOf(id);
     const affordable = campaign.getCoins() >= price;
-    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled");
+    // Lammy (stickers unusable): sticker items + sticker packs still roll into
+    // the shelf at the normal ratio but render LOCKED — greyed, untappable.
+    const stickerLocked = campaign.stickersLocked && campaign.stickersLocked()
+      && (kind === "sticker" || (kind === "pack" && t.kind === "sticker"));
+    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled") + (stickerLocked ? " tile-stickerlock" : "");
+    if (stickerLocked) btn.disabled = true;
     btn.dataset.slot = slot;
     // The OBJECT ITSELF is the shelf item — the SAME component shown when
     // installed in-game. No name / kind / tier text tags: rarity lives in the
