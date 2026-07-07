@@ -4279,6 +4279,10 @@
        and 93%-covered, with the map's own atmosphere + textures painted over
        it, so removing the blur shifts under 2% of pixels by ≤19/765. */
     backdrop-filter: none; -webkit-backdrop-filter: none;
+    /* OPAQUE base (same felt hue, alpha 1): the generic .overlay is 93%
+       translucent, which let the frozen board/piles ghost through behind the
+       map. The map paints its own full atmosphere, so nothing should bleed. */
+    background: rgb(22, 58, 44);
   }
 
   /* Depth atmosphere behind the climb: warm + settled at the BOTTOM (the path
@@ -4505,13 +4509,22 @@
   .t-boss .mn-synapse.big::before { content: ""; position: absolute; inset: -12px; z-index: -1;
     border-radius: 50%; background: radial-gradient(circle, rgba(199,126,31,0.40), rgba(199,126,31,0) 70%); }
 
-  /* PACK (2+) — stacked cards in the DECK CHARACTER's pink (they join Pinky's
-     deck, so they wear his colour) + a "+N ♦" count badge. */
+  /* PACK (2+) — stacked cards in the ACTIVE deck character's colour (the cards
+     join that character's deck, so they wear its skin) + a "+N" count badge.
+     Pinky's pink is the default; the map overlay carries an mdeck-<id> class
+     that recolours the stack for Mamma (rose), Mr. Smith (green), Lammy
+     (violet) — each pulled from the character's own body gradient. */
   .mn-pack { position: relative; display: block; width: 42px; height: 50px;
     filter: drop-shadow(0 4px 9px rgba(120,45,70,0.30)); }
   .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 30px; height: 40px;
     border-radius: 5px; border: 1px solid rgba(255,255,255,0.40);
     background: linear-gradient(155deg, #e0738f, #b23a5c); }   /* --dc-1 / --dc-2 */
+  .mdeck-mamma .mn-pack .mpk-card { background: linear-gradient(155deg, #e997b3, #c25f83); }
+  .mdeck-mamma .mn-pack .mpk-badge { background: #c25f83; border-color: #a24063; }
+  .mdeck-smith .mn-pack .mpk-card { background: linear-gradient(155deg, #96a687, #5f6f52); }
+  .mdeck-smith .mn-pack .mpk-badge { background: #5f6f52; border-color: #4a5840; }
+  .mdeck-lammy .mn-pack .mpk-card { background: linear-gradient(155deg, #a494b4, #6c5c82); }
+  .mdeck-lammy .mn-pack .mpk-badge { background: #6c5c82; border-color: #574a6a; }
   .mn-pack .mpk-card.a { transform: translate(-50%,-50%) rotate(-8deg) translate(-4px,2px); }
   .mn-pack .mpk-card.b { transform: translate(-50%,-50%) rotate(0deg); z-index: 1;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
@@ -4896,6 +4909,11 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.3); transform-origin: 80% 100%; }
   .ch-smith .x-mono::after { content: ""; position: absolute; top: 96%; left: 76%; width: 1.5px; height: 120%;
     background: #d4af37; transform-origin: top; }
+  /* MAP AVATAR: the 38×40 trail avatar's face sits LOWER (top 17px) than the
+     big deck-slot character's, so the shared 17%-top monocle floated above the
+     eye. Re-seat it squarely over the right eye (5px eye centred at ~23.5,19.5
+     in the 35×37 padding box). */
+  .map-avatar.ch-smith .x-mono { width: 9.5px; top: 14.5px; right: 6.5px; }
   /* monocle GLINT (a highlight sweep) — used by the looking state */
   @keyframes monoGlint {
     0%, 100% { background-position: -120% 0, 0 0; }
@@ -4981,10 +4999,13 @@
      OFF-CENTRE and tilted (shifty); grime layer off. */
   .ch-lammy .dc-body::before, .ch-lammy .av-body::before { display: none; }
   .ch-lammy .dc-body::after, .ch-lammy .av-body::after {
+    /* Low glisten = a soft ELLIPSE hugging the bottom edge. (Was a 160deg
+       linear band — its straight soft edges read as a rectangular lighter
+       blotch across the centre-bottom of the body.) */
     background:
       radial-gradient(58% 28% at 28% 14%, rgba(255,255,255,0.42), transparent 72%),
       radial-gradient(30% 14% at 68% 50%, rgba(255,255,255,0.2), transparent 72%),
-      linear-gradient(160deg, transparent 58%, rgba(255,255,255,0.12) 76%, transparent 92%); }
+      radial-gradient(74% 30% at 50% 100%, rgba(255,255,255,0.11), transparent 72%); }
   .ch-lammy .dc-lid, .ch-lammy .av-lid { transform: rotate(-3deg) translateX(-5%); }
   /* narrow angled slit eyes */
   .deck-char.ch-lammy .dc-eye { width: 20%; max-width: 9px; min-height: 3px; aspect-ratio: 3 / 1; }
@@ -6150,7 +6171,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.31 · the bottom whisper keeps one line per deal and slips fully out of sight again";
+const APP_VERSION = "v4.32 · eight polish strokes: honest spades, solid ground, packs in house colours";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9366,7 +9387,8 @@ const GameEngine = (() => {
       switch (base.effect) {
         // Kamikaze is inherently board-wide, but now needs a ♠-top alive pile.
         case "kamikaze":         return board.aliveCount() > 1 && allAlivePiles().some(i => topIsSuit(i, "♠"));
-        case "spadePeek":        return alive.some(i => topIsSuit(i, "♠"));
+        // Spade Peeker counts PRINTED ♠ tops only — a Wild Suit top doesn't add a peek.
+        case "spadePeek":        return alive.some(i => { const t = board.top(i); return !!t && t.suit === "♠"; });
         case "shuffleColumn":    return alive.length > 0;
         case "reviveBase":       return colDeadPiles(col).length > 0;
         case "randomSticker":    return alive.some(i => wildStickerPoolFor(board.top(i)).length > 0);
@@ -9486,8 +9508,8 @@ const GameEngine = (() => {
         }
         case "spadePeek": {
           // Peek the next X upcoming cards, X = alive piles in the column with a
-          // ♠ top card (a Wild Suit top counts). Sets the deck's peek window.
-          const spades = colAlivePiles(col).filter(i => { const t = board.top(i); return t && (t.suit === "♠" || t.wildSuit); });
+          // PRINTED ♠ top card (Wild Suit tops don't count). Sets the peek window.
+          const spades = colAlivePiles(col).filter(i => { const t = board.top(i); return t && t.suit === "♠"; });
           const n = spades.length;
           run.kamikazeRevealLeft = Math.max(run.kamikazeRevealLeft || 0, n);   // reuse the multi-card peek window
           res.peekCount = n;
@@ -10895,6 +10917,14 @@ const CampaignState = (() => {
   function pillarPoolForSuits() { return PillarTypes.all(); }
   function basePoolForSuits() { return BaseTypes.all(); }
 
+  /** The PACK-CARD sticker distribution — how many stickers one freshly
+      granted card carries: 1% four / 3% three / 11% two / 33% one / 52% none.
+      ONE rule for every roll site: store card packs (genPackCard) and
+      Mr. Smith's map grants (+1 nodes / map packs). */
+  function packStickerCount(roll) {
+    return roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
+  }
+
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
       deck cards) and pack-card generation. opts.rng seeds the random rank/suit
       picks (deterministic for tests); opts.suits limits Change-Suit Random to a
@@ -11249,6 +11279,25 @@ const CampaignState = (() => {
       baseDeck.push(card);
       return card.id;
     }
+    /** MR. SMITH (startStickers) — his MAP grants may carry stickers exactly
+        like his store pack cards: every card granted by a +1 node or a map
+        pack rolls the shared packStickerCount distribution, each sticker
+        rarity-weighted, suit-restricted, and only if the card may take it
+        (stickerCardEligible — so a minted Joker never gets one). Rolled at
+        GRANT time, on the persistent base-deck card. Every other deck's map
+        grants stay clean. Returns the card for chaining. */
+    function rollGrantStickers(card, rng = Math.random) {
+      if (!card || card.joker || card.blank || !rules().startStickers) return card;
+      const n = packStickerCount(rng());
+      if (!n) return card;
+      const suits = suitsInPlay();
+      const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
+      for (let k = 0; k < n; k++) {
+        const sid = rollIds(pool, 1, rng)[0];
+        if (sid) applyStickerToCard(card, sid, { rng, suits });
+      }
+      return card;
+    }
     /** DETERMINISTIC roll for a specific +1 node: seeded by (runSeed, node.id)
         over the unclaimed pool (skips owned + cards already locked to OTHER nodes),
         so each +1 node locks a DISTINCT card and the same node always rolls the
@@ -11450,10 +11499,10 @@ const CampaignState = (() => {
             // SPECIALS: a Joker grants a real card (mint + own); a Blank grants
             // a removal — skip it on a debug jump (no picker mid-jump).
             if (cid === SPECIAL_JOKER) ownedIds.push(mintJokerId());
-            else if (cid != null && cid !== SPECIAL_BLANK && ownedIds.indexOf(cid) === -1) ownedIds.push(cid);
+            else if (cid != null && cid !== SPECIAL_BLANK && ownedIds.indexOf(cid) === -1) { ownedIds.push(cid); rollGrantStickers(findById(cid)); }
           } else if (draft) {
             const count = draft.packCount || 3;
-            for (let i = 0; i < count; i++) { const c = pickSuitDraftId(draft.suit || phaseSuit()); if (c == null) break; ownedIds.push(c); }
+            for (let i = 0; i < count; i++) { const c = pickSuitDraftId(draft.suit || phaseSuit()); if (c == null) break; ownedIds.push(c); rollGrantStickers(findById(c)); }
           }
           rowNodes.forEach(n => clearedNodes.push(n.id));
           // crossing a phase-boss row unlocks the next stage at the CURRENT
@@ -11490,7 +11539,7 @@ const CampaignState = (() => {
         const card = findById(id);
         if (!card) return null;
         if (ownedIds.indexOf(id) === -1) ownedIds.push(id);   // the locked card is reserved, so never a dup — guarded anyway
-        return card;
+        return rollGrantStickers(card);   // Mr. Smith: map grants may carry stickers
       },
       /** Resolve a pack node → add up to `packCount` cards, all of the node's
           DISPLAYED suit (node.suit). A pack showing diamonds grants only diamonds;
@@ -11516,7 +11565,8 @@ const CampaignState = (() => {
             continue;
           }
           const slotSuit = endlessNode ? ALL_SUITS[Math.floor(Math.random() * ALL_SUITS.length)] : suit;
-          const id = pickSuitDraftId(slotSuit); if (id == null) break; ownedIds.push(id); out.push(findById(id));
+          const id = pickSuitDraftId(slotSuit); if (id == null) break; ownedIds.push(id);
+          out.push(rollGrantStickers(findById(id)));   // Mr. Smith: pack slots may carry stickers
         }
         return out;
       },
@@ -12258,10 +12308,9 @@ const CampaignState = (() => {
         const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
         const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
         const roll = rng();
-        // 1% four, 3% three, 11% two, 33% one, 52% none (cumulative thresholds).
+        // 1% four, 3% three, 11% two, 33% one, 52% none (packStickerCount).
         // Lammy (noStickers): pack cards never mint with stickers.
-        const n = rules().noStickers ? 0
-          : roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
+        const n = rules().noStickers ? 0 : packStickerCount(roll);
         // Only stickers this card may carry (`suits` restrictions in items.js);
         // Jokers/Removal never reach here (the special branch returned above).
         const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
@@ -18337,13 +18386,13 @@ const UIRenderer = (() => {
      distinct decks/maps/rules are future content. */
   const DECKS = [
     { id: "pink", name: "Pinky", color: "d", requires: null,
-      sub: "The original climb — nine lives across four suits." },
+      sub: "Get Pinky home" },
     { id: "mamma", name: "Mamma", color: "h", requires: "pink",
-      sub: "Mama takes the trail herself.", unlockNote: "Win a run with Pinky to unlock" },
+      sub: "Mamma sets off", unlockNote: "Win a run with Pinky to unlock" },
     { id: "smith", name: "Mr. Smith", color: "c", requires: "mamma",
-      sub: "A colder, deeper descent.", unlockNote: "Win a run with Mamma to unlock" },
+      sub: "Everything costs more", unlockNote: "Win a run with Mamma to unlock" },
     { id: "lammy", name: "Lammy", color: "s", requires: "smith",
-      sub: "High stakes in the dark.", unlockNote: "Win a run with Mr. Smith to unlock" },
+      sub: "Stickers don't stick", unlockNote: "Win a run with Mr. Smith to unlock" },
   ];
   /** A deck is selectable when its predecessor has a recorded win. */
   function deckUnlocked(d) { return !d.requires || DeckUnlocks.wonWith(d.requires); }
@@ -20531,12 +20580,16 @@ const UIRenderer = (() => {
     for (let i = 1; i <= 3; i++) pips += '<i' + (i <= score ? ' class="on"' : "") + '></i>';
     return '<span class="mn-piles mn-diff diff-' + score + '">' + pips + '</span>';
   }
-  /* PACK (2+) → a small stacked-cards motif in the artifact/pillar purple family,
-     with a "+N ♦" count badge. Contents stay hidden until opened. */
+  /* PACK (2+) → a small stacked-cards motif in the ACTIVE character's colour,
+     with a "+N ♦" count badge. Contents stay hidden until opened. Alt decks
+     (Mamma / Mr. Smith / Lammy) draw pack cards from ALL suits, so their badge
+     shows only the count — no suit glyph. Pinky keeps the stage suit. */
   function mapPackStack(n) {
+    const anySuit = campaign && campaign.deckRules && campaign.deckRules().altSuits;
     return '<span class="mn-pack">' +
         '<span class="mpk-card a"></span><span class="mpk-card b"></span><span class="mpk-card c"></span>' +
-        '<span class="mpk-badge">+' + (n.packCount || 3) + ' <i>' + (n.suit || "") + '</i></span>' +
+        '<span class="mpk-badge">+' + (n.packCount || 3) +
+          (anySuit ? '' : ' <i>' + (n.suit || "") + '</i>') + '</span>' +
       '</span>';
   }
   /* STORE → a little SHOP STALL: striped triangular awning over a stall body
@@ -21016,6 +21069,9 @@ const UIRenderer = (() => {
     // Wash the whole map in the current phase suit's colour (header + ground).
     el.mapOverlay.classList.remove("tint-d", "tint-c", "tint-s");
     el.mapOverlay.classList.add("tint-" + (SUIT_CLASS[suit] || "d"));
+    // Pack pickups wear the ACTIVE character's colour (see the .mn-pack CSS).
+    el.mapOverlay.classList.remove("mdeck-pink", "mdeck-mamma", "mdeck-smith", "mdeck-lammy");
+    el.mapOverlay.classList.add("mdeck-" + selectedDeck().id);
     if (el.mapPhase) {
       const pIdx = campaign.getPhaseIndex();
       const altStages = campaign.deckRules && campaign.deckRules().altSuits;
