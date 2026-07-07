@@ -6223,7 +6223,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.33 · every pile fans open for a look — and closes without a word to the game";
+const APP_VERSION = "v4.34 · the Joker explains itself and bare slots keep quiet";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14908,6 +14908,11 @@ const UIRenderer = (() => {
   }
   function cardPeekHtml(card, index) {
     if (!card) return '<div class="pk-empty">No card here.</div>';
+    // JOKER: its own one-line help (it can't carry stickers, and "Card ★★"
+    // would read as noise). Covers every hold-help path — pile hold, setup
+    // peek, and the deck-inspector / picker card lists.
+    if (card.joker) return '<div class="pk-head">★ Joker</div>' +
+      '<div class="pk-desc">Always safe on any guess</div>';
     const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
     const stickers = card.stickers || [];
     // During setup, a stickered card can have ALL its stickers peeled off (with a
@@ -14966,6 +14971,10 @@ const UIRenderer = (() => {
     document.body.classList.toggle("peek-band", peekInBand());
   }
   function openPillarPeek(col) {
+    // EMPTY slot → no help at all: holding a bare Pillar slot shows nothing
+    // (it also dismisses any peek already up, like a tap-off would).
+    const binding = campaign ? campaign.getColumnPillars() : [];
+    if (!binding[col]) { closePeekInfo(); return; }
     el.peekInfo.innerHTML = pillarPeekHtml(col);
     el.peekInfo.classList.remove("hidden");
     document.body.classList.toggle("peek-band", peekInBand());
@@ -14999,6 +15008,9 @@ const UIRenderer = (() => {
         : "");
   }
   function openBasePeek(col) {
+    // EMPTY slot → no help at all (matches the Pillar slots above).
+    const binding = campaign ? campaign.getColumnBases() : [];
+    if (!binding[col]) { closePeekInfo(); return; }
     el.peekInfo.innerHTML = basePeekHtml(col);
     el.peekInfo.classList.remove("hidden");
     document.body.classList.toggle("peek-band", peekInBand());
