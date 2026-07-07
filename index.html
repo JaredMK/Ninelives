@@ -4322,6 +4322,7 @@
     -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
             mask-image: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
+  .map-sizer { display: flow-root; }   /* owns the scroll extent (see markup note) */
   .map-track { position: relative; width: min(94vw, 420px); margin: 0 auto; padding: 40px 8px calc(30px + env(safe-area-inset-bottom)); }
 
   /* Persistent deck panel pinned below the climb (outside the scroll, so it stays
@@ -4552,6 +4553,21 @@
   .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
     background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
       linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
+
+  /* LOCKED-STAGE FOG: an opaque felt veil over every not-yet-unlocked stage,
+     fading out just above the lock line. Normally it sits entirely above the
+     clamped viewport; it EXISTS so the elastic top-overscroll peek shows fog —
+     "the unknown above" — never actual future-stage nodes. */
+  .map-lockveil { position: absolute; left: -30px; right: -30px; z-index: 6; pointer-events: none;
+    background: linear-gradient(180deg, rgba(15,42,32,0.97) 0%, rgba(15,42,32,0.97) calc(100% - 110px), rgba(15,42,32,0) 100%); }
+  /* EASTER EGG: a whispered line hidden below the map's bottom edge — visible
+     only while the player rubber-bands past the bottom, bouncing back out of
+     sight on release. Rotates through a phrase pool per reveal. */
+  .map-egg { position: absolute; left: 50%; bottom: -30px; transform: translate(-50%, 0);
+    z-index: 2; max-width: 92vw; white-space: normal; text-align: center;
+    font-family: var(--font-text); font-size: 12px; font-style: italic; line-height: 1.35;
+    font-weight: 600; letter-spacing: 0.4px; color: rgba(255,244,226,0.6);
+    pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
 
   /* CULLED (far off-screen) nodes: skipped by paint/hit-test entirely while
      scrolled well out of view; an IntersectionObserver lifts the class again
@@ -5895,8 +5911,19 @@
          thumb-reach layout — glance-only info stays out of the thumb zone. -->
     <div class="map-foot" id="mapFoot"></div>
     <div class="map-scroll" id="mapScroll">
-      <div class="map-track" id="mapTrack"></div>
+      <!-- The SIZER owns the scroll extent: the track inside it gets the
+           elastic-overscroll transform, and a transformed child would other-
+           wise REDEFINE the scroller's scrollable overflow (a -16px bounce
+           momentarily shrank scrollHeight, force-clamping scrollTop off the
+           bottom). The sizer's untransformed box keeps the extent stable. -->
+      <div class="map-sizer"><div class="map-track" id="mapTrack"></div></div>
     </div>
+    <!-- EASTER EGG: hidden below the overlay's bottom edge (overflow:hidden
+         clips it); the elastic bottom pull slides it into view in sync with
+         the track and it springs back out of sight on release. It lives
+         OUTSIDE the scroller so it never extends the scrollable overflow
+         (an in-track version dragged scrollHeight around with every pull). -->
+    <div class="map-egg" id="mapEgg"></div>
   </div>
 
   <!-- Enlarged fossil detail (tap a cleared run's node). View-only; never starts
@@ -6106,7 +6133,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.28 · items.js edits reach the store instantly — the data file is fetched fresh every load";
+const APP_VERSION = "v4.29 · the map rubber-bands at its edges, stages unlock at the boss kill, and something whispers below the bottom";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16370,11 +16397,49 @@ const UIRenderer = (() => {
     if (el.mapScroll && el.mapParallax) {
       el.mapScroll.addEventListener("scroll", () => {
         let s = el.mapScroll.scrollTop;
-        // Stage lock: scrolling above the current stage snaps back to the line.
-        if (s < mapScrollLock) { el.mapScroll.scrollTop = mapScrollLock; s = mapScrollLock; }
+        // Stage lock: scrolling above the unlocked stages stops at the line —
+        // with a small elastic dip instead of a dead stop when momentum hits it.
+        if (s < mapScrollLock) { el.mapScroll.scrollTop = mapScrollLock; s = mapScrollLock; mapImpactBounce(1); }
+        const max = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
+        if (s >= max - 0.5 && mapScrollPrev < max - 6) mapImpactBounce(-1);   // fling into the bottom edge
+        mapScrollPrev = s;
         el.mapParallax.style.setProperty("--par", (-s * 0.32).toFixed(1) + "px");
         if (el.mapBg) el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
       }, { passive: true });
+      // RUBBER-BAND: touch drags past either boundary follow the finger with a
+      // damped offset and spring back on release (the egg lives below the
+      // bottom edge, revealed only during that pull).
+      el.mapScroll.addEventListener("touchstart", (e) => {
+        mapTouchActive = true; mapTouchY = e.touches[0].clientY; mapPullRaw = 0;
+      }, { passive: true });
+      el.mapScroll.addEventListener("touchmove", (e) => {
+        if (mapTouchY == null) return;
+        const y = e.touches[0].clientY;
+        const dy = y - mapTouchY;
+        mapTouchY = y;
+        const sc = el.mapScroll;
+        const max = sc.scrollHeight - sc.clientHeight;
+        const atTop = sc.scrollTop <= mapScrollLock + 0.5;
+        // TOLERANT bottom: animated descendants (avatar bob, bounce transforms)
+        // wobble the scroller's scrollable overflow a few px, which can leave
+        // scrollTop parked just shy of the exact max — a ~24px window still
+        // reads as "at the bottom" for the rubber-band + egg reveal.
+        const atBottom = sc.scrollTop >= max - 24;
+        if (mapPullRaw !== 0 || (atTop && dy > 0) || (atBottom && dy < 0)) {
+          if (mapPullRaw === 0 && atBottom && dy < 0) mapEggNext();   // a bottom reveal begins → new phrase
+          const raw = mapPullRaw + dy;
+          // pulled back through neutral → hand control back to native scrolling
+          if ((mapPullRaw > 0 && raw <= 0) || (mapPullRaw < 0 && raw >= 0)) {
+            mapPullRaw = 0; mapPullApply(0); return;
+          }
+          mapPullRaw = raw;
+          const damp = Math.tanh(Math.abs(raw) / 260) * 84;   // soft cap ~84px
+          mapPullApply(raw > 0 ? damp : -damp);
+          if (e.cancelable) e.preventDefault();
+        }
+      }, { passive: false });
+      el.mapScroll.addEventListener("touchend", mapPullRelease, { passive: true });
+      el.mapScroll.addEventListener("touchcancel", mapPullRelease, { passive: true });
     }
     el.fossilDetailClose.addEventListener("click", closeFossilDetail);
     el.fossilDetail.addEventListener("click", (e) => { if (e.target === el.fossilDetail) closeFossilDetail(); });
@@ -20676,6 +20741,7 @@ const UIRenderer = (() => {
         '<svg class="map-edges" viewBox="0 0 ' + MAP_W + ' ' + height + '" width="' + MAP_W + '" height="' + height + '" preserveAspectRatio="none">' + edges + '</svg>' +
         nodes +
         addrLabels +
+        '<div class="map-lockveil" id="mapLockVeil" style="display:none"></div>' +
       '</div>';
     mapArrive = false;   // the arrival pop is one-shot
     placeAvatar();       // re-attach + reposition the player box on the current node
@@ -20692,7 +20758,14 @@ const UIRenderer = (() => {
       const curPhase = curNode && typeof curNode.phase === "number" ? curNode.phase : 0;
       const atHome = curNode && curNode.type === "home";
       if (!atHome) {
-        const ph = (map.phases || []).find(x => x.phase === curPhase);
+        // The next stage unlocks THE MOMENT this stage's boss falls — not only
+        // after stepping onto its first node.
+        const curMeta = (map.phases || []).find(x => x.phase === curPhase);
+        const bossDown = curMeta && (curMeta.bossIds || []).length
+          && curMeta.bossIds.every(id => cleared.has(id));
+        const unlockPhase = (bossDown && (map.phases || []).some(x => x.phase === curPhase + 1))
+          ? curPhase + 1 : curPhase;
+        const ph = (map.phases || []).find(x => x.phase === unlockPhase);
         if (ph) {
           const topRow = ph.rowStart + ph.rows - 1;
           let lockY = MAP_PAD + (R - 1 - topRow) * MAP_ROW_H - MAP_ROW_H * 0.55;
@@ -20705,10 +20778,91 @@ const UIRenderer = (() => {
       }
     }
     if (el.mapScroll && el.mapScroll.scrollTop < mapScrollLock) el.mapScroll.scrollTop = mapScrollLock;
+    // Fog veil over everything above the lock line (the not-yet-unlocked
+    // stages), so the elastic top-overscroll peek shows fog, never spoilers.
+    {
+      const veil = document.getElementById("mapLockVeil");
+      const pm = el.mapTrack.querySelector(".phase-map");
+      if (veil && pm) {
+        const veilBottom = mapScrollLock - pm.offsetTop;   // lock line in phase-map coords
+        if (mapScrollLock > 0 && veilBottom > 0) {
+          veil.style.top = "-600px";
+          veil.style.height = (veilBottom + 600) + "px";
+          veil.style.display = "";
+        } else veil.style.display = "none";
+      }
+      const egg = document.getElementById("mapEgg");
+      if (egg) egg.textContent = MAP_EGG_LINES[mapEggIdx % MAP_EGG_LINES.length];
+    }
+    mapBounceMuteUntil = performance.now() + 700;   // no impact bounce from render-time repositioning
   }
   /* The minimum allowed map scrollTop (content above = not-yet-reached stages).
      Recomputed every render; enforced by the scroll handler + camera centring. */
   let mapScrollLock = 0;
+  /* ── MAP ELASTIC OVERSCROLL (+ the bottom Easter egg) ────────────────────
+     Two boundaries: the stage lock (top) and the map's bottom end. A touch
+     drag past either follows the finger with a DAMPED translateY on the track
+     (iOS rubber-band) and springs back on release; a momentum fling that hits
+     a boundary plays a small impact bounce instead of stopping dead. All
+     transform-only. The bottom pull reveals the hidden .map-egg line — a new
+     phrase rotates in at the start of each reveal. */
+  const MAP_EGG_LINES = [
+    "Up is home.",
+    "Calling Same on a Joker always lands — it banks the Same shield AND fires your Same-Power.",
+    "Mama's waiting at the top.",
+    "A correct Same banks a shield that saves a pile from death. It never stacks — spend it.",
+    "Nothing down here but felt.",
+    "Ties kill on Higher or Lower — call Same, or carry a Same-Safe.",
+    "Anchor a tiny pile and it stops dragging your payout down.",
+    "Pinky believes in you.",
+    "Rerolls climb in price within a shop visit — next store, fresh price.",
+    "Bosses always deal your whole deck. Keep it lean.",
+  ];
+  let mapEggIdx = Math.floor(Math.random() * MAP_EGG_LINES.length);
+  let mapPullRaw = 0, mapPullD = 0, mapTouchY = null, mapTouchActive = false;
+  let mapBounceBusy = false, mapBounceMuteUntil = 0, mapScrollPrev = 0;
+  function mapEggNext() {
+    mapEggIdx = (mapEggIdx + 1) % MAP_EGG_LINES.length;
+    const egg = document.getElementById("mapEgg");
+    if (egg) egg.textContent = MAP_EGG_LINES[mapEggIdx];
+  }
+  function mapPullApply(d) {
+    mapPullD = d;
+    if (el.mapTrack) el.mapTrack.style.transform = d ? "translateY(" + d.toFixed(1) + "px)" : "";
+    const egg = document.getElementById("mapEgg");   // rides the pull in sync
+    if (egg) egg.style.transform = "translate(-50%," + (d ? d.toFixed(1) : 0) + "px)";
+  }
+  function mapPullRelease() {
+    mapTouchActive = false; mapTouchY = null;
+    if (!mapPullD) { mapPullRaw = 0; return; }
+    const from = mapPullD;
+    mapPullRaw = 0; mapPullApply(0);
+    if (el.mapTrack && typeof el.mapTrack.animate === "function" && !prefersReduce()) {
+      const spring = { duration: 380, easing: "cubic-bezier(0.22, 0.9, 0.32, 1.18)" };   // slight overshoot = the bounce
+      el.mapTrack.animate(
+        [{ transform: "translateY(" + from.toFixed(1) + "px)" }, { transform: "translateY(0px)" }], spring);
+      const egg = document.getElementById("mapEgg");
+      if (egg) egg.animate(
+        [{ transform: "translate(-50%," + from.toFixed(1) + "px)" }, { transform: "translate(-50%,0px)" }], spring);
+    }
+  }
+  /** Small impact bounce when a momentum fling hits a boundary (dir +1 = the
+      stage lock above, −1 = the bottom edge). Muted briefly after renders so
+      programmatic repositioning never fake-bounces. */
+  function mapImpactBounce(dir) {
+    if (mapBounceBusy || mapTouchActive || prefersReduce()) return;
+    if (performance.now() < mapBounceMuteUntil) return;
+    if (!el.mapTrack || typeof el.mapTrack.animate !== "function") return;
+    mapBounceBusy = true;
+    if (dir < 0) mapEggNext();   // the bottom bounce peeks the egg — rotate it
+    const dip = { duration: 300, easing: "ease-out" };
+    const a = el.mapTrack.animate(
+      [{ transform: "translateY(0px)" }, { transform: "translateY(" + (dir * 16) + "px)" }, { transform: "translateY(0px)" }], dip);
+    const egg = document.getElementById("mapEgg");
+    if (egg) egg.animate(
+      [{ transform: "translate(-50%,0px)" }, { transform: "translate(-50%," + (dir * 16) + "px)" }, { transform: "translate(-50%,0px)" }], dip);
+    a.onfinish = () => { mapBounceBusy = false; };
+  }
   /* OFF-SCREEN NODE CULLING: the whole run renders (by design — the full climb
      is scrollable), but on late/endless maps 90%+ of the 200+ nodes sit far
      outside the viewport. One IntersectionObserver (rootMargin: one full
