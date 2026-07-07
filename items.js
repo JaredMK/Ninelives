@@ -63,7 +63,7 @@ const NINELIVES_ITEMS = {
      a ♠ item costs −2 (floor 1).
   -------------------------------------------------------------------- */
   stickers: [
-    { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: 1,  tier: "common",   price: 1,
+    { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: 1,  tier: "common",   price: 11,
       description: "+1 card rank (stops at Ace)" },
     { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common",   price: 1,
       description: "-1 card rank (stops at 2)" },
