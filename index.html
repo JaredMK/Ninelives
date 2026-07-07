@@ -4577,7 +4577,7 @@
   /* EASTER EGG: a whispered line hidden below the map's bottom edge — visible
      only while the player rubber-bands past the bottom, bouncing back out of
      sight on release. Rotates through a phrase pool per reveal. */
-  .map-egg { position: absolute; left: 50%; bottom: -30px; transform: translate(-50%, 0);
+  .map-egg { position: absolute; left: 50%; top: calc(100% + 12px); bottom: auto; transform: translate(-50%, 0);
     z-index: 2; max-width: 92vw; white-space: normal; text-align: center;
     font-family: var(--font-text); font-size: 12px; font-style: italic; line-height: 1.35;
     font-weight: 600; letter-spacing: 0.4px; color: rgba(255,244,226,0.6);
@@ -6150,7 +6150,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.30 · every deck climbs three ways now — Regular, Master, Legendary — with the bands living in difficulty.js";
+const APP_VERSION = "v4.31 · the bottom whisper keeps one line per deal and slips fully out of sight again";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16518,7 +16518,6 @@ const UIRenderer = (() => {
         // reads as "at the bottom" for the rubber-band + egg reveal.
         const atBottom = sc.scrollTop >= max - 24;
         if (mapPullRaw !== 0 || (atTop && dy > 0) || (atBottom && dy < 0)) {
-          if (mapPullRaw === 0 && atBottom && dy < 0) mapEggNext();   // a bottom reveal begins → new phrase
           const raw = mapPullRaw + dy;
           // pulled back through neutral → hand control back to native scrolling
           if ((mapPullRaw > 0 && raw <= 0) || (mapPullRaw < 0 && raw >= 0)) {
@@ -20907,8 +20906,9 @@ const UIRenderer = (() => {
           veil.style.display = "";
         } else veil.style.display = "none";
       }
+      // The egg's phrase is FIXED for the current deal: salt + deals completed.
       const egg = document.getElementById("mapEgg");
-      if (egg) egg.textContent = MAP_EGG_LINES[mapEggIdx % MAP_EGG_LINES.length];
+      if (egg) egg.textContent = MAP_EGG_LINES[(mapEggSalt + (campaign.runsCompleted || 0)) % MAP_EGG_LINES.length];
     }
     mapBounceMuteUntil = performance.now() + 700;   // no impact bounce from render-time repositioning
   }
@@ -20934,14 +20934,11 @@ const UIRenderer = (() => {
     "Rerolls climb in price within a shop visit — next store, fresh price.",
     "Bosses always deal your whole deck. Keep it lean.",
   ];
-  let mapEggIdx = Math.floor(Math.random() * MAP_EGG_LINES.length);
+  // ONE phrase per deal: the pick is (session salt + deals completed) — it
+  // only changes BETWEEN deals, never per reveal. Set at map render.
+  const mapEggSalt = Math.floor(Math.random() * MAP_EGG_LINES.length);
   let mapPullRaw = 0, mapPullD = 0, mapTouchY = null, mapTouchActive = false;
   let mapBounceBusy = false, mapBounceMuteUntil = 0, mapScrollPrev = 0;
-  function mapEggNext() {
-    mapEggIdx = (mapEggIdx + 1) % MAP_EGG_LINES.length;
-    const egg = document.getElementById("mapEgg");
-    if (egg) egg.textContent = MAP_EGG_LINES[mapEggIdx];
-  }
   function mapPullApply(d) {
     mapPullD = d;
     if (el.mapTrack) el.mapTrack.style.transform = d ? "translateY(" + d.toFixed(1) + "px)" : "";
@@ -20970,7 +20967,6 @@ const UIRenderer = (() => {
     if (performance.now() < mapBounceMuteUntil) return;
     if (!el.mapTrack || typeof el.mapTrack.animate !== "function") return;
     mapBounceBusy = true;
-    if (dir < 0) mapEggNext();   // the bottom bounce peeks the egg — rotate it
     const dip = { duration: 300, easing: "ease-out" };
     const a = el.mapTrack.animate(
       [{ transform: "translateY(0px)" }, { transform: "translateY(" + (dir * 16) + "px)" }, { transform: "translateY(0px)" }], dip);
