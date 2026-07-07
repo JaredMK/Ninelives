@@ -3670,6 +3670,54 @@
     color: var(--amber);
     border-color: var(--amber);
   }
+
+  /* ---- Pile FAN-OUT viewer (presentation-only memory aid) ----
+     Button: bottom-RIGHT corner of every pile, same pill language as the
+     count badge. It must accept taps inside the pointer-events:none .card-fx. */
+  .pile-fan-btn {
+    position: absolute; bottom: 4px; right: 4px;
+    width: calc(var(--pile-size, 88px) * 0.26); height: calc(var(--pile-size, 88px) * 0.26);
+    display: flex; align-items: center; justify-content: center;
+    color: #f5e0e9; background: #2a1d24;
+    border: 1.5px solid #c07088; border-radius: 9px;
+    z-index: 3; pointer-events: auto; cursor: pointer;
+  }
+  .pile-fan-btn svg { width: 68%; height: 68%; display: block; }
+  .pile.dead .pile-fan-btn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+  /* The fanned pile keeps a marker ring so it's clear WHICH pile is open. */
+  .pile.fanned .card { box-shadow: 0 0 0 3px var(--accent-2), 0 4px 12px rgba(2, 1, 4, 0.6); }
+
+  /* The fan panel: a centred popup of the pile's cards FACE UP, top card
+     first, lightly staggered rotations (the "fan"), wrapping into rows and
+     scrolling once a big pile outgrows the panel. Rendered once per open. */
+  .pile-fan {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 66; width: min(92vw, 360px); max-height: 62vh;
+    display: flex; flex-direction: column;
+    background: rgba(251, 246, 241, 0.98); border: 1px solid var(--edge-2);
+    border-radius: 14px; box-shadow: var(--shadow);
+    padding: 12px 13px 10px; color: var(--text);
+  }
+  .pile-fan.hidden { display: none; }
+  .pile-fan .pf-head { display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 13.5px; font-weight: 800; margin-bottom: 4px; }
+  .pile-fan .pf-order { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+  .pile-fan .pf-cards { display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 12px 9px; overflow-y: auto; padding: 10px 2px 6px; min-height: 0;
+    -webkit-overflow-scrolling: touch; }
+  .pile-fan .pf-card { position: relative; flex: none; }
+  .pile-fan .pf-card .mini-card { width: 44px; }
+  .pile-fan .pf-card .mc-rank { font-size: 16px; }
+  .pile-fan .pf-card .mc-suit { font-size: 13px; }
+  /* light alternating tilts = the fanned-out read, without measuring anything */
+  .pile-fan .pf-card:nth-child(4n+1) { transform: rotate(-3deg); }
+  .pile-fan .pf-card:nth-child(4n+2) { transform: rotate(2.2deg); }
+  .pile-fan .pf-card:nth-child(4n+3) { transform: rotate(-1.6deg); }
+  .pile-fan .pf-card:nth-child(4n)   { transform: rotate(3deg); }
+  .pile-fan .pf-top { position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+    z-index: 2; padding: 1px 5px; border-radius: 999px; font-size: 8px; font-weight: 900;
+    letter-spacing: 0.5px; color: #fff; background: var(--accent-2); white-space: nowrap; }
+  .pile-fan .pf-note { font-size: 10.5px; color: var(--muted); text-align: center; margin-top: 7px; }
   /* Static volatility indicator: a brief toast over the column at deal end saying
      the Static Pillar is Safe (green) or Destroyed (red), with a pop. A destroyed
      Pillar's column cell also shatter-shakes. Fixed overlay, self-removing. */
@@ -6061,6 +6109,10 @@
        indicator during play; dismissed on release. Reads registry descriptions. -->
   <div class="peek-info hidden" id="peekInfo"></div>
 
+  <!-- Pile fan-out viewer: every card in one pile, face up (memory aid).
+       Opened by a pile's corner fan button; any tap elsewhere collapses it. -->
+  <div class="pile-fan hidden" id="pileFan"></div>
+
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <div class="menu-tagline">Higher or lower?</div>
@@ -6171,7 +6223,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.32 · eight polish strokes: honest spades, solid ground, packs in house colours";
+const APP_VERSION = "v4.33 · every pile fans open for a look — and closes without a word to the game";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13512,6 +13564,7 @@ const UIRenderer = (() => {
     debugCoin50: document.getElementById("debugCoin50"),
     debugCoin100: document.getElementById("debugCoin100"),
     peekInfo: document.getElementById("peekInfo"),
+    pileFan: document.getElementById("pileFan"),
     debugVer: document.getElementById("debugVer"),
     debugLog: document.getElementById("debugLog"),
     debugPeekOut: document.getElementById("debugPeekOut"),
@@ -13569,6 +13622,11 @@ const UIRenderer = (() => {
   let deckStripOn = true;     // always-on composition strip visible? (persisted)
   let stripRemaining = { total: 0, rows: [] };   // last remaining counts (for the scrubber)
   let stripScrubbing = false;
+
+  // Pile FAN-OUT viewer: the pile index currently fanned open, or null.
+  // While open, ALL guess input is suspended (see the capture-phase click
+  // listener + the board pointerdown guard) — presentation only.
+  let pileFanIndex = null;
 
   // In-run sticker application: the sticker type id currently "armed"
   // (tap a sticker to arm it, then tap a pile to apply), or null.
@@ -13702,6 +13760,18 @@ const UIRenderer = (() => {
     hint.className = "pile-hint hidden";
     fx.appendChild(hint);
 
+    // Fan-out viewer button — bottom-RIGHT corner (the count pill is bottom-
+    // left). PRESENTATION ONLY: opens a face-up fan of the whole pile (a
+    // memory aid — every card here was seen when it landed). The button is
+    // the one interactive element inside the pointer-events:none .card-fx.
+    const fanBtn = document.createElement("div");
+    fanBtn.className = "pile-fan-btn";
+    fanBtn.innerHTML = '<svg viewBox="0 0 14 14" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3">' +
+      '<rect x="1.4" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(-14 4.1 7.6)"/>' +
+      '<rect x="4.3" y="2.8" width="5.4" height="8" rx="1.1"/>' +
+      '<rect x="7.2" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(14 9.9 7.6)"/></g></svg>';
+    fx.appendChild(fanBtn);
+
     card.appendChild(fx);
     pile.appendChild(card);
     return pile;
@@ -13833,8 +13903,39 @@ const UIRenderer = (() => {
     pileEl.querySelector(".pip").innerHTML = svg;
   }
 
+  /* ---- Pile FAN-OUT viewer (memory aid; PRESENTATION ONLY) ----
+     Fans one pile's cards out FACE UP, top card first — nothing here is new
+     information (every card was face up when it landed). Rendered ONCE per
+     open from live board state (a static innerHTML write — no per-frame
+     work), so it's cheap at any pile size; the panel wraps + scrolls. */
+  function openPileFan(index) {
+    const board = engine && engine.getBoard && engine.getBoard();
+    const pile = board && board.piles && board.piles[index];
+    if (!pile || !pile.cards || !pile.cards.length) return;
+    const cards = pile.cards.slice().reverse();   // stack order, TOP first
+    el.pileFan.innerHTML =
+      '<div class="pf-head"><span>Pile ' + (index + 1) + ' · ' + cards.length +
+        ' card' + (cards.length === 1 ? "" : "s") + '</span>' +
+        '<span class="pf-order">top → bottom</span></div>' +
+      '<div class="pf-cards">' + cards.map((c, i) =>
+        '<div class="pf-card">' + (i === 0 ? '<span class="pf-top">TOP</span>' : "") +
+          miniCardHtml(c) + '</div>').join("") + '</div>' +
+      '<div class="pf-note">Tap anywhere to close</div>';
+    el.pileFan.classList.remove("hidden");
+    if (pileEls[index]) pileEls[index].classList.add("fanned");
+    pileFanIndex = index;
+  }
+  function closePileFan() {
+    if (pileFanIndex == null) return;
+    if (pileEls[pileFanIndex]) pileEls[pileFanIndex].classList.remove("fanned");
+    pileFanIndex = null;
+    el.pileFan.classList.add("hidden");
+    el.pileFan.innerHTML = "";
+  }
+
   /* ---- full (re)render of the board from state ---- */
   function renderBoard(board, deck) {
+    closePileFan();   // any board mutation (debug auto-play, deal end) → stale fan closes
     for (let i = 0; i < board.size; i++) {
       const pileEl = pileEls[i];
       const top = board.top(i);
@@ -16012,6 +16113,11 @@ const UIRenderer = (() => {
       clearTimeout(peekTimer);
       peeking = false;
       pileDrag = null;
+      // FAN-OUT viewer open, or pressing a pile's fan button: never arm a
+      // drag-guess or a hold — the tap is handled entirely by the capture-
+      // phase fan click listener (open/toggle/collapse). Guess input is
+      // SUSPENDED while the fan is open.
+      if (pileFanIndex != null || e.target.closest(".pile-fan-btn")) return;
       const cell = e.target.closest(".bp-cell");
       if (cell) {   // Pillar-indicator hold-to-peek
         // Capture the pointer so the held peek tracks the finger anywhere and
@@ -16209,6 +16315,30 @@ const UIRenderer = (() => {
       closePeekInfo(); peekTapCol = null;
       pickUpPillar(Number(b.dataset.unplaceCol));
     });
+    // Pile FAN-OUT viewer input: a pile's corner fan button toggles its fan;
+    // while a fan is open, the NEXT tap anywhere else collapses it and does
+    // NOTHING more. Capture phase + stopPropagation means every other click
+    // handler (pile select, guess buttons, pillar/base taps) is safely
+    // skipped for that tap — combined with the pointerdown guard above,
+    // guess input is fully suspended while fanned. Taps ON the open fan
+    // panel are ignored so a big pile can be scrolled/browsed.
+    document.addEventListener("click", (e) => {
+      const fanBtn = e.target.closest(".pile-fan-btn");
+      if (fanBtn) {
+        e.preventDefault(); e.stopPropagation();
+        const holder = fanBtn.closest(".pile");
+        const idx = holder ? Number(holder.dataset.index) : NaN;
+        const same = pileFanIndex === idx;
+        closePileFan();
+        if (!same && !Number.isNaN(idx)) openPileFan(idx);
+        return;
+      }
+      if (pileFanIndex == null) return;
+      if (e.target.closest(".pile-fan")) return;   // browsing the fan itself
+      e.preventDefault(); e.stopPropagation();
+      closePileFan();
+    }, true);
+
     // Global tap-away dismiss for the informational peek popup (pillar/card help).
     // The popup is pointer-events:none and can sit over the HUD, so a tap that
     // misses the board never reached the board's own tap-off close — this fills
@@ -18684,6 +18814,7 @@ const UIRenderer = (() => {
      piles share one size (CAMPAIGN_MAX_COLS); shorter columns center
      vertically against the tallest via the board's align-items: center. */
   function buildBoard(cols, dealing = true) {
+    closePileFan();   // the fanned pile's elements are about to be rebuilt
     el.board.innerHTML = "";
     el.board.classList.remove("win-cine");   // clear any win-cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
