@@ -2531,8 +2531,8 @@
   .removal-obj .ro-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
   .store-tile .ti-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
   .sd-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
-  .sd-obj.obj-removal .removal-obj { width: 72px; height: 100px; }
-  .sd-obj.obj-removal .ro-sym { font-size: 42px; }
+  .sd-obj.obj-removal .removal-obj { width: 60px; height: 84px; }
+  .sd-obj.obj-removal .ro-sym { font-size: 34px; }
   .sd-obj.obj-removal .ro-lab { font-size: 11px; }
   .store-tile.tile-removal.sel .removal-obj { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -2604,11 +2604,13 @@
     border-radius: 999px; border: none; background: rgba(255,255,255,0.92); color: var(--muted);
     font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
   .sd-close:active { transform: scale(0.94); }
-  /* The object, larger. Same component the shelf shows, scaled up. */
+  /* The object, modestly larger than the shelf (was 156px + 1.5x scale — it
+     swallowed most of the panel and crushed the description/chooser/buttons
+     below; the popup now gives the TEXT the room). */
   .sd-obj { display: flex; align-items: center; justify-content: center;
-    min-height: 156px; margin-bottom: 6px; }
-  .sd-obj > * { transform: scale(1.5); transform-origin: center; }
-  .sd-obj.obj-base > * { transform: scale(1.3); }
+    min-height: 96px; margin-bottom: 2px; }
+  .sd-obj > * { transform: scale(1.05); transform-origin: center; }
+  .sd-obj.obj-base > * { transform: scale(1); }
   /* The pillar banner sizes itself off its PARENT (width/height:100%, swallowtail
      cloth filling via flex:1; the emblem is absolutely-positioned so it lends no
      intrinsic size). The shelf TILE gives it a definite-size slot, but this detail
@@ -2622,10 +2624,10 @@
      pennant collapsed to a rod-and-cloth sliver in this popup on iPhone
      (fine in Chromium). Hard-code the box instead: 116 × var(--pennant-ar
      0.82) ≈ 95. Detail-scoped, the shelf tile is untouched. */
-  .sd-obj.obj-pillar .cph-banner.pennant.big { height: 116px; width: 95px; }
+  .sd-obj.obj-pillar .cph-banner.pennant.big { height: 88px; width: 72px; }
   /* SAME collapse for the base plaque (and the same Safari transfer failure):
      explicit 62 × var(--plaque-ar 2.4) ≈ 149. Detail-scoped. */
-  .sd-obj.obj-base .base-banner.plaque.big { height: 62px; width: 149px; max-width: none; }
+  .sd-obj.obj-base .base-banner.plaque.big { height: 48px; width: 115px; max-width: none; }
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(255,255,255,0.6); }
   .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
@@ -2633,10 +2635,11 @@
   .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 21px; color: #fff;
     line-height: 1.1; }
   .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; white-space: pre-line; }
-  /* Replace comparison inside the buy popup: the EQUIPPED item and the
-     INCOMING item side by side (object, name, description) over an explicit
-     "Replace X with Y?" line. Shown only when the chosen slot is occupied. */
-  .sd-compare { display: flex; align-items: stretch; gap: 7px; margin: 10px 0 0; }
+  /* Comparison inside the buy popup: shown WHENEVER a target slot is picked —
+     the EQUIPPED item (or a same-sized "None equipped" placeholder when the
+     slot is empty) beside the INCOMING item, over an explicit "Replace X with
+     Y?" / "Place Y?" line. Identical layout for filling and replacing. */
+  .sd-compare { display: flex; align-items: stretch; gap: 7px; margin: 8px 0 0; width: 100%; }
   .sd-compare.hidden { display: none; }
   .sdc-side { flex: 1 1 0; min-width: 0; background: var(--panel-2);
     border: 1px solid var(--edge-2); border-radius: 10px; padding: 7px 6px 8px;
@@ -2649,15 +2652,25 @@
   .sdc-obj .base-banner.plaque { height: 32px; width: auto; aspect-ratio: var(--plaque-ar); }
   .sdc-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.2; }
   .sdc-desc { font-size: 10px; line-height: 1.35; color: var(--muted);
-    text-align: center; max-height: 74px; overflow-y: auto; }
-  .sdc-arrow { align-self: center; flex: 0 0 auto; font-size: 16px; font-weight: 800; color: var(--pathway-2); }
-  .sd-replace-q { margin: 8px 0 0; font-size: 12.5px; font-weight: 700; text-align: center; }
+    text-align: center; max-height: 62px; overflow-y: auto; }
+  .sdc-arrow { align-self: center; flex: 0 0 auto; font-size: 16px; font-weight: 800; color: #cdb9f4; }
+  /* Empty-slot placeholder: the same box, a dashed slot silhouette inside
+     (sized per item family via the cmp-* class on .sd-compare). */
+  .sdc-side.sdc-none .sdc-name { color: var(--muted); font-style: italic; font-weight: 700; }
+  .sdc-slot-empty { display: block; width: 46px; height: 54px; border-radius: 8px;
+    border: 1.5px dashed rgba(74,52,44,0.4); background: rgba(74,52,44,0.05); }
+  .sd-compare.cmp-base .sdc-slot-empty { width: 78px; height: 32px; border-radius: 6px; }
+  .sd-compare.cmp-samepower .sdc-slot-empty { width: 46px; height: 46px; border-radius: 50%; }
+  /* Light text on the dark blurred backdrop (was body-ink black — unreadable). */
+  .sd-replace-q { margin: 7px 0 0; font-size: 12.5px; font-weight: 700; text-align: center;
+    color: rgba(255,255,255,0.9); }
   .sd-replace-q.hidden { display: none; }
-  .sd-replace-q b { color: var(--pathway); }
+  .sd-replace-q b { color: #cdb9f4; }
 
   /* Placement chooser inside the buy popup (pillars / bases / Same-Power): pick the
      slot, then confirm buy+place with the button below. */
-  .sd-place { width: 100%; display: flex; flex-direction: column; gap: 6px; margin: 2px 0 2px; }
+  .sd-place { width: 100%; display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px;
+    border-top: 1px solid rgba(255,255,255,0.18); padding-top: 10px; }   /* subtle break after the description */
   .sd-place.hidden { display: none; }
   .sd-place-h { font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
     color: rgba(255,255,255,0.74); text-transform: uppercase; }
@@ -6039,7 +6052,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.24 · the map background drifts in parallax as you climb";
+const APP_VERSION = "v4.25 · the buy popup breathes — smaller hero, readable question, a comparison for every column tap";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -21081,7 +21094,7 @@ const UIRenderer = (() => {
     }
     const reg = kind === "pillar" ? PillarTypes : BaseTypes;
     const occ = kind === "pillar" ? campaign.getColumnPillars() : campaign.getColumnBases();
-    el.sdPlaceH.textContent = "Choose a column — replaces what's there";
+    el.sdPlaceH.textContent = "Choose a column";
     let html = "";
     for (let c = 0; c < occ.length; c++) {
       const ot = occ[c] ? reg.get(occ[c]) : null;
@@ -21104,33 +21117,49 @@ const UIRenderer = (() => {
     const occ = sdDetailKind === "pillar" ? campaign.columnPillar(sdPlaceCol) : campaign.columnBase(sdPlaceCol);
     return occ || null;
   }
-  /** Side-by-side replace comparison (equipped vs incoming) + the explicit
-      "Replace X with Y?" question. Shown only when the selection displaces. */
+  /** Side-by-side comparison (equipped vs incoming) + the explicit question.
+      Shown WHENEVER a target slot is picked: an occupied slot shows the real
+      equipped item and asks "Replace X with Y?"; an EMPTY slot shows a
+      same-sized "None equipped" placeholder and asks "Place Y?" — the layout
+      is identical either way. */
   function renderSdCompare() {
     if (!el.sdCompare) return;
-    const oldId = sdReplacingOldId();
-    if (!oldId) {
+    const isPlacement = sdDetailKind === "pillar" || sdDetailKind === "base" || sdDetailKind === "samepower";
+    const targetPicked = sdDetailKind === "samepower" || sdPlaceCol != null;
+    const reg = sdDetailKind === "pillar" ? PillarTypes : sdDetailKind === "base" ? BaseTypes : SamePowerTypes;
+    const nt = isPlacement && sdDetailId ? reg.get(sdDetailId) : null;
+    if (!isPlacement || !targetPicked || !nt) {
       el.sdCompare.classList.add("hidden");
       if (el.sdReplaceQ) el.sdReplaceQ.classList.add("hidden");
       return;
     }
-    const reg = sdDetailKind === "pillar" ? PillarTypes : sdDetailKind === "base" ? BaseTypes : SamePowerTypes;
-    const ot = reg.get(oldId), nt = reg.get(sdDetailId);
-    if (!ot || !nt) { el.sdCompare.classList.add("hidden"); if (el.sdReplaceQ) el.sdReplaceQ.classList.add("hidden"); return; }
+    const oldId = sdReplacingOldId();
+    const ot = oldId ? reg.get(oldId) : null;
     const objHtml = (t) => sdDetailKind === "pillar" ? pathwayBannerHtml(t)
       : sdDetailKind === "base" ? baseBannerHtml(t, "charged")
       : samePowerBadgeHtml(t);
-    el.sdCmpOldObj.innerHTML = objHtml(ot);
-    el.sdCmpOldName.textContent = ot.label;
-    el.sdCmpOldDesc.textContent = ot.description || "";
+    el.sdCompare.className = "sd-compare cmp-" + sdDetailKind;   // sizes the empty-slot silhouette
+    const oldSide = el.sdCmpOldObj.parentNode;
+    oldSide.classList.toggle("sdc-none", !ot);
+    if (ot) {
+      el.sdCmpOldObj.innerHTML = objHtml(ot);
+      el.sdCmpOldName.textContent = ot.label;
+      el.sdCmpOldDesc.textContent = ot.description || "";
+    } else {
+      el.sdCmpOldObj.innerHTML = '<span class="sdc-slot-empty"></span>';
+      el.sdCmpOldName.textContent = "None equipped";
+      el.sdCmpOldDesc.textContent = sdDetailKind === "samepower" ? "No Same-Power equipped yet." : "This slot is empty.";
+    }
     el.sdCmpNewObj.innerHTML = objHtml(nt);
     el.sdCmpNewName.textContent = nt.label;
     el.sdCmpNewDesc.textContent = nt.description || "";
-    el.sdCompare.classList.remove("hidden");
     if (el.sdReplaceQ) {
-      el.sdReplaceQ.innerHTML = "Replace <b>" + escHtml(ot.label) + "</b> with <b>" + escHtml(nt.label) + "</b>" +
-        (sdDetailKind === "samepower" ? " as your Same-Power?"
-          : " on column " + (sdPlaceCol + 1) + "?");
+      el.sdReplaceQ.innerHTML = ot
+        ? ("Replace <b>" + escHtml(ot.label) + "</b> with <b>" + escHtml(nt.label) + "</b>" +
+            (sdDetailKind === "samepower" ? " as your Same-Power?" : " on column " + (sdPlaceCol + 1) + "?"))
+        : (sdDetailKind === "samepower"
+            ? "Equip <b>" + escHtml(nt.label) + "</b> as your Same-Power?"
+            : "Place <b>" + escHtml(nt.label) + "</b> on column " + (sdPlaceCol + 1) + "?");
       el.sdReplaceQ.classList.remove("hidden");
     }
   }
