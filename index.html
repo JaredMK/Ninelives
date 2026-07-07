@@ -1807,6 +1807,20 @@
   .ds-lock { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center;
     background: rgba(74,52,44,0.07); border: 1px solid rgba(74,52,44,0.16); border-radius: 999px; padding: 6px 14px; }
   .ds-start { min-width: 180px; }
+  /* Difficulty tier row on each unlocked deck panel: Regular / Master /
+     Legendary chips; locked tiers grey out with a "Beat <prior>" note. */
+  .ds-tiers { display: flex; gap: 6px; justify-content: center; margin: 2px 0 10px; }
+  .ds-tier { flex: 0 1 auto; min-width: 82px; padding: 6px 10px; border-radius: 999px;
+    border: 1.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08);
+    color: var(--on-felt, #f2ece2); font-family: var(--font-text); font-size: 11.5px;
+    font-weight: 800; letter-spacing: 0.3px; cursor: pointer; touch-action: manipulation;
+    transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease; }
+  .ds-tier:active { transform: scale(0.96); }
+  .ds-tier.sel { border-color: var(--amber, #C77E1F); background: rgba(199,126,31,0.22);
+    box-shadow: 0 0 8px rgba(199,126,31,0.35); }
+  .ds-tier.locked { opacity: 0.42; cursor: not-allowed; filter: grayscale(0.5); }
+  .ds-tier .dst-lock { display: block; font-size: 8.5px; font-weight: 700; font-style: italic;
+    letter-spacing: 0.2px; opacity: 0.85; margin-top: 1px; text-transform: none; }
   /* Pager dots. */
   .ds-dots { display: flex; gap: 8px; justify-content: center; }
   .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--edge-2); transition: background 0.2s, transform 0.2s; }
@@ -6109,7 +6123,10 @@
      max-age — a hand-edited price then never reached the store. The unique
      query per load forces a fresh fetch every time (and skips stale CDN
      edges); document.write keeps it loading BEFORE the game script. -->
-<script>document.write('<script src="items.js?t=' + Date.now() + '"><\/script>');</script>
+<script>
+document.write('<script src="items.js?t=' + Date.now() + '"><\/script>');
+document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
+</script>
 <script>
 "use strict";
 /* ================================================================
@@ -6133,7 +6150,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.29 · the map rubber-bands at its edges, stages unlock at the boss kill, and something whispers below the bottom";
+const APP_VERSION = "v4.30 · every deck climbs three ways now — Regular, Master, Legendary — with the bands living in difficulty.js";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6629,6 +6646,51 @@ function stickerCardEligible(card, typeId) {
   if (!t) return false;
   return !(Array.isArray(t.suits) && t.suits.length) || t.suits.indexOf(card.suit) !== -1;
 }
+/* ----------------------------------------------------------------
+   DifficultyData — loads + VALIDATES the difficulty-band file
+   (difficulty.js, the NINELIVES_DIFFICULTY global). The map generator's
+   bandsFor() reads the SELECTED tier's stageBands/bossBands and the
+   endless lift from here — difficulty.js is the single hand-editable
+   home for every band value. Malformed entries FAIL LOUDLY on load
+   (console.error naming the tier + field, then a thrown Error).
+---------------------------------------------------------------- */
+const DifficultyData = (() => {
+  if (typeof NINELIVES_DIFFICULTY === "undefined")
+    throw new Error("difficulty.js did not load — NINELIVES_DIFFICULTY is undefined (is the loader <script> present and the file next to index.html?)");
+  const D = NINELIVES_DIFFICULTY;
+  const problems = [];
+  const TIER_IDS = ["regular", "master", "legendary"];
+  if (typeof D.endlessBandStep !== "number" || !(D.endlessBandStep > 0))
+    problems.push("[difficulty.js] endlessBandStep: must be a positive number");
+  if (!D.tiers || typeof D.tiers !== "object") problems.push("[difficulty.js] tiers: missing object");
+  else for (const id of TIER_IDS) {
+    const t = D.tiers[id];
+    const bad = (msg) => problems.push("[difficulty.js] tiers." + id + ": " + msg);
+    if (!t || typeof t !== "object") { bad("missing tier entry"); continue; }
+    if (typeof t.label !== "string" || !t.label) bad("missing/invalid `label` (string)");
+    for (const key of ["stageBands", "bossBands"]) {
+      const b = t[key];
+      if (!Array.isArray(b) || b.length !== 3) { bad("`" + key + "` must be an array of exactly 3 [lo, hi] pairs"); continue; }
+      b.forEach((pair, i) => {
+        if (!Array.isArray(pair) || pair.length !== 2
+            || typeof pair[0] !== "number" || !isFinite(pair[0])
+            || typeof pair[1] !== "number" || !isFinite(pair[1]))
+          bad("`" + key + "[" + i + "]` must be a [lo, hi] pair of numbers");
+        else if (pair[0] > pair[1]) bad("`" + key + "[" + i + "]` has lo > hi (" + pair[0] + " > " + pair[1] + ")");
+      });
+    }
+  }
+  if (problems.length) {
+    problems.forEach(p => console.error(p));
+    throw new Error("difficulty.js validation FAILED — " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + " (see console.error lines above)");
+  }
+  return {
+    tierIds: TIER_IDS,
+    endlessBandStep: D.endlessBandStep,
+    tier(id) { return D.tiers[id] || D.tiers.regular; },
+  };
+})();
+
 /* ----------------------------------------------------------------
    DECK_RULES — per-deck gameplay modifiers (the deck characters).
    Pinky is the baseline and carries NO modifiers (completely unchanged).
@@ -7129,17 +7191,12 @@ const RunMap = (() => {
     // bands are our tunables inside/above the stage bands ("boss is the stage's
     // hardest deal"); the FINAL boss band is spec-fixed at 5.5-6.0.
     firstDealBand: [1.25, 1.75], // the very first deal of the run (stage 0, row 0)
-    stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
-    bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
-    // ENDLESS band progression (bandsFor): every endless stage past ♠ lifts
-    // BOTH edges of both bands by +endlessBandStep over the previous stage —
-    // endless 1: deals [5.25, 6.75] / boss [6.75, 7.25]; endless 2: [6.5, 8.0]
-    // / [8.0, 8.5]; and so on, always above the ♠ bands and always rising.
-    // The step (1.25/stage) outpaces the deck's own growth rate against the
-    // 12-pile cap (~1.08/stage at +13 cards/stage), so the (deck − piles) /
-    // piles targets stay reachable indefinitely; the retry/relax ladder is
-    // untouched. TUNING KNOB: raise/lower for a steeper/gentler endless ramp.
-    endlessBandStep: 1.25,
+    // NOTE: stageBands / bossBands / endlessBandStep now live in difficulty.js
+    // — PER TIER (Regular / Master / Legendary), selected on deck select and
+    // read live by bandsFor() below via setDifficultyTier(). The endless
+    // progression rule is unchanged: every stage past ♠ lifts BOTH edges of
+    // both bands by +endlessBandStep over the previous stage, starting from
+    // the SELECTED tier's stage-3 bands.
 
     // Generation control.
     attempts: 60,                // tries per relax step before widening the ladder
@@ -7158,12 +7215,17 @@ const RunMap = (() => {
   /* Per-stage difficulty bands, extended UPWARD for endless stages: stage p
      past the authored arrays gets the ♠ bands lifted by endlessBandStep per
      endless step (see the GEN_CONFIG comment for the exact progression). */
+  /* The ACTIVE difficulty tier (regular | master | legendary) — set by the
+     campaign before any map generation; every band read below follows it. */
+  let activeTier = "regular";
+  function setDifficultyTier(id) { activeTier = DifficultyData.tier(id) ? (DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular") : "regular"; }
+  function getDifficultyTier() { return activeTier; }
   function bandsFor(phaseIndex) {
-    const C = GEN_CONFIG;
-    const last = C.stageBands.length - 1;
-    if (phaseIndex <= last) return { stage: C.stageBands[phaseIndex], boss: C.bossBands[phaseIndex] };
-    const lift = C.endlessBandStep * (phaseIndex - last);
-    const s = C.stageBands[last], b = C.bossBands[last];
+    const T = DifficultyData.tier(activeTier);   // bands live in difficulty.js
+    const last = T.stageBands.length - 1;
+    if (phaseIndex <= last) return { stage: T.stageBands[phaseIndex], boss: T.bossBands[phaseIndex] };
+    const lift = DifficultyData.endlessBandStep * (phaseIndex - last);
+    const s = T.stageBands[last], b = T.bossBands[last];
     return { stage: [s[0] + lift, s[1] + lift], boss: [b[0] + lift, b[1] + lift] };
   }
   /** A stage's suit: the authored ♦/♣/♠ schedule, then "★" for every endless
@@ -8429,7 +8491,8 @@ const RunMap = (() => {
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
            generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
-           bandsFor, SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
+           bandsFor, setDifficultyTier, getDifficultyTier,
+           SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
 
 /* ----------------------------------------------------------------
@@ -11023,6 +11086,9 @@ const CampaignState = (() => {
     // The deck CHARACTER this campaign plays (gameplay rules, not just skin).
     // Set by the UI before reset() on a fresh campaign; restored with a save.
     let deckId = "pink";
+    // The DIFFICULTY TIER (regular | master | legendary) — affects the map
+    // generator's bands ONLY (difficulty.js). Set before reset(); persisted.
+    let difficultyTier = "regular";
     const rules = () => deckRulesFor(deckId);
     /** Shop price with the deck's multiplier applied (Mr. Smith pays 2x). */
     const shopPrice = (p) => (isFinite(p) ? Math.round(p * rules().priceMult) : p);
@@ -11050,6 +11116,7 @@ const CampaignState = (() => {
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
     function genRunMap() {
+      RunMap.setDifficultyTier(difficultyTier);   // bands follow this campaign's tier
       // THE WHOLE RUN generates up front (all 3 stages, rendered from the
       // start). Later stages use PREDICTED entry decks — entry + the average
       // route collection per stage (see GEN_CONFIG.predictedRouteCards) — and
@@ -11306,6 +11373,9 @@ const CampaignState = (() => {
           campaign — the rules shape the starting deck / pricing / stickers. */
       setDeck(id) { deckId = DECK_RULES[id] ? id : "pink"; },
       getDeckId() { return deckId; },
+      /** Bind the difficulty tier (bands only). Call BEFORE reset(). */
+      setTier(id) { difficultyTier = DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular"; },
+      getTier() { return difficultyTier; },
       deckRules() { return rules(); },
       /** Lammy: stickers are unusable everywhere (store, packs, effects). */
       stickersLocked() { return rules().noStickers; },
@@ -12396,6 +12466,7 @@ const CampaignState = (() => {
         return {
           schema: 2,
           deckId,
+          difficultyTier,
           // NEW run structure: the map is deterministic from (phaseIndex, runSeed),
           // so we persist only the seed + position + draft, not the whole graph.
           phaseIndex, runSeed, nodePos,
@@ -12439,6 +12510,8 @@ const CampaignState = (() => {
         if (!s || s.schema !== 2) return false;   // schema-1 (old stages×deals) saves can't map onto the new run structure → fresh campaign
         if (!Array.isArray(s.baseDeck) || s.baseDeck.length < 52) return false;   // ≥52: the deck GROWS as packs mint duplicate cards
         deckId = DECK_RULES[s.deckId] ? s.deckId : "pink";   // pre-deck-rules saves are Pinky campaigns
+        difficultyTier = DifficultyData.tierIds.indexOf(s.difficultyTier) !== -1 ? s.difficultyTier : "regular";
+        RunMap.setDifficultyTier(difficultyTier);   // the map below regenerates on this tier's bands
         // NEW run structure: restore the draft + position, regenerate the map.
         phaseIndex = Math.max(0, Math.min(PHASE_SUITS.length, s.phaseIndex || 0));
         runSeed = (s.runSeed >>> 0) || generateSeed();
@@ -12669,15 +12742,24 @@ const DeckUnlocks = (() => {
     /** A campaign was WON with `deckId` — its successor unlocks (persisted).
         Returns TRUE only when this is the FIRST recorded win with the deck
         (the caller uses it to arm the one-time unlock celebration). */
-    recordWin(deckId) {
+    recordWin(deckId, tier) {
       if (!deckId) return false;
+      // Regular wins keep the LEGACY key (deckId alone) — the deck-unlock
+      // chain and every old save read it unchanged. Master/Legendary wins
+      // store under "deckId.tier".
+      const key = (!tier || tier === "regular") ? deckId : deckId + "." + tier;
       const w = get();
-      if (w[deckId]) return false;
-      w[deckId] = true; put(w);
+      if (w[key]) return false;
+      w[key] = true; put(w);
       return true;
     },
     /** Has any campaign ever been won with `deckId`? */
     wonWith(deckId) { return !!get()[deckId]; },
+    /** Has this deck been beaten at `tier`? (regular reads the legacy key.) */
+    wonWithTier(deckId, tier) {
+      const key = (!tier || tier === "regular") ? deckId : deckId + "." + tier;
+      return !!get()[key];
+    },
     /** One-time migration for pre-tracking wins (see the header comment). */
     grantRetroactive(campaignsWon) {
       const w = get();
@@ -16254,9 +16336,19 @@ const UIRenderer = (() => {
     // Deck picker: a Start button runs the (unlocked) Pink Deck; locked decks have
     // none. Back returns to the menu we came from. Dots track the swiped page.
     if (el.dsCarousel) el.dsCarousel.addEventListener("click", (e) => {
+      // Tier chips: tap an UNLOCKED tier to select it for this deck's start.
+      const chip = e.target.closest(".ds-tier");
+      if (chip && !chip.classList.contains("locked")) {
+        const row = chip.closest(".ds-tiers");
+        if (row) row.querySelectorAll(".ds-tier").forEach(c => c.classList.toggle("sel", c === chip));
+        Sound.continueTap && Sound.continueTap();
+        return;
+      }
       const start = e.target.closest(".ds-start");
       if (start) {
         selectedDeckId = start.dataset.deck || "pink";   // the deck this campaign's win will credit
+        const selChip = start.closest(".ds-panel") && start.closest(".ds-panel").querySelector(".ds-tier.sel");
+        selectedTierId = (selChip && selChip.dataset.tier) || "regular";
         hideDeckSelect(); startCampaign();
       }
     });
@@ -18303,6 +18395,7 @@ const UIRenderer = (() => {
   /** The deck the CURRENT campaign is being played with (win credit target).
       Set on Start Run; restored with a resumed save; defaults to Pinky. */
   let selectedDeckId = "pink";
+  let selectedTierId = "regular";   // the difficulty tier picked on deck select
   function selectedDeck() { return DECKS.find(d => d.id === selectedDeckId) || DECKS[0]; }
   const DECK_CHAR_HTML =
     '<span class="dc-body"><span class="dc-lid"></span>' +
@@ -18339,11 +18432,24 @@ const UIRenderer = (() => {
     el.overlay.classList.add("hidden");
     el.dsCarousel.innerHTML = DECKS.map(d => {
       const open = deckUnlocked(d);
+      // Difficulty tier row (Regular / Master / Legendary): Master unlocks by
+      // beating THIS deck's Regular; Legendary by beating its Master. Locked
+      // tiers grey out with a "Beat <prior>" note. Tiers change BANDS only.
+      const tierRow = !open ? "" : '<div class="ds-tiers">' + DifficultyData.tierIds.map((tid, ti) => {
+        const t = DifficultyData.tier(tid);
+        const prev = ti > 0 ? DifficultyData.tierIds[ti - 1] : null;
+        const unlocked = !prev || DeckUnlocks.wonWithTier(d.id, prev);
+        return '<button type="button" class="ds-tier' + (ti === 0 ? " sel" : "") + (unlocked ? "" : " locked") + '"' +
+          ' data-tier="' + tid + '"' + (unlocked ? "" : " disabled") + '>' + escHtml(t.label) +
+          (unlocked ? "" : '<span class="dst-lock">Beat ' + escHtml(DifficultyData.tier(prev).label) + '</span>') +
+        '</button>';
+      }).join("") + '</div>';
       return '<div class="ds-panel' + (open ? "" : " locked") + '" data-deck="' + d.id + '">' +
         // Locked decks reveal NOTHING — name AND description are just "?".
         '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + ' ch-' + d.id + '">' + DECK_CHAR_HTML + '</span></div>' +
         '<div class="ds-name">' + escHtml(open ? d.name : "?") + '</div>' +
         '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : "?") + '</div>' +
+        tierRow +
         (open
           ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
           : '<div class="ds-lock">Locked</div>') +
@@ -18366,7 +18472,8 @@ const UIRenderer = (() => {
     clearSave();          // a fresh campaign supersedes any saved one
     track("game_started");   // analytics (fail-silent)
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
-    campaign.reset();                   // reset builds the start deck from them
+    campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
+    campaign.reset();                   // reset builds the start deck + map from them
     // A fresh run starts far from mama: anxious, a little lost, a little dirty.
     CharMood.setStage(0);
     // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
@@ -20062,9 +20169,18 @@ const UIRenderer = (() => {
       // A FIRST win arms the one-time unlock celebration, shown when the run
       // TERMINATES (main menu from home, or an endless death) — session-only,
       // so a retroactive/load-time grant can never fire it.
-      if (DeckUnlocks.recordWin(selectedDeckId)) {
+      const wonTier = campaign.getTier ? campaign.getTier() : "regular";
+      if (DeckUnlocks.recordWin(selectedDeckId, wonTier) && wonTier === "regular") {
         const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
         pendingUnlockCelebration = DECKS[wonIdx + 1] || null;   // the last deck unlocks nothing
+      }
+      // A Master/Legendary win at any tier ALSO counts as beating the tiers
+      // below it (a Legendary clear obviously clears Regular) — record them so
+      // the tier ladder can never present an already-conquered lock.
+      if (wonTier === "legendary") DeckUnlocks.recordWin(selectedDeckId, "master");
+      if (wonTier !== "regular" && DeckUnlocks.recordWin(selectedDeckId, "regular") ) {
+        const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
+        pendingUnlockCelebration = pendingUnlockCelebration || DECKS[wonIdx + 1] || null;
       }
       // The campaign is NOT over: Pinky's HOME sits just above the fallen boss
       // (and endless mode beyond it) — so the boss resolves like any other won

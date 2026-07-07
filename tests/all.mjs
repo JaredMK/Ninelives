@@ -36,6 +36,7 @@ import { run as subsetDeals } from "./subset-deals.test.mjs";
 import { run as sameItems } from "./same-items.test.mjs";
 import { run as stickerSuits } from "./sticker-suits.test.mjs";
 import { run as deckRules } from "./deck-rules.test.mjs";
+import { run as difficulty } from "./difficulty.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -72,6 +73,7 @@ const SUITES = [
   ["same-items", sameItems],
   ["sticker-suits", stickerSuits],
   ["deck-rules", deckRules],
+  ["difficulty", difficulty],
 ];
 
 let pass = 0,

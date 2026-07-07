@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HTML = join(HERE, "..", "index.html");
 const ITEMS = join(HERE, "..", "items.js");
+const DIFFICULTY = join(HERE, "..", "difficulty.js");
 
 /** Load the game's modules with a stubbed DOM. Returns the engine modules. */
 export function loadGame() {
@@ -24,9 +25,10 @@ export function loadGame() {
     .map((b) => b.replace(/^<script>/, "").replace(/<\/script>$/, ""))
     .find((c) => c.includes("const GameEngine"));
   if (!gameCode) throw new Error("No game <script> block found in index.html");
-  // The page loads the shop-item DATA from items.js (<script src>) before the
-  // game script; mirror that here so ItemData finds NINELIVES_ITEMS.
-  const code = readFileSync(ITEMS, "utf8") + "\n;" + gameCode;
+  // The page loads the shop-item DATA (items.js) and the difficulty bands
+  // (difficulty.js) before the game script; mirror that here so ItemData and
+  // DifficultyData find their globals.
+  const code = readFileSync(ITEMS, "utf8") + "\n;" + readFileSync(DIFFICULTY, "utf8") + "\n;" + gameCode;
 
   // Every DOM access returns a chainable no-op proxy. The modules under test
   // never touch the DOM; this only keeps UIRenderer.init() (which runs on

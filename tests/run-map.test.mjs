@@ -194,7 +194,7 @@ export function run() {
       const v = RunMap.validateStage(m, entry, { phaseIndex: p, bandHiExtra: bandX });
       r.ok(v.ok, "stage " + p + " (entry " + entry + "): validateStage passes (" + (v.errors[0] || "") + ")");
       const boss = v.report.perDeal.find(d => d.type === "boss");
-      const band = RunMap.GEN_CONFIG.bossBands[p];
+      const band = RunMap.bandsFor(p).boss;   // bands live in difficulty.js (active tier)
       r.ok(boss.dMin >= band[0] - 1e-6 && boss.dMax <= band[1] + bandX + 1e-6,
         "stage " + p + ": boss difficulty [" + boss.dMin + "," + boss.dMax + "] inside its band [" + band + "] (+" + bandX + " logged relax)");
     }
@@ -599,7 +599,7 @@ export function run() {
       && b3.boss[0] > b2.boss[0] && b3.boss[1] > b2.boss[1],
       "endless stage 1 bands sit ABOVE the ♠ bands (deals " + b3.stage + " / boss " + b3.boss + ")");
     r.ok(b4.stage[0] > b3.stage[0] && b4.boss[0] > b3.boss[0], "…and keep rising each endless stage");
-    const step = RunMap.GEN_CONFIG.endlessBandStep;
+    const step = RunMap.bandsFor(4).stage[0] - RunMap.bandsFor(3).stage[0];   // = endlessBandStep from difficulty.js
     r.ok(Math.abs((b4.stage[0] - b3.stage[0]) - step) < 1e-9, "the rise per stage is endlessBandStep (" + step + ")");
 
     // +1 nodes on endless stages lock cards from ALL FOUR suits (hearts too —
