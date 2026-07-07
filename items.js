@@ -64,7 +64,7 @@ const NINELIVES_ITEMS = {
   -------------------------------------------------------------------- */
   stickers: [
     { id: "rankUp",     label: "+1 Rank",     icon: "➕", kind: "rank",     rankDelta: 1,  tier: "common",   price: 11,
-      description: "+1 card rank (stops at Ace)" },
+      description: "+1 card rank (stops at Ace)", suits: ["♥","♦"]},
     { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common",   price: 1,
       description: "-1 card rank (stops at 2)" },
     { id: "rankUp2",    label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: 2,  tier: "uncommon", price: 2,
