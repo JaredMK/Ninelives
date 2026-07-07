@@ -5065,15 +5065,11 @@
   .map-avatar.ch-lammy .av-eye.l { transform: rotate(-8deg); }
   .map-avatar.ch-lammy .av-eye.r { transform: rotate(8deg); }
   .map-avatar.ch-lammy .av-eye::after { display: none; }
-  /* a small oily drip (a body detail — no mouths on any character) */
-  .ch-lammy .x-drip { display: block; top: 64%; left: 45%; width: 6%; min-width: 3px; height: 12%;
-    background: linear-gradient(180deg, rgba(120,100,140,0.6), rgba(120,100,140,0.1));
-    border-radius: 0 0 4px 4px; animation: lammyDrip 5.2s ease-in-out infinite; transform-origin: top; }
-  @keyframes lammyDrip {
-    0%, 55%, 100% { transform: scaleY(1); opacity: 0.9; }
-    72%           { transform: scaleY(1.45); opacity: 1; }
-    86%           { transform: scaleY(0.85); opacity: 0.7; }
-  }
+  /* (The old "oily drip" body detail is RETIRED: its dark semi-transparent
+     bar read as a discoloured rectangle artifact on the mid/lower body at
+     every size. The .x-drip node stays in the markup but keeps the .dc-x
+     default display:none — Lammy's wet look is carried by his ::after
+     specular highlights alone.) */
   /* IDLE — a slow slinky lean-drift (he never sits quite straight) */
   .deck-char.ch-lammy .dc-body, .map-avatar.ch-lammy .av-body { animation: lammyIdle 5.4s ease-in-out infinite; }
   @keyframes lammyIdle {
@@ -5101,7 +5097,6 @@
     60%  { transform: scale(1.08, 0.82) translateY(4px); }
     100% { transform: scale(1.04, 0.92) translateY(2px); }
   }
-  .deck-char.ch-lammy.dc-sad .x-drip, .deck-char.ch-lammy.mood-loss .x-drip { animation: none; opacity: 0.4; }
   /* CELEBRATE / WIN-DANCE — the liquid shimmy: fast alternating skew with
      squash-and-stretch, drip flinging (nothing like a hop) */
   .deck-char.ch-lammy.dc-celebrate .dc-body,
@@ -5114,13 +5109,6 @@
     66%      { transform: skewX(-7deg) scale(1.04, 0.95); }
     83%      { transform: skewX(4deg) scale(0.99, 1.02); }
   }
-  .deck-char.ch-lammy.dc-celebrate .x-drip, .map-avatar.ch-lammy.mood-win .x-drip {
-    animation: lammyDripFling 1.4s ease-in-out; }
-  @keyframes lammyDripFling {
-    0%, 100% { transform: rotate(0deg) scaleY(1); }
-    25%      { transform: rotate(14deg) scaleY(1.5); }
-    60%      { transform: rotate(-12deg) scaleY(1.4); }
-  }
   /* MAP IDLE — the slink + the drip's slow pulse ride the trail; collecting =
      a quick pocketing wiggle */
   .map-avatar.ch-lammy.collecting .av-body { animation: lammyWiggle 0.65s ease-in-out; }
@@ -5129,7 +5117,7 @@
   @media (prefers-reduced-motion: reduce) {
     .ch-mamma .dc-body, .ch-mamma .av-body, .ch-smith .dc-body, .ch-smith .av-body,
     .ch-lammy .dc-body, .ch-lammy .av-body, .ch-smith .x-hat, .ch-smith .x-mono,
-    .ch-lammy .x-drip, .map-avatar.ch-smith .av-face { animation: none !important; }
+    .map-avatar.ch-smith .av-face { animation: none !important; }
   }
   /* Collect fly-cards (reuse the board's flyCard arc helper). */
   .av-fly { position: fixed; z-index: 61; pointer-events: none; }
@@ -6223,7 +6211,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.34 · the Joker explains itself and bare slots keep quiet";
+const APP_VERSION = "v4.35 · Lammy dries off — the drip that read as a smudge is gone";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
