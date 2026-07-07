@@ -4246,6 +4246,26 @@
     opacity: 0.7;
   }
   @media (prefers-reduced-motion: reduce) { .map-parallax { transform: none; } }
+  /* PARALLAX BACKGROUND (map): the lost-paths tangle + the felt grain share
+     ONE slow plane (0.15×) under the dot field's faster one (0.32×) — two
+     depth planes over the static atmosphere gradients. The tangle is tiled at
+     480px here (its natural 460 nudged 4%) so both textures repeat inside a
+     common 480px period: the layer bleeds exactly one period below the
+     viewport and the JS offset WRAPS at 480, keeping the translate tiny,
+     seamless, and compositor-only — one extra layer, no per-frame layout
+     reads, no repaints. */
+  .map-bg {
+    position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 480px);
+    transform: translateY(var(--parbg, 0px));
+    will-change: transform; pointer-events: none;
+    background:
+      var(--lost-paths) 0 0 / 480px repeat,
+      var(--felt-grain) 0 0 / 160px repeat;
+  }
+  @media (prefers-reduced-motion: reduce) { .map-bg { transform: none; } }
+  /* The generic overlay tangle (.overlay::before) is replaced on the MAP by the
+     moving .map-bg-tangle above — content:none stops the double print. */
+  .overlay.map::before { content: none; }
 
   /* Scroll region — no header/footer; the climb fills the whole overlay and
      navigation is by tapping nodes. Momentum + smooth programmatic scroll. */
@@ -5799,7 +5819,7 @@
     <!-- Depth backdrop: a fixed atmosphere (warm/settled below = conquered, cool
          and faint above = the unknown summit) with a faint parallax dot layer
          that drifts slower than the climb as you scroll. Presentation only. -->
-    <div class="map-depth" aria-hidden="true"><div class="map-parallax" id="mapParallax"></div></div>
+    <div class="map-depth" aria-hidden="true"><div class="map-bg" id="mapBg"></div><div class="map-parallax" id="mapParallax"></div></div>
     <!-- Persistent map header: the phase (suit) being travelled + the always-
          glanceable accumulated DECK SIZE (the survival-difficulty number). -->
     <div class="map-hdr">
@@ -6019,7 +6039,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.23 · the Shuffler shuffles on screen, Streak Bury calms down, and replacing gear shows you both sides";
+const APP_VERSION = "v4.24 · the map background drifts in parallax as you climb";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13195,6 +13215,7 @@ const UIRenderer = (() => {
     mapDeck: document.getElementById("mapDeck"),
     mapPhase: document.getElementById("mapPhase"),
     mapParallax: document.getElementById("mapParallax"),
+    mapBg: document.getElementById("mapBg"),
     fossilDetail: document.getElementById("fossilDetail"),
     fossilDetailClose: document.getElementById("fossilDetailClose"),
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
@@ -16273,11 +16294,17 @@ const UIRenderer = (() => {
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
-    // Cheap parallax: the depth dot-field drifts at ~⅓ the scroll speed. One
-    // style write per scroll event (no rAF loop) — consistent with §5 discipline.
+    // Cheap parallax: two background planes drift slower than the climb — the
+    // felt-grain + tangle texture plane at 0.15×, the dot field at 0.32×. One
+    // scrollTop read (the event's own state) + two transform-var writes per
+    // scroll event (no rAF loop, no layout reads) — consistent with §5
+    // discipline. The texture offset WRAPS at the shared 480px tile period, so
+    // the layer stays small and the wrap is invisible on the repeating pattern.
     if (el.mapScroll && el.mapParallax) {
       el.mapScroll.addEventListener("scroll", () => {
-        el.mapParallax.style.setProperty("--par", (-el.mapScroll.scrollTop * 0.32).toFixed(1) + "px");
+        const s = el.mapScroll.scrollTop;
+        el.mapParallax.style.setProperty("--par", (-s * 0.32).toFixed(1) + "px");
+        if (el.mapBg) el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
       }, { passive: true });
     }
     el.fossilDetailClose.addEventListener("click", closeFossilDetail);
