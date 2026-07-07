@@ -47,6 +47,7 @@
     --card-red: #C0364F;
     --card-border: #D8CCC0;
     --radius: 14px;
+    /* (see img rule below --shadow for the iOS save-image guard) */
     /* Canonical object aspect ratios (width/height). Each game object keeps ONE
        shape everywhere it's drawn — store, board, detail, loadout, post-deal — by
        locking to its ratio and SCALING TO FIT its slot (contain), so a pillar /
@@ -2448,10 +2449,14 @@
     border: 1.5px solid var(--net, #C84A78);
     box-shadow: 0 4px 10px rgba(74,40,55,0.30), 0 0 10px rgba(200,74,120,0.25),
       inset 0 1px 0 rgba(255,255,255,0.75); }
-  /* On the SHELF, size the badge up toward its pennant/pack neighbours. */
-  .store-tile .sp-badge { padding: 12px 16px; gap: 5px; }
-  .store-tile .sp-badge .sp-mark { width: 32px; height: 32px; }
-  .store-tile .sp-badge-name { font-size: 12.5px; }
+  /* On the SHELF, size the badge up toward its pennant/pack neighbours.
+     FIXED plate box: the badge used to shrink-wrap its name, so two-line names
+     (Same Peeker / Same Heavy / Link Shuffler) rendered visibly bigger plates
+     than one-liners — every Same-Power now shares one 104x96 plate. */
+  .store-tile .sp-badge { padding: 10px 8px; gap: 5px; width: 104px; height: 96px;
+    box-sizing: border-box; justify-content: center; }
+  .store-tile .sp-badge .sp-mark { width: 32px; height: 32px; flex: none; }
+  .store-tile .sp-badge-name { font-size: 12.5px; line-height: 1.15; text-align: center; }
   .sp-badge-ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   /* Each Same-Power's UNIQUE inline-SVG logo (GLYPHS[id]); currentColor inks it in
      the badge's dark rose so it reads clearly on the light rose gradient. */
@@ -3368,6 +3373,20 @@
      lines (label left / coin value right) and italic-black indented sub-bullets,
      and an emphasised grand Total. Presentation/copy only. */
   .overlay.deal-cleared #overlayIcon { display: none; }   /* no icon — title leads */
+  /* PINKY IS HOME — compact, fits one phone screen (the default win layout
+     overflowed top AND bottom: centered flex clips both ends). Content is
+     tightened; auto margins on the first/last flow pieces keep it centered
+     when it fits and top-aligned + scrollable on very short viewports. */
+  .overlay.pinky-home { justify-content: flex-start; overflow-y: auto; }
+  .overlay.pinky-home #overlayIcon { margin-top: auto; font-size: 38px; margin-bottom: 2px; }
+  .overlay.pinky-home h2 { font-size: 26px; margin: 2px 0 4px; }
+  .overlay.pinky-home .run-progress { margin: 0 0 4px; }
+  .overlay.pinky-home .summary-block { margin-top: 4px; }
+  .overlay.pinky-home .summary-tiles .run-stat { padding: 8px 10px; }
+  .overlay.pinky-home .summary-tiles .run-stat-value { font-size: 19px; }
+  .overlay.pinky-home .end-pillars { margin-top: 8px; }
+  .overlay.pinky-home .play-btn { margin-top: 10px; }
+  .overlay.pinky-home .play-btn-2 { margin-bottom: auto; }
   .overlay.deal-cleared h2,
   .overlay.deal-cleared.win h2 {
     font-family: "Baloo 2", var(--font-display);
@@ -4184,6 +4203,13 @@
       radial-gradient(circle at 78% 72%, rgba(28, 96, 88, 0.12), transparent 48%),
       radial-gradient(ellipse at 50% 45%, var(--felt-2), var(--felt) 55%, var(--felt-3));
   }
+  /* iOS long-press guard: the game's only real <img> elements (the HUD Same
+     logo and the menu logo) are decorative — never savable, draggable or
+     selectable. Everything else in the game is inline SVG / CSS backgrounds,
+     which never trigger the iOS save-image sheet. */
+  img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    -webkit-user-drag: none; pointer-events: none; }
+
   /* Felt NAP: a static fine speckle over the whole surface — the fabric grain. */
   #tissue::after { content: ""; position: absolute; inset: 0;
     background: var(--felt-grain); background-size: 160px 160px; }
@@ -4321,7 +4347,8 @@
   /* Header = the deal screen's STATUS PILL (rounded panel, shadow); the phase
      text takes the current suit's colour (--suit-col, set by the tint class). */
   .map-hdr {
-    position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+    display: none;   /* RETIRED bar (phase + deck count): the histogram band above already carries both */
+    position: relative; z-index: 3; align-items: center; justify-content: space-between;
     gap: 10px; width: min(98vw, 460px); margin: 4px auto 0;
     /* Reserve room for the fixed corner buttons (menu top-left, inventory
        top-right, ~34px each) so the phase + deck text never slides under them —
@@ -5854,9 +5881,10 @@
          and faint above = the unknown summit) with a faint parallax dot layer
          that drifts slower than the climb as you scroll. Presentation only. -->
     <div class="map-depth" aria-hidden="true"><div class="map-bg" id="mapBg"></div><div class="map-parallax" id="mapParallax"></div></div>
-    <!-- Persistent map header: the phase (suit) being travelled + the always-
-         glanceable accumulated DECK SIZE (the survival-difficulty number). -->
-    <div class="map-hdr">
+    <!-- Persistent map header — RETIRED from display (the histogram band above
+         already carries the deck count and the top bar carries the stage); the
+         elements stay for the code that writes them. -->
+    <div class="map-hdr" hidden>
       <span class="map-phase" id="mapPhase"></span>
       <span class="map-deck" id="mapDeck">Deck <b>0</b> cards</span>
     </div>
@@ -5974,7 +6002,7 @@
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <div class="menu-tagline">Higher or lower?</div>
-    <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" />
+    <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" draggable="false" />
     <h1 class="menu-title">
       <span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>
       <span class="mt-w mt-c">same</span>
@@ -6073,7 +6101,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.26 · the late map runs cool — compositor-only pulses, no backdrop blur, off-screen nodes frozen";
+const APP_VERSION = "v4.27 · seven touch-ups — even Same-Power plates, stage-locked scrolling, a home screen that fits";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16336,7 +16364,9 @@ const UIRenderer = (() => {
     // the layer stays small and the wrap is invisible on the repeating pattern.
     if (el.mapScroll && el.mapParallax) {
       el.mapScroll.addEventListener("scroll", () => {
-        const s = el.mapScroll.scrollTop;
+        let s = el.mapScroll.scrollTop;
+        // Stage lock: scrolling above the current stage snaps back to the line.
+        if (s < mapScrollLock) { el.mapScroll.scrollTop = mapScrollLock; s = mapScrollLock; }
         el.mapParallax.style.setProperty("--par", (-s * 0.32).toFixed(1) + "px");
         if (el.mapBg) el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
       }, { passive: true });
@@ -17779,7 +17809,7 @@ const UIRenderer = (() => {
   function showOverlay(opts) {
     stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
     clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
-    el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared");
+    el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared", "pinky-home");
     updateBoardMotion();   // board is now covered → pause its perpetual card animations
     // The start/win/lose overlay carries its own progress line + actions, so
     // hide the floating Stage·Run badge and all global nav buttons while it's up.
@@ -18073,7 +18103,7 @@ const UIRenderer = (() => {
       kind: "win",
       icon: glyph("complete"),
       title: "Pinky is home",
-      msg: "He made it back to mama ♥ — " + campaign.runsCompleted + " deal" + (campaign.runsCompleted === 1 ? "" : "s") + " cleared.",
+      cls: "pinky-home",   // compact fit-the-screen layout (see CSS)
       progress: campaign.runsCompleted + " deal" + (campaign.runsCompleted === 1 ? "" : "s") + " · "
         + campaign.totalCardsFlipped + " cards played · Deck " + campaign.deckSize(),
       endStats: endStats(),
@@ -20311,7 +20341,7 @@ const UIRenderer = (() => {
      deck). The score is the node's target danger bucketed by RunMap. */
   function dealBadge(n, big) {
     const score = RunMap.difficultyScore(n && n.targetD, n && n.phase, big);
-    if (big) return '<span class="mn-piles mn-full">FULL</span>';
+    if (big) return "";   // bosses carry no badge (the FULL marker is retired)
     let pips = "";
     for (let i = 1; i <= 3; i++) pips += '<i' + (i <= score ? ' class="on"' : "") + '></i>';
     return '<span class="mn-piles mn-diff diff-' + score + '">' + pips + '</span>';
@@ -20575,7 +20605,7 @@ const UIRenderer = (() => {
       const cls = SUIT_CLASS[ph.suit] || "d";
       const altBands = campaign.deckRules && campaign.deckRules().altSuits;
       const label = altBands
-        ? (ph.phaseIndex >= campaign.phasesTotal() ? 'Endless ★' : 'Stage ' + (ph.phaseIndex + 1))
+        ? (ph.phase >= campaign.phasesTotal() ? 'Endless ★' : 'Stage ' + (ph.phase + 1))
         : (SUIT_PHASE_NAME[ph.suit] || ph.suit) + ' ' + ph.suit;
       bands += '<div class="pm-band p-' + cls + '" style="top:' + top.toFixed(1) + 'px;height:' + h.toFixed(1) + 'px;"></div>' +
         '<div class="pm-band-label p-' + cls + '" style="top:' + (Math.min(height, yBot) - 22).toFixed(1) + 'px;">' +
@@ -20645,7 +20675,35 @@ const UIRenderer = (() => {
     mapArrive = false;   // the arrival pop is one-shot
     placeAvatar();       // re-attach + reposition the player box on the current node
     cullMapNodes();      // freeze far-off-screen nodes (late/endless maps are tall)
+    // ONE STAGE AT A TIME: the whole run still renders (debug jumps + the map
+    // structure are untouched), but scrolling is CLAMPED so nothing above the
+    // player's CURRENT stage can be brought into view — each boss crossed
+    // unlocks the next stage's scroll range. The lock line is the current
+    // stage's top edge, pushed up if a LEGAL next move (the row past a boss)
+    // sits above it, so the reachable nodes are always scrollable-to.
+    mapScrollLock = 0;
+    {
+      const curNode = pos != null ? map.byId[pos] : null;
+      const curPhase = curNode && typeof curNode.phase === "number" ? curNode.phase : 0;
+      const atHome = curNode && curNode.type === "home";
+      if (!atHome) {
+        const ph = (map.phases || []).find(x => x.phase === curPhase);
+        if (ph) {
+          const topRow = ph.rowStart + ph.rows - 1;
+          let lockY = MAP_PAD + (R - 1 - topRow) * MAP_ROW_H - MAP_ROW_H * 0.55;
+          legal.forEach(id => {
+            const n = map.byId[id]; if (!n) return;
+            lockY = Math.min(lockY, mapNodeXY(n, R).y - 52);
+          });
+          mapScrollLock = Math.max(0, Math.round(lockY + 8));   // +8: .phase-map top margin
+        }
+      }
+    }
+    if (el.mapScroll && el.mapScroll.scrollTop < mapScrollLock) el.mapScroll.scrollTop = mapScrollLock;
   }
+  /* The minimum allowed map scrollTop (content above = not-yet-reached stages).
+     Recomputed every render; enforced by the scroll handler + camera centring. */
+  let mapScrollLock = 0;
   /* OFF-SCREEN NODE CULLING: the whole run renders (by design — the full climb
      is scrollable), but on late/endless maps 90%+ of the 200+ nodes sit far
      outside the viewport. One IntersectionObserver (rootMargin: one full
@@ -20714,7 +20772,7 @@ const UIRenderer = (() => {
       const tRect = target.getBoundingClientRect();
       const sRect = el.mapScroll.getBoundingClientRect();
       const delta = (tRect.top - sRect.top) - (el.mapScroll.clientHeight - tRect.height) / 2;
-      el.mapScroll.scrollTop = Math.max(0, el.mapScroll.scrollTop + delta);
+      el.mapScroll.scrollTop = Math.max(mapScrollLock, el.mapScroll.scrollTop + delta);
     } else {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
@@ -21571,7 +21629,11 @@ const UIRenderer = (() => {
     });
     try { Telem.flush(); } catch (e) {}
     closePackReveal(); renderStore();
-    continuePendingPlacement();   // place-on-acquire (apply the picked sticker(s) now)
+    // STRAIGHT into the apply/card-picker flow for the sticker just taken —
+    // continuePendingPlacement was a no-op outside a post-deal walk, so the
+    // flow used to dead-end back at the store shelf (same fix as card packs).
+    const firstPick = st.chosen.length ? st.items[st.chosen[0]] : null;
+    if (firstPick) openStickerApply(firstPick);
   }
 
   /* Skip / take nothing: the pack was already paid for, so this just closes the
