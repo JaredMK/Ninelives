@@ -17,14 +17,14 @@ export function run() {
 
   // ---- PINKY: completely unchanged (the baseline every existing test runs) --
   {
-    const { camp } = fresh(null);
+    const { G, camp } = fresh(null);
     const cards = startCards(camp);
     r.eq(camp.getDeckId(), "pink", "a fresh campaign defaults to Pinky");
     r.eq(cards.length, 13, "Pinky starts with 13 cards");
     r.ok(cards.every(c => c.suit === "♥"), "Pinky's start deck is the 13 hearts");
     r.ok(cards.every(c => c.stickers.length === 0), "Pinky starts unstickered");
     r.eq(camp.getColumnPillars().filter(Boolean).length, 0, "Pinky starts with empty Pillar slots");
-    r.eq(camp.priceOf("gainCoin"), 2, "Pinky pays list price (gainCoin 2)");
+    r.eq(camp.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price, "Pinky pays list price");
     r.eq(camp.suitsInPlay().length, 2, "Pinky stage 1 has 2 suits in play (♥ + ♦)");
   }
 
@@ -38,7 +38,7 @@ export function run() {
     r.eq(camp.suitsInPlay().length, 4, "Mamma has all four suits in play from the start");
     r.ok(cards.every(c => c.stickers.length === 0), "Mamma starts unstickered (shared rules only)");
     r.eq(camp.getColumnPillars().filter(Boolean).length, 0, "Mamma starts with empty slots");
-    r.eq(camp.priceOf("gainCoin"), 2, "Mamma pays list price");
+    r.eq(camp.priceOf("gainCoin"), 2, "Mamma pays list price (gainCoin list = 2)");
     // Random suits: across 12 fresh rolls the start deck is essentially never
     // single-suit (odds (1/4)^12 per roll) — require at least one mixed roll
     // AND record suit variety across rolls.
@@ -96,7 +96,7 @@ export function run() {
     const cards = startCards(camp);
     r.eq(cards.length, 13, "Smith starts with 13 cards");
     r.ok(cards.every(c => c.stickers.length === 1), "every Smith start card carries exactly 1 sticker");
-    r.eq(camp.priceOf("gainCoin"), 4, "Smith pays 2x for stickers (gainCoin 2 → 4)");
+    r.eq(camp.priceOf("gainCoin"), 4, "Smith pays 2x for stickers (gainCoin list 2 → 4)");
     r.eq(camp.priceOfPillar("heartBounty"), 18, "Smith pays 2x for Pillars (9 → 18)");
     r.eq(camp.priceOfPack("cardPack"), 20, "Smith pays 2x for packs (10 → 20)");
     r.eq(camp.priceOfSamePower("linkBury"), 10, "Smith pays 2x for Same-Powers (5 → 10)");

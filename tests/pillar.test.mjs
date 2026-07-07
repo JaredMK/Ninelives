@@ -73,16 +73,17 @@ export function run() {
   // --- Fixed sticker prices --------------------------------------------
   {
     const c = CampaignState.create();
-    r.eq(c.priceOf("rankUp"), 1, "+1 Rank = 1");
-    r.eq(c.priceOf("changeSuitSpade"), 1, "Change to ♠ = 1");
-    r.eq(c.priceOf("changeSuitHeart"), 1, "Change to ♥ = 1");
+    const rankUpList = StickerTypes.get("rankUp").price;   // items.js is the source of truth
+    r.eq(c.priceOf("rankUp"), rankUpList, "+1 Rank = its items.js price");
+    r.eq(c.priceOf("changeSuitSpade"), StickerTypes.get("changeSuitSpade").price, "Change to ♠ = its items.js price");
+    r.eq(c.priceOf("changeSuitHeart"), StickerTypes.get("changeSuitHeart").price, "Change to ♥ = its items.js price");
     r.eq(c.priceOf("tieSafe"), 2, "Same-Safe = 2");
     r.eq(c.priceOf("extraCoin"), 2, "Payout = 2");
     r.eq(c.priceOf("extraHeart"), 5, "Shield = 5");
     r.eq(c.priceOf("anchor"), 3, "Anchor = 3");
     // Buying never changes a price.
     c.addCoins(100); c.buySticker("rankUp"); c.buySticker("rankUp");
-    r.eq(c.priceOf("rankUp"), 1, "sticker price stays fixed after buying");
+    r.eq(c.priceOf("rankUp"), rankUpList, "sticker price stays fixed after buying");
   }
 
   // --- reset() wipes the Pillar binding (prices are fixed regardless) ----

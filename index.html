@@ -6076,8 +6076,13 @@
 <!-- ITEM DATA: every shop item (stickers / pillars / bases / Same-Powers /
      packs) + its price, rarity, weight, description and effect tunables lives
      in items.js — hand-edit THAT file to tune the game. Must load before the
-     game script below (ItemData validates it on startup). -->
-<script src="items.js"></script>
+     game script below (ItemData validates it on startup).
+     CACHE-BUSTED: items.js is edited on its own (index.html untouched), so a
+     static src could serve a STALE browser/CDN copy for up to the Pages
+     max-age — a hand-edited price then never reached the store. The unique
+     query per load forces a fresh fetch every time (and skips stale CDN
+     edges); document.write keeps it loading BEFORE the game script. -->
+<script>document.write('<script src="items.js?t=' + Date.now() + '"><\/script>');</script>
 <script>
 "use strict";
 /* ================================================================
@@ -6101,7 +6106,7 @@
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.27 · seven touch-ups — even Same-Power plates, stage-locked scrolling, a home screen that fits";
+const APP_VERSION = "v4.28 · items.js edits reach the store instantly — the data file is fetched fresh every load";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
