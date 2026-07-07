@@ -369,12 +369,17 @@ export function run() {
     r.ok(card && card.tieSafe === true, "debug applyStickerToNext projects the tieSafe flag");
     r.ok(card.stickers.some(s => s.type === "tieSafe"), "the sticker is attached to the next card");
     r.eq(e.getDeck().peek(1)[0], card, "it's the actual next deck card (drawn next)");
-    // A rank sticker shifts the value live.
+    // A rank sticker shifts the value live. Pick one WITHOUT a `suits`
+    // restriction (items.js may restrict any given rank sticker — e.g.
+    // rankUp ships ♥/♦-only — and the next deck card's suit is arbitrary).
+    const rt = StickerTypes.all().find(t => t.kind === "rank" && !t.suits);
+    r.ok(rt, "an unrestricted rank sticker exists to exercise the debug hook");
     const e2 = GameEngine.create(deck(), 10, { cols: COLS });
     e2.start(); e2.startRun([null, null, null]);
     const before = e2.getDeck().peek(1)[0].value;
-    const c2 = e2.debug.applyStickerToNext("rankUp");
-    r.eq(c2.value, Math.min(14, before + 1), "rankUp shifts the next card's value +1");
+    const c2 = e2.debug.applyStickerToNext(rt.id);
+    const expected = Math.max(2, Math.min(14, before + rt.rankDelta));
+    r.eq(c2 && c2.value, expected, rt.id + " shifts the next card's value by " + rt.rankDelta);
   }
 
   // --- Debug: change the active Pillar on a column mid-run --------------

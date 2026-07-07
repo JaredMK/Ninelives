@@ -1,19 +1,21 @@
 // Suit-based sticker restrictions (items.js `suits` field) + the global
 // Joker/Removal sticker exclusion. DOM-free: drive CampaignState (the gate
 // behind every picker/purchase path) and GameEngine (Wild Sticker) directly.
-// No shipped sticker carries a restriction — these tests add one at runtime
-// on their own isolated loadGame() instance, exactly like a hand-edit of
-// items.js would.
+// items.js MAY ship stickers with restrictions (a data decision, not pinned
+// here) — the behavior tests below add their own at runtime on isolated
+// loadGame() instances, exactly like a hand-edit of items.js would.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
   const r = makeRunner("sticker-suits.test.mjs");
 
-  // ---- ships unrestricted: NO sticker carries a `suits` field -----------
+  // ---- shipped `suits` fields, where present, are WELL-FORMED -----------
   {
     const { StickerTypes } = loadGame();
-    const restricted = StickerTypes.all().filter(t => t.suits != null);
-    r.eq(restricted.length, 0, "guardrail: no shipped sticker has a `suits` restriction");
+    const SUITS = ["♥", "♦", "♣", "♠"];
+    const bad = StickerTypes.all().filter(t => t.suits != null
+      && !(Array.isArray(t.suits) && t.suits.length > 0 && t.suits.every(s => SUITS.includes(s))));
+    r.eq(bad.length, 0, "every shipped `suits` field is a non-empty array of valid suit symbols");
   }
 
   // ---- canApplySticker: the `suits` field gates by printed suit ---------
