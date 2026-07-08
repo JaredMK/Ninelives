@@ -36,7 +36,7 @@ export function run() {
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
       "suitSnob", "momentum"];
     r.ok(ids.every(id => !!StickerTypes.get(id)), "all 11 new stickers registered");
-    r.eq(StickerTypes.all().length, 46, "sticker registry totals 46 (added the Heart/Diamond/Club Snobs)");
+    r.eq(StickerTypes.all().length, 50, "sticker registry totals 50 (Snobs + the suit-synergy family)");
     r.ok(!StickerTypes.get("mirror"), "Mirror sticker is gone from the registry");
     r.ok(!StickerTypes.get("duplicate"), "Duplicate sticker is gone from the registry");
     r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank now costs 1");
@@ -163,6 +163,67 @@ export function run() {
     n2.stickers = [{ type: "clubSnob" }];
     e2.guess(2, t2.value < 14 ? "higher" : "lower");
     r.eq(e2.getBoard().piles[2].cards.length, l2 + 1, "Club Snob buries nothing landing on a non-♣");
+  }
+
+  // ---- suit-SYNERGY family: scale by OTHER piles topped by their suit ----
+  {
+    // Heart Choir: +value per other \u2665-topped pile (the landing pile never counts).
+    const hv = StickerTypes.get("heartChoir").value ?? 1;
+    const e = game();
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) { b.top(i).suit = "\u2660"; b.top(i).wildSuit = false; }
+    b.top(3).suit = "\u2665"; b.top(7).suit = "\u2665";      // two OTHER hearts
+    b.top(1).suit = "\u2665";                                 // the landing pile - excluded
+    const before = e.getRun().bonusCoins;
+    land(e, 1, ["heartChoir"]);
+    r.eq(e.getRun().bonusCoins - before, 2 * hv, "Heart Choir pays per OTHER \u2665 top (2 others, landing pile excluded)");
+  }
+  {
+    // Diamond Ripple: shuffles every OTHER \u2666-topped pile (event contract).
+    const e = game();
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) { b.top(i).suit = "\u2660"; b.top(i).wildSuit = false; }
+    b.top(2).suit = "\u2666"; b.top(5).suit = "\u2666";
+    let fired = null;
+    e.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Ripple") fired = x; });
+    land(e, 1, ["diamondRipple"]);
+    r.ok(fired && fired.effect === "shuffler", "Diamond Ripple fires the shuffle when other \u2666 tops exist");
+
+    const e2 = game();
+    const b2 = e2.getBoard();
+    for (let i = 0; i < b2.size; i++) { b2.top(i).suit = "\u2660"; b2.top(i).wildSuit = false; }
+    let fired2 = null;
+    e2.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Ripple") fired2 = x; });
+    land(e2, 1, ["diamondRipple"]);
+    r.ok(!fired2, "Diamond Ripple does nothing with no other \u2666 tops");
+  }
+  {
+    // Club Roots: buries digCount under THIS pile per other \u2663-topped pile.
+    const dig = StickerTypes.get("clubRoots").digCount ?? 1;
+    const e = game();
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) { b.top(i).suit = "\u2660"; b.top(i).wildSuit = false; }
+    b.top(0).suit = "\u2663"; b.top(4).suit = "\u2663"; b.top(8).suit = "\u2663";   // three OTHER clubs
+    const len = b.piles[1].cards.length;
+    land(e, 1, ["clubRoots"]);
+    r.eq(e.getBoard().piles[1].cards.length, len + 1 + 3 * dig, "Club Roots buries per other \u2663 top (3 others -> +" + 3 * dig + " buried)");
+  }
+  {
+    // Spade Whispers: the next X draws hint on EVERY pile, X = other \u2660 tops.
+    const e = game();
+    const b = e.getBoard();
+    for (let i = 0; i < b.size; i++) { b.top(i).suit = "\u2665"; b.top(i).wildSuit = false; }
+    b.top(2).suit = "\u2660"; b.top(6).suit = "\u2660";      // two OTHER spades -> X = 2
+    r.ok(e.pileHint(3) == null, "no hints before the Whisper lands");
+    land(e, 1, ["spadeWhispers"]);
+    r.eq(e.getRun().tellDrawsLeft, 2, "Spade Whispers arms X = other \u2660 tops (2)");
+    r.ok(e.pileHint(3) != null && e.pileHint(5) != null, "EVERY alive pile hints while whispered");
+    land(e, 0, []);   // one draw consumes one whisper
+    r.eq(e.getRun().tellDrawsLeft, 1, "a draw consumes one whispered hint");
+    r.ok(e.pileHint(3) != null, "hints persist while whispers remain");
+    land(e, 0, []);
+    r.eq(e.getRun().tellDrawsLeft, 0, "the second draw spends the last whisper");
+    r.ok(e.pileHint(3) == null, "hints gone once the whispers are spent");
   }
 
   // ---- Snowball Bury (per-card X, like Compound): buries X then X++, reset on wrong ----

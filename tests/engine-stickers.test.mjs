@@ -184,13 +184,15 @@ export function run() {
     r.ok(e.revealedNextCard() == null, "reveal clears once the revealed card is drawn");
   }
 
-  // --- Scout on a starting top reveals from run start -------------------
+  // --- a deal NEVER starts pre-peeked (deal-out can't fire Scout) --------
+  // Scout fires only when its card LANDS during play; a Scout-stickered card
+  // merely DEALT as a starting top must not arm the peek (the "first card
+  // already peeked at deal start" bug).
   {
     const e = GameEngine.create(specsWith("revealNext"), 9);   // every top carries Scout
     e.start(); e.startRun();
-    const revealed = e.revealedNextCard();
-    r.ok(revealed && revealed.id != null, "Scout on a starting top reveals the next card at run start");
-    r.eq(revealed.id, e.getDeck().peek(1)[0].id, "starting-top reveal = the deck's real next card");
+    r.ok(e.revealedNextCard() == null, "a Scout starting top does NOT pre-peek at deal start");
+    r.eq(e.getRun().kamikazeRevealLeft, 0, "the multi-card peek window starts closed");
   }
 
   // --- a fresh run re-opens the sticker phase ----------------------------

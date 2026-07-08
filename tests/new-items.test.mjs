@@ -74,26 +74,26 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 8, "Highest Heart = 8 (the 9 is not a heart)");
   }
   {
-    // Face cards pay 10; the Ace pays 11.
+    // NUMBERED hearts only: royals pay 0, the Ace pays 1.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
     const b = e.getBoard();
-    b.top(0).value = 13; b.top(0).suit = "\u2665"; b.top(0).wildSuit = false;  // K of hearts -> 10
-    b.top(1).value = 7;  b.top(1).suit = "\u2665"; b.top(1).wildSuit = false;
+    b.top(0).value = 13; b.top(0).suit = "\u2665"; b.top(0).wildSuit = false;  // K of hearts -> 0
+    b.top(1).value = 7;  b.top(1).suit = "\u2665"; b.top(1).wildSuit = false;  // numbered -> 7
     b.top(2).value = 2;  b.top(2).suit = "\u2660"; b.top(2).wildSuit = false;
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 10, "a King of hearts pays 10 (face value cap)");
+    r.eq(won().pillarPayout.bonus, 7, "a King of hearts pays NOTHING — the 7\u2665 wins");
 
     const e2 = GameEngine.create(deck(), 10, { cols: COLS });
     const won2 = onWon(e2);
     e2.start(); e2.startRun(["highestEven", null, null]);
     const b2 = e2.getBoard();
-    b2.top(0).value = 14; b2.top(0).suit = "\u2665"; b2.top(0).wildSuit = false;  // A of hearts -> 11
-    b2.top(1).value = 13; b2.top(1).suit = "\u2665"; b2.top(1).wildSuit = false;  // K -> 10
+    b2.top(0).value = 14; b2.top(0).suit = "\u2665"; b2.top(0).wildSuit = false;  // A of hearts -> 1
+    b2.top(1).value = 12; b2.top(1).suit = "\u2665"; b2.top(1).wildSuit = false;  // Q -> 0
     b2.top(2).value = 4;  b2.top(2).suit = "\u2660"; b2.top(2).wildSuit = false;
     e2.debug.winNow();
-    r.eq(won2().pillarPayout.bonus, 11, "an Ace of hearts pays 11 (beats the King's 10)");
+    r.eq(won2().pillarPayout.bonus, 1, "an Ace of hearts pays 1; a Queen pays 0");
   }
   {
     // ONLY the top card of an alive pile counts — a buried higher heart is ignored.

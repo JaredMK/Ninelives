@@ -159,6 +159,19 @@ const NINELIVES_ITEMS = {
     // digCount = deck cards buried under the pile per Club Snob.
     { id: "clubSnob",   label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
       description: "Trigger: This card lands on a ♣ card\nEffect: Bury 1 deck card under the pile", suits: ["♣"] },
+    // ---- the suit-SYNERGY family: each fires when THIS card lands, scaling
+    // by the number of OTHER piles topped by its suit (the landing pile
+    // itself never counts). ----
+    // value = coins per other ♥-topped pile.
+    { id: "heartChoir", label: "Heart Choir", icon: "💕", kind: "behavior", behavior: "heartChoir", value: 1, tier: "uncommon", price: 6,
+      description: "Trigger: This card lands\nEffect: +1 coin for each OTHER pile with a ♥ top card", suits: ["♥"] },
+    { id: "diamondRipple", label: "Diamond Ripple", icon: "🌊", kind: "behavior", behavior: "diamondRipple", tier: "uncommon", price: 3,
+      description: "Trigger: This card lands\nEffect: Shuffle every OTHER pile with a ♦ top card", suits: ["♦"] },
+    // digCount = deck cards buried under THIS pile per other ♣-topped pile.
+    { id: "clubRoots", label: "Club Roots", icon: "🌱", kind: "behavior", behavior: "clubRoots", digCount: 1, tier: "rare", price: 15,
+      description: "Trigger: This card lands\nEffect: Bury 1 deck card under THIS pile for each OTHER pile with a ♣ top card", suits: ["♣"] },
+    { id: "spadeWhispers", label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 15,
+      description: "Trigger: This card lands\nEffect: The next X drawn cards each carry a hint (higher / lower / same vs the pile they'd land on, shown before you guess), where X = the number of OTHER piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
     { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", step: 2, tier: "rare", price: 2,
       description: "Earn X coins. X starts at 0 and grows by 2 after each correct placement. An incorrect guess resets X to 0", suits: ["♥"] },
@@ -221,7 +234,7 @@ const NINELIVES_ITEMS = {
       description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) is drawn into this column, whether the guess is right or wrong" },
     { id: "highestEven", label: "Highest Heart", icon: "💗",
       kind: "scoring", effect: "highestHeart", tier: "rare", price: 15,
-      description: "Trigger: End of deal\nEffect: Gain coins equal to the highest ♥ top card in this column (J/Q/K count as 10, A as 11)" },
+      description: "Trigger: End of deal\nEffect: Gain coins equal to the highest NUMBERED ♥ top card in this column (2–10 pay face value, an Ace pays 1, royals pay nothing)" },
     // minStickers = stickers a landing ♣ must carry; digCount = cards buried.
     { id: "denseBury", label: "Dense Bury", icon: "🧊",
       kind: "composition", effect: "denseBury", minStickers: 2, digCount: 1, tier: "rare", price: 20,
@@ -307,7 +320,7 @@ const NINELIVES_ITEMS = {
       description: "Trigger: Activated, once per deal\nEffect: Apply a random sticker to a random top pile card in this column. Lasts the rest of the run" },
     { id: "evenOut", label: "Ballast", icon: "🪨",
       kind: "active", effect: "evenOut", tier: "common", price: 9,
-      description: "Trigger: Activated, once per deal\nEffect: Distribute the piles in this column that hold ♦ cards (top card or buried) so they end up the same pile size (composition only — nothing revealed)" },
+      description: "Trigger: Activated, once per deal\nEffect: Redistribute ALL piles in this column so they end up the same pile size (composition only — nothing revealed)" },
     // digCount = cards buried under each ♣-topped pile; coinPerCard = coins
     // LOST per card buried.
     { id: "buryAll", label: "Landslide", icon: "⛰️",
