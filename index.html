@@ -4002,6 +4002,19 @@
     .sa-card.sa-flash .mini-card { animation: none; outline: 3px solid var(--amber); outline-offset: 2px; }
     .sa-card.sa-flash::after { animation: none; opacity: 1; }
   }
+  /* Farewell for a card LEAVING the deck (Removal / pack swap): a brief lift,
+     then it crumples away — played in place before the picker closes. */
+  .sa-card.sa-remove { pointer-events: none; position: relative; z-index: 2; }
+  .sa-card.sa-remove .mini-card { animation: saRemove 0.72s ease forwards; }
+  @keyframes saRemove {
+    0%   { transform: scale(1) rotate(0deg);     opacity: 1; filter: none; }
+    28%  { transform: scale(1.12) rotate(3deg);  opacity: 1; }
+    100% { transform: scale(0.2) rotate(-10deg); opacity: 0; filter: grayscale(0.8) blur(2px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sa-card.sa-remove .mini-card { animation: saRemoveFade 0.5s ease forwards; }
+  }
+  @keyframes saRemoveFade { to { opacity: 0; } }
   .sa-confirm { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 81;
     width: min(100%, 460px); display: flex; align-items: center; gap: 10px;
     padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
@@ -5180,6 +5193,71 @@
   .map-avatar.ch-lammy.collecting .av-body { animation: lammyWiggle 0.65s ease-in-out; }
 
   /* Reduced motion: every character-specific animation stops (static skins). */
+  /* ── DIFFICULTY ACCESSORIES: every character wears its picked tier ──────
+     tier-regular / tier-master / tier-legendary ride the character ROOT
+     (deck-select panels follow the tapped chip; the in-run deck-slot char,
+     map avatar and jump clone follow the campaign's tier). Presentation
+     only; %-sized so the same rules fit the big render and the 38px avatar.
+     Palette: Regular white · Master orange · Legendary black. */
+  /* PINKY — a martial-arts belt across the lower body (knot at the centre). */
+  .ch-pink .x-tier { left: 4%; right: 4%; top: 62%; height: 8%;
+    border-radius: 3px; background: var(--tier-c, #f2ede4);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+  .ch-pink.tier-regular .x-tier, .ch-pink.tier-master .x-tier, .ch-pink.tier-legendary .x-tier { display: block; }
+  .ch-pink .x-tier::after { content: ""; position: absolute; left: 50%; top: 50%;
+    width: 13%; height: 145%; transform: translate(-50%, -50%);
+    background: inherit; border-radius: 2px; filter: brightness(0.85); }
+  .ch-pink.tier-master .x-tier { --tier-c: #e0862e; }
+  .ch-pink.tier-legendary .x-tier { --tier-c: #1d1f26; height: 10%; }
+
+  /* MAMMA — a bow tie worn ON HER HEAD, growing (and darkening) with the
+     tier; it replaces her little rose lid-bow while worn. */
+  .ch-mamma .x-tier { left: 50%; top: -6%; width: 24%; height: 11%;
+    transform: translateX(-50%); z-index: 3;
+    background: radial-gradient(circle at 50% 50%, var(--tier-c, #f2ede4) 0 24%, transparent 26%); }
+  .ch-mamma.tier-regular .x-mouth, .ch-mamma.tier-master .x-mouth,
+  .ch-mamma.tier-legendary .x-mouth { display: none; }
+  .ch-mamma.tier-regular .x-tier, .ch-mamma.tier-master .x-tier, .ch-mamma.tier-legendary .x-tier { display: block; }
+  .ch-mamma .x-tier::before, .ch-mamma .x-tier::after { content: ""; position: absolute; top: 0; bottom: 0; width: 46%;
+    background: var(--tier-c, #f2ede4); box-shadow: 0 1px 2px rgba(0,0,0,0.22); }
+  .ch-mamma .x-tier::before { left: 0; clip-path: polygon(100% 50%, 0 0, 0 100%); }
+  .ch-mamma .x-tier::after { right: 0; clip-path: polygon(0 50%, 100% 0, 100% 100%); }
+  .ch-mamma.tier-master .x-tier { --tier-c: #e0862e; width: 34%; height: 15%; top: -8%; }
+  .ch-mamma.tier-legendary .x-tier { --tier-c: #1d1f26; width: 50%; height: 21%; top: -12%; }
+
+  /* MR. SMITH — the top hat re-dressed by tier; Legendary adds a SECOND
+     monocle (the x-tier node) over the LEFT eye. */
+  .ch-smith.tier-regular .x-hat { background: linear-gradient(135deg, #f7f2e9, #d6cfc1); }
+  .ch-smith.tier-regular .x-hat::after { background: linear-gradient(180deg, #f7f2e9, #d6cfc1); }
+  .ch-smith.tier-master .x-hat { background: linear-gradient(135deg, #ec9a44, #c96f1e);
+    left: 23%; width: 54%; height: 18%; top: -13%; }
+  .ch-smith.tier-master .x-hat::after { background: linear-gradient(180deg, #ec9a44, #c96f1e); }
+  .ch-smith.tier-legendary .x-hat { background: linear-gradient(135deg, #2c2c34, #101014);
+    left: 18%; width: 64%; height: 24%; top: -19%; }
+  .ch-smith.tier-legendary .x-hat::after { background: linear-gradient(180deg, #2c2c34, #101014); }
+  .ch-smith.tier-legendary .x-tier { display: block; width: 27%; aspect-ratio: 1; border-radius: 50%;
+    top: 17%; left: 18.5%; border: 2px solid #d4af37; z-index: 3;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.05));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .ch-smith.tier-legendary .x-tier::after { content: ""; position: absolute; top: 96%; right: 76%;
+    width: 1.5px; height: 120%; background: #d4af37; }
+  /* map avatar: the face sits lower on the 38×40 box (see the x-mono note). */
+  .map-avatar.ch-smith.tier-legendary .x-tier { width: 9.5px; top: 14.5px; left: 6.5px; }
+
+  /* LAMMY — a necktie down the front: knot + kite blade, widening by tier. */
+  .ch-lammy .x-tier { left: 50%; top: 18%; width: var(--tw, 15%); height: 42%;
+    transform: translateX(-50%); background: none; }
+  .ch-lammy.tier-regular .x-tier, .ch-lammy.tier-master .x-tier, .ch-lammy.tier-legendary .x-tier { display: block; }
+  .ch-lammy .x-tier::before { content: ""; position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+    width: 88%; height: 17%; background: var(--tier-c, #f2ede4); border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.22); }
+  .ch-lammy .x-tier::after { content: ""; position: absolute; left: 50%; top: 15%; transform: translateX(-50%);
+    width: 100%; height: 85%; background: var(--tier-c, #f2ede4);
+    clip-path: polygon(50% 0, 100% 14%, 100% 68%, 50% 100%, 0 68%, 0 14%);
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.18)); }
+  .ch-lammy.tier-master .x-tier { --tier-c: #e0862e; --tw: 24%; }
+  .ch-lammy.tier-legendary .x-tier { --tier-c: #1d1f26; --tw: 38%; height: 50%; }
+
   @media (prefers-reduced-motion: reduce) {
     .ch-mamma .dc-body, .ch-mamma .av-body, .ch-smith .dc-body, .ch-smith .av-body,
     .ch-lammy .dc-body, .ch-lammy .av-body, .ch-smith .x-hat, .ch-smith .x-mono,
@@ -5597,7 +5675,7 @@
              Tap to inspect · hold for a quick peek (wiring unchanged). -->
         <div class="deck-stack" id="deckStat" role="button" tabindex="0"
              title="Tap to inspect the deck · hold for a quick peek" aria-label="Inspect deck">
-          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-tear"></span><span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
+          <span class="deck-pile"><span class="deck-char" id="deckChar"><span class="dc-body"><span class="dc-lid"></span><span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span><span class="dc-eye r"><i class="dc-pupil"></i></span></span><span class="dc-tear"></span><span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="dc-x x-tier"></span><span class="deck-count"><b id="deckCount">0</b><span class="ds-lbl">left</span></span></span></span><span class="ds-face hidden" id="deckFace"></span></span>
         </div>
       </div>
       <div class="board" id="board" aria-label="Three columns of card piles"></div>
@@ -6277,7 +6355,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.41 · every choosy sticker wears its suits on the rim";
+const APP_VERSION = "v4.42 · the crew dresses for the climb and the two of diamonds gets its due";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10519,12 +10597,14 @@ const GameEngine = (() => {
 
       const col = run.pileColumns ? run.pileColumns[index] : null;
 
-      // Static: a ♠ landing correctly in this column peeks the next upcoming
-      // card. Set after the reveal reset above so it persists. (The pillar also
-      // has a 25% chance of self-destructing at the end of each deal — see
-      // resolveStaticSelfDestruct in onRunEnd.)
-      if (pillar && pillar.effect === "static" && correct && (drawn.suit === "♠" || drawn.wildSuit)) {
-        peekPillar(col, pillar);   // a ♠ landed in this column → peek the next card
+      // Static: a ♠ landing correctly in this column has a `chance` (items.js
+      // knob, 50%) of peeking the next upcoming card. Set after the reveal
+      // reset above so it persists. (The old 25% end-of-deal self-destruct is
+      // GONE — the selfDestruct knob was removed from items.js, and
+      // resolveStaticSelfDestruct skips pillars without it.)
+      if (pillar && pillar.effect === "static" && correct && (drawn.suit === "♠" || drawn.wildSuit)
+          && rng() < itemNum(pillar, "chance", 0.5)) {
+        peekPillar(col, pillar);   // the static crackles → peek the next card
       }
 
       // Fibonacci: +value the moment a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) is
@@ -14354,10 +14434,13 @@ const UIRenderer = (() => {
           steel / Lammy slate); `sym` is ignored. */
       setSuit(sym) {
         const n = node(); if (!n) return;
-        n.classList.remove("dc-d", "dc-h", "dc-c", "dc-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy");
+        n.classList.remove("dc-d", "dc-h", "dc-c", "dc-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy",
+          "tier-regular", "tier-master", "tier-legendary");
         const d = (typeof selectedDeck === "function") ? selectedDeck() : null;
         n.classList.add("dc-" + ((d && d.color) || "d"));
         n.classList.add("ch-" + ((d && d.id) || "pink"));   // unique character skin (Mamma/Smith/Lammy)
+        // Difficulty accessory (belt / bow / hat / tie) follows the campaign tier.
+        n.classList.add("tier-" + ((typeof campaign !== "undefined" && campaign && campaign.getTier) ? campaign.getTier() : "regular"));
       },
       /** Lightweight ambient-life loop (skipped under reduced motion; only one
           runs). Each tick blinks, and now and then sneaks a tiny idle GLANCE so
@@ -15118,7 +15201,7 @@ const UIRenderer = (() => {
       '<div class="pk-state">Applies to column ' + (col + 1) + "</div>" +
       (inSetup
         ? '<button class="pk-unplace" data-unplace-col="' + col + '" type="button">Sell for ' + COIN_SVG + " " + sellValueOf(t) + "</button>"
-        : '<div class="pk-state pk-locked">Locked in for this run.</div>');
+        : "");
   }
   // In ACTIVE PLAY, the hold-help renders inside the histogram band (#6). In SETUP
   // the peek is the management popup (with Sell/Peel) and stays a floating overlay.
@@ -16722,6 +16805,12 @@ const UIRenderer = (() => {
       if (chip && !chip.classList.contains("locked")) {
         const row = chip.closest(".ds-tiers");
         if (row) row.querySelectorAll(".ds-tier").forEach(c => c.classList.toggle("sel", c === chip));
+        // The panel's character dresses for the picked tier (belt/bow/hat/tie).
+        const panelChar = chip.closest(".ds-panel") && chip.closest(".ds-panel").querySelector(".deck-char");
+        if (panelChar) {
+          panelChar.classList.remove("tier-regular", "tier-master", "tier-legendary");
+          panelChar.classList.add("tier-" + (chip.dataset.tier || "regular"));
+        }
         Sound.continueTap && Sound.continueTap();
         return;
       }
@@ -18784,7 +18873,7 @@ const UIRenderer = (() => {
     '<span class="dc-tear"></span>' +
     // per-character accessory nodes (hats/monocle/blush/smirk/drip) — hidden
     // unless the ch-* character class reveals them (see UNIQUE DECK CHARACTERS)
-    '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span></span>';
+    '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="dc-x x-tier"></span></span>';
   let deckSelectReturn = null;   // how the Back button returns (to the right menu)
   let dsPerkIndex = -1;          // which carousel panel's character is perked
 
@@ -18826,7 +18915,7 @@ const UIRenderer = (() => {
       }).join("") + '</div>';
       return '<div class="ds-panel' + (open ? "" : " locked") + '" data-deck="' + d.id + '">' +
         // Locked decks reveal NOTHING — name AND description are just "?".
-        '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + ' ch-' + d.id + '">' + DECK_CHAR_HTML + '</span></div>' +
+        '<div class="ds-deckchar"><span class="deck-char dc-' + d.color + ' ch-' + d.id + ' tier-regular">' + DECK_CHAR_HTML + '</span></div>' +
         '<div class="ds-name">' + escHtml(open ? d.name : "?") + '</div>' +
         '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : "?") + '</div>' +
         tierRow +
@@ -20986,7 +21075,7 @@ const UIRenderer = (() => {
         '<div class="av-body"><span class="av-lid"></span>' +
           '<span class="av-face"><span class="av-eye l"></span><span class="av-eye r"></span></span>' +
           '<span class="av-tear"></span>' +
-          '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span></div>' +
+          '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="dc-x x-tier"></span></div>' +
         '<span class="av-badge"><b>0</b></span>' +
       '</div>';
     mapAvatarEl = a;
@@ -21056,9 +21145,11 @@ const UIRenderer = (() => {
     if (mapAvatarEl.parentNode !== pm) pm.appendChild(mapAvatarEl);
     // The character keeps its DECK colour (pink) across all stages — it doesn't
     // re-tint to the phase suit as it climbs the map.
-    mapAvatarEl.classList.remove("av-d", "av-h", "av-c", "av-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy");
+    mapAvatarEl.classList.remove("av-d", "av-h", "av-c", "av-s", "ch-pink", "ch-mamma", "ch-smith", "ch-lammy",
+      "tier-regular", "tier-master", "tier-legendary");
     mapAvatarEl.classList.add("av-" + selectedDeck().color);
     mapAvatarEl.classList.add("ch-" + selectedDeck().id);   // unique character skin
+    mapAvatarEl.classList.add("tier-" + (campaign.getTier ? campaign.getTier() : "regular"));   // difficulty accessory
     // Stage mood: anxious in ♦, hopeful in ♣, bright in ♠ — dirt fading as he
     // climbs (CharMood stamps both this avatar and the deck-slot character).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
@@ -21553,12 +21644,13 @@ const UIRenderer = (() => {
       if (!toRect.width || !toRect.height) return;
       dc.style.visibility = "hidden";   // the real deck char appears only on landing
       const fly = document.createElement("div");
-      fly.className = "deck-char-jump dc-" + selectedDeck().color + " ch-" + selectedDeck().id;   // character stays its deck colour + skin
+      fly.className = "deck-char-jump dc-" + selectedDeck().color + " ch-" + selectedDeck().id +
+        " tier-" + (campaign.getTier ? campaign.getTier() : "regular");   // colour + skin + difficulty accessory
       const flyCount = campaign && campaign.deckSize ? campaign.deckSize() : "";
       fly.innerHTML = '<span class="dc-body"><span class="dc-lid"></span>' +
         '<span class="dc-face"><span class="dc-eye l"><i class="dc-pupil"></i></span>' +
         '<span class="dc-eye r"><i class="dc-pupil"></i></span></span>' +
-        '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span>' +
+        '<span class="dc-x x-hat"></span><span class="dc-x x-mono"></span><span class="dc-x x-blush bl"></span><span class="dc-x x-blush br"></span><span class="dc-x x-mouth"></span><span class="dc-x x-drip"></span><span class="dc-x x-tier"></span>' +
         '<span class="deck-count"><b>' + flyCount + '</b></span></span>';   // the count rides with the jumping character
       // Reuse the board flyCard arc; a strong lift sells the "jump".
       flyCard(fly, fromRect, toRect, {
@@ -22663,13 +22755,28 @@ const UIRenderer = (() => {
     }
     if (el.saConfirm) el.saConfirm.classList.remove("hidden");
   }
+  /* Farewell moment for a card LEAVING the deck (Removal / pack swap): its
+     picker cell dissolves — a brief grow, then shrink-and-fade — and `done`
+     runs when the moment finishes. No-ops straight to `done` if the cell is
+     gone (grid rebuilt) so flows never hang. */
+  function dissolveApplyCard(cardId, done) {
+    const btn = el.saCards && el.saCards.querySelector('[data-card-id="' + cardId + '"]');
+    if (!btn) { done(); return; }
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    btn.classList.add("sa-remove");
+    setTimeout(done, 720);
+  }
   function confirmApplySticker() {
-    if (!selectedApplyCardId) return;
+    // == null, NOT falsy: card ids start at 0 (the 2♦ is id 0) — a truthiness
+    // check made the Apply button silently no-op on exactly that card.
+    if (selectedApplyCardId == null) return;
     if (cardPickMode === "remove") {
       // STORE Removal purchase: charge + remove, then return to the store with the
       // slot INTACT (repeatable — buy again for another removal).
       if (removalPurchase) {
-        if (campaign.buyRemoval(selectedApplyCardId)) {
+        const removedId = selectedApplyCardId;
+        const bought = campaign.buyRemoval(removedId);
+        if (bought) {
           if (engine) engine.logAction("Store: bought a Removal — a card was removed (−" + campaign.removalPrice() + ")");
           Sound.purchase();
           persistCampaign("store");
@@ -22678,30 +22785,40 @@ const UIRenderer = (() => {
         cardPickMode = "sticker";
         selectedApplyCardId = null;
         if (el.saConfirm) el.saConfirm.classList.add("hidden");
-        el.stickerApplyModal.classList.add("hidden");
-        renderDeckStrip();
-        renderStore();     // the Removal slot stays — never depleted
-        refreshDebug();
+        const finish = () => {
+          el.stickerApplyModal.classList.add("hidden");
+          renderDeckStrip();
+          renderStore();     // the Removal slot stays — never depleted
+          refreshDebug();
+        };
+        // The removed card dissolves in place before the picker leaves.
+        if (bought) dissolveApplyCard(removedId, finish); else finish();
         return;
       }
       // Map Removal: permanent removal — never touches the store's placement queue
       // (this picker was opened FROM THE MAP, so it must return there, not to the
       // store that continuePendingPlacement's default refresh implies).
-      if (campaign.removeDeckCard(selectedApplyCardId)) {
+      const removedId = selectedApplyCardId;
+      const removed = campaign.removeDeckCard(removedId);
+      if (removed) {
         if (engine) engine.logAction("Removal took a card from the deck (map)");
         Sound.pack();
         persistCampaign("map");
       }
       selectedApplyCardId = null;
       if (el.saConfirm) el.saConfirm.classList.add("hidden");
-      pendingBlankRemovals--;
-      if (pendingBlankRemovals > 0) { openCardRemove(); return; }   // one picker per Blank
-      cardPickMode = "sticker";
-      el.stickerApplyModal.classList.add("hidden");
-      renderDeckStrip();          // the deck shrank → histogram + suit counts refresh
-      updateDeckIndicator();      // map header deck count
-      refreshMapDeckPanel();
-      setAvatarCount(campaign.deckSize());
+      const finishMap = () => {
+        pendingBlankRemovals--;
+        if (pendingBlankRemovals > 0) { openCardRemove(); return; }   // one picker per Blank
+        cardPickMode = "sticker";
+        el.stickerApplyModal.classList.add("hidden");
+        renderDeckStrip();          // the deck shrank → histogram + suit counts refresh
+        updateDeckIndicator();      // map header deck count
+        refreshMapDeckPanel();
+        setAvatarCount(campaign.deckSize());
+      };
+      // The removed card dissolves in place before the picker leaves/chains.
+      if (removed) dissolveApplyCard(removedId, finishMap); else finishMap();
       return;
     }
     if (cardPickMode === "swap") {
@@ -22709,6 +22826,18 @@ const UIRenderer = (() => {
         if (engine) engine.logAction("Swapped a gained card into the deck");
         Sound.purchase();
         persistCampaign("store");
+        // The replaced card dissolves in place before the picker leaves.
+        const swappedId = selectedApplyCardId;
+        pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
+        pendingBuyStickerSlot = null;
+        if (el.saConfirm) el.saConfirm.classList.add("hidden");
+        dissolveApplyCard(swappedId, () => {
+          el.stickerApplyModal.classList.add("hidden");
+          applyCardsById = new Map();
+          renderDeckStrip();
+          continuePendingPlacement();
+        });
+        return;
       }
     } else if (pendingApplyStickerId) {
       const t = StickerTypes.get(pendingApplyStickerId);

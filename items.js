@@ -279,9 +279,10 @@ const NINELIVES_ITEMS = {
       kind: "live", effect: "lastRites", tier: "rare", price: 25,
       description: "Peek the next upcoming card if a pile in this column dies" },
     // selfDestruct = probability (0–1) the Pillar destroys itself each deal end.
+    // chance = probability the ♠ landing actually fires the peek.
     { id: "static", label: "Static", icon: "🔌",
-      kind: "live", effect: "static", selfDestruct: 0.25, tier: "rare", price: 6,
-      description: "Peek the next card if a ♠ card lands in this column; 25% chance pillar is destroyed at end of each deal" },
+      kind: "live", effect: "static", chance: 0.5, tier: "rare", price: 6,
+      description: "50% chance to peek the next card if a ♠ card lands in this column" },
     { id: "wildAces", label: "Wild Aces", icon: "🃏",
       kind: "guess", effect: "wildAces", tier: "rare", price: 25,
       description: "Aces count as high or low when landing in this column" },

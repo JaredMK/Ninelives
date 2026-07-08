@@ -54,14 +54,23 @@ export function run() {
     r.ok(!e2.getRun().revealNextActive, "Last Rites is column-scoped: a death elsewhere does not peek");
   }
 
-  // --- Static: a ♠ landing correctly in its column peeks the next card ---
+  // --- Static: a ♠ landing in its column peeks at the `chance` knob rate ---
+  // The 50% roll is engine-seeded; the tests pin the knob (a live items.js
+  // read) to 1 / 0 for determinism, restoring it after. The old 25% end-of-
+  // deal self-destruct is GONE (the selfDestruct knob left items.js).
   {
-    // A ♠ lands correctly in col 0 → peek (deterministic).
+    const st = PillarTypes.get("static");
+    r.ok(st.selfDestruct == null, "Static no longer self-destructs (knob removed)");
+    r.ok(typeof st.chance === "number" && st.chance > 0 && st.chance < 1,
+      "Static peeks at a fractional chance (items.js knob; currently " + st.chance + ")");
+    const origChance = st.chance;
+    st.chance = 1;   // deterministic: the roll always passes
+    // A ♠ lands correctly in col 0 → peek.
     const e1 = game(["static", null, null], [null, null, null]);
     e1.getBoard().piles[0].cards = [card(5, "♥")];
     const nxt = e1.debug.setNextCard(6); nxt.suit = "♠";   // a ♠ lands
     e1.guess(0, "higher");
-    r.ok(e1.getRun().revealNextActive, "Static: a ♠ landing in its column peeks the next card");
+    r.ok(e1.getRun().revealNextActive, "Static (chance 1): a ♠ landing in its column peeks the next card");
 
     // A NON-♠ landing does not peek.
     const e0 = game(["static", null, null], [null, null, null]);
@@ -76,6 +85,15 @@ export function run() {
     const n2 = e2.debug.setNextCard(6); n2.suit = "♠";
     e2.guess(5, "higher");
     r.ok(!e2.getRun().revealNextActive, "Static is column-scoped: a ♠ landing elsewhere does not peek");
+
+    // chance 0 → the roll never passes, even on a ♠ landing in-column.
+    st.chance = 0;
+    const e3 = game(["static", null, null], [null, null, null]);
+    e3.getBoard().piles[0].cards = [card(5, "♥")];
+    const n3 = e3.debug.setNextCard(6); n3.suit = "♠";
+    e3.guess(0, "higher");
+    r.ok(!e3.getRun().revealNextActive, "Static (chance 0): the roll gates the peek");
+    st.chance = origChance;
   }
 
   // (Unearth was removed from the roster — its bury-peek test is gone with it.)
