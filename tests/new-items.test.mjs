@@ -1,5 +1,5 @@
 // New gameplay additions — engine-testable items:
-//   Pillars: Fibonacci (live), Highest Odd / Highest Even (scoring),
+//   Pillars: Fibonacci (live), Highest Heart (scoring),
 //            Dense Bury (composition).
 //   Sticker: Random Suit (re-added) — changeSuitRandom behavior.
 // (Revive / Kamikaze / Shuffle / Donate also have engine entry points exercised
@@ -20,10 +20,9 @@ export function run() {
     r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
     r.eq(PillarTypes.get("fibonacci").tier, "rare", "Fibonacci is Rare");
     r.eq(PillarTypes.get("fibonacci").price, 8, "Fibonacci costs 8");
-    r.eq(PillarTypes.get("highestOdd").price, 12, "Highest Odd costs 12");
-    r.eq(PillarTypes.get("highestOdd").tier, "rare", "Highest Odd is Rare");
-    r.eq(PillarTypes.get("highestEven").price, 15, "Highest Even costs 15");
-    r.eq(PillarTypes.get("highestEven").price - PillarTypes.get("highestOdd").price, 3, "Highest Even is priced 3 above Highest Odd");
+    r.ok(!PillarTypes.get("highestOdd"), "Highest Odd is deleted from the registry");
+    r.eq(PillarTypes.get("highestEven").effect, "highestHeart", "the highestEven id now runs the Highest Heart effect");
+    r.eq(PillarTypes.get("highestEven").label, "Highest Heart", "…and reads Highest Heart");
     r.eq(PillarTypes.get("denseBury").price, 20, "Dense Bury costs 20");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
     r.eq(PillarTypes.get("revive").price, 25, "Revive costs 25");
@@ -60,48 +59,55 @@ export function run() {
     landRank(0, 5);  r.eq(e.getRun().bonusCoins, 6, "still +1 after an other-column guess (no reset/streak)");
   }
 
-  // --- Highest Odd / Highest Even: end-of-deal column scoring ------------
-  {
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["highestOdd", null, null]);
-    e.getBoard().top(0).value = 8;    // even
-    e.getBoard().top(1).value = 9;    // odd number card
-    e.getBoard().top(2).value = 6;    // even
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 9, "Highest Odd = 9 (highest odd number card 2–10)");
-  }
-  {
-    // Face cards (J/Q/K) and Aces do NOT count toward Highest Odd.
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["highestOdd", null, null]);
-    e.getBoard().top(0).value = 13;   // King — excluded (face)
-    e.getBoard().top(1).value = 7;    // odd number card
-    e.getBoard().top(2).value = 11;   // Jack — excluded (face)
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 7, "face cards excluded → highest odd number = 7");
-  }
+  // --- Highest Heart: end-of-deal column scoring -------------------------
+  // Coins = the highest ♥ TOP card in the column: 2-10 pay rank, J/Q/K pay 10,
+  // the Ace pays 11. Non-♥ tops never qualify.
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
-    e.getBoard().top(0).value = 10;   // highest even number card
-    e.getBoard().top(1).value = 9;
-    e.getBoard().top(2).value = 14;   // Ace — excluded
+    const b = e.getBoard();
+    b.top(0).value = 8; b.top(0).suit = "\u2665"; b.top(0).wildSuit = false;   // 8 of hearts
+    b.top(1).value = 9; b.top(1).suit = "\u2660"; b.top(1).wildSuit = false;   // higher, but a spade
+    b.top(2).value = 6; b.top(2).suit = "\u2665"; b.top(2).wildSuit = false;   // lower heart
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 10, "Highest Even = 10 (Ace excluded)");
+    r.eq(won().pillarPayout.bonus, 8, "Highest Heart = 8 (the 9 is not a heart)");
   }
   {
-    // ONLY the top card of an alive pile counts — a buried higher odd is ignored.
+    // Face cards pay 10; the Ace pays 11.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
-    e.start(); e.startRun(["highestOdd", null, null]);
-    // pile 0: bury a 9 under a 10 top → its TOP is 10 (even); the buried 9 must NOT count.
-    e.getBoard().top(0).value = 9; e.debug.setNextCard(10); e.guess(0, "higher");
-    e.getBoard().top(1).value = 3; e.getBoard().top(2).value = 5;   // top odds 3, 5
+    e.start(); e.startRun(["highestEven", null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 13; b.top(0).suit = "\u2665"; b.top(0).wildSuit = false;  // K of hearts -> 10
+    b.top(1).value = 7;  b.top(1).suit = "\u2665"; b.top(1).wildSuit = false;
+    b.top(2).value = 2;  b.top(2).suit = "\u2660"; b.top(2).wildSuit = false;
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 5, "Highest Odd counts only TOP cards (buried 9 ignored → highest odd top = 5)");
+    r.eq(won().pillarPayout.bonus, 10, "a King of hearts pays 10 (face value cap)");
+
+    const e2 = GameEngine.create(deck(), 10, { cols: COLS });
+    const won2 = onWon(e2);
+    e2.start(); e2.startRun(["highestEven", null, null]);
+    const b2 = e2.getBoard();
+    b2.top(0).value = 14; b2.top(0).suit = "\u2665"; b2.top(0).wildSuit = false;  // A of hearts -> 11
+    b2.top(1).value = 13; b2.top(1).suit = "\u2665"; b2.top(1).wildSuit = false;  // K -> 10
+    b2.top(2).value = 4;  b2.top(2).suit = "\u2660"; b2.top(2).wildSuit = false;
+    e2.debug.winNow();
+    r.eq(won2().pillarPayout.bonus, 11, "an Ace of hearts pays 11 (beats the King's 10)");
+  }
+  {
+    // ONLY the top card of an alive pile counts — a buried higher heart is ignored.
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const won = onWon(e);
+    e.start(); e.startRun(["highestEven", null, null]);
+    // pile 0: bury a 9\u2665 under a 10\u2660 top -> the buried heart must NOT count.
+    e.getBoard().top(0).value = 9; e.getBoard().top(0).suit = "\u2665"; e.getBoard().top(0).wildSuit = false;
+    const d = e.debug.setNextCard(10); d.suit = "\u2660"; d.wildSuit = false;
+    e.guess(0, "higher");
+    e.getBoard().top(1).value = 3; e.getBoard().top(1).suit = "\u2665"; e.getBoard().top(1).wildSuit = false;
+    e.getBoard().top(2).value = 5; e.getBoard().top(2).suit = "\u2665"; e.getBoard().top(2).wildSuit = false;
+    e.debug.winNow();
+    r.eq(won().pillarPayout.bonus, 5, "Highest Heart counts only TOP cards (buried 9\u2665 ignored -> highest \u2665 top = 5)");
   }
 
   // --- Dense Bury: a ♣ card with 2+ stickers landing buries 1 -----------
@@ -294,71 +300,39 @@ export function run() {
     r.eq(e.baseActivate(0, 0), null, "activation refused when unavailable");
   }
 
-  // --- Highest Even / Odd: dead piles excluded (regression lock) ---------
-  // A dead pile in the column holding a HIGHER qualifying card must NOT count.
+  // --- Highest Heart: dead piles excluded / column-scoped / no digging ---
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
     const b = e.getBoard();
-    b.top(0).value = 10; b.kill(0);   // dead pile holds a 10 — must be ignored
-    b.top(1).value = 6; b.top(2).value = 4;
+    b.top(0).value = 10; b.top(0).suit = "\u2665"; b.top(0).wildSuit = false; b.kill(0);   // dead 10\u2665 — ignored
+    b.top(1).value = 6; b.top(1).suit = "\u2665"; b.top(1).wildSuit = false;
+    b.top(2).value = 4; b.top(2).suit = "\u2660"; b.top(2).wildSuit = false;
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Highest Even ignores a DEAD pile's higher even (pays 6, not 10)");
+    r.eq(won().pillarPayout.bonus, 6, "Highest Heart ignores a DEAD pile's higher \u2665 (pays 6, not 10)");
   }
   {
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    const won = onWon(e);
-    e.start(); e.startRun(["highestOdd", null, null]);
-    const b = e.getBoard();
-    b.top(0).value = 9; b.kill(0);    // dead pile holds a 9 — must be ignored
-    b.top(1).value = 5; b.top(2).value = 4;
-    e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 5, "Highest Odd ignores a DEAD pile's higher odd (pays 5, not 9)");
-  }
-  {
-    // Column-scoped: another column's high even is ignored.
+    // Column-scoped: another column's high heart is ignored.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
     const b = e.getBoard();
-    b.top(0).value = 2; b.top(1).value = 4; b.top(2).value = 6;   // col0
-    b.top(3).value = 10;   // col1 — ignored
+    for (const [i, v] of [[0, 2], [1, 4], [2, 6]]) { b.top(i).value = v; b.top(i).suit = "\u2665"; b.top(i).wildSuit = false; }
+    b.top(3).value = 10; b.top(3).suit = "\u2665"; b.top(3).wildSuit = false;   // col1 — ignored
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Highest Even is column-scoped (col1's 10 ignored)");
+    r.eq(won().pillarPayout.bonus, 6, "Highest Heart is column-scoped (col1's 10\u2665 ignored)");
   }
   {
-    // Highest Even is ALSO top-only (the twin) — a buried higher even is ignored.
+    // A non-\u2665-top-only column pays 0 — buried hearts are never scanned.
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["highestEven", null, null]);
-    // pile 0: bury a 10 under a 3 top → its TOP is 3 (odd); the buried 10 must NOT count.
-    e.getBoard().top(0).value = 10; e.debug.setNextCard(3); e.guess(0, "lower");
-    e.getBoard().top(1).value = 4; e.getBoard().top(2).value = 6;   // top evens 4, 6
+    const b = e.getBoard();
+    b.piles[0].cards = [{ value: 9, suit: "\u2665", stickers: [] }, { value: 12, suit: "\u2660", stickers: [] }];   // [9\u2665 buried, Q\u2660 top]
+    b.kill(1); b.kill(2);   // col 0: only pile 0 alive, spade Queen on top
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 6, "Highest Even counts only TOP cards (buried 10 ignored → highest even top = 6)");
-  }
-  {
-    // THE REPORTED BUG: the only alive pile in the column shows a Queen on top
-    // (with a buried even card). Both pillars MUST pay 0 — face-card top doesn't
-    // qualify, and buried cards are never scanned.
-    const evenE = GameEngine.create(deck(), 10, { cols: COLS });
-    const evenWon = onWon(evenE);
-    evenE.start(); evenE.startRun(["highestEven", null, null]);
-    const eb = evenE.getBoard();
-    eb.piles[0].cards = [{ value: 2, suit: "♠", stickers: [] }, { value: 12, suit: "♠", stickers: [] }];   // [2 buried, Q top]
-    eb.kill(1); eb.kill(2);   // col 0: only pile 0 alive, Queen on top
-    evenE.debug.winNow();
-    r.eq(evenWon().pillarPayout.bonus, 0, "Queen-only column pays 0 for Highest Even (face top, buried 2 ignored)");
-
-    const oddE = GameEngine.create(deck(), 10, { cols: COLS });
-    const oddWon = onWon(oddE);
-    oddE.start(); oddE.startRun(["highestOdd", null, null]);
-    const ob = oddE.getBoard();
-    ob.piles[0].cards = [{ value: 3, suit: "♠", stickers: [] }, { value: 12, suit: "♠", stickers: [] }];   // [3 buried, Q top]
-    ob.kill(1); ob.kill(2);
-    oddE.debug.winNow();
-    r.eq(oddWon().pillarPayout.bonus, 0, "Queen-only column pays 0 for Highest Odd (face top, buried 3 ignored)");
+    r.eq(won().pillarPayout.bonus, 0, "no \u2665 top in the column pays 0 (buried 9\u2665 ignored)");
   }
 
   // --- Debug: apply a sticker to the next draw card ---------------------
@@ -389,10 +363,13 @@ export function run() {
     e.start(); e.startRun([null, null, null]);   // no pillars
     r.eq(e.getRun().pillars[0], null, "column 0 starts with no Pillar");
     r.ok(e.debug.setColumnPillar(0, "highestEven"), "debug.setColumnPillar adds a Pillar mid-run");
-    r.eq(e.getRun().pillars[0], "highestEven", "column 0 now holds Highest Even");
-    e.getBoard().top(0).value = 8; e.getBoard().top(1).value = 4; e.getBoard().top(2).value = 2;
+    r.eq(e.getRun().pillars[0], "highestEven", "column 0 now holds Highest Heart");
+    const hb = e.getBoard();
+    hb.top(0).value = 8; hb.top(0).suit = "\u2665"; hb.top(0).wildSuit = false;
+    hb.top(1).value = 4; hb.top(1).suit = "\u2660"; hb.top(1).wildSuit = false;
+    hb.top(2).value = 2; hb.top(2).suit = "\u2660"; hb.top(2).wildSuit = false;
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 8, "the mid-run Pillar scores at deal end (Highest Even = 8)");
+    r.eq(won().pillarPayout.bonus, 8, "the mid-run Pillar scores at deal end (Highest Heart = 8)");
     // Remove it again.
     const e2 = GameEngine.create(deck(), 10, { cols: COLS });
     e2.start(); e2.startRun(["greedy", null, null]);

@@ -57,8 +57,9 @@ export function run() {
     r.ok(!e.baseAvailable(0), "Club Dig is unavailable with no ♣ pile card in its column");
   }
 
-  // ---- Demolish: destroy a chosen Pillar for +15 coins -----------------
+  // ---- Demolish: destroy a chosen Pillar, then PEEK the next 2 cards ----
   {
+    const pk = BaseTypes.get("demolish").peekCount ?? 2;
     const e = game(["demolish", null, null], [null, "columnGuardian", "insurance"]);
     const run = e.getRun();
     r.ok(e.baseAvailable(0), "Demolish is available while a Pillar exists");
@@ -67,7 +68,10 @@ export function run() {
     r.ok(res && res.demolishedCol === 1, "Demolish reported the destroyed column");
     r.eq(run.pillars[1], null, "the targeted Pillar is gone from the run");
     r.eq(run.pillars[2], "insurance", "other Pillars are untouched");
-    r.eq(run.bonusCoins - before, 15, "Demolish paid +15 coins");
+    r.eq(run.bonusCoins - before, 0, "Demolish pays no coins any more");
+    r.eq(res.peekCount, pk, "Demolish peeks the next " + pk + " upcoming cards");
+    r.eq(res.cards.length, pk, "…and returned that many peeked cards");
+    r.ok(run.kamikazeRevealLeft >= pk, "the shared peek window is armed");
     const e2 = game(["demolish", null, null], [null, "columnGuardian", null]);
     r.eq(e2.baseActivate(0, 0), null, "Demolish can't target a column with no Pillar");
     r.eq(e2.baseActivate(0, 2), null, "Demolish can't target an empty Pillar slot");

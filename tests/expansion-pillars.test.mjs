@@ -49,7 +49,7 @@ export function run() {
       "queensEye", "royalCourt", "excavator", "gambler"];
     r.ok(ids.every(id => !!PillarTypes.get(id)), "expansion Pillars registered");
     r.ok(!PillarTypes.get("sameSpark") && !PillarTypes.get("echo"), "Same Spark + Echo were removed");
-    r.eq(PillarTypes.all().length, 29, "pillar registry totals 29 after the rebalance");
+    r.eq(PillarTypes.all().length, 28, "pillar registry totals 28 (Highest Odd deleted)");
     r.ok(ids.every(id => { const t = PillarTypes.get(id); return t.description && t.icon; }), "every expansion Pillar has a description + icon");
   }
 

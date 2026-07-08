@@ -3678,17 +3678,22 @@
   }
 
   /* ---- Pile FAN-OUT viewer (presentation-only memory aid) ----
-     Button: bottom-RIGHT corner of every pile, same pill language as the
-     count badge. It must accept taps inside the pointer-events:none .card-fx. */
+     Button: a QUIET light chip clipped into the card's bottom-right corner —
+     a subtle affordance, not a badge (the count pill stays the loud one).
+     Its outer corner matches the card's radius so it reads as part of the
+     card face. It must accept taps inside the pointer-events:none .card-fx. */
   .pile-fan-btn {
-    position: absolute; bottom: 4px; right: 4px;
-    width: calc(var(--pile-size, 88px) * 0.26); height: calc(var(--pile-size, 88px) * 0.26);
+    position: absolute; bottom: 0; right: 0;
+    width: calc(var(--pile-size, 88px) * 0.30); height: calc(var(--pile-size, 88px) * 0.24);
     display: flex; align-items: center; justify-content: center;
-    color: #f5e0e9; background: #2a1d24;
-    border: 1.5px solid #c07088; border-radius: 9px;
+    color: rgba(74, 50, 40, 0.48);
+    background: rgba(74, 50, 40, 0.075);
+    /* bottom-right corner = the card's own radius, so the chip sits clipped
+       flush into the corner; only its inner (top-left) corner is rounded. */
+    border-radius: 9px 0 clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px) 0;
     z-index: 3; pointer-events: auto; cursor: pointer;
   }
-  .pile-fan-btn svg { width: 68%; height: 68%; display: block; }
+  .pile-fan-btn svg { width: 58%; height: 58%; display: block; }
   .pile.dead .pile-fan-btn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
   /* The fanned pile keeps a marker ring so it's clear WHICH pile is open. */
   .pile.fanned .card { box-shadow: 0 0 0 3px var(--accent-2), 0 4px 12px rgba(2, 1, 4, 0.6); }
@@ -3945,6 +3950,30 @@
   .sa-card:active .mini-card { transform: scale(0.95); }
   .sa-card.sa-disabled { opacity: 0.3; filter: grayscale(0.5); cursor: not-allowed; }
   .sa-card.sa-selected .mini-card { outline: 3px solid var(--accent); outline-offset: 2px; }
+  /* Apply feedback: a MODIFYING sticker (rank/suit change) flashes the card as
+     it updates — a bright pop + a sparkle bursting off the corner — so the
+     change is SEEN before the picker closes. */
+  .sa-card.sa-flash { position: relative; z-index: 2; }
+  .sa-card.sa-flash .mini-card { animation: saFlash 0.85s ease; }
+  @keyframes saFlash {
+    0%   { transform: scale(1);    filter: brightness(1); }
+    22%  { transform: scale(1.22); filter: brightness(2) saturate(1.5); }
+    55%  { transform: scale(1.08); filter: brightness(1.25); }
+    100% { transform: scale(1);    filter: brightness(1); }
+  }
+  .sa-card.sa-flash::after {
+    content: "✨"; position: absolute; top: -8px; right: -6px; font-size: 17px;
+    pointer-events: none; animation: saSpark 0.85s ease forwards;
+  }
+  @keyframes saSpark {
+    0%   { opacity: 0; transform: scale(0.4) rotate(-25deg); }
+    28%  { opacity: 1; transform: scale(1.3) rotate(6deg); }
+    100% { opacity: 0; transform: scale(0.9) rotate(22deg) translateY(-8px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sa-card.sa-flash .mini-card { animation: none; outline: 3px solid var(--amber); outline-offset: 2px; }
+    .sa-card.sa-flash::after { animation: none; opacity: 1; }
+  }
   .sa-confirm { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 81;
     width: min(100%, 460px); display: flex; align-items: center; gap: 10px;
     padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
@@ -6220,7 +6249,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.37 · the fan names both ends and the sticker button says what it does";
+const APP_VERSION = "v4.38 · four snobs take their seats, the rubble shows the road, hearts crown the column";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6451,8 +6480,8 @@ const GLYPHS = {
   // Fibonacci — a growing spiral.
   fibonacci: '<path d="M13 13a2 2 0 1 0-2 2 4 4 0 0 0 4-4 6 6 0 0 0-9.2-5.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   // Highest Odd / Even — a double up-chevron ("highest") + parity dots (1 / 2).
-  highestOdd: '<path d="M6 12l6-5 6 5M6 18l6-5 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4" r="1.6"/>',
-  highestEven: '<path d="M6 12l6-5 6 5M6 18l6-5 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.4" cy="4" r="1.6"/><circle cx="14.6" cy="4" r="1.6"/>',
+  // Highest Heart — the twin peaks with a heart at the summit.
+  highestHeart: '<path d="M6 12l6-5 6 5M6 18l6-5 6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6.2l-1.9-1.8c-.65-.65-.65-1.6 0-2.15.55-.5 1.35-.45 1.9.15.55-.6 1.35-.65 1.9-.15.65.55.65 1.5 0 2.15z"/>',
   // Dense Bury — stacked layers with a small bury-down arrow above.
   denseBury: '<path d="M12 2.5v3M10.2 4l1.8 1.8L13.8 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="8" width="14" height="2.6" rx="1.3"/><rect x="5" y="12" width="14" height="2.6" rx="1.3"/><rect x="5" y="16" width="14" height="2.6" rx="1.3"/>',
   // Shuffle — two crossing arrows.
@@ -6474,8 +6503,12 @@ const GLYPHS = {
   pillarscout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><path d="M7 17h10M8.5 17v4M12 17v4M15.5 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   // Base Scout — an eye over a foundation slab.
   basescout: '<path d="M4 9s3.2-4.5 8-4.5S20 9 20 9s-3.2 4.5-8 4.5S4 9 4 9z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="1.8"/><rect x="5" y="17" width="14" height="3.6" rx="1"/>',
-  // Suit Snob — a monocle (judging your suits).
+  // The SNOB family — a monocle (judging your suits); each sibling carries
+  // its own suit inside the lens so the four read apart at a glance.
   suitsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  heartsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 13l-2.2-2.1c-.75-.75-.75-1.85 0-2.5.65-.6 1.6-.55 2.2.15.6-.7 1.55-.75 2.2-.15.75.65.75 1.75 0 2.5z"/>',
+  diamondsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 6.6l2.6 3.4-2.6 3.4L7.4 10z"/>',
+  clubsnob: '<circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.2 14.2L17 17M17 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="8.1" r="1.5"/><circle cx="8.3" cy="10.5" r="1.5"/><circle cx="11.7" cy="10.5" r="1.5"/><path d="M9.5 11.2h1L10.4 13.6h-.8z"/>',
   // Momentum — an accelerating ramp with motion ticks.
   momentum: '<path d="M3 19c6 0 12-3 16-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 4l1.6 4.4L16 9.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12.5l2.5 1M6 8.5l2.2 1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   // ---- expansion pillars (same monoline neural style) ----
@@ -6545,14 +6578,15 @@ const ELEM_GLYPH = {
   changeSuitDiamond: "diamond", changeSuitClub: "club",
   quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
   snowball: "snowball", deepPockets: "deeppockets", pillarScout: "pillarscout",
-  baseScout: "basescout", suitSnob: "suitsnob", momentum: "momentum", tell: "tell",
+  baseScout: "basescout", suitSnob: "suitsnob", heartSnob: "heartsnob",
+  diamondSnob: "diamondsnob", clubSnob: "clubsnob", momentum: "momentum", tell: "tell",
   rechargeSameShield: "recharge_same", activateSamePower: "activate_same",
   spadeBounty: "rcpt_spade", heartBounty: "rcpt_heart", diamondBounty: "rcpt_diamond", clubBounty: "rcpt_club",
   columnTieSafe: "tie_column", columnGuardian: "guardian", eightTribute: "encode8", sameTribute: "encode_tie",
   allHeartsCoin: "hearts_all", allSpadesCoin: "spade",
   allDiamondsCoin: "diamond", allClubsCoin: "club", envy: "envy", symmetry: "symmetry",
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
-  fibonacci: "fibonacci", highestOdd: "highestOdd", highestEven: "highestEven",
+  fibonacci: "fibonacci", highestEven: "highestHeart",
   denseBury: "denseBury", revive: "revive", kamikaze: "kamikaze",
   sameSpark: "samespark", insurance: "insurance", ditto: "ditto",
   stickerCount: "stickercount", prime: "prime", queensEye: "queenseye",
@@ -6588,7 +6622,8 @@ const STICKER_BEHAVIOR_CAT = {
   compound: "coins", deathBounty: "coins", looseChange: "coins", deepPockets: "coins", momentum: "coins",
   tieSafe: "saves", suitImmunity: "saves", extraHeart: "saves", rechargeSameShield: "saves",
   activateSamePower: "spark",
-  tribute: "bury", quickBury: "bury", snowball: "bury",
+  tribute: "bury", quickBury: "bury", snowball: "bury", clubSnob: "bury",
+  heartSnob: "coins", diamondSnob: "util",
   revealNext: "peek", pillarScout: "peek", baseScout: "peek", suitSnob: "peek", tell: "peek",
   duplicate: "spark", twinSpark: "spark",
   randomFixedValue: "rank", changeSuitTo: "rank", changeSuitRandom: "rank", wildSuit: "rank",
@@ -8731,12 +8766,6 @@ const BoardState = (() => {
    Rules + flow. Pure logic — emits events, never touches DOM.
 ---------------------------------------------------------------- */
 const GameEngine = (() => {
-  // Exact qualifying-rank sets for the Highest Even / Highest Odd Pillars — the
-  // ONLY ranks each pillar scores from a pile's TOP card. Face cards (J=11/Q=12/
-  // K=13) and the Ace (14) are deliberately absent from both, so they never
-  // qualify. (See computePillarPayout.)
-  const EVEN_NUMBER_RANKS = new Set([2, 4, 6, 8, 10]);
-  const ODD_NUMBER_RANKS = new Set([3, 5, 7, 9]);
   // deckSpecs: the campaign base-deck specs to build this run's deck from.
   // pileCount: how many piles this run uses (presentation/layout is the
   //            renderer's concern; the engine only needs the count).
@@ -9115,10 +9144,37 @@ const GameEngine = (() => {
       let lcSum = 0;
       for (let k = 0; k < lc; k++) { const a = Math.floor(rng() * (lcMax + 1)); payCoins("Loose Change", a, true); lcSum += a; }   // random 0–max
       if (lc > 0) recT("sticker", "looseChange", "Loose Change", { coins: lcSum });
-      const snob = n("suitSnob");
-      if (snob > 0 && current && (drawn.suit === current.suit || drawn.wildSuit || current.wildSuit)) {
+      // --- the SNOB family: each fires when THIS card lands ON its suit (the
+      // pre-landing top card `current`; a Wild Suit top counts as every suit).
+      const landedOn = (suit) => !!current && (current.suit === suit || current.wildSuit);
+      // Spade Snob — peek the next upcoming card when landing on a ♠.
+      if (n("suitSnob") > 0 && landedOn("♠")) {
         run.revealNextActive = true;   // peek the next upcoming card (the reward)
-        recT("sticker", "suitSnob", "Suit Snob", { peeks: 1 });
+        recT("sticker", "suitSnob", "Spade Snob", { peeks: 1 });
+      }
+      // Heart Snob — +value coins per instance when landing on a ♥.
+      const hsn = n("heartSnob");
+      if (hsn > 0 && landedOn("♥")) {
+        const amt = hsn * itemNum(StickerTypes.get("heartSnob"), "value", 4);
+        payCoins("Heart Snob", amt);
+        recT("sticker", "heartSnob", "Heart Snob", { coins: amt });
+      }
+      // Diamond Snob — landing on a ♦ immediately shuffles ALL alive piles.
+      // (Fired through the shuffler event so the UI repaints tops + counts.)
+      if (n("diamondSnob") > 0 && landedOn("♦")) {
+        let sh = 0;
+        for (let i = 0; i < board.size; i++) if (board.isActive(i)) { board.shufflePile(i, rng); sh++; }
+        if (sh > 0) {
+          firePillar(col, "shuffler", "Diamond Snob", 0);
+          logLine("Diamond Snob: shuffled all " + sh + " piles");
+          recT("sticker", "diamondSnob", "Diamond Snob", { shuffled: sh });
+        }
+      }
+      // Club Snob — landing on a ♣ buries digCount deck cards per instance.
+      const csn = n("clubSnob");
+      if (csn > 0 && landedOn("♣")) {
+        const nb = buryTribute(index, csn * itemNum(StickerTypes.get("clubSnob"), "digCount", 1), "Club Snob");
+        if (nb > 0) recT("sticker", "clubSnob", "Club Snob", { buried: nb });
       }
       if (n("momentum") > 0) {
         // Per-card counter (duplicate Momentums share it — they don't stack):
@@ -9745,13 +9801,17 @@ const GameEngine = (() => {
         }
         case "demolish": {
           // targetIndex is the column whose Pillar is destroyed (validated above).
+          // The rubble reveals the road ahead: peek the next `peekCount` cards
+          // (was a +15 coin reward).
           const destroyedId = run.pillars[targetIndex];
-          const reward = itemNum(base, "reward", 15);
+          const pk = itemNum(base, "peekCount", 2);
           run.pillars[targetIndex] = null;             // stop its effect immediately
-          addBonus(base.label, reward);
+          run.kamikazeRevealLeft = Math.max(run.kamikazeRevealLeft || 0, pk);   // shared multi-card peek window
           res.demolishedCol = targetIndex;
           res.demolishedPillar = destroyedId;          // the UI clears the campaign binding
-          logLine("destroyed the Pillar on column " + (targetIndex + 1) + " (+" + reward + " coins)");
+          res.peekCount = pk;
+          res.cards = deck.peek(pk).map(c => ({ ...c }));   // read-only snapshot (no order change)
+          logLine("destroyed the Pillar on column " + (targetIndex + 1) + ", peeking the next " + pk + " upcoming cards");
           break;
         }
         case "heartDemolish": {
@@ -9991,25 +10051,24 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
           }
-        } else if (t.effect === "highestOdd" || t.effect === "highestEven") {
+        } else if (t.effect === "highestHeart") {
           // Look ONLY at the single card currently on TOP of each ALIVE pile in
           // this column (never any buried card; dead piles ignored entirely). A
-          // top card qualifies only if its rank is in the exact set — Even
-          // {2,4,6,8,10}, Odd {3,5,7,9}; face cards (J/Q/K) and the Ace never
-          // qualify. Payout = the value of the highest qualifying TOP card, or 0
-          // if no alive pile has a qualifying top (no default, no fallback, no
-          // digging into piles).
-          const wantOdd = t.effect === "highestOdd";
-          const QUALIFY = wantOdd ? ODD_NUMBER_RANKS : EVEN_NUMBER_RANKS;
+          // top qualifies if it's a ♥ (a Wild Suit top counts — it is every
+          // suit). Payout = the COIN value of the highest qualifying top:
+          // 2–10 pay their rank, J/Q/K pay 10, the Ace pays 11. 0 if no alive
+          // pile has a ♥ top (no default, no fallback, no digging into piles).
           let best = 0;
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;        // alive piles only
             const top = board.top(i);                // the TOP card only — nothing below it
-            if (top && QUALIFY.has(top.value) && top.value > best) best = top.value;
+            if (!top || !(top.suit === "♥" || top.wildSuit)) continue;
+            const coin = top.value === 14 ? 11 : (top.value >= 11 ? 10 : top.value);
+            if (coin > best) best = coin;
           }
           if (best > 0) {
             bonus += best;
-            lines.push({ label: t.label, detail: "highest " + (wantOdd ? "odd" : "even") + " = " + best, amount: best, col });
+            lines.push({ label: t.label, detail: "highest ♥ = " + best, amount: best, col });
           }
         } else if (t.effect === "insurance") {
           // +value if the WHOLE board has exactly one survivor and it's here.
@@ -16123,11 +16182,15 @@ const UIRenderer = (() => {
       clearTimeout(peekTimer);
       peeking = false;
       pileDrag = null;
-      // FAN-OUT viewer open, or pressing a pile's fan button: never arm a
-      // drag-guess or a hold — the tap is handled entirely by the capture-
-      // phase fan click listener (open/toggle/collapse). Guess input is
-      // SUSPENDED while the fan is open.
-      if (pileFanIndex != null || e.target.closest(".pile-fan-btn")) return;
+      // FAN-OUT viewer open: never arm a drag-guess or a hold — the next tap
+      // is handled entirely by the capture-phase fan click listener (it only
+      // collapses). Guess input is SUSPENDED while the fan is open.
+      if (pileFanIndex != null) return;
+      // A press STARTING on a pile's fan chip still arms the drag-guess below
+      // (a swipe over the chip is a swipe) — only the info-HOLD timer is
+      // skipped so a long-press on the chip can't hijack the tap. A clean tap
+      // never moves, so the capture-phase click listener opens the fan.
+      const onFanBtn = !!e.target.closest(".pile-fan-btn");
       const cell = e.target.closest(".bp-cell");
       if (cell) {   // Pillar-indicator hold-to-peek
         // Capture the pointer so the held peek tracks the finger anywhere and
@@ -16153,13 +16216,18 @@ const UIRenderer = (() => {
         if (engine.getBoard().isActive(index)) {
           pileDrag = { index, startX: e.clientX, startY: e.clientY, armed: null, moved: false };
           // Own the gesture so a sideways Same can't trigger browser back/forward
-          // (and moves keep tracking even if the finger leaves the pile).
-          try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
+          // (and moves keep tracking even if the finger leaves the pile). A press
+          // starting on the FAN CHIP captures to the chip instead: captured
+          // events retarget to the capture element, and a clean tap's click must
+          // still TARGET the chip for the fan listener to match (either way they
+          // bubble through the board, so the drag handlers are unaffected).
+          try { (onFanBtn ? e.target.closest(".pile-fan-btn") : el.board).setPointerCapture(e.pointerId); } catch (err) {}
           // HOLD → this pile's card info (read-only; release closes). Movement
-          // (a drag-guess) cancels the hold; the hold cancels the drag.
+          // (a drag-guess) cancels the hold; the hold cancels the drag. A press
+          // on the fan chip arms NO hold (tap = fan, drag = guess — nothing else).
           clearTimeout(infoTimer);
           infoHold = false;
-          infoTimer = setTimeout(() => {
+          if (!onFanBtn) infoTimer = setTimeout(() => {
             infoHold = true;
             pileDrag = null;               // a hold is not a drag — disarm guessing
             clearDragFeedback();
@@ -16168,6 +16236,7 @@ const UIRenderer = (() => {
         }
       } else if (engine && engine.canApplyStickers()
                  && !armedSticker && armedPack == null && !armedPillar && !armedBaseItem) {
+        if (onFanBtn) return;   // setup: a press on the fan chip is tap-opens-fan only
         // Setup (nothing armed): HOLD a pile to read its card + stickers, so
         // hold-for-info works consistently in setup too (not just in play).
         // Capture the pointer so the held help survives finger movement and only
@@ -16336,6 +16405,9 @@ const UIRenderer = (() => {
       const fanBtn = e.target.closest(".pile-fan-btn");
       if (fanBtn) {
         e.preventDefault(); e.stopPropagation();
+        // The press MOVED (a drag-guess over the chip) → it was a swipe, not a
+        // tap: consume the click without opening the fan.
+        if (suppressPileClick) { suppressPileClick = false; return; }
         const holder = fanBtn.closest(".pile");
         const idx = holder ? Number(holder.dataset.index) : NaN;
         const same = pileFanIndex === idx;
@@ -19551,8 +19623,7 @@ const UIRenderer = (() => {
     heavyDiamond: "Current +pile size (♦ cards in this column, buried included)",
     excavator: "Current payout (buried cards in the column's largest ♥-top pile × value)",
     heartPiles: "Current payout (coins per pile on the board with a ♥ top card)",
-    highestOdd: "Current payout (highest odd-rank top card: 3/5/7/9)",
-    highestEven: "Current payout (highest even-rank top card: 2/4/6/8/10)",
+    highestHeart: "Current payout (highest ♥ top card; J/Q/K = 10, A = 11)",
   };
   /* Pillar = a plum cloth PENNANT hanging from a rod: rod across the top, cloth
      below with a swallowtail bottom, a dark circular emblem holding the Pillar's
@@ -19667,10 +19738,14 @@ const UIRenderer = (() => {
         let p = 0;
         for (const i of alive) if (isHeart(board.top(i))) p++;
         payout = p * (t.value || 4);
-      } else if (t.effect === "highestOdd") {
-        for (const i of alive) { const v = board.top(i) && board.top(i).value; if (v === 3 || v === 5 || v === 7 || v === 9) payout = Math.max(payout, v); }
-      } else if (t.effect === "highestEven") {
-        for (const i of alive) { const v = board.top(i) && board.top(i).value; if (v === 2 || v === 4 || v === 6 || v === 8 || v === 10) payout = Math.max(payout, v); }
+      } else if (t.effect === "highestHeart") {
+        // Mirrors the engine's scoring: ♥ (or Wild) tops only; J/Q/K pay 10, A pays 11.
+        for (const i of alive) {
+          const top = board.top(i);
+          if (!top || !(top.suit === "♥" || top.wildSuit)) continue;
+          const coin = top.value === 14 ? 11 : (top.value >= 11 ? 10 : top.value);
+          payout = Math.max(payout, coin);
+        }
       } else {
         return;
       }
@@ -22530,6 +22605,34 @@ const UIRenderer = (() => {
         if (engine) engine.logAction("Applied Sticker: " + ((t && t.label) || pendingApplyStickerId) + " → a deck card");
         Sound.purchase();
         persistCampaign("store");
+        // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
+        // shows its change IN PLACE before the picker leaves: repaint the grid
+        // (the changed card re-renders — and may re-sort — to its NEW face),
+        // flash + sparkle it, THEN close as usual. Non-modifying stickers keep
+        // the immediate close (their card face didn't change).
+        const modifies = t && (t.kind === "rank" ||
+          ["changeSuitTo", "changeSuitRandom", "randomFixedValue"].indexOf(t.behavior) !== -1);
+        if (modifies && el.saCards) {
+          const flashId = selectedApplyCardId;
+          selectedApplyCardId = null;               // no lingering selection ring
+          renderStickerApplyCards();
+          const btn = el.saCards.querySelector('[data-card-id="' + flashId + '"]');
+          if (btn) {
+            pendingApplyStickerId = null; pendingSwapTrayIndex = null;
+            pendingBuyStickerSlot = null;
+            if (el.saConfirm) el.saConfirm.classList.add("hidden");
+            btn.scrollIntoView({ block: "nearest" });   // a re-sort may have moved it
+            btn.classList.add("sa-flash");
+            setTimeout(() => {
+              btn.classList.remove("sa-flash");
+              el.stickerApplyModal.classList.add("hidden");
+              applyCardsById = new Map();
+              renderDeckStrip();
+              continuePendingPlacement();
+            }, 850);
+            return;
+          }
+        }
       }
     }
     el.stickerApplyModal.classList.add("hidden");
@@ -23091,7 +23194,7 @@ const UIRenderer = (() => {
       case "stickerHarvest": return engine.broadcastActive()
         ? "Choose any pile on the board to harvest its pile card."
         : "Choose a pile in this column to harvest its pile card.";
-      case "demolish":       return "Choose one of your Pillars to destroy for +15 coins.";
+      case "demolish":       return "Choose one of your Pillars to destroy — the rubble reveals the next 2 upcoming cards.";
       default:               return "Choose a target pile.";
     }
   }

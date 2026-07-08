@@ -98,15 +98,15 @@ const NINELIVES_ITEMS = {
     { id: "extraCoin",  label: "Payout",      icon: "💰", kind: "behavior", behavior: "extraCoin", value: 1, tier: "uncommon", price: 2,
       description: "Earn coins equal to pile size if this card is top of pile at end of deal", suits: ["♥"] },
     { id: "middleColumnReward", label: "Middle", icon: "🎯", kind: "behavior", behavior: "middleColumnReward", value: 4, tier: "uncommon", price: 2,
-      description: "+3 coins if in middle column", suits: ["♥"] },
+      description: "+4 coins if in middle column", suits: ["♥"] },
     { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 2,
       description: "+1 coin", suits: ["♥"] },
     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor", tier: "common", price: 3,
       description: "If this is the top card, the pile is left out of the smallest-pile score", suits: ["♦"] },
     { id: "extraHeart", label: "Shield",      icon: "❤️", kind: "behavior", behavior: "extraHeart", tier: "rare", price: 5,
       description: "When a drawn card lands wrong on this pile card, the pile survives and the drawn card returns to the deck, then the shield is drained until next deal" },
-    { id: "oneTribute", label: "Bury 1",      icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 4, tier: "rare", price: 10,
-      description: "Bury 1 deck card under the pile and -3 coins", suits: ["♣"] },
+    { id: "oneTribute", label: "Bury 1",      icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, coinCost: 3, tier: "rare", price: 10,
+      description: "Optionally bury 1 deck card under the pile and -3 coins", suits: ["♣"] },
     { id: "twoTribute", label: "Bury 2",      icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 16,
       description: "Optionally bury 2 deck cards and -4 coins", suits: ["♣"]  },
     { id: "centerTribute", label: "Middle Bury", icon: "🗿", kind: "behavior", behavior: "tribute", tributeCount: 1, centerOnly: true, tier: "rare", price: 4,
@@ -148,8 +148,17 @@ const NINELIVES_ITEMS = {
       description: "Peek at the next deck card if this card lands in column with no Pillar", suits: ["♠"]  },
     { id: "baseScout",  label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
       description: "Peek at the next card if in a column with no Base", suits: ["♠"]  },
-    { id: "suitSnob",   label: "Suit Snob",   icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
+    // ---- the Snob family: each fires when THIS card lands on its suit ----
+    { id: "suitSnob",   label: "Spade Snob",  icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
       description: "Peek at next deck card if this card lands on a ♠ card", suits: ["♠"]  },
+    // value = coins paid per Heart Snob on the landing card.
+    { id: "heartSnob",  label: "Heart Snob",  icon: "💞", kind: "behavior", behavior: "heartSnob", value: 4, tier: "uncommon", price: 2,
+      description: "Trigger: This card lands on a ♥ card\nEffect: +4 coins", suits: ["♥"] },
+    { id: "diamondSnob", label: "Diamond Snob", icon: "💎", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 5,
+      description: "Trigger: This card lands on a ♦ card\nEffect: Immediately shuffle all piles", suits: ["♦"] },
+    // digCount = deck cards buried under the pile per Club Snob.
+    { id: "clubSnob",   label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
+      description: "Trigger: This card lands on a ♣ card\nEffect: Bury 1 deck card under the pile", suits: ["♣"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
     { id: "momentum",   label: "Momentum",    icon: "🎢", kind: "behavior", behavior: "momentum", step: 2, tier: "rare", price: 2,
       description: "Earn X coins. X starts at 0 and grows by 2 after each correct placement. An incorrect guess resets X to 0", suits: ["♥"] },
@@ -198,8 +207,8 @@ const NINELIVES_ITEMS = {
     // threshold = the streak step burials start at; digCount = cards buried
     // per correct in-column guess from that step onward (flat, no escalation).
     { id: "streakTribute", label: "Streak Bury", icon: "🔥",
-      kind: "composition", effect: "streakTribute", threshold: 3, digCount: 1, tier: "rare", price: 20,
-      description: "Bury 1 deck card per consecutive correct guess in this column, from the 3rd guess onward. Resets on a wrong guess or any guess in another column" },
+      kind: "composition", effect: "streakTribute", threshold: 4, digCount: 1, tier: "rare", price: 20,
+      description: "Bury 1 deck card per consecutive correct guess in this column, from the 4th guess onward. Resets on a wrong guess or any guess in another column" },
     { id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 12,
       description: "The first pile in this column to die is saved, but all buried cards in that pile are returned to the deck" },
@@ -210,12 +219,9 @@ const NINELIVES_ITEMS = {
     { id: "fibonacci", label: "Fibonacci", icon: "🌀",
       kind: "live", effect: "fibonacci", value: 1, tier: "rare", price: 8,
       description: "+1 coin each time a Fibonacci-rank card (A/2/3/5/8) is drawn into this column, whether the guess is right or wrong" },
-    { id: "highestOdd", label: "Highest Odd", icon: "🔼",
-      kind: "scoring", effect: "highestOdd", tier: "rare", price: 12,
-      description: "Receive coins equal to the highest odd-rank (3/5/7/9) top card in this column at end of deal" },
-    { id: "highestEven", label: "Highest Even", icon: "🔽",
-      kind: "scoring", effect: "highestEven", tier: "rare", price: 15,
-      description: "Receive coins equal to the highest even-rank (2/4/6/8/10) top card in this column at end of deal" },
+    { id: "highestEven", label: "Highest Heart", icon: "💗",
+      kind: "scoring", effect: "highestHeart", tier: "rare", price: 15,
+      description: "Trigger: End of deal\nEffect: Gain coins equal to the highest ♥ top card in this column (J/Q/K count as 10, A as 11)" },
     // minStickers = stickers a landing ♣ must carry; digCount = cards buried.
     { id: "denseBury", label: "Dense Bury", icon: "🧊",
       kind: "composition", effect: "denseBury", minStickers: 2, digCount: 1, tier: "rare", price: 20,
@@ -325,10 +331,10 @@ const NINELIVES_ITEMS = {
     { id: "clubDig", label: "Club Dig", icon: "♣️",
       kind: "active", effect: "suitDig", suit: "♣", digCount: 1, tier: "rare", price: 15,
       description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under each pile with a ♣ top card in this column" },
-    // reward = coins gained for destroying the chosen Pillar.
+    // peekCount = upcoming cards peeked after the demolition.
     { id: "demolish", label: "Demolish", icon: "🔨",
-      kind: "active", effect: "demolish", target: "pillar", reward: 15, tier: "uncommon", price: 25,
-      description: "Trigger: Activated (choose a Pillar), once per deal\nEffect: Destroy the chosen placed Pillar for good; gain +15 coins" },
+      kind: "active", effect: "demolish", target: "pillar", peekCount: 2, tier: "uncommon", price: 25,
+      description: "Trigger: Activated (choose a Pillar), once per deal\nEffect: Destroy the chosen placed Pillar for good, then peek the next 2 upcoming cards (draw order unchanged)" },
     // coinPerPile = coins gained per ♥-topped pile destroyed.
     { id: "heartDemolish", label: "Heart Demolish", icon: "💔",
       kind: "active", effect: "heartDemolish", coinPerPile: 7, tier: "uncommon", price: 10,

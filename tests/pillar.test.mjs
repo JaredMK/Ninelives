@@ -166,7 +166,7 @@ export function run() {
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bonus is a suitBounty");
     r.ok(!PillarTypes.get("spadeBounty") && !PillarTypes.get("clubBounty") && !PillarTypes.get("diamondBounty"),
       "the ♠/♣/♦ Bonus pillars were removed (only ♥ remains)");
-    r.eq(PillarTypes.all().length, 29, "pillar registry totals 29 after the rebalance");
+    r.eq(PillarTypes.all().length, 28, "pillar registry totals 28 (Highest Odd deleted)");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------

@@ -113,7 +113,12 @@ export function run() {
     for (const t of G.StickerTypes.all()) t.suits = ["♥"];   // everything ♥-only
     const camp = G.CampaignState.create({ pileCount: 9 });
     camp.setDeck("smith"); camp.reset();
-    const cards = startCards(camp);
+    let cards = startCards(camp);
+    // Smith's 13 start suits are random — a 0-heart start (~2% of rolls) has
+    // nothing to assert on; re-roll until at least one heart shows.
+    for (let tries = 0; tries < 20 && !cards.some(c => c.suit === "\u2665"); tries++) {
+      camp.reset(); cards = startCards(camp);
+    }
     const bad = cards.filter(c => c.suit !== "♥" && c.stickers.length > 0
       && !(c.modifications || []).some(m => m.op === "changeSuit"));
     r.eq(bad.length, 0, "with every sticker ♥-only, Smith's never-♥ start cards roll NO sticker");

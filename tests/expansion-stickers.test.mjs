@@ -36,7 +36,7 @@ export function run() {
       "looseChange", "snowball", "deepPockets", "pillarScout", "baseScout",
       "suitSnob", "momentum"];
     r.ok(ids.every(id => !!StickerTypes.get(id)), "all 11 new stickers registered");
-    r.eq(StickerTypes.all().length, 43, "sticker registry totals 43 (added Recharge Shield + Tap Power)");
+    r.eq(StickerTypes.all().length, 46, "sticker registry totals 46 (added the Heart/Diamond/Club Snobs)");
     r.ok(!StickerTypes.get("mirror"), "Mirror sticker is gone from the registry");
     r.ok(!StickerTypes.get("duplicate"), "Duplicate sticker is gone from the registry");
     r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank now costs 1");
@@ -78,27 +78,91 @@ export function run() {
     r.eq(gained, Math.floor((remBefore - 1) / 10), "Deep Pockets pays floor(deckRemaining/10) after the draw");
   }
 
-  // ---- Suit Snob: PEEK the next card only on a same-suit correct land --------
+  // ---- SPADE Snob: PEEK the next card only when landing ON a ♠ card ------
   {
     const e = game();
     const top1 = e.getBoard().top(1);
+    top1.suit = "♠"; top1.wildSuit = false;                      // land ON a spade
     const up = top1.value < 14;
     const nc = e.debug.setNextCard(up ? top1.value + 1 : top1.value - 1);
-    nc.stickers = [{ type: "suitSnob" }]; nc.suit = top1.suit;   // match the pile card's suit
+    nc.stickers = [{ type: "suitSnob" }]; nc.suit = "♥";         // the carrier's own suit is irrelevant
     e.guess(1, up ? "higher" : "lower");
-    r.ok(e.getRun().revealNextActive, "Suit Snob peeks the next card on a same-suit correct land");
+    r.ok(e.getRun().revealNextActive, "Spade Snob peeks the next card when landing on a ♠");
 
-    // A DIFFERENT-suit land does not peek (and pays no coins — the peek replaced it).
+    // Landing on a NON-spade does not peek (and pays no coins).
     const e2 = game();
     const t2 = e2.getBoard().top(2);
+    t2.suit = "♦"; t2.wildSuit = false;
     const up2 = t2.value < 14;
-    const otherSuit = ["♠", "♥", "♦", "♣"].find(s => s !== t2.suit);
     const before = e2.getRun().bonusCoins;
     const n2 = e2.debug.setNextCard(up2 ? t2.value + 1 : t2.value - 1);
-    n2.stickers = [{ type: "suitSnob" }]; n2.suit = otherSuit;
+    n2.stickers = [{ type: "suitSnob" }]; n2.suit = "♠";         // even a ♠ carrier — the LANDED-ON suit decides
     e2.guess(2, up2 ? "higher" : "lower");
-    r.ok(!e2.getRun().revealNextActive, "Suit Snob does NOT peek on a different-suit land");
-    r.eq(e2.getRun().bonusCoins - before, 0, "Suit Snob no longer pays coins");
+    r.ok(!e2.getRun().revealNextActive, "Spade Snob does NOT peek landing on a non-♠");
+    r.eq(e2.getRun().bonusCoins - before, 0, "Spade Snob pays no coins");
+  }
+
+  // ---- Heart / Diamond / Club Snobs: each fires landing ON its suit ------
+  {
+    // Heart Snob: +value coins when landing on a ♥ (nothing otherwise).
+    const hv = StickerTypes.get("heartSnob").value ?? 4;
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♥"; t.wildSuit = false;
+    const before = e.getRun().bonusCoins;
+    const nc = e.debug.setNextCard(t.value < 14 ? t.value + 1 : t.value - 1);
+    nc.stickers = [{ type: "heartSnob" }];
+    e.guess(1, t.value < 14 ? "higher" : "lower");
+    r.eq(e.getRun().bonusCoins - before, hv, "Heart Snob pays +" + hv + " landing on a ♥");
+
+    const e2 = game();
+    const t2 = e2.getBoard().top(2); t2.suit = "♣"; t2.wildSuit = false;
+    const b2 = e2.getRun().bonusCoins;
+    const n2 = e2.debug.setNextCard(t2.value < 14 ? t2.value + 1 : t2.value - 1);
+    n2.stickers = [{ type: "heartSnob" }];
+    e2.guess(2, t2.value < 14 ? "higher" : "lower");
+    r.eq(e2.getRun().bonusCoins - b2, 0, "Heart Snob pays nothing landing on a non-♥");
+  }
+  {
+    // Diamond Snob: landing on a ♦ shuffles ALL alive piles (composition only —
+    // assert via the pillar-fired shuffler event, the UI repaint contract).
+    const e = game();
+    let fired = null;
+    e.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Snob") fired = x; });
+    const t = e.getBoard().top(1); t.suit = "♦"; t.wildSuit = false;
+    const nc = e.debug.setNextCard(t.value < 14 ? t.value + 1 : t.value - 1);
+    nc.stickers = [{ type: "diamondSnob" }];
+    e.guess(1, t.value < 14 ? "higher" : "lower");
+    r.ok(fired && fired.effect === "shuffler", "Diamond Snob fires the shuffle on a ♦ landing");
+
+    const e2 = game();
+    let fired2 = null;
+    e2.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Snob") fired2 = x; });
+    const t2 = e2.getBoard().top(2); t2.suit = "♠"; t2.wildSuit = false;
+    const n2 = e2.debug.setNextCard(t2.value < 14 ? t2.value + 1 : t2.value - 1);
+    n2.stickers = [{ type: "diamondSnob" }];
+    e2.guess(2, t2.value < 14 ? "higher" : "lower");
+    r.ok(!fired2, "Diamond Snob does nothing landing on a non-♦");
+  }
+  {
+    // Club Snob: landing on a ♣ buries digCount deck cards under the pile.
+    const dig = StickerTypes.get("clubSnob").digCount ?? 1;
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♣"; t.wildSuit = false;
+    const len0 = e.getBoard().piles[1].cards.length;
+    const deck0 = e.getDeck().remaining();
+    const nc = e.debug.setNextCard(t.value < 14 ? t.value + 1 : t.value - 1);
+    nc.stickers = [{ type: "clubSnob" }];
+    e.guess(1, t.value < 14 ? "higher" : "lower");
+    r.eq(e.getBoard().piles[1].cards.length, len0 + 1 + dig, "Club Snob buries " + dig + " on a ♣ landing (pile: drawn + buried)");
+    r.eq(e.getDeck().remaining(), deck0 - 1 - dig, "…drawn from the deck");
+
+    const e2 = game();
+    const t2 = e2.getBoard().top(2); t2.suit = "♥"; t2.wildSuit = false;
+    const l2 = e2.getBoard().piles[2].cards.length;
+    const n2 = e2.debug.setNextCard(t2.value < 14 ? t2.value + 1 : t2.value - 1);
+    n2.stickers = [{ type: "clubSnob" }];
+    e2.guess(2, t2.value < 14 ? "higher" : "lower");
+    r.eq(e2.getBoard().piles[2].cards.length, l2 + 1, "Club Snob buries nothing landing on a non-♣");
   }
 
   // ---- Snowball Bury (per-card X, like Compound): buries X then X++, reset on wrong ----
