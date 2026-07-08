@@ -14,12 +14,20 @@
      tiers.<id>.stageBands  [[lo,hi] ×3] — regular deals' target-difficulty
                             band per stage (stage 1, 2, 3)
      tiers.<id>.bossBands   [[lo,hi] ×3] — the stage bosses' band
-     tiers.<id>.jokerCap    max Jokers a run may gain on this tier. Once the
-                            cap is reached (owned + still-waiting on the map),
-                            Jokers stop appearing anywhere — map cards, map
-                            packs, store card packs. 0 = no Jokers at all.
-                            Tiers with a cap ≥ 1 GUARANTEE one Joker appears
-                            as a standalone map card somewhere in the run.
+     tiers.<id>.jokerCap    max Jokers HELD AT ONCE on this tier. While the
+                            player is at the cap (deck + pack tray + the
+                            guaranteed map Joker still waiting), Jokers stop
+                            appearing anywhere — map packs and store card
+                            packs; removing a Joker (e.g. via Removal)
+                            reopens availability. 0 = no Jokers at all.
+                            Map +1 card nodes never roll random Jokers — the
+                            ONLY standalone Joker node is the guaranteed one
+                            below.
+     tiers.<id>.guaranteedMapJoker
+                            true → exactly ONE Joker is placed as a visible
+                            standalone +1 card node somewhere in stages 1-3
+                            (random node per run, never inside a pack, never
+                            hidden behind a "?" mystery node)
      endlessBandStep        past stage 3, BOTH edges of BOTH bands lift by
                             this much per endless stage, starting from the
                             selected tier's stage-3 bands
@@ -41,6 +49,7 @@ const NINELIVES_DIFFICULTY = {
       stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
       bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
       jokerCap: 2,
+      guaranteedMapJoker: true,
     },
     // Unlocks after beating the deck's Regular.
     master: {
@@ -48,6 +57,7 @@ const NINELIVES_DIFFICULTY = {
       stageBands: [[1.5, 4.0], [3.5, 5.5], [5.0, 6.5]],
       bossBands:  [[3.3, 4.0], [4.75, 5.5], [6.5, 7.0]],
       jokerCap: 1,
+      guaranteedMapJoker: false,
     },
     // Unlocks after beating the deck's Master. Boss bands derived by applying
     // the Regular→Master increment (+1.0 to both edges of every stage) again.
@@ -56,6 +66,7 @@ const NINELIVES_DIFFICULTY = {
       stageBands: [[1.5, 4.5], [4.0, 6.0], [5.5, 7.5]],
       bossBands:  [[4.3, 5.0], [5.75, 6.5], [7.5, 8.0]],
       jokerCap: 0,
+      guaranteedMapJoker: false,
     },
   },
 };

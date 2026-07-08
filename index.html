@@ -5273,8 +5273,11 @@
   /* map avatar: the face sits lower on the 38×40 box (see the x-mono note). */
   .map-avatar.ch-smith.tier-legendary .x-tier { width: 9.5px; top: 14.5px; left: 6.5px; }
 
-  /* LAMMY — a necktie down the front: knot + kite blade, widening by tier. */
-  .ch-lammy .x-tier { left: 50%; top: 18%; width: var(--tw, 15%); height: 42%;
+  /* LAMMY — a necktie down the front: knot + kite blade, widening by tier.
+     The knot sits at NECK level (below the face band: face top 21% + eye
+     height ≈ 35-40%), never between the eyes. Percent-based, so every
+     render size (deck slot, map avatar, jump clone, deck select) agrees. */
+  .ch-lammy .x-tier { left: 50%; top: 48%; width: var(--tw, 15%); height: 42%;
     transform: translateX(-50%); background: none; }
   .ch-lammy.tier-regular .x-tier, .ch-lammy.tier-master .x-tier, .ch-lammy.tier-legendary .x-tier { display: block; }
   .ch-lammy .x-tier::before { content: ""; position: absolute; left: 50%; top: 0; transform: translateX(-50%);
@@ -6384,7 +6387,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.45 · the house counts its jesters — two, one, none as the stakes rise";
+const APP_VERSION = "v4.46 · the tie finds the neck, and jesters are counted in the hand";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6926,7 +6929,9 @@ const DifficultyData = (() => {
     if (!t || typeof t !== "object") { bad("missing tier entry"); continue; }
     if (typeof t.label !== "string" || !t.label) bad("missing/invalid `label` (string)");
     if (typeof t.jokerCap !== "number" || !isFinite(t.jokerCap) || t.jokerCap < 0 || Math.floor(t.jokerCap) !== t.jokerCap)
-      bad("missing/invalid `jokerCap` (integer ≥ 0 — max Jokers a run may gain on this tier)");
+      bad("missing/invalid `jokerCap` (integer ≥ 0 — max Jokers held at once on this tier)");
+    if (typeof t.guaranteedMapJoker !== "boolean")
+      bad("missing/invalid `guaranteedMapJoker` (boolean — one visible standalone Joker node in stages 1-3)");
     for (const key of ["stageBands", "bossBands"]) {
       const b = t[key];
       if (!Array.isArray(b) || b.length !== 3) { bad("`" + key + "` must be an array of exactly 3 [lo, hi] pairs"); continue; }
@@ -11630,44 +11635,64 @@ const CampaignState = (() => {
         `_setMapSpecialRoll` is a TEST/QA hook (like deck._setNext): tests pin
         the roll to exercise both the normal-card and the special contracts. */
     let mapSpecialRoll = null;   // null = production rule; fn() → true|false|null
-    function rollMapSpecial(rng) {
+    /** `allowJoker: false` (map +1 card nodes) — random pickups NEVER roll a
+        Joker: the ONLY standalone Joker node is the tier's guaranteed one
+        (ensureGuaranteedJoker). Blanks keep their half everywhere. */
+    function rollMapSpecial(rng, allowJoker = true) {
       if (mapSpecialRoll) return mapSpecialRoll();   // test hook: unfiltered (tests pin exact outcomes)
       if (rng() < SPECIAL_CHANCE) {
         const joker = rng() < 0.5;
-        // JOKER CAP (difficulty.js jokerCap): at the tier's budget the joker
-        // half of the special roll falls back to a NORMAL card — Blanks keep
-        // their own half unchanged.
-        return (joker && !jokersAllowed()) ? null : joker;
+        if (!joker) return false;
+        // JOKER CAP (difficulty.js jokerCap, HELD-count logic): while the
+        // player is at the cap the joker half falls back to a NORMAL card;
+        // removing a held Joker reopens availability on the next roll.
+        return (allowJoker && jokersAllowed()) ? true : null;
       }
       return null;
     }
-    /** JOKER BUDGET (per-tier cap, difficulty.js `jokerCap`): how many Jokers
-        this run has already spoken for — owned minted Jokers + Jokers locked
-        face-up on not-yet-taken map cards + Jokers waiting in the pack tray.
-        Counting the committed-but-untaken ones means the map can never
-        promise more Jokers than the cap allows. */
+    /** JOKER CAP (difficulty.js `jokerCap`) — HELD-count logic: the count is
+        every Joker the player currently holds (deck + pack tray) PLUS the
+        guaranteed map Joker while it's still waiting on its node (it's a
+        visible promise, so it reserves a slot — taking it can never push the
+        player past the cap). Removing a held Joker (Removal / pack swap)
+        drops the count and REOPENS availability. */
     function jokerCapFor() { const t = DifficultyData.tier(difficultyTier); return (t && typeof t.jokerCap === "number") ? t.jokerCap : 2; }
-    function jokersCommitted() {
+    function jokersHeld() {
       let n = 0;
       for (const id of ownedIds) { const c = findById(id); if (c && c.joker) n++; }
       for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER && clearedNodes.indexOf(Number(k)) === -1) n++;
       for (const c of packTray) if (c && c.joker) n++;
       return n;
     }
-    function jokersAllowed() { return jokersCommitted() < jokerCapFor(); }
-    /** GUARANTEED MAP JOKER (tiers with cap ≥ 1): if no +1 node locked a Joker
-        naturally, re-lock one deterministic pickup (seeded by runSeed) to the
-        Joker sentinel — every Regular/Master run meets at least one standalone
-        Joker card on the trail. Runs once, at run start, AFTER the normal
-        lock pass (idempotent: any locked-or-taken Joker satisfies it). */
+    function jokersAllowed() { return jokersHeld() < jokerCapFor(); }
+    /** GUARANTEED MAP JOKER (difficulty.js `guaranteedMapJoker`): exactly ONE
+        Joker placed as a VISIBLE standalone +1 card node somewhere in stages
+        1-3 — a random pickup per run (seeded by runSeed), never inside a
+        pack, never hidden behind a "?" mystery node. Idempotent: any
+        locked-or-taken Joker sentinel satisfies it, and unveilJokerNodes
+        re-clears the mystery flag after every map regeneration (the flag
+        re-rolls; the sentinel persists in nodeCards). */
     function ensureGuaranteedJoker() {
-      if (!runMap || jokerCapFor() < 1) return;
-      for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER) return;   // already promised (or taken)
-      const pickups = runMap.nodes.filter(n => n.type === "pickup");
+      const t = DifficultyData.tier(difficultyTier);
+      if (!runMap || !t || !t.guaranteedMapJoker || jokerCapFor() < 1) { unveilJokerNodes(); return; }
+      for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER) { unveilJokerNodes(); return; }
+      const pickups = runMap.nodes.filter(n => n.type === "pickup" && n.phase < PHASE_SUITS.length);
       if (!pickups.length) return;
       const rng = makeRng((runSeed >>> 0) ^ 0x4a4f4b52);   // "JOKR"
       const n = pickups[Math.floor(rng() * pickups.length)];
       nodeCards[n.id] = SPECIAL_JOKER;
+      unveilJokerNodes();
+    }
+    /** The guaranteed Joker is always face-up: strip the mystery flag from any
+        node carrying the Joker sentinel (mystery re-rolls on regeneration,
+        so this runs after every lock pass). */
+    function unveilJokerNodes() {
+      if (!runMap) return;
+      for (const k in nodeCards) {
+        if (nodeCards[k] !== SPECIAL_JOKER) continue;
+        const n = runMap.byId[k];
+        if (n) delete n.mystery;
+      }
     }
     // +1 nodes LOCK a special as a sentinel ("J"/"B") in nodeCards — nothing is
     // minted into baseDeck until the special is actually GRANTED, so display-only
@@ -11715,7 +11740,7 @@ const CampaignState = (() => {
         same one. May instead lock a SPECIAL sentinel (see rollMapSpecial). */
     function draftIdForNode(node) {
       const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0));
-      const special = rollMapSpecial(rng);
+      const special = rollMapSpecial(rng, false);   // +1 nodes: Blanks only — never a random Joker
       if (special != null) return special ? SPECIAL_JOKER : SPECIAL_BLANK;
       const taken = reservedSet(node.id);
       // ENDLESS stages: +1 nodes grant ALL FOUR suits at random — a seeded
@@ -11774,6 +11799,7 @@ const CampaignState = (() => {
       runMap.nodes.filter(n => n.type === "pickup")
         .sort((a, b) => ((a.forceCard ? 0 : 1) - (b.forceCard ? 0 : 1)) || (a.id - b.id))
         .forEach(n => commitNodeCard(n));
+      unveilJokerNodes();   // the guaranteed Joker node stays face-up on every regeneration
     }
     /** Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
         Pinky pre-holds the 13 hearts; alt decks (Mamma/Smith/Lammy) hold one
@@ -12010,10 +12036,10 @@ const CampaignState = (() => {
           () => null (never special), () => true (always Joker), () => false
           (always Blank), or null to restore the production rule. */
       _setMapSpecialRoll(fn) { mapSpecialRoll = fn || null; },
-      /** JOKER BUDGET (difficulty.js jokerCap): cap for this tier, Jokers
-          already spoken for (owned + locked-on-map untaken + pack tray), and
-          whether another may still appear. */
-      jokerBudget() { return { cap: jokerCapFor(), committed: jokersCommitted(), allowed: jokersAllowed() }; },
+      /** JOKER BUDGET (difficulty.js jokerCap, held-count logic): cap for
+          this tier, Jokers currently held (deck + tray + the untaken
+          guaranteed node), and whether another may still appear. */
+      jokerBudget() { return { cap: jokerCapFor(), committed: jokersHeld(), allowed: jokersAllowed() }; },
       /** Advance to the next phase. On the CONTINUOUS map this no longer
           regenerates anything — the player simply crosses a phase-boss edge into
           the next phase's openings (moveToNode syncs phaseIndex). Kept as a
