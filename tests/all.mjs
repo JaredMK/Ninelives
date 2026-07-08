@@ -29,6 +29,7 @@ import { run as lifetimeStats } from "./lifetime-stats.test.mjs";
 import { run as broadcast } from "./broadcast.test.mjs";
 import { run as peekPillars } from "./peek-pillars.test.mjs";
 import { run as packMerge } from "./pack-merge.test.mjs";
+import { run as mysteryNodes } from "./mystery-nodes.test.mjs";
 import { run as runMods } from "./run-mods.test.mjs";
 import { run as tell } from "./tell.test.mjs";
 import { run as sameCharge } from "./same-charge.test.mjs";
@@ -67,6 +68,7 @@ const SUITES = [
   ["broadcast", broadcast],
   ["peek-pillars", peekPillars],
   ["pack-merge", packMerge],
+  ["mystery-nodes", mysteryNodes],
   ["run-mods", runMods],
   ["tell", tell],
   ["same-charge", sameCharge],

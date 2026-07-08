@@ -4670,6 +4670,27 @@
     box-shadow: 0 0 0 3px rgba(178, 58, 92, 0.14); }
   .pm-node.t-pass.s-done .mn-pass { background: rgba(178, 58, 92, 0.24); box-shadow: none; }
 
+  /* MYSTERY (?) node — a face-down violet card hiding the node's true type
+     until the player arrives (rolled once at generation; purely cosmetic).
+     One uniform size regardless of what hides beneath, so the silhouette
+     never gives the type away. */
+  .mn-myst { position: relative; display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 48px; border-radius: 8px;
+    background: linear-gradient(160deg, #5a4468, #3a2a46);
+    border: 1px solid #7b668e; color: #efe3fb;
+    font-size: 23px; font-weight: 900; line-height: 1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 9px rgba(60,40,80,0.35); }
+  .mn-myst::after { content: ""; position: absolute; inset: 3px; border-radius: 5px;
+    border: 1px dashed rgba(239,227,251,0.35); }
+  /* Reveal pop: the just-arrived node flips in from small + tilted, overshoots,
+     and settles on the s-here scale (1.1) so there's no snap at the end. */
+  .pm-node.myst-pop { animation: mystPop 0.6s cubic-bezier(0.34, 1.4, 0.5, 1); z-index: 4; }
+  @keyframes mystPop {
+    0%   { transform: translate(-50%,-50%) scale(0.3) rotate(-12deg); filter: brightness(1.9); }
+    60%  { transform: translate(-50%,-50%) scale(1.26) rotate(3deg); }
+    100% { transform: translate(-50%,-50%) scale(1.1) rotate(0deg); filter: none; }
+  }
+
   /* STORE — a little SHOP STALL: striped triangular awning over a rectangular
      stall body with a doorway, in the rose/dark palette. */
   .mn-shop { position: relative; display: block; width: 44px; height: 40px;
@@ -4772,7 +4793,7 @@
   @keyframes pmArrive { 0% { transform: translate(-50%, 22px) scale(0.7); opacity: 0.4; } 60% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.1); } }
   .pm-node.s-here.arrived { animation: pmArrive 0.42s ease-out; }
   @media (prefers-reduced-motion: reduce) {
-    .pm-node.s-legal::after, .pm-node.s-here::after, .pm-node.s-here.arrived { animation: none; }
+    .pm-node.s-legal::after, .pm-node.s-here::after, .pm-node.s-here.arrived, .pm-node.myst-pop { animation: none; }
     .pm-node.s-legal::after, .pm-node.s-here::after { content: none; }
     .pm-node.s-legal::before { box-shadow: 0 0 0 3px rgba(224,151,60,0.75); }
     .pm-node.s-here::before { box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)); }
@@ -6363,7 +6384,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.43 · wins are double-booked, and back-to-back packs travel as one parcel";
+const APP_VERSION = "v4.44 · one in five stops won't say what it is until you knock";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7365,6 +7386,15 @@ const RunMap = (() => {
     phaseSuits: ["♦", "♣", "♠"],
     startSuit: "♥",
     startDeckSize: 13,            // 13 hearts pre-held at run start
+
+    // MYSTERY (?) nodes — Slay-the-Spire style: each eligible node has this
+    // chance to DISPLAY as a "?" until the player arrives at it. Purely
+    // cosmetic hiding: the node underneath generates completely normally
+    // (types, quotas, validation all untouched); the roll happens once, at
+    // generation, deterministically from (runSeed, node id) — so a resume's
+    // regeneration hides the exact same nodes. Bosses, home and pass points
+    // are always visible.
+    mysteryChance: 0.2,
 
     // Graph shape (per stage). Slay-the-Spire style: nodes sit on a 3-lane
     // grid; 5-6 random monotone PATHS are drawn bottom->top (row N -> row N+1,
@@ -8710,6 +8740,15 @@ const RunMap = (() => {
         n.phase = p;
         n.localRow = n.row;
         n.row = rowOffset + n.row;                      // GLOBAL row (stacked)
+        // MYSTERY roll (display-only): deterministic per (runSeed, global id)
+        // — independent of generation attempts/order, so extending the map
+        // (endless) or regenerating on resume hides the SAME nodes. Bosses
+        // never hide (home + pass points never enter this loop as rollable:
+        // home is added below; pass points are exempted here).
+        if (n.type !== "boss" && n.type !== "pass" && n.type !== "home") {
+          const mr = makeRng((seed >>> 0) ^ Math.imul(n.id + 1, 0x9e3779b1) ^ 0x6d797374);
+          if (mr() < GEN_CONFIG.mysteryChance) n.mystery = true;
+        }
         nodes.push(n);
         byId[n.id] = n;
       });
@@ -11361,6 +11400,7 @@ const CampaignState = (() => {
     let runMap = null;            // RunMap.generateRun(...) — the stages generated SO FAR (grows per stage)
     let nodePos = null;           // current node id, or null = at the run start (below ♦ row 0)
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
+    let revealedNodes = [];       // MYSTERY (?) node ids the player has arrived at (display-only)
     let runSeed = 0;              // seeds deterministic map generation
     // The REAL deck size entering each stage, captured the moment the stage is
     // generated (stage 0 at run start; stage p+1 when stage p's boss falls).
@@ -11490,7 +11530,7 @@ const CampaignState = (() => {
       const prc = RunMap.GEN_CONFIG.predictedRouteCards;
       stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
       runMap = RunMap.generateRun(runSeed, stageEntryDecks);
-      nodePos = null; clearedNodes = []; nodeCards = {};
+      nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {};
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
       // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
       // stale one is unreachable junk). Normal ranks never need this — they're
@@ -11820,6 +11860,17 @@ const CampaignState = (() => {
       },
       nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
       clearedNodeIds() { return clearedNodes.slice(); },
+      /** MYSTERY (?) nodes — display-only hiding rolled at generation.
+          nodeHidden: should the map still draw this node as a "?"? True only
+          while it's an un-arrived, un-cleared mystery. revealNode: the player
+          arrived — record it (persisted) so it stays face-up for the run. */
+      nodeHidden(id) {
+        const n = runMap && runMap.byId ? runMap.byId[id] : null;
+        return !!(n && n.mystery && nodePos !== id
+          && revealedNodes.indexOf(id) === -1 && clearedNodes.indexOf(id) === -1);
+      },
+      revealNode(id) { if (revealedNodes.indexOf(id) === -1) revealedNodes.push(id); },
+      revealedNodeIds() { return revealedNodes.slice(); },
       currentNode() { return (nodePos != null && runMap) ? runMap.byId[nodePos] : null; },
       /** DEBUG ONLY — jump the run state so node `id` becomes the next PLAYABLE
           node, exactly as if you'd legitimately travelled up to it: every node on
@@ -12871,6 +12922,8 @@ const CampaignState = (() => {
           stageEntryDecks: stageEntryDecks.slice(),   // per-stage entry deck sizes (map regen input)
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
+          revealedNodes: revealedNodes.slice(),   // mystery (?) nodes already revealed
+
           nodeCards: { ...nodeCards },   // single-card nodes' committed exact cards (shown == granted)
           currentStage, currentRunIndex,
           totalCorrectGuesses, runsCompleted,
@@ -12915,6 +12968,7 @@ const CampaignState = (() => {
         runSeed = (s.runSeed >>> 0) || generateSeed();
         ownedIds = Array.isArray(s.ownedIds) ? s.ownedIds.slice() : idsOfSuit(START_SUIT).slice();
         clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
+        revealedNodes = Array.isArray(s.revealedNodes) ? s.revealedNodes.slice() : [];   // pre-mystery saves: none revealed
         nodeCards = (s.nodeCards && typeof s.nodeCards === "object") ? { ...s.nodeCards } : {};
         nodePos = (s.nodePos != null) ? s.nodePos : null;
         // Per-stage entry decks: the map regenerates deterministically from
@@ -21205,7 +21259,9 @@ const UIRenderer = (() => {
   /* Worried when a reachable next node is a low-pile (hard) deal or the boss. */
   function avatarReachMood() {
     const legal = (campaign.legalNextNodes && campaign.legalNextNodes()) || [];
-    return legal.some(n => n.type === "boss" || (n.type === "deal" && n.piles != null && n.piles <= 4)) ? "worried" : null;
+    // A hidden mystery (?) deal must not leak through the character's worry.
+    return legal.some(n => !(campaign.nodeHidden && campaign.nodeHidden(n.id))
+      && (n.type === "boss" || (n.type === "deal" && n.piles != null && n.piles <= 4))) ? "worried" : null;
   }
   /* The current node's centre in .phase-map px (or the virtual start point). */
   function avatarXY() {
@@ -21409,9 +21465,14 @@ const UIRenderer = (() => {
       const state = cleared.has(n.id) ? "done" : (n.id === pos ? "here" : (legal.has(n.id) ? "legal" : "far"));
       const arrive = (state === "here" && mapArrive) ? " arrived" : "";
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
-      nodes += '<button type="button" class="pm-node t-' + n.type + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
-        ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + mapNodeLabel(n) + '">' +
-        mapNodeInner(n, suit, state) + '</button>';
+      // MYSTERY (?): an un-arrived mystery node hides its true face — a
+      // face-down "?" card in place of the real art (deals hide their
+      // difficulty chip too, since the whole cluster is replaced).
+      const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
+      nodes += '<button type="button" class="pm-node t-' + (hidden ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
+        ' data-nid="' + n.id + '"' +
+        ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — revealed when you arrive" : mapNodeLabel(n)) + '">' +
+        (hidden ? '<span class="mn-myst">?</span>' : mapNodeInner(n, suit, state)) + '</button>';
     });
     // HOME / origin node: a distinct non-interactive base where the run begins
     // (the 13-heart start). The marker starts here; it's dimmed once you set out.
@@ -21678,8 +21739,12 @@ const UIRenderer = (() => {
     // stopping — cleared as travelled-over, then the marker rides each trail
     // edge in sequence so the motion follows the drawn curves.
     const glide = passPathTo(fromId, id);
+    // MYSTERY (?): capture whether the target was still hidden BEFORE the
+    // move, then record the reveal — the map re-renders face-up on arrival.
+    const wasHidden = campaign.nodeHidden && campaign.nodeHidden(id);
     const node = campaign.moveToNode(id);  // traversal logic unchanged
     if (!node) return;
+    if (wasHidden) campaign.revealNode(id);
     glide.forEach(pid => campaign.markNodeCleared(pid));
     mapArrive = true;   // the marker just travelled here → play the arrival pop on the next render
     const map = campaign.getMap();
@@ -21688,13 +21753,32 @@ const UIRenderer = (() => {
       .concat([{ id, xy: map ? mapNodeXY(node, R) : null }]);
     let idx = 0, curId = fromId, curXY = fromXY;
     const travelNext = () => {
-      if (idx >= legs.length) { finishResolveNode(node, id); return; }
+      if (idx >= legs.length) {
+        // The marker has ARRIVED. A mystery gets its reveal moment first —
+        // the "?" flips into the true node — then the node plays as normal.
+        if (wasHidden) playMysteryReveal(id, () => finishResolveNode(node, id));
+        else finishResolveNode(node, id);
+        return;
+      }
       const leg = legs[idx++];
       const pId = curId, pXY = curXY;
       curId = leg.id; curXY = leg.xy;
       avatarTravelTo(pXY, leg.xy, travelNext, pId, leg.id);
     };
     travelNext();
+  }
+  /* MYSTERY REVEAL moment: the reveal is already recorded (campaign.revealNode),
+     so a re-render draws the node's true face — pop it with a flip-in and hold
+     a beat so the surprise reads before the node opens/plays. Reduced motion:
+     the face just swaps, no pop, no hold. */
+  function playMysteryReveal(id, cb) {
+    mapArrive = false;   // the flip IS the arrival pop — skip the generic one (it would override the animation)
+    renderProgressionMap();
+    Sound.pack();
+    if (prefersReduce()) { cb(); return; }
+    const btn = el.mapTrack.querySelector('.pm-node[data-nid="' + id + '"]');
+    if (btn) { btn.classList.add("myst-pop"); }
+    setTimeout(cb, 720);
   }
   function finishResolveNode(node, id) {
     if (node.type === "pickup") {
