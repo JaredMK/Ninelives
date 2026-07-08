@@ -4662,6 +4662,14 @@
     border: 1px solid #93304c; box-shadow: 0 2px 6px rgba(120,45,70,0.3); }
   .mn-pack .mpk-badge i { font-style: normal; }
 
+  /* PASS point — a corridor slot freed by the pack-chain merge: a minimal
+     trail dot the marker glides past. Never interactive. */
+  .pm-node.t-pass { pointer-events: none; }
+  .mn-pass { display: block; width: 11px; height: 11px; border-radius: 50%;
+    background: rgba(178, 58, 92, 0.4);
+    box-shadow: 0 0 0 3px rgba(178, 58, 92, 0.14); }
+  .pm-node.t-pass.s-done .mn-pass { background: rgba(178, 58, 92, 0.24); box-shadow: none; }
+
   /* STORE — a little SHOP STALL: striped triangular awning over a rectangular
      stall body with a doorway, in the rose/dark palette. */
   .mn-shop { position: relative; display: block; width: 44px; height: 40px;
@@ -6355,7 +6363,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.42 · the crew dresses for the climb and the two of diamonds gets its due";
+const APP_VERSION = "v4.43 · wins are double-booked, and back-to-back packs travel as one parcel";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8292,6 +8300,39 @@ const RunMap = (() => {
      trying. Capped attempts; on non-convergence, log the FAILURE HISTOGRAM
      (which constraint failed most — the weight-tuning signal) and return the
      best effort (playable). Each returned phase carries `_gen`. */
+  /* ── FORCED PACK-CHAIN MERGE (map generation post-pass) ──
+     If pack node A's ONLY edge leads to pack node B and A is B's ONLY parent
+     (a corridor — the player at A has no other path choice), the packs MERGE:
+     A's count grows by B's and B becomes a PASS-THROUGH point (type "pass"),
+     kept in the graph with its edges intact so every route/validation still
+     holds, but granting nothing — the marker glides straight past it. Chains
+     longer than two collapse fully into the first node. Only packs merge;
+     deals / stores / pickups / bosses are never touched. Route deck-growth is
+     preserved exactly: every route through A necessarily crossed B, so its
+     card total is unchanged — just granted in one stop. Deterministic (no
+     rng), so a resume's regeneration merges identically. */
+  function mergeForcedPackChains(ph) {
+    if (!ph || !ph.nodes || !ph.byId) return ph;
+    const parents = {};
+    ph.nodes.forEach(n => (n.next || []).forEach(id => { (parents[id] = parents[id] || []).push(n.id); }));
+    for (const a of ph.nodes) {
+      if (a.type !== "pack") continue;
+      let cur = a;
+      while (cur.next && cur.next.length === 1) {
+        const b = ph.byId[cur.next[0]];
+        if (!b) break;
+        if (b.type === "pass") { cur = b; continue; }   // glide over already-freed links
+        if (b.type !== "pack" || (parents[b.id] || []).length !== 1) break;
+        a.packCount = (a.packCount || 2) + (b.packCount || 2);
+        a.add = a.packCount;
+        b.type = "pass";
+        delete b.packCount; delete b.add; delete b.mixed;
+        cur = b;
+      }
+    }
+    return ph;
+  }
+
   function generateStage(phaseIndex, seed, entryDeck) {
     const C = GEN_CONFIG;
     entryDeck = entryDeck || C.startDeckSize;
@@ -8302,6 +8343,7 @@ const RunMap = (() => {
       const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
       const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax);
       if (!ph) { hist["build-null"] = (hist["build-null"] || 0) + 1; continue; }
+      mergeForcedPackChains(ph);   // forced pack corridors collapse BEFORE validation
       const bandX = relax * C.relaxBandStep;
       const v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
       ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
@@ -8620,6 +8662,7 @@ const RunMap = (() => {
   function buildPhase(phaseIndex, seed, entryDeck) {
     if (AUTHORED[phaseIndex]) {
       const ph = definitionToPhase(AUTHORED[phaseIndex], phaseIndex);
+      mergeForcedPackChains(ph);   // authored maps get the same corridor collapse
       const v = validateStage(ph, entryDeck || GEN_CONFIG.startDeckSize, { phaseIndex });
       if (!v.ok) console.warn("[RunMap] authored stage " + phaseIndex + " violates the map spec: " + v.errors.join(" | "));
       return ph;
@@ -8719,7 +8762,7 @@ const RunMap = (() => {
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
            generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
-           bandsFor, setDifficultyTier, getDifficultyTier,
+           bandsFor, setDifficultyTier, getDifficultyTier, mergeForcedPackChains,
            SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
 
@@ -11737,7 +11780,21 @@ const CampaignState = (() => {
         if (!runMap) return [];
         const cleared = new Set(clearedNodes);
         const ids = (nodePos == null) ? runMap.row0 : ((runMap.byId[nodePos] || {}).next || []);
-        return ids.map(id => runMap.byId[id]).filter(n => n && !cleared.has(n.id));
+        // PASS points (freed by the pack-chain merge) are never destinations:
+        // they expand transitively to whatever lies beyond them — the player
+        // taps the node past the corridor and the marker glides through.
+        const out = [], seen = new Set();
+        const expand = (list) => {
+          for (const id of list) {
+            const n = runMap.byId[id];
+            if (!n || seen.has(id)) continue;
+            seen.add(id);
+            if (n.type === "pass") expand(n.next || []);
+            else if (!cleared.has(n.id)) out.push(n);
+          }
+        };
+        expand(ids);
+        return out;
       },
       /** Move onto a node. Also syncs `phaseIndex` to the node's phase, so suit
           gating + the deck draft pool follow the run as it crosses phase bosses. */
@@ -13006,6 +13063,11 @@ const Stats = (() => {
     lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
     bestEndless: 0,   // deepest ENDLESS stage ever entered (0 = never went endless)
+    // LIFETIME per-deck/tier win log: { "lammy.master": true, ... } — a second,
+    // independent record of every campaign win (deck + tier). DeckUnlocks
+    // grants retroactively from it on load, so tier unlocks can always be
+    // rebuilt even if the deckwins store was lost or a win was mis-recorded.
+    deckTierWins: {},
   };
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
   function get() {
@@ -13029,6 +13091,14 @@ const Stats = (() => {
       s.lifetimeDopamine += Math.max(0, dopamine || 0);
       s.bestRunDopamine = Math.max(s.bestRunDopamine, dopamine || 0);
       if (rank(stage, run) > rank(s.furthestStage, s.furthestRun)) { s.furthestStage = stage; s.furthestRun = run; }
+      put(s);
+    },
+    /** LIFETIME record of a campaign win with `deckId` at `tier` (see DEF). */
+    recordDeckWin(deckId, tier) {
+      if (!deckId) return;
+      const s = get();
+      s.deckTierWins = s.deckTierWins || {};
+      s.deckTierWins[deckId + "." + (tier || "regular")] = true;
       put(s);
     },
     /** A campaign ended. `won` = cleared all runs. */
@@ -13101,16 +13171,39 @@ const DeckUnlocks = (() => {
       const key = (!tier || tier === "regular") ? deckId : deckId + "." + tier;
       return !!get()[key];
     },
-    /** One-time migration for pre-tracking wins (see the header comment). */
-    grantRetroactive(campaignsWon) {
+    /** Load-time repair + migration. Three passes:
+        1. LEGACY: a lifetime win recorded before deck tracking existed could
+           only be Pinky's — credit it once (empty store only).
+        2. STATS MERGE: every win in the lifetime per-deck/tier log (Stats.
+           deckTierWins) re-grants its unlock key — so a Master win recorded
+           anywhere unlocks that deck's Legendary even if this store lost it.
+        3. DOWNWARD COMPLETION: "deck.legendary" implies "deck.master" implies
+           the base "deck" key — partial data heals itself. */
+    grantRetroactive(stats) {
       const w = get();
-      if ((campaignsWon || 0) > 0 && Object.keys(w).length === 0) { w.pink = true; put(w); }
+      let dirty = false;
+      const campaignsWon = (stats && stats.campaignsWon) || 0;
+      if (campaignsWon > 0 && Object.keys(w).length === 0) { w.pink = true; dirty = true; }
+      const log = (stats && stats.deckTierWins) || {};
+      for (const key in log) if (log[key] && !w[key.replace(/\.regular$/, "")]) {
+        w[key.replace(/\.regular$/, "")] = true; dirty = true;
+      }
+      for (const key in w) {
+        const m = /^([a-z]+)\.legendary$/.exec(key);
+        const k2 = m && m[1] + ".master";
+        if (m && !w[k2]) { w[k2] = true; dirty = true; }
+      }
+      for (const key in w) {
+        const m = /^([a-z]+)\.(master|legendary)$/.exec(key);
+        if (m && !w[m[1]]) { w[m[1]] = true; dirty = true; }
+      }
+      if (dirty) put(w);
     },
   };
 })();
 // Retroactive grant runs at load: an already-recorded lifetime win (from
 // before deck tracking) unlocks Pinky's successor immediately.
-DeckUnlocks.grantRetroactive(Stats.get().campaignsWon);
+DeckUnlocks.grantRetroactive(Stats.get());
 
 /* ----------------------------------------------------------------
    Sound — tiny WebAudio cues for key actions. Subtle, synthesized (no
@@ -20644,6 +20737,7 @@ const UIRenderer = (() => {
       // TERMINATES (main menu from home, or an endless death) — session-only,
       // so a retroactive/load-time grant can never fire it.
       const wonTier = campaign.getTier ? campaign.getTier() : "regular";
+      Stats.recordDeckWin(selectedDeckId, wonTier);   // lifetime log — feeds the load-time retroactive grant
       if (DeckUnlocks.recordWin(selectedDeckId, wonTier) && wonTier === "regular") {
         const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
         pendingUnlockCelebration = DECKS[wonIdx + 1] || null;   // the last deck unlocks nothing
@@ -21042,6 +21136,9 @@ const UIRenderer = (() => {
     return '<span class="mn-cardback"></span>';
   }
   function mapNodeInner(n, suit, state) {
+    // PASS point (freed by the pack-chain merge): a minimal trail dot the
+    // marker glides past — no stop, no content, no interaction.
+    if (n.type === "pass") return '<span class="mn-pass"></span>';
     if (n.type === "boss") return mapDealCluster(n, true);
     if (n.type === "deal") return mapDealCluster(n, false);
     if (n.type === "store") return mapShopStall();
@@ -21051,6 +21148,7 @@ const UIRenderer = (() => {
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
+    if (n.type === "pass") return "The trail passes through";
     if (n.type === "boss") return "BOSS — full deck · difficulty " + RunMap.difficultyScore(n.targetD, n.phase, true) + "/3 (this stage)";
     if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 (this stage)";
     if (n.type === "store") return "Shop";
@@ -21553,19 +21651,50 @@ const UIRenderer = (() => {
      re-render the map; a Store node opens the shop (closing returns to the map);
      a Deal/Boss node launches the deal. The boss is the chokepoint at the top of
      each phase. */
+  /* The chain of PASS points between the current position and `targetId`, or
+     [] when the target is a direct edge. Pass chains are corridors, so the
+     walk is linear: follow single-next pass links until the target appears. */
+  function passPathTo(fromId, targetId) {
+    const map = campaign.getMap(); if (!map) return [];
+    const startIds = (fromId == null) ? map.row0 : ((map.byId[fromId] || {}).next || []);
+    if (startIds.indexOf(targetId) !== -1) return [];
+    for (const pid of startIds) {
+      const path = [];
+      let cur = map.byId[pid];
+      while (cur && cur.type === "pass") {
+        path.push(cur.id);
+        if ((cur.next || []).indexOf(targetId) !== -1) return path;
+        cur = (cur.next && cur.next.length === 1) ? map.byId[cur.next[0]] : null;
+      }
+    }
+    return [];
+  }
   function resolveMapNode(id) {
     const target = campaign.getNode(id);
     if (!target) return;
     const fromId = campaign.nodePos();     // node we're leaving (null at the start)
     const fromXY = avatarXY();             // current position BEFORE the move
+    // GLIDE: any pass points between here and the target are crossed without
+    // stopping — cleared as travelled-over, then the marker rides each trail
+    // edge in sequence so the motion follows the drawn curves.
+    const glide = passPathTo(fromId, id);
     const node = campaign.moveToNode(id);  // traversal logic unchanged
     if (!node) return;
+    glide.forEach(pid => campaign.markNodeCleared(pid));
     mapArrive = true;   // the marker just travelled here → play the arrival pop on the next render
     const map = campaign.getMap();
-    const toXY = map ? mapNodeXY(node, map.totalRows) : null;
-    // Avatar travels the trail edge (same routed curve) to the chosen node, THEN
-    // the node resolves (instant if reduced motion). Timing only — no logic moved.
-    avatarTravelTo(fromXY, toXY, () => finishResolveNode(node, id), fromId, id);
+    const R = map ? map.totalRows : 1;
+    const legs = glide.map(pid => ({ id: pid, xy: mapNodeXY(map.byId[pid], R) }))
+      .concat([{ id, xy: map ? mapNodeXY(node, R) : null }]);
+    let idx = 0, curId = fromId, curXY = fromXY;
+    const travelNext = () => {
+      if (idx >= legs.length) { finishResolveNode(node, id); return; }
+      const leg = legs[idx++];
+      const pId = curId, pXY = curXY;
+      curId = leg.id; curXY = leg.xy;
+      avatarTravelTo(pXY, leg.xy, travelNext, pId, leg.id);
+    };
+    travelNext();
   }
   function finishResolveNode(node, id) {
     if (node.type === "pickup") {
