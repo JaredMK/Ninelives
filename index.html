@@ -1771,6 +1771,12 @@
   .menu-screen > * { position: relative; z-index: 1; }
 
   /* ---- DECK SELECT carousel (new-run deck picker) ---- */
+  /* NO ambient glow here: the menu glow's top-30% focal spot (behind the
+     LOGO on the main menu) lands squarely behind the carousel character on
+     this layout, where its slow 9s pulse reads as a faint halo appearing
+     around the body right after the perk bounce. The characters rest on
+     plain felt with only their own drop-shadow. */
+  #deckSelect::before { content: none; }
   #deckSelect { gap: clamp(10px, 2.4vh, 18px); padding: 20px 0; }
   .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 24px; color: var(--text); letter-spacing: 0.3px; }
   .ds-hint { font-size: 12px; color: var(--muted); margin-top: -6px; }
@@ -6211,7 +6217,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.35 · Lammy dries off — the drip that read as a smudge is gone";
+const APP_VERSION = "v4.36 · the deck-select spotlight stands down — no more halo behind Pinky";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
