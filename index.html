@@ -3614,7 +3614,9 @@
     box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(255,255,255,0.85),
                 0 3px 6px rgba(70,44,40,0.40);
     transform: rotate(var(--dcs-rot));
-    overflow: hidden;
+    /* visible: the count pill (.dcs-n) and the suit-restriction badge
+       (.dcs-suits) both ride the OUTER rim — they must not be clipped. */
+    overflow: visible;
   }
   .dcs-gloss {
     position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
@@ -3631,6 +3633,26 @@
     font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
     transform: rotate(calc(var(--dcs-rot) * -1)); z-index: 2;
   }
+
+  /* Suit-restriction badge — tiny white pips riding the chip's BOTTOM rim,
+     one per allowed suit (from items.js `suits`; unrestricted = no badge).
+     Counter-rotated so the symbols stay upright on a tilted chip; em-free
+     size math with px floors keeps them legible on the smallest chips. */
+  .dcs-suits {
+    position: absolute; left: 50%; bottom: calc(var(--dcs-size) * -0.11);
+    transform: translateX(-50%) rotate(calc(var(--dcs-rot) * -1));
+    display: inline-flex; gap: 1px; z-index: 2; pointer-events: none;
+  }
+  .dcs-suits i {
+    font-style: normal; display: inline-flex; align-items: center; justify-content: center;
+    width: max(10px, calc(var(--dcs-size) * 0.34));
+    height: max(10px, calc(var(--dcs-size) * 0.34));
+    border-radius: 999px; background: #fff;
+    box-shadow: 0 1px 2px rgba(70, 44, 40, 0.35);
+    font-size: max(8px, calc(var(--dcs-size) * 0.26)); line-height: 1; font-weight: 800;
+  }
+  .dcs-suits i.red { color: var(--card-red, #c8506e); }
+  .dcs-suits i.blk { color: #2a2a33; }
 
   /* On-card sticker badges: ONE uniform fixed size for every sticker. */
   .pile-badges .dcs {
@@ -6255,7 +6277,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.40 · four suits learn to sing together and the help lets go on release";
+const APP_VERSION = "v4.41 · every choosy sticker wears its suits on the rim";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6660,11 +6682,19 @@ function dieCutChip(iconHtml, tier, opts) {
   const face = opts.face || STICKER_FACE.util;
   const edge = STICKER_EDGE[tier] || STICKER_EDGE.common;
   const rot = (opts.rot != null ? opts.rot : 0);
+  // Suit-restriction badge: the allowed suit symbol(s) riding the chip's
+  // BOTTOM rim (opts.suits ← the sticker's items.js `suits` field, so any
+  // future restriction gets its badge with no code change). None = no badge.
+  const suits = Array.isArray(opts.suits) && opts.suits.length
+    ? '<span class="dcs-suits">' + opts.suits.map(s =>
+        '<i class="' + (s === "♥" || s === "♦" ? "red" : "blk") + '">' + s + "</i>").join("") + "</span>"
+    : "";
   return '<span class="dcs' + (opts.cls ? " " + opts.cls : "") +
     '" style="--dcs-face:' + face + ';--dcs-edge:' + edge + ';--dcs-rot:' + rot + 'deg">' +
     '<span class="dcs-gloss"></span>' +
     '<span class="dcs-ic">' + (iconHtml || "") + "</span>" +
     (opts.count != null ? '<span class="dcs-n">' + opts.count + "</span>" : "") +
+    suits +
     "</span>";
 }
 /* Convenience: a die-cut chip straight from a sticker type id — fills in the
@@ -6676,6 +6706,7 @@ function stickerChip(typeId, opts) {
   return dieCutChip(t.icon, t.tier, Object.assign({}, opts, {
     face: stickerFaceColor(t),
     rot: opts.rot != null ? opts.rot : dcsRot(typeId + "|" + (opts.seed || "")),
+    suits: t.suits,   // items.js restriction → bottom-rim suit badge(s)
   }));
 }
 
