@@ -6384,7 +6384,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.44 · one in five stops won't say what it is until you knock";
+const APP_VERSION = "v4.45 · the house counts its jesters — two, one, none as the stakes rise";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6925,6 +6925,8 @@ const DifficultyData = (() => {
     const bad = (msg) => problems.push("[difficulty.js] tiers." + id + ": " + msg);
     if (!t || typeof t !== "object") { bad("missing tier entry"); continue; }
     if (typeof t.label !== "string" || !t.label) bad("missing/invalid `label` (string)");
+    if (typeof t.jokerCap !== "number" || !isFinite(t.jokerCap) || t.jokerCap < 0 || Math.floor(t.jokerCap) !== t.jokerCap)
+      bad("missing/invalid `jokerCap` (integer ≥ 0 — max Jokers a run may gain on this tier)");
     for (const key of ["stageBands", "bossBands"]) {
       const b = t[key];
       if (!Array.isArray(b) || b.length !== 3) { bad("`" + key + "` must be an array of exactly 3 [lo, hi] pairs"); continue; }
@@ -10724,9 +10726,8 @@ const GameEngine = (() => {
           // the board size hook off run.colStreak, so nothing is paid here; we just
           // pulse the column when the streak crosses the 3rd step.
           if (pillar && pillar.effect === "streakSize" && s === itemNum(pillar, "threshold", 3)) { firePillar(col, "streakSize", pillar.label, 0); }
-          // Streak Bury: from the 3rd correct in a row, bury a FLAT `digCount`
-          // (1) per correct guess — streak 3 → 1, streak 4 → 1 more, … (no
-          // escalation; was (streak − 2) per guess).
+          // Streak Bury: from the `threshold`-th correct in a row (registry:
+          // 4th), bury a FLAT `digCount` (1) per correct guess — no escalation.
           if (pillar && pillar.effect === "streakTribute" && s >= itemNum(pillar, "threshold", 3)) { const nb = buryTribute(index, itemNum(pillar, "digCount", 1), pillar.label); firePillar(col, "streakTribute", pillar.label, 0); if (nb > 0) recT("pillar", pillar.id, pillar.label, { buried: nb }); }
         } else {
           run.colStreak[col] = 0;
@@ -11538,6 +11539,7 @@ const CampaignState = (() => {
       const own = new Set(ownedIds);
       baseDeck = baseDeck.filter(c => !(c.joker || c.blank) || own.has(c.id));
       lockAllPickupCards();
+      ensureGuaranteedJoker();   // cap ≥ 1 tiers always meet one standalone map Joker
     }
     /** ENDLESS growth: push the REAL deck size as the next stage's entry and
         regenerate the run — the new stage stacks above everything, home
@@ -11629,9 +11631,43 @@ const CampaignState = (() => {
         the roll to exercise both the normal-card and the special contracts. */
     let mapSpecialRoll = null;   // null = production rule; fn() → true|false|null
     function rollMapSpecial(rng) {
-      if (mapSpecialRoll) return mapSpecialRoll();
-      if (rng() < SPECIAL_CHANCE) return rng() < 0.5;
+      if (mapSpecialRoll) return mapSpecialRoll();   // test hook: unfiltered (tests pin exact outcomes)
+      if (rng() < SPECIAL_CHANCE) {
+        const joker = rng() < 0.5;
+        // JOKER CAP (difficulty.js jokerCap): at the tier's budget the joker
+        // half of the special roll falls back to a NORMAL card — Blanks keep
+        // their own half unchanged.
+        return (joker && !jokersAllowed()) ? null : joker;
+      }
       return null;
+    }
+    /** JOKER BUDGET (per-tier cap, difficulty.js `jokerCap`): how many Jokers
+        this run has already spoken for — owned minted Jokers + Jokers locked
+        face-up on not-yet-taken map cards + Jokers waiting in the pack tray.
+        Counting the committed-but-untaken ones means the map can never
+        promise more Jokers than the cap allows. */
+    function jokerCapFor() { const t = DifficultyData.tier(difficultyTier); return (t && typeof t.jokerCap === "number") ? t.jokerCap : 2; }
+    function jokersCommitted() {
+      let n = 0;
+      for (const id of ownedIds) { const c = findById(id); if (c && c.joker) n++; }
+      for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER && clearedNodes.indexOf(Number(k)) === -1) n++;
+      for (const c of packTray) if (c && c.joker) n++;
+      return n;
+    }
+    function jokersAllowed() { return jokersCommitted() < jokerCapFor(); }
+    /** GUARANTEED MAP JOKER (tiers with cap ≥ 1): if no +1 node locked a Joker
+        naturally, re-lock one deterministic pickup (seeded by runSeed) to the
+        Joker sentinel — every Regular/Master run meets at least one standalone
+        Joker card on the trail. Runs once, at run start, AFTER the normal
+        lock pass (idempotent: any locked-or-taken Joker satisfies it). */
+    function ensureGuaranteedJoker() {
+      if (!runMap || jokerCapFor() < 1) return;
+      for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER) return;   // already promised (or taken)
+      const pickups = runMap.nodes.filter(n => n.type === "pickup");
+      if (!pickups.length) return;
+      const rng = makeRng((runSeed >>> 0) ^ 0x4a4f4b52);   // "JOKR"
+      const n = pickups[Math.floor(rng() * pickups.length)];
+      nodeCards[n.id] = SPECIAL_JOKER;
     }
     // +1 nodes LOCK a special as a sentinel ("J"/"B") in nodeCards — nothing is
     // minted into baseDeck until the special is actually GRANTED, so display-only
@@ -11974,6 +12010,10 @@ const CampaignState = (() => {
           () => null (never special), () => true (always Joker), () => false
           (always Blank), or null to restore the production rule. */
       _setMapSpecialRoll(fn) { mapSpecialRoll = fn || null; },
+      /** JOKER BUDGET (difficulty.js jokerCap): cap for this tier, Jokers
+          already spoken for (owned + locked-on-map untaken + pack tray), and
+          whether another may still appear. */
+      jokerBudget() { return { cap: jokerCapFor(), committed: jokersCommitted(), allowed: jokersAllowed() }; },
       /** Advance to the next phase. On the CONTINUOUS map this no longer
           regenerates anything — the player simply crosses a phase-boss edge into
           the next phase's openings (moveToNode syncs phaseIndex). Kept as a
@@ -12699,9 +12739,12 @@ const CampaignState = (() => {
         // P(special) = 1/53 per slot, then a 50/50 Joker or Blank.
         if (rng() < SPECIAL_CHANCE) {
           const isJoker = rng() < 0.5;
-          return isJoker
-            ? { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 }
-            : { id: nextCardId++, blank: true, suit: "∅", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+          // JOKER CAP: at the tier's budget a joker roll falls through to a
+          // normal card (Blanks keep their half — only Jokers are capped).
+          if (isJoker && jokersAllowed())
+            return { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+          if (!isJoker)
+            return { id: nextCardId++, blank: true, suit: "∅", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
         }
         const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
         const suit = suits[Math.floor(rng() * suits.length)];
@@ -13036,6 +13079,7 @@ const CampaignState = (() => {
         nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
           ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
         lockAllPickupCards();   // re-lock any +1 node missing a card (old saves) — committed ones are kept
+        ensureGuaranteedJoker();   // pre-cap saves gain the guaranteed map Joker too (no-op if one exists)
         // Progression-map fossils (default [] for saves written before the map).
         runFossils = Array.isArray(s.runFossils)
           ? s.runFossils

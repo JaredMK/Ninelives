@@ -68,8 +68,10 @@ export function run() {
       const { camp: pk } = fresh(null);
       pk._setMapSpecialRoll(() => null); pk.reset();
       const pkSuits = new Set();
+      // (specials excluded like the Mamma sweep above — the per-tier GUARANTEED
+      // map Joker may re-lock any one pickup, Pinky's included)
       pk.getMap().nodes.filter(n => n.type === "pickup" && n.phase === 0)
-        .forEach(n => { const c = pk.nodeCard(n); if (c && c.suit) pkSuits.add(c.suit); });
+        .forEach(n => { const c = pk.nodeCard(n); if (c && c.suit && !c.joker && !c.blank) pkSuits.add(c.suit); });
       r.ok([...pkSuits].every(s => s === "♦"), "Pinky's stage-1 pickups stay all-♦ (unchanged)");
     }
     camp._setMapSpecialRoll(null);
