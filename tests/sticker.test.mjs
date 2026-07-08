@@ -39,9 +39,12 @@ export function run() {
   const sixId = byRank(6);
   r.ok(c.applySticker(sixId, "tieSafe"), "first Tie-Safe applies");
   r.ok(c.applySticker(sixId, "tieSafe"), "duplicate Tie-Safe now allowed");
-  const sevenId = byRank(7);
-  r.ok(c.applySticker(sevenId, "extraCoin"), "first Extra Coin applies");
-  r.ok(c.applySticker(sevenId, "extraCoin"), "duplicate Extra Coin now allowed");
+  // Pick a card ELIGIBLE for Extra Coin (items.js may suit-restrict it —
+  // it currently ships ♥-only) — this test is about duplicates, not suits.
+  const ecCard = c.getCards().find(x => c.canApplySticker(x, "extraCoin"));
+  r.ok(ecCard, "a card eligible for Extra Coin exists");
+  r.ok(c.applySticker(ecCard.id, "extraCoin"), "first Extra Coin applies");
+  r.ok(c.applySticker(ecCard.id, "extraCoin"), "duplicate Extra Coin now allowed");
 
   // Stacked rank stickers clamp at the Ace boundary (can't exceed it).
   const queenId = byRank(12);                 // Q (12)

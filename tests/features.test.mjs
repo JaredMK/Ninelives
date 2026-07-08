@@ -46,19 +46,22 @@ export function run() {
     r.eq(bad.join(",") || "none", "none", "every sticker & Pillar has a valid rarity tier");
   }
 
-  // --- New registry entries + their prices ------------------------------
+  // --- New registry entries: SEMANTIC knobs pinned (they define the item),
+  //     TUNING knobs (price / value / coinCost) checked for shape only —
+  //     those are hand-edited in items.js and must stay free to change. ----
   {
+    const num = (t, k, name) => r.ok(typeof StickerTypes.get(t)[k] === "number" && StickerTypes.get(t)[k] > 0, name + " is a positive number (items.js knob; currently " + StickerTypes.get(t)[k] + ")");
     r.eq(StickerTypes.get("rankUp2").rankDelta, +2, "+2 Rank delta");
     r.eq(StickerTypes.get("rankDown2").rankDelta, -2, "−2 Rank delta");
-    r.eq(StickerTypes.get("rankUp2").price, 2, "+2 Rank price 2");
-    r.eq(StickerTypes.get("randomFixedValue").price, 1, "Random Rank price 1");
-    r.eq(StickerTypes.get("suitImmunity").price, 3, "Spade Guard price 3");
-    r.eq(StickerTypes.get("middleColumnReward").value, 3, "Middle Reward pays 3");
-    r.eq(StickerTypes.get("gainCoin").value, 1, "Lucky Coin pays 1");
-    r.eq(StickerTypes.get("oneTribute").price, 10, "Bury 1 price 10");
-    r.eq(StickerTypes.get("twoTribute").price, 16, "Bury 2 price 16");
-    r.eq(StickerTypes.get("twoTribute").coinCost, 4, "Bury 2 costs 4 bonus coins");
-    r.eq(StickerTypes.get("centerTribute").price, 4, "Middle Bury price 4");
+    num("rankUp2", "price", "+2 Rank price");
+    num("randomFixedValue", "price", "Random Rank price");
+    num("suitImmunity", "price", "Spade Guard price");
+    num("middleColumnReward", "value", "Middle Reward payout");
+    num("gainCoin", "value", "Lucky Coin payout");
+    num("oneTribute", "price", "Bury 1 price");
+    num("twoTribute", "price", "Bury 2 price");
+    num("twoTribute", "coinCost", "Bury 2 bonus-coin cost");
+    num("centerTribute", "price", "Middle Bury price");
     r.ok(StickerTypes.get("centerTribute").centerOnly === true, "Center Tribute is middle-column only");
     r.eq(PillarTypes.get("allHeartsCoin").price, 8, "All Hearts price 8");
     r.eq(PillarTypes.get("allHeartsCoin").value, 8, "All Hearts pays 8");
@@ -198,26 +201,41 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 1, "Lucky Coin pays +1 when the card lands and survives");
   }
 
-  // --- Middle Reward: +2 only in the middle column ----------------------
+  // --- Middle Reward: pays its items.js `value` only in the middle column --
   {
+    const mid = StickerTypes.get("middleColumnReward").value ?? 3;
     const e = GameEngine.create(specsWith("middleColumnReward"), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
     landHigher(e, 3);   // pile 3 is the middle column (col 1)
-    r.eq(e.getRun().bonusCoins, 3, "Middle Reward pays +3 landing in the middle column");
+    r.eq(e.getRun().bonusCoins, mid, "Middle Reward pays +" + mid + " landing in the middle column");
     landHigher(e, 0);   // pile 0 is column 0 (not middle)
-    r.eq(e.getRun().bonusCoins, 3, "no reward landing outside the middle column");
+    r.eq(e.getRun().bonusCoins, mid, "no reward landing outside the middle column");
   }
 
-  // --- Tribute I sticker: bury 1 + cost 1 bonus coin --------------------
+  // --- Tribute I sticker (Bury 1): the coinCost knob picks its MODE -------
+  //     coinCost set  → PAID bury: queue an offer, bury + charge on accept.
+  //     coinCost 0/absent → FREE bury: fires automatically, no prompt.
+  //     Read live from items.js so hand-tuning the knob keeps this green.
   {
+    const t = StickerTypes.get("oneTribute");
     const e = GameEngine.create(specsWith("oneTribute"), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
     const len0 = e.getBoard().piles[0].cards.length;     // 1 (deal)
     const deck0 = e.getDeck().remaining();
     landHigher(e, 0);
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "Tribute I: pile gains the drawn card + 1 buried");
-    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
-    r.eq(e.getRun().bonusCoins, 0, "Tribute I (Bury 1) is now free");
+    if (t.coinCost) {
+      r.eq(e.getBoard().piles[0].cards.length, len0 + 1, "paid Bury 1: nothing buried before the offer is answered");
+      const offer = e.pendingTribute();
+      r.ok(offer && offer.cost === t.coinCost, "a paid-bury offer is queued at the items.js cost (" + t.coinCost + ")");
+      e.answerTribute(true);
+      r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "accepting buries 1 onto the pile");
+      r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
+      r.eq(e.getRun().bonusCoins, -t.coinCost, "the accept charges the bury cost");
+    } else {
+      r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "free Bury 1: pile gains the drawn card + 1 buried");
+      r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
+      r.eq(e.getRun().bonusCoins, 0, "free Bury 1 charges nothing");
+    }
   }
 
   // --- Center Tribute sticker: only fires in the middle column ----------

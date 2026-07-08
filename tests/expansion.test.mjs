@@ -195,7 +195,9 @@ export function run() {
     r.eq(b.pileSize(0), 3, "two Heavies on one card → counts as 3");
   }
 
-  // --- Collector: pays +1 per OTHER sticker the moment its card LANDS -----
+  // --- Collector: pays `value` coins per OTHER sticker when its card LANDS
+  //     (per-sticker rate read live from items.js — a hand-tunable knob) -----
+  const COLLECT_PER = StickerTypes.get("collector").value ?? 1;
   {
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
@@ -203,7 +205,7 @@ export function run() {
     const d = e.debug.setNextCard(9);
     d.stickers = [{ type: "collector" }, { type: "rankUp" }, { type: "tieSafe" }];
     e.guess(0, "higher");   // lands on a surviving pile
-    r.eq(e.getRun().bonusCoins, 2, "Collector pays +1 per other sticker on landing (2 others → +2)");
+    r.eq(e.getRun().bonusCoins, 2 * COLLECT_PER, "Collector pays per other sticker on landing (2 others → +" + 2 * COLLECT_PER + ")");
   }
   {
     const e = GameEngine.create(deck(), 9);
@@ -223,14 +225,14 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "Collector pays nothing when its card doesn't land (wrong guess)");
   }
   {
-    // Stacked Collectors pay per instance: 2 collectors + 1 other → 2 × (3−1) = 4.
+    // Stacked Collectors pay per instance: 2 collectors × 2 other stickers each.
     const e = GameEngine.create(deck(), 9);
     e.start(); e.startRun();
     e.getBoard().top(0).value = 5;
     const d = e.debug.setNextCard(9);
     d.stickers = [{ type: "collector" }, { type: "collector" }, { type: "rankUp" }];
     e.guess(0, "higher");
-    r.eq(e.getRun().bonusCoins, 4, "two Collectors each count the other two stickers → +4");
+    r.eq(e.getRun().bonusCoins, 4 * COLLECT_PER, "two Collectors each count the other two stickers → +" + 4 * COLLECT_PER);
   }
 
   // --- Compound: N increments per correct guess; pays (N − 1) on top -----

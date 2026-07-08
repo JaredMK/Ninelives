@@ -25,9 +25,12 @@ export function run() {
     const cards = camp.getCards();
     const heart = cards.find(c => c.suit === "♥");
     const spade = cards.find(c => c.suit === "♠");
+    // Model the whole lifecycle on this isolated instance regardless of what
+    // items.js currently ships for gainCoin: first UNRESTRICTED…
+    StickerTypes.get("gainCoin").suits = null;
     r.ok(camp.canApplySticker(heart, "gainCoin") && camp.canApplySticker(spade, "gainCoin"),
       "unrestricted sticker applies to any suit");
-    StickerTypes.get("gainCoin").suits = ["♥"];          // ← a hand-edit of items.js
+    StickerTypes.get("gainCoin").suits = ["♥"];          // ← …then a hand-edit of items.js
     r.ok(camp.canApplySticker(heart, "gainCoin"), "suits:[♥] sticker applies to a ♥ card");
     r.ok(!camp.canApplySticker(spade, "gainCoin"), "suits:[♥] sticker refuses a ♠ card");
     r.ok(!camp.applySticker(spade.id, "gainCoin"), "applySticker refuses the ♠ card");

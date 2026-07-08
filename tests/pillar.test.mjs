@@ -329,10 +329,14 @@ export function run() {
     // the badge survives into the deal). The ♦→♥ change above already proved the
     // suit-change identity; here we confirm the sticker materializes when dealt.
     const ownedId = c.getRunDeck()[0].id;   // a card actually in the dealt draft
-    r.ok(c.applySticker(ownedId, "anchor"), "apply a sticker to an owned (dealt) card");
+    // Use an UNRESTRICTED behavior sticker: the start deck is all-♥, and a
+    // suit-locked sticker (an items.js `suits` hand-edit) may legally refuse.
+    const rideT = StickerTypes.all().find(t => t.kind === "behavior" && !t.suits && t.behavior !== "tribute");
+    r.ok(rideT, "an unrestricted behavior sticker exists to ride the deal");
+    r.ok(c.applySticker(ownedId, rideT.id), "apply a sticker to an owned (dealt) card");
     const dealt = c.getRunDeck().find(x => x.id === ownedId);
     r.ok(dealt, "an owned card materializes in the dealt run deck");
-    r.ok(dealt.stickers.some(s => s.type === "anchor"),
+    r.ok(dealt.stickers.some(s => s.type === rideT.id),
       "the sticker rides into the dealt run deck (badge survives into the deal)");
   }
 
