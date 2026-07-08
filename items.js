@@ -123,7 +123,7 @@ const NINELIVES_ITEMS = {
       description: "Earn X coins. X starts at 0 and grows by 1 after each correct placement", suits: ["♥"] },
     { id: "revealNext", label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 12,
       description: "Peek at the next deck card", suits: ["♠"]  },
-    { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "uncommon", price: 2,
+    { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "common", price: 2,
       description: "Counts as every suit" },
     { id: "shuffle",    label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 2,
       description: "Optionally shuffle the pile", suits: ["♦"]  },
