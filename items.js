@@ -86,13 +86,13 @@ const NINELIVES_ITEMS = {
     { id: "tieSafe",    label: "Same-Safe",   icon: "🛡️", kind: "behavior", behavior: "tieSafe", tier: "common", price: 2,
       description: "Automatically safe if lands on same value card (even if higher or lower is guessed)" },
     { id: "suitImmunity", label: "Spade Guard", icon: "♠️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♠", tier: "uncommon", price: 3,
-      description: "If card is drawn onto a ♠ card it is safe from a wrong guess" },
+      description: "If card is drawn onto a ♠ card it is safe from a wrong guess. One charge per deal — spent when it saves, recharged next deal" },
     { id: "heartGuard", label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", tier: "uncommon", price: 3,
-      description: "If card is drawn onto a ♥ card it is safe from a wrong guess" },
+      description: "If card is drawn onto a ♥ card it is safe from a wrong guess. One charge per deal — spent when it saves, recharged next deal" },
     { id: "diamondGuard", label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", tier: "uncommon", price: 3,
-      description: "If card is drawn onto a ♦ card it is safe from a wrong guess" },
+      description: "If card is drawn onto a ♦ card it is safe from a wrong guess. One charge per deal — spent when it saves, recharged next deal" },
     { id: "clubGuard",  label: "Club Guard",  icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", tier: "uncommon", price: 3,
-      description: "If card is drawn onto a ♣ card it is safe from a wrong guess" },
+      description: "If card is drawn onto a ♣ card it is safe from a wrong guess. One charge per deal — spent when it saves, recharged next deal" },
     // value = coins per Extra Coin UNIT (units = stickers on the alive top card
     // × cards in that pile; Economy multiplies units by this value).
     { id: "extraCoin",  label: "Payout",      icon: "💰", kind: "behavior", behavior: "extraCoin", value: 1, tier: "uncommon", price: 2,
@@ -129,7 +129,7 @@ const NINELIVES_ITEMS = {
       description: "Optionally shuffle the pile", suits: ["♦"]  },
     // count = buried cards moved to the smallest pile per accepted Donate.
     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "common", price: 1,
-      description: "Move 1 buried card from pile card is placed on to the smallest pile", suits: ["♦"]  },
+      description: "Optionally move 1 buried card from the pile this card is placed on to the smallest pile", suits: ["♦"]  },
     // peelChance = probability (0–1) the sticker destroys itself after burying.
     { id: "quickBury",  label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", peelChance: 0.25, tier: "uncommon", price: 7,
       description: "Bury 1 deck card under the pile, then a 25% chance this sticker peels", suits: ["♣"]  },
