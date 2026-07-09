@@ -6430,7 +6430,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.52 · the map bounces like rubber, and every payout rings true";
+const APP_VERSION = "v4.53 · the band stretches with the throw, and the coins ring out loud";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13606,6 +13606,11 @@ const Sound = (() => {
     mapAdd() { seq([[720, 0.05, 0, "triangle", 0.03, 620], [560, 0.05, 0.05, "triangle", 0.03, 480], [430, 0.08, 0.1, "sine", 0.035, 360]]); },
     // A light, VERY short bright ping for coins gained (fires a lot — subtle).
     coin() { voice({ freq: 1180, glideTo: 1400, dur: 0.05, type: "triangle", gain: 0.026 }); },
+    // ITEM PAYOUT ring — a clear two-note coin ding for pillar/base/sticker
+    // bonus coins landing mid-deal. Deliberately louder and longer than
+    // coin(): it plays right after the guess-resolution blip, which masked
+    // the soft ping completely on phone speakers.
+    coinBonus() { seq([[1047, 0.07, 0, "triangle", 0.055, 1175], [1397, 0.12, 0.06, "triangle", 0.05]]); },
     // Post-game coin-tally line: a coin ping that RISES per line (idx) so the
     // tally builds musically toward the total.
     coinTallyLine(idx) { const steps = [784, 880, 988, 1047, 1175, 1319, 1397]; const f = steps[Math.min(idx || 0, steps.length - 1)]; voice({ freq: f, glideTo: f * 1.18, dur: 0.11, type: "sine", gain: 0.04 }); },
@@ -17309,8 +17314,13 @@ const UIRenderer = (() => {
     if (el.mapScroll && el.mapParallax) {
       el.mapScroll.addEventListener("scroll", () => {
         let s = el.mapScroll.scrollTop;
+        // Track the live fling speed (px/ms, upward positive) so a boundary
+        // impact can stretch PROPORTIONALLY — a fast fling gets a deep
+        // Safari-style rubber-band, a slow drift barely dips.
+        const nowT = performance.now();
+        if (nowT > mapFlingT) { mapFlingV = (mapScrollPrev - s) / Math.max(1, nowT - mapFlingT); mapFlingT = nowT; }
         // Stage lock: scrolling above the unlocked stages stops at the line —
-        // with a small elastic dip instead of a dead stop when momentum hits it.
+        // the elastic stretch continues the motion instead of a dead stop.
         if (s < mapScrollLock) { el.mapScroll.scrollTop = mapScrollLock; s = mapScrollLock; mapImpactBounce(1); }
         const max = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
         if (s >= max - 0.5 && mapScrollPrev < max - 6) mapImpactBounce(-1);   // fling into the bottom edge
@@ -17782,11 +17792,16 @@ const UIRenderer = (() => {
   function floatCoins(anchorEl, amount, cls) {
     if (!anchorEl || amount == null) return;
     floatChip(anchorEl, (amount < 0 ? "−" : "+") + Math.abs(amount), (cls || "") + (amount < 0 ? " neg" : ""));
-    // A subtle coin chime on a GAIN. Throttled so an end-of-deal burst of floats
-    // reads as one shimmer, not a machine-gun (tasteful — it fires a lot).
+    // A coin RING on a GAIN — the audible two-note coinBonus (the old soft
+    // coin() ping vanished under the simultaneous guess-resolution blip), and
+    // played a beat AFTER it so the two read as separate events. Throttled so
+    // a payout burst reads as one ring, not a machine-gun.
     if (amount > 0) {
       const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : 0;
-      if (now - lastCoinSoundAt > 70) { Sound.coin(); lastCoinSoundAt = now; }
+      if (now - lastCoinSoundAt > 120) {
+        lastCoinSoundAt = now;
+        setTimeout(() => { try { Sound.coinBonus(); } catch (e) {} }, 110);
+      }
     }
   }
   /* THE shared pile-SAVED indicator — every save path (Shield, Suit Guard,
@@ -21785,6 +21800,7 @@ const UIRenderer = (() => {
   const mapEggSalt = Math.floor(Math.random() * MAP_EGG_LINES.length);
   let mapPullRaw = 0, mapPullD = 0, mapTouchY = null, mapTouchActive = false;
   let mapBounceBusy = false, mapBounceMuteUntil = 0, mapScrollPrev = 0;
+  let mapFlingV = 0, mapFlingT = 0;   // live fling speed (px/ms) — scales the boundary rubber-band
   function mapPullApply(d) {
     mapPullD = d;
     if (el.mapTrack) el.mapTrack.style.transform = d ? "translateY(" + d.toFixed(1) + "px)" : "";
@@ -21813,16 +21829,19 @@ const UIRenderer = (() => {
     if (performance.now() < mapBounceMuteUntil) return;
     if (!el.mapTrack || typeof el.mapTrack.animate !== "function") return;
     mapBounceBusy = true;
-    // SAFARI-STYLE rubber-band: the fling DECELERATES into a deep stretch
-    // (fast at first, easing out as the band tightens), hangs a beat at the
-    // apex, then eases home with a whisper of overshoot — never a hard snap.
-    const D = dir * 30;
+    // SAFARI-STYLE rubber-band, VELOCITY-SCALED: the clamp halts the native
+    // scroll, so the stretch must READ as the fling continuing — its depth
+    // tracks the measured fling speed (a hard fling stretches ~4× deeper
+    // than a drift), it launches at full speed, decelerates as the band
+    // tightens, hangs at the apex, then eases home. Never a hard snap.
+    const amp = Math.max(22, Math.min(96, Math.abs(mapFlingV) * 34));
+    const D = dir * amp;
     const frames = (fmt) => [
-      { transform: fmt(0), easing: "cubic-bezier(0.12, 0.68, 0.25, 1)" },     // impact → stretch (decelerating)
-      { transform: fmt(D), offset: 0.34, easing: "cubic-bezier(0.4, 0, 0.24, 1.06)" }, // apex → soft eased return
+      { transform: fmt(0), easing: "cubic-bezier(0.16, 0.84, 0.28, 1)" },     // impact → stretch (launches fast, decelerates)
+      { transform: fmt(D), offset: 0.36, easing: "cubic-bezier(0.42, 0, 0.22, 1.05)" }, // apex → soft eased return
       { transform: fmt(0) },
     ];
-    const dip = { duration: 650 };
+    const dip = { duration: 560 + amp * 2.6 };   // deeper stretch = longer, calmer return
     const a = el.mapTrack.animate(frames((y) => "translateY(" + y + "px)"), dip);
     const egg = document.getElementById("mapEgg");
     if (egg) egg.animate(frames((y) => "translate(-50%," + y + "px)"), dip);

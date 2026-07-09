@@ -31,9 +31,14 @@ export function run() {
   // ranks until one is still in the deck — any value above 5 lands.
   const landHigher = (e, index) => {
     e.getBoard().top(index).value = 5;
-    let c = null;
-    for (const v of [9, 10, 11, 12, 13, 8, 7, 6]) { c = e.debug.setNextCard(v); if (c) break; }
-    if (!c) throw new Error("landHigher: no high card left in the deck");
+    // Pick a rank that is REALLY still in the deck: since the swap-on-
+    // synthesize rewrite, _setNext always returns a card — for an exhausted
+    // rank it returns a SYNTHETIC sticker-less one, which silently broke the
+    // sticker blocks on shuffles that dealt all four copies onto the piles.
+    const inDeck = new Set(e.getDeck()._peekAll().map(c => c.value));
+    const v = [9, 10, 11, 12, 13, 8, 7, 6].find(x => inDeck.has(x));
+    if (v == null) throw new Error("landHigher: no high card left in the deck");
+    e.debug.setNextCard(v);
     e.guess(index, "higher");
   };
 
