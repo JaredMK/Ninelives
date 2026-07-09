@@ -41,11 +41,25 @@ const NINELIVES_ITEMS = {
 
   /* --------------------------------------------------------------------
      STORE CONFIG — offer weighting + the permanent Removal slot.
-     tierWeights: relative chance a tier is rolled into a store slot
-     (an item's own `weight` field, when present, overrides its tier's).
+     classWeights: CLASS-FIRST roll — each of the 5 rolled slots picks its
+     item CLASS by these relative weights, THEN an item within that class
+     (rarity-weighted by tierWeights; an item's own `weight` field, when
+     present, overrides its tier's). "card" is a single playing card slot
+     (see store.card below).
   -------------------------------------------------------------------- */
   store: {
+    classWeights: { sticker: 50, pillar: 17, base: 10, pack: 10, card: 10, samepower: 3 },
     tierWeights: { common: 100, uncommon: 50, rare: 20 },
+    // The INDIVIDUAL-CARD slot: one playing card, rolled with the same
+    // odds it would have inside a card pack (suits in play, the same
+    // chance of carrying stickers, Mr. Smith's rates where applicable).
+    // Removal cards never appear here. A Joker may roll in at the plain
+    // any-card rate (1/53) but costs jokerPrice instead of price; the
+    // difficulty tier's joker cap applies (none on Legendary).
+    card: {
+      label: "Card", icon: "🂠", price: 8, jokerPrice: 50,
+      description: "A single card. Buy it to swap it into your deck, replacing a card of your choice.",
+    },
     // The debug-toggleable permanent 6th store slot: fixed price, never
     // depletes, each purchase runs the choose-a-card-to-remove flow.
     removal: {

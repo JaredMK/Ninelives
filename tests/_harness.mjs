@@ -79,7 +79,7 @@ export function loadGame() {
     ...Object.keys(sandbox),
     code +
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
-      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes };"
+      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData };"
   );
   return factory(...Object.values(sandbox));
 }

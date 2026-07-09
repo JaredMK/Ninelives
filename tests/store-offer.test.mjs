@@ -1,8 +1,8 @@
-// Store offering: ONE unified pool — exactly 6 slots per visit, every slot
-// independently rolled from ALL item types together (stickers, pillars, bases,
-// card packs, sticker packs, Same-Powers) weighted purely by rarity
-// (TIER_WEIGHTS), with a per-TYPE cap of 3 slots (card packs and sticker packs
-// count as separate types). Buy empties only that slot; reroll-all at 3→4→5
+// Store offering: CLASS-FIRST roll — exactly 6 slots per visit, every slot
+// picks its item CLASS by items.js store.classWeights, then an item within
+// that class by rarity (TIER_WEIGHTS), with a per-CLASS cap of 3 slots (card
+// packs and sticker packs count as separate types; "card" is a generated
+// individual playing card). Buy empties only that slot; reroll-all at 3→4→5
 // (reset per visit); persisted in campaign state (no free reroll via
 // re-render); wiped on loss. DOM-free.
 import { loadGame, makeRunner } from "./_harness.mjs";
@@ -15,10 +15,11 @@ export function run() {
   const baseIds = new Set(BaseTypes.ids);
   const packIds = new Set(PackTypes.ids);
   const samePowerIds = new Set(SamePowerTypes.ids);
-  const idOk = (kind, id) => kind === "sticker" ? stickerIds.has(id)
+  const idOk = (kind, id, s) => kind === "sticker" ? stickerIds.has(id)
     : kind === "pillar" ? pillarIds.has(id)
     : kind === "base" ? baseIds.has(id) : kind === "pack" ? packIds.has(id)
-    : kind === "samepower" ? samePowerIds.has(id) : false;
+    : kind === "samepower" ? samePowerIds.has(id)
+    : kind === "card" ? !!(s && s.card && !s.card.blank) : false;
   // The per-type cap distinguishes card packs from sticker packs.
   const typeKey = (s) => s.kind !== "pack" ? s.kind
     : (PackTypes.get(s.id).kind === "card" ? "cardpack" : "stickerpack");
@@ -44,9 +45,9 @@ export function run() {
     // Default: slot 6 is the permanent Removal; the first 5 roll from the pool.
     r.eq(offer.slots[5].kind, "removal", "slot 6 is the permanent Removal (default ON)");
     const rolled0 = offer.slots.slice(0, 5);
-    r.ok(rolled0.every(s => ["sticker", "base", "pillar", "pack", "samepower"].includes(s.kind)),
-      "the 5 rolled slots are a sticker / base / pillar / pack / same-power");
-    r.ok(rolled0.every(s => idOk(s.kind, s.id)), "every rolled slot's id is real for its kind");
+    r.ok(rolled0.every(s => ["sticker", "base", "pillar", "pack", "card", "samepower"].includes(s.kind)),
+      "the 5 rolled slots are a sticker / base / pillar / pack / card / same-power");
+    r.ok(rolled0.every(s => idOk(s.kind, s.id, s)), "every rolled slot's id is real for its kind");
     r.eq(offer.rerollCost, 3, "reroll cost starts at 3");
     r.eq(offer.stickers, undefined, "no segmented sticker section (one unified pool)");
     r.eq(offer.mixed, undefined, "no segmented mixed section (one unified pool)");
@@ -72,12 +73,13 @@ export function run() {
   // --- Every kind surfaces; commons dominate rares (rarity weighting) ---
   {
     const c = CampaignState.create();
-    const kindCount = { sticker: 0, pillar: 0, base: 0, pack: 0, samepower: 0 };
+    const kindCount = { sticker: 0, pillar: 0, base: 0, pack: 0, card: 0, samepower: 0 };
     const tierCount = { common: 0, uncommon: 0, rare: 0 };
     const reg = { sticker: StickerTypes, pillar: PillarTypes, base: BaseTypes, pack: PackTypes, samepower: SamePowerTypes };
     for (let i = 0; i < 3000; i++) c.openStore().slots.forEach(s => {
       if (!s || s.kind === "removal") return;
       kindCount[s.kind]++;
+      if (s.kind === "card") return;   // a generated card carries no rarity tier
       const t = reg[s.kind].get(s.id);
       if (t && tierCount[t.tier] != null) tierCount[t.tier]++;
     });
@@ -217,7 +219,7 @@ export function run() {
     r.eq(c.storeRerollCost(), 3, "first reroll costs 3");
     const before = c.getCoins();
     r.ok(c.rerollStore(), "reroll #1");
-    r.ok(c.getStoreOffer().slots.every(x => x && (x.kind === "removal" || idOk(x.kind, x.id))), "reroll refills ALL rolled slots (Removal slot stays)");
+    r.ok(c.getStoreOffer().slots.every(x => x && (x.kind === "removal" || idOk(x.kind, x.id, x))), "reroll refills ALL rolled slots (Removal slot stays)");
     r.eq(c.getCoins(), before - 3, "reroll #1 charged 3");
     r.eq(c.storeRerollCost(), 4, "cost climbs to 4");
     r.ok(c.rerollStore(), "reroll #2");
@@ -325,7 +327,7 @@ export function run() {
     const o2 = off.openStore();
     r.eq(o2.slots.length, 6, "OFF: still exactly 6 slots");
     r.ok(o2.slots.every(s => s && s.kind !== "removal"), "OFF: no Removal slot — all 6 roll from the pool");
-    r.ok(o2.slots.every(s => idOk(s.kind, s.id)), "OFF: every slot is a real rolled item");
+    r.ok(o2.slots.every(s => idOk(s.kind, s.id, s)), "OFF: every slot is a real rolled item");
     // reroll keeps it off.
     off.addCoins(20);
     off.rerollStore();

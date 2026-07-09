@@ -2522,6 +2522,13 @@
   }
   .store-tile .ti-obj.obj-pillar { align-items: flex-start; }   /* hangs from the top */
   .store-tile .ti-obj.obj-base { align-items: flex-end; padding-bottom: 6px; }
+  /* Individual-card slot: the exact card face-up on the shelf; the same
+     mini-card component, sized to sit between the sticker chips and packs. */
+  .store-tile .ti-obj.obj-card .mini-card { width: 48px; }
+  .sd-obj.obj-card .mini-card { width: 76px; }
+  .sd-obj.obj-card .mini-card .mc-rank { font-size: 27px; }
+  .sd-obj.obj-card .mini-card .mc-suit { font-size: 22px; }
+  .sd-obj.obj-card .mini-card.mc-special .mcs-sym { font-size: 30px; }
   /* Each object sizes BY the slot height so its footprint can never exceed it:
      - pillar pennant + pack foil fill 100% height (pack's 3:4 width then follows);
        (the old pack width:90px forced ~120px tall — past the 116px slot).
@@ -6387,7 +6394,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.46 · the tie finds the neck, and jesters are counted in the hand";
+const APP_VERSION = "v4.47 · the shelf asks what kind before it asks which one";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6878,6 +6885,15 @@ const ItemData = (() => {
     const rm = D.store.removal;
     if (!rm || typeof rm.price !== "number" || !isFinite(rm.price) || rm.price < 0 || typeof rm.description !== "string")
       problems.push("[items.js] store.removal: needs a numeric `price` and a `description`");
+    // CLASS-FIRST store roll: every slot picks its class by these weights.
+    const cw = D.store.classWeights || {};
+    for (const k of ["sticker", "pillar", "base", "pack", "card", "samepower"])
+      if (typeof cw[k] !== "number" || !(cw[k] >= 0) || !isFinite(cw[k]))
+        problems.push("[items.js] store.classWeights." + k + ": must be a number ≥ 0");
+    const cd = D.store.card;
+    if (!cd || typeof cd.price !== "number" || !isFinite(cd.price) || cd.price < 0
+        || typeof cd.jokerPrice !== "number" || !isFinite(cd.jokerPrice) || cd.jokerPrice < 0)
+      problems.push("[items.js] store.card: needs numeric `price` and `jokerPrice`");
   }
   if (problems.length) {
     problems.forEach(p => console.error(p));
@@ -11352,43 +11368,57 @@ const CampaignState = (() => {
     const t = PackTypes.get(id);
     return t && t.kind === "card" ? "cardpack" : "stickerpack";
   }
-  /** Roll STORE_SLOTS unified slots: one flat pool across EVERY registry, each
-      entry weighted purely by rarity (TIER_WEIGHTS). Dupes allowed; a draw that
-      would put a TYPE past STORE_TYPE_CAP is rejected and redrawn. Each slot is
-      { kind, id }. */
-  function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS) {
-    const pool = [];
-    const add = (types, kind) => types.forEach(t =>
-      pool.push({ kind, id: t.id, weight: t.weight || TIER_WEIGHTS[t.tier] || 1 }));
-    add(StickerTypes.all(), "sticker");
-    add(PillarTypes.all(), "pillar");
-    add(BaseTypes.all(), "base");
-    add(PackTypes.all(), "pack");
-    add(SamePowerTypes.all(), "samepower");
-    const total = pool.reduce((a, x) => a + x.weight, 0) || 1;
+  /** Roll STORE_SLOTS slots CLASS-FIRST: each slot picks its item CLASS by
+      items.js store.classWeights, THEN an item within that class weighted by
+      rarity (per-item `weight` override, else TIER_WEIGHTS). Dupes allowed; a
+      draw that would put a class past STORE_TYPE_CAP is rejected and redrawn.
+      The "card" class carries an actual generated playing card (`genCard`,
+      pack-odds; see campaign.genStoreCard) instead of a registry id. Each
+      slot is { kind, id } (+ { card } for the card class). */
+  function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null) {
+    const CW = ItemData.store.classWeights;
+    const classes = [
+      { key: "sticker", w: CW.sticker, types: StickerTypes.all() },
+      { key: "pillar", w: CW.pillar, types: PillarTypes.all() },
+      { key: "base", w: CW.base, types: BaseTypes.all() },
+      { key: "pack", w: CW.pack, types: PackTypes.all() },
+      { key: "card", w: genCard ? CW.card : 0, types: null },   // needs the campaign's card generator
+      { key: "samepower", w: CW.samepower, types: SamePowerTypes.all() },
+    ];
+    const cwTotal = classes.reduce((a, c) => a + c.w, 0) || 1;
     const slots = [];
     const perType = {};
     for (let i = 0; i < count; i++) {
       let pick = null;
-      // Reject-and-redraw over the type cap. With 6 types and a cap of 3 on
-      // 5 slots this always terminates fast; 80 tries is a paranoid ceiling.
+      // Reject-and-redraw over the class cap. With 6 classes and a cap of 3
+      // on 5 slots this always terminates fast; 80 tries is a paranoid ceiling.
       for (let attempt = 0; attempt < 80 && !pick; attempt++) {
-        let r = rng() * total, cand = pool[pool.length - 1];
-        for (const x of pool) { if ((r -= x.weight) < 0) { cand = x; break; } }
-        if ((perType[slotTypeKey(cand.kind, cand.id)] || 0) < STORE_TYPE_CAP) pick = cand;
+        let r = rng() * cwTotal, cls = classes[classes.length - 1];
+        for (const c of classes) { if ((r -= c.w) < 0) { cls = c; break; } }
+        if (cls.key === "card") {
+          if ((perType.card || 0) >= STORE_TYPE_CAP) continue;   // cap check BEFORE minting
+          const card = genCard(rng);
+          if (!card) continue;
+          pick = { kind: "card", id: "card", card };
+        } else {
+          const id = rollIds(cls.types, 1, rng)[0];
+          if (id == null) continue;
+          if ((perType[slotTypeKey(cls.key, id)] || 0) >= STORE_TYPE_CAP) continue;
+          pick = { kind: cls.key, id };
+        }
       }
       if (!pick) { slots.push(null); continue; }   // unreachable in practice
-      const key = slotTypeKey(pick.kind, pick.id);
+      const key = pick.kind === "card" ? "card" : slotTypeKey(pick.kind, pick.id);
       perType[key] = (perType[key] || 0) + 1;
-      slots.push({ kind: pick.kind, id: pick.id });
+      slots.push(pick);
     }
     return slots;
   }
 
-  /** A fresh offering: STORE_SLOTS unified rarity-weighted slots, reroll at base. */
-  function freshOffer(rng = Math.random, removalOn = false) {
+  /** A fresh offering: STORE_SLOTS class-first slots, reroll at base. */
+  function freshOffer(rng = Math.random, removalOn = false, genCard = null) {
     const rolled = removalOn ? STORE_SLOTS - 1 : STORE_SLOTS;
-    const slots = rollUnifiedSlots(rng, rolled);
+    const slots = rollUnifiedSlots(rng, rolled, genCard);
     if (removalOn) slots.push(removalSlot());   // permanent last slot
     return { slots, rerollCost: REROLL_BASE_COST };
   }
@@ -11662,6 +11692,10 @@ const CampaignState = (() => {
       for (const id of ownedIds) { const c = findById(id); if (c && c.joker) n++; }
       for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER && clearedNodes.indexOf(Number(k)) === -1) n++;
       for (const c of packTray) if (c && c.joker) n++;
+      // A Joker sitting unbought on a store CARD slot is a visible promise
+      // too — reserve it, so buying it can never push the player past the cap.
+      if (storeOffer && Array.isArray(storeOffer.slots))
+        for (const s of storeOffer.slots) if (s && s.kind === "card" && s.card && s.card.joker) n++;
       return n;
     }
     function jokersAllowed() { return jokersHeld() < jokerCapFor(); }
@@ -11734,6 +11768,29 @@ const CampaignState = (() => {
       }
       return card;
     }
+    /** A freshly-minted persistent JOKER card (store packs / store card slot). */
+    function genJokerCard() {
+      return { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+    }
+    /** A freshly-minted NORMAL pack-odds card: random suit-in-play + rank,
+        then the shared sticker distribution (1% four / 3% three / 11% two /
+        33% one / 52% none), suit-restricted, Lammy mints none. The single
+        source for store card packs AND the store's individual-card slots. */
+    function genNormalCard(rng) {
+      const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
+      const suit = suits[Math.floor(rng() * suits.length)];
+      const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
+      const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
+      const n = rules().noStickers ? 0 : packStickerCount(rng());
+      // Only stickers this card may carry (`suits` restrictions in items.js);
+      // Jokers/Removal never reach here (the special branches return earlier).
+      const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
+      for (let k = 0; k < n; k++) {
+        const sid = rollIds(pool, 1, rng)[0];
+        if (sid) applyStickerToCard(card, sid, { rng, suits });
+      }
+      return card;
+    }
     /** DETERMINISTIC roll for a specific +1 node: seeded by (runSeed, node.id)
         over the unclaimed pool (skips owned + cards already locked to OTHER nodes),
         so each +1 node locks a DISTINCT card and the same node always rolls the
@@ -11756,10 +11813,17 @@ const CampaignState = (() => {
         if (!pool.length) pool = [mintSuitCardId(suit)];
       } else {
         pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
-        if ((node && node.mixed) || pool.length === 0) {
-          // any-card fallback: never a Joker/Blank (see pickDraftId)
+        if (node && node.mixed) {
+          // explicit any-card node: never a Joker/Blank (see pickDraftId)
           const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
           if (any.length) pool = any;
+        } else if (pool.length === 0) {
+          // BUGFIX: a stage can carry MORE +1 nodes than its suit has unique
+          // cards (e.g. 15 pickups vs 13 ♦) — the old any-card fallback then
+          // locked an OFF-SUIT card onto a suit-gated stage. MINT a duplicate
+          // of the node's suit instead — exactly how packs keep granting an
+          // exhausted suit — so a stage's pickups never show off-suit.
+          return mintSuitCardId(suitForNode(node));
         }
       }
       if (!pool.length) return null;
@@ -12594,7 +12658,7 @@ const CampaignState = (() => {
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
-        storeOffer = freshOffer(rng, removalSlotEnabled);   // unified pool (+ Removal slot when on)
+        storeOffer = freshOffer(rng, removalSlotEnabled, (r) => this.genStoreCard(r));   // class-first (+ Removal slot when on)
         return storeOffer;
       },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
@@ -12609,7 +12673,8 @@ const CampaignState = (() => {
         if (!storeOffer || coins < storeOffer.rerollCost) return false;
         coins -= storeOffer.rerollCost;
         const rolled = removalSlotEnabled ? STORE_SLOTS - 1 : STORE_SLOTS;
-        storeOffer.slots = rollUnifiedSlots(Math.random, rolled);
+        storeOffer.slots = [];   // the outgoing shelf's Jokers vanish first (they'd otherwise count as held during the re-roll)
+        storeOffer.slots = rollUnifiedSlots(Math.random, rolled, (r) => this.genStoreCard(r));
         if (removalSlotEnabled) storeOffer.slots.push(removalSlot());
         storeOffer.rerollCost += REROLL_STEP;
         return true;
@@ -12635,6 +12700,9 @@ const CampaignState = (() => {
              : s.kind === "base"      ? this.priceOfBase(s.id)
              : s.kind === "samepower" ? this.priceOfSamePower(s.id)
              : s.kind === "removal"   ? REMOVAL_PRICE
+             // Individual-card slot: flat price from items.js store.card —
+             // a Joker costs its own (much steeper) jokerPrice.
+             : s.kind === "card"      ? shopPrice(s.card && s.card.joker ? ItemData.store.card.jokerPrice : ItemData.store.card.price)
              : this.priceOfPack(s.id);
       },
 
@@ -12670,6 +12738,17 @@ const CampaignState = (() => {
           coins -= t.price;
           storeOffer.slots[i] = null;
           return { ok: true, kind: "pack", reveal: { packId: s.id, kind: t.kind, keep: t.keep, items: this.revealPack(s.id, rng) } };
+        }
+        if (s.kind === "card") {
+          // Individual card: charge (Jokers at their own price), move the
+          // exact shown card into the pack tray, and hand the caller its
+          // tray index — the UI runs the normal swap/place flow from there.
+          const price = this.priceOfMixed(i);
+          if (!s.card || coins < price) return { ok: false };
+          coins -= price;
+          storeOffer.slots[i] = null;
+          this.addPackCard(s.card);
+          return { ok: true, kind: "card", card: s.card, trayIndex: packTray.length - 1 };
         }
         return { ok: false };   // removal is bought via buyRemoval (choose-a-card flow), not here
       },
@@ -12767,27 +12846,21 @@ const CampaignState = (() => {
           const isJoker = rng() < 0.5;
           // JOKER CAP: at the tier's budget a joker roll falls through to a
           // normal card (Blanks keep their half — only Jokers are capped).
-          if (isJoker && jokersAllowed())
-            return { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
+          if (isJoker && jokersAllowed()) return genJokerCard();
           if (!isJoker)
             return { id: nextCardId++, blank: true, suit: "∅", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
         }
-        const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
-        const suit = suits[Math.floor(rng() * suits.length)];
-        const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
-        const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };
-        const roll = rng();
-        // 1% four, 3% three, 11% two, 33% one, 52% none (packStickerCount).
-        // Lammy (noStickers): pack cards never mint with stickers.
-        const n = rules().noStickers ? 0 : packStickerCount(roll);
-        // Only stickers this card may carry (`suits` restrictions in items.js);
-        // Jokers/Removal never reach here (the special branch returned above).
-        const pool = stickerPoolForSuits(suits).filter(t => stickerCardEligible(card, t.id));
-        for (let k = 0; k < n; k++) {
-          const sid = rollIds(pool, 1, rng)[0];
-          if (sid) applyStickerToCard(card, sid, { rng, suits });
-        }
-        return card;
+        return genNormalCard(rng);
+      },
+      /** A STORE CARD-slot card: rolled with the same odds it would have
+          inside a card pack — same suits-in-play pool, same sticker
+          distribution (Mr. Smith's rates apply, Lammy mints none) — except:
+          Removal (Blank) cards NEVER appear here, and a Joker rolls at the
+          plain any-card rate (1/53, the J3 weight-1 slot) rather than the
+          pack's half-share, gated by the tier's held-count joker cap. */
+      genStoreCard(rng = Math.random) {
+        if (rng() < 1 / SPECIAL_ROLL_SPACE && jokersAllowed()) return genJokerCard();
+        return genNormalCard(rng);
       },
 
       /** Reveal a pack's items. Card pack → array of `size` card objects.
@@ -22018,7 +22091,7 @@ const UIRenderer = (() => {
       glyph(t.id, "sp-mark") +
       '</span><span class="sp-badge-name">' + t.label + '</span></span>';
   }
-  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", samepower: "Same-Power", removal: "Removal" };
+  const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", card: "Card", samepower: "Same-Power", removal: "Removal" };
   /* The Removal store object: a stitched-grey ∅ card (the same palette as a
      Removal pack/map card), so the permanent slot 6 reads as "thin your deck". */
   function removalBadgeHtml() {
@@ -22027,9 +22100,19 @@ const UIRenderer = (() => {
   // Slight per-object tilt so shelf objects read as merchandise laid on a surface.
   // Indexed deterministically by slot so a given slot always tilts the same.
   const DCS_ROT_SHOP = [-4, 3, -2.5, 2.5, -3, 4];
-  function offerTile(id, slot, kind, selected) {
+  function offerTile(id, slot, kind, selected, s) {
     const btn = document.createElement("button");
     btn.type = "button";
+    if (kind === "card" && s && s.card) {   // individual-card slot: the exact card, face-up
+      const price = campaign.priceOfMixed(slot);
+      const affordable = campaign.getCoins() >= price;
+      btn.className = "store-tile tile-card" + (affordable ? "" : " disabled") + (selected ? " sel" : "");
+      btn.dataset.slot = slot;
+      const rot = DCS_ROT_SHOP[slot % DCS_ROT_SHOP.length];
+      btn.innerHTML = '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj obj-card">' + miniCardHtml(s.card) + '</span>' +
+        '<span class="ti-price">' + COIN_SVG + price + '</span>';
+      return btn;
+    }
     if (kind === "removal") {   // the permanent Removal slot — fixed price, never sold out
       const price = campaign.removalPrice();
       const affordable = campaign.getCoins() >= price;
@@ -22100,6 +22183,8 @@ const UIRenderer = (() => {
   function describeItem(kind, id) {
     if (kind === "removal") return { icon: ItemData.store.removal.icon || "∅", label: ItemData.store.removal.label || "Removal", tier: "",
       desc: ItemData.store.removal.description + " (" + (campaign ? campaign.removalPrice() : ItemData.store.removal.price) + " coins each)." };
+    if (kind === "card") return { icon: ItemData.store.card.icon || "🂠", label: ItemData.store.card.label || "Card", tier: "",
+      desc: ItemData.store.card.description };
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
@@ -22155,6 +22240,27 @@ const UIRenderer = (() => {
     if (!offer || !offer.slots) return;
     const s = offer.slots[slot];
     if (!s) return;
+    if (s.kind === "card") {   // individual-card slot → focused detail of the exact card
+      selectedMixedSlot = slot; selectedStickerSlot = null;
+      const card = s.card || {};
+      el.sdObj.className = "sd-obj obj-card";
+      el.sdObj.innerHTML = miniCardHtml(card);
+      el.sdTier.textContent = ""; el.sdTier.dataset.tier = "";
+      el.sdName.textContent = card.joker ? "★ Joker" : (miniRankLabel(card) + " " + card.suit);
+      const stickerNote = (card.stickers && card.stickers.length)
+        ? " Comes with " + card.stickers.map(st => { const t = StickerTypes.get(st.type); return t ? t.label : st.type; }).join(", ") + "."
+        : "";
+      el.sdDesc.textContent = (card.joker
+        ? "A Joker — always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
+        : ItemData.store.card.description) + stickerNote;
+      el.sdBuy.dataset.kind = "mixed";
+      el.sdBuy.classList.remove("hidden");
+      el.sdPlace.classList.add("hidden");
+      sdDetailKind = "card"; sdDetailId = "card"; sdDetailPrice = campaign.priceOfMixed(slot); sdPlaceCol = null;
+      updateSdBuy();
+      el.storeDetail.classList.remove("hidden");
+      return;
+    }
     if (s.kind === "removal") {   // permanent Removal slot → its own focused detail
       selectedMixedSlot = slot; selectedStickerSlot = null;
       el.sdObj.className = "sd-obj obj-removal";
@@ -22314,6 +22420,8 @@ const UIRenderer = (() => {
     else if (sdDetailKind === "samepower") label = "Buy & Equip · " + COIN_SVG + price;
     else if (sdDetailKind === "pillar" || sdDetailKind === "base") label = "Buy & Place · " + COIN_SVG + price;
     else if (sdDetailKind === "removal") label = "Remove a card · " + COIN_SVG + price;
+    // Individual card: buying runs the swap-into-deck flow immediately.
+    else if (sdDetailKind === "card") label = "Buy & Swap in · " + COIN_SVG + price;
     // Stickers charge only AFTER a card is picked (place-then-pay) — say so.
     else if (sdDetailKind === "sticker") label = "Place sticker · " + COIN_SVG + price;
     else label = "Buy · " + COIN_SVG + price;
@@ -22450,7 +22558,7 @@ const UIRenderer = (() => {
     el.storeItems.innerHTML = "";
     (offer && offer.slots ? offer.slots : []).forEach((s, slot) =>
       el.storeItems.appendChild(offerTile(s ? s.id : null, slot, s ? s.kind : "sticker",
-        (s && s.kind === "sticker" ? selectedStickerSlot : selectedMixedSlot) === slot)));
+        (s && s.kind === "sticker" ? selectedStickerSlot : selectedMixedSlot) === slot, s)));
     padRow(el.storeItems, STORE_SLOTS);
     renderStoreLoadout();   // equipped pillars/bases/Same-Power reference (read-only)
     updateRerollButton();
@@ -22514,6 +22622,14 @@ const UIRenderer = (() => {
       } else {
         finish();   // reduced motion / no tile: instant reveal of real objects
       }
+    } else if (res.kind === "card") {
+      // Individual card: already charged + moved to the tray — run the SAME
+      // swap/place flow a pack-picked card gets, straight away.
+      if (engine) engine.logAction("Store: bought a card" + (res.card && res.card.joker ? " (★ Joker)" : ""));
+      try { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.flush(); } catch (e) {}
+      renderStore();
+      refreshDebug();
+      openCardSwap(res.trayIndex);
     } else {
       // Pillar / Base → place it on a column RIGHT NOW (place-on-purchase).
       const reg = res.kind === "pillar" ? PillarTypes : BaseTypes;
