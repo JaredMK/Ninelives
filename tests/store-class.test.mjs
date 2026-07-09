@@ -7,7 +7,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, ItemData } = loadGame();
+  const { CampaignState, ItemData, PackTypes } = loadGame();
   const r = makeRunner("store-class.test.mjs");
   const CW = ItemData.store.classWeights;
   const CLASSES = ["sticker", "pillar", "base", "pack", "card", "samepower"];
@@ -34,7 +34,11 @@ export function run() {
         if (!s) return;
         if (i === offer.slots.length - 1 && s.kind === "removal") { removalLast++; return; }
         counts[s.kind] = (counts[s.kind] || 0) + 1;
-        per[s.kind] = (per[s.kind] || 0) + 1;
+        // the cap buckets packs by FAMILY (card packs vs sticker packs), so
+        // 2+2 across the families is a legal 4 "pack"-kind slots — count the
+        // cap the same way the engine does.
+        const capKey = s.kind === "pack" ? (PackTypes.get(s.id).kind === "card" ? "cardpack" : "stickerpack") : s.kind;
+        per[capKey] = (per[capKey] || 0) + 1;
         slots++;
         if (s.kind === "card") {
           if (!s.card || s.card.blank) blanks++;

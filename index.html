@@ -5248,6 +5248,10 @@
     background: inherit; border-radius: 2px; filter: brightness(0.85); }
   .ch-pink.tier-master .x-tier { --tier-c: #e0862e; }
   .ch-pink.tier-legendary .x-tier { --tier-c: #1d1f26; height: 10%; }
+  /* MAP AVATAR: the trail sprite's face sits LOWER than the deck-slot
+     character's (eyes reach ~67% of the 40px body vs ~35% on the big one),
+     so the shared 62% belt crossed the eyes there. Seat it below the face. */
+  .map-avatar.ch-pink .x-tier { top: 74%; }
 
   /* MAMMA — a bow tie worn ON HER HEAD, growing (and darkening) with the
      tier; it replaces her little rose lid-bow while worn. */
@@ -6397,7 +6401,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.48 · the trail walker finally stands like a playing card";
+const APP_VERSION = "v4.49 · the belt slides down off pinky's face where a belt belongs";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
