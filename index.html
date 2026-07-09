@@ -3713,22 +3713,38 @@
   }
 
   /* ---- Pile FAN-OUT viewer (presentation-only memory aid) ----
-     Button: a QUIET light chip clipped into the card's bottom-right corner —
-     a subtle affordance, not a badge (the count pill stays the loud one).
-     Its outer corner matches the card's radius so it reads as part of the
-     card face. It must accept taps inside the pointer-events:none .card-fx. */
+     Affordance: a subtle DOG-EAR / page-curl on the card's bottom-right
+     corner — a small folded-over flap lifting off a shadowed notch, reading
+     as "there are cards under this pile" (fan-affordance option A). The box
+     is the invisible TAP TARGET (kept generous); only the fold inside it
+     draws, sized well clear of the count pill (bottom-left) and the rotated
+     corner rank. It must accept taps inside the pointer-events:none .card-fx. */
   .pile-fan-btn {
-    position: absolute; bottom: 0; right: 0;
-    width: calc(var(--pile-size, 88px) * 0.30); height: calc(var(--pile-size, 88px) * 0.24);
-    display: flex; align-items: center; justify-content: center;
-    color: rgba(74, 50, 40, 0.48);
-    background: rgba(74, 50, 40, 0.075);
-    /* bottom-right corner = the card's own radius, so the chip sits clipped
-       flush into the corner; only its inner (top-left) corner is rounded. */
-    border-radius: 9px 0 clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px) 0;
+    position: absolute; bottom: -1px; right: -1px;
+    width: calc(var(--pile-size, 88px) * 0.27); height: calc(var(--pile-size, 88px) * 0.27);
+    /* clip the fold's outer edge to the card's own rounded corner */
+    border-radius: 0 0 clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px) 0;
+    overflow: hidden;
     z-index: 3; pointer-events: auto; cursor: pointer;
   }
-  .pile-fan-btn svg { width: 58%; height: 58%; display: block; }
+  /* The shadowed NOTCH the lifted corner exposes (the layer beneath).
+     34% of the tap box ≈ 9% of the pile — the whole ear stays clear of the
+     rotated corner rank (whose box ends ~11% from the corner). */
+  .pile-fan-btn::before {
+    content: ""; position: absolute; right: 0; bottom: 0;
+    width: 34%; height: 34%;
+    background: rgba(52, 34, 40, 0.16);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  }
+  /* The folded-over FLAP: a light card-face triangle along the fold line,
+     shaded toward its lifted tip, with a soft crease shadow. */
+  .pile-fan-btn::after {
+    content: ""; position: absolute; right: 0; bottom: 0;
+    width: 34%; height: 34%;
+    background: linear-gradient(315deg, #cdbdb2 0%, #e8ddd4 42%, var(--card-face, #fbf6f1) 100%);
+    clip-path: polygon(100% 0, 0 100%, 0 0);
+    filter: drop-shadow(1px 1px 1px rgba(40, 24, 30, 0.28));
+  }
   .pile.dead .pile-fan-btn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
   /* The fanned pile keeps a marker ring so it's clear WHICH pile is open. */
   .pile.fanned .card { box-shadow: 0 0 0 3px var(--accent-2), 0 4px 12px rgba(2, 1, 4, 0.6); }
@@ -6401,7 +6417,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.49 · the belt slides down off pinky's face where a belt belongs";
+const APP_VERSION = "v4.50 · the corner folds over like a page that knows what's underneath";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14297,16 +14313,14 @@ const UIRenderer = (() => {
     hint.className = "pile-hint hidden";
     fx.appendChild(hint);
 
-    // Fan-out viewer button — bottom-RIGHT corner (the count pill is bottom-
-    // left). PRESENTATION ONLY: opens a face-up fan of the whole pile (a
-    // memory aid — every card here was seen when it landed). The button is
-    // the one interactive element inside the pointer-events:none .card-fx.
+    // Fan-out viewer affordance — a DOG-EAR page-curl on the bottom-RIGHT
+    // corner (the count pill is bottom-left). PRESENTATION ONLY: tap opens a
+    // face-up fan of the whole pile (a memory aid — every card here was seen
+    // when it landed); a swipe starting here is still a guess. The fold is
+    // drawn entirely in CSS (.pile-fan-btn ::before/::after); this element is
+    // the one interactive thing inside the pointer-events:none .card-fx.
     const fanBtn = document.createElement("div");
     fanBtn.className = "pile-fan-btn";
-    fanBtn.innerHTML = '<svg viewBox="0 0 14 14" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3">' +
-      '<rect x="1.4" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(-14 4.1 7.6)"/>' +
-      '<rect x="4.3" y="2.8" width="5.4" height="8" rx="1.1"/>' +
-      '<rect x="7.2" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(14 9.9 7.6)"/></g></svg>';
     fx.appendChild(fanBtn);
 
     card.appendChild(fx);
