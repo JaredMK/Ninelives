@@ -164,7 +164,12 @@ export function run() {
 
     c.reset();
     r.eq(c.packTrayCount(), 0, "reset wipes the pending tray");
-    r.eq(c.serialize().nextCardId, 52, "reset resets nextCardId to 52");
+    // nextCardId returns to the base 52 PLUS any duplicates the fresh map's
+    // own +1 nodes minted at lock time (a stage can carry more pickups than
+    // its suit has unique cards — rare, but legitimate).
+    const snap2 = c.serialize();
+    const minted = snap2.baseDeck.length - 52;
+    r.eq(snap2.nextCardId, 52 + minted, "reset resets nextCardId to the fresh deck's size (52 + " + minted + " map-minted)");
   }
 
   // --- A pack card has the same shape as a base-deck card ---------------

@@ -3713,39 +3713,52 @@
   }
 
   /* ---- Pile FAN-OUT viewer (presentation-only memory aid) ----
-     Affordance: a subtle DOG-EAR / page-curl on the card's bottom-right
-     corner — a small folded-over flap lifting off a shadowed notch, reading
-     as "there are cards under this pile" (fan-affordance option A). The box
-     is the invisible TAP TARGET (kept generous); only the fold inside it
-     draws, sized well clear of the count pill (bottom-left) and the rotated
-     corner rank. It must accept taps inside the pointer-events:none .card-fx. */
-  .pile-fan-btn {
-    position: absolute; bottom: -1px; right: -1px;
-    width: calc(var(--pile-size, 88px) * 0.27); height: calc(var(--pile-size, 88px) * 0.27);
-    /* clip the fold's outer edge to the card's own rounded corner */
-    border-radius: 0 0 clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px) 0;
-    overflow: hidden;
-    z-index: 3; pointer-events: auto; cursor: pointer;
+     GLOBAL SLIGHT-FAN hint (the rail's fan toggle, #fanAllBtn): while ON,
+     every ALIVE pile spreads a touch — two under-card layers peek out behind
+     the top card, hinting "there are cards underneath; tap a pile to look
+     through them". Pure presentation: the layers are pointer-transparent and
+     guessing (swipes, holds) stays fully live while the hint is showing. */
+  /* Scoped ENTIRELY under .board.fan-hint so the pseudos exist only while
+     the hint is on — and ::after yields to the sticker-ARMING glow (which
+     owns .pile::after under .board.arming). */
+  .board.fan-hint .pile:not(.dead)::before,
+  .board.fan-hint:not(.arming) .pile:not(.dead)::after {
+    content: ""; position: absolute; z-index: -1; pointer-events: none;
+    left: 50%; top: 50%;
+    width: calc(var(--pile-size, 88px) * 0.84); aspect-ratio: var(--card-ar);
+    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
+    background: var(--card-face, #fbf6f1); border: 1px solid var(--card-border, #ddd0c4);
+    box-shadow: 0 2px 6px rgba(40, 24, 30, 0.20);
+    animation: fanPeek 0.24s ease;
   }
-  /* The shadowed NOTCH the lifted corner exposes (the layer beneath).
-     34% of the tap box ≈ 9% of the pile — the whole ear stays clear of the
-     rotated corner rank (whose box ends ~11% from the corner). */
-  .pile-fan-btn::before {
-    content: ""; position: absolute; right: 0; bottom: 0;
-    width: 34%; height: 34%;
-    background: rgba(52, 34, 40, 0.16);
-    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  .board.fan-hint .pile:not(.dead)::before {
+    transform: translate(-50%, -50%) rotate(-7deg) translateX(calc(var(--pile-size, 88px) * -0.075));
   }
-  /* The folded-over FLAP: a light card-face triangle along the fold line,
-     shaded toward its lifted tip, with a soft crease shadow. */
-  .pile-fan-btn::after {
-    content: ""; position: absolute; right: 0; bottom: 0;
-    width: 34%; height: 34%;
-    background: linear-gradient(315deg, #cdbdb2 0%, #e8ddd4 42%, var(--card-face, #fbf6f1) 100%);
-    clip-path: polygon(100% 0, 0 100%, 0 0);
-    filter: drop-shadow(1px 1px 1px rgba(40, 24, 30, 0.28));
+  .board.fan-hint:not(.arming) .pile:not(.dead)::after {
+    transform: translate(-50%, -50%) rotate(6deg) translateX(calc(var(--pile-size, 88px) * 0.075));
   }
-  .pile.dead .pile-fan-btn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+  @keyframes fanPeek {
+    from { opacity: 0; transform: translate(-50%, -50%) rotate(0deg) translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .board.fan-hint .pile:not(.dead)::before,
+    .board.fan-hint:not(.arming) .pile:not(.dead)::after { animation: none; }
+  }
+  /* The FAN TOGGLE itself — above Higher/Same/Lower in the left rail. Shown
+     only while a deal is live (body.play-active); .on = the hint is active. */
+  .fan-all-btn { display: none; }
+  body.play-active .fan-all-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    width: 100%; flex: 0 0 46px; margin-bottom: 2px; padding: 0;
+    background: var(--panel); color: var(--accent-2);
+    border: 1px solid var(--edge-2); border-radius: 13px;
+    cursor: pointer; touch-action: manipulation;
+    box-shadow: var(--shadow);
+  }
+  .fan-all-btn svg { width: 24px; height: 24px; display: block; }
+  .fan-all-btn .fab-lbl { font: 800 7.5px/1 var(--font-text); letter-spacing: 0.6px; text-transform: uppercase; }
+  body.play-active .fan-all-btn.on { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+  .fan-all-btn:active { transform: scale(0.95); }
   /* The fanned pile keeps a marker ring so it's clear WHICH pile is open. */
   .pile.fanned .card { box-shadow: 0 0 0 3px var(--accent-2), 0 4px 12px rgba(2, 1, 4, 0.6); }
 
@@ -6417,7 +6430,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.50 · the corner folds over like a page that knows what's underneath";
+const APP_VERSION = "v4.51 · one button breathes the whole table open and shut";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14313,16 +14326,9 @@ const UIRenderer = (() => {
     hint.className = "pile-hint hidden";
     fx.appendChild(hint);
 
-    // Fan-out viewer affordance — a DOG-EAR page-curl on the bottom-RIGHT
-    // corner (the count pill is bottom-left). PRESENTATION ONLY: tap opens a
-    // face-up fan of the whole pile (a memory aid — every card here was seen
-    // when it landed); a swipe starting here is still a guess. The fold is
-    // drawn entirely in CSS (.pile-fan-btn ::before/::after); this element is
-    // the one interactive thing inside the pointer-events:none .card-fx.
-    const fanBtn = document.createElement("div");
-    fanBtn.className = "pile-fan-btn";
-    fx.appendChild(fanBtn);
-
+    // (The per-card fan affordance is gone — fanning is the GLOBAL rail
+    // toggle #fanAllBtn: it slight-fans every pile, and a pile TAP while the
+    // hint is on opens that pile's full face-up fan. See setFanHint.)
     card.appendChild(fx);
     pile.appendChild(card);
     return pile;
@@ -14483,6 +14489,21 @@ const UIRenderer = (() => {
     pileFanIndex = null;
     el.pileFan.classList.add("hidden");
     el.pileFan.innerHTML = "";
+  }
+  /* GLOBAL SLIGHT-FAN hint (the rail's fan toggle): while on, every alive
+     pile spreads a touch (see .board.fan-hint CSS) and a pile TAP opens that
+     pile's full fan. NON-BLOCKING by design — guess input (swipes, holds,
+     buttons) stays fully live while the hint is showing. */
+  let fanHintOn = false;
+  function setFanHint(on) {
+    fanHintOn = !!on;
+    if (el.board) el.board.classList.toggle("fan-hint", fanHintOn);
+    const fb = document.getElementById("fanAllBtn");
+    if (fb) {
+      fb.classList.toggle("on", fanHintOn);
+      fb.title = fanHintOn ? "Collapse the piles" : "Fan out the piles";
+      fb.setAttribute("aria-pressed", fanHintOn ? "true" : "false");
+    }
   }
 
   /* ---- full (re)render of the board from state ---- */
@@ -15144,7 +15165,30 @@ const UIRenderer = (() => {
     // board — compact symbol buttons stacked vertically. (Swipe-on-board still
     // works; the buttons are an additional, always-visible control.)
     const rail = document.getElementById("rail");
-    if (rail && el.actions) rail.appendChild(el.actions);
+    if (rail && el.actions) {
+      // GLOBAL FAN TOGGLE — sits ABOVE Higher/Same/Lower: fans every pile
+      // slightly (a look-through hint); tap again to collapse. While the hint
+      // is on, tapping a pile opens that pile's full face-up fan.
+      if (!document.getElementById("fanAllBtn")) {
+        const fb = document.createElement("button");
+        fb.type = "button"; fb.id = "fanAllBtn"; fb.className = "fan-all-btn";
+        fb.title = "Fan out the piles"; fb.setAttribute("aria-label", "Fan out the piles");
+        fb.setAttribute("aria-pressed", "false");
+        fb.innerHTML = '<svg viewBox="0 0 14 14" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3">' +
+          '<rect x="1.4" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(-14 4.1 7.6)"/>' +
+          '<rect x="4.3" y="2.8" width="5.4" height="8" rx="1.1"/>' +
+          '<rect x="7.2" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(14 9.9 7.6)"/></g></svg>' +
+          '<span class="fab-lbl">Fan</span>';
+        fb.addEventListener("click", (e) => {
+          e.preventDefault(); e.stopPropagation();
+          closePileFan();            // a full fan can't outlive the hint toggling
+          setFanHint(!fanHintOn);
+          Sound.tap();
+        });
+        rail.appendChild(fb);
+      }
+      rail.appendChild(el.actions);
+    }
   }
 
   /* Incremental-histogram cache (perf pass 3): a guess only moves REMAINING
@@ -16686,15 +16730,12 @@ const UIRenderer = (() => {
       if (infoHold) { infoHold = false; closeCardInfo(); }
       peeking = false;
       pileDrag = null;
-      // FAN-OUT viewer open: never arm a drag-guess or a hold — the next tap
+      // FULL FAN popup open: never arm a drag-guess or a hold — the next tap
       // is handled entirely by the capture-phase fan click listener (it only
-      // collapses). Guess input is SUSPENDED while the fan is open.
+      // collapses). Guess input is SUSPENDED while the popup is open. (The
+      // SLIGHT-fan hint is different: it's non-blocking — presses arm
+      // normally below, so swipes still guess while the hint is showing.)
       if (pileFanIndex != null) return;
-      // A press STARTING on a pile's fan chip still arms the drag-guess below
-      // (a swipe over the chip is a swipe) — only the info-HOLD timer is
-      // skipped so a long-press on the chip can't hijack the tap. A clean tap
-      // never moves, so the capture-phase click listener opens the fan.
-      const onFanBtn = !!e.target.closest(".pile-fan-btn");
       const cell = e.target.closest(".bp-cell");
       if (cell) {   // Pillar-indicator hold-to-peek
         // Capture the pointer so the held peek tracks the finger anywhere and
@@ -16720,18 +16761,13 @@ const UIRenderer = (() => {
         if (engine.getBoard().isActive(index)) {
           pileDrag = { index, startX: e.clientX, startY: e.clientY, armed: null, moved: false };
           // Own the gesture so a sideways Same can't trigger browser back/forward
-          // (and moves keep tracking even if the finger leaves the pile). A press
-          // starting on the FAN CHIP captures to the chip instead: captured
-          // events retarget to the capture element, and a clean tap's click must
-          // still TARGET the chip for the fan listener to match (either way they
-          // bubble through the board, so the drag handlers are unaffected).
-          try { (onFanBtn ? e.target.closest(".pile-fan-btn") : el.board).setPointerCapture(e.pointerId); } catch (err) {}
+          // (and moves keep tracking even if the finger leaves the pile).
+          try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
           // HOLD → this pile's card info (read-only; release closes). Movement
-          // (a drag-guess) cancels the hold; the hold cancels the drag. A press
-          // on the fan chip arms NO hold (tap = fan, drag = guess — nothing else).
+          // (a drag-guess) cancels the hold; the hold cancels the drag.
           clearTimeout(infoTimer);
           infoHold = false;
-          if (!onFanBtn) infoTimer = setTimeout(() => {
+          infoTimer = setTimeout(() => {
             infoHold = true;
             pileDrag = null;               // a hold is not a drag — disarm guessing
             clearDragFeedback();
@@ -16740,7 +16776,6 @@ const UIRenderer = (() => {
         }
       } else if (engine && engine.canApplyStickers()
                  && !armedSticker && armedPack == null && !armedPillar && !armedBaseItem) {
-        if (onFanBtn) return;   // setup: a press on the fan chip is tap-opens-fan only
         // Setup (nothing armed): HOLD a pile to read its card + stickers, so
         // hold-for-info works consistently in setup too (not just in play).
         // Capture the pointer so the held help survives finger movement and only
@@ -16778,6 +16813,14 @@ const UIRenderer = (() => {
           // have changed direction mid-swipe; only the final one counts.
           if (pileDrag.armed) engine.guess(pileDrag.index, pileDrag.armed);
           // else: released in the centre dead-zone → cancel (no guess, pile stays selected)
+        } else if (fanHintOn) {
+          // SLIGHT-FAN hint on + a clean TAP (never moved, no hold fired):
+          // open this pile's full fan HERE, from the tracked index — pointer
+          // capture retargets the ensuing click to the board, so a click
+          // handler could not tell which pile was tapped. The click that
+          // follows is flagged so the tap-away closer ignores it.
+          suppressPileClick = true;
+          openPileFan(pileDrag.index);
         }
         pileDrag = null;
       }
@@ -16908,28 +16951,17 @@ const UIRenderer = (() => {
       closePeekInfo(); peekTapCol = null;
       pickUpPillar(Number(b.dataset.unplaceCol));
     });
-    // Pile FAN-OUT viewer input: a pile's corner fan button toggles its fan;
-    // while a fan is open, the NEXT tap anywhere else collapses it and does
-    // NOTHING more. Capture phase + stopPropagation means every other click
-    // handler (pile select, guess buttons, pillar/base taps) is safely
-    // skipped for that tap — combined with the pointerdown guard above,
-    // guess input is fully suspended while fanned. Taps ON the open fan
-    // panel are ignored so a big pile can be scrolled/browsed.
+    // FULL FAN popup dismiss: while the popup is open, the next tap anywhere
+    // (except on the fan panel itself, so a big pile can be scrolled)
+    // collapses it and does NOTHING more — capture + stopPropagation skips
+    // every other click handler, and the pointerdown guard above keeps guess
+    // input suspended. The tap that OPENED the popup (endPeek flags it via
+    // suppressPileClick) is consumed without closing. Opening itself happens
+    // in endPeek — pointer capture retargets clicks to the board, so only
+    // the pointer path knows which pile was tapped.
     document.addEventListener("click", (e) => {
-      const fanBtn = e.target.closest(".pile-fan-btn");
-      if (fanBtn) {
-        e.preventDefault(); e.stopPropagation();
-        // The press MOVED (a drag-guess over the chip) → it was a swipe, not a
-        // tap: consume the click without opening the fan.
-        if (suppressPileClick) { suppressPileClick = false; return; }
-        const holder = fanBtn.closest(".pile");
-        const idx = holder ? Number(holder.dataset.index) : NaN;
-        const same = pileFanIndex === idx;
-        closePileFan();
-        if (!same && !Number.isNaN(idx)) openPileFan(idx);
-        return;
-      }
       if (pileFanIndex == null) return;
+      if (suppressPileClick) { suppressPileClick = false; e.stopPropagation(); return; }   // the opening tap
       if (e.target.closest(".pile-fan")) return;   // browsing the fan itself
       e.preventDefault(); e.stopPropagation();
       closePileFan();
@@ -19417,6 +19449,7 @@ const UIRenderer = (() => {
      vertically against the tallest via the board's align-items: center. */
   function buildBoard(cols, dealing = true) {
     closePileFan();   // the fanned pile's elements are about to be rebuilt
+    setFanHint(false);   // the slight-fan hint never carries into a new board
     el.board.innerHTML = "";
     el.board.classList.remove("win-cine");   // clear any win-cinematic state
     el.board.style.setProperty("--cols", CAMPAIGN_MAX_COLS);
