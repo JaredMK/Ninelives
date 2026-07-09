@@ -4836,7 +4836,10 @@
     pointer-events: none; will-change: transform; }
   .av-shift { position: relative; will-change: transform; }   /* TRAVEL tween target */
   .av-body {
-    position: relative; width: 38px; height: 40px; border-radius: 7px;
+    /* The SAME playing-card proportions (--card-ar 0.70) the character has
+       everywhere else (deck slot, deck select, jump clone) — the old 38×40
+       box read as a square blob on the trail. 28px wide → 40px tall. */
+    position: relative; width: 28px; aspect-ratio: var(--card-ar); border-radius: 6px;
     will-change: transform;   /* the idle bob composites on its own tiny layer */
     background: linear-gradient(160deg, var(--av-1, #e0738f), var(--av-2, #b23a5c));
     border: 1.5px solid rgba(255,255,255,0.5);
@@ -4856,7 +4859,7 @@
   .av-eye::after { content: ""; position: absolute; top: 1px; left: 1.5px; width: 2.5px; height: 2.5px;
     border-radius: 50%; background: rgba(255,255,255,0.85); }
   /* ── EMOTIONAL BASE (CharMood) at avatar scale — the SAME mood-* classes the
-     deck-slot character gets, sized to read at 38×40px. Placed BEFORE the
+     deck-slot character gets, sized to read at 28×40px. Placed BEFORE the
      transient blink/mood-happy/mood-worried rules so those still win their
      moment. No mouth — eyes + body only. Transform/opacity only. */
   /* Dirt smudges + scuff, fading via --grime as he gets closer to mama. */
@@ -4871,7 +4874,7 @@
     background-size: 42% 36%, 34% 30%, 26% 22%, 40% 26%;
     background-position: 6% 82%, 88% 30%, 55% 96%, 80% 62%;
     background-repeat: no-repeat; }
-  .av-tear { position: absolute; left: 12px; top: 23px; width: 3px; height: 5px;
+  .av-tear { position: absolute; left: 7px; top: 23px; width: 3px; height: 5px;
     border-radius: 45% 45% 55% 55%; background: rgba(130,190,225,0.92);
     opacity: 0; pointer-events: none; }
   /* ANXIOUS (run start / ♦): droopy upper lids, nervous darting glances,
@@ -5072,11 +5075,11 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.3); transform-origin: 80% 100%; }
   .ch-smith .x-mono::after { content: ""; position: absolute; top: 96%; left: 76%; width: 1.5px; height: 120%;
     background: #d4af37; transform-origin: top; }
-  /* MAP AVATAR: the 38×40 trail avatar's face sits LOWER (top 17px) than the
+  /* MAP AVATAR: the 28×40 trail avatar's face sits LOWER (top 17px) than the
      big deck-slot character's, so the shared 17%-top monocle floated above the
-     eye. Re-seat it squarely over the right eye (5px eye centred at ~23.5,19.5
-     in the 35×37 padding box). */
-  .map-avatar.ch-smith .x-mono { width: 9.5px; top: 14.5px; right: 6.5px; }
+     eye. Re-seat it squarely over the right eye (5px eye centred at ~20,19.5
+     on the 28px-wide card body). */
+  .map-avatar.ch-smith .x-mono { width: 9.5px; top: 14.5px; right: 3.5px; }
   /* monocle GLINT (a highlight sweep) — used by the looking state */
   @keyframes monoGlint {
     0%, 100% { background-position: -120% 0, 0 0; }
@@ -5278,7 +5281,7 @@
   .ch-smith.tier-legendary .x-tier::after { content: ""; position: absolute; top: 96%; right: 76%;
     width: 1.5px; height: 120%; background: #d4af37; }
   /* map avatar: the face sits lower on the 38×40 box (see the x-mono note). */
-  .map-avatar.ch-smith.tier-legendary .x-tier { width: 9.5px; top: 14.5px; left: 6.5px; }
+  .map-avatar.ch-smith.tier-legendary .x-tier { width: 9.5px; top: 14.5px; left: 3.5px; }
 
   /* LAMMY — a necktie down the front: knot + kite blade, widening by tier.
      The knot sits at NECK level (below the face band: face top 21% + eye
@@ -6394,7 +6397,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.47 · the shelf asks what kind before it asks which one";
+const APP_VERSION = "v4.48 · the trail walker finally stands like a playing card";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
