@@ -6430,7 +6430,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.51 · one button breathes the whole table open and shut";
+const APP_VERSION = "v4.52 · the map bounces like rubber, and every payout rings true";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9371,13 +9371,20 @@ const GameEngine = (() => {
       if (!stickers.length) return;
       const col = run && run.pileColumns ? run.pileColumns[index] : null;
       const center = centerColumn();
+      // Each payout also emits "sticker-coins" so the UI floats the +N over
+      // the pile with the shared coin chime (these were silent tally bumps).
+      const pay = (label, amount) => {
+        if (!amount) return;
+        addBonus(label, amount);
+        emit("sticker-coins", { index, label, amount, board, deck, run });
+      };
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t) continue;
-        if (t.behavior === "middleColumnReward" && center != null && col === center) { addBonus("Focus", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
-        else if (t.behavior === "gainCoin") { addBonus("Bonus Coin", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
+        if (t.behavior === "middleColumnReward" && center != null && col === center) { pay("Focus", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
+        else if (t.behavior === "gainCoin") { pay("Bonus Coin", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
         // Hub pays per instance: +1 for each OTHER Imprint on this card.
-        else if (t.behavior === "collector") { const amt = (t.value || 1) * Math.max(0, stickers.length - 1); addBonus("Collector", amt); recT("sticker", t.id, t.label, { coins: amt }); }
+        else if (t.behavior === "collector") { const amt = (t.value || 1) * Math.max(0, stickers.length - 1); pay("Collector", amt); recT("sticker", t.id, t.label, { coins: amt }); }
       }
     }
 
@@ -14573,7 +14580,7 @@ const UIRenderer = (() => {
     const run = engine.getRun && engine.getRun();
     if (!run || run.totalGuesses > 0 || (engine.getStatus && engine.getStatus() !== "playing")) return;   // first guess made → gone
     if (!campaign.spendCoins(redealCost)) return;                  // can't afford
-    Sound.pack();
+    Sound.shuffle();   // a re-DEAL is a shuffle — the shared riffle, like every other shuffle source
     if (engine.logAction) engine.logAction("Reshuffled the deal-out (−" + redealCost + " coins)");
     // Fresh random seed = a new deal-out of the SAME deck; the escalated price
     // carries into the re-dealt run (startRun persists both).
@@ -18269,9 +18276,11 @@ const UIRenderer = (() => {
       }
 
       case "sticker-coins": {
-        // A new-expansion coin sticker paid out on a landing — float the result
-        // over the pile (including a visible "+0" for Loose Change's miss).
-        floatOverPile(payload.index, "+" + (payload.amount || 0));
+        // A coin sticker paid out on a landing. GAINS ride the shared coin
+        // float (chip + the throttled coin chime — same cue as every pillar/
+        // base payout); Loose Change's visible "+0" keeps the silent float.
+        if (payload.amount > 0) floatCoins(pileEls[payload.index], payload.amount, "pile-float");
+        else floatOverPile(payload.index, "+" + (payload.amount || 0));
         renderHud(payload.board, payload.deck);
         break;
       }
@@ -21804,12 +21813,19 @@ const UIRenderer = (() => {
     if (performance.now() < mapBounceMuteUntil) return;
     if (!el.mapTrack || typeof el.mapTrack.animate !== "function") return;
     mapBounceBusy = true;
-    const dip = { duration: 300, easing: "ease-out" };
-    const a = el.mapTrack.animate(
-      [{ transform: "translateY(0px)" }, { transform: "translateY(" + (dir * 16) + "px)" }, { transform: "translateY(0px)" }], dip);
+    // SAFARI-STYLE rubber-band: the fling DECELERATES into a deep stretch
+    // (fast at first, easing out as the band tightens), hangs a beat at the
+    // apex, then eases home with a whisper of overshoot — never a hard snap.
+    const D = dir * 30;
+    const frames = (fmt) => [
+      { transform: fmt(0), easing: "cubic-bezier(0.12, 0.68, 0.25, 1)" },     // impact → stretch (decelerating)
+      { transform: fmt(D), offset: 0.34, easing: "cubic-bezier(0.4, 0, 0.24, 1.06)" }, // apex → soft eased return
+      { transform: fmt(0) },
+    ];
+    const dip = { duration: 650 };
+    const a = el.mapTrack.animate(frames((y) => "translateY(" + y + "px)"), dip);
     const egg = document.getElementById("mapEgg");
-    if (egg) egg.animate(
-      [{ transform: "translate(-50%,0px)" }, { transform: "translate(-50%," + (dir * 16) + "px)" }, { transform: "translate(-50%,0px)" }], dip);
+    if (egg) egg.animate(frames((y) => "translate(-50%," + y + "px)"), dip);
     a.onfinish = () => { mapBounceBusy = false; };
   }
   /* OFF-SCREEN NODE CULLING: the whole run renders (by design — the full climb

@@ -71,7 +71,9 @@ export function run() {
     for (let v = 0; v < 100 && !found; v++) {
       c.rerollStore();
       const offer = c.getStoreOffer();
-      offer.slots.forEach((s, i) => { if (!found && s && s.kind === "card") { found = s; foundSlot = i; } });
+      // a NORMAL card slot only — a rolled shelf Joker would price at jokerPrice
+      // and already hold a reserved slot, breaking the assertions below.
+      offer.slots.forEach((s, i) => { if (!found && s && s.kind === "card" && s.card && !s.card.joker) { found = s; foundSlot = i; } });
     }
     r.ok(!!found, "card slots appear on real shelves");
     r.eq(c.priceOfMixed(foundSlot), ItemData.store.card.price, "a normal card slot costs store.card.price");
