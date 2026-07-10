@@ -4242,6 +4242,17 @@
   .ap-btn { left: 48px; }
   .ap-btn.hidden { display: none; }
   .ap-btn.running { opacity: 0.95; background: var(--amber); color: #3A2A18; border-color: var(--amber); }
+  /* Autopilot speed slider (beside ▶/⏸): LEFT = slow (1 card / 2s), RIGHT =
+     fast (4 cards / 1s). Live — the running pilot picks the new pace up on
+     its next move. Same fixed corner family as the toggle + pilot button. */
+  .ap-speed {
+    position: fixed; left: 88px; bottom: 16px; z-index: 90;
+    width: 92px; height: 18px; margin: 0;
+    accent-color: var(--amber);
+    opacity: 0.6; cursor: pointer; touch-action: none;
+  }
+  .ap-speed:active, .ap-speed:hover { opacity: 0.95; }
+  .ap-speed.hidden { display: none; }
   /* The pile the autopilot is about to act on — telegraphed for one beat
      (~1/4s) before the guess lands so the choice is watchable. */
   .pile.ap-target { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 10px; }
@@ -5869,6 +5880,9 @@
   <!-- AUTOPILOT (debug): ▶/⏸ appears beside the bug only while the debug
        "autopilot" checkbox is on. Play = the pilot guesses; pause = you do. -->
   <button class="debug-toggle ap-btn hidden" id="autoPilotBtn" type="button" aria-label="Autopilot play/pause">▶</button>
+  <!-- Autopilot speed: LEFT = slow (1 card / 2s) … RIGHT = fast (4 cards/s).
+       The value is inverted into a per-move delay (see the input handler). -->
+  <input class="ap-speed hidden" id="autoPilotSpeed" type="range" min="250" max="2000" step="50" value="1750" aria-label="Autopilot speed" />
   <div class="debug-overlay hidden" id="debugOverlay">
     <div class="debug-panel">
       <div class="debug-head">
@@ -6454,7 +6468,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.59 · a wild card never checks the dress code";
+const APP_VERSION = "v4.60 · the pilot got a throttle and a soft spot for runts";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14164,6 +14178,7 @@ const UIRenderer = (() => {
     debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
     debugAutopilot: document.getElementById("debugAutopilot"),       // DEBUG: autopilot enable/disable
     autoPilotBtn: document.getElementById("autoPilotBtn"),           // DEBUG: autopilot ▶/⏸ (beside the 🐞)
+    autoPilotSpeed: document.getElementById("autoPilotSpeed"),       // DEBUG: autopilot speed slider (slow ←→ fast)
     debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
     debugJumpBtn: document.getElementById("debugJumpBtn"),
     debugStickerSel: document.getElementById("debugStickerSel"),
@@ -16663,10 +16678,19 @@ const UIRenderer = (() => {
      reshuffles per deal) and we can afford it → reshuffle instead of guessing.
      A reshuffle re-enters the setup phase, so the pilot then waits for Start.
 
-     PACING: one card per AP_TICK_MS (0.5s); the chosen pile is telegraphed
-     with .ap-target for AP_HIGHLIGHT_MS before the guess lands. */
-  const AP_TICK_MS = 500;            // one card per half second
-  const AP_HIGHLIGHT_MS = 260;       // target-pile telegraph before the guess
+     PACING: one card per apTickMs — a live speed slider beside the ▶/⏸
+     button spans AP_TICK_MIN_MS (4 cards/s) to AP_TICK_MAX_MS (1 card / 2s),
+     default 500ms; the chosen pile is telegraphed with .ap-target for the
+     first half of the tick (capped at 260ms) before the guess lands.
+
+     TIEBREAK: candidates within AP_TIE_EPS (5 percentage points) of the best
+     survival odds count as tied; among them prefer (1) a move that banks a
+     Same Charge, then (2) the SMALLER pile — feeding the smallest-pile
+     end-of-deal payout — then the lowest pile index. */
+  const AP_TICK_MIN_MS = 250;        // fastest: 4 cards per second
+  const AP_TICK_MAX_MS = 2000;       // slowest: 1 card per 2 seconds
+  let apTickMs = 500;                // current pace (the slider writes this, live)
+  const AP_TIE_EPS = 0.05;           // odds within 5pp of best = "similar" → tiebreak
   const AP_RESHUFFLE_ODDS = 0.65;    // reshuffle while best survival < 65%…
   const AP_RESHUFFLE_COST_CAP = 12;  // …and the NEXT reshuffle costs ≤ 12 coins
   let autopilotEnabled = false;      // the debug checkbox
@@ -16678,6 +16702,16 @@ const UIRenderer = (() => {
     autopilotEnabled = !!on;
     if (!autopilotEnabled && autopilotRunning) setAutopilotRunning(false);
     if (el.autoPilotBtn) el.autoPilotBtn.classList.toggle("hidden", !autopilotEnabled);
+    if (el.autoPilotSpeed) el.autoPilotSpeed.classList.toggle("hidden", !autopilotEnabled);
+  }
+  /* Slider → per-move delay. The slider reads LEFT = slow → RIGHT = fast, so
+     its value is INVERTED into the delay (min+max−value keeps both ends on
+     the same [250, 2000] scale; the default 1750 ⇒ the original 500ms). */
+  function apSetSpeedFromSlider() {
+    if (!el.autoPilotSpeed) return;
+    const v = Number(el.autoPilotSpeed.value) || 0;
+    apTickMs = Math.min(AP_TICK_MAX_MS, Math.max(AP_TICK_MIN_MS, AP_TICK_MIN_MS + AP_TICK_MAX_MS - v));
+    el.autoPilotSpeed.title = "autopilot speed: " + (1000 / apTickMs).toFixed(1) + " cards/s";
   }
   function setAutopilotRunning(on) {
     autopilotRunning = !!on;
@@ -16687,7 +16721,7 @@ const UIRenderer = (() => {
     }
     apClearTarget();
     if (apTimer) { clearTimeout(apTimer); apTimer = null; }
-    if (autopilotRunning) apTimer = setTimeout(apTick, AP_TICK_MS);
+    if (autopilotRunning) apTimer = setTimeout(apTick, apTickMs);
   }
   function apClearTarget() {
     if (apTargetEl) { apTargetEl.classList.remove("ap-target"); apTargetEl = null; }
@@ -16732,15 +16766,16 @@ const UIRenderer = (() => {
       if (!board.isActive(i)) continue;
       const top = board.top(i);
       if (!top) continue;
+      const size = board.piles[i].cards.length;   // for the smaller-pile tiebreak
       if (top.joker) {
         // Joker top: every call is safe — SAME banks the charge when empty;
         // at full charge hold the pile back (avoid) until the bank is spent.
-        list.push({ i, dir: "same", p: 1, banks: !charged, avoid: charged });
+        list.push({ i, size, dir: "same", p: 1, banks: !charged, avoid: charged });
         continue;
       }
       const hint = engine.pileHint ? engine.pileHint(i) : null;
       if (hint) {
-        list.push({ i, dir: hint, p: 1, banks: hint === "same" && !charged, avoid: false });
+        list.push({ i, size, dir: hint, p: 1, banks: hint === "same" && !charged, avoid: false });
         continue;
       }
       if (revealed) {
@@ -16749,7 +16784,7 @@ const UIRenderer = (() => {
           ? (charged ? "higher" : "same")   // known Joker draw: safe anywhere; SAME banks
           : revealed.value > top.value ? "higher"
           : revealed.value < top.value ? "lower" : "same";
-        list.push({ i, dir, p: 1, banks: dir === "same" && !charged, avoid: false });
+        list.push({ i, size, dir, p: 1, banks: dir === "same" && !charged, avoid: false });
         continue;
       }
       if (!(total > 0)) continue;
@@ -16767,25 +16802,39 @@ const UIRenderer = (() => {
       // On an exact tie in odds prefer SAME while the charge is empty — a
       // correct Same banks a charge on top of surviving.
       if (pS > p || (pS === p && !charged)) { dir = "same"; p = pS; }
-      list.push({ i, dir, p, banks: dir === "same" && !charged, avoid: false });
+      list.push({ i, size, dir, p, banks: dir === "same" && !charged, avoid: false });
     }
     return list;
   }
   /* Best move: skip avoided (full-charge Joker) piles unless they're ALL that's
-     left (forced → Same the Joker anyway); rank by survival P, then by whether
-     the move banks a charge. bestRaw (no avoidance) feeds the reshuffle check. */
+     left (forced → Same the Joker anyway). Candidates within AP_TIE_EPS of the
+     pool's best odds are "similar"; among them prefer a charge-banking move,
+     then the SMALLER pile (smallest-pile payout), then the lowest index.
+     bestRaw (no avoidance) feeds the reshuffle check. */
   function apChooseMove() {
     const cands = apCandidates();
     if (!cands.length) return null;
     const usable = cands.filter(c => !c.avoid);
     const pool = usable.length ? usable : cands;
-    pool.sort((a, b) => (b.p - a.p) || ((b.banks ? 1 : 0) - (a.banks ? 1 : 0)) || (a.i - b.i));
-    return { move: pool[0], bestRaw: cands.reduce((m, c) => Math.max(m, c.p), 0) };
+    const bestP = pool.reduce((m, c) => Math.max(m, c.p), 0);
+    const near = pool.filter(c => c.p >= bestP - AP_TIE_EPS);
+    near.sort((a, b) => ((b.banks ? 1 : 0) - (a.banks ? 1 : 0)) || (a.size - b.size) || (a.i - b.i));
+    return { move: near[0], bestRaw: cands.reduce((m, c) => Math.max(m, c.p), 0) };
+  }
+  /* Read-only tuning/test hook (invisible to gameplay): expose the pilot's
+     candidate list + choice so probes can audit the decision rule live. */
+  if (typeof window !== "undefined") {
+    window.__apDebug = {
+      candidates: () => (engine ? apCandidates() : []),
+      choose: () => (engine ? apChooseMove() : null),
+      tieEps: () => AP_TIE_EPS,
+      tickMs: () => apTickMs,
+    };
   }
   function apTick() {
     apTimer = null;
     if (!autopilotRunning) return;
-    const idle = () => { apTimer = setTimeout(apTick, AP_TICK_MS); };
+    const idle = () => { apTimer = setTimeout(apTick, apTickMs); };
     if (!apCanAct()) { apClearTarget(); apNote("idle"); return idle(); }
     const deck = engine.getDeck();
     if (!deck || deck.isEmpty()) { apClearTarget(); apNote("deck-empty"); return idle(); }
@@ -16804,9 +16853,12 @@ const UIRenderer = (() => {
       doReshuffle();
       return idle();
     }
-    apNote("guess pile=" + pick.move.i + " " + pick.move.dir + " p=" + pick.move.p.toFixed(2) + " best=" + pick.bestRaw.toFixed(2));
-    // Telegraph the target pile for a beat, then guess — 1 card per tick.
+    apNote("guess pile=" + pick.move.i + " " + pick.move.dir + " p=" + pick.move.p.toFixed(2)
+      + " sz=" + pick.move.size + " best=" + pick.bestRaw.toFixed(2));
+    // Telegraph the target pile for the first half of the tick (capped at
+    // 260ms so fast paces stay readable), then guess — 1 card per tick.
     const move = pick.move;
+    const telegraphMs = Math.min(260, Math.round(apTickMs / 2));
     apClearTarget();
     apTargetEl = pileEls[move.i] || null;
     if (apTargetEl) apTargetEl.classList.add("ap-target");
@@ -16815,8 +16867,8 @@ const UIRenderer = (() => {
       apClearTarget();
       // Re-check at fire time — a prompt/pause may have landed mid-telegraph.
       if (apCanAct()) engine.guess(move.i, move.dir);
-      if (autopilotRunning) apTimer = setTimeout(apTick, AP_TICK_MS - AP_HIGHLIGHT_MS);
-    }, AP_HIGHLIGHT_MS);
+      if (autopilotRunning) apTimer = setTimeout(apTick, Math.max(50, apTickMs - telegraphMs));
+    }, telegraphMs);
   }
 
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
@@ -17653,6 +17705,11 @@ const UIRenderer = (() => {
     if (el.autoPilotBtn) el.autoPilotBtn.addEventListener("click", () => {
       setAutopilotRunning(!autopilotRunning);
     });
+    // Speed slider: live — the next scheduled move already uses the new pace.
+    if (el.autoPilotSpeed) {
+      el.autoPilotSpeed.addEventListener("input", apSetSpeedFromSlider);
+      apSetSpeedFromSlider();   // sync apTickMs with the slider's initial value
+    }
     // DEBUG JUMP TO NODE (removable): teleport position to the selected node.
     if (el.debugJumpBtn) el.debugJumpBtn.addEventListener("click", debugJumpToSelectedNode);
     // Artifact telemetry (debug only): open the table, export CSV, reset.
