@@ -112,6 +112,18 @@ export function run() {
     r.ok(!lj.joker && !lj.blank, "legendary: the same roll falls through to a normal card (cap 0)");
   }
 
+  // --- store cards/packs are FULL-SUIT — never stage-gated ----------------
+  {
+    const c = CampaignState.create();
+    c.reset();   // Pinky stage 1: only ♥ + ♦ are in play on the MAP…
+    const seen = {};
+    for (let i = 0; i < 400; i++) { const card = c.genStoreCard(Math.random); if (card.suit && !card.joker && !card.blank) seen[card.suit] = (seen[card.suit] || 0) + 1; }
+    for (let i = 0; i < 400; i++) { const card = c.genPackCard(Math.random); if (card.suit && !card.joker && !card.blank) seen[card.suit] = (seen[card.suit] || 0) + 1; }
+    r.eq(Object.keys(seen).length, 4, "…but STORE cards + pack cards draw all four suits (" + JSON.stringify(seen) + ")");
+    r.ok(Object.values(seen).every(n => n > 110), "…roughly equally (~200 each of 800)");
+    // (map pickups/packs staying ♦-gated for Pinky is asserted in deck-rules)
+  }
+
   // --- Lammy: card-slot cards never mint stickers --------------------------
   {
     const c = CampaignState.create();

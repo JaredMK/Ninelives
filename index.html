@@ -268,8 +268,12 @@
      (its own glance row, out of the top bar). ──────────────────────────────── */
   .deal-status { display: flex; align-items: baseline; justify-content: center; gap: 8px;
     width: min(98vw, 500px); margin: 3px auto 1px; flex-wrap: wrap; }
-  .deal-status .ds-cap { font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
-    text-transform: uppercase; color: var(--accent-2); }
+  /* The CLEAR-REWARD label: bigger + a solid rose chip (the bare 9px pink
+     caps sank into the felt behind it). */
+  .deal-status .ds-cap { font-size: 11.5px; font-weight: 900; letter-spacing: 0.6px;
+    text-transform: uppercase; color: #fff; background: var(--accent-2);
+    padding: 2px 8px; border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(74, 40, 55, 0.30); }
   .deal-status .hud-score { color: var(--text); display: inline-flex; align-items: baseline;
     gap: 1px; white-space: nowrap; font-weight: 700; }
   .deal-status .hud-score b { font-size: 17px; font-weight: 800; margin: 0 1px; }
@@ -1921,7 +1925,11 @@
      + higher-contrast for legibility; same uppercase tagline style. */
   .menu-tagline { color: var(--text); font-size: 15px; font-weight: 800; letter-spacing: 1.5px;
     text-transform: uppercase; margin: 0; }
-  .menu-buttons { display: flex; flex-direction: column; gap: 9px; width: min(82vw, 300px); margin-top: clamp(6px, 2vh, 16px); }
+  /* margin-inline auto: the fixed-width column must CENTER inside block
+     containers too (the pause sheet) — the main menu's flex centring is
+     unaffected. */
+  .menu-buttons { display: flex; flex-direction: column; gap: 9px; width: min(82vw, 300px);
+    margin: clamp(6px, 2vh, 16px) auto 0; }
   /* Crafted buttons: a soft inner top-highlight + layered shadow give weight; the
      press sinks (translateY + reduced shadow). A clear hierarchy — the primary
      action is larger, gradient-filled, and gently glows. */
@@ -3750,10 +3758,12 @@
   body.play-active .fan-all-btn {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     width: 100%; flex: 0 0 46px; margin-bottom: 2px; padding: 0;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 13px;
+    /* MUTED control chip on the felt (the old card-white plate outshone the
+       actual cards) — a quiet translucent well, like a tool, not a card. */
+    background: rgba(16, 38, 30, 0.30); color: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.20); border-radius: 13px;
     cursor: pointer; touch-action: manipulation;
-    box-shadow: var(--shadow);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.18);
   }
   .fan-all-btn svg { width: 24px; height: 24px; display: block; }
   .fan-all-btn .fab-lbl { font: 800 7.5px/1 var(--font-text); letter-spacing: 0.6px; text-transform: uppercase; }
@@ -6430,7 +6440,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.53 · the band stretches with the throw, and the coins ring out loud";
+const APP_VERSION = "v4.54 · the shop deals every suit, and the small print grew a voice";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11815,12 +11825,15 @@ const CampaignState = (() => {
     function genJokerCard() {
       return { id: nextCardId++, joker: true, suit: "★", originalRank: 0, currentRank: 0, modifications: [], stickers: [], compoundHits: 0 };
     }
-    /** A freshly-minted NORMAL pack-odds card: random suit-in-play + rank,
-        then the shared sticker distribution (1% four / 3% three / 11% two /
-        33% one / 52% none), suit-restricted, Lammy mints none. The single
-        source for store card packs AND the store's individual-card slots. */
+    /** A freshly-minted NORMAL pack-odds card: a random suit from ALL FOUR
+        (store cards/packs are deliberately UNGATED — stage suit-gating
+        applies only to MAP pickups and map packs, which draw through their
+        own draftIdForNode/pickSuitDraftId paths), then the shared sticker
+        distribution (1% four / 3% three / 11% two / 33% one / 52% none),
+        suit-restricted per sticker, Lammy mints none. The single source for
+        store card packs AND the store's individual-card slots. */
     function genNormalCard(rng) {
-      const suits = suitsInPlay();   // phase-based suits in play (hearts + traveled phases)
+      const suits = ALL_SUITS;   // every suit, equally — never stage-gated in the store
       const suit = suits[Math.floor(rng() * suits.length)];
       const rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
       const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank, modifications: [], stickers: [], compoundHits: 0 };

@@ -81,11 +81,10 @@ export function run() {
       const card = c.genPackCard(rng);
       if (card.joker || card.blank) { specials++; continue; }    // special options (no rank/suit/stickers)
       normal++;
-      // The ROLLED suit stays in-play (deck-composition pacing). An ungated
-      // suit-changing sticker may then move it anywhere — recover the rolled
-      // suit from the card's modification history before checking.
+      // STORE cards roll ALL FOUR suits by design (stage gating is a MAP-only
+      // rule now) — just sanity-check the rolled suit is a real suit.
       const firstChange = (card.modifications || []).find(m => m.op === "changeSuit");
-      if (!inPlay.has(firstChange ? firstChange.from : card.suit)) allInPlay = false;
+      if (!["\u2666", "\u2665", "\u2663", "\u2660"].includes(firstChange ? firstChange.from : card.suit)) allInPlay = false;
       if (!(card.currentRank >= 2 && card.currentRank <= 14)) allValidRank = false;
       if (!card.stickers.every(s => stickerIds.has(s.type))) allStickersReal = false;
       if (card.stickers.length >= 1) withAny++;
@@ -96,7 +95,7 @@ export function run() {
     // P(special) = 1/53 ≈ 1.9% of options (regardless of suit gating).
     const pSpecial = specials / N;
     r.ok(pSpecial > 0.010 && pSpecial < 0.028, "≈1.9% of options are Joker/Blank (got " + pSpecial.toFixed(4) + ")");
-    r.ok(allInPlay, "generated card ROLLED suits stay in-play (ungated stickers may re-suit them after)");
+    r.ok(allInPlay, "generated card ROLLED suits are always real suits (full-suit store, never stage-gated)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");
     // New odds: 33% one / 11% two / 3% three / 1% four → ≈48% ≥1, ≈15% ≥2, ≈4% ≥3.
@@ -108,14 +107,14 @@ export function run() {
     r.ok(pThree > 0.015 && pThree < 0.065, "≈4% of cards carry ≥3 stickers (got " + pThree.toFixed(3) + ")");
   }
 
-  // --- Stage 2 widens the suit pool (basic cross-stage check) -----------
+  // --- Stage never gates STORE pack suits (map-only rule) ---------------
   {
     const c = CampaignState.create();
-    c.advancePhase();   // → Stage 2 (4 runs/stage; suits ♦ ♥ ♣)
+    c.advancePhase();   // → Stage 2 — store rolls are unaffected by the stage
     r.eq(c.currentStage, 2, "advanced to Stage 2");
-    const ok = ["♦", "♥", "♣"];
+    const suits = new Set(["♦", "♥", "♣", "♠"]);
     const cards = c.revealPack("cardPack", rngFrom(9));
-    r.ok(cards.every(card => (card.joker || card.blank) || ok.includes(card.suit)), "Stage-2 pack cards never roll ♠ (not in play yet)");
+    r.ok(cards.every(card => (card.joker || card.blank) || suits.has(card.suit)), "Stage-2 store pack cards roll any real suit (♠ included — store is never stage-gated)");
   }
 
   // --- Pending tray: UNLIMITED (cap removed), discard, take -------------
@@ -246,29 +245,28 @@ export function run() {
   {
     const c = CampaignState.create();
     const stages = [
-      { advances: 0, ok: ["♦", "♥"] },
-      { advances: 1, ok: ["♦", "♥", "♣"] },
-      { advances: 2, ok: ["♦", "♥", "♣", "♠"] },
+      { advances: 0 },
+      { advances: 1 },
+      { advances: 2 },
     ];
     let fresh = CampaignState.create();
     let totalAdv = 0;
     for (const st of stages) {
       while (totalAdv < st.advances) { fresh.advancePhase(); totalAdv++; }
-      const allowed = new Set(st.ok);
-      let cardsOk = true, stickersReal = true;
+      // STORE cards/packs are FULL-SUIT by design (stage suit-gating applies
+      // only to MAP pickups/packs): every stage's rolls span all four suits.
+      const seen = new Set();
+      let stickersReal = true;
       for (let i = 0; i < 200; i++) {
         const card = fresh.genPackCard(rngFrom(1000 + i));
         if (card.joker || card.blank) continue;                 // special options carry no suit
-        // The ROLLED suit follows the stage (composition pacing); an ungated
-        // suit-changing sticker may re-suit it — recover the roll from the
-        // modification history. (Sticker gating itself is REMOVED by design.)
         const firstChange = (card.modifications || []).find(m => m.op === "changeSuit");
-        if (!allowed.has(firstChange ? firstChange.from : card.suit)) cardsOk = false;
+        seen.add(firstChange ? firstChange.from : card.suit);
         if (!card.stickers.every(s => !!StickerTypes.get(s.type))) stickersReal = false;
       }
       const ids = fresh.revealPack("stickerPack", rngFrom(2000 + st.advances));
       if (!ids.every(id => !!StickerTypes.get(id))) stickersReal = false;
-      r.ok(cardsOk, "Stage " + fresh.currentStage + ": pack-card ROLLED suits stay in play");
+      r.eq(seen.size, 4, "Stage " + fresh.currentStage + ": store pack cards roll ALL FOUR suits (never stage-gated)");
       r.ok(stickersReal, "Stage " + fresh.currentStage + ": every rolled sticker is a real registry sticker");
     }
   }
