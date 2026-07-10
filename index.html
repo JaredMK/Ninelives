@@ -6454,7 +6454,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.58 · the cards learned to play themselves";
+const APP_VERSION = "v4.59 · a wild card never checks the dress code";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -6974,13 +6974,29 @@ function itemNum(def, key, fallback) {
     Spark, debug tools):
       1. Jokers and Removal cards NEVER take stickers, from any source.
       2. A sticker with a `suits` restriction (items.js) only attaches to
-         cards of those printed suits; no field = any suit.
+         cards of those printed suits; no field = any suit. EXCEPTION: a
+         WILD SUIT card counts as every suit, so it satisfies any suits
+         restriction (whichever order the stickers were applied in).
     Rank-boundary rules (no +1 on an Ace…) stay with the callers. */
 function stickerCardEligible(card, typeId) {
   if (!card || card.joker || card.blank) return false;
   const t = StickerTypes.get(typeId);
   if (!t) return false;
-  return !(Array.isArray(t.suits) && t.suits.length) || t.suits.indexOf(card.suit) !== -1;
+  if (!(Array.isArray(t.suits) && t.suits.length)) return true;   // unrestricted sticker
+  if (cardIsWildSuit(card)) return true;                          // wild = all suits
+  return t.suits.indexOf(card.suit) !== -1;
+}
+/** Does this card count as EVERY suit? True when it carries a Wild Suit
+    sticker — detected by items.js BEHAVIOR (data-driven, not a hardcoded id)
+    on both card shapes: live board cards get a `.wildSuit` flag (toCard /
+    live projection), persistent deck cards only carry the sticker record. */
+function cardIsWildSuit(card) {
+  if (card.wildSuit === true) return true;
+  if (!Array.isArray(card.stickers)) return false;
+  return card.stickers.some(s => {
+    const st = s && StickerTypes.get(s.type);
+    return !!(st && st.behavior === "wildSuit");
+  });
 }
 /* ----------------------------------------------------------------
    DifficultyData — loads + VALIDATES the difficulty-band file

@@ -226,17 +226,21 @@ export function run() {
     c.addPackCard(pick);
     const dealt = c.getCards().find(x => x.suit === "♦");   // an in-play card
     c.applySticker(dealt.id, "tieSafe");                    // build it up, to verify destruction
-    r.eq(c.getCards().length, 52, "deck starts at 52");
+    // A fresh deck holds the 52 base identities, PLUS any duplicates map
+    // generation minted for over-drafted +1 nodes — replacement must keep
+    // whatever size it started at.
+    const base = c.getCards().length;
+    r.ok(base >= 52, "deck starts at the 52 identities (+" + (base - 52) + " map-minted)");
     const ret = c.replaceDeckCard(dealt.id, 0);
     r.ok(ret && ret.id === pick.id, "replaceDeckCard returns the inserted pack card");
-    r.eq(c.getCards().length, 52, "deck stays 52 after replacement");
+    r.eq(c.getCards().length, base, "deck size unchanged by replacement");
     r.ok(!c.getCards().some(x => x.id === dealt.id), "the replaced card (and its stickers) is gone forever");
     r.ok(c.getCards().some(x => x.id === pick.id), "the pack card is now a deck card");
     r.eq(c.packTrayCount(), 0, "the used pack card left the tray");
 
     const c2 = CampaignState.create();
     r.ok(c2.restore(JSON.parse(JSON.stringify(c.serialize()))), "save/restore accepts the post-replace deck");
-    r.eq(c2.getCards().length, 52, "restored deck still 52");
+    r.eq(c2.getCards().length, base, "restored deck keeps its size");
     r.ok(c2.getCards().some(x => x.id === pick.id), "the replacement persists across save/restore");
     r.ok(!c.replaceDeckCard(99999, 0), "replacing an unknown card id fails safely");
   }

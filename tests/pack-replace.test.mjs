@@ -20,6 +20,9 @@ export function run() {
   // --- Full chain: confirm -> swap executes end to end -------------------
   {
     const c = CampaignState.create();
+    // A fresh deck is the 52 identities PLUS any duplicates map generation
+    // minted for over-drafted +1 nodes — a swap must keep the size it found.
+    const baseLen = c.getCards().length;
     const pack = stickeredPackCard(c);
     c.addPackCard(pack);
     r.eq(c.packTrayCount(), 1, "pack card is held in the tray");
@@ -39,8 +42,8 @@ export function run() {
 
     // 1) old identity removed from the campaign deck (its stickers gone)
     r.ok(!c.getCards().some(x => x.id === dealtId), "old card removed from the campaign deck");
-    // 2) pack card inserted, deck still 52, stickers intact on it
-    r.eq(c.getCards().length, 52, "deck stays at 52 after the swap");
+    // 2) pack card inserted, deck size unchanged, stickers intact on it
+    r.eq(c.getCards().length, baseLen, "deck size unchanged by the swap");
     const inserted = c.getCards().find(x => x.id === pack.id);
     r.ok(inserted, "pack card inserted into the campaign deck");
     r.ok(inserted.stickers.some(s => s.type === "tieSafe"), "pack card keeps its sticker(s) in the deck");
@@ -71,11 +74,12 @@ export function run() {
   // --- Guard: a bad target id can't silently 'succeed' ------------------
   {
     const c = CampaignState.create();
+    const baseLen = c.getCards().length;   // 52 identities + any map-minted duplicates
     c.addPackCard(c.genPackCard(() => 0.3));
     r.eq(c.replaceDeckCard(99999, 0), null, "unknown dealt id returns null (no swap)");
     r.eq(c.packTrayCount(), 1, "a failed lookup leaves the tray untouched");
     r.eq(c.replaceDeckCard(c.getCards()[0].id, 7), null, "out-of-range tray index returns null");
-    r.eq(c.getCards().length, 52, "a failed replace doesn't change the deck size");
+    r.eq(c.getCards().length, baseLen, "a failed replace doesn't change the deck size");
   }
 
   return r.summary();

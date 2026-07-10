@@ -44,6 +44,77 @@ export function run() {
     r.ok(!camp.canApplySticker(spade, "gainCoin"), "suits:[♥,♦] sticker still refuses ♠");
   }
 
+  // ---- WILD SUIT: a wild card counts as EVERY suit for eligibility ------
+  // (registry-driven: every shipped suit-restricted sticker must accept a
+  // Wild Suit card of a suit OUTSIDE its restriction, and the same card
+  // without Wild Suit must refuse — the picker greys via this same gate.)
+  {
+    const { CampaignState, StickerTypes } = loadGame();
+    const SUITS = ["♥", "♦", "♣", "♠"];
+    const camp = CampaignState.create({ pileCount: 9 });
+    // One mid-rank card per suit (dodges rank-boundary gates), made wild;
+    // a same-suit twin stays plain as the control.
+    const wildBySuit = {}, plainBySuit = {};
+    for (const s of SUITS) {
+      const w = camp.getCards().find(c => c.suit === s && c.currentRank === 7);
+      plainBySuit[s] = camp.getCards().find(c => c.suit === s && c.currentRank === 8);
+      r.ok(camp.applySticker(w.id, "wildSuit"), "Wild Suit applies to the " + s + " 7");
+      wildBySuit[s] = camp.getCards().find(c => c.id === w.id);   // re-fetch: snapshot now carries the sticker
+    }
+    const restricted = StickerTypes.all().filter(t =>
+      Array.isArray(t.suits) && t.suits.length && t.suits.length < SUITS.length);
+    r.ok(restricted.length > 0, "registry ships suit-restricted stickers (" + restricted.length + " found)");
+    let wildOk = 0, plainRefused = 0;
+    for (const t of restricted) {
+      const off = SUITS.find(s => !t.suits.includes(s));   // a suit the sticker normally refuses
+      if (camp.canApplySticker(wildBySuit[off], t.id)) wildOk++;
+      if (!camp.canApplySticker(plainBySuit[off], t.id)) plainRefused++;
+    }
+    r.eq(wildOk, restricted.length, "a WILD card accepts every suit-restricted sticker off-suit (" + wildOk + "/" + restricted.length + ")");
+    r.eq(plainRefused, restricted.length, "the plain off-suit twin refuses them all (control)");
+    // A real apply sticks, not just the can-check:
+    const t0 = restricted[0];
+    const off0 = SUITS.find(s => !t0.suits.includes(s));
+    const before = wildBySuit[off0].stickers.length;
+    r.ok(camp.applySticker(wildBySuit[off0].id, t0.id), "applySticker attaches an off-suit " + t0.id + " to the wild card");
+    r.eq(camp.getCards().find(c => c.id === wildBySuit[off0].id).stickers.length, before + 1,
+      "the off-suit sticker is on the wild card");
+  }
+
+  // ---- WILD SUIT ordering: restricted first, wild second ----------------
+  // Applying Wild Suit to a card that ALREADY has suit-restricted stickers
+  // is always legal (Wild Suit itself is unrestricted); the existing
+  // stickers stay, and the card thereafter counts as all suits.
+  {
+    const { CampaignState, StickerTypes } = loadGame();
+    const camp = CampaignState.create({ pileCount: 9 });
+    StickerTypes.get("gainCoin").suits = ["♥"];            // runtime hand-edit, isolated instance
+    const heart = camp.getCards().find(c => c.suit === "♥" && c.currentRank === 7);
+    r.ok(camp.applySticker(heart.id, "gainCoin"), "♥-only sticker applies to the ♥ card (matching suit)");
+    r.ok(camp.applySticker(heart.id, "wildSuit"), "Wild Suit still applies over an existing suit-restricted sticker");
+    r.eq(camp.getCards().find(c => c.id === heart.id).stickers.length, 2, "both stickers remain on the card");
+    StickerTypes.get("gainCoin").suits = ["♠"];            // now restrict AWAY from the printed suit
+    r.ok(camp.canApplySticker(camp.getCards().find(c => c.id === heart.id), "gainCoin"),
+      "after Wild Suit, a ♠-only sticker is accepted on the printed-♥ card");
+  }
+
+  // ---- WILD SUIT (live board shape): Wild Sticker may target a wild top --
+  // Live cards carry the .wildSuit flag (toCard / projection) instead of the
+  // persistent sticker record — the shared gate must honor that shape too.
+  {
+    const { GameEngine, DeckManager, StickerTypes } = loadGame();
+    for (const t of StickerTypes.all()) t.suits = ["♥"];   // everything ♥-only
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null], ["randomSticker", null, null]);
+    const b = e.getBoard();
+    b.top(0).suit = "♠"; b.top(1).suit = "♠"; b.top(2).suit = "♠";
+    b.top(1).wildSuit = true;   // the live Wild Suit flag
+    r.ok(e.baseAvailable(0), "Wild Sticker is available: the wild ♠ top satisfies ♥-only stickers");
+    const res = e.baseActivate(0);
+    r.ok(!!(res && res.stickerApplied && res.stickerApplied.pileIndex === 1),
+      "Wild Sticker targeted the WILD top (it counts as ♥)");
+  }
+
   // ---- Jokers and Removal cards NEVER take stickers ---------------------
   {
     const { CampaignState, StickerTypes } = loadGame();
