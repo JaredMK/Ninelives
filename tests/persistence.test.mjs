@@ -13,7 +13,14 @@ export function run() {
   {
     const s = CampaignState.create().serialize();
     r.eq(s.schema, 2, "snapshot carries schema 2 (run-map structure)");
-    r.eq(s.baseDeck.length, 52, "snapshot holds the full 52-card identity deck");
+    // The 52 base identities (ids 0..51) are always present. The deck may
+    // already be LARGER at creation: map generation mints duplicate suit
+    // cards when a stage rolls more +1 pickup nodes than the suit has
+    // unowned cards (draftIdForNode's exhausted-pool fallback).
+    const baseIds = new Set(s.baseDeck.filter(c => c.id <= 51).map(c => c.id));
+    r.eq(baseIds.size, 52, "snapshot holds all 52 base card identities");
+    const extras = s.baseDeck.filter(c => c.id > 51);
+    r.ok(extras.every(c => !c.joker && !c.blank), "creation-time extras are only minted suit duplicates (never Jokers/Blanks)");
   }
 
   // --- full round-trip through JSON (as storage would do) ---------------

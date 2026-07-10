@@ -4236,6 +4236,16 @@
   }
   .debug-toggle:active { transform: scale(0.92); opacity: 0.9; }
 
+  /* AUTOPILOT (debug): the ▶/⏸ pilot button beside the debug toggle. It exists
+     only while the debug "autopilot" checkbox is on, and lights amber while the
+     pilot is actually running. */
+  .ap-btn { left: 48px; }
+  .ap-btn.hidden { display: none; }
+  .ap-btn.running { opacity: 0.95; background: var(--amber); color: #3A2A18; border-color: var(--amber); }
+  /* The pile the autopilot is about to act on — telegraphed for one beat
+     (~1/4s) before the guess lands so the choice is watchable. */
+  .pile.ap-target { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 10px; }
+
   .debug-overlay {
     position: fixed; inset: 0; z-index: 95;
     display: flex; align-items: center; justify-content: center;
@@ -5856,6 +5866,9 @@
   <!-- Debug: a small corner toggle opens a floating, self-scrolling overlay.
        Also openable via ?debug in the URL or a triple-tap on the title. -->
   <button class="debug-toggle" id="debugToggle" type="button" aria-label="Toggle debug">🐞</button>
+  <!-- AUTOPILOT (debug): ▶/⏸ appears beside the bug only while the debug
+       "autopilot" checkbox is on. Play = the pilot guesses; pause = you do. -->
+  <button class="debug-toggle ap-btn hidden" id="autoPilotBtn" type="button" aria-label="Autopilot play/pause">▶</button>
   <div class="debug-overlay hidden" id="debugOverlay">
     <div class="debug-panel">
       <div class="debug-head">
@@ -5882,6 +5895,7 @@
         <div class="debug-tools">
           <label class="debug-check"><input type="checkbox" id="debugSubsetDeals" checked> subset deals (decks &gt; 35)</label>
           <label class="debug-check"><input type="checkbox" id="debugRemovalSlot" checked> store slot 6 = Removal</label>
+          <label class="debug-check"><input type="checkbox" id="debugAutopilot"> autopilot (odds-based guesser)</label>
         </div>
         <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
         <div class="debug-sub">jump to map node (by address) →</div>
@@ -6440,7 +6454,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.57 · the table stops fidgeting when nobody is looking";
+const APP_VERSION = "v4.58 · the cards learned to play themselves";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14132,6 +14146,8 @@ const UIRenderer = (() => {
     debugMapAddr: document.getElementById("debugMapAddr"),   // DEBUG MAP ADDRESSES (removable)
     debugSubsetDeals: document.getElementById("debugSubsetDeals"),   // DEBUG: subset deals on/off
     debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
+    debugAutopilot: document.getElementById("debugAutopilot"),       // DEBUG: autopilot enable/disable
+    autoPilotBtn: document.getElementById("autoPilotBtn"),           // DEBUG: autopilot ▶/⏸ (beside the 🐞)
     debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
     debugJumpBtn: document.getElementById("debugJumpBtn"),
     debugStickerSel: document.getElementById("debugStickerSel"),
@@ -16596,6 +16612,197 @@ const UIRenderer = (() => {
     step();
   }
 
+  /* ── DEBUG AUTOPILOT ─────────────────────────────────────────────────────────
+     Odds-based in-deal guesser for probability testing / difficulty tuning.
+     Debug-only, zero effect on normal play (nothing runs unless the debug
+     "autopilot" checkbox is on AND the ▶ pilot button was pressed).
+
+     SCOPE: guessing only. It never touches maps, stores, setup placement, or
+     bottom prompts — it idles through all of those and takes over ONLY while a
+     deal is in active play (Start pressed, status "playing", no prompt/fan up).
+
+     ODDS MODEL (what the player can legitimately know):
+       · the live remaining-deck histogram — the SAME numbers the composition
+         strip shows (deckStripStats), so subset deals stay honest: it sees the
+         full-deck-minus-drawn view, never the hidden subset;
+       · active Tells (engine.pileHint — a guaranteed direction for that pile);
+       · active peeks (engine.revealedNextCard — Scout/Kamikaze window): with
+         the next card known, the surviving call on any pile is a certainty.
+     Per pile: P(higher on top v) = (#ranks>v + jokers)/N, P(lower) =
+     (#ranks<v + jokers)/N, P(same) = (#rank==v + jokers)/N — strict
+     inequalities (a tie KILLS a directional guess) and every remaining Joker
+     counts as a success for any call (a drawn Joker is always safe). Sticker /
+     pillar rescues (Tie-Safe, Wild Aces, Shields…) are deliberately NOT
+     modelled — they only ever make reality kinder than the estimate.
+
+     JOKER PRIORITY: a Joker pile-top makes every call safe, so call SAME on it
+     to bank the Same Charge — but only while the charge is EMPTY. At full
+     charge the pile is AVOIDED (don't waste the bank) until the charge is
+     spent… unless it's the only pile left, then Same it anyway (forced).
+
+     RESHUFFLE POLICY (tunable knobs below): before the first guess of a deal,
+     if the best available survival odds are under AP_RESHUFFLE_ODDS and the
+     next reshuffle price is still ≤ AP_RESHUFFLE_COST_CAP (price starts at 10
+     and climbs +1 per reshuffle within the deal, so the cap also bounds
+     reshuffles per deal) and we can afford it → reshuffle instead of guessing.
+     A reshuffle re-enters the setup phase, so the pilot then waits for Start.
+
+     PACING: one card per AP_TICK_MS (0.5s); the chosen pile is telegraphed
+     with .ap-target for AP_HIGHLIGHT_MS before the guess lands. */
+  const AP_TICK_MS = 500;            // one card per half second
+  const AP_HIGHLIGHT_MS = 260;       // target-pile telegraph before the guess
+  const AP_RESHUFFLE_ODDS = 0.65;    // reshuffle while best survival < 65%…
+  const AP_RESHUFFLE_COST_CAP = 12;  // …and the NEXT reshuffle costs ≤ 12 coins
+  let autopilotEnabled = false;      // the debug checkbox
+  let autopilotRunning = false;      // the ▶/⏸ button
+  let apTimer = null;
+  let apTargetEl = null;
+
+  function setAutopilotEnabled(on) {
+    autopilotEnabled = !!on;
+    if (!autopilotEnabled && autopilotRunning) setAutopilotRunning(false);
+    if (el.autoPilotBtn) el.autoPilotBtn.classList.toggle("hidden", !autopilotEnabled);
+  }
+  function setAutopilotRunning(on) {
+    autopilotRunning = !!on;
+    if (el.autoPilotBtn) {
+      el.autoPilotBtn.textContent = autopilotRunning ? "⏸" : "▶";
+      el.autoPilotBtn.classList.toggle("running", autopilotRunning);
+    }
+    apClearTarget();
+    if (apTimer) { clearTimeout(apTimer); apTimer = null; }
+    if (autopilotRunning) apTimer = setTimeout(apTick, AP_TICK_MS);
+  }
+  function apClearTarget() {
+    if (apTargetEl) { apTargetEl.classList.remove("ap-target"); apTargetEl = null; }
+  }
+  /* Observability (invisible data attribute, debug-only writes): what the pilot
+     did on its last tick — read by tests/tuning probes, never rendered. */
+  function apNote(s) {
+    if (document.body && document.body.dataset) document.body.dataset.ap = s;
+  }
+  /* The pilot acts ONLY mid-deal: run started, actively playing, no bottom
+     prompt (bury/revive offers stay the player's call), no full-fan popup, no
+     map/store/debug overlay, and the deal-in cascade has finished flying cards
+     (.predeal). Everywhere else it idles and keeps polling. */
+  function apCanAct() {
+    return autopilotRunning && !!engine
+      && engine.getStatus() === "playing" && engine.isRunStarted()
+      && !promptActive && pileFanIndex == null
+      && !mapVisible() && !storeVisible() && !debugOn
+      && !(el.overlay && !el.overlay.classList.contains("hidden"))   // deal intro / summary up → the user hasn't hit PLAY yet
+      && !(el.board && el.board.querySelector(".pile.predeal"));
+  }
+  /* Player-known remaining histogram: rank counts + Jokers apart (the strip's
+     own numbers, so full-deck deals read the true draw pile and subset deals
+     read the honest full−drawn view). */
+  function apOdds() {
+    const s = deckStripStats();
+    const counts = {};
+    let total = 0;
+    for (const r of s.remaining.rows) { counts[r.value] = r.count; total += r.count; }
+    const jokers = s.jokerRemaining || 0;
+    return { counts, total: total + jokers, jokers };
+  }
+  /* One candidate move per alive pile: the best (direction, survival-P) from
+     certainty sources first (Joker top / Tell / peek), else the histogram. */
+  function apCandidates() {
+    const board = engine.getBoard();
+    const { counts, total, jokers } = apOdds();
+    const revealed = engine.revealedNextCard ? engine.revealedNextCard() : null;
+    const charged = !!(engine.sameCharge && engine.sameCharge());
+    const list = [];
+    for (let i = 0; i < board.size; i++) {
+      if (!board.isActive(i)) continue;
+      const top = board.top(i);
+      if (!top) continue;
+      if (top.joker) {
+        // Joker top: every call is safe — SAME banks the charge when empty;
+        // at full charge hold the pile back (avoid) until the bank is spent.
+        list.push({ i, dir: "same", p: 1, banks: !charged, avoid: charged });
+        continue;
+      }
+      const hint = engine.pileHint ? engine.pileHint(i) : null;
+      if (hint) {
+        list.push({ i, dir: hint, p: 1, banks: hint === "same" && !charged, avoid: false });
+        continue;
+      }
+      if (revealed) {
+        // Peek active: the next card is known, so play its certain outcome.
+        const dir = revealed.joker
+          ? (charged ? "higher" : "same")   // known Joker draw: safe anywhere; SAME banks
+          : revealed.value > top.value ? "higher"
+          : revealed.value < top.value ? "lower" : "same";
+        list.push({ i, dir, p: 1, banks: dir === "same" && !charged, avoid: false });
+        continue;
+      }
+      if (!(total > 0)) continue;
+      const v = top.value;
+      let above = 0, below = 0, equal = 0;
+      for (const rv in counts) {
+        const c = counts[rv], n = +rv;
+        if (n > v) above += c; else if (n < v) below += c; else equal += c;
+      }
+      const pH = (above + jokers) / total;
+      const pL = (below + jokers) / total;
+      const pS = (equal + jokers) / total;
+      let dir = "higher", p = pH;
+      if (pL > p) { dir = "lower"; p = pL; }
+      // On an exact tie in odds prefer SAME while the charge is empty — a
+      // correct Same banks a charge on top of surviving.
+      if (pS > p || (pS === p && !charged)) { dir = "same"; p = pS; }
+      list.push({ i, dir, p, banks: dir === "same" && !charged, avoid: false });
+    }
+    return list;
+  }
+  /* Best move: skip avoided (full-charge Joker) piles unless they're ALL that's
+     left (forced → Same the Joker anyway); rank by survival P, then by whether
+     the move banks a charge. bestRaw (no avoidance) feeds the reshuffle check. */
+  function apChooseMove() {
+    const cands = apCandidates();
+    if (!cands.length) return null;
+    const usable = cands.filter(c => !c.avoid);
+    const pool = usable.length ? usable : cands;
+    pool.sort((a, b) => (b.p - a.p) || ((b.banks ? 1 : 0) - (a.banks ? 1 : 0)) || (a.i - b.i));
+    return { move: pool[0], bestRaw: cands.reduce((m, c) => Math.max(m, c.p), 0) };
+  }
+  function apTick() {
+    apTimer = null;
+    if (!autopilotRunning) return;
+    const idle = () => { apTimer = setTimeout(apTick, AP_TICK_MS); };
+    if (!apCanAct()) { apClearTarget(); apNote("idle"); return idle(); }
+    const deck = engine.getDeck();
+    if (!deck || deck.isEmpty()) { apClearTarget(); apNote("deck-empty"); return idle(); }
+    const pick = apChooseMove();
+    if (!pick) { apNote("no-move"); return idle(); }
+    const run = engine.getRun ? engine.getRun() : null;
+    // Pre-first-guess reshuffle: poor best odds → pay for a fresh deal-out
+    // (then wait out the setup phase it re-enters).
+    if (run && run.totalGuesses === 0 && pick.bestRaw < AP_RESHUFFLE_ODDS
+        && redealCost <= AP_RESHUFFLE_COST_CAP
+        && campaign && campaign.getCoins() >= redealCost) {
+      if (el.debugPeekOut) el.debugPeekOut.textContent =
+        "autopilot: reshuffled — best " + Math.round(pick.bestRaw * 100) + "% < "
+        + Math.round(AP_RESHUFFLE_ODDS * 100) + "% (cost " + redealCost + ")";
+      apNote("reshuffle cost=" + redealCost + " best=" + pick.bestRaw.toFixed(2));
+      doReshuffle();
+      return idle();
+    }
+    apNote("guess pile=" + pick.move.i + " " + pick.move.dir + " p=" + pick.move.p.toFixed(2) + " best=" + pick.bestRaw.toFixed(2));
+    // Telegraph the target pile for a beat, then guess — 1 card per tick.
+    const move = pick.move;
+    apClearTarget();
+    apTargetEl = pileEls[move.i] || null;
+    if (apTargetEl) apTargetEl.classList.add("ap-target");
+    apTimer = setTimeout(() => {
+      apTimer = null;
+      apClearTarget();
+      // Re-check at fire time — a prompt/pause may have landed mid-telegraph.
+      if (apCanAct()) engine.guess(move.i, move.dir);
+      if (autopilotRunning) apTimer = setTimeout(apTick, AP_TICK_MS - AP_HIGHLIGHT_MS);
+    }, AP_HIGHLIGHT_MS);
+  }
+
   /* DEBUG: add coins (free, NOT counted as earnings). Reflects into whichever
      coin display is showing — the store header or the in-game Stage·Run pill. */
   function debugAddCoins(n) {
@@ -17421,6 +17628,14 @@ const UIRenderer = (() => {
     // reroll; if a store is open now, re-render so the tile updates on reroll.
     if (el.debugRemovalSlot) el.debugRemovalSlot.addEventListener("change", () => {
       if (campaign) campaign.setRemovalSlot(el.debugRemovalSlot.checked);
+    });
+    // DEBUG AUTOPILOT: the checkbox reveals the ▶/⏸ pilot button; the button
+    // starts/pauses the odds-based guesser (it acts only mid-deal — see apTick).
+    if (el.debugAutopilot) el.debugAutopilot.addEventListener("change", () => {
+      setAutopilotEnabled(el.debugAutopilot.checked);
+    });
+    if (el.autoPilotBtn) el.autoPilotBtn.addEventListener("click", () => {
+      setAutopilotRunning(!autopilotRunning);
     });
     // DEBUG JUMP TO NODE (removable): teleport position to the selected node.
     if (el.debugJumpBtn) el.debugJumpBtn.addEventListener("click", debugJumpToSelectedNode);
