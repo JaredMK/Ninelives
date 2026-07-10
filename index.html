@@ -1291,32 +1291,36 @@
        the cream board (replaces the old dark hairline). */
     border: 1px solid var(--card-border);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(74, 50, 40, 0.05);
-    /* Very subtle breathing — life, not distraction (per-card desync via --bd). */
+  }
+  /* Very subtle breathing — life, not distraction (per-card desync via --bd).
+     HEAT FIX #1: ONE animation per pile on this shared wrapper (face + badge
+     overlay ride inside it) — the front and .card-fx used to each run their
+     own identical copy, doubling the per-frame animation-style work. */
+  .card-breathe {
+    position: absolute; inset: 0;
     animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
     transform-origin: 50% 50%;
   }
+  .pile.dead .card-breathe { animation: none; }   /* corpses hold still */
   @keyframes cardBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
-  @media (prefers-reduced-motion: reduce) { .card .front { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .card-breathe { animation: none !important; } }
   /* Performance: pause the perpetual card drift + breathe whenever the board is
      not the active surface (covered by a full overlay) or has settled to idle —
      so these ~33 animations stop compositing when nothing is happening. Only the
      perpetual loops are paused (no transient/landing/dissolve animation runs while
      this class is applied), so the board simply holds still. */
   .board.cards-paused .card,
-  .board.cards-paused .card .front,
-  .board.cards-paused .card-fx { animation-play-state: paused; }
+  .board.cards-paused .card-breathe { animation-play-state: paused; }
 
   /* Card-anchored overlay holding the size/imprint badges: inside .card so it
      inherits the float (drift translate), with its OWN breathing scale phase-
      synced to the front (same --bd), so the badges stay locked to the card as it
      drifts and breathes. overflow:visible so corner badges aren't clipped. */
   .card-fx {
+    /* breathes via the shared .card-breathe wrapper (heat fix #1) — no
+       animation of its own anymore */
     position: absolute; inset: 0; z-index: 3; pointer-events: none;
-    animation: cardBreathe 9s ease-in-out var(--bd, 0s) infinite;
-    transform-origin: 50% 50%;
   }
-  .pile.dead .card-fx { animation: none; }   /* stop breathing as the card dissolves */
-  @media (prefers-reduced-motion: reduce) { .card-fx { animation: none !important; } }
 
   .card .front.red { color: var(--card-red); }
   /* JOKER — a GOLD card face (the mini-card / map-node palette): gold cloth,
@@ -6436,7 +6440,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.56 · the numbers no longer need an introduction";
+const APP_VERSION = "v4.57 · the table stops fidgeting when nobody is looking";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14317,9 +14321,17 @@ const UIRenderer = (() => {
     deadMark.className = "dead-mark";
     deadMark.textContent = "✕";
 
-    card.appendChild(front);
-    card.appendChild(back);
-    card.appendChild(deadMark);
+    // HEAT FIX #1 — one breathe per pile: the front AND the badge overlay each
+    // ran their own identical cardBreathe animation (2 live animations per
+    // pile, ~40% of the continuous style-recalc cost, scaling with piles).
+    // Both now sit inside ONE animated wrapper carrying the single breathe —
+    // same keyframes, same per-pile phase (--bd), pixel-identical motion.
+    const breathe = document.createElement("div");
+    breathe.className = "card-breathe";
+    breathe.appendChild(front);
+    breathe.appendChild(back);
+    breathe.appendChild(deadMark);
+    card.appendChild(breathe);
 
     // Card-anchored overlay: the badges live INSIDE the card so they drift with
     // its float (inherited translate) and breathe with it (the overlay's own
@@ -14350,7 +14362,7 @@ const UIRenderer = (() => {
     // (The per-card fan affordance is gone — fanning is the GLOBAL rail
     // toggle #fanAllBtn: it slight-fans every pile, and a pile TAP while the
     // hint is on opens that pile's full face-up fan. See setFanHint.)
-    card.appendChild(fx);
+    breathe.appendChild(fx);   // fx breathes with the face via the shared wrapper
     pile.appendChild(card);
     return pile;
   }
@@ -17314,6 +17326,14 @@ const UIRenderer = (() => {
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
+    // HEAT FIX #2 — zombie edge fade-ins: edgeForm runs with fill:both, so a
+    // FINISHED fade stayed "in effect" forever and every settled network edge
+    // carried a live animation (measured 8→20, growing with edges), each
+    // forcing per-frame style work. Drop .forming once the fade lands — the
+    // edge's resting opacity is 1 either way, so nothing visibly changes.
+    el.board.addEventListener("animationend", (e) => {
+      if (e.animationName === "edgeForm" && e.target.classList) e.target.classList.remove("forming");
+    });
     // Cheap parallax: two background planes drift slower than the climb — the
     // felt-grain + tangle texture plane at 0.15×, the dot field at 0.32×. One
     // scrollTop read (the event's own state) + two transform-var writes per
@@ -21912,6 +21932,7 @@ const UIRenderer = (() => {
     }
     document.body.classList.add("on-map");   // hides the deck-slot character (trail char only)
     el.mapOverlay.classList.remove("hidden");
+    setMapAnimsIdle(false);   // resume whatever the hidden-map pause froze (heat fix #3)
     // The persistent top shell (banner + deck/histogram band) stays in place and
     // shows ABOVE the map; the map overlay starts just below it. Feed the band the
     // accumulated deck and re-measure the shell (the deck-slot char is hidden on
@@ -21933,7 +21954,26 @@ const UIRenderer = (() => {
     }
     Tutorial.onMap();   // first-run tour: goal (first visit) / drafting (after the first payout)
   }
-  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); }
+  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
+  /* HEAT FIX #3 — overlays hide via opacity:0 (not display:none), so the
+     HIDDEN map's animations (node pulses, spotlight, avatar bob/dart) kept
+     ticking style during 100% of every deal (measured: 5-6 live animations
+     under the deal screen). Pause the whole subtree once the overlay's own
+     0.3s fade has finished (never freezing the fade itself); resume on show.
+     Purely invisible-state work — nothing on screen changes. */
+  let mapAnimIdleTimer = 0;
+  function setMapAnimsIdle(idle) {
+    clearTimeout(mapAnimIdleTimer);
+    if (!el.mapOverlay || !el.mapOverlay.getAnimations) return;
+    if (idle) {
+      mapAnimIdleTimer = setTimeout(() => {
+        if (!el.mapOverlay.classList.contains("hidden")) return;   // re-shown meanwhile
+        el.mapOverlay.getAnimations({ subtree: true }).forEach(a => { try { a.pause(); } catch (e) {} });
+      }, 450);
+    } else {
+      el.mapOverlay.getAnimations({ subtree: true }).forEach(a => { try { a.play(); } catch (e) {} });
+    }
+  }
   function enterRunFromMap() {
     const fn = mapOnEnter; mapOnEnter = null;
     hideProgressionMap();
