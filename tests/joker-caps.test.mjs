@@ -2,9 +2,14 @@
 // HELD-COUNT logic: the cap counts Jokers currently held (deck + pack tray +
 // the untaken guaranteed node); at cap, Jokers stop appearing at every roll
 // site (map packs, store card packs), and removing a held Joker REOPENS
-// availability. Map +1 nodes never roll random Jokers — the only standalone
-// Joker node is Regular's single guaranteed one (visible, stages 1-3, never
-// a mystery). Legendary: no Jokers anywhere.
+// availability. Map +1 nodes never roll random Jokers.
+//
+// JOKER3 — PINKY REGULAR is the exception: its Regular rules are REPLACED by
+// a fixed scheme — exactly TWO Jokers per run, one forced corridor +1 CARD
+// node directly after the stage-1 boss and one after the stage-2 boss (both
+// visible, never a mystery, never in a pack), and NO other Joker source at
+// all. Non-Pinky decks keep Regular's roaming guaranteed node + cap 2 (tested
+// on Mamma below). Master: cap 1, no guarantee. Legendary: no Jokers anywhere.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -24,23 +29,72 @@ export function run() {
   const jokerNodes = (c) => c.getMap().nodes.filter(n => n.type === "pickup")
     .filter(n => { const card = c.nodeCard(n); return card && card.joker; });
 
-  // --- regular: EXACTLY ONE guaranteed node, stages 1-3, visible ----------
+  // --- PINKY REGULAR (JOKER3): exactly two FIXED post-boss Jokers ---------
   {
-    let exact = true, badPhase = 0, hiddenJoker = 0;
+    const c = CampaignState.create();   // default deck = pink
+    c.setTier("regular");
+    c.reset();
+    const map = c.getMap();
+    const fixed = map.nodes.filter(n => n.jokerNode).sort((a, b) => a.phase - b.phase);
+    r.eq(fixed.length, 2, "pinky regular: exactly TWO fixed Joker nodes on the map");
+    r.ok(fixed.every(n => n.type === "pickup" && !n.mystery && !c.nodeHidden(n.id)),
+      "…both are visible standalone +1 CARD nodes (never a mystery, never a pack)");
+    r.eq(fixed[0].phase, 0, "…the first belongs to stage 1");
+    r.eq(fixed[1].phase, 1, "…the second belongs to stage 2");
+    r.ok(map.byId[map.phases[0].bossId].next.indexOf(fixed[0].id) !== -1,
+      "…the stage-1 boss leads DIRECTLY to the first Joker node");
+    r.ok(map.byId[map.phases[1].bossId].next.indexOf(fixed[1].id) !== -1,
+      "…the stage-2 boss leads DIRECTLY to the second Joker node");
+    r.eq(fixed[0].next.slice().sort((a, b) => a - b).join(","),
+      map.phases[1].row0.slice().sort((a, b) => a - b).join(","),
+      "…the first Joker node fans out to the stage-2 openings");
+    r.eq(fixed[1].next.slice().sort((a, b) => a - b).join(","),
+      map.phases[2].row0.slice().sort((a, b) => a - b).join(","),
+      "…the second Joker node fans out to the stage-3 openings");
+    r.ok(fixed.every(n => { const cd = c.nodeCard(n); return cd && cd.joker; }),
+      "…both locked to a face-up Joker card");
+    r.eq(jokerNodes(c).length, 2, "…and NO other map node carries a Joker");
+    // NO other source, even at zero held Jokers:
+    r.ok(!c.jokerBudget().allowed, "pinky regular: random Joker availability is OFF from the very start");
+    const seq = (vals) => { let i = 0; return () => (i < vals.length ? vals[i++] : 0.5); };
+    r.ok(!c.genPackCard(seq([0.001, 0.1])).joker, "…a store-pack Joker roll mints a normal card instead");
+    r.ok(!!c.genPackCard(seq([0.001, 0.9])).blank, "…while Blanks keep their own half unchanged");
+    r.ok(!c.genStoreCard(seq([0.001])).joker, "…the store card slot never rolls a Joker");
+    const packNode = map.nodes.find(n => n.type === "pack");
+    let packJokers = 0;
+    for (let i = 0; i < 20 && packNode; i++) packJokers += c.resolvePack({ ...packNode, packCount: 3 }).filter(x => x && x.joker).length;
+    r.eq(packJokers, 0, "…map packs never mint Jokers (60 slots probed)");
+    // Taking both fixed nodes grants exactly two real Jokers…
+    const g0 = c.resolvePickup(fixed[0]); c.markNodeCleared(fixed[0].id);
+    const g1 = c.resolvePickup(fixed[1]); c.markNodeCleared(fixed[1].id);
+    r.ok(!!(g0 && g0.joker && g1 && g1.joker), "taking the two nodes grants two real Jokers");
+    r.eq(c.getRunDeck().filter(x => x.joker).length, 2, "…the deck then holds exactly 2 Jokers");
+    // …and Removal never reopens a random source (the scheme is absolute).
+    c.getRunDeck().filter(x => x.joker).forEach(j => c.removeDeckCard(j.id));
+    r.ok(!c.jokerBudget().allowed, "…removing them does NOT reopen random Jokers");
+    r.ok(!c.genPackCard(seq([0.001, 0.1])).joker, "…store packs stay Joker-free after removal");
+  }
+
+  // --- NON-PINKY regular (Mamma): the roaming guaranteed node lives on -----
+  {
+    let exact = true, badPhase = 0, hiddenJoker = 0, corridor = 0;
     for (let s = 0; s < 12; s++) {
       const c = CampaignState.create();
+      c.setDeck("mamma");
       c.setTier("regular");
       c.reset();
       const nodes = jokerNodes(c);
       if (nodes.length !== 1) exact = false;
+      corridor += c.getMap().nodes.filter(n => n.jokerNode).length;
       for (const n of nodes) {
         if (!(n.phase >= 0 && n.phase <= 2)) badPhase++;
         if (n.mystery || c.nodeHidden(n.id)) hiddenJoker++;
       }
     }
-    r.ok(exact, "regular: EXACTLY one standalone Joker node per fresh run (12 runs)");
+    r.ok(exact, "mamma regular: EXACTLY one roaming guaranteed Joker node per fresh run (12 runs)");
     r.eq(badPhase, 0, "…always inside stages 1-3");
     r.eq(hiddenJoker, 0, "…and never hidden behind a ? mystery node");
+    r.eq(corridor, 0, "…and no fixed post-boss corridor nodes (Pinky-only scheme)");
   }
 
   // --- master / legendary: no standalone Joker nodes at all ----------------
@@ -55,9 +109,10 @@ export function run() {
     r.eq(nodes, 0, tier + ": no standalone Joker node ever generates (8 runs)");
   }
 
-  // --- held-count gating + REOPEN on removal (regular, cap 2) -------------
+  // --- held-count gating + REOPEN on removal (non-Pinky regular, cap 2) ---
   if (TIERS.regular === 2) {
     const c = CampaignState.create();
+    c.setDeck("mamma");   // Pinky Regular uses the fixed scheme (tested above)
     c.setTier("regular");
     c.reset();
     r.eq(c.jokerBudget().committed, 1, "regular: the untaken guaranteed node reserves one held slot");

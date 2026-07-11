@@ -69,8 +69,12 @@ export function run() {
   }
 
   // --- On-card stickers stay in-play even via Change-Suit Random + rough dist
+  // (on a NON-PINKY deck: JOKER3 removes Pinky Regular's random Joker half,
+  // which would halve the special rate asserted below)
   {
     const c = CampaignState.create();
+    c.setDeck("mamma");
+    c.reset();
     const inPlay = new Set(["♦", "♥"]);
     const rng = rngFrom(7);
     let withAny = 0, withTwo = 0, withThree = 0;

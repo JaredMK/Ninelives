@@ -119,8 +119,12 @@ export function run() {
   }
 
   // --- FREQUENCY: Joker/Blank weight 0.5 each vs the FULL 52-card pool ----
+  // (on a NON-PINKY deck — JOKER3 turns Pinky Regular's random Joker half off
+  // entirely; the shared J3 rate contract lives on for every other deck/tier)
   {
     const c = CampaignState.create();
+    c.setDeck("mamma");
+    c.reset();
     // mulberry32 — the old LCG's lattice structure aliased against the roll's
     // variable rng-consumption pattern (ungated sticker pools shifted it) and
     // skewed the observed special rate far beyond binomial noise.

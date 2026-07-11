@@ -97,14 +97,23 @@ export function run() {
   // --- genStoreCard: joker at the 1/53 any-card rate, cap-gated ------------
   {
     const seq = (vals) => { let i = 0; return () => (i < vals.length ? vals[i++] : 0.5); };
+    // NON-PINKY regular (JOKER3: Pinky Regular never mints store Jokers —
+    // its two fixed post-boss nodes are the run's only Jokers).
     const reg = CampaignState.create();
+    reg.setDeck("mamma");
     reg.setTier("regular");
     reg.reset();
     // Regular holds the guaranteed map Joker (1 of cap 2) → one slot open.
     const j = reg.genStoreCard(seq([0.001, 0.4]));
-    r.ok(j.joker, "regular below cap: a store-card special roll mints a Joker");
+    r.ok(j.joker, "non-Pinky regular below cap: a store-card special roll mints a Joker");
     const n = reg.genStoreCard(seq([0.5, 0.4, 0.9]));
     r.ok(!n.joker && !n.blank && n.suit, "a non-special roll mints a normal suited card");
+    // PINKY regular: the identical roll NEVER mints (fixed scheme, JOKER3).
+    const pink = CampaignState.create();
+    pink.setTier("regular");
+    pink.reset();
+    r.ok(!pink.genStoreCard(seq([0.001, 0.4])).joker,
+      "pinky regular: the identical roll falls through to a normal card");
     const leg = CampaignState.create();
     leg.setTier("legendary");
     leg.reset();

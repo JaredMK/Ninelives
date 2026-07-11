@@ -6468,7 +6468,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.62 · more places to spend it all";
+const APP_VERSION = "v4.63 · two stars, punched at the toll booths";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8826,12 +8826,23 @@ const RunMap = (() => {
   // Pinky's HOME node id — far above every phase namespace (phase p uses
   // p·1000 + local id, local ids stay well under 1000).
   const HOME_NODE_ID = 900000;
-  function generateRun(seed, entryDecks) {
+  // FIXED POST-BOSS JOKER NODES (JOKER3 — deck/tier-scoped, e.g. Pinky
+  // Regular): ids far above the per-phase namespace (p·1000 + local ids) and
+  // clear of HOME (900000), deterministic per stage so saves/regenerations
+  // always agree.
+  const JOKER_NODE_BASE = 800000;
+  function generateRun(seed, entryDecks, opts) {
     // entryDecks[p] = the REAL deck size entering stage p (difficulty input).
     // A null/absent entry means that stage hasn't been entered yet — it is NOT
     // generated; the map grows as each stage's boss falls (the caller records
     // the live deck size and regenerates). Defaults to stage 0 only.
     if (!Array.isArray(entryDecks)) entryDecks = [GEN_CONFIG.startDeckSize];
+    // opts.postBossJokerStages: stage indices whose boss is followed by ONE
+    // forced corridor +1 CARD node (the campaign locks a Joker onto it via
+    // its .jokerNode flag). An explicit ARGUMENT (not module state) so direct
+    // generateRun callers are never contaminated by another campaign's deck.
+    const postBossJokerStages = (opts && Array.isArray(opts.postBossJokerStages))
+      ? opts.postBossJokerStages : [];
     const phases = [];
     const nodes = [];
     const byId = {};
@@ -8885,12 +8896,28 @@ const RunMap = (() => {
         byId[meta.bossId].next.push(homeNode.id);
         rowOffset += 1;
       }
+      // FIXED POST-BOSS JOKER (opts.postBossJokerStages): one forced corridor
+      // +1 CARD node directly above this stage's boss — every route crosses it
+      // right after the boss falls. Created OUTSIDE the mystery roll (like
+      // home) so it is ALWAYS visible; the Joker lock happens campaign-side
+      // (commitNodeCard reads .jokerNode). Never merges (packs only merge).
+      if (postBossJokerStages.indexOf(p) !== -1) {
+        const jn = { id: JOKER_NODE_BASE + p, type: "pickup", jokerNode: true, add: 1,
+                     row: rowOffset, localRow: ph.rows, lane: 1, x: 0.5, suit: "★", phase: p, next: [] };
+        nodes.push(jn); byId[jn.id] = jn;
+        byId[meta.bossId].next.push(jn.id);
+        meta.jokerNodeId = jn.id;
+        rowOffset += 1;
+      }
     }
     // Wire each phase's single boss → all of the next phase's openings. The
     // ♠ boss → home edge already exists; HOME feeds the first endless stage.
+    // A post-boss Joker corridor takes the boss's place as the stage exit:
+    // boss → joker node → next openings (the boss's edge to it already exists).
     for (let p = 0; p < phases.length - 1; p++) {
       const opens = phases[p + 1].row0.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
       if (p === BASE - 1 && homeNode) homeNode.next = opens.map(o => o.id);
+      else if (phases[p].jokerNodeId != null) byId[phases[p].jokerNodeId].next = opens.map(o => o.id);
       else byId[phases[p].bossId].next = opens.map(o => o.id);
     }
     if (!phases.length) {
@@ -11653,6 +11680,17 @@ const CampaignState = (() => {
     const rules = () => deckRulesFor(deckId);
     /** Shop price with the deck's multiplier applied (Mr. Smith pays 2x). */
     const shopPrice = (p) => (isFinite(p) ? Math.round(p * rules().priceMult) : p);
+    /** JOKER3 — PINKY REGULAR's fixed-Joker scheme. It REPLACES the tier's
+        random Joker rules for this one deck/tier pair: exactly TWO Jokers per
+        run, each a visible standalone +1 CARD corridor node placed directly
+        after the stage-1 and stage-2 bosses (never a mystery, never inside a
+        pack), and NO other Joker source at all — map packs, store card
+        packs and the store card slot all stop rolling Jokers (Blanks keep
+        their share). Every other deck/tier combination keeps difficulty.js's
+        jokerCap + guaranteedMapJoker rules unchanged. */
+    const fixedJokerScheme = () => deckId === "pink" && difficultyTier === "regular";
+    /** The generateRun options for this campaign's deck/tier (see JOKER3). */
+    const runGenOpts = () => ({ postBossJokerStages: fixedJokerScheme() ? [0, 1] : [] });
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -11685,7 +11723,7 @@ const CampaignState = (() => {
       const entry0 = ownedIds.length || RunMap.GEN_CONFIG.startDeckSize;
       const prc = RunMap.GEN_CONFIG.predictedRouteCards;
       stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
-      runMap = RunMap.generateRun(runSeed, stageEntryDecks);
+      runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {};
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
       // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
@@ -11702,7 +11740,7 @@ const CampaignState = (() => {
         (committed ones are cached in nodeCards). */
     function extendEndless() {
       stageEntryDecks.push(ownedIds.length);
-      runMap = RunMap.generateRun(runSeed, stageEntryDecks);
+      runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       lockAllPickupCards();
     }
     /** LEGACY grow-as-you-go path: with full-map generation (genRunMap) every
@@ -11716,7 +11754,7 @@ const CampaignState = (() => {
         if (ids.indexOf(clearedId) === -1) continue;
         if (p + 1 >= PHASE_SUITS.length || stageEntryDecks[p + 1] != null) return;
         stageEntryDecks[p + 1] = ownedIds.length;
-        runMap = RunMap.generateRun(runSeed, stageEntryDecks);
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
         lockAllPickupCards();          // lock the NEW stage's +1 nodes (old locks cached)
         return;
       }
@@ -11818,7 +11856,14 @@ const CampaignState = (() => {
         for (const s of storeOffer.slots) if (s && s.kind === "card" && s.card && s.card.joker) n++;
       return n;
     }
-    function jokersAllowed() { return jokersHeld() < jokerCapFor(); }
+    function jokersAllowed() {
+      // JOKER3 (Pinky Regular): random Joker sources are OFF entirely — the
+      // two fixed post-boss nodes are the run's ONLY Jokers, so no roll site
+      // (map packs, store packs, the store card slot) may ever mint one,
+      // regardless of how many are currently held or later Removed.
+      if (fixedJokerScheme()) return false;
+      return jokersHeld() < jokerCapFor();
+    }
     /** GUARANTEED MAP JOKER (difficulty.js `guaranteedMapJoker`): exactly ONE
         Joker placed as a VISIBLE standalone +1 card node somewhere in stages
         1-3 — a random pickup per run (seeded by runSeed), never inside a
@@ -11827,6 +11872,10 @@ const CampaignState = (() => {
         re-clears the mystery flag after every map regeneration (the flag
         re-rolls; the sentinel persists in nodeCards). */
     function ensureGuaranteedJoker() {
+      // JOKER3 (Pinky Regular): the roaming stages-1-3 guarantee is REPLACED
+      // by the two fixed post-boss corridor nodes (locked in commitNodeCard) —
+      // never place the old random guaranteed Joker for this scheme.
+      if (fixedJokerScheme()) { unveilJokerNodes(); return; }
       const t = DifficultyData.tier(difficultyTier);
       if (!runMap || !t || !t.guaranteedMapJoker || jokerCapFor() < 1) { unveilJokerNodes(); return; }
       for (const k in nodeCards) if (nodeCards[k] === SPECIAL_JOKER) { unveilJokerNodes(); return; }
@@ -11971,7 +12020,10 @@ const CampaignState = (() => {
     function commitNodeCard(node) {
       if (node == null || node.id == null) return null;
       if (nodeCards[node.id] == null) {
-        const id = forcedCardId(node) != null ? forcedCardId(node) : draftIdForNode(node);
+        // JOKER3: a fixed post-boss corridor node ALWAYS locks the Joker
+        // sentinel — no roll, no cap check (the node IS the guarantee).
+        const id = node.jokerNode ? SPECIAL_JOKER
+          : (forcedCardId(node) != null ? forcedCardId(node) : draftIdForNode(node));
         if (id == null) return null;
         nodeCards[node.id] = id;
       }
@@ -13255,7 +13307,7 @@ const CampaignState = (() => {
         // committed are kept — those stages regenerate identically.
         for (let p = 1; p < PHASE_SUITS.length; p++)
           if (stageEntryDecks[p] == null) stageEntryDecks[p] = stageEntryDecks[p - 1] + RunMap.GEN_CONFIG.predictedRouteCards;
-        runMap = RunMap.generateRun(runSeed, stageEntryDecks);   // the whole run regenerates from seed + entries
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());   // the whole run regenerates from seed + entries
         // (re-locking any +1 node missing a card happens BELOW, after baseDeck +
         // nextCardId restore — a re-lock must roll against the RESTORED deck, and
         // a special re-lock MINTS into it, so the order matters.)
@@ -13300,6 +13352,18 @@ const CampaignState = (() => {
         const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
         nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
           ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
+        // JOKER3 migration: an old Pinky-Regular save may carry the retired
+        // roaming guaranteed-Joker sentinel on a normal pickup node — drop it
+        // so that node re-locks to a normal card below (the two fixed
+        // post-boss corridor nodes are the only Joker nodes now).
+        if (fixedJokerScheme() && runMap) {
+          for (const k in nodeCards) {
+            // Only scrub sentinels on REAL map nodes that aren't the fixed
+            // corridor pair — ids not on the map (debug/QA locks) are
+            // unreachable anyway and stay untouched.
+            if (nodeCards[k] === SPECIAL_JOKER && runMap.byId[k] && !runMap.byId[k].jokerNode) delete nodeCards[k];
+          }
+        }
         lockAllPickupCards();   // re-lock any +1 node missing a card (old saves) — committed ones are kept
         ensureGuaranteedJoker();   // pre-cap saves gain the guaranteed map Joker too (no-op if one exists)
         // Progression-map fossils (default [] for saves written before the map).
