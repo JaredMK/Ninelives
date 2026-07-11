@@ -404,10 +404,11 @@ const NINELIVES_ITEMS = {
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
       effect: "samePeek", tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Peek at the next upcoming card" },
-    // value = pile size added to each directly-linked pile (lasts the deal).
+    // value = pile size added to each directly-linked pile; hubValue = pile
+    // size added to the CALLED pile itself (both last the deal).
     { id: "linkHeavy", label: "Same Heavy", icon: "🧱",
-      effect: "linkHeavy", value: 5, tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to each pile directly linked to the pile you called Same on" },
+      effect: "linkHeavy", value: 5, hubValue: 5, tier: "rare", price: 5,
+      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to the pile you called Same on, and +5 to each pile directly linked to it" },
   ],
 
   /* --------------------------------------------------------------------

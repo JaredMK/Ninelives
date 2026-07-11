@@ -203,15 +203,20 @@ export function run() {
     r.ok(e.getRun().revealNextActive, "Same Peeker peeks the next card on a correct Same");
   }
 
-  // --- Same Heavy: +5 pile size to each directly-linked pile -------------
+  // --- Same Heavy: +value to each linked pile, +hubValue to the CALLED pile
   {
+    const def = SamePowerTypes.get("linkHeavy");
+    const linkGain = def.value, hubGain = def.hubValue;   // registry knobs, never pinned
+    r.ok(typeof hubGain === "number" && hubGain > 0, "linkHeavy ships a hubValue knob (" + hubGain + ")");
     const e = mk({ samePower: "linkHeavy" });
     const b = e.getBoard();
     e.setLinks({ 0: [1, 2], 1: [0], 2: [0], 5: [] });
-    const s1 = b.pileSize(1), s2 = b.pileSize(2), s5 = b.pileSize(5);
+    const s0 = b.pileSize(0), s1 = b.pileSize(1), s2 = b.pileSize(2), s5 = b.pileSize(5);
     sameOn(e, 0, 7);
-    r.eq(b.pileSize(1), s1 + 5, "linked pile 1 gained +5 size");
-    r.eq(b.pileSize(2), s2 + 5, "linked pile 2 gained +5 size");
+    // the correct Same also LANDS the drawn card on pile 0 (+1 real card).
+    r.eq(b.pileSize(0), s0 + 1 + hubGain, "the CALLED pile gained +" + hubGain + " size (plus the landed card)");
+    r.eq(b.pileSize(1), s1 + linkGain, "linked pile 1 gained +" + linkGain + " size");
+    r.eq(b.pileSize(2), s2 + linkGain, "linked pile 2 gained +" + linkGain + " size");
     r.eq(b.pileSize(5), s5, "a NON-linked pile is untouched");
   }
 

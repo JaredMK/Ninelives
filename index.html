@@ -6468,7 +6468,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.60 · the pilot got a throttle and a soft spot for runts";
+const APP_VERSION = "v4.61 · heavier sames, visible bookkeeping";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9192,8 +9192,10 @@ const GameEngine = (() => {
         recT("pillar", pillar.id, pillar.label, { peeks: 1 });   // telemetry
       } else if (pillar.effect === "diamondDistribution" && isDiamond) {
         // Diamond Distribution: a ♦ landed → even out the column's alive pile sizes.
-        const moved = redistributeColumn(col);
-        if (moved > 0) { firePillar(col, "diamondDistribution", pillar.label, 0); logLine(pillar.label + ": redistributed " + moved + " buried card" + (moved === 1 ? "" : "s") + " to even the column"); recT("pillar", pillar.id, pillar.label, { moved }); }
+        // The net pile→pile flows ride the pillar-fired signal so the UI can fly
+        // the moving cards (presentation only — indices, never identities).
+        const { moved, moves } = redistributeColumn(col);
+        if (moved > 0) { firePillar(col, "diamondDistribution", pillar.label, 0, { moves }); logLine(pillar.label + ": redistributed " + moved + " buried card" + (moved === 1 ? "" : "s") + " to even the column"); recT("pillar", pillar.id, pillar.label, { moved }); }
       } else if (pillar.effect === "sameSpark" && isTie === true && guess === "same") {
         let n = 0;
         for (const i of colAlivePiles(col)) {
@@ -9211,10 +9213,13 @@ const GameEngine = (() => {
     /** Diamond Distribution: even out the alive piles' sizes in `col`. Each pile
         keeps its own TOP card; the BURIED cards are pooled and dealt back as evenly
         as possible (a composition shift — no identities/order surfaced). Returns
-        how many buried cards were redistributed. */
+        { moved, moves }: how many buried cards were re-dealt, plus the NET pile→pile
+        flows ({ from, to } per card) — counts only, for the UI's travel flourish. */
     function redistributeColumn(col) {
       const idxs = colAlivePiles(col);
-      if (idxs.length < 2) return 0;
+      if (idxs.length < 2) return { moved: 0, moves: [] };
+      const beforeBuried = {};   // per-pile buried count going in (for the net flows)
+      for (const i of idxs) beforeBuried[i] = Math.max(0, board.piles[i].cards.length - 1);
       const tops = {}, pool = [];
       for (const i of idxs) {
         const cards = board.piles[i].cards;
@@ -9232,7 +9237,20 @@ const GameEngine = (() => {
         if (tops[i]) board.piles[i].cards.push(tops[i]);   // … its own top back on top
         moved += buried.length;
       }
-      return moved;
+      // NET FLOWS for the travel animation: piles that ended with fewer buried
+      // cards donate, piles with more receive — paired one card at a time.
+      // Presentation data only (indices, never identities); gameplay unchanged.
+      const donors = [], receivers = [];
+      for (const i of idxs) {
+        const delta = beforeBuried[i] - Math.max(0, board.piles[i].cards.length - 1);
+        for (let n = 0; n < delta; n++) donors.push(i);
+        for (let n = 0; n < -delta; n++) receivers.push(i);
+      }
+      const moves = [];
+      for (let n = 0; n < Math.min(donors.length, receivers.length); n++) {
+        moves.push({ from: donors[n], to: receivers[n] });
+      }
+      return { moved, moves };
     }
 
     /** Map each pile index to its column. Piles fill DOWN each column in turn
@@ -9301,9 +9319,11 @@ const GameEngine = (() => {
         the UI can pulse that Pillar (+ float "+N" for coin rewards). PURE SIGNAL —
         emitting it changes no state, value, or timing; it only mirrors an effect
         that already happened. `amount` is the coins paid (0 for non-coin effects). */
-    function firePillar(col, effect, label, amount) {
+    function firePillar(col, effect, label, amount, extra) {
       if (col == null) return;
-      emit("pillar-fired", { col, effect, label: label || "", amount: amount || 0, board, deck, run });
+      // `extra` carries optional presentation-only data (e.g. Diamond
+      // Distribution's pile→pile move list) — still a pure signal.
+      emit("pillar-fired", Object.assign({ col, effect, label: label || "", amount: amount || 0, board, deck, run }, extra || {}));
     }
 
     /** Arm a column-scoped peek Pillar (Unearth / Last Rites / Static): reveal
@@ -10329,11 +10349,14 @@ const GameEngine = (() => {
           break;
         }
         case "linkHeavy": {
-          // +value pile size to each directly-linked pile (persistent this deal).
+          // +value pile size to each directly-linked pile, plus hubValue to
+          // the CALLED pile itself (both persistent this deal).
           const targets = linkedPiles(hub, "alive");
           for (const j of targets) board.addSizeBonus(j, def.value || 5);
+          const hubBonus = itemNum(def, "hubValue", 5);
+          board.addSizeBonus(hub, hubBonus);
           result.targets = targets;
-          result.amount = (def.value || 5) * targets.length;
+          result.amount = (def.value || 5) * targets.length + hubBonus;
           break;
         }
       }
@@ -18651,11 +18674,43 @@ const UIRenderer = (() => {
           // only pulsed + played the sound — the board kept showing the
           // pre-shuffle tops (the engine had shuffled; the UI never repainted).
           // Repaint every pile top + count, exactly like base-fired does.
-          for (let i = 0; i < pileEls.length; i++) {
-            const top = payload.board.top(i);
-            if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
+          const repaint = () => {
+            for (let i = 0; i < pileEls.length; i++) {
+              const top = payload.board.top(i);
+              if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
+            }
+            paintPileCounts(payload.board);
+          };
+          // DIAMOND DISTRIBUTION travel flourish: fly a face-down card along
+          // each net pile→pile move (engine-supplied indices, no identities),
+          // staggered, queued at priority 1 so it plays AFTER the triggering ♦
+          // lands — then the counts repaint as the last card arrives. Capped
+          // for lightness; reduced motion (or no moves) keeps the instant path.
+          const moves = (payload.effect === "diamondDistribution" && Array.isArray(payload.moves))
+            ? payload.moves.slice(0, 8) : [];
+          // Observability (invisible, tests/tuning): cumulative net moves the
+          // travel flourish was handed — distinguishes a net-zero redistribute
+          // (nothing to animate) from a flight that failed to play.
+          if (payload.effect === "diamondDistribution" && document.body && document.body.dataset) {
+            document.body.dataset.ddMoves = String((+document.body.dataset.ddMoves || 0) + moves.length);
           }
-          paintPileCounts(payload.board);
+          if (moves.length && !prefersReduce()) {
+            queueAnim((done) => {
+              let landed = 0;
+              const fin = () => { if (++landed === moves.length) { repaint(); done(); } };
+              moves.forEach((m, k) => {
+                setTimeout(() => {
+                  const fromEl = pileEls[m.from] && (pileEls[m.from].querySelector(".card") || pileEls[m.from]);
+                  const toEl = pileEls[m.to] && (pileEls[m.to].querySelector(".card") || pileEls[m.to]);
+                  if (!fromEl || !toEl) { fin(); return; }
+                  flyCard(flyBackEl(), fromEl.getBoundingClientRect(), toEl.getBoundingClientRect(),
+                    { duration: 260, onArrive: fin });
+                }, k * 90);
+              });
+            }, 1);
+          } else {
+            repaint();
+          }
         }
         break;
       }

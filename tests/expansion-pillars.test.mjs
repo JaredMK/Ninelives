@@ -218,10 +218,23 @@ export function run() {
     b.pushBottom(0, { value: 8, suit: "♠", label: "8" });
     b.pushBottom(0, { value: 7, suit: "♠", label: "7" });   // pile 0 → 4 cards; piles 1,2 → 1 each
     b.top(0).value = 5;
+    // The pillar-fired signal carries the NET pile→pile move list for the UI's
+    // travel flourish — indices only, one entry per card, never identities.
+    let fired = null;
+    e.onEvent((t, p) => { if (t === "pillar-fired" && p.effect === "diamondDistribution") fired = p; });
     const d = e.debug.setNextCard(6); d.suit = "♦";   // a ♦ lands on pile 0 → redistribute col 0
     e.guess(0, "higher");
     const sizes = [0, 1, 2].map(i => b.piles[i].cards.length).sort();
     r.ok(sizes[2] - sizes[0] <= 1, "Diamond Distribution evens the column's pile sizes (max−min ≤ 1)");
+    r.ok(fired && Array.isArray(fired.moves), "pillar-fired payload carries a moves array");
+    // pile 0 held all the buried cards, so every move flows OUT of pile 0 into
+    // the other column piles; each move is an index pair with no card data.
+    r.ok(fired.moves.length > 0 && fired.moves.every(m => m.from === 0 && (m.to === 1 || m.to === 2)
+      && Object.keys(m).length === 2), "moves are pure {from, to} index pairs flowing out of the donor pile");
+    // net flows must reconcile: donations equal receipts pile-by-pile.
+    const net = {};
+    fired.moves.forEach(m => { net[m.from] = (net[m.from] || 0) - 1; net[m.to] = (net[m.to] || 0) + 1; });
+    r.eq(Object.values(net).reduce((a, x) => a + x, 0), 0, "move flows balance to zero");
   }
 
   return r.summary();
