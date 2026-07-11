@@ -131,8 +131,10 @@ export function run() {
       r.ok(v.report.cards[0] >= 11, "stage " + s + ": every route collects ≥11 cards");
       r.ok(v.report.cards[0] <= 15, "stage " + s + ": a route ≤15 cards exists");
       r.ok(v.report.dealsPerRoute[0] >= 3 && v.report.dealsPerRoute[1] <= 5, "stage " + s + ": 3–5 deals on every route");
-      // 2–3 stores per stage.
-      r.ok(v.report.stores >= 2 && v.report.stores <= 3, "stage " + s + ": has 2–3 stores (" + v.report.stores + ")");
+      // stores-per-stage quota — read live from GEN_CONFIG (never pinned).
+      const [stLo, stHi] = RunMap.GEN_CONFIG.stores;
+      r.ok(v.report.stores >= stLo && v.report.stores <= stHi,
+        "stage " + s + ": has " + stLo + "–" + stHi + " stores (" + v.report.stores + ")");
       // ≥2 starting nodes (player picks where to start).
       r.ok(m.row0.length >= 2, "stage " + s + ": has " + m.row0.length + " starting nodes (≥2)");
       // EXACTLY ONE boss, terminal on the top row (twin bosses removed — they

@@ -6468,7 +6468,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.61 · heavier sames, visible bookkeeping";
+const APP_VERSION = "v4.62 · more places to spend it all";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7532,7 +7532,7 @@ const RunMap = (() => {
                                  // path count; never a hard gate.
 
     // Node-type roll. Every non-boss node is DEAL/PACK/CARD by these weights;
-    // STORES are then placed to quota (2-3) over eligible nodes. Tune these to
+    // STORES are then placed to quota (GEN_CONFIG.stores) over eligible nodes. Tune these to
     // move the failure histogram. packWeights = the +N size distribution.
     // 13-row tuning: routes have ~8 add slots but the SAME 11-15 card budget,
     // so the average add must sit near 1.5 — CARD weight up (15 -> 40) and
@@ -7542,7 +7542,7 @@ const RunMap = (() => {
 
     // Deals / stores per stage.
     dealsPerRouteMax: 5,         // hard cap validated on every route (excl. boss)
-    stores: [2, 3],              // stores per stage (never 2 adjacent on a path,
+    stores: [3, 4],              // stores per stage (never 2 adjacent on a path,
                                  // >=1 deal between consecutive stores, every
                                  // start can reach a store)
     preBossStoreRows: 3,         // GUARANTEED PRE-BOSS SHOP: >=1 store must sit
@@ -7870,7 +7870,7 @@ const RunMap = (() => {
     if (dealRMin < 3) errors.push("a route passes only " + dealRMin + " regular deals (< 3)");
     if (dealRMax > C.dealsPerRouteMax) errors.push("a route passes " + dealRMax + " regular deals (> " + C.dealsPerRouteMax + ")");
     if (storeAdj) errors.push(storeAdj + " route(s) pass two stores in a row");
-    // 2-3 stores per STAGE (adjacency + deal-gap already checked per route above).
+    // stores-per-STAGE quota (adjacency + deal-gap already checked per route above).
     const storeCount = ph.nodes.filter(n => n.type === "store").length;
     if (storeCount < C.stores[0] || storeCount > C.stores[1])
       errors.push("stage has " + storeCount + " store(s) (spec: " + C.stores[0] + "-" + C.stores[1] + ")");
