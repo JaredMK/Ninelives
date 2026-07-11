@@ -6139,81 +6139,16 @@
        sits above the reveal overlay. -->
   <div class="item-help pack-item-help hidden" id="packItemHelp"></div>
 
-  <!-- Pre-run deck replacement confirmation (a permanent campaign-deck change). -->
-  <div class="confirm-overlay hidden" id="packReplaceConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="packReplaceMsg">Replace this card?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="packReplaceCancel" type="button">Cancel</button>
-        <button class="confirm-danger" id="packReplaceOk" type="button">Replace</button>
-      </div>
-    </div>
-  </div>
-
   <!-- (Redeal confirmation removed in #4 — entering a deal goes straight to play,
        so there's no pre-deal setup window to host the paid reshuffle.) -->
 
-  <!-- Trash-Pillar confirmation — destroys the column's Pillar permanently
-       (no refund, no return to inventory). Guards against an accidental tap. -->
-  <div class="confirm-overlay hidden" id="trashConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="trashConfirmMsg">Trash this Pillar?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="trashCancelBtn" type="button">Cancel</button>
-        <button class="confirm-danger" id="trashOkBtn" type="button">Trash</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sell-on-removal confirmation. Taking a placed Pillar/Base off the board
-       SELLS it (it does not return to inventory) for a tier-based coin payout. -->
-  <div class="confirm-overlay hidden" id="sellConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="sellConfirmMsg">Sell this for coins?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="sellCancelBtn" type="button">Cancel</button>
-        <button class="confirm-danger" id="sellOkBtn" type="button">Sell</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Paid-bury confirmation — a coin-cost Tribute (Tribute II) just landed.
-       The player must opt in; only Yes buries and charges the cost. -->
-  <div class="confirm-overlay hidden" id="buryConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="buryConfirmMsg">Bury a card under this pile?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="buryNoBtn" type="button">No</button>
-        <button class="buy-confirm" id="buryYesBtn" type="button" style="flex:1 1 0">Yes</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Optional post-landing action (Shuffle / Donate sticker). The player opts
-       in; only Yes performs the composition shift. -->
-  <div class="confirm-overlay hidden" id="actionConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="actionConfirmMsg">Take this action?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="actionNoBtn" type="button">No</button>
-        <button class="buy-confirm" id="actionYesBtn" type="button" style="flex:1 1 0">Yes</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Peel-stickers confirmation — strips ALL stickers off a card and reverts it
-       to its base card. The stickers are destroyed (not returned). The message
-       names the base card so the player knows what it becomes. -->
-  <div class="confirm-overlay hidden" id="peelConfirm">
-    <div class="confirm-panel">
-      <div class="confirm-msg" id="peelConfirmMsg">Peel off all stickers?</div>
-      <div class="confirm-actions">
-        <button class="confirm-cancel" id="peelCancelBtn" type="button">Cancel</button>
-        <button class="confirm-danger" id="peelOkBtn" type="button">Peel</button>
-      </div>
-    </div>
-  </div>
+  <!-- PROMPT1: every board-screen item confirmation — paid bury (Tribute II),
+       Shuffle/Donate, pack-card replace, peel-all-stickers, trash-an-item,
+       sell-on-removal — now rides the ONE shared bottom prompt bar
+       (#actionPrompt / showActionBar), so the board stays fully visible while
+       choosing and prompt styles can't drift. The old per-item confirm-overlay
+       modals were deleted here; #packReveal (a store pack's contents picker,
+       not a confirmation) is the only overlay of that family left. -->
 
   <!-- Progression map: shown between the store and each run (store → map → run).
        The current run sits at the top; cleared runs descend below as "fossils" of
@@ -6468,7 +6403,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.63 · two stars, punched at the toll booths";
+const APP_VERSION = "v4.64 · every question now asks from the same low seat";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14180,31 +14115,9 @@ const UIRenderer = (() => {
     packConfirmBtn: document.getElementById("packConfirmBtn"),
     packSkipBtn: document.getElementById("packSkipBtn"),
     packItemHelp: document.getElementById("packItemHelp"),
-    packReplaceConfirm: document.getElementById("packReplaceConfirm"),
-    packReplaceMsg: document.getElementById("packReplaceMsg"),
-    packReplaceCancel: document.getElementById("packReplaceCancel"),
-    packReplaceOk: document.getElementById("packReplaceOk"),
+    // (PROMPT1: the per-item confirm-overlay refs — bury/action/peel/trash/
+    // sell/packReplace — are gone; those prompts ride #actionPrompt now.)
     packTrayEl: document.getElementById("packTrayEl"),
-    trashConfirm: document.getElementById("trashConfirm"),
-    trashConfirmMsg: document.getElementById("trashConfirmMsg"),
-    sellConfirm: document.getElementById("sellConfirm"),
-    sellConfirmMsg: document.getElementById("sellConfirmMsg"),
-    sellCancelBtn: document.getElementById("sellCancelBtn"),
-    sellOkBtn: document.getElementById("sellOkBtn"),
-    trashCancelBtn: document.getElementById("trashCancelBtn"),
-    trashOkBtn: document.getElementById("trashOkBtn"),
-    peelConfirm: document.getElementById("peelConfirm"),
-    peelConfirmMsg: document.getElementById("peelConfirmMsg"),
-    peelCancelBtn: document.getElementById("peelCancelBtn"),
-    peelOkBtn: document.getElementById("peelOkBtn"),
-    buryConfirm: document.getElementById("buryConfirm"),
-    buryConfirmMsg: document.getElementById("buryConfirmMsg"),
-    actionConfirm: document.getElementById("actionConfirm"),
-    actionConfirmMsg: document.getElementById("actionConfirmMsg"),
-    actionYesBtn: document.getElementById("actionYesBtn"),
-    actionNoBtn: document.getElementById("actionNoBtn"),
-    buryYesBtn: document.getElementById("buryYesBtn"),
-    buryNoBtn: document.getElementById("buryNoBtn"),
     rerollBtn: document.getElementById("rerollBtn"),
     storeStartBtn: document.getElementById("storeStartBtn"),
     mapOverlay: document.getElementById("mapOverlay"),
@@ -16249,15 +16162,22 @@ const UIRenderer = (() => {
   function requestSell(kind, col, t, id) {
     const value = sellValueOf(t);
     sellPending = { kind, col, id, value };
-    el.sellConfirmMsg.innerHTML = "Sell " + escHtml((t && t.label) || kind) + " for " +
-      COIN_SVG + " " + value + "? It won't return to your inventory.";
-    el.sellConfirm.classList.remove("hidden");
+    // PROMPT1: shared bottom prompt bar. The coin icon is trusted local markup
+    // (COIN_SVG) — the item label is escaped; outside tap cancels.
+    showActionBar("Sell " + escHtml((t && t.label) || kind) + " for " + COIN_SVG + " " + value + "?", [
+      { label: "Cancel", cls: "no", onClick: closeSellConfirm },
+      { label: "Sell", cls: "primary", onClick: confirmSell },
+    ], [], { help: "It won't return to your inventory.", dismiss: closeSellConfirm });
   }
-  function closeSellConfirm() { el.sellConfirm.classList.add("hidden"); sellPending = null; }
+  function closeSellConfirm() {
+    const was = sellPending != null;
+    sellPending = null;
+    if (was) hideActionBar();
+  }
   function confirmSell() {
     const p = sellPending;
-    el.sellConfirm.classList.add("hidden");
     sellPending = null;
+    hideActionBar();
     if (!p || !engine || !engine.canApplyStickers() || !campaign) return;
     const t = p.kind === "pillar" ? PillarTypes.get(p.id) : BaseTypes.get(p.id);
     const removed = p.kind === "pillar" ? campaign.removeColumnPillar(p.col) : campaign.removeColumnBase(p.col);
@@ -17383,8 +17303,7 @@ const UIRenderer = (() => {
       actionBarDismiss();
     });
     // Peel confirmation actions.
-    el.peelCancelBtn.addEventListener("click", closePeelConfirm);
-    el.peelOkBtn.addEventListener("click", doPeel);
+    // (PROMPT1: peel confirm rides the bottom prompt bar — buttons live there.)
 
     // "?" card-info button (enabled once a pile is selected) + tap-off to close.
     el.cardInfo.addEventListener("click", (e) => {
@@ -17431,8 +17350,7 @@ const UIRenderer = (() => {
     });
     // Replace confirmation (deliberate yes/no — requires an explicit choice, so
     // a backdrop tap does NOT dismiss it).
-    el.packReplaceCancel.addEventListener("click", closePackReplace);
-    el.packReplaceOk.addEventListener("click", doReplace);
+    // (PROMPT1: pack-replace confirm rides the bottom prompt bar.)
 
     // Trash an armed setup item (deliberate: button -> confirm dialog).
     if (el.thTrash) el.thTrash.addEventListener("click", requestTrashItem);
@@ -17441,18 +17359,15 @@ const UIRenderer = (() => {
     if (el.placeLauncher) el.placeLauncher.addEventListener("click", openPlaceSheet);
     if (el.placeSheetDone) el.placeSheetDone.addEventListener("click", closePlaceSheet);
     if (el.placeBackdrop) el.placeBackdrop.addEventListener("click", closePlaceSheet);
-    el.trashCancelBtn.addEventListener("click", closeTrashConfirm);
-    el.trashOkBtn.addEventListener("click", doTrashItem);
-    if (el.sellCancelBtn) el.sellCancelBtn.addEventListener("click", closeSellConfirm);
-    if (el.sellOkBtn) el.sellOkBtn.addEventListener("click", confirmSell);
+    // (PROMPT1: trash confirm rides the bottom prompt bar.)
+    // (PROMPT1: sell confirm rides the bottom prompt bar.)
     // (Confirmation dialog: explicit choice only — no backdrop dismiss.)
 
     // Paid-bury confirmation (Tribute II lands → "Bury … for X coins?").
-    el.buryYesBtn.addEventListener("click", () => answerBury(true));
-    el.buryNoBtn.addEventListener("click", () => answerBury(false));
+    // (PROMPT1: paid-bury confirm rides the bottom prompt bar.)
     // Optional post-landing action (Shuffle / Donate) confirm.
-    if (el.actionYesBtn) el.actionYesBtn.addEventListener("click", () => answerAction(true));
-    if (el.actionNoBtn) el.actionNoBtn.addEventListener("click", () => answerAction(false));
+    // (PROMPT1: the orphaned #actionConfirm modal is gone — Shuffle/Donate
+    // already ride the bottom prompt bar via showActionConfirm.)
     // Kamikaze look-ahead dismiss.
 
     // (#4: Start Deal + Redeal buttons removed — entering a deal goes straight into
@@ -23413,19 +23328,30 @@ const UIRenderer = (() => {
     const trayCard = campaign.getPackTray()[armedPack];
     const nSt = (top.stickers || []).length;
     packReplaceState = { pileIndex, dealtId: top.id, trayIndex: armedPack };
-    const stickerWarn = nSt > 0 ? '<br><span class="warn-stickers">' + escHtml(dealtName) + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "";
+    // PROMPT1: shared bottom prompt bar — question up top, the permanence /
+    // sticker-destruction warning as the help line, the target pile outlined.
+    const stickerWarn = nSt > 0
+      ? " " + dealtName + " carries " + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever." : "";
+    let question, help;
     if (trayCard.blank) {
       // BLANK is a removal — it takes the card OUT and adds nothing (deck −1).
-      el.packReplaceMsg.innerHTML =
-        "Permanently REMOVE <b>" + escHtml(dealtName) + "</b> from your deck? Your deck shrinks by one card." + stickerWarn;
+      question = "Permanently REMOVE " + dealtName + " from your deck?";
+      help = "Your deck shrinks by one card." + stickerWarn;
     } else {
       const packName = trayCard.joker ? "★ Joker" : (miniRankLabel(trayCard) + trayCard.suit);
-      el.packReplaceMsg.innerHTML =
-        "Permanently swap <b>" + escHtml(dealtName) + "</b> for <b>" + escHtml(packName) + "</b> in your deck?" + stickerWarn;
+      question = "Permanently swap " + dealtName + " for " + packName + " in your deck?";
+      help = "A permanent campaign-deck change." + stickerWarn;
     }
-    el.packReplaceConfirm.classList.remove("hidden");
+    showActionBar(escHtml(question), [
+      { label: "Cancel", cls: "no", onClick: closePackReplace },
+      { label: "Replace", cls: "primary", onClick: doReplace },
+    ], [pileIndex], { help, dismiss: closePackReplace });
   }
-  function closePackReplace() { packReplaceState = null; el.packReplaceConfirm.classList.add("hidden"); }
+  function closePackReplace() {
+    const was = packReplaceState != null;
+    packReplaceState = null;
+    if (was) hideActionBar();
+  }
   function doReplace() {
     const st = packReplaceState;
     if (!st) return;
@@ -24131,9 +24057,10 @@ const UIRenderer = (() => {
   }
 
   function closeTrashConfirm() {
-    el.trashConfirm.classList.add("hidden");
+    const was = trashPendingCol != null || trashPendingItem != null;
     trashPendingCol = null;
     trashPendingItem = null;
+    if (was) hideActionBar();
   }
 
   /* ---- Peel ALL stickers off a card (setup only) ----
@@ -24152,17 +24079,26 @@ const UIRenderer = (() => {
     const base = campaign.baseStateOf(top.id);
     if (!base) return;
     peelPendingIndex = index;
-    el.peelConfirmMsg.innerHTML =
-      "Peel off <b>all stickers</b> from this card? It reverts to <b>" +
-      escHtml(rankLabelOf(base.rank) + base.suit) + "</b> (its base card). " +
-      "The peeled stickers are <b>destroyed</b> — they do not return to your inventory.";
-    el.peelConfirm.classList.remove("hidden");
+    // PROMPT1: shared bottom prompt bar (board stays visible; the target pile
+    // is outlined; an outside tap cancels like the Cancel button).
+    showActionBar("Peel all stickers off this card?", [
+      { label: "Cancel", cls: "no", onClick: closePeelConfirm },
+      { label: "Peel", cls: "primary", onClick: doPeel },
+    ], [index], {
+      help: "It reverts to " + rankLabelOf(base.rank) + base.suit + " (its base card). "
+        + "The peeled stickers are destroyed — they do not return to your inventory.",
+      dismiss: closePeelConfirm,
+    });
   }
-  function closePeelConfirm() { el.peelConfirm.classList.add("hidden"); peelPendingIndex = null; }
+  function closePeelConfirm() {
+    const was = peelPendingIndex != null;
+    peelPendingIndex = null;
+    if (was) hideActionBar();
+  }
   function doPeel() {
     const index = peelPendingIndex;
-    el.peelConfirm.classList.add("hidden");
     peelPendingIndex = null;
+    hideActionBar();
     if (index == null || !engine || !campaign) return;
     const top = engine.getBoard().top(index);
     if (!top) return;
@@ -24190,19 +24126,24 @@ const UIRenderer = (() => {
   /* ---- Paid-bury confirmation (item 9) ----
      A coin-cost Tribute (Tribute II) just landed on a surviving pile. The engine
      has queued the offer and emitted "tribute-offer"; we ask Yes/No and only
-     charge + bury when the player confirms. The modal blocks the board, so the
-     deck can't change before the answer. answerTribute() chains the next offer
-     (re-firing "tribute-offer"), which re-opens this dialog as needed. */
+     charge + bury when the player confirms. PROMPT1: the ask rides the shared
+     BOTTOM PROMPT BAR (board fully visible, guessing suspended via promptActive
+     until answered — the deck can't change before the answer). answerTribute()
+     chains the next offer (re-firing "tribute-offer"), re-opening the bar. */
   function showBuryConfirm(offer) {
     if (!offer) return;
     const n = offer.count || 1;
-    el.buryConfirmMsg.innerHTML =
-      "Bury <b>" + n + " card" + (n > 1 ? "s" : "") + "</b> under this pile for <b>" +
-      offer.cost + " coin" + (offer.cost === 1 ? "" : "s") + "</b>?";
-    el.buryConfirm.classList.remove("hidden");
+    showActionBar(
+      "Bury " + n + " card" + (n > 1 ? "s" : "") + " under this pile for "
+      + offer.cost + " coin" + (offer.cost === 1 ? "" : "s") + "?",
+      [
+        { label: "No", cls: "no", onClick: () => answerBury(false) },
+        { label: "Yes", cls: "primary", onClick: () => answerBury(true) },
+      ],
+      (offer.index != null) ? [offer.index] : []);
   }
   function answerBury(accept) {
-    el.buryConfirm.classList.add("hidden");
+    hideActionBar();
     if (engine) engine.answerTribute(!!accept);
   }
 
@@ -24487,8 +24428,12 @@ const UIRenderer = (() => {
       if (!card) return;
       kind = "card"; label = miniRankLabel(card) + " " + card.suit; trashPendingItem = { kind, index: armedPack };
     } else return;
-    el.trashConfirmMsg.textContent = "Permanently discard " + label + "? It leaves your inventory for good.";
-    el.trashConfirm.classList.remove("hidden");
+    // PROMPT1: shared bottom prompt bar (board/tray stay visible; outside tap
+    // cancels like the Cancel button).
+    showActionBar(escHtml("Permanently discard " + label + "?"), [
+      { label: "Cancel", cls: "no", onClick: closeTrashConfirm },
+      { label: "Trash", cls: "primary", onClick: doTrashItem },
+    ], [], { help: "It leaves your inventory for good.", dismiss: closeTrashConfirm });
   }
 
   function doTrashItem() {
