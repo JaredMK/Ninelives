@@ -6538,7 +6538,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.66 · the stopwatch sees everything";
+const APP_VERSION = "v4.67 · the map draws itself while you window-shop";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11782,6 +11782,30 @@ const CampaignState = (() => {
       if (rules().altSuits) return [START_SUIT].concat(PHASE_SUITS);
       return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1));
     }
+    /* ── PRE-GENERATED RUN MAP (PERF2) ──────────────────────────────────────
+       The whole-run generation (3 stages × up to 240 build/validate attempts)
+       was the deck-select Start press's 0.3–1.5s pause. The UI now calls
+       pregenerateRun() with the BROWSED deck/tier while the player is still
+       reading the deck-select screen (idle time); startNewRun's genRunMap
+       then consumes the stash when its inputs match, making Start ~instant.
+       Generation depends ONLY on the tier (bands) + the deck/tier Joker
+       scheme + the seed — never on which deck is selected (every deck enters
+       with startDeckSize cards) — so decks sharing a tier share one pregen.
+       Single-use; any mismatch falls back to the normal synchronous path
+       (same code, same inputs, identical results — just slower). */
+    let pregen = null;   // { key, seed, entries, map }
+    const runGenKey = (dId, tId) => tId + "|" + ((dId === "pink" && tId === "regular") ? "FJ" : "-");
+    function pregenerateRun(dId, tId) {
+      const key = runGenKey(dId, tId);
+      if (pregen && pregen.key === key) return false;      // already ready
+      RunMap.setDifficultyTier(tId);                       // preview tier (restore/genRunMap re-set it)
+      const e0 = RunMap.GEN_CONFIG.startDeckSize, prc = RunMap.GEN_CONFIG.predictedRouteCards;
+      const entries = [e0, e0 + prc, e0 + 2 * prc];
+      const seed = generateSeed();
+      const opts = { postBossJokerStages: (dId === "pink" && tId === "regular") ? [0, 1] : [] };
+      pregen = { key, seed, entries, map: RunMap.generateRun(seed, entries, opts) };
+      return true;
+    }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
     function genRunMap() {
@@ -11793,7 +11817,15 @@ const CampaignState = (() => {
       const entry0 = ownedIds.length || RunMap.GEN_CONFIG.startDeckSize;
       const prc = RunMap.GEN_CONFIG.predictedRouteCards;
       stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
-      runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
+      // PERF2: consume a matching pre-generated map (its seed rides along, so
+      // saves + seed-based regeneration behave exactly as a live generation).
+      if (pregen && pregen.key === runGenKey(deckId, difficultyTier) && pregen.entries[0] === entry0) {
+        runSeed = pregen.seed;
+        runMap = pregen.map;
+        pregen = null;                            // single-use
+      } else {
+        runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
+      }
       nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {};
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
       // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
@@ -12168,6 +12200,10 @@ const CampaignState = (() => {
           campaign — the rules shape the starting deck / pricing / stickers. */
       setDeck(id) { deckId = DECK_RULES[id] ? id : "pink"; },
       getDeckId() { return deckId; },
+      // PERF2: build the next run's map ahead of time (deck-select idle);
+      // returns true if it generated, false if a matching pregen already
+      // waits. startNewRun consumes it via genRunMap when inputs match.
+      pregenerateRun,
       /** Bind the difficulty tier (bands only). Call BEFORE reset(). */
       setTier(id) { difficultyTier = DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular"; },
       getTier() { return difficultyTier; },
@@ -17601,6 +17637,7 @@ const UIRenderer = (() => {
           panelChar.classList.add("tier-" + (chip.dataset.tier || "regular"));
         }
         Sound.continueTap && Sound.continueTap();
+        schedulePregen();   // PERF2: the browsed tier changed → refresh the pregen
         return;
       }
       const start = e.target.closest(".ds-start");
@@ -17617,6 +17654,7 @@ const UIRenderer = (() => {
       const dots = el.dsDots.children;
       for (let k = 0; k < dots.length; k++) dots[k].classList.toggle("on", k === i);
       perkDeckPanel(i);   // the newly highlighted deck's character perks up
+      schedulePregen();   // PERF2: the browsed deck changed → refresh the pregen (key-deduped)
     }, { passive: true });
     if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
 
@@ -19791,8 +19829,45 @@ const UIRenderer = (() => {
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
     Tutorial.onDeckSelect();   // very first Play → the tour starts here (meets Pinky)
+    schedulePregen();          // PERF2: build the run map while the player browses
   }
   function hideDeckSelect() { el.deckSelect.classList.add("hidden"); }
+
+  /* ── PERF2: pre-generate the run map during deck-select browsing ─────────
+     Debounced (a swipe/tap settles first), then run in idle time so the
+     carousel stays responsive; re-schedules whenever the browsed deck or
+     tier changes (the campaign dedupes by generation KEY, so switching
+     between decks that share a tier never regenerates). If the player
+     Starts before the pregen lands, startCampaign just takes the normal
+     synchronous path — identical result, original cost. */
+  let pregenTimer = 0;
+  function browsedDeckTier() {
+    const w = el.dsCarousel.clientWidth || 1;
+    const i = Math.max(0, Math.min(DECKS.length - 1, Math.round((el.dsCarousel.scrollLeft || 0) / w)));
+    const d = DECKS[i];
+    if (!d || !deckUnlocked(d)) return null;
+    const panel = el.dsCarousel.querySelector('.ds-panel[data-deck="' + d.id + '"]');
+    const chip = panel && panel.querySelector(".ds-tier.sel");
+    return { deck: d.id, tier: (chip && chip.dataset.tier) || "regular" };
+  }
+  function schedulePregen() {
+    clearTimeout(pregenTimer);
+    pregenTimer = setTimeout(() => {
+      if (el.deckSelect.classList.contains("hidden")) return;   // left the screen
+      const sel = browsedDeckTier();
+      if (!sel || !campaign || !campaign.pregenerateRun) return;
+      const run = () => {
+        if (el.deckSelect.classList.contains("hidden")) return;
+        const t0 = performance.now();
+        const generated = Perf.time("deck-select:pregen(" + sel.tier + ")",
+          () => campaign.pregenerateRun(sel.deck, sel.tier));
+        if (generated) console.log("[map] pregenerated " + sel.tier + " run in "
+          + (performance.now() - t0).toFixed(0) + "ms (idle, deck-select)");
+      };
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 });
+      else setTimeout(run, 120);
+    }, 350);
+  }
 
   function startCampaign() {
     hideMainMenu();   // every entry path leaves the title menu (so the board, once

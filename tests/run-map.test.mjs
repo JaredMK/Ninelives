@@ -694,5 +694,33 @@ export function run() {
     r.ok(!c.getDeck().some(x => x.joker), "…and the stale Joker identity was pruned from the base deck");
   }
 
+  // ---- PERF2: pre-generated run maps (deck-select idle) -------------------
+  {
+    const c = CampaignState.create();
+    c.setDeck("pink"); c.setTier("regular");
+    r.ok(c.pregenerateRun("pink", "regular"), "pregenerateRun builds a map ahead of time");
+    r.ok(!c.pregenerateRun("pink", "regular"), "a matching pregen is deduped (no rebuild)");
+    c.reset();   // startNewRun consumes the stash (matching deck/tier key)
+    const map = c.getMap();
+    r.eq(map.nodes.filter(n => n.jokerNode).length, 2, "the consumed map carries pinky-regular's fixed Joker nodes");
+    // The pregen's seed rides along — a save regenerates the SAME map.
+    const wire = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(wire), "a pregen-seeded save restores");
+    r.eq(c2.getMap().nodes.length, map.nodes.length, "…regenerating a structurally identical map from the pregen seed");
+    r.eq((c2.getMap().phases[0] || {}).bossId, (map.phases[0] || {}).bossId, "…same stage-1 boss id");
+    // Decks sharing a tier share a pregen (generation never reads the deck):
+    const s = CampaignState.create();
+    s.pregenerateRun("mamma", "regular");
+    r.ok(!s.pregenerateRun("smith", "regular"), "mamma/smith share the regular-tier pregen (key-deduped)");
+    // A stale pregen for a DIFFERENT key is ignored, never consumed:
+    const m = CampaignState.create();
+    m.pregenerateRun("pink", "regular");   // pregen the wrong combo…
+    m.setDeck("mamma"); m.setTier("master");
+    m.reset();                             // …then start mamma master
+    r.eq(m.getMap().nodes.filter(n => n.jokerNode).length, 0,
+      "a mismatched pregen is ignored (the master map has no fixed Joker nodes)");
+  }
+
   return r.summary();
 }
