@@ -6044,6 +6044,7 @@ const NativeApp = (() => {
           <label class="debug-check"><input type="checkbox" id="debugSubsetDeals" checked> subset deals (decks &gt; 35)</label>
           <label class="debug-check"><input type="checkbox" id="debugRemovalSlot" checked> store slot 6 = Removal</label>
           <label class="debug-check"><input type="checkbox" id="debugAutopilot"> autopilot (odds-based guesser)</label>
+          <label class="debug-check"><input type="checkbox" id="debugPerfMode"> perf instrumentation (console)</label>
         </div>
         <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
         <div class="debug-sub">jump to map node (by address) →</div>
@@ -6537,7 +6538,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.65 · same cat, now with a native collar";
+const APP_VERSION = "v4.66 · the stopwatch sees everything";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14311,6 +14312,7 @@ const UIRenderer = (() => {
     debugSubsetDeals: document.getElementById("debugSubsetDeals"),   // DEBUG: subset deals on/off
     debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
     debugAutopilot: document.getElementById("debugAutopilot"),       // DEBUG: autopilot enable/disable
+    debugPerfMode: document.getElementById("debugPerfMode"),         // DEBUG: perf instrumentation on/off
     autoPilotBtn: document.getElementById("autoPilotBtn"),           // DEBUG: autopilot ▶/⏸ (beside the 🐞)
     autoPilotSpeed: document.getElementById("autoPilotSpeed"),       // DEBUG: autopilot speed slider (slow ←→ fast)
     debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
@@ -17840,6 +17842,10 @@ const UIRenderer = (() => {
     });
     if (el.autoPilotBtn) el.autoPilotBtn.addEventListener("click", () => {
       setAutopilotRunning(!autopilotRunning);
+    });
+    // DEBUG PERF MODE (PERF1): flow timings + long-task logging to the console.
+    if (el.debugPerfMode) el.debugPerfMode.addEventListener("change", () => {
+      Perf.setOn(el.debugPerfMode.checked);
     });
     // Speed slider: live — the next scheduled move already uses the new pace.
     if (el.autoPilotSpeed) {
@@ -25081,6 +25087,98 @@ const UIRenderer = (() => {
 
     // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1).
     if (/[?&]debug\b/.test(location.search)) setDebug(true);
+  }
+
+  /* ============================================================
+     PERF INSTRUMENTATION (PERF1 — measurement ONLY, no optimization).
+     A debug-toggleable performance mode: the main interaction flows are
+     wrapped in performance.mark/measure timings logged to the console, and a
+     PerformanceObserver reports every main-thread block >50ms (long tasks)
+     with what instrumented op — if any — was running at that moment. All of
+     it is inert until the debug "perf instrumentation" checkbox turns it on;
+     the wrappers then cost two performance.now() reads per call.
+     ============================================================ */
+  const Perf = (() => {
+    let on = false;
+    let obs = null;
+    const stack = [];      // active instrumented ops, innermost last
+    const entries = [];    // every finished timing { name, ms, at(s) }
+    const secs = (t) => (t / 1000).toFixed(2) + "s";
+    function log(name, ms, start) {
+      entries.push({ name, ms: +ms.toFixed(1), at: +(start / 1000).toFixed(2) });
+      console.log("[perf] " + name + " " + ms.toFixed(1) + "ms @ " + secs(start));
+    }
+    function time(name, fn) {
+      if (!on) return fn();
+      const t0 = performance.now();
+      performance.mark(name + "▸start");
+      stack.push(name);
+      try { return fn(); }
+      finally {
+        stack.pop();
+        performance.mark(name + "▸end");
+        let ms = performance.now() - t0;
+        try {
+          const m = performance.measure("SSS▸" + name, name + "▸start", name + "▸end");
+          if (m && typeof m.duration === "number") ms = m.duration;
+        } catch (e) { /* measure() returning void on older engines — the now() delta stands */ }
+        log(name, ms, t0);
+      }
+    }
+    function startLongTasks() {
+      if (obs || typeof PerformanceObserver === "undefined") return;
+      try {
+        obs = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            // The observer fires AFTER the blocking task ends (the live stack
+            // has already unwound) — attribute by TIME OVERLAP with finished
+            // instrumented ops instead; fall back to whatever is still open.
+            const t0 = e.startTime, t1 = e.startTime + e.duration;
+            let during = null;
+            for (let i = entries.length - 1; i >= 0 && !during; i--) {
+              const en = entries[i];
+              if (en.name.indexOf("LONGTASK") === 0) continue;
+              const s = en.at * 1000, f = s + en.ms;
+              if (s <= t1 && f >= t0) during = en.name;
+            }
+            if (!during) during = stack.length ? stack[stack.length - 1] : "(untracked)";
+            entries.push({ name: "LONGTASK during " + during, ms: +e.duration.toFixed(1), at: +(e.startTime / 1000).toFixed(2) });
+            console.log("[perf] ⏸ LONG TASK " + e.duration.toFixed(0) + "ms @ " + secs(e.startTime) + " during " + during);
+          }
+        });
+        obs.observe({ type: "longtask", buffered: false });   // main-thread blocks > 50ms
+      } catch (e) { console.log("[perf] longtask observer unavailable in this browser"); obs = null; }
+    }
+    function setOn(v) {
+      on = !!v;
+      if (on) startLongTasks();
+      else if (obs) { obs.disconnect(); obs = null; }
+      console.log("[perf] instrumentation " + (on ? "ON — main flows + >50ms long tasks logged" : "OFF"));
+    }
+    /** Every timing at/over minMs (default 100), sorted by duration desc. */
+    function report(minMs) {
+      return entries.filter(e => e.ms >= (minMs == null ? 100 : minMs)).sort((a, b) => b.ms - a.ms);
+    }
+    return { setOn, time, report, entries, get on() { return on; } };
+  })();
+  if (typeof window !== "undefined") window.__perf = Perf;   // read-only report hook (tests/tuning)
+
+  /* Wrap the MAIN INTERACTION FLOWS. Function declarations are writable
+     bindings, so reassigning here (before init() ever runs) routes every
+     later call through the timer; with perf mode OFF each wrapper is a
+     single boolean check. Measurement only — no behavior change. */
+  {
+    const wrap = (name, fn) => function (...args) { return Perf.time(name, () => fn.apply(this, args)); };
+    showDeckSelect = wrap("deck-select:show", showDeckSelect);
+    startCampaign = wrap("deck-select:startCampaign", startCampaign);
+    startRun = wrap("deal:startRun", startRun);
+    showStore = wrap("store:show", showStore);
+    renderStore = wrap("store:render", renderStore);
+    renderProgressionMap = wrap("map:render", renderProgressionMap);
+    showProgressionMap = wrap("map:show", showProgressionMap);
+    openStickerApply = wrap("sticker:openPicker", openStickerApply);
+    renderStickerApplyCards = wrap("sticker:renderPickerCards", renderStickerApplyCards);
+    confirmApplySticker = wrap("sticker:confirmApply", confirmApplySticker);
   }
 
   return { init };
