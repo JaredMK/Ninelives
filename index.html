@@ -16,6 +16,95 @@
   gtag('js', new Date());
   gtag('config', 'G-0RBT99B6HD');
 </script>
+<!-- ── CAPACITOR NATIVE SHIM (app/) — INERT ON THE WEB ──────────────────────
+     Everything here feature-detects window.Capacitor (injected by the iOS
+     wrapper before page scripts run) and no-ops on GitHub Pages, so web
+     behavior is byte-identical. In the app it provides:
+       · SAVES: native storage. iOS may evict WKWebView localStorage, so every
+         ninelives.* localStorage write is mirrored to Capacitor Preferences,
+         and at boot Preferences is copied BACK over localStorage before the
+         game reads anything (with a one-time migration of a pre-existing
+         localStorage save into Preferences on first launch).
+       · UI: body.native-app (safe-area CSS hooks), status-bar style, and
+         pinch/double-tap zoom suppression (the game owns every gesture).
+       · FX: haptics on key moments + keep-screen-awake during a deal, fed by
+         the single NativeApp.event() call in the game's engine-event handler. -->
+<script>
+const NativeApp = (() => {
+  const cap = window.Capacitor;
+  const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const plugin = (name) => (native && cap.Plugins && cap.Plugins[name]) || null;
+  const MINE = (k) => typeof k === "string" && k.indexOf("ninelives.") === 0;
+  const origSet = Storage.prototype.setItem;
+  const origRemove = Storage.prototype.removeItem;
+  function installWriteThrough() {
+    const Prefs = plugin("Preferences");
+    if (!Prefs) return;
+    Storage.prototype.setItem = function (k, v) {
+      origSet.call(this, k, v);
+      if (this === window.localStorage && MINE(k)) Prefs.set({ key: k, value: String(v) }).catch(() => {});
+    };
+    Storage.prototype.removeItem = function (k) {
+      origRemove.call(this, k);
+      if (this === window.localStorage && MINE(k)) Prefs.remove({ key: k }).catch(() => {});
+    };
+  }
+  async function hydrate() {
+    const Prefs = plugin("Preferences");
+    if (!Prefs) return;
+    const { keys } = await Prefs.keys();
+    const mine = (keys || []).filter(MINE);
+    if (!mine.length) {
+      // FIRST LAUNCH (or an upgrade from a build without native storage):
+      // migrate whatever save the webview's localStorage holds, once.
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (MINE(k)) await Prefs.set({ key: k, value: localStorage.getItem(k) });
+      }
+      return;
+    }
+    // Native storage is the truth in the app (WKWebView localStorage can be
+    // evicted by iOS): copy it over localStorage before the game boots.
+    for (const k of mine) {
+      const { value } = await Prefs.get({ key: k });
+      if (value != null) origSet.call(localStorage, k, value);
+    }
+  }
+  function uiSetup() {
+    document.body.classList.add("native-app");
+    const SB = plugin("StatusBar");
+    // Style.Light = dark status-bar text, for the game's light cream shell.
+    if (SB && SB.setStyle) SB.setStyle({ style: "LIGHT" }).catch(() => {});
+    // The game owns every gesture: no pinch zoom, no double-tap zoom. (Pull-
+    // to-refresh/rubber-band are killed by body.native-app CSS + the iOS
+    // contentInset config; in-game scroll areas keep their own behavior.)
+    document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+    document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
+  }
+  /** ONE game-side hook (called at the top of the engine-event handler):
+      haptics on correct guesses / saves / win-loss, keep-awake per deal. */
+  function event(type, payload) {
+    if (!native) return;
+    const H = plugin("Haptics"), K = plugin("KeepAwake");
+    try {
+      if (type === "resolved" && payload && payload.correct) { if (H) H.impact({ style: "LIGHT" }); }
+      else if (type === "same-saved" || type === "heart-broken" || type === "guarded" || type === "second-wind") { if (H) H.impact({ style: "MEDIUM" }); }
+      else if (type === "same-banked") { if (H) H.impact({ style: "MEDIUM" }); }
+      else if (type === "won") { if (H) H.notification({ type: "SUCCESS" }); if (K && K.allowSleep) K.allowSleep(); }
+      else if (type === "lost") { if (H) H.notification({ type: "ERROR" }); if (K && K.allowSleep) K.allowSleep(); }
+      else if (type === "run-started") { if (K && K.keepAwake) K.keepAwake(); }
+    } catch (e) { /* native FX must never break the game */ }
+  }
+  /** Boot gate: on the web `start` runs synchronously (timing unchanged); in
+      the app it runs after native saves have hydrated into localStorage. */
+  function boot(start) {
+    if (!native) { start(); return; }
+    installWriteThrough();
+    hydrate().catch(() => {}).then(() => { uiSetup(); start(); });
+  }
+  return { native, boot, event };
+})();
+</script>
 <!-- Neural type system: Josefin Sans (soft organic display, for titles) +
      Chakra Petch (clean technical, for ranks/gameplay text). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -5608,6 +5697,51 @@
   .store-loadout { background: rgba(240,234,224,0.07); border-color: rgba(240,234,224,0.20);
     box-shadow: none; }
   .store-loadout .shelf-h, .store-loadout .lo-col-n { color: var(--on-felt-muted); }
+
+  /* ============================================================
+     CAPACITOR NATIVE APP (body.native-app — set only inside the iOS wrapper,
+     so GitHub Pages rendering is untouched). Two jobs:
+       1. SAFE AREAS: the game already safe-areas the nav buttons, map store
+          pill, placement sheet and item-help; this closes the remaining gaps
+          (notch top / home-indicator bottom) for every screen. body padding
+          covers all in-flow layout (border-box + min-height:100dvh, and
+          --shell-h is MEASURED so overlays that hang off it follow along);
+          fixed-position elements are adjusted individually below.
+       2. SCROLL CONTAINMENT: no document rubber-band / pull-to-refresh — the
+          game manages its own scroll surfaces (map pan keeps its overscroll).
+     ============================================================ */
+  body.native-app {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    overscroll-behavior: none;               /* no document rubber-band / pull-to-refresh */
+    -webkit-touch-callout: none;             /* no long-press callout/save-image sheets */
+  }
+  /* Fixed top-center Stage·Run badge clears the notch. */
+  body.native-app .stage-run { top: calc(6px + env(safe-area-inset-top, 0px)); }
+  /* Bottom-anchored fixed strips clear the home indicator. */
+  body.native-app .sa-confirm { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  /* Debug corner tools (dev builds) stay reachable above the home indicator. */
+  body.native-app .debug-toggle { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  body.native-app .ap-speed { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* Full-screen (inset:0) fixed overlays keep their content inside the safe
+     area on both edges. */
+  body.native-app .overlay,
+  body.native-app .store-detail,
+  body.native-app .debug-overlay,
+  body.native-app .confirm-overlay,
+  body.native-app .subset-reveal,
+  body.native-app .deck-unlock-pop {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Map/store overlays start below the MEASURED shell (--shell-h already
+     includes the body's notch padding) — they only need the bottom inset. */
+  body.native-app .map-overlay,
+  body.native-app .store-overlay {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 </style>
 </head>
 <body>
@@ -6403,7 +6537,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.64 · every question now asks from the same low seat";
+const APP_VERSION = "v4.65 · same cat, now with a native collar";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -18277,6 +18411,7 @@ const UIRenderer = (() => {
 
   function handleEvent(type, payload) {
     wakeMotion();   // §2: any board change re-enables card motion for the settle window
+    NativeApp.event(type, payload);   // iOS app only: haptics + keep-awake (no-op on web)
     switch (type) {
       case "dealt": {
         clearAnimQueue();   // a fresh board → drop any stale travel steps
@@ -24976,7 +25111,10 @@ const HOOKS = {
 };
 
 /* ---- boot ---- */
-UIRenderer.init();
+/* On the web this calls UIRenderer.init() synchronously (unchanged timing);
+   inside the iOS app it first hydrates native-storage saves into localStorage
+   (see the NativeApp shim in <head>), then boots. */
+NativeApp.boot(() => UIRenderer.init());
 </script>
 </body>
 </html>

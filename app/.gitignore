@@ -1,0 +1,10 @@
+# generated: node deps, the assembled web bundle, and iOS build products
+node_modules/
+www/
+ios/App/App/public/
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/DerivedData/
+ios/capacitor-cordova-ios-plugins/

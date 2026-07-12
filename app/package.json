@@ -1,0 +1,25 @@
+{
+  "name": "shoulda-said-same-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor iOS wrapper for Shoulda Said Same (the web game stays the single codebase)",
+  "scripts": {
+    "build": "node scripts/build-www.mjs",
+    "mode:dev": "node scripts/set-mode.mjs dev",
+    "mode:release": "node scripts/set-mode.mjs release",
+    "sync": "npm run build && npx cap sync ios",
+    "open": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/preferences": "^6.0.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/status-bar": "^6.0.1",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor-community/keep-awake": "^5.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

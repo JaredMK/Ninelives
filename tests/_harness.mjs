@@ -61,6 +61,9 @@ export function loadGame() {
 
   const sandbox = {
     document: documentStub,
+    // The Capacitor shim (NativeApp) lives in its own head <script>; the game
+    // script only calls boot()/event() — stub the web (non-native) behavior.
+    NativeApp: { native: false, boot: (start) => start(), event: () => {} },
     window: {
       addEventListener() {},
       matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),

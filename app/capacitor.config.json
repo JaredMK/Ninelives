@@ -1,0 +1,20 @@
+{
+  "appId": "com.ninelives.shouldasaidsame",
+  "appName": "Shoulda Said Same",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#FBF6F1"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "launchAutoHide": true,
+      "backgroundColor": "#FBF6F1",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK"
+    }
+  }
+}
