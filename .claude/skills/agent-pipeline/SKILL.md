@@ -6,11 +6,36 @@ description: Multi-agent development pipeline for Shoulda Said Same — delegate
 # agent-pipeline — the multi-agent development workflow
 
 The main chat agent ORCHESTRATES; subagents do the heavy work. On invocation,
-classify the task into a tier, then run the matching flow below. The main
-agent never writes feature code itself in tier 2/3 — it routes specs,
-verdicts, and patches between agents and reports the consolidated result.
+run step 0 (spec refinement) unless the task is obviously tier 1, classify
+the tier, then run the matching flow. The main agent never writes feature
+code itself in tier 2/3 — it routes specs, verdicts, and patches between
+agents and reports the consolidated result.
 
-## Tier rule (classify FIRST, say which tier you picked and why)
+Naming note: "Meta" is the ROLE name of the orchestrated planner/coder
+subagent (a Claude subagent inside this session) — it has nothing to do with
+Meta the company; no external services or API keys are involved anywhere in
+this pipeline.
+
+## Step 0 — SPEC REFINEMENT (`pipeline-spec`, before tier 2/3 work)
+
+Spawn `pipeline-spec` with the user's RAW prompt. It investigates the code,
+then returns a DRAFT SPEC + a tier recommendation + up to 4 clarifying
+questions, each with a recommended default.
+
+- **Relay the questions to the user** (AskUserQuestion or plain chat, with
+  the recommended defaults marked). Subagents cannot address the user
+  directly — the main agent is the relay; that is the real-mechanics
+  equivalent of "an agent asks the user questions".
+- Send the answers (or "use defaults" if the user says so / is clearly
+  delegating) back to the SAME spec agent via SendMessage; it returns the
+  FINAL SPEC + tier. That spec — self-contained, outcome-first, with
+  acceptance checks — is what the Meta agent receives verbatim.
+- If the spec agent returns `QUESTIONS: none`, skip the relay and proceed.
+- Obvious tier-1 tasks skip step 0 entirely (a copy edit needs no
+  interrogation); when in doubt, run it — a wrong build costs more than a
+  spec round.
+
+## Tier rule (classified from the FINAL SPEC; say which tier and why)
 
 - **Tier 1 — TRIVIAL: no pipeline.** Copy edits, one-line fixes, item/value
   tweaks confined to `items.js` / `difficulty.js`, comment/doc changes,
@@ -29,15 +54,18 @@ verdicts, and patches between agents and reports the consolidated result.
 
 | Role | Agent type | Works in |
 |---|---|---|
+| Spec refiner (step 0) | `pipeline-spec` | read-only; questions relayed via the main agent |
 | Meta / orchestrated coder | `pipeline-meta` | **isolated git worktree** (`isolation: "worktree"`) |
 | Reviewer | `pipeline-reviewer` | read-only, reviews the patch file |
 | Implementation | `pipeline-implementer` | the REAL working tree |
 | Security | `pipeline-security` | read-only, audits the patch |
 | UX/UI | `pipeline-ux` | read-only, audits the patch |
 
-## Flow (tier 3; tier 2 stops after step 2)
+## Flow (tier 3; tier 2 stops after step 2; step 0 precedes both)
 
-1. **META.** Spawn `pipeline-meta` with `isolation: "worktree"` and the full
+0. **SPEC.** As above — `pipeline-spec` refines the raw prompt into the
+   FINAL SPEC through a question round relayed by the main agent.
+1. **META.** Spawn `pipeline-meta` with `isolation: "worktree"` and the FINAL
    spec. Its contract: plan, implement in its worktree, run
    `node tests/all.mjs` there, then **write the complete unified diff to the
    patch file** (path below) and return a summary (what/why/how tested).
@@ -92,6 +120,10 @@ verdicts, and patches between agents and reports the consolidated result.
 
 ## Deviations from the requested design (real subagent mechanics)
 
+- **The spec agent cannot question the user directly** — subagents have no
+  user channel. The main agent relays its questions (with recommended
+  defaults) and returns the answers via SendMessage to the same agent. Same
+  outcome, one hop longer.
 - **"Scratch state"** is a real git worktree via the Agent tool's
   `isolation: "worktree"`. Worktrees are per-agent and vanish after the run,
   so the patch is handed over via the shared `/tmp/agent-pipeline/*.patch`
