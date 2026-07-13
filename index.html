@@ -6538,7 +6538,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.67 · the map draws itself while you window-shop";
+const APP_VERSION = "v4.68 · your taps no longer time-travel";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17102,6 +17102,29 @@ const UIRenderer = (() => {
 
   /* ---- input wiring (tap now; swipe-ready later) ---- */
   function attachInput() {
+    // ── GLOBAL STALE-TAP GUARD ──────────────────────────────────────────────
+    // On slow phones a long main-thread block queues up the taps made during
+    // it; when the block ends they all fire back-to-back against a screen that
+    // has since changed ("multi click and advance screens all at once"). A
+    // click's timeStamp is the ORIGINAL input time, so (now − timeStamp) is
+    // exactly how long it sat blocked in the queue — past the threshold it was
+    // aimed at a screen the user can no longer see, so swallow it. Capture
+    // phase on document = runs before every delegated handler. Clicks only:
+    // pointer/touch events pass untouched (drags, holds and swipes are made of
+    // those and must never lose a leg), and synthetic .click() calls carry a
+    // dispatch-time stamp (≈0 delay) so tests/debug tools are unaffected.
+    const STALE_TAP_MS = 350;
+    document.addEventListener("click", (e) => {
+      const lag = performance.now() - e.timeStamp;
+      if (lag <= STALE_TAP_MS) return;
+      // stopIMMEDIATEPropagation: a plain stopPropagation would still let
+      // OTHER capture listeners on document itself run (the pile-fan dismiss
+      // is one today) — the swallow must be total, present and future.
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      console.log("[input] stale tap swallowed — sat " + Math.round(lag) + "ms in the event queue");
+    }, true);
+
     // Re-fit the board ONLY on a genuine viewport change — a rotation or real
     // window resize — never on scroll or when Safari's chrome shows/hides. We
     // gate on stable dimensions: innerWidth (unchanged by vertical chrome) and
@@ -18180,12 +18203,21 @@ const UIRenderer = (() => {
     const BLANK = 150;   // brief blank-board beat before the first card flies
     const STEP = 80;     // snappy cascade between cards
     const DUR = 230;     // per-card travel time
+    // Landing rects are measured for ALL piles at the FIRST step (the board's
+    // layout is static for the whole cascade — piles never move; the reveals
+    // only flip visibility), and the deck-slot rect once with them. Measuring
+    // inside every step re-ran layout per card: each flyCard appends a fixed
+    // clone to <body>, so the next step's read was always a forced reflow.
+    let from = null;
     piles.forEach((p, k) => {
       setTimeout(() => {
         if (token !== dealCascadeToken) { reveal(p); return; }   // a new deal started — don't animate a stale board
-        const to = p.cardEl.getBoundingClientRect();
-        if (!to.width) { reveal(p); return; }                    // not laid out (hidden) — just show it
-        flyCard(flyRealCardEl(p.top, p.cardEl), deckRect(), to, { duration: DUR, onArrive: () => reveal(p) });
+        if (from === null) {   // first live step → one batched read pass
+          from = deckRect();
+          piles.forEach(q => { q.to = q.cardEl.getBoundingClientRect(); });
+        }
+        if (!p.to || !p.to.width) { reveal(p); return; }         // not laid out (hidden) — just show it
+        flyCard(flyRealCardEl(p.top, p.cardEl), from, p.to, { duration: DUR, onArrive: () => reveal(p) });
       }, BLANK + k * STEP);
     });
     // Safety net: guarantee every card is revealed even if a flight's finish is missed.
@@ -21156,9 +21188,25 @@ const UIRenderer = (() => {
      change on scroll or when the URL bar / banner toggle, so pile size holds.
      Fallbacks (layout viewport, then innerHeight) only where svh is unsupported
      and the probe reports 0. */
+  /* CACHED: the probe only moves on a real resize/rotation (that's the point
+     of using svh), yet reading its offsetHeight forces a layout — and one deal
+     build consults it several times BETWEEN DOM writes, turning each read into
+     a full forced reflow on slow phones. Serve the measured px until a genuine
+     viewport change. fitEnvCache (fitBoard's style-derived constants: gaps and
+     paddings, all viewport-dependent only) rides the same invalidation. These
+     listeners are registered at script eval, BEFORE attachInput adds the
+     resize refit — so the refit's own stableViewportH() call re-measures. */
+  let svhCache = 0;
+  let fitEnvCache = null;
+  let fitLast = null;   // the last APPLIED { w, h, vGap } — gates fitBoard's write pass
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("resize", () => { svhCache = 0; fitEnvCache = null; });
+    window.addEventListener("orientationchange", () => { svhCache = 0; fitEnvCache = null; });
+  }
   function stableViewportH() {
+    if (svhCache > 0) return svhCache;
     const probe = el.svhProbe && el.svhProbe.offsetHeight;
-    if (probe > 0) return probe;
+    if (probe > 0) { svhCache = probe; return probe; }
     return (document.documentElement && document.documentElement.clientHeight)
         || (typeof window !== "undefined" && window.innerHeight) || 0;
   }
@@ -21180,13 +21228,23 @@ const UIRenderer = (() => {
 
     // Column/pile spacing = --gap; the board's own (row) gap is now tight (3px)
     // for the pillar→cards→base column unit, so read each separately.
-    const gapPx = parseFloat(getComputedStyle(el.board).getPropertyValue("--gap")) || 12;
-    const rowGapPx = parseFloat(getComputedStyle(el.board).rowGap) || 3;
-    const ms = getComputedStyle(main);
-    const mainGap = parseFloat(ms.rowGap || ms.gap) || 0;
-    const mainPadV = (parseFloat(ms.paddingTop) || 0) + (parseFloat(ms.paddingBottom) || 0);
-    const bs = getComputedStyle(document.body);
-    const bodyPadV = (parseFloat(bs.paddingTop) || 0) + (parseFloat(bs.paddingBottom) || 0);
+    // All five are stylesheet constants that only move with the viewport
+    // (--gap is a vw clamp; the rest are fixed px) — measured once and served
+    // from fitEnvCache (invalidated with svhCache on resize/rotation), so the
+    // several fitBoard passes of one deal build don't each force a style
+    // recalc between the DOM writes they're interleaved with.
+    if (!fitEnvCache) {
+      const ms = getComputedStyle(main);
+      const bs = getComputedStyle(document.body);
+      fitEnvCache = {
+        gapPx: parseFloat(getComputedStyle(el.board).getPropertyValue("--gap")) || 12,
+        rowGapPx: parseFloat(getComputedStyle(el.board).rowGap) || 3,
+        mainGap: parseFloat(ms.rowGap || ms.gap) || 0,
+        mainPadV: (parseFloat(ms.paddingTop) || 0) + (parseFloat(ms.paddingBottom) || 0),
+        bodyPadV: (parseFloat(bs.paddingTop) || 0) + (parseFloat(bs.paddingBottom) || 0),
+      };
+    }
+    const { gapPx, rowGapPx, mainGap, mainPadV, bodyPadV } = fitEnvCache;
 
     // Everything that ISN'T the board, all board-independent AND of FIXED height,
     // so the board size never recomputes on inventory / imprint / swap / Start:
@@ -21268,10 +21326,6 @@ const UIRenderer = (() => {
     if (w < h * MIN_ASPECT) { h = w / MIN_ASPECT; }
     if (h < MIN_H && byHeight >= MIN_H) { h = MIN_H; w = Math.min(byWidth, h * MAX_ASPECT); }
     w = Math.max(28, w); h = Math.max(36, h);
-    el.board.style.setProperty("--pile-w-fit", w + "px");
-    el.board.style.setProperty("--pile-h-fit", h + "px");
-    // Card-face type scales with the smaller dimension so glyphs never overflow.
-    el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
     // SPREAD the cards to FILL the board's height: when the column is width-limited
     // (cards can't grow taller without overflowing their column), the leftover
     // vertical room becomes inter-card gap so the tallest column still spans gridH —
@@ -21283,10 +21337,26 @@ const UIRenderer = (() => {
     // slack beyond the cap is split evenly top/bottom by the grid's centring.
     let vGap = gapPx;
     if (liveTall > 1) vGap = Math.max(gapPx, Math.min((gridH - liveTall * h) / (liveTall - 1), 1.3 * h));
-    el.board.style.setProperty("--pile-v-gap", vGap + "px");
-    // Realign the connection network to the freshly-sized nodes (the geometry
-    // cache is stale the moment the pile-size vars above change — drop it).
-    pileGeomCache = null;
+    // WRITE PASS — skipped when the computed sizes match what's already applied.
+    // fitBoard runs several times while one deal builds (buildBoard → setup
+    // phase → play phase) with identical results after the first; re-writing
+    // the same values would dirty style anyway and turn the NEXT layout read
+    // (here or in a later fitBoard pass) into a full forced reflow. Only
+    // fitBoard writes these vars, so comparing against the last applied set is
+    // exact. renderNetwork still runs every pass: if anything else moved the
+    // grid (Pillar/Base row toggles), that code dropped pileGeomCache and the
+    // network re-measures; otherwise it redraws from cached geometry (cheap).
+    if (!fitLast || fitLast.w !== w || fitLast.h !== h || fitLast.vGap !== vGap) {
+      fitLast = { w, h, vGap };
+      el.board.style.setProperty("--pile-w-fit", w + "px");
+      el.board.style.setProperty("--pile-h-fit", h + "px");
+      // Card-face type scales with the smaller dimension so glyphs never overflow.
+      el.board.style.setProperty("--pile-size", Math.min(w, h) + "px");
+      el.board.style.setProperty("--pile-v-gap", vGap + "px");
+      // Realign the connection network to the freshly-sized nodes (the geometry
+      // cache is stale the moment the pile-size vars above change — drop it).
+      pileGeomCache = null;
+    }
     renderNetwork();
   }
 
@@ -22500,6 +22570,7 @@ const UIRenderer = (() => {
      0.3s fade has finished (never freezing the fade itself); resume on show.
      Purely invisible-state work — nothing on screen changes. */
   let mapAnimIdleTimer = 0;
+  let mapAnimsPaused = false;   // a pause sweep actually ran → the show-time resume has work to do
   function setMapAnimsIdle(idle) {
     clearTimeout(mapAnimIdleTimer);
     if (!el.mapOverlay || !el.mapOverlay.getAnimations) return;
@@ -22507,8 +22578,15 @@ const UIRenderer = (() => {
       mapAnimIdleTimer = setTimeout(() => {
         if (!el.mapOverlay.classList.contains("hidden")) return;   // re-shown meanwhile
         el.mapOverlay.getAnimations({ subtree: true }).forEach(a => { try { a.pause(); } catch (e) {} });
+        mapAnimsPaused = true;
       }, 450);
     } else {
+      // getAnimations({subtree}) walks every node pulse/spotlight on a 200+ node
+      // map — measurable inside the map-show transition. When the pause sweep
+      // never ran (idle timer cancelled, or a fresh map), nothing is paused and
+      // the whole resume sweep can be skipped.
+      if (!mapAnimsPaused) return;
+      mapAnimsPaused = false;
       el.mapOverlay.getAnimations({ subtree: true }).forEach(a => { try { a.play(); } catch (e) {} });
     }
   }
@@ -22635,8 +22713,12 @@ const UIRenderer = (() => {
       });   // shuffle-in as they fly home
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
-      // the node cleared. Re-render now so the marker shows on this node behind it.
-      renderProgressionMap();
+      // the node cleared and re-renders via showProgressionMap. showStore hides
+      // the map overlay in this same task, so a render here never produced a
+      // visible frame — it only made the store-open pause longer (measured:
+      // ~50ms of script+layout at phone speed). Consume the one-shot arrival
+      // pop (it would otherwise fire, oddly, on the render after LEAVING).
+      mapArrive = false;
       showStore();
     } else if (node.type === "home") {
       // PINKY IS HOME — the run's true finish line. Deliberately NOT marked
