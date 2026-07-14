@@ -49,9 +49,12 @@ export function run() {
     r.ok(ms >= 200 && ms <= 600,
       "stale-tap threshold is in the human-plausible band (200-600ms; currently " + ms + ")");
     // Capture-phase click filter on document, keyed on the event's queue delay.
-    const guard = src.match(/document\.addEventListener\("click",[\s\S]{0,900}?\}, true\);/);
+    // (More than one capture-phase click listener may exist — e.g. TUT2's
+    // store-gate guard — so pick out the STALE_TAP_MS one among them.)
+    const guards = src.match(/document\.addEventListener\("click",[\s\S]{0,900}?\}, true\);/g) || [];
+    const guard = guards.find((g) => g.includes("STALE_TAP_MS"));
     r.ok(!!guard, "a capture-phase document click listener is registered");
-    const gsrc = guard ? guard[0] : "";
+    const gsrc = guard || "";
     r.ok(gsrc.includes("performance.now() - e.timeStamp"),
       "guard measures the click's queue delay (now − timeStamp)");
     r.ok(gsrc.includes("STALE_TAP_MS"), "guard compares against STALE_TAP_MS");

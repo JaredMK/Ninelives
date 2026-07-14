@@ -1,10 +1,16 @@
-SHOULDA SAID SAME — FIRST-RUN TUTORIAL TEXT
-=============================================
+SHOULDA SAID SAME — FIRST-RUN TUTORIAL TEXT (TUT2, guided + gated)
+===================================================================
 Edit freely and hand back — I'll apply it verbatim.
 - *asterisks* mark the pink BOLD words in a bubble.
 - Line breaks inside a TEXT block are real line breaks in the bubble.
 - BUTTON is the label on the advance button ("Next" if unchanged).
 - Every bubble also carries the small "Skip tips" link (label below).
+  Skip ends the WHOLE tour instantly: all gating removed, marked seen.
+- GATE lines describe the hard input gate active around a step: while a
+  gate holds, ONLY the named control accepts input.
+- The tour is marked seen (ninelives.pref.tutorial2) only when it
+  COMPLETES (the final battle deal starts) or on Skip — losing the run
+  mid-tour restarts it on the next fresh campaign.
 
 GLOBAL
   SKIP LINK LABEL: Skip tips
@@ -28,15 +34,25 @@ STEP 2 — map goal
   Pinky starts down here and must climb up.
 
 
-STEP 3 — first node
+STEP 3 — the loop (deck growth)
   SCREEN:    Map (immediately after step 2)
-  POINTS AT: The glowing (reachable) first node
+  POINTS AT: A card/pack node (or Pinky if none is visible)
+  BUTTON:    Next
+  TEXT:
+  *Card nodes* grow Pinky's deck as he climbs — and a bigger deck means *longer, harder deals*.
+  Drafting well and shopping for upgrades is how you keep up.
+
+
+STEP 4 — first node
+  SCREEN:    Map (immediately after step 3)
+  POINTS AT: The one glowing (guided) first deal node
+  GATE:      Only this node is tappable; every other legal node is dimmed and inert
   BUTTON:    Got it
   TEXT:
   Tap the *glowing node* to set off to your first deal.
 
 
-STEP 4 — survive
+STEP 5 — survive
   SCREEN:    First deal (as the board appears)
   POINTS AT: The board of piles
   BUTTON:    Next
@@ -44,7 +60,7 @@ STEP 4 — survive
   *Goal: survive.* Every pile is a life.
 
 
-STEP 5 — how to guess
+STEP 6 — how to guess
   SCREEN:    First deal
   POINTS AT: A pile
   BUTTON:    Next
@@ -56,7 +72,7 @@ STEP 5 — how to guess
   Or tap the pile and use the buttons on the left
 
 
-STEP 6 — the deck
+STEP 7 — the deck
   SCREEN:    First deal
   POINTS AT: The deck character (Pinky in the corner)
   BUTTON:    Next
@@ -67,7 +83,7 @@ STEP 6 — the deck
   Beat the *whole deck* before every pile is gone.
 
 
-STEP 7 — same shield
+STEP 8 — same shield
   SCREEN:    First deal
   POINTS AT: The Same-shield chip in the HUD
   BUTTON:    Next
@@ -75,55 +91,159 @@ STEP 7 — same shield
   *Same* guesses are hard. A correct Same call charges this *shield*, which saves your next miss.
 
 
-STEP 8 — your turn
-  SCREEN:    First deal (hands control to the player)
+STEP 9 — your turn
+  SCREEN:    First deal (hands control to the player; guessing is never gated)
   POINTS AT: (nothing — centered)
   BUTTON:    Go
   TEXT:
   Your turn — make a guess!
 
 
-STEP 9 — coins
+STEP 10 — coins
   SCREEN:    First deal summary (Deal cleared)
   POINTS AT: The deal reward line, surviving piles line, and smallest pile line of the coin breakdown
-  BUTTON:    Got it
+  BUTTON:    Next
   TEXT:
   Coins = *surviving piles × smallest pile*
   Spend coins on upgrades.
 
 
-STEP 10 — drafting
-  SCREEN:    Map (first visit after the payout)
-  POINTS AT: A card/pack pickup node (or Pinky if none is visible)
+STEP 11 — where coins live
+  SCREEN:    First deal summary (immediately after step 10)
+  POINTS AT: The summary's own "Coins held" running-balance row (the summary
+             overlay covers the HUD bar, so the ring lands on a balance the
+             player can actually see)
   BUTTON:    Got it
   TEXT:
-  Travel on to *draft new cards* — Pinky's deck grows as he climbs.
-  Shops along the way sell upgrades.
+  Your *coins* bank into this balance — the same counter rides the top bar on every screen.
 
 
-STEP 11 — the shop: stickers
-  SCREEN:    First shop visit
-  POINTS AT: The sticker shelf
+STEP 12 — to the shop
+  SCREEN:    Map (after the first payout)
+  POINTS AT: The one glowing node on the guided path to the shop
+  GATE:      Only that node is tappable
+  BUTTON:    Got it
+  TEXT:
+  Shops along the trail sell *upgrades* — let's visit one.
+  Follow the *glowing node*.
+
+  (FALLBACK-PATH INTERMEDIATES — when the guided path has stops before
+   the shop/draft, each gated stop gets ONE short bubble by node type:)
+    deal:   A *deal* blocks the path — survive it and press on.
+    store:  Another *shop* on the way — pass through.
+    pack:   A *card pack* on the way — take it.
+    pickup: A free *card* on the way — take it.
+
+
+  (GRANT CLAUSE — whenever a forced step tops the balance up, its bubble
+   gains this line, paired with a coin tick + a pulse on both counters:)
+    A few coins *on the house* to cover it.
+
+
+STEP 13 — the shop: your balance
+  SCREEN:    Guided shop visit
+  POINTS AT: The shop coin balance (#storeCoins)
   BUTTON:    Next
   TEXT:
-  The shop:
-  *Stickers* change single cards.
+  Welcome to the shop. Your *coins* to spend sit here — the same balance as the top bar.
+  (+ the grant clause when the sticker step topped the balance up)
 
 
-STEP 12 — the shop: items
-  SCREEN:    First shop visit
-  POINTS AT: The other items shelf
+STEP 14 — stickers + the forced Bonus Coin buy
+  SCREEN:    Guided shop (immediately after step 13)
+  POINTS AT: The Bonus Coin sticker slot (always present in this first shelf)
+  GATE:      Only that slot is tappable; if coins fall short of its live
+             items.js price, the exact shortfall is granted first
+  BUTTON:    Got it
+  TEXT:
+  *Stickers* attach to *one card* and ride it for the whole run.
+  This *Bonus Coin* pays *+1 coin* — tap it to buy.
+  (the item name and its payout read LIVE from items.js — gainCoin's
+   label and description — so a data edit never leaves this bubble stale)
+
+
+STEP 15 — stick it on a heart
+  SCREEN:    The buy-time card picker (#stickerApplyModal)
+  POINTS AT: The sticker banner at the top of the picker
+  BUTTON:    Got it
+  TEXT:
+  This sticker is *♥ only* — other suits grey out.
+  Tap a *heart*, then confirm.
+
+
+STEP 16 — refresh
+  SCREEN:    Guided shop (after the sticker lands)
+  POINTS AT: The Refresh button (#rerollBtn)
+  GATE:      Only Refresh is tappable; a shortfall against the live reroll
+             cost is granted first
+  BUTTON:    Got it
+  TEXT:
+  *Refresh* re-rolls the whole shelf for coins — the price climbs each use within a visit.
+  Tap *Refresh*.
+  (+ the grant clause when this step topped the balance up)
+
+
+STEP 17 — pillars + the forced Guardian buy
+  SCREEN:    Guided shop (the post-refresh shelf always carries the Guardian)
+  POINTS AT: The Guardian pillar slot
+  GATE:      Only that slot is tappable; shortfall granted as above
+  BUTTON:    Got it
+  TEXT:
+  *Pillars* bind to the top of a column and work passively every deal.
+  The *Guardian* pays out when every pile in its column survives — tap it and pick a column.
+  (+ the grant clause when this step topped the balance up)
+
+
+STEP 18 — bases (explain only)
+  SCREEN:    Guided shop (after the Guardian is placed)
+  POINTS AT: The shop shelf
   BUTTON:    Next
   TEXT:
-  The shop:
-  *Pillars* power a whole column.
-  *Bases* give a once-per-deal power.
-  *Same-Powers* fire on every correct Same.
+  Two more kinds live on this shelf.
+  *Bases* sit at a column's foot — a once-per-deal power you tap during play.
 
 
-STEP 13 — good luck
-  SCREEN:    First shop (final bubble; ends the tour)
-  POINTS AT: (nothing — centered)
-  BUTTON:    Done
+STEP 19 — same-powers (explain only)
+  SCREEN:    Guided shop (immediately after step 18)
+  POINTS AT: The shop shelf
+  BUTTON:    Next
   TEXT:
-  Good luck. Now go help Pinky find mamma♥
+  *Same-Powers* equip to the Same button — exactly one at a time, firing on every correct *Same* call.
+
+
+STEP 20 — leave the shop
+  SCREEN:    Guided shop (immediately after step 19)
+  POINTS AT: The GO TO MAP button (#storeStartBtn)
+  GATE:      Only GO TO MAP is tappable
+  BUTTON:    Got it
+  TEXT:
+  All stocked up — tap *GO TO MAP* to head back out.
+
+
+STEP 21 — draft a card
+  SCREEN:    Map (back from the shop)
+  POINTS AT: The one glowing node on the guided path to the +1 card
+  GATE:      Only that node is tappable
+  BUTTON:    Got it
+  TEXT:
+  Travel on to *draft new cards* — every card node grows Pinky's deck, and a bigger deck means harder deals… but more power to win with.
+  Grab the *+1 card* ahead.
+
+
+STEP 22 — the deck grew
+  SCREEN:    Map (the drafted card just flew into the deck)
+  POINTS AT: The deck count in the map header (#deckCount)
+  BUTTON:    Next
+  TEXT:
+  The deck just *grew* — Pinky now carries *N cards*.   (N = live deck size)
+  More cards = longer deals, but more to win with.
+
+
+STEP 23 — battle (ends the tour)
+  SCREEN:    Map (immediately after step 22)
+  POINTS AT: The one glowing deal node
+  GATE:      Only that deal is tappable; the tour COMPLETES (marked seen,
+             all gating removed) the moment the deal starts
+  BUTTON:    Go
+  TEXT:
+  Time to *battle* — tap the deal. Good luck!
