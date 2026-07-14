@@ -46,5 +46,16 @@ mustPatch("gtag loader", /^<script async src="https:\/\/www\.googletagmanager\.c
 if (/https:\/\/(fonts\.googleapis|fonts\.gstatic|www\.googletagmanager)/.test(html)) {
   throw new Error("build-www: an external Google URL survived the patch — audit index.html");
 }
+
+// 3. LOOSE-ASSET AUDIT: the bundle ships ONLY index.html + items.js +
+//    difficulty.js + fonts/. Any other relative src (e.g. src="icons/logo.svg")
+//    404s offline and WKWebView draws the broken-image "?" glyph — exactly the
+//    menu-logo bug this guards against. All art must be inline (data URI /
+//    inline SVG) or added to the copy list above.
+const loose = html.match(/src="(?!data:|https?:|items\.js|difficulty\.js|fonts\/)[^"]+"/);
+if (loose) {
+  throw new Error("build-www: relative asset reference would 404 offline — " + loose[0]
+    + " — inline it (data URI) or add the file to the bundle copy list");
+}
 writeFileSync(join(www, "index.html"), html);
 console.log("build-www: www/ assembled (offline bundle — fonts local, gtag stripped)");

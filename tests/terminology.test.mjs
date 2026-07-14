@@ -16,9 +16,10 @@ export function run() {
       .split("\n")
       .map((line, i) => [i + 1, line])
       // Allowed false positives: Math.round, and the SVG "round" stroke
-      // line-cap/line-join keyword (CSS or attribute form) used by the visuals.
+      // line-cap/line-join keyword (CSS, attribute, or single-quoted data-URI
+      // attribute form) used by the visuals.
       .filter(([, line]) => /\brounds?\b/i.test(
-        line.replace(/Math\.round/g, "").replace(/(?:linecap|linejoin)\s*[:=]\s*"?round"?/gi, "")));
+        line.replace(/Math\.round/g, "").replace(/(?:linecap|linejoin)\s*[:=]\s*["']?round["']?/gi, "")));
     r.ok(offenders.length === 0,
       file + ' has no stray "round"' +
       (offenders.length ? " (line " + offenders.map(([n]) => n).join(", ") + ")" : ""));

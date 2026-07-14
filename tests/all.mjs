@@ -42,6 +42,7 @@ import { run as stickerSuits } from "./sticker-suits.test.mjs";
 import { run as deckRules } from "./deck-rules.test.mjs";
 import { run as difficulty } from "./difficulty.test.mjs";
 import { run as smooth1 } from "./smooth1.test.mjs";
+import { run as uifix1 } from "./uifix1.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -84,6 +85,7 @@ const SUITES = [
   ["deck-rules", deckRules],
   ["difficulty", difficulty],
   ["smooth1", smooth1],
+  ["uifix1", uifix1],
 ];
 
 let pass = 0,

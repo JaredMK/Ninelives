@@ -1785,7 +1785,12 @@ const NativeApp = (() => {
   .menu-screen {
     position: fixed; inset: 0; z-index: 1400; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: clamp(8px, 2vh, 14px); padding: 24px;
+    gap: clamp(8px, 2vh, 14px);
+    /* Safe-area aware UNCONDITIONALLY (env() is 0 in ordinary browsers, so
+       web/desktop render pixel-identical): a fixed inset:0 screen ignores
+       body.native-app's safe-area padding, so the notch/home-bar insets are
+       folded into its own padding — covers the iOS app AND home-screen web. */
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
     /* OPAQUE base (was translucent + backdrop blur: the live board ghosted
        through as smudges). FELT-GREEN table with the fabric grain, the rose
        glow accents kept, and the lost-paths tangle layered ON TOP. */
@@ -1869,7 +1874,9 @@ const NativeApp = (() => {
      around the body right after the perk bounce. The characters rest on
      plain felt with only their own drop-shadow. */
   #deckSelect::before { content: none; }
-  #deckSelect { gap: clamp(10px, 2.4vh, 18px); padding: 20px 0; }
+  #deckSelect { gap: clamp(10px, 2.4vh, 18px);
+    /* Same unconditional safe-area fold as .menu-screen (its 20px/0 override). */
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
   .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 24px; color: var(--text); letter-spacing: 0.3px; }
   .ds-hint { font-size: 12px; color: var(--muted); margin-top: -6px; }
   /* Horizontal scroll-snap track: one deck panel per page; native swipe. */
@@ -1924,12 +1931,10 @@ const NativeApp = (() => {
   .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--edge-2); transition: background 0.2s, transform 0.2s; }
   .ds-dot.on { background: var(--accent-2); transform: scale(1.25); }
   .ds-dot.locked-dot { box-shadow: inset 0 0 0 1.5px var(--muted); background: transparent; }
-  .ds-back {
-    background: var(--panel); color: var(--muted); border: 1px solid var(--edge-2);
-    border-radius: 999px; padding: 9px 22px; font-weight: 800; font-size: 13px; cursor: pointer;
-    touch-action: manipulation;
-  }
-  .ds-back:active { transform: scale(0.97); }
+  /* Back = the corner-nav convention (circular arrow, top-left — see .nav-btn),
+     not a bottom text pill. Fixed INSIDE the fixed #deckSelect, so it shows and
+     hides with the screen and stacks above the carousel. */
+  .ds-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
 
   /* ── DECK-UNLOCK CELEBRATION (presentation only) ───────────────────────────
      Fires ONCE, at run termination after the FIRST win with a deck: the next
@@ -2243,6 +2248,43 @@ const NativeApp = (() => {
   .map-store-btn .ico { font-size: 16px; }
   .map-store-btn.hidden { display: none; }
   .map-store-btn:active { transform: scale(0.96); }
+  /* MAP KEY ("?") — the top-right mirror of the corner menu button, MAP ONLY
+     (the HUD coin counter's margin-right: 30px already reserves this corner).
+     Collapsed it's just the 30px nav dot — map panning/node taps untouched. */
+  .map-key-btn { right: calc(env(safe-area-inset-right) + 4px); display: none; }
+  body.on-map .map-key-btn { display: inline-flex; }
+  .map-key-btn .ico { font-size: 15px; font-weight: 900; }
+  /* The expanded legend: an OPAQUE panel anchored under the button, above the
+     map overlay and its spotlight dim (fixed at root level, z over .nav-btn,
+     under the inventory popup at 60). Sized to fit a 390px phone. */
+  .map-key-panel { position: fixed; z-index: 56;
+    top: calc(env(safe-area-inset-top) + 40px);
+    right: calc(env(safe-area-inset-right) + 6px);
+    width: min(252px, calc(100vw - 20px));
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 84px); overflow-y: auto;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--edge-2); border-radius: 14px;
+    box-shadow: 0 10px 28px rgba(30, 16, 24, 0.42);
+    padding: 8px 12px 10px;
+  }
+  /* Off the map the panel can't linger either (belt to the JS close). */
+  .map-key-panel.hidden, body:not(.on-map) .map-key-panel { display: none; }
+  .mk-head { display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--muted); padding-bottom: 2px; }
+  .mk-close { background: none; border: none; color: var(--muted); font-size: 20px;
+    line-height: 1; padding: 0 2px; cursor: pointer; touch-action: manipulation; }
+  .mk-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+  /* Legend samples are the REAL node markup (mapDealCluster & co) — neutralise
+     .pm-node's absolute centring and shrink to row scale; badges/pips ride
+     along inside the transform, so they can never drift from the live map. */
+  .mk-art { flex: none; width: 46px; height: 42px;
+    display: flex; align-items: center; justify-content: center; }
+  .mk-art .pm-node { position: relative; left: auto; top: auto;
+    transform: scale(var(--mk-s, 0.68)); transition: none; }
+  .mk-lab { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .mk-lab b { font-size: 12.5px; }
+  .mk-lab small { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
 
   /* ============================================================
      OVERLAY (win / lose / start)
@@ -5880,7 +5922,11 @@ const NativeApp = (() => {
        between the histogram and the board; see #dealStatus below.) -->
   <div class="hud" title="Phase progress (♥ ♦ ♣ ♠) · Same Charge · coins">
     <span class="hud-sr suit-track" id="hudStageRun" aria-label="Phase progress"></span>
-    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="icons/logo.svg" alt="" draggable="false" /></span>
+    <!-- The synapse-equals mark is INLINED (data URI mirror of icons/logo.svg):
+         the iOS app bundle ships no icons/ directory, so a relative src 404s
+         offline and WKWebView renders the broken-image "?". build-www audits
+         for regressions of this. -->
+    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23c0436c' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%238e2f4e'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="" draggable="false" /></span>
     <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
@@ -6431,7 +6477,10 @@ const NativeApp = (() => {
   <!-- Main menu (title screen). Shown at launch and on Quit to Menu. -->
   <div class="menu-screen hidden" id="mainMenu">
     <div class="menu-tagline">Higher or lower?</div>
-    <img class="menu-logo" src="icons/logo.svg" alt="Shoulda Said Same logo" width="100" height="100" draggable="false" />
+    <!-- Logo INLINED (data URI mirror of icons/logo.svg — kept on disk for the
+         app-icon pipeline): the offline app bundle has no icons/, and a 404'd
+         img is WKWebView's broken-image "?" square. -->
+    <img class="menu-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23c0436c' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%238e2f4e'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="Shoulda Said Same logo" width="100" height="100" draggable="false" />
     <h1 class="menu-title">
       <span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>
       <span class="mt-w mt-c">same</span>
@@ -6445,10 +6494,10 @@ const NativeApp = (() => {
        ("Unlock after beating Pink Deck"). Infrastructure for future decks/maps —
        the roster is data-driven (see DECKS), so adding a deck is data-only. -->
   <div class="menu-screen hidden" id="deckSelect">
+    <button class="nav-btn ds-back-btn" id="dsBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
     <div class="ds-title">Choose your deck</div>
     <div class="ds-carousel" id="dsCarousel"></div>
     <div class="ds-dots" id="dsDots"></div>
-    <button class="ds-back" id="dsBack" type="button">Back</button>
   </div>
 
   <!-- Artifact telemetry table (debug only — playtest balancing). -->
@@ -6501,6 +6550,10 @@ const NativeApp = (() => {
   <!-- Map → Store: a back arrow on the LEFT — "back to the store" (one-way flow:
        store → map → game; no game → map). -->
   <button class="map-store-btn hidden" id="mapStoreBtn" type="button"><span class="ico-slot" data-ico="back"></span> Store</button>
+  <!-- Map key: "?" top-right (map only — CSS-gated on body.on-map). Tap opens
+       the legend panel below, built at open time from the LIVE node markup. -->
+  <button class="nav-btn map-key-btn" id="mapKeyBtn" type="button" aria-label="Map key" aria-expanded="false"><span class="ico">?</span></button>
+  <div class="map-key-panel hidden" id="mapKeyPanel"></div>
 
 <!-- ITEM DATA: every shop item (stickers / pillars / bases / Same-Powers /
      packs) + its price, rarity, weight, description and effect tunables lives
@@ -6538,7 +6591,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.68 · your taps no longer time-travel";
+const APP_VERSION = "v4.69 · the notch and the logo made peace";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14299,6 +14352,8 @@ const UIRenderer = (() => {
     mapPhase: document.getElementById("mapPhase"),
     mapParallax: document.getElementById("mapParallax"),
     mapBg: document.getElementById("mapBg"),
+    mapKeyBtn: document.getElementById("mapKeyBtn"),
+    mapKeyPanel: document.getElementById("mapKeyPanel"),
     fossilDetail: document.getElementById("fossilDetail"),
     fossilDetailClose: document.getElementById("fossilDetailClose"),
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
@@ -17800,6 +17855,21 @@ const UIRenderer = (() => {
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
+    // MAP KEY: "?" toggles the legend; its × or any tap outside closes it. The
+    // outside-close runs on capture-phase pointerdown so the tap ALSO lands on
+    // whatever it hit (the key is a glance, never a blocking mode).
+    if (el.mapKeyBtn) el.mapKeyBtn.addEventListener("click", () => {
+      Sound.tap();
+      if (el.mapKeyPanel.classList.contains("hidden")) openMapKey(); else closeMapKey();
+    });
+    if (el.mapKeyPanel) el.mapKeyPanel.addEventListener("click", (e) => {
+      if (e.target.closest(".mk-close")) { Sound.tap(); closeMapKey(); }
+    });
+    document.addEventListener("pointerdown", (e) => {
+      if (!el.mapKeyPanel || el.mapKeyPanel.classList.contains("hidden")) return;
+      if (e.target.closest("#mapKeyPanel") || e.target.closest("#mapKeyBtn")) return;
+      closeMapKey();
+    }, true);
     // HEAT FIX #2 — zombie edge fade-ins: edgeForm runs with fill:both, so a
     // FINISHED fade stayed "in effect" forever and every settled network edge
     // carried a live animation (measured 8→20, growing with edges), each
@@ -19861,7 +19931,8 @@ const UIRenderer = (() => {
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
     Tutorial.onDeckSelect();   // very first Play → the tour starts here (meets Pinky)
-    schedulePregen();          // PERF2: build the run map while the player browses
+    schedulePregen(true);      // PERF2: build the run map while the player browses —
+                               // entry knows its default selection, so no debounce
   }
   function hideDeckSelect() { el.deckSelect.classList.add("hidden"); }
 
@@ -19882,9 +19953,9 @@ const UIRenderer = (() => {
     const chip = panel && panel.querySelector(".ds-tier.sel");
     return { deck: d.id, tier: (chip && chip.dataset.tier) || "regular" };
   }
-  function schedulePregen() {
+  function schedulePregen(immediate) {
     clearTimeout(pregenTimer);
-    pregenTimer = setTimeout(() => {
+    const fire = () => {
       if (el.deckSelect.classList.contains("hidden")) return;   // left the screen
       const sel = browsedDeckTier();
       if (!sel || !campaign || !campaign.pregenerateRun) return;
@@ -19898,7 +19969,13 @@ const UIRenderer = (() => {
       };
       if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 });
       else setTimeout(run, 120);
-    }, 350);
+    };
+    // The debounce exists for BROWSING churn (swipes/tier taps settle first).
+    // Screen ENTRY has no churn — the default selection is known — so it hands
+    // straight to idle time; a quick Start then finds the pregen already done
+    // (or in flight) instead of still 350ms from starting.
+    if (immediate) fire();
+    else pregenTimer = setTimeout(fire, 350);
   }
 
   function startCampaign() {
@@ -19908,15 +19985,27 @@ const UIRenderer = (() => {
     track("game_started");   // analytics (fail-silent)
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
     campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
-    campaign.reset();                   // reset builds the start deck + map from them
-    // A fresh run starts far from mama: anxious, a little lost, a little dirty.
-    CharMood.setStage(0);
-    // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
-    // dealing — same store → map → run rhythm as every later run. First-time
-    // players learn IN PLAY now (the Tutorial coach bubbles, armed on deck
-    // select) — the old auto-shown How to Play walkthrough is retired; the
-    // manual itself stays available from the menu.
-    showProgressionMap(startRun);
+    // INSTANT TAP RESPONSE (measured: the reset→render block below is the
+    // Start press's freeze — ~0.4s warm-pregen / multi-second cold under a
+    // phone-class CPU). The map overlay's felt backdrop goes up THIS frame
+    // (cheap class flips), the browser paints once, THEN the heavy half runs:
+    // reset (map generation when the pregen hasn't landed) + the full node
+    // render. The track is emptied so a PREVIOUS campaign's map can't flash
+    // during the gap.
+    if (el.mapTrack) el.mapTrack.innerHTML = "";
+    document.body.classList.add("on-map");
+    el.mapOverlay.classList.remove("hidden");
+    requestAnimationFrame(() => setTimeout(() => {
+      campaign.reset();                 // reset builds the start deck + map
+      // A fresh run starts far from mama: anxious, a little lost, a little dirty.
+      CharMood.setStage(0);
+      // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
+      // dealing — same store → map → run rhythm as every later run. First-time
+      // players learn IN PLAY now (the Tutorial coach bubbles, armed on deck
+      // select) — the old auto-shown How to Play walkthrough is retired; the
+      // manual itself stays available from the menu.
+      showProgressionMap(startRun);
+    }, 0));
   }
 
   /**
@@ -22071,6 +22160,48 @@ const UIRenderer = (() => {
     if (card && card.blank) return "∅ Removal — remove a card from your deck";
     return "A single card";
   }
+  /* ── MAP KEY (tap-to-expand legend, the "?" top-right nav button) ──────────
+     Rows are built AT OPEN TIME from the SAME markup functions the live map
+     renders with (mapDealCluster / mapShopStall / mapPackStack / nodeCardHtml /
+     the mystery "?" / mama's home via mapNodeInner), preferring REAL nodes from
+     this run's map — so the key can never drift from the live node art. Pass
+     dots are omitted (non-interactive by design). */
+  function mapKeyRow(cls, style, art, name, sub) {
+    return '<div class="mk-row"><span class="mk-art"><span class="pm-node ' + cls + '"' +
+        (style ? ' style="' + style + '"' : "") + '>' + art + '</span></span>' +
+      '<span class="mk-lab"><b>' + name + '</b><small>' + sub + '</small></span></div>';
+  }
+  function renderMapKey() {
+    const map = campaign && campaign.getMap ? campaign.getMap() : null;
+    const nodes = (map && map.nodes) || [];
+    const live = t => nodes.find(n => n.type === t);
+    // Live nodes where the map has them (their badges then show real values);
+    // minimal stand-ins only if a type is absent from this run.
+    const deal = live("deal") || { targetD: 0, phase: 0 };
+    const boss = live("boss") || { targetD: 1, phase: 0 };
+    const pack = live("pack") || { packCount: 3, suit: "" };
+    const card = { suit: "♥", value: 7 };   // any face-up card — the art is the lesson
+    el.mapKeyPanel.innerHTML =
+      '<div class="mk-head"><b>Map key</b><button class="mk-close" type="button" aria-label="Close">×</button></div>' +
+      mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; pips show difficulty 1–3") +
+      mapKeyRow("t-boss", "--mk-s:0.52", mapDealCluster(boss, true), "Boss", "full-deck deal; guards the stage exit") +
+      mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
+      mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards") +
+      mapKeyRow("t-pickup", "", nodeCardHtml(card), "Card", "joins your deck when you pass") +
+      mapKeyRow("t-myst", "", '<span class="mn-myst">?</span>', "Mystery", "revealed when you arrive") +
+      mapKeyRow("t-home", "", mapNodeInner({ type: "home" }), "Home", "mama; the finish at the top");
+  }
+  function openMapKey() {
+    if (!el.mapKeyPanel) return;
+    renderMapKey();
+    el.mapKeyPanel.classList.remove("hidden");
+    if (el.mapKeyBtn) el.mapKeyBtn.setAttribute("aria-expanded", "true");
+  }
+  function closeMapKey() {
+    if (!el.mapKeyPanel) return;
+    el.mapKeyPanel.classList.add("hidden");
+    if (el.mapKeyBtn) el.mapKeyBtn.setAttribute("aria-expanded", "false");
+  }
   /* ── Player AVATAR (the card-box character) ────────────────────────────────
      A persistent element re-attached into the freshly-rendered .phase-map and
      positioned at the current node; it travels the curved trail on a move and
@@ -22562,7 +22693,7 @@ const UIRenderer = (() => {
     }
     Tutorial.onMap();   // first-run tour: goal (first visit) / drafting (after the first payout)
   }
-  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
+  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); closeMapKey(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
   /* HEAT FIX #3 — overlays hide via opacity:0 (not display:none), so the
      HIDDEN map's animations (node pulses, spotlight, avatar bob/dart) kept
      ticking style during 100% of every deal (measured: 5-6 live animations
@@ -22808,6 +22939,7 @@ const UIRenderer = (() => {
     closeFossilDetail();
     if (el.mapOverlay) el.mapOverlay.classList.add("hidden");   // map → store closes the map
     document.body.classList.remove("on-map");   // not the map → the deck-slot character shows in its container
+    closeMapKey();   // the map key can't outlive the map (this path skips hideProgressionMap)
     updateStageRun();
     setScreenNav(true, true, false);   // menu + inventory; Store button is map-only
     if (el.stageRun) el.stageRun.classList.add("off");   // the persistent top shell carries stage/deck now
