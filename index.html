@@ -6776,7 +6776,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.76 · just you and the deck";
+const APP_VERSION = "v4.77 · wild cards mean it now";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7319,6 +7319,18 @@ function cardIsWildSuit(card) {
     const st = s && StickerTypes.get(s.type);
     return !!(st && st.behavior === "wildSuit");
   });
+}
+/** THE single suit-membership test for item effects: does `card` count as
+    `suit`? True on a printed-suit match OR when the card is Wild Suit (wild
+    counts as every suit). Shape-agnostic like cardIsWildSuit. EVERY
+    suit-gated effect (Bases, Pillars, sticker triggers, live UI counters)
+    goes through here — never inline `x.suit === s || x.wildSuit`. Only
+    IDENTITY reads stay on `.suit` directly (Suit Setter's source/skip,
+    deck generation, persistent suit edits, item-def lookups), and the
+    deck-composition displays, which count each card once by printed suit. */
+function cardMatchesSuit(card, suit) {
+  if (!card) return false;
+  return card.suit === suit || cardIsWildSuit(card);
 }
 /* ----------------------------------------------------------------
    DifficultyData — loads + VALIDATES the difficulty-band file
@@ -9729,7 +9741,7 @@ const GameEngine = (() => {
     function maybeLivePillarExtras(index, pillar, drawn, guess, isTie, col) {
       if (!pillar || col == null) return;
       const v = drawn.value;
-      const isDiamond = drawn.suit === "♦" || drawn.wildSuit;
+      const isDiamond = cardMatchesSuit(drawn, "♦");
       if (pillar.effect === "prime" && (v === 2 || v === 3 || v === 5 || v === 7)) {
         payPillar(col, "prime", pillar.label, pillar.value || 1);
       } else if (pillar.effect === "shuffler" && isDiamond) {
@@ -9737,7 +9749,7 @@ const GameEngine = (() => {
         let n = 0;
         for (const i of colAlivePiles(col)) { if (i === index) continue; board.shufflePile(i, rng); n++; }
         if (n > 0) { firePillar(col, "shuffler", pillar.label, 0); logLine(pillar.label + ": shuffled " + n + " other pile" + (n === 1 ? "" : "s") + " in the column"); recT("pillar", pillar.id, pillar.label, { shuffled: n }); }
-      } else if (pillar.effect === "queensEye" && v >= 11 && v <= 13 && (drawn.suit === "♠" || drawn.wildSuit)) {
+      } else if (pillar.effect === "queensEye" && v >= 11 && v <= 13 && cardMatchesSuit(drawn, "♠")) {
         run.revealNextActive = true;
         firePillar(col, "queensEye", pillar.label, 0);
         recT("pillar", pillar.id, pillar.label, { peeks: 1 });   // telemetry
@@ -9910,7 +9922,7 @@ const GameEngine = (() => {
     function maybeTribute(index, pillar, drawn, isTie) {
       if (!pillar || !run.pileColumns) return;
       const col = run.pileColumns[index];
-      const isClub = drawn.suit === "♣" || drawn.wildSuit;
+      const isClub = cardMatchesSuit(drawn, "♣");
       const nStk = drawn.stickers ? drawn.stickers.length : 0;
       if (pillar.effect === "clubTribute" && isClub && nStk === 0) {
         // "8 Bury": a ♣ card carrying NO stickers landed → bury `digCount` from
@@ -10042,7 +10054,7 @@ const GameEngine = (() => {
       if (lc > 0) recT("sticker", "looseChange", "Loose Change", { coins: lcSum });
       // --- the SNOB family: each fires when THIS card lands ON its suit (the
       // pre-landing top card `current`; a Wild Suit top counts as every suit).
-      const landedOn = (suit) => !!current && (current.suit === suit || current.wildSuit);
+      const landedOn = (suit) => cardMatchesSuit(current, suit);
       // Spade Snob — peek the next upcoming card when landing on a ♠.
       if (n("suitSnob") > 0 && landedOn("♠")) {
         run.revealNextActive = true;   // peek the next upcoming card (the reward)
@@ -10080,7 +10092,7 @@ const GameEngine = (() => {
         for (let i = 0; i < board.size; i++) {
           if (i === index || !board.isActive(i)) continue;
           const t2 = board.top(i);
-          if (t2 && (t2.suit === suit || t2.wildSuit)) k++;
+          if (cardMatchesSuit(t2, suit)) k++;
         }
         return k;
       };
@@ -10097,7 +10109,7 @@ const GameEngine = (() => {
         for (let i = 0; i < board.size; i++) {
           if (i === index || !board.isActive(i)) continue;
           const t2 = board.top(i);
-          if (t2 && (t2.suit === "♦" || t2.wildSuit)) { board.shufflePile(i, rng); sh++; }
+          if (cardMatchesSuit(t2, "♦")) { board.shufflePile(i, rng); sh++; }
         }
         if (sh > 0) {
           firePillar(col, "shuffler", "Diamond Ripple", 0);
@@ -10433,15 +10445,15 @@ const GameEngine = (() => {
       const colAlivePiles = (c) => bc ? allAlivePiles() : colPiles(c).filter(i => board.isActive(i));
       const colDeadPiles  = (c) => bc ? allDeadPiles()  : colPiles(c).filter(i => !board.isActive(i));
       const alive = colAlivePiles(col);
-      const topIsSuit = (i, s) => { const t = board.top(i); return !!t && (t.suit === s || t.wildSuit); };
+      const topIsSuit = (i, s) => cardMatchesSuit(board.top(i), s);
 
       // Total ♥ cards (top + buried) across this column's alive piles — Heart Tax.
-      const colHearts = alive.reduce((n, i) => n + board.piles[i].cards.filter(c => c.suit === "♥" || c.wildSuit).length, 0);
+      const colHearts = alive.reduce((n, i) => n + board.piles[i].cards.filter(c => cardMatchesSuit(c, "♥")).length, 0);
       switch (base.effect) {
         // Kamikaze is inherently board-wide, but now needs a ♠-top alive pile.
         case "kamikaze":         return board.aliveCount() > 1 && allAlivePiles().some(i => topIsSuit(i, "♠"));
-        // Spade Peeker counts PRINTED ♠ tops only — a Wild Suit top doesn't add a peek.
-        case "spadePeek":        return alive.some(i => { const t = board.top(i); return !!t && t.suit === "♠"; });
+        // Spade Peeker: any ♠-top alive pile (a Wild Suit top counts, as everywhere).
+        case "spadePeek":        return alive.some(i => topIsSuit(i, "♠"));
         case "shuffleColumn":    return alive.length > 0;
         case "reviveBase":       return colDeadPiles(col).length > 0;
         case "randomSticker":    return alive.some(i => wildStickerPoolFor(board.top(i)).length > 0);
@@ -10451,7 +10463,7 @@ const GameEngine = (() => {
         case "setSuit":          return alive.length > 0;
         case "stickerHarvest":   return alive.length > 0;
         case "refreshBases":     return refreshableBaseColumns(col).length > 0;
-        case "suitDig":          return !deck.isEmpty() && alive.some(i => { const t = board.top(i); return t && (t.suit === base.suit || t.wildSuit); });
+        case "suitDig":          return !deck.isEmpty() && alive.some(i => topIsSuit(i, base.suit));
         case "demolish":         return !!run.pillars && run.pillars.some(Boolean);
         case "heartDemolish":    return alive.some(i => topIsSuit(i, "♥"));
         case "tax":              return colHearts > 0;
@@ -10514,7 +10526,7 @@ const GameEngine = (() => {
           // Kamikaze may sacrifice any alive pile board-wide whose top card is a ♠.
           if (!board.isActive(targetIndex)) return null;
           const kt = board.top(targetIndex);
-          if (!kt || (kt.suit !== "♠" && !kt.wildSuit)) return null;
+          if (!cardMatchesSuit(kt, "♠")) return null;
         } else {
           // Other single-pile-target Bases (Sticker Harvest) act on a pile in
           // their own column — or, under Broadcast, any alive pile board-wide.
@@ -10561,8 +10573,8 @@ const GameEngine = (() => {
         }
         case "spadePeek": {
           // Peek the next X upcoming cards, X = alive piles in the column with a
-          // PRINTED ♠ top card (Wild Suit tops don't count). Sets the peek window.
-          const spades = colAlivePiles(col).filter(i => { const t = board.top(i); return t && t.suit === "♠"; });
+          // ♠ top card (a Wild Suit top counts, as everywhere). Sets the peek window.
+          const spades = colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♠"));
           const n = spades.length;
           run.kamikazeRevealLeft = Math.max(run.kamikazeRevealLeft || 0, n);   // reuse the multi-card peek window
           res.peekCount = n;
@@ -10652,7 +10664,7 @@ const GameEngine = (() => {
           for (const i of alive) {
             if (deck.isEmpty()) break;
             const top = board.top(i);
-            if (!top || (top.suit !== "♣" && !top.wildSuit)) continue;
+            if (!cardMatchesSuit(top, "♣")) continue;
             const n = buryTribute(i, base.digCount || 2, base.label);
             if (n > 0) { piles++; buried += n; }
           }
@@ -10738,7 +10750,7 @@ const GameEngine = (() => {
           for (const i of colAlivePiles(col)) {
             if (deck.isEmpty()) break;
             const top = board.top(i);
-            if (!top || (top.suit !== base.suit && !top.wildSuit)) continue;
+            if (!cardMatchesSuit(top, base.suit)) continue;
             const n = buryTribute(i, base.digCount || 1, base.label);
             if (n > 0) { piles++; buried += n; }
           }
@@ -10764,7 +10776,7 @@ const GameEngine = (() => {
         case "heartDemolish": {
           // Destroy every alive pile in this column whose TOP is a ♥ (Wild Suit
           // top counts); +7 coins per pile destroyed.
-          const targets = colAlivePiles(col).filter(i => { const t = board.top(i); return t && (t.suit === "♥" || t.wildSuit); });
+          const targets = colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♥"));
           for (const i of targets) {
             board.kill(i);
             if (run.tellPiles) run.tellPiles.delete(i);
@@ -10784,7 +10796,7 @@ const GameEngine = (() => {
           // ALIVE piles (a Wild Suit card counts as a ♥). Dead piles don't count.
           let n = 0;
           for (const i of colAlivePiles(col))
-            n += board.piles[i].cards.filter(c => c.suit === "♥" || c.wildSuit).length;
+            n += board.piles[i].cards.filter(c => cardMatchesSuit(c, "♥")).length;
           const taxGain = n * itemNum(base, "coinPerCard", 1);
           if (n > 0) addBonus(base.label, taxGain);
           res.gained = taxGain;
@@ -10924,13 +10936,12 @@ const GameEngine = (() => {
         consume (one charge per guarded suit per card per run), or null. */
     function findGuardSave(current, drawn) {
       if (!drawn || !drawn.suitGuards || !current) return null;
-      // Wild current counts as every suit → matches any active guard the drawn
-      // guard card holds (consuming one charge).
-      if (current.wildSuit) {
-        for (const sym in drawn.suitGuards) if (drawn.suitGuards[sym]) return { carrier: drawn, suit: sym };
-        return null;
-      }
-      return drawn.suitGuards[current.suit] ? { carrier: drawn, suit: current.suit } : null;
+      // First active guard whose suit `current` counts as — the one membership
+      // test covers both cases: a printed match hits only its own suit's guard,
+      // a Wild Suit `current` matches any active guard (consuming one charge).
+      for (const sym in drawn.suitGuards)
+        if (drawn.suitGuards[sym] && cardMatchesSuit(current, sym)) return { carrier: drawn, suit: sym };
+      return null;
     }
 
     /** Itemized Pillar payout for the current board state (scoring Pillars
@@ -10968,7 +10979,7 @@ const GameEngine = (() => {
           // on top (and the column has at least one survivor). A Wild Suit top
           // counts as the matching suit. End-of-run.
           const alive = colIdxs(col).filter(i => board.isActive(i));
-          if (alive.length > 0 && alive.every(i => { const top = board.top(i); return top && (top.suit === t.suit || top.wildSuit); })) {
+          if (alive.length > 0 && alive.every(i => cardMatchesSuit(board.top(i), t.suit))) {
             bonus += t.value;
             lines.push({ label: t.label, detail: "all " + t.suit + " on top", amount: t.value, col });
           }
@@ -10979,7 +10990,7 @@ const GameEngine = (() => {
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;
             const top = board.top(i);
-            if (top && (top.suit === "♥" || top.wildSuit)) n++;
+            if (cardMatchesSuit(top, "♥")) n++;
           }
           const amt = n * (t.value || 0);
           if (amt > 0) {
@@ -11012,7 +11023,7 @@ const GameEngine = (() => {
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;        // alive piles only
             const top = board.top(i);                // the TOP card only — nothing below it
-            if (!top || !(top.suit === "\u2665" || top.wildSuit)) continue;
+            if (!cardMatchesSuit(top, "\u2665")) continue;
             const coin = top.value === 14 ? 1 : (top.value >= 11 ? 0 : top.value);
             if (coin > best) best = coin;
           }
@@ -11041,7 +11052,7 @@ const GameEngine = (() => {
           for (const i of colIdxs(col)) {
             if (!board.isActive(i)) continue;
             const top = board.top(i);
-            if (!top || !(top.suit === "♥" || top.wildSuit)) continue;
+            if (!cardMatchesSuit(top, "♥")) continue;
             best = Math.max(best, board.piles[i].cards.length);
           }
           const n = Math.max(0, best - 1);   // cards beneath the top of that pile
@@ -11049,7 +11060,7 @@ const GameEngine = (() => {
         } else if (t.effect === "gambler") {
           // 50/50: +value or nothing — but ONLY if this column has an alive pile
           // with a ♥ top. Always emit a line so the outcome shows.
-          const hasHeart = colIdxs(col).some(i => { if (!board.isActive(i)) return false; const top = board.top(i); return top && (top.suit === "♥" || top.wildSuit); });
+          const hasHeart = colIdxs(col).some(i => board.isActive(i) && cardMatchesSuit(board.top(i), "♥"));
           if (!hasHeart) {
             lines.push({ label: t.label, detail: "no ♥ top in column — no flip", amount: 0, col, effect: "gambler" });
           } else {
@@ -11262,7 +11273,7 @@ const GameEngine = (() => {
         if (!def) return 0;
         if (def.effect === "heavyDiamond") {
           let n = 0;
-          for (const c of board.piles[pileIndex].cards) if (c && (c.suit === "♦" || c.wildSuit)) n++;
+          for (const c of board.piles[pileIndex].cards) if (cardMatchesSuit(c, "♦")) n++;
           return n * itemNum(def, "value", 1);
         }
         if (def.effect === "streakSize") {
@@ -11277,8 +11288,7 @@ const GameEngine = (() => {
         if (col == null) return false;
         const def = resolvePillarDef(col);
         if (!def || def.effect !== "diamondAnchor") return false;
-        const top = board.top(pileIndex);
-        return !!(top && (top.suit === "♦" || top.wildSuit));
+        return cardMatchesSuit(board.top(pileIndex), "♦");
       });
       // Lock the per-column Base binding the same way (column index → Base id |
       // null). basesUsed was already reset to "charged" when the deal was dealt.
@@ -11378,7 +11388,7 @@ const GameEngine = (() => {
       // reset above so it persists. (The old 25% end-of-deal self-destruct is
       // GONE — the selfDestruct knob was removed from items.js, and
       // resolveStaticSelfDestruct skips pillars without it.)
-      if (pillar && pillar.effect === "static" && correct && (drawn.suit === "♠" || drawn.wildSuit)
+      if (pillar && pillar.effect === "static" && correct && cardMatchesSuit(drawn, "♠")
           && rng() < itemNum(pillar, "chance", 0.5)) {
         peekPillar(col, pillar);   // the static crackles → peek the next card
       }
@@ -11443,7 +11453,7 @@ const GameEngine = (() => {
       // column its bounty. A Wild Suit card matches any Bonus pillar. Paid LIVE
       // into the bonus tally as it resolves (and tallied in suitBountyHits). One
       // Pillar per column, so no double-count.
-      if (correct && pillar && pillar.effect === "suitBounty" && (drawn.suit === pillar.suit || drawn.wildSuit)
+      if (correct && pillar && pillar.effect === "suitBounty" && cardMatchesSuit(drawn, pillar.suit)
           && run.suitBountyHits) {
         run.suitBountyHits[run.pileColumns[index]] += 1;
         addBonus(pillar.label, pillar.value || 0);
@@ -22193,8 +22203,8 @@ const UIRenderer = (() => {
       if (!badge) return;
       const t = binding[col] ? PillarTypes.get(binding[col]) : null;
       if (!t) return;
-      const isHeart = (c) => c && (c.suit === "♥" || c.wildSuit);
-      const isDiamond = (c) => c && (c.suit === "♦" || c.wildSuit);
+      const isHeart = (c) => cardMatchesSuit(c, "♥");
+      const isDiamond = (c) => cardMatchesSuit(c, "♦");
       const alive = [];
       for (let i = 0; i < board.size; i++) if (run.pileColumns[i] === col && board.isActive(i)) alive.push(i);
       let payout = 0;
@@ -22218,7 +22228,7 @@ const UIRenderer = (() => {
         // 2–10 face value, Ace pays 1, royals pay 0.
         for (const i of alive) {
           const top = board.top(i);
-          if (!top || !(top.suit === "♥" || top.wildSuit)) continue;
+          if (!cardMatchesSuit(top, "♥")) continue;
           const coin = top.value === 14 ? 1 : (top.value >= 11 ? 0 : top.value);
           payout = Math.max(payout, coin);
         }
@@ -22242,13 +22252,13 @@ const UIRenderer = (() => {
   function baseLiveCounter(t, col, board, run, bc) {
     if (!t) return null;
     const inScope = (i) => board.isActive(i) && (bc || run.pileColumns[i] === col);
-    const topIs = (i, s) => { const c = board.top(i); return !!c && (c.suit === s || c.wildSuit); };
+    const topIs = (i, s) => cardMatchesSuit(board.top(i), s);
     const topCount = (s) => { let n = 0; for (let i = 0; i < board.size; i++) if (inScope(i) && topIs(i, s)) n++; return n; };
     switch (t.effect) {
       case "tax": {
         // Heart Tax: +1 coin per ♥ card (top + buried) across alive piles in scope.
         let n = 0;
-        for (let i = 0; i < board.size; i++) if (inScope(i)) n += board.piles[i].cards.filter(c => c.suit === "♥" || c.wildSuit).length;
+        for (let i = 0; i < board.size; i++) if (inScope(i)) n += board.piles[i].cards.filter(c => cardMatchesSuit(c, "♥")).length;
         return { count: n, title: n + " ♥ in this column → Heart Tax pays +" + n + " coins" };
       }
       case "heartDemolish": {

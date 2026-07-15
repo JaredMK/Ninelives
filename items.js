@@ -322,7 +322,7 @@ const NINELIVES_ITEMS = {
       description: "Trigger: Activated (tap a ♠ pile), once per deal\nEffect: Kill a chosen pile with a ♠ top card, then peek the next 3 upcoming cards (draw order unchanged). Unavailable while only one pile is alive" },
     { id: "spadePeek", label: "Spade Peeker", icon: "🔦",
       kind: "active", effect: "spadePeek", tier: "rare", price: 15,
-      description: "Trigger: Activated, once per deal\nEffect: Peek the next X upcoming cards, where X is the number of piles in this column whose top card is a printed ♠ (Wild Suit tops don't count)" },
+      description: "Trigger: Activated, once per deal\nEffect: Peek the next X upcoming cards, where X is the number of piles in this column whose top card is a ♠" },
     // coinPerPile = coins LOST per pile shuffled.
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", coinPerPile: 1, tier: "common", price: 9,
