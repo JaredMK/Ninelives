@@ -6791,7 +6791,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.78 · the store buys back your regrets";
+const APP_VERSION = "v4.79 · continue means continue";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -11852,6 +11852,9 @@ const GameEngine = (() => {
           true next card even after draws on other piles. */
       pileHint(index) {
         if (!run) return null;
+        // Out-of-range pile = absent (null), never a dereference: the UI can
+        // briefly hold more pile elements than this board around a rebuild.
+        if (!board || !Number.isInteger(index) || index < 0 || index >= board.size) return null;
         const whispered = (run.tellDrawsLeft || 0) > 0;   // Spade Whispers: all piles hint
         if (!whispered && (!run.tellPiles || !run.tellPiles.has(index))) return null;
         if (!deck || deck.isEmpty() || !board.isActive(index)) return null;
@@ -15327,7 +15330,11 @@ const UIRenderer = (() => {
       if (board.isActive(i) && !board.isAnchored(i)) { anyNonAnchored = true; break; }
     }
     for (let i = 0; i < board.size; i++) {
-      const badge = pileEls[i].querySelector(".pile-count");
+      // The mirror of the pileEls-bounded clamps (see renderNetwork): a board
+      // snapshot can also outsize a rebuilt DOM — a missing pile el is skipped.
+      const pe = pileEls[i];
+      if (!pe) continue;
+      const badge = pe.querySelector(".pile-count");
       if (!badge) continue;
       const len = board.pileSize(i);   // weighted (Heavy counts as 2) — matches the payout reads
       badge.textContent = len;
@@ -15482,6 +15489,7 @@ const UIRenderer = (() => {
     closePileFan();   // any board mutation (debug auto-play, deal end) → stale fan closes
     for (let i = 0; i < board.size; i++) {
       const pileEl = pileEls[i];
+      if (!pileEl) continue;   // board snapshot outsizing a rebuilt DOM (see paintPileCounts)
       const top = board.top(i);
       if (top) { paintFront(pileEl, top); renderStickerBadges(pileEl, top); }
       pileEl.classList.toggle("dead", !board.isActive(i));
@@ -15620,10 +15628,15 @@ const UIRenderer = (() => {
   const TELL_GLYPH = { higher: "▲", same: "=", lower: "▼" };
   function renderPileHints() {
     if (!pileEls) return;
+    // Hint reads clamp to the engine's own board: around a rebuild the DOM can
+    // briefly hold more piles than the live board (see renderNetwork). An
+    // out-of-range pile has no hint (cleared below) — never dereferenced.
+    const hintBoard = engine && engine.getBoard ? engine.getBoard() : null;
+    const nHints = hintBoard ? Math.min(pileEls.length, hintBoard.size) : 0;
     for (let i = 0; i < pileEls.length; i++) {
       const el = pileEls[i] && pileEls[i].querySelector(".pile-hint");
       if (!el) continue;
-      const dir = (engine && engine.pileHint) ? engine.pileHint(i) : null;
+      const dir = (i < nHints && engine && engine.pileHint) ? engine.pileHint(i) : null;
       el.classList.remove("higher", "same", "lower");
       if (!dir) { el.classList.add("hidden"); el.textContent = ""; el.removeAttribute("title"); continue; }
       el.classList.remove("hidden");
@@ -19857,7 +19870,10 @@ const UIRenderer = (() => {
         // Heart Demolish kills every ♥-topped pile in the column — same death cue.
         const heartKills = (payload.effect === "heartDemolish" && Array.isArray(payload.destroyedPiles)) ? payload.destroyedPiles : [];
         for (const di of heartKills) if (pileEls[di]) playPileDeath(di, board);
-        for (let i = 0; i < pileEls.length; i++) {
+        // Clamp to the event's board snapshot (see renderNetwork): pileEls and
+        // this board can disagree around a rebuild — extra piles are absent.
+        const nPiles = Math.min(pileEls.length, board.size);
+        for (let i = 0; i < nPiles; i++) {
           const top = board.top(i);
           if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
         }
@@ -20161,7 +20177,10 @@ const UIRenderer = (() => {
           // pre-shuffle tops (the engine had shuffled; the UI never repainted).
           // Repaint every pile top + count, exactly like base-fired does.
           const repaint = () => {
-            for (let i = 0; i < pileEls.length; i++) {
+            // Clamp to the event's board snapshot (see renderNetwork) — this
+            // repaint can run deferred, after the anim queue, past a rebuild.
+            const nPiles = Math.min(pileEls.length, payload.board.size);
+            for (let i = 0; i < nPiles; i++) {
               const top = payload.board.top(i);
               if (top) { paintFront(pileEls[i], top); renderStickerBadges(pileEls[i], top); }
             }
@@ -21547,7 +21566,12 @@ const UIRenderer = (() => {
     // actual card size (all piles are the same size) — both from the cache.
     const rad = geom.rad;
     const nodes = [];
-    for (let i = 0; i < pileEls.length; i++) {
+    // Clamp every index to the board actually being read: pileEls (the DOM's
+    // pile count) and board.size (this engine's) can disagree around a rebuild
+    // (quit → resume, a death-timer redraw meeting a fresh board). A pile the
+    // board doesn't know is simply absent — skipped, never dereferenced.
+    const nPiles = Math.min(pileEls.length, board.size);
+    for (let i = 0; i < nPiles; i++) {
       if (!board.isActive(i)) continue;
       const c = geom.centers[i];
       if (!c) continue;
@@ -21602,8 +21626,9 @@ const UIRenderer = (() => {
         (adj[a] || (adj[a] = [])).push(b);
         (adj[b] || (adj[b] = [])).push(a);
       }
-      // Dead-pile centres (same cached measurement; the pile box persists when dead).
-      for (let d = 0; d < pileEls.length; d++) {
+      // Dead-pile centres (same cached measurement; the pile box persists when
+      // dead). Same clamp as the alive pass — out-of-range piles are absent.
+      for (let d = 0; d < nPiles; d++) {
         if (board.isActive(d)) continue;
         const cd = geom.centers[d];
         if (!cd) continue;
@@ -22063,7 +22088,10 @@ const UIRenderer = (() => {
     lastAliveCount = alive;
     if (died && networkEl && b) {
       const dead = {};
-      for (let i = 0; i < pileEls.length; i++) if (!b.isActive(i)) dead[i] = true;
+      // `b` can be a CAPTURED board (the 300-640ms death timers pass the board
+      // from THEIR deal) meeting rebuilt pileEls — clamp to the board it reads.
+      const nPiles = Math.min(pileEls.length, b.size);
+      for (let i = 0; i < nPiles; i++) if (!b.isActive(i)) dead[i] = true;
       networkEl.querySelectorAll("g.edge").forEach(g => {
         if (dead[+g.getAttribute("data-a")] || dead[+g.getAttribute("data-b")]) {
           // Drop .forming first: its edgeForm animation uses fill:both, which
@@ -26445,7 +26473,27 @@ const UIRenderer = (() => {
     });
   }
 
+  /* MENU INVARIANT: the MAIN menu is engine-free. Every path that shows it
+     over the backdrop board (quit-to-menu, Zen quit, victory/failed/endless-
+     death exits, boot) funnels through showMainMenu, so the teardown lives
+     here. Why it must: Continue re-deals from the saved seed — the old engine
+     is never resumed in place — but if it stays live, the resume's buildBoard
+     → fitBoard ends in renderNetwork reading a board whose pile count no
+     longer matches the rebuilt pileEls (TypeError → half-resumed limbo), and
+     its deferred loss recap (pendingRunEnd) could still fire clearSave from
+     BEHIND the menu, wiping a save the player had already walked away from.
+     With the engine gone, renderNetwork no-ops exactly as after a fresh boot. */
+  function teardownEngineForMenu() {
+    engine = null;                 // menu backdrop reads no engine board state
+    stopAutoPlay();                // debug auto-play stepper: cancel its pending tick
+    if (autopilotRunning) setAutopilotRunning(false);   // debug autopilot: clears apTimer
+    pendingRunEnd = null;          // a quit deal's deferred loss must never land here —
+    endAwaitingDeathAnim = false;  // its clearSave is NOT a designed save wipe
+    lastAliveCount = null;         // next deal re-baselines the death detector
+  }
+
   function showMainMenu(canContinue) {
+    teardownEngineForMenu();
     el.stageRun.classList.add("off");
     setScreenNav(false, false, false);
     DeckChar.stopBlink();   // the blink loop is a self-rearming timer with no
@@ -26474,15 +26522,28 @@ const UIRenderer = (() => {
   function resumeSavedGame() {
     const saved = savedSnapshot;
     if (!saved) { startCampaign(); return; }
-    selectedDeckId = saved.deckId || selectedDeckId;   // the resumed campaign's deck keeps win credit
-    el.stageRun.classList.remove("off"); setScreenNav(true, true, false);
-    buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
-    if (saved.phase === "store") showStore(false);
-    else {
-      const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
-      const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
-      startRun(seed, cost, saved.dealSubset || undefined);
-      if (saved.appliedThisPhase) appliedThisPhase = true;
+    // TRANSACTIONAL for the save: nothing in here writes ninelives.save.v1
+    // until startRun's own end-of-deal "run" checkpoint — so a throw
+    // anywhere in the resume leaves the blob untouched. On failure we fail
+    // SAFE back to the main menu (its teardown drops any half-built engine —
+    // never a half-resumed screen whose stale engine still accepts input)
+    // with Continue still offered: the snapshot is intact, so tapping it
+    // again simply retries the resume.
+    try {
+      selectedDeckId = saved.deckId || selectedDeckId;   // the resumed campaign's deck keeps win credit
+      el.stageRun.classList.remove("off"); setScreenNav(true, true, false);
+      buildBoard(campaign.layoutForRun(campaign.currentRunIndex).cols, false);
+      if (saved.phase === "store") showStore(false);
+      else {
+        const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
+        const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
+        startRun(seed, cost, saved.dealSubset || undefined);
+        if (saved.appliedThisPhase) appliedThisPhase = true;
+      }
+    } catch (err) {
+      console.error("resume failed — back to menu, save preserved", err);
+      closeStore();   // a store-phase resume may have half-opened the store overlay
+      showMainMenu(!!(savedSnapshot && savedSnapshot.campaign));
     }
   }
 
@@ -26908,7 +26969,19 @@ const UIRenderer = (() => {
     // backdrop behind the menu.
     const saved = SaveStore.load();
     let canContinue = false;
-    if (saved && saved.campaign && campaign.restore(saved.campaign)) {
+    // A restore() that THROWS is not the designed structural-mismatch discard
+    // (that path RETURNS false): treat a throw as "can't resume THIS boot" and
+    // KEEP the blob — fail safe, never wipe a campaign over a transient bug
+    // (a later build may read it fine). Also keeps the throw out of init.
+    let restored = false, restoreThrew = false;
+    if (saved && saved.campaign) {
+      try { restored = campaign.restore(saved.campaign); }
+      catch (err) {
+        restoreThrew = true;
+        console.error("save restore threw — Continue disabled this boot, save preserved", err);
+      }
+    }
+    if (restored) {
       // A cleared ♠ boss no longer means FINISHED: the campaign continues to
       // Pinky's home (victory screen pending) and through endless mode — only
       // discard when it's complete AND neither of those states is live.
@@ -26922,8 +26995,8 @@ const UIRenderer = (() => {
       } else {
         clearSave();   // genuinely finished — discard it
       }
-    } else if (saved) {
-      clearSave();   // missing/incompatible — discard it
+    } else if (saved && !restoreThrew) {
+      clearSave();   // missing/incompatible (restore returned false) — discard it
     }
     updateStageRun();   // reflect restored stage/run/coins
     buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
