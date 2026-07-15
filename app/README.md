@@ -1,8 +1,8 @@
 # Shoulda Said Same — iOS app (Capacitor wrapper)
 
-The web game at the repo root (`index.html` + `items.js` + `difficulty.js`,
-deployed to `https://jaredmk.github.io/Ninelives/neural/`) stays the **single
-codebase**. This folder only wraps it: a Capacitor iOS shell, a tiny build
+The web game at the repo root (`index.html` + `items.js` + `difficulty.js` +
+`tutorial.js`, deployed to `https://jaredmk.github.io/Ninelives/neural/`)
+stays the **single codebase**. This folder only wraps it: a Capacitor iOS shell, a tiny build
 script that assembles an offline copy, and native niceties (real save storage,
 haptics, keep-awake) that the game reaches through the feature-detected
 `NativeApp` shim in `index.html` — every one of them a no-op on the web.
@@ -72,7 +72,7 @@ Everything else the game touches at runtime is inline or relative — audited:
 
 | Resource | Source | Offline? |
 |---|---|---|
-| `items.js`, `difficulty.js` | relative `<script>` (cache-busting query is fine locally) | ✅ bundled |
+| `items.js`, `difficulty.js`, `tutorial.js` | relative `<script>` (cache-busting query is fine locally) | ✅ bundled |
 | All art (cards, felt grain, characters, map) | inline SVG / data-URIs | ✅ inline |
 | All audio | WebAudio-synthesized (no files) | ✅ generated |
 | Fonts | **was** fonts.googleapis.com | ✅ bundled by the build (the one real fetch) |

@@ -6690,16 +6690,20 @@ const NativeApp = (() => {
 
 <!-- ITEM DATA: every shop item (stickers / pillars / bases / Same-Powers /
      packs) + its price, rarity, weight, description and effect tunables lives
-     in items.js — hand-edit THAT file to tune the game. Must load before the
-     game script below (ItemData validates it on startup).
-     CACHE-BUSTED: items.js is edited on its own (index.html untouched), so a
-     static src could serve a STALE browser/CDN copy for up to the Pages
-     max-age — a hand-edited price then never reached the store. The unique
-     query per load forces a fresh fetch every time (and skips stale CDN
-     edges); document.write keeps it loading BEFORE the game script. -->
+     in items.js — hand-edit THAT file to tune the game. Difficulty bands live
+     in difficulty.js; the first-run tutorial's bubble copy + pinned map seed
+     live in tutorial.js. All three must load before the game script below
+     (ItemData / DifficultyData / TutorialData validate them on startup).
+     CACHE-BUSTED: the data files are edited on their own (index.html
+     untouched), so a static src could serve a STALE browser/CDN copy for up
+     to the Pages max-age — a hand-edited price then never reached the store.
+     The unique query per load forces a fresh fetch every time (and skips
+     stale CDN edges); document.write keeps them loading BEFORE the game
+     script. -->
 <script>
 document.write('<script src="items.js?t=' + Date.now() + '"><\/script>');
 document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
+document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
 </script>
 <script>
 "use strict";
@@ -6724,7 +6728,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.73 · the menu finally takes a nap";
+const APP_VERSION = "v4.74 · every first climb is the same good climb";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7318,6 +7322,77 @@ const DifficultyData = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   TutorialData — loads + VALIDATES the first-run tutorial data file
+   (tutorial.js, the NINELIVES_TUTORIAL global). tutorial.js is the single
+   hand-editable home for every coach bubble's copy, button labels, anchor
+   keys and the pinned tutorial map seed; the Tutorial module (choreography,
+   gates, sequencing) reads its words from here. Validation is deliberately
+   SOFTER than items.js/difficulty.js: a missing FILE still throws (the
+   loader line broke), but a malformed group/step only console.errors naming
+   the offender — the game must never brick on a copy typo, so the tour
+   itself bows out gracefully at runtime instead (see Tutorial's dataSteps).
+   Anchor keys are audited against the in-code registry at Tutorial startup.
+---------------------------------------------------------------- */
+const TutorialData = (() => {
+  // (null covered too — a `= null` stub would otherwise raw-TypeError below)
+  if (typeof NINELIVES_TUTORIAL === "undefined" || NINELIVES_TUTORIAL === null)
+    throw new Error("tutorial.js did not load — NINELIVES_TUTORIAL is undefined (is the loader <script> present and the file next to index.html?)");
+  const D = NINELIVES_TUTORIAL;
+  const problems = [];
+  // The writer-owned groups and their EXACT step counts. The tour's
+  // choreography (which group fires when, what each step gates) lives in
+  // index.html — tutorial.js may reword a bubble, never add or remove one.
+  const GROUPS = { pinky: 1, map1: 3, deal: 5, coins: 2, toStore: 1,
+                   shopC: 2, shopD: 1, shopE: 1, shopF: 3,
+                   stickerPicker: 1, toPickup: 1, grew: 2 };
+  const HOPS = ["deal", "store", "pack", "pickup"];
+  const PLACEHOLDERS = ["stickerLabel", "stickerPayout", "deckSize", "grant"];
+  function checkStep(d, label) {
+    const bad = (msg) => problems.push("[tutorial.js] " + label + ": " + msg);
+    if (!d || typeof d !== "object") return bad("missing step");
+    if (typeof d.text !== "string" || !d.text) bad("missing/invalid `text` (string)");
+    else for (const m of d.text.match(/\{(\w+)\}/g) || [])
+      if (PLACEHOLDERS.indexOf(m.slice(1, -1)) === -1)
+        bad("unknown placeholder " + m + " (known: {" + PLACEHOLDERS.join("} {") + "})");
+    if (d.button != null && (typeof d.button !== "string" || !d.button)) bad("`button` must be a non-empty string when set");
+    if (d.anchor != null && (typeof d.anchor !== "string" || !d.anchor)) bad("`anchor` must be an anchor-key string when set");
+  }
+  if (!D.groups || typeof D.groups !== "object") problems.push("[tutorial.js] groups: missing object");
+  else for (const k in GROUPS) {
+    const list = D.groups[k];
+    if (!Array.isArray(list) || list.length !== GROUPS[k])
+      problems.push("[tutorial.js] groups." + k + ": must be an array of exactly " + GROUPS[k] + " step" + (GROUPS[k] === 1 ? "" : "s"));
+    else list.forEach((d, i) => checkStep(d, "groups." + k + "[" + i + "]"));
+  }
+  if (!D.hops || typeof D.hops !== "object") problems.push("[tutorial.js] hops: missing object");
+  else for (const k of HOPS) checkStep(D.hops[k], "hops." + k);
+  if (typeof D.grant !== "string" || !D.grant) problems.push("[tutorial.js] grant: missing/invalid grant clause (string)");
+  if (typeof D.seed !== "number" || !isFinite(D.seed))
+    problems.push("[tutorial.js] seed: must be a finite number (the pinned tutorial map seed)");
+  problems.forEach(p => console.error(p));
+  return {
+    /** group key → its REQUIRED step count (choreography contract): the
+        Tutorial bows out rather than run a group with steps missing —
+        code-side extras (gates, deckPeek) align to steps by index. */
+    stepCounts: GROUPS,
+    groups: (D.groups && typeof D.groups === "object") ? D.groups : {},
+    hops: (D.hops && typeof D.hops === "object") ? D.hops : {},
+    grant: typeof D.grant === "string" ? D.grant : "",
+    seed: (typeof D.seed === "number" && isFinite(D.seed)) ? D.seed : null,
+    problems: problems.slice(),
+    /** Iterate every writer step (groups + hop notes) — the Tutorial module
+        audits anchor keys against its registry with this at startup. */
+    eachStep(cb) {
+      for (const k in GROUPS) {
+        const list = D.groups && D.groups[k];
+        if (Array.isArray(list)) list.forEach((d, i) => cb(d, "groups." + k + "[" + i + "]"));
+      }
+      for (const k of HOPS) if (D.hops && D.hops[k]) cb(D.hops[k], "hops." + k);
+    },
+  };
+})();
+
+/* ----------------------------------------------------------------
    DECK_RULES — per-deck gameplay modifiers (the deck characters).
    Pinky is the baseline and carries NO modifiers (completely unchanged).
      altSuits      shared alt-deck rules: 13-card start with one card of each
@@ -7833,12 +7908,13 @@ const RunMap = (() => {
     // both bands by +endlessBandStep over the previous stage, starting from
     // the SELECTED tier's stage-3 bands.
 
-    // TUT2 — guided first-run tutorial map selection: how many fresh seeds a
-    // TUTORIAL run may roll (each through the normal generateRun machinery,
-    // unchanged) hunting a map where some opening chain satisfies
-    // tutorialPathOk (row-0 deal → store ≤2 rows → +1 card ≤2 rows → a deal).
-    // Budget exhausted → the LAST roll is accepted and the tour falls back to
-    // nearest-store/nearest-pickup guidance. Non-tutorial runs never retry.
+    // TUT2/TUT3 — guided-tutorial DYNAMIC map selection: how many fresh seeds
+    // a TUTORIAL run may roll (each through the normal generateRun machinery,
+    // unchanged) when the PINNED seed (tutorial.js) has gone stale. Rolls
+    // prefer a strict chain (tutorialPathStrict — the pin's zero-hop
+    // contract), then the windowed tutorialPathOk (row-0 deal → store ≤2 rows
+    // → +1 card ≤2 rows → a deal), then the LAST roll (nearest-store/
+    // nearest-pickup guidance). Non-tutorial runs never retry.
     tutorialMapRetries: 8,
 
     // Generation control.
@@ -9276,11 +9352,44 @@ const RunMap = (() => {
     if (!map || !map.byId || !Array.isArray(map.row0)) return false;
     return map.row0.some(id => tutorialChainFrom(map, id));
   }
+  /** One TAP downstream of `fromId`: its non-pass successors, with pass
+      corridors expanded for free (the marker glides through them without a
+      tap — the same corridor rule the tour's guidance walks with). */
+  function directSuccessors(map, fromId) {
+    const out = [], seen = new Set([fromId]);
+    const expand = (tid) => {
+      if (seen.has(tid)) return;
+      seen.add(tid);
+      const n = map.byId[tid];
+      if (!n) return;
+      if (n.type === "pass") (n.next || []).forEach(expand);
+      else out.push(n);
+    };
+    (((map.byId[fromId] || {}).next) || []).forEach(expand);
+    return out;
+  }
+  /** STRICT teaching chain off opening deal `id`: store, +1-card pickup and
+      the next deal/boss each exactly ONE tap apart (zero intermediate hops
+      — no hop-note bubbles on the happy path). This is the pinned-seed
+      contract; the windowed tutorialChainFrom stays as the looser fallback
+      for dynamic seed selection. */
+  function tutorialStrictFrom(map, id) {
+    const d = map && map.byId ? map.byId[id] : null;
+    if (!d || d.type !== "deal") return false;
+    return directSuccessors(map, id).some(s => s.type === "store"
+      && directSuccessors(map, s.id).some(p => p.type === "pickup"
+        && directSuccessors(map, p.id).some(b => b.type === "deal" || b.type === "boss")));
+  }
+  /** Whole-map strict qualifier: some row-0 opening carries the strict chain. */
+  function tutorialPathStrict(map) {
+    if (!map || !map.byId || !Array.isArray(map.row0)) return false;
+    return map.row0.some(id => tutorialStrictFrom(map, id));
+  }
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
            generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
            bandsFor, setDifficultyTier, getDifficultyTier, mergeForcedPackChains,
-           tutorialPathOk, tutorialChainFrom, tutorialStoreOk,
+           tutorialPathOk, tutorialChainFrom, tutorialStoreOk, tutorialPathStrict, tutorialStrictFrom,
            SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
 
@@ -12072,21 +12181,34 @@ const CampaignState = (() => {
     // be consumed by a normal run (or vice versa) if the pref flips mid-browse.
     const runGenKey = (dId, tId) => tId + "|" + ((dId === "pink" && tId === "regular") ? "FJ" : "-")
       + "|" + (tutorialRun ? "T" : "-");
-    /** TUT2 — pick WHICH seed/map a tutorial run uses: roll fresh seeds through
-        the normal generator (unchanged, so any seed still maps to the exact map
-        a non-tutorial run would get) until one satisfies the guided-path
-        predicate, within GEN_CONFIG.tutorialMapRetries. Budget exhausted → the
-        last roll is accepted (the tour falls back to nearest-store guidance). */
+    /** TUT2/TUT3 — pick WHICH seed/map a tutorial run uses. The PINNED seed
+        (tutorial.js) goes first: one closed, hand-verified map every player's
+        first run shares, asserted against the STRICT chain (opening deal →
+        store → +1 card → deal, one tap apart each). Generation itself is
+        untouched — the pin only chooses which seed feeds it — so a generator
+        or difficulty.js edit can silently stale the pin: on a miss, shout
+        (name the seed) and fall back to rolling fresh seeds through the
+        normal generator, preferring strict, then the looser windowed chain,
+        then the last roll (nearest-goal guidance still works on any map). */
     function pickTutorialRun(firstSeed, entries, opts) {
+      const pinned = TutorialData.seed;
+      if (pinned != null) {
+        const map = RunMap.generateRun(pinned, entries, opts);
+        if (RunMap.tutorialPathStrict(map)) return { seed: pinned, map };
+        console.error("[Tutorial] pinned tutorial seed " + pinned + " (tutorial.js) no longer opens with"
+          + " a strict guided chain under the live generator/difficulty data — re-pin it;"
+          + " falling back to dynamic seed selection");
+      }
       const tries = Math.max(1, RunMap.GEN_CONFIG.tutorialMapRetries || 1);
-      let last = null;
+      let last = null, loose = null;
       for (let i = 0; i < tries; i++) {
         const seed = (i === 0 && firstSeed != null) ? firstSeed : generateSeed();
         const map = RunMap.generateRun(seed, entries, opts);
         last = { seed, map };
-        if (RunMap.tutorialPathOk(map)) break;
+        if (RunMap.tutorialPathStrict(map)) return last;         // zero-hop chain — as good as the pin
+        if (!loose && RunMap.tutorialPathOk(map)) loose = last;  // windowed chain — hop notes may fire
       }
-      return last;
+      return loose || last;
     }
     function pregenerateRun(dId, tId) {
       const key = runGenKey(dId, tId);
@@ -15435,7 +15557,13 @@ const UIRenderer = (() => {
      Teaching grants: when a forced step is unaffordable, EXACTLY the shortfall
      against the live items.js price / reroll cost arrives via
      campaign.addCoins (the proper non-debug credit path) — no prices live here.
-     Copy: tutorial.txt is the editable source of truth for every bubble.
+     Copy: tutorial.js (TutorialData) is the editable source of truth for
+     every bubble — words, button labels and anchor keys live THERE; the
+     sequencing, gates and hooks live HERE. Writer markup (*bold*, literal
+     newlines) is escaped-then-transformed and live placeholders
+     ({stickerLabel} {stickerPayout} {deckSize} {grant}) resolve at show
+     time, so a data edit never goes stale or injects HTML. A missing/
+     malformed step bows the tour out via end() — never a soft-lock.
      Persistence: ninelives.pref.tutorial2 stamps ONLY on complete or skip —
      never on start — so losing the run mid-tour restarts it on the next fresh
      campaign; the old "tutorial" pref is deliberately ignored (everyone gets
@@ -15462,6 +15590,104 @@ const UIRenderer = (() => {
     let genericFor = {};                   // nodeId → intermediate-hop bubble already flashed
     const $ = (sel) => document.querySelector(sel);
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    /* ── COPY (tutorial.js → bubbles) ──────────────────────────────────────
+       The ANCHOR REGISTRY maps every writer-editable anchor key to a live
+       resolver (closures over the module's gate state, so "gateNode" /
+       "gatedTile" always mean THE currently gated control). A resolver may
+       return one element, an ARRAY (the ring wraps their union), or null
+       (centered bubble). deckPeek/storeGate stay code-side step attributes —
+       tutorial.js owns words, never choreography. */
+    const ANCHORS = {
+      deckSelectPinky: () => $("#deckSelect .ds-deckchar"),
+      mapAvatar:       () => $(".map-avatar"),
+      mapCardNode:     () => $(".pm-node.t-pickup, .pm-node.t-pack") || $(".map-avatar"),
+      gateNode:        () => $('.pm-node[data-nid="' + mapGateId + '"]'),
+      dealBoard:       () => $(".board-grid"),
+      dealPile:        () => $(".pile:not(.dead)"),
+      dealDeckChar:    () => $("#deckChar"),
+      sameShield:      () => $("#hudSame"),
+      // The Deal reward line PLUS its Surviving piles / Smallest pile
+      // sub-rows (array anchor = union rect).
+      payoutLine:      () => { const line = $(".dc-line");
+        const sub = line && line.nextElementSibling;
+        return (sub && sub.classList.contains("dc-sub")) ? [line, sub] : line; },
+      summaryBalance:  () => $(".dc-balance"),
+      storeCoins:      () => $("#storeCoins"),
+      gatedTile:       () => (typeof storeGateSel === "string" ? $(storeGateSel) : null),
+      rerollBtn:       () => $("#rerollBtn"),
+      storeShelf:      () => $("#storeItems"),
+      storeExit:       () => $("#storeStartBtn"),
+      stickerBanner:   () => $("#saBanner"),
+      deckCount:       () => $("#deckCount"),
+    };
+    // Startup audit (TutorialData already checked structure + placeholders):
+    // a renamed anchor key in tutorial.js is a data bug — name it at load,
+    // not mid-tour (the tour still bows out gracefully if one slips through).
+    // Own-property check: a bare ANCHORS[key] lookup would accept prototype-
+    // chain names ("constructor", "toString", …) from a hand-edited file and
+    // blow up mid-render instead of bowing out.
+    const anchorKnown = (k) => Object.prototype.hasOwnProperty.call(ANCHORS, k)
+      && typeof ANCHORS[k] === "function";
+    TutorialData.eachStep((d, label) => {
+      if (d && d.anchor != null && !anchorKnown(d.anchor))
+        console.error("[Tutorial] tutorial.js " + label + ": unknown anchor key '" + d.anchor
+          + "' (known: " + Object.keys(ANCHORS).join(", ") + ")");
+    });
+    /** Writer markup → HTML, injection-proof: escape the raw text FIRST,
+        then transform (*bold* → <b>, literal newline → <br>). */
+    function renderMarkup(text) {
+      return escHtml(text).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/\n/g, "<br>");
+    }
+    /** A step's final HTML: markup, then the live placeholders — each value
+        resolved fresh AT SHOW TIME and escaped itself (the registry label/
+        description and the deck size are raw data; the grant clause is
+        writer copy through the same escape-then-transform pipe). */
+    function stepHtml(s) {
+      return renderMarkup(s.text).replace(/\{(\w+)\}/g, (tok, k) => {
+        if (k === "stickerLabel" || k === "stickerPayout") {
+          const t = StickerTypes.get(GAIN_STICKER);
+          return t ? escHtml(k === "stickerLabel" ? t.label : t.description) : "";
+        }
+        if (k === "deckSize") return escHtml(String(campaign ? campaign.deckSize() : ""));
+        if (k === "grant") return s.granted ? "<br>" + renderMarkup(TutorialData.grant) : "";
+        console.error("[Tutorial] tutorial.js uses unknown placeholder " + tok + " — rendered empty");
+        return "";
+      });
+    }
+    /** One writer step → a show-ready step object (anchor key resolved via
+        the registry; code-side extras — gates, deckPeek, grant flags —
+        merged in). null = missing/invalid data; callers bow out via end(). */
+    function dataStep(d, label, extra) {
+      if (!d || typeof d.text !== "string" || !d.text) {
+        console.error("[Tutorial] tutorial.js " + label + " is missing/invalid — ending the tour");
+        return null;
+      }
+      if (d.anchor != null && !anchorKnown(d.anchor)) {
+        console.error("[Tutorial] tutorial.js " + label + " points at unknown anchor '" + d.anchor + "' — ending the tour");
+        return null;
+      }
+      return Object.assign({ text: d.text, next: d.button,
+        anchor: d.anchor != null ? ANCHORS[d.anchor] : null }, extra || {});
+    }
+    /** Materialize a whole tutorial.js group (extras aligned by index). The
+        step COUNT is part of the choreography contract — a group missing a
+        step would misalign the code-side extras, so it bows out instead. */
+    function dataSteps(key, extras) {
+      const list = TutorialData.groups[key];
+      if (!Array.isArray(list) || list.length !== TutorialData.stepCounts[key]) {
+        console.error("[Tutorial] tutorial.js group '" + key + "' is missing or lost steps (need "
+          + TutorialData.stepCounts[key] + ") — ending the tour");
+        return null;
+      }
+      const out = [];
+      for (let i = 0; i < list.length; i++) {
+        const s = dataStep(list[i], "groups." + key + "[" + i + "]", extras && extras[i]);
+        if (!s) return null;
+        out.push(s);
+      }
+      return out;
+    }
 
     function shouldRun() { return SaveStore.getPref(PREF) !== "1"; }
     /** Arm — or RE-ARM after a refresh — while the pref is unstamped. Resume
@@ -15552,7 +15778,7 @@ const UIRenderer = (() => {
       const peekWas = document.body.classList.contains("tut-deck-ring");
       document.body.classList.toggle("tut-deck-ring", !!s.deckPeek);
       if (peekWas !== !!s.deckPeek && typeof updateShellHeight === "function") updateShellHeight();
-      textEl.innerHTML = s.html;
+      textEl.innerHTML = stepHtml(s);   // tutorial.js copy + live placeholders, resolved NOW
       nextBtn.textContent = s.next || "Next";
       bubble.classList.remove("hidden");
       place();
@@ -15571,18 +15797,25 @@ const UIRenderer = (() => {
       else if (isFinal) end();
       else hideBubble();
     }
-    function group(key, steps) {
+    /** Fire tutorial.js group `key` once (fired{} bookkeeping); `extras`
+        merges code-side attributes into the steps by index. Missing/invalid
+        data → the tour bows out (stamped), never a soft-lock. */
+    function group(key, extras) {
       if (!active || fired[key]) return;
+      const steps = dataSteps(key, extras);
+      if (!steps) { end(); return; }
       fired[key] = true;
-      queue = steps.slice();
+      queue = steps;
       showStep(queue.shift());
     }
     /** One-off bubble outside the fired{} bookkeeping (intermediate-hop notes,
         the sticker-picker nudge) — replaces whatever is showing. */
-    function flash(step) {
+    function flash(d, label, extra) {
       if (!active) return;
+      const s = dataStep(d, label, extra);
+      if (!s) { end(); return; }
       queue = [];
-      showStep(step);
+      showStep(s);
     }
     /** End the WHOLE tour — complete, skip, or a graceful bow-out. Stamps the
         pref (the tour appears once, ever), drops every gate, and re-renders
@@ -15676,10 +15909,13 @@ const UIRenderer = (() => {
       if (!legal.length) return null;
       if (obj === "deal0") {
         const deals = legal.filter(n => n.type === "deal");
-        // Prefer the opening whose subtree carries the whole teaching chain
-        // (the same predicate map selection retried seeds for); row 0 is
-        // always deals, so the later fallbacks only serve odd saves.
-        return deals.find(n => RunMap.tutorialChainFrom(map, n.id)) || deals[0] || legal[0] || null;
+        // Prefer the opening whose subtree carries the STRICT zero-hop chain
+        // (the pinned seed's contract), then the windowed chain (the same
+        // predicate dynamic selection retried seeds for); row 0 is always
+        // deals, so the later fallbacks only serve odd saves.
+        return deals.find(n => RunMap.tutorialStrictFrom(map, n.id))
+          || deals.find(n => RunMap.tutorialChainFrom(map, n.id))
+          || deals[0] || legal[0] || null;
       }
       const isBattle = (x) => x.type === "deal" || x.type === "boss";
       const prefs = obj === "store"
@@ -15697,18 +15933,18 @@ const UIRenderer = (() => {
       return null;
     }
     /** One short note for an intermediate hop on a fallback path (the gated
-        node is not the objective's goal itself) — once per node, by type. */
-    function genericHop(obj, target, nodeAnchor) {
+        node is not the objective's goal itself) — once per node, by type,
+        copy from tutorial.js hops.*. Covers EVERY render of a leg, including
+        the first: the leg-intro group only fires when the gated target IS
+        the goal type (see onMap), so a hop stop always gets its true-type
+        note instead of goal copy that would lie about the ringed node. */
+    function genericHop(obj, target) {
       const goal = obj === "store" ? ["store"] : obj === "pickup" ? ["pickup"] : ["deal", "boss"];
       if (goal.indexOf(target.type) !== -1) return;   // the goal itself glows — no extra words
       if (genericFor[target.id]) return;
       genericFor[target.id] = true;
-      const text = (target.type === "deal" || target.type === "boss")
-        ? "A <b>deal</b> blocks the path — survive it and press on."
-        : target.type === "store" ? "Another <b>shop</b> on the way — pass through."
-        : target.type === "pack" ? "A <b>card pack</b> on the way — take it."
-        : "A free <b>card</b> on the way — take it.";
-      flash({ html: text, anchor: nodeAnchor, next: "Got it" });
+      const key = target.type === "boss" ? "deal" : target.type;
+      flash(TutorialData.hops[key], "hops." + key);
     }
 
     /* ── STORE GUIDANCE — the stage is DERIVED from campaign state (the forced
@@ -15784,8 +16020,9 @@ const UIRenderer = (() => {
         via the proper (non-debug) credit path — and repaint both coin
         displays together (renderStore refreshes #storeCoins + the HUD).
         The top-up must READ as a gift, never a glitch: a coin tick + a pulse
-        on both counters, and the caller adds an "on the house" copy clause
-        (grantNote) when this returns true. isFinite guards the Infinity a
+        on both counters, and the caller flags its step `granted` so the
+        bubble's {grant} placeholder fills with tutorial.js's on-the-house
+        clause when this returns true. isFinite guards the Infinity a
         registry edge (unknown id) could hand priceOf/rerollCost. */
     function grantShortfall(price) {
       const short = price - campaign.getCoins();
@@ -15801,40 +16038,26 @@ const UIRenderer = (() => {
       });
       return true;
     }
-    /** The copy clause a granted step appends to its bubble. */
-    function grantNote(granted) {
-      return granted ? "<br>A few coins <b>on the house</b> to cover it." : "";
-    }
     function tileSel(slot) { return '#storeItems .store-tile[data-slot="' + slot + '"]'; }
     function enterStoreStage(stage) {
       storeStage = stage;
       if (stage === "sticker") {
-        // STEP C — balance, stickers, the forced Bonus Coin buy.
+        // STEP C — balance, stickers, the forced Bonus Coin buy. The bubble's
+        // {stickerLabel}/{stickerPayout} placeholders read LIVE from the
+        // registry at show time — a data edit can never leave it lying about
+        // the item it forces; {grant} fills in when the top-up happened.
         if (offerSlotOf("sticker", GAIN_STICKER) === -1) {
           if (seedSlot("sticker", GAIN_STICKER) === -1) { end(); return; }
           renderStore();
         }
         const granted = grantShortfall(campaign.priceOf(GAIN_STICKER));
-        const slot = offerSlotOf("sticker", GAIN_STICKER);
-        setStoreGate(tileSel(slot));
-        group("shopC", [
-          { html: "Welcome to the shop. Your <b>coins</b> to spend sit here — the same balance as the top bar." + grantNote(granted),
-            anchor: () => $("#storeCoins") },
-          // Label + payout read LIVE from the registry, so a data edit can
-          // never leave this bubble lying about the item it forces.
-          { html: "<b>Stickers</b> attach to <b>one card</b> and ride it for the whole run.<br>This <b>"
-              + escHtml(StickerTypes.get(GAIN_STICKER).label) + "</b> pays <b>"
-              + escHtml(StickerTypes.get(GAIN_STICKER).description) + "</b> — tap it to buy.",
-            anchor: () => $(tileSel(slot)), next: "Got it" },
-        ]);
+        setStoreGate(tileSel(offerSlotOf("sticker", GAIN_STICKER)));
+        group("shopC", [{ granted }, null]);
       } else if (stage === "reroll") {
         // STEP D — the taught Refresh.
         const granted = grantShortfall(campaign.storeRerollCost());
         setStoreGate("#rerollBtn");
-        group("shopD", [
-          { html: "<b>Refresh</b> re-rolls the whole shelf for coins — the price climbs each use within a visit.<br>Tap <b>Refresh</b>." + grantNote(granted),
-            anchor: () => $("#rerollBtn"), next: "Got it" },
-        ]);
+        group("shopD", [{ granted }]);
       } else if (stage === "pillar") {
         // STEP E — the forced Guardian buy + column placement.
         if (offerSlotOf("pillar", GUARD_PILLAR) === -1) {
@@ -15842,23 +16065,12 @@ const UIRenderer = (() => {
           renderStore();
         }
         const granted = grantShortfall(campaign.priceOfPillar(GUARD_PILLAR));
-        const slot = offerSlotOf("pillar", GUARD_PILLAR);
-        setStoreGate(tileSel(slot));
-        group("shopE", [
-          { html: "<b>Pillars</b> bind to the top of a column and work passively every deal.<br>The <b>Guardian</b> pays out when every pile in its column survives — tap it and pick a column." + grantNote(granted),
-            anchor: () => $(tileSel(slot)), next: "Got it" },
-        ]);
+        setStoreGate(tileSel(offerSlotOf("pillar", GUARD_PILLAR)));
+        group("shopE", [{ granted }]);
       } else if (stage === "explain") {
-        // STEP F — bases + Same-Powers, words only; STEP G frees GO TO MAP.
+        // STEP F — bases + Same-Powers, words only; the last step frees GO TO MAP.
         setStoreGate(null);
-        group("shopF", [
-          { html: "Two more kinds live on this shelf.<br><b>Bases</b> sit at a column's foot — a once-per-deal power you tap during play.",
-            anchor: () => $("#storeItems") },
-          { html: "<b>Same-Powers</b> equip to the Same button — exactly one at a time, firing on every correct <b>Same</b> call.",
-            anchor: () => $("#storeItems") },
-          { html: "All stocked up — tap <b>GO TO MAP</b> to head back out.",
-            anchor: () => $("#storeStartBtn"), next: "Got it", storeGate: "#storeStartBtn" },
-        ]);
+        group("shopF", [null, null, { storeGate: "#storeStartBtn" }]);
       } else if (stage === "leave") {
         setStoreGate("#storeStartBtn");   // resume past the explain bubbles: just the exit
       }
@@ -15883,10 +16095,7 @@ const UIRenderer = (() => {
       /** DECK SELECT (the first "Play"): arm the tour + meet Pinky. */
       onDeckSelect() {
         if (!ensureActive()) return;
-        group("pinky", [
-          { html: "This is <b>Pinky</b> — he's lost, a long way from mama.<br>Help him climb home.",
-            anchor: () => $("#deckSelect .ds-deckchar"), next: "Let's go" },
-        ]);
+        group("pinky");
       },
       /** EVERY map render while the tour runs: recompute the objective, pick
           the one guided node, and strip every other legal node's action + glow
@@ -15906,43 +16115,31 @@ const UIRenderer = (() => {
       },
       /** MAP shown (or a draft node just resolved in place): the bubbles for
           the current leg — intro+first deal, to-the-shop, to-the-draft, then
-          deck-grew + battle. The gate itself was set by onMapRender. */
+          deck-grew + battle. The gate itself was set by onMapRender.
+          DESYNC GUARD: a leg's INTRO copy describes its goal ("shop ahead" /
+          "grab the +1 card" / "tap the deal"), so it may only show when the
+          gated target's type IS that goal — on a fallback map whose first
+          gated stop is an intermediate hop, the type-matched hop note shows
+          instead and the intro waits for the render where the true goal is
+          the gate. A goal bubble can never ring a node of another type. */
       onMap() {
         if (!ensureActive() || mapGateId == null) return;
         const map = campaign.getMap();
         const target = map && map.byId[mapGateId];
         if (!target) return;
         const obj = objective();
-        const nodeAnchor = () => $('.pm-node[data-nid="' + mapGateId + '"]');
         if (obj === "deal0") {
-          group("map1", [
-            { html: "Pinky starts down here and must climb up.",
-              anchor: () => $(".map-avatar") },
-            { html: "<b>Card nodes</b> grow Pinky's deck as he climbs — and a bigger deck means <b>longer, harder deals</b>.<br>Drafting well and shopping for upgrades is how you keep up.",
-              anchor: () => $(".pm-node.t-pickup, .pm-node.t-pack") || $(".map-avatar") },
-            { html: "Tap the <b>glowing node</b> to set off to your first deal.",
-              anchor: nodeAnchor, next: "Got it" },
-          ]);
+          group("map1");
         } else if (obj === "store") {
-          if (!fired.toStore) group("toStore", [
-            { html: "Shops along the trail sell <b>upgrades</b> — let's visit one.<br>Follow the <b>glowing node</b>.",
-              anchor: nodeAnchor, next: "Got it" },
-          ]);
-          else genericHop(obj, target, nodeAnchor);
+          if (target.type === "store" && !fired.toStore) group("toStore");
+          else genericHop(obj, target);
         } else if (obj === "pickup") {
-          if (!fired.toPickup) group("toPickup", [
-            { html: "Travel on to <b>draft new cards</b> — every card node grows Pinky's deck, and a bigger deck means harder deals… but more power to win with.<br>Grab the <b>+1 card</b> ahead.",
-              anchor: nodeAnchor, next: "Got it" },
-          ]);
-          else genericHop(obj, target, nodeAnchor);
+          if (target.type === "pickup" && !fired.toPickup) group("toPickup");
+          else genericHop(obj, target);
         } else {
-          if (!fired.grew) group("grew", [
-            { html: "The deck just <b>grew</b> — Pinky now carries <b>" + campaign.deckSize() + " cards</b>.<br>More cards = longer deals, but more to win with.",
-              anchor: () => $("#deckCount"), deckPeek: true },
-            { html: "Time to <b>battle</b> — tap the deal. Good luck!",
-              anchor: nodeAnchor, next: "Go" },
-          ]);
-          else genericHop(obj, target, nodeAnchor);
+          if ((target.type === "deal" || target.type === "boss") && !fired.grew)
+            group("grew", [{ deckPeek: true }, null]);
+          else genericHop(obj, target);
         }
       },
       /** A draft node resolved with the map still up (card flew in / pack
@@ -15955,38 +16152,18 @@ const UIRenderer = (() => {
       onDealStart() {
         if (!ensureActive()) return;
         if (objective() === "battle") { end(); return; }
-        group("deal", [
-          { html: "<b>Goal: survive.</b> Every pile is a life.",
-            anchor: () => $(".board-grid") },
-          { html: "Pick a pile, then <b>swipe</b>:<br>↑ higher<br>↓ lower<br>sideways for same.<br>Or tap the pile and use the buttons on the left",
-            anchor: () => $(".pile:not(.dead)") },
-          { html: "Every guess draws from <b>Pinky's deck</b>.<br>Correct guess → the pile grows<br>Wrong guess → the pile dies<br>Beat the <b>whole deck</b> before every pile is gone.",
-            anchor: () => $("#deckChar") },
-          { html: "<b>Same</b> guesses are hard. A correct Same call charges this <b>shield</b>, which saves your next miss.",
-            anchor: () => $("#hudSame") },
-          { html: "Your turn — make a guess!", anchor: null, next: "Go" },
-        ]);
+        group("deal");
       },
       /** Any resolved guess mid-tour: the player is playing — stop talking. */
       onGuessResolved() {
         if (active && fired.deal && !fired.coins) { queue = []; hideBubble(); }
       },
-      /** FIRST DEAL SUMMARY: the payout formula, then where coins live. */
+      /** FIRST DEAL SUMMARY: the payout formula (ringing the reward line +
+          sub-rows), then where coins live — the summary's OWN balance row,
+          because the overlay covers the HUD bar (see ANCHORS). */
       onDealCleared() {
         if (!ensureActive()) return;
-        group("coins", [
-          { html: "Coins = <b>surviving piles × smallest pile</b><br>Spend coins on upgrades.",
-            // Ring the Deal reward line PLUS its Surviving piles / Smallest pile
-            // sub-rows (array anchor = union rect).
-            anchor: () => { const line = $(".dc-line");
-              const sub = line && line.nextElementSibling;
-              return (sub && sub.classList.contains("dc-sub")) ? [line, sub] : line; } },
-          // The summary overlay covers the HUD bar (its glass has no shell
-          // offset), so ring the summary's OWN running-balance row — the same
-          // number the top-bar counter carries everywhere else.
-          { html: "Your <b>coins</b> bank into this balance — the same counter rides the top bar on every screen.",
-            anchor: () => $(".dc-balance"), next: "Got it" },
-        ]);
+        group("coins");
       },
       /** STORE OFFER just rolled (showStore, before it paints): the guided
           shop's first shelf always carries the Bonus Coin sticker. */
@@ -16017,8 +16194,7 @@ const UIRenderer = (() => {
       /** The buy-time sticker picker opened for the forced Bonus Coin buy. */
       onStickerPicker() {
         if (!active || storeStage !== "sticker") return;
-        flash({ html: "This sticker is <b>♥ only</b> — other suits grey out.<br>Tap a <b>heart</b>, then confirm.",
-          anchor: () => $("#saBanner"), next: "Got it" });
+        flash((TutorialData.groups.stickerPicker || [])[0], "groups.stickerPicker[0]");
       },
       /** The forced sticker landed on a heart → teach Refresh. */
       onStickerApplied(typeId) {

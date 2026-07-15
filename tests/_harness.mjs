@@ -14,6 +14,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const HTML = join(HERE, "..", "index.html");
 const ITEMS = join(HERE, "..", "items.js");
 const DIFFICULTY = join(HERE, "..", "difficulty.js");
+const TUTORIAL = join(HERE, "..", "tutorial.js");
 
 /** Load the game's modules with a stubbed DOM. Returns the engine modules. */
 export function loadGame() {
@@ -25,10 +26,12 @@ export function loadGame() {
     .map((b) => b.replace(/^<script>/, "").replace(/<\/script>$/, ""))
     .find((c) => c.includes("const GameEngine"));
   if (!gameCode) throw new Error("No game <script> block found in index.html");
-  // The page loads the shop-item DATA (items.js) and the difficulty bands
-  // (difficulty.js) before the game script; mirror that here so ItemData and
-  // DifficultyData find their globals.
-  const code = readFileSync(ITEMS, "utf8") + "\n;" + readFileSync(DIFFICULTY, "utf8") + "\n;" + gameCode;
+  // The page loads the shop-item DATA (items.js), the difficulty bands
+  // (difficulty.js) and the tutorial copy (tutorial.js) before the game
+  // script; mirror that here so ItemData, DifficultyData and TutorialData
+  // find their globals.
+  const code = readFileSync(ITEMS, "utf8") + "\n;" + readFileSync(DIFFICULTY, "utf8")
+    + "\n;" + readFileSync(TUTORIAL, "utf8") + "\n;" + gameCode;
 
   // Every DOM access returns a chainable no-op proxy. The modules under test
   // never touch the DOM; this only keeps UIRenderer.init() (which runs on
@@ -82,7 +85,7 @@ export function loadGame() {
     ...Object.keys(sandbox),
     code +
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
-      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData };"
+      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData, TutorialData };"
   );
   return factory(...Object.values(sandbox));
 }

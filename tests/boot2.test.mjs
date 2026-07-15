@@ -159,7 +159,8 @@ export function run() {
   // --- R7) build-www audits: the splash adds no loose/external references ----
   {
     // Mirror the build script's loose-asset audit against the live html…
-    r.ok(!/src="(?!data:|https?:|items\.js|difficulty\.js|fonts\/)[^"]+"/.test(
+    // (whitelist must match build-www.mjs exactly: the three data files + fonts/)
+    r.ok(!/src="(?!data:|https?:|items\.js|difficulty\.js|tutorial\.js|fonts\/)[^"]+"/.test(
       html.replace(/<script async src="https:\/\/www\.googletagmanager[^>]*><\/script>/, "")),
       "no loose relative src anywhere (build-www loose-asset audit shape)");
     // …and prove its must-patch anchors survived the head insert.

@@ -1,6 +1,7 @@
 // Build the app's local web bundle (www/) from the ONE web codebase at the
 // repo root. No game code is forked: this copies index.html + items.js +
-// difficulty.js verbatim and then patches EXACTLY TWO things for offline use:
+// difficulty.js + tutorial.js verbatim and then patches EXACTLY TWO things
+// for offline use:
 //   1. the Google Fonts <link>s -> the bundled fonts/fonts.css (same faces),
 //   2. the Google Analytics loader <script> -> removed (its inline config is
 //      a documented no-op when gtag never loads).
@@ -18,7 +19,7 @@ const www = join(appDir, "www");
 
 rmSync(www, { recursive: true, force: true });
 mkdirSync(join(www, "fonts"), { recursive: true });
-for (const f of ["index.html", "items.js", "difficulty.js"]) {
+for (const f of ["index.html", "items.js", "difficulty.js", "tutorial.js"]) {
   cpSync(join(repoDir, f), join(www, f));
 }
 cpSync(join(appDir, "assets", "fonts"), join(www, "fonts"), { recursive: true });
@@ -48,11 +49,11 @@ if (/https:\/\/(fonts\.googleapis|fonts\.gstatic|www\.googletagmanager)/.test(ht
 }
 
 // 3. LOOSE-ASSET AUDIT: the bundle ships ONLY index.html + items.js +
-//    difficulty.js + fonts/. Any other relative src (e.g. src="icons/logo.svg")
-//    404s offline and WKWebView draws the broken-image "?" glyph — exactly the
-//    menu-logo bug this guards against. All art must be inline (data URI /
-//    inline SVG) or added to the copy list above.
-const loose = html.match(/src="(?!data:|https?:|items\.js|difficulty\.js|fonts\/)[^"]+"/);
+//    difficulty.js + tutorial.js + fonts/. Any other relative src (e.g.
+//    src="icons/logo.svg") 404s offline and WKWebView draws the broken-image
+//    "?" glyph — exactly the menu-logo bug this guards against. All art must
+//    be inline (data URI / inline SVG) or added to the copy list above.
+const loose = html.match(/src="(?!data:|https?:|items\.js|difficulty\.js|tutorial\.js|fonts\/)[^"]+"/);
 if (loose) {
   throw new Error("build-www: relative asset reference would 404 offline — " + loose[0]
     + " — inline it (data URI) or add the file to the bundle copy list");
