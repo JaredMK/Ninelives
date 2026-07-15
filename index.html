@@ -1895,8 +1895,12 @@ const NativeApp = (() => {
     filter: blur(16px); animation: menuGlow 9s ease-in-out infinite;
   }
   @keyframes menuGlow {
-    0%,100% { opacity: 0.65; transform: translate(-50%,-50%) scale(0.96); }
-    50%     { opacity: 1;    transform: translate(-50%,-50%) scale(1.06); }
+    /* Opacity ONLY — animating scale() on a blurred layer forces the GPU to
+       re-rasterize the blur every frame (measured "Very High" Energy Impact
+       on iOS at an idle menu). Alpha-only lets the compositor cache the
+       blurred layer once; the base rule's translate keeps the centering. */
+    0%,100% { opacity: 0.65; }
+    50%     { opacity: 1; }
   }
   @media (prefers-reduced-motion: reduce) { .menu-screen::before { animation: none; } }
   /* Keep the content above the ambient glow. */
@@ -6626,7 +6630,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.70 · pinky holds your hand the whole first climb";
+const APP_VERSION = "v4.71 · the menu glow chills out";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
