@@ -477,6 +477,29 @@ const NativeApp = (() => {
     border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 8px 12px;
   }
+  /* ZEN difficulty choice: the SAME bottom prompt bar, lifted over the main
+     menu (z-index 1400) only while picking — no new surface, no modal. */
+  body.zen-picking .play-controls { z-index: 1450; }
+  /* The picker carries FOUR labeled buttons + a help line — more than the
+     one-row strip fits at 390px (buttons ran past the right edge; Cancel was
+     entirely off-screen). While picking, the help text takes its own
+     full-width line and the buttons WRAP centred below it, so all four stay
+     on-screen and tappable; the panel just grows upward (bottom-anchored). */
+  body.zen-picking .action-prompt { flex-wrap: wrap; row-gap: 7px; }
+  body.zen-picking .action-prompt .ap-text { flex: 1 1 100%; text-align: center; }
+  body.zen-picking .action-prompt .ap-btns { flex: 1 1 100%; flex-wrap: wrap; justify-content: center; }
+  /* ZEN MODE strips the campaign chrome: no coin HUD, no suit/stage track, no
+     Same-Power chip, no deal-status payout row (fitBoard reclaims its height —
+     it checks offsetParent). The Same-Charge indicator + histogram stay. */
+  body.zen-mode #hudStageRun,
+  body.zen-mode .hud-dop,
+  body.zen-mode #hudSamePower,
+  body.zen-mode #dealStatus { display: none; }
+  /* …which would leave the full-width HUD band as an empty cream bar around
+     the lone Same-Charge mark — hug the indicator instead (a small centred
+     pill; fitBoard re-measures .hud per pass, so the saved height flows into
+     the board). */
+  body.zen-mode .hud { width: auto; justify-content: center; padding: 3px 10px; margin: 2px auto 0; }
   .ap-btns { flex: 0 0 auto; display: flex; gap: 8px; }
   .ap-btn {
     border: none; border-radius: var(--radius); padding: 9px 15px;
@@ -2206,6 +2229,18 @@ const NativeApp = (() => {
   .stat-tile .sv .pct { font-size: 14px; font-weight: 600; color: var(--muted); }
   .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-top: 3px; }
+  /* ZEN section of the Stats screen: one row per difficulty (games / wins /
+     cards / correct — Zen's own record, separate from the campaign tiles). */
+  .stats-zen { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 12px; padding: 10px 12px; }
+  .stats-zen .sz-head { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 6px; }
+  .stats-zen .sz-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0;
+    font-size: 11px; color: var(--muted); }
+  .stats-zen .sz-diff { flex: 0 0 58px; font-weight: 800; color: var(--text); }
+  .stats-zen .sz-num { flex: 1; text-align: right; white-space: nowrap; }
+  .stats-zen .sz-num b { font-family: var(--font-display); font-weight: 700; font-size: 14px;
+    color: var(--accent-2); }
   /* Manual */
   .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
@@ -6741,7 +6776,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.75 · two-card stops stopped keeping secrets";
+const APP_VERSION = "v4.76 · just you and the deck";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7323,6 +7358,21 @@ const DifficultyData = (() => {
       });
     }
   }
+  // ZEN block — the standalone mode's three difficulties. Same fail-loud
+  // contract as the tiers: every problem line names the entry + field.
+  const ZEN_IDS = ["easy", "medium", "hard"];
+  const isInt = (n) => typeof n === "number" && isFinite(n) && Math.floor(n) === n;
+  if (!D.zen || typeof D.zen !== "object") problems.push("[difficulty.js] zen: missing object");
+  else for (const id of ZEN_IDS) {
+    const z = D.zen[id];
+    const bad = (msg) => problems.push("[difficulty.js] zen." + id + ": " + msg);
+    if (!z || typeof z !== "object") { bad("missing zen entry"); continue; }
+    if (typeof z.label !== "string" || !z.label) bad("missing/invalid `label` (non-empty string)");
+    if (!isInt(z.suitCount) || z.suitCount < 1 || z.suitCount > 4)
+      bad("missing/invalid `suitCount` (integer 1-4 — suits kept from the standard deck)");
+    if (!isInt(z.piles) || z.piles < 1)
+      bad("missing/invalid `piles` (positive integer — piles the deck deals onto)");
+  }
   if (problems.length) {
     problems.forEach(p => console.error(p));
     throw new Error("difficulty.js validation FAILED — " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + " (see console.error lines above)");
@@ -7331,6 +7381,8 @@ const DifficultyData = (() => {
     tierIds: TIER_IDS,
     endlessBandStep: D.endlessBandStep,
     tier(id) { return D.tiers[id] || D.tiers.regular; },
+    zenIds: ZEN_IDS,
+    zen(id) { return D.zen[id] || D.zen.easy; },
   };
 })();
 
@@ -7671,6 +7723,17 @@ const DeckManager = (() => {
     return cards; // 52 cards
   }
 
+  // ZEN MODE deck: a fresh, UNMODIFIED standard deck kept to the first
+  // `suitCount` suits of the fixed Zen order ♥ ♠ ♦ ♣ (2 = ♥♠, 3 = ♥♠♦,
+  // 4 = all four) — always suitCount × 13 cards, never a joker or sticker.
+  // Zen's own order (not SUITS' stage schedule) so Easy reads red-vs-black.
+  const ZEN_SUIT_ORDER = ["♥", "♠", "♦", "♣"];
+  function buildZenDeck(suitCount) {
+    const n = Math.max(1, Math.min(ZEN_SUIT_ORDER.length, suitCount | 0));
+    const wanted = ZEN_SUIT_ORDER.slice(0, n);
+    return buildStandardDeck().filter(c => wanted.indexOf(c.suit) !== -1);
+  }
+
   // Materialize a playable card from a persistent card (uses currentRank).
   // Behavior stickers are projected onto run-local fields the engine reads:
   //   heartsRemaining (one per Extra Heart) and tieSafe. These reset on every
@@ -7815,7 +7878,7 @@ const DeckManager = (() => {
     };
   }
 
-  return { create, buildStandardDeck, toCard, RANKS, SUITS };
+  return { create, buildStandardDeck, buildZenDeck, ZEN_SUIT_ORDER, toCard, RANKS, SUITS };
 })();
 
 /* ================================================================
@@ -14055,7 +14118,7 @@ const CampaignState = (() => {
     };
   }
 
-  return { create, layoutForRun, RUN_LAYOUTS, MAX_RUNS_PER_STAGE, COLUMN_SLOTS, MIN_RANK, MAX_RANK };
+  return { create, layoutForRun, layoutForPiles, RUN_LAYOUTS, MAX_RUNS_PER_STAGE, COLUMN_SLOTS, MIN_RANK, MAX_RANK };
 })();
 
 /* ----------------------------------------------------------------
@@ -14184,6 +14247,60 @@ const Stats = (() => {
       put(s);
     },
     reset() { put({ ...DEF }); },
+  };
+})();
+
+/* ----------------------------------------------------------------
+   ZenStats — ZEN MODE's own lifetime record, kept PER DIFFICULTY
+   (difficulty.js zen ids). Same precedent as Stats above — its OWN
+   localStorage key, read-modify-write, silent no-op without storage —
+   but a fully SEPARATE surface: Zen play never moves a campaign tally
+   and campaign play never moves these. Absent/corrupted storage always
+   reads as zeros (never throws); unknown fields are ignored on read,
+   so the shape can grow without a migration.
+   Shape: { <zenId>: { games, wins, cardsFlipped, correctGuesses } }.
+---------------------------------------------------------------- */
+const ZenStats = (() => {
+  const KEY = "ninelives.zenstats.v1";
+  const ENTRY = { games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0 };
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  function raw() {
+    if (!ok()) return {};
+    // A hand-edited SCALAR blob (5, "x", true) parses truthy but isn't a
+    // record — writing s[diff] onto it would throw under strict mode, so
+    // anything that isn't a plain object falls back to empty (zeros).
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY));
+      return (v && typeof v === "object" && !Array.isArray(v)) ? v : {};
+    } catch (e) { return {}; }
+  }
+  function put(s) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* quota/serialize — ignore */ } }
+  /** One difficulty's tallies, defaults-merged (bad values read as 0). */
+  function entry(s, diff) {
+    const e = (s && s[diff] && typeof s[diff] === "object") ? s[diff] : {};
+    const out = { ...ENTRY };
+    for (const k in ENTRY) { const v = e[k]; if (typeof v === "number" && isFinite(v) && v >= 0) out[k] = v; }
+    return out;
+  }
+  function bump(diff, fn) {
+    if (!diff) return;
+    const s = raw();
+    const e = entry(s, diff);
+    fn(e);
+    s[diff] = e;
+    put(s);
+  }
+  return {
+    /** Tallies for one difficulty — always a full zeros-defaulted entry. */
+    get(diff) { return entry(raw(), diff); },
+    /** The Zen game counts at its FIRST drawn card — the same first-guess
+        rule Stats.runPlayed uses (dealing + reshuffling never count). */
+    gamePlayed(diff) { bump(diff, e => { e.games++; }); },
+    /** One drawn card resolved a guess: a card flipped, correct or not. */
+    guess(diff, correct) { bump(diff, e => { e.cardsFlipped++; if (correct) e.correctGuesses++; }); },
+    /** The deck was emptied with a pile standing — a Zen win. */
+    win(diff) { bump(diff, e => { e.wins++; }); },
+    reset() { put({}); },
   };
 })();
 
@@ -15379,22 +15496,33 @@ const UIRenderer = (() => {
     if (!b) return;
     const run = engine && engine.getRun ? engine.getRun() : null;
     const show = !!(run && run.totalGuesses === 0 && engine.getStatus && engine.getStatus() === "playing");
+    // ZEN keeps the pre-first-guess reshuffle offer, FREE (there are no coins
+    // in Zen) — the campaign offer keeps its escalating price.
+    const free = !!zenMode;
     const cost = redealCost;
-    const poor = !campaign || campaign.getCoins() < cost;
-    const key = show + "|" + cost + "|" + poor;
+    const poor = free ? false : (!campaign || campaign.getCoins() < cost);
+    const key = show + "|" + cost + "|" + poor + "|" + free;
     if (key === reshuffleKey) return;
     reshuffleKey = key;
     b.classList.toggle("hidden", !show);
     if (show) {
-      b.innerHTML = glyph("reroll") + " Reshuffle · " + COIN_SVG + " " + cost;
+      b.innerHTML = glyph("reroll") + " Reshuffle" + (free ? "" : " · " + COIN_SVG + " " + cost);
       b.disabled = poor;
-      b.title = poor ? "Not enough coins (" + cost + " needed)" : "Re-deal the piles from the same deck";
+      b.title = poor ? "Not enough coins (" + cost + " needed)"
+        : (free ? "Deal a fresh board — free in Zen" : "Re-deal the piles from the same deck");
     }
   }
   function doReshuffle() {
     if (!engine || !campaign) return;
     const run = engine.getRun && engine.getRun();
     if (!run || run.totalGuesses > 0 || (engine.getStatus && engine.getStatus() !== "playing")) return;   // first guess made → gone
+    // ZEN: free re-deal — a fresh unmodified deck of the same difficulty is
+    // dealt again (identical composition; nothing is spent or persisted).
+    if (zenMode) {
+      Sound.shuffle();
+      startZenDeal();
+      return;
+    }
     if (!campaign.spendCoins(redealCost)) return;                  // can't afford
     Sound.shuffle();   // a re-DEAL is a shuffle — the shared riffle, like every other shuffle source
     if (engine.logAction) engine.logAction("Reshuffled the deal-out (−" + redealCost + " coins)");
@@ -15421,8 +15549,12 @@ const UIRenderer = (() => {
     // in at Start Run). Read it FIRST so it reflects a setup equip/unequip
     // immediately — engine.samePower() (run.samePower) is the previous deal's value
     // until Start Run, so preferring it would show a stale power during setup.
-    const id = (campaign && campaign.getSamePower && campaign.getSamePower())
-      || (engine && engine.samePower && engine.samePower()) || null;
+    // ZEN: the campaign's equipped power (possibly live from a resumed save)
+    // never shows — only the engine's own (always null in Zen) is consulted.
+    const id = zenMode
+      ? ((engine && engine.samePower && engine.samePower()) || null)
+      : ((campaign && campaign.getSamePower && campaign.getSamePower())
+        || (engine && engine.samePower && engine.samePower()) || null);
     const t = id ? SamePowerTypes.get(id) : null;
     // The Same-Power is no longer shown in the TOP BANNER — keep that chip hidden.
     // (It survives in the DOM only as the dock's transient same-power drop hint in
@@ -16360,6 +16492,15 @@ const UIRenderer = (() => {
   function mapVisible() { return el.mapOverlay && !el.mapOverlay.classList.contains("hidden"); }
   function storeVisible() { return el.storeOverlay && !el.storeOverlay.classList.contains("hidden"); }
   function deckStripStats() {
+    // ZEN: the histogram tracks the ZEN deck (suitCount × 13, never a joker),
+    // not the campaign deck — full = the built zen deck, remaining = the
+    // engine's live draw pile. Always a full-deck deal (no subset accounting).
+    if (zenMode && zenMode.deck) {
+      const zfull = DeckStats.fromCounts(zenDeckCounts());
+      const zdeck = engine && engine.getDeck ? engine.getDeck() : null;
+      const zremaining = zdeck ? DeckStats.fromCounts(zdeck.remainingCounts()) : zfull;
+      return { remaining: zremaining, full: zfull, jokerFull: 0, jokerRemaining: 0 };
+    }
     // JOKERS are rankless (engine value 0) so they live OUTSIDE the 2..A rows:
     // the gold ★ column reads these two counts instead. Full = owned Jokers;
     // remaining = Jokers still in the draw deck (the rank-0 bucket).
@@ -16641,7 +16782,10 @@ const UIRenderer = (() => {
   function renderSuitCounts() {
     const host = document.getElementById("suitCounts");
     if (!host || !campaign) return;
-    const total = campaign.suitComposition ? campaign.suitComposition() : { "♥":0,"♦":0,"♣":0,"♠":0 };
+    // ZEN: suit totals come from the zen deck (13 per kept suit, 0 otherwise).
+    const total = (zenMode && zenMode.deck)
+      ? zenMode.deck.reduce((m, c) => { m[c.suit] = (m[c.suit] || 0) + 1; return m; }, { "♥":0,"♦":0,"♣":0,"♠":0 })
+      : (campaign.suitComposition ? campaign.suitComposition() : { "♥":0,"♦":0,"♣":0,"♠":0 });
     let remaining = total;
     if (!mapVisible() && !storeVisible() && engine && engine.getDeck) {
       const deck = engine.getDeck();
@@ -16667,7 +16811,7 @@ const UIRenderer = (() => {
     // permanent 5th GOLD cell carries them (mirrors the always-shown gold
     // histogram column: remaining in the draw deck / owned total, 0/0 when
     // none are owned yet).
-    const jTotal = campaign.jokerCount ? campaign.jokerCount() : 0;
+    const jTotal = (zenMode || !campaign.jokerCount) ? 0 : campaign.jokerCount();   // Zen decks never hold Jokers
     let jRem = jTotal;
     if (jTotal > 0 && !mapVisible() && !storeVisible() && engine && engine.getDeck) {
       const deck = engine.getDeck();
@@ -17000,7 +17144,9 @@ const UIRenderer = (() => {
      campaign deck by id. */
   function showCardHelp(cardId) {
     if (!campaign || !el.cardInfo || !el.cardInfoPanel) return;
-    const card = (campaign.getRunDeck() || []).find(c => c.id === cardId);
+    // ZEN: ids resolve against the ZEN deck (campaign ids overlap 0..51 and
+    // could show a different — possibly stickered — campaign card).
+    const card = ((zenMode && zenMode.deck) || campaign.getRunDeck() || []).find(c => c.id === cardId);
     if (!card) return;
     // Persistent deck cards carry currentRank/suit but no `label`; synthesise one
     // so cardPeekHtml's header reads correctly (e.g. "Card J♥").
@@ -17076,8 +17222,10 @@ const UIRenderer = (() => {
         ? "" : (el.histBand.offsetHeight + 8) + "px";
     }
     // Reveal the pillar slot row on every column for the whole setup phase, so
-    // the player sees where Pillars go before placing any.
-    el.board.classList.add("show-slots");
+    // the player sees where Pillars go before placing any. ZEN never shows the
+    // slot rows — there are no Pillars/Bases, so fitBoard reclaims their height
+    // and the freed rows become bigger cards.
+    el.board.classList.toggle("show-slots", !zenMode);
     fitBoard();
     if (el.startRunBtn) el.startRunBtn.classList.remove("hidden");   // #4: button removed → null-guarded
     renderSetupInv();                         // builds the drag-from-list placement dock
@@ -17131,8 +17279,12 @@ const UIRenderer = (() => {
   function startRunUI() {
     // Lock in the current column→Pillar, column→Base, and equipped Same-Power as
     // play begins — all finalized from the setup window (the engine was created at
-    // deal entry, before the player equipped anything this deal).
-    if (engine) engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower());
+    // deal entry, before the player equipped anything this deal). ZEN locks in
+    // NOTHING: the campaign bindings (possibly live from a resumed save) must
+    // never reach a Zen engine — no Pillars, no Bases, no Same-Power.
+    if (!engine) return;
+    if (zenMode) engine.startRun([], [], null);
+    else engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower());
   }
 
   /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
@@ -19597,11 +19749,12 @@ const UIRenderer = (() => {
         // Deck character: settle to idle for the fresh deal, wash to the phase
         // suit, and (re)start the gentle idle blink.
         DeckChar.reset();
-        DeckChar.setSuit(campaign ? campaign.phaseSuit() : "♦");
+        // ZEN: no campaign phase — the character wears the calm baseline.
+        DeckChar.setSuit(zenMode ? "♥" : (campaign ? campaign.phaseSuit() : "♦"));
         DeckChar.startBlink();
         // …and re-stamp the stage mood (anxious ♦ → hopeful ♣ → bright ♠).
-        CharMood.setStage(campaign && campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
-        Tutorial.onDealStart();   // first-run tour: survive / guessing / deck / Same shield
+        CharMood.setStage(!zenMode && campaign && campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
+        if (!zenMode) Tutorial.onDealStart();   // first-run tour: survive / guessing / deck / Same shield (campaign only)
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
         setScreenNav(true, true, false);   // menu + inventory; no map button in-game
@@ -19625,9 +19778,11 @@ const UIRenderer = (() => {
         renderNetwork();
         renderDeckReveal();   // Scout on a starting top reveals from the off
         // Bases arm for the deal: repaint the bottom row to its live charged state
-        // and light the tap-to-activate cues.
-        paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
-        recordDealExposure();   // telemetry: count this deal for every active artifact
+        // and light the tap-to-activate cues. (Zen paints the rows empty — the
+        // zen guard inside paintColumnBases keeps has-bases off — and its deals
+        // carry no artifacts, so there's no telemetry exposure to record.)
+        paintColumnBases(zenMode ? engine.getRun().cols || [] : campaign.layoutForRun(campaign.currentRunIndex).cols);
+        if (!zenMode) recordDealExposure();   // telemetry: count this deal for every active artifact
         refreshDebug();
         break;
       }
@@ -19746,8 +19901,14 @@ const UIRenderer = (() => {
         // First guess of the campaign → NOW it counts as a run played. Opening
         // the map / browsing without ever guessing never reaches here, so it
         // never counts. Guarded + persisted on the campaign so a mid-deal resume
-        // (which re-plays the deal) can't double-count the same run.
-        if (campaign && !campaign.isPlayedCounted()) {
+        // (which re-plays the deal) can't double-count the same run. ZEN deals
+        // are not campaign runs: campaign Stats/save never move — Zen tallies
+        // into its OWN per-difficulty store instead (games on the first guess,
+        // then a card flipped per draw + correct guesses alongside).
+        if (zenMode) {
+          if (!zenMode.counted) { zenMode.counted = true; ZenStats.gamePlayed(zenMode.diff); }
+          ZenStats.guess(zenMode.diff, !!payload.correct);
+        } else if (campaign && !campaign.isPlayedCounted()) {
           campaign.markPlayed();
           Stats.runPlayed();
           persistCampaign("run");
@@ -20263,6 +20424,9 @@ const UIRenderer = (() => {
         // Same Charge backstop fired (last-priority). Unlike Shield/Guard (which
         // bounce the card back), the would-be-killing card LANDED as the new pile
         // card and the pile survived; the charge is now spent. Distinct feedback.
+        // ZEN: this guess drew a card without a "resolved" event — tally the
+        // flipped card here (a wrong guess, so no correct-guess credit).
+        if (zenMode) ZenStats.guess(zenMode.diff, false);
         const reduce = prefersReduce();
         const idx = payload.index;
         const pileEl = pileEls[idx];
@@ -20335,6 +20499,9 @@ const UIRenderer = (() => {
       }
 
       case "won":
+        // ZEN: the whole campaign end-flow (coins, map, Stats, persistence) is
+        // bypassed — the minimal Zen overlay takes over.
+        if (zenMode) { onZenEnd("win", payload); break; }
         // Telemetry: end-of-deal scoring Pillars pay out here (each line carries
         // its resolved Pillar id). Recorded once per win, then persisted.
         try {
@@ -20346,16 +20513,20 @@ const UIRenderer = (() => {
         break;
 
       case "lost":
-        try { Telem.flush(); } catch (e) { /* deaths still keep telemetry; just persist */ }
+        try { if (!zenMode) Telem.flush(); } catch (e) { /* deaths still keep telemetry; just persist */ }
         // Sequencing: when the loss came from a fatal guess, the preceding
         // "resolved" handler is animating the fatal draw + pile death. Hold the
         // recap and let that death animation flush it (fatal draw → pile death →
         // recap). Any other loss path (no death animation) shows it immediately.
-        if (endAwaitingDeathAnim) {
-          endAwaitingDeathAnim = false;
-          pendingRunEnd = () => onRunEnd("loss", payload);
-        } else {
-          onRunEnd("loss", payload);
+        // ZEN losses ride the same sequencing into the minimal Zen overlay.
+        {
+          const endFn = zenMode ? () => onZenEnd("loss", payload) : () => onRunEnd("loss", payload);
+          if (endAwaitingDeathAnim) {
+            endAwaitingDeathAnim = false;
+            pendingRunEnd = endFn;
+          } else {
+            endFn();
+          }
         }
         break;
     }
@@ -20802,6 +20973,9 @@ const UIRenderer = (() => {
      clearSave() wipes it (new campaign, loss, or campaign complete). */
   function persistCampaign(phase) {
     if (!campaign) return;
+    // ZEN ISOLATION: a Zen session never writes the campaign save (the blob
+    // must stay byte-identical), and Zen itself is never serialized.
+    if (zenMode) return;
     const blob = { schema: 1, phase, deckId: selectedDeckId, campaign: campaign.serialize() };
     // For an in-progress run, also checkpoint the deal: the seed replays the
     // EXACT starting board on resume (so a refresh can't be used to fish for a
@@ -20818,7 +20992,8 @@ const UIRenderer = (() => {
     }
     SaveStore.save(blob);
   }
-  function clearSave() { SaveStore.clear(); }
+  // (Zen guard mirrors persistCampaign: no Zen path clears the campaign save.)
+  function clearSave() { if (zenMode) return; SaveStore.clear(); }
 
   /* ---- DECK ROSTER — Pinky → Mamma → Mr. Smith → Lammy --------------------
      Winning a run with a deck PERMANENTLY unlocks the next (DeckUnlocks,
@@ -22133,7 +22308,9 @@ const UIRenderer = (() => {
      campaign's column slots (always 3). */
   function paintColumnPillars(cols) {
     if (!campaign) return;
-    const binding = campaign.getColumnPillars();
+    // ZEN: no Pillars, ever — an empty binding keeps has-pillars off, so the
+    // row stays collapsed and fitBoard reclaims its height (bigger cards).
+    const binding = zenMode ? [] : campaign.getColumnPillars();
     const hasAny = cols.some((_, col) => !!binding[col]);
     // Toggling has-pillars reserves/collapses the top row → the grid box moves.
     if (el.board.classList.contains("has-pillars") !== hasAny) pileGeomCache = null;
@@ -22273,7 +22450,8 @@ const UIRenderer = (() => {
      charged/spent state from run.basesUsed; in setup it shows as charged. */
   function paintColumnBases(cols) {
     if (!campaign) return;
-    const binding = campaign.getColumnBases();
+    // ZEN: no Bases, ever — same collapsed-row contract as the Pillar row.
+    const binding = zenMode ? [] : campaign.getColumnBases();
     const hasAny = cols.some((_, col) => !!binding[col]);
     // Toggling has-bases reserves/collapses the bottom row → the grid box moves.
     if (el.board.classList.contains("has-bases") !== hasAny) pileGeomCache = null;
@@ -25992,6 +26170,144 @@ const UIRenderer = (() => {
      ============================================================ */
   let savedSnapshot = null;   // last loaded save snapshot, for "Continue"
 
+  /* ============================================================
+     ZEN MODE — one plain higher/lower game, ZERO campaign machinery.
+     A fresh unmodified standard deck (suit subset per difficulty.js zen
+     entry) deals onto a board of piles; guess until the deck empties (win)
+     or every pile dies (loss). The engine is the stock GameEngine with NO
+     runConfig (no cols → no Pillars; Same-Charge bank starts empty; ties
+     kill H/L; Same is a real call). While zenMode is set:
+       - nothing campaign-shaped runs: no coins/stickers/pillars/bases/
+         jokers/map/store/subset deals, no Stats tallies, and — critically —
+         persistCampaign()/clearSave() are inert, so the campaign save blob
+         is byte-identical after any Zen session (see the guards there);
+       - body.zen-mode hides the campaign chrome (coin HUD, suit track,
+         Same-Power chip, deal-status payout row) via CSS, and the pillar/
+         base rows are never painted, so fitBoard reclaims their height
+         (bigger cards at Zen's 3-row layouts);
+       - Zen is NEVER serialized: an app kill mid-Zen boots to the menu.
+     ============================================================ */
+  let zenMode = null;   // { diff, deck } while a Zen session is live; null otherwise
+
+  /** The zen deck's rank composition (histogram/inspector "full" view). */
+  function zenDeckCounts() {
+    const counts = {};
+    for (const c of zenMode.deck) counts[c.currentRank] = (counts[c.currentRank] || 0) + 1;
+    return counts;
+  }
+
+  /* Difficulty choice on the HOUSE bottom prompt bar (never a blocking modal),
+     lifted over the main menu via body.zen-picking (see CSS). Labels + card
+     counts read LIVE from difficulty.js; Cancel leaves the menu untouched. */
+  function showZenPicker() {
+    document.body.classList.add("zen-picking");
+    const close = () => { document.body.classList.remove("zen-picking"); hideActionBar(); };
+    const buttons = DifficultyData.zenIds.map(id => {
+      const z = DifficultyData.zen(id);
+      return { label: z.label + " · " + (z.suitCount * 13), cls: id === "easy" ? "primary" : "",
+        onClick: () => { close(); startZen(id); } };
+    });
+    buttons.push({ label: "Cancel", cls: "no", onClick: close });
+    showActionBar("Zen — pick a difficulty", buttons, [],
+      { help: "One quick higher-or-lower deal. No coins, no items, nothing saved — just you and the deck.",
+        dismiss: close });
+  }
+
+  function startZen(diffId) {
+    zenMode = { diff: diffId, deck: null, counted: false };
+    document.body.classList.add("zen-mode");
+    hideMainMenu();
+    startZenDeal();
+  }
+
+  /* Deal one Zen game: fresh deck, fresh engine, fresh empty Same-Charge —
+     also the Play Again / Restart / free-reshuffle path (same difficulty). */
+  function startZenDeal() {
+    // Full screen teardown, mirroring startRun: a quit-to-menu from the
+    // campaign MAP or STORE leaves those fixed overlays up behind the menu
+    // (quitToMenu is navigational-only by design) — without dropping them
+    // here they'd cover the Zen board AND keep live campaign surfaces
+    // (map node taps mutate the in-memory campaign) under a Zen session.
+    // hideProgressionMap also clears body.on-map, so board motion resumes.
+    hideOverlay();
+    closeStore();
+    hideProgressionMap();
+    DeckInspector.close();
+    clearSelection();
+    armedSticker = null;
+    el.board.classList.remove("arming");
+    const z = DifficultyData.zen(zenMode.diff);
+    const deckForDeal = DeckManager.buildZenDeck(z.suitCount);
+    zenMode.deck = deckForDeal;
+    zenMode.counted = false;   // a fresh game counts (ZenStats) at its first guess
+    // Zen is always a FULL-deck deal — clear any campaign subset leftovers so
+    // the histogram reads the true draw pile.
+    subsetDealActive = false;
+    currentDealSubset = null;
+    subsetInitialCounts = null; subsetInitialSuits = null; subsetInitialJokers = 0;
+    const cfg = CampaignState.layoutForPiles(z.piles);
+    // Observability hook (invisible; tests/debug) — same contract as startRun.
+    if (document.body && document.body.dataset) {
+      document.body.dataset.dealSubset = "0";
+      document.body.dataset.dealDeck = String(deckForDeal.length);
+      document.body.dataset.dealPiles = String(cfg.piles);
+    }
+    // No runConfig: no cols (→ no Pillar logic), no sameCharge seed, no
+    // samePower, random seed. The engine is otherwise the campaign engine —
+    // rules identical (ties kill H/L, Same banks/spends the charge).
+    engine = GameEngine.create(deckForDeal, cfg.piles, {});
+    engine.onEvent(handleEvent);
+    buildBoard(cfg.cols);
+    engine.start();
+    reshuffleKey = "";        // re-key: the free Zen offer replaces any priced one
+    renderReshuffleBtn();
+  }
+
+  /* Zen deal over → the MINIMAL overlay: framing line + exactly two actions
+     (Play Again = instant new deal, same difficulty / Menu). No tallies, no
+     coins, no streaks — showOverlay hides those sections when unset. */
+  function onZenEnd(result, payload) {
+    DeckInspector.close();
+    const won = result === "win";
+    const alive = payload.board.aliveCount();
+    if (won) ZenStats.win(zenMode.diff);   // Zen's OWN record — campaign Stats never move
+    if (won) CharMood.win(); else CharMood.loss();
+    queueAnim((done) => {
+      DeckChar.react(won ? "celebrate" : "sad");
+      // Same end-of-deal jingles as the campaign's analogous moments.
+      if (won) Sound.dealWon(); else Sound.dealLost();
+      done();
+    });
+    const show = () => showOverlay({
+      kind: won ? "win" : "lose",
+      title: won ? "Deck cleared" : "Out of piles",
+      msg: won
+        ? "Every card dealt — " + alive + " pile" + (alive === 1 ? "" : "s") + " made it."
+        : "Every pile died with cards still in the deck.",
+      btnLabel: "Play Again",
+      action: startZenDeal,
+      btn2Label: "Menu",
+      btn2Action: zenQuitToMenu,
+    });
+    // A win keeps the shared celebration beat (network pulse cinematic) before
+    // the overlay; a loss shows as soon as the death presentation has played
+    // (the "lost" handler already sequences that via pendingRunEnd).
+    if (won) playWinCinematic(payload.board, show); else show();
+  }
+
+  /** Leave Zen (quit/menu). Purely navigational — the campaign save was never
+      touched, so Continue works exactly as before the session. */
+  function zenTeardown() {
+    zenMode = null;
+    document.body.classList.remove("zen-mode", "zen-picking");
+    hideActionBar();
+  }
+  function zenQuitToMenu() {
+    zenTeardown();
+    savedSnapshot = SaveStore.load();
+    showMainMenu(!!(savedSnapshot && savedSnapshot.campaign));
+  }
+
   function buildMenu(container, items) {
     container.innerHTML = "";
     items.forEach(it => {
@@ -26017,6 +26333,9 @@ const UIRenderer = (() => {
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
     items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
       action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
+    // ZEN — the standalone higher/lower game. No unlock gating; the difficulty
+    // choice rides the bottom prompt bar over this menu (Cancel = untouched).
+    items.push({ label: "Zen", ico: "swirl", action: showZenPicker });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
@@ -26044,7 +26363,15 @@ const UIRenderer = (() => {
 
   /* ---- in-game menu (pause) ---- */
   function showGameMenu() {
-    buildMenu(el.gameMenuButtons, [
+    // ZEN: no campaign actions here — never "New Run". Restart deals a fresh
+    // Zen game at the SAME difficulty; Quit routes through the Zen teardown
+    // (navigational only — the campaign save was never written).
+    buildMenu(el.gameMenuButtons, zenMode ? [
+      { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
+      { label: "Restart", ico: "reroll", action: () => { closeGameMenu(); startZenDeal(); } },
+      { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
+      { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
+    ] : [
       { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
       { label: "How to Play", ico: "search", action: showManual },
       { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
@@ -26057,6 +26384,7 @@ const UIRenderer = (() => {
   function closeGameMenu() { el.gameMenu.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
   function quitToMenu() {
     closeGameMenu();
+    if (zenMode) zenTeardown();   // leaving Zen — the campaign save was never touched
     // Navigational only: the existing checkpoint (sticker phase / store) stays in
     // localStorage, so "Continue" resumes it. No game state is mutated here.
     savedSnapshot = SaveStore.load();
@@ -26083,8 +26411,21 @@ const UIRenderer = (() => {
       [s.bestCampaignDopamine, "Most coins in a run"],
       [s.bestEndless || 0, "Deepest endless stage"],
     ];
+    // ZEN section — Zen mode's OWN per-difficulty record (ZenStats; a separate
+    // store, so campaign tallies above never move from Zen play). All three
+    // difficulties always show, zeros included — same as the campaign tiles.
+    const zenRows = DifficultyData.zenIds.map(id => {
+      const z = DifficultyData.zen(id);
+      const s = ZenStats.get(id);
+      return '<div class="sz-row"><span class="sz-diff">' + escHtml(z.label) + '</span>' +
+        '<span class="sz-num"><b>' + s.games + '</b> played</span>' +
+        '<span class="sz-num"><b>' + s.wins + '</b> won</span>' +
+        '<span class="sz-num"><b>' + s.cardsFlipped + '</b> cards</span>' +
+        '<span class="sz-num"><b>' + s.correctGuesses + '</b> correct</span></div>';
+    }).join("");
     el.statsGrid.innerHTML = tiles.map(([v, l]) =>
-      '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("");
+      '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("") +
+      '<div class="stats-zen"><div class="sz-head">Zen</div>' + zenRows + '</div>';
     el.statsOverlay.classList.remove("hidden");
     updateBoardMotion();
   }
@@ -26393,7 +26734,9 @@ const UIRenderer = (() => {
       getStats: () => {
         // Two order-free composition maps: what's left to draw, and the full
         // current-stage deck (reflecting +1/−1 rank stickers). Counts only.
-        const full = DeckStats.fromCounts(campaign ? campaign.stageComposition() : {});
+        // ZEN inspects the ZEN deck, never the campaign's.
+        const full = DeckStats.fromCounts((zenMode && zenMode.deck)
+          ? zenDeckCounts() : (campaign ? campaign.stageComposition() : {}));
         // During active play, "remaining" is the live run deck. Between runs
         // (e.g. opened from the pack-pick screen in the store, where there's no
         // run in progress) there's no draw underway, so show the whole current
@@ -26408,7 +26751,7 @@ const UIRenderer = (() => {
       // Balatro-style card list: every card of the current stage (rank+suit+
       // Imprints), with the set of ids still in the draw pile. Order-free.
       getCards: () => {
-        const cards = campaign ? campaign.getRunDeck() : [];
+        const cards = (zenMode && zenMode.deck) ? zenMode.deck : (campaign ? campaign.getRunDeck() : []);
         const playing = engine && engine.getStatus() === "playing";
         const remaining = playing
           ? new Set(engine.getDeck()._peekAll().map(c => c.id))
@@ -26427,7 +26770,7 @@ const UIRenderer = (() => {
     el.menuBtn.addEventListener("click", () => { Sound.tap(); showGameMenu(); });
     if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
-    el.statsReset.addEventListener("click", () => { Stats.reset(); showStats(); });
+    el.statsReset.addEventListener("click", () => { Stats.reset(); ZenStats.reset(); showStats(); });
     el.manualClose.addEventListener("click", closeManual);
     el.gameMenuClose.addEventListener("click", closeGameMenu);
     // Tap the dim backdrop (the overlay itself, not its panel) to dismiss.

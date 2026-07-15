@@ -16,8 +16,13 @@ const ITEMS = join(HERE, "..", "items.js");
 const DIFFICULTY = join(HERE, "..", "difficulty.js");
 const TUTORIAL = join(HERE, "..", "tutorial.js");
 
-/** Load the game's modules with a stubbed DOM. Returns the engine modules. */
-export function loadGame() {
+/** Load the game's modules with a stubbed DOM. Returns the engine modules.
+    `opts.difficultySource` replaces the difficulty.js source (validation tests
+    load deliberately-malformed data); `opts.localStorage` injects a storage
+    stub (persistence tests for the localStorage-backed stores — without it
+    they degrade to their no-storage no-op, exactly like the browser's
+    private mode). */
+export function loadGame(opts = {}) {
   const html = readFileSync(HTML, "utf8");
   // The page has more than one inline <script> (e.g. the GA4/gtag init in <head>);
   // pick the GAME script — the one that defines the engine modules.
@@ -29,8 +34,10 @@ export function loadGame() {
   // The page loads the shop-item DATA (items.js), the difficulty bands
   // (difficulty.js) and the tutorial copy (tutorial.js) before the game
   // script; mirror that here so ItemData, DifficultyData and TutorialData
-  // find their globals.
-  const code = readFileSync(ITEMS, "utf8") + "\n;" + readFileSync(DIFFICULTY, "utf8")
+  // find their globals. opts.difficultySource swaps in a mutated difficulty
+  // file (the zen validation tests load deliberately-malformed data).
+  const difficultyCode = opts.difficultySource || readFileSync(DIFFICULTY, "utf8");
+  const code = readFileSync(ITEMS, "utf8") + "\n;" + difficultyCode
     + "\n;" + readFileSync(TUTORIAL, "utf8") + "\n;" + gameCode;
 
   // Every DOM access returns a chainable no-op proxy. The modules under test
@@ -63,6 +70,9 @@ export function loadGame() {
   };
 
   const sandbox = {
+    // Optional storage stub — a declared-but-undefined parameter keeps
+    // `typeof localStorage === "undefined"` true when not provided.
+    localStorage: opts.localStorage,
     document: documentStub,
     // The Capacitor shim (NativeApp) lives in its own head <script>; the game
     // script only calls boot()/event() — stub the web (non-native) behavior.
@@ -85,7 +95,8 @@ export function loadGame() {
     ...Object.keys(sandbox),
     code +
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
-      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData, TutorialData };"
+      " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData," +
+      " TutorialData, DifficultyData, Stats, ZenStats };"
   );
   return factory(...Object.values(sandbox));
 }

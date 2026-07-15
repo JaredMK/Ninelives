@@ -32,6 +32,15 @@
                             this much per endless stage, starting from the
                             selected tier's stage-3 bands
 
+   ZEN MODE (the standalone higher/lower game — no campaign, no coins, no
+   items) reads its three difficulties from the `zen` block:
+     zen.<id>.label      the player-facing difficulty name
+     zen.<id>.suitCount  how many suits the fresh standard deck keeps
+                         (1-4; suits enter in the fixed order ♥ ♠ ♦ ♣, so
+                         2 = ♥♠, 3 = ♥♠♦, 4 = the full deck). Cards dealt
+                         = suitCount × 13 — no jokers, no stickers, ever.
+     zen.<id>.piles      how many piles the deck is dealt onto
+
    Malformed entries do NOT silently disappear: the game validates this file
    on load and fails loudly in the console naming the tier and field.
 ============================================================================ */
@@ -68,5 +77,13 @@ const NINELIVES_DIFFICULTY = {
       jokerCap: 0,
       guaranteedMapJoker: false,
     },
+  },
+
+  // ZEN MODE difficulties (see the header). Each is one plain higher/lower
+  // game: a fresh suitCount×13 standard deck dealt onto `piles` piles.
+  zen: {
+    easy:   { label: "Easy",   suitCount: 2, piles: 7 },
+    medium: { label: "Medium", suitCount: 3, piles: 8 },
+    hard:   { label: "Hard",   suitCount: 4, piles: 9 },
   },
 };
