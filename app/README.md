@@ -100,9 +100,21 @@ one, the build script's final external-URL scan throws.
 4. Free-team builds expire after 7 days — just Run again from Xcode. (A paid
    Developer account, needed for TestFlight/App Store anyway, removes that.)
 
-Icon + launch screen are already wired: the equals-synapse logo
-(`icons/logo.svg`) rendered onto the cream felt as the 1024 app icon and the
-2732 splash set; the status bar is styled dark-on-cream by the shim.
+Icon + launch screen are already wired: the **app icon** is the
+equals-synapse logo (`icons/logo.svg`) rendered onto the cream felt as the
+1024 icon; the **launch screen** is a flat solid `#f6f3ec` 2732 splash set
+(no art — it's just the backdrop). With `launchAutoHide: false` in
+`capacitor.config.json` the native splash covers launch **and** the webview
+load/fetch; the game's in-page `#bootSplash` (JarHead Labs mason-jar mark,
+inlined in `index.html`) takes over the moment the page paints, covers
+hydration + init, then fades into the main menu. The shim hides the native
+splash only after the HTML splash has painted, and the status bar is styled
+dark-on-cream by the shim.
+
+Changing the native side of that handoff (the config or the splash PNGs)
+needs one `npm run sync` + an Xcode rebuild; the HTML boot splash is plain
+game code, so in DEV (remote-URL) mode it reaches the app with a normal
+Pages deploy — no rebuild.
 
 ## What behaves differently inside the webview
 

@@ -6,6 +6,48 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#ECE3DA" />
 <title>Shoulda Said Same</title>
+<!-- ── BOOT SPLASH — CRITICAL CSS ────────────────────────────────────────────
+     Must sit BEFORE every other stylesheet/script so the #bootSplash element
+     (the first thing in <body>) is styled the instant it parses: the raw,
+     un-initialized play screen ships visible in the markup and is only covered
+     by showMainMenu() at the END of init — on a slow fetch/hydrate that gap is
+     seconds of naked chrome. Zero external deps here (system font stack, flat
+     hex colors) so the splash can never wait on fonts or the main CSS.
+     Dismissal (min-hold → fade → DOM removal) is wired into the boot callback
+     at the bottom of the game script; the fade duration below must match
+     BOOT_SPLASH_FADE_MS there. -->
+<style>
+  #bootSplash {
+    position: fixed;
+    inset: 0;                    /* fixed + inset 0 + viewport-fit=cover ⇒ paints under the notch/home-bar safe areas too */
+    z-index: 100000;             /* above every overlay/toast in the main CSS (max there: 2000) */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: #f6f3ec;         /* JarHead cream — matches the native launch splash for a seamless handoff */
+    opacity: 1;
+    transition: opacity 400ms ease;
+  }
+  #bootSplash svg { display: block; width: min(34vw, 150px); height: auto; }
+  #bootSplash .boot-wordmark {
+    /* System stack on purpose: the game's web fonts load later — the wordmark
+       must never flash-swap or wait. */
+    font: 600 clamp(18px, 5vw, 23px)/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    letter-spacing: 0.05em;
+    color: #20313a;              /* logo ink */
+  }
+  /* Fade-out: input falls through immediately (the menu below is ready);
+     the node itself is removed from the DOM right after the transition. */
+  #bootSplash.boot-fade { opacity: 0; pointer-events: none; }
+</style>
+<!-- Splash first-paint stamp: the first rAF = the first rendered frame, i.e.
+     the moment the player actually SEES the splash — the boot callback's
+     minimum hold counts from here. Lives in <head> BEFORE the font links on
+     purpose: inline scripts after a pending stylesheet block on it (a slow
+     fonts CDN would push the stamp seconds late and stretch the hold). -->
+<script>requestAnimationFrame(function () { window.__bootSplashAt = performance.now(); });</script>
 <!-- Google tag (gtag.js) — anonymous playtesting analytics (GA4). Loads async so
      it never blocks or delays gameplay; if it's blocked/unavailable the game runs
      normally (see the fail-silent track() helper in the script). -->
@@ -99,6 +141,13 @@ const NativeApp = (() => {
       the app it runs after native saves have hydrated into localStorage. */
   function boot(start) {
     if (!native) { start(); return; }
+    // Native SplashScreen has launchAutoHide:false (capacitor.config.json), so
+    // the flat-cream launch image keeps covering the page through the webview
+    // load/fetch. Hide it only after the HTML #bootSplash has actually PAINTED
+    // — two rAFs ⇒ one committed frame — so the handoff is cream→cream with no
+    // flash of un-styled page in between. (Web: unreachable — native-gated.)
+    const SS = plugin("SplashScreen");
+    if (SS && SS.hide) requestAnimationFrame(() => requestAnimationFrame(() => { SS.hide().catch(() => {}); }));
     installWriteThrough();
     hydrate().catch(() => {}).then(() => { uiSetup(); start(); });
   }
@@ -5826,6 +5875,41 @@ const NativeApp = (() => {
 </style>
 </head>
 <body>
+  <!-- ── BOOT SPLASH — FIRST element in <body>, so the first painted frame is
+       always JarHead cream + mark, never the raw play-screen chrome below.
+       The mark is the jarhead-logo.svg art inlined (background rect dropped —
+       the container paints the cream; ids namespaced boot- so they can't
+       collide with the icon-sprite defs). Removed from the DOM by the boot
+       callback after init + min-hold + fade — it must not linger over input,
+       and the document-capture guards (stale-tap, TUT2 gate) never see it. -->
+  <div id="bootSplash" aria-hidden="true">
+    <svg viewBox="296 96 432 800" xmlns="http://www.w3.org/2000/svg">
+      <!-- floating shapes escaping the jar -->
+      <circle cx="487" cy="186" r="36" fill="#7b4fc9"/>
+      <circle cx="549" cy="255" r="23" fill="#20b5c6"/>
+      <path d="M596 128 q0 -16 16 -16 l64 0 q16 0 16 16 l0 46 q0 8 -8 8 l-30 0 0 24 q0 16 -16 16 l-26 0 q-16 0 -16 -16 z" fill="#f5941d"/>
+      <!-- jar lid -->
+      <rect x="366" y="298" width="292" height="62" rx="22" fill="#f6f3ec" stroke="#20313a" stroke-width="34"/>
+      <!-- jar body -->
+      <path d="M395 360 l0 28 q0 18 -14 30 q-56 44 -56 112 l0 246 q0 90 90 90 l194 0 q90 0 90 -90 l0 -246 q0 -68 -56 -112 q-14 -12 -14 -30 l0 -28"
+            fill="#f6f3ec" stroke="#20313a" stroke-width="34" stroke-linejoin="round"/>
+      <!-- liquid, clipped to the jar interior -->
+      <clipPath id="bootJarInner">
+        <path d="M412 360 l0 28 q0 26 -20 42 q-50 40 -50 100 l0 246 q0 73 73 73 l194 0 q73 0 73 -73 l0 -246 q0 -60 -50 -100 q-20 -16 -20 -42 l0 -28 z"/>
+      </clipPath>
+      <g clip-path="url(#bootJarInner)">
+        <path d="M330 620 q60 -34 120 -12 q78 28 150 6 q46 -14 100 4 l0 280 -370 0 z" fill="#20b5c6"/>
+        <circle cx="566" cy="682" r="21" fill="#f6f3ec"/>
+        <circle cx="506" cy="740" r="16" fill="#f6f3ec"/>
+      </g>
+      <!-- face -->
+      <ellipse cx="447" cy="492" rx="17" ry="27" fill="#20313a"/>
+      <ellipse cx="577" cy="492" rx="17" ry="27" fill="#20313a"/>
+      <path d="M462 552 q50 40 100 0" fill="none" stroke="#20313a" stroke-width="24" stroke-linecap="round"/>
+    </svg>
+    <div class="boot-wordmark">JarHead Labs</div>
+  </div>
+
   <!-- Stable small-viewport probe: its height is 100svh in px, which does NOT
        change when Safari's chrome shows/hides. fitBoard reads it instead of
        innerHeight/visualViewport so pile size stays put on scroll/chrome. -->
@@ -6630,7 +6714,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.71 · the menu glow chills out";
+const APP_VERSION = "v4.72 · a jar smiles while the cards shuffle in";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26140,8 +26224,42 @@ const HOOKS = {
 /* ---- boot ---- */
 /* On the web this calls UIRenderer.init() synchronously (unchanged timing);
    inside the iOS app it first hydrates native-storage saves into localStorage
-   (see the NativeApp shim in <head>), then boots. */
-NativeApp.boot(() => UIRenderer.init());
+   (see the NativeApp shim in <head>), then boots.
+
+   BOOT SPLASH dismissal lives HERE — tied to init actually completing, never
+   a blind timer. #bootSplash (first element in <body>) has been covering the
+   raw play-screen chrome since first paint; once init has built and shown the
+   main menu we hold it to a MINIMUM of BOOT_SPLASH_HOLD_MS from its first
+   paint (fast boots don't strobe), fade it over BOOT_SPLASH_FADE_MS (the CSS
+   transition in the head splash block — keep the two in sync), then REMOVE
+   the node so nothing lingers over input. A slow init (> the hold) fades
+   immediately on completion. */
+const BOOT_SPLASH_HOLD_MS = 900;
+const BOOT_SPLASH_FADE_MS = 400;
+function dismissBootSplash() {
+  const splash = document.getElementById("bootSplash");
+  if (!splash) return;
+  const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  // __bootSplashAt is stamped by the head rAF script (the first rendered
+  // frame ≈ the splash's first paint). Missing (test harness/odd embed) ⇒
+  // count from navigation start, which only ever shortens the hold.
+  const shownAt = (typeof window !== "undefined" && window.__bootSplashAt) || 0;
+  const wait = Math.max(0, BOOT_SPLASH_HOLD_MS - (now - shownAt));
+  setTimeout(() => {
+    splash.classList.add("boot-fade");   // opacity→0 + pointer-events:none (input reaches the menu at once)
+    // Remove AFTER the transition (small margin for frame jitter): the splash
+    // must be gone from the DOM, not opacity-0 on top of the game.
+    setTimeout(() => splash.remove(), BOOT_SPLASH_FADE_MS + 100);
+  }, wait);
+}
+NativeApp.boot(() => {
+  // try/finally, NOT try/catch: an init() failure must still surface as an
+  // uncaught error in the console (never swallowed) — but the splash comes
+  // down either way, because a frozen full-screen cream panel would HIDE the
+  // broken state from the player and the error from a tester's eyes.
+  try { UIRenderer.init(); }
+  finally { dismissBootSplash(); }
+});
 </script>
 </body>
 </html>

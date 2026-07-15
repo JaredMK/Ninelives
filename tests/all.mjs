@@ -44,6 +44,7 @@ import { run as difficulty } from "./difficulty.test.mjs";
 import { run as smooth1 } from "./smooth1.test.mjs";
 import { run as uifix1 } from "./uifix1.test.mjs";
 import { run as tut2 } from "./tut2.test.mjs";
+import { run as boot2 } from "./boot2.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -88,6 +89,7 @@ const SUITES = [
   ["smooth1", smooth1],
   ["uifix1", uifix1],
   ["tut2", tut2],
+  ["boot2", boot2],
 ];
 
 let pass = 0,
