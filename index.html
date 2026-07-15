@@ -4957,6 +4957,19 @@ const NativeApp = (() => {
     border: 1px solid #93304c; box-shadow: 0 2px 6px rgba(120,45,70,0.3); }
   .mn-pack .mpk-badge i { font-style: normal; }
 
+  /* PACK2 — REVEALED +2 pack: both committed card faces, slightly fanned like a
+     held pair, in (roughly) the sealed pack's footprint — NODE_HALF.pack is
+     unchanged, so edge routing/obstacle checks still hold. Faces reuse the
+     .node-card markup exactly (red suits, ∅ Removal, ★ Joker all inherit);
+     each is scaled a touch so the pair reads on the 390px map without
+     widening the node. The pair shares ONE drop-shadow (per-face shadows
+     double up in the overlap). */
+  .mn-pack2 { position: relative; display: block; width: 52px; height: 58px;
+    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+  .mn-pack2 .node-card { position: absolute; top: 50%; left: 50%; filter: none; }
+  .mn-pack2 .node-card:first-child { transform: translate(-50%,-50%) scale(0.8) rotate(-9deg) translate(-12px, 1px); }
+  .mn-pack2 .node-card:last-child { transform: translate(-50%,-50%) scale(0.8) rotate(9deg) translate(12px, 1px); z-index: 1; }
+
   /* PASS point — a corridor slot freed by the pack-chain merge: a minimal
      trail dot the marker glides past. Never interactive. */
   .pm-node.t-pass { pointer-events: none; }
@@ -6728,7 +6741,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.74 · every first climb is the same good climb";
+const APP_VERSION = "v4.75 · two-card stops stopped keeping secrets";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12048,6 +12061,14 @@ const CampaignState = (() => {
     // so the card SHOWN is exactly the card GRANTED. Persisted so the shown/granted
     // card survives a refresh; wiped on reset()/startNewRun().
     let nodeCards = {};
+    // PACK2 — REVEALED +2 packs: a pack node worth exactly 2 cards commits BOTH
+    // exact cards at map generation so the map shows them face-up (the same
+    // shown == granted contract +1 nodes have): { nodeId: [cardId|"B", cardId|"B"] }.
+    // A slot may lock the Blank sentinel (never a Joker — +1-node rule); 3+
+    // packs stay sealed and keep rolling at resolution. Kept SEPARATE from
+    // nodeCards so the Joker-sentinel logic (jokersHeld / JOKER3 scrub /
+    // unveilJokerNodes) never sees pack slots. Persisted; wiped per run.
+    let packCards = {};
     let totalCorrectGuesses = 0;   // summed across every WON run this campaign
     let runsCompleted = 0;         // how many runs have ended (0 .. TOTAL_RUNS)
     // Whole-run (campaign-wide) guess totals for the end-of-run summary: correct
@@ -12254,7 +12275,7 @@ const CampaignState = (() => {
       } else {
         runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       }
-      nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {};
+      nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {}; packCards = {};
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
       // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
       // stale one is unreachable junk). Normal ranks never need this — they're
@@ -12296,6 +12317,12 @@ const CampaignState = (() => {
     function reservedSet(exceptNodeId) {
       const s = new Set(ownedIds);
       for (const k in nodeCards) { if (exceptNodeId == null || Number(k) !== exceptNodeId) s.add(nodeCards[k]); }
+      // PACK2: cards committed to a REVEALED +2 pack are spoken for too — the
+      // face shown on the pack node can only ever be granted by that node.
+      for (const k in packCards) {
+        if (exceptNodeId != null && Number(k) === exceptNodeId) continue;
+        for (const id of packCards[k]) s.add(id);
+      }
       return s;
     }
     /** Choose a card id to draft for a PACK. Prefers the current phase's suit;
@@ -12310,7 +12337,11 @@ const CampaignState = (() => {
         const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
         if (any.length) pool = any;
       }
-      if (!pool.length) return null;
+      // PACK2 made whole-deck reservation ROUTINE (every revealed +2 pack claims
+      // its exact pair at generation), so even the any-card pool can genuinely
+      // empty — mint a phase-suit duplicate instead of failing the grant, the
+      // same exhausted-pool rule every other draft site follows.
+      if (!pool.length) return mintSuitCardId(phaseSuit());
       return pool[Math.floor(Math.random() * pool.length)];
     }
     /** Mint a fresh DUPLICATE card of `suit` (random rank, no stickers/mods) into
@@ -12318,8 +12349,10 @@ const CampaignState = (() => {
         draft: a suit has only 13 unique base cards, so once those are spoken for a
         pack mints duplicates — that's how a +N pack always grants exactly N cards
         of its suit (and how decks grow past 52, the "bigger deck = worse" knob). */
-    function mintSuitCardId(suit) {
-      const rank = MIN_RANK + Math.floor(Math.random() * (MAX_RANK - MIN_RANK + 1));
+    function mintSuitCardId(suit, rank) {
+      // `rank` is normally random; forcedCardId passes an exact rank so an
+      // authored pin can be honored even when every existing copy is claimed.
+      if (rank == null) rank = MIN_RANK + Math.floor(Math.random() * (MAX_RANK - MIN_RANK + 1));
       const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank,
                      modifications: [], stickers: [], compoundHits: 0 };
       baseDeck.push(card);
@@ -12519,6 +12552,9 @@ const CampaignState = (() => {
           // explicit any-card node: never a Joker/Blank (see pickDraftId)
           const any = baseDeck.filter(c => !taken.has(c.id) && !c.joker && !c.blank).map(c => c.id);
           if (any.length) pool = any;
+          // even the any-card pool can empty now that revealed +2 packs
+          // reserve at generation — mint the node's suit like the branch below
+          else if (!pool.length) return mintSuitCardId(suitForNode(node));
         } else if (pool.length === 0) {
           // BUGFIX: a stage can carry MORE +1 nodes than its suit has unique
           // cards (e.g. 15 pickups vs 13 ♦) — the old any-card fallback then
@@ -12532,8 +12568,9 @@ const CampaignState = (() => {
       return pool[Math.floor(rng() * pool.length)];
     }
     /** Resolve a node's optional `forceCard` (e.g. "K♦", "10♠") to a base-deck id,
-        so a +1 card node can pin the EXACT card it grants. Returns null if unset /
-        unparseable / already claimed (callers then roll normally). */
+        so a +1 card node can pin the EXACT card it grants — minting a duplicate
+        at that rank when every existing copy is claimed. Returns null only if
+        unset / unparseable (callers then roll normally). */
     function forcedCardId(node) {
       if (!node || !node.forceCard) return null;
       const label = String(node.forceCard).trim();
@@ -12542,7 +12579,13 @@ const CampaignState = (() => {
       if (!rank) return null;
       const taken = reservedSet(node.id);
       const match = baseDeck.find(c => c.suit === suitChar && c.currentRank === rank.value && !taken.has(c.id));
-      return match ? match.id : null;
+      if (match) return match.id;
+      // Every copy of the pinned card is spoken for — ROUTINE once revealed
+      // +2 packs reserve whole suit pools at generation. The author's pin is
+      // the source of truth, so MINT a duplicate at the exact rank (the same
+      // exhausted-pool rule as every other draft site; idempotent through
+      // commitNodeCard — the fresh duplicate is the untaken match next call).
+      return mintSuitCardId(suitChar, rank.value);
     }
     /** The card a +1 node is locked to (assigns + caches it on first call). A
         forced card wins; otherwise a deterministic distinct roll of the node's
@@ -12559,6 +12602,42 @@ const CampaignState = (() => {
       }
       return nodeCards[node.id];
     }
+    /** PACK2 — DETERMINISTIC roll for ONE slot of a revealed +2 pack: seeded by
+        (runSeed, node.id, slot), mirroring draftIdForNode. May lock the BLANK
+        sentinel at the +1-node rule (rollMapSpecial allowJoker=false — a pack
+        slot NEVER locks a random Joker); otherwise a distinct card of the
+        node's suit (stage packs) or a per-slot random suit (endless/altSuits),
+        minting a duplicate when the suit's unique pool is spoken for — exactly
+        how a sealed pack keeps granting an exhausted suit. */
+    function packSlotIdFor(node, slot) {
+      const rng = makeRng((runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0) ^ (Math.imul(slot + 1, 0x9e3779b1) >>> 0));
+      const special = rollMapSpecial(rng, false);
+      // `true` can only come from the pinned TEST hook (allowJoker=false already
+      // folds production Joker rolls to null) — fall through to a normal card,
+      // the same fallback a capped Joker half takes. Only a Blank may lock.
+      if (special === false) return SPECIAL_BLANK;
+      const taken = reservedSet(null);   // owned + all locks incl. this pack's earlier slot
+      const endlessNode = (node && node.suit === "★")
+        || (node && typeof node.phase === "number" && node.phase >= PHASE_SUITS.length)
+        || rules().altSuits;   // alt decks: every pack slot rolls all four suits
+      const suit = endlessNode ? ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)]
+        : ((node.suit && node.suit !== "★") ? node.suit : suitForNode(node));
+      const pool = idsOfSuit(suit).filter(id => !taken.has(id));
+      if (!pool.length) return mintSuitCardId(suit);   // unique suit pool exhausted → mint a duplicate
+      return pool[Math.floor(rng() * pool.length)];
+    }
+    /** The two exact cards a REVEALED +2 pack is locked to (assigns + caches on
+        first call; slot 1's roll sees slot 0 through reservedSet since the
+        partial array is stored live). Cached entries survive regeneration and
+        node clearing — a cleared pack keeps displaying its granted faces. */
+    function commitPackCards(node) {
+      if (node == null || node.id == null) return null;
+      if (packCards[node.id] == null) {
+        const out = packCards[node.id] = [];
+        for (let slot = 0; slot < 2; slot++) out.push(packSlotIdFor(node, slot));
+      }
+      return packCards[node.id];
+    }
     /** Lock a card onto EVERY +1 node up front (at map generation), so each shows
         its exact card face-up and stays fixed for the whole run. Forced-card nodes
         claim first (so their exact card is honored), then the rest roll distinct
@@ -12568,6 +12647,15 @@ const CampaignState = (() => {
       runMap.nodes.filter(n => n.type === "pickup")
         .sort((a, b) => ((a.forceCard ? 0 : 1) - (b.forceCard ? 0 : 1)) || (a.id - b.id))
         .forEach(n => commitNodeCard(n));
+      // PACK2: every REVEALED +2 pack commits its exact pair right after the
+      // pickups (packs never outrank a +1 node's claim), in id order — fully
+      // deterministic, identical on every re-render/regeneration. Merged packs
+      // are 4+ so only genuine 2-stops commit. A CLEARED pack without a cached
+      // pair (legacy save — its contents were already granted and can't be
+      // reconstructed) is skipped: it falls back to the sealed-stack art.
+      runMap.nodes.filter(n => n.type === "pack" && n.packCount === 2 && clearedNodes.indexOf(n.id) === -1)
+        .sort((a, b) => a.id - b.id)
+        .forEach(n => commitPackCards(n));
       unveilJokerNodes();   // the guaranteed Joker node stays face-up on every regeneration
     }
     /** Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
@@ -12741,8 +12829,19 @@ const CampaignState = (() => {
             if (cid === SPECIAL_JOKER) ownedIds.push(mintJokerId());
             else if (cid != null && cid !== SPECIAL_BLANK && ownedIds.indexOf(cid) === -1) { ownedIds.push(cid); rollGrantStickers(findById(cid)); }
           } else if (draft) {
-            const count = draft.packCount || 3;
-            for (let i = 0; i < count; i++) { const c = pickSuitDraftId(draft.suit || phaseSuit()); if (c == null) break; ownedIds.push(c); rollGrantStickers(findById(c)); }
+            // PACK2: a REVEALED +2 pack grants its committed pair (shown ==
+            // granted even on a jump); Blanks are skipped like the pickup
+            // branch above (no removal picker mid-jump). Sealed packs roll.
+            const locked = packCards[draft.id];
+            if (locked) {
+              for (const cid of locked) {
+                if (cid === SPECIAL_BLANK || cid === SPECIAL_JOKER) continue;
+                if (ownedIds.indexOf(cid) === -1) { ownedIds.push(cid); rollGrantStickers(findById(cid)); }
+              }
+            } else {
+              const count = draft.packCount || 3;
+              for (let i = 0; i < count; i++) { const c = pickSuitDraftId(draft.suit || phaseSuit()); if (c == null) break; ownedIds.push(c); rollGrantStickers(findById(c)); }
+            }
           }
           rowNodes.forEach(n => clearedNodes.push(n.id));
           // crossing a phase-boss row unlocks the next stage at the CURRENT
@@ -12766,6 +12865,16 @@ const CampaignState = (() => {
       /** Peek a node's already-committed card WITHOUT assigning one (for display of
           already-cleared nodes); null if the node never committed a card. */
       nodeCard(node) { const id = node && node.id != null ? nodeCards[node.id] : null; return id == null ? null : (specialCardFor(id) || findById(id)); },
+      /** PACK2 — the two exact display cards a REVEALED +2 pack is committed to
+          (null for sealed/uncommitted packs). A Blank slot yields the transient
+          ∅ display card, exactly like nodeCard. Read-only: commitment happens
+          in the generation lock pass (lockAllPickupCards), never on peek. */
+      packNodeCards(node) {
+        const arr = (node && node.id != null) ? packCards[node.id] : null;
+        if (!arr) return null;
+        const cards = arr.map(id => specialCardFor(id) || findById(id));
+        return cards.every(Boolean) ? cards : null;
+      },
       /** Resolve a pickup node → add its committed exact card (the one shown on the
           map). Falls back to a random draft for node literals without an id (tests).
           SPECIALS: a Joker is minted into the deck NOW and owned like any card; a
@@ -12788,6 +12897,22 @@ const CampaignState = (() => {
           (P(special) = 1/53, then 50/50): a Joker joins the deck like any card; a
           Blank is returned un-owned (the caller runs its choose-to-remove flow). */
       resolvePack(node) {
+        // PACK2 — a REVEALED +2 pack grants EXACTLY its committed face-up pair
+        // (never a fresh roll: shown == granted, the +1-pickup contract). A
+        // committed Blank is returned UN-OWNED (the caller runs its removal
+        // flow); real cards join the deck and roll Mr. Smith's grant stickers.
+        // Gated on packCount === 2 as well as the cache: a node LITERAL that
+        // borrows a real node's id but a different count (tests/QA) rolls.
+        const locked = (node && node.id != null && node.packCount === 2) ? packCards[node.id] : null;
+        if (locked) {
+          return locked.map(sid => {
+            if (sid === SPECIAL_BLANK) return specialCardFor(SPECIAL_BLANK);
+            const card = findById(sid);
+            if (!card) return null;
+            if (ownedIds.indexOf(sid) === -1) ownedIds.push(sid);   // reserved run-wide, so never a dup — guarded anyway
+            return rollGrantStickers(card);
+          }).filter(Boolean);
+        }
         const out = [];
         const n = (node && node.packCount) || 3;
         // ENDLESS packs (node suit "★" / endless phase) grant ALL FOUR suits:
@@ -13781,6 +13906,9 @@ const CampaignState = (() => {
           revealedNodes: revealedNodes.slice(),   // mystery (?) nodes already revealed
 
           nodeCards: { ...nodeCards },   // single-card nodes' committed exact cards (shown == granted)
+          // PACK2: revealed +2 packs' committed pairs — additive key (older
+          // clients ignore it; older saves lack it and re-commit on restore).
+          packCards: Object.keys(packCards).reduce((o, k) => { o[k] = packCards[k].slice(); return o; }, {}),
           currentStage, currentRunIndex,
           totalCorrectGuesses, runsCompleted,
           totalCardsFlipped, totalCoinsEarned,
@@ -13826,6 +13954,13 @@ const CampaignState = (() => {
         clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
         revealedNodes = Array.isArray(s.revealedNodes) ? s.revealedNodes.slice() : [];   // pre-mystery saves: none revealed
         nodeCards = (s.nodeCards && typeof s.nodeCards === "object") ? { ...s.nodeCards } : {};
+        // PACK2: committed +2-pack pairs restore exactly as saved. LEGACY
+        // saves (no key): un-cleared 2-packs re-commit deterministically in
+        // the lock pass below — which must run AFTER baseDeck/nextCardId
+        // restore, since an exhausted-suit slot MINTS into the restored deck.
+        packCards = {};
+        if (s.packCards && typeof s.packCards === "object")
+          for (const k in s.packCards) if (Array.isArray(s.packCards[k])) packCards[k] = s.packCards[k].slice();
         nodePos = (s.nodePos != null) ? s.nodePos : null;
         // Per-stage entry decks: the map regenerates deterministically from
         // (runSeed, stageEntryDecks). Legacy saves (no field) get a one-time
@@ -23043,7 +23178,15 @@ const UIRenderer = (() => {
     if (n.type === "boss") return mapDealCluster(n, true);
     if (n.type === "deal") return mapDealCluster(n, false);
     if (n.type === "store") return mapShopStall();
-    if (n.type === "pack") return mapPackStack(n);                      // 2+ cards → sealed pack (count only)
+    if (n.type === "pack") {
+      // PACK2: a +2 pack is REVEALED — both committed cards face-up, the exact
+      // single-card face markup, fanned as a pair (mystery hiding happens in
+      // the caller, so an un-arrived "?" still conceals this). 3+ stays sealed;
+      // so does a legacy cleared 2-pack that never cached its pair.
+      const pair = campaign.packNodeCards && campaign.packNodeCards(n);
+      if (pair && pair.length === 2) return '<span class="mn-pack2">' + nodeCardHtml(pair[0]) + nodeCardHtml(pair[1]) + '</span>';
+      return mapPackStack(n);                                          // 3+ cards → sealed pack (count only)
+    }
     // PINKY'S HOME (the top-of-map finish line): mama's house with a warm ♥.
     if (n.type === "home") return '<span class="mn-home mn-mama"><span class="mn-home-ico">⌂</span><span class="mn-mama-heart">♥</span></span>';
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
@@ -23054,7 +23197,16 @@ const UIRenderer = (() => {
     if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 (this stage)";
     if (n.type === "store") return "Shop";
     if (n.type === "home") return "Home — mama ♥ is waiting";
-    if (n.type === "pack") return "Pack — " + (n.packCount || 3) + " cards (hidden)";
+    if (n.type === "pack") {
+      // PACK2: a revealed +2 pack names its two exact cards (a Blank slot is a
+      // Removal, like the +1-node label). Sealed packs keep the hidden count.
+      const pair = campaign.packNodeCards && campaign.packNodeCards(n);
+      if (pair && pair.length === 2) {
+        const name = c => c.blank ? "∅ Removal" : (c.joker ? "★ Joker" : miniRankLabel(c) + c.suit);
+        return "2 cards — " + name(pair[0]) + " + " + name(pair[1]);
+      }
+      return "Pack — " + (n.packCount || 3) + " cards (hidden)";
+    }
     const card = campaign.nodeCard(n);
     if (card && card.joker) return "★ Joker — never a wrong guess";
     if (card && card.blank) return "∅ Removal — remove a card from your deck";
@@ -23079,14 +23231,16 @@ const UIRenderer = (() => {
     // minimal stand-ins only if a type is absent from this run.
     const deal = live("deal") || { targetD: 0, phase: 0 };
     const boss = live("boss") || { targetD: 1, phase: 0 };
-    const pack = live("pack") || { packCount: 3, suit: "" };
+    // PACK2: the Pack row teaches SEALED packs, so its exemplar must be a
+    // genuine 3+ (a live 2-pack would render two faces, not the stack art).
+    const pack = nodes.find(n => n.type === "pack" && (n.packCount || 3) >= 3) || { packCount: 3, suit: "" };
     const card = { suit: "♥", value: 7 };   // any face-up card — the art is the lesson
     el.mapKeyPanel.innerHTML =
       '<div class="mk-head"><b>Map key</b><button class="mk-close" type="button" aria-label="Close">×</button></div>' +
       mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; pips show difficulty 1–3") +
       mapKeyRow("t-boss", "--mk-s:0.52", mapDealCluster(boss, true), "Boss", "full-deck deal; guards the stage exit") +
       mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
-      mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards") +
+      mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards (packs of 3+; 2-card stops show their faces)") +
       mapKeyRow("t-pickup", "", nodeCardHtml(card), "Card", "joins your deck when you pass") +
       mapKeyRow("t-myst", "", '<span class="mn-myst">?</span>', "Mystery", "revealed when you arrive") +
       mapKeyRow("t-home", "", mapNodeInner({ type: "home" }), "Home", "mama; the finish at the top");
@@ -23737,11 +23891,28 @@ const UIRenderer = (() => {
       // close, the cards fly home into the box. Any BLANK revealed in the pack
       // grants a removal instead of a card — its choose flow runs after the
       // reveal closes (one picker per Blank).
+      // PACK2: was this pack REVEALED (its exact pair face-up on the node)?
+      // Read BEFORE resolving so the branch can't drift from what was shown.
+      const revealed = !!(campaign.packNodeCards && campaign.packNodeCards(node));
       const cards = campaign.resolvePack(node);
       const gained = cards.filter(c => !c.blank);
       const blanks = cards.length - gained.length;
       campaign.markNodeCleared(id);
       persistCampaign("map");
+      if (revealed) {
+        // A revealed +2 pack lands like a +1 pickup: nothing was hidden, so no
+        // reveal modal — the cards fly straight home; a committed Blank opens
+        // its removal picker after the cards head off (one picker per Blank).
+        flashDeckGain(gained.length);
+        // Chime only when cards actually join the deck — an all-Blank pair
+        // grants nothing, and the +1 Blank pickup path is likewise silent.
+        if (gained.length) Sound.mapAdd();
+        renderProgressionMap();
+        if (gained.length) avatarCollect(gained);
+        if (blanks > 0) openMapBlankRemove(blanks);
+        Tutorial.onMapNodeResolved();   // TUT2: the deck grew in place → next leg's bubble
+        return;
+      }
       renderProgressionMap();   // mark the node done behind the reveal
       flashDeckGain(gained.length);   // deck panel + header update live as the pack lands
       openMapPackReveal(cards, (items) => {
