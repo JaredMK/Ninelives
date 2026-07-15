@@ -1952,6 +1952,16 @@ const NativeApp = (() => {
     50%     { opacity: 1; }
   }
   @media (prefers-reduced-motion: reduce) { .menu-screen::before { animation: none; } }
+  /* GPU idle: while the board is covered (body.scene-idle — menus/overlays up),
+     freeze the glow so the compositor can sleep. Measured on iOS: continuous
+     menu animation held GPU energy at ~44%; a static (still visible) glow lets
+     it idle. Mirrors the #tissue .blob pause rule. Same treatment for the
+     board's deck character, whose breathe/dart keyframes and blink timer kept
+     running invisibly behind the menu after the first deal — #deckChar only,
+     the deck-select characters are the visible stars of their screen. */
+  body.scene-idle .menu-screen::before { animation-play-state: paused; }
+  body.scene-idle #deckChar .dc-body,
+  body.scene-idle #deckChar .dc-face { animation-play-state: paused; }
   /* Keep the content above the ambient glow. */
   .menu-screen > * { position: relative; z-index: 1; }
 
@@ -6714,7 +6724,7 @@ document.write('<script src="difficulty.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.72 · a jar smiles while the cards shuffle in";
+const APP_VERSION = "v4.73 · the menu finally takes a nap";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15357,6 +15367,10 @@ const UIRenderer = (() => {
         };
         blinkId = setTimeout(tick, 2200);
       },
+      /** Stop the ambient-life loop. The blink timer re-arms itself forever and
+          startBlink is only called at deal start — without this, the loop kept
+          ticking behind the main menu for the rest of the session. */
+      stopBlink() { clearTimeout(blinkId); blinkId = 0; },
     };
   })();
 
@@ -25646,6 +25660,8 @@ const UIRenderer = (() => {
   function showMainMenu(canContinue) {
     el.stageRun.classList.add("off");
     setScreenNav(false, false, false);
+    DeckChar.stopBlink();   // the blink loop is a self-rearming timer with no
+                            // other off switch; the deal-start path restarts it
     stopLossFossils();   // this hides el.overlay directly (not via hideOverlay) — make
                          // sure the loss-screen bounce loop can't leak behind the menu
     el.overlay.classList.add("hidden");
