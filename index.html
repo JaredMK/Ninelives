@@ -488,6 +488,12 @@ const NativeApp = (() => {
   body.zen-picking .action-prompt { flex-wrap: wrap; row-gap: 7px; }
   body.zen-picking .action-prompt .ap-text { flex: 1 1 100%; text-align: center; }
   body.zen-picking .action-prompt .ap-btns { flex: 1 1 100%; flex-wrap: wrap; justify-content: center; }
+  /* SELL1: selling an equipped item from the store confirms on the SAME bottom
+     prompt bar, which normally sits UNDER the store overlay (z 50) — lift the
+     control row over it (the zen-picking technique above) only while the sell
+     confirm is pending; requestStoreSell adds the class, confirm/cancel/dismiss
+     remove it. 70 also clears the item detail (z 66), though that closes first. */
+  body.store-selling .play-controls { z-index: 70; }
   /* ZEN MODE strips the campaign chrome: no coin HUD, no suit/stage track, no
      Same-Power chip, no deal-status payout row (fitBoard reclaims its height —
      it checks offsetParent). The Same-Charge indicator + histogram stay. */
@@ -2994,6 +3000,11 @@ const NativeApp = (() => {
     -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; }
   .sd-col .sdc-occ.sdc-empty { opacity: 0.6; font-weight: 600; font-style: italic; }
   .sd-buy { margin-top: 4px; }
+  /* SELL1: no rule ever backed .hidden on these buttons — openEquippedDetail's
+     sdBuy hide was a silent no-op (a stale "Place sticker · N" Buy stayed
+     visible on the read-only equipped view), and the new equipped-only Sell
+     must start hidden on offer details. */
+  .sd-buy.hidden { display: none; }
   .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
     color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
     font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
@@ -6473,6 +6484,10 @@ const NativeApp = (() => {
       </div>
       <div class="sd-replace-q hidden" id="sdReplaceQ"></div>
       <button class="sh-buy sd-buy" id="sdBuy" type="button">Buy</button>
+      <!-- SELL1: shown ONLY on an equipped item's read-only detail (store loadout
+           reference) — sells the equipped pillar/base/Same-Power for its tier
+           value. Confirms on the bottom prompt bar, never here. -->
+      <button class="sh-buy sd-buy hidden" id="sdSell" type="button">Sell</button>
     </div>
   </div>
 
@@ -6776,7 +6791,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.77 · wild cards mean it now";
+const APP_VERSION = "v4.78 · the store buys back your regrets";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14972,6 +14987,7 @@ const UIRenderer = (() => {
     sdReplaceQ: document.getElementById("sdReplaceQ"),
     sdCols: document.getElementById("sdCols"),
     sdBuy: document.getElementById("sdBuy"),
+    sdSell: document.getElementById("sdSell"),   // SELL1: equipped-detail sell action
     sdClose: document.getElementById("sdClose"),
     packReveal: document.getElementById("packReveal"),
     packTitle: document.getElementById("packTitle"),
@@ -15192,6 +15208,11 @@ const UIRenderer = (() => {
   // detail's kind/id and the column the player has picked to place it into (the
   // Same-Power has a single slot, pre-selected as 0). Drives confirmBuyAndPlace.
   let sdDetailKind = null, sdDetailId = null, sdPlaceCol = null, sdDetailPrice = 0;
+  // SELL1: the equipped item the read-only detail is focused on ({ kind, id,
+  // col } — col null for the Same-Power's single slot) → drives its Sell
+  // action; and the store-scoped sell confirm pending on the bottom prompt bar.
+  let sdEquipped = null;
+  let storeSellPending = null;   // { kind, id, col, value }
   let trashPendingCol = null;   // column awaiting trash confirmation, or null
   let trashPendingItem = null;  // armed setup item awaiting trash confirmation, or null
   let armedPack = null;         // pack-tray index armed for a pre-run replacement, or null
@@ -18956,7 +18977,10 @@ const UIRenderer = (() => {
     // (the same focused detail card, no Buy) so it can be compared to an offer.
     const onLoadoutTap = (e) => {
       const chip = e.target.closest(".lo-chip");
-      if (chip) openEquippedDetail(chip.dataset.loKind, chip.dataset.loId);
+      // SELL1: pillar/base chips carry their column (data-lo-col) so the detail's
+      // Sell can name the exact slot; the Same-Power chip has none (single slot).
+      if (chip) openEquippedDetail(chip.dataset.loKind, chip.dataset.loId,
+        chip.dataset.loCol != null ? Number(chip.dataset.loCol) : null);
     };
     if (el.loadoutCols) el.loadoutCols.addEventListener("click", onLoadoutTap);
     if (el.loadoutSame) el.loadoutSame.addEventListener("click", onLoadoutTap);
@@ -18985,6 +19009,14 @@ const UIRenderer = (() => {
       el.storeDetail.classList.add("hidden");
       if (kind === "sticker") confirmBuySticker();
       else confirmBuyMixed();   // mixed slot: pack
+    });
+    // SELL1: Sell on an equipped item's read-only detail — close the detail
+    // FIRST (the prompt bar must own the screen), then confirm on the bottom
+    // prompt bar. Never a modal.
+    el.sdSell.addEventListener("click", () => {
+      const eq = sdEquipped;
+      closeStoreDetail();   // clears sdEquipped; the pending sale keeps its own copy
+      if (eq) requestStoreSell(eq.kind, eq.id, eq.col);
     });
     // Buy-time placement chooser: pick the column / Same slot the item will land in.
     if (el.sdCols) el.sdCols.addEventListener("click", (e) => {
@@ -24397,6 +24429,10 @@ const UIRenderer = (() => {
     if (!offer || !offer.slots) return;
     const s = offer.slots[slot];
     if (!s) return;
+    // SELL1: offer details are purchases — the equipped-only Sell never shows
+    // here, whatever detail (equipped view included) the panel held before.
+    el.sdSell.classList.add("hidden");
+    sdEquipped = null;
     if (s.kind === "card") {   // individual-card slot → focused detail of the exact card
       selectedMixedSlot = slot; selectedStickerSlot = null;
       const card = s.card || {};
@@ -24627,7 +24663,7 @@ const UIRenderer = (() => {
   /* Read-only info for an EQUIPPED item (loadout reference): the SAME focused
      detail card the offers use, but with no Buy — it's a "what you already have"
      comparison view, never a purchase. */
-  function openEquippedDetail(kind, id) {
+  function openEquippedDetail(kind, id, col) {
     const info = describeItem(kind, id);
     if (!info) return;
     const t = kind === "pillar" ? PillarTypes.get(id)
@@ -24644,29 +24680,108 @@ const UIRenderer = (() => {
     el.sdName.textContent = info.label;
     el.sdDesc.textContent = info.desc || "";
     el.sdBuy.classList.add("hidden");   // equipped = reference only, no purchase
+    // SELL1 stale-offer hardening: the hidden Buy still carries the LAST offer's
+    // label + kind (e.g. "Place sticker · N") — reset both EVERY time this view
+    // opens so no ordering of detail opens can surface a purchase action here.
+    el.sdBuy.innerHTML = "Buy";
+    delete el.sdBuy.dataset.kind;
     el.sdPlace.classList.add("hidden"); // and no placement chooser (read-only)
     if (el.sdCompare) el.sdCompare.classList.add("hidden");   // and no stale replace comparison
     if (el.sdReplaceQ) el.sdReplaceQ.classList.add("hidden");
     sdDetailKind = null; sdDetailId = null; sdPlaceCol = null;
+    // SELL1: equipped items CAN be sold here (tier value, destroy-on-sell — the
+    // store's counterpart to the setup pick-up-and-sell). Pillars/bases need the
+    // chip's column to name the slot; the Same-Power has the single global slot.
+    const sellable = kind === "samepower" || (Number.isInteger(col) && col >= 0);
+    sdEquipped = sellable ? { kind, id, col: kind === "samepower" ? null : col } : null;
+    el.sdSell.innerHTML = "Sell for " + COIN_SVG + " " + sellValueOf(t);
+    el.sdSell.classList.toggle("hidden", !sellable);
     el.storeDetail.classList.remove("hidden");
   }
   function closeStoreDetail() {
     el.storeDetail.classList.add("hidden");
     el.sdBuy.classList.remove("hidden");   // leave the panel ready for the next offer
+    el.sdSell.classList.add("hidden");     // SELL1: Sell is equipped-detail-only
     el.sdPlace.classList.add("hidden");
     sdDetailKind = null; sdDetailId = null; sdPlaceCol = null; sdDetailPrice = 0;
+    sdEquipped = null;
     selectedStickerSlot = null; selectedMixedSlot = null;
+  }
+  /* SELL1 — sell an EQUIPPED pillar/base/Same-Power from the store's loadout
+     reference. A store-scoped twin of the setup-window requestSell/confirmSell
+     (which guards on engine.canApplyStickers() — FALSE while shopping, so it
+     can't be reused): same tier prices (sellValueOf), same destroy-on-sell
+     rule, same prompt-bar confirm with outside-tap-cancels. While the confirm
+     is pending, body.store-selling lifts the control row over the store
+     overlay (see CSS); every exit path drops the class. */
+  function requestStoreSell(kind, id, col) {
+    const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : SamePowerTypes;
+    const t = reg.get(id);
+    if (!t) return;
+    const value = sellValueOf(t);
+    storeSellPending = { kind, id, col, value };
+    document.body.classList.add("store-selling");
+    showActionBar("Sell " + escHtml(t.label) + " for " + COIN_SVG + " " + value + "?", [
+      { label: "Cancel", cls: "no", onClick: closeStoreSellConfirm },
+      { label: "Sell", cls: "primary", onClick: confirmStoreSell },
+    ], [], { help: "It won't return to your inventory.", dismiss: closeStoreSellConfirm });
+  }
+  function closeStoreSellConfirm() {
+    document.body.classList.remove("store-selling");
+    const was = storeSellPending != null;
+    storeSellPending = null;
+    if (was) hideActionBar();
+  }
+  function confirmStoreSell() {
+    const p = storeSellPending;
+    storeSellPending = null;
+    document.body.classList.remove("store-selling");
+    hideActionBar();
+    // Store-scoped guards: the store must still be up AND the slot must still
+    // hold the exact item the confirm named (a buy/reroll between prompt and
+    // tap could have changed it) — otherwise a silent no-op. Pure campaign
+    // state: the engine/run is never touched (beyond the action log line).
+    if (!p || !campaign || !storeVisible()) return;
+    let ok = false;
+    if (p.kind === "samepower") {
+      if (campaign.getSamePower && campaign.getSamePower() === p.id) {
+        // Sell-and-destroy (the buy-replace precedent): unequip bounces it into
+        // inventory, discard removes it — it never returns to the player.
+        campaign.unequipSamePower();
+        ok = campaign.discardSamePowerFromInventory(p.id);
+      }
+    } else if (p.kind === "pillar") {
+      ok = campaign.columnPillar(p.col) === p.id && campaign.removeColumnPillar(p.col) === p.id;
+    } else if (p.kind === "base") {
+      ok = campaign.columnBase(p.col) === p.id && campaign.removeColumnBase(p.col) === p.id;
+    }
+    if (!ok) return;
+    campaign.addCoins(p.value);
+    Sound.purchase();
+    const reg = p.kind === "pillar" ? PillarTypes : p.kind === "base" ? BaseTypes : SamePowerTypes;
+    const t = reg.get(p.id);
+    const label = (t && t.label) || p.id;
+    if (engine) engine.logAction("Store: sold " + KIND_LABEL[p.kind] + " " + label
+      + (p.kind === "samepower" ? "" : " from column " + (p.col + 1)) + " for " + p.value + " coins");
+    if (p.kind === "samepower") updateSamePowerHud();
+    el.storeMsg && (el.storeMsg.textContent = label + " sold for " + p.value + " coins.");
+    persistCampaign("store");
+    renderStore();   // empties the chip + refreshes both coin displays together
+    refreshDebug();
   }
   /* The equipped-loadout reference: pillars over bases per column + the Same-Power,
      mirroring the board so a purchase can be compared to what it would replace. */
-  function loadoutChip(kind, id) {
+  function loadoutChip(kind, id, col) {
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : SamePowerTypes;
     const t = id ? reg.get(id) : null;
     if (!t) return '<div class="lo-empty">empty</div>';
     const ico = kind === "samepower"
       ? '<span class="lo-ico">' + glyph(id, "sp-mark") + '</span>'
       : '<span class="lo-ico">' + (t.icon || "") + '</span>';
-    return '<button type="button" class="lo-chip ' + kind + '" data-lo-kind="' + kind + '" data-lo-id="' + escHtml(id) + '">' +
+    // SELL1: pillar/base chips carry their COLUMN so the detail's Sell knows
+    // which slot to empty (ids can repeat across columns; the Same has none).
+    return '<button type="button" class="lo-chip ' + kind + '" data-lo-kind="' + kind + '" data-lo-id="' + escHtml(id) + '"' +
+      (col != null ? ' data-lo-col="' + col + '"' : '') + '>' +
       ico + '<span class="lo-name">' + escHtml(t.label) + '</span></button>';
   }
   function renderStoreLoadout() {
@@ -24677,7 +24792,7 @@ const UIRenderer = (() => {
     let cols = "";
     for (let c = 0; c < n; c++) {
       cols += '<div class="lo-col"><span class="lo-col-n">Col ' + (c + 1) + '</span>' +
-        loadoutChip("pillar", pillars[c]) + loadoutChip("base", bases[c]) + '</div>';
+        loadoutChip("pillar", pillars[c], c) + loadoutChip("base", bases[c], c) + '</div>';
     }
     el.loadoutCols.innerHTML = cols;
     const sp = campaign.getSamePower ? campaign.getSamePower() : null;

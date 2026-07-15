@@ -48,6 +48,7 @@ import { run as boot2 } from "./boot2.test.mjs";
 import { run as pack2 } from "./pack2.test.mjs";
 import { run as zen1 } from "./zen1.test.mjs";
 import { run as wildSuit } from "./wild-suit.test.mjs";
+import { run as sell1 } from "./sell1.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -96,6 +97,7 @@ const SUITES = [
   ["pack2", pack2],
   ["zen1", zen1],
   ["wild-suit", wildSuit],
+  ["sell1", sell1],
 ];
 
 let pass = 0,
