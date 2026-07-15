@@ -1,6 +1,7 @@
 // SELL1 — sell EQUIPPED pillars/bases/Same-Power from the store's loadout
 // reference. The confirm rides the bottom prompt bar (never a modal), lifted
-// over the store overlay via body.store-selling (the zen-picking technique);
+// over the store overlay via body.store-selling (a z-index lift on the
+// control row, only while the confirm is pending);
 // the sale reuses the setup-window SELL_VALUE/sellValueOf prices and the
 // destroy-on-sell rule (buy-replace precedent). Structural checks pin the
 // wiring shape (uifix1/zen1 style); behavioral checks drive the exact

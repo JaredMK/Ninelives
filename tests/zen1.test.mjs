@@ -284,21 +284,25 @@ export function run() {
     r.eq(g2.ZenStats.get(ids[0]).cardsFlipped, 0, "reset() empties the zen record");
   }
 
-  // ---- source contracts: picker fits 390px; the Zen loss has a sound -------
+  // ---- source contracts: the Zen page replaced the picker; loss has a sound -
   {
-    // The difficulty picker's 4 labeled buttons + help line outgrow the
-    // one-row prompt strip on a phone — the zen-picking rules must let the
-    // help line take a full-width line and the buttons WRAP, or Cancel
-    // lands off-screen at 390px.
+    // ZEN2: the difficulty choice is a dedicated full-screen page (#zenSelect,
+    // the #deckSelect menu-screen pattern with a corner Back), not the old
+    // prompt-bar picker — the zen-picking CSS lift and showZenPicker must be
+    // GONE, and the main menu's Zen item must open the new page.
     const html = readFileSync(join(HERE, "..", "index.html"), "utf8");
-    const pickWrap = /body\.zen-picking \.action-prompt \{[^}]*flex-wrap:\s*wrap/.test(html);
-    const btnWrap = /body\.zen-picking \.action-prompt \.ap-btns \{[^}]*flex-wrap:\s*wrap/.test(html);
-    const textFull = /body\.zen-picking \.action-prompt \.ap-text \{[^}]*1 1 100%/.test(html);
-    r.ok(pickWrap, "zen-picking lets the prompt bar wrap (all 4 buttons fit 390px)");
-    r.ok(btnWrap, "…and the button row itself wraps");
-    r.ok(textFull, "…with the help line on its own full-width line");
+    r.ok(!html.includes("zen-picking"), "no body.zen-picking CSS/JS survives (prompt-bar picker removed)");
+    r.ok(/<div class="menu-screen hidden" id="zenSelect">/.test(html),
+      "the Zen difficulty page exists as a full-screen menu-screen");
+    r.ok(/<button class="nav-btn zs-back-btn" id="zsBack"/.test(html),
+      "…with the corner-nav Back button (the #deckSelect convention)");
+    const src = gameScript();
+    r.ok(!src.includes("showZenPicker"), "showZenPicker is gone from the game script");
+    const menu = fnBody(src, "showMainMenu");
+    r.ok(menu.includes("showZenSelect(canContinue)"),
+      "the main-menu Zen item opens the page (Continue preserved for Back)");
     // The end-of-game jingles mirror the campaign's analogous moments.
-    const end = fnBody(gameScript(), "onZenEnd");
+    const end = fnBody(src, "onZenEnd");
     r.ok(end.includes("Sound.dealWon()"), "zen win plays the deal-won jingle");
     r.ok(end.includes("Sound.dealLost()"), "zen loss plays the deal-lost jingle");
   }

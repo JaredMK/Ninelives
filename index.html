@@ -477,22 +477,11 @@ const NativeApp = (() => {
     border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 8px 12px;
   }
-  /* ZEN difficulty choice: the SAME bottom prompt bar, lifted over the main
-     menu (z-index 1400) only while picking — no new surface, no modal. */
-  body.zen-picking .play-controls { z-index: 1450; }
-  /* The picker carries FOUR labeled buttons + a help line — more than the
-     one-row strip fits at 390px (buttons ran past the right edge; Cancel was
-     entirely off-screen). While picking, the help text takes its own
-     full-width line and the buttons WRAP centred below it, so all four stay
-     on-screen and tappable; the panel just grows upward (bottom-anchored). */
-  body.zen-picking .action-prompt { flex-wrap: wrap; row-gap: 7px; }
-  body.zen-picking .action-prompt .ap-text { flex: 1 1 100%; text-align: center; }
-  body.zen-picking .action-prompt .ap-btns { flex: 1 1 100%; flex-wrap: wrap; justify-content: center; }
   /* SELL1: selling an equipped item from the store confirms on the SAME bottom
      prompt bar, which normally sits UNDER the store overlay (z 50) — lift the
-     control row over it (the zen-picking technique above) only while the sell
-     confirm is pending; requestStoreSell adds the class, confirm/cancel/dismiss
-     remove it. 70 also clears the item detail (z 66), though that closes first. */
+     control row over it only while the sell confirm is pending; requestStoreSell
+     adds the class, confirm/cancel/dismiss remove it. 70 also clears the item
+     detail (z 66), though that closes first. */
   body.store-selling .play-controls { z-index: 70; }
   /* ZEN MODE strips the campaign chrome: no coin HUD, no suit/stage track, no
      Same-Power chip, no deal-status payout row (fitBoard reclaims its height —
@@ -2062,6 +2051,32 @@ const NativeApp = (() => {
      not a bottom text pill. Fixed INSIDE the fixed #deckSelect, so it shows and
      hides with the screen and stacks above the carousel. */
   .ds-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
+
+  /* ---- ZEN DIFFICULTY page (Easy → Medium → Hard ladder) ---- */
+  /* A menu-screen like #deckSelect (opaque felt, safe-area folded in), so the
+     zen picker is a real place, not a prompt bar squeezed over the menu. The
+     list is a single centred column — three finger-height rows fit 390px with
+     room to spare, so no carousel machinery. */
+  .zs-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
+  .zs-hint { font-size: 13px; color: var(--on-felt-muted); text-align: center;
+    max-width: 300px; line-height: 1.5; margin-top: -2px; }
+  .zs-list { display: flex; flex-direction: column; gap: 12px; width: min(84vw, 330px); margin-top: 6px; }
+  /* One difficulty per row: name, live deck shape, and its Zen win count.
+     The chip language mirrors the deck-select tier chips (same felt surface). */
+  .zs-entry { display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 13px 16px; border-radius: 16px;
+    border: 1.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08);
+    color: var(--on-felt); font-family: var(--font-text); cursor: pointer;
+    touch-action: manipulation; transition: transform 0.1s ease, background 0.12s ease; }
+  .zs-entry:active { transform: scale(0.97); }
+  .zs-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: 0.4px; }
+  .zs-meta { font-size: 12.5px; color: var(--on-felt-muted); }
+  .zs-wins { font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-felt-muted); }
+  /* Locked = the deck-select locked-tier visual language: greyed + disabled
+     (real label kept), with the unlock condition stated in its note line. */
+  .zs-entry.locked { opacity: 0.42; filter: grayscale(0.5); cursor: not-allowed; }
+  .zs-entry.locked:active { transform: none; }
+  .zs-lock { font-size: 11.5px; font-weight: 700; font-style: italic; letter-spacing: 0.2px; }
 
   /* ── DECK-UNLOCK CELEBRATION (presentation only) ───────────────────────────
      Fires ONCE, at run termination after the FIRST win with a deck: the next
@@ -6696,6 +6711,17 @@ const NativeApp = (() => {
     <div class="ds-dots" id="dsDots"></div>
   </div>
 
+  <!-- ZEN DIFFICULTY — the Zen menu item's full-screen page (the #deckSelect
+       pattern: corner back, opaque felt). One entry per difficulty.js zen id,
+       every number live from the registry; the ladder (beat a difficulty to
+       open the next — ZenUnlocks) greys locked entries with their condition. -->
+  <div class="menu-screen hidden" id="zenSelect">
+    <button class="nav-btn zs-back-btn" id="zsBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
+    <div class="ds-title">Zen</div>
+    <div class="zs-hint">One quiet higher-or-lower deal. No coins, no items, nothing saved — just you and the deck.</div>
+    <div class="zs-list" id="zsList"></div>
+  </div>
+
   <!-- Artifact telemetry table (debug only — playtest balancing). -->
   <div class="sheet-overlay hidden" id="telemOverlay">
     <div class="sheet-panel telem-panel">
@@ -6791,7 +6817,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.79 · continue means continue";
+const APP_VERSION = "v4.80 · earn your storms";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14409,6 +14435,68 @@ const DeckUnlocks = (() => {
 DeckUnlocks.grantRetroactive(Stats.get());
 
 /* ----------------------------------------------------------------
+   ZenUnlocks — which ZEN difficulties have been WON, gating the Zen
+   page's ladder (difficulty.js order: beating one difficulty permanently
+   opens the next). DeckUnlocks' model with its OWN localStorage key —
+   deliberately SEPARATE from ZenStats: the Stats screen's reset empties
+   the zen tallies, and a reset must never re-lock a difficulty, so the
+   ladder reads ONLY this store (which no reset touches).
+   RETROACTIVE: wins already recorded in ZenStats (from before this store
+   existed, or after this blob was lost) re-grant at load — wins ≥ 1
+   means the difficulty was beaten.
+   FAIL-SOFT: an absent/corrupted/scalar blob reads as nothing beaten
+   (never throws); writes are try/caught like every ninelives.* store.
+---------------------------------------------------------------- */
+const ZenUnlocks = (() => {
+  const KEY = "ninelives.zenunlocks.v1";
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  function get() {
+    // A hand-edited SCALAR blob (5, "x", true) parses truthy but isn't a
+    // record — reading/writing keys on it would misbehave, so anything that
+    // isn't a plain object reads as empty (nothing beaten).
+    if (!ok()) return {};
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY));
+      return (v && typeof v === "object" && !Array.isArray(v)) ? v : {};
+    } catch (e) { return {}; }
+  }
+  function put(w) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) { /* quota/serialize — ignore */ } }
+  return {
+    /** Has a Zen game ever been WON at `diffId`? (raw store read) */
+    beaten(diffId) { return !!get()[diffId]; },
+    /** Is `diffId` PLAYABLE? The ladder rule: the first difficulty always;
+        every later one once its predecessor has a recorded win. */
+    unlocked(diffId) {
+      const ids = DifficultyData.zenIds;
+      const i = ids.indexOf(diffId);
+      return i === 0 || (i > 0 && !!get()[ids[i - 1]]);
+    },
+    /** A Zen game was WON at `diffId` — persist it. Returns TRUE only for
+        the FIRST recorded win there (the caller arms the one-time
+        "<next> unlocked!" line on the win overlay). */
+    recordWin(diffId) {
+      if (!diffId) return false;
+      const w = get();
+      if (w[diffId]) return false;
+      w[diffId] = true; put(w);
+      return true;
+    },
+    /** Load-time repair: every difficulty ZenStats already shows a win for
+        is credited here — an existing Zen winner finds the next difficulty
+        open on their first visit to the page, and a lost blob heals. */
+    grantRetroactive() {
+      const w = get();
+      let dirty = false;
+      for (const id of DifficultyData.zenIds)
+        if (!w[id] && ZenStats.get(id).wins >= 1) { w[id] = true; dirty = true; }
+      if (dirty) put(w);
+    },
+  };
+})();
+// Retroactive grant at load — before any UI reads the ladder's locks.
+ZenUnlocks.grantRetroactive();
+
+/* ----------------------------------------------------------------
    Sound — tiny WebAudio cues for key actions. Subtle, synthesized (no
    asset files), feature-detected, and fully gated by a saved on/off pref.
    Never blocks gameplay: any failure (no AudioContext, autoplay policy)
@@ -14871,6 +14959,9 @@ const UIRenderer = (() => {
     dsCarousel: document.getElementById("dsCarousel"),
     dsDots: document.getElementById("dsDots"),
     dsBack: document.getElementById("dsBack"),
+    zenSelect: document.getElementById("zenSelect"),   // Zen difficulty page (unlock ladder)
+    zsList: document.getElementById("zsList"),
+    zsBack: document.getElementById("zsBack"),
     menuBtn: document.getElementById("menuBtn"),
     mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
@@ -18955,6 +19046,19 @@ const UIRenderer = (() => {
     }, { passive: true });
     if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
 
+    // Zen difficulty page: one delegated handler on the list (entries are
+    // rebuilt each show). Tapping an UNLOCKED difficulty starts that game
+    // directly; locked entries are disabled buttons, so their taps never
+    // land here. Back mirrors dsBack (returns to the menu we came from).
+    if (el.zsList) el.zsList.addEventListener("click", (e) => {
+      const entry = e.target.closest(".zs-entry");
+      if (!entry || entry.disabled || entry.classList.contains("locked")) return;
+      Sound.tap();
+      hideZenSelect();
+      startZen(entry.dataset.zen);
+    });
+    if (el.zsBack) el.zsBack.addEventListener("click", () => { Sound.tap(); hideZenSelect(); if (zenSelectReturn) zenSelectReturn(); });
+
     // Hold-to-peek the final board on run-complete screens: pressing the
     // overlay (anywhere except the button) fades it away to reveal the board
     // underneath; releasing restores it. Read-only — never mutates state.
@@ -21954,7 +22058,7 @@ const UIRenderer = (() => {
     // (it fades to opacity 0, revealing the board) — keep the network drifting then.
     const overlayCovers = up(el.overlay) && !el.overlay.classList.contains("peek");
     if (overlayCovers || up(el.storeOverlay) || up(el.mapOverlay) || up(el.mainMenu)
-        || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
+        || up(el.zenSelect) || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
     return true;
   }
   /* Pause the board's perpetual card breathing (CSS) whenever a full overlay
@@ -26349,22 +26453,40 @@ const UIRenderer = (() => {
     return counts;
   }
 
-  /* Difficulty choice on the HOUSE bottom prompt bar (never a blocking modal),
-     lifted over the main menu via body.zen-picking (see CSS). Labels + card
-     counts read LIVE from difficulty.js; Cancel leaves the menu untouched. */
-  function showZenPicker() {
-    document.body.classList.add("zen-picking");
-    const close = () => { document.body.classList.remove("zen-picking"); hideActionBar(); };
-    const buttons = DifficultyData.zenIds.map(id => {
+  /* ZEN DIFFICULTY PAGE (#zenSelect) — a full-screen menu-screen on the
+     #deckSelect pattern (corner Back, opaque felt), replacing the old
+     prompt-bar picker. One entry per difficulty.js zen id, every number
+     LIVE from the registry (label, suitCount×13 cards, piles) plus that
+     difficulty's ZenStats win count. THE LADDER: an entry is playable iff
+     ZenUnlocks says so (first always; later ones once their predecessor
+     has a recorded win) — locked entries keep their REAL label but grey
+     out disabled with the condition stated, the deck-select locked-tier
+     language. Back returns to the main menu with Continue preserved
+     (the deckSelectReturn pattern). */
+  let zenSelectReturn = null;   // how the Back button returns (to the right menu)
+  function showZenSelect(canContinue) {
+    zenSelectReturn = () => showMainMenu(canContinue);
+    el.stageRun.classList.add("off");
+    setScreenNav(false, false, false);
+    el.overlay.classList.add("hidden");
+    el.zsList.innerHTML = DifficultyData.zenIds.map((id, i) => {
       const z = DifficultyData.zen(id);
-      return { label: z.label + " · " + (z.suitCount * 13), cls: id === "easy" ? "primary" : "",
-        onClick: () => { close(); startZen(id); } };
-    });
-    buttons.push({ label: "Cancel", cls: "no", onClick: close });
-    showActionBar("Zen — pick a difficulty", buttons, [],
-      { help: "One quick higher-or-lower deal. No coins, no items, nothing saved — just you and the deck.",
-        dismiss: close });
+      const prevId = i > 0 ? DifficultyData.zenIds[i - 1] : null;
+      const open = ZenUnlocks.unlocked(id);
+      const wins = ZenStats.get(id).wins;
+      return '<button type="button" class="zs-entry' + (open ? "" : " locked") + '"' +
+        ' data-zen="' + escHtml(id) + '"' + (open ? "" : " disabled") + '>' +
+        '<span class="zs-name">' + escHtml(z.label) + '</span>' +
+        '<span class="zs-meta">' + (z.suitCount * 13) + ' cards · ' + z.piles + ' piles</span>' +
+        (open
+          ? '<span class="zs-wins">' + (wins > 0 ? wins + (wins === 1 ? " win" : " wins") : "no wins yet") + '</span>'
+          : '<span class="zs-lock">Beat ' + escHtml(DifficultyData.zen(prevId).label) + ' to unlock</span>') +
+      '</button>';
+    }).join("");
+    el.zenSelect.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the opaque page → pause its card animations
   }
+  function hideZenSelect() { el.zenSelect.classList.add("hidden"); }
 
   function startZen(diffId) {
     zenMode = { diff: diffId, deck: null, counted: false };
@@ -26423,7 +26545,17 @@ const UIRenderer = (() => {
     DeckInspector.close();
     const won = result === "win";
     const alive = payload.board.aliveCount();
-    if (won) ZenStats.win(zenMode.diff);   // Zen's OWN record — campaign Stats never move
+    // THE LADDER'S GRANT: the first win at a difficulty permanently opens the
+    // next one (ZenUnlocks — its own store, so a stats reset never re-locks).
+    // Only that NEW grant carries the one-line unlock note on the overlay:
+    // repeat wins and a top-difficulty win (no successor) stay minimal.
+    let unlockedLabel = null;
+    if (won) {
+      ZenStats.win(zenMode.diff);   // Zen's OWN record — campaign Stats never move
+      const firstWin = ZenUnlocks.recordWin(zenMode.diff);
+      const nextId = DifficultyData.zenIds[DifficultyData.zenIds.indexOf(zenMode.diff) + 1];
+      if (firstWin && nextId) unlockedLabel = DifficultyData.zen(nextId).label;
+    }
     if (won) CharMood.win(); else CharMood.loss();
     queueAnim((done) => {
       DeckChar.react(won ? "celebrate" : "sad");
@@ -26437,6 +26569,9 @@ const UIRenderer = (() => {
       msg: won
         ? "Every card dealt — " + alive + " pile" + (alive === 1 ? "" : "s") + " made it."
         : "Every pile died with cards still in the deck.",
+      // The unlock moment rides the overlay's existing progress line (accent
+      // caps under the flavor text) — one line, this game only, label live.
+      progress: unlockedLabel ? unlockedLabel + " unlocked!" : "",
       btnLabel: "Play Again",
       action: startZenDeal,
       btn2Label: "Menu",
@@ -26452,7 +26587,7 @@ const UIRenderer = (() => {
       touched, so Continue works exactly as before the session. */
   function zenTeardown() {
     zenMode = null;
-    document.body.classList.remove("zen-mode", "zen-picking");
+    document.body.classList.remove("zen-mode");
     hideActionBar();
   }
   function zenQuitToMenu() {
@@ -26506,9 +26641,11 @@ const UIRenderer = (() => {
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
     items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
       action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
-    // ZEN — the standalone higher/lower game. No unlock gating; the difficulty
-    // choice rides the bottom prompt bar over this menu (Cancel = untouched).
-    items.push({ label: "Zen", ico: "swirl", action: showZenPicker });
+    // ZEN — the standalone higher/lower game. The difficulty choice is its
+    // own full-screen page (#zenSelect, the deck-select pattern): Easy is
+    // always open, later difficulties unlock down the win ladder; Back
+    // returns here with Continue preserved.
+    items.push({ label: "Zen", ico: "swirl", action: () => { hideMainMenu(); showZenSelect(canContinue); } });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });

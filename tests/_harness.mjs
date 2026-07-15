@@ -96,7 +96,7 @@ export function loadGame(opts = {}) {
     code +
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
       " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData," +
-      " TutorialData, DifficultyData, Stats, ZenStats, cardMatchesSuit, cardIsWildSuit };"
+      " TutorialData, DifficultyData, Stats, ZenStats, ZenUnlocks, cardMatchesSuit, cardIsWildSuit };"
   );
   return factory(...Object.values(sandbox));
 }
