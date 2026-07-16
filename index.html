@@ -2720,14 +2720,13 @@ const NativeApp = (() => {
   }
   .run-progress.hidden { display: none; }
 
-  /* Zen per-game end lines (overlay): compact label→value rows, this game only. */
-  .zen-endstats { width: min(72vw, 260px); margin: 2px 0 16px;
-    display: flex; flex-direction: column; gap: 3px; }
+  /* Zen per-game end stats (overlay): THIS game's counters in the campaign
+     deal-end tile look (.run-stat), five tiles wrapping across the phone width. */
+  .zen-endstats { width: min(86vw, 340px); margin: 2px 0 16px;
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
   .zen-endstats.hidden { display: none; }
-  .zen-endstats .zes-row { display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 12.5px; color: var(--on-felt-muted); }
-  .zen-endstats .zes-val { font-family: var(--font-display); font-weight: 800; font-size: 15px;
-    color: var(--on-felt); }
+  .zen-endstats .run-stat { flex: 1 1 28%; min-width: 84px; padding: 10px 8px; }
+  .zen-endstats .run-stat-value { font-size: 22px; }
 
   .summary-block {
     width: min(82vw, 320px);
@@ -6979,7 +6978,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.88 · a stranger read the manual and got it";
+const APP_VERSION = "v4.89 · zen endings own their shoulda-saids";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26815,14 +26814,21 @@ const UIRenderer = (() => {
       // Stats histogram at render — the raw count is stored forward-only).
       ZenStats.loss(zenMode.diff, cardsLeft);
     }
-    // PER-GAME end lines (THIS game only, from the live zenMode counters — never
-    // the cumulative ZenStats): cards guessed + correct, then the outcome-specific
-    // count (piles standing on a win, cards left in the deck on a loss).
+    // PER-GAME end tiles (THIS game only, from the live zenMode counters — never
+    // the cumulative ZenStats), in the campaign deal-end tile look: cards guessed,
+    // correct, wrong, accuracy, then the outcome-specific count (piles standing on
+    // a win, cards left in the deck on a loss). Numbers + static labels only — no
+    // user string reaches this innerHTML.
     const flips = zenMode.flips || 0, correct = zenMode.correct || 0;
-    const line = (label, val) =>
-      '<div class="zes-row"><span class="zes-lab">' + label + '</span><span class="zes-val">' + val + '</span></div>';
-    const zenStatsHtml = line("Cards guessed", flips) + line("Correct", correct) +
-      (won ? line("Piles remaining", alive) : line("Cards left in deck", cardsLeft));
+    const wrong = Math.max(0, flips - correct);
+    const accuracy = flips > 0 ? Math.round((correct / flips) * 100) + "%" : "0%";
+    const tile = (val, label) =>
+      '<div class="run-stat"><div class="run-stat-value">' + val + '</div>' +
+      '<div class="run-stat-label">' + label + '</div></div>';
+    const zenStatsHtml =
+      tile(flips, "Cards guessed") + tile(correct, "Correct") + tile(wrong, "Wrong") +
+      tile(accuracy, "Accuracy") +
+      (won ? tile(alive, "Piles remaining") : tile(cardsLeft, "Cards left in deck"));
     if (won) CharMood.win(); else CharMood.loss();
     queueAnim((done) => {
       DeckChar.react(won ? "celebrate" : "sad");
@@ -26832,14 +26838,19 @@ const UIRenderer = (() => {
     });
     const show = () => showOverlay({
       kind: won ? "win" : "lose",
-      title: won ? "Deck cleared" : "Out of piles",
-      msg: won
-        ? "Every card dealt — " + alive + " pile" + (alive === 1 ? "" : "s") + " made it."
-        : "Every pile died with cards still in the deck.",
-      // The unlock moment rides the overlay's existing progress line (accent
-      // caps under the flavor text) — one line, this game only, label live.
+      // WIN mirrors the campaign deal-cleared heading (Baloo title, no icon); the
+      // coin block/board/fossils never appear because Zen sets no coins/endStats.
+      // LOSS mirrors the campaign game-over header: the "Game over" eyebrow over
+      // the menu-title treatment ending in the guess that would have SURVIVED the
+      // fatal draw (higher/lower/same) — no "Out of piles" subtitle.
+      cls: won ? "deal-cleared" : "",
+      title: won ? "Deck cleared" : undefined,
+      titleHtml: won ? undefined : gameOverTitleHtml(survivingGuessWord(lastResolvedDraw)),
+      msg: "",                  // stats ride the tiles; no flavor line (deal-end parity)
+      // The unlock moment rides the overlay's existing progress line — one line,
+      // this game only, label live.
       progress: unlockedLabel ? unlockedLabel + " unlocked!" : "",
-      zenStats: zenStatsHtml,   // this-game lines (flips/correct + outcome count)
+      zenStats: zenStatsHtml,   // this-game deal-end tiles (flips/correct/wrong/accuracy + outcome)
       btnLabel: "Play Again",
       action: startZenDeal,
       btn2Label: "Menu",
