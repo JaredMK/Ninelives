@@ -310,65 +310,62 @@ const NINELIVES_ITEMS = {
     // peekCount = upcoming cards peeked after the sacrifice.
     { id: "kamikaze", label: "Kamikaze", icon: "💥",
       kind: "active", effect: "kamikaze", target: "pile", peekCount: 3, tier: "rare", price: 15,
-      description: "Trigger: Activated (tap a ♠ pile), once per deal\nEffect: Kill a chosen pile with a ♠ top card, then peek the next 3 upcoming cards (draw order unchanged). Unavailable while only one pile is alive" },
+      description: "Kill a random ♠-topped pile in this column, then peek the next 3 cards" },
     { id: "spadePeek", label: "Spade Peeker", icon: "🔦",
       kind: "active", effect: "spadePeek", tier: "rare", price: 15,
-      description: "Trigger: Activated, once per deal\nEffect: Peek the next X upcoming cards, where X is the number of piles in this column whose top card is a ♠" },
+      description: "Peek the next X cards, where X = piles in this column with a ♠ top card" },
     // coinPerPile = coins LOST per pile shuffled.
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", coinPerPile: 1, tier: "common", price: 9,
-      description: "Trigger: Activated, once per deal\nEffect: Shuffle every pile in this column (a different card may top each; order stays hidden). Lose 1 coin for each shuffled pile" },
+      description: "Shuffle every pile in this column" },
     { id: "revive", label: "Phoenix", icon: "🔥",
       kind: "active", effect: "reviveBase", tier: "uncommon", price: 14,
-      description: "Trigger: Activated, once per deal\nEffect: Revive a random dead pile in this column with one fresh pile card (its buried cards shuffle into the deck). Nothing if none is dead" },
+      description: "Revive a random dead pile in this column with one fresh card (buried cards return to the deck)" },
     { id: "randomSticker", label: "Wild Sticker", icon: "🎲",
       kind: "active", effect: "randomSticker", tier: "uncommon", price: 5,
-      description: "Trigger: Activated, once per deal\nEffect: Apply a random sticker to a random top pile card in this column. Lasts the rest of the run" },
+      description: "Apply a random sticker to a random top card in this column" },
     { id: "evenOut", label: "Ballast", icon: "🪨",
       kind: "active", effect: "evenOut", tier: "common", price: 9,
-      description: "Trigger: Activated, once per deal\nEffect: Redistribute ALL piles in this column so they end up the same pile size (composition only — nothing revealed)" },
+      description: "Redistribute all piles in this column to equal size" },
     // digCount = cards buried under each ♣-topped pile; coinPerCard = coins
     // LOST per card buried.
-    { id: "buryAll", label: "Landslide", icon: "⛰️",
-      kind: "active", effect: "buryAll", suit: "♣", digCount: 2, coinPerCard: 3, tier: "rare", price: 10,
-      description: "Trigger: Activated, once per deal\nEffect: Bury 2 deck cards under each pile with a ♣ top card in this column. Lose 3 coins per card buried" },
     { id: "setValue", label: "Cast", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 12,
-      description: "Trigger: Activated, once per deal\nEffect: Permanently set the rank of every top pile card in this column to the rank of the bottom pile in the column. Lasts the rest of the run" },
+      description: "Permanently set every top card's rank in this column to the bottom pile's rank" },
     { id: "setSuit", label: "Suit Setter", icon: "🎨",
       kind: "active", effect: "setSuit", tier: "rare", price: 18,
-      description: "Trigger: Activated, once per deal\nEffect: Permanently set the suit of every top pile card in this column to the suit of the bottom pile in the column. Lasts the rest of the run" },
+      description: "Permanently set every top card's suit in this column to the bottom pile's suit" },
     // buryPerSticker = deck cards buried per sticker peeled off the pile card.
     { id: "stickerHarvest", label: "Sticker Harvest", icon: "🌾",
       kind: "active", effect: "stickerHarvest", target: "pile", buryPerSticker: 2, tier: "uncommon", price: 11,
-      description: "Trigger: Activated (choose a pile), once per deal\nEffect: Bury 2 deck cards under the chosen pile per sticker on its pile card, then peel those stickers off it" },
+      description: "Choose a pile → bury 2 deck cards per sticker on its top card, then peel all those stickers" },
     { id: "refreshBases", label: "Reactor", icon: "⚛️",
       kind: "active", effect: "refreshBases", tier: "rare", price: 17,
-      description: "Trigger: Activated, once per deal\nEffect: Recharge your other two Bases if they've been spent this deal (never another Reactor)" },
+      description: "Recharge your other two bases (never another Reactor)" },
     // ---- expansion Bases --------------------------------------------------
     // digCount = cards buried under each matching-suit-topped pile.
     { id: "clubDig", label: "Club Dig", icon: "♣️",
       kind: "active", effect: "suitDig", suit: "♣", digCount: 1, tier: "rare", price: 15,
-      description: "Trigger: Activated, once per deal\nEffect: Bury 1 deck card under each pile with a ♣ top card in this column" },
+      description: "Bury 1 deck card under each ♣-topped pile in this column" },
     // peekCount = upcoming cards peeked after the demolition.
     { id: "demolish", label: "Demolish", icon: "🔨",
       kind: "active", effect: "demolish", target: "pillar", peekCount: 2, tier: "uncommon", price: 25,
-      description: "Trigger: Activated (choose a Pillar), once per deal\nEffect: Destroy the chosen placed Pillar for good, then peek the next 2 upcoming cards (draw order unchanged)" },
+      description: "Choose a pillar → destroy it permanently, then peek the next 2 cards" },
     // coinPerPile = coins gained per ♥-topped pile destroyed.
     { id: "heartDemolish", label: "Heart Demolish", icon: "💔",
       kind: "active", effect: "heartDemolish", coinPerPile: 7, tier: "uncommon", price: 10,
-      description: "Trigger: Activated, once per deal\nEffect: Destroy every pile in this column with a ♥ top card and gain +7 coins per pile destroyed" },
+      description: "Destroy every ♥-topped pile in this column. +7 coins per pile destroyed" },
     // coinPerCard = coins gained per ♥ card counted in the column.
     { id: "tax", label: "Heart Tax", icon: "🧾",
       kind: "active", effect: "tax", suit: "♥", coinPerCard: 1, tier: "uncommon", price: 9,
-      description: "Trigger: Activated, once per deal\nEffect: +1 coin for each ♥ card in this column (includes top cards and buried; dead piles don't count)" },
+      description: "+1 coin per ♥ card in this column (top + buried, dead piles excluded)" },
     // ---- Same-charge / Same-power bases (activated, once per deal) ----
     { id: "rechargeSame", label: "Recharge Cell", icon: "🔋",
       kind: "active", effect: "rechargeSameShield", tier: "rare", price: 25,
-      description: "Trigger: Activated, once per deal\nEffect: Bank a Same Charge — the auto-save shield (max 1; unavailable while already charged)" },
+      description: "Bank a Same Charge (max 1)" },
     { id: "activateSame", label: "Power Surge", icon: "⚡",
       kind: "active", effect: "activateSamePower", tier: "rare", price: 20,
-      description: "Trigger: Activated, once per deal\nEffect: Fire your equipped Same-Power on a random pile in this column (its linked piles). Does not bank a charge; needs a Same-Power equipped" },
+      description: "Fire your Same-Power on a random pile in this column" },
   ],
 
   /* --------------------------------------------------------------------
@@ -384,7 +381,7 @@ const NINELIVES_ITEMS = {
       description: "Trigger: You make a correct Same\nEffect: Bury 1 card under each pile directly linked to the pile you called Same on" },
     { id: "linkRevive", label: "Rekindle", icon: "🌱",
       effect: "linkRevive", tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Revive one dead pile directly linked to the pile you called Same on, keeping its size" },
+      description: "Trigger: You make a correct Same\nEffect: Revive one dead pile directly linked to the pile you called Same on" },
     // value = coins per directly-linked alive pile.
     { id: "linkCoins", label: "Dividend", icon: "💰",
       effect: "linkCoins", value: 5, tier: "rare", price: 5,
@@ -399,7 +396,7 @@ const NINELIVES_ITEMS = {
     // size added to the CALLED pile itself (both last the deal).
     { id: "linkHeavy", label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 5, hubValue: 5, tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to the pile you called Same on, and +5 to each pile directly linked to it" },
+      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to the pile you called Same on and to each pile directly linked to it" },
   ],
 
   /* --------------------------------------------------------------------
@@ -408,14 +405,17 @@ const NINELIVES_ITEMS = {
      sticker-pack picks go straight to the sticker inventory.
   -------------------------------------------------------------------- */
   packs: [
-    { id: "cardPack", label: "Large Card Pack", icon: "🎴", kind: "card", tier: "common",
-      size: 5, keep: 1, price: 10,
-      description: "Reveals 5 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded." },
+    { id: "cardPack", label: "Large Card Pack", icon: "🎴", kind: "card", tier: "uncommon",
+      size: 5, keep: 2, price: 10,
+      description: "Reveals 5 random cards. Keep 2 to swap into your deck before a deal, replacing a card of your choice." },
     { id: "smallCardPack", label: "Small Card Pack", icon: "🎴", kind: "card", tier: "common",
-      size: 3, keep: 1, price: 8,
-      description: "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice. The rest are discarded." },
+      size: 3, keep: 1, price: 7,
+      description: "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice." },
     { id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
-      size: 3, keep: 1, price: 5,
-      description: "Reveals 3 random stickers. Keep 1 for your inventory. The rest are discarded." },
+      size: 3, keep: 1, price: 4,
+      description: "Reveals 3 random stickers. Keep 1 to add to a card." },
+     { id: "largestickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "uncommon",
+      size: 5, keep: 2, price: 6,
+      description: "Reveals 3 random stickers. Keep 1 to add to a card." }
   ],
 };
