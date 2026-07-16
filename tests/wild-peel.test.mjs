@@ -20,9 +20,10 @@ export function run() {
     r.ok(DeckManager.toCard(specs[1]).wildSuit === false, "a plain card is not wild");
   }
 
-  // --- Wild Suit TOP lets a guard card fire on it (one-directional) ------
+  // --- Wild Suit TOP lets a guard card fire on it ------------------------
   // A guard fires when the GUARD CARD is drawn ONTO a top of its guarded suit;
   // a Wild Suit top counts as every suit, so any guard card landing on it fires.
+  // Guards are unlimited now — they never spend.
   {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: [3, 3, 3] });
     e.start(); e.startRun([null, null, null]);
@@ -32,7 +33,7 @@ export function run() {
     const d = e.debug.setNextCard(3); d.suit = "♠"; d.suitGuards = { "♥": true };  // a ♥ guard card drawn onto it
     e.guess(0, "higher");
     r.ok(b.isActive(0), "a ♥ guard card drawn onto a WILD top fires (wild counts as ♥)");
-    r.ok(!d.suitGuards["♥"], "the drawn guard card's ♥ charge is spent");
+    r.ok(d.suitGuards["♥"], "the drawn guard card's ♥ charge is NOT spent (unlimited)");
     r.eq(e.getDeck().remaining(), before, "the drawn guard card was returned to the deck (guard save)");
   }
   {

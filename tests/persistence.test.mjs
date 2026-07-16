@@ -53,6 +53,22 @@ export function run() {
     r.eq(b.getStoreOffer().rerollCost, a.getStoreOffer().rerollCost, "store reroll cost restored");
   }
 
+  // --- load tolerance: a snapshot carrying a DELETED-id sticker instance on a
+  //     card must restore without throwing; the unknown sticker is dropped. ---
+  {
+    const a = CampaignState.create();
+    const wire = JSON.parse(JSON.stringify(a.serialize()));
+    // Simulate an older save whose card still carries a since-removed sticker id.
+    wire.baseDeck[0].stickers = [{ type: "extraHeart" }, { type: "tieSafe" }];
+    const b = CampaignState.create();
+    let ok = false;
+    try { ok = b.restore(wire); } catch (e) { ok = false; }
+    r.ok(ok, "restore tolerates a deleted-id sticker instance (no throw)");
+    const rc = b.getCards().find(c => c.id === wire.baseDeck[0].id);
+    r.ok(rc && !rc.stickers.some(s => s.type === "extraHeart"), "the unknown deleted-id sticker is filtered out on load");
+    r.ok(rc && rc.stickers.some(s => s.type === "tieSafe"), "known stickers on the same card survive the load");
+  }
+
   // --- guards: bad/incompatible snapshots are rejected, state untouched -
   {
     const c = CampaignState.create();

@@ -1,5 +1,5 @@
 // Phase 2: the DOM-free engine honoring behavior stickers by reading card
-// flags — Tie-Safe and Extra Heart — and reporting consumption via events.
+// flags — Tie-Safe — and reporting consumption via events.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -36,67 +36,8 @@ export function run() {
     r.ok(e.getBoard().isActive(0), "Tie-Safe: tie on HIGHER survives");
   }
 
-  // --- Extra Heart: absorb a wrong guess, return the card, refresh ------
-  {
-    const e = GameEngine.create(specsWith("extraHeart"), 9);
-    let heartBroken = 0;
-    e.onEvent((t) => { if (t === "heart-broken") heartBroken++; });
-    e.start();
-    e.startRun();
-
-    const board = e.getBoard();
-    const topCard = board.top(0);
-    r.eq(topCard.heartsRemaining, 1, "dealt card has 1 heart from its sticker");
-
-    const topVal = topCard.value;
-    // Force a guaranteed-wrong guess: draw the same value but guess "higher".
-    forceNext(e, topVal);
-    const before = e.getDeck().remaining();   // AFTER the inject (it adds a card)
-    e.guess(0, "higher");
-
-    r.ok(board.isActive(0), "Extra Heart: pile survives a wrong guess");
-    r.eq(board.top(0).value, topVal, "top card is unchanged (drawn card not pushed)");
-    r.eq(board.top(0).heartsRemaining, 0, "the heart was spent (run-local)");
-    r.eq(e.getDeck().remaining(), before, "drawn card was returned to the deck");
-    r.eq(heartBroken, 1, "a heart-broken event fired");
-
-    // With the heart spent, a second wrong guess kills the pile.
-    forceNext(e, board.top(0).value);
-    e.guess(0, "higher");
-    r.ok(!board.isActive(0), "without a heart, the next wrong guess kills the pile");
-  }
-
-  // --- "refreshes next run": a fresh deal restores heartsRemaining ------
-  {
-    const specs = specsWith("extraHeart");
-    const e1 = GameEngine.create(specs, 9);
-    e1.start();
-    e1.startRun();
-    forceNext(e1, e1.getBoard().top(0).value);
-    e1.guess(0, "higher");                       // spend the heart in run 1
-    r.eq(e1.getBoard().top(0).heartsRemaining, 0, "heart spent in run 1");
-
-    const e2 = GameEngine.create(specs, 9);      // same persistent specs
-    e2.start();
-    r.eq(e2.getBoard().top(0).heartsRemaining, 1, "heart refreshed for run 2");
-  }
-
-  // --- stacked Extra Hearts: each grants one survival, decrement independently
-  {
-    const specs = DeckManager.buildStandardDeck();
-    specs.forEach(c => { c.stickers.push({ type: "extraHeart" }); c.stickers.push({ type: "extraHeart" }); });
-    const e = GameEngine.create(specs, 9);
-    e.start();
-    e.startRun();
-    r.eq(e.getBoard().top(0).heartsRemaining, 2, "two Extra Hearts -> heartsRemaining 2");
-    const top = e.getBoard().top(0).value;
-    forceNext(e, top); e.guess(0, "higher");   // wrong -> break 1
-    r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 1, "1st wrong: survive, 1 heart left");
-    forceNext(e, e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> break 2
-    r.ok(e.getBoard().isActive(0) && e.getBoard().top(0).heartsRemaining === 0, "2nd wrong: survive, 0 hearts left");
-    forceNext(e, e.getBoard().top(0).value); e.guess(0, "higher"); // wrong -> die
-    r.ok(!e.getBoard().isActive(0), "3rd wrong with no hearts: pile dies");
-  }
+  // (Extra Heart / Shield was removed from the roster — its save branch and
+  //  run-local heartsRemaining projection are gone from the engine.)
 
   // --- Duplicate: copies on a SURVIVED correct Same (drawn OR pile card) -
   {

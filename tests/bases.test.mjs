@@ -23,18 +23,18 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
-    r.eq(BaseTypes.all().length, 17, "all 17 Bases registered (added Recharge Cell + Power Surge)");
+    r.eq(BaseTypes.all().length, BaseTypes.ids.length, "base registry all() matches its live id list");
     r.ok(!!BaseTypes.get("kamikaze"), "Kamikaze is a Base");
     r.eq(BaseTypes.get("kamikaze").kind, "active", "Bases are the 'active' kind");
-    r.eq(BaseTypes.get("kamikaze").target, "pile", "Kamikaze is a target Base");
+    r.ok(!BaseTypes.get("kamikaze").target, "Kamikaze auto-picks its target (no player pick — not a target Base)");
     r.ok(!BaseTypes.get("shuffleColumn").target, "Upheaval is a whole-column Base");
-    // Only Club Dig (♣), Landslide (♣) and Heart Tax (♥) carry a suit now.
+    r.ok(!BaseTypes.get("buryAll"), "Landslide (buryAll) was removed from the roster");
+    // Only Club Dig (♣) and Heart Tax (♥) carry a suit now.
     r.eq(BaseTypes.get("clubDig").suit, "♣", "Club Dig is suit-gated on ♣");
-    r.eq(BaseTypes.get("buryAll").suit, "♣", "Landslide is suit-gated on ♣");
     r.eq(BaseTypes.get("tax").suit, "♥", "Heart Tax is suit-gated on ♥");
     r.ok(!BaseTypes.get("heartDig") && !BaseTypes.get("diamondDig") && !BaseTypes.get("spadeDig"), "Heart/Diamond/Spade Dig were removed");
     r.ok(!BaseTypes.get("suitTally") && !BaseTypes.get("copyToInventory") && !BaseTypes.get("randomStickerAll"), "Suit Tally / Replica / Sticker Storm were removed");
-    r.eq(BaseTypes.all().filter(b => b.suit).length, 3, "exactly Club Dig + Landslide + Heart Tax carry a suit");
+    r.eq(BaseTypes.all().filter(b => b.suit).map(b => b.id).sort().join(","), "clubDig,tax", "exactly Club Dig + Heart Tax carry a suit");
     r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish targets a Pillar");
     r.ok(!!BaseTypes.get("spadePeek") && !!BaseTypes.get("setSuit") && !!BaseTypes.get("heartDemolish"), "new bases Spade Peeker / Suit Setter / Heart Demolish registered");
     r.eq(BaseTypes.get("setValue").price, 12, "Cast repriced to 12");
@@ -107,7 +107,7 @@ export function run() {
     r.ok(!e.baseAvailable(0), "a spent Base is unavailable (once per deal)");
   }
 
-  // --- effect: Upheaval (shuffle the column; cost = 1 coin per shuffled pile) --
+  // --- effect: Upheaval (shuffle the column — FREE, no coin cost) --------
   {
     const e = game(["shuffleColumn", null, null]);
     const b = e.getBoard();
@@ -116,8 +116,8 @@ export function run() {
     const coinsBefore = e.getRun().bonusCoins;
     const res = e.baseActivate(0);
     r.eq(res.shuffled, 3, "all 3 alive piles in the column are shuffled");
-    r.eq(e.getDeck().remaining(), deckBefore, "no cards returned to the deck (cost is coins now)");
-    r.eq(e.getRun().bonusCoins - coinsBefore, -3, "lost 1 coin per shuffled pile (−3)");
+    r.eq(e.getDeck().remaining(), deckBefore, "no cards returned to the deck");
+    r.eq(e.getRun().bonusCoins - coinsBefore, 0, "Upheaval is free — zero coin delta");
   }
 
   // --- effect: Phoenix (revive — keep the KILLER card; buried cards → deck) --
@@ -159,21 +159,7 @@ export function run() {
     r.ok(Math.abs(b.pileSize(0) - b.pileSize(1)) <= 1, "the two ♦ piles end within 1 card of each other");
   }
 
-  // --- effect: Landslide (bury 2 under each ♣-top pile, −3 coins per card) --
-  {
-    const e = game(["buryAll", null, null]);
-    const b = e.getBoard();
-    b.piles[0].cards = [card(2, "♣")];
-    b.piles[1].cards = [card(3, "♣")];
-    b.piles[2].cards = [card(4, "♥")];   // non-♣ → skipped
-    const before = e.getDeck().remaining();
-    const coinsBefore = e.getRun().bonusCoins;
-    const res = e.baseActivate(0);
-    r.eq(res.buried, 4, "buried 2 under each of the 2 ♣ piles (4 cards)");
-    r.eq(e.getDeck().remaining(), before - 4, "four cards left the deck");
-    r.eq(e.getRun().bonusCoins - coinsBefore, -12, "lost 3 coins per card buried (−12)");
-    r.eq(b.piles[2].cards.length, 1, "the non-♣ pile is untouched");
-  }
+  // (Landslide was removed from the roster — its bury-all effect is gone.)
 
   // --- effect: Cast (copy the bottom pile's RANK onto the column's tops) --
   {
@@ -234,16 +220,20 @@ export function run() {
     r.eq(b.piles[2].cards.length, 1, "the non-♣ pile is untouched");
   }
 
-  // --- effect: Kamikaze (kill a ♠-top pile, then peek 3) ----------------
+  // --- effect: Kamikaze (auto-kill a RANDOM ♠-top pile IN ITS OWN COLUMN,
+  //     then peek 3; no player target) --------------------------------------
   {
     const e = game(["kamikaze", null, null]);
     const b = e.getBoard();
-    b.piles[0].cards = [card(5, "♥")];   // not ♠ → not a legal target
-    b.piles[1].cards = [card(6, "♠")];   // ♠ → legal
-    r.ok(e.baseActivate(0, 0) === null, "Kamikaze refuses a non-♠ target");
-    r.ok(b.isActive(0), "the non-♠ pile survives the refused sacrifice");
-    const res = e.baseActivate(0, 1);
-    r.ok(res && !b.isActive(1), "Kamikaze kills the chosen ♠ pile");
+    b.piles[0].cards = [card(5, "♥")];   // col 0, not ♠
+    b.piles[1].cards = [card(6, "♥")];   // col 0, not ♠
+    b.piles[2].cards = [card(7, "♥")];   // col 0, not ♠ → no ♠ top in the column
+    r.ok(!e.baseAvailable(0), "Kamikaze is unavailable when its column has no ♠ top");
+    b.piles[1].cards = [card(6, "♠")];   // a single ♠ top in the column
+    r.ok(e.baseAvailable(0), "Kamikaze becomes available with a ♠ top in its column");
+    const res = e.baseActivate(0);       // no target argument — auto-picks
+    r.ok(res && res.index === 1 && !b.isActive(1), "Kamikaze auto-kills the ♠ pile in its own column");
+    r.ok(b.isActive(0) && b.isActive(2), "the non-♠ piles in the column are untouched");
     r.eq((res.cards || []).length, 3, "and peeks the next 3 upcoming cards");
   }
 
@@ -288,8 +278,8 @@ export function run() {
   {
     const e = game(["refreshBases", "kamikaze", "randomSticker"]);
     const b = e.getBoard();
-    b.top(5).suit = "♠";              // give the Kamikaze target a ♠ top
-    e.baseActivate(1, 5);            // spend Kamikaze (col 1) on the ♠ pile
+    b.top(5).suit = "♠";              // a ♠ top in Kamikaze's column (col 1)
+    e.baseActivate(1);              // spend Kamikaze (col 1) — auto-picks its ♠ target
     e.baseActivate(2);              // spend Wild Sticker (col 2)
     r.ok(e.getRun().basesUsed[1] && e.getRun().basesUsed[2], "both other Bases are spent");
     const res = e.baseActivate(0);
@@ -303,11 +293,11 @@ export function run() {
   {
     const e = game(["refreshBases", "refreshBases", "kamikaze"]);
     const b = e.getBoard();
-    b.top(7).suit = "♠"; b.top(8).suit = "♠";   // ♠ Kamikaze targets in col 2
-    e.baseActivate(2, 7);   // spend Kamikaze (col 2)
+    b.top(7).suit = "♠"; b.top(8).suit = "♠"; b.top(9).suit = "♥";   // two ♠ tops in Kamikaze's column (col 2)
+    e.baseActivate(2);      // spend Kamikaze (col 2) — auto-picks a ♠ target, one ♠ remains
     e.baseActivate(1);      // col 1 Refresh re-arms Kamikaze, spends itself
     r.eq(e.getRun().basesUsed[1], true, "col 1 Refresh Bases is now spent");
-    e.baseActivate(2, 8);   // spend Kamikaze again so col 0 has something to refresh
+    e.baseActivate(2);      // spend Kamikaze again (its column still has a ♠ top) so col 0 has something to refresh
     const res = e.baseActivate(0);
     r.ok(!res.refreshed.includes(1), "Refresh Bases is NOT in the refreshed set");
     r.eq(e.getRun().basesUsed[1], true, "the other Refresh Bases stays spent (no loop)");

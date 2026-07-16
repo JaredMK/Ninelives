@@ -3460,7 +3460,7 @@ const NativeApp = (() => {
   }
   /* Base live counter: a small dark chip on the plaque's top-left showing the
      Base's current "if activated now" value (Heart Tax ♥ count, Heart Demolish
-     coins, Spade Peeker peek count, Landslide/Club Dig cards buried). */
+     coins, Spade Peeker peek count, Club Dig cards buried). */
   .base-count-badge {
     position: absolute; left: 3px; top: 2px;
     min-width: 13px; height: 13px; padding: 0 3px; box-sizing: border-box;
@@ -3593,6 +3593,7 @@ const NativeApp = (() => {
     animation: pillarFloat 1s ease-out forwards;
   }
   .pillar-float.pile-float { top: 8px; z-index: 7; }
+  .pillar-float.pile-float.neg { color: var(--bad); }   /* a paid sticker cost (Bury 2's −7) reads as a loss */
   .pillar-float.base-float { top: auto; bottom: 18px; z-index: 7; }   /* floats UP off the base banner */
   .pillar-float.base-float.neg { color: var(--bad); }
   @keyframes pillarFloat {
@@ -6817,7 +6818,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.80 · earn your storms";
+const APP_VERSION = "v4.81 · the items mean what they say now";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7146,7 +7147,7 @@ const ELEM_GLYPH = {
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
   oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
-  heavy: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
+  heavy: "dense", massive: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
   wildSuit: "wildsuit",
   changeSuitDiamond: "diamond", changeSuitClub: "club",
   quickBury: "quickbury", twinSpark: "twinspark", looseChange: "loosechange",
@@ -7789,8 +7790,8 @@ const DeckManager = (() => {
 
   // Materialize a playable card from a persistent card (uses currentRank).
   // Behavior stickers are projected onto run-local fields the engine reads:
-  //   heartsRemaining (one per Extra Heart) and tieSafe. These reset on every
-  //   deal — so an Extra Heart spent mid-run "refreshes" next run.
+  //   tieSafe and the suitGuards map. These reset on every deal — so a spent
+  //   guard charge (were it consumed) refreshes next run.
   function toCard(card) {
     // JOKER: a wild card that is ALWAYS a correct guess and banks a Same Charge
     // on any guess (see engine.guess). value 0 so it triggers no rank effects;
@@ -7806,7 +7807,6 @@ const DeckManager = (() => {
     return {
       id: card.id, label: r.label, value: r.value, suit: s.symbol, red: s.red,
       stickers: stickers.map(x => ({ ...x })),   // for rendering badges
-      heartsRemaining: stickers.filter(x => x.type === "extraHeart").length,
       tieSafe: stickers.some(x => x.type === "tieSafe"),
       // Wild Suit: this card counts as EVERY suit at once, everywhere suit is
       // checked (guards, suit Bonus pillars, all-suit pillars).
@@ -7832,9 +7832,6 @@ const DeckManager = (() => {
       // Snowball Bury: the per-card bury size X (persisted on the campaign card,
       // like compoundHits). Grows on correct placements, resets on a wrong one.
       snowball: card.snowball || 0,
-      // Momentum: the per-card coin counter X (same persist/grow/reset contract
-      // as snowball — pays X coins instead of burying X).
-      momentum: card.momentum || 0,
     };
   }
 
@@ -9559,12 +9556,19 @@ const BoardState = (() => {
     for (let i = 0; i < size; i++) {
       piles.push({ index: i, cards: [], dead: false });
     }
-    // Heavy: a card counts as (1 + number of Heavy stickers) toward pile size,
-    // everywhere pile size is read (and even while buried). sizeOf weights a
-    // pile's whole stack; the physical count is still piles[i].cards.length.
-    const heavyW = itemNum(StickerTypes.get("heavy"), "value", 1);   // items.js knob
-    const cardWeight = (c) =>
-      1 + heavyW * (c && c.stickers ? c.stickers.filter(s => s.type === "heavy").length : 0);
+    // Heavy family: a card counts as (1 + the summed value of EVERY sticker whose
+    // behavior is "heavy") toward pile size, everywhere pile size is read (and
+    // even while buried). Each heavy-behavior sticker adds its own items.js value
+    // (Heavy +1, Massive +2), so a card can stack several. sizeOf weights a pile's
+    // whole stack; the physical count is still piles[i].cards.length.
+    const cardWeight = (c) => {
+      let w = 1;
+      if (c && c.stickers) for (const s of c.stickers) {
+        const t = StickerTypes.get(s.type);
+        if (t && t.behavior === "heavy") w += itemNum(t, "value", 1);   // items.js knob
+      }
+      return w;
+    };
     // Optional PILLAR hooks (set by the engine after startRun): pillarSize(index)
     // returns extra size a column Pillar grants this pile (Heavy Diamond, Streak
     // Size); pillarAnchor(index) forces a pile to be anchored (Diamond Anchor).
@@ -9992,36 +9996,28 @@ const GameEngine = (() => {
     }
 
     /** Sticker tributes carried by the DRAWN card that just landed on a SURVIVING
-        pile (Tribute I/II, Center Tribute): bury card(s) and charge bonus coins.
-        Center Tribute only fires in the middle column. Uncapped. */
+        pile (Bury 1 / Bury 2): bury the card(s) IMMEDIATELY, no prompt. When the
+        sticker carries a coinCost, deduct it from the bonus tally on the same
+        landing (Bury 2 costs 7). Can't afford → the bury still happens and the
+        tally simply goes negative. Uncapped (bounded only by the draw deck). */
     function maybeStickerTribute(index, drawn) {
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
-      const col = run && run.pileColumns ? run.pileColumns[index] : null;
-      const center = centerColumn();
-      const hadNoOffers = run.pendingTributes.length === 0;
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t || t.behavior !== "tribute") continue;
-        if (t.centerOnly && (center == null || col !== center)) continue;
         const count = t.tributeCount || 1;
-        if (t.coinCost) {
-          // Paid bury: never auto-charge. Queue the offer and ask first. With an
-          // empty deck there's nothing to bury → no prompt, no charge.
-          if (deck.isEmpty()) continue;
-          run.pendingTributes.push({ index, count, cost: t.coinCost, label: t.label, type: t.id });
-        } else {
-          // Free bury (Tribute I, Center Tribute): fires every time, no prompt.
-          const nb = buryTribute(index, count, t.label);
-          if (nb > 0) recT("sticker", t.id, t.label, { buried: nb });
+        const nb = buryTribute(index, count, t.label);
+        const cost = itemNum(t, "coinCost", 0);
+        if (cost) {
+          // Deduct on land (tally may go negative) and surface it: the same
+          // "sticker-coins" cue every coin sticker uses, with a NEGATIVE amount
+          // so the UI floats a red "−cost" over the pile + rings the coin-loss
+          // sound. Automatic tribute = the cost must be seen and heard.
+          addBonus(t.label, -cost);
+          emit("sticker-coins", { index, label: t.label, amount: -cost, board, deck, run });
         }
-      }
-      // Surface the first queued offer for the UI; further offers chain off each
-      // answerTribute(). Only emit when the queue went from empty → non-empty so
-      // a card with two paid stickers doesn't fire two dialogs at once.
-      if (hadNoOffers && run.pendingTributes.length) {
-        const o = run.pendingTributes[0];
-        emit("tribute-offer", { index: o.index, count: o.count, cost: o.cost, label: o.label, board, deck, run });
+        if (nb > 0 || cost) recT("sticker", t.id, t.label, { buried: nb, coins: cost ? -cost : 0 });
       }
     }
 
@@ -10047,8 +10043,6 @@ const GameEngine = (() => {
     function maybeLandingBonus(index, drawn) {
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
-      const col = run && run.pileColumns ? run.pileColumns[index] : null;
-      const center = centerColumn();
       // Each payout also emits "sticker-coins" so the UI floats the +N over
       // the pile with the shared coin chime (these were silent tally bumps).
       const pay = (label, amount) => {
@@ -10059,8 +10053,7 @@ const GameEngine = (() => {
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
         if (!t) continue;
-        if (t.behavior === "middleColumnReward" && center != null && col === center) { pay("Focus", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
-        else if (t.behavior === "gainCoin") { pay("Bonus Coin", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
+        if (t.behavior === "gainCoin") { pay("Bonus Coin", t.value || 0); recT("sticker", t.id, t.label, { coins: t.value || 0 }); }
         // Hub pays per instance: +1 for each OTHER Imprint on this card.
         else if (t.behavior === "collector") { const amt = (t.value || 1) * Math.max(0, stickers.length - 1); pay("Collector", amt); recT("sticker", t.id, t.label, { coins: amt }); }
       }
@@ -10075,7 +10068,11 @@ const GameEngine = (() => {
         the pile (including Loose Change's visible +0). */
     function maybeExpansionStickers(index, current, drawn, col) {
       const stickers = (drawn && drawn.stickers) || [];
-      if (!stickers.length) return;
+      // The SNOB family reads the PILE TOP's stickers (`current`), so we must run
+      // even when the DRAWN card is bare — bail only when NEITHER side carries a
+      // sticker (the common fast path).
+      const curStickers = (current && current.stickers) || [];
+      if (!stickers.length && !curStickers.length) return;
       const n = (type) => stickers.filter(x => x.type === type).length;
       const payCoins = (label, amount, always) => {
         if (amount) addBonus(label, amount);
@@ -10093,24 +10090,28 @@ const GameEngine = (() => {
       let lcSum = 0;
       for (let k = 0; k < lc; k++) { const a = Math.floor(rng() * (lcMax + 1)); payCoins("Loose Change", a, true); lcSum += a; }   // random 0–max
       if (lc > 0) recT("sticker", "looseChange", "Loose Change", { coins: lcSum });
-      // --- the SNOB family: each fires when THIS card lands ON its suit (the
-      // pre-landing top card `current`; a Wild Suit top counts as every suit).
-      const landedOn = (suit) => cardMatchesSuit(current, suit);
-      // Spade Snob — peek the next upcoming card when landing on a ♠.
-      if (n("suitSnob") > 0 && landedOn("♠")) {
+      // --- the SNOB family: DIRECTION — the snob sticker sits on the PILE TOP
+      // (`current`) and fires when a MATCHING-SUIT card LANDS ON it (the drawn
+      // card matches the snob's suit; a Wild Suit drawn card counts as every
+      // suit). Counts read from `current.stickers`; effects apply to any card
+      // (the snobs carry no suit restriction). ---
+      const cn = (type) => curStickers.filter(x => x.type === type).length;
+      const landsOn = (suit) => cardMatchesSuit(drawn, suit);
+      // Spade Snob — peek the next upcoming card when a ♠ lands on it.
+      if (cn("suitSnob") > 0 && landsOn("♠")) {
         run.revealNextActive = true;   // peek the next upcoming card (the reward)
         recT("sticker", "suitSnob", "Spade Snob", { peeks: 1 });
       }
-      // Heart Snob — +value coins per instance when landing on a ♥.
-      const hsn = n("heartSnob");
-      if (hsn > 0 && landedOn("♥")) {
+      // Heart Snob — +value coins per instance when a ♥ lands on it.
+      const hsn = cn("heartSnob");
+      if (hsn > 0 && landsOn("♥")) {
         const amt = hsn * itemNum(StickerTypes.get("heartSnob"), "value", 4);
         payCoins("Heart Snob", amt);
         recT("sticker", "heartSnob", "Heart Snob", { coins: amt });
       }
-      // Diamond Snob — landing on a ♦ immediately shuffles ALL alive piles.
+      // Diamond Snob — a ♦ landing on it immediately shuffles ALL alive piles.
       // (Fired through the shuffler event so the UI repaints tops + counts.)
-      if (n("diamondSnob") > 0 && landedOn("♦")) {
+      if (cn("diamondSnob") > 0 && landsOn("♦")) {
         let sh = 0;
         for (let i = 0; i < board.size; i++) if (board.isActive(i)) { board.shufflePile(i, rng); sh++; }
         if (sh > 0) {
@@ -10119,9 +10120,9 @@ const GameEngine = (() => {
           recT("sticker", "diamondSnob", "Diamond Snob", { shuffled: sh });
         }
       }
-      // Club Snob — landing on a ♣ buries digCount deck cards per instance.
-      const csn = n("clubSnob");
-      if (csn > 0 && landedOn("♣")) {
+      // Club Snob — a ♣ landing on it buries digCount deck cards per instance.
+      const csn = cn("clubSnob");
+      if (csn > 0 && landsOn("♣")) {
         const nb = buryTribute(index, csn * itemNum(StickerTypes.get("clubSnob"), "digCount", 1), "Club Snob");
         if (nb > 0) recT("sticker", "clubSnob", "Club Snob", { buried: nb });
       }
@@ -10158,14 +10159,18 @@ const GameEngine = (() => {
           recT("sticker", "diamondRipple", "Diamond Ripple", { shuffled: sh });
         }
       }
-      // Club Roots — bury digCount under THIS pile per other ♣-topped pile.
+      // Club Roots — bury digCount under EACH OTHER alive ♣-topped pile (Wild
+      // Suit tops count). The landing pile is EXCLUDED even if its own top is
+      // now ♣ — the burial radiates outward, never onto itself.
       const crn = n("clubRoots");
       if (crn > 0) {
-        const kc = otherTops("♣");
-        if (kc > 0) {
-          const nb = buryTribute(index, crn * itemNum(StickerTypes.get("clubRoots"), "digCount", 1) * kc, "Club Roots");
-          if (nb > 0) recT("sticker", "clubRoots", "Club Roots", { buried: nb });
+        const per = crn * itemNum(StickerTypes.get("clubRoots"), "digCount", 1);
+        let cr = 0;
+        for (let i = 0; i < board.size; i++) {
+          if (i === index || !board.isActive(i)) continue;
+          if (cardMatchesSuit(board.top(i), "♣")) cr += buryTribute(i, per, "Club Roots");
         }
+        if (cr > 0) recT("sticker", "clubRoots", "Club Roots", { buried: cr });
       }
       // Spade Whispers — the next X draws each carry a Tell-style hint (every
       // pile shows higher/lower/same vs the true next card until X draws are
@@ -10178,30 +10183,12 @@ const GameEngine = (() => {
           recT("sticker", "spadeWhispers", "Spade Whispers", { hints: x });
         }
       }
-      if (n("momentum") > 0) {
-        // Per-card counter (duplicate Momentums share it — they don't stack):
-        // earn X coins, then grow X by `step`. Persisted like snowball/compoundHits.
-        const x = drawn.momentum || 0;
-        if (x > 0) payCoins("Momentum", x);
-        drawn.momentum = x + itemNum(StickerTypes.get("momentum"), "step", 2);
-        run.momentumUpdates[drawn.id] = drawn.momentum;
-        recT("sticker", "momentum", "Momentum", { coins: x });
-      }
       // --- burials ---
+      // Quick Bury — always buries 1 per instance and never peels (the sticker
+      // persists on the card for the rest of the run).
       const qb = n("quickBury");
       let qbBuried = 0;
-      for (let k = 0; k < qb; k++) {
-        qbBuried += buryTribute(index, 1, "Quick Bury");
-        if (rng() < itemNum(StickerTypes.get("quickBury"), "peelChance", 0.25)) {
-          // The sticker peels off: drop ONE instance from the live card and
-          // record the destruction for the campaign write-back (on a win).
-          const at = drawn.stickers.findIndex(x => x.type === "quickBury");
-          if (at !== -1) drawn.stickers.splice(at, 1);
-          run.stickerPeels[drawn.id] = (run.stickerPeels[drawn.id] || 0) + 1;
-          logLine("Quick Bury peeled off (destroyed)");
-          emit("sticker-peeled", { index, cardId: drawn.id, type: "quickBury", board, deck, run });
-        }
-      }
+      for (let k = 0; k < qb; k++) qbBuried += buryTribute(index, 1, "Quick Bury");
       if (qb > 0) recT("sticker", "quickBury", "Quick Bury", { buried: qbBuried });
       if (n("snowball") > 0) {
         // Per-card counter (duplicate Snowballs share it — they don't stack):
@@ -10262,11 +10249,11 @@ const GameEngine = (() => {
       if (tp > 0) recT("sticker", "activateSamePower", "Tap Power", { copies: tp });
     }
 
-    /** Optional post-landing sticker ACTIONS carried by the DRAWN card that just
-        landed on a SURVIVING pile: Shuffle (reorder this pile) and Donate (move a
-        bottom card to the smallest pile). Both are OFFERED (player confirms); they
-        queue into run.pendingActions and surface one at a time AFTER any paid-bury
-        prompt. Composition only — nothing is revealed. */
+    /** Post-landing sticker ACTIONS carried by the DRAWN card that just landed on
+        a SURVIVING pile. Shuffle stays an OPTIONAL offer (queues into
+        run.pendingActions, surfaced after any prompt drains). Donate is now
+        AUTOMATIC — it moves buried card(s) to the smallest eligible pile inline
+        on the landing, no offer. Composition only — nothing is revealed. */
     function maybeStickerActions(index, drawn) {
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
@@ -10275,12 +10262,20 @@ const GameEngine = (() => {
           // Only worth offering if the pile has more than one card to reorder.
           if (board.piles[index].cards.length > 1) run.pendingActions.push({ kind: "shuffle", index });
         } else if (s.type === "donate") {
-          // Only when this is NOT the smallest pile and a smaller alive pile exists
-          // to receive the donation.
+          // Donate immediately: only when this is NOT already the smallest pile
+          // and a smaller alive pile exists to receive the donation.
           const target = smallestAlivePileExcept(index);
-          if (target != null && board.pileSize(index) > board.pileSize(target)
+          if (target != null && board.isActive(index) && board.isActive(target)
+              && board.pileSize(index) > board.pileSize(target)
               && board.piles[index].cards.length > 0) {
-            run.pendingActions.push({ kind: "donate", index, target });
+            const dn = itemNum(StickerTypes.get("donate"), "count", 1);
+            let moved = 0;
+            for (let k = 0; k < dn; k++) if (board.moveBottomCard(index, target)) moved++;
+            if (moved) {
+              logLine("Donate: moved " + moved + " card" + (moved === 1 ? "" : "s") + " from pile " + (index + 1) + " to pile " + (target + 1) + " (hidden)");
+              recT("sticker", "donate", "Donate", { moved });
+              emit("action-resolved", { kind: "donate", index, target, accepted: true, board, deck, run });
+            }
           }
         }
       }
@@ -10401,18 +10396,6 @@ const GameEngine = (() => {
     /** Every alive / dead pile board-wide (column-agnostic). */
     function allAlivePiles() { const o = []; for (let i = 0; i < board.size; i++) if (board.isActive(i)) o.push(i); return o; }
     function allDeadPiles()  { const o = []; for (let i = 0; i < board.size; i++) if (!board.isActive(i)) o.push(i); return o; }
-    /** Broadcast Pillar in play? Its effect is GLOBAL regardless of which column
-        it sits in — so we only check that SOME column holds it, never which one.
-        While active, every player-owned column-scoped Base reaches the whole
-        board instead of just its own column (Bases only — Pillars keep their own
-        column scope). Already board-wide Bases (Kamikaze, Tax) are unaffected. */
-    function broadcastActive() {
-      return !!(run && run.pillars && run.pillars.some(pid => {
-        const t = pid ? PillarTypes.get(pid) : null;
-        return !!t && t.effect === "broadcast";
-      }));
-    }
-
     /** The "safe" random-sticker pool a Base may apply: no suit-locked stickers
         and nothing that changes a card's suit (so a Base can never introduce a
         not-yet-in-play suit) and not the setup-only Duplicate. */
@@ -10452,7 +10435,6 @@ const GameEngine = (() => {
       };
       if (t.kind === "rank") setRank(card.value + (t.rankDelta || 0));
       else if (t.behavior === "randomFixedValue") setRank(2 + Math.floor(rng() * 13));
-      else if (t.behavior === "extraHeart") card.heartsRemaining = (card.heartsRemaining || 0) + 1;
       else if (t.behavior === "tieSafe") card.tieSafe = true;
       else if (t.behavior === "wildSuit") card.wildSuit = true;
       else if (t.behavior === "revealNext") card.revealNext = true;
@@ -10479,27 +10461,23 @@ const GameEngine = (() => {
     function baseCanActivate(col) {
       const base = baseForColumn(col);
       if (!base) return false;
-      // Broadcast widens a column-scoped Base's reach to the whole board; shadow
-      // the column selectors so the precondition is evaluated at the real scope
-      // (e.g. Phoenix can fire if ANY pile is dead board-wide, not just here).
-      const bc = broadcastActive();
-      const colAlivePiles = (c) => bc ? allAlivePiles() : colPiles(c).filter(i => board.isActive(i));
-      const colDeadPiles  = (c) => bc ? allDeadPiles()  : colPiles(c).filter(i => !board.isActive(i));
+      // Bases are column-scoped: every precondition is evaluated over this
+      // column's piles only (module-level colAlivePiles/colDeadPiles).
       const alive = colAlivePiles(col);
       const topIsSuit = (i, s) => cardMatchesSuit(board.top(i), s);
 
       // Total ♥ cards (top + buried) across this column's alive piles — Heart Tax.
       const colHearts = alive.reduce((n, i) => n + board.piles[i].cards.filter(c => cardMatchesSuit(c, "♥")).length, 0);
       switch (base.effect) {
-        // Kamikaze is inherently board-wide, but now needs a ♠-top alive pile.
-        case "kamikaze":         return board.aliveCount() > 1 && allAlivePiles().some(i => topIsSuit(i, "♠"));
+        // Kamikaze needs >1 pile alive board-wide AND a ♠-top alive pile in ITS
+        // OWN column (it auto-picks a random ♠ target there).
+        case "kamikaze":         return board.aliveCount() > 1 && alive.some(i => topIsSuit(i, "♠"));
         // Spade Peeker: any ♠-top alive pile (a Wild Suit top counts, as everywhere).
         case "spadePeek":        return alive.some(i => topIsSuit(i, "♠"));
         case "shuffleColumn":    return alive.length > 0;
         case "reviveBase":       return colDeadPiles(col).length > 0;
         case "randomSticker":    return alive.some(i => wildStickerPoolFor(board.top(i)).length > 0);
         case "evenOut":          return alive.length >= 2;
-        case "buryAll":          return !deck.isEmpty() && alive.some(i => topIsSuit(i, "♣"));
         case "setValue":         return alive.length > 0;
         case "setSuit":          return alive.length > 0;
         case "stickerHarvest":   return alive.length > 0;
@@ -10549,13 +10527,7 @@ const GameEngine = (() => {
     function baseActivate(col, targetIndex) {
       if (!baseAvailable(col)) return null;
       const base = baseForColumn(col);
-      // Broadcast widens column-scoped Bases to the whole board: shadow the
-      // column selectors so every case's colAlivePiles/colDeadPiles below reaches
-      // all columns (Pillars are untouched — they call the module versions).
-      const bc = broadcastActive();
-      const colAlivePiles = (c) => bc ? allAlivePiles() : colPiles(c).filter(i => board.isActive(i));
-      const colDeadPiles  = (c) => bc ? allDeadPiles()  : colPiles(c).filter(i => !board.isActive(i));
-      // Validate the target for target Bases.
+      // Validate the target for target Bases (column-scoped).
       const needsTarget = base.target === "pile" || base.target === "pillar";
       if (needsTarget) {
         if (targetIndex == null) return null;
@@ -10563,16 +10535,11 @@ const GameEngine = (() => {
           // Demolish: targetIndex is the COLUMN of the Pillar to destroy — it
           // must currently hold a Pillar.
           if (!run.pillars || !run.pillars[targetIndex]) return null;
-        } else if (base.effect === "kamikaze") {
-          // Kamikaze may sacrifice any alive pile board-wide whose top card is a ♠.
-          if (!board.isActive(targetIndex)) return null;
-          const kt = board.top(targetIndex);
-          if (!cardMatchesSuit(kt, "♠")) return null;
         } else {
-          // Other single-pile-target Bases (Sticker Harvest) act on a pile in
-          // their own column — or, under Broadcast, any alive pile board-wide.
+          // Single-pile-target Bases (Sticker Harvest) act on an alive pile in
+          // their own column.
           if (!board.isActive(targetIndex)) return null;
-          if (!bc && run.pileColumns[targetIndex] !== col) return null;
+          if (run.pileColumns[targetIndex] !== col) return null;
         }
       }
 
@@ -10582,17 +10549,22 @@ const GameEngine = (() => {
 
       switch (base.effect) {
         case "kamikaze": {
+          // Auto-pick a RANDOM alive ♠-topped pile in the BASE's own column (no
+          // player target — mirror reviveBase/activateSamePower's random pick).
+          // Availability already guaranteed at least one such pile exists.
           const pk = itemNum(base, "peekCount", 3);           // items.js knob
-          board.kill(targetIndex);
-          if (run.tellPiles) run.tellPiles.delete(targetIndex);   // dead pile drops any Tell hint
+          const kill = pickOne(colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♠")));
+          if (kill == null) break;
+          board.kill(kill);
+          if (run.tellPiles) run.tellPiles.delete(kill);      // dead pile drops any Tell hint
           run.kamikazeRevealLeft = pk;                        // peek the next `pk` draws (display-only)
           // Last Rites on the SACRIFICED pile's column (any death counts).
-          { const kc = run.pileColumns ? run.pileColumns[targetIndex] : null;
+          { const kc = run.pileColumns ? run.pileColumns[kill] : null;
             const kd = resolvePillarDef(kc);
             if (kd && kd.effect === "lastRites") peekPillar(kc, kd); }
-          res.index = targetIndex;
+          res.index = kill;
           res.cards = deck.peek(pk).map(c => ({ ...c }));     // read-only snapshot (no order change)
-          logLine("killed pile " + (targetIndex + 1) + ", peeking the next " + pk + " upcoming cards");
+          logLine("killed pile " + (kill + 1) + ", peeking the next " + pk + " upcoming cards");
           break;
         }
         case "rechargeSameShield": {
@@ -10624,14 +10596,12 @@ const GameEngine = (() => {
           break;
         }
         case "shuffleColumn": {
-          // Shuffle every alive pile in the column; the cost is now 1 coin per
-          // alive pile shuffled (no buried cards returned to the deck).
+          // Shuffle every alive pile in the column — FREE (no coin cost, no
+          // buried cards returned to the deck). Composition only.
           const alive = colAlivePiles(col);
-          const shCost = alive.length * itemNum(base, "coinPerPile", 1);
           for (const i of alive) board.shufflePile(i, rng);
-          if (alive.length) addBonus(base.label, -shCost);
           res.shuffled = alive.length;
-          logLine("shuffled " + alive.length + " piles; −" + shCost + " coins");
+          logLine("shuffled " + alive.length + " piles");
           break;
         }
         case "reviveBase": {
@@ -10695,24 +10665,6 @@ const GameEngine = (() => {
           }
           res.moves = moves;
           logLine("evened out the column: " + moves + " buried cards moved (hidden)");
-          break;
-        }
-        case "buryAll": {
-          // Bury digCount cards under each alive pile whose TOP is a ♣ (Wild Suit
-          // top counts); lose 3 coins per CARD buried.
-          const alive = colAlivePiles(col);
-          let piles = 0, buried = 0;
-          for (const i of alive) {
-            if (deck.isEmpty()) break;
-            const top = board.top(i);
-            if (!cardMatchesSuit(top, "♣")) continue;
-            const n = buryTribute(i, base.digCount || 2, base.label);
-            if (n > 0) { piles++; buried += n; }
-          }
-          const perCard = itemNum(base, "coinPerCard", 3);
-          if (buried) addBonus(base.label, -perCard * buried);   // lose coins per card buried
-          res.buried = buried;
-          logLine("buried " + buried + " cards under " + piles + " ♣ pile" + (piles === 1 ? "" : "s") + "; −" + (perCard * buried) + " coins");
           break;
         }
         case "setValue": {
@@ -10968,20 +10920,26 @@ const GameEngine = (() => {
       emit("same-power", { ...result, board, deck, run });
     }
 
-    /** Suit Guard save — ONE-DIRECTIONAL, draw-based. A guard rides a specific
-        card and fires ONLY when that GUARD CARD is DRAWN from the deck and
-        placed ONTO a card of its guarded suit (carrier = drawn, other = current
-        top, current.suit === guarded suit). A matching-suit card drawn onto a
-        guard card does NOTHING. (A Wild Suit `current` counts as every suit, so
-        it matches any guard the drawn card carries.) Returns { carrier, suit } to
-        consume (one charge per guarded suit per card per run), or null. */
+    /** Suit Guard save — BIDIRECTIONAL and UNLIMITED. A guard rides a card and
+        fires whenever the guarded suit is involved in the draw, in EITHER
+        direction:
+          (a) the GUARD CARD is drawn onto a card of its guarded suit
+              (carrier = drawn, current matches the suit), OR
+          (b) a card of the guarded suit is drawn onto the GUARD CARD sitting on
+              the pile (carrier = current, drawn matches the suit).
+        Wild Suit on the non-guard side counts as every suit. Guards never spend,
+        so a matching guard saves repeatedly. Returns { carrier, suit } (the side
+        carrying the matched guard), or null. */
     function findGuardSave(current, drawn) {
-      if (!drawn || !drawn.suitGuards || !current) return null;
-      // First active guard whose suit `current` counts as — the one membership
-      // test covers both cases: a printed match hits only its own suit's guard,
-      // a Wild Suit `current` matches any active guard (consuming one charge).
-      for (const sym in drawn.suitGuards)
-        if (drawn.suitGuards[sym] && cardMatchesSuit(current, sym)) return { carrier: drawn, suit: sym };
+      if (!current || !drawn) return null;
+      // (a) drawn carries the guard, current is the matching suit.
+      if (drawn.suitGuards)
+        for (const sym in drawn.suitGuards)
+          if (drawn.suitGuards[sym] && cardMatchesSuit(current, sym)) return { carrier: drawn, suit: sym };
+      // (b) current (pile top) carries the guard, drawn is the matching suit.
+      if (current.suitGuards)
+        for (const sym in current.suitGuards)
+          if (current.suitGuards[sym] && cardMatchesSuit(drawn, sym)) return { carrier: current, suit: sym };
       return null;
     }
 
@@ -11235,10 +11193,8 @@ const GameEngine = (() => {
         // Snowball Bury: { cardId: newX } accrued this run — same write-back-on-
         // win contract as compoundUpdates (a loss ends the run, so nothing leaks).
         snowballUpdates: {},
-        // Momentum: { cardId: newX } accrued this run — same write-back contract.
-        momentumUpdates: {},
-        // Quick Bury peels: { cardId: peeledCount } — instances destroyed by the
-        // 25% roll, removed from the persistent card on a win.
+        // Sticker peels: { cardId: peeledCount } — instances destroyed this run,
+        // removed from the persistent card on a win.
         stickerPeels: {},
         // Scout: true while the next deck card is revealed (a Scout-stickered card
         // was just placed). Display-only; cleared the moment that card is drawn.
@@ -11434,10 +11390,10 @@ const GameEngine = (() => {
         peekPillar(col, pillar);   // the static crackles → peek the next card
       }
 
-      // Fibonacci: +value the moment a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) is
-      // DRAWN into this column — paid live, a running total across the deal,
-      // regardless of whether the guess is correct or the pile later dies.
-      if (pillar && pillar.effect === "fibonacci"
+      // Fibonacci: +value when a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) lands
+      // CORRECTLY in this column — paid live, a running total across the deal. A
+      // wrong placement pays nothing.
+      if (correct && pillar && pillar.effect === "fibonacci"
           && (drawn.value === 14 || drawn.value === 2 || drawn.value === 3 || drawn.value === 5 || drawn.value === 8)) {
         payPillar(col, "fibonacci", pillar.label, pillar.value || 1);
       }
@@ -11503,16 +11459,12 @@ const GameEngine = (() => {
         recT("pillar", pillar.id, pillar.label, { coins: pillar.value || 0 });
       }
 
-      // Snowball Bury / Momentum: ANY wrong placement of the carrying card resets
-      // its X to 0 (even when a Guard/Shield/Second Wind saves the pile — the
-      // placement itself was wrong). Recorded for the win write-back.
+      // Snowball Bury: ANY wrong placement of the carrying card resets its X to 0
+      // (even when a Guard/Second Wind saves the pile — the placement itself was
+      // wrong). Recorded for the win write-back.
       if (!correct && drawn.stickers && drawn.stickers.some(x => x.type === "snowball")) {
         drawn.snowball = 0;
         run.snowballUpdates[drawn.id] = 0;
-      }
-      if (!correct && drawn.stickers && drawn.stickers.some(x => x.type === "momentum")) {
-        drawn.momentum = 0;
-        run.momentumUpdates[drawn.id] = 0;
       }
 
       let guardSave = null;
@@ -11571,27 +11523,17 @@ const GameEngine = (() => {
           emit("same-banked", { index, board, deck, run, sameCharge });
         }
       } else if ((guardSave = findGuardSave(current, drawn))) {
-        // Suit Guard (symmetric): the guarded suit is involved in this draw, so
-        // the wrong guess is absorbed once per run. The pile survives with its
-        // current top, the drawn card is reshuffled back in, and the matched
-        // guard's charge (on whichever participant carried it) is spent. Other
-        // suits' guards — and other cards' guards — are untouched.
-        guardSave.carrier.suitGuards[guardSave.suit] = false;
+        // Suit Guard (bidirectional + UNLIMITED): the guarded suit is involved in
+        // this draw — either the drawn card matches a guard on the pile top, or
+        // the pile top matches a guard on the drawn card — so the wrong guess is
+        // absorbed. Guards never spend: a matching guard saves repeatedly, all
+        // run. The pile survives with its current top and the drawn card is
+        // reshuffled back in. Other suits' guards are untouched.
         deck.returnCard(drawn);
-        logLine("Guard consumed — pile survived (" + guardSave.suit + " involved; card returned to the deck)");
+        logLine("Guard saved the pile (" + guardSave.suit + " involved; card returned to the deck)");
         emit("guarded", { index, guess, current, drawn, board, deck, run });
         const gdef = StickerTypes.all().find(t => t.behavior === "suitImmunity" && t.suit === guardSave.suit);
         recT("sticker", gdef ? gdef.id : "suitImmunity", gdef ? gdef.label : "Guard", { saves: 1 });
-      } else if (current.heartsRemaining > 0) {
-        // Extra Heart: break one heart (run-local — refreshes next run), the
-        // pile survives, and the wrongly-drawn card is shuffled back into the
-        // draw deck. The stickered card stays face-up; deck composition is
-        // unchanged. The drawn card is NOT pushed and the pile is NOT killed.
-        current.heartsRemaining -= 1;
-        deck.returnCard(drawn);
-        logLine("Shield consumed — pile survived (card returned to the deck)");
-        emit("heart-broken", { index, guess, current, drawn, board, deck, run });
-        recT("sticker", "extraHeart", "Shield", { saves: 1 });
       } else if (pillar && pillar.effect === "secondWind" && run.secondWindUsed && col != null && !run.secondWindUsed[col]) {
         // Second Wind: the first pile to die in this column each run revives once.
         // Its cards AND the killing card are reshuffled back into the deck (no
@@ -11771,7 +11713,6 @@ const GameEngine = (() => {
           const others = DeckManager.SUITS.filter(x => x.symbol !== next.suit);
           if (others.length) setSuit(others[Math.floor((rng ? rng() : Math.random()) * others.length)].symbol);
         }
-        else if (t.behavior === "extraHeart") next.heartsRemaining = (next.heartsRemaining || 0) + 1;
         else if (t.behavior === "tieSafe") next.tieSafe = true;
         else if (t.behavior === "wildSuit") next.wildSuit = true;
         else if (t.behavior === "revealNext") next.revealNext = true;
@@ -11817,9 +11758,6 @@ const GameEngine = (() => {
       baseAvailable(col) { return baseAvailable(col); },
       /** Whether the Base on column `col` needs the player to pick a target pile. */
       baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && (b.target === "pile" || b.target === "pillar")); },
-      /** True when a Broadcast Pillar is in play (column-scoped Bases go board-wide).
-          Lets the UI widen a Base's valid target piles + prompt accordingly. */
-      broadcastActive() { return broadcastActive(); },
       /** Activate the Base on column `col` (with a chosen `targetIndex` for target
           Bases). Returns a result object describing what fired, or null. */
       baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
@@ -13779,7 +13717,6 @@ const CampaignState = (() => {
         card.stickers = [];
         card.compoundHits = 0;
         card.snowball = 0;
-        card.momentum = 0;
         return base;
       },
 
@@ -13864,7 +13801,6 @@ const CampaignState = (() => {
           stickers: (src.stickers || []).map(s => ({ ...s })),
           compoundHits: src.compoundHits || 0,
           snowball: src.snowball || 0,
-          momentum: src.momentum || 0,
         };
         packTray.push(copy);
         return copy;
@@ -13901,15 +13837,9 @@ const CampaignState = (() => {
         if (card) card.snowball = n;
       },
 
-      /** Momentum: persist a card's coin counter X — same write-back contract. */
-      setMomentum(id, n) {
-        const card = findById(id);
-        if (card) card.momentum = n;
-      },
-
-      /** Destroy `count` instances of one sticker type on a card (Quick Bury's
-          25% peel-off). Removal only — no flag/rank reverts (the peeled types
-          carry no permanent card mutation). */
+      /** Destroy `count` instances of one sticker type on a card. Removal only —
+          no flag/rank reverts (the peeled types carry no permanent card
+          mutation). */
       removeStickerInstances(id, typeId, count) {
         const card = findById(id);
         if (!card || !card.stickers) return 0;
@@ -14130,14 +14060,19 @@ const CampaignState = (() => {
         // or older). The store is one unified { slots } now; drop any old-shape
         // offer so the next store open rolls a fresh 5-slot one.
         if (storeOffer && !Array.isArray(storeOffer.slots)) storeOffer = null;
+        // Load tolerance: drop any sticker instance whose type is no longer in
+        // the registry (a deleted sticker id carried by an older save) so a
+        // stale card can never crash materialization/rendering — unknown ids
+        // simply vanish. Applied to both the base deck and any held pack cards.
+        const knownStickers = (arr) => (arr || []).filter(x => x && StickerTypes.get(x.type)).map(x => ({ ...x }));
         baseDeck = s.baseDeck.map(c => ({
           ...c,
           modifications: (c.modifications || []).slice(),
-          stickers: (c.stickers || []).map(x => ({ ...x })),
+          stickers: knownStickers(c.stickers),
         }));
         // Card Packs (default for saves written before packs existed).
         packTray = Array.isArray(s.packTray)
-          ? s.packTray.map(c => ({ ...c, modifications: (c.modifications || []).slice(), stickers: (c.stickers || []).map(x => ({ ...x })) }))
+          ? s.packTray.map(c => ({ ...c, modifications: (c.modifications || []).slice(), stickers: knownStickers(c.stickers) }))
           : [];
         const maxBaseId = baseDeck.reduce((m, c) => Math.max(m, c.id), 51);
         const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
@@ -14662,6 +14597,10 @@ const Sound = (() => {
     // coin(): it plays right after the guess-resolution blip, which masked
     // the soft ping completely on phone speakers.
     coinBonus() { seq([[1047, 0.07, 0, "triangle", 0.055, 1175], [1397, 0.12, 0.06, "triangle", 0.05]]); },
+    // COIN LOSS — a paid sticker cost (Bury 2's −7) landing. The DESCENDING
+    // mirror of coinBonus so a deduction reads as its own, unmistakably-negative
+    // event (the tally can go negative, so the cost must be heard as well as seen).
+    coinLoss() { seq([[1175, 0.07, 0, "triangle", 0.05, 1047], [784, 0.14, 0.06, "triangle", 0.05, 698]]); },
     // Post-game coin-tally line: a coin ping that RISES per line (idx) so the
     // tally builds musically toward the total.
     coinTallyLine(idx) { const steps = [784, 880, 988, 1047, 1175, 1319, 1397]; const f = steps[Math.min(idx || 0, steps.length - 1)]; voice({ freq: f, glideTo: f * 1.18, dur: 0.11, type: "sine", gain: 0.04 }); },
@@ -15450,15 +15389,14 @@ const UIRenderer = (() => {
      persistent marker — ongoing (+1, Tie-Safe, Extra Coin, Anchor) AND one-time
      transformations (Change Suit, random or defined). The badge rides with the
      card's persistent identity (card.stickers), so it survives across runs, the
-     pre-run phase, and re-renders. Extra Heart is the one special case: its
-     chip splits into hearts remaining (❤️) + broken/consumed (💔). */
+     pre-run phase, and re-renders. */
   function renderStickerBadges(pileEl, card) {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
     // Bail before any registry work for the common bare card (nothing to draw,
     // nothing drawn) — most piles most of the time.
-    if (!stickers.length && !(card && card.heartsRemaining) && !badges.firstChild) return;
+    if (!stickers.length && !badges.firstChild) return;
     // One pass over the card's stickers → per-type counts (the registry loop
     // below asks for every type; a filter() per type was O(registry × stickers)).
     const counts = {};
@@ -15476,19 +15414,15 @@ const UIRenderer = (() => {
       count > 0 ? dieCutChip(icon, tierOf(id), { count: count > 1 ? count : null, cls: cls, face: faceOf(id), rot: rotN(id) }) : "";
     const counter = (id, icon, count) =>
       dieCutChip(icon, tierOf(id), { count: count, face: faceOf(id), rot: rotN(id) });
-    // Extra Heart is dynamic — split into remaining vs broken (faded chip).
-    const heartsLeft = card ? (card.heartsRemaining || 0) : 0;
-    const heartsBroken = Math.max(0, n("extraHeart") - heartsLeft);
-    let html = chip("extraHeart", glyph("buffer"), heartsLeft)
-             + (heartsBroken > 0 ? dieCutChip(glyph("buffer"), tierOf("extraHeart"), { count: heartsBroken > 1 ? heartsBroken : null, cls: "spent", face: faceOf("extraHeart"), rot: rotN("extraHeart") }) : "");
-    // Every OTHER registered sticker type → one vinyl from its category + rarity.
+    let html = "";
+    // Every registered sticker type → one vinyl from its category + rarity
+    // (Snowball / Compound draw a live counter below, so skip their flat chip).
     for (const t of StickerTypes.all()) {
-      if (t.id === "extraHeart" || t.id === "compound" || t.id === "snowball" || t.id === "momentum") continue;   // handled specially
+      if (t.id === "compound" || t.id === "snowball") continue;   // handled specially
       html += chip(t.id, t.icon, n(t.id));
     }
-    // Snowball / Momentum / Compound show their live per-card counter value.
+    // Snowball / Compound show their live per-card counter value.
     if (n("snowball") > 0) html += counter("snowball", glyph("snowball"), (card.snowball || 0));
-    if (n("momentum") > 0) html += counter("momentum", glyph("momentum"), (card.momentum || 0));
     if (n("compound") > 0) html += counter("compound", glyph("potentiation"), Math.max(0, (card.compoundHits || 0) - 1));
     badges.innerHTML = html;
   }
@@ -17131,11 +17065,10 @@ const UIRenderer = (() => {
       const n = counts[t.id];
       if (!n) return;
       let state = "";
-      if (t.id === "extraHeart") state = "Shields remaining: " + (card.heartsRemaining || 0) + " of " + n;
-      else if (t.behavior === "suitImmunity") state = "Charge: " + ((card.suitGuards && card.suitGuards[t.suit]) ? "ready" : "spent");
+      // Guards are always-active now (bidirectional, never spent) — no charge state.
+      if (t.behavior === "suitImmunity") state = "Always safe when a " + t.suit + " is involved";
       else if (t.id === "compound") state = "Banked: +" + Math.max(0, (card.compoundHits || 0) - 1) + " coins";
       else if (t.id === "snowball") state = "Buries next: " + (card.snowball || 0) + " card" + ((card.snowball || 0) === 1 ? "" : "s");
-      else if (t.id === "momentum") state = "Earns next: +" + (card.momentum || 0) + " coins";
       body +=
         '<div class="pk-item">' + stickerChip(t.id, { seed: "pki" }) + "<span>" +
           '<span class="pk-name">' + escHtml(t.label) + (n > 1 ? " ×" + n : "") + "</span>" +
@@ -17899,8 +17832,6 @@ const UIRenderer = (() => {
       // Arm this suit's guard on the live card so it's honored THIS run too.
       card.suitGuards = card.suitGuards || {};
       if (t.suit) card.suitGuards[t.suit] = true;
-    } else if (t.behavior === "extraHeart") {
-      card.heartsRemaining = (card.heartsRemaining || 0) + 1;
     } else if (t.behavior === "tieSafe") {
       card.tieSafe = true;
     } else if (t.behavior === "wildSuit") {
@@ -19729,11 +19660,15 @@ const UIRenderer = (() => {
     // coin() ping vanished under the simultaneous guess-resolution blip), and
     // played a beat AFTER it so the two read as separate events. Throttled so
     // a payout burst reads as one ring, not a machine-gun.
-    if (amount > 0) {
+    if (amount !== 0) {
+      // GAIN rings coinBonus; a LOSS (a paid sticker cost) rings the descending
+      // coinLoss so a deduction is heard, not just silently subtracted. Same
+      // throttle + post-blip delay so it reads as its own event.
       const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : 0;
       if (now - lastCoinSoundAt > 120) {
         lastCoinSoundAt = now;
-        setTimeout(() => { try { Sound.coinBonus(); } catch (e) {} }, 110);
+        const play = amount > 0 ? "coinBonus" : "coinLoss";
+        setTimeout(() => { try { Sound[play](); } catch (e) {} }, 110);
       }
     }
   }
@@ -19992,8 +19927,8 @@ const UIRenderer = (() => {
         // (1) Always pulse the fired Base's banner + float its net coin delta —
         //     this also draws the eye to the now-spent banner.
         flashBase(payload.col, payload.coins || 0);
-        // (2) Effect-specific cues. Bury effects (suitDig / buryAll /
-        //     stickerHarvest) already animate via the "buried" event; Kamikaze
+        // (2) Effect-specific cues. Bury effects (suitDig / stickerHarvest)
+        //     already animate via the "buried" event; Kamikaze
         //     played the death animation above; Demolish removed the Pillar banner
         //     (+ the coin float from flashBase); Reactor's re-armed banners + Suit
         //     Tally / Tax coins are shown by paintColumnBases + the float.
@@ -20237,11 +20172,13 @@ const UIRenderer = (() => {
       }
 
       case "sticker-coins": {
-        // A coin sticker paid out on a landing. GAINS ride the shared coin
-        // float (chip + the throttled coin chime — same cue as every pillar/
-        // base payout); Loose Change's visible "+0" keeps the silent float.
-        if (payload.amount > 0) floatCoins(pileEls[payload.index], payload.amount, "pile-float");
-        else floatOverPile(payload.index, "+" + (payload.amount || 0));
+        // A coin sticker paid (or CHARGED) on a landing. Any non-zero amount
+        // rides the shared coin float — a GAIN shows "+N" + coinBonus, a paid
+        // cost (Bury 2's −7) shows a red "−N" + the descending coinLoss cue, so
+        // the deduction is unmistakable (the tally can go negative). Loose
+        // Change's visible "+0" keeps the silent float.
+        if (payload.amount) floatCoins(pileEls[payload.index], payload.amount, "pile-float");
+        else floatOverPile(payload.index, "+0");
         renderHud(payload.board, payload.deck);
         break;
       }
@@ -22412,10 +22349,10 @@ const UIRenderer = (() => {
   /* The live "if activated now" value for a Base whose effect scales with the
      current board — its actual calculation, not a simplified proxy. Returns
      { count, title } or null for Bases with no meaningful variable value.
-     Respects Broadcast (widens the scope board-wide, exactly like the engine). */
-  function baseLiveCounter(t, col, board, run, bc) {
+     Column-scoped, exactly like the engine. */
+  function baseLiveCounter(t, col, board, run) {
     if (!t) return null;
-    const inScope = (i) => board.isActive(i) && (bc || run.pileColumns[i] === col);
+    const inScope = (i) => board.isActive(i) && run.pileColumns[i] === col;
     const topIs = (i, s) => cardMatchesSuit(board.top(i), s);
     const topCount = (s) => { let n = 0; for (let i = 0; i < board.size; i++) if (inScope(i) && topIs(i, s)) n++; return n; };
     switch (t.effect) {
@@ -22433,10 +22370,6 @@ const UIRenderer = (() => {
         const p = topCount("♠");
         return { count: p, title: p + " ♠-top pile" + (p === 1 ? "" : "s") + " → peek " + p + " card" + (p === 1 ? "" : "s") };
       }
-      case "buryAll": {
-        const cards = topCount("♣") * (t.digCount || 2);
-        return { count: cards, title: cards + " card" + (cards === 1 ? "" : "s") + " buried if activated now (♣-top piles × " + (t.digCount || 2) + ")" };
-      }
       case "suitDig": {
         if (t.suit !== "♣") return null;   // only Club Dig survives in the roster
         const cards = topCount("♣") * (t.digCount || 1);
@@ -22447,22 +22380,21 @@ const UIRenderer = (() => {
   }
 
   /* Live counter for value-scaling Bases (Heart Tax, Heart Demolish, Spade Peeker,
-     Landslide, Club Dig) — a persistent chip on the plaque, refreshed on every
-     board change (created/updated/removed in place, no row rebuild). */
+     Club Dig) — a persistent chip on the plaque, refreshed on every board change
+     (created/updated/removed in place, no row rebuild). */
   function refreshBaseCounters() {
     if (!engine || !engine.getRun || !engine.getBoard || !campaign) return;
     const run = engine.getRun();
     const board = engine.getBoard();
     const started = engine.isRunStarted && engine.isRunStarted();
     if (!run || !board || !started || !run.pileColumns) return;
-    const bc = engine.broadcastActive && engine.broadcastActive();
     const binding = campaign.getColumnBases();
     const cells = baseCells();
     cells.forEach((cell, col) => {
       const banner = cell.querySelector(".base-banner");
       if (!banner) return;
       const t = binding[col] ? BaseTypes.get(binding[col]) : null;
-      const info = t ? baseLiveCounter(t, col, board, run, bc) : null;
+      const info = t ? baseLiveCounter(t, col, board, run) : null;
       let badge = banner.querySelector(".base-count-badge");
       if (!info) { if (badge) badge.remove(); return; }
       if (!badge) { badge = document.createElement("span"); badge.className = "base-count-badge"; banner.appendChild(badge); }
@@ -22513,7 +22445,7 @@ const UIRenderer = (() => {
      filled WHITE symbol distinguishes the specific base (suit Digs add a ×N
      strength count). Rarity is re-homed to a small store-only gem strip — bar
      colour no longer carries rarity. Categorisation (base → family → colour):
-       DIG/bury  (green):  heart/diamond/spade/club Dig, Landslide, Sticker Harvest
+       DIG/bury  (green):  heart/diamond/spade/club Dig, Sticker Harvest
        DESTROY   (red):    Kamikaze, Demolish
        COINS     (gold):   Suit Tally, Tax
        UTILITY   (purple): Upheaval, Phoenix, Wild Sticker, Sticker Storm, Ballast,
@@ -22521,7 +22453,7 @@ const UIRenderer = (() => {
        PEEK/reveal (blue): reserved — no base is primarily peek today. */
   const BASE_FAMILY = {
     clubDig: "dig",
-    buryAll: "dig", stickerHarvest: "dig",
+    stickerHarvest: "dig",
     kamikaze: "destroy", demolish: "destroy", heartDemolish: "destroy",
     tax: "coins",
     spadePeek: "peek",
@@ -22534,7 +22466,6 @@ const UIRenderer = (() => {
   // Dark detail uses a translucent black so it reads on any family colour.
   const DK = 'fill="rgba(0,0,0,0.34)"', DKS = 'stroke="rgba(0,0,0,0.32)"';
   const BASE_SYM = {
-    buryAll: '<path d="M9 2.4h6v7.2h4L12 17 5 9.6h4z"/><rect x="3.6" y="20" width="16.8" height="2.6" rx="1.3"/>',
     stickerHarvest: '<circle cx="12" cy="6.6" r="4.2"/><path d="M9.4 11.4h5.2v3h2.9L12 20.6 6.5 14.4h2.9z"/>',
     kamikaze: '<path d="M12 2l1.8 4.3 3.6-2.9-.6 4.5 4.5-.6-2.9 3.6L22.2 12l-4.2 1.6 2.9 3.6-4.5-.6.6 4.5-3.6-2.9L12 22.2l-1.8-4.3-3.6 2.9.6-4.5-4.5.6 2.9-3.6L1.8 12l4.2-1.6L3.1 6.8l4.5.6L7 2.9l3.6 2.9z"/>',
     demolish: '<path d="M3 18.4l7.7-7.7 2.3 2.3L5.3 20.7zM12.6 4.1l-2 2 5.3 5.3 2-2zM14.4 1.9l-3.3 3.3 1.5 1.5 3.3-3.3zM18.4 5.9l-3.3 3.3 1.5 1.5 3.3-3.3z"/>',
@@ -23025,11 +22956,9 @@ const UIRenderer = (() => {
     // identities so N carries into future runs (a loss wipes it via reset()).
     const cu = (payload.run && payload.run.compoundUpdates) || {};
     for (const id in cu) campaign.setCompoundHits(Number(id), cu[id]);
-    // Snowball counters + Quick Bury peels follow the same win-only contract.
+    // Snowball counters follow the same win-only write-back contract.
     const su = (payload.run && payload.run.snowballUpdates) || {};
     for (const id in su) campaign.setSnowball(Number(id), su[id]);
-    const mu = (payload.run && payload.run.momentumUpdates) || {};
-    for (const id in mu) campaign.setMomentum(Number(id), mu[id]);
     const sp = (payload.run && payload.run.stickerPeels) || {};
     for (const id in sp) campaign.removeStickerInstances(Number(id), "quickBury", sp[id]);
     // Same Charge persists across deals: carry this deal's end-state back to the
@@ -26060,8 +25989,8 @@ const UIRenderer = (() => {
     const su = DeckManager.SUITS.find(x => x.symbol === base.suit) || DeckManager.SUITS[0];
     top.suit = su.symbol; top.red = su.red;
     top.stickers = [];
-    top.tieSafe = false; top.heartsRemaining = 0; top.revealNext = false;
-    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0; top.snowball = 0; top.momentum = 0;
+    top.tieSafe = false; top.revealNext = false;
+    top.wildSuit = false; top.suitGuards = {}; top.compoundHits = 0; top.snowball = 0;
     closePeekInfo();
     paintFront(pileEls[index], top);
     renderStickerBadges(pileEls[index], top);
@@ -26260,14 +26189,11 @@ const UIRenderer = (() => {
       wide; the other target Bases act only on an alive pile in their own column). */
   function baseTargets(col) {
     const board = engine.getBoard();
-    const base = engine.baseForColumn(col);
-    // Kamikaze is always board-wide; under a Broadcast Pillar, a column-scoped
-    // pile-target Base (Sticker Harvest) may also pick any alive pile board-wide.
-    const boardWide = (base && base.effect === "kamikaze") || engine.broadcastActive();
+    // Pile-target Bases (Sticker Harvest) pick an alive pile in their own column.
     const out = [];
     for (let i = 0; i < board.size; i++) {
       if (!board.isActive(i)) continue;
-      if (!boardWide && engine.getRun().pileColumns[i] !== col) continue;
+      if (engine.getRun().pileColumns[i] !== col) continue;
       out.push(i);
     }
     return out;
@@ -26275,10 +26201,7 @@ const UIRenderer = (() => {
   /** The bottom-prompt instruction for a target Base. */
   function baseTargetPrompt(base) {
     switch (base && base.effect) {
-      case "kamikaze":       return "Choose a pile to kill, then peek at the next 3 upcoming cards.";
-      case "stickerHarvest": return engine.broadcastActive()
-        ? "Choose any pile on the board to harvest its pile card."
-        : "Choose a pile in this column to harvest its pile card.";
+      case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
       case "demolish":       return "Choose one of your Pillars to destroy — the rubble reveals the next 2 upcoming cards.";
       default:               return "Choose a target pile.";
     }

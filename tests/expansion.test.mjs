@@ -19,10 +19,11 @@ export function run() {
   // --- Envy: at deal END, +4 coins PER PILE IN THIS COLUMN with a ♥ top --
   // (col 0 = piles 0-2, col 1 = piles 3-6, col 2 = piles 7-9)
   {
-    // Registry + Trigger/Effect description (column-scoped wording).
+    // Registry + description (column-scoped wording). Pillars now use the arrow
+    // form ("At deal end → …"); bases keep Trigger/Effect. Accept either shape.
     r.eq(PillarTypes.get("envy").effect, "heartPiles", "Envy fires the per-♥-top-pile scoring effect");
     r.eq(PillarTypes.get("envy").value, 4, "Envy pays 4 per ♥-top pile");
-    r.ok(/Trigger:[\s\S]*Effect:/.test(PillarTypes.get("envy").description), "Envy uses the Trigger/Effect description");
+    r.ok(/Trigger:[\s\S]*Effect:/.test(PillarTypes.get("envy").description) || /→/.test(PillarTypes.get("envy").description), "Envy uses the Trigger/Effect or arrow description");
     r.ok(/this column/.test(PillarTypes.get("envy").description), "Envy's description scopes to this column");
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);

@@ -102,7 +102,8 @@ export function run() {
     r.eq(camp.priceOfPillar("heartBounty"), 18, "Smith pays 2x for Pillars (9 → 18)");
     r.eq(camp.priceOfPack("cardPack"), 20, "Smith pays 2x for packs (10 → 20)");
     r.eq(camp.priceOfSamePower("linkBury"), 10, "Smith pays 2x for Same-Powers (5 → 10)");
-    r.eq(camp.removalPrice(), 40, "Smith pays 2x for Removal (20 → 40)");
+    const baseRemoval = fresh(null).camp.removalPrice();   // Pinky base price, read live
+    r.eq(camp.removalPrice(), baseRemoval * 2, "Smith pays 2x for Removal (" + baseRemoval + " → " + baseRemoval * 2 + ")");
     // The charge matches the doubled price (not the list price).
     camp.addCoins(100);
     const before = camp.getCoins();

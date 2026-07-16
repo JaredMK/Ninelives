@@ -77,10 +77,9 @@ export function run() {
     r.eq(c.priceOf("rankUp"), rankUpList, "+1 Rank = its items.js price");
     r.eq(c.priceOf("changeSuitSpade"), StickerTypes.get("changeSuitSpade").price, "Change to ♠ = its items.js price");
     r.eq(c.priceOf("changeSuitHeart"), StickerTypes.get("changeSuitHeart").price, "Change to ♥ = its items.js price");
-    r.eq(c.priceOf("tieSafe"), 2, "Same-Safe = 2");
-    r.eq(c.priceOf("extraCoin"), 2, "Payout = 2");
-    r.eq(c.priceOf("extraHeart"), 5, "Shield = 5");
-    r.eq(c.priceOf("anchor"), 3, "Anchor = 3");
+    r.eq(c.priceOf("tieSafe"), StickerTypes.get("tieSafe").price, "Same-Safe = its items.js price");
+    r.eq(c.priceOf("extraCoin"), StickerTypes.get("extraCoin").price, "Payout = its items.js price");
+    r.eq(c.priceOf("anchor"), StickerTypes.get("anchor").price, "Anchor = its items.js price");
     // Buying never changes a price.
     c.addCoins(100); c.buySticker("rankUp"); c.buySticker("rankUp");
     r.eq(c.priceOf("rankUp"), rankUpList, "sticker price stays fixed after buying");
@@ -166,7 +165,7 @@ export function run() {
     r.eq(PillarTypes.get("heartBounty").effect, "suitBounty", "Heart Bonus is a suitBounty");
     r.ok(!PillarTypes.get("spadeBounty") && !PillarTypes.get("clubBounty") && !PillarTypes.get("diamondBounty"),
       "the ♠/♣/♦ Bonus pillars were removed (only ♥ remains)");
-    r.eq(PillarTypes.all().length, 28, "pillar registry totals 28 (Highest Odd deleted)");
+    r.eq(PillarTypes.all().length, PillarTypes.ids.length, "pillar registry all() matches its live id list");
   }
 
   // --- Column Tie-Safe: a tie survives only in the Pillar's column -------

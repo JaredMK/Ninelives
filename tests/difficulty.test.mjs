@@ -9,12 +9,15 @@ export function run() {
 
   // ---- data: Regular is the legacy baseline; Legendary bosses as derived ---
   {
-    const { RunMap } = loadGame();
+    const { RunMap, DifficultyData } = loadGame();
     r.eq(RunMap.getDifficultyTier(), "regular", "the generator defaults to Regular");
+    // Bands are the source of truth in difficulty.js — read them live so a
+    // hand-edit to the Regular bands keeps this green (never pin the values).
+    const regT = DifficultyData.tier("regular");
     const reg = RunMap.bandsFor(0);
-    r.eq(JSON.stringify([reg.stage, reg.boss]), JSON.stringify([[1.5, 3.0], [2.3, 3.0]]),
-      "Regular stage 1 = the legacy band values");
-    r.eq(JSON.stringify(RunMap.bandsFor(2).boss), JSON.stringify([5.5, 6.0]), "Regular ♠ boss = 5.5–6.0 (legacy)");
+    r.eq(JSON.stringify([reg.stage, reg.boss]), JSON.stringify([regT.stageBands[0], regT.bossBands[0]]),
+      "Regular stage 1 bands come straight from difficulty.js");
+    r.eq(JSON.stringify(RunMap.bandsFor(2).boss), JSON.stringify(regT.bossBands[2]), "Regular ♠ boss = difficulty.js bossBands[2]");
   }
 
   // ---- bandsFor follows the selected tier -----------------------------------

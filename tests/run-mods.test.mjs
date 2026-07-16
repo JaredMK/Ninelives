@@ -2,8 +2,8 @@
 //  #1 Cast (setValue) and Wild Sticker (randomSticker) record durable per-card
 //     mods (cardId + change) that the UI writes onto the PERSISTENT campaign card
 //     — so they last the rest of the run.
-//  #5 Fibonacci pays live the moment a fib-rank card is drawn into its column,
-//     win or lose, not only for survivors at end of deal.
+//  #5 Fibonacci pays live when a fib-rank card lands CORRECTLY in its column
+//     (a wrong placement pays nothing), not only for survivors at end of deal.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -70,7 +70,7 @@ export function run() {
     r.ok(cc.stickers.some(s => s.type === res.stickerApplied.typeId), "Wild Sticker persists on the campaign card");
   }
 
-  // --- #5 Fibonacci pays LIVE per fib-rank draw, win or lose -------------
+  // --- #5 Fibonacci pays LIVE per fib-rank draw, ONLY on a correct placement --
   {
     const fib = (top, drawn, guess) => {
       const e = GameEngine.create(DeckManager.buildStandardDeck(), 7, { cols: COLS });
@@ -84,10 +84,11 @@ export function run() {
       return { paid: e.getRun().bonusCoins - before, alive: b.isActive(0) };
     };
 
-    // Fib-rank (5) drawn, WRONG guess → pile dies, but Fibonacci STILL pays.
+    // Fib-rank (5) drawn, WRONG guess → pile dies → Fibonacci pays NOTHING now
+    // (payout moved inside the correct-placement path).
     const dead = fib(10, 5, "higher");   // 5 < 10, higher is wrong → die
     r.ok(!dead.alive, "the pile died on the wrong guess");
-    r.eq(dead.paid, 1, "Fibonacci paid +1 for the fib-rank draw even though the pile died");
+    r.eq(dead.paid, 0, "Fibonacci pays nothing on a wrong placement (correct-only)");
 
     // Fib-rank (3) drawn, CORRECT guess → survives and pays.
     const live = fib(2, 3, "higher");    // 3 > 2, higher correct → survive

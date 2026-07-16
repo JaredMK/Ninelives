@@ -40,7 +40,10 @@ export function run() {
     r.ok(bIds.every(id => !!BaseTypes.get(id)), "both new bases registered");
     const all = [...sIds.map(id => StickerTypes.get(id)), ...bIds.map(id => BaseTypes.get(id))];
     r.ok(all.every(t => t.tier === "rare"), "all four are rare");
-    r.ok(all.every(t => /Trigger:[\s\S]*Effect:/.test(t.description)), "all use the Trigger/Effect format");
+    // Descriptions are free-form now (stickers use the arrow form, bases use a
+    // short plain sentence) — just require a non-empty description on each.
+    r.ok(all.every(t => typeof t.description === "string" && t.description.length > 0), "all four carry a description");
+    r.ok(sIds.every(id => /→/.test(StickerTypes.get(id).description)), "the two same-* stickers use the arrow form");
     r.ok(all.every(t => t.icon), "all carry an icon/artwork");
     r.eq(StickerTypes.get("rechargeSameShield").price, 15, "Recharge Shield sticker costs 15");
     r.eq(StickerTypes.get("activateSamePower").price, 12, "Tap Power sticker costs 12");

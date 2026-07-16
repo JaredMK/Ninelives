@@ -117,7 +117,7 @@ const NINELIVES_ITEMS = {
       description: "At deal end → exclude this pile from the smallest-pile score if this card tops its pile", suits: ["♦"] },
     { id: "oneTribute", label: "Bury 1",      icon: "🪦", kind: "behavior", behavior: "tribute", tributeCount: 1, tier: "rare", price: 10,
       description: "When this card lands → bury 1 deck card under the pile", suits: ["♣"] },
-    { id: "twoTribute", label: "Bury 2",      icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 4, tier: "rare", price: 16,
+    { id: "twoTribute", label: "Bury 2",      icon: "⚰️", kind: "behavior", behavior: "tribute", tributeCount: 2, coinCost: 7, tier: "rare", price: 16,
       description: "When this card lands → bury 2 deck cards under the pile. Costs 7 coins", suits: ["♣"]  },
     { id: "deathBounty", label: "Last Coin",  icon: "💀", kind: "behavior", behavior: "deathBounty", value: 5, tier: "common", price: 3,
       description: "When this card lands → +5 coins if it kills a pile", suits: ["♥"] },
@@ -158,7 +158,7 @@ const NINELIVES_ITEMS = {
       description: "When this card lands → peek at the next card if this column has no pillar", suits: ["♠"]  },
     { id: "baseScout",  label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
       description: "When this card lands → peek at the next card if this column has no base", suits: ["♠"]  },
-    // ---- the Snob family: each fires when THIS card lands on its suit ----
+    // ---- the Snob family: each fires when a matching-suit card LANDS ON this card ----
     { id: "suitSnob",   label: "Spade Snob",  icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 3,
       description: "When a ♠ lands on this card → peek at the next deck card"},
     // value = coins paid per Heart Snob on the landing card.
@@ -168,7 +168,7 @@ const NINELIVES_ITEMS = {
       description: "When a ♦ lands on this card → shuffle all piles"},
     // digCount = deck cards buried under the pile per Club Snob.
     { id: "clubSnob",   label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
-      description: "When a ♣ lands on this card  → bury 1 deck card under the pile"},
+      description: "When a ♣ lands on this card → bury 1 deck card under the pile"},
     // ---- the suit-SYNERGY family: each fires when THIS card lands, scaling
     // by the number of OTHER piles topped by its suit (the landing pile
     // itself never counts). ----
@@ -309,14 +309,13 @@ const NINELIVES_ITEMS = {
   bases: [
     // peekCount = upcoming cards peeked after the sacrifice.
     { id: "kamikaze", label: "Kamikaze", icon: "💥",
-      kind: "active", effect: "kamikaze", target: "pile", peekCount: 3, tier: "rare", price: 15,
+      kind: "active", effect: "kamikaze", peekCount: 3, tier: "rare", price: 15,
       description: "Kill a random ♠-topped pile in this column, then peek the next 3 cards" },
     { id: "spadePeek", label: "Spade Peeker", icon: "🔦",
       kind: "active", effect: "spadePeek", tier: "rare", price: 15,
       description: "Peek the next X cards, where X = piles in this column with a ♠ top card" },
-    // coinPerPile = coins LOST per pile shuffled.
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
-      kind: "active", effect: "shuffleColumn", coinPerPile: 1, tier: "common", price: 9,
+      kind: "active", effect: "shuffleColumn", tier: "common", price: 9,
       description: "Shuffle every pile in this column" },
     { id: "revive", label: "Phoenix", icon: "🔥",
       kind: "active", effect: "reviveBase", tier: "uncommon", price: 14,
@@ -327,8 +326,6 @@ const NINELIVES_ITEMS = {
     { id: "evenOut", label: "Ballast", icon: "🪨",
       kind: "active", effect: "evenOut", tier: "common", price: 9,
       description: "Redistribute all piles in this column to equal size" },
-    // digCount = cards buried under each ♣-topped pile; coinPerCard = coins
-    // LOST per card buried.
     { id: "setValue", label: "Cast", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 12,
       description: "Permanently set every top card's rank in this column to the bottom pile's rank" },

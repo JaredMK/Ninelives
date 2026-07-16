@@ -90,7 +90,9 @@ const NINELIVES_TUTORIAL = {
 
   // The pinned first-run map seed (strict chain: opening deal → adjacent
   // store → adjacent +1 card → adjacent deal). See PINNED SEED above.
-  seed: 32,
+  // Re-pinned to 18 after the Regular-tier difficulty bands changed (the old
+  // seed 32 no longer opens the strict guided chain under the new bands).
+  seed: 18,
 
   // Appended (via {grant}) to a forced step's bubble when it topped the
   // balance up, paired with a coin tick + a pulse on both counters.

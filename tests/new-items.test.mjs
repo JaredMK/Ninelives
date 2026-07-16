@@ -189,41 +189,63 @@ export function run() {
     r.ok(!e.pendingAction(), "the queue drained after answering");
   }
 
-  // --- Donate: move a bottom card to the smallest pile (not the smallest) --
+  // --- Donate: AUTOMATIC — on landing it moves a buried card to the smallest
+  //     eligible pile, no offer. -------------------------------------------
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
-    let offer = null;
-    e.onEvent((t, p) => { if (t === "action-offer") offer = p; });
+    let resolved = null, offer = null;
+    e.onEvent((t, p) => { if (t === "action-resolved" && p.kind === "donate") resolved = p; if (t === "action-offer") offer = p; });
     e.start(); e.startRun([null, null, null]);
     winGuess(e, 0); winGuess(e, 0);   // pile 0 → 3 cards (not the smallest)
-    landSticker(e, 0, "donate");      // pile 0 → 4 cards; pile 1 is size 1 (smallest)
-    r.ok(offer && offer.kind === "donate" && offer.index === 0, "Donate offered on the non-smallest pile");
-    r.eq(offer.target, 1, "Donate targets the smallest other pile (pile 1)");
-    const a0 = e.getBoard().piles[0].cards.length, a1 = e.getBoard().piles[1].cards.length;
-    e.answerAction(true);
-    r.eq(e.getBoard().piles[0].cards.length, a0 - 1, "donor pile lost 1 card from the bottom");
-    r.eq(e.getBoard().piles[1].cards.length, a1 + 1, "smallest pile gained 1 card at the bottom");
+    const b0 = e.getBoard().piles[0].cards.length;   // before the donate landing
+    const b1 = e.getBoard().piles[1].cards.length;   // pile 1 is the smallest (size 1)
+    landSticker(e, 0, "donate");      // pile 0 gains the drawn card, then AUTO-donates to pile 1
+    r.ok(!offer, "Donate makes NO offer — it resolves automatically");
+    r.ok(resolved && resolved.kind === "donate" && resolved.index === 0 && resolved.target === 1, "Donate auto-resolves to the smallest other pile (pile 1)");
+    // pile 0: +1 (drawn) −1 (donated) = net unchanged; pile 1: +1 (received).
+    r.eq(e.getBoard().piles[0].cards.length, b0, "donor pile: +1 drawn − 1 donated = unchanged net");
+    r.eq(e.getBoard().piles[1].cards.length, b1 + 1, "smallest pile gained 1 card at the bottom");
+    r.ok(!e.pendingAction || !e.pendingAction(), "no pending action queued — donate is automatic");
   }
   {
-    // Decline → nothing moves.
+    // The automatic move honors the items.js `count` knob (read live).
+    const cnt = StickerTypes.get("donate").count || 1;
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start(); e.startRun([null, null, null]);
-    winGuess(e, 0); winGuess(e, 0);
+    for (let k = 0; k < 4; k++) winGuess(e, 0);   // build pile 0 so it can spare `count`
+    const b0 = e.getBoard().piles[0].cards.length, b1 = e.getBoard().piles[1].cards.length;
     landSticker(e, 0, "donate");
-    const a0 = e.getBoard().piles[0].cards.length, a1 = e.getBoard().piles[1].cards.length;
-    e.answerAction(false);
-    r.eq(e.getBoard().piles[0].cards.length, a0, "declined donate moves nothing (donor unchanged)");
-    r.eq(e.getBoard().piles[1].cards.length, a1, "declined donate moves nothing (target unchanged)");
+    r.eq(e.getBoard().piles[1].cards.length, b1 + cnt, "smallest pile gains the items.js donate count (" + cnt + ")");
+    r.eq(e.getBoard().piles[0].cards.length, b0 + 1 - cnt, "donor: +1 drawn − " + cnt + " donated");
   }
   {
-    // No other alive pile → no Donate offer.
+    // No smaller alive pile → nothing moves (and nothing is queued).
     const e = GameEngine.create(deck(), 10, { cols: COLS });
-    let offer = null;
-    e.onEvent((t, p) => { if (t === "action-offer") offer = p; });
+    let resolved = null;
+    e.onEvent((t, p) => { if (t === "action-resolved" && p.kind === "donate") resolved = p; });
     e.start(); e.startRun([null, null, null]);
     for (let i = 1; i < 10; i++) e.getBoard().kill(i);   // only pile 0 alive
+    const b0 = e.getBoard().piles[0].cards.length;
     landSticker(e, 0, "donate");
-    r.ok(!offer, "no Donate offer when there's no smaller pile to give to");
+    r.ok(!resolved, "Donate does nothing when there's no smaller pile to give to");
+    r.eq(e.getBoard().piles[0].cards.length, b0 + 1, "the donor pile only gained the drawn card");
+  }
+
+  // --- Massive / Heavy: pile-size weight sums EVERY heavy-behavior sticker's
+  //     value (read live from items.js — Heavy +value, Massive +value). -------
+  {
+    r.eq(StickerTypes.get("massive").behavior, "heavy", "Massive shares the 'heavy' behavior");
+    const heavyV = StickerTypes.get("heavy").value;
+    const massiveV = StickerTypes.get("massive").value;
+    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    e.start(); e.startRun([null, null, null]);
+    const b = e.getBoard();
+    b.piles[0].cards = [{ value: 4, suit: "♠", label: "4", stickers: [{ type: "heavy" }] }];
+    r.eq(b.pileSize(0), 1 + heavyV, "one Heavy weighs 1 + " + heavyV);
+    b.piles[1].cards = [{ value: 4, suit: "♠", label: "4", stickers: [{ type: "massive" }] }];
+    r.eq(b.pileSize(1), 1 + massiveV, "one Massive weighs 1 + " + massiveV);
+    b.piles[2].cards = [{ value: 4, suit: "♠", label: "4", stickers: [{ type: "heavy" }, { type: "massive" }] }];
+    r.eq(b.pileSize(2), 1 + heavyV + massiveV, "Heavy + Massive stack: 1 + " + heavyV + " + " + massiveV);
   }
 
   // --- Revive: pile hits 10 → offer; revives one dead pile, once per deal --
@@ -262,21 +284,23 @@ export function run() {
     r.eq(offers, 1, "Revive fires later once a pile is dead (it waited, stayed ready)");
   }
 
-  // --- Kamikaze (now a BASE): activate to kill a pile + peek 3 (display-only) -
+  // --- Kamikaze (now a BASE): auto-kills a RANDOM ♠-top pile IN ITS OWN COLUMN
+  //     (no player target) + peek 3 (display-only) --------------------------
   {
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
+    const e = GameEngine.create(deck(), 10, { cols: COLS });   // col 0 = piles 0-2
     let fired = null;
     e.onEvent((t, p) => { if (t === "base-fired") fired = p; });
-    e.start(); e.startRun([null, null, null], ["kamikaze", null, null]);
-    e.getBoard().top(5).suit = "♠";     // Kamikaze now only sacrifices a ♠-top pile
-    r.ok(e.baseAvailable(0), "Kamikaze Base available during play with a ♠ pile + >1 alive");
-    r.ok(e.baseNeedsTarget(0), "Kamikaze is a target Base (player picks a pile)");
+    e.start(); e.startRun([null, null, null], ["kamikaze", null, null]);   // Kamikaze on col 0
+    const b = e.getBoard();
+    b.top(0).suit = "♥"; b.top(2).suit = "♥"; b.top(1).suit = "♠";   // the lone ♠ top in col 0 → forced target
+    r.ok(e.baseAvailable(0), "Kamikaze Base available during play with a ♠ pile in its column + >1 alive");
+    r.ok(!e.baseNeedsTarget(0), "Kamikaze auto-picks (not a player-target Base)");
     const nextBefore = e.getDeck().peek(1)[0].value;
-    const res = e.baseActivate(0, 5);   // kill the ♠ pile 5
+    const res = e.baseActivate(0);      // no target — auto-picks the ♠ pile in col 0
     r.ok(res && res.cards && res.cards.length === 3, "Kamikaze peeks the next 3 cards");
-    r.ok(!e.getBoard().isActive(5), "the chosen pile is killed");
+    r.ok(res && res.index === 1 && !e.getBoard().isActive(1), "the ♠ pile in its column is auto-killed");
     r.ok(e.getRun().basesUsed[0], "the Base is spent for the deal");
-    r.ok(fired && fired.effect === "kamikaze" && fired.index === 5, "base-fired event carries the kill");
+    r.ok(fired && fired.effect === "kamikaze" && fired.index === 1, "base-fired event carries the kill");
     r.eq(e.getDeck().peek(1)[0].value, nextBefore, "draw order is unchanged (display-only look-ahead)");
     r.eq(res.cards[0].value, nextBefore, "the first peeked card is the true next draw");
     r.ok(!e.baseAvailable(0), "the Base is one-shot per deal");

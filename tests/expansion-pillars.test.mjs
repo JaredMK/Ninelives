@@ -49,7 +49,8 @@ export function run() {
       "queensEye", "royalCourt", "excavator", "gambler"];
     r.ok(ids.every(id => !!PillarTypes.get(id)), "expansion Pillars registered");
     r.ok(!PillarTypes.get("sameSpark") && !PillarTypes.get("echo"), "Same Spark + Echo were removed");
-    r.eq(PillarTypes.all().length, 28, "pillar registry totals 28 (Highest Odd deleted)");
+    r.ok(!PillarTypes.get("broadcast"), "Broadcast (Echo) pillar was removed");
+    r.eq(PillarTypes.all().length, PillarTypes.ids.length, "pillar registry all() matches its live id list");
     r.ok(ids.every(id => { const t = PillarTypes.get(id); return t.description && t.icon; }), "every expansion Pillar has a description + icon");
   }
 
@@ -108,15 +109,16 @@ export function run() {
     r.ok(!pp2.lines.some(l => l.label === "Insurance"), "Insurance pays nothing when the survivor is elsewhere");
   }
 
-  // ---- Heavy Diamond: every ♦ in the column counts +1 toward pile size --
+  // ---- Massive Diamond: every ♦ in the column counts +value toward pile size --
   {
-    const e = game(["stickerCount", null, null]);   // id stickerCount is now "Heavy Diamond"
+    const e = game(["stickerCount", null, null]);   // id stickerCount is now "Massive Diamond"
+    const per = PillarTypes.get("stickerCount").value;   // items.js knob (currently 2), read live
     const b = e.getBoard();
     b.top(0).suit = "♠";   // the pile card is ♠ (not counted)
-    b.pushBottom(0, { value: 6, suit: "♦", label: "6", stickers: [] });   // +1 ♦ buried
-    b.pushBottom(0, { value: 4, suit: "♦", label: "4", stickers: [] });   // +1 ♦ buried
-    // pile 0 now has 3 physical cards; 2 of them are ♦ → pileSize = 3 + 2 = 5.
-    r.eq(b.pileSize(0), 5, "Heavy Diamond: pileSize = physical (3) + one per ♦ (2) = 5");
+    b.pushBottom(0, { value: 6, suit: "♦", label: "6", stickers: [] });   // ♦ buried
+    b.pushBottom(0, { value: 4, suit: "♦", label: "4", stickers: [] });   // ♦ buried
+    // pile 0 now has 3 physical cards; 2 of them are ♦ → pileSize = 3 + 2×per.
+    r.eq(b.pileSize(0), 3 + 2 * per, "Massive Diamond: pileSize = physical (3) + per-♦ (2×" + per + ")");
     // A pile in ANOTHER column doesn't get the bonus.
     b.pushBottom(3, { value: 6, suit: "♦", label: "6", stickers: [] });
     r.eq(b.pileSize(3), 2, "a ♦ in another column is NOT boosted");

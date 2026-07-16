@@ -23,7 +23,7 @@ export function run() {
     r.eq(BaseTypes.get("clubDig").digCount, 1, "Club Dig buries 1 per ♣ pile");
     r.eq(BaseTypes.get("clubDig").suit, "♣", "Club Dig is ♣-gated");
     r.eq(BaseTypes.get("clubDig").tier, "rare", "Club Dig is Rare");
-    r.eq(BaseTypes.get("buryAll").digCount, 2, "Landslide buries 2 per ♣ pile");
+    r.ok(!BaseTypes.get("buryAll"), "Landslide (buryAll) was removed from the roster");
     r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish is a Pillar-target Base");
     r.eq(BaseTypes.get("demolish").price, 25, "Demolish costs 25");
     r.eq(BaseTypes.get("tax").suit, "♥", "Heart Tax is ♥-gated");

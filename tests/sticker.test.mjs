@@ -30,9 +30,10 @@ export function run() {
   r.ok(!c.applySticker(byRank(14), "rankUp"), "rankUp blocked on an Ace");
   r.ok(!c.applySticker(byRank(2), "rankDown"), "rankDown blocked on a 2");
 
-  // No slot cap: a card holds any number of stickers (incl. duplicates).
+  // No slot cap: a card holds any number of stickers (incl. duplicates). Use a
+  // universal (suit-unrestricted) sticker so any card qualifies.
   const fiveId = byRank(5);
-  for (let i = 0; i < 6; i++) r.ok(c.applySticker(fiveId, "extraHeart"), "Extra Heart #" + (i + 1) + " applies (no cap)");
+  for (let i = 0; i < 6; i++) r.ok(c.applySticker(fiveId, "tieSafe"), "Same-Safe #" + (i + 1) + " applies (no cap)");
   r.eq(c.getCards().find(x => x.id === fiveId).stickers.length, 6, "card holds all 6 stickers (no cap)");
 
   // Duplicates of Tie-Safe / Extra Coin are allowed now (uniqueness removed).

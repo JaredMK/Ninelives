@@ -62,17 +62,20 @@ export function run() {
     r.ok(!e.sameCharge(), "charge spent on the tie save too");
   }
 
-  // --- last-priority: a Shield saves FIRST; Same Charge is NOT consumed --
+  // --- last-priority: a Guard saves FIRST; Same Charge is NOT consumed --
   {
     const e = mk({ sameCharge: true });
     const b = e.getBoard();
     b.top(0).value = 5;
-    b.top(0).heartsRemaining = 1;        // a Shield on the pile card
-    e.debug.setNextCard(9);
-    e.guess(0, "lower");                 // wrong → Shield (higher priority) absorbs it
+    b.top(0).suit = "♠";
+    b.top(0).suitGuards = { "♠": true };        // a ♠ guard rides the pile card
+    // A ♠ lands on the ♠-guard top (bidirectional) → the guard absorbs the wrong guess.
+    e.debug.setNextCardObj({ id: 970101, label: "9", value: 9, suit: "♠", red: false, stickers: [], suitGuards: {} });
+    e.guess(0, "lower");                 // wrong → Guard (higher priority) absorbs it
     r.ok(b.isActive(0), "the pile survived");
-    r.eq(b.top(0).heartsRemaining, 0, "the Shield was the one consumed (fired first)");
-    r.ok(e.sameCharge(), "Same Charge is the LAST backstop — untouched while a Shield saved");
+    r.ok(b.top(0).suitGuards["♠"], "the Guard saved (bidirectional, unlimited — never spent)");
+    r.eq(b.top(0).value, 5, "the guard top stays in place (drawn not pushed)");
+    r.ok(e.sameCharge(), "Same Charge is the LAST backstop — untouched while a Guard saved");
   }
 
   // --- only consumed when it actually saves (a correct guess doesn't) ---
