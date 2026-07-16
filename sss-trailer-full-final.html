@@ -82,7 +82,7 @@
   @keyframes veil{0%,64%{opacity:0;}72%,100%{opacity:1;}}
   #bigtext{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;pointer-events:none;gap:2px;}
   #bigtext .w{font-weight:800;color:#fff;opacity:0;transform:scale(2.4);text-shadow:0 4px 0 rgba(0,0,0,.08);letter-spacing:1px;}
-  #bigtext .w1{font-size:56px;} #bigtext .w2{font-size:56px;} #bigtext .w3{font-size:74px;color:var(--orange);}
+  #bigtext .w1{font-size:clamp(40px,14vw,56px);} #bigtext .w2{font-size:clamp(40px,14vw,56px);} #bigtext .w3{font-size:clamp(52px,18vw,74px);color:var(--orange);}
   #s1.active #bigtext .w1{animation:stamp 11s ease-out forwards;}
   #s1.active #bigtext .w2{animation:stamp 11s ease-out forwards;animation-delay:.45s;}
   #s1.active #bigtext .w3{animation:stamp3 11s ease-out forwards;animation-delay:.9s;}
@@ -281,7 +281,7 @@
   #s3c.active .eq{animation:eqIn 6.6s ease-out forwards;}
   @keyframes eqIn{0%{opacity:0;transform:scale(3);}7%{opacity:1;transform:scale(1);}
     11%{transform:scale(1.08);}15%{transform:scale(1);}100%{opacity:1;transform:scale(1);}}
-  #s3c .sptext{font-size:52px;font-weight:800;color:#fff;letter-spacing:3px;opacity:0;text-shadow:0 0 30px rgba(196,63,110,.9);}
+  #s3c .sptext{font-size:clamp(28px,11vw,52px);font-weight:800;color:#fff;letter-spacing:.06em;padding-left:.06em;white-space:nowrap;opacity:0;text-shadow:0 0 30px rgba(196,63,110,.9);}
   #s3c.active .sptext{animation:spIn 6.6s ease-out forwards;animation-delay:.25s;}
   @keyframes spIn{0%{opacity:0;transform:scale(2.2);}5%{opacity:1;transform:scale(1);}100%{opacity:1;transform:scale(1);}}
   /* the demo: a Same call */
@@ -398,7 +398,7 @@
   /* ============ SCENE 5: TITLE ============ */
   #s5{background:linear-gradient(180deg,var(--felt),var(--felt-dk));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;}
   #s5 .t1,#s5 .t2{font-weight:800;color:#fff;opacity:0;text-shadow:0 3px 10px rgba(0,0,0,.3);}
-  #s5 .t1{font-size:44px;} #s5 .t2{font-size:58px;color:var(--orange);}
+  #s5 .t1{font-size:clamp(32px,11vw,44px);white-space:nowrap;} #s5 .t2{font-size:clamp(42px,15vw,58px);color:var(--orange);}
   #s5.active .t1{animation:fadeUp .5s ease-out .2s forwards;}
   #s5.active .t2{animation:fadeUp .5s ease-out .5s forwards;}
   #s5 .sub{font-size:20px;font-weight:800;color:#cfe0d5;letter-spacing:3px;opacity:0;}
