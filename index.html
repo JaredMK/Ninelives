@@ -2295,29 +2295,71 @@ const NativeApp = (() => {
     background: rgba(0,0,0,0.14); color: var(--accent-2); font-size: 11.5px;
     font-weight: 700; cursor: pointer; }
   .zh-back:active { opacity: 0.85; }
-  /* Vertical histogram: columns share a baseline (flex-end), fixed plot height. */
-  .zv-histo { display: flex; align-items: flex-end; justify-content: space-around;
-    gap: 6px; height: 132px; padding: 0 2px; }
-  /* Many-column loss drill (up to 10 buckets): tighter gaps fit 390px, no scroll. */
-  .zv-histo-many { gap: 3px; justify-content: space-between; }
-  /* The two-bar summary: wide, generously-tapped columns. */
-  .zv-summary { justify-content: space-evenly; gap: 24px; }
-  /* One column: count above, baseline-anchored bar, key beneath. */
-  .zv-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
-    align-items: center; height: 100%; }
-  .zv-summary .zv-col { flex: 0 1 108px; max-width: 130px; }
+  /* ZEN6 — ONE continuous histogram across THREE view states on a single node
+     set: both-collapsed (two totals), wins-expanded (losses total leading the
+     win breakdown) and losses-expanded (wins total leading the loss breakdown).
+     A win = 0 cards left, a loss = 0 piles left, so each TOTAL is the "0" slot
+     of the OTHER axis. Every column stays in the DOM always; a state class on
+     .zv-histo drives a pure CSS expand/contract — absent columns fold to zero
+     width/opacity while the bars glide between the three per-state height stops
+     carried as --hb/--hw/--hl vars. No innerHTML swap, so the motion plays. */
+  .zv-histo { display: flex; align-items: flex-end; justify-content: center;
+    height: 132px; padding: 0 2px; overflow: hidden; }
+  /* One column: count above, baseline-anchored bar, key beneath. Distribution
+     columns keep flex 1 1 0 (grow) so they fill the space a collapsing
+     aggregate frees; the 46px cap keeps them slim. max-width / flex-basis /
+     margin / opacity all transition so a state swap reads as one motion. */
+  .zv-col { flex: 1 1 0; min-width: 0; max-width: 46px; height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    box-sizing: border-box; overflow: hidden; margin: 0 3px; opacity: 1;
+    transition: max-width 300ms cubic-bezier(0.22,0.61,0.36,1),
+                flex-basis 300ms cubic-bezier(0.22,0.61,0.36,1),
+                margin 300ms cubic-bezier(0.22,0.61,0.36,1), opacity 220ms ease; }
+  /* AGGREGATE totals: flex-grow pinned to 0 in EVERY state — never toggled, so
+     it can't snap mid-transition (the flex-grow snap was the dip-and-recover
+     pop). Their width is driven purely by a transitioned flex-basis, so the
+     surviving lead eases MONOTONICALLY 120→62 no matter how the sibling
+     distribution competes for space; the distribution's grow absorbs the
+     difference. */
+  .zc-agg { flex-grow: 0; }
+  /* Summary: both totals wide + generously tapped (they compare directly). */
+  .zh-both .zc-agg { flex-basis: 120px; max-width: 120px; margin: 0 14px; }
+  /* The VISIBLE lead slot ONLY (never the folded twin — the fold rule below
+     drives its basis/width to 0): a 62px basis+cap + a lighter key so the full
+     "Wins"/"Losses" word fits, and a faint panel + gap marking it the
+     aggregate/grand-total. */
+  .zh-wins .zc-lagg, .zh-loss .zc-wagg { flex-basis: 62px; max-width: 62px; margin-right: 12px;
+    background: rgba(255,255,255,0.045); border-radius: 8px; }
+  .zh-wins .zc-lagg .zv-k, .zh-loss .zc-wagg .zv-k { font-size: 10.5px; font-weight: 700; }
+  /* Columns absent from the current state fold away (zero footprint, faded,
+     inert). Each state hides exactly the two roles it doesn't show — flex-basis
+     joins max-width at 0 so a folding aggregate (basis 120) truly reaches 0. */
+  .zh-both .zc-wdist, .zh-both .zc-ldist,
+  .zh-wins .zc-wagg,  .zh-wins .zc-ldist,
+  .zh-loss .zc-lagg,  .zh-loss .zc-wdist {
+    max-width: 0; flex-basis: 0; margin-left: 0; margin-right: 0; opacity: 0; pointer-events: none; }
   .zv-c { font-family: var(--font-display); font-weight: 700; font-size: 11px;
     color: var(--text); margin-bottom: 2px; }
   .zv-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
-  .zv-bar { width: 100%; min-height: 2px; border-radius: 5px 5px 0 0; }
+  /* The bar height rides a per-state CSS var so the class swap animates it as
+     the visible max changes between states. */
+  .zv-bar { width: 100%; min-height: 2px; border-radius: 5px 5px 0 0;
+    height: var(--hb); transition: height 300ms cubic-bezier(0.22,0.61,0.36,1); }
+  .zh-wins .zv-bar { height: var(--hw); }
+  .zh-loss .zv-bar { height: var(--hl); }
   .zv-win .zv-bar { background: linear-gradient(180deg, #58c988, #3fa96b); }
   .zv-loss .zv-bar { background: linear-gradient(180deg, #e0705c, #c8503f); }
   .zv-k { margin-top: 4px; font-size: 10.5px; color: var(--muted); white-space: nowrap;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  /* Summary columns are the drill tap targets — wider key, pointer, active cue. */
+  /* Aggregate columns are the drill tap targets — bolder key, pointer, active cue. */
   .zv-tap { cursor: pointer; }
   .zv-tap .zv-k { font-weight: 800; color: var(--text); font-size: 12px; }
   .zv-tap:active { opacity: 0.82; }
+  /* Back chip lives in the drill wrap; shown only once a side is expanded. */
+  .zh-drillwrap .zh-back { display: none; }
+  .zh-drillwrap.zh-drilled .zh-back { display: inline-flex; }
+  /* Reduced motion: the state swap is instant (no width/height glide). */
+  @media (prefers-reduced-motion: reduce) { .zv-col, .zv-bar { transition: none; } }
   /* Manual */
   .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
@@ -6978,7 +7020,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.89 · zen endings own their shoulda-saids";
+const APP_VERSION = "v4.90 · zen bars breathe in and out";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -27037,15 +27079,18 @@ const UIRenderer = (() => {
     return totals;
   }
   const zenSumMap = (m) => { let t = 0; for (const k in m) t += m[k]; return t; };
-  /** ONE vertical column: count above, a baseline-anchored bar (height ∝ scoped
-      max), key beneath. `cls` carries the colour (zv-win green / zv-loss red);
-      `extra` adds the drill hook (zh-sum-win/zh-sum-loss) + tap styling on the
-      two summary columns. Data columns pass no extra (inert). */
-  function zenVBar(label, count, max, cls, extra) {
-    const pct = max > 0 ? Math.round(100 * count / max) : 0;
-    return '<div class="zv-col ' + cls + (extra ? " " + extra : "") + '">' +
+  /** ONE histogram column, emitted ONCE and kept in the DOM across every view
+      state so the expand/contract is a pure CSS transition (never an innerHTML
+      swap). `role` is the collapse-driving class pair (zc-agg zc-wagg / zc-lagg,
+      zc-wdist, zc-ldist); `colour` the fill (zv-win green / zv-loss red). The
+      bar's three height stops — both-collapsed / wins-expanded / losses-expanded
+      — ride as --hb/--hw/--hl CSS vars; the container's state class picks which
+      one the bar animates to. `tap` (aggregates only) adds the drill hook +
+      pointer affordance; distribution columns pass null (inert). */
+  function zenVCol(label, count, role, colour, hb, hw, hl, tap) {
+    return '<div class="zv-col ' + colour + ' ' + role + (tap ? " zv-tap " + tap : "") + '">' +
       '<span class="zv-c">' + count + '</span>' +
-      '<span class="zv-track"><span class="zv-bar" style="height:' + pct + '%"></span></span>' +
+      '<span class="zv-track"><span class="zv-bar" style="--hb:' + hb + '%;--hw:' + hw + '%;--hl:' + hl + '%"></span></span>' +
       '<span class="zv-k">' + escHtml(label) + '</span></div>';
   }
   /** The Zen view's EPHEMERAL UI state (never persisted, never serialised):
@@ -27073,10 +27118,16 @@ const UIRenderer = (() => {
     }
     return agg;
   }
-  /** The whole Zen section's inner markup for the current zenView: the segmented
-      filter, the single scope stats line, an optional Back chip (drilled only),
-      and the vertical histogram (two-bar summary at level 0, one distribution
-      when drilled). Re-emitted in place on every filter/drill/back tap. */
+  /** The whole Zen section's inner markup: the segmented filter, the single
+      scope stats line, and — inside a drill wrap (Back chip + histogram) — the
+      FULL column set for all three view states at once. A win = 0 cards left, a
+      loss = 0 piles left, so each TOTAL is the "0" slot of the OTHER axis: the
+      Wins total leads the loss breakdown, the Losses total leads the win one.
+      Fixed DOM order [Wins-agg][Losses-agg][win dist…][loss dist…] — collapsing
+      Wins-agg leaves Losses-agg leading the win columns; collapsing Losses-agg
+      leaves Wins-agg leading the loss columns — one node set, three states.
+      Re-emitted only on a scope change (new data); drill/back just swap the
+      state class so the transition plays (see zenSetDrill). */
   function zenSectionInner() {
     const sc = zenView.scope, drill = zenView.drill;
     const d = zenScope(sc);
@@ -27088,35 +27139,58 @@ const UIRenderer = (() => {
     // R8: ONE stats line for the scope (combined under All; one difficulty else).
     const scopeLine = '<div class="zh-scope"><b>' + d.games + '</b> played · <b>' + d.wins +
       '</b> won · <b>' + d.cardsFlipped + '</b> cards · <b>' + d.correctGuesses + '</b> correct</div>';
-    let back = "", body;
-    if (drill === "wins") {
-      // R3: one green column per piles-remaining value, axis 1..maxPiles for scope.
-      back = '<button class="zh-back" type="button">‹ Back</button>';
-      let max = 0; for (let p = 1; p <= d.piles; p++) max = Math.max(max, d.winPiles[p] || 0);
-      let cols = ""; for (let p = 1; p <= d.piles; p++) cols += zenVBar(String(p), d.winPiles[p] || 0, max, "zv-win");
-      body = '<div class="zv-histo">' + cols + '</div>';
-    } else if (drill === "losses") {
-      // R3: red columns over the unchanged bucket scheme, deckSize per scope.
-      back = '<button class="zh-back" type="button">‹ Back</button>';
-      const buckets = zenLossBuckets(d.deckSize);
-      const bTot = zenBucketCounts(d.lossCards, buckets, d.deckSize);
-      let max = 0; for (const t of bTot) max = Math.max(max, t);
-      let cols = ""; buckets.forEach((b, i) => { cols += zenVBar(zenBucketLabel(b), bTot[i], max, "zv-loss"); });
-      body = '<div class="zv-histo zv-histo-many">' + cols + '</div>';
-    } else {
-      // R2: two-bar overview — forward-only distribution SUMS (not games/wins).
-      const tW = zenSumMap(d.winPiles), tL = zenSumMap(d.lossCards);
-      const max = Math.max(tW, tL);
-      body = '<div class="zv-histo zv-summary">' +
-        zenVBar("Wins", tW, max, "zv-win", "zh-sum-win zv-tap") +
-        zenVBar("Losses", tL, max, "zv-loss", "zh-sum-loss zv-tap") + '</div>';
-    }
-    return filter + scopeLine + back + body;
+    // Distributions + per-state height scales. The scales are DECOUPLED by
+    // state so each reads well:
+    //  • both-collapsed compares the two TOTALS directly → shared max(tW,tL);
+    //  • a drilled state scales its breakdown to the breakdown's OWN max (winMax
+    //    / lossMax) so the bars fill the plot and are legible — the lead total
+    //    is the SUM, so scaling everything to it would crush the breakdown it's
+    //    there to reveal. The lead instead pins to FULL height (100%) as a
+    //    grand-total marker; its exact count prints above (it's ≥ every bar).
+    const tW = zenSumMap(d.winPiles), tL = zenSumMap(d.lossCards);
+    let winMax = 0; for (let p = 1; p <= d.piles; p++) winMax = Math.max(winMax, d.winPiles[p] || 0);
+    const buckets = zenLossBuckets(d.deckSize);
+    const bTot = zenBucketCounts(d.lossCards, buckets, d.deckSize);
+    let lossMax = 0; for (const t of bTot) lossMax = Math.max(lossMax, t);
+    const maxBoth = Math.max(tW, tL);            // both-collapsed: the two totals
+    const h = (c, m) => (m > 0 ? Math.round(100 * c / m) : 0);
+    // R2/R3: the persistent column set. Aggregates carry the drill hooks + tap
+    // affordance and their total; distribution columns are inert. Height stops
+    // are [both, wins-expanded, losses-expanded]: an aggregate leads the OTHER
+    // outcome's drill at full height and is folded (0) in its own.
+    let cols = "";
+    cols += zenVCol("Wins", tW, "zc-agg zc-wagg", "zv-win", h(tW, maxBoth), 0, 100, "zh-sum-win");
+    cols += zenVCol("Losses", tL, "zc-agg zc-lagg", "zv-loss", h(tL, maxBoth), 100, 0, "zh-sum-loss");
+    for (let p = 1; p <= d.piles; p++)
+      cols += zenVCol(String(p), d.winPiles[p] || 0, "zc-wdist", "zv-win", 0, h(d.winPiles[p] || 0, winMax), 0, null);
+    buckets.forEach((b, i) => {
+      cols += zenVCol(zenBucketLabel(b), bTot[i], "zc-ldist", "zv-loss", 0, 0, h(bTot[i], lossMax), null);
+    });
+    const stateCls = drill === "wins" ? "zh-wins" : drill === "losses" ? "zh-loss" : "zh-both";
+    // R4: the Back chip lives in the wrap; CSS shows it only when drilled.
+    const drillWrap = '<div class="zh-drillwrap' + (drill ? " zh-drilled" : "") + '">' +
+      '<button class="zh-back" type="button">‹ Back</button>' +
+      '<div class="zv-histo ' + stateCls + '">' + cols + '</div></div>';
+    return filter + scopeLine + drillWrap;
   }
-  /** Re-render just the Zen section in place (statsGrid keeps its Runs tiles). */
+  /** Re-render just the Zen section in place (statsGrid keeps its Runs tiles).
+      Used on scope change / first open — the data (and thus the columns) change,
+      so the whole set is rebuilt; the drill state swap never re-renders. */
   function renderZenSection() {
     const wrap = el.statsGrid.querySelector(".stats-zen");
     if (wrap) wrap.innerHTML = '<div class="sz-head">Zen</div>' + zenSectionInner();
+  }
+  /** Switch the histogram between its three view states WITHOUT re-rendering:
+      the columns persist, so toggling the state class lets the width/opacity/
+      height changes play as ONE CSS transition (the marquee expand/contract).
+      Only a scope change rebuilds the node set (renderZenSection). */
+  function zenSetDrill(drill) {
+    zenView.drill = drill;
+    const histo = el.statsGrid.querySelector(".zv-histo");
+    if (histo) histo.className = "zv-histo " +
+      (drill === "wins" ? "zh-wins" : drill === "losses" ? "zh-loss" : "zh-both");
+    const wrap = el.statsGrid.querySelector(".zh-drillwrap");
+    if (wrap) wrap.classList.toggle("zh-drilled", !!drill);
   }
 
   function showStats() {
@@ -27562,16 +27636,20 @@ const UIRenderer = (() => {
     el.statsClose.addEventListener("click", closeStats);
     el.statsReset.addEventListener("click", () => { Stats.reset(); ZenStats.reset(); showStats(); });
     // Zen histogram interactions (delegated — survives statsGrid re-renders):
-    //  • a filter option re-scopes AND collapses any drill (R1/R5);
-    //  • the Back chip returns to the two-bar summary (R4);
-    //  • a summary column drills into that outcome's distribution (R3).
-    // Each path re-renders only the Zen section (Runs tiles untouched).
+    //  • a filter option re-scopes AND collapses any drill (R1/R5) — new data,
+    //    so a full re-render (renderZenSection);
+    //  • the Back chip returns to both-collapsed (R4);
+    //  • an aggregate column expands its outcome (wins/losses) — a hidden
+    //    aggregate is inert (pointer-events:none), so the visible one always
+    //    routes correctly.
+    // Drill/back never re-render: zenSetDrill only swaps the state class so the
+    // expand/contract plays as one CSS transition.
     el.statsGrid.addEventListener("click", (e) => {
       const opt = e.target.closest(".zf-opt");
       if (opt) { Sound.tap(); zenView.scope = opt.dataset.scope; zenView.drill = null; renderZenSection(); return; }
-      if (e.target.closest(".zh-back")) { Sound.tap(); zenView.drill = null; renderZenSection(); return; }
-      if (e.target.closest(".zh-sum-win")) { Sound.tap(); zenView.drill = "wins"; renderZenSection(); return; }
-      if (e.target.closest(".zh-sum-loss")) { Sound.tap(); zenView.drill = "losses"; renderZenSection(); return; }
+      if (e.target.closest(".zh-back")) { Sound.tap(); zenSetDrill(null); return; }
+      if (e.target.closest(".zh-sum-win")) { Sound.tap(); zenSetDrill("wins"); return; }
+      if (e.target.closest(".zh-sum-loss")) { Sound.tap(); zenSetDrill("losses"); return; }
     });
     el.manualClose.addEventListener("click", closeManual);
     el.gameMenuClose.addEventListener("click", closeGameMenu);

@@ -47,6 +47,7 @@ import { run as boot2 } from "./boot2.test.mjs";
 import { run as pack2 } from "./pack2.test.mjs";
 import { run as zen1 } from "./zen1.test.mjs";
 import { run as zen2 } from "./zen2.test.mjs";
+import { run as zen6 } from "./zen6.test.mjs";
 import { run as wildSuit } from "./wild-suit.test.mjs";
 import { run as sell1 } from "./sell1.test.mjs";
 import { run as resume1 } from "./resume1.test.mjs";
@@ -100,6 +101,7 @@ const SUITES = [
   ["pack2", pack2],
   ["zen1", zen1],
   ["zen2", zen2],
+  ["zen6", zen6],
   ["wild-suit", wildSuit],
   ["sell1", sell1],
   ["resume1", resume1],
