@@ -60,6 +60,23 @@ function fnBody(src, name) {
   }
   return "";
 }
+/** Pull one self-contained top-level function out of the game script and
+    return it as a callable (for the pure histogram-bucketing helpers, which
+    live inside the UI closure and aren't exported by the harness). */
+function extractFn(src, name) {
+  const at = src.indexOf("function " + name + "(");
+  if (at === -1) return null;
+  const open = src.indexOf("{", at);
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}" && --depth === 0) {
+      const text = src.slice(at, i + 1);
+      return new Function(text + "\n;return " + name + ";")();
+    }
+  }
+  return null;
+}
 
 /** Minimal in-memory localStorage (the harness's storage stub). */
 function memStorage(init = {}) {
@@ -248,10 +265,10 @@ export function run() {
     const g = loadGame({ localStorage: storage });
     const { ZenStats, Stats, DifficultyData } = g;
     const ids = DifficultyData.zenIds;
-    // Absent key → zeros (never throws).
+    // Absent key → zeros + empty distributions (never throws).
     r.eq(JSON.stringify(ZenStats.get(ids[0])),
-      JSON.stringify({ games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0 }),
-      "absent zen-stats key reads as zeros");
+      JSON.stringify({ games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0, winPiles: {}, lossCards: {} }),
+      "absent zen-stats key reads as zeros + empty distributions");
     // Campaign Stats baseline FIRST — Zen recording must never move it.
     Stats.runPlayed();
     const campaignStatsBefore = storage.getItem("mnesis.stats.v1");
@@ -268,7 +285,7 @@ export function run() {
     r.eq(e0.wins, 1, "win increments wins");
     // Other difficulties stay untouched (per-difficulty breakdown).
     r.eq(JSON.stringify(ZenStats.get(ids[1])),
-      JSON.stringify({ games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0 }),
+      JSON.stringify({ games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0, winPiles: {}, lossCards: {} }),
       "recording on one difficulty never moves another");
     // Campaign stats blob is byte-identical after the Zen recording.
     r.eq(storage.getItem("mnesis.stats.v1"), campaignStatsBefore,
@@ -368,5 +385,145 @@ export function run() {
       "…while the ZEN record moved as expected");
   }
 
+  // ---- ZenStats distributions: winPiles on a win, lossCards on a loss ------
+  // (ZEN3) Each game end folds a count into that difficulty's own map — a win
+  // records piles-alive under winPiles, a loss records cards-left under
+  // lossCards. Forward-only: the legacy games/wins scalars are never mixed in.
+  {
+    const storage = memStorage();
+    const { ZenStats, DifficultyData } = loadGame({ localStorage: storage });
+    const ids = DifficultyData.zenIds;
+    const D = ids[ids.length - 1];              // hardest difficulty
+    const P = DifficultyData.zen(D).piles;      // its pile count, live
+    // A win with the top piles-remaining, twice, plus a smaller win.
+    ZenStats.win(D, P);
+    ZenStats.win(D, P);
+    ZenStats.win(D, 1);
+    const e = ZenStats.get(D);
+    r.eq(e.winPiles[P], 2, "win(diff, piles) tallies winPiles at the piles-remaining count");
+    r.eq(e.winPiles[1], 1, "…each distinct pile count gets its own bucket");
+    r.eq(e.wins, 3, "…and the legacy wins scalar still advances alongside");
+    // Losses record cards-left; distinct values stack independently.
+    ZenStats.loss(D, 5);
+    ZenStats.loss(D, 5);
+    ZenStats.loss(D, 22);
+    const e2 = ZenStats.get(D);
+    r.eq(e2.lossCards[5], 2, "loss(diff, cardsLeft) tallies lossCards at the remaining count");
+    r.eq(e2.lossCards[22], 1, "…distinct remaining counts get their own bucket");
+    // A loss NEVER moves winPiles and a win NEVER moves lossCards (twin maps).
+    r.eq(JSON.stringify(e2.winPiles), JSON.stringify(e.winPiles),
+      "recording a loss leaves winPiles untouched");
+    // Legacy win() with NO piles arg advances wins but records no distribution.
+    const D2 = ids[0];
+    ZenStats.win(D2);
+    r.eq(ZenStats.get(D2).wins, 1, "win(diff) with no piles still counts the win");
+    r.eq(JSON.stringify(ZenStats.get(D2).winPiles), "{}",
+      "…but records nothing into the winPiles distribution");
+    // Round-trip across a reload.
+    const g2 = loadGame({ localStorage: storage });
+    r.eq(JSON.stringify(g2.ZenStats.get(D).lossCards), JSON.stringify(e2.lossCards),
+      "loss distribution round-trips across loads");
+    // reset() empties the distributions too.
+    g2.ZenStats.reset();
+    const e3 = g2.ZenStats.get(D);
+    r.ok(Object.keys(e3.winPiles).length === 0 && Object.keys(e3.lossCards).length === 0,
+      "reset() empties every difficulty's distribution maps");
+  }
+
+  // ---- MIGRATION: a v1 entry lacking the maps reads both as empty ----------
+  // A blob written before the distributions existed (only the four scalars)
+  // must load without throwing, reading winPiles/lossCards as empty, and keep
+  // recording from there.
+  {
+    const ids0 = loadGame().DifficultyData.zenIds;
+    const legacy = { [ids0[0]]: { games: 9, wins: 4, cardsFlipped: 80, correctGuesses: 55 } };
+    const storage = memStorage({ "ninelives.zenstats.v1": JSON.stringify(legacy) });
+    const { ZenStats, DifficultyData } = loadGame({ localStorage: storage });
+    const id = DifficultyData.zenIds[0];
+    const e = ZenStats.get(id);
+    r.eq(e.games, 9, "legacy scalar fields survive the migration read");
+    r.ok(Object.keys(e.winPiles).length === 0 && Object.keys(e.lossCards).length === 0,
+      "…and the absent maps read as EMPTY distributions (no throw)");
+    let threw = false;
+    try { ZenStats.win(id, 3); ZenStats.loss(id, 7); } catch (x) { threw = true; }
+    r.ok(!threw && ZenStats.get(id).winPiles[3] === 1 && ZenStats.get(id).lossCards[7] === 1,
+      "…recording over a legacy entry adds the maps instead of throwing");
+    // A per-entry map that is a hand-edited SCALAR reads as empty, never throws.
+    const storage2 = memStorage({
+      "ninelives.zenstats.v1": JSON.stringify({ [ids0[0]]: { winPiles: 5, lossCards: "x" } }),
+    });
+    const g2 = loadGame({ localStorage: storage2 });
+    const e2 = g2.ZenStats.get(ids0[0]);
+    r.ok(Object.keys(e2.winPiles).length === 0 && Object.keys(e2.lossCards).length === 0,
+      "a scalar/garbage distribution map reads as empty (fail-soft)");
+  }
+
+  // ---- LOSS BUCKETING: derived live from each difficulty's deck size -------
+  // The bucketing is a pure function of the card count. Singletons 1..5, then
+  // decades trimmed to the deck; a sub-5 trailing remainder folds into the
+  // previous decade so no orphan bucket forms. All boundaries read from the
+  // live suitCount×13 deck size — never pinned.
+  {
+    const src = gameScript();
+    const zenLossBuckets = extractFn(src, "zenLossBuckets");
+    const zenBucketLabel = extractFn(src, "zenBucketLabel");
+    const zenBucketCounts = extractFn(src, "zenBucketCounts");
+    r.ok(typeof zenLossBuckets === "function" && typeof zenBucketLabel === "function"
+      && typeof zenBucketCounts === "function", "the histogram bucketing helpers are present");
+    const { DifficultyData } = loadGame();
+    const labelOf = (buckets, v) => {
+      for (const b of buckets) if (v >= b[0] && v <= b[1]) return zenBucketLabel(b);
+      return null;
+    };
+    for (const id of DifficultyData.zenIds) {
+      const z = DifficultyData.zen(id);
+      const deckSize = z.suitCount * 13;         // live deck size
+      const buckets = zenLossBuckets(deckSize);
+      // Contiguous cover of 1..deckSize (no gaps, no overlaps).
+      r.eq(buckets[0][0], 1, `${id}: buckets start at 1`);
+      r.eq(buckets[buckets.length - 1][1], deckSize, `${id}: top bucket ends at the deck size (${deckSize})`);
+      let contiguous = true;
+      for (let i = 1; i < buckets.length; i++) if (buckets[i][0] !== buckets[i - 1][1] + 1) contiguous = false;
+      r.ok(contiguous, `${id}: buckets are contiguous (no gaps/overlaps)`);
+      // Singletons 1..5.
+      r.ok([1, 2, 3, 4, 5].every((n) => labelOf(buckets, n) === String(n)),
+        `${id}: values 1..5 are singleton buckets`);
+      // No orphan: the top bucket spans at least a singleton-run (≥5) for a
+      // real Zen deck (≥ 20 cards), proving the sub-5 remainder folded in.
+      const top = buckets[buckets.length - 1];
+      r.ok((top[1] - top[0] + 1) >= 5, `${id}: the top bucket is never a sub-5 orphan`);
+    }
+    // Spec acceptance examples, keyed off the LIVE deck sizes:
+    // the widest deck buckets a mid value into its decade and folds its tail.
+    const hard = DifficultyData.zenIds
+      .map((id) => ({ id, deck: DifficultyData.zen(id).suitCount * 13 }))
+      .sort((a, b) => b.deck - a.deck)[0];
+    const hb = zenLossBuckets(hard.deck);
+    r.eq(labelOf(hb, 25), "21-30", `widest deck (${hard.deck}): 25 → "21-30"`);
+    r.eq(labelOf(hb, hard.deck), "41-" + hard.deck, `widest deck: ${hard.deck} → "41-${hard.deck}" (tail folded)`);
+    // The smallest deck's top bucket ends at its deck size (a plain trim).
+    const easy = DifficultyData.zenIds
+      .map((id) => ({ id, deck: DifficultyData.zen(id).suitCount * 13 }))
+      .sort((a, b) => a.deck - b.deck)[0];
+    const eb = zenLossBuckets(easy.deck);
+    r.ok(eb[eb.length - 1][1] === easy.deck && labelOf(eb, easy.deck).endsWith("-" + easy.deck),
+      `smallest deck (${easy.deck}): top bucket ends at ${easy.deck}`);
+    // zenBucketCounts folds a distribution so the bars SUM to the total losses,
+    // clamping a 0-left "died on the final card" into the first bucket.
+    const dist = { 0: 2, 3: 1, 25: 4, [hard.deck]: 1 };   // 8 losses total
+    const totals = zenBucketCounts(dist, hb, hard.deck);
+    const sum = totals.reduce((a, b) => a + b, 0);
+    r.eq(sum, 8, "bucket counts sum to the total losses (every loss placed exactly once)");
+    r.eq(totals[labelIndex(hb, 25)], 4, "…25-card losses land in their decade bucket");
+    r.eq(totals[0], 2, "…a 0-left loss folds into the first bucket (bucket \"1\")");
+    r.eq(totals[labelIndex(hb, hard.deck)], 1, "…a full-deck loss lands in the top bucket");
+  }
+
   return r.summary();
+}
+
+/** Index of the bucket containing v (helper for the bucketing assertions). */
+function labelIndex(buckets, v) {
+  for (let i = 0; i < buckets.length; i++) if (v >= buckets[i][0] && v <= buckets[i][1]) return i;
+  return -1;
 }

@@ -171,5 +171,90 @@ export function run() {
     r.ok(!page.includes("Tutorial."), "the Zen page arms no tutorial hooks");
   }
 
+  // ---- ZEN3: select-then-Start on #zenSelect -------------------------------
+  // Tapping a difficulty SELECTS it; only Start begins the game. Start is
+  // disabled until a pick; selection resets each time the page is shown.
+  {
+    const html = readFileSync(join(HERE, "..", "index.html"), "utf8");
+    r.ok(/<button class="zs-start" id="zsStart"[^>]*disabled/.test(html),
+      "the page ships a Start button, disabled by default (nothing selected)");
+    const src = gameScript();
+    const show = fnBody(src, "showZenSelect");
+    r.ok(show.includes("zenSelectedId = null") && show.includes('el.zsStart.disabled = true'),
+      "showZenSelect resets the selection + re-disables Start each show");
+    const pick = fnBody(src, "zenSelectPick");
+    r.ok(pick.length > 0 && pick.includes('classList.toggle("selected"')
+      && pick.includes("el.zsStart.disabled = false"),
+      "zenSelectPick marks the entry selected and enables Start");
+    // The list handler SELECTS (no startZen); Start alone starts via startZen.
+    const listIdx = src.indexOf("el.zsList.addEventListener");
+    const listHandler = src.slice(listIdx, listIdx + 400);
+    r.ok(listHandler.includes("zenSelectPick(") && !listHandler.includes("startZen("),
+      "tapping an entry only selects (the list handler never calls startZen)");
+    r.ok(listHandler.includes('entry.disabled') && listHandler.includes('classList.contains("locked")'),
+      "…and a locked/disabled entry can never be selected (the guard stays)");
+    const startIdx = src.indexOf("el.zsStart.addEventListener");
+    const startHandler = src.slice(startIdx, startIdx + 300);
+    r.ok(startHandler.includes("startZen(zenSelectedId)") && startHandler.includes("Sound.tap()"),
+      "only the Start button begins play — startZen(selectedId), with a tap cue");
+  }
+
+  // ---- ZEN3: per-game end-overlay lines + distribution recording -----------
+  {
+    const src = gameScript();
+    const end = fnBody(src, "onZenEnd");
+    r.ok(end.includes("ZenStats.win(zenMode.diff, alive)"),
+      "a win records piles-alive into the winPiles distribution");
+    r.ok(end.includes("ZenStats.loss(zenMode.diff, cardsLeft)"),
+      "a loss records cards-left into the lossCards distribution");
+    r.ok(end.includes("payload.deck") && end.includes("remaining()"),
+      "cards-left is the draw pile remaining at the loss");
+    r.ok(end.includes("zenMode.flips") && end.includes("zenMode.correct"),
+      "the overlay lines read the live per-game counters (not cumulative ZenStats)");
+    r.ok(end.includes('"Cards guessed"') && end.includes('"Correct"'),
+      "the overlay always shows flips + correct");
+    r.ok(end.includes('"Piles remaining"') && end.includes('"Cards left in deck"'),
+      "…plus piles-remaining on a win / cards-left on a loss");
+    r.ok(end.includes("zenStats:"), "the lines ride the overlay via opts.zenStats");
+    // The per-game counters are incremented in the guess handlers and reset per deal.
+    const deal = fnBody(src, "startZenDeal");
+    r.ok(deal.includes("zenMode.flips = 0") && deal.includes("zenMode.correct = 0"),
+      "per-game counters reset each deal (Play Again reuses zenMode)");
+  }
+
+  // ---- ZEN3: Stats screen split + per-difficulty histograms ----------------
+  {
+    const src = gameScript();
+    const stats = fnBody(src, "showStats");
+    r.ok(stats.includes('stats-runs-head">Runs') , "showStats renders a 'Runs' header over the campaign tiles");
+    r.ok(stats.includes('sz-head">Zen'), "…and a 'Zen' header over the Zen section");
+    r.ok(stats.includes("DifficultyData.zenIds.map(zenHistoBlock)"),
+      "every difficulty renders its own histogram sub-block");
+    const block = fnBody(src, "zenHistoBlock");
+    r.ok(block.includes("st.winPiles") && block.includes("st.lossCards"),
+      "the histograms derive from the forward-only distributions");
+    r.ok(block.includes("z.piles") && block.includes("z.suitCount * 13"),
+      "bars derive live from the difficulty's pile count and deck size");
+    r.ok(block.includes('"0 (Loss)"') && block.includes('"0 (Win)"'),
+      "each difficulty has a '0 (Loss)' summary bar (wins view) and '0 (Win)' (loss view; consistent casing)");
+    r.ok(block.includes("zh-toggle-loss") && block.includes("zh-toggle-win"),
+      "the summary bars carry the toggle hooks");
+    // The outcome summary bars carry a chevron affordance (touch has no cursor).
+    r.ok(block.includes('"after"') && block.includes('"before"'),
+      "the tappable outcome bars get a flip chevron (the only touch affordance)");
+    const bar = fnBody(src, "zenBar");
+    r.ok(bar.includes("zh-caret") && bar.includes("caret"),
+      "zenBar renders the chevron only when a caret is passed (data bars carry none)");
+    r.ok(block.includes('zh-wins') && block.includes('zh-losses'),
+      "the twin histograms are separate blocks (one hidden at a time)");
+    // The delegated toggle handler flips exactly one difficulty's pair.
+    const togIdx = src.indexOf("zh-toggle-loss");
+    const region = src.slice(src.indexOf("el.statsGrid.addEventListener"), src.indexOf("el.statsGrid.addEventListener") + 500);
+    r.ok(region.includes("zh-block") && region.includes('querySelector(".zh-wins")')
+      && region.includes('querySelector(".zh-losses")') && region.includes("Sound.tap()"),
+      "a delegated statsGrid handler toggles a block's wins/loss views with a tap cue");
+    r.ok(togIdx > 0, "the toggle class is emitted by the histogram markup");
+  }
+
   return r.summary();
 }

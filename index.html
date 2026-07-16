@@ -2077,6 +2077,21 @@ const NativeApp = (() => {
   .zs-entry.locked { opacity: 0.42; filter: grayscale(0.5); cursor: not-allowed; }
   .zs-entry.locked:active { transform: none; }
   .zs-lock { font-size: 11.5px; font-weight: 700; font-style: italic; letter-spacing: 0.2px; }
+  /* SELECTED entry (select-then-Start): a lit accent ring + brighter surface,
+     so the pick is unmistakable before Start is tapped. */
+  .zs-entry.selected { border-color: var(--accent-2); background: rgba(227,107,151,0.16);
+    box-shadow: 0 0 0 1.5px var(--accent-2), 0 4px 14px rgba(0,0,0,0.28); }
+  /* Start button: greyed + inert until a difficulty is picked, then primary-
+     filled. Sits below the list (≥44px tall — comfortable phone tap target). */
+  .zs-start { margin-top: 14px; width: min(84vw, 330px); padding: 14px 16px;
+    border: none; border-radius: 16px; font-family: var(--font-display); font-weight: 800;
+    font-size: 18px; letter-spacing: 0.6px; text-transform: uppercase; cursor: pointer;
+    touch-action: manipulation; transition: transform 0.1s ease, opacity 0.12s ease;
+    background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.5); }
+  .zs-start[disabled] { cursor: not-allowed; opacity: 0.55; }
+  .zs-start.ready { background: linear-gradient(180deg, var(--accent-2), #d05a87);
+    color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,0.32); }
+  .zs-start.ready:active { transform: scale(0.97); }
 
   /* ── DECK-UNLOCK CELEBRATION (presentation only) ───────────────────────────
      Fires ONCE, at run termination after the FIRST win with a deck: the next
@@ -2250,18 +2265,45 @@ const NativeApp = (() => {
   .stat-tile .sv .pct { font-size: 14px; font-weight: 600; color: var(--muted); }
   .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-top: 3px; }
-  /* ZEN section of the Stats screen: one row per difficulty (games / wins /
-     cards / correct — Zen's own record, separate from the campaign tiles). */
+  /* Section headers on the Stats screen — full-width labels over each block
+     ("Runs" over the campaign tiles, "Zen" over the Zen split). */
+  .stats-head { grid-column: 1 / -1; font-family: var(--font-display); font-weight: 800;
+    font-size: 15px; letter-spacing: 0.6px; color: var(--text); margin: 2px 0 -2px; }
+  /* ZEN section of the Stats screen: one sub-block per difficulty, each a legacy
+     summary line + a twin wins/loss histogram (tap the outcome bar to toggle).
+     Its OWN record — separate store from the campaign "Runs" tiles above. */
   .stats-zen { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--edge);
     border-radius: 12px; padding: 10px 12px; }
   .stats-zen .sz-head { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-bottom: 6px; }
-  .stats-zen .sz-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0;
-    font-size: 11px; color: var(--muted); }
-  .stats-zen .sz-diff { flex: 0 0 58px; font-weight: 800; color: var(--text); }
-  .stats-zen .sz-num { flex: 1; text-align: right; white-space: nowrap; }
-  .stats-zen .sz-num b { font-family: var(--font-display); font-weight: 700; font-size: 14px;
-    color: var(--accent-2); }
+  /* Calm one-line cue that the outcome bars flip the view (touch has no cursor). */
+  .zh-hint { font-size: 10.5px; color: var(--muted); margin: -2px 0 6px; }
+  /* One difficulty's histogram sub-block. */
+  .zh-block { padding: 6px 0; border-top: 1px solid var(--edge); }
+  .zh-block:first-of-type { border-top: none; padding-top: 2px; }
+  .zh-label { font-family: var(--font-display); font-weight: 800; font-size: 14px;
+    color: var(--text); }
+  .zh-summary { font-size: 10.5px; color: var(--muted); margin: 1px 0 6px; }
+  .zh-summary b { font-family: var(--font-display); font-weight: 700; color: var(--accent-2); }
+  .zh-histo { display: flex; flex-direction: column; gap: 3px; }
+  .zh-histo.hidden { display: none; }
+  /* A bar row: fixed key gutter, a flexible track, the count. */
+  .zh-bar { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+  .zh-k { flex: 0 0 52px; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .zh-track { flex: 1; height: 14px; background: rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
+  .zh-fill { display: block; height: 100%; border-radius: 7px; min-width: 2px; }
+  .zh-c { flex: 0 0 22px; text-align: right; font-family: var(--font-display); font-weight: 700;
+    font-size: 12px; color: var(--text); }
+  .zh-win .zh-fill { background: linear-gradient(90deg, #3fa96b, #58c988); }
+  .zh-loss .zh-fill { background: linear-gradient(90deg, #c8503f, #e0705c); }
+  /* Toggle bars (the outcome summary rows) — the tap targets: taller (≥30px),
+     with a pointer + subtle emphasis so they read as interactive. */
+  .zh-toggle-loss, .zh-toggle-win { min-height: 30px; cursor: pointer; }
+  .zh-toggle-loss .zh-k, .zh-toggle-win .zh-k { font-weight: 800; color: var(--text); }
+  .zh-toggle-loss:active, .zh-toggle-win:active { opacity: 0.82; }
+  /* The flip chevron — subtle accent glyph, the only touch affordance on the
+     outcome summary bars (data bars carry none). */
+  .zh-caret { color: var(--accent-2); font-weight: 800; }
   /* Manual */
   .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
@@ -2595,6 +2637,15 @@ const NativeApp = (() => {
     margin: 0 0 16px;
   }
   .run-progress.hidden { display: none; }
+
+  /* Zen per-game end lines (overlay): compact label→value rows, this game only. */
+  .zen-endstats { width: min(72vw, 260px); margin: 2px 0 16px;
+    display: flex; flex-direction: column; gap: 3px; }
+  .zen-endstats.hidden { display: none; }
+  .zen-endstats .zes-row { display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12.5px; color: var(--on-felt-muted); }
+  .zen-endstats .zes-val { font-family: var(--font-display); font-weight: 800; font-size: 15px;
+    color: var(--on-felt); }
 
   .summary-block {
     width: min(82vw, 320px);
@@ -6383,6 +6434,9 @@ const NativeApp = (() => {
       Survive the whole deck to clear the deal.
     </p>
     <div class="run-progress hidden" id="runProgress">Deal 1 of 4</div>
+    <!-- Zen per-game end lines (this game only): flips/correct + outcome count.
+         Populated from the live zenMode counters; empty/hidden outside Zen. -->
+    <div class="zen-endstats hidden" id="zenEndStats"></div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
     <div class="summary-block hidden" id="endSummary">
       <div class="summary-tiles">
@@ -6732,6 +6786,10 @@ const NativeApp = (() => {
     <div class="ds-title">Zen</div>
     <div class="zs-hint">One quiet higher-or-lower deal. No coins, no items, nothing saved — just you and the deck.</div>
     <div class="zs-list" id="zsList"></div>
+    <!-- SELECT-then-Start: tapping an entry only selects it; this button (greyed
+         while nothing is picked, primary-filled once one is) is the sole thing
+         that begins the game. Selection resets each time the page is shown. -->
+    <button class="zs-start" id="zsStart" type="button" disabled>Start</button>
   </div>
 
   <!-- Artifact telemetry table (debug only — playtest balancing). -->
@@ -6829,7 +6887,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.82 · the map key knows its place";
+const APP_VERSION = "v4.83 · zen keeps score, and the stats flip";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14258,11 +14316,20 @@ const Stats = (() => {
    and campaign play never moves these. Absent/corrupted storage always
    reads as zeros (never throws); unknown fields are ignored on read,
    so the shape can grow without a migration.
-   Shape: { <zenId>: { games, wins, cardsFlipped, correctGuesses } }.
+   Shape: { <zenId>: { games, wins, cardsFlipped, correctGuesses,
+                       winPiles: {<pilesAlive>: n}, lossCards: {<cardsLeft>: n} } }.
+   The two MAPS are per-difficulty end-of-game DISTRIBUTIONS feeding the Stats
+   screen's twin histograms — winPiles keyed by piles-remaining on a win,
+   lossCards keyed by draw-pile-remaining on a loss. FORWARD-ONLY: they start
+   empty and are never back-filled from the legacy games/wins scalars, so each
+   histogram's bars sum to its own totals. MIGRATION-SAFE: an entry lacking
+   either map reads it as an empty distribution (same absent/corrupted/scalar-
+   reads-as-zeros contract as the scalars) — the shape grew without a version.
 ---------------------------------------------------------------- */
 const ZenStats = (() => {
   const KEY = "ninelives.zenstats.v1";
   const ENTRY = { games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0 };
+  const MAPS = ["winPiles", "lossCards"];   // count-keyed distributions (forward-only)
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
   function raw() {
     if (!ok()) return {};
@@ -14275,11 +14342,26 @@ const ZenStats = (() => {
     } catch (e) { return {}; }
   }
   function put(s) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* quota/serialize — ignore */ } }
-  /** One difficulty's tallies, defaults-merged (bad values read as 0). */
+  /** A distribution map, sanitised: only non-negative-integer keys with a
+      positive-integer count survive (a missing/corrupt/scalar map → empty). */
+  function cleanMap(m) {
+    const out = {};
+    if (m && typeof m === "object" && !Array.isArray(m)) {
+      for (const k in m) {
+        const key = Number(k), v = m[k];
+        if (Number.isInteger(key) && key >= 0 && typeof v === "number" && isFinite(v) && v > 0)
+          out[key] = Math.floor(v);
+      }
+    }
+    return out;
+  }
+  /** One difficulty's tallies, defaults-merged (bad values read as 0; absent
+      maps read as empty distributions — never throws on legacy/corrupt data). */
   function entry(s, diff) {
     const e = (s && s[diff] && typeof s[diff] === "object") ? s[diff] : {};
     const out = { ...ENTRY };
     for (const k in ENTRY) { const v = e[k]; if (typeof v === "number" && isFinite(v) && v >= 0) out[k] = v; }
+    for (const m of MAPS) out[m] = cleanMap(e[m]);
     return out;
   }
   function bump(diff, fn) {
@@ -14291,15 +14373,25 @@ const ZenStats = (() => {
     put(s);
   }
   return {
-    /** Tallies for one difficulty — always a full zeros-defaulted entry. */
+    /** Tallies for one difficulty — always a full zeros-defaulted entry
+        (both distribution maps present, empty when absent). */
     get(diff) { return entry(raw(), diff); },
     /** The Zen game counts at its FIRST drawn card — the same first-guess
         rule Stats.runPlayed uses (dealing + reshuffling never count). */
     gamePlayed(diff) { bump(diff, e => { e.games++; }); },
     /** One drawn card resolved a guess: a card flipped, correct or not. */
     guess(diff, correct) { bump(diff, e => { e.cardsFlipped++; if (correct) e.correctGuesses++; }); },
-    /** The deck was emptied with a pile standing — a Zen win. */
-    win(diff) { bump(diff, e => { e.wins++; }); },
+    /** The deck was emptied with a pile standing — a Zen win. `piles` (piles
+        still alive) records into the winPiles distribution when a valid count. */
+    win(diff, piles) { bump(diff, e => {
+      e.wins++;
+      if (Number.isInteger(piles) && piles >= 0) e.winPiles[piles] = (e.winPiles[piles] || 0) + 1;
+    }); },
+    /** All piles died — a Zen loss. `cardsLeft` (draw pile remaining at the
+        death) records into the lossCards distribution when a valid count. */
+    loss(diff, cardsLeft) { bump(diff, e => {
+      if (Number.isInteger(cardsLeft) && cardsLeft >= 0) e.lossCards[cardsLeft] = (e.lossCards[cardsLeft] || 0) + 1;
+    }); },
     reset() { put({}); },
   };
 })();
@@ -14911,6 +15003,7 @@ const UIRenderer = (() => {
     dsBack: document.getElementById("dsBack"),
     zenSelect: document.getElementById("zenSelect"),   // Zen difficulty page (unlock ladder)
     zsList: document.getElementById("zsList"),
+    zsStart: document.getElementById("zsStart"),
     zsBack: document.getElementById("zsBack"),
     menuBtn: document.getElementById("menuBtn"),
     mapStoreBtn: document.getElementById("mapStoreBtn"),
@@ -14976,6 +15069,7 @@ const UIRenderer = (() => {
     overlayTitle: document.getElementById("overlayTitle"),
     overlayMsg: document.getElementById("overlayMsg"),
     runProgress: document.getElementById("runProgress"),
+    zenEndStats: document.getElementById("zenEndStats"),
     endSummary: document.getElementById("endSummary"),
     endCards: document.getElementById("endCards"),
     endCoins: document.getElementById("endCoins"),
@@ -18989,15 +19083,21 @@ const UIRenderer = (() => {
     if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
 
     // Zen difficulty page: one delegated handler on the list (entries are
-    // rebuilt each show). Tapping an UNLOCKED difficulty starts that game
-    // directly; locked entries are disabled buttons, so their taps never
-    // land here. Back mirrors dsBack (returns to the menu we came from).
+    // rebuilt each show). Tapping an UNLOCKED difficulty SELECTS it (no game
+    // starts) — only the Start button begins play. Locked entries are disabled
+    // buttons, so their taps never land here (never selectable). Re-tapping the
+    // selected entry re-affirms only. Back mirrors dsBack (returns to the menu).
     if (el.zsList) el.zsList.addEventListener("click", (e) => {
       const entry = e.target.closest(".zs-entry");
       if (!entry || entry.disabled || entry.classList.contains("locked")) return;
       Sound.tap();
+      zenSelectPick(entry.dataset.zen);
+    });
+    if (el.zsStart) el.zsStart.addEventListener("click", () => {
+      if (!zenSelectedId || el.zsStart.disabled) return;   // guard: nothing picked yet
+      Sound.tap();
       hideZenSelect();
-      startZen(entry.dataset.zen);
+      startZen(zenSelectedId);
     });
     if (el.zsBack) el.zsBack.addEventListener("click", () => { Sound.tap(); hideZenSelect(); if (zenSelectReturn) zenSelectReturn(); });
 
@@ -20016,6 +20116,7 @@ const UIRenderer = (() => {
         if (zenMode) {
           if (!zenMode.counted) { zenMode.counted = true; ZenStats.gamePlayed(zenMode.diff); }
           ZenStats.guess(zenMode.diff, !!payload.correct);
+          zenMode.flips++; if (payload.correct) zenMode.correct++;   // per-game overlay counters
         } else if (campaign && !campaign.isPlayedCounted()) {
           campaign.markPlayed();
           Stats.runPlayed();
@@ -20539,7 +20640,7 @@ const UIRenderer = (() => {
         // card and the pile survived; the charge is now spent. Distinct feedback.
         // ZEN: this guess drew a card without a "resolved" event — tally the
         // flipped card here (a wrong guess, so no correct-guess credit).
-        if (zenMode) ZenStats.guess(zenMode.diff, false);
+        if (zenMode) { ZenStats.guess(zenMode.diff, false); zenMode.flips++; }   // per-game overlay counter (wrong guess)
         const reduce = prefersReduce();
         const idx = payload.index;
         const pileEl = pileEls[idx];
@@ -20764,6 +20865,13 @@ const UIRenderer = (() => {
 
     el.runProgress.textContent = opts.progress || "";
     el.runProgress.classList.toggle("hidden", !opts.progress);
+
+    // Zen per-game end lines (Zen overlay only). The html is built from numeric
+    // counters + static labels only — no user string reaches it.
+    if (el.zenEndStats) {
+      el.zenEndStats.innerHTML = opts.zenStats || "";
+      el.zenEndStats.classList.toggle("hidden", !opts.zenStats);
+    }
 
     // End-of-campaign stats: cumulative cards flipped + gross coins earned, and
     // the Pillars the player finished with, by column.
@@ -26398,8 +26506,22 @@ const UIRenderer = (() => {
      language. Back returns to the main menu with Continue preserved
      (the deckSelectReturn pattern). */
   let zenSelectReturn = null;   // how the Back button returns (to the right menu)
+  let zenSelectedId = null;     // the difficulty picked on #zenSelect (null until a tap; reset each show)
+  /* Select-then-Start: mark the tapped entry, arm the primary-filled Start
+     button. Idempotent — re-tapping the same entry just re-affirms it. */
+  function zenSelectPick(id) {
+    zenSelectedId = id;
+    for (const b of el.zsList.querySelectorAll(".zs-entry"))
+      b.classList.toggle("selected", b.dataset.zen === id);
+    el.zsStart.disabled = false;
+    el.zsStart.classList.add("ready");
+  }
   function showZenSelect(canContinue) {
     zenSelectReturn = () => showMainMenu(canContinue);
+    // Selection always resets when the page is (re)shown — Start greyed again.
+    zenSelectedId = null;
+    el.zsStart.disabled = true;
+    el.zsStart.classList.remove("ready");
     el.stageRun.classList.add("off");
     setScreenNav(false, false, false);
     el.overlay.classList.add("hidden");
@@ -26423,7 +26545,7 @@ const UIRenderer = (() => {
   function hideZenSelect() { el.zenSelect.classList.add("hidden"); }
 
   function startZen(diffId) {
-    zenMode = { diff: diffId, deck: null, counted: false };
+    zenMode = { diff: diffId, deck: null, counted: false, flips: 0, correct: 0 };
     document.body.classList.add("zen-mode");
     hideMainMenu();
     startZenDeal();
@@ -26449,6 +26571,7 @@ const UIRenderer = (() => {
     const deckForDeal = DeckManager.buildZenDeck(z.suitCount);
     zenMode.deck = deckForDeal;
     zenMode.counted = false;   // a fresh game counts (ZenStats) at its first guess
+    zenMode.flips = 0; zenMode.correct = 0;   // per-game overlay counters reset each deal (Play Again reuses zenMode)
     // Zen is always a FULL-deck deal — clear any campaign subset leftovers so
     // the histogram reads the true draw pile.
     subsetDealActive = false;
@@ -26479,17 +26602,34 @@ const UIRenderer = (() => {
     DeckInspector.close();
     const won = result === "win";
     const alive = payload.board.aliveCount();
+    // Draw pile left at the death (loss) — the killing draw already resolved,
+    // so this is the true remaining count (0 when the final card was fatal).
+    const cardsLeft = payload.deck ? payload.deck.remaining() : 0;
     // THE LADDER'S GRANT: the first win at a difficulty permanently opens the
     // next one (ZenUnlocks — its own store, so a stats reset never re-locks).
     // Only that NEW grant carries the one-line unlock note on the overlay:
     // repeat wins and a top-difficulty win (no successor) stay minimal.
     let unlockedLabel = null;
     if (won) {
-      ZenStats.win(zenMode.diff);   // Zen's OWN record — campaign Stats never move
+      // Zen's OWN record — campaign Stats never move. The win folds piles-alive
+      // into that difficulty's winPiles distribution (the Stats histogram).
+      ZenStats.win(zenMode.diff, alive);
       const firstWin = ZenUnlocks.recordWin(zenMode.diff);
       const nextId = DifficultyData.zenIds[DifficultyData.zenIds.indexOf(zenMode.diff) + 1];
       if (firstWin && nextId) unlockedLabel = DifficultyData.zen(nextId).label;
+    } else {
+      // A loss folds cards-left into the lossCards distribution (bucketed by the
+      // Stats histogram at render — the raw count is stored forward-only).
+      ZenStats.loss(zenMode.diff, cardsLeft);
     }
+    // PER-GAME end lines (THIS game only, from the live zenMode counters — never
+    // the cumulative ZenStats): cards guessed + correct, then the outcome-specific
+    // count (piles standing on a win, cards left in the deck on a loss).
+    const flips = zenMode.flips || 0, correct = zenMode.correct || 0;
+    const line = (label, val) =>
+      '<div class="zes-row"><span class="zes-lab">' + label + '</span><span class="zes-val">' + val + '</span></div>';
+    const zenStatsHtml = line("Cards guessed", flips) + line("Correct", correct) +
+      (won ? line("Piles remaining", alive) : line("Cards left in deck", cardsLeft));
     if (won) CharMood.win(); else CharMood.loss();
     queueAnim((done) => {
       DeckChar.react(won ? "celebrate" : "sad");
@@ -26506,6 +26646,7 @@ const UIRenderer = (() => {
       // The unlock moment rides the overlay's existing progress line (accent
       // caps under the flavor text) — one line, this game only, label live.
       progress: unlockedLabel ? unlockedLabel + " unlocked!" : "",
+      zenStats: zenStatsHtml,   // this-game lines (flips/correct + outcome count)
       btnLabel: "Play Again",
       action: startZenDeal,
       btn2Label: "Menu",
@@ -26650,6 +26791,90 @@ const UIRenderer = (() => {
   }
 
   /* ---- Stats screen (§9) ---- */
+  /* ---- Zen Stats histograms (§ZEN3) ---------------------------------------
+     Each Zen difficulty gets a WINS histogram (default) and a LOSS histogram,
+     toggled by tapping the outcome summary bar. Every number is FORWARD-ONLY,
+     read from that difficulty's own winPiles/lossCards distributions — the
+     legacy games/wins scalars are never folded in, so each histogram's bars
+     sum to its own totals. Simple CSS bars — no per-frame work. */
+
+  /* Loss-histogram buckets for a Zen deck of `deckSize` cards: singletons 1..5,
+     then decades 6-10, 11-20, 21-30, … The bucket that CONTAINS deckSize is
+     trimmed to end there; a trailing remainder smaller than a singleton run
+     (< 5 cards, e.g. a 52-card deck's would-be 51-52) folds into the previous
+     decade instead of standing alone — so the top bucket differs per deck
+     (Easy → 21-26, Medium → 31-39, Hard → 41-52), all derived live from the
+     card count (never pinned). */
+  function zenLossBuckets(deckSize) {
+    const out = [];
+    for (let n = 1; n <= 5 && n <= deckSize; n++) out.push([n, n]);
+    let lo = 6;
+    while (lo <= deckSize) {
+      const decadeEnd = Math.ceil(lo / 10) * 10;   // 6→10, 11→20, 41→50
+      if (decadeEnd >= deckSize || deckSize - decadeEnd < 5) { out.push([lo, deckSize]); break; }
+      out.push([lo, decadeEnd]);
+      lo = decadeEnd + 1;
+    }
+    return out;
+  }
+  function zenBucketLabel(b) { return b[0] === b[1] ? String(b[0]) : b[0] + "-" + b[1]; }
+  /** Fold a lossCards distribution into per-bucket totals. Every loss lands in
+      exactly ONE bucket (its cards-left clamped into [1, deckSize] — a 0-left
+      "died on the final card" counts in the first bucket), so the bucket bars
+      sum to the total losses. */
+  function zenBucketCounts(lossCards, buckets, deckSize) {
+    const totals = buckets.map(() => 0);
+    for (const k in lossCards) {
+      let v = Number(k); if (!isFinite(v)) continue;
+      v = Math.max(1, Math.min(deckSize, v));
+      for (let i = 0; i < buckets.length; i++)
+        if (v >= buckets[i][0] && v <= buckets[i][1]) { totals[i] += lossCards[k]; break; }
+    }
+    return totals;
+  }
+  const zenSumMap = (m) => { let t = 0; for (const k in m) t += m[k]; return t; };
+  /** One horizontal bar: key label, proportional fill, count. `cls` carries the
+      colour (zh-win green / zh-loss red) and, on a summary bar, the toggle hook.
+      `caret` ("after"/"before") adds a subtle chevron to the tappable OUTCOME
+      summary bars only — the affordance that they flip the view (touch has no
+      cursor, so the glyph is the only cue). Data bars pass no caret. */
+  function zenBar(label, count, max, cls, caret) {
+    const pct = max > 0 ? Math.round(100 * count / max) : 0;
+    const chev = caret ? '<span class="zh-caret">' + (caret === "before" ? "‹" : "›") + '</span>' : "";
+    const key = caret === "before" ? chev + " " + escHtml(label)
+      : caret === "after" ? escHtml(label) + " " + chev : escHtml(label);
+    return '<div class="zh-bar ' + cls + '"><span class="zh-k">' + key + '</span>' +
+      '<span class="zh-track"><span class="zh-fill" style="width:' + pct + '%"></span></span>' +
+      '<span class="zh-c">' + count + '</span></div>';
+  }
+  /** One difficulty's sub-block: label, legacy summary line, and the twin
+      histograms (wins visible, losses hidden — toggled by the summary bars). */
+  function zenHistoBlock(id) {
+    const z = DifficultyData.zen(id);
+    const st = ZenStats.get(id);
+    const P = z.piles, deckSize = z.suitCount * 13;
+    const totalWins = zenSumMap(st.winPiles);      // forward-only (not st.wins)
+    const totalLosses = zenSumMap(st.lossCards);
+    // WINS view: red "0 (Loss) ›" summary bar (tap → loss view) + green bars 1..P.
+    let winMax = totalLosses;
+    for (let p = 1; p <= P; p++) winMax = Math.max(winMax, st.winPiles[p] || 0);
+    let wins = zenBar("0 (Loss)", totalLosses, winMax, "zh-loss zh-toggle-loss", "after");
+    for (let p = 1; p <= P; p++) wins += zenBar(String(p), st.winPiles[p] || 0, winMax, "zh-win");
+    // LOSS view: green "‹ 0 (Win)" summary bar (tap → wins view) + red bucket bars.
+    const buckets = zenLossBuckets(deckSize);
+    const bTot = zenBucketCounts(st.lossCards, buckets, deckSize);
+    let lossMax = totalWins; for (const t of bTot) lossMax = Math.max(lossMax, t);
+    let loss = zenBar("0 (Win)", totalWins, lossMax, "zh-win zh-toggle-win", "before");
+    buckets.forEach((b, i) => { loss += zenBar(zenBucketLabel(b), bTot[i], lossMax, "zh-loss"); });
+    return '<div class="zh-block" data-zen="' + escHtml(id) + '">' +
+      '<div class="zh-label">' + escHtml(z.label) + '</div>' +
+      '<div class="zh-summary"><b>' + st.games + '</b> played · <b>' + st.wins + '</b> won · <b>' +
+        st.cardsFlipped + '</b> cards · <b>' + st.correctGuesses + '</b> correct</div>' +
+      '<div class="zh-histo zh-wins">' + wins + '</div>' +
+      '<div class="zh-histo zh-losses hidden">' + loss + '</div>' +
+    '</div>';
+  }
+
   function showStats() {
     const s = Stats.get();
     // Win rate over counted runs only (gamesPlayed bumps on the first guess).
@@ -26669,20 +26894,17 @@ const UIRenderer = (() => {
       [s.bestEndless || 0, "Deepest endless stage"],
     ];
     // ZEN section — Zen mode's OWN per-difficulty record (ZenStats; a separate
-    // store, so campaign tallies above never move from Zen play). All three
-    // difficulties always show, zeros included — same as the campaign tiles.
-    const zenRows = DifficultyData.zenIds.map(id => {
-      const z = DifficultyData.zen(id);
-      const s = ZenStats.get(id);
-      return '<div class="sz-row"><span class="sz-diff">' + escHtml(z.label) + '</span>' +
-        '<span class="sz-num"><b>' + s.games + '</b> played</span>' +
-        '<span class="sz-num"><b>' + s.wins + '</b> won</span>' +
-        '<span class="sz-num"><b>' + s.cardsFlipped + '</b> cards</span>' +
-        '<span class="sz-num"><b>' + s.correctGuesses + '</b> correct</span></div>';
-    }).join("");
-    el.statsGrid.innerHTML = tiles.map(([v, l]) =>
-      '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("") +
-      '<div class="stats-zen"><div class="sz-head">Zen</div>' + zenRows + '</div>';
+    // store, so the campaign "Runs" tiles above never move from Zen play). Every
+    // difficulty renders its own histogram sub-block, zeros included.
+    const zenBlocks = DifficultyData.zenIds.map(zenHistoBlock).join("");
+    // Two clearly-headed sections: campaign "Runs" tiles, then the "Zen" split.
+    el.statsGrid.innerHTML =
+      '<div class="stats-head stats-runs-head">Runs</div>' +
+      tiles.map(([v, l]) =>
+        '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("") +
+      '<div class="stats-zen"><div class="sz-head">Zen</div>' +
+        '<div class="zh-hint">Tap a difficulty’s outcome bar to flip wins ⇄ losses.</div>' +
+        zenBlocks + '</div>';
     el.statsOverlay.classList.remove("hidden");
     updateBoardMotion();
   }
@@ -27028,6 +27250,19 @@ const UIRenderer = (() => {
     if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
     el.statsReset.addEventListener("click", () => { Stats.reset(); ZenStats.reset(); showStats(); });
+    // Per-difficulty histogram toggle (delegated — survives statsGrid re-renders).
+    // Tap a difficulty's "0 (Loss)" bar → its loss view; "0 (win)" → back to wins.
+    // Independent per block: exactly one of each pair visible, others untouched.
+    el.statsGrid.addEventListener("click", (e) => {
+      const toLoss = e.target.closest(".zh-toggle-loss");
+      const toWin = e.target.closest(".zh-toggle-win");
+      if (!toLoss && !toWin) return;
+      const block = e.target.closest(".zh-block");
+      if (!block) return;
+      Sound.tap();
+      block.querySelector(".zh-wins").classList.toggle("hidden", !!toLoss);
+      block.querySelector(".zh-losses").classList.toggle("hidden", !toLoss);
+    });
     el.manualClose.addEventListener("click", closeManual);
     el.gameMenuClose.addEventListener("click", closeGameMenu);
     // Tap the dim backdrop (the overlay itself, not its panel) to dismiss.
