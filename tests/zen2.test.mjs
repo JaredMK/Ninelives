@@ -222,38 +222,75 @@ export function run() {
       "per-game counters reset each deal (Play Again reuses zenMode)");
   }
 
-  // ---- ZEN3: Stats screen split + per-difficulty histograms ----------------
+  // ---- ZEN4: Stats screen — ONE combined histogram, filter + drill + vertical
+  // Re-points the ZEN3 per-difficulty structural assertions to the reworked
+  // single-histogram markup (segmented filter, two-bar summary, vertical drill).
   {
     const src = gameScript();
     const stats = fnBody(src, "showStats");
     r.ok(stats.includes('stats-runs-head">Runs') , "showStats renders a 'Runs' header over the campaign tiles");
     r.ok(stats.includes('sz-head">Zen'), "…and a 'Zen' header over the Zen section");
-    r.ok(stats.includes("DifficultyData.zenIds.map(zenHistoBlock)"),
-      "every difficulty renders its own histogram sub-block");
-    const block = fnBody(src, "zenHistoBlock");
-    r.ok(block.includes("st.winPiles") && block.includes("st.lossCards"),
-      "the histograms derive from the forward-only distributions");
-    r.ok(block.includes("z.piles") && block.includes("z.suitCount * 13"),
-      "bars derive live from the difficulty's pile count and deck size");
-    r.ok(block.includes('"0 (Loss)"') && block.includes('"0 (Win)"'),
-      "each difficulty has a '0 (Loss)' summary bar (wins view) and '0 (Win)' (loss view; consistent casing)");
-    r.ok(block.includes("zh-toggle-loss") && block.includes("zh-toggle-win"),
-      "the summary bars carry the toggle hooks");
-    // The outcome summary bars carry a chevron affordance (touch has no cursor).
-    r.ok(block.includes('"after"') && block.includes('"before"'),
-      "the tappable outcome bars get a flip chevron (the only touch affordance)");
-    const bar = fnBody(src, "zenBar");
-    r.ok(bar.includes("zh-caret") && bar.includes("caret"),
-      "zenBar renders the chevron only when a caret is passed (data bars carry none)");
-    r.ok(block.includes('zh-wins') && block.includes('zh-losses'),
-      "the twin histograms are separate blocks (one hidden at a time)");
-    // The delegated toggle handler flips exactly one difficulty's pair.
-    const togIdx = src.indexOf("zh-toggle-loss");
-    const region = src.slice(src.indexOf("el.statsGrid.addEventListener"), src.indexOf("el.statsGrid.addEventListener") + 500);
-    r.ok(region.includes("zh-block") && region.includes('querySelector(".zh-wins")')
-      && region.includes('querySelector(".zh-losses")') && region.includes("Sound.tap()"),
-      "a delegated statsGrid handler toggles a block's wins/loss views with a tap cue");
-    r.ok(togIdx > 0, "the toggle class is emitted by the histogram markup");
+    // R9: no per-difficulty stacking — one section built by zenSectionInner(),
+    // and the ephemeral view resets to All + summary on every open.
+    r.ok(!stats.includes("zenHistoBlock") && stats.includes("zenSectionInner()"),
+      "the Zen section is one combined histogram (zenSectionInner), not per-difficulty blocks");
+    r.ok(stats.includes('zenView = { scope: "all", drill: null }'),
+      "each Stats open resets the ephemeral view to All + the two-bar summary");
+    r.ok(!/function\s+zenHistoBlock\(/.test(src) && !/function\s+zenBar\(/.test(src),
+      "the ZEN3 per-block render helpers (zenHistoBlock/zenBar) are gone");
+    // R1: the segmented filter — always All + the live ladder, one selected, All open.
+    const section = fnBody(src, "zenSectionInner");
+    r.ok(section.includes('[["all", "All"]].concat(DifficultyData.zenIds.map')
+      && section.includes("zf-opt"),
+      "a four-option segmented filter (All + live ladder labels) heads the section");
+    r.ok(section.includes('data-scope="') && section.includes('v === sc ? " selected"'),
+      "the scoped option is visually distinguished (selected class)");
+    // R8: ONE scope stats line, live per scope (not three stacked lines).
+    r.ok(section.includes("zh-scope") && section.includes("d.games") && section.includes("d.wins")
+      && section.includes("d.cardsFlipped") && section.includes("d.correctGuesses"),
+      "one scope stats line reads games/wins/cards/correct for the current scope");
+    // R2: level 0 is exactly two vertical summary columns (forward-only sums).
+    r.ok(section.includes('zenVBar("Wins"') && section.includes('zenVBar("Losses"')
+      && section.includes("zenSumMap(d.winPiles)") && section.includes("zenSumMap(d.lossCards)"),
+      "level 0 shows two columns: Wins = winPiles sum, Losses = lossCards sum");
+    r.ok(section.includes("zh-sum-win") && section.includes("zh-sum-loss"),
+      "the two summary columns carry the drill hooks");
+    r.ok(section.includes("zv-win") && section.includes("zv-loss"),
+      "wins columns are green (zv-win), loss columns red (zv-loss)");
+    // R3: drill levels — wins over piles 1..P, losses over the unchanged buckets.
+    r.ok(section.includes('drill === "wins"') && section.includes("d.winPiles[p]")
+      && section.includes("p <= d.piles"),
+      "the wins drill renders one column per piles-remaining value, axis 1..maxPiles");
+    r.ok(section.includes('drill === "losses"') && section.includes("zenLossBuckets(d.deckSize)")
+      && section.includes("zenBucketCounts(d.lossCards"),
+      "the losses drill reuses the bucket helpers over the scope's deck size");
+    // R4: the Back chip appears only when drilled.
+    r.ok(section.includes("zh-back") && section.includes("‹ Back"),
+      "a '‹ Back' chip is emitted at level 1 (drilled) only");
+    // R6: vertical, baseline-anchored bars replace the horizontal fill.
+    const vbar = fnBody(src, "zenVBar");
+    r.ok(vbar.includes("zv-bar") && vbar.includes("height:") && vbar.includes("zv-k") && vbar.includes("zv-c"),
+      "zenVBar emits a vertical column (height-driven bar, key beneath, count above)");
+    r.ok(!src.includes("zh-fill") && !src.includes("zh-track"),
+      "no horizontal .zh-fill/.zh-track markup remains in the Zen section");
+    // R1/R4/R3/R5: the delegated handler drives filter/back/drill and always
+    // collapses drill on a filter change, with a tap cue on every path.
+    const region = src.slice(src.indexOf("el.statsGrid.addEventListener"), src.indexOf("el.statsGrid.addEventListener") + 900);
+    r.ok(region.includes('closest(".zf-opt")') && region.includes("zenView.scope = opt.dataset.scope")
+      && region.includes("zenView.drill = null"),
+      "a filter tap re-scopes and collapses the drill (R5)");
+    r.ok(region.includes('closest(".zh-back")') && region.includes('closest(".zh-sum-win")')
+      && region.includes('closest(".zh-sum-loss")'),
+      "the handler wires Back + both summary-column drills");
+    r.ok(region.includes('zenView.drill = "wins"') && region.includes('zenView.drill = "losses"')
+      && region.includes("renderZenSection()") && region.includes("Sound.tap()"),
+      "drills set the level, re-render in place, and cue a tap");
+    // R1: "all" scope SUMS every difficulty's maps per key + spans the widest axes.
+    const scope = fnBody(src, "zenScope");
+    r.ok(scope.includes('scope !== "all"') && scope.includes("agg.winPiles[k]")
+      && scope.includes("agg.lossCards[k]") && scope.includes("Math.max(agg.piles")
+      && scope.includes("z.suitCount * 13"),
+      "the 'all' scope aggregates per-key sums and spans max piles/deck across the ladder");
   }
 
   return r.summary();

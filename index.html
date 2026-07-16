@@ -2276,34 +2276,48 @@ const NativeApp = (() => {
     border-radius: 12px; padding: 10px 12px; }
   .stats-zen .sz-head { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-bottom: 6px; }
-  /* Calm one-line cue that the outcome bars flip the view (touch has no cursor). */
-  .zh-hint { font-size: 10.5px; color: var(--muted); margin: -2px 0 6px; }
-  /* One difficulty's histogram sub-block. */
-  .zh-block { padding: 6px 0; border-top: 1px solid var(--edge); }
-  .zh-block:first-of-type { border-top: none; padding-top: 2px; }
-  .zh-label { font-family: var(--font-display); font-weight: 800; font-size: 14px;
-    color: var(--text); }
-  .zh-summary { font-size: 10.5px; color: var(--muted); margin: 1px 0 6px; }
-  .zh-summary b { font-family: var(--font-display); font-weight: 700; color: var(--accent-2); }
-  .zh-histo { display: flex; flex-direction: column; gap: 3px; }
-  .zh-histo.hidden { display: none; }
-  /* A bar row: fixed key gutter, a flexible track, the count. */
-  .zh-bar { display: flex; align-items: center; gap: 8px; min-height: 24px; }
-  .zh-k { flex: 0 0 52px; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
-  .zh-track { flex: 1; height: 14px; background: rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
-  .zh-fill { display: block; height: 100%; border-radius: 7px; min-width: 2px; }
-  .zh-c { flex: 0 0 22px; text-align: right; font-family: var(--font-display); font-weight: 700;
-    font-size: 12px; color: var(--text); }
-  .zh-win .zh-fill { background: linear-gradient(90deg, #3fa96b, #58c988); }
-  .zh-loss .zh-fill { background: linear-gradient(90deg, #c8503f, #e0705c); }
-  /* Toggle bars (the outcome summary rows) — the tap targets: taller (≥30px),
-     with a pointer + subtle emphasis so they read as interactive. */
-  .zh-toggle-loss, .zh-toggle-win { min-height: 30px; cursor: pointer; }
-  .zh-toggle-loss .zh-k, .zh-toggle-win .zh-k { font-weight: 800; color: var(--text); }
-  .zh-toggle-loss:active, .zh-toggle-win:active { opacity: 0.82; }
-  /* The flip chevron — subtle accent glyph, the only touch affordance on the
-     outcome summary bars (data bars carry none). */
-  .zh-caret { color: var(--accent-2); font-weight: 800; }
+  /* ZEN4 — ONE combined histogram: a segmented scope filter, a single stats
+     line, an optional Back chip (when drilled), and VERTICAL bars. */
+  /* Segmented filter row: All / Easy / Medium / Hard — always four, one selected. */
+  .zf-row { display: flex; gap: 4px; margin: 0 0 8px; }
+  .zf-opt { flex: 1; min-height: 32px; padding: 4px 2px; border: 1px solid var(--edge);
+    border-radius: 8px; background: rgba(0,0,0,0.14); color: var(--muted);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; }
+  .zf-opt.selected { background: var(--accent); border-color: var(--accent);
+    color: #0c1015; }
+  .zf-opt:active { opacity: 0.85; }
+  /* The single scope stats line (combined under All, one difficulty otherwise). */
+  .zh-scope { font-size: 10.5px; color: var(--muted); margin: 0 0 8px; }
+  .zh-scope b { font-family: var(--font-display); font-weight: 700; color: var(--accent-2); }
+  /* Back chip — present only when drilled into a distribution (level 1). */
+  .zh-back { display: inline-flex; align-items: center; min-height: 30px; padding: 3px 12px;
+    margin: 0 0 8px; border: 1px solid var(--edge); border-radius: 8px;
+    background: rgba(0,0,0,0.14); color: var(--accent-2); font-size: 11.5px;
+    font-weight: 700; cursor: pointer; }
+  .zh-back:active { opacity: 0.85; }
+  /* Vertical histogram: columns share a baseline (flex-end), fixed plot height. */
+  .zv-histo { display: flex; align-items: flex-end; justify-content: space-around;
+    gap: 6px; height: 132px; padding: 0 2px; }
+  /* Many-column loss drill (up to 10 buckets): tighter gaps fit 390px, no scroll. */
+  .zv-histo-many { gap: 3px; justify-content: space-between; }
+  /* The two-bar summary: wide, generously-tapped columns. */
+  .zv-summary { justify-content: space-evenly; gap: 24px; }
+  /* One column: count above, baseline-anchored bar, key beneath. */
+  .zv-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+    align-items: center; height: 100%; }
+  .zv-summary .zv-col { flex: 0 1 108px; max-width: 130px; }
+  .zv-c { font-family: var(--font-display); font-weight: 700; font-size: 11px;
+    color: var(--text); margin-bottom: 2px; }
+  .zv-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+  .zv-bar { width: 100%; min-height: 2px; border-radius: 5px 5px 0 0; }
+  .zv-win .zv-bar { background: linear-gradient(180deg, #58c988, #3fa96b); }
+  .zv-loss .zv-bar { background: linear-gradient(180deg, #e0705c, #c8503f); }
+  .zv-k { margin-top: 4px; font-size: 10.5px; color: var(--muted); white-space: nowrap;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  /* Summary columns are the drill tap targets — wider key, pointer, active cue. */
+  .zv-tap { cursor: pointer; }
+  .zv-tap .zv-k { font-weight: 800; color: var(--text); font-size: 12px; }
+  .zv-tap:active { opacity: 0.82; }
   /* Manual */
   .manual-body { color: var(--text); font-size: 13px; line-height: 1.55; }
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
@@ -6939,7 +6953,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.86 · hold a card, read it up top like the pillars";
+const APP_VERSION = "v4.87 · one zen chart, tap to dig in";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26970,46 +26984,86 @@ const UIRenderer = (() => {
     return totals;
   }
   const zenSumMap = (m) => { let t = 0; for (const k in m) t += m[k]; return t; };
-  /** One horizontal bar: key label, proportional fill, count. `cls` carries the
-      colour (zh-win green / zh-loss red) and, on a summary bar, the toggle hook.
-      `caret` ("after"/"before") adds a subtle chevron to the tappable OUTCOME
-      summary bars only — the affordance that they flip the view (touch has no
-      cursor, so the glyph is the only cue). Data bars pass no caret. */
-  function zenBar(label, count, max, cls, caret) {
+  /** ONE vertical column: count above, a baseline-anchored bar (height ∝ scoped
+      max), key beneath. `cls` carries the colour (zv-win green / zv-loss red);
+      `extra` adds the drill hook (zh-sum-win/zh-sum-loss) + tap styling on the
+      two summary columns. Data columns pass no extra (inert). */
+  function zenVBar(label, count, max, cls, extra) {
     const pct = max > 0 ? Math.round(100 * count / max) : 0;
-    const chev = caret ? '<span class="zh-caret">' + (caret === "before" ? "‹" : "›") + '</span>' : "";
-    const key = caret === "before" ? chev + " " + escHtml(label)
-      : caret === "after" ? escHtml(label) + " " + chev : escHtml(label);
-    return '<div class="zh-bar ' + cls + '"><span class="zh-k">' + key + '</span>' +
-      '<span class="zh-track"><span class="zh-fill" style="width:' + pct + '%"></span></span>' +
-      '<span class="zh-c">' + count + '</span></div>';
+    return '<div class="zv-col ' + cls + (extra ? " " + extra : "") + '">' +
+      '<span class="zv-c">' + count + '</span>' +
+      '<span class="zv-track"><span class="zv-bar" style="height:' + pct + '%"></span></span>' +
+      '<span class="zv-k">' + escHtml(label) + '</span></div>';
   }
-  /** One difficulty's sub-block: label, legacy summary line, and the twin
-      histograms (wins visible, losses hidden — toggled by the summary bars). */
-  function zenHistoBlock(id) {
-    const z = DifficultyData.zen(id);
-    const st = ZenStats.get(id);
-    const P = z.piles, deckSize = z.suitCount * 13;
-    const totalWins = zenSumMap(st.winPiles);      // forward-only (not st.wins)
-    const totalLosses = zenSumMap(st.lossCards);
-    // WINS view: red "0 (Loss) ›" summary bar (tap → loss view) + green bars 1..P.
-    let winMax = totalLosses;
-    for (let p = 1; p <= P; p++) winMax = Math.max(winMax, st.winPiles[p] || 0);
-    let wins = zenBar("0 (Loss)", totalLosses, winMax, "zh-loss zh-toggle-loss", "after");
-    for (let p = 1; p <= P; p++) wins += zenBar(String(p), st.winPiles[p] || 0, winMax, "zh-win");
-    // LOSS view: green "‹ 0 (Win)" summary bar (tap → wins view) + red bucket bars.
-    const buckets = zenLossBuckets(deckSize);
-    const bTot = zenBucketCounts(st.lossCards, buckets, deckSize);
-    let lossMax = totalWins; for (const t of bTot) lossMax = Math.max(lossMax, t);
-    let loss = zenBar("0 (Win)", totalWins, lossMax, "zh-win zh-toggle-win", "before");
-    buckets.forEach((b, i) => { loss += zenBar(zenBucketLabel(b), bTot[i], lossMax, "zh-loss"); });
-    return '<div class="zh-block" data-zen="' + escHtml(id) + '">' +
-      '<div class="zh-label">' + escHtml(z.label) + '</div>' +
-      '<div class="zh-summary"><b>' + st.games + '</b> played · <b>' + st.wins + '</b> won · <b>' +
-        st.cardsFlipped + '</b> cards · <b>' + st.correctGuesses + '</b> correct</div>' +
-      '<div class="zh-histo zh-wins">' + wins + '</div>' +
-      '<div class="zh-histo zh-losses hidden">' + loss + '</div>' +
-    '</div>';
+  /** The Zen view's EPHEMERAL UI state (never persisted, never serialised):
+      which difficulty scope is filtered and whether we're drilled into a
+      distribution. Reset to All + the two-bar summary on every Stats open. */
+  let zenView = { scope: "all", drill: null };   // drill: null | "wins" | "losses"
+  /** Resolve the current scope's tallies + distributions. A single difficulty
+      reads its ZenStats entry live; "all" SUMS every difficulty's maps per key
+      (winPiles by piles, lossCards by cards-left) and spans the widest axes
+      (max piles / max deck across the ladder) — nothing pinned. */
+  function zenScope(scope) {
+    if (scope !== "all") {
+      const st = ZenStats.get(scope), z = DifficultyData.zen(scope);
+      return { ...st, piles: z.piles, deckSize: z.suitCount * 13 };
+    }
+    const agg = { games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0, winPiles: {}, lossCards: {}, piles: 0, deckSize: 0 };
+    for (const id of DifficultyData.zenIds) {
+      const st = ZenStats.get(id), z = DifficultyData.zen(id);
+      agg.games += st.games; agg.wins += st.wins;
+      agg.cardsFlipped += st.cardsFlipped; agg.correctGuesses += st.correctGuesses;
+      for (const k in st.winPiles) agg.winPiles[k] = (agg.winPiles[k] || 0) + st.winPiles[k];
+      for (const k in st.lossCards) agg.lossCards[k] = (agg.lossCards[k] || 0) + st.lossCards[k];
+      agg.piles = Math.max(agg.piles, z.piles);
+      agg.deckSize = Math.max(agg.deckSize, z.suitCount * 13);
+    }
+    return agg;
+  }
+  /** The whole Zen section's inner markup for the current zenView: the segmented
+      filter, the single scope stats line, an optional Back chip (drilled only),
+      and the vertical histogram (two-bar summary at level 0, one distribution
+      when drilled). Re-emitted in place on every filter/drill/back tap. */
+  function zenSectionInner() {
+    const sc = zenView.scope, drill = zenView.drill;
+    const d = zenScope(sc);
+    // R1: four options, always present; All + the live ladder labels, one selected.
+    const opts = [["all", "All"]].concat(DifficultyData.zenIds.map((id) => [id, DifficultyData.zen(id).label]));
+    const filter = '<div class="zf-row">' + opts.map(([v, l]) =>
+      '<button class="zf-opt' + (v === sc ? " selected" : "") + '" data-scope="' + escHtml(v) + '">' +
+        escHtml(l) + '</button>').join("") + '</div>';
+    // R8: ONE stats line for the scope (combined under All; one difficulty else).
+    const scopeLine = '<div class="zh-scope"><b>' + d.games + '</b> played · <b>' + d.wins +
+      '</b> won · <b>' + d.cardsFlipped + '</b> cards · <b>' + d.correctGuesses + '</b> correct</div>';
+    let back = "", body;
+    if (drill === "wins") {
+      // R3: one green column per piles-remaining value, axis 1..maxPiles for scope.
+      back = '<button class="zh-back" type="button">‹ Back</button>';
+      let max = 0; for (let p = 1; p <= d.piles; p++) max = Math.max(max, d.winPiles[p] || 0);
+      let cols = ""; for (let p = 1; p <= d.piles; p++) cols += zenVBar(String(p), d.winPiles[p] || 0, max, "zv-win");
+      body = '<div class="zv-histo">' + cols + '</div>';
+    } else if (drill === "losses") {
+      // R3: red columns over the unchanged bucket scheme, deckSize per scope.
+      back = '<button class="zh-back" type="button">‹ Back</button>';
+      const buckets = zenLossBuckets(d.deckSize);
+      const bTot = zenBucketCounts(d.lossCards, buckets, d.deckSize);
+      let max = 0; for (const t of bTot) max = Math.max(max, t);
+      let cols = ""; buckets.forEach((b, i) => { cols += zenVBar(zenBucketLabel(b), bTot[i], max, "zv-loss"); });
+      body = '<div class="zv-histo zv-histo-many">' + cols + '</div>';
+    } else {
+      // R2: two-bar overview — forward-only distribution SUMS (not games/wins).
+      const tW = zenSumMap(d.winPiles), tL = zenSumMap(d.lossCards);
+      const max = Math.max(tW, tL);
+      body = '<div class="zv-histo zv-summary">' +
+        zenVBar("Wins", tW, max, "zv-win", "zh-sum-win zv-tap") +
+        zenVBar("Losses", tL, max, "zv-loss", "zh-sum-loss zv-tap") + '</div>';
+    }
+    return filter + scopeLine + back + body;
+  }
+  /** Re-render just the Zen section in place (statsGrid keeps its Runs tiles). */
+  function renderZenSection() {
+    const wrap = el.statsGrid.querySelector(".stats-zen");
+    if (wrap) wrap.innerHTML = '<div class="sz-head">Zen</div>' + zenSectionInner();
   }
 
   function showStats() {
@@ -27030,18 +27084,16 @@ const UIRenderer = (() => {
       [s.bestCampaignDopamine, "Most coins in a run"],
       [s.bestEndless || 0, "Deepest endless stage"],
     ];
-    // ZEN section — Zen mode's OWN per-difficulty record (ZenStats; a separate
-    // store, so the campaign "Runs" tiles above never move from Zen play). Every
-    // difficulty renders its own histogram sub-block, zeros included.
-    const zenBlocks = DifficultyData.zenIds.map(zenHistoBlock).join("");
+    // ZEN section — Zen mode's OWN record (ZenStats; a separate store, so the
+    // campaign "Runs" tiles above never move from Zen play). R9: every Stats
+    // open resets the ephemeral view to All + the two-bar summary.
+    zenView = { scope: "all", drill: null };
     // Two clearly-headed sections: campaign "Runs" tiles, then the "Zen" split.
     el.statsGrid.innerHTML =
       '<div class="stats-head stats-runs-head">Runs</div>' +
       tiles.map(([v, l]) =>
         '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("") +
-      '<div class="stats-zen"><div class="sz-head">Zen</div>' +
-        '<div class="zh-hint">Tap a difficulty’s outcome bar to flip wins ⇄ losses.</div>' +
-        zenBlocks + '</div>';
+      '<div class="stats-zen"><div class="sz-head">Zen</div>' + zenSectionInner() + '</div>';
     el.statsOverlay.classList.remove("hidden");
     updateBoardMotion();
   }
@@ -27387,18 +27439,17 @@ const UIRenderer = (() => {
     if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
     el.statsReset.addEventListener("click", () => { Stats.reset(); ZenStats.reset(); showStats(); });
-    // Per-difficulty histogram toggle (delegated — survives statsGrid re-renders).
-    // Tap a difficulty's "0 (Loss)" bar → its loss view; "0 (win)" → back to wins.
-    // Independent per block: exactly one of each pair visible, others untouched.
+    // Zen histogram interactions (delegated — survives statsGrid re-renders):
+    //  • a filter option re-scopes AND collapses any drill (R1/R5);
+    //  • the Back chip returns to the two-bar summary (R4);
+    //  • a summary column drills into that outcome's distribution (R3).
+    // Each path re-renders only the Zen section (Runs tiles untouched).
     el.statsGrid.addEventListener("click", (e) => {
-      const toLoss = e.target.closest(".zh-toggle-loss");
-      const toWin = e.target.closest(".zh-toggle-win");
-      if (!toLoss && !toWin) return;
-      const block = e.target.closest(".zh-block");
-      if (!block) return;
-      Sound.tap();
-      block.querySelector(".zh-wins").classList.toggle("hidden", !!toLoss);
-      block.querySelector(".zh-losses").classList.toggle("hidden", !toLoss);
+      const opt = e.target.closest(".zf-opt");
+      if (opt) { Sound.tap(); zenView.scope = opt.dataset.scope; zenView.drill = null; renderZenSection(); return; }
+      if (e.target.closest(".zh-back")) { Sound.tap(); zenView.drill = null; renderZenSection(); return; }
+      if (e.target.closest(".zh-sum-win")) { Sound.tap(); zenView.drill = "wins"; renderZenSection(); return; }
+      if (e.target.closest(".zh-sum-loss")) { Sound.tap(); zenView.drill = "losses"; renderZenSection(); return; }
     });
     el.manualClose.addEventListener("click", closeManual);
     el.gameMenuClose.addEventListener("click", closeGameMenu);
