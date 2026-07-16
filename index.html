@@ -6939,7 +6939,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.84 · the shop explains itself";
+const APP_VERSION = "v4.85 · big packs, two keepers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -25356,16 +25356,20 @@ const UIRenderer = (() => {
     if (st.chosen.length !== st.keep) return;          // guard (button is disabled too)
     closePackItemInfo();
     if (st.kind === "card") {
-      const card = st.items[st.chosen[0]];             // card packs keep exactly 1
-      const res = campaign.addPackCard(card);
-      if (res.ok) {
+      // Keep EVERY chosen card (large pack keep>1) — mirror the sticker branch:
+      // all picks land in the pending tray, the FIRST opens the swap/placement
+      // picker now, the rest wait in the tray (placeable later from Cards tab).
+      // Tray cap is Infinity, so addPackCard never reports `full` here.
+      const firstIndex = campaign.getPackTray().length;
+      let held = 0;
+      st.chosen.forEach(idx => { if (campaign.addPackCard(st.items[idx]).ok) held++; });
+      if (held) {
         closePackReveal(); renderStore();
-        // STRAIGHT into the swap/placement picker for the card just taken —
+        // STRAIGHT into the swap/placement picker for the first card just taken —
         // continuePendingPlacement was a no-op outside a post-deal walk, so
         // the flow used to dead-end back at the store shelf.
-        openCardSwap(campaign.getPackTray().length - 1);
+        openCardSwap(firstIndex);
       }
-      else if (res.full) { st.mode = "discard"; st.pending = card; renderPackReveal(); }
       return;
     }
     st.chosen.forEach(idx => {

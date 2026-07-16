@@ -23,21 +23,33 @@ export function run() {
     // Registry size + tuning knobs (size / keep / price) are hand-edited in
     // items.js — assert all() matches the live id list and shape-check the knobs.
     r.eq(PackTypes.all().length, PackTypes.ids.length, "pack registry all() matches its live id list");
+    r.eq(PackTypes.all().length, 4, "four packs ship: Large/Small Card + Large/Small Sticker");
     r.ok(!PackTypes.get("stickerPack5") && !PackTypes.get("stickerPack3"), "the larger sticker-pack variants are gone");
+    // LARGE card pack — keep 2 is the FEATURE contract (large packs let you keep
+    // two), so it is asserted; price stays a free tunable (>0, read live).
     r.eq(PackTypes.get("cardPack").size, 5, "the LARGE card pack reveals 5");
-    r.ok(PackTypes.get("cardPack").keep > 0, "the large card pack keeps a positive count (items.js knob; currently " + PackTypes.get("cardPack").keep + ")");
+    r.eq(PackTypes.get("cardPack").keep, 2, "the LARGE card pack keeps 2 (PACKS1 feature contract)");
     r.ok(PackTypes.get("cardPack").price > 0, "the large card pack has a positive price (currently " + PackTypes.get("cardPack").price + ")");
     r.eq(PackTypes.get("cardPack").label, "Large Card Pack", "the 5-card pack is named Large Card Pack");
+    r.eq(PackTypes.get("cardPack").kind, "card", "card pack kind");
+    // SMALL card pack — keep 1 (small packs unchanged).
     r.eq(PackTypes.get("smallCardPack").size, 3, "the SMALL card pack reveals 3");
-    r.ok(PackTypes.get("smallCardPack").keep > 0, "the small card pack keeps a positive count (currently " + PackTypes.get("smallCardPack").keep + ")");
+    r.eq(PackTypes.get("smallCardPack").keep, 1, "the small card pack keeps 1 (small packs unchanged)");
     r.ok(PackTypes.get("smallCardPack").price > 0, "the small card pack has a positive price (currently " + PackTypes.get("smallCardPack").price + ")");
     r.eq(PackTypes.get("smallCardPack").tier, "common", "the small card pack is common");
     r.eq(PackTypes.get("smallCardPack").kind, "card", "the small card pack is a CARD pack");
-    r.eq(PackTypes.get("stickerPack").size, 3, "the sticker pack reveals 3");
-    r.ok(PackTypes.get("stickerPack").keep > 0, "the sticker pack keeps a positive count (currently " + PackTypes.get("stickerPack").keep + ")");
-    r.ok(PackTypes.get("stickerPack").price > 0, "the sticker pack has a positive price (currently " + PackTypes.get("stickerPack").price + ")");
-    r.eq(PackTypes.get("cardPack").kind, "card", "card pack kind");
+    // SMALL sticker pack (relabelled from "Sticker Pack") — keep 1, unchanged.
+    r.eq(PackTypes.get("stickerPack").size, 3, "the small sticker pack reveals 3");
+    r.eq(PackTypes.get("stickerPack").keep, 1, "the small sticker pack keeps 1 (small packs unchanged)");
+    r.ok(PackTypes.get("stickerPack").price > 0, "the small sticker pack has a positive price (currently " + PackTypes.get("stickerPack").price + ")");
     r.eq(PackTypes.get("stickerPack").kind, "sticker", "sticker pack kind");
+    r.eq(PackTypes.get("stickerPack").label, "Small Sticker Pack", "the 3-sticker pack is now named Small Sticker Pack");
+    // LARGE sticker pack (new) — keep 2 rides the existing keep>1 sticker loop.
+    r.eq(PackTypes.get("largeStickerPack").kind, "sticker", "the large sticker pack is a STICKER pack");
+    r.eq(PackTypes.get("largeStickerPack").size, 5, "the LARGE sticker pack reveals 5");
+    r.eq(PackTypes.get("largeStickerPack").keep, 2, "the LARGE sticker pack keeps 2 (PACKS1 feature contract)");
+    r.ok(PackTypes.get("largeStickerPack").price > 0, "the large sticker pack has a positive price (currently " + PackTypes.get("largeStickerPack").price + ")");
+    r.eq(PackTypes.get("largeStickerPack").label, "Large Sticker Pack", "the 5-sticker pack is named Large Sticker Pack");
     const missing = PackTypes.all().filter(t => !t.description || !t.description.trim());
     r.eq(missing.length, 0, "every pack has help text");
   }
@@ -148,6 +160,50 @@ export function run() {
     r.ok(c.addStickerToInventory("rankUp"), "keep a revealed sticker");
     r.eq(c.inventoryCount("rankUp"), 1, "kept sticker lands in inventory");
     r.ok(!c.addStickerToInventory("nope"), "unknown sticker id rejected");
+  }
+
+  // --- Large CARD pack keep>1: taking `keep` revealed cards grows the tray
+  //     by `keep`. The reveal/pick UI (confirmPackPick) loops every chosen
+  //     card into the tray; the engine path this rides is addPackCard. Read
+  //     the keep count LIVE — a large pack is defined by keeping >1.
+  {
+    const c = CampaignState.create();
+    const keep = PackTypes.get("cardPack").keep;
+    r.ok(keep >= 2, "large card pack keep is >1 (the whole point of PACKS1; got " + keep + ")");
+    const revealed = c.revealPack("cardPack", rngFrom(21));
+    const before = c.packTrayCount();
+    // Mirror confirmPackPick's card branch: add EVERY chosen card to the tray.
+    const picks = revealed.slice(0, keep);
+    picks.forEach(card => r.ok(c.addPackCard(card).ok, "kept card added to tray (cap Infinity, never full)"));
+    r.eq(c.packTrayCount(), before + keep, "picking `keep` (" + keep + ") cards grows the tray by `keep`");
+    // Both kept identities are distinct and present in the tray.
+    const trayIds = new Set(c.getPackTray().map(x => x.id));
+    r.ok(picks.every(p => trayIds.has(p.id)), "every kept card is in the tray (none discarded)");
+    // Serialize/restore: BOTH kept tray cards survive the round-trip.
+    const snap = JSON.parse(JSON.stringify(c.serialize()));
+    r.eq(snap.packTray.length, before + keep, "snapshot carries all " + (before + keep) + " tray cards");
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(snap), "restore accepts a multi-card tray snapshot");
+    r.eq(c2.packTrayCount(), before + keep, "restored tray keeps every kept card");
+    const restoredIds = new Set(c2.getPackTray().map(x => x.id));
+    r.ok(picks.every(p => restoredIds.has(p.id)), "both kept card identities round-trip");
+  }
+
+  // --- Large STICKER pack keep>1: reveals `size`, keeping `keep` lands them
+  //     all in the sticker inventory (rides the existing keep>1 sticker loop,
+  //     no engine change). All values read LIVE from the registry.
+  {
+    const c = CampaignState.create();
+    const t = PackTypes.get("largeStickerPack");
+    const ids = c.revealPack("largeStickerPack", rngFrom(22));
+    r.eq(ids.length, t.size, "the large sticker pack reveals `size` (" + t.size + ") stickers");
+    r.ok(ids.every(id => stickerIds.has(id)), "all revealed stickers are real");
+    // Total inventory across the whole sticker registry, so duplicate rolled
+    // ids in the kept slice still count once per copy.
+    const totalInv = () => [...stickerIds].reduce((n, id) => n + c.inventoryCount(id), 0);
+    const before = totalInv();
+    ids.slice(0, t.keep).forEach(id => r.ok(c.addStickerToInventory(id), "kept sticker lands in inventory"));
+    r.eq(totalInv() - before, t.keep, "keeping `keep` (" + t.keep + ") stickers adds exactly that many to inventory");
   }
 
   // --- Persistence: tray + nextCardId round-trip; reset wipes -----------

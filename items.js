@@ -406,13 +406,13 @@ const NINELIVES_ITEMS = {
       size: 5, keep: 2, price: 10,
       description: "Reveals 5 random cards. Keep 2 to swap into your deck before a deal, replacing a card of your choice." },
     { id: "smallCardPack", label: "Small Card Pack", icon: "🎴", kind: "card", tier: "common",
-      size: 3, keep: 1, price: 7,
+      size: 3, keep: 1, price: 8,
       description: "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice." },
-    { id: "stickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
-      size: 3, keep: 1, price: 4,
+    { id: "stickerPack", label: "Small Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
+      size: 3, keep: 1, price: 5,
       description: "Reveals 3 random stickers. Keep 1 to add to a card." },
-     { id: "largestickerPack", label: "Sticker Pack", icon: "📦", kind: "sticker", tier: "uncommon",
-      size: 5, keep: 2, price: 6,
-      description: "Reveals 3 random stickers. Keep 1 to add to a card." }
+    { id: "largeStickerPack", label: "Large Sticker Pack", icon: "📦", kind: "sticker", tier: "common",
+      size: 5, keep: 2, price: 7,
+      description: "Reveals 5 random stickers. Keep 2 for your inventory. The rest are discarded." }
   ],
 };
