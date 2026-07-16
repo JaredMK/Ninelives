@@ -112,6 +112,10 @@ export function run() {
     r.ok(/aria-label="Map key"/.test(html), "map key button carries an accessible label");
     r.ok(/id="mapKeyPanel"/.test(html), "map key legend panel exists");
     r.ok(/\.map-key-btn \{[^}]*safe-area-inset-right/.test(html), "the key is anchored to the safe-area top-right");
+    // It now reads as a MAP control: its top drops below the .hud bar by riding
+    // the MEASURED shell height (var(--shell-h)), not the viewport-top nav line.
+    r.ok(/\.map-key-btn \{[^}]*top:\s*calc\(var\(--shell-h/.test(html), "the key drops below the HUD (top rides the measured shell height)");
+    r.ok(/\.map-key-panel \{[^}]*top:\s*calc\(var\(--shell-h/.test(html), "the legend panel follows the key down below the HUD");
     r.ok(/body\.on-map \.map-key-btn/.test(html), "the key is shown on the MAP only (gated on body.on-map)");
     const key = fnBody(src, "renderMapKey");
     r.ok(key.length > 0, "renderMapKey found");

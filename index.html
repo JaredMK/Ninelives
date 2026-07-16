@@ -2402,20 +2402,31 @@ const NativeApp = (() => {
   .map-store-btn .ico { font-size: 16px; }
   .map-store-btn.hidden { display: none; }
   .map-store-btn:active { transform: scale(0.96); }
-  /* MAP KEY ("?") — the top-right mirror of the corner menu button, MAP ONLY
-     (the HUD coin counter's margin-right: 30px already reserves this corner).
-     Collapsed it's just the 30px nav dot — map panning/node taps untouched. */
-  .map-key-btn { right: calc(env(safe-area-inset-right) + 4px); display: none; }
+  /* MAP KEY ("?") — a MAP control, MAP ONLY. It sits in the map area's
+     top-right corner, dropped BELOW the .hud bar so it reads as map chrome and
+     can't be mistaken for the coins/score on the menu-bar line. The map overlay
+     itself starts at var(--shell-h) (the MEASURED shell bottom, notch padding
+     included), so anchoring the button's top to --shell-h + a small gap lands it
+     just inside the map area's top edge; it stays position:fixed (inherited from
+     .nav-btn) so it never pans with the map. Fallback clears the ~42px HUD if
+     the shell hasn't been measured yet (updateShellHeight runs on the map show).
+     Right-anchored with the safe-area inset so it stays on-screen past a notch. */
+  .map-key-btn {
+    right: calc(env(safe-area-inset-right) + 4px);
+    top: calc(var(--shell-h, 46px) + 6px);
+    display: none; }
   body.on-map .map-key-btn { display: inline-flex; }
   .map-key-btn .ico { font-size: 15px; font-weight: 900; }
   /* The expanded legend: an OPAQUE panel anchored under the button, above the
      map overlay and its spotlight dim (fixed at root level, z over .nav-btn,
-     under the inventory popup at 60). Sized to fit a 390px phone. */
+     under the inventory popup at 60). Sized to fit a 390px phone. Follows the
+     button down: top clears the shell + the button's height so it drops directly
+     beneath the "?"; max-height re-based off the same shell offset. */
   .map-key-panel { position: fixed; z-index: 56;
-    top: calc(env(safe-area-inset-top) + 40px);
+    top: calc(var(--shell-h, 46px) + 42px);
     right: calc(env(safe-area-inset-right) + 6px);
     width: min(252px, calc(100vw - 20px));
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 84px); overflow-y: auto;
+    max-height: calc(100dvh - var(--shell-h, 46px) - 56px); overflow-y: auto;
     background: var(--panel); color: var(--text);
     border: 1px solid var(--edge-2); border-radius: 14px;
     box-shadow: 0 10px 28px rgba(30, 16, 24, 0.42);
@@ -6818,7 +6829,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.81 · the items mean what they say now";
+const APP_VERSION = "v4.82 · the map key knows its place";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
