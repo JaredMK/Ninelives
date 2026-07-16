@@ -6939,7 +6939,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.85 · big packs, two keepers";
+const APP_VERSION = "v4.86 · hold a card, read it up top like the pillars";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17352,17 +17352,14 @@ const UIRenderer = (() => {
     closeCardInfo();
   }
 
-  /* ---- card-info popup: a pile card's description + stickers (registry
-     text) + persistent state. Opened by HOLDING a pile during active play
-     (the board's hold-to-peek idiom — release closes); the backdrop tap-off
-     close remains as a safety net. ---- */
-  function openCardInfo(index) {
-    if (index == null || !engine) return;
-    const top = engine.getBoard().top(index);
-    if (!top) return;
-    el.cardInfoPanel.innerHTML = cardPeekHtml(top, index);
-    el.cardInfo.classList.remove("hidden");
-  }
+  /* ---- card-info popup close. The #cardInfo fullscreen popup is now opened
+     ONLY by the surfaces with no visible histogram band: the store shelf
+     (showStoreItemHelp), the deck-inspector grid + sticker-apply picker
+     (showCardHelp), and the equipped Same-Power HUD (openSamePowerInfo).
+     Holding a pile during active play no longer uses it — it flows into the
+     histogram-band #peekInfo banner (openCardPeek), the same idiom Pillars and
+     Bases use. The backdrop tap-off close (below) stays a safety net for the
+     surfaces that still open this popup. ---- */
   function closeCardInfo() { if (el.cardInfo) el.cardInfo.classList.add("hidden"); }
 
   /* Hold-for-help on a card in any FULL-CARD-LIST view (the deck inspector grid
@@ -18614,14 +18611,14 @@ const UIRenderer = (() => {
     // (b) During active play, DRAG a pile up/down to guess Higher/Lower in one
     //     motion (release commits; centre dead-zone cancels). A drag suppresses
     //     the ensuing click so it never also selects. A plain TAP still selects.
-    // Card info during play: HOLD a pile (release closes) — see the pile
-    // pointerdown below. The old "?" button is gone.
-    const PEEK_HOLD_MS = 180;     // Pillar-indicator hold threshold
-    const INFO_HOLD_MS = 350;     // pile hold → card info (longer: piles also tap+drag)
+    // Card help during play: HOLD a pile (release closes) → its card peek in the
+    // histogram-band #peekInfo banner, the same idiom as a Pillar/Base hold — see
+    // the pile pointerdown below. The old "?" button is gone.
+    const PEEK_HOLD_MS = 180;     // Pillar/Base-indicator hold threshold
+    const INFO_HOLD_MS = 350;     // pile hold → card peek (longer: piles also tap+drag)
     const TAP_SLOP = 8;           // movement under this = a tap (selects)
     const DRAG_THRESH = 26;       // travel to arm a guess (past the dead-zone)
     let peekTimer = null, peeking = false, suppressPileClick = false;
-    let infoTimer = null, infoHold = false;   // pile hold-for-card-info state
     let peekTapCol = null;   // a Pathway banner whose peek is open via a quick TAP
     let peekTapPile = null;  // a pile whose card-sticker peek is open via a TAP (pre-run)
     let pileDrag = null;          // { index, startX, startY, armed, moved }
@@ -18692,7 +18689,6 @@ const UIRenderer = (() => {
       // the original finger's release would then find peeking=false and skip
       // the close, leaving the help stuck on screen. Close it here instead.
       if (peeking) { peeking = false; closePeekInfo(); }
-      if (infoHold) { infoHold = false; closeCardInfo(); }
       peeking = false;
       pileDrag = null;
       // FULL FAN popup open: never arm a drag-guess or a hold — the next tap
@@ -18728,15 +18724,18 @@ const UIRenderer = (() => {
           // Own the gesture so a sideways Same can't trigger browser back/forward
           // (and moves keep tracking even if the finger leaves the pile).
           try { el.board.setPointerCapture(e.pointerId); } catch (err) {}
-          // HOLD → this pile's card info (read-only; release closes). Movement
-          // (a drag-guess) cancels the hold; the hold cancels the drag.
-          clearTimeout(infoTimer);
-          infoHold = false;
-          infoTimer = setTimeout(() => {
-            infoHold = true;
+          // HOLD → this pile's card help in the histogram-band #peekInfo banner
+          // (the same peeking/peekTimer/closePeekInfo machinery Pillars and Bases
+          // use; peekInBand() is true in play so openCardPeek flows it over the
+          // hidden histogram instead of the old fullscreen popup). Movement
+          // (a drag-guess) cancels the hold; the hold cancels the drag. Kept at
+          // INFO_HOLD_MS (350ms) — longer than PEEK_HOLD_MS — because piles also
+          // tap-to-select and drag-to-guess.
+          peekTimer = setTimeout(() => {
+            peeking = true;
             pileDrag = null;               // a hold is not a drag — disarm guessing
             clearDragFeedback();
-            openCardInfo(index);
+            openCardPeek(index);
           }, INFO_HOLD_MS);
         }
       } else if (engine && engine.canApplyStickers()
@@ -18756,7 +18755,7 @@ const UIRenderer = (() => {
       const dx = e.clientX - pileDrag.startX;           // right = positive
       const dy = pileDrag.startY - e.clientY;           // up = positive
       if (Math.max(Math.abs(dx), Math.abs(dy)) > TAP_SLOP) {
-        clearTimeout(infoTimer);                        // it's a drag — not an info hold
+        clearTimeout(peekTimer);                        // it's a drag — not a card-peek hold
         if (!pileDrag.moved) { pileDrag.moved = true; showPileSelected(pileDrag.index); positionSwipeLabel(); }
         const armed = dirFromDelta(dx, dy);
         pileDrag.armed = armed;
@@ -18767,8 +18766,6 @@ const UIRenderer = (() => {
 
     const endPeek = () => {
       clearTimeout(peekTimer);
-      clearTimeout(infoTimer);
-      if (infoHold) { infoHold = false; suppressPileClick = true; closeCardInfo(); }
       if (peeking) { peeking = false; suppressPileClick = true; closePeekInfo(); }
       if (pileDrag) {
         clearDragFeedback();
