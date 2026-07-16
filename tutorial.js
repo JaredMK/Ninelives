@@ -22,7 +22,7 @@
                   load and the tour bows out rather than soft-locking.
                     deckSelectPinky  the big Pinky character (deck select)
                     mapAvatar        Pinky's marker at the trail's foot
-                    mapCardNode      a visible card/pack node (Pinky if none)
+                    mapCardNode      a visible card/pack node (centered if none)
                     gateNode         THE one glowing (gated) map node
                     dealBoard        the board of piles
                     dealPile         a living pile
@@ -122,7 +122,7 @@ const NINELIVES_TUTORIAL = {
     // Map, first visit: the goal, the loop, then the gated first deal.
     map1: [
       { anchor: "mapAvatar",
-        text: "Pinky starts down here and must climb up." },
+        text: "Pinky starts down here — climb the trail to reach *mama at the top*. That's how you win the run." },
       { anchor: "mapCardNode",
         text: "*Card nodes* grow Pinky's deck as he climbs — and a bigger deck means *longer, harder deals*.\nDrafting well and shopping for upgrades is how you keep up." },
       { anchor: "gateNode", button: "Got it",
@@ -134,11 +134,11 @@ const NINELIVES_TUTORIAL = {
       { anchor: "dealBoard",
         text: "*Goal: survive.* Every pile is a life." },
       { anchor: "dealPile",
-        text: "Pick a pile, then *swipe*:\n↑ higher\n↓ lower\nsideways for same.\nOr tap the pile and use the buttons on the left" },
+        text: "Pick a pile, then *swipe* to guess the next card against that pile's *top card*:\n↑ higher\n↓ lower\nsideways = *same*\nOr tap the pile and use the buttons on the left." },
       { anchor: "dealDeckChar",
-        text: "Every guess draws from *Pinky's deck*.\nCorrect guess → the pile grows\nWrong guess → the pile dies\nBeat the *whole deck* before every pile is gone." },
+        text: "Every guess draws the next card from *Pinky's deck*.\nRight → the pile grows\nWrong → the pile dies\nBeat the *whole deck* before every pile is gone." },
       { anchor: "sameShield",
-        text: "*Same* guesses are hard. A correct Same call charges this *shield*, which saves your next miss." },
+        text: "Call *Same* when you expect an equal card — a *tie kills* a Higher or Lower guess, so 'close' never counts. A correct Same charges this *shield*, saving your next miss." },
       { button: "Go",
         text: "Your turn — make a guess!" },
     ],

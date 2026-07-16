@@ -2421,6 +2421,32 @@ const NativeApp = (() => {
   .wt-mini-col .mini-card { width: 38px; }
   .wt-mini-col .mini-card .mc-rank { font-size: 14px; }
   .wt-mini-col .mini-card .mc-suit { font-size: 12px; }
+  /* Map-layer slide (the climb) — a compact vertical node trail, top = home. */
+  .wt-map { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .wt-mapnode { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; background: var(--panel); border: 1px solid var(--edge-2); color: var(--text); }
+  .wt-mapnode.home { background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: #fff; border: none; }
+  .wt-mapnode.grow { color: var(--good); border-color: var(--good); }
+  .wt-mapline { color: var(--muted); font-size: 13px; line-height: 0.7; }
+  /* Store item-class list slide (aligned to the STOREHELP1 legend + PACKS1). */
+  .wt-classlist { display: flex; flex-direction: column; gap: 5px; text-align: left; width: 258px; }
+  .wt-classlist > div { font-size: 11px; line-height: 1.35; color: var(--text); }
+  .wt-classlist b { color: var(--accent-2); }
+  /* "Replay tutorial" footer action (secondary — never the primary Next/Got it). */
+  .wt-replay-row { display: flex; justify-content: center; margin-top: 10px; }
+  .wt-replay { background: transparent; border: 1px solid var(--edge-2); color: var(--muted);
+    border-radius: 999px; padding: 7px 16px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+    font-family: var(--font-text); letter-spacing: 0.4px; display: inline-flex; align-items: center; gap: 6px; }
+  .wt-replay:active { transform: scale(0.97); }
+  .wt-replay .ico { display: inline-flex; width: 13px; height: 13px; }
+  .wt-replay .ico svg { width: 100%; height: 100%; }
+  /* Save-safety confirm — the bottom-prompt-bar pattern rendered INSIDE the
+     manual sheet (the shared #actionPrompt lives in the play row, occluded by
+     this full-screen overlay). Never a screen-blocking modal. */
+  .wt-confirm { margin-top: 12px; padding: 11px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--edge-2); }
+  .wt-confirm.hidden { display: none; }
+  .wt-confirm .wtc-q { font-size: 12px; line-height: 1.45; color: var(--text); text-align: center; }
+  .wt-confirm .wtc-btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
 
   /* In-game menu button (corner). */
   /* Global nav corner buttons (menu top-left, inventory top-right). z-index 55
@@ -6953,7 +6979,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.87 · one zen chart, tap to dig in";
+const APP_VERSION = "v4.88 · a stranger read the manual and got it";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16097,6 +16123,12 @@ const UIRenderer = (() => {
     let pendingStoreStage = null;          // stage to enter after the NEXT store render (reroll → pillar)
     let rerolledOnce = false;              // the taught Refresh happened this session
     let genericFor = {};                   // nodeId → intermediate-hop bubble already flashed
+    // REPLAY (How to Play → "Replay tutorial"): a one-shot arm that forces the
+    // NEXT campaign to run the guided tour even though the tutorial2 pref is
+    // already stamped. It never clears the pref — normal complete/skip still
+    // stamps as usual — and is consumed the moment that campaign arms
+    // (onNewCampaign), so it drives exactly one replay.
+    let replayArmed = false;
     const $ = (sel) => document.querySelector(sel);
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -16110,7 +16142,10 @@ const UIRenderer = (() => {
     const ANCHORS = {
       deckSelectPinky: () => $("#deckSelect .ds-deckchar"),
       mapAvatar:       () => $(".map-avatar"),
-      mapCardNode:     () => $(".pm-node.t-pickup, .pm-node.t-pack") || $(".map-avatar"),
+      // A visible card/pack node (both GROW the deck on the map). No avatar
+      // fallback: if a map ever has no card node in the DOM the bubble centers
+      // (arrowless) rather than ring PINKY while the copy names card nodes.
+      mapCardNode:     () => $(".pm-node.t-pickup, .pm-node.t-pack"),
       gateNode:        () => $('.pm-node[data-nid="' + mapGateId + '"]'),
       dealBoard:       () => $(".board-grid"),
       dealPile:        () => $(".pile:not(.dead)"),
@@ -16198,7 +16233,9 @@ const UIRenderer = (() => {
       return out;
     }
 
-    function shouldRun() { return SaveStore.getPref(PREF) !== "1"; }
+    // The tour runs on an unstamped pref OR when a replay was armed from the
+    // manual (the one-shot overrides the stamp for the next campaign only).
+    function shouldRun() { return replayArmed || SaveStore.getPref(PREF) !== "1"; }
     /** Arm — or RE-ARM after a refresh — while the pref is unstamped. Resume
         arming is limited to stage 0 (the tour's whole scope), so an old
         mid-campaign save from before this rework is never gated deep into a
@@ -16598,9 +16635,14 @@ const UIRenderer = (() => {
         storeStage = null; pendingStoreStage = null; rerolledOnce = false; mapGateId = null;
         document.body.classList.remove("tut-gate-store", "tut-deck-ring");
         active = shouldRun();
+        replayArmed = false;   // consume the one-shot: this campaign IS the replay
         if (!active) return;
         hideBubble();
       },
+      /** Arm a one-shot REPLAY: the next campaign runs the guided tour even
+          with tutorial2 stamped (see shouldRun). Called by the manual's
+          "Replay tutorial" button just before routing to deck select. */
+      armReplay() { replayArmed = true; },
       /** DECK SELECT (the first "Play"): arm the tour + meet Pinky. */
       onDeckSelect() {
         if (!ensureActive()) return;
@@ -27231,7 +27273,7 @@ const UIRenderer = (() => {
           card("A", "♦", true) + card("9", "♠") + card("Q", "♥", true) +
           "</div>",
         cap: '<span class="lead">This is your board</span>' +
-          "A grid of <b>piles</b>. Each pile shows one <b>card</b> on top. Keep these piles alive.",
+          "A grid of <b>piles</b>, each showing one <b>card</b> on top. Keep as many piles alive as you can.",
       },
       { // 2 — the deck (your goal)
         art: '<div class="wt-flow-row" style="gap:16px">' +
@@ -27246,8 +27288,8 @@ const UIRenderer = (() => {
             card("7", "♠") + card("K", "♥", true) + card("A", "♦", true) + card("9", "♠") +
           "</div></div>",
         cap: '<span class="lead">Work through the deck</span>' +
-          "You have a <b>deck</b> of cards. Each turn you draw the next card from the deck — the <b>drawn card</b> — and <b>place it</b> " +
-          "on a pile by making a <b>higher</b> or <b>lower</b> guess. Your goal is to get through the <b>whole deck</b>.",
+          "You climb with a <b>deck</b> of cards. Each turn the <b>next card</b> is drawn and placed on a pile you pick. " +
+          "Clear the <b>whole deck</b> to win the deal.",
       },
       { // 3 — make a guess
         art: '<div class="wt-col">' + card("7", "♥", true) +
@@ -27257,8 +27299,8 @@ const UIRenderer = (() => {
             '<div class="btn lower">LOWER</div>' +
           "</div></div>",
         cap: '<span class="lead">Make a guess</span>' +
-          "Will the next card be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> than the <b>pile card</b> (the card on top)? " +
-          "<b>Swipe a pile</b> to guess — <b>up</b> = Higher, <b>down</b> = Lower, <b>sideways</b> = Same. " +
+          "Will the next card be <b>Higher</b>, <b>Same</b>, or <b>Lower</b> than that pile's <b>top card</b>? " +
+          "<b>Swipe a pile</b> to guess — <b>up</b> = Higher, <b>down</b> = Lower, <b>sideways</b> = Same — or tap it and use the buttons. " +
           "The guess commits when you lift your finger; release near the centre to cancel. <b>Hold</b> a pile for card info. " +
           "(Aces are high.)",
       },
@@ -27277,7 +27319,7 @@ const UIRenderer = (() => {
           "</div>",
         cap: '<span class="lead">Grow it or lose it</span>' +
           "Guess <b>right</b> and the card joins the pile, so it grows taller. " +
-          "Guess <b>wrong</b> and the whole pile <b>dies</b>.",
+          "Guess <b>wrong</b> and the whole pile <b>dies</b>. A tie counts as <b>Same</b>, so a tie <b>kills</b> a Higher or Lower guess — “close” is never good enough.",
       },
       { // 5 — clear the deck, earn coins
         art: '<div class="wt-score">' +
@@ -27288,28 +27330,52 @@ const UIRenderer = (() => {
           '<div class="cell"><span class="num coin">' + coin + '12</span><span class="lab">coins</span></div>' +
           "</div>",
         cap: '<span class="lead">Clear the deck, earn coins</span>' +
-          "Survive the whole <b>deck</b> to win the deal. You earn coins equal to the number of " +
-          "<b>surviving piles × the number of cards in the smallest pile</b>. " +
-          "Keep every pile alive and evenly sized to get the most coins.",
+          "Survive the whole <b>deck</b> to win the deal. You earn coins equal to " +
+          "<b>surviving piles × the cards in your smallest pile</b>. " +
+          "Keep every pile alive and evenly sized to earn the most coins.",
       },
-      { // 6 — store & setup (buy, then place)
-        art: '<div class="wt-flow">' +
-          '<div class="wt-flow-row">' +
-            '<div class="wt-shop-item"><span class="ico">' + glyph("spark") + '</span>' +
-              '<span class="nm">Sticker</span><span class="pr">' + coin + "3</span></div>" +
-            '<span class="wt-arrow">→</span>' +
-            card("7", "♥", true, "", '<div class="mc-badges">' + stickerChip("gainCoin") + "</div>") +
-          "</div>" +
-          '<div class="wt-flow-row">' +
-            '<div class="wt-shop-item"><span class="ico">' + glyph("guardian") + '</span>' +
-              '<span class="nm">Pillar</span><span class="pr">' + coin + "6</span></div>" +
-            '<span class="wt-arrow">→</span>' +
-            '<div class="wt-mini-col"><span class="wt-pillar-tag">' + glyph("guardian") + 'Pillar</span>' +
-              '<div class="col-cards">' + card("9", "♠") + card("4", "♣") + "</div></div>" +
-          "</div></div>",
-        cap: '<span class="lead">Spend between deals</span>' +
-          "In the <b>store</b>, buy <b>stickers</b>, <b>pillars</b>, <b>bases</b> and packs with coins, then place them: " +
-          "a sticker goes on a <b>card</b>, a pillar locks onto a whole <b>column</b>, a base sits under one. Then start your deal.",
+      { // 6 — the map layer (the climb home)
+        art: '<div class="wt-map">' +
+          '<span class="wt-mapnode home">⌂ Mama\'s home</span>' +
+          '<span class="wt-mapline">┆</span>' +
+          '<span class="wt-mapnode">Deal</span>' +
+          '<span class="wt-mapline">┆</span>' +
+          '<span class="wt-mapnode grow">+ Card</span>' +
+          '<span class="wt-mapline">┆</span>' +
+          '<span class="wt-mapnode">Store</span>' +
+          '<span class="wt-mapline">┆</span>' +
+          '<span class="wt-mapnode">Deal</span>' +
+          '<span class="wt-mapline">┆</span>' +
+          '<span class="wt-mapnode">Start</span>' +
+          "</div>",
+        cap: '<span class="lead">Climb the map home</span>' +
+          "A run is a climb up a <b>map</b> of nodes — deals, stores and card pickups — to <b>Mama's home</b> at the top. " +
+          "<b>Card &amp; pack nodes grow your deck</b>, so later deals run longer and harder. " +
+          "Lose a single deal and the <b>run ends</b>.",
+      },
+      { // 7 — the store item classes (aligned to the in-store STOREHELP1 legend)
+        art: '<div class="wt-classlist">' +
+          "<div><b>Sticker</b> — attaches to one card and rides it the whole run.</div>" +
+          "<div><b>Pillar</b> — powers a whole column from the top; passive, always on.</div>" +
+          "<div><b>Base</b> — a once-per-deal tap power at the foot of a column.</div>" +
+          "<div><b>Card</b> — a single card to swap into your deck.</div>" +
+          "<div><b>Pack</b> — sealed; reveals several, and you keep 1–2.</div>" +
+          "<div><b>Same-Power</b> — one equipped at a time; fires on a correct Same.</div>" +
+          "<div><b>Removal</b> — permanently strips a card from your deck.</div>" +
+          "</div>",
+        cap: '<span class="lead">Spend coins in the store</span>' +
+          "Stores on the map sell upgrades in seven classes. Buy with coins, then place them — a sticker on a <b>card</b>, " +
+          "a pillar on a <b>column</b> top, a base at its foot — and start your deal.",
+      },
+      { // 8 — good to know (jokers, tiers, Zen)
+        art: '<div class="wt-flow-row" style="gap:14px">' +
+          card("★", "", false, ' style="width:56px"') +
+          '<span class="wt-tag good">always safe</span>' +
+          "</div>",
+        cap: '<span class="lead">Good to know</span>' +
+          "<b>★ Jokers</b> never miss — any guess on a Joker is safe. " +
+          "<b>Difficulty tiers</b> (Regular, Master, Legendary) raise the stakes as you win. " +
+          "And <b>Zen</b> mode, from the menu, is free practice — no coins, no map, no consequences.",
       },
     ];
 
@@ -27329,11 +27395,22 @@ const UIRenderer = (() => {
             '<button class="wt-btn primary" id="wtNext" type="button">Next</button>' +
           "</div>" +
         "</div>" +
+        // Secondary action: re-run the guided tour on demand (never the primary
+        // control). The save-safety confirm renders below it, in place.
+        '<div class="wt-replay-row"><button class="wt-replay" id="wtReplay" type="button">' +
+          '<span class="ico">' + glyph("reroll") + "</span>Replay tutorial</button></div>" +
+        '<div class="wt-confirm hidden" id="wtConfirm"><div class="wtc-q" id="wtConfirmQ"></div>' +
+          '<div class="wtc-btns">' +
+            '<button class="wt-btn" id="wtConfirmNo" type="button">Cancel</button>' +
+            '<button class="wt-btn primary" id="wtConfirmYes" type="button">Continue</button>' +
+          "</div></div>" +
       "</div>";
 
     const pick = id => document.getElementById(id);
     const stage = pick("wtStage"), art = pick("wtArt"), cap = pick("wtCap"),
-      dots = pick("wtDots"), back = pick("wtBack"), next = pick("wtNext"), skip = pick("wtSkip");
+      dots = pick("wtDots"), back = pick("wtBack"), next = pick("wtNext"), skip = pick("wtSkip"),
+      replay = pick("wtReplay"), confirm = pick("wtConfirm"), confirmQ = pick("wtConfirmQ"),
+      confirmNo = pick("wtConfirmNo"), confirmYes = pick("wtConfirmYes");
     dots.innerHTML = slides.map(() => '<span class="wt-dot"></span>').join("");
     const dotEls = dots.querySelectorAll(".wt-dot");
 
@@ -27356,6 +27433,40 @@ const UIRenderer = (() => {
     next.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); go(1); });
     back.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); go(-1); });
     skip.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); closeManual(); });
+
+    // REPLAY TUTORIAL (D4). Starting a fresh run runs through startCampaign,
+    // which clearSave()s unconditionally — so when a Continue save or a live
+    // in-progress deal would be destroyed, first raise the bottom-bar confirm
+    // (rendered in place, below the nav). No confirm when there's nothing to
+    // lose. Zen state is never involved (the manual isn't reached from Zen).
+    const replayWouldDestroy = () => {
+      if (zenMode) return false;
+      const saved = SaveStore.load();
+      if (saved && saved.campaign) return true;   // a Continue save exists
+      return !!engine;                             // a live deal mid-run (in-game menu)
+    };
+    const beginReplay = () => {
+      // Leave the manual and any menu behind it, arm the one-shot tour, then
+      // route through deck select exactly like a first-timer (meet Pinky →
+      // startCampaign → pinned seed 18). The save (if any) is still intact here
+      // — startCampaign's own clearSave fires only once a deck is chosen.
+      el.manualOverlay.classList.add("hidden");
+      manualOnClose = null;
+      hideMainMenu();
+      closeGameMenu();
+      const saved = SaveStore.load();
+      Tutorial.armReplay();
+      showDeckSelect(!!(saved && saved.campaign));
+    };
+    replay.addEventListener("click", e => {
+      e.stopPropagation(); Sound.tap();
+      if (replayWouldDestroy()) {
+        confirmQ.textContent = "Replaying the tutorial starts a fresh run and ends your current campaign. Continue?";
+        confirm.classList.remove("hidden");
+      } else beginReplay();
+    });
+    confirmNo.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); confirm.classList.add("hidden"); });
+    confirmYes.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); beginReplay(); });
 
     render();
     el.manualOverlay.classList.remove("hidden");
