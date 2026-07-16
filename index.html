@@ -7020,7 +7020,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.90 · zen bars breathe in and out";
+const APP_VERSION = "v4.91 · apply taps land the instant you tap";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -25245,7 +25245,14 @@ const UIRenderer = (() => {
     renderStoreLoadout();   // equipped pillars/bases/Same-Power reference (read-only)
     updateRerollButton();
     // Checkpoint store state so a refresh while shopping keeps every purchase.
-    persistCampaign("store");
+    // The sticker-apply CONFIRM flow already writes its save SYNCHRONOUSLY on the
+    // tap, then defers this shelf rebuild a frame — so for that one deferred
+    // render the checkpoint would be a redundant second serialize+save on the
+    // same state. suppressStorePersistOnce (set only around that deferred tail,
+    // reset in its finally) collapses the double-persist to one WITHOUT touching
+    // any other renderStore caller's checkpoint.
+    if (suppressStorePersistOnce) suppressStorePersistOnce = false;
+    else persistCampaign("store");
     Tutorial.onStoreRender();   // TUT2: the shelf was rebuilt → re-stamp the gate's .tut-allow
   }
   // Slot count the UI mirrors from the engine config (kept in sync there).
@@ -25864,10 +25871,34 @@ const UIRenderer = (() => {
     btn.classList.add("sa-remove");
     setTimeout(done, 720);
   }
+  // One-shot: swallows the NEXT renderStore's internal checkpoint (see renderStore).
+  // Only ever true for the synchronous span of a deferred confirm tail — its
+  // finally resets it — so it can never leak into an unrelated renderStore.
+  let suppressStorePersistOnce = false;
+  // Run a confirm's HEAVY tail (deck-strip histogram repaint + store shelf
+  // rebuild via continuePendingPlacement — the long synchronous task that made
+  // Apply feel dead under CPU throttle) AFTER the picker-close/flash has painted.
+  // Two rAFs: the first lands before the pending style flush, the second after
+  // the browser has painted the modal-hide — so the expensive rebuild runs only
+  // once the close is on screen. The engine state + the save are already
+  // committed on the tap, so a background-kill in this gap loses nothing.
+  // savedOnTap: this confirm already wrote its save, so suppress renderStore's
+  // redundant second write; on a no-op fall-through (nothing saved) we let the
+  // checkpoint through untouched.
+  function deferConfirmTail(savedOnTap, tail) {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (!savedOnTap) { tail(); return; }
+        suppressStorePersistOnce = true;
+        try { tail(); } finally { suppressStorePersistOnce = false; }
+      });
+    });
+  }
   function confirmApplySticker() {
     // == null, NOT falsy: card ids start at 0 (the 2♦ is id 0) — a truthiness
     // check made the Apply button silently no-op on exactly that card.
     if (selectedApplyCardId == null) return;
+    let savedOnTap = false;   // set once this confirm has written its save
     if (cardPickMode === "remove") {
       // STORE Removal purchase: charge + remove, then return to the store with the
       // slot INTACT (repeatable — buy again for another removal).
@@ -25952,7 +25983,8 @@ const UIRenderer = (() => {
         campaign.useStickerFromInventory(pendingApplyStickerId);
         if (engine) engine.logAction("Applied Sticker: " + ((t && t.label) || pendingApplyStickerId) + " → a deck card");
         Sound.purchase();
-        persistCampaign("store");
+        persistCampaign("store");   // the ONE save for this apply — kept synchronous on the tap
+        savedOnTap = true;
         Tutorial.onStickerApplied(pendingApplyStickerId);   // TUT2: the forced Bonus Coin landed → teach Refresh
         // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
         // shows its change IN PLACE before the picker leaves: repaint the grid
@@ -25977,24 +26009,34 @@ const UIRenderer = (() => {
               el.stickerApplyModal.classList.add("hidden");
               applyCardsById = new Map();
               renderDeckStrip();
-              continuePendingPlacement();
+              // The 850ms flash already gave the tap its acknowledgement and
+              // painted; the store save was written on the tap, so suppress
+              // renderStore's redundant second checkpoint here too.
+              suppressStorePersistOnce = true;
+              try { continuePendingPlacement(); } finally { suppressStorePersistOnce = false; }
             }, 850);
             return;
           }
         }
       }
     }
+    // IMMEDIATE ACK (non-modifying sticker + the shared close tail): hide the
+    // confirm button and begin the picker close on THIS frame — the engine state
+    // and (on success) the save were already committed above. Everything below
+    // was the long synchronous task that made Apply feel dead under CPU throttle.
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
-    // The apply/swap above may have changed the deck's composition (a suit- or
-    // rank-changing sticker, or a swapped-in card) → refresh the persistent
-    // histogram + suit chart NOW. renderStore alone doesn't touch the band, so
-    // without this the store showed the pre-apply counts until the next screen.
-    renderDeckStrip();
-    continuePendingPlacement();   // chain into the next pending item, else back to the store/summary
+    // DEFER the heavy tail past the close paint. renderDeckStrip refreshes the
+    // persistent histogram + suit chart (the apply may have changed composition;
+    // renderStore alone doesn't touch the band); continuePendingPlacement chains
+    // into the next pending item, else rebuilds the store / returns to summary.
+    deferConfirmTail(savedOnTap, function () {
+      renderDeckStrip();
+      continuePendingPlacement();
+    });
   }
   function closeStickerApply() {
     applyCardsById = new Map();   // release the picker's card snapshot with the modal

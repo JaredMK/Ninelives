@@ -54,6 +54,7 @@ import { run as resume1 } from "./resume1.test.mjs";
 import { run as storehelp1 } from "./storehelp1.test.mjs";
 import { run as help2 } from "./help2.test.mjs";
 import { run as tut4 } from "./tut4.test.mjs";
+import { run as stklag1 } from "./stklag1.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -108,6 +109,7 @@ const SUITES = [
   ["storehelp1", storehelp1],
   ["help2", help2],
   ["tut4", tut4],
+  ["stklag1", stklag1],
 ];
 
 let pass = 0,
