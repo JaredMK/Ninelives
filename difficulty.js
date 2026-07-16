@@ -55,8 +55,8 @@ const NINELIVES_DIFFICULTY = {
     // The baseline — the game's original band values.
     regular: {
       label: "Regular",
-      stageBands: [[1.5, 3.0], [2.5, 4.5], [4.0, 5.5]],
-      bossBands:  [[2.3, 3.0], [3.75, 4.5], [5.5, 6.0]],
+      stageBands: [[1.5, 3.0], [2.0, 4.0], [3.0, 5.0]],
+      bossBands:  [[2.3, 3.25], [3.75, 4.25], [4.75, 5.5]],
       jokerCap: 2,
       guaranteedMapJoker: true,
     },
