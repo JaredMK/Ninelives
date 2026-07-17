@@ -7041,7 +7041,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.95 · debug bug hidden in normal build";
+const APP_VERSION = "v4.96 · tap the build footer 7× for debug";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -19635,6 +19635,24 @@ const UIRenderer = (() => {
       tapTimer = setTimeout(() => { taps = 0; }, 600);
       if (taps >= 3) { taps = 0; setDebug(!debugOn); }
     });
+
+    // In-app debug entry (no URL bar on the packaged iOS app): tap the build/
+    // version footer 7× quickly to enable debug. This adds body.debug-access
+    // (revealing the 🐞 corner toggle) and opens the panel; from there the
+    // corner toggle closes/reopens it. Threshold is high enough that a player
+    // won't trigger it by accident. Attached to both footers (main menu + play).
+    const wireVersionTapDebug = (node) => {
+      if (!node) return;
+      let vTaps = 0, vTimer = null;
+      node.addEventListener("click", () => {
+        vTaps++;
+        clearTimeout(vTimer);
+        vTimer = setTimeout(() => { vTaps = 0; }, 700);
+        if (vTaps >= 7) { vTaps = 0; setDebug(true); }
+      });
+    };
+    wireVersionTapDebug(el.menuFoot);
+    wireVersionTapDebug(el.buildTag);
 
     /* FUTURE HOOK: swipe support.
        The structure above already isolates "selectPile" and
