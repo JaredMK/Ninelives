@@ -7020,7 +7020,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.91 · apply taps land the instant you tap";
+const APP_VERSION = "v4.92 · the store stops saving on every tap";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -21355,11 +21355,28 @@ const UIRenderer = (() => {
      A mid-run refresh resumes at the current run's sticker phase (we don't
      persist live board/deck) — the documented "between-runs only" behavior.
      clearSave() wipes it (new campaign, loss, or campaign complete). */
-  function persistCampaign(phase) {
-    if (!campaign) return;
-    // ZEN ISOLATION: a Zen session never writes the campaign save (the blob
-    // must stay byte-identical), and Zen itself is never serialized.
-    if (zenMode) return;
+  /* STKLAG2 — COALESCE the campaign save off the per-click store path.
+     On the Capacitor build every ninelives.* localStorage write is mirrored
+     SYNCHRONOUSLY across the JS↔native Preferences bridge carrying the whole
+     blob (NativeApp's setItem write-through). renderStore() persists on every
+     store click, and a single click fans out to several renderStore calls, so
+     rapid late-game clicks queued whole-blob bridge writes — 5-10s stalls that
+     grew with deck size. The pure-JS serialize+stringify is ~2ms; the cost is
+     the native mirror, once PER write. So persistCampaign() no longer writes on
+     the tap — it SCHEDULES a single trailing (debounced) write. A click's many
+     renderStore persists AND several rapid clicks collapse to ONE SaveStore.save
+     (one native mirror). We serialize at FLUSH time, keeping the LATEST phase.
+     Durability is preserved by flushCampaignSave() — a synchronous write NOW —
+     called at every screen transition and on pagehide/visibilitychange-hidden,
+     so a kill/refresh can't lose a completed purchase. Only the campaign save is
+     coalesced; every other ninelives.* key still writes through immediately. */
+  let pendingSavePhase = null;   // latest requested phase while a write coalesces; null = nothing pending
+  let saveCoalesceTimer = null;  // the trailing-write debounce handle
+  const SAVE_COALESCE_MS = 300;  // one write ~300ms after the last persist in a burst
+
+  // Snapshot the campaign + resume point for `phase`. Serialized at write time
+  // so a coalesced write always reflects the LATEST completed state.
+  function campaignSaveBlob(phase) {
     const blob = { schema: 1, phase, deckId: selectedDeckId, campaign: campaign.serialize() };
     // For an in-progress run, also checkpoint the deal: the seed replays the
     // EXACT starting board on resume (so a refresh can't be used to fish for a
@@ -21374,10 +21391,45 @@ const UIRenderer = (() => {
       // reroll via refresh, the same exploit runSeed already guards for order).
       blob.dealSubset = currentDealSubset;
     }
-    SaveStore.save(blob);
+    return blob;
   }
+  // The ONE synchronous write: land whatever's pending and disarm the timer.
+  // No-op when nothing is pending (so a transition flush never resurrects a
+  // just-cleared campaign, and clearSave's cancel below stays authoritative).
+  function writeCampaignSaveNow() {
+    if (saveCoalesceTimer !== null) { clearTimeout(saveCoalesceTimer); saveCoalesceTimer = null; }
+    if (pendingSavePhase === null || !campaign || zenMode) { pendingSavePhase = null; return; }
+    const phase = pendingSavePhase;
+    pendingSavePhase = null;
+    SaveStore.save(campaignSaveBlob(phase));
+  }
+  function persistCampaign(phase) {
+    if (!campaign) return;
+    // ZEN ISOLATION: a Zen session never writes the campaign save (the blob
+    // must stay byte-identical), and Zen itself is never serialized.
+    if (zenMode) return;
+    // Schedule (don't write): keep the latest phase, (re)arm the trailing timer.
+    // A resetting debounce collapses a burst of persists into ONE write; the
+    // timer still lands the save ~300ms after the last click even with no
+    // transition (belt), and every transition/pagehide flushes it (suspenders).
+    pendingSavePhase = phase;
+    if (saveCoalesceTimer !== null) clearTimeout(saveCoalesceTimer);
+    saveCoalesceTimer = setTimeout(writeCampaignSaveNow, SAVE_COALESCE_MS);
+  }
+  // DURABILITY: force any pending campaign save to disk SYNCHRONOUSLY now. Call
+  // at every durability-critical moment (screen transitions, run start/end,
+  // pagehide/visibilitychange-hidden) so a kill/refresh keeps every completed
+  // purchase. Cheap when nothing is pending (a no-op).
+  function flushCampaignSave() { writeCampaignSaveNow(); }
   // (Zen guard mirrors persistCampaign: no Zen path clears the campaign save.)
-  function clearSave() { if (zenMode) return; SaveStore.clear(); }
+  // Cancel any pending coalesced write FIRST — a scheduled save must never land
+  // after (and resurrect) a campaign we just wiped (new campaign, loss, done).
+  function clearSave() {
+    if (zenMode) return;
+    if (saveCoalesceTimer !== null) { clearTimeout(saveCoalesceTimer); saveCoalesceTimer = null; }
+    pendingSavePhase = null;
+    SaveStore.clear();
+  }
 
   /* ---- DECK ROSTER — Pinky → Mamma → Mr. Smith → Lammy --------------------
      Winning a run with a deck PERMANENTLY unlocks the next (DeckUnlocks,
@@ -21726,8 +21778,11 @@ const UIRenderer = (() => {
 
     engine.start(seedOverride);
     // Checkpoint the run start: a refresh now resumes this run's sticker phase
-    // with the same board + redeal price.
+    // with the same board + redeal price. STKLAG2: run start is a durability
+    // point — flush so the run checkpoint (and any pending store save it just
+    // superseded) lands synchronously, not only on the debounce timer.
     persistCampaign("run");
+    flushCampaignSave();
     renderReshuffleBtn();   // fresh deal, zero guesses → the reshuffle offer shows
     // SUBSET REVEAL: a quick anonymous "X of Y in play" flourish, ONLY for a
     // subset deal entered fresh or reshuffled (a resume — seedOverride set —
@@ -23176,6 +23231,9 @@ const UIRenderer = (() => {
   }
 
   function onRunEnd(result, payload) {
+    // STKLAG2: run end is a durability point — land any pending in-run save
+    // synchronously before the results/continue flow mutates campaign totals.
+    flushCampaignSave();
     DeckInspector.close();   // no inspection overlays bleeding into end screens
     resolveStaticSelfDestruct();   // deal end → roll Static volatility (indicator + maybe destroy)
 
@@ -24303,6 +24361,10 @@ const UIRenderer = (() => {
       return;
     }
     mapOnEnter = (typeof onEnter === "function") ? onEnter : null;
+    // STKLAG2: entering the map is a durability point — land any pending save
+    // from the screen we're leaving (e.g. the store's coalesced checkpoint on
+    // GO TO MAP) synchronously, so a kill on the map keeps every purchase.
+    flushCampaignSave();
     hideOverlay();
     closeStore();
     closeFossilDetail();
@@ -24618,6 +24680,9 @@ const UIRenderer = (() => {
      applied to cards DURING the next run (see the in-run sticker tray).
      Shown after every run so banked coins are always spendable. */
   function showStore(fresh = true) {
+    // STKLAG2: entering the store is a durability point — flush any pending save
+    // from the previous screen (e.g. the map checkpoint) before we roll/open.
+    flushCampaignSave();
     hideOverlay();
     closeStoreKey();   // STOREHELP1: never re-enter the store with a stale legend open
     closeFossilDetail();
@@ -27627,6 +27692,23 @@ const UIRenderer = (() => {
     // The campaign persists across runs; the engine is recreated per run.
     campaign = CampaignState.create();
     updateStageRun();
+
+    // STKLAG2 DURABILITY: the campaign save is coalesced (persistCampaign only
+    // schedules), so a background/kill must land the pending write synchronously
+    // — otherwise the very last completed purchase could be lost. Register once:
+    // pagehide fires on app background/terminate (iOS), visibilitychange covers
+    // the tab going hidden. Both flush the pending save NOW. (Telem has its own
+    // matching flush pair; this one is the campaign save's.)
+    try {
+      if (typeof window !== "undefined" && window.addEventListener) {
+        window.addEventListener("pagehide", () => { try { flushCampaignSave(); } catch (e) {} });
+        window.addEventListener("visibilitychange", () => {
+          if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+            try { flushCampaignSave(); } catch (e) {}
+          }
+        });
+      }
+    } catch (e) { /* ignore — durability is best-effort, never blocks boot */ }
 
     // Deck inspection (informational only) — reads the live run deck's
     // rank counts, never its order, and only while a run is active.
