@@ -7035,7 +7035,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.93 · big pack, place both or skip either";
+const APP_VERSION = "v4.94 · bounded debug log — no per-action pileup";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10094,15 +10094,29 @@ const GameEngine = (() => {
        Lines are appended at the exact sites where effects execute, so the log
        is what actually happened — not a reconstruction. NO-REVELATION: only
        already-shown (drawn) cards are named; hidden moves are counts only. */
+    // Display-only ring buffer: the logbook is pure dev tooling (never
+    // serialized, never read by game logic — see run.log's init comment), so a
+    // long run must NOT let it grow without bound. A packed store-Removal spree
+    // (or any long deal) appends one entry per action; unbounded, that grew both
+    // memory AND the debug panel's O(N) full-log rebuild (renderDebugLog),
+    // turning every touch progressively laggier once the panel is open. Keep the
+    // newest LOG_CAP entries; trim in batches (only when we overrun by SLACK) so
+    // the prune is amortized O(1) per append, never O(N) on the hot path.
+    const LOG_CAP = 200, LOG_SLACK = 64;
+    function pushLog(entry) {
+      if (!run || !run.log) return;
+      run.log.push(entry);
+      if (run.log.length > LOG_CAP + LOG_SLACK) run.log.splice(0, run.log.length - LOG_CAP);
+    }
     function logBegin(title) {
       currentEntry = { title, lines: [] };
-      if (run && run.log) run.log.push(currentEntry);
+      pushLog(currentEntry);
       return currentEntry;
     }
     function logLine(text) { if (currentEntry) currentEntry.lines.push(text); }
     /** Append a complete standalone entry (system / UI actions). */
     function logAction(title, lines) {
-      if (run && run.log) run.log.push({ title, lines: Array.isArray(lines) ? lines.slice() : [] });
+      pushLog({ title, lines: Array.isArray(lines) ? lines.slice() : [] });
     }
     const cardName = (c) => !c ? "?" : c.joker ? "★ Joker" : (c.label + c.suit);
 
@@ -18176,7 +18190,13 @@ const UIRenderer = (() => {
   }
 
   /* Render the debug logbook (newest turn at top). Reads the engine's
-     ground-truth run.log; pure display, never reconstructs anything. */
+     ground-truth run.log; pure display, never reconstructs anything.
+     BOUNDED: this fires on EVERY logged action (refreshDebug) while the panel
+     is open, so a full reversed remap of the whole log made each action O(N) in
+     run length — the store-Removal-spree lag. Render only the newest
+     DEBUG_LOG_SHOWN entries (the panel shows newest-first and only ~a screenful
+     is ever visible); cost + node count are now flat regardless of log length. */
+  const DEBUG_LOG_SHOWN = 50;
   function renderDebugLog() {
     if (!el.debugLog) return;
     const r = engine && engine.getRun();
@@ -18186,10 +18206,14 @@ const UIRenderer = (() => {
       el.debugLog.innerHTML = '<div class="dl-empty">No events yet this run.</div>';
       return;
     }
-    el.debugLog.innerHTML = log.slice().reverse().map(entry => {
+    const start = Math.max(0, log.length - DEBUG_LOG_SHOWN);
+    const hidden = start;   // older entries not rendered (count for the marker)
+    let html = log.slice(start).reverse().map(entry => {
       const lines = (entry.lines || []).map(l => '<div class="dl-line">' + esc(l) + "</div>").join("");
       return '<div class="dl-entry"><div class="dl-title">' + esc(entry.title) + "</div>" + lines + "</div>";
     }).join("");
+    if (hidden > 0) html += '<div class="dl-empty">… ' + hidden + " older event" + (hidden > 1 ? "s" : "") + " not shown</div>";
+    el.debugLog.innerHTML = html;
     el.debugLog.scrollTop = 0;   // newest entry is at the top — keep it in view
   }
 
