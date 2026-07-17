@@ -4716,10 +4716,16 @@ const NativeApp = (() => {
     width: 34px; height: 34px; border-radius: 50%;
     background: rgba(251, 246, 241, 0.7); border: 1px solid var(--edge-2);
     color: var(--accent-2); font-size: 16px; line-height: 1;
-    display: flex; align-items: center; justify-content: center;
+    /* Hidden in the normal build — the 🐞 toggle is a dev tool and never
+       shows during play. It appears only once debug access is granted
+       (?debug URL, or any path that opens the panel — see body.debug-access,
+       set in setDebug/init). The packaged iOS app has no ?debug, so it's
+       invisible there. */
+    display: none; align-items: center; justify-content: center;
     cursor: pointer; opacity: 0.45;
     touch-action: manipulation;
   }
+  body.debug-access .debug-toggle { display: flex; }
   .debug-toggle:active { transform: scale(0.92); opacity: 0.9; }
 
   /* AUTOPILOT (debug): the ▶/⏸ pilot button beside the debug toggle. It exists
@@ -7035,7 +7041,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.94 · bounded debug log — no per-action pileup";
+const APP_VERSION = "v4.95 · debug bug hidden in normal build";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -18679,6 +18685,10 @@ const UIRenderer = (() => {
 
   function setDebug(on) {
     debugOn = on;
+    // Any path that opens the debug panel (triple-tap, ?debug, corner toggle)
+    // also reveals the corner 🐞 toggle so it can be closed again. The toggle
+    // is display:none in the normal build (dev tool — never shows during play).
+    if (on) document.body.classList.add("debug-access");
     if (on) debugArmed = true;   // arms the __campaign probe hook for the session
     el.debugOverlay.classList.toggle("hidden", !on);
     if (on) {
@@ -27935,7 +27945,9 @@ const UIRenderer = (() => {
     buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
     showMainMenu(canContinue);
 
-    // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1).
+    // Auto-enable debug if the URL contains ?debug (e.g. ...?debug=1). This is
+    // the only way the 🐞 toggle becomes visible in a normal build; the
+    // packaged iOS app has no query string, so debug never appears during play.
     if (/[?&]debug\b/.test(location.search)) setDebug(true);
   }
 
