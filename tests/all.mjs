@@ -45,6 +45,7 @@ import { run as uifix1 } from "./uifix1.test.mjs";
 import { run as tut2 } from "./tut2.test.mjs";
 import { run as boot2 } from "./boot2.test.mjs";
 import { run as pack2 } from "./pack2.test.mjs";
+import { run as packs2 } from "./packs2.test.mjs";
 import { run as zen1 } from "./zen1.test.mjs";
 import { run as zen2 } from "./zen2.test.mjs";
 import { run as zen6 } from "./zen6.test.mjs";
@@ -101,6 +102,7 @@ const SUITES = [
   ["tut2", tut2],
   ["boot2", boot2],
   ["pack2", pack2],
+  ["packs2", packs2],
   ["zen1", zen1],
   ["zen2", zen2],
   ["zen6", zen6],

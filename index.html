@@ -4413,6 +4413,16 @@ const NativeApp = (() => {
   .sa-trash-btn.hidden { display: none; }
   .sa-trash-btn:active { transform: scale(0.96); }
   .sa-trash-btn.armed { background: #c0392b; color: #fff; border-color: #97271c; }
+  /* PACK-KEEP WALK Skip: same chrome-button shell as Trash (header slot next to ✕);
+     a plain neutral affordance — declining a kept card, not a destructive spend. */
+  .sa-skip-btn {
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--edge-2); border-radius: 8px;
+    padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .sa-skip-btn.hidden { display: none; }
+  .sa-skip-btn:active { transform: scale(0.96); }
   .deck-modal-total { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
 
   /* Rank histogram in the deck view (reuses .ds-* bar styling at a fixed height). */
@@ -6812,6 +6822,11 @@ const NativeApp = (() => {
         <!-- Bought stickers must be placed OR trashed before leaving (no defer): in
              that forced mode the ✕ is hidden and this Trash action is shown. -->
         <button class="sa-trash-btn hidden" id="saTrash" type="button">Trash</button>
+        <!-- PACK-KEEP WALK: placing kept pack cards one-by-one. Skip DECLINES the
+             current card (discardPackCard — no refund) and advances to the next, so
+             the player can take 0/1/2. Shown only during that walk; ✕ resolves the
+             same as Skip here (never strands a paid-for card in the tray). -->
+        <button class="sa-skip-btn hidden" id="saSkip" type="button">Skip</button>
         <button class="deck-modal-close" id="saClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="sa-banner" id="saBanner"></div>
@@ -7020,7 +7035,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.92 · the store stops saving on every tap";
+const APP_VERSION = "v4.93 · big pack, place both or skip either";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15296,6 +15311,7 @@ const UIRenderer = (() => {
     saHead: document.getElementById("saHead"),
     saClose: document.getElementById("saClose"),
     saTrash: document.getElementById("saTrash"),   // forced place-or-trash for a bought sticker
+    saSkip: document.getElementById("saSkip"),     // pack-keep walk: decline the current kept card
     saBanner: document.getElementById("saBanner"),
     saHist: document.getElementById("saHist"),     // composition histogram in the card picker
     saSuits: document.getElementById("saSuits"),   // suit-count breakdown in the card picker
@@ -19348,6 +19364,7 @@ const UIRenderer = (() => {
     // Place-on-acquire pickers: the store "Place" button resumes any pending item.
     if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => { placementWalk = true; continuePendingPlacement(); });
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
+    if (el.saSkip) el.saSkip.addEventListener("click", skipCurrentPackKeep);
     if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
     // Sticker picker cards: TAP = select to apply, HOLD = the card's sticker help.
     if (el.saCards) attachCardHoldHelp(el.saCards, (id) => selectApplyCard(id));
@@ -25379,12 +25396,13 @@ const UIRenderer = (() => {
       }
     } else if (res.kind === "card") {
       // Individual card: already charged + moved to the tray — run the SAME
-      // swap/place flow a pack-picked card gets, straight away.
+      // pack-keep walk a pack-picked card gets (degenerates to one card, and it
+      // gets the same Skip so a single bought card can be declined too).
       if (engine) engine.logAction("Store: bought a card" + (res.card && res.card.joker ? " (★ Joker)" : ""));
       try { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.flush(); } catch (e) {}
       renderStore();
       refreshDebug();
-      openCardSwap(res.trayIndex);
+      startPackKeepWalk();
     } else {
       // Pillar / Base → place it on a column RIGHT NOW (place-on-purchase).
       const reg = res.kind === "pillar" ? PillarTypes : BaseTypes;
@@ -25522,19 +25540,15 @@ const UIRenderer = (() => {
     if (st.chosen.length !== st.keep) return;          // guard (button is disabled too)
     closePackItemInfo();
     if (st.kind === "card") {
-      // Keep EVERY chosen card (large pack keep>1) — mirror the sticker branch:
-      // all picks land in the pending tray, the FIRST opens the swap/placement
-      // picker now, the rest wait in the tray (placeable later from Cards tab).
-      // Tray cap is Infinity, so addPackCard never reports `full` here.
-      const firstIndex = campaign.getPackTray().length;
+      // Keep EVERY chosen card (large pack keep>1) — all picks land in the pending
+      // tray, then the PACK-KEEP WALK places them one swap-picker at a time (with a
+      // Skip on each so the player takes 0/1/2), returning to the shelf only once
+      // the tray is empty. Tray cap is Infinity, so addPackCard never reports full.
       let held = 0;
       st.chosen.forEach(idx => { if (campaign.addPackCard(st.items[idx]).ok) held++; });
       if (held) {
-        closePackReveal(); renderStore();
-        // STRAIGHT into the swap/placement picker for the first card just taken —
-        // continuePendingPlacement was a no-op outside a post-deal walk, so
-        // the flow used to dead-end back at the store shelf.
-        openCardSwap(firstIndex);
+        closePackReveal(); renderStore();   // repaint the shelf behind before the walk opens
+        startPackKeepWalk();                 // walk EVERY kept card, back-to-back
       }
       return;
     }
@@ -25719,6 +25733,15 @@ const UIRenderer = (() => {
   let cardPickMode = "sticker";       // "sticker" (apply) | "swap" (replace with a pack card) | "remove" (map Blank)
   let pendingApplyStickerId = null;   // the sticker TYPE id currently being applied
   let pendingSwapTrayIndex = null;    // the pack-tray card index being swapped in (swap mode)
+  // PACK-KEEP WALK (buying a card pack / single card): the kept cards land in the
+  // pack tray and are placed ONE swap-picker at a time, back-to-back, returning to
+  // the shelf only when the tray is empty. This is a PACK-SCOPED walk (advances
+  // only through the tray — never the full placement queue that continuePending
+  // Placement drives), and it flips ✕/backdrop + the Skip button to "decline this
+  // one" (discardPackCard, no refund) so the player can take 0/1/2. packKeepTotal
+  // is the count when the walk began, purely for the "N of M" head label.
+  let packKeepWalk = false;
+  let packKeepTotal = 0;
   let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
   // Suit display order for the card picker (same order as the deck inspector's).
   // NB: the inspector's SUIT_ORDER is scoped inside ITS module — referencing it
@@ -25801,6 +25824,7 @@ const UIRenderer = (() => {
   let pendingBuyStickerSlot = null;   // offer slot of a sticker being bought place-first, or null
   function stickerApplyChrome() {
     if (el.saTrash) el.saTrash.classList.add("hidden");      // no trash — buys cancel cleanly
+    if (el.saSkip) el.saSkip.classList.add("hidden");        // Skip is a pack-keep-walk-only affordance
     if (el.saClose) el.saClose.classList.remove("hidden");   // ✕ cancels (no spend)
   }
   function openStickerApply(typeId) {
@@ -25882,16 +25906,75 @@ const UIRenderer = (() => {
     selectedApplyCardId = null;
     if (el.saConfirm) el.saConfirm.classList.add("hidden");
     const pcLabel = miniRankLabel(pc) + " " + pc.suit;
-    if (el.saHead) el.saHead.textContent = "Swap in " + pcLabel;
+    // PACK-KEEP WALK: append an "N of M" step marker so a multi-card pack reads as a
+    // sequence (idx = how many kept cards have already resolved + this one). Off the
+    // LIVE tray, never a hardcoded 2 — packKeepTotal was the count when the walk began.
+    let step = "";
+    if (packKeepWalk && packKeepTotal > 1) {
+      const idx = packKeepTotal - campaign.packTrayCount() + 1;
+      step = " (" + idx + " of " + packKeepTotal + ")";
+    }
+    if (el.saHead) el.saHead.textContent = "Swap in " + pcLabel + step;
     if (el.saBanner) el.saBanner.innerHTML = miniCardHtml(pc) +
       '<span class="sa-name">' + escHtml(pcLabel) + "</span>" +
       '<span class="sa-desc">Pick a card to replace with this one (the old card is removed; deck stays 52).</span>';
-    if (el.saHint) el.saHint.textContent = "Tap the card to replace.";
+    if (el.saHint) el.saHint.textContent = packKeepWalk
+      ? "Tap the card to replace — or Skip to decline this card."
+      : "Tap the card to replace.";
     pendingBuyStickerSlot = null;   // not a sticker purchase
     stickerApplyChrome();
+    // Skip is offered ONLY inside the pack-keep walk (take 0/1/2) — decline the
+    // current kept card and advance; stickerApplyChrome hid it for every other mode.
+    if (el.saSkip) el.saSkip.classList.toggle("hidden", !packKeepWalk);
     renderStickerApplyCards();
     DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
     el.stickerApplyModal.classList.remove("hidden");
+  }
+  /* Begin the PACK-KEEP placement walk over whatever's now in the pack tray
+     (the just-kept pack cards, plus any earlier-deferred ones). Opens the first
+     card's swap picker; each resolve (swap OR skip) chains to the next via
+     advancePackKeepWalk, and the shelf returns only when the tray is empty. The
+     count is read LIVE (never a hardcoded 2) so a keep-1 pack / single-card buy
+     degenerates to a one-card walk with the same Skip affordance. */
+  function startPackKeepWalk() {
+    if (!campaign || campaign.packTrayCount() <= 0) { packKeepWalk = false; renderStore(); return; }
+    packKeepWalk = true;
+    packKeepTotal = campaign.packTrayCount();
+    openCardSwap(0);   // the tray always compacts to the front, so the walk sits at index 0
+  }
+  /* One kept card resolved (swapped in above, or skipped/declined below) — step to
+     the NEXT tray card's swap picker, or close back to the shelf when the tray is
+     empty. PACK-SCOPED: it advances only through the pack tray, never the wider
+     placement queue (unrelated pending stickers/pillars are the "Place item"
+     button's job — see continuePendingPlacement / the placementWalk note). */
+  function advancePackKeepWalk() {
+    cardPickMode = "sticker";
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
+    pendingBuyStickerSlot = null;
+    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    if (campaign && campaign.packTrayCount() > 0) { openCardSwap(0); return; }   // next kept card
+    packKeepWalk = false; packKeepTotal = 0;
+    el.stickerApplyModal.classList.add("hidden");
+    applyCardsById = new Map();
+    renderDeckStrip();
+    renderStore();     // schedules the coalesced store checkpoint (tray now empty)
+    refreshDebug();
+  }
+  /* Skip / ✕ / backdrop INSIDE the pack-keep walk: DECLINE the current kept card —
+     discardPackCard removes it from the tray (deck unchanged, NO coin refund, the
+     pack was already paid for) — then advance. Guarantees ✕ can never strand a
+     paid-for card in the tray. Persists the tray shrink so a mid-walk refresh is
+     consistent (a decline that leaves cards still queues a checkpoint; the final
+     one rides renderStore's checkpoint in advancePackKeepWalk). */
+  function skipCurrentPackKeep() {
+    if (!packKeepWalk) return;
+    if (campaign && pendingSwapTrayIndex != null) {
+      campaign.discardPackCard(pendingSwapTrayIndex);
+      if (engine) engine.logAction("Declined a kept pack card (skipped placement)");
+      Sound.tap();
+      persistCampaign("store");   // tray shrank — checkpoint even mid-walk
+    }
+    advancePackKeepWalk();
   }
   function selectApplyCard(id) {
     const card = applyCardsById.get(id);
@@ -26029,7 +26112,10 @@ const UIRenderer = (() => {
           el.stickerApplyModal.classList.add("hidden");
           applyCardsById = new Map();
           renderDeckStrip();
-          continuePendingPlacement();
+          // In a pack-keep walk, chain to the NEXT kept card (or the shelf when the
+          // tray's empty) — the tray-scoped advance, not the whole placement queue.
+          if (packKeepWalk) advancePackKeepWalk();
+          else continuePendingPlacement();
         });
         return;
       }
@@ -26105,6 +26191,10 @@ const UIRenderer = (() => {
   }
   function closeStickerApply() {
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
+    // PACK-KEEP WALK: ✕ / backdrop = "skip this one" (decline + advance), same as
+    // the Skip button — a paid-for kept card is never left stranded in the tray.
+    // Scoped to the walk; ✕ keeps its normal semantics for every other picker mode.
+    if (packKeepWalk) { skipCurrentPackKeep(); return; }
     // STORE Removal purchase: ✕ / backdrop cancels — nothing charged, the slot
     // stays, and we simply return to the store.
     if (removalPurchase) {
@@ -26787,6 +26877,7 @@ const UIRenderer = (() => {
     selectedStickerSlot = null;
     selectedMixedSlot = null;
     placementWalk = false;         // leaving the store ends any placement walk
+    packKeepWalk = false; packKeepTotal = 0;   // …and any in-flight pack-keep walk
     pendingBuyStickerSlot = null;  // an un-confirmed buy is abandoned (never charged)
     closeTrashConfirm();
     closePackReveal();
