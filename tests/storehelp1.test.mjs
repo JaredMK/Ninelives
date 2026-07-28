@@ -65,10 +65,10 @@ export function run() {
     const iShelf = html.indexOf('id="storeItems"');
     r.ok(iTop !== -1 && iTop < iHelp && iHelp < iShelf, "the help button sits inside .store-top (before the shelf)");
     r.ok(iCoins < iHelp && iHelp < iReroll, "no overlap: it sits after the coin balance and before Refresh");
-    r.ok(!cls.includes("tut-allow"), "the help button is a plain store button (NO .tut-allow) so the tutorial gate disables it");
-    // The gate rule that disables non-.tut-allow store buttons is still in force.
-    r.ok(html.includes("body.tut-gate-store #storeOverlay button:not(.tut-allow):not(.store-tile)"),
-      "the tutorial gate rule (disables plain store buttons) is present — makes the help button inert in the guided store");
+    // The guided-store gate is retired (the Zen-first tour never enters the
+    // store): no .tut-allow class, no gate CSS.
+    r.ok(!cls.includes("tut-allow"), "the help button is a plain store button (no tutorial gate classes)");
+    r.ok(!html.includes("tut-gate-store"), "the tutorial store-gate CSS is gone");
 
     // --- A2) The legend panel: opaque, root-level, lifted above the store shelf
     r.ok(/id="storeKeyPanel"/.test(html), "STOREHELP1: the #storeKeyPanel legend exists");

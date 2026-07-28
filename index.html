@@ -1877,15 +1877,13 @@ const NativeApp = (() => {
   }
   .menu-screen.hidden { display: none; }
 
-  /* ── FIRST-RUN TUTORIAL (TUT2) — coach bubbles + hard gates ───────────────
+  /* ── FIRST-RUN TUTORIAL (Zen-first) — coach bubbles ───────────────────────
      A fixed layer (pointer-events:none — only the bubble itself is tappable)
      with a pulsing RING around the thing being explained and a speech BUBBLE
      beside it, fronted by a tiny Pinky face. Driven by the Tutorial module;
-     appears once, ever (ninelives.pref.tutorial2); Skip ends it any time.
-     GATED steps add: .tut-dim (a legal map node stripped of its action for
-     this step) and body.tut-gate-store (the store inert except the one
-     .tut-allow control — the buy modals live outside #storeOverlay and run
-     normally). The How to Play manual in the menu is unchanged. */
+     runs inside the player's first Zen deal, appears once, ever
+     (ninelives.pref.tutorial2); Skip ends it any time. The How to Play
+     manual in the menu is unchanged. */
   .tut-layer { position: fixed; inset: 0; z-index: 1600; pointer-events: none; }
   .tut-ring { position: fixed; border-radius: 14px; pointer-events: none;
     border: 2.5px solid var(--accent-2);
@@ -1928,35 +1926,6 @@ const NativeApp = (() => {
   .tut-next:active { transform: scale(0.96); }
   @media (prefers-reduced-motion: reduce) { .tut-ring { animation: none; transition: none;
     box-shadow: 0 0 0 4px rgba(188,66,112,0.25); } }
-  /* TUT2 teaching grant: both coin counters pop once as the on-the-house
-     top-up lands (paired with Sound.coin + the bubble's copy clause). */
-  @keyframes tutGrant { 0% { transform: scale(1); } 30% { transform: scale(1.4); } 100% { transform: scale(1); } }
-  .tut-grant { display: inline-block; animation: tutGrant 0.9s ease; }
-  /* TUT2 "deck grew" beat: the map normally hides the shell's deck stack
-     (the trail avatar is the one character), but the ringed #deckCount lives
-     inside it — reveal it just for that bubble so the count being taught is
-     actually on screen. */
-  body.on-map.tut-deck-ring #deckStat { display: inline-flex; }
-  /* TUT2 map gate: a legal node NOT on the guided path keeps its place but
-     loses its tap action (the JS strips data-action) — dim it and still its
-     legal-glow pulse so the one guided node is unmistakable. */
-  .pm-node.tut-dim { opacity: 0.38; filter: saturate(0.45); }
-  .pm-node.tut-dim, .pm-node.tut-dim *,
-  .pm-node.tut-dim::before, .pm-node.tut-dim::after { animation: none !important; }
-  /* TUT2 store gate: while the tour holds the shop, every control inside
-     #storeOverlay is inert except the one being taught (.tut-allow). The
-     overlay itself keeps pointer events, so touch scrolling still works; the
-     detail/apply/place modals sit OUTSIDE #storeOverlay and run normally.
-     Shelf TILES keep their pointer events (hold-for-help stays alive on the
-     dimmed goods) — their taps, like every keyboard activation, are swallowed
-     by the Tutorial's capture-phase click guard instead. */
-  body.tut-gate-store #storeOverlay button:not(.tut-allow):not(.store-tile),
-  body.tut-gate-store #storeOverlay .lo-chip { pointer-events: none; }
-  body.tut-gate-store #storeOverlay .store-tile:not(.tut-allow),
-  body.tut-gate-store #storeOverlay .store-reroll:not(.tut-allow),
-  body.tut-gate-store #storeOverlay .store-start:not(.tut-allow),
-  body.tut-gate-store #storeOverlay .store-apply-btn:not(.tut-allow),
-  body.tut-gate-store #storeOverlay .lo-chip { opacity: 0.42; filter: saturate(0.5); }
 
   /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
      a single cheap composited animation (no per-frame JS), holds still under
@@ -2212,6 +2181,10 @@ const NativeApp = (() => {
     box-shadow: 0 3px 9px rgba(200,74,120,0.4), inset 0 1px 0 rgba(255,255,255,0.3); }
   .menu-item.danger { color: var(--danger); border-color: var(--danger); background: linear-gradient(180deg, #fdf6f7, var(--panel)); }
   .menu-item .ico { font-size: 18px; opacity: 0.92; }
+  /* First-launch pointer while the campaign is still gated — plain text under
+     the buttons, never a button itself. */
+  .menu-note { color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center;
+    padding: 2px 10px 0; opacity: 0.85; }
   .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: clamp(10px, 3vh, 20px); opacity: 0.6; }
 
   /* Bottom-sheet panels (stats / manual / in-game menu). */
@@ -2488,13 +2461,6 @@ const NativeApp = (() => {
   .wt-replay:active { transform: scale(0.97); }
   .wt-replay .ico { display: inline-flex; width: 13px; height: 13px; }
   .wt-replay .ico svg { width: 100%; height: 100%; }
-  /* Save-safety confirm — the bottom-prompt-bar pattern rendered INSIDE the
-     manual sheet (the shared #actionPrompt lives in the play row, occluded by
-     this full-screen overlay). Never a screen-blocking modal. */
-  .wt-confirm { margin-top: 12px; padding: 11px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--edge-2); }
-  .wt-confirm.hidden { display: none; }
-  .wt-confirm .wtc-q { font-size: 12px; line-height: 1.45; color: var(--text); text-align: center; }
-  .wt-confirm .wtc-btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
 
   /* In-game menu button (corner). */
   /* Global nav corner buttons (menu top-left, inventory top-right). z-index 55
@@ -6173,7 +6139,7 @@ const NativeApp = (() => {
        the container paints the cream; ids namespaced boot- so they can't
        collide with the icon-sprite defs). Removed from the DOM by the boot
        callback after init + min-hold + fade — it must not linger over input,
-       and the document-capture guards (stale-tap, TUT2 gate) never see it. -->
+       and the document-capture stale-tap guard never sees it. -->
   <div id="bootSplash" aria-hidden="true">
     <svg viewBox="296 96 432 800" xmlns="http://www.w3.org/2000/svg">
       <!-- floating shapes escaping the jar -->
@@ -6633,8 +6599,7 @@ const NativeApp = (() => {
       <!-- STOREHELP1: "?" opens a per-TYPE legend (the seven store item classes)
            built at open time from the LIVE shelf renderers. margin-left:auto
            clusters it beside Refresh on the right, clear of the coins on the
-           left. Plain store button (NO .tut-allow) so the tutorial gate rule
-           disables it while the guided shop is running. -->
+           left. -->
       <button class="store-help-btn" id="storeHelpBtn" type="button" aria-label="Store item types" aria-expanded="false"><span class="ico">?</span></button>
       <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
     </div>
@@ -7010,8 +6975,8 @@ const NativeApp = (() => {
 <!-- ITEM DATA: every shop item (stickers / pillars / bases / Same-Powers /
      packs) + its price, rarity, weight, description and effect tunables lives
      in items.js — hand-edit THAT file to tune the game. Difficulty bands live
-     in difficulty.js; the first-run tutorial's bubble copy + pinned map seed
-     live in tutorial.js. All three must load before the game script below
+     in difficulty.js; the first-run tutorial's bubble copy lives in
+     tutorial.js. All three must load before the game script below
      (ItemData / DifficultyData / TutorialData validate them on startup).
      CACHE-BUSTED: the data files are edited on their own (index.html
      untouched), so a static src could serve a STALE browser/CDN copy for up
@@ -7047,7 +7012,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.98 · hold-for-help on map nodes, HUD chips, guess buttons";
+const APP_VERSION = "v4.99 · new players learn in Zen; campaign unlocks after";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7757,13 +7722,13 @@ const DifficultyData = (() => {
 /* ----------------------------------------------------------------
    TutorialData — loads + VALIDATES the first-run tutorial data file
    (tutorial.js, the NINELIVES_TUTORIAL global). tutorial.js is the single
-   hand-editable home for every coach bubble's copy, button labels, anchor
-   keys and the pinned tutorial map seed; the Tutorial module (choreography,
-   gates, sequencing) reads its words from here. Validation is deliberately
-   SOFTER than items.js/difficulty.js: a missing FILE still throws (the
-   loader line broke), but a malformed group/step only console.errors naming
-   the offender — the game must never brick on a copy typo, so the tour
-   itself bows out gracefully at runtime instead (see Tutorial's dataSteps).
+   hand-editable home for every coach bubble's copy, button labels and
+   anchor keys; the Tutorial module (choreography, sequencing) reads its
+   words from here. Validation is deliberately SOFTER than
+   items.js/difficulty.js: a missing FILE still throws (the loader line
+   broke), but a malformed group/step only console.errors naming the
+   offender — the game must never brick on a copy typo, so the tour itself
+   bows out gracefully at runtime instead (see Tutorial's dataSteps).
    Anchor keys are audited against the in-code registry at Tutorial startup.
 ---------------------------------------------------------------- */
 const TutorialData = (() => {
@@ -7773,20 +7738,19 @@ const TutorialData = (() => {
   const D = NINELIVES_TUTORIAL;
   const problems = [];
   // The writer-owned groups and their EXACT step counts. The tour's
-  // choreography (which group fires when, what each step gates) lives in
+  // choreography (which group fires when, what each step rings) lives in
   // index.html — tutorial.js may reword a bubble, never add or remove one.
-  const GROUPS = { pinky: 1, map1: 3, deal: 5, coins: 2, toStore: 1,
-                   shopC: 2, shopD: 1, shopE: 1, shopF: 3,
-                   stickerPicker: 1, toPickup: 1, grew: 2 };
-  const HOPS = ["deal", "store", "pack", "pickup"];
-  const PLACEHOLDERS = ["stickerLabel", "stickerPayout", "deckSize", "grant"];
+  const GROUPS = { deal: 7, zenEnd: 1 };
+  // The Zen-first tour carries no live placeholders: any {token} in the copy
+  // is a writer error and fails loudly here.
+  const PLACEHOLDERS = [];
   function checkStep(d, label) {
     const bad = (msg) => problems.push("[tutorial.js] " + label + ": " + msg);
     if (!d || typeof d !== "object") return bad("missing step");
     if (typeof d.text !== "string" || !d.text) bad("missing/invalid `text` (string)");
     else for (const m of d.text.match(/\{(\w+)\}/g) || [])
       if (PLACEHOLDERS.indexOf(m.slice(1, -1)) === -1)
-        bad("unknown placeholder " + m + " (known: {" + PLACEHOLDERS.join("} {") + "})");
+        bad("unknown placeholder " + m + " (the Zen-first tour supports none)");
     if (d.button != null && (typeof d.button !== "string" || !d.button)) bad("`button` must be a non-empty string when set");
     if (d.anchor != null && (typeof d.anchor !== "string" || !d.anchor)) bad("`anchor` must be an anchor-key string when set");
   }
@@ -7797,30 +7761,20 @@ const TutorialData = (() => {
       problems.push("[tutorial.js] groups." + k + ": must be an array of exactly " + GROUPS[k] + " step" + (GROUPS[k] === 1 ? "" : "s"));
     else list.forEach((d, i) => checkStep(d, "groups." + k + "[" + i + "]"));
   }
-  if (!D.hops || typeof D.hops !== "object") problems.push("[tutorial.js] hops: missing object");
-  else for (const k of HOPS) checkStep(D.hops[k], "hops." + k);
-  if (typeof D.grant !== "string" || !D.grant) problems.push("[tutorial.js] grant: missing/invalid grant clause (string)");
-  if (typeof D.seed !== "number" || !isFinite(D.seed))
-    problems.push("[tutorial.js] seed: must be a finite number (the pinned tutorial map seed)");
   problems.forEach(p => console.error(p));
   return {
     /** group key → its REQUIRED step count (choreography contract): the
-        Tutorial bows out rather than run a group with steps missing —
-        code-side extras (gates, deckPeek) align to steps by index. */
+        Tutorial bows out rather than run a group with steps missing. */
     stepCounts: GROUPS,
     groups: (D.groups && typeof D.groups === "object") ? D.groups : {},
-    hops: (D.hops && typeof D.hops === "object") ? D.hops : {},
-    grant: typeof D.grant === "string" ? D.grant : "",
-    seed: (typeof D.seed === "number" && isFinite(D.seed)) ? D.seed : null,
     problems: problems.slice(),
-    /** Iterate every writer step (groups + hop notes) — the Tutorial module
-        audits anchor keys against its registry with this at startup. */
+    /** Iterate every writer step — the Tutorial module audits anchor keys
+        against its registry with this at startup. */
     eachStep(cb) {
       for (const k in GROUPS) {
         const list = D.groups && D.groups[k];
         if (Array.isArray(list)) list.forEach((d, i) => cb(d, "groups." + k + "[" + i + "]"));
       }
-      for (const k of HOPS) if (D.hops && D.hops[k]) cb(D.hops[k], "hops." + k);
     },
   };
 })();
@@ -8348,15 +8302,6 @@ const RunMap = (() => {
     // progression rule is unchanged: every stage past ♠ lifts BOTH edges of
     // both bands by +endlessBandStep over the previous stage, starting from
     // the SELECTED tier's stage-3 bands.
-
-    // TUT2/TUT3 — guided-tutorial DYNAMIC map selection: how many fresh seeds
-    // a TUTORIAL run may roll (each through the normal generateRun machinery,
-    // unchanged) when the PINNED seed (tutorial.js) has gone stale. Rolls
-    // prefer a strict chain (tutorialPathStrict — the pin's zero-hop
-    // contract), then the windowed tutorialPathOk (row-0 deal → store ≤2 rows
-    // → +1 card ≤2 rows → a deal), then the LAST roll (nearest-store/
-    // nearest-pickup guidance). Non-tutorial runs never retry.
-    tutorialMapRetries: 8,
 
     // Generation control.
     attempts: 60,                // tries per relax step before widening the ladder
@@ -9724,117 +9669,9 @@ const RunMap = (() => {
     };
   }
 
-  /* ══ TUT2 — guided-tutorial map predicate ═══════════════════════════════
-     Pure graph reads over a generateRun() result — generation itself is never
-     touched (same seed → same map, tutorial or not). A map QUALIFIES when at
-     least one stage-0 opening carries the whole teaching chain:
-       row-0 deal → a STORE within the next `storeRows` rows
-                  → a +1-card PICKUP within `pickupRows` rows after that store
-                  → a deal (or boss) reachable after the pickup.
-     The tutorial rolls fresh seeds (GEN_CONFIG.tutorialMapRetries) until one
-     qualifies; a miss just means the tour guides to the NEAREST store/pickup
-     instead — so the windows here are quality knobs, not hard rules. */
-  const TUTORIAL_CHAIN = { storeRows: 2, pickupRows: 2 };
-  /** Ids of `type` nodes reachable from `fromId` within `maxRows` rows above
-      it (row window, not hop count — pass corridors occupy rows too). */
-  function typesWithinRows(map, fromId, type, maxRows) {
-    const from = map.byId[fromId];
-    if (!from) return [];
-    const found = [], seen = new Set([fromId]);
-    let frontier = (from.next || []).slice();
-    while (frontier.length) {
-      const next = [];
-      for (const id of frontier) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const n = map.byId[id];
-        if (!n || n.row - from.row > maxRows) continue;
-        if (n.type === type) found.push(n.id);
-        (n.next || []).forEach(t => next.push(t));
-      }
-      frontier = next;
-    }
-    return found;
-  }
-  /** Any node of one of `types` reachable downstream of `fromId` (unbounded). */
-  function typeReachable(map, fromId, types) {
-    const seen = new Set([fromId]);
-    let frontier = ((map.byId[fromId] || {}).next || []).slice();
-    while (frontier.length) {
-      const next = [];
-      for (const id of frontier) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const n = map.byId[id];
-        if (!n) continue;
-        if (types.indexOf(n.type) !== -1) return true;
-        (n.next || []).forEach(t => next.push(t));
-      }
-      frontier = next;
-    }
-    return false;
-  }
-  /** A "chain store": a store with a +1-card pickup within the teaching
-      window above it (whose taking still leaves a deal to battle). The tour
-      prefers guiding to one of these over a merely-nearest store. */
-  function tutorialStoreOk(map, id) {
-    const s = map && map.byId ? map.byId[id] : null;
-    if (!s || s.type !== "store") return false;
-    return typesWithinRows(map, id, "pickup", TUTORIAL_CHAIN.pickupRows)
-      .some(p => typeReachable(map, p, ["deal", "boss"]));
-  }
-  /** Does the full teaching chain hang off opening node `id`? (`id` must be a
-      deal — row 0 is always deals on generated maps, but authored/synthetic
-      maps are checked too.) */
-  function tutorialChainFrom(map, id) {
-    const d = map && map.byId ? map.byId[id] : null;
-    if (!d || d.type !== "deal") return false;
-    return typesWithinRows(map, id, "store", TUTORIAL_CHAIN.storeRows)
-      .some(s => tutorialStoreOk(map, s));
-  }
-  /** Whole-map qualifier: some row-0 opening carries the chain. */
-  function tutorialPathOk(map) {
-    if (!map || !map.byId || !Array.isArray(map.row0)) return false;
-    return map.row0.some(id => tutorialChainFrom(map, id));
-  }
-  /** One TAP downstream of `fromId`: its non-pass successors, with pass
-      corridors expanded for free (the marker glides through them without a
-      tap — the same corridor rule the tour's guidance walks with). */
-  function directSuccessors(map, fromId) {
-    const out = [], seen = new Set([fromId]);
-    const expand = (tid) => {
-      if (seen.has(tid)) return;
-      seen.add(tid);
-      const n = map.byId[tid];
-      if (!n) return;
-      if (n.type === "pass") (n.next || []).forEach(expand);
-      else out.push(n);
-    };
-    (((map.byId[fromId] || {}).next) || []).forEach(expand);
-    return out;
-  }
-  /** STRICT teaching chain off opening deal `id`: store, +1-card pickup and
-      the next deal/boss each exactly ONE tap apart (zero intermediate hops
-      — no hop-note bubbles on the happy path). This is the pinned-seed
-      contract; the windowed tutorialChainFrom stays as the looser fallback
-      for dynamic seed selection. */
-  function tutorialStrictFrom(map, id) {
-    const d = map && map.byId ? map.byId[id] : null;
-    if (!d || d.type !== "deal") return false;
-    return directSuccessors(map, id).some(s => s.type === "store"
-      && directSuccessors(map, s.id).some(p => p.type === "pickup"
-        && directSuccessors(map, p.id).some(b => b.type === "deal" || b.type === "boss")));
-  }
-  /** Whole-map strict qualifier: some row-0 opening carries the strict chain. */
-  function tutorialPathStrict(map) {
-    if (!map || !map.byId || !Array.isArray(map.row0)) return false;
-    return map.row0.some(id => tutorialStrictFrom(map, id));
-  }
-
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
            generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
            bandsFor, setDifficultyTier, getDifficultyTier, mergeForcedPackChains,
-           tutorialPathOk, tutorialChainFrom, tutorialStoreOk, tutorialPathStrict, tutorialStrictFrom,
            SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
 
@@ -12437,11 +12274,6 @@ const CampaignState = (() => {
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
     let revealedNodes = [];       // MYSTERY (?) node ids the player has arrived at (display-only)
     let runSeed = 0;              // seeds deterministic map generation
-    // TUT2 — set by the UI (Tutorial.shouldRun()) BEFORE reset()/pregen: a
-    // tutorial run may roll several seeds hunting a guided-friendly map (see
-    // pickTutorialRun). NEVER persisted — restore regenerates from the saved
-    // runSeed directly, so the picked map survives a refresh unchanged.
-    let tutorialRun = false;
     // The REAL deck size entering each stage, captured the moment the stage is
     // generated (stage 0 at run start; stage p+1 when stage p's boss falls).
     // Together with runSeed this makes the whole map deterministic for restore.
@@ -12591,39 +12423,7 @@ const CampaignState = (() => {
        Single-use; any mismatch falls back to the normal synchronous path
        (same code, same inputs, identical results — just slower). */
     let pregen = null;   // { key, seed, entries, map }
-    // The key carries the tutorial flag too: a guided-selection map must never
-    // be consumed by a normal run (or vice versa) if the pref flips mid-browse.
-    const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-")
-      + "|" + (tutorialRun ? "T" : "-");
-    /** TUT2/TUT3 — pick WHICH seed/map a tutorial run uses. The PINNED seed
-        (tutorial.js) goes first: one closed, hand-verified map every player's
-        first run shares, asserted against the STRICT chain (opening deal →
-        store → +1 card → deal, one tap apart each). Generation itself is
-        untouched — the pin only chooses which seed feeds it — so a generator
-        or difficulty.js edit can silently stale the pin: on a miss, shout
-        (name the seed) and fall back to rolling fresh seeds through the
-        normal generator, preferring strict, then the looser windowed chain,
-        then the last roll (nearest-goal guidance still works on any map). */
-    function pickTutorialRun(firstSeed, entries, opts) {
-      const pinned = TutorialData.seed;
-      if (pinned != null) {
-        const map = RunMap.generateRun(pinned, entries, opts);
-        if (RunMap.tutorialPathStrict(map)) return { seed: pinned, map };
-        console.error("[Tutorial] pinned tutorial seed " + pinned + " (tutorial.js) no longer opens with"
-          + " a strict guided chain under the live generator/difficulty data — re-pin it;"
-          + " falling back to dynamic seed selection");
-      }
-      const tries = Math.max(1, RunMap.GEN_CONFIG.tutorialMapRetries || 1);
-      let last = null, loose = null;
-      for (let i = 0; i < tries; i++) {
-        const seed = (i === 0 && firstSeed != null) ? firstSeed : generateSeed();
-        const map = RunMap.generateRun(seed, entries, opts);
-        last = { seed, map };
-        if (RunMap.tutorialPathStrict(map)) return last;         // zero-hop chain — as good as the pin
-        if (!loose && RunMap.tutorialPathOk(map)) loose = last;  // windowed chain — hop notes may fire
-      }
-      return loose || last;
-    }
+    const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-");
     function pregenerateRun(dId, tId) {
       const key = runGenKey(dId, tId);
       if (pregen && pregen.key === key) return false;      // already ready
@@ -12631,13 +12431,8 @@ const CampaignState = (() => {
       const e0 = RunMap.GEN_CONFIG.startDeckSize, prc = RunMap.GEN_CONFIG.predictedRouteCards;
       const entries = [e0, e0 + prc, e0 + 2 * prc];
       const opts = { postBossJokerStages: DifficultyData.fixedJokerStages(dId, tId) || [] };
-      if (tutorialRun) {
-        const pick = pickTutorialRun(null, entries, opts);   // TUT2: guided-friendly seed
-        pregen = { key, seed: pick.seed, entries, map: pick.map };
-      } else {
-        const seed = generateSeed();
-        pregen = { key, seed, entries, map: RunMap.generateRun(seed, entries, opts) };
-      }
+      const seed = generateSeed();
+      pregen = { key, seed, entries, map: RunMap.generateRun(seed, entries, opts) };
       return true;
     }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
@@ -12657,14 +12452,6 @@ const CampaignState = (() => {
         runSeed = pregen.seed;
         runMap = pregen.map;
         pregen = null;                            // single-use
-      } else if (tutorialRun) {
-        // TUT2 — a fresh TUTORIAL run selects WHICH rolled seed/map it uses
-        // (guided-path predicate; bounded retries). The first candidate is the
-        // seed startNewRun already rolled, so a qualifying first roll costs
-        // nothing extra; non-tutorial runs never enter this branch.
-        const pick = pickTutorialRun(runSeed, stageEntryDecks, runGenOpts());
-        runSeed = pick.seed;
-        runMap = pick.map;
       } else {
         runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       }
@@ -13117,11 +12904,6 @@ const CampaignState = (() => {
       /** Bind the difficulty tier (bands only). Call BEFORE reset(). */
       setTier(id) { difficultyTier = DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular"; },
       getTier() { return difficultyTier; },
-      /** TUT2 — mark whether the NEXT fresh run is the guided tutorial (map
-          selection may then retry seeds; see pickTutorialRun). Call BEFORE
-          reset()/pregenerateRun. Never persisted. */
-      setTutorialRun(v) { tutorialRun = !!v; },
-      isTutorialRun() { return tutorialRun; },
       deckRules() { return rules(); },
       /** Lammy: stickers are unusable everywhere (store, packs, effects). */
       stickersLocked() { return rules().noStickers; },
@@ -16271,95 +16053,49 @@ const UIRenderer = (() => {
     };
   })();
 
-  /* ── FIRST-RUN TUTORIAL (TUT2) — a guided, hard-gated teaching campaign ────
-     A player's first-ever campaign walks them node-by-node: the first deal →
-     a shop (two forced teaching purchases — the Bonus Coin sticker onto a
-     heart, the Guardian pillar onto a column — plus one taught Refresh) → a
-     +1-card draft → the next battle, whose START completes the tour. While a
-     step is GATED only its designated control accepts input: on the map every
-     other legal node loses its data-action and dims (.tut-dim, re-stamped on
-     every render via onMapRender); in the store everything but the allowed
-     control goes inert (body.tut-gate-store + .tut-allow CSS — the buy modals
-     live OUTSIDE #storeOverlay and run normally inside the gate). Guessing
-     mid-deal is never gated; "Skip tips" on any bubble ends everything.
-     Mystery "?" nodes show their TRUE faces while the tour runs — a
-     display-layer mask only (mysteryMasked): the roll, saves and validation
-     are untouched, and ending the tour re-renders un-arrived ones hidden.
-     Teaching grants: when a forced step is unaffordable, EXACTLY the shortfall
-     against the live items.js price / reroll cost arrives via
-     campaign.addCoins (the proper non-debug credit path) — no prices live here.
+  /* ── FIRST-RUN TUTORIAL (Zen-first) — core mechanics inside the first Zen deal ──
+     A brand-new player meets the game in ZEN mode: the guided first Zen deal
+     teaches the CORE MECHANICS ONLY (survive the piles, swipe to guess, the
+     deck draws, ties kill unless you call Same, Ace is high, the histogram) —
+     no campaign concepts (map, shops, stickers, decks are met in the run
+     itself). Dismissing the last bubble stamps ninelives.pref.tutorial2 and
+     the player simply keeps playing Zen — no prompt to leave, nothing guided
+     after that. When that first guided deal ENDS, one passive zenEnd bubble names
+     the unlock; the campaign appears on the menu once the stamp plus a first
+     Zen session are both done (see maybeUnlockCampaign). Guessing is never
+     gated — the first resolved guess steps any lingering bubble aside
+     (unstamped, so the tour offers itself again next deal); "Skip tips" on
+     any bubble ends everything (stamped, same as completing). Replay (How to
+     Play → "Replay tutorial") arms a one-shot that forces the tour on the
+     next Zen deal even with the pref stamped.
      Copy: tutorial.js (TutorialData) is the editable source of truth for
      every bubble — words, button labels and anchor keys live THERE; the
-     sequencing, gates and hooks live HERE. Writer markup (*bold*, literal
-     newlines) is escaped-then-transformed and live placeholders
-     ({stickerLabel} {stickerPayout} {deckSize} {grant}) resolve at show
-     time, so a data edit never goes stale or injects HTML. A missing/
-     malformed step bows the tour out via end() — never a soft-lock.
-     Persistence: ninelives.pref.tutorial2 stamps ONLY on complete or skip —
-     never on start — so losing the run mid-tour restarts it on the next fresh
-     campaign; the old "tutorial" pref is deliberately ignored (everyone gets
-     the reworked tour once). Step progress is NOT persisted: a mid-tour
-     refresh re-fires the current screen's group with every gate recomputed
-     from live campaign state, and a gate whose target no longer exists ends
-     the tour gracefully (stamped), never a soft-lock. */
+     sequencing and hooks live HERE. Writer markup (*bold*, literal newlines)
+     is escaped-then-transformed; this flow has no live placeholders. A
+     missing/malformed step bows the tour out via end() — never a soft-lock. */
   const Tutorial = (() => {
     const PREF = "tutorial2";              // v2 key — the old "tutorial" stamp is ignored on purpose
-    // Forced-purchase item ids, resolved against the items.js registries at
-    // runtime (fail loud + bow out if a data edit ever removes them).
-    const GAIN_STICKER = "gainCoin";
-    const GUARD_PILLAR = "columnGuardian";
     let active = false;
-    let fired = {};                        // step-group keys that already ran (reset per fresh campaign)
+    let fired = {};                        // step-group keys that already ran (reset per guided deal)
     let layer = null, ring = null, bubble = null, textEl = null, nextBtn = null;
     let queue = [];                        // remaining steps of the current group
     let anchorEl = null, isFinal = false;
-    let mapGateId = null;                  // the ONE map node still tappable (null = no map gate)
-    let storeGateSel = null;               // allowed store control selector; null = store fully inert; false = gate off
-    let storeStage = null;                 // "sticker" | "reroll" | "pillar" | "explain" | "leave"
-    let pendingStoreStage = null;          // stage to enter after the NEXT store render (reroll → pillar)
-    let rerolledOnce = false;              // the taught Refresh happened this session
-    let genericFor = {};                   // nodeId → intermediate-hop bubble already flashed
-    // REPLAY (How to Play → "Replay tutorial"): a one-shot arm that forces the
-    // NEXT campaign to run the guided tour even though the tutorial2 pref is
-    // already stamped. It never clears the pref — normal complete/skip still
-    // stamps as usual — and is consumed the moment that campaign arms
-    // (onNewCampaign), so it drives exactly one replay.
-    let replayArmed = false;
+    let replayArmed = false;               // one-shot replay (see armReplay/shouldRun)
+    let guidedDeal = false;                // the CURRENT Zen deal is the guided one
+    let finalCompleted = false;            // …and its last bubble was dismissed (not skipped)
     const $ = (sel) => document.querySelector(sel);
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
     /* ── COPY (tutorial.js → bubbles) ──────────────────────────────────────
        The ANCHOR REGISTRY maps every writer-editable anchor key to a live
-       resolver (closures over the module's gate state, so "gateNode" /
-       "gatedTile" always mean THE currently gated control). A resolver may
-       return one element, an ARRAY (the ring wraps their union), or null
-       (centered bubble). deckPeek/storeGate stay code-side step attributes —
+       resolver. A resolver may return one element or null (centered bubble).
        tutorial.js owns words, never choreography. */
     const ANCHORS = {
-      deckSelectPinky: () => $("#deckSelect .ds-deckchar"),
-      mapAvatar:       () => $(".map-avatar"),
-      // A visible card/pack node (both GROW the deck on the map). No avatar
-      // fallback: if a map ever has no card node in the DOM the bubble centers
-      // (arrowless) rather than ring PINKY while the copy names card nodes.
-      mapCardNode:     () => $(".pm-node.t-pickup, .pm-node.t-pack"),
-      gateNode:        () => $('.pm-node[data-nid="' + mapGateId + '"]'),
       dealBoard:       () => $(".board-grid"),
       dealPile:        () => $(".pile:not(.dead)"),
       dealDeckChar:    () => $("#deckChar"),
       sameShield:      () => $("#hudSame"),
-      // The Deal reward line PLUS its Surviving piles / Smallest pile
-      // sub-rows (array anchor = union rect).
-      payoutLine:      () => { const line = $(".dc-line");
-        const sub = line && line.nextElementSibling;
-        return (sub && sub.classList.contains("dc-sub")) ? [line, sub] : line; },
-      summaryBalance:  () => $(".dc-balance"),
-      storeCoins:      () => $("#storeCoins"),
-      gatedTile:       () => (typeof storeGateSel === "string" ? $(storeGateSel) : null),
-      rerollBtn:       () => $("#rerollBtn"),
-      storeShelf:      () => $("#storeItems"),
-      storeExit:       () => $("#storeStartBtn"),
-      stickerBanner:   () => $("#saBanner"),
-      deckCount:       () => $("#deckCount"),
+      dealHistogram:   () => $("#histBand"),
     };
     // Startup audit (TutorialData already checked structure + placeholders):
     // a renamed anchor key in tutorial.js is a data bug — name it at load,
@@ -16379,25 +16115,9 @@ const UIRenderer = (() => {
     function renderMarkup(text) {
       return escHtml(text).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/\n/g, "<br>");
     }
-    /** A step's final HTML: markup, then the live placeholders — each value
-        resolved fresh AT SHOW TIME and escaped itself (the registry label/
-        description and the deck size are raw data; the grant clause is
-        writer copy through the same escape-then-transform pipe). */
-    function stepHtml(s) {
-      return renderMarkup(s.text).replace(/\{(\w+)\}/g, (tok, k) => {
-        if (k === "stickerLabel" || k === "stickerPayout") {
-          const t = StickerTypes.get(GAIN_STICKER);
-          return t ? escHtml(k === "stickerLabel" ? t.label : t.description) : "";
-        }
-        if (k === "deckSize") return escHtml(String(campaign ? campaign.deckSize() : ""));
-        if (k === "grant") return s.granted ? "<br>" + renderMarkup(TutorialData.grant) : "";
-        console.error("[Tutorial] tutorial.js uses unknown placeholder " + tok + " — rendered empty");
-        return "";
-      });
-    }
     /** One writer step → a show-ready step object (anchor key resolved via
-        the registry; code-side extras — gates, deckPeek, grant flags —
-        merged in). null = missing/invalid data; callers bow out via end(). */
+        the registry; code-side extras merged in). null = missing/invalid
+        data; callers bow out via end(). */
     function dataStep(d, label, extra) {
       if (!d || typeof d.text !== "string" || !d.text) {
         console.error("[Tutorial] tutorial.js " + label + " is missing/invalid — ending the tour");
@@ -16430,28 +16150,8 @@ const UIRenderer = (() => {
     }
 
     // The tour runs on an unstamped pref OR when a replay was armed from the
-    // manual (the one-shot overrides the stamp for the next campaign only).
+    // manual (the one-shot overrides the stamp for the next Zen deal only).
     function shouldRun() { return replayArmed || SaveStore.getPref(PREF) !== "1"; }
-    /** Arm — or RE-ARM after a refresh — while the pref is unstamped. Resume
-        arming is limited to stage 0 (the tour's whole scope), so an old
-        mid-campaign save from before this rework is never gated deep into a
-        run; its owner meets the tour on their next fresh campaign instead. */
-    function ensureActive() {
-      if (active) return true;
-      if (!shouldRun()) return false;
-      if (!campaign || (campaign.getPhaseIndex && campaign.getPhaseIndex() > 0)) return false;
-      active = true;
-      return true;
-    }
-    /** The two forced-purchase items must exist in items.js. A data edit that
-        drops either makes the guided shop impossible — say so loudly and let
-        the caller bow the tour out instead of soft-locking. */
-    function tutorialItemsOk() {
-      if (StickerTypes.get(GAIN_STICKER) && PillarTypes.get(GUARD_PILLAR)) return true;
-      console.error("[Tutorial] items.js no longer defines '" + GAIN_STICKER + "' / '"
-        + GUARD_PILLAR + "' — the guided shop steps are impossible; ending the tour");
-      return false;
-    }
     function ensureLayer() {
       if (layer) return;
       layer = document.createElement("div");
@@ -16511,32 +16211,19 @@ const UIRenderer = (() => {
       ensureLayer();
       anchorEl = s.anchor ? s.anchor() : null;
       isFinal = !!s.final;
-      // A step may re-point the store gate as it appears (e.g. the last shop
-      // bubble frees GO TO MAP while the explain bubbles kept the shelf inert).
-      if (s.storeGate !== undefined) setStoreGate(s.storeGate);
-      // The "deck grew" beat rings #deckCount, which the map normally hides
-      // (body.on-map) — reveal the deck stack for exactly this step, and
-      // re-measure the shell whose height it changes.
-      const peekWas = document.body.classList.contains("tut-deck-ring");
-      document.body.classList.toggle("tut-deck-ring", !!s.deckPeek);
-      if (peekWas !== !!s.deckPeek && typeof updateShellHeight === "function") updateShellHeight();
-      textEl.innerHTML = stepHtml(s);   // tutorial.js copy + live placeholders, resolved NOW
+      textEl.innerHTML = renderMarkup(s.text);   // tutorial.js copy, escaped + marked up NOW
       nextBtn.textContent = s.next || "Next";
       bubble.classList.remove("hidden");
       place();
     }
     function hideBubble() {
-      if (document.body.classList.contains("tut-deck-ring")) {
-        document.body.classList.remove("tut-deck-ring");
-        if (typeof updateShellHeight === "function") updateShellHeight();
-      }
       if (!bubble) return;
       bubble.classList.add("hidden"); ring.classList.add("hidden"); anchorEl = null;
     }
     function advance() {
       Sound.tap();
       if (queue.length) showStep(queue.shift());
-      else if (isFinal) end();
+      else if (isFinal) { finalCompleted = true; end(); }
       else hideBubble();
     }
     /** Fire tutorial.js group `key` once (fired{} bookkeeping); `extras`
@@ -16550,423 +16237,60 @@ const UIRenderer = (() => {
       queue = steps;
       showStep(queue.shift());
     }
-    /** One-off bubble outside the fired{} bookkeeping (intermediate-hop notes,
-        the sticker-picker nudge) — replaces whatever is showing. */
-    function flash(d, label, extra) {
-      if (!active) return;
-      const s = dataStep(d, label, extra);
-      if (!s) { end(); return; }
-      queue = [];
-      showStep(s);
-    }
     /** End the WHOLE tour — complete, skip, or a graceful bow-out. Stamps the
-        pref (the tour appears once, ever), drops every gate, and re-renders
-        the visible map so node actions + mystery "?" faces come straight back
-        (the store gate is pure CSS classes, cleared here). */
+        pref (the tour appears once, ever) and tears the layer down. Zen-safe:
+        no map, store or campaign state is touched. */
     function end() {
       if (!active && !layer) return;
-      active = false; queue = []; fired = {}; genericFor = {};
-      mapGateId = null; storeStage = null; pendingStoreStage = null; storeGateSel = false;
-      document.body.classList.remove("tut-gate-store");
-      if (document.body.classList.contains("tut-deck-ring")) {
-        document.body.classList.remove("tut-deck-ring");
-        if (typeof updateShellHeight === "function") updateShellHeight();   // the deck stack just left the shell
-      }
-      document.querySelectorAll(".tut-allow").forEach(n => n.classList.remove("tut-allow"));
+      active = false; queue = []; fired = {};
       if (layer) { layer.remove(); layer = ring = bubble = textEl = nextBtn = null; }
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
       SaveStore.setPref(PREF, "1");
-      // The run ahead is a NORMAL one now: drop the campaign's tutorial flag
-      // (a deck-select Skip would otherwise leave a stale tutorial-keyed
-      // pregen that startCampaign discards — cold Start) and, still on deck
-      // select, re-warm the pregen under the normal key.
-      if (campaign && campaign.setTutorialRun) campaign.setTutorialRun(false);
-      const ds = document.getElementById("deckSelect");
-      if (ds && !ds.classList.contains("hidden") && typeof schedulePregen === "function") schedulePregen(true);
-      if (mapVisible()) renderProgressionMap();   // legal glows + "?" faces restored
-    }
-
-    /* ── MAP GUIDANCE — recomputed from LIVE campaign state on every render
-       (nothing persisted): the current objective picks the nearest useful
-       next node and every other legal node is stripped of its tap action. */
-    /** Taps from a candidate next node to the nearest node satisfying `match`
-        (0 = the candidate itself); pass corridors are free (the marker glides
-        through them without a tap). null = unreachable. */
-    function distToMatch(map, start, match) {
-      const seen = new Set([start.id]);
-      const expand = (id, bucket) => {
-        const n = map.byId[id];
-        if (!n || seen.has(id)) return;
-        seen.add(id);
-        if (n.type === "pass") (n.next || []).forEach(t => expand(t, bucket));
-        else bucket.push(n);
-      };
-      let frontier = [start];
-      for (let d = 0; d < 60 && frontier.length; d++) {
-        if (frontier.some(match)) return d;
-        const next = [];
-        frontier.forEach(n => (n.next || []).forEach(t => expand(t, next)));
-        frontier = next;
-      }
-      return null;
-    }
-    function anyReachable(match) {
-      const map = campaign.getMap();
-      return !!map && campaign.legalNextNodes().some(n => distToMatch(map, n, match) != null);
-    }
-    /** Where the tour stands, read off the campaign alone (resume-safe):
-        deal0 → store → pickup → battle. */
-    function objective() {
-      const done = campaign.clearedNodeIds().map(id => campaign.getNode(id)).filter(Boolean);
-      const stores = done.filter(n => n.type === "store");
-      if (!stores.length) {
-        const cur = campaign.currentNode && campaign.currentNode();
-        const dealDone = done.some(n => n.type === "deal" || n.type === "boss")
-          || !!(cur && (cur.type === "deal" || cur.type === "boss"));
-        return dealDone ? "store" : "deal0";
-      }
-      // Post-shop: rows only climb, so row order is traversal order. Only a
-      // true +1 PICKUP completes the draft leg; a pack swept up on the way
-      // keeps the leg alive UNLESS no pickup remains reachable (a fallback
-      // map may simply not have one ahead — never a soft-lock).
-      const storeRow = Math.min.apply(null, stores.map(n => n.row));
-      if (done.some(n => n.type === "pickup" && n.row > storeRow)) return "battle";
-      const pickupAhead = anyReachable(x => x.type === "pickup");
-      if (done.some(n => n.type === "pack" && n.row > storeRow) && !pickupAhead) return "battle";
-      // NOTHING draftable ahead at all (no pickup, no pack — validation makes
-      // this practically unreachable): bow to the battle leg so the tour still
-      // COMPLETES at the next deal instead of gating "pickup" forever.
-      if (!pickupAhead && !anyReachable(x => x.type === "pack")) return "battle";
-      return "pickup";
-    }
-    /** The one node to gate to for the current objective: the legal next node
-        on the shortest route to the best matching goal — chain stores (a +1
-        card in reach above them) beat merely-nearest stores; true +1 pickups
-        beat packs; a deal is the last resort that keeps the walk moving. */
-    function gateTargetFor(obj) {
-      const map = campaign.getMap();
-      if (!map) return null;
-      const legal = campaign.legalNextNodes();
-      if (!legal.length) return null;
-      if (obj === "deal0") {
-        const deals = legal.filter(n => n.type === "deal");
-        // Prefer the opening whose subtree carries the STRICT zero-hop chain
-        // (the pinned seed's contract), then the windowed chain (the same
-        // predicate dynamic selection retried seeds for); row 0 is always
-        // deals, so the later fallbacks only serve odd saves.
-        return deals.find(n => RunMap.tutorialStrictFrom(map, n.id))
-          || deals.find(n => RunMap.tutorialChainFrom(map, n.id))
-          || deals[0] || legal[0] || null;
-      }
-      const isBattle = (x) => x.type === "deal" || x.type === "boss";
-      const prefs = obj === "store"
-        ? [(x) => x.type === "store" && RunMap.tutorialStoreOk(map, x.id), (x) => x.type === "store"]
-        : obj === "pickup" ? [(x) => x.type === "pickup", (x) => x.type === "pack", isBattle]
-        : [isBattle];
-      for (const match of prefs) {
-        let best = null;
-        for (const n of legal) {
-          const d = distToMatch(map, n, match);
-          if (d != null && (!best || d < best.d)) best = { n, d };
-        }
-        if (best) return best.n;
-      }
-      return null;
-    }
-    /** One short note for an intermediate hop on a fallback path (the gated
-        node is not the objective's goal itself) — once per node, by type,
-        copy from tutorial.js hops.*. Covers EVERY render of a leg, including
-        the first: the leg-intro group only fires when the gated target IS
-        the goal type (see onMap), so a hop stop always gets its true-type
-        note instead of goal copy that would lie about the ringed node. */
-    function genericHop(obj, target) {
-      const goal = obj === "store" ? ["store"] : obj === "pickup" ? ["pickup"] : ["deal", "boss"];
-      if (goal.indexOf(target.type) !== -1) return;   // the goal itself glows — no extra words
-      if (genericFor[target.id]) return;
-      genericFor[target.id] = true;
-      const key = target.type === "boss" ? "deal" : target.type;
-      flash(TutorialData.hops[key], "hops." + key);
-    }
-
-    /* ── STORE GUIDANCE — the stage is DERIVED from campaign state (the forced
-       sticker on a heart, the Guardian on a column), so a mid-shop refresh
-       re-enters exactly where the state says. */
-    function offerSlotOf(kind, id) {
-      const o = campaign.getStoreOffer();
-      return (o && o.slots) ? o.slots.findIndex(s => s && s.kind === kind && s.id === id) : -1;
-    }
-    /** Force `kind:id` into the offer (idempotent): reuse its natural slot if
-        it rolled, else overwrite the first non-Removal slot. Returns the slot
-        index, or −1 (no offer / nothing replaceable). */
-    function seedSlot(kind, id) {
-      const o = campaign.getStoreOffer();
-      if (!o || !o.slots) return -1;
-      let i = o.slots.findIndex(s => s && s.kind === kind && s.id === id);
-      if (i !== -1) return i;
-      i = o.slots.findIndex(s => !s || s.kind !== "removal");
-      if (i === -1) return -1;
-      o.slots[i] = { kind, id };
-      return i;
-    }
-    function stickerBought() {
-      return (campaign.getRunDeck() || []).some(c => (c.stickers || []).some(s => s.type === GAIN_STICKER));
-    }
-    function pillarPlaced() {
-      return (campaign.getColumnPillars ? campaign.getColumnPillars() : []).indexOf(GUARD_PILLAR) !== -1;
-    }
-    function deriveStoreStage() {
-      if (!stickerBought()) return "sticker";
-      if (!pillarPlaced()) {
-        // The taught Refresh sits between the two buys; a resume that already
-        // sees the Guardian on the shelf skips straight to it (never a second
-        // forced Refresh for the same shelf).
-        return (rerolledOnce || offerSlotOf("pillar", GUARD_PILLAR) !== -1) ? "pillar" : "reroll";
-      }
-      return fired.shopF ? "leave" : "explain";
-    }
-    /* Activation guard (capture phase, document level): the gate CSS strips
-       pointer events, but keyboard activation (Enter/Space on a focused
-       button) still fires a click — and dimmed shelf tiles deliberately KEEP
-       their pointer events so hold-for-help stays alive on them. This one
-       guard swallows every store activation that isn't the gated control.
-       Installed once, permanent, and a no-op whenever no store gate is up. */
-    let gateGuardOn = false;
-    function ensureGateGuard() {
-      if (gateGuardOn) return;
-      gateGuardOn = true;
-      document.addEventListener("click", (e) => {
-        if (!active || storeGateSel === false) return;
-        const ov = document.getElementById("storeOverlay");
-        if (!ov || ov.classList.contains("hidden") || !ov.contains(e.target)) return;
-        if (storeGateSel && e.target.closest && e.target.closest(storeGateSel)) return;
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }, true);
-    }
-    /** Point the store gate: a selector = only that control is live; null =
-        the whole store rests (explain bubbles); false = gate off. */
-    function setStoreGate(sel) {
-      storeGateSel = sel;
-      if (sel !== false) ensureGateGuard();
-      document.body.classList.toggle("tut-gate-store", active && sel !== false);
-      applyStoreGate();
-    }
-    function applyStoreGate() {
-      document.querySelectorAll(".tut-allow").forEach(n => n.classList.remove("tut-allow"));
-      if (!active || storeGateSel == null || storeGateSel === false) return;
-      const n = $(storeGateSel);
-      if (n) n.classList.add("tut-allow");
-    }
-    /** Teaching grant: top the balance up to `price` — EXACTLY the shortfall,
-        via the proper (non-debug) credit path — and repaint both coin
-        displays together (renderStore refreshes #storeCoins + the HUD).
-        The top-up must READ as a gift, never a glitch: a coin tick + a pulse
-        on both counters, and the caller flags its step `granted` so the
-        bubble's {grant} placeholder fills with tutorial.js's on-the-house
-        clause when this returns true. isFinite guards the Infinity a
-        registry edge (unknown id) could hand priceOf/rerollCost. */
-    function grantShortfall(price) {
-      const short = price - campaign.getCoins();
-      if (!isFinite(short) || short <= 0) return false;
-      campaign.addCoins(short);
-      Sound.coin();
-      renderStore();
-      ["storeCoins", "hudDopamine"].forEach(id => {
-        const n = document.getElementById(id);
-        if (!n) return;
-        n.classList.remove("tut-grant"); void n.offsetWidth; n.classList.add("tut-grant");
-        setTimeout(() => n.classList.remove("tut-grant"), 1000);
-      });
-      return true;
-    }
-    function tileSel(slot) { return '#storeItems .store-tile[data-slot="' + slot + '"]'; }
-    function enterStoreStage(stage) {
-      storeStage = stage;
-      if (stage === "sticker") {
-        // STEP C — balance, stickers, the forced Bonus Coin buy. The bubble's
-        // {stickerLabel}/{stickerPayout} placeholders read LIVE from the
-        // registry at show time — a data edit can never leave it lying about
-        // the item it forces; {grant} fills in when the top-up happened.
-        if (offerSlotOf("sticker", GAIN_STICKER) === -1) {
-          if (seedSlot("sticker", GAIN_STICKER) === -1) { end(); return; }
-          renderStore();
-        }
-        const granted = grantShortfall(campaign.priceOf(GAIN_STICKER));
-        setStoreGate(tileSel(offerSlotOf("sticker", GAIN_STICKER)));
-        group("shopC", [{ granted }, null]);
-      } else if (stage === "reroll") {
-        // STEP D — the taught Refresh.
-        const granted = grantShortfall(campaign.storeRerollCost());
-        setStoreGate("#rerollBtn");
-        group("shopD", [{ granted }]);
-      } else if (stage === "pillar") {
-        // STEP E — the forced Guardian buy + column placement.
-        if (offerSlotOf("pillar", GUARD_PILLAR) === -1) {
-          if (seedSlot("pillar", GUARD_PILLAR) === -1) { end(); return; }
-          renderStore();
-        }
-        const granted = grantShortfall(campaign.priceOfPillar(GUARD_PILLAR));
-        setStoreGate(tileSel(offerSlotOf("pillar", GUARD_PILLAR)));
-        group("shopE", [{ granted }]);
-      } else if (stage === "explain") {
-        // STEP F — bases + Same-Powers, words only; the last step frees GO TO MAP.
-        setStoreGate(null);
-        group("shopF", [null, null, { storeGate: "#storeStartBtn" }]);
-      } else if (stage === "leave") {
-        setStoreGate("#storeStartBtn");   // resume past the explain bubbles: just the exit
-      }
     }
 
     return {
       shouldRun,
-      /** Display-layer mystery mask: while the tour runs, "?" nodes render
-          their true faces (the roll/saves/validation are untouched). */
-      mysteryMasked() { return active; },
-      /** A fresh campaign is starting (Play → Start Run): re-arm the whole
-          tour state, so a loss mid-tour restarts it from the top (the pref
-          only ever stamps on complete/skip). */
-      onNewCampaign() {
-        fired = {}; genericFor = {}; queue = [];
-        storeStage = null; pendingStoreStage = null; rerolledOnce = false; mapGateId = null;
-        document.body.classList.remove("tut-gate-store", "tut-deck-ring");
-        active = shouldRun();
-        replayArmed = false;   // consume the one-shot: this campaign IS the replay
-        if (!active) return;
-        hideBubble();
-      },
-      /** Arm a one-shot REPLAY: the next campaign runs the guided tour even
-          with tutorial2 stamped (see shouldRun). Called by the manual's
-          "Replay tutorial" button just before routing to deck select. */
+      /** Arm a one-shot REPLAY: the next Zen deal runs the tour even with
+          tutorial2 stamped (see shouldRun). Called by the manual's
+          "Replay tutorial" button just before routing to Zen. */
       armReplay() { replayArmed = true; },
-      /** DECK SELECT (the first "Play"): arm the tour + meet Pinky. */
-      onDeckSelect() {
-        if (!ensureActive()) return;
-        group("pinky");
+      /** ZEN DEAL START (board dealt): the guided deal's teaching chain.
+          Fires whenever the tour should run (unstamped pref or an armed
+          replay) — an unfinished tour (quit out / guessed through) simply
+          offers itself again on the next deal. */
+      onZenDealStart() {
+        // A fresh deal silences any leftover bubble first (e.g. Play Again
+        // tapped while the zenEnd beat was still up).
+        if (active) { active = false; queue = []; hideBubble(); }
+        if (!shouldRun()) return;
+        active = true; fired = {}; queue = [];
+        guidedDeal = true; finalCompleted = false;
+        replayArmed = false;   // consume the one-shot: this deal IS the replay
+        group("deal", [null, null, null, null, null, null, { final: true }]);
       },
-      /** EVERY map render while the tour runs: recompute the objective, pick
-          the one guided node, and strip every other legal node's action + glow
-          (fresh buttons each render — nothing to undo; ending the tour just
-          re-renders). No gateable target left → bow out gracefully (stamped). */
-      onMapRender() {
-        if (!ensureActive()) return;
-        const target = gateTargetFor(objective());
-        if (!target) { end(); return; }
-        mapGateId = target.id;
-        document.querySelectorAll(".pm-node[data-action='node']").forEach(btn => {
-          if (Number(btn.dataset.nid) !== mapGateId) {
-            btn.removeAttribute("data-action");
-            btn.classList.add("tut-dim");
-          }
-        });
-      },
-      /** MAP shown (or a draft node just resolved in place): the bubbles for
-          the current leg — intro+first deal, to-the-shop, to-the-draft, then
-          deck-grew + battle. The gate itself was set by onMapRender.
-          DESYNC GUARD: a leg's INTRO copy describes its goal ("shop ahead" /
-          "grab the +1 card" / "tap the deal"), so it may only show when the
-          gated target's type IS that goal — on a fallback map whose first
-          gated stop is an intermediate hop, the type-matched hop note shows
-          instead and the intro waits for the render where the true goal is
-          the gate. A goal bubble can never ring a node of another type. */
-      onMap() {
-        if (!ensureActive() || mapGateId == null) return;
-        const map = campaign.getMap();
-        const target = map && map.byId[mapGateId];
-        if (!target) return;
-        const obj = objective();
-        if (obj === "deal0") {
-          group("map1");
-        } else if (obj === "store") {
-          if (target.type === "store" && !fired.toStore) group("toStore");
-          else genericHop(obj, target);
-        } else if (obj === "pickup") {
-          if (target.type === "pickup" && !fired.toPickup) group("toPickup");
-          else genericHop(obj, target);
-        } else {
-          if ((target.type === "deal" || target.type === "boss") && !fired.grew)
-            group("grew", [{ deckPeek: true }, null]);
-          else genericHop(obj, target);
-        }
-      },
-      /** A draft node resolved with the map still up (card flew in / pack
-          revealed): re-run the map bubbles for the recomputed leg. */
-      onMapNodeResolved() {
-        if (active) this.onMap();
-      },
-      /** DEAL START: the guided BATTLE deal beginning IS the finish line —
-          stamp + stand down. Otherwise the first-deal teaching chain. */
-      onDealStart() {
-        if (!ensureActive()) return;
-        if (objective() === "battle") { end(); return; }
-        group("deal");
+      /** ZEN DEAL END: completing the guided deal earns one passive beat
+          naming the unlock (only while the campaign is still locked — a
+          veteran's replay doesn't need it). */
+      onZenDealEnd() {
+        if (!guidedDeal) return;
+        const earned = finalCompleted;
+        guidedDeal = false; finalCompleted = false;
+        if (!earned || campaignUnlocked()) return;
+        active = true; fired = {};
+        group("zenEnd", [{ final: true }]);   // final → its dismissal runs end() (layer teardown)
       },
       /** Any resolved guess mid-tour: the player is playing — stop talking. */
       onGuessResolved() {
-        if (active && fired.deal && !fired.coins) { queue = []; hideBubble(); }
+        if (active) { queue = []; hideBubble(); }
       },
-      /** FIRST DEAL SUMMARY: the payout formula (ringing the reward line +
-          sub-rows), then where coins live — the summary's OWN balance row,
-          because the overlay covers the HUD bar (see ANCHORS). */
-      onDealCleared() {
-        if (!ensureActive()) return;
-        group("coins");
-      },
-      /** STORE OFFER just rolled (showStore, before it paints): the guided
-          shop's first shelf always carries the Bonus Coin sticker. */
-      seedStoreOffer() {
-        if (!ensureActive()) return;
-        if (!tutorialItemsOk()) { end(); return; }
-        if (!stickerBought()) seedSlot("sticker", GAIN_STICKER);
-        // (the Guardian seeds at the taught Refresh — see onStoreRerolled)
-      },
-      /** STORE shown: enter whichever guided stage the campaign state says. */
-      onStore() {
-        if (!ensureActive()) return;
-        if (!tutorialItemsOk()) { end(); return; }
-        enterStoreStage(deriveStoreStage());
-      },
-      /** EVERY store render: the shelf was rebuilt — re-stamp .tut-allow (and
-          finish a reroll→pillar hand-off once the fresh roll is painted). */
-      onStoreRender() {
+      /** Leaving Zen (quit/menu) silences any lingering bubble WITHOUT
+          stamping — an unfinished tour re-offers itself on the next deal.
+          (The layer is fixed-position; without this it would hover over the
+          main menu after a mid-tour quit.) */
+      suspend() {
         if (!active) return;
-        if (pendingStoreStage) {
-          const s = pendingStoreStage;
-          pendingStoreStage = null;
-          enterStoreStage(s);
-          return;
-        }
-        applyStoreGate();
-      },
-      /** The buy-time sticker picker opened for the forced Bonus Coin buy. */
-      onStickerPicker() {
-        if (!active || storeStage !== "sticker") return;
-        flash((TutorialData.groups.stickerPicker || [])[0], "groups.stickerPicker[0]");
-      },
-      /** The forced sticker landed on a heart → teach Refresh. */
-      onStickerApplied(typeId) {
-        if (!active || storeStage !== "sticker" || typeId !== GAIN_STICKER) return;
-        enterStoreStage("reroll");
-      },
-      /** The taught Refresh fired (called BEFORE the post-reroll render):
-          seed the Guardian into the fresh roll; the pillar stage enters once
-          the shelf is painted (onStoreRender). */
-      onStoreRerolled() {
-        if (!active || storeStage !== "reroll") return;
-        rerolledOnce = true;
-        seedSlot("pillar", GUARD_PILLAR);
-        pendingStoreStage = "pillar";
-      },
-      /** The Guardian landed on a column → bases/Same-Powers, then the exit. */
-      onPillarPlaced(id) {
-        if (!active || storeStage !== "pillar" || id !== GUARD_PILLAR) return;
-        enterStoreStage("explain");
-      },
-      /** TRUE while the guided store flow sits on the taught-Refresh step —
-          that gated tap must fire the reroll directly (rerollUI skips its
-          confirm prompt so the tour can't stall on it). */
-      guidedRerollPending() {
-        return active && storeStage === "reroll" && !rerolledOnce;
+        active = false; queue = []; hideBubble();
       },
     };
   })();
@@ -19618,7 +18942,7 @@ const UIRenderer = (() => {
           const map = campaign && campaign.getMap && campaign.getMap();
           const n = map && map.byId ? map.byId[nid] : null;
           if (!n) { mapHeld = false; mapSuppress = false; return; }
-          const hidden = !Tutorial.mysteryMasked() && campaign.nodeHidden && campaign.nodeHidden(n.id);
+          const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
           showTextHelp(hidden ? "Mystery" : "Map node", hidden ? "??? — revealed when you arrive" : mapNodeLabel(n));
         }, 350);
       });
@@ -20393,7 +19717,7 @@ const UIRenderer = (() => {
         DeckChar.startBlink();
         // …and re-stamp the stage mood (anxious ♦ → hopeful ♣ → bright ♠).
         CharMood.setStage(!zenMode && campaign && campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
-        if (!zenMode) Tutorial.onDealStart();   // first-run tour: survive / guessing / deck / Same shield (campaign only)
+        if (zenMode) Tutorial.onZenDealStart();   // first-run tour: survive / guessing / deck / Same shield / histogram (Zen only)
         // Play screen carries Stage·Run in its own HUD bar → keep the badge off.
         if (el.stageRun) el.stageRun.classList.add("off");
         setScreenNav(true, true, false);   // menu + inventory; no map button in-game
@@ -21508,7 +20832,6 @@ const UIRenderer = (() => {
       btnLabel: "CONTINUE",
       action: continueCampaign,
     });
-    Tutorial.onDealCleared();   // first-run tour: the payout formula, on the real numbers
   }
 
   /** Cumulative end-of-campaign stats, read from existing campaign state. */
@@ -21835,11 +21158,6 @@ const UIRenderer = (() => {
     perkDeckPanel(0);   // the first (pink) deck opens highlighted → it perks up
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
-    Tutorial.onDeckSelect();   // very first Play → the tour starts here (meets Pinky)
-    // TUT2: a tutorial run's map generation may retry seeds for a guided-
-    // friendly layout — flag it BEFORE the immediate pregen below rolls
-    // anything, so the warmed map carries the tutorial-keyed selection.
-    if (campaign && campaign.setTutorialRun) campaign.setTutorialRun(Tutorial.shouldRun());
     schedulePregen(true);      // PERF2: build the run map while the player browses —
                                // entry knows its default selection, so no debounce
   }
@@ -21894,14 +21212,6 @@ const UIRenderer = (() => {
     track("game_started");   // analytics (fail-silent)
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
     campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
-    // TUT2: (re)arm the guided tour for THIS campaign — the pref only stamps
-    // on complete/skip, so a loss mid-tour restarts it here — and let map
-    // generation pick a guided-friendly seed for tutorial runs only. BOTH run
-    // in the synchronous half: the flag must be set before the deferred
-    // reset() rolls the map, and the deck-select bubble must hide on the
-    // Start frame itself.
-    campaign.setTutorialRun(Tutorial.shouldRun());
-    Tutorial.onNewCampaign();
     // INSTANT TAP RESPONSE (measured: the reset→render block below is the
     // Start press's freeze — ~0.4s warm-pregen / multi-second cold under a
     // phone-class CPU). The map overlay's felt backdrop goes up THIS frame
@@ -21917,10 +21227,10 @@ const UIRenderer = (() => {
       // A fresh run starts far from mama: anxious, a little lost, a little dirty.
       CharMood.setStage(0);
       // Show the climb (Stage 1 · Run 1 at the top, nothing cleared yet) before
-      // dealing — same store → map → run rhythm as every later run. First-time
-      // players learn IN PLAY now (the Tutorial coach bubbles, armed on deck
-      // select) — the old auto-shown How to Play walkthrough is retired; the
-      // manual itself stays available from the menu.
+      // dealing — same store → map → run rhythm as every later run. Players
+      // meet the core mechanics in Zen first (the Tutorial coach bubbles
+      // there); campaign concepts are met in the run itself. The How to Play
+      // manual stays available from the menu.
       showProgressionMap(startRun);
     }, 0));
   }
@@ -24446,10 +23756,8 @@ const UIRenderer = (() => {
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
       // MYSTERY (?): an un-arrived mystery node hides its true face — a
       // face-down "?" card in place of the real art (deals hide their
-      // difficulty chip too, since the whole cluster is replaced). TUT2: the
-      // guided tour MASKS the hiding (true faces while it teaches) — display
-      // layer only, so ending the tour re-renders un-arrived ones as "?".
-      const hidden = !Tutorial.mysteryMasked() && campaign.nodeHidden && campaign.nodeHidden(n.id);
+      // difficulty chip too, since the whole cluster is replaced).
+      const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
       nodes += '<button type="button" class="pm-node t-' + (hidden ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
         ' data-nid="' + n.id + '"' +
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — revealed when you arrive" : mapNodeLabel(n)) + '">' +
@@ -24532,7 +23840,6 @@ const UIRenderer = (() => {
       if (egg) egg.textContent = MAP_EGG_LINES[(mapEggSalt + (campaign.runsCompleted || 0)) % MAP_EGG_LINES.length];
     }
     mapBounceMuteUntil = performance.now() + 700;   // no impact bounce from render-time repositioning
-    Tutorial.onMapRender();   // TUT2: gate the fresh render to the one guided node (no-op when inactive)
   }
   /* The minimum allowed map scrollTop (content above = not-yet-reached stages).
      Recomputed every render; enforced by the scroll handler + camera centring. */
@@ -24688,7 +23995,6 @@ const UIRenderer = (() => {
     } else {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
-    Tutorial.onMap();   // first-run tour: goal (first visit) / drafting (after the first payout)
   }
   function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); closeMapKey(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
   /* HEAT FIX #3 — overlays hide via opacity:0 (not display:none), so the
@@ -24781,9 +24087,7 @@ const UIRenderer = (() => {
       if (idx >= legs.length) {
         // The marker has ARRIVED. A mystery gets its reveal moment first —
         // the "?" flips into the true node — then the node plays as normal.
-        // TUT2: while the tour masks mysteries the face was never hidden, so
-        // the flip moment is skipped (the reveal is still RECORDED above).
-        if (wasHidden && !Tutorial.mysteryMasked()) playMysteryReveal(id, () => finishResolveNode(node, id));
+        if (wasHidden) playMysteryReveal(id, () => finishResolveNode(node, id));
         else finishResolveNode(node, id);
         return;
       }
@@ -24824,7 +24128,6 @@ const UIRenderer = (() => {
       if (card) Sound.mapAdd();           // a card shuffled into the deck
       renderProgressionMap();
       if (card) avatarCollect([card]);   // the card flies from the node into the box
-      Tutorial.onMapNodeResolved();      // TUT2: the deck grew in place → next leg's bubble
     } else if (node.type === "pack") {
       // A sealed pack: its contents were hidden on the map. Grant the cards, then
       // FLASH-REVEAL them with the SAME store pack-open animation/component; on
@@ -24850,7 +24153,6 @@ const UIRenderer = (() => {
         renderProgressionMap();
         if (gained.length) avatarCollect(gained);
         if (blanks > 0) openMapBlankRemove(blanks);
-        Tutorial.onMapNodeResolved();   // TUT2: the deck grew in place → next leg's bubble
         return;
       }
       renderProgressionMap();   // mark the node done behind the reveal
@@ -24858,7 +24160,6 @@ const UIRenderer = (() => {
       openMapPackReveal(cards, (items) => {
         Sound.mapAdd(); avatarCollect((items || []).filter(c => c && !c.blank));
         if (blanks > 0) openMapBlankRemove(blanks);
-        Tutorial.onMapNodeResolved();   // TUT2: pack landed → next leg's bubble (after the reveal)
       });   // shuffle-in as they fly home
     } else if (node.type === "store") {
       // Open the shop; it returns to the map on Done (storeStartBtn), which marks
@@ -24968,7 +24269,6 @@ const UIRenderer = (() => {
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
     if (fresh || !campaign.getStoreOffer()) campaign.openStore();
-    Tutorial.seedStoreOffer();   // TUT2: the guided shop's shelf always carries the Bonus Coin sticker
     // The deck-slot character shows in the store — keep its stage mood current
     // (same anxious → hopeful → bright arc as the map).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
@@ -24980,7 +24280,6 @@ const UIRenderer = (() => {
     // suit chart to the accumulated deck, then size the store below the shell.
     renderDeckStrip(); renderSuitCounts(); updateShellHeight();
     updateBoardMotion();   // board covered by the store → pause its card animations
-    Tutorial.onStore();    // first-run tour: the four upgrade kinds, then good luck
   }
 
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
@@ -25400,7 +24699,6 @@ const UIRenderer = (() => {
       const t = reg.get(id);
       if (ok && engine) engine.logAction("Store: bought " + KIND_LABEL[kind] + " " + ((t && t.label) || id) + " → column " + (col + 1));
       try { Telem.purchase(kind, id, t && t.label); Telem.flush(); } catch (e) {}
-      if (ok && kind === "pillar") Tutorial.onPillarPlaced(id);   // TUT2: forced Guardian placed → explain-only bubbles
     }
     persistCampaign("store");
     closeStoreDetail();
@@ -25591,7 +24889,6 @@ const UIRenderer = (() => {
     // any other renderStore caller's checkpoint.
     if (suppressStorePersistOnce) suppressStorePersistOnce = false;
     else persistCampaign("store");
-    Tutorial.onStoreRender();   // TUT2: the shelf was rebuilt → re-stamp the gate's .tut-allow
   }
   // Slot count the UI mirrors from the items.js store config (single source).
   const STORE_SLOTS = ItemData.store.slots;
@@ -26101,7 +25398,6 @@ const UIRenderer = (() => {
     renderStickerApplyCards();
     DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
     el.stickerApplyModal.classList.remove("hidden");
-    Tutorial.onStickerPicker();   // TUT2: "stick it on a heart" nudge during the forced buy
   }
   /* REMOVE mode (map Blank): the player picks any deck card and it's permanently
      removed — the deck shrinks by one. Chained once per Blank when a map pack
@@ -26392,7 +25688,6 @@ const UIRenderer = (() => {
         Sound.purchase();
         persistCampaign("store");   // the ONE save for this apply — kept synchronous on the tap
         savedOnTap = true;
-        Tutorial.onStickerApplied(pendingApplyStickerId);   // TUT2: the forced Bonus Coin landed → teach Refresh
         // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
         // shows its change IN PLACE before the picker leaves: repaint the grid
         // (the changed card re-renders — and may re-sort — to its NEW face),
@@ -26690,7 +25985,6 @@ const UIRenderer = (() => {
     }
     const ok = kind === "pillar" ? campaign.placePillar(id, col) : campaign.placeBase(id, col);
     if (ok && engine) engine.logAction("Placed " + KIND_LABEL[kind] + " " + ((reg.get(id) || {}).label || id) + " on column " + (col + 1));
-    if (ok && kind === "pillar") Tutorial.onPillarPlaced(id);   // TUT2: Guardian placed via the queue path counts too
     Sound.purchase();
     persistCampaign("store");
     el.itemPlaceModal.classList.add("hidden");
@@ -26731,9 +26025,7 @@ const UIRenderer = (() => {
   function rerollUI() {
     // Refresh spends coins on tap → it confirms through the shared bottom
     // prompt bar (lifted over the store via body.store-confirm), like the
-    // sell confirm. ONE exception: the tutorial's taught Refresh is a gated,
-    // forced tap — prompting there would stall the tour, so it fires direct.
-    if (Tutorial.guidedRerollPending && Tutorial.guidedRerollPending()) { doReroll(); return; }
+    // sell confirm.
     if (campaign.getCoins() < campaign.storeRerollCost()) return;   // unaffordable (the button shows it)
     document.body.classList.add("store-confirm");
     showActionBar("Refresh the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
@@ -26753,7 +26045,6 @@ const UIRenderer = (() => {
   }
   function doReroll() {
     if (campaign.rerollStore()) {
-      Tutorial.onStoreRerolled();   // TUT2: taught Refresh — seed the Guardian BEFORE the shelf paints
       Sound.refresh();           // whoosh-ding on a store refresh
       selectedStickerSlot = null; selectedMixedSlot = null;
       el.storeMsg.textContent = "Refreshed the offer.";
@@ -27230,6 +26521,43 @@ const UIRenderer = (() => {
     return counts;
   }
 
+  /* CAMPAIGN UNLOCK — new players meet the campaign only after the tutorial
+     plus one real Zen session (the tutorial IS a Zen deal now, so the game
+     teaches itself inside free play). The pref stamps once and stays stamped:
+     the Play/New Run button appears on the main menu from then on. Returning
+     players are grandfathered by migrateCampaignUnlock() at boot. */
+  const CAMPAIGN_UNLOCK_PREF = "campaignUnlocked";
+  function campaignUnlocked() { return SaveStore.getPref(CAMPAIGN_UNLOCK_PREF) === "1"; }
+  /** Counted Zen games across every difficulty (a game counts at its first
+      guess — dealing and backing out never count). */
+  function zenGamesPlayed() {
+    let n = 0;
+    try {
+      for (const id of DifficultyData.zenIds) n += ZenStats.get(id).games;
+    } catch (e) { /* corrupt store reads as none */ }
+    return n;
+  }
+  /** Stamp the unlock once BOTH halves of the first-launch flow are done:
+      the tutorial (pref tutorial2, stamped by Tutorial.end() — skip counts)
+      and ≥1 counted Zen game. Called at every Zen exit point; a no-op once
+      stamped. */
+  function maybeUnlockCampaign() {
+    if (campaignUnlocked()) return;
+    if (SaveStore.getPref("tutorial2") !== "1") return;
+    if (zenGamesPlayed() > 0) SaveStore.setPref(CAMPAIGN_UNLOCK_PREF, "1");
+  }
+  /** Boot migration — anyone with EXISTING progress predates the gate and
+      keeps the campaign: a campaign save, a done tutorial, any counted
+      campaign run, or any counted Zen game all stamp the pref. */
+  function migrateCampaignUnlock(saved) {
+    if (campaignUnlocked()) return;
+    try {
+      if ((saved && saved.campaign) || SaveStore.getPref("tutorial2") === "1"
+          || Stats.get().gamesPlayed > 0 || zenGamesPlayed() > 0)
+        SaveStore.setPref(CAMPAIGN_UNLOCK_PREF, "1");
+    } catch (e) { /* a corrupt store simply leaves the gate closed */ }
+  }
+
   /* ZEN DIFFICULTY PAGE (#zenSelect) — a full-screen menu-screen on the
      #deckSelect pattern (corner Back, opaque felt), replacing the old
      prompt-bar picker. One entry per difficulty.js zen id, every number
@@ -27335,6 +26663,8 @@ const UIRenderer = (() => {
      coins, no streaks — showOverlay hides those sections when unset. */
   function onZenEnd(result, payload) {
     DeckInspector.close();
+    Tutorial.onZenDealEnd(result);   // first-run flow: the "go explore" beat after the guided deal
+    maybeUnlockCampaign();           // tutorial done + ≥1 counted Zen game → Play appears
     const won = result === "win";
     const alive = payload.board.aliveCount();
     // Draw pile left at the death (loss) — the killing draw already resolved,
@@ -27408,11 +26738,13 @@ const UIRenderer = (() => {
   /** Leave Zen (quit/menu). Purely navigational — the campaign save was never
       touched, so Continue works exactly as before the session. */
   function zenTeardown() {
+    Tutorial.suspend();   // a mid-tour exit never leaves a bubble over the menu (no stamp)
     zenMode = null;
     document.body.classList.remove("zen-mode");
     hideActionBar();
   }
   function zenQuitToMenu() {
+    maybeUnlockCampaign();   // a counted Zen game + done tutorial unlocks Play even on a mid-game exit
     zenTeardown();
     savedSnapshot = SaveStore.load();
     showMainMenu(!!(savedSnapshot && savedSnapshot.campaign));
@@ -27461,17 +26793,28 @@ const UIRenderer = (() => {
     el.board.classList.remove("show-slots");   // no setup slot row on the menu backdrop
     const items = [];
     if (canContinue) items.push({ label: "Continue", ico: "win", cls: "primary", action: () => { hideMainMenu(); resumeSavedGame(); } });
-    items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
-      action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
+    // FIRST-LAUNCH GATE: the campaign appears only after the tutorial + one
+    // counted Zen session (campaignUnlocked). Until then Zen is the whole
+    // menu — the game teaches itself inside free play first.
+    if (campaignUnlocked())
+      items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
+        action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
     // ZEN — the standalone higher/lower game. The difficulty choice is its
     // own full-screen page (#zenSelect, the deck-select pattern): Easy is
     // always open, later difficulties unlock down the win ladder; Back
     // returns here with Continue preserved.
-    items.push({ label: "Zen", ico: "swirl", action: () => { hideMainMenu(); showZenSelect(canContinue); } });
+    items.push({ label: "Zen", ico: "swirl", cls: campaignUnlocked() ? "" : "primary",
+      action: () => { hideMainMenu(); showZenSelect(canContinue); } });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
     buildMenu(el.menuButtons, items);
+    if (!campaignUnlocked()) {
+      const note = document.createElement("div");
+      note.className = "menu-note";
+      note.textContent = "New here? Start with Zen — the climb home unlocks after your first visit.";
+      el.menuButtons.appendChild(note);
+    }
     el.menuFoot.textContent = "build " + APP_VERSION;
     el.mainMenu.classList.remove("hidden");
     updateBoardMotion();   // board covered by the main menu → pause its card animations
@@ -27533,7 +26876,7 @@ const UIRenderer = (() => {
   function closeGameMenu() { closeMenuConfirm(); el.gameMenu.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
   function quitToMenu() {
     closeGameMenu();
-    if (zenMode) zenTeardown();   // leaving Zen — the campaign save was never touched
+    if (zenMode) { maybeUnlockCampaign(); zenTeardown(); }   // leaving Zen — the campaign save was never touched
     // Navigational only: the existing checkpoint (sticker phase / store) stays in
     // localStorage, so "Continue" resumes it. No game state is mutated here.
     savedSnapshot = SaveStore.load();
@@ -27991,21 +27334,16 @@ const UIRenderer = (() => {
           "</div>" +
         "</div>" +
         // Secondary action: re-run the guided tour on demand (never the primary
-        // control). The save-safety confirm renders below it, in place.
+        // control). Replay routes into a ZEN deal — it never touches the
+        // campaign save, so no confirm is needed.
         '<div class="wt-replay-row"><button class="wt-replay" id="wtReplay" type="button">' +
           '<span class="ico">' + glyph("reroll") + "</span>Replay tutorial</button></div>" +
-        '<div class="wt-confirm hidden" id="wtConfirm"><div class="wtc-q" id="wtConfirmQ"></div>' +
-          '<div class="wtc-btns">' +
-            '<button class="wt-btn" id="wtConfirmNo" type="button">Cancel</button>' +
-            '<button class="wt-btn primary" id="wtConfirmYes" type="button">Continue</button>' +
-          "</div></div>" +
       "</div>";
 
     const pick = id => document.getElementById(id);
     const stage = pick("wtStage"), art = pick("wtArt"), cap = pick("wtCap"),
       dots = pick("wtDots"), back = pick("wtBack"), next = pick("wtNext"), skip = pick("wtSkip"),
-      replay = pick("wtReplay"), confirm = pick("wtConfirm"), confirmQ = pick("wtConfirmQ"),
-      confirmNo = pick("wtConfirmNo"), confirmYes = pick("wtConfirmYes");
+      replay = pick("wtReplay");
     dots.innerHTML = slides.map(() => '<span class="wt-dot"></span>').join("");
     const dotEls = dots.querySelectorAll(".wt-dot");
 
@@ -28029,39 +27367,21 @@ const UIRenderer = (() => {
     back.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); go(-1); });
     skip.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); closeManual(); });
 
-    // REPLAY TUTORIAL (D4). Starting a fresh run runs through startCampaign,
-    // which clearSave()s unconditionally — so when a Continue save or a live
-    // in-progress deal would be destroyed, first raise the bottom-bar confirm
-    // (rendered in place, below the nav). No confirm when there's nothing to
-    // lose. Zen state is never involved (the manual isn't reached from Zen).
-    const replayWouldDestroy = () => {
-      if (zenMode) return false;
-      const saved = SaveStore.load();
-      if (saved && saved.campaign) return true;   // a Continue save exists
-      return !!engine;                             // a live deal mid-run (in-game menu)
-    };
+    // REPLAY TUTORIAL (D4). The tour lives inside a ZEN deal now, so replay
+    // routes through the Zen difficulty page exactly like a first-timer —
+    // Zen never touches the campaign save (no confirm, nothing to lose).
     const beginReplay = () => {
       // Leave the manual and any menu behind it, arm the one-shot tour, then
-      // route through deck select exactly like a first-timer (meet Pinky →
-      // startCampaign → pinned seed 18). The save (if any) is still intact here
-      // — startCampaign's own clearSave fires only once a deck is chosen.
+      // open Zen select. Continue stays preserved: the save is intact and
+      // startZenDeal never writes it.
       el.manualOverlay.classList.add("hidden");
       manualOnClose = null;
       hideMainMenu();
       closeGameMenu();
-      const saved = SaveStore.load();
       Tutorial.armReplay();
-      showDeckSelect(!!(saved && saved.campaign));
+      showZenSelect(!!(savedSnapshot && savedSnapshot.campaign));
     };
-    replay.addEventListener("click", e => {
-      e.stopPropagation(); Sound.tap();
-      if (replayWouldDestroy()) {
-        confirmQ.textContent = "Replaying the tutorial starts a fresh run and ends your current campaign. Continue?";
-        confirm.classList.remove("hidden");
-      } else beginReplay();
-    });
-    confirmNo.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); confirm.classList.add("hidden"); });
-    confirmYes.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); beginReplay(); });
+    replay.addEventListener("click", e => { e.stopPropagation(); Sound.tap(); beginReplay(); });
 
     render();
     el.manualOverlay.classList.remove("hidden");
@@ -28225,6 +27545,7 @@ const UIRenderer = (() => {
       clearSave();   // missing/incompatible (restore returned false) — discard it
     }
     updateStageRun();   // reflect restored stage/run/coins
+    migrateCampaignUnlock(saved);   // existing players predate the campaign gate — keep Play visible
     buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
     showMainMenu(canContinue);
 

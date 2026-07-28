@@ -295,7 +295,7 @@ export function run() {
     r.ok(revealedAt !== -1 && modalAt !== -1 && revealedAt < modalAt,
       "finishResolveNode branches on the committed pair BEFORE the sealed reveal modal");
     const branch = fin.slice(revealedAt, modalAt);
-    for (const call of ["flashDeckGain(", "Sound.mapAdd()", "avatarCollect(", "openMapBlankRemove(", "Tutorial.onMapNodeResolved()", "return;"]) {
+    for (const call of ["flashDeckGain(", "Sound.mapAdd()", "avatarCollect(", "openMapBlankRemove(", "return;"]) {
       r.ok(branch.includes(call), "revealed-pack arrival keeps the +1 pickup convention: " + call);
     }
     const key = fnBody(src, "renderMapKey");

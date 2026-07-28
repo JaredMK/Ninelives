@@ -172,10 +172,10 @@ export function run() {
       "openStoreDetail hides Sell in every offer branch (defensive ordering)");
   }
 
-  // --- NON-GOAL guard: the tutorial store gate still inerts the chips --------
+  // --- NON-GOAL guard: the tutorial store gate is retired (Zen-first tour) ---
   {
-    r.ok(/body\.tut-gate-store #storeOverlay \.lo-chip \{ pointer-events: none; \}/.test(html),
-      "body.tut-gate-store keeps .lo-chip pointer-events:none (Sell unreachable in the gate)");
+    r.ok(!html.includes("tut-gate-store"),
+      "the guided-store gate CSS is gone — the Zen-first tour never enters the store");
   }
 
   // --- R4/R6/R8) Behavioral: the confirmed primitive sequence, per kind ------

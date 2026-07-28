@@ -1,11 +1,10 @@
-// TUT4 — tutorial clarity/accuracy rework + How to Play manual + the
-// "Replay tutorial" button. The bubble/gate choreography and DOM anchoring
-// are UI-side, so this suite covers what can be verified DOM-free: the
-// tutorial.js copy edits (tie rule, top-card comparison, home goal), the
-// mapCardNode anchor no longer falling back to Pinky, the seed-18 map
-// structurally carrying a card node for that anchor, the manual's new
-// claims, and the Replay button's one-shot arm + save-safety confirm wiring.
-// Registry/seed-driven: the pinned seed and map come from live data.
+// TUT4 — Zen-first tutorial copy + How to Play manual + the "Replay tutorial"
+// button. The bubble choreography and DOM anchoring are UI-side, so this
+// suite covers what can be verified DOM-free: the tutorial.js copy (core
+// mechanics ONLY — no campaign concepts), the group shape (deal: 7, zenEnd:
+// 1), the manual's claims, and the Replay button's one-shot arm + its
+// non-destructive reroute into Zen (the old save-safety confirm is gone —
+// Zen never touches the campaign save).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -30,108 +29,85 @@ function tutorialSrc(src) {
 export function run() {
   const r = makeRunner("tut4.test.mjs");
   const g = loadGame();
-  const { RunMap, CampaignState, TutorialData } = g;
+  const { TutorialData } = g;
   const src = gameScript();
   const tut = tutorialSrc(src);
   const html = readFileSync(join(HERE, "..", "index.html"), "utf8");
   const G = TutorialData.groups;
 
-  // ---- D1: tutorial copy teaches the M-rules the naive gate needs ----------
+  // ---- group shape ----------------------------------------------------------
   {
-    // M1 — a guess is Higher/Lower/Same vs the pile's TOP card.
-    r.ok(/top card/i.test(G.deal[1].text),
-      "deal[1] names the pile's TOP card as the comparison target (M1)");
-    // M2 — a tie kills a directional (Higher/Lower) guess. Taught at the Same
-    // shield bubble (which rings #hudSame), so ties are never 'close enough'.
-    r.ok(/tie/i.test(G.deal[3].text) && G.deal[3].anchor === "sameShield",
-      "deal[3] teaches that a TIE kills a Higher/Lower guess (M2), on the Same-shield anchor");
-    // M2 — a wrong guess kills the pile; M3 — survive the whole deck to win.
+    r.eq(G.deal.length, 7, "the guided deal teaches in exactly 7 bubbles");
+    r.eq(G.zenEnd.length, 1, "the deal-end beat is a single bubble");
+    r.eq(Object.keys(G).length, 2, "…and those are the ONLY groups (no campaign tour remains)");
+    r.eq(TutorialData.problems.length, 0, "tutorial.js validates with zero problems");
+  }
+
+  // ---- the deal copy teaches the core mechanics (M-rules) -------------------
+  {
+    // M0 — the goal: keep piles alive.
+    r.ok(/survive/i.test(G.deal[0].text) && G.deal[0].anchor === "dealBoard",
+      "deal[0] frames survival as the goal, on the board anchor");
+    // M1 — a guess is Higher/Lower/Same vs the pile's TOP card; swipe input.
+    r.ok(/top card/i.test(G.deal[1].text) && /swipe/i.test(G.deal[1].text),
+      "deal[1] names the pile's TOP card as the comparison target and teaches the swipe (M1)");
+    // M2/M3 — wrong kills the pile; beat the whole deck to win.
     r.ok(/dies/i.test(G.deal[2].text) && /whole deck/i.test(G.deal[2].text),
-      "deal[2] teaches wrong→pile dies (M2) and survive the whole deck to win (M3)");
-    // M4 — coins = surviving piles × smallest pile.
-    r.ok(G.coins[0].text.includes("surviving piles × smallest pile"),
-      "coins[0] teaches the payout formula (M4)");
-    // M5 — the run is a climb up a map to Pinky's home (mama at the top).
-    r.ok(/mama/i.test(G.map1[0].text) && /win the run/i.test(G.map1[0].text),
-      "map1[0] frames the climb to mama at the top as the win condition (M5)");
-    // M6 — the deck grows as you climb (card nodes) → harder deals.
-    r.ok(/grow/i.test(G.map1[1].text) && /deck/i.test(G.map1[1].text),
-      "map1[1] teaches that card nodes grow the deck → harder deals (M6)");
+      "deal[2] teaches wrong→pile dies (M2) and beat the whole deck (M3)");
+    // M4 — a tie kills a directional guess; a correct Same charges the shield.
+    r.ok(/tie kills/i.test(G.deal[3].text) && G.deal[3].anchor === "sameShield",
+      "deal[3] teaches that a TIE kills a Higher/Lower guess (M4), on the Same-shield anchor");
+    // M5 — Ace is HIGH, 2 is low (the two never-guess edges).
+    r.ok(G.deal[4].text.includes("Ace is *high*") && /never guess Higher/i.test(G.deal[4].text)
+      && /never guess Lower/i.test(G.deal[4].text),
+      "deal[4] teaches Ace-high and the 2-low edge (M5)");
+    // M6 — the histogram reads what's left in the deck.
+    r.ok(/histogram/i.test(G.deal[5].text) && G.deal[5].anchor === "dealHistogram",
+      "deal[5] teaches the histogram (M6), on the histogram-band anchor");
+    // The send-off.
+    r.eq(G.deal[6].button, "Go", "the last deal bubble's button is 'Go'");
+    r.ok(/Your turn/i.test(G.deal[6].text), "the last deal bubble hands over: 'Your turn'");
+    // The deal-end beat names what unlocks without pushing the player out.
+    r.ok(/climb home/i.test(G.zenEnd[0].text) && /menu/i.test(G.zenEnd[0].text),
+      "zenEnd names the climb home on the menu");
+    r.ok(/stay as long as you like/i.test(G.zenEnd[0].text),
+      "zenEnd invites free Zen play to continue (no prompt to leave)");
   }
 
-  // ---- D1: mapCardNode anchor never rings Pinky ----------------------------
+  // ---- NO campaign concepts in the teaching phase ---------------------------
   {
-    // The resolver dropped its `|| $(".map-avatar")` fallback: with no card
-    // node it now centers (arrowless), never rings PINKY under card-node copy.
-    r.ok(/mapCardNode:\s+\(\) => \$\("\.pm-node\.t-pickup, \.pm-node\.t-pack"\),/.test(tut),
-      "mapCardNode resolves to a pickup/pack node with NO avatar fallback");
-    r.ok(!/mapCardNode[\s\S]{0,80}map-avatar/.test(tut),
-      "mapCardNode no longer falls back to the map avatar (Pinky)");
-    // A2: on the pinned seed the map STRUCTURALLY carries a card/pack node low
-    // on the trail, so the anchor resolves to a real card node (not null).
-    const t = CampaignState.create();
-    t.setTutorialRun(true);
-    t.reset();
-    r.eq(t.serialize().runSeed, TutorialData.seed, "the tutorial run rides the pinned seed");
-    const map = t.getMap();
-    const cardNodes = map.nodes.filter(n => n.type === "pickup" || n.type === "pack");
-    r.ok(cardNodes.length > 0, "the pinned seed's map has card/pack nodes for mapCardNode to ring");
-    const lowRow = Math.min.apply(null, cardNodes.map(n => n.row));
-    r.ok(lowRow <= 3, "a card/pack node sits low on the trail (row " + lowRow + "), near the opening render");
-    // Strict guided chain still opens (closed environment preserved).
-    r.ok(RunMap.tutorialPathStrict(map), "the pinned seed still opens with the strict guided chain");
+    for (const [i, s] of G.deal.entries()) {
+      for (const word of ["store", "shop", "coin", "sticker", "pillar", "map", "campaign", "deck character"])
+        r.ok(!s.text.toLowerCase().includes(word),
+          "deal[" + i + "] carries no campaign concept: '" + word + "'");
+    }
+    // Anchors are all deal-screen elements — nothing from the map or store.
+    for (const s of G.deal)
+      r.ok(s.anchor == null || ["dealBoard", "dealPile", "dealDeckChar", "sameShield", "dealHistogram"].includes(s.anchor),
+        "every deal anchor is a play-screen element (saw: " + s.anchor + ")");
   }
 
-  // ---- D1: bubble counts unchanged (no re-architecture) --------------------
-  {
-    const expect = { pinky: 1, map1: 3, deal: 5, coins: 2, toStore: 1,
-      shopC: 2, shopD: 1, shopE: 1, shopF: 3, stickerPicker: 1, toPickup: 1, grew: 2 };
-    for (const k in expect)
-      r.eq(G[k].length, expect[k], "group '" + k + "' keeps its step count (" + expect[k] + ")");
-    r.eq(TutorialData.problems.length, 0, "tutorial.js still validates with zero problems");
-  }
-
-  // ---- D4: Replay tutorial — one-shot arm, pref untouched ------------------
-  {
-    r.ok(/function shouldRun\(\) \{ return replayArmed \|\| SaveStore\.getPref\(PREF\) !== "1"; \}/.test(tut),
-      "shouldRun() is overridden by the one-shot replayArmed flag");
-    r.ok(/armReplay\(\) \{ replayArmed = true; \}/.test(tut),
-      "the module exposes armReplay() to set the one-shot flag");
-    // The one-shot is consumed as the replay campaign arms — never stamps the pref.
-    const onNew = tut.slice(tut.indexOf("onNewCampaign()"), tut.indexOf("onDeckSelect()"));
-    r.ok(onNew.includes("active = shouldRun();") && onNew.includes("replayArmed = false;"),
-      "onNewCampaign consumes the one-shot after reading shouldRun (exactly one replay)");
-    const stamps = (tut.match(/SaveStore\.setPref\(PREF, "1"\)/g) || []).length;
-    r.eq(stamps, 1, "still exactly one pref stamp site — replay never touches tutorial2 stamping");
-    r.ok(!/replayArmed[\s\S]{0,40}setPref/.test(tut), "arming a replay stamps nothing");
-  }
-
-  // ---- D4: manual Replay button + bottom-bar save-safety confirm -----------
+  // ---- Replay tutorial — one-shot arm, non-destructive Zen reroute ----------
   {
     r.ok(html.includes('id="wtReplay"') && html.includes("Replay tutorial"),
       "the manual carries a labelled 'Replay tutorial' button");
     r.ok(html.includes('class="wt-replay"') && !/wt-replay[^>]*primary/.test(html),
       "the Replay button is a secondary control (not the primary Next/Got it)");
-    r.ok(html.includes("Replaying the tutorial starts a fresh run and ends your current campaign. Continue?"),
-      "the exact save-safety confirm question is present");
-    // Destructive check: a Continue save OR a live deal → confirm; zen is exempt.
-    r.ok(/replayWouldDestroy = \(\) => \{[\s\S]*?zenMode[\s\S]*?saved\.campaign[\s\S]*?!!engine/.test(html),
-      "replayWouldDestroy consults a Continue save + a live engine, and exempts Zen");
-    // beginReplay arms the tour and routes through deck select like a first-timer;
-    // it does NOT call startCampaign directly (clearSave stays deferred to Start).
     const begin = html.slice(html.indexOf("const beginReplay"), html.indexOf("replay.addEventListener"));
-    r.ok(begin.includes("Tutorial.armReplay()") && begin.includes("showDeckSelect("),
-      "beginReplay arms the one-shot tour and routes through deck select");
-    r.ok(!begin.includes("startCampaign(") && !begin.includes("clearSave("),
-      "beginReplay never starts a campaign or clears the save itself (deferred to Start Run)");
-    // Cancel just hides the confirm — save intact, no campaign.
-    r.ok(/confirmNo\.addEventListener\("click", e => \{[^}]*confirm\.classList\.add\("hidden"\)/.test(html),
-      "Cancel hides the confirm bar and starts nothing (save intact)");
-    r.ok(/confirmYes\.addEventListener\("click", e => \{[^}]*beginReplay\(\)/.test(html),
-      "Continue proceeds via beginReplay");
+    r.ok(begin.includes("Tutorial.armReplay()"), "beginReplay arms the one-shot tour");
+    r.ok(begin.includes("showZenSelect("), "beginReplay routes into ZEN (the tour lives in a Zen deal now)");
+    r.ok(!begin.includes("startCampaign(") && !begin.includes("clearSave(") && !begin.includes("showDeckSelect("),
+      "beginReplay never starts a campaign, clears a save, or touches deck select");
+    // The old save-safety confirm is retired: replay can destroy nothing.
+    r.ok(!html.includes("replayWouldDestroy") && !html.includes("wtConfirm"),
+      "no destructive-replay confirm remains (Zen never touches the campaign save)");
+    r.ok(!html.includes("Replaying the tutorial starts a fresh run"),
+      "the old 'starts a fresh run' confirm copy is gone");
+    r.ok(/replay\.addEventListener\("click", e => \{ e\.stopPropagation\(\); Sound\.tap\(\); beginReplay\(\); \}\)/.test(html),
+      "the Replay button calls beginReplay directly (no confirm branch)");
   }
 
-  // ---- D3: How to Play manual states the current game ----------------------
+  // ---- How to Play manual states the current game ---------------------------
   {
     const body = html.slice(html.indexOf("function showManual"), html.indexOf("function closeManual"));
     r.ok(/tie[\s\S]{0,40}kills/i.test(body) || /kills[\s\S]{0,40}Higher or Lower/i.test(body),
