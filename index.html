@@ -7069,10 +7069,23 @@ function track(name, params) {
    purchased, coins, coinsLost, buried, peeks, saves, copies, applied, killed,
    shuffled, revived, moved, destroyed } } }. `klass` ∈ sticker|pillar|base. */
 const Telem = (() => {
-  const KEY = "mnesis.telem.v1";
+  const KEY = "ninelives.telem.v1";
+  const OLD_KEY = "mnesis.telem.v1";   // pre-prefix key — migrated once in load()
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
   let mem, dirty = false;
   (function load() {
+    // One-time key migration (see Stats): the old mnesis.* key never reached
+    // Capacitor Preferences on iOS; move the blob onto the mirrored ninelives.*
+    // key, then drop the old one.
+    try {
+      if (ok()) {
+        const old = localStorage.getItem(OLD_KEY);
+        if (old != null) {
+          if (localStorage.getItem(KEY) == null) localStorage.setItem(KEY, old);
+          localStorage.removeItem(OLD_KEY);
+        }
+      }
+    } catch (e) { /* ignore */ }
     try {
       const raw = ok() ? localStorage.getItem(KEY) : null;
       mem = raw ? JSON.parse(raw) : null;
@@ -14485,7 +14498,8 @@ const SaveStore = (() => {
    silent no-op where localStorage is unavailable.
 ---------------------------------------------------------------- */
 const Stats = (() => {
-  const KEY = "mnesis.stats.v1";
+  const KEY = "ninelives.stats.v1";
+  const OLD_KEY = "mnesis.stats.v1";   // pre-prefix key — migrated once below
   const DEF = {
     gamesPlayed: 0, campaignsWon: 0, runsCleared: 0,
     bestRunDopamine: 0, bestCampaignDopamine: 0,
@@ -14501,6 +14515,21 @@ const Stats = (() => {
     deckTierWins: {},
   };
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  // One-time key migration: this store predates the ninelives.* prefix, which
+  // the native bridge (NativeApp) exclusively mirrors to Capacitor Preferences —
+  // under the old key the lifetime record never left webview storage on iOS.
+  // Move the old blob over, then drop the old key; the ninelives.* write rides
+  // the write-through. Runs before any get/put.
+  (function migrate() {
+    if (!ok()) return;
+    try {
+      const old = localStorage.getItem(OLD_KEY);
+      if (old != null) {
+        if (localStorage.getItem(KEY) == null) localStorage.setItem(KEY, old);
+        localStorage.removeItem(OLD_KEY);
+      }
+    } catch (e) { /* ignore */ }
+  })();
   function get() {
     if (!ok()) return { ...DEF };
     try { return { ...DEF, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }

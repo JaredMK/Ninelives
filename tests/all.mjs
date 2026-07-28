@@ -58,6 +58,7 @@ import { run as tut4 } from "./tut4.test.mjs";
 import { run as stklag1 } from "./stklag1.test.mjs";
 import { run as stklag2 } from "./stklag2.test.mjs";
 import { run as stklag3 } from "./stklag3.test.mjs";
+import { run as storageKeys } from "./storage-keys.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -116,6 +117,7 @@ const SUITES = [
   ["stklag1", stklag1],
   ["stklag2", stklag2],
   ["stklag3", stklag3],
+  ["storage-keys", storageKeys],
 ];
 
 let pass = 0,

@@ -290,7 +290,7 @@ export function run() {
       "absent zen-stats key reads as zeros + empty distributions");
     // Campaign Stats baseline FIRST — Zen recording must never move it.
     Stats.runPlayed();
-    const campaignStatsBefore = storage.getItem("mnesis.stats.v1");
+    const campaignStatsBefore = storage.getItem("ninelives.stats.v1");
     // Record a small Zen session on the first difficulty.
     ZenStats.gamePlayed(ids[0]);
     ZenStats.guess(ids[0], true);
@@ -307,7 +307,7 @@ export function run() {
       JSON.stringify({ games: 0, wins: 0, cardsFlipped: 0, correctGuesses: 0, winPiles: {}, lossCards: {} }),
       "recording on one difficulty never moves another");
     // Campaign stats blob is byte-identical after the Zen recording.
-    r.eq(storage.getItem("mnesis.stats.v1"), campaignStatsBefore,
+    r.eq(storage.getItem("ninelives.stats.v1"), campaignStatsBefore,
       "campaign Stats blob byte-identical after Zen recording");
     r.ok(storage.getItem("ninelives.zenstats.v1") !== null, "zen stats persist under their own ninelives.* key");
     // Round-trip: a SECOND load over the same storage reads the same numbers.
@@ -377,7 +377,7 @@ export function run() {
     const camp = CampaignState.create();
     camp.reset();
     const campBefore = JSON.stringify(camp.serialize());
-    const statsBefore = storage.getItem("mnesis.stats.v1");
+    const statsBefore = storage.getItem("ninelives.stats.v1");
     // Play one COMPLETE Zen game to a win (with the ZenStats recording the
     // Zen UI performs), on the last (hardest) difficulty.
     const id = DifficultyData.zenIds[DifficultyData.zenIds.length - 1];
@@ -398,7 +398,7 @@ export function run() {
     ZenStats.win(id);
     r.eq(JSON.stringify(camp.serialize()), campBefore,
       "campaign serialize() byte-identical after a full Zen game");
-    r.eq(storage.getItem("mnesis.stats.v1"), statsBefore,
+    r.eq(storage.getItem("ninelives.stats.v1"), statsBefore,
       "campaign Stats storage untouched by the full Zen game");
     r.ok(ZenStats.get(id).games === 1 && ZenStats.get(id).wins === 1,
       "…while the ZEN record moved as expected");
