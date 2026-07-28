@@ -6988,7 +6988,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.01 · swap-picker taps can't double-fire mid-close";
+const APP_VERSION = "v5.02 · map generation: cached, chunked, 10× faster";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8289,6 +8289,12 @@ const RunMap = (() => {
     relaxBandStep: 0.15,         // each step lifts the boss band TOP by this much
                                  // (logged as a warning — some entry decks are
                                  // arithmetically outside the strict band)
+    seedLadderRungs: 8,          // genVersion ≥ 2 only: when a stage exhausts the
+                                 // whole attempt×relax ladder, retry it at up to
+                                 // this many DERIVED seeds (hash(seed, rung))
+                                 // before accepting a best-effort map. Gated by
+                                 // genVersion because saves REGENERATE their map
+                                 // from the saved seed — see generateStage.
     maxRoutes: 40000,            // route-enumeration safety cap
   };
   const MAP_CONFIG = GEN_CONFIG;  // legacy alias (CampaignState reads phaseSuits/startSuit)
@@ -8787,13 +8793,32 @@ const RunMap = (() => {
     const body = all.filter(n => n.row < bossRow);
     const firstRowDeal = phaseIndex === 0;   // stage 0 opens on the run's first deal(s)
 
+    // ── PER-ROUTE SUM CACHE (output-preserving speed): the repair loops below
+    //    used to recompute every route's card total / deal count by re-walking
+    //    the whole route list on every pass — O(routes × length × passes), the
+    //    dominant cost of a build attempt (and of the master/legendary tiers'
+    //    doomed attempts, which run every repair to its cap). Every node
+    //    TYPE/ADD mutation now flows through noteChange, which keeps per-route
+    //    sums incrementally instead. Values, selection order and rng draws are
+    //    IDENTICAL to the re-walk — this is a pure cost change (the equivalence
+    //    is locked by the mapgen1 hash tests). Armed when ROUTES is enumerated;
+    //    mutations before that (type rolls, vetoes) predate any route sums. ──
+    let routesAt = null, cardSum = null, dealCnt = null;
+    const noteChange = (n, fn) => {
+      if (!routesAt) { fn(); return; }
+      const a0 = addOf(n), d0 = n.type === "deal" ? 1 : 0;
+      fn();
+      const dA = addOf(n) - a0, dD = (n.type === "deal" ? 1 : 0) - d0;
+      if (dA || dD) for (const i of routesAt[n.id]) { cardSum[i] += dA; dealCnt[i] += dD; }
+    };
+
     // ── roll types (DEAL/PACK/CARD); stage-0 row-0 forced to deal ──
-    const setType = (n, t) => {
+    const setType = (n, t) => noteChange(n, () => {
       n.type = t;
       if (t === "pack") { n.packCount = wpick(rng, C.packWeights); n.add = n.packCount; n.suit = suit; n.mixed = false; }
       else if (t === "card") { n.type = "pickup"; n.add = 1; n.suit = suit; n.mixed = false; delete n.packCount; }
       else { delete n.add; delete n.packCount; if (t === "deal") n.suit = suit; }
-    };
+    });
     body.forEach(n => {
       if (firstRowDeal && n.row === 0) { setType(n, "deal"); return; }
       setType(n, rollType(rng));
@@ -8842,15 +8867,24 @@ const RunMap = (() => {
       const rts = []; const walk = (id, path) => { path.push(id); const nx = byId[id].next; if (!nx.length) rts.push(path.slice()); else nx.forEach(t => walk(t, path)); path.pop(); };
       rowsArr[0].forEach(l => walk(cellId["0:" + l], [])); return rts;
     })();
-    const localRoutes = () => ROUTES;
-    const dealCount = (rt) => rt.reduce((s, id) => s + (byId[id].type === "deal" ? 1 : 0), 0);
+    // Arm the sum cache (see noteChange above): routesAt[id] = the route
+    // indices crossing node id; cardSum/dealCnt = each route's live totals.
+    routesAt = {}; all.forEach(n => routesAt[n.id] = []);
+    cardSum = new Array(ROUTES.length); dealCnt = new Array(ROUTES.length);
+    ROUTES.forEach((rt, i) => {
+      let cs = 0, dc = 0;
+      for (const id of rt) { routesAt[id].push(i); cs += addOf(byId[id]); dc += byId[id].type === "deal" ? 1 : 0; }
+      cardSum[i] = cs; dealCnt[i] = dc;
+    });
     // Cap the repair target at 4 (not the hard max 5): a 5-deal route with a
     // store stop leaves too few card slots to clear the 11-card floor.
     const dealCap = Math.min(4, C.dealsPerRouteMax);
     for (let pass = 0; pass < 60; pass++) {
-      const rts = localRoutes();
-      const over = rts.filter(rt => dealCount(rt) > dealCap);
-      const under = rts.filter(rt => dealCount(rt) < 3);
+      const over = [], under = [];
+      for (let i = 0; i < ROUTES.length; i++) {
+        if (dealCnt[i] > dealCap) over.push(ROUTES[i]);
+        else if (dealCnt[i] < 3) under.push(ROUTES[i]);
+      }
       if (!over.length && !under.length) break;
       if (over.length) {
         const rt = pick(rng, over);
@@ -8889,7 +8923,7 @@ const RunMap = (() => {
     const storeCands = () => body.filter(n => !storeOf(n) && n.type !== "boss" && n.type !== "deal"
       && !(firstRowDeal && n.row === 0)
       && !edgeAdjToStore(n) && !rowHasStore(n.row) && gapOK(n));
-    const makeStore = (n) => { delete n.add; delete n.packCount; delete n.suit; n.type = "store"; };
+    const makeStore = (n) => noteChange(n, () => { delete n.add; delete n.packCount; delete n.suit; n.type = "store"; });
     let placed = 0;
     // GUARANTEED PRE-BOSS SHOP: the last C.preBossStoreRows body rows must end
     // up holding >=1 store, so there's always a shop near the top of the climb
@@ -8921,13 +8955,11 @@ const RunMap = (() => {
     //    the floor repair raises shared nodes (pushing the top up) and the
     //    heavy repair shrinks shared nodes (dragging the floor down), so one
     //    sequential pass of each rarely settles — cycle them. ──
-    const routeCards = (rt) => rt.reduce((s2, id) => s2 + addOf(byId[id]), 0);
-    const raiseNode = (n) => { const nv = addOf(n) + 1; n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false; };
+    const raiseNode = (n) => noteChange(n, () => { const nv = addOf(n) + 1; n.type = "pack"; n.packCount = nv; n.add = nv; n.suit = suit; n.mixed = false; });
     for (let cycle = 0; cycle < 6; cycle++) {
       {
-        const rts0 = localRoutes();
         let lo0 = Infinity, hi0 = -Infinity;
-        for (const rt of rts0) { const c0 = routeCards(rt); if (c0 < lo0) lo0 = c0; if (c0 > hi0) hi0 = c0; }
+        for (let i = 0; i < cardSum.length; i++) { const c0 = cardSum[i]; if (c0 < lo0) lo0 = c0; if (c0 > hi0) hi0 = c0; }
         if (lo0 >= lightTarget && hi0 <= heavyCap) break;   // both ends inside the window
       }
       // ── CARD-FLOOR repair (runs AFTER stores so it sees the real card slots):
@@ -8942,8 +8974,9 @@ const RunMap = (() => {
       {
         const mid = Math.min((lightTarget + heavyCap) / 2, C.maxLightRouteCards + 2);
         for (let pass = 0; pass < 90; pass++) {
-          const rts = localRoutes();
-          const mean = rts.reduce((s2, rt) => s2 + routeCards(rt), 0) / rts.length;
+          let tot = 0;
+          for (let i = 0; i < cardSum.length; i++) tot += cardSum[i];
+          const mean = tot / cardSum.length;
           if (mean >= mid - 0.5) break;
           const cand = body.filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
           if (!cand.length) break;
@@ -8951,24 +8984,24 @@ const RunMap = (() => {
         }
       }
       for (let pass = 0; pass < 120; pass++) {
-        const rts = localRoutes();
-        let lo = Infinity, loRt = null, hi = -Infinity;
-        for (const rt of rts) { const c = routeCards(rt); if (c < lo) { lo = c; loRt = rt; } if (c > hi) hi = c; }
+        let lo = Infinity, loIdx = -1, hi = -Infinity;
+        for (let i = 0; i < cardSum.length; i++) { const c = cardSum[i]; if (c < lo) { lo = c; loIdx = i; } if (c > hi) hi = c; }
         if (lo >= lightTarget) break;
+        const loRt = ROUTES[loIdx];
         let raisable = loRt.map(id => byId[id]).filter(n => (n.type === "pack" || n.type === "pickup") && addOf(n) < C.packMax);
         // prefer raising a node the HEAVIEST routes don't share (don't push the top)
         if (hi >= heavyCap - 1 && raisable.length > 1) {
           const heavyIds = new Set();
-          for (const rt of rts) if (routeCards(rt) >= heavyCap - 1) rt.forEach(id => heavyIds.add(id));
+          for (let i = 0; i < cardSum.length; i++) if (cardSum[i] >= heavyCap - 1) ROUTES[i].forEach(id => heavyIds.add(id));
           const safe = raisable.filter(n => !heavyIds.has(n.id));
           if (safe.length) raisable = safe;
         }
-        if (raisable.length && (dealCount(loRt) <= 3 || rng() < 0.55)) {
+        if (raisable.length && (dealCnt[loIdx] <= 3 || rng() < 0.55)) {
           raiseNode(pick(rng, raisable));
         } else {
           // free a card slot: convert a (non-opening) deal on this route to a pack
           const dealCand = loRt.filter(id => byId[id].type === "deal" && !(firstRowDeal && byId[id].row === 0));
-          if (dealCand.length && dealCount(loRt) > 3) setType(byId[pick(rng, dealCand)], "pack");
+          if (dealCand.length && dealCnt[loIdx] > 3) setType(byId[pick(rng, dealCand)], "pack");
           else if (raisable.length) raiseNode(pick(rng, raisable));
           else break;
         }
@@ -8978,13 +9011,15 @@ const RunMap = (() => {
       // shared nodes sit on many routes, and a blind top-up pushed crossing
       // routes to 6 deals.
       for (let pass = 0; pass < 12; pass++) {
-        const rts2 = localRoutes();
-        const under = rts2.filter(rt => dealCount(rt) < 3);
+        const under = [];
+        for (let i = 0; i < ROUTES.length; i++) if (dealCnt[i] < 3) under.push(ROUTES[i]);
         if (!under.length) break;
         const rt = pick(rng, under);
         const cand = rt.filter(id => { const n = byId[id];
           if (n.type !== "pack" && n.type !== "pickup") return false;
-          return rts2.every(r2 => r2.indexOf(id) === -1 || dealCount(r2) < C.dealsPerRouteMax);
+          // "no route through this node may exceed the cap": routesAt[id] IS
+          // the set of routes containing id (all others pass trivially).
+          return routesAt[id].every(i => dealCnt[i] < C.dealsPerRouteMax);
         });
         if (cand.length) setType(byId[pick(rng, cand)], "deal"); else break;
       }
@@ -8994,15 +9029,14 @@ const RunMap = (() => {
       //    spread fits — which is also what makes individual CARD nodes common
       //    on long maps. ──
       for (let pass = 0; pass < 120; pass++) {
-        const rts = localRoutes();
-        let hi = -Infinity, hiRt = null, lo2 = Infinity;
-        for (const rt of rts) { const cds = routeCards(rt); if (cds > hi) { hi = cds; hiRt = rt; } if (cds < lo2) lo2 = cds; }
+        let hi = -Infinity, hiIdx = -1, lo2 = Infinity;
+        for (let i = 0; i < cardSum.length; i++) { const cds = cardSum[i]; if (cds > hi) { hi = cds; hiIdx = i; } if (cds < lo2) lo2 = cds; }
         if (hi <= heavyCap) break;
-        let shrinkable = hiRt.map(id => byId[id]).filter(n => n.type === "pack");
+        let shrinkable = ROUTES[hiIdx].map(id => byId[id]).filter(n => n.type === "pack");
         // prefer shrinking a node the LIGHTEST routes don't share (protect the floor)
         if (lo2 <= lightTarget && shrinkable.length > 1) {
           const lightIds = new Set();
-          for (const rt of rts) if (routeCards(rt) <= lightTarget) rt.forEach(id => lightIds.add(id));
+          for (let i = 0; i < cardSum.length; i++) if (cardSum[i] <= lightTarget) ROUTES[i].forEach(id => lightIds.add(id));
           const safe = shrinkable.filter(n => !lightIds.has(n.id));
           if (safe.length) shrinkable = safe;
         }
@@ -9010,7 +9044,7 @@ const RunMap = (() => {
         const n = shrinkable.sort((a, b) => addOf(b) - addOf(a))[0];   // biggest pack first
         const nv = addOf(n) - 1;
         if (nv <= 1) { setType(n, "card"); }                 // +2 pack -> a +1 CARD node
-        else { n.packCount = nv; n.add = nv; }
+        else { noteChange(n, () => { n.packCount = nv; n.add = nv; }); }
       }
     }
 
@@ -9023,10 +9057,11 @@ const RunMap = (() => {
     const safeFlip = (n, t) => {
       const save = { type: n.type, add: n.add, packCount: n.packCount };
       setType(n, t);
-      const rts = localRoutes();
-      const ok = rts.every(rt => routeCards(rt) >= C.minRouteCards
-        && dealCount(rt) >= 3 && dealCount(rt) <= C.dealsPerRouteMax);
-      if (!ok) { n.type = save.type; n.add = save.add; if (save.packCount != null) n.packCount = save.packCount; else delete n.packCount; }
+      let ok = true;
+      for (let i = 0; i < ROUTES.length; i++) {
+        if (cardSum[i] < C.minRouteCards || dealCnt[i] < 3 || dealCnt[i] > C.dealsPerRouteMax) { ok = false; break; }
+      }
+      if (!ok) noteChange(n, () => { n.type = save.type; n.add = save.add; if (save.packCount != null) n.packCount = save.packCount; else delete n.packCount; });
       return ok;
     };
     for (let r = firstRowDeal ? 1 : 0; r < bossRow; r++) {
@@ -9091,7 +9126,7 @@ const RunMap = (() => {
             // Convert to a +1 CARD — unless that would starve a route below 3
             // deals; then accept a DUPLICATE pile value (the same-row variety
             // veto is best-effort, the deal floor is a hard rule).
-            const starves = localRoutes().some(rt => rt.indexOf(n.id) !== -1 && dealCount(rt) <= 3);
+            const starves = routesAt[n.id].some(i => dealCnt[i] <= 3);
             if (!starves) { setType(n, "card"); converted = true; break; }
             for (let d = 0; d <= C.maxPiles && p == null; d++) for (const cand of [pT + d, pT - d]) {
               if (cand >= pMin && cand <= pMax) { p = cand; break; }
@@ -9182,9 +9217,14 @@ const RunMap = (() => {
     return ph;
   }
 
-  function generateStage(phaseIndex, seed, entryDeck) {
+  /* One full attempt×relax ladder at ONE seed (the pre-mapgen1 generateStage
+     body, verbatim). Every attempt derives its own rng from (seed, phase,
+     attempt), so runs at different seeds are fully independent. Returns
+     { ok: phase } on convergence, else { ok:null, best, bestErrs, lastErrors,
+     hist } — the caller decides whether to accept the best effort or ladder
+     to a derived seed (genVersion ≥ 2). */
+  function stageAttemptLoop(phaseIndex, seed, entryDeck) {
     const C = GEN_CONFIG;
-    entryDeck = entryDeck || C.startDeckSize;
     let best = null, bestErrs = Infinity, lastErrors = null;
     const hist = {};
     for (let attempt = 0; attempt < C.attempts * (1 + C.relaxSteps); attempt++) {
@@ -9196,17 +9236,54 @@ const RunMap = (() => {
       const bandX = relax * C.relaxBandStep;
       const v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
       ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
-      if (v.ok) return ph;
+      if (v.ok) return { ok: ph };
       const cat = failCategory(v.errors[0]);
       hist[cat] = (hist[cat] || 0) + 1;
       if (v.errors.length < bestErrs) { best = ph; bestErrs = v.errors.length; lastErrors = v.errors; }
     }
-    const top = Object.keys(hist).sort((a, b) => hist[b] - hist[a])
-      .slice(0, 4).map(k => k + "×" + hist[k]).join(", ");
+    return { ok: null, best, bestErrs, lastErrors, hist };
+  }
+
+  /* generateStage(phaseIndex, seed, entryDeck, opts?):
+     opts.genVersion gates the SEED LADDER (mapgen1). Some tier/entry pairs
+     (master/legendary bands are tight) exhaust the whole 240-attempt ladder at
+     an unlucky seed and ship a BEST-EFFORT (rule-violating) map. genVersion ≥ 2
+     retries such a stage at up to seedLadderRungs DERIVED seeds — deterministic
+     (hash(seed, rung)), so a save regenerates identically. The gate exists
+     because saves REGENERATE their map from the saved seed on Continue: an
+     in-progress v1 save must replay the EXACT legacy path (no ladder, same
+     best-effort map), so restore passes the save's genV (default 1) while new
+     campaigns pass the current version. Seeds that converge on rung 0 are
+     bit-identical under every genVersion — the ladder only fires on failure. */
+  function generateStage(phaseIndex, seed, entryDeck, opts) {
+    const C = GEN_CONFIG;
+    entryDeck = entryDeck || C.startDeckSize;
+    const first = stageAttemptLoop(phaseIndex, seed, entryDeck);
+    if (first.ok) return first.ok;
+    const genV = (opts && opts.genVersion) || 1;
+    let accepted = first;
+    if (genV >= 2) {
+      for (let rung = 1; rung <= C.seedLadderRungs; rung++) {
+        // Derived-seed hash: nonzero xor for every rung ≥ 1, so no rung ever
+        // replays the base seed's attempt sequence.
+        const seed2 = ((seed >>> 0) ^ Math.imul(rung, 0x9e3779b1)) >>> 0;
+        const res = stageAttemptLoop(phaseIndex, seed2, entryDeck);
+        if (res.ok) {
+          console.log("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck
+            + "): seed ladder rung " + rung + " converged (base seed exhausted its attempts)");
+          return res.ok;
+        }
+        // All rungs failed → accept the best effort across rungs (fewest
+        // validation errors; earliest rung wins ties — deterministic).
+        if (res.bestErrs < accepted.bestErrs) accepted = res;
+      }
+    }
+    const top = Object.keys(first.hist).sort((a, b) => first.hist[b] - first.hist[a])
+      .slice(0, 4).map(k => k + "×" + first.hist[k]).join(", ");
     console.warn("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck + "): no valid map after "
       + (C.attempts * (1 + C.relaxSteps)) + " attempts. Failure histogram: " + top
-      + ". Best effort had: " + (lastErrors ? lastErrors.slice(0, 2).join(" | ") : "no candidate"));
-    return best;
+      + ". Best effort had: " + (accepted.lastErrors ? accepted.lastErrors.slice(0, 2).join(" | ") : "no candidate"));
+    return accepted.best;
   }
 
   /* ── HARDCODED PHASE MAPS (the generator seam) ────────────────────────────
@@ -9508,7 +9585,7 @@ const RunMap = (() => {
 
   /* A stage map: the designated authored definition if one exists, else the
      random generator (with the REAL entry deck size for difficulty). */
-  function buildPhase(phaseIndex, seed, entryDeck) {
+  function buildPhase(phaseIndex, seed, entryDeck, opts) {
     if (AUTHORED[phaseIndex]) {
       const ph = definitionToPhase(AUTHORED[phaseIndex], phaseIndex);
       mergeForcedPackChains(ph);   // authored maps get the same corridor collapse
@@ -9516,7 +9593,7 @@ const RunMap = (() => {
       if (!v.ok) console.warn("[RunMap] authored stage " + phaseIndex + " violates the map spec: " + v.errors.join(" | "));
       return ph;
     }
-    return generateStage(phaseIndex, seed, entryDeck);
+    return generateStage(phaseIndex, seed, entryDeck, opts);   // opts: genVersion gate (see generateStage)
   }
 
   /* Generate the WHOLE run as ONE continuous graph: the three phase-maps
@@ -9537,7 +9614,19 @@ const RunMap = (() => {
   // clear of HOME (900000), deterministic per stage so saves/regenerations
   // always agree.
   const JOKER_NODE_BASE = 800000;
-  function generateRun(seed, entryDecks, opts) {
+  /* ── STAGE-CHUNKED RUN GENERATION (mapgen1) ──
+     makeRunStepper splits generateRun's per-stage loop into resumable steps so
+     the deck-select pregen can build ONE stage per idle slice (a master/
+     legendary stage can take seconds — a single sync call froze tier taps).
+     step() builds the next stage (returns true while more remain); finish()
+     drains any remainder, runs the post-pass wiring (boss→openings, home,
+     joker corridors) and returns the map. Each stage derives its own rng from
+     (seed, phase, attempt) — module state never carries across steps except
+     the ACTIVE DIFFICULTY TIER, which the caller must hold constant for the
+     stepper's whole life (the campaign re-asserts it before every slice).
+     generateRun(seed, entries, opts) === makeRunStepper(...).finish(), so the
+     sync path is byte-identical to the pre-stepper generator. */
+  function makeRunStepper(seed, entryDecks, opts) {
     // entryDecks[p] = the REAL deck size entering stage p (difficulty input).
     // A null/absent entry means that stage hasn't been entered yet — it is NOT
     // generated; the map grows as each stage's boss falls (the caller records
@@ -9554,14 +9643,18 @@ const RunMap = (() => {
     const byId = {};
     let rowOffset = 0;
     let homeNode = null;
+    let p = 0;                                         // next stage to build
+    let halted = false;                                // null entry / failed stage / drained
     const NS = 1000;                                   // id namespace stride/phase
     const BASE = GEN_CONFIG.phaseSuits.length;         // authored stages (3); p ≥ BASE = ENDLESS
-    for (let p = 0; p < entryDecks.length; p++) {
-      if (entryDecks[p] == null) break;                // later stages: not yet entered
-      const ph = buildPhase(p, seed, entryDecks[p]);
+    /** Build ONE stage. Returns true while more stages remain to build. */
+    function step() {
+      if (halted) return false;
+      if (p >= entryDecks.length || entryDecks[p] == null) { halted = true; return false; }   // later stages: not yet entered
+      const ph = buildPhase(p, seed, entryDecks[p], opts);
       if (!ph) {                                       // truly unsatisfiable → stop growing
         console.warn("[RunMap] stage " + p + " could not be generated (entry deck " + entryDecks[p] + ") — map ends at stage " + (p - 1));
-        break;
+        halted = true; return false;
       }
       const remap = id => p * NS + id;
       ph.nodes.forEach(n => {
@@ -9615,38 +9708,49 @@ const RunMap = (() => {
         meta.jokerNodeId = jn.id;
         rowOffset += 1;
       }
+      p += 1;
+      return p < entryDecks.length && entryDecks[p] != null;
     }
-    // Wire each phase's single boss → all of the next phase's openings. The
-    // ♠ boss → home edge already exists; HOME feeds the first endless stage.
-    // A post-boss Joker corridor takes the boss's place as the stage exit:
-    // boss → joker node → next openings (the boss's edge to it already exists).
-    for (let p = 0; p < phases.length - 1; p++) {
-      const opens = phases[p + 1].row0.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
-      if (p === BASE - 1 && homeNode) homeNode.next = opens.map(o => o.id);
-      else if (phases[p].jokerNodeId != null) byId[phases[p].jokerNodeId].next = opens.map(o => o.id);
-      else byId[phases[p].bossId].next = opens.map(o => o.id);
+    /** Drain remaining stages, run the post-pass wiring, return the map. */
+    function finish() {
+      while (step()) {}
+      // Wire each phase's single boss → all of the next phase's openings. The
+      // ♠ boss → home edge already exists; HOME feeds the first endless stage.
+      // A post-boss Joker corridor takes the boss's place as the stage exit:
+      // boss → joker node → next openings (the boss's edge to it already exists).
+      for (let q = 0; q < phases.length - 1; q++) {
+        const opens = phases[q + 1].row0.map(id => byId[id]).sort((x, y) => (x.lane != null ? x.lane : 1) - (y.lane != null ? y.lane : 1));
+        if (q === BASE - 1 && homeNode) homeNode.next = opens.map(o => o.id);
+        else if (phases[q].jokerNodeId != null) byId[phases[q].jokerNodeId].next = opens.map(o => o.id);
+        else byId[phases[q].bossId].next = opens.map(o => o.id);
+      }
+      if (!phases.length) {
+        // Stage 0 failed to generate (should be unreachable — logged above).
+        return { nodes: [], byId: {}, phases: [], row0: [], totalRows: 0,
+                 runBossId: null, runBossIds: null, stagesGenerated: 0 };
+      }
+      return {
+        nodes, byId, phases,
+        row0: phases[0].row0,
+        homeId: homeNode ? homeNode.id : null,
+        totalRows: rowOffset,
+        // The RUN boss is ALWAYS the ♠ (stage-3) boss — endless bosses above it
+        // never end the run. (bossIds is kept as a 1-element array for save/API
+        // compatibility — always exactly one now.)
+        runBossId: phases.length >= BASE ? phases[BASE - 1].bossId : null,
+        runBossIds: phases.length >= BASE ? phases[BASE - 1].bossIds.slice() : null,
+        stagesGenerated: phases.length,
+      };
     }
-    if (!phases.length) {
-      // Stage 0 failed to generate (should be unreachable — logged above).
-      return { nodes: [], byId: {}, phases: [], row0: [], totalRows: 0,
-               runBossId: null, runBossIds: null, stagesGenerated: 0 };
-    }
-    return {
-      nodes, byId, phases,
-      row0: phases[0].row0,
-      homeId: homeNode ? homeNode.id : null,
-      totalRows: rowOffset,
-      // The RUN boss is ALWAYS the ♠ (stage-3) boss — endless bosses above it
-      // never end the run. (bossIds is kept as a 1-element array for save/API
-      // compatibility — always exactly one now.)
-      runBossId: phases.length >= BASE ? phases[BASE - 1].bossId : null,
-      runBossIds: phases.length >= BASE ? phases[BASE - 1].bossIds.slice() : null,
-      stagesGenerated: phases.length,
-    };
+    return { step, finish };
+  }
+  /** The synchronous whole-run generation — drain the stepper in one call. */
+  function generateRun(seed, entryDecks, opts) {
+    return makeRunStepper(seed, entryDecks, opts).finish();
   }
 
   return { GEN_CONFIG, MAP_CONFIG, PHASE_DEFS, AUTHORED, definitionToPhase, parseMapSpec,
-           generateStage, generateRun, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
+           generateStage, generateRun, makeRunStepper, validateStage, enumerateRoutes, deckExtremes, analyzeForks,
            bandsFor, setDifficultyTier, getDifficultyTier, mergeForcedPackChains,
            SUBSET, difficultyScore, difficultyTiers, solveSubsetPiles, __genFails };
 })();
@@ -12364,8 +12468,19 @@ const CampaignState = (() => {
         jokerCap + guaranteedMapJoker rules unchanged. */
     const fixedJokerStages = () => DifficultyData.fixedJokerStages(deckId, difficultyTier);
     const fixedJokerScheme = () => !!fixedJokerStages();
+    /* ── MAP-GENERATOR VERSION (mapgen1) ──
+       genVersion 2 adds the deterministic seed ladder (RunMap.generateStage):
+       a stage that exhausts every attempt retries at derived seeds instead of
+       shipping a rule-violating best-effort map. The version is PER-CAMPAIGN
+       state because saves REGENERATE their map from (runSeed, stageEntryDecks)
+       on Continue — regenerating a v1 save through the v2 path could swap the
+       map out mid-run. So: fresh runs (fresh seeds) stamp the CURRENT version;
+       serialize carries it as `genV`; restore replays the SAVED version,
+       defaulting to 1 for pre-mapgen1 saves (exact legacy regeneration). */
+    const RUN_GEN_VERSION = 2;
+    let runGenVersion = RUN_GEN_VERSION;
     /** The generateRun options for this campaign's deck/tier (see JOKER3). */
-    const runGenOpts = () => ({ postBossJokerStages: fixedJokerStages() || [] });
+    const runGenOpts = () => ({ postBossJokerStages: fixedJokerStages() || [], genVersion: runGenVersion });
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -12387,30 +12502,68 @@ const CampaignState = (() => {
       if (rules().altSuits) return [START_SUIT].concat(PHASE_SUITS);
       return [START_SUIT].concat(PHASE_SUITS.slice(0, phaseIndex + 1));
     }
-    /* ── PRE-GENERATED RUN MAP (PERF2) ──────────────────────────────────────
+    /* ── PRE-GENERATED RUN MAPS (PERF2 + MAPGEN1) ───────────────────────────
        The whole-run generation (3 stages × up to 240 build/validate attempts)
-       was the deck-select Start press's 0.3–1.5s pause. The UI now calls
-       pregenerateRun() with the BROWSED deck/tier while the player is still
-       reading the deck-select screen (idle time); startNewRun's genRunMap
-       then consumes the stash when its inputs match, making Start ~instant.
-       Generation depends ONLY on the tier (bands) + the deck/tier Joker
-       scheme + the seed — never on which deck is selected (every deck enters
-       with startDeckSize cards) — so decks sharing a tier share one pregen.
-       Single-use; any mismatch falls back to the normal synchronous path
-       (same code, same inputs, identical results — just slower). */
-    let pregen = null;   // { key, seed, entries, map }
+       was the deck-select Start press's pause — seconds on master/legendary.
+       The UI calls pregenerateRun() with the BROWSED deck/tier while the
+       player reads the deck-select screen; startNewRun's genRunMap consumes a
+       matching entry, making Start ~instant. Generation depends ONLY on the
+       tier (bands) + the deck/tier Joker scheme + the seed — never on which
+       deck is selected — so decks sharing a tier share one entry.
+
+       MAPGEN1 upgrades the single slot to a CACHE keyed by runGenKey (tier +
+       fixed-Joker flag — at most 6 keys), so alternating tier taps stop
+       evicting each other: each tier generates once per deck-select session
+       and later taps are free. Consumption DELETES the entry — the map object
+       is MUTATED during play (lockAllPickupCards / commitNodeCard), so a
+       cached map may never be handed out twice; unconsumed entries are
+       pristine and stay valid. Builds are CHUNKED: one stage per idle slice
+       via RunMap.makeRunStepper, so a multi-second master/legendary build
+       never blocks a tier tap; a Start mid-build just falls through to the
+       normal synchronous path in genRunMap (same code, identical result). */
+    const pregenCache = new Map();   // runGenKey → { seed, entries, map } (pristine until consumed)
+    let pregenBuild = null;          // in-flight chunked build { key, tier, seed, entries, stepper, id }
+    let pregenBuildId = 0;           // supersession/cancel guard: stale slices see a newer id and stop
     const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-");
+    // One idle slice = ONE stage build (requestIdleCallback keeps the carousel
+    // responsive; the setTimeout fallback mirrors the UI's schedulePregen).
+    const pregenSlice = (fn) => {
+      if (typeof requestIdleCallback === "function") requestIdleCallback(fn, { timeout: 1200 });
+      else setTimeout(fn, 120);
+    };
+    function pregenStep() {
+      const b = pregenBuild;
+      if (!b || b.id !== pregenBuildId) return;   // superseded or cancelled — abort cleanly
+      RunMap.setDifficultyTier(b.tier);           // bands re-asserted per slice (another path may have moved them)
+      if (b.stepper.step()) { pregenSlice(pregenStep); return; }
+      pregenCache.set(b.key, { seed: b.seed, entries: b.entries, map: b.stepper.finish() });
+      pregenBuild = null;
+    }
+    /** Start building the run map for (deck, tier) in idle time. Returns true
+        if a build STARTED; false when the key is already cached or in flight. */
     function pregenerateRun(dId, tId) {
       const key = runGenKey(dId, tId);
-      if (pregen && pregen.key === key) return false;      // already ready
-      RunMap.setDifficultyTier(tId);                       // preview tier (restore/genRunMap re-set it)
+      if (pregenCache.has(key)) return false;                    // already ready
+      if (pregenBuild && pregenBuild.key === key) return false;  // already building
+      RunMap.setDifficultyTier(tId);                             // preview tier (restore/genRunMap re-set it)
       const e0 = RunMap.GEN_CONFIG.startDeckSize, prc = RunMap.GEN_CONFIG.predictedRouteCards;
       const entries = [e0, e0 + prc, e0 + 2 * prc];
-      const opts = { postBossJokerStages: DifficultyData.fixedJokerStages(dId, tId) || [] };
+      // Pregen maps are only ever consumed by NEW runs → always the CURRENT
+      // generator version (the genV gate only matters for restored saves).
+      const opts = { postBossJokerStages: DifficultyData.fixedJokerStages(dId, tId) || [],
+                     genVersion: RUN_GEN_VERSION };
       const seed = generateSeed();
-      pregen = { key, seed, entries, map: RunMap.generateRun(seed, entries, opts) };
+      pregenBuild = { key, tier: tId, seed, entries,
+                      stepper: RunMap.makeRunStepper(seed, entries, opts), id: ++pregenBuildId };
+      pregenSlice(pregenStep);
       return true;
     }
+    /** Abort the in-flight chunked build (deck-select closed / a run started).
+        CACHED entries stay — they're pristine and remain valid. */
+    function pregenCancel() { pregenBuild = null; pregenBuildId++; }
+    /** TEST hook (like _setMapSpecialRoll): the Node harness has no idle
+        callbacks, so tests drive the in-flight build to completion here. */
+    function _pregenDrain() { while (pregenBuild) pregenStep(); }
     /** Generate the WHOLE run (all 3 phases) as ONE continuous map, and reset
         the live position to the run start. */
     function genRunMap() {
@@ -12424,10 +12577,15 @@ const CampaignState = (() => {
       stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
       // PERF2: consume a matching pre-generated map (its seed rides along, so
       // saves + seed-based regeneration behave exactly as a live generation).
-      if (pregen && pregen.key === runGenKey(deckId, difficultyTier) && pregen.entries[0] === entry0) {
-        runSeed = pregen.seed;
-        runMap = pregen.map;
-        pregen = null;                            // single-use
+      // Consumption DELETES the cache entry: the map object is mutated during
+      // play, so it may never be handed out twice. Other keys stay cached.
+      pregenCancel();   // a run is starting — any in-flight chunked build is moot
+      const key = runGenKey(deckId, difficultyTier);
+      const hit = pregenCache.get(key);
+      if (hit && hit.entries[0] === entry0) {
+        runSeed = hit.seed;
+        runMap = hit.map;
+        pregenCache.delete(key);                  // single-use (see above)
       } else {
         runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       }
@@ -12831,6 +12989,7 @@ const CampaignState = (() => {
         ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
       }
       runSeed = generateSeed();
+      runGenVersion = RUN_GEN_VERSION;   // fresh seed → current generator (the genV gate protects only RESUMED seeds)
       genRunMap();
       if (rules().startStickers) {
         // One random sticker per starting card, drawn ONLY from the stickers
@@ -12873,10 +13032,14 @@ const CampaignState = (() => {
           campaign — the rules shape the starting deck / pricing / stickers. */
       setDeck(id) { deckId = DECK_RULES[id] ? id : "pink"; },
       getDeckId() { return deckId; },
-      // PERF2: build the next run's map ahead of time (deck-select idle);
-      // returns true if it generated, false if a matching pregen already
-      // waits. startNewRun consumes it via genRunMap when inputs match.
+      // PERF2/MAPGEN1: build the next run's map ahead of time, one stage per
+      // idle slice; returns true if a build started, false when the key is
+      // already cached or in flight. startNewRun consumes (and evicts) the
+      // matching cache entry via genRunMap. pregenCancel aborts the in-flight
+      // build (deck-select closed); _pregenDrain is the tests' sync driver.
       pregenerateRun,
+      pregenCancel,
+      _pregenDrain,
       /** Bind the difficulty tier (bands only). Call BEFORE reset(). */
       setTier(id) { difficultyTier = DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular"; },
       getTier() { return difficultyTier; },
@@ -14043,7 +14206,10 @@ const CampaignState = (() => {
           difficultyTier,
           // NEW run structure: the map is deterministic from (phaseIndex, runSeed),
           // so we persist only the seed + position + draft, not the whole graph.
+          // genV = the map-generator version this run was built with (mapgen1):
+          // restore must regenerate through the SAME version's path.
           phaseIndex, runSeed, nodePos,
+          genV: runGenVersion,
           stageEntryDecks: stageEntryDecks.slice(),   // per-stage entry deck sizes (map regen input)
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
@@ -14125,6 +14291,11 @@ const CampaignState = (() => {
         // committed are kept — those stages regenerate identically.
         for (let p = 1; p < PHASE_SUITS.length; p++)
           if (stageEntryDecks[p] == null) stageEntryDecks[p] = stageEntryDecks[p - 1] + RunMap.GEN_CONFIG.predictedRouteCards;
+        // Regenerate through the generator version the run was BUILT with:
+        // pre-mapgen1 saves (no genV) default to 1 — the exact legacy path
+        // (no seed ladder, same best-effort maps), so the map can't change
+        // out from under an in-progress run.
+        runGenVersion = (typeof s.genV === "number" && s.genV >= 1) ? s.genV : 1;
         runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());   // the whole run regenerates from seed + entries
         // (re-locking any +1 node missing a card happens BELOW, after baseDeck +
         // nextCardId restore — a re-lock must roll against the RESTORED deck, and
@@ -21124,7 +21295,14 @@ const UIRenderer = (() => {
     schedulePregen(true);      // PERF2: build the run map while the player browses —
                                // entry knows its default selection, so no debounce
   }
-  function hideDeckSelect() { el.deckSelect.classList.add("hidden"); }
+  function hideDeckSelect() {
+    el.deckSelect.classList.add("hidden");
+    clearTimeout(pregenTimer);
+    // MAPGEN1: abort any in-flight chunked map build — its idle slices must
+    // not keep firing behind whatever screen comes next. Finished (cached)
+    // maps stay: they're pristine and still valid for a later session.
+    if (campaign && campaign.pregenCancel) campaign.pregenCancel();
+  }
 
   /* ── PERF2: pre-generate the run map during deck-select browsing ─────────
      Debounced (a swipe/tap settles first), then run in idle time so the
@@ -21151,11 +21329,12 @@ const UIRenderer = (() => {
       if (!sel || !campaign || !campaign.pregenerateRun) return;
       const run = () => {
         if (el.deckSelect.classList.contains("hidden")) return;
-        const t0 = performance.now();
-        const generated = Perf.time("deck-select:pregen(" + sel.tier + ")",
+        // MAPGEN1: pregenerateRun only STARTS a chunked build now (one stage
+        // per idle slice inside the campaign) — this call itself is cheap.
+        const started = Perf.time("deck-select:pregen(" + sel.tier + ")",
           () => campaign.pregenerateRun(sel.deck, sel.tier));
-        if (generated) console.log("[map] pregenerated " + sel.tier + " run in "
-          + (performance.now() - t0).toFixed(0) + "ms (idle, deck-select)");
+        if (started) console.log("[map] pregenerating " + sel.tier
+          + " run (chunked, one stage per idle slice)");
       };
       if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 });
       else setTimeout(run, 120);

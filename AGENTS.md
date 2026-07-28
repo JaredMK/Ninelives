@@ -152,6 +152,41 @@ That checklist replaces the retired reviewer agents.
   `Latest: vX.YZ (commit abc1234) — deployed to GitHub Pages` (or
   `requires Xcode rebuild`).
 
+## Handoff notes — structural changes the other agent should know
+
+*(Newest first. Add an entry here when a change alters shared structure —
+generator, save format, caches — so the next session starts from reality.)*
+
+- **v5.02 (Claude, MAPGEN1)** — map generation reworked for speed; READ THIS
+  BEFORE TOUCHING RunMap OR THE PREGEN PATH:
+  - `RunMap.makeRunStepper(seed, entries, opts)` builds one stage per
+    `step()`; sync `generateRun` now just drains it (bit-identical output).
+    Deck-select pregen builds one stage per idle slice and caches per
+    `runGenKey` in a multi-slot Map (`pregenCache`) — consumption DELETES the
+    entry because run maps are mutated in play (never reuse a consumed map).
+  - The SAVE FORMAT gained `genV` (generator version). New runs stamp 2;
+    restores default absent→1 and regenerate through the EXACT legacy path —
+    this is the save-compat gate. Never remove it, and thread the RUN's own
+    `runGenVersion` (not the global default) into any new `generateRun` call
+    site (extendEndless/maybeExtendMap already do).
+  - genV≥2 only: a deterministic derived-seed ladder retries a stage that
+    exhausts all attempts (fixes rare broken Legendary maps).
+  - `tryBuildStage` repair loops now maintain incremental per-route sums via
+    `noteChange` — ANY new mutation of a node's `type`/`add`/`packCount`
+    between index arming and the final validation read MUST go through
+    `noteChange` or the sums desync (reviewed exhaustively at ship time;
+    keep it that way). Master/Legendary generation is ~10× faster; do not
+    reintroduce full route re-walks in repairs.
+  - Bit-compat vs v5.01 was verified on 678 seed×tier×entry tuples (zero
+    diffs, genV1 and genV2). If you change generator OUTPUT intentionally,
+    bump the genV scheme and gate it the same way.
+  - Debug entry (context for the debug panel): the 🐞 toggle is hidden
+    unless `body.debug-access` — enabled by `?debug` or 7 quick taps on the
+    build footer (the title triple-tap needs an element not on the play
+    screen). The debug event log is a capped ring buffer (`pushLog`,
+    `LOG_CAP`) rendering only the newest 50 — unbounded log rendering was a
+    measured store-lag cause (v4.94); don't regress it.
+
 ## Also
 
 - Storage keys use the `ninelives.*` prefix only (the native bridge mirrors

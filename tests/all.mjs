@@ -61,6 +61,7 @@ import { run as stklag3 } from "./stklag3.test.mjs";
 import { run as storageKeys } from "./storage-keys.test.mjs";
 import { run as holdHelp } from "./holdhelp.test.mjs";
 import { run as confirmBar } from "./confirmbar.test.mjs";
+import { run as mapgen1 } from "./mapgen1.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -122,6 +123,7 @@ const SUITES = [
   ["storage-keys", storageKeys],
   ["holdhelp", holdHelp],
   ["confirmbar", confirmBar],
+  ["mapgen1", mapgen1],
 ];
 
 let pass = 0,
