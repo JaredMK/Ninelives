@@ -122,11 +122,32 @@ the diff against every convention in this file: data files as source of
 truth, the four perf invariants, the UX conventions, engine DOM-freedom.
 That checklist replaces the retired reviewer agents.
 
-### 3. Ship ritual (unchanged)
+### 3. Version + push protocol
 
-`node tests/all.mjs` 100% green → bump `APP_VERSION` on behavior changes →
-commit → push → the Pages workflow deploys → report what changed, closing
-with the line `Latest: vX.YZ`.
+- **One version source.** The build version lives ONLY in `APP_VERSION`
+  (index.html, `"vX.YZ · one-line footer note"`). The footer (`build vX.YZ`)
+  and the console log read it there — never hardcode the version anywhere
+  else.
+- **Bump on behavior.** Every commit that changes game behavior or UI bumps
+  the version by 0.01 and rewrites the footer note to describe the change.
+  Docs/test-only/no-behavior refactors don't need a bump.
+- **Sync first.** If the working tree holds someone else's uncommitted or
+  unpushed work, or the remote has commits you lack: `git pull --rebase`
+  (`--autostash` for foreign WIP — never commit what isn't yours) BEFORE
+  committing. Never force-push. Take the next version number AFTER syncing —
+  two agents must never claim the same version.
+- **Ship.** After any completed task: commit → push to `neural-redesign` →
+  confirm the Pages deploy triggers (`gh run list`) → report: the new
+  version, the commit hash, and "live once deploy is green — verify the
+  footer shows vX.YZ".
+- **iOS.** The Capacitor app in dev mode (`server.url` in
+  `app/capacitor.config.json`) loads the deployed `/neural/` URL — web
+  deploys reach it on kill + reopen, no rebuild. Native-shell changes
+  (plugins, capacitor config, icons, the Xcode project) require an Xcode
+  rebuild — flag that loudly in the report whenever a change needs it.
+- **Always-report rule.** End every task report with the version line:
+  `Latest: vX.YZ (commit abc1234) — deployed to GitHub Pages` (or
+  `requires Xcode rebuild`).
 
 ## Also
 
