@@ -68,7 +68,10 @@ The game targets phones. Four invariants, all currently enforced — keep them:
 - **Bottom prompt bar for all confirmations.** Confirmations (buy, sell,
   remove, destructive choices) go through the shared bottom prompt bar
   (`showActionBar` on `#actionPrompt`) — never browser `confirm()`/`alert()`,
-  never a new one-off dialog idiom.
+  never a new one-off dialog idiom. Picker/detail modals' *confirm step*
+  rides the bar too (`body.modal-prompt` lifts it over the deck-modals);
+  `#storeDetail`/`#packReveal` are detail/picker views (the store idiom),
+  not one-off confirms.
 - **One-screen store.** The store is a single fixed screen with one unified
   shelf; no tabs, no paging. Sub-flows open as overlays above it and return
   to the same screen.

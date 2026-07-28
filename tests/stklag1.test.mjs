@@ -109,11 +109,11 @@ export function run() {
 
   // --- R1) Immediate acknowledgement on the shared close tail ----------------
   {
-    // The fall-through (non-modifying sticker + shared close) hides the confirm
-    // button AND begins the picker close BEFORE handing the heavy tail to the
+    // The fall-through (non-modifying sticker + shared close) closes the prompt
+    // bar AND begins the picker close BEFORE handing the heavy tail to the
     // frame-deferred rebuild.
-    const ackAt = confirm.indexOf('if (el.saConfirm) el.saConfirm.classList.add("hidden");\n    el.stickerApplyModal.classList.add("hidden");');
-    r.ok(ackAt !== -1, "the close tail hides the confirm button + modal on the tap frame (immediate ack)");
+    const ackAt = confirm.indexOf('closeModalPrompt();\n    el.stickerApplyModal.classList.add("hidden");');
+    r.ok(ackAt !== -1, "the close tail closes the prompt bar + modal on the tap frame (immediate ack)");
     const deferAt = confirm.indexOf("deferConfirmTail(savedOnTap, function ()");
     r.ok(deferAt !== -1 && ackAt < deferAt, "…and defers renderDeckStrip + continuePendingPlacement AFTER that");
     const tailFn = confirm.slice(deferAt);

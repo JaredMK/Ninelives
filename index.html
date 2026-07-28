@@ -485,6 +485,10 @@ const NativeApp = (() => {
   body.store-selling .play-controls { z-index: 70; }
   /* Same lift for the Refresh confirm over the store (see rerollUI). */
   body.store-confirm .play-controls { z-index: 70; }
+  /* And for the picker-modal confirms (sticker-apply + item-place ride the
+     shared bar now): lift it over the deck-modals (z 80) and the hold-help
+     card info (z 85) while one is pending (body.modal-prompt). */
+  body.modal-prompt .play-controls { z-index: 95; }
   /* And for prompt-bar confirms over the MENU sheets (stats / pause menu /
      telemetry — menu screens are z 1400): the bar must paint + tap above them
      while the confirm is pending (showMenuConfirm). */
@@ -4518,17 +4522,6 @@ const NativeApp = (() => {
     .sa-card.sa-remove .mini-card { animation: saRemoveFade 0.5s ease forwards; }
   }
   @keyframes saRemoveFade { to { opacity: 0; } }
-  .sa-confirm { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 81;
-    width: min(100%, 460px); display: flex; align-items: center; gap: 10px;
-    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
-    background: var(--panel); border-top: 1px solid var(--edge-2); box-shadow: 0 -6px 20px rgba(0,0,0,0.3); }
-  .sa-confirm.hidden { display: none; }
-  .sa-confirm-msg { flex: 1 1 auto; font-size: 12.5px; line-height: 1.3; color: var(--text); }
-  .sa-confirm-btns { flex: none; display: flex; gap: 8px; }
-  .sa-back, .sa-apply { border: none; border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
-  .sa-back { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2); }
-  .sa-apply { background: linear-gradient(180deg, #7bf08a, var(--good)); color: #0c1124; }
-  .sa-apply:active, .sa-back:active { transform: scale(0.97); }
   .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
     padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
   .store-apply-btn.hidden { display: none; }
@@ -6108,8 +6101,6 @@ const NativeApp = (() => {
   }
   /* Fixed top-center Stage·Run badge clears the notch. */
   body.native-app .stage-run { top: calc(6px + env(safe-area-inset-top, 0px)); }
-  /* Bottom-anchored fixed strips clear the home indicator. */
-  body.native-app .sa-confirm { padding-bottom: env(safe-area-inset-bottom, 0px); }
   /* Debug corner tools (dev builds) stay reachable above the home indicator. */
   body.native-app .debug-toggle { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
   body.native-app .ap-speed { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
@@ -6814,14 +6805,6 @@ const NativeApp = (() => {
       <div class="deck-modal-total" id="saHint">Tap a card to apply this sticker.</div>
       <div class="deck-cards sa-cards" id="saCards"></div>
     </div>
-    <!-- confirm bar (appears when a card is chosen) -->
-    <div class="sa-confirm hidden" id="saConfirm">
-      <div class="sa-confirm-msg" id="saConfirmMsg"></div>
-      <div class="sa-confirm-btns">
-        <button class="sa-back" id="saBack" type="button">Back</button>
-        <button class="sa-apply" id="saApply" type="button">Apply</button>
-      </div>
-    </div>
   </div>
 
   <!-- ITEM PLACE picker: buying a Pillar/Base opens this — tap a COLUMN to place
@@ -6835,13 +6818,6 @@ const NativeApp = (() => {
       <div class="sa-banner" id="ipBanner"></div>
       <div class="deck-modal-total" id="ipHint">Tap a column to place this.</div>
       <div class="ip-columns" id="ipColumns"></div>
-    </div>
-    <div class="sa-confirm hidden" id="ipConfirm">
-      <div class="sa-confirm-msg" id="ipConfirmMsg"></div>
-      <div class="sa-confirm-btns">
-        <button class="sa-back" id="ipBack" type="button">Back</button>
-        <button class="sa-apply" id="ipPlace" type="button">Place</button>
-      </div>
     </div>
   </div>
 
@@ -7012,7 +6988,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.99 · new players learn in Zen; campaign unlocks after";
+const APP_VERSION = "v5.00 · picker confirms ride the bottom prompt bar";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15238,20 +15214,12 @@ const UIRenderer = (() => {
     saSuits: document.getElementById("saSuits"),   // suit-count breakdown in the card picker
     saHint: document.getElementById("saHint"),
     saCards: document.getElementById("saCards"),
-    saConfirm: document.getElementById("saConfirm"),
-    saConfirmMsg: document.getElementById("saConfirmMsg"),
-    saBack: document.getElementById("saBack"),
-    saApply: document.getElementById("saApply"),
     itemPlaceModal: document.getElementById("itemPlaceModal"),   // pillar/base buy-time column picker
     ipHead: document.getElementById("ipHead"),
     ipClose: document.getElementById("ipClose"),
     ipBanner: document.getElementById("ipBanner"),
     ipHint: document.getElementById("ipHint"),
     ipColumns: document.getElementById("ipColumns"),
-    ipConfirm: document.getElementById("ipConfirm"),
-    ipConfirmMsg: document.getElementById("ipConfirmMsg"),
-    ipBack: document.getElementById("ipBack"),
-    ipPlace: document.getElementById("ipPlace"),
     postDealScreen: document.getElementById("postDealScreen"),   // post-deal placement (mid-deal gains)
     postDealList: document.getElementById("postDealList"),
     postDealPlaceBtn: document.getElementById("postDealPlaceBtn"),
@@ -18899,17 +18867,12 @@ const UIRenderer = (() => {
     if (el.saCards) attachCardHoldHelp(el.saCards, (id) => selectApplyCard(id));
     // Deck inspector grid: HOLD a card for its sticker help (display-only list).
     if (el.deckBreakdown) attachCardHoldHelp(el.deckBreakdown);
-    if (el.saApply) el.saApply.addEventListener("click", confirmApplySticker);
-    if (el.saBack) el.saBack.addEventListener("click", () => { selectedApplyCardId = null; if (el.saConfirm) el.saConfirm.classList.add("hidden"); refreshApplySelection(); });
+    // (The pickers' confirm steps ride the shared bottom prompt bar — no
+    // per-modal buttons to wire here.)
     // Pillar/Base column picker handlers.
     if (el.ipClose) el.ipClose.addEventListener("click", closeItemPlace);
     if (el.itemPlaceModal) el.itemPlaceModal.addEventListener("click", (e) => { if (e.target === el.itemPlaceModal) closeItemPlace(); });
     if (el.ipColumns) el.ipColumns.addEventListener("click", (e) => { const c = e.target.closest(".ip-col"); if (c) selectPlaceColumn(Number(c.dataset.col)); });
-    if (el.ipPlace) el.ipPlace.addEventListener("click", confirmItemPlace);
-    if (el.ipBack) el.ipBack.addEventListener("click", () => {
-      if (pendingPlaceKind === "samepower") return closeItemPlace();   // no column grid to fall back to
-      selectedPlaceCol = null; if (el.ipConfirm) el.ipConfirm.classList.add("hidden"); renderPlaceColumns();
-    });
     if (el.postDealPlaceBtn) el.postDealPlaceBtn.addEventListener("click", startPostDealPlacement);
     el.storeStartBtn.addEventListener("click", () => {
       // Backstop for the disabled state: never leave with a placeable item
@@ -25387,7 +25350,7 @@ const UIRenderer = (() => {
     cardPickMode = "sticker";
     pendingApplyStickerId = typeId; pendingSwapTrayIndex = null;
     selectedApplyCardId = null;
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     const buying = pendingBuyStickerSlot != null;
     if (el.saHead) el.saHead.textContent = (buying ? "Place " : "Apply ") + t.label;
     if (el.saBanner) el.saBanner.innerHTML = stickerChip(typeId, { seed: "apply" }) +
@@ -25418,7 +25381,7 @@ const UIRenderer = (() => {
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null; pendingBuyStickerSlot = null;
     pendingBlankRemovals = 0;
     const price = campaign.removalPrice();
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     if (el.saHead) el.saHead.textContent = "Removal — remove a card";
     if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
       '<span class="sa-name">∅ Removal</span>' +
@@ -25434,7 +25397,7 @@ const UIRenderer = (() => {
     cardPickMode = "remove";
     pendingApplyStickerId = null; pendingSwapTrayIndex = null;
     selectedApplyCardId = null; pendingBuyStickerSlot = null;
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     const more = pendingBlankRemovals > 1 ? " (" + pendingBlankRemovals + " left)" : "";
     if (el.saHead) el.saHead.textContent = "Removal — remove a card" + more;
     if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
@@ -25456,7 +25419,7 @@ const UIRenderer = (() => {
     cardPickMode = "swap";
     pendingSwapTrayIndex = trayIndex; pendingApplyStickerId = null;
     selectedApplyCardId = null;
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     const pcLabel = miniRankLabel(pc) + " " + pc.suit;
     // PACK-KEEP WALK: append an "N of M" step marker so a multi-card pack reads as a
     // sequence (idx = how many kept cards have already resolved + this one). Off the
@@ -25503,7 +25466,7 @@ const UIRenderer = (() => {
     cardPickMode = "sticker";
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     if (campaign && campaign.packTrayCount() > 0) { openCardSwap(0); return; }   // next kept card
     packKeepWalk = false; packKeepTotal = 0;
     el.stickerApplyModal.classList.add("hidden");
@@ -25528,37 +25491,54 @@ const UIRenderer = (() => {
     }
     advancePackKeepWalk();
   }
+  /* Back / outside-tap on the apply confirm: drop the selection and keep
+     picking (the modal stays open; nothing is charged). */
+  function cancelApplyChoice() {
+    selectedApplyCardId = null;
+    closeModalPrompt();
+    refreshApplySelection();
+  }
   function selectApplyCard(id) {
     const card = applyCardsById.get(id);
     if (!card) return;
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
     selectedApplyCardId = id;
     refreshApplySelection();
+    // The confirm rides the shared bottom prompt bar (lifted over this modal
+    // via body.modal-prompt). The message keeps its bold names + coin icons —
+    // code-built markup, so opts.html (never player input). The button label
+    // stays plain (the bar's buttons are textContent); any price rides in the
+    // message's cost span.
+    let msg, applyLabel;
     if (cardPickMode === "remove") {
       const nSt = (card.stickers || []).length;
       const stickerWarn = nSt > 0
         ? ' <span class="warn-stickers">It carries ' + nSt + " sticker" + (nSt > 1 ? "s" : "") + ", destroyed forever.</span>" : "";
       const name = card.joker ? "★ Joker" : miniRankLabel(card) + " " + card.suit;
       const cost = removalPurchase ? ' <span class="sa-cost">(' + COIN_SVG + " " + campaign.removalPrice() + ")</span>" : "";
-      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Permanently REMOVE <b>" + name +
+      msg = "Permanently REMOVE <b>" + name +
         "</b> from your deck? Your deck shrinks by one card." + cost + stickerWarn;
-      if (el.saApply) el.saApply.innerHTML = removalPurchase ? ("Remove · " + COIN_SVG + " " + campaign.removalPrice()) : "Remove";
+      applyLabel = "Remove";
     } else if (cardPickMode === "swap") {
       const pc = campaign.getPackTray()[pendingSwapTrayIndex];
-      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
+      msg = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
         "</b> with <b>" + (pc ? miniRankLabel(pc) + " " + pc.suit : "the new card") + "</b>?";
-      if (el.saApply) el.saApply.textContent = "Swap";
+      applyLabel = "Swap";
     } else {
       const t = StickerTypes.get(pendingApplyStickerId);
       const buying = pendingBuyStickerSlot != null;
       const price = buying ? campaign.priceOf(pendingApplyStickerId) : 0;
-      if (el.saConfirmMsg) el.saConfirmMsg.innerHTML = "Add <b>" + escHtml((t && t.label) || "sticker") +
+      msg = "Add <b>" + escHtml((t && t.label) || "sticker") +
         "</b> to <b>" + miniRankLabel(card) + " " + card.suit + "</b>?" +
         (buying ? ' <span class="sa-cost">(' + COIN_SVG + " " + price + ")</span>" : "");
-      // When buying, the confirm is also the PURCHASE — name it so, and show the cost.
-      if (el.saApply) el.saApply.innerHTML = buying ? ("Buy &amp; Apply · " + COIN_SVG + " " + price) : "Apply";
+      // When buying, the confirm is also the PURCHASE — name it so.
+      applyLabel = buying ? "Buy & Apply" : "Apply";
     }
-    if (el.saConfirm) el.saConfirm.classList.remove("hidden");
+    document.body.classList.add("modal-prompt");
+    showActionBar(msg, [
+      { label: "Back", cls: "no", onClick: cancelApplyChoice },
+      { label: applyLabel, cls: "primary", onClick: confirmApplySticker },
+    ], [], { html: true, dismiss: cancelApplyChoice });
   }
   /* Farewell moment for a card LEAVING the deck (Removal / pack swap): its
      picker cell dissolves — a brief grow, then shrink-and-fade — and `done`
@@ -25567,7 +25547,7 @@ const UIRenderer = (() => {
   function dissolveApplyCard(cardId, done) {
     const btn = el.saCards && el.saCards.querySelector('[data-card-id="' + cardId + '"]');
     if (!btn) { done(); return; }
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     btn.classList.add("sa-remove");
     setTimeout(done, 720);
   }
@@ -25613,7 +25593,7 @@ const UIRenderer = (() => {
         removalPurchase = false;
         cardPickMode = "sticker";
         selectedApplyCardId = null;
-        if (el.saConfirm) el.saConfirm.classList.add("hidden");
+        closeModalPrompt();
         const finish = () => {
           el.stickerApplyModal.classList.add("hidden");
           renderDeckStrip();
@@ -25635,7 +25615,7 @@ const UIRenderer = (() => {
         persistCampaign("map");
       }
       selectedApplyCardId = null;
-      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      closeModalPrompt();
       const finishMap = () => {
         pendingBlankRemovals--;
         if (pendingBlankRemovals > 0) { openCardRemove(); return; }   // one picker per Blank
@@ -25659,7 +25639,7 @@ const UIRenderer = (() => {
         const swappedId = selectedApplyCardId;
         pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
         pendingBuyStickerSlot = null;
-        if (el.saConfirm) el.saConfirm.classList.add("hidden");
+        closeModalPrompt();
         dissolveApplyCard(swappedId, () => {
           el.stickerApplyModal.classList.add("hidden");
           applyCardsById = new Map();
@@ -25703,7 +25683,7 @@ const UIRenderer = (() => {
           if (btn) {
             pendingApplyStickerId = null; pendingSwapTrayIndex = null;
             pendingBuyStickerSlot = null;
-            if (el.saConfirm) el.saConfirm.classList.add("hidden");
+            closeModalPrompt();
             btn.scrollIntoView({ block: "nearest" });   // a re-sort may have moved it
             btn.classList.add("sa-flash");
             setTimeout(() => {
@@ -25726,7 +25706,7 @@ const UIRenderer = (() => {
     // confirm button and begin the picker close on THIS frame — the engine state
     // and (on success) the save were already committed above. Everything below
     // was the long synchronous task that made Apply feel dead under CPU throttle.
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
@@ -25752,7 +25732,7 @@ const UIRenderer = (() => {
       removalPurchase = false;
       cardPickMode = "sticker";
       selectedApplyCardId = null;
-      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      closeModalPrompt();
       el.stickerApplyModal.classList.add("hidden");
       renderStore();
       return;
@@ -25764,7 +25744,7 @@ const UIRenderer = (() => {
       cardPickMode = "sticker";
       pendingBlankRemovals = 0;
       selectedApplyCardId = null;
-      if (el.saConfirm) el.saConfirm.classList.add("hidden");
+      closeModalPrompt();
       el.stickerApplyModal.classList.add("hidden");
       return;
     }
@@ -25774,7 +25754,7 @@ const UIRenderer = (() => {
     // queue (the store "Place" button finishes it later).
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
     pendingBuyStickerSlot = null;
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
+    closeModalPrompt();
     el.stickerApplyModal.classList.add("hidden");
     placementWalk = false;   // a cancel ends any walk (the queue keeps its items)
     (onPlacementQueueEmpty || defaultPlacementEmpty)();
@@ -25909,7 +25889,7 @@ const UIRenderer = (() => {
     const t = reg.get(id);
     if (!t) return;
     pendingPlaceKind = kind; pendingPlaceId = id; selectedPlaceCol = null;
-    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    closeModalPrompt();   // a fresh picker never inherits a stale bar
     if (el.ipHead) el.ipHead.textContent = "Place " + t.label;
     if (el.ipBanner) el.ipBanner.innerHTML =
       '<span class="ip-art">' + (kind === "pillar" ? pathwayBannerHtml(t) : baseBannerHtml(t, "charged")) + "</span>" +
@@ -25919,6 +25899,13 @@ const UIRenderer = (() => {
     renderPlaceColumns();
     el.itemPlaceModal.classList.remove("hidden");
   }
+  /* Back / outside-tap on the place confirm: drop the column choice and keep
+     picking (the modal stays open). */
+  function cancelPlaceChoice() {
+    selectedPlaceCol = null;
+    closeModalPrompt();
+    renderPlaceColumns();
+  }
   function selectPlaceColumn(col) {
     selectedPlaceCol = col;
     renderPlaceColumns();
@@ -25926,10 +25913,14 @@ const UIRenderer = (() => {
     const occ = pendingPlaceKind === "pillar" ? campaign.getColumnPillars() : campaign.getColumnBases();
     const t = reg.get(pendingPlaceId);
     const old = occ[col] ? reg.get(occ[col]) : null;
-    if (el.ipConfirmMsg) el.ipConfirmMsg.innerHTML = old
+    const msg = old
       ? "Replace <b>" + escHtml(old.label) + "</b> on column " + (col + 1) + " with <b>" + escHtml((t && t.label) || "") + "</b>? (the old one sells for " + COIN_SVG + " " + sellValueOf(old) + ")"
       : "Place <b>" + escHtml((t && t.label) || "") + "</b> on column " + (col + 1) + "?";
-    if (el.ipConfirm) el.ipConfirm.classList.remove("hidden");
+    document.body.classList.add("modal-prompt");
+    showActionBar(msg, [
+      { label: "Back", cls: "no", onClick: cancelPlaceChoice },
+      { label: "Place", cls: "primary", onClick: confirmItemPlace },
+    ], [], { html: true, dismiss: cancelPlaceChoice });
   }
   /* Same-Power has ONE global slot (the Same button), not a column — so it reuses
      this same place-modal but with no column grid: the banner shows the power, and
@@ -25947,11 +25938,16 @@ const UIRenderer = (() => {
     if (el.ipColumns) el.ipColumns.innerHTML = "";   // no column grid — one global slot
     const prev = campaign.getSamePower && campaign.getSamePower();
     const old = prev ? SamePowerTypes.get(prev) : null;
-    if (el.ipConfirmMsg) el.ipConfirmMsg.innerHTML = old
+    const msg = old
       ? "Replace <b>" + escHtml(old.label) + "</b> on the Same button with <b>" + escHtml(t.label) + "</b>? (the old one sells for " + COIN_SVG + " " + sellValueOf(old) + ")"
       : "Equip <b>" + escHtml(t.label) + "</b> to the Same (=) button?";
-    if (el.ipPlace) el.ipPlace.textContent = "Equip";
-    if (el.ipConfirm) el.ipConfirm.classList.remove("hidden");
+    // No column grid to fall back to here — Back / an outside tap cancels the
+    // whole equip (closeItemPlace), same as the old in-modal Back.
+    document.body.classList.add("modal-prompt");
+    showActionBar(msg, [
+      { label: "Back", cls: "no", onClick: closeItemPlace },
+      { label: "Equip", cls: "primary", onClick: confirmSamePowerEquip },
+    ], [], { html: true, dismiss: closeItemPlace });
     el.itemPlaceModal.classList.remove("hidden");
   }
   function confirmSamePowerEquip() {
@@ -25967,8 +25963,7 @@ const UIRenderer = (() => {
     updateSamePowerHud();
     el.itemPlaceModal.classList.add("hidden");
     pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
-    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
-    if (el.ipPlace) el.ipPlace.textContent = "Place";   // restore the pillar/base label
+    closeModalPrompt();
     continuePendingPlacement();
   }
   function confirmItemPlace() {
@@ -25989,13 +25984,12 @@ const UIRenderer = (() => {
     persistCampaign("store");
     el.itemPlaceModal.classList.add("hidden");
     pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
-    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    closeModalPrompt();
     continuePendingPlacement();
   }
   function closeItemPlace() {
     pendingPlaceKind = null; pendingPlaceId = null; selectedPlaceCol = null;
-    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
-    if (el.ipPlace) el.ipPlace.textContent = "Place";   // restore label (samepower equip sets "Equip")
+    closeModalPrompt();
     el.itemPlaceModal.classList.add("hidden");
     placementWalk = false;   // a cancel ends any walk (the queue keeps its items)
     (onPlacementQueueEmpty || defaultPlacementEmpty)();
@@ -26036,6 +26030,16 @@ const UIRenderer = (() => {
   function closeRerollConfirm() {
     if (!document.body.classList.contains("store-confirm")) return;   // not ours — leave any other bar alone
     document.body.classList.remove("store-confirm");
+    hideActionBar();
+  }
+  /* PICKER-MODAL CONFIRMS (sticker-apply + item-place) ride the same shared
+     bottom prompt bar, lifted over the deck-modals via body.modal-prompt.
+     closeModalPrompt only acts when that class is present — the same guard
+     shape as closeRerollConfirm — so picker close paths can call it blindly
+     without ever swallowing another flow's bar. */
+  function closeModalPrompt() {
+    if (!document.body.classList.contains("modal-prompt")) return;
+    document.body.classList.remove("modal-prompt");
     hideActionBar();
   }
   function confirmReroll() {
@@ -26165,8 +26169,10 @@ const UIRenderer = (() => {
      controls. `buttons`: [{ label, cls, onClick }]. `targets`: pile indices to
      outline on the board (optional). `opts.help` adds a second description line
      (the contextual help text, shown WITH the prompt); `opts.dismiss` makes an
-     outside tap dismiss/cancel the bar (call it). The `text` may contain trusted
-     icon markup; the help line is escaped. */
+     outside tap dismiss/cancel the bar (call it). With a help line the `text`
+     may contain trusted icon markup; without one it renders as plain text
+     unless `opts.html` marks it as code-built trusted markup (bold names /
+     coin icons — never player input). The help line itself is always escaped. */
   function showActionBar(text, buttons, targets, opts) {
     opts = opts || {};
     noticeToken++;          // a real prompt supersedes any pending notice timeout
@@ -26175,6 +26181,8 @@ const UIRenderer = (() => {
       el.actionPromptText.innerHTML =
         (text ? '<span class="ap-q">' + text + "</span>" : "") +
         '<span class="ap-desc">' + escHtml(opts.help) + "</span>";
+    } else if (opts.html) {
+      el.actionPromptText.innerHTML = text;
     } else {
       el.actionPromptText.textContent = text;
     }
@@ -26477,9 +26485,8 @@ const UIRenderer = (() => {
     closePackReveal();
     closePackReplace();
     if (el.stickerApplyModal) el.stickerApplyModal.classList.add("hidden");
-    if (el.saConfirm) el.saConfirm.classList.add("hidden");
     if (el.itemPlaceModal) el.itemPlaceModal.classList.add("hidden");
-    if (el.ipConfirm) el.ipConfirm.classList.add("hidden");
+    closeModalPrompt();   // a picker confirm (apply/place/equip) never outlives the store
     closeStoreKey();    // STOREHELP1: the type legend can't outlive the store
     el.storeOverlay.classList.add("hidden");
     startDriftSync();   // board may be back on screen → resume the network drift loop
