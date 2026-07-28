@@ -7047,7 +7047,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v4.97 · destructive taps confirm in the bottom bar";
+const APP_VERSION = "v4.98 · hold-for-help on map nodes, HUD chips, guess buttons";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17569,6 +17569,30 @@ const UIRenderer = (() => {
   }
   function closePeekInfo() { el.peekInfo.classList.add("hidden"); document.body.classList.remove("peek-band"); }
 
+  /* Generic hold-for-help popup (guess buttons, HUD chips, map nodes): a title
+     + one description line in the same #peekInfo the pile/pillar/base holds
+     use. Plain copy — both parts escaped. */
+  function showTextHelp(title, desc) {
+    el.peekInfo.innerHTML = '<div class="pk-head">' + escHtml(title) + '</div>' +
+      '<div class="pk-desc">' + escHtml(desc) + '</div>';
+    el.peekInfo.classList.remove("hidden");
+    document.body.classList.toggle("peek-band", peekInBand());
+  }
+  /* Attach hold-for-help to ONE chrome element (no tap action of its own):
+     a 180ms HOLD runs `show()`; the release closes it (default closePeekInfo). */
+  function attachHoldHelp(btn, show, closeFn) {
+    if (!btn) return;
+    let timer = null, held = false;
+    btn.addEventListener("pointerdown", () => {
+      held = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => { held = true; show(); }, 180);
+    });
+    const release = () => { clearTimeout(timer); if (held) { held = false; (closeFn || closePeekInfo)(); } };
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
+  }
+
   /* ---- selection / action sheet ---- */
   /* Force-select a pile (no toggle): show the action row + enable the "?" info
      button. Used by both tap-select and the drag-guess gesture. */
@@ -19339,29 +19363,51 @@ const UIRenderer = (() => {
       if (b && !b.classList.contains("empty")) selectSetupTab(b.dataset.tab);
     });
 
-    el.btnHigher.addEventListener("click", () => submitGuess("higher"));
-    el.btnLower.addEventListener("click", () => submitGuess("lower"));
-    // Same button: a normal TAP submits the Same guess; when a Same-Power is
-    // equipped, a HOLD shows its info (global hold-for-help convention) and
-    // suppresses the guess. (Moved here from the old top-banner chip.)
-    {
-      let spHoldTimer = null, spHeld = false, suppressSameClick = false;
-      const spId = () => (el.btnSame && el.btnSame.dataset.power) || null;
-      el.btnSame.addEventListener("pointerdown", (e) => {
-        spHeld = false;
-        if (!spId()) return;                 // no power equipped → plain guess button
-        try { el.btnSame.setPointerCapture(e.pointerId); } catch (err) {}
-        clearTimeout(spHoldTimer);
-        spHoldTimer = setTimeout(() => { spHeld = true; suppressSameClick = true; openSamePowerInfo(spId()); }, 180);
+    // Guess buttons: a normal TAP submits the guess; a HOLD shows what the guess
+    // means (hold-for-help everywhere) and suppresses the guess. Same also carries
+    // the equipped Same-Power's info on hold when one is equipped.
+    const GUESS_HELP = {
+      higher: ["Higher", "Guess the next card is HIGHER than the pile's top. Wrong — or a tie — kills the pile."],
+      lower: ["Lower", "Guess the next card is LOWER than the pile's top. Wrong — or a tie — kills the pile."],
+      same: ["Same", "Guess the next card matches the pile's top rank exactly. The only guess that survives a tie — a correct Same banks your Same Charge."],
+    };
+    [["higher", el.btnHigher], ["lower", el.btnLower], ["same", el.btnSame]].forEach(([dir, btn]) => {
+      if (!btn) return;
+      let holdTimer = null, held = false, suppressClick = false;
+      const spId = () => (btn.dataset && btn.dataset.power) || null;
+      btn.addEventListener("pointerdown", (e) => {
+        held = false;
+        try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => {
+          held = true; suppressClick = true;
+          if (dir === "same" && spId()) openSamePowerInfo(spId());
+          else showTextHelp(GUESS_HELP[dir][0], GUESS_HELP[dir][1]);
+        }, 180);
       });
-      const spRelease = () => { clearTimeout(spHoldTimer); if (spHeld) { spHeld = false; closeCardInfo(); } };
-      el.btnSame.addEventListener("pointerup", spRelease);
-      el.btnSame.addEventListener("pointercancel", spRelease);
-      el.btnSame.addEventListener("click", () => {
-        if (suppressSameClick) { suppressSameClick = false; return; }   // a hold already showed info
-        submitGuess("same");
+      const release = () => {
+        clearTimeout(holdTimer);
+        if (held) { held = false; closeCardInfo(); closePeekInfo(); }
+      };
+      btn.addEventListener("pointerup", release);
+      btn.addEventListener("pointercancel", release);
+      btn.addEventListener("click", () => {
+        if (suppressClick) { suppressClick = false; return; }   // a hold already showed info
+        submitGuess(dir);
       });
-    }
+    });
+
+    // HUD chips: hold-for-help everywhere (tap does nothing on these). Copy lives
+    // here as the single source — the markup title attributes are set from it.
+    const HUD_SAME_HELP = "Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort";
+    const DEAL_STATUS_HELP = "Coins you'll earn clearing this deal: surviving piles × the smallest surviving pile, plus bonus";
+    if (el.hudSame) { el.hudSame.title = HUD_SAME_HELP; attachHoldHelp(el.hudSame, () => showTextHelp("Same Charge", HUD_SAME_HELP)); }
+    if (el.hudSamePower) attachHoldHelp(el.hudSamePower, () => {
+      const id = campaign && campaign.getSamePower && campaign.getSamePower();
+      if (id) openSamePowerInfo(id);
+    }, closeCardInfo);
+    attachHoldHelp(el.stageRun, () => showTextHelp("The climb", "3 stages, each ending at a boss deal. Clear the stage-3 boss to win the campaign — losing any deal ends it."));
+    if (el.dealStatus) { el.dealStatus.title = DEAL_STATUS_HELP; attachHoldHelp(el.dealStatus, () => showTextHelp("Clear reward", DEAL_STATUS_HELP)); }
 
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
@@ -19555,6 +19601,37 @@ const UIRenderer = (() => {
     // Progression map: navigate by tapping nodes (no Enter button). The current
     // run node (▶) starts the run; a cleared node opens its fossil detail.
     el.mapTrack.addEventListener("click", onMapNodeTap);
+    // Progression map: hold-for-help on nodes. A HOLD (350ms) shows what the
+    // node is — the label comes from mapNodeLabel, the same single source the
+    // map key uses; a concealed mystery node stays ???. The release after a
+    // hold must NOT travel: a capture-phase click consumes it.
+    {
+      let mapHoldTimer = null, mapHeld = false, mapSuppress = false;
+      el.mapTrack.addEventListener("pointerdown", (e) => {
+        mapHeld = false;
+        clearTimeout(mapHoldTimer);
+        const btn = e.target.closest(".pm-node[data-action='node']");
+        if (!btn) return;
+        const nid = Number(btn.dataset.node);
+        mapHoldTimer = setTimeout(() => {
+          mapHeld = true; mapSuppress = true;
+          const map = campaign && campaign.getMap && campaign.getMap();
+          const n = map && map.byId ? map.byId[nid] : null;
+          if (!n) { mapHeld = false; mapSuppress = false; return; }
+          const hidden = !Tutorial.mysteryMasked() && campaign.nodeHidden && campaign.nodeHidden(n.id);
+          showTextHelp(hidden ? "Mystery" : "Map node", hidden ? "??? — revealed when you arrive" : mapNodeLabel(n));
+        }, 350);
+      });
+      const mapRelease = () => {
+        clearTimeout(mapHoldTimer);
+        if (mapHeld) { mapHeld = false; closePeekInfo(); }
+      };
+      el.mapTrack.addEventListener("pointerup", mapRelease);
+      el.mapTrack.addEventListener("pointercancel", mapRelease);
+      el.mapTrack.addEventListener("click", (e) => {
+        if (mapSuppress) { mapSuppress = false; e.stopPropagation(); e.preventDefault(); }
+      }, true);
+    }
     // MAP KEY: "?" toggles the legend; its × or any tap outside closes it. The
     // outside-close runs on capture-phase pointerdown so the tap ALSO lands on
     // whatever it hit (the key is a glance, never a blocking mode).
