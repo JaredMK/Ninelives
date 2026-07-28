@@ -4,13 +4,29 @@
 // site (map packs, store card packs), and removing a held Joker REOPENS
 // availability. Map +1 nodes never roll random Jokers.
 //
-// JOKER3 — PINKY REGULAR is the exception: its Regular rules are REPLACED by
-// a fixed scheme — exactly TWO Jokers per run, one forced corridor +1 CARD
-// node directly after the stage-1 boss and one after the stage-2 boss (both
-// visible, never a mystery, never in a pack), and NO other Joker source at
-// all. Non-Pinky decks keep Regular's roaming guaranteed node + cap 2 (tested
-// on Mamma below). Master: cap 1, no guarantee. Legendary: no Jokers anywhere.
+// JOKER3 — difficulty.js `fixedJokers` REPLACES a tier's rules for the decks
+// it lists (today only Pinky on Regular): a fixed scheme — exactly TWO Jokers
+// per run, one forced corridor +1 CARD node directly after the stage-1 boss
+// and one after the stage-2 boss (both visible, never a mystery, never in a
+// pack), and NO other Joker source at all. Decks the data does not list keep
+// Regular's roaming guaranteed node + cap 2 (tested on Mamma below). Master:
+// cap 1, no guarantee. Legendary: no Jokers anywhere.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadGame, makeRunner } from "./_harness.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const DIFFICULTY = join(HERE, "..", "difficulty.js");
+
+/** A difficulty.js source with the live data mutated (scheme probes — the
+    same pattern as tests/zen1.test.mjs's validation probes). */
+function difficultySourceWith(mutate) {
+  const d = JSON.parse(JSON.stringify(
+    new Function(readFileSync(DIFFICULTY, "utf8") + "\n;return NINELIVES_DIFFICULTY;")()));
+  mutate(d);
+  return '"use strict";\nconst NINELIVES_DIFFICULTY = ' + JSON.stringify(d) + ";";
+}
 
 export function run() {
   const { CampaignState } = loadGame();
@@ -170,6 +186,43 @@ export function run() {
     let packJokers = 0;
     for (let i = 0; i < 20 && packNode; i++) packJokers += c.resolvePack({ ...packNode, packCount: 3 }).filter(x => x && x.joker).length;
     r.eq(packJokers, 0, "legendary: map packs never mint Jokers (60 slots probed)");
+  }
+
+  // --- the scheme is DATA-DRIVEN: mutating difficulty.js changes it --------
+  {
+    // The live accessor reads the tier's fixedJokers straight from the data.
+    const { DifficultyData } = loadGame();
+    const liveStages = DifficultyData.tier("regular").fixedJokers.pink;
+    r.eq(JSON.stringify(DifficultyData.fixedJokerStages("pink", "regular")), JSON.stringify(liveStages),
+      "fixedJokerStages(pink, regular) returns the data's stage array");
+    // DELETE the override → Pinky Regular falls back to the roaming scheme:
+    // no fixed corridor nodes, exactly one roaming guaranteed Joker, and
+    // random Joker availability back ON (cap permitting).
+    {
+      const { CampaignState } = loadGame({ difficultySource: difficultySourceWith(d => { delete d.tiers.regular.fixedJokers; }) });
+      const c = CampaignState.create();   // default deck = pink
+      c.setTier("regular");
+      c.reset();
+      r.eq(c.getMap().nodes.filter(n => n.jokerNode).length, 0,
+        "fixedJokers deleted: pinky regular generates NO fixed corridor nodes");
+      r.eq(jokerNodes(c).length, 1, "…and gets the roaming guaranteed Joker node instead");
+      r.ok(c.jokerBudget().allowed, "…and random Joker availability is back ON");
+    }
+    // ADD another deck → that deck takes the fixed scheme on that tier:
+    {
+      const { CampaignState } = loadGame({ difficultySource: difficultySourceWith(d => {
+        d.tiers.regular.fixedJokers.mamma = d.tiers.regular.fixedJokers.pink.slice();
+      }) });
+      const c = CampaignState.create();
+      c.setDeck("mamma");
+      c.setTier("regular");
+      c.reset();
+      const fixed = c.getMap().nodes.filter(n => n.jokerNode).sort((a, b) => a.phase - b.phase);
+      r.eq(fixed.length, liveStages.length, "mamma added to fixedJokers: mamma regular gets the fixed nodes too");
+      r.eq(JSON.stringify(fixed.map(n => n.phase)), JSON.stringify(liveStages),
+        "…at exactly the data's stage indices");
+      r.ok(!c.jokerBudget().allowed, "…and her random Joker availability turns OFF");
+    }
   }
 
   return r.summary();

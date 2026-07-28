@@ -1,15 +1,22 @@
 // CLASS-FIRST STORE ROLL (items.js store.classWeights) + the INDIVIDUAL-CARD
-// class: each of the 5 rolled slots picks its CLASS first (sticker 50 /
-// pillar 17 / base 10 / pack 10 / card 10 / samepower 3 by default), then an
-// item within the class by rarity. Card slots carry a real generated card at
-// pack odds — never a Removal card, Jokers at 1/53 priced separately and
-// gated by the tier's held-count cap. Max 3 per class; Removal slot 6 fixed.
+// class: each rolled slot picks its CLASS first (sticker 40 / pillar 20 /
+// base 20 / pack 8 / card 8 / samepower 4 by default), then an item within
+// the class by rarity. Card slots carry a real generated card at pack odds —
+// never a Removal card, Jokers at 1/53 priced separately and gated by the
+// tier's held-count cap. At most store.typeCap slots per class; the Removal
+// slot is fixed last. Slot/cap numbers read live from items.js.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadGame, makeRunner } from "./_harness.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 export function run() {
   const { CampaignState, ItemData, PackTypes } = loadGame();
   const r = makeRunner("store-class.test.mjs");
   const CW = ItemData.store.classWeights;
+  const TYPE_CAP = ItemData.store.typeCap;
   const CLASSES = ["sticker", "pillar", "base", "pack", "card", "samepower"];
 
   r.ok(CLASSES.every(k => typeof CW[k] === "number" && CW[k] >= 0),
@@ -44,11 +51,11 @@ export function run() {
           if (!s.card || s.card.blank) blanks++;
         }
       });
-      for (const k in per) if (per[k] > 3) overCap++;
+      for (const k in per) if (per[k] > TYPE_CAP) overCap++;
     }
     r.ok(visits >= 250, "swept " + visits + " store visits (" + slots + " rolled slots)");
-    r.eq(removalLast, visits, "slot 6 is ALWAYS the fixed Removal slot");
-    r.eq(overCap, 0, "no class ever exceeds 3 slots per visit");
+    r.eq(removalLast, visits, "the last slot is ALWAYS the fixed Removal slot");
+    r.eq(overCap, 0, "no class ever exceeds store.typeCap (" + TYPE_CAP + ") slots per visit");
     r.eq(blanks, 0, "card slots always carry a real card — never a Removal/Blank");
     const total = CLASSES.reduce((a, k) => a + CW[k], 0);
     for (const k of CLASSES) {
@@ -141,6 +148,43 @@ export function run() {
     let stickered = 0;
     for (let i = 0; i < 60; i++) { const card = c.genStoreCard(Math.random); if (card.stickers && card.stickers.length) stickered++; }
     r.eq(stickered, 0, "Lammy (noStickers): store-slot cards never carry stickers");
+  }
+
+  // --- store shelf-shape + packStickerOdds: malformed entries FAIL LOUDLY ----
+  {
+    const itemsSrc = readFileSync(join(HERE, "..", "items.js"), "utf8");
+    const live = new Function(itemsSrc + "\n;return NINELIVES_ITEMS;")();
+    const mutatedSource = (mutate) => {
+      const d = JSON.parse(JSON.stringify(live));
+      mutate(d);
+      return '"use strict";\nconst NINELIVES_ITEMS = ' + JSON.stringify(d) + ";";
+    };
+    const loadExpectingFailure = (mutate) => {
+      const errs = [];
+      const orig = console.error;
+      console.error = (...a) => errs.push(a.join(" "));
+      let threw = null;
+      try { loadGame({ itemsSource: mutatedSource(mutate) }); }
+      catch (e) { threw = e; }
+      finally { console.error = orig; }
+      return { threw, errs };
+    };
+    const cases = [
+      ["slots missing", (d) => { delete d.store.slots; }, "store.slots", "positive integer"],
+      ["slots non-integer", (d) => { d.store.slots = 6.5; }, "store.slots", "positive integer"],
+      ["typeCap invalid", (d) => { d.store.typeCap = 0; }, "store.typeCap", "positive integer"],
+      ["reroll missing", (d) => { delete d.store.reroll; }, "store.reroll", "baseCost"],
+      ["reroll.step negative", (d) => { d.store.reroll.step = -1; }, "store.reroll", "step"],
+      ["packStickerOdds missing", (d) => { delete d.packStickerOdds; }, "packStickerOdds", "non-empty array"],
+      ["packStickerOdds not ascending", (d) => { d.packStickerOdds = [[0.5, 1], [0.4, 2]]; }, "packStickerOdds[1]", "strictly ascend"],
+      ["packStickerOdds bad pair", (d) => { d.packStickerOdds = [[1.5, 1]]; }, "packStickerOdds[0]", "maxRoll"],
+    ];
+    for (const [name, mutate, entry, field] of cases) {
+      const { threw, errs } = loadExpectingFailure(mutate);
+      r.ok(threw && /items\.js validation FAILED/.test(threw.message), `malformed items.js (${name}) throws on load`);
+      r.ok(errs.some((l) => l.includes(entry) && l.includes(field)),
+        `…and a console.error names "${entry}" + "${field}"`);
+    }
   }
 
   return r.summary();

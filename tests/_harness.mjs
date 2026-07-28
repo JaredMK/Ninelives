@@ -18,7 +18,8 @@ const TUTORIAL = join(HERE, "..", "tutorial.js");
 
 /** Load the game's modules with a stubbed DOM. Returns the engine modules.
     `opts.difficultySource` replaces the difficulty.js source (validation tests
-    load deliberately-malformed data); `opts.localStorage` injects a storage
+    load deliberately-malformed data); `opts.itemsSource` does the same for
+    items.js; `opts.localStorage` injects a storage
     stub (persistence tests for the localStorage-backed stores — without it
     they degrade to their no-storage no-op, exactly like the browser's
     private mode). */
@@ -34,10 +35,11 @@ export function loadGame(opts = {}) {
   // The page loads the shop-item DATA (items.js), the difficulty bands
   // (difficulty.js) and the tutorial copy (tutorial.js) before the game
   // script; mirror that here so ItemData, DifficultyData and TutorialData
-  // find their globals. opts.difficultySource swaps in a mutated difficulty
-  // file (the zen validation tests load deliberately-malformed data).
+  // find their globals. opts.difficultySource / opts.itemsSource swap in a
+  // mutated data file (the validation tests load deliberately-malformed data).
   const difficultyCode = opts.difficultySource || readFileSync(DIFFICULTY, "utf8");
-  const code = readFileSync(ITEMS, "utf8") + "\n;" + difficultyCode
+  const itemsCode = opts.itemsSource || readFileSync(ITEMS, "utf8");
+  const code = itemsCode + "\n;" + difficultyCode
     + "\n;" + readFileSync(TUTORIAL, "utf8") + "\n;" + gameCode;
 
   // Every DOM access returns a chainable no-op proxy. The modules under test

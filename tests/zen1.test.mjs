@@ -136,6 +136,25 @@ export function run() {
     r.ok(ok && !threw, "the unmutated live zen block validates clean");
   }
 
+  // ---- firstDealBand / subset: malformed entries FAIL LOUDLY naming the field --
+  {
+    const cases = [
+      ["firstDealBand missing", (d) => { delete d.firstDealBand; }, "firstDealBand", "[lo, hi]"],
+      ["firstDealBand lo > hi", (d) => { d.firstDealBand = [2, 1]; }, "firstDealBand", "lo > hi"],
+      ["firstDealBand non-numeric", (d) => { d.firstDealBand = [1, "x"]; }, "firstDealBand", "[lo, hi]"],
+      ["subset missing", (d) => { delete d.subset; }, "subset", "missing object"],
+      ["subset.threshold invalid", (d) => { d.subset.threshold = 0; }, "subset.threshold", "positive integer"],
+      ["subset.min non-integer", (d) => { d.subset.min = 15.5; }, "subset.min", "positive integer"],
+      ["subset min > max", (d) => { d.subset.min = 99; }, "subset", "min > max"],
+    ];
+    for (const [name, mutate, entry, field] of cases) {
+      const { threw, errs } = loadExpectingFailure(mutate);
+      r.ok(threw && /difficulty\.js validation FAILED/.test(threw.message), `malformed data (${name}) throws on load`);
+      r.ok(errs.some((l) => l.includes(entry) && l.includes(field)),
+        `…and a console.error names "${entry}" + "${field}"`);
+    }
+  }
+
   // ---- deck construction: suitCount × 13 fresh cards, exact copies, clean ---
   {
     const { DifficultyData, DeckManager } = loadGame();

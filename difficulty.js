@@ -28,9 +28,30 @@
                             standalone +1 card node somewhere in stages 1-3
                             (random node per run, never inside a pack, never
                             hidden behind a "?" mystery node)
+     tiers.<id>.fixedJokers OPTIONAL per-deck Joker-scheme override:
+                            { <deckId>: [stageIndex, ...] }. When the selected
+                            deck is a key, the roaming guaranteedMapJoker is
+                            REPLACED by fixed post-boss corridor Joker nodes —
+                            one visible standalone +1 CARD node directly after
+                            each listed stage's boss (stage indices 0-2, never
+                            a mystery, never inside a pack) — and ALL random
+                            Joker sources turn off (map packs, store card
+                            packs and the store card slot stop rolling Jokers,
+                            whatever jokerCap says; Blanks keep their share).
+                            Decks NOT listed keep jokerCap +
+                            guaranteedMapJoker unchanged.
      endlessBandStep        past stage 3, BOTH edges of BOTH bands lift by
                             this much per endless stage, starting from the
                             selected tier's stage-3 bands
+     firstDealBand          [lo, hi] — the very first deal of the run (stage
+                            0, row 0): a narrow fixed band so the opening
+                            always plays gentle, whatever tier is selected
+     subset                 SUBSET DEALS — once the deck grows past
+                            subset.threshold cards, a regular (non-boss) deal
+                            plays a random SUBSET of the deck: a survive
+                            count rolled in [subset.min, subset.max] plus the
+                            face-up cards that seed the piles. Bosses always
+                            play the FULL deck. Same on every tier.
 
    ZEN MODE (the standalone higher/lower game — no campaign, no coins, no
    items) reads its three difficulties from the `zen` block:
@@ -51,6 +72,15 @@ const NINELIVES_DIFFICULTY = {
   // Endless lift per stage past stage 3 (applies to every tier).
   endlessBandStep: 1.25,
 
+  // The very first deal of the run (stage 0, row 0) — a narrow band so the
+  // opening always plays gentle, on every tier (see the header).
+  firstDealBand: [1.25, 1.75],
+
+  // SUBSET DEALS (see the header): past `threshold` deck cards a regular
+  // deal plays a random subset — a survive count in [min, max] plus the
+  // pile seeds. Bosses always play the full deck.
+  subset: { threshold: 35, min: 15, max: 35 },
+
   tiers: {
     // The baseline — the game's original band values.
     regular: {
@@ -59,6 +89,12 @@ const NINELIVES_DIFFICULTY = {
       bossBands:  [[2.3, 3.25], [3.75, 4.25], [4.75, 5.5]],
       jokerCap: 2,
       guaranteedMapJoker: true,
+      // PINKY's fixed-Joker scheme (see the header): the roaming guarantee
+      // above is replaced by exactly TWO fixed post-boss corridor Joker
+      // nodes — after the stage-1 and stage-2 bosses — and every random
+      // Joker source turns off. Pinky-only; the other decks keep the
+      // roaming rule.
+      fixedJokers: { pink: [0, 1] },
     },
     // Unlocks after beating the deck's Regular.
     master: {

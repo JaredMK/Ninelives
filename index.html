@@ -7526,6 +7526,14 @@ const ItemData = (() => {
   checkGroup("packs", D.packs, ["kind"]);
   if (!D.store || typeof D.store !== "object") problems.push("[items.js] store: missing config object");
   else {
+    const posInt = (n) => typeof n === "number" && isFinite(n) && Math.floor(n) === n && n > 0;
+    if (!posInt(D.store.slots)) problems.push("[items.js] store.slots: must be a positive integer (shelf slot count)");
+    if (!posInt(D.store.typeCap)) problems.push("[items.js] store.typeCap: must be a positive integer (max slots of one item type per visit)");
+    const rr = D.store.reroll;
+    if (!rr || typeof rr !== "object"
+        || typeof rr.baseCost !== "number" || !isFinite(rr.baseCost) || rr.baseCost < 0
+        || typeof rr.step !== "number" || !isFinite(rr.step) || rr.step < 0)
+      problems.push("[items.js] store.reroll: needs numeric `baseCost` and `step` (≥ 0)");
     const tw = D.store.tierWeights || {};
     for (const t of TIERS)
       if (typeof tw[t] !== "number" || !(tw[t] > 0)) problems.push("[items.js] store.tierWeights." + t + ": must be a positive number");
@@ -7541,6 +7549,23 @@ const ItemData = (() => {
     if (!cd || typeof cd.price !== "number" || !isFinite(cd.price) || cd.price < 0
         || typeof cd.jokerPrice !== "number" || !isFinite(cd.jokerPrice) || cd.jokerPrice < 0)
       problems.push("[items.js] store.card: needs numeric `price` and `jokerPrice`");
+  }
+  // PACK-CARD STICKER ODDS — [maxRoll, stickerCount] pairs checked in order
+  // against a uniform 0..1 roll; maxRoll must strictly ascend.
+  const pso = D.packStickerOdds;
+  if (!Array.isArray(pso) || !pso.length)
+    problems.push("[items.js] packStickerOdds: must be a non-empty array of [maxRoll, stickerCount] pairs");
+  else {
+    let prevCap = -Infinity;
+    pso.forEach((pair, i) => {
+      const bad = (msg) => problems.push("[items.js] packStickerOdds[" + i + "]: " + msg);
+      if (!Array.isArray(pair) || pair.length !== 2
+          || typeof pair[0] !== "number" || !isFinite(pair[0]) || pair[0] <= 0 || pair[0] > 1
+          || typeof pair[1] !== "number" || !isFinite(pair[1]) || pair[1] < 0 || Math.floor(pair[1]) !== pair[1])
+        return bad("must be a [maxRoll, stickerCount] pair — maxRoll in (0,1], stickerCount an integer ≥ 0");
+      if (pair[0] <= prevCap) bad("maxRoll must strictly ascend through the table");
+      prevCap = pair[0];
+    });
   }
   if (problems.length) {
     problems.forEach(p => console.error(p));
@@ -7601,9 +7626,11 @@ function cardMatchesSuit(card, suit) {
    DifficultyData — loads + VALIDATES the difficulty-band file
    (difficulty.js, the NINELIVES_DIFFICULTY global). The map generator's
    bandsFor() reads the SELECTED tier's stageBands/bossBands and the
-   endless lift from here — difficulty.js is the single hand-editable
-   home for every band value. Malformed entries FAIL LOUDLY on load
-   (console.error naming the tier + field, then a thrown Error).
+   endless lift from here, plus the generator-wide firstDealBand (the
+   run's opening deal) and the subset-deal knobs — difficulty.js is the
+   single hand-editable home for every band value. Malformed entries
+   FAIL LOUDLY on load (console.error naming the tier + field, then a
+   thrown Error).
 ---------------------------------------------------------------- */
 const DifficultyData = (() => {
   if (typeof NINELIVES_DIFFICULTY === "undefined")
@@ -7613,6 +7640,23 @@ const DifficultyData = (() => {
   const TIER_IDS = ["regular", "master", "legendary"];
   if (typeof D.endlessBandStep !== "number" || !(D.endlessBandStep > 0))
     problems.push("[difficulty.js] endlessBandStep: must be a positive number");
+  // firstDealBand — the very first deal of the run (stage 0, row 0).
+  const fb = D.firstDealBand;
+  if (!Array.isArray(fb) || fb.length !== 2
+      || typeof fb[0] !== "number" || !isFinite(fb[0])
+      || typeof fb[1] !== "number" || !isFinite(fb[1]))
+    problems.push("[difficulty.js] firstDealBand: must be a [lo, hi] pair of numbers");
+  else if (fb[0] > fb[1]) problems.push("[difficulty.js] firstDealBand: has lo > hi (" + fb[0] + " > " + fb[1] + ")");
+  // subset — the subset-deal knobs (threshold / survive min / survive max).
+  const sub = D.subset;
+  if (!sub || typeof sub !== "object") problems.push("[difficulty.js] subset: missing object");
+  else {
+    for (const k of ["threshold", "min", "max"])
+      if (typeof sub[k] !== "number" || !isFinite(sub[k]) || Math.floor(sub[k]) !== sub[k] || sub[k] <= 0)
+        problems.push("[difficulty.js] subset." + k + ": must be a positive integer");
+    if (typeof sub.min === "number" && typeof sub.max === "number" && sub.min > sub.max)
+      problems.push("[difficulty.js] subset: has min > max (" + sub.min + " > " + sub.max + ")");
+  }
   if (!D.tiers || typeof D.tiers !== "object") problems.push("[difficulty.js] tiers: missing object");
   else for (const id of TIER_IDS) {
     const t = D.tiers[id];
@@ -7623,6 +7667,22 @@ const DifficultyData = (() => {
       bad("missing/invalid `jokerCap` (integer ≥ 0 — max Jokers held at once on this tier)");
     if (typeof t.guaranteedMapJoker !== "boolean")
       bad("missing/invalid `guaranteedMapJoker` (boolean — one visible standalone Joker node in stages 1-3)");
+    // fixedJokers — OPTIONAL per-deck Joker-scheme override: an object mapping
+    // deck-id strings to arrays of authored stage indices (0-2).
+    if (t.fixedJokers !== undefined) {
+      const fj = t.fixedJokers;
+      if (!fj || typeof fj !== "object" || Array.isArray(fj))
+        bad("invalid `fixedJokers` (object mapping deck ids to stage-index arrays)");
+      else for (const deckKey of Object.keys(fj)) {
+        const stages = fj[deckKey];
+        if (typeof deckKey !== "string" || !deckKey) { bad("`fixedJokers` has an empty deck-id key"); continue; }
+        if (!Array.isArray(stages) || !stages.length) { bad("`fixedJokers." + deckKey + "` must be a non-empty array of stage indices"); continue; }
+        stages.forEach((s, i) => {
+          if (typeof s !== "number" || !isFinite(s) || Math.floor(s) !== s || s < 0 || s > 2)
+            bad("`fixedJokers." + deckKey + "[" + i + "]` must be an integer stage index 0-2 (got " + JSON.stringify(s) + ")");
+        });
+      }
+    }
     for (const key of ["stageBands", "bossBands"]) {
       const b = t[key];
       if (!Array.isArray(b) || b.length !== 3) { bad("`" + key + "` must be an array of exactly 3 [lo, hi] pairs"); continue; }
@@ -7657,7 +7717,19 @@ const DifficultyData = (() => {
   return {
     tierIds: TIER_IDS,
     endlessBandStep: D.endlessBandStep,
+    firstDealBand: D.firstDealBand,
+    subset: D.subset,
     tier(id) { return D.tiers[id] || D.tiers.regular; },
+    /** The fixed post-boss Joker stage indices for a deck/tier pair, or null
+        when the pair uses the tier's normal jokerCap/guaranteedMapJoker rules.
+        (Deliberately NO unknown-tier fallback here — a bogus tier id must not
+        silently inherit Regular's overrides.) */
+    fixedJokerStages(deckId, tierId) {
+      const t = D.tiers[tierId];
+      const fj = t && t.fixedJokers;
+      const stages = fj ? fj[deckId] : null;
+      return (Array.isArray(stages) && stages.length) ? stages : null;
+    },
     zenIds: ZEN_IDS,
     zen(id) { return D.zen[id] || D.zen.easy; },
   };
@@ -8249,10 +8321,11 @@ const RunMap = (() => {
     // Difficulty bands per stage (regular deals) + per-stage boss bands. Boss
     // bands are our tunables inside/above the stage bands ("boss is the stage's
     // hardest deal"); the FINAL boss band is spec-fixed at 5.5-6.0.
-    firstDealBand: [1.25, 1.75], // the very first deal of the run (stage 0, row 0)
-    // NOTE: stageBands / bossBands / endlessBandStep now live in difficulty.js
-    // — PER TIER (Regular / Master / Legendary), selected on deck select and
-    // read live by bandsFor() below via setDifficultyTier(). The endless
+    // NOTE: stageBands / bossBands / endlessBandStep / firstDealBand (the very
+    // first deal of the run, stage 0 row 0) now live in difficulty.js — the
+    // bands PER TIER (Regular / Master / Legendary), selected on deck select
+    // and read live by bandsFor() below via setDifficultyTier(); firstDealBand
+    // is tier-independent and read live from DifficultyData. The endless
     // progression rule is unchanged: every stage past ♠ lifts BOTH edges of
     // both bands by +endlessBandStep over the previous stage, starting from
     // the SELECTED tier's stage-3 bands.
@@ -8316,8 +8389,12 @@ const RunMap = (() => {
      is accepted slightly off (report-only). The 1..3 difficulty SCORE shown on a
      map node is STAGE-RELATIVE (see difficultyScore): it segments THAT stage's own
      band into thirds, so a "3" flags the hardest deals AVAILABLE at that point —
-     a stage-3 "3" is far harder in absolute terms than a stage-1 "3". */
-  const SUBSET = { threshold: 35, min: 15, max: 35 };
+     a stage-3 "3" is far harder in absolute terms than a stage-1 "3".
+
+     The knobs (threshold / min / max) live in difficulty.js — the top-level
+     `subset` block, identical across tiers — read live via DifficultyData
+     and re-exported below for the UI/tests. */
+  const SUBSET = DifficultyData.subset;
   /** The player-facing 1..3 difficulty score for a deal, RELATIVE TO ITS STAGE.
       Each stage owns a difficulty band [lo,hi] in GEN_CONFIG (bandsFor: the
       regular-deal band, or the boss band for a boss). We split THAT band into
@@ -8611,7 +8688,7 @@ const RunMap = (() => {
       const e = ext[n.id] || { min: entryDeck, max: entryDeck };
       const pBands = bandsFor(p);
       const band = n.type === "boss" ? [pBands.boss[0], pBands.boss[1] + bandHiX]
-        : (p === 0 && n.row === 0 && opts.firstDeal !== false ? C.firstDealBand : pBands.stage);
+        : (p === 0 && n.row === 0 && opts.firstDeal !== false ? DifficultyData.firstDealBand : pBands.stage);
       const dMin = (e.min - n.piles) / n.piles;
       const dMax = (e.max - n.piles) / n.piles;
       const mid = ((e.min + e.max) / 2 - n.piles) / n.piles;
@@ -9047,9 +9124,9 @@ const RunMap = (() => {
       for (let k = 0; k < dealRowsAsc.length && !converted; k++) {
         const r = dealRowsAsc[k];
         const isFirst = firstRowDeal && r === 0;
-        const band = isFirst ? C.firstDealBand : [sLo, sHi];
-        const capHi = isFirst ? C.firstDealBand[1] : regHi;
-        const targetD = isFirst ? (C.firstDealBand[0] + C.firstDealBand[1]) / 2
+        const band = isFirst ? DifficultyData.firstDealBand : [sLo, sHi];
+        const capHi = isFirst ? DifficultyData.firstDealBand[1] : regHi;
+        const targetD = isFirst ? (DifficultyData.firstDealBand[0] + DifficultyData.firstDealBand[1]) / 2
           : sLo + (regHi - sLo) * ((k + 1) / (dealRowsAsc.length + 1));   // ascending by row
         const group = all.filter(n => n.row === r && n.type === "deal");
         const used = new Set();
@@ -12161,10 +12238,10 @@ const CampaignState = (() => {
      any one type from flooding the shelf (draws over the cap are rejected and
      redrawn). Buying empties only that slot; a reroll replaces ALL slots for
      REROLL_BASE_COST, climbing REROLL_STEP per reroll within a visit. */
-  const STORE_SLOTS = 6;               // one unified shelf of six slots
-  const STORE_TYPE_CAP = 3;            // max slots of one item TYPE per visit
-  const REROLL_BASE_COST = 3;
-  const REROLL_STEP = 1;
+  const STORE_SLOTS = ItemData.store.slots;              // items.js knob — one unified shelf
+  const STORE_TYPE_CAP = ItemData.store.typeCap;         // items.js knob — max slots of one item TYPE per visit
+  const REROLL_BASE_COST = ItemData.store.reroll.baseCost;   // items.js knob
+  const REROLL_STEP = ItemData.store.reroll.step;            // items.js knob
   // REMOVAL SLOT (debug-toggleable, default ON): when enabled the store's LAST
   // slot is ALWAYS a permanent "Removal" card (fixed price, never depletes,
   // repeatable — each buy runs the choose-a-card-to-remove flow); the other
@@ -12214,11 +12291,14 @@ const CampaignState = (() => {
   function basePoolForSuits() { return BaseTypes.all(); }
 
   /** The PACK-CARD sticker distribution — how many stickers one freshly
-      granted card carries: 1% four / 3% three / 11% two / 33% one / 52% none.
+      granted card carries. The odds table lives in items.js
+      (packStickerOdds: [maxRoll, stickerCount] pairs, checked in order
+      against a uniform 0..1 roll; past every maxRoll → 0 stickers).
       ONE rule for every roll site: store card packs (genPackCard) and
       Mr. Smith's map grants (+1 nodes / map packs). */
   function packStickerCount(roll) {
-    return roll < 0.01 ? 4 : roll < 0.04 ? 3 : roll < 0.15 ? 2 : roll < 0.48 ? 1 : 0;
+    for (const [cap, n] of ItemData.packStickerOdds) if (roll < cap) return n;
+    return 0;
   }
 
   /** Apply a sticker to a CARD OBJECT (not by id). Shared by applySticker (real
@@ -12446,17 +12526,19 @@ const CampaignState = (() => {
     const rules = () => deckRulesFor(deckId);
     /** Shop price with the deck's multiplier applied (Mr. Smith pays 2x). */
     const shopPrice = (p) => (isFinite(p) ? Math.round(p * rules().priceMult) : p);
-    /** JOKER3 — PINKY REGULAR's fixed-Joker scheme. It REPLACES the tier's
-        random Joker rules for this one deck/tier pair: exactly TWO Jokers per
-        run, each a visible standalone +1 CARD corridor node placed directly
-        after the stage-1 and stage-2 bosses (never a mystery, never inside a
-        pack), and NO other Joker source at all — map packs, store card
-        packs and the store card slot all stop rolling Jokers (Blanks keep
-        their share). Every other deck/tier combination keeps difficulty.js's
+    /** JOKER3 — the fixed-Joker scheme (difficulty.js `fixedJokers`). It
+        REPLACES the tier's random Joker rules for the deck/tier pairs the
+        data lists (today only Pinky on Regular): exactly TWO Jokers per run,
+        each a visible standalone +1 CARD corridor node placed directly after
+        the listed stages' bosses (never a mystery, never inside a pack), and
+        NO other Joker source at all — map packs, store card packs and the
+        store card slot all stop rolling Jokers (Blanks keep their share).
+        Every deck/tier combination the data does NOT list keeps difficulty.js's
         jokerCap + guaranteedMapJoker rules unchanged. */
-    const fixedJokerScheme = () => deckId === "pink" && difficultyTier === "regular";
+    const fixedJokerStages = () => DifficultyData.fixedJokerStages(deckId, difficultyTier);
+    const fixedJokerScheme = () => !!fixedJokerStages();
     /** The generateRun options for this campaign's deck/tier (see JOKER3). */
-    const runGenOpts = () => ({ postBossJokerStages: fixedJokerScheme() ? [0, 1] : [] });
+    const runGenOpts = () => ({ postBossJokerStages: fixedJokerStages() || [] });
 
     /** Find the persistent card with the given id, or null. */
     function findById(id) {
@@ -12492,7 +12574,7 @@ const CampaignState = (() => {
     let pregen = null;   // { key, seed, entries, map }
     // The key carries the tutorial flag too: a guided-selection map must never
     // be consumed by a normal run (or vice versa) if the pref flips mid-browse.
-    const runGenKey = (dId, tId) => tId + "|" + ((dId === "pink" && tId === "regular") ? "FJ" : "-")
+    const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-")
       + "|" + (tutorialRun ? "T" : "-");
     /** TUT2/TUT3 — pick WHICH seed/map a tutorial run uses. The PINNED seed
         (tutorial.js) goes first: one closed, hand-verified map every player's
@@ -12529,7 +12611,7 @@ const CampaignState = (() => {
       RunMap.setDifficultyTier(tId);                       // preview tier (restore/genRunMap re-set it)
       const e0 = RunMap.GEN_CONFIG.startDeckSize, prc = RunMap.GEN_CONFIG.predictedRouteCards;
       const entries = [e0, e0 + prc, e0 + 2 * prc];
-      const opts = { postBossJokerStages: (dId === "pink" && tId === "regular") ? [0, 1] : [] };
+      const opts = { postBossJokerStages: DifficultyData.fixedJokerStages(dId, tId) || [] };
       if (tutorialRun) {
         const pick = pickTutorialRun(null, entries, opts);   // TUT2: guided-friendly seed
         pregen = { key, seed: pick.seed, entries, map: pick.map };
@@ -12712,10 +12794,10 @@ const CampaignState = (() => {
       return n;
     }
     function jokersAllowed() {
-      // JOKER3 (Pinky Regular): random Joker sources are OFF entirely — the
-      // two fixed post-boss nodes are the run's ONLY Jokers, so no roll site
-      // (map packs, store packs, the store card slot) may ever mint one,
-      // regardless of how many are currently held or later Removed.
+      // JOKER3 (difficulty.js `fixedJokers`): random Joker sources are OFF
+      // entirely — the fixed post-boss nodes are the run's ONLY Jokers, so no
+      // roll site (map packs, store packs, the store card slot) may ever mint
+      // one, regardless of how many are currently held or later Removed.
       if (fixedJokerScheme()) return false;
       return jokersHeld() < jokerCapFor();
     }
@@ -12727,9 +12809,10 @@ const CampaignState = (() => {
         re-clears the mystery flag after every map regeneration (the flag
         re-rolls; the sentinel persists in nodeCards). */
     function ensureGuaranteedJoker() {
-      // JOKER3 (Pinky Regular): the roaming stages-1-3 guarantee is REPLACED
-      // by the two fixed post-boss corridor nodes (locked in commitNodeCard) —
-      // never place the old random guaranteed Joker for this scheme.
+      // JOKER3 (difficulty.js `fixedJokers`): the roaming stages-1-3 guarantee
+      // is REPLACED by the fixed post-boss corridor nodes (locked in
+      // commitNodeCard) — never place the old random guaranteed Joker for a
+      // deck the data lists.
       if (fixedJokerScheme()) { unveilJokerNodes(); return; }
       const t = DifficultyData.tier(difficultyTier);
       if (!runMap || !t || !t.guaranteedMapJoker || jokerCapFor() < 1) { unveilJokerNodes(); return; }
@@ -12800,7 +12883,7 @@ const CampaignState = (() => {
         (store cards/packs are deliberately UNGATED — stage suit-gating
         applies only to MAP pickups and map packs, which draw through their
         own draftIdForNode/pickSuitDraftId paths), then the shared sticker
-        distribution (1% four / 3% three / 11% two / 33% one / 52% none),
+        distribution (packStickerCount — items.js packStickerOdds),
         suit-restricted per sticker, Lammy mints none. The single source for
         store card packs AND the store's individual-card slots. */
     function genNormalCard(rng) {
@@ -13963,8 +14046,8 @@ const CampaignState = (() => {
          stickers rarity-weighted + suit-locked (see stickerPoolForSuits). */
 
       /** Generate ONE fresh pack card: a unique id, a random rank (2–A), a
-          random IN-PLAY suit, and a rolled sticker set (33% one / 11% two /
-          3% three / 1% four / 52% none), each rolled rarity-weighted + suit-
+          random IN-PLAY suit, and a rolled sticker set (packStickerCount —
+          items.js packStickerOdds), each rolled rarity-weighted + suit-
           locked and applied to the card (rank/suit stickers mutate it; Change-
           Suit Random stays in-play). */
       genPackCard(rng = Math.random) {
@@ -14315,10 +14398,11 @@ const CampaignState = (() => {
         const maxTrayId = packTray.reduce((m, c) => Math.max(m, c.id), 51);
         nextCardId = (typeof s.nextCardId === "number" && s.nextCardId > Math.max(maxBaseId, maxTrayId))
           ? s.nextCardId : Math.max(maxBaseId, maxTrayId) + 1;
-        // JOKER3 migration: an old Pinky-Regular save may carry the retired
-        // roaming guaranteed-Joker sentinel on a normal pickup node — drop it
-        // so that node re-locks to a normal card below (the two fixed
-        // post-boss corridor nodes are the only Joker nodes now).
+        // JOKER3 migration: an old save for a fixedJokers deck (Pinky
+        // Regular) may carry the retired roaming guaranteed-Joker sentinel on
+        // a normal pickup node — drop it so that node re-locks to a normal
+        // card below (the fixed post-boss corridor nodes are the only Joker
+        // nodes now).
         if (fixedJokerScheme() && runMap) {
           for (const k in nodeCards) {
             // Only scrub sentinels on REAL map nodes that aren't the fixed
@@ -22763,14 +22847,16 @@ const UIRenderer = (() => {
     const topCount = (s) => { let n = 0; for (let i = 0; i < board.size; i++) if (inScope(i) && topIs(i, s)) n++; return n; };
     switch (t.effect) {
       case "tax": {
-        // Heart Tax: +1 coin per ♥ card (top + buried) across alive piles in scope.
+        // Heart Tax: +coinPerCard coins per ♥ card (top + buried) across alive piles in scope.
         let n = 0;
         for (let i = 0; i < board.size; i++) if (inScope(i)) n += board.piles[i].cards.filter(c => cardMatchesSuit(c, "♥")).length;
-        return { count: n, title: n + " ♥ in this column → Heart Tax pays +" + n + " coins" };
+        const gain = n * itemNum(t, "coinPerCard", 1);
+        return { count: gain, title: n + " ♥ in this column → Heart Tax pays +" + gain + " coins" };
       }
       case "heartDemolish": {
         const p = topCount("♥");
-        return { count: p * 7, title: p + " ♥-top pile" + (p === 1 ? "" : "s") + " → +" + (p * 7) + " coins if activated now" };
+        const gain = p * itemNum(t, "coinPerPile", 7);
+        return { count: gain, title: p + " ♥-top pile" + (p === 1 ? "" : "s") + " → +" + gain + " coins if activated now" };
       }
       case "spadePeek": {
         const p = topCount("♠");
@@ -25389,8 +25475,8 @@ const UIRenderer = (() => {
     else persistCampaign("store");
     Tutorial.onStoreRender();   // TUT2: the shelf was rebuilt → re-stamp the gate's .tut-allow
   }
-  // Slot count the UI mirrors from the engine config (kept in sync there).
-  const STORE_SLOTS = 6;
+  // Slot count the UI mirrors from the items.js store config (single source).
+  const STORE_SLOTS = ItemData.store.slots;
 
   /* ============================================================
      Card / Sticker Packs UI — store section, buy→reveal→pick modal, and the

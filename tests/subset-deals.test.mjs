@@ -6,16 +6,18 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { RunMap } = loadGame();
+  const { RunMap, DifficultyData } = loadGame();
   const r = makeRunner("subset-deals.test.mjs");
   const C = RunMap.GEN_CONFIG;
   const S = RunMap.SUBSET;
 
-  // --- config shape -----------------------------------------------------
+  // --- config shape: the knobs live in difficulty.js -------------------
   {
-    r.eq(S.threshold, 35, "subset kicks in past a 35-card deck");
-    r.eq(S.min, 15, "survive subset floor is 15");
-    r.eq(S.max, 35, "survive subset ceiling is 35");
+    const D = DifficultyData.subset;
+    r.eq(S, D, "RunMap.SUBSET is difficulty.js's subset block (single source)");
+    r.ok(D.threshold > 0 && D.min > 0 && D.max >= D.min,
+      "subset knobs are sane (threshold/min/max positive, min ≤ max — currently "
+      + D.threshold + "/" + D.min + "/" + D.max + ")");
     r.eq(S.scoreT1, undefined, "no fixed global score thresholds (now stage-relative)");
   }
 

@@ -1,8 +1,10 @@
 /* ============================================================================
    NINELIVES ITEM DATA — the single hand-editable source for EVERY shop item.
 
-   Edit this file to tune the game: prices, rarities, store weights,
-   descriptions, and every effect's numeric knobs live HERE. The game logic
+   Edit this file to tune the game: prices, rarities, store weights, the
+   store shelf shape (slots / type cap / reroll cost), the pack-card
+   sticker odds, descriptions, and every effect's numeric knobs live
+   HERE. The game logic
    (in index.html) is keyed by item `id` and reads all of its numbers from
    this file — tweaking a value never requires touching logic code.
 
@@ -40,7 +42,14 @@
 const NINELIVES_ITEMS = {
 
   /* --------------------------------------------------------------------
-     STORE CONFIG — offer weighting + the permanent Removal slot.
+     STORE CONFIG — shelf shape, offer weighting + the permanent Removal
+     slot.
+     slots/typeCap/reroll: the shelf holds `slots` slots per visit; at most
+     `typeCap` slots of one item TYPE (card packs and sticker packs count
+     as separate types; the permanent Removal slot, when on, occupies the
+     last slot and the cap applies across just the rolled ones). A reroll
+     replaces ALL slots for reroll.baseCost, climbing reroll.step per
+     reroll within a visit.
      classWeights: CLASS-FIRST roll — each of the 5 rolled slots picks its
      item CLASS by these relative weights, THEN an item within that class
      (rarity-weighted by tierWeights; an item's own `weight` field, when
@@ -48,6 +57,9 @@ const NINELIVES_ITEMS = {
      (see store.card below).
   -------------------------------------------------------------------- */
   store: {
+    slots: 6,
+    typeCap: 3,
+    reroll: { baseCost: 3, step: 1 },
     classWeights: { sticker: 40, pillar: 20, base: 20, pack: 8, card: 8, samepower: 4 },
     tierWeights: { common: 100, uncommon: 50, rare: 20 },
     // The INDIVIDUAL-CARD slot: one playing card, rolled with the same
@@ -395,6 +407,16 @@ const NINELIVES_ITEMS = {
       effect: "linkHeavy", value: 5, hubValue: 5, tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to the pile you called Same on and to each pile directly linked to it" },
   ],
+
+  /* --------------------------------------------------------------------
+     PACK-CARD STICKER ODDS — how many stickers one freshly granted card
+     carries. [maxRoll, stickerCount] pairs, checked IN ORDER against a
+     uniform 0..1 roll (a roll that passes every maxRoll gets 0 stickers);
+     maxRoll must strictly ascend. ONE rule for every roll site: store
+     card packs, the store's individual-card slot (genNormalCard) and
+     Mr. Smith's map grants (+1 nodes / map packs).
+  -------------------------------------------------------------------- */
+  packStickerOdds: [[0.01, 4], [0.04, 3], [0.15, 2], [0.48, 1]],
 
   /* --------------------------------------------------------------------
      PACKS — buying reveals `size` random items; the player keeps `keep`.

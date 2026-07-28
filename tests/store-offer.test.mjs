@@ -1,15 +1,22 @@
-// Store offering: CLASS-FIRST roll — exactly 6 slots per visit, every slot
-// picks its item CLASS by items.js store.classWeights, then an item within
-// that class by rarity (TIER_WEIGHTS), with a per-CLASS cap of 3 slots (card
-// packs and sticker packs count as separate types; "card" is a generated
-// individual playing card). Buy empties only that slot; reroll-all at 3→4→5
-// (reset per visit); persisted in campaign state (no free reroll via
-// re-render); wiped on loss. DOM-free.
+// Store offering: CLASS-FIRST roll — items.js store.slots slots per visit,
+// every slot picks its item CLASS by items.js store.classWeights, then an
+// item within that class by rarity (TIER_WEIGHTS), with a per-CLASS cap of
+// store.typeCap slots (card packs and sticker packs count as separate types;
+// "card" is a generated individual playing card). Buy empties only that
+// slot; reroll-all at store.reroll.baseCost, climbing store.reroll.step per
+// reroll (reset per visit); persisted in campaign state (no free reroll via
+// re-render); wiped on loss. Every number reads LIVE from ItemData — nothing
+// is pinned here. DOM-free.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes } = loadGame();
+  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData } = loadGame();
   const r = makeRunner("store-offer.test.mjs");
+  // The shelf-shape knobs — read live from items.js so a data retune stays green.
+  const SLOTS = ItemData.store.slots;
+  const TYPE_CAP = ItemData.store.typeCap;
+  const REROLL0 = ItemData.store.reroll.baseCost;
+  const REROLL_STEP = ItemData.store.reroll.step;
   const stickerIds = new Set(StickerTypes.ids);
   const pillarIds = new Set(PillarTypes.ids);
   const baseIds = new Set(BaseTypes.ids);
@@ -35,28 +42,28 @@ export function run() {
     throw new Error("never offered a " + kind + " slot");
   };
 
-  // --- Shape of a fresh offer: exactly 6 unified slots, always filled ---
+  // --- Shape of a fresh offer: exactly store.slots unified slots, filled ---
   {
     const c = CampaignState.create();
     r.eq(c.getStoreOffer(), null, "no offer until the store opens");
     const offer = c.openStore();
-    r.eq(offer.slots.length, 6, "offer has exactly 6 slots");
-    r.ok(offer.slots.every(s => s != null), "all 6 slots are FILLED on a fresh roll");
-    // Default: slot 6 is the permanent Removal; the first 5 roll from the pool.
-    r.eq(offer.slots[5].kind, "removal", "slot 6 is the permanent Removal (default ON)");
-    const rolled0 = offer.slots.slice(0, 5);
+    r.eq(offer.slots.length, SLOTS, "offer has exactly store.slots slots (" + SLOTS + ")");
+    r.ok(offer.slots.every(s => s != null), "all slots are FILLED on a fresh roll");
+    // Default: the last slot is the permanent Removal; the rest roll from the pool.
+    r.eq(offer.slots[SLOTS - 1].kind, "removal", "the last slot is the permanent Removal (default ON)");
+    const rolled0 = offer.slots.slice(0, SLOTS - 1);
     r.ok(rolled0.every(s => ["sticker", "base", "pillar", "pack", "card", "samepower"].includes(s.kind)),
-      "the 5 rolled slots are a sticker / base / pillar / pack / card / same-power");
+      "the rolled slots are a sticker / base / pillar / pack / card / same-power");
     r.ok(rolled0.every(s => idOk(s.kind, s.id, s)), "every rolled slot's id is real for its kind");
-    r.eq(offer.rerollCost, 3, "reroll cost starts at 3");
+    r.eq(offer.rerollCost, REROLL0, "reroll cost starts at store.reroll.baseCost (" + REROLL0 + ")");
     r.eq(offer.stickers, undefined, "no segmented sticker section (one unified pool)");
     r.eq(offer.mixed, undefined, "no segmented mixed section (one unified pool)");
   }
 
-  // --- 6 slots always filled + per-TYPE cap ≤ 3 across MANY rolls -------
+  // --- slots always filled + per-TYPE cap ≤ store.typeCap across MANY rolls ---
   {
     const c = CampaignState.create();
-    let minFilled = 6, maxOfOneType = 0;
+    let minFilled = SLOTS, maxOfOneType = 0;
     for (let i = 0; i < 2000; i++) {
       const offer = c.openStore();
       const filled = offer.slots.filter(Boolean);
@@ -65,9 +72,9 @@ export function run() {
       filled.filter(s => s.kind !== "removal").forEach(s => { const k = typeKey(s); perType[k] = (perType[k] || 0) + 1; });
       maxOfOneType = Math.max(maxOfOneType, ...Object.values(perType));
     }
-    r.eq(minFilled, 6, "every one of 2000 rolls fills all 6 slots");
-    r.ok(maxOfOneType <= 3, "no type ever exceeds 3 of the rolled slots (saw max " + maxOfOneType + ")");
-    r.eq(maxOfOneType, 3, "the cap is reachable — some roll uses all 3 of one type");
+    r.eq(minFilled, SLOTS, "every one of 2000 rolls fills all " + SLOTS + " slots");
+    r.ok(maxOfOneType <= TYPE_CAP, "no type ever exceeds store.typeCap of the rolled slots (saw max " + maxOfOneType + ")");
+    r.eq(maxOfOneType, TYPE_CAP, "the cap is reachable — some roll uses all " + TYPE_CAP + " of one type");
   }
 
   // --- Every kind surfaces; commons dominate rares (rarity weighting) ---
@@ -218,32 +225,32 @@ export function run() {
     r.eq(c.getStoreOffer().slots[slot], null, "that slot is now empty");
   }
 
-  // --- Reroll: replaces ALL 5 slots; 3 → 4 → 5; resets on store open ---
+  // --- Reroll: replaces ALL rolled slots; baseCost → +step → +2·step; resets on store open ---
   {
     const c = CampaignState.create();
     c.addCoins(100);
     const s = findSlot(c, "sticker");
     c.buyOfferedSticker(s.slot);                  // empty a slot...
     r.eq(c.getStoreOffer().slots[s.slot], null, "slot emptied before reroll");
-    r.eq(c.storeRerollCost(), 3, "first reroll costs 3");
+    r.eq(c.storeRerollCost(), REROLL0, "first reroll costs reroll.baseCost");
     const before = c.getCoins();
     r.ok(c.rerollStore(), "reroll #1");
     r.ok(c.getStoreOffer().slots.every(x => x && (x.kind === "removal" || idOk(x.kind, x.id, x))), "reroll refills ALL rolled slots (Removal slot stays)");
-    r.eq(c.getCoins(), before - 3, "reroll #1 charged 3");
-    r.eq(c.storeRerollCost(), 4, "cost climbs to 4");
+    r.eq(c.getCoins(), before - REROLL0, "reroll #1 charged reroll.baseCost");
+    r.eq(c.storeRerollCost(), REROLL0 + REROLL_STEP, "cost climbs by reroll.step");
     r.ok(c.rerollStore(), "reroll #2");
-    r.eq(c.storeRerollCost(), 5, "cost climbs to 5");
-    r.eq(c.getCoins(), before - 3 - 4, "reroll #2 charged 4");
+    r.eq(c.storeRerollCost(), REROLL0 + 2 * REROLL_STEP, "cost climbs by reroll.step again");
+    r.eq(c.getCoins(), before - REROLL0 - (REROLL0 + REROLL_STEP), "reroll #2 charged the climbed cost");
 
     c.openStore();   // a new run's store visit
-    r.eq(c.storeRerollCost(), 3, "reroll cost resets to 3 when the store re-opens");
+    r.eq(c.storeRerollCost(), REROLL0, "reroll cost resets to baseCost when the store re-opens");
 
     const poor = CampaignState.create();
-    poor.addCoins(2);
+    poor.addCoins(REROLL0 - 1);   // one short of the base reroll cost
     poor.openStore();
     r.ok(!poor.canReroll(), "canReroll false when too poor");
     r.ok(!poor.rerollStore(), "reroll blocked when unaffordable");
-    r.eq(poor.getCoins(), 2, "blocked reroll spends nothing");
+    r.eq(poor.getCoins(), REROLL0 - 1, "blocked reroll spends nothing");
   }
 
   // --- Wipe on campaign loss (reset clears the offer) -----------------
@@ -301,7 +308,7 @@ export function run() {
     r.ok(b1.has("tax"), "Stage 1 offers Heart Tax (♥ in play)");
   }
 
-  // --- Removal store slot (default ON): permanent slot 6, fixed 20, repeatable
+  // --- Removal store slot (default ON): permanent last slot, fixed price, repeatable
   {
     const c = CampaignState.create();
     const removalPrice = c.removalPrice();   // items.js store knob — read live
@@ -309,9 +316,9 @@ export function run() {
     r.ok(removalPrice > 0, "a Removal has a price (items.js store knob; currently " + removalPrice + ")");
     const offer = c.openStore();
     r.eq(offer.slots.filter(s => s && s.kind === "removal").length, 1, "exactly one Removal slot");
-    r.eq(offer.slots[5].kind, "removal", "the Removal is the last slot");
-    r.eq(c.priceOfMixed(5), removalPrice, "priceOfMixed reports the live Removal price for the Removal slot");
-    r.ok(!c.buyMixedSlot(5, Math.random).ok, "buyMixedSlot rejects the Removal slot (bought via buyRemoval)");
+    r.eq(offer.slots[SLOTS - 1].kind, "removal", "the Removal is the last slot");
+    r.eq(c.priceOfMixed(SLOTS - 1), removalPrice, "priceOfMixed reports the live Removal price for the Removal slot");
+    r.ok(!c.buyMixedSlot(SLOTS - 1, Math.random).ok, "buyMixedSlot rejects the Removal slot (bought via buyRemoval)");
     // buyRemoval charges + removes a chosen card; the slot is NOT consumed.
     c.addCoins(100);
     const before = c.deckSize();
@@ -321,7 +328,7 @@ export function run() {
     r.eq(c.getCoins(), coins0 - removalPrice, "charged the live Removal price");
     r.eq(c.deckSize(), before - 1, "the deck shrank by one");
     r.ok(!c.getRunDeck().some(x => x.id === victim), "the chosen card is gone from the deck");
-    r.eq(c.getStoreOffer().slots[5].kind, "removal", "the Removal slot is NOT depleted — repeatable");
+    r.eq(c.getStoreOffer().slots[SLOTS - 1].kind, "removal", "the Removal slot is NOT depleted — repeatable");
     // repeatable: buy again.
     const v2 = c.getRunDeck()[0].id;
     r.ok(c.buyRemoval(v2), "a SECOND Removal purchase works (repeatable)");
@@ -330,13 +337,13 @@ export function run() {
     const poor = CampaignState.create(); poor.openStore();
     r.ok(!poor.buyRemoval(poor.getRunDeck()[0].id), "can't buy a Removal with no coins");
     r.eq(poor.deckSize(), poor.getRunDeck().length, "a blocked Removal removes nothing");
-    // toggle OFF → 6 rolled slots, no Removal.
+    // toggle OFF → all slots rolled, no Removal.
     const off = CampaignState.create();
     off.setRemovalSlot(false);
     r.ok(!off.removalSlotOn(), "setRemovalSlot(false) turns it off");
     const o2 = off.openStore();
-    r.eq(o2.slots.length, 6, "OFF: still exactly 6 slots");
-    r.ok(o2.slots.every(s => s && s.kind !== "removal"), "OFF: no Removal slot — all 6 roll from the pool");
+    r.eq(o2.slots.length, SLOTS, "OFF: still exactly store.slots slots");
+    r.ok(o2.slots.every(s => s && s.kind !== "removal"), "OFF: no Removal slot — all slots roll from the pool");
     r.ok(o2.slots.every(s => idOk(s.kind, s.id, s)), "OFF: every slot is a real rolled item");
     // reroll keeps it off.
     off.addCoins(20);
