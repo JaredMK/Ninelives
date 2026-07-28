@@ -330,7 +330,7 @@ export function run() {
       "every store render re-stamps the gate's .tut-allow");
     r.ok(fnBody(src, "showStore").includes("Tutorial.seedStoreOffer()"),
       "the guided shop's fresh offer is seeded before it paints");
-    const reroll = fnBody(src, "rerollUI");
+    const reroll = fnBody(src, "doReroll");   // the reroll flow lives in doReroll (rerollUI owns the confirm prompt)
     r.ok(reroll.indexOf("Tutorial.onStoreRerolled()") !== -1
       && reroll.indexOf("Tutorial.onStoreRerolled()") < reroll.indexOf("renderStore()"),
       "the taught Refresh seeds the Guardian BEFORE the fresh shelf paints");

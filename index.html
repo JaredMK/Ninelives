@@ -483,6 +483,12 @@ const NativeApp = (() => {
      adds the class, confirm/cancel/dismiss remove it. 70 also clears the item
      detail (z 66), though that closes first. */
   body.store-selling .play-controls { z-index: 70; }
+  /* Same lift for the Refresh confirm over the store (see rerollUI). */
+  body.store-confirm .play-controls { z-index: 70; }
+  /* And for prompt-bar confirms over the MENU sheets (stats / pause menu /
+     telemetry — menu screens are z 1400): the bar must paint + tap above them
+     while the confirm is pending (showMenuConfirm). */
+  body.menu-confirm .play-controls { z-index: 1500; }
   /* ZEN MODE strips the campaign chrome: no coin HUD, no suit/stage track, no
      Same-Power chip, no deal-status payout row (fitBoard reclaims its height —
      it checks offsetParent). The Same-Charge indicator + histogram stay. */
@@ -16956,6 +16962,12 @@ const UIRenderer = (() => {
         if (!active || storeStage !== "pillar" || id !== GUARD_PILLAR) return;
         enterStoreStage("explain");
       },
+      /** TRUE while the guided store flow sits on the taught-Refresh step —
+          that gated tap must fire the reroll directly (rerollUI skips its
+          confirm prompt so the tour can't stall on it). */
+      guidedRerollPending() {
+        return active && storeStage === "reroll" && !rerolledOnce;
+      },
     };
   })();
 
@@ -26640,6 +26652,29 @@ const UIRenderer = (() => {
 
   /* Reroll: replace ALL offered slots for the current cost (which then climbs). */
   function rerollUI() {
+    // Refresh spends coins on tap → it confirms through the shared bottom
+    // prompt bar (lifted over the store via body.store-confirm), like the
+    // sell confirm. ONE exception: the tutorial's taught Refresh is a gated,
+    // forced tap — prompting there would stall the tour, so it fires direct.
+    if (Tutorial.guidedRerollPending && Tutorial.guidedRerollPending()) { doReroll(); return; }
+    if (campaign.getCoins() < campaign.storeRerollCost()) return;   // unaffordable (the button shows it)
+    document.body.classList.add("store-confirm");
+    showActionBar("Refresh the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
+      { label: "Cancel", cls: "no", onClick: closeRerollConfirm },
+      { label: "Refresh", cls: "primary", onClick: confirmReroll },
+    ], [], { help: "The price climbs with each Refresh within a visit.", dismiss: closeRerollConfirm });
+  }
+  function closeRerollConfirm() {
+    if (!document.body.classList.contains("store-confirm")) return;   // not ours — leave any other bar alone
+    document.body.classList.remove("store-confirm");
+    hideActionBar();
+  }
+  function confirmReroll() {
+    document.body.classList.remove("store-confirm");
+    hideActionBar();
+    doReroll();
+  }
+  function doReroll() {
     if (campaign.rerollStore()) {
       Tutorial.onStoreRerolled();   // TUT2: taught Refresh — seed the Guardian BEFORE the shelf paints
       Sound.refresh();           // whoosh-ding on a store refresh
@@ -26808,6 +26843,29 @@ const UIRenderer = (() => {
         && selected === null && el.ctlHelp) {
       el.ctlHelp.classList.remove("hidden");
     }
+  }
+
+  /* MENU-SHEET CONFIRMS — the same shared bottom prompt bar, lifted over the
+     menu screens (body.menu-confirm, z 1500 > their 1400) for destructive
+     taps that happen on sheets: Stats Reset, New Run, telemetry reset.
+     Buttons only — NO outside-tap dismiss, so a sheet's backdrop tap can
+     never silently answer the confirm. While one is up, sheet backdrop
+     dismiss is suspended (see the guards on the overlay click handlers). */
+  let menuConfirmOpen = false;
+  function showMenuConfirm(text, confirmLabel, onConfirm, help) {
+    if (menuConfirmOpen) return;
+    menuConfirmOpen = true;
+    document.body.classList.add("menu-confirm");
+    showActionBar(text, [
+      { label: "Cancel", cls: "no", onClick: closeMenuConfirm },
+      { label: confirmLabel, cls: "primary", onClick: () => { closeMenuConfirm(); onConfirm(); } },
+    ], [], help ? { help: help } : {});
+  }
+  function closeMenuConfirm() {
+    if (!menuConfirmOpen) return;
+    menuConfirmOpen = false;
+    document.body.classList.remove("menu-confirm");
+    hideActionBar();
   }
   function setActionTargets(targets) {
     promptTargets.forEach(i => { if (pileEls[i]) pileEls[i].classList.remove("action-target"); });
@@ -27046,6 +27104,7 @@ const UIRenderer = (() => {
     placementWalk = false;         // leaving the store ends any placement walk
     packKeepWalk = false; packKeepTotal = 0;   // …and any in-flight pack-keep walk
     pendingBuyStickerSlot = null;  // an un-confirmed buy is abandoned (never charged)
+    closeRerollConfirm();          // a pending Refresh confirm resolves as Cancel
     closeTrashConfirm();
     closePackReveal();
     closePackReplace();
@@ -27384,13 +27443,17 @@ const UIRenderer = (() => {
       { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
       { label: "How to Play", ico: "search", action: showManual },
       { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
-      { label: "New Run", ico: "spark", action: () => { closeGameMenu(); startCampaign(); } },
+      { label: "New Run", ico: "spark", action: () => showMenuConfirm(
+          "Abandon this campaign and start a fresh one?",
+          "New Run",
+          () => { closeGameMenu(); startCampaign(); },
+          "The current run, coins and items are wiped — this can't be undone.") },
       { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
     ]);
     el.gameMenu.classList.remove("hidden");
     updateBoardMotion();   // board covered by the in-game menu → pause its card animations
   }
-  function closeGameMenu() { el.gameMenu.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
+  function closeGameMenu() { closeMenuConfirm(); el.gameMenu.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
   function quitToMenu() {
     closeGameMenu();
     if (zenMode) zenTeardown();   // leaving Zen — the campaign save was never touched
@@ -27589,7 +27652,7 @@ const UIRenderer = (() => {
     el.statsOverlay.classList.remove("hidden");
     updateBoardMotion();
   }
-  function closeStats() { el.statsOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
+  function closeStats() { closeMenuConfirm(); el.statsOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
 
   /* ---- Artifact telemetry viewer (debug only — playtest balancing) ----
      Reads the Telem store (read-only), merges it with the full artifact
@@ -27668,7 +27731,7 @@ const UIRenderer = (() => {
     el.telemOverlay.classList.remove("hidden");
     updateBoardMotion();
   }
-  function closeTelemetry() { el.telemOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
+  function closeTelemetry() { closeMenuConfirm(); el.telemOverlay.classList.add("hidden"); startDriftSync(); updateBoardMotion(); }
   /* CSV: one row per artifact, a column per metric (paste-ready next to a
      spreadsheet). Triggers a client-side download; fail-silent. */
   function exportTelemetryCSV() {
@@ -27694,10 +27757,15 @@ const UIRenderer = (() => {
     } catch (e) { /* export is best-effort */ }
   }
   function resetTelemetry() {
-    if (!window.confirm("Reset ALL artifact telemetry? This zeroes every counter for a fresh measurement window.")) return;
-    try { Telem.reset(); } catch (e) {}
-    if (!el.telemOverlay.classList.contains("hidden")) renderTelemTable();
-    try { el.debugPeekOut && (el.debugPeekOut.textContent = "telemetry reset"); } catch (e) {}
+    showMenuConfirm(
+      "Reset ALL artifact telemetry?",
+      "Reset",
+      () => {
+        try { Telem.reset(); } catch (e) {}
+        if (!el.telemOverlay.classList.contains("hidden")) renderTelemTable();
+        try { el.debugPeekOut && (el.debugPeekOut.textContent = "telemetry reset"); } catch (e) {}
+      },
+      "Every counter zeroes for a fresh measurement window.");
   }
 
   /* ---- How to Play (§12) — a short guided walkthrough, not a wall of text.
@@ -28016,7 +28084,11 @@ const UIRenderer = (() => {
     el.menuBtn.addEventListener("click", () => { Sound.tap(); showGameMenu(); });
     if (el.mapStoreBtn) el.mapStoreBtn.addEventListener("click", () => { Sound.tap(); showStore(false); });
     el.statsClose.addEventListener("click", closeStats);
-    el.statsReset.addEventListener("click", () => { Stats.reset(); ZenStats.reset(); showStats(); });
+    el.statsReset.addEventListener("click", () => showMenuConfirm(
+      "Reset ALL lifetime stats?",
+      "Reset",
+      () => { Stats.reset(); ZenStats.reset(); showStats(); },
+      "Games, wins, records and Zen stats all zero out — this can't be undone."));
     // Zen histogram interactions (delegated — survives statsGrid re-renders):
     //  • a filter option re-scopes AND collapses any drill (R1/R5) — new data,
     //    so a full re-render (renderZenSection);
@@ -28035,10 +28107,11 @@ const UIRenderer = (() => {
     });
     el.manualClose.addEventListener("click", closeManual);
     el.gameMenuClose.addEventListener("click", closeGameMenu);
-    // Tap the dim backdrop (the overlay itself, not its panel) to dismiss.
-    el.statsOverlay.addEventListener("click", e => { if (e.target === el.statsOverlay) closeStats(); });
+    // Tap the dim backdrop (the overlay itself, not its panel) to dismiss —
+    // suspended while a prompt-bar confirm is pending on the sheet.
+    el.statsOverlay.addEventListener("click", e => { if (e.target === el.statsOverlay && !menuConfirmOpen) closeStats(); });
     el.manualOverlay.addEventListener("click", e => { if (e.target === el.manualOverlay) closeManual(); });
-    el.gameMenu.addEventListener("click", e => { if (e.target === el.gameMenu) closeGameMenu(); });
+    el.gameMenu.addEventListener("click", e => { if (e.target === el.gameMenu && !menuConfirmOpen) closeGameMenu(); });
 
     // Launch into the MAIN MENU. A valid, not-yet-complete save enables
     // "Continue"; "New Campaign" starts fresh. The board is built as a quiet
