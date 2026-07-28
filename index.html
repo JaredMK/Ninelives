@@ -6988,7 +6988,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.00 · picker confirms ride the bottom prompt bar";
+const APP_VERSION = "v5.01 · swap-picker taps can't double-fire mid-close";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -25259,6 +25259,16 @@ const UIRenderer = (() => {
   let packKeepWalk = false;
   let packKeepTotal = 0;
   let selectedApplyCardId = null;     // the card the player tapped (awaiting confirm)
+  // RE-ENTRANCY GUARD: a committed confirm runs a close ANIMATION (720ms
+  // dissolve / 850ms flash) before the picker advances or closes — during
+  // that window the picker's state is already consumed (tray index nulled,
+  // selection cleared) but the grid is still live, so a buffered tap (the
+  // screen froze, the player tapped again) would otherwise re-arm a bogus
+  // confirm whose fall-through tail navigates AWAY (the "all my taps fired
+  // at once and it jumped a page" cascade). While set, card taps, confirm
+  // taps, ✕/backdrop and Skip are all swallowed; the completion callback
+  // (and every fresh picker open, defensively) clears it.
+  let applyPickerBusy = false;
   // Suit display order for the card picker (same order as the deck inspector's).
   // NB: the inspector's SUIT_ORDER is scoped inside ITS module — referencing it
   // here threw "SUIT_ORDER is not defined" the moment the deck held two cards of
@@ -25350,6 +25360,7 @@ const UIRenderer = (() => {
     cardPickMode = "sticker";
     pendingApplyStickerId = typeId; pendingSwapTrayIndex = null;
     selectedApplyCardId = null;
+    applyPickerBusy = false;   // a fresh picker is never busy (self-healing)
     closeModalPrompt();
     const buying = pendingBuyStickerSlot != null;
     if (el.saHead) el.saHead.textContent = (buying ? "Place " : "Apply ") + t.label;
@@ -25381,6 +25392,7 @@ const UIRenderer = (() => {
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null; pendingBuyStickerSlot = null;
     pendingBlankRemovals = 0;
     const price = campaign.removalPrice();
+    applyPickerBusy = false;   // a fresh picker is never busy (self-healing)
     closeModalPrompt();
     if (el.saHead) el.saHead.textContent = "Removal — remove a card";
     if (el.saBanner) el.saBanner.innerHTML = miniCardHtml({ blank: true }) +
@@ -25397,6 +25409,7 @@ const UIRenderer = (() => {
     cardPickMode = "remove";
     pendingApplyStickerId = null; pendingSwapTrayIndex = null;
     selectedApplyCardId = null; pendingBuyStickerSlot = null;
+    applyPickerBusy = false;   // a fresh picker is never busy (self-healing)
     closeModalPrompt();
     const more = pendingBlankRemovals > 1 ? " (" + pendingBlankRemovals + " left)" : "";
     if (el.saHead) el.saHead.textContent = "Removal — remove a card" + more;
@@ -25419,6 +25432,7 @@ const UIRenderer = (() => {
     cardPickMode = "swap";
     pendingSwapTrayIndex = trayIndex; pendingApplyStickerId = null;
     selectedApplyCardId = null;
+    applyPickerBusy = false;   // a fresh picker is never busy (self-healing)
     closeModalPrompt();
     const pcLabel = miniRankLabel(pc) + " " + pc.suit;
     // PACK-KEEP WALK: append an "N of M" step marker so a multi-card pack reads as a
@@ -25482,6 +25496,7 @@ const UIRenderer = (() => {
      consistent (a decline that leaves cards still queues a checkpoint; the final
      one rides renderStore's checkpoint in advancePackKeepWalk). */
   function skipCurrentPackKeep() {
+    if (applyPickerBusy) return;   // mid confirm-close — never double-advance the walk
     if (!packKeepWalk) return;
     if (campaign && pendingSwapTrayIndex != null) {
       campaign.discardPackCard(pendingSwapTrayIndex);
@@ -25499,6 +25514,7 @@ const UIRenderer = (() => {
     refreshApplySelection();
   }
   function selectApplyCard(id) {
+    if (applyPickerBusy) return;   // a confirm's close animation owns the picker right now
     const card = applyCardsById.get(id);
     if (!card) return;
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
@@ -25575,6 +25591,7 @@ const UIRenderer = (() => {
     });
   }
   function confirmApplySticker() {
+    if (applyPickerBusy) return;   // a confirm is already mid close-animation — swallow the double tap
     // == null, NOT falsy: card ids start at 0 (the 2♦ is id 0) — a truthiness
     // check made the Apply button silently no-op on exactly that card.
     if (selectedApplyCardId == null) return;
@@ -25594,7 +25611,9 @@ const UIRenderer = (() => {
         cardPickMode = "sticker";
         selectedApplyCardId = null;
         closeModalPrompt();
+        applyPickerBusy = true;   // own the picker until the close completes
         const finish = () => {
+          applyPickerBusy = false;
           el.stickerApplyModal.classList.add("hidden");
           renderDeckStrip();
           renderStore();     // the Removal slot stays — never depleted
@@ -25616,7 +25635,9 @@ const UIRenderer = (() => {
       }
       selectedApplyCardId = null;
       closeModalPrompt();
+      applyPickerBusy = true;   // own the picker until the close/chain completes
       const finishMap = () => {
+        applyPickerBusy = false;
         pendingBlankRemovals--;
         if (pendingBlankRemovals > 0) { openCardRemove(); return; }   // one picker per Blank
         cardPickMode = "sticker";
@@ -25640,7 +25661,9 @@ const UIRenderer = (() => {
         pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;
         pendingBuyStickerSlot = null;
         closeModalPrompt();
+        applyPickerBusy = true;   // the 720ms dissolve owns the picker — swallow re-entrant taps
         dissolveApplyCard(swappedId, () => {
+          applyPickerBusy = false;
           el.stickerApplyModal.classList.add("hidden");
           applyCardsById = new Map();
           renderDeckStrip();
@@ -25684,9 +25707,11 @@ const UIRenderer = (() => {
             pendingApplyStickerId = null; pendingSwapTrayIndex = null;
             pendingBuyStickerSlot = null;
             closeModalPrompt();
+            applyPickerBusy = true;   // the 850ms flash owns the picker
             btn.scrollIntoView({ block: "nearest" });   // a re-sort may have moved it
             btn.classList.add("sa-flash");
             setTimeout(() => {
+              applyPickerBusy = false;
               btn.classList.remove("sa-flash");
               el.stickerApplyModal.classList.add("hidden");
               applyCardsById = new Map();
@@ -25721,6 +25746,7 @@ const UIRenderer = (() => {
     });
   }
   function closeStickerApply() {
+    if (applyPickerBusy) return;   // a confirm's close animation is already completing the flow
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
     // PACK-KEEP WALK: ✕ / backdrop = "skip this one" (decline + advance), same as
     // the Skip button — a paid-for kept card is never left stranded in the tray.

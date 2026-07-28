@@ -128,5 +128,36 @@ export function run() {
       "attachInput wires nothing for the retired confirm buttons (their actions ride the bar)");
   }
 
+  // --- RE-ENTRANCY GUARD: a committed confirm owns the picker until its close --
+  // (the freeze-tap cascade: a second tap during the 720ms dissolve re-armed a
+  // bogus confirm whose fall-through tail navigated away mid-walk)
+  {
+    r.ok(src.includes("let applyPickerBusy = false;"), "the picker busy flag exists");
+    const pick = fnBody(src, "selectApplyCard");
+    r.ok(pick.indexOf("if (applyPickerBusy) return;") < pick.indexOf("applyCardsById.get(id)"),
+      "card taps are swallowed while a confirm's close animation owns the picker");
+    const confirm = fnBody(src, "confirmApplySticker");
+    r.ok(confirm.indexOf("if (applyPickerBusy) return;") < confirm.indexOf("selectedApplyCardId == null"),
+      "…confirm double-taps are swallowed too (before any state read)");
+    r.ok(fnBody(src, "closeStickerApply").includes("if (applyPickerBusy) return;"),
+      "…✕/backdrop can't cancel into a mid-close walk (double-advance)");
+    r.ok(fnBody(src, "skipCurrentPackKeep").includes("if (applyPickerBusy) return;"),
+      "…Skip can't double-advance the pack-keep walk either");
+    r.eq((confirm.match(/applyPickerBusy = true/g) || []).length, 4,
+      "all four committing branches (store removal / map removal / swap / sticker flash) take ownership");
+    // The swap branch — the reported cascade — sets before the dissolve and
+    // clears at the completion callback's top.
+    const swapAt = confirm.indexOf('cardPickMode === "swap"');
+    const swapBranch = confirm.slice(swapAt, swapAt + 1200);
+    r.ok(swapBranch.indexOf("applyPickerBusy = true;") < swapBranch.indexOf("dissolveApplyCard(swappedId"),
+      "swap: ownership starts before the 720ms dissolve window");
+    r.ok(/dissolveApplyCard\(swappedId, \(\) => \{\s*applyPickerBusy = false;/.test(swapBranch),
+      "swap: the completion callback releases ownership first thing");
+    // Every fresh picker open defensively clears the flag (self-healing — a
+    // stuck flag can never soft-lock the picker).
+    for (const fn of ["openStickerApply", "openCardSwap", "openCardRemove", "openStoreRemoval"])
+      r.ok(fnBody(src, fn).includes("applyPickerBusy = false;"), fn + " resets the busy flag on open");
+  }
+
   return r.summary();
 }
