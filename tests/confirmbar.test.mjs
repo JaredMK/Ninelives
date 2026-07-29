@@ -143,8 +143,8 @@ export function run() {
       "…✕/backdrop can't cancel into a mid-close walk (double-advance)");
     r.ok(fnBody(src, "skipCurrentPackKeep").includes("if (applyPickerBusy) return;"),
       "…Skip can't double-advance the pack-keep walk either");
-    r.eq((confirm.match(/applyPickerBusy = true/g) || []).length, 4,
-      "all four committing branches (store removal / map removal / swap / sticker flash) take ownership");
+    r.eq((confirm.match(/applyPickerBusy = true/g) || []).length, 5,
+      "all five committing branches (store removal / map removal / strip / swap / sticker flash) take ownership");
     // The swap branch — the reported cascade — sets before the dissolve and
     // clears at the completion callback's top.
     const swapAt = confirm.indexOf('cardPickMode === "swap"');

@@ -6026,6 +6026,42 @@ const NativeApp = (() => {
   }
   .fd-art .fossil { width: 100%; height: 100%; }
   .fd-sub { font-size: 12px; color: var(--muted); margin-top: 12px; }
+
+  /* MYSTERY EVENT modal (MYST1): the fossil-detail shell; a coloured rim reads
+     the outcome's polarity (good = green, bad = rose) and the art area centres
+     whatever the outcome granted (coins / card / sticker / glyph). */
+  .mystery-event .me-panel { border-top: 4px solid var(--good); }
+  .mystery-event.me-bad .me-panel { border-top-color: var(--danger); }
+  .mystery-event .me-art {
+    width: auto; height: auto; min-height: 96px; padding: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .mystery-event .me-art .mini-card { width: 64px; }
+  .mystery-event .me-art .dcs { --dcs-size: 44px; }
+  .mystery-event .me-coins { display: flex; align-items: center; gap: 6px; font-size: 34px; font-weight: 800; }
+  .mystery-event .me-coins .coin-ico { width: 30px; height: 30px; }
+  .mystery-event .me-glyph { font-size: 44px; line-height: 1; }
+  .mystery-event .me-go {
+    margin-top: 14px; border: none; border-radius: 12px; padding: 11px 30px;
+    background: var(--accent); color: #fff; font-weight: 800; font-size: 14px;
+    font-family: inherit; cursor: pointer; touch-action: manipulation;
+  }
+  .mystery-event .me-go:active { transform: scale(0.96); }
+
+  /* CURSED cards (MYST1 — the mystery cursedCard outcome): a violet-tinted face
+     with a small curse swirl, distinct at a glance like the Joker's gold — shown
+     everywhere the card face renders (mini cards, board front, deck reveal). */
+  .mini-card.mc-cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); color: #4c2a86; border-color: #b79ae0; }
+  .mini-card.mc-cursed.red { color: #7c2f6b; }
+  .mini-card .mc-curse { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; color: #7a4fd0; }
+  .mini-card .mc-curse .ico { display: block; width: 100%; height: 100%; }
+  .face.front.cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); }
+  .pile-badges .dcs.pb-curse { --dcs-size: 17px; }
+  .deck-pile .ds-face.cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); color: #4c2a86; }
+  .deck-pile .ds-face .dsf-curse { position: absolute; top: 1px; left: 1px; width: 12px; height: 12px; color: #7a4fd0; }
+  .deck-pile .ds-face .dsf-curse .ico { display: block; width: 100%; height: 100%; }
+  .peek-info .pk-ic.pk-curse, .card-info-panel .pk-ic.pk-curse { color: #7a4fd0; }
+  .peek-info .pk-ic.pk-curse .ico, .card-info-panel .pk-ic.pk-curse .ico { display: block; width: 18px; height: 18px; }
   /* ============================================================
      FELT CONTRAST PASS — every rule that put dark ink DIRECTLY on the old
      cream background gets a light on-felt ink here (late in the sheet so it
@@ -6773,6 +6809,20 @@ const NativeApp = (() => {
     </div>
   </div>
 
+  <!-- MYSTERY ("?") EVENT reveal (MYST1): arriving at a hidden map node rolls one
+       weighted outcome (items.js `mystery`) — announced here (title, outcome art,
+       one-line result; the panel rim tints good/bad), then Continue runs the
+       outcome's flow and the node beneath plays as normal. No ✕ / backdrop
+       dismiss: the event already happened, Continue just acknowledges it. -->
+  <div class="fossil-detail mystery-event hidden" id="mysteryEvent">
+    <div class="fd-panel me-panel" id="mysteryEventPanel">
+      <div class="fd-title" id="mysteryEventTitle"></div>
+      <div class="fd-art me-art" id="mysteryEventArt"></div>
+      <div class="fd-sub" id="mysteryEventSub"></div>
+      <button class="me-go" id="mysteryEventGo" type="button">Continue</button>
+    </div>
+  </div>
+
   <!-- Deck inspection: full breakdown modal (tap) -->
   <div class="deck-modal hidden" id="deckModal">
     <div class="deck-modal-panel">
@@ -6995,7 +7045,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.04 · picker grid: cached card nodes, no scroll pop-in on removal";
+const APP_VERSION = "v5.05 · mystery nodes are real gambles: boons, curses, ambush deals";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7545,6 +7595,38 @@ const ItemData = (() => {
       prevCap = pair[0];
     });
   }
+  // MYSTERY ("?") NODE EVENTS — the weighted outcome table + its knobs.
+  const my = D.mystery;
+  if (!my || typeof my !== "object") problems.push("[items.js] mystery: missing config object");
+  else {
+    const mw = my.weights || {};
+    for (const k of ["coinBonus", "stickerPack", "cardPack", "freeRemoval", "stickerStrip", "cursedSticker", "cursedCard", "coinLoss", "ambush"])
+      if (typeof mw[k] !== "number" || !isFinite(mw[k]) || mw[k] <= 0)
+        problems.push("[items.js] mystery.weights." + k + ": must be a positive number");
+    const cr = my.coinRangeByStage;
+    if (!Array.isArray(cr) || !cr.length)
+      problems.push("[items.js] mystery.coinRangeByStage: must be a non-empty array of [min,max] pairs");
+    else cr.forEach((pair, i) => {
+      if (!Array.isArray(pair) || pair.length !== 2
+          || typeof pair[0] !== "number" || !isFinite(pair[0]) || pair[0] < 0
+          || typeof pair[1] !== "number" || !isFinite(pair[1]) || pair[1] < pair[0])
+        problems.push("[items.js] mystery.coinRangeByStage[" + i + "]: must be a [min,max] pair of numbers with 0 ≤ min ≤ max");
+    });
+    const am = my.ambush || {};
+    for (const k of ["cards", "piles", "bounty"])
+      if (typeof am[k] !== "number" || !isFinite(am[k]) || am[k] <= 0)
+        problems.push("[items.js] mystery.ambush." + k + ": must be a positive number");
+    if (typeof my.cursedCardTribute !== "number" || !isFinite(my.cursedCardTribute) || my.cursedCardTribute <= 0)
+      problems.push("[items.js] mystery.cursedCardTribute: must be a positive number (innate cursed-card tribute per landing)");
+    const rr = my.cursedCardRankRange;
+    if (!Array.isArray(rr) || rr.length !== 2
+        || typeof rr[0] !== "number" || !isFinite(rr[0]) || Math.floor(rr[0]) !== rr[0] || rr[0] < 2
+        || typeof rr[1] !== "number" || !isFinite(rr[1]) || Math.floor(rr[1]) !== rr[1] || rr[1] > 14 || rr[1] < rr[0])
+      problems.push("[items.js] mystery.cursedCardRankRange: must be a [min,max] pair of integer ranks with 2 ≤ min ≤ max ≤ 14");
+    // The cursedSticker outcome rolls from the stickers flagged `cursed: true`.
+    if (!Array.isArray(D.stickers) || !D.stickers.some(s => s && s.cursed === true))
+      problems.push("[items.js] stickers: at least one entry must carry `cursed: true` (the mystery cursedSticker outcome's pool)");
+  }
   if (problems.length) {
     problems.forEach(p => console.error(p));
     throw new Error("items.js validation FAILED — " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + " (see console.error lines above)");
@@ -7822,6 +7904,13 @@ const StickerTypes = (() => {
   // and bakes the neural SVG glyph onto each type's icon (replaces the emoji).
   const reg = makeRegistry(ItemData.stickers);
   for (const t of reg.all()) if (ELEM_GLYPH[t.id]) t.icon = glyph(ELEM_GLYPH[t.id]);
+  // CURSED stickers (items.js `cursed: true`) never enter the normal grant
+  // pools — store offers, sticker packs, pack-card generation, Mr. Smith's
+  // grants and Wild Sticker all roll from grantable(). get(id) still finds a
+  // cursed type and the apply path accepts it (the mystery cursedSticker event
+  // applies one directly).
+  const GRANTABLE = reg.all().filter(t => !t.cursed);
+  reg.grantable = () => GRANTABLE.slice();
   return reg;
 })();
 
@@ -8091,6 +8180,9 @@ const DeckManager = (() => {
       // Compound: lifetime count of correct guesses made against this identity
       // (persisted on the campaign card). Pays (compoundHits − 1) if alive on top.
       compoundHits: card.compoundHits || 0,
+      // Innate curse (MYST1 — mystery-event cursed cards): every landing pays a
+      // coin tribute (see maybeStickerTribute). Projected like any card flag.
+      cursed: card.cursed === true,
       // Snowball Bury: the per-card bury size X (persisted on the campaign card,
       // like compoundHits). Grows on correct placements, resets on a wrong one.
       snowball: card.snowball || 0,
@@ -10264,16 +10356,41 @@ const GameEngine = (() => {
     }
 
     /** Sticker tributes carried by the DRAWN card that just landed on a SURVIVING
-        pile (Bury 1 / Bury 2): bury the card(s) IMMEDIATELY, no prompt. When the
-        sticker carries a coinCost, deduct it from the bonus tally on the same
-        landing (Bury 2 costs 7). Can't afford → the bury still happens and the
-        tally simply goes negative. Uncapped (bounded only by the draw deck). */
+        pile: Bury 1 / Bury 2 bury the card(s) IMMEDIATELY, no prompt; a Leech
+        (tributeCoin) and an innately CURSED card pay a flat coin toll instead.
+        When a sticker carries a coinCost, deduct it from the bonus tally on the
+        same landing (Bury 2 costs 7). Can't afford → the effect still happens
+        and the tally simply goes negative. Uncapped (bounded only by the draw
+        deck). Every toll surfaces through the same negative "sticker-coins"
+        cue, so the UI float + coin-loss sound come free. */
     function maybeStickerTribute(index, drawn) {
+      // Innate curse (MYST1): the card itself is cursed — every landing leeches
+      // the tribute (items.js mystery.cursedCardTribute). Identical in shape to
+      // the sticker toll below.
+      if (drawn && drawn.cursed) {
+        const tribute = itemNum(ItemData.mystery, "cursedCardTribute", 1);
+        if (tribute) {
+          addBonus("Cursed", -tribute);
+          emit("sticker-coins", { index, label: "Cursed", amount: -tribute, board, deck, run });
+          recT("sticker", "cursedCard", "Cursed", { coins: -tribute });
+        }
+      }
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
       for (const s of stickers) {
         const t = StickerTypes.get(s.type);
-        if (!t || t.behavior !== "tribute") continue;
+        if (!t) continue;
+        if (t.behavior === "tributeCoin") {
+          // Leech (cursed sticker): a flat coin toll per landing.
+          const toll = itemNum(t, "value", 1);
+          if (toll) {
+            addBonus(t.label, -toll);
+            emit("sticker-coins", { index, label: t.label, amount: -toll, board, deck, run });
+            recT("sticker", t.id, t.label, { coins: -toll });
+          }
+          continue;
+        }
+        if (t.behavior !== "tribute") continue;
         const count = t.tributeCount || 1;
         const nb = buryTribute(index, count, t.label);
         const cost = itemNum(t, "coinCost", 0);
@@ -10666,9 +10783,10 @@ const GameEngine = (() => {
     function allDeadPiles()  { const o = []; for (let i = 0; i < board.size; i++) if (!board.isActive(i)) o.push(i); return o; }
     /** The "safe" random-sticker pool a Base may apply: no suit-locked stickers
         and nothing that changes a card's suit (so a Base can never introduce a
-        not-yet-in-play suit) and not the setup-only Duplicate. */
+        not-yet-in-play suit), not the setup-only Duplicate, and never a CURSED
+        sticker (those are mystery-event grants only — grantable()). */
     function baseStickerPool() {
-      return StickerTypes.all().filter(t =>
+      return StickerTypes.grantable().filter(t =>
         !t.suit && t.behavior !== "changeSuitRandom" && t.behavior !== "duplicate");
     }
     /** The stickers Wild Sticker may roll for THIS top: never onto a Joker or
@@ -12240,7 +12358,7 @@ const CampaignState = (() => {
      rolls and Wild Sticker) but no longer filter; their suit-set argument is
      ignored. Pack-CARD suit generation is untouched — a pack still mints cards
      of the suits actually in play (deck composition pacing, not item gating). */
-  function stickerPoolForSuits() { return StickerTypes.all(); }
+  function stickerPoolForSuits() { return StickerTypes.grantable(); }   // cursed stickers never roll (mystery events only)
   function pillarPoolForSuits() { return PillarTypes.all(); }
   function basePoolForSuits() { return BaseTypes.all(); }
 
@@ -12312,7 +12430,7 @@ const CampaignState = (() => {
   function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null) {
     const CW = ItemData.store.classWeights;
     const classes = [
-      { key: "sticker", w: CW.sticker, types: StickerTypes.all() },
+      { key: "sticker", w: CW.sticker, types: StickerTypes.grantable() },   // cursed stickers never sell
       { key: "pillar", w: CW.pillar, types: PillarTypes.all() },
       { key: "base", w: CW.base, types: BaseTypes.all() },
       { key: "pack", w: CW.pack, types: PackTypes.all() },
@@ -12814,6 +12932,127 @@ const CampaignState = (() => {
       baseDeck.push(card);
       return card.id;
     }
+    /** Mint a CURSED persistent card (MYST1 — the mystery "?" cursedCard
+        outcome): a REAL mid-rank card that joins the deck like any granted
+        card, but innately cursed — every landing of it pays a coin tribute
+        (GameEngine; the amount is items.js mystery.cursedCardTribute). The
+        `cursed` flag is a plain extra field on the standard card shape, so
+        serialize/restore rides the existing spread-copy untouched. */
+    function mintCursedCard(rng = Math.random) {
+      const rr = ItemData.mystery.cursedCardRankRange;   // mid ranks (items.js)
+      const suit = ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)];
+      const rank = rr[0] + Math.floor(rng() * (rr[1] - rr[0] + 1));
+      const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank,
+                     modifications: [], stickers: [], compoundHits: 0, cursed: true };
+      baseDeck.push(card);
+      return card;
+    }
+
+    /* ── MYSTERY ("?") NODE EVENTS (MYST1) ───────────────────────────────
+       Arriving at a hidden node rolls ONE weighted outcome, seeded by
+       (runSeed, nodeId) — the same node always resolves the same way,
+       including after a save/restore. Every number lives in items.js
+       `mystery` (weights, coin ranges, ambush deal, curse tribute); nothing
+       is hardcoded here. Stage 2 wires the UI reveal; the ambush deal and
+       the free-removal/sticker-strip pickers resolve through the EXISTING
+       flows (descriptor-only outcomes below mutate nothing themselves). */
+    const MYSTERY_KEY_SALT = 0x4d455654;     // "MEVT" — outcome-key roll (distinct from the map's mystery display salt)
+    const MYSTERY_DETAIL_SALT = 0x4d414d54;  // "MAMT" — amounts / sticker / card picks
+    function mysteryRng(nodeId, salt) {
+      return makeRng((runSeed >>> 0) ^ (Math.imul((nodeId >>> 0) + 1, 0x9e3779b1) >>> 0) ^ salt);
+    }
+    /** The seeded outcome KEY for a mystery node — PURE (no state change).
+        Same (runSeed, nodeId) → same key, always. Weights read live from
+        items.js. */
+    function rollMysteryEvent(nodeId) {
+      const w = ItemData.mystery.weights;
+      const keys = Object.keys(w);
+      const total = keys.reduce((a, k) => a + w[k], 0) || 1;
+      const rng = mysteryRng(nodeId, MYSTERY_KEY_SALT);
+      let r = rng() * total, chosen = keys[keys.length - 1];
+      for (const k of keys) { if ((r -= w[k]) < 0) { chosen = k; break; } }
+      return chosen;
+    }
+    /** Display name for a persistent card ("9♣") — descriptors name the card
+        an outcome hit. */
+    function persistentCardName(card) {
+      if (!card) return "?";
+      if (card.joker) return "★ Joker";
+      const r = DeckManager.RANKS.find(x => x.value === card.currentRank);
+      return (r ? r.label : "?") + card.suit;
+    }
+    /** Resolve a mystery event: perform its state mutation and return a
+        descriptor { key, title, desc, ... } for the UI (null when the outcome
+        was impossible — e.g. no eligible card for a curse — or the key is
+        unknown). `nodeId` re-seeds every pick deterministically from
+        (runSeed, nodeId) — the same node roll rollMysteryEvent made; omit it
+        only in QA (falls back to Math.random). */
+    function applyMysteryEvent(key, nodeId) {
+      const rng = (nodeId != null) ? mysteryRng(nodeId, MYSTERY_DETAIL_SALT) : Math.random;
+      const M = ItemData.mystery;
+      const range = M.coinRangeByStage[Math.min(phaseIndex, M.coinRangeByStage.length - 1)];
+      const coinAmount = () => range[0] + Math.floor(rng() * (range[1] - range[0] + 1));
+      switch (key) {
+        case "coinBonus": {
+          const amount = coinAmount();
+          coins += amount;
+          return { key, title: "Cache", amount, desc: "+" + amount + " coins" };
+        }
+        case "coinLoss": {
+          const amount = Math.min(coins, coinAmount());   // floored at 0 — never negative
+          coins -= amount;
+          return { key, title: "Toll", amount, desc: "−" + amount + " coins" };
+        }
+        case "stickerPack": {
+          const sid = rollIds(StickerTypes.grantable(), 1, rng)[0];   // never a cursed sticker
+          if (!sid) return null;
+          stickerInventory[sid] = (stickerInventory[sid] || 0) + 1;
+          const t = StickerTypes.get(sid);
+          return { key, title: "Imprint", stickerId: sid, stickerLabel: t ? t.label : sid,
+                   desc: "A " + (t ? t.label : sid) + " sticker joins your inventory" };
+        }
+        case "cardPack": {
+          const card = genNormalCard(rng);   // pack-odds card (may carry stickers)
+          baseDeck.push(card);
+          ownedIds.push(card.id);
+          return { key, title: "Windfall", card, cardId: card.id,
+                   desc: persistentCardName(card) + " joins your deck" };
+        }
+        case "freeRemoval":
+          // Descriptor only — the UI opens the choose-a-card-to-remove flow;
+          // the removal itself goes through removeDeckCard.
+          return { key, title: "Purge", desc: "Remove a card from your deck — free" };
+        case "stickerStrip":
+          // Descriptor only — the UI opens the sticker picker; the strip goes
+          // through removeRandomStickerFrom / removeStickerInstances.
+          return { key, title: "Cleanse", desc: "Strip a sticker from a card — free" };
+        case "cursedSticker": {
+          const cursedTypes = ItemData.stickers.filter(t => t.cursed === true);
+          if (!cursedTypes.length) return null;
+          const t = cursedTypes[Math.floor(rng() * cursedTypes.length)];
+          const eligible = ownedIds.map(findById).filter(c => c && stickerCardEligible(c, t.id));
+          if (!eligible.length) return null;
+          const card = eligible[Math.floor(rng() * eligible.length)];
+          if (!applyStickerToCard(card, t.id, { rng })) return null;
+          return { key, title: "Cursed", stickerId: t.id, stickerLabel: t.label,
+                   cardId: card.id, card,
+                   desc: t.label + " afflicts your " + persistentCardName(card) };
+        }
+        case "cursedCard": {
+          const card = mintCursedCard(rng);
+          ownedIds.push(card.id);
+          return { key, title: "Cursed Card", card, cardId: card.id,
+                   desc: "A cursed " + persistentCardName(card) + " joins your deck — it leeches coins every time it lands" };
+        }
+        case "ambush":
+          // Descriptor only (Stage 2 deals it) — the numbers ride along live
+          // from items.js so the reveal text never desyncs.
+          return { key, title: "Ambush", ambush: M.ambush,
+                   desc: "Survive a " + M.ambush.cards + "-card deal on " + M.ambush.piles + " piles → +" + M.ambush.bounty + " coins" };
+        default:
+          return null;
+      }
+    }
     /** MR. SMITH (startStickers) — his MAP grants may carry stickers exactly
         like his store pack cards: every card granted by a +1 node or a map
         pack rolls the shared packStickerCount distribution, each sticker
@@ -13017,7 +13256,7 @@ const CampaignState = (() => {
           const card = findById(id);
           if (!card) continue;
           card.stickers = [];   // idempotent: a re-rolled start never stacks
-          const elig = StickerTypes.all().filter(t => stickerCardEligible(card, t.id)
+          const elig = StickerTypes.grantable().filter(t => stickerCardEligible(card, t.id)
             && (t.kind !== "rank" || (t.rankDelta > 0 ? card.currentRank < MAX_RANK : card.currentRank > MIN_RANK)));
           const t = elig[Math.floor(Math.random() * elig.length)];
           if (t) applyStickerToCard(card, t.id);
@@ -14143,6 +14382,24 @@ const CampaignState = (() => {
           removed++;
         }
         return removed;
+      },
+
+      /* ---- MYSTERY ("?") node events (MYST1) — see the seed/mutation core
+         above. rollMysteryEvent is the pure seeded outcome roll;
+         applyMysteryEvent performs the mutation and returns the UI descriptor;
+         removeRandomStickerFrom serves the stickerStrip outcome's picker. ---- */
+      rollMysteryEvent,
+      applyMysteryEvent,
+      /** Remove ONE random sticker instance from a card (the stickerStrip
+          mystery outcome). Randomness: injectable `rng` (tests pin it seeded),
+          defaulting to Math.random. Returns the removed type id, or null when
+          the card carries no stickers. */
+      removeRandomStickerFrom(cardId, rng = Math.random) {
+        const card = findById(cardId);
+        if (!card || !card.stickers || !card.stickers.length) return null;
+        const at = Math.floor(rng() * card.stickers.length);
+        const typeId = card.stickers[at].type;
+        return this.removeStickerInstances(cardId, typeId, 1) === 1 ? typeId : null;
       },
 
       /** PERMANENT deck replacement (pre-run, via a held pack card): remove the
@@ -15405,6 +15662,11 @@ const UIRenderer = (() => {
     fossilDetailTitle: document.getElementById("fossilDetailTitle"),
     fossilDetailArt: document.getElementById("fossilDetailArt"),
     fossilDetailSub: document.getElementById("fossilDetailSub"),
+    mysteryEvent: document.getElementById("mysteryEvent"),         // MYST1: the "?" event reveal modal
+    mysteryEventTitle: document.getElementById("mysteryEventTitle"),
+    mysteryEventArt: document.getElementById("mysteryEventArt"),
+    mysteryEventSub: document.getElementById("mysteryEventSub"),
+    mysteryEventGo: document.getElementById("mysteryEventGo"),
     storeApplyStickersBtn: document.getElementById("storeApplyStickersBtn"),
     storeApplyStickersN: document.getElementById("storeApplyStickersN"),
     stickerApplyModal: document.getElementById("stickerApplyModal"),   // buy-time sticker apply picker
@@ -15569,7 +15831,15 @@ const UIRenderer = (() => {
   let removalPurchase = false;
   // The live deal's subset, persisted so a RESUME reproduces the same board:
   // { ids:[cardId...], piles }. null for a full-deck deal (small deck / boss).
+  // MYST1: a forced (ambush) subset also carries { forced, cards, ambush }.
   let currentDealSubset = null;
+  // MYST1 AMBUSH: the live deal is a mystery ambush — { nodeId, bounty } read
+  // off the (persisted) forced subset, so a mid-ambush refresh resumes with the
+  // bounty + the masked node intact. Re-derived by every startRun.
+  let ambushDeal = null;
+  // Ambush cleared → its UNDERLYING node still owes its dispatch; continueCampaign
+  // (the summary's Continue) runs it through the normal finishResolveNode path.
+  let pendingAmbushNodeId = null;
   // Snapshot (at deal start) of the SUBSET's own composition, so the full-deck
   // histogram can compute remaining = full − drawnThisDeal, where drawnThisDeal
   // = subsetInitial − (engine draw-pile remaining). Keyed by current rank / suit;
@@ -15742,9 +16012,12 @@ const UIRenderer = (() => {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
+    // CURSED (MYST1): an innately cursed card carries a violet curse chip even
+    // with no stickers — so the early bail must account for it.
+    const cursed = !!(card && card.cursed);
     // Bail before any registry work for the common bare card (nothing to draw,
     // nothing drawn) — most piles most of the time.
-    if (!stickers.length && !badges.firstChild) return;
+    if (!cursed && !stickers.length && !badges.firstChild) return;
     // One pass over the card's stickers → per-type counts (the registry loop
     // below asks for every type; a filter() per type was O(registry × stickers)).
     const counts = {};
@@ -15763,6 +16036,9 @@ const UIRenderer = (() => {
     const counter = (id, icon, count) =>
       dieCutChip(icon, tierOf(id), { count: count, face: faceOf(id), rot: rotN(id) });
     let html = "";
+    // Innate curse (MYST1): a violet swirl vinyl — reads like a sticker badge,
+    // but it can't be peeled (it's the card itself that's cursed).
+    if (cursed) html += dieCutChip(glyph("swirl"), "rare", { cls: "pb-curse", face: "#7a4fd0", rot: rotN("curse") });
     // Every registered sticker type → one vinyl from its category + rarity
     // (Snowball / Compound draw a live counter below, so skip their flat chip).
     for (const t of StickerTypes.all()) {
@@ -15802,6 +16078,9 @@ const UIRenderer = (() => {
     // JOKER face reads GOLD everywhere (same palette as its mini-card / map
     // node face) instead of black stars on the plain white front.
     front.classList.toggle("joker", !!card.joker);
+    // CURSED (MYST1): the innate mystery curse tints the face violet (the
+    // matching curse chip rides the badge overlay — renderStickerBadges).
+    front.classList.toggle("cursed", !!card.cursed);
     // (Matte cards: the old per-card --glow halo was removed — no setter needed.)
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
@@ -16035,7 +16314,9 @@ const UIRenderer = (() => {
     const wasRevealed = el.deckStat && el.deckStat.classList.contains("revealed");
     el.deckFace.classList.toggle("red", !!next.red);
     el.deckFace.classList.toggle("joker", !!next.joker);   // gold, like every Joker face
-    el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>";
+    el.deckFace.classList.toggle("cursed", !!next.cursed);   // violet, like every cursed face (MYST1)
+    el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>" +
+      (next.cursed ? '<span class="dsf-curse" aria-hidden="true">' + glyph("swirl") + "</span>" : "");
     el.deckFace.classList.remove("hidden");
     if (el.deckStat) el.deckStat.classList.add("revealed");
     if (!wasRevealed) pulseDeckPeek();
@@ -16962,6 +17243,16 @@ const UIRenderer = (() => {
     if (card.joker) return '<div class="pk-head">★ Joker</div>' +
       '<div class="pk-desc">Always safe on any guess</div>';
     const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
+    // CURSED (MYST1): an innately cursed card leads with its toll — the number
+    // derives from items.js mystery.cursedCardTribute, never a hardcoded copy.
+    let curseRow = "";
+    if (card.cursed) {
+      const n = itemNum(ItemData.mystery, "cursedCardTribute", 1);
+      curseRow = '<div class="pk-item"><span class="pk-ic pk-curse">' + glyph("swirl") + "</span><span>" +
+        '<span class="pk-name">Cursed</span>' +
+        '<div class="pk-desc">' + escHtml("Innate curse — when this card lands → −" + n + " coin" + (n === 1 ? "" : "s")) + "</div>" +
+        "</span></div>";
+    }
     const stickers = card.stickers || [];
     // During setup, a stickered card can have ALL its stickers peeled off (with a
     // confirmation). Peeled stickers are destroyed, not returned.
@@ -16969,7 +17260,8 @@ const UIRenderer = (() => {
     const peelBtn = (inSetup && stickers.length && index != null)
       ? '<button class="pk-peel" data-peel-index="' + index + '" type="button">Peel off all stickers</button>'
       : "";
-    if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
+    if (!stickers.length) return head + curseRow +
+      (card.cursed ? "" : '<div class="pk-empty">No stickers on this card.</div>');
     const counts = {};
     stickers.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
     let body = "";
@@ -16988,7 +17280,7 @@ const UIRenderer = (() => {
           (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
         "</span></div>";
     });
-    return head + body + peelBtn;
+    return head + curseRow + body + peelBtn;
   }
   function pillarPeekHtml(col) {
     const binding = campaign ? campaign.getColumnPillars() : [];
@@ -19116,7 +19408,7 @@ const UIRenderer = (() => {
           const n = map && map.byId ? map.byId[nid] : null;
           if (!n) { mapHeld = false; mapSuppress = false; return; }
           const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
-          showTextHelp(hidden ? "Mystery" : "Map node", hidden ? "??? — revealed when you arrive" : mapNodeLabel(n));
+          showTextHelp(hidden ? "Mystery" : "Map node", hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n));
         }, 350);
       });
       const mapRelease = () => {
@@ -19226,6 +19518,10 @@ const UIRenderer = (() => {
     }
     el.fossilDetailClose.addEventListener("click", closeFossilDetail);
     el.fossilDetail.addEventListener("click", (e) => { if (e.target === el.fossilDetail) closeFossilDetail(); });
+    // MYST1: the mystery-event modal acknowledges via Continue only (the event
+    // already happened — no ✕/backdrop dismiss); its outcome art holds for help.
+    el.mysteryEventGo.addEventListener("click", () => { Sound.tap(); confirmMysteryEvent(); });
+    attachHoldHelp(el.mysteryEventArt, () => { if (mysteryArtHelp) showTextHelp(mysteryArtHelp.title, mysteryArtHelp.desc); });
 
     // Debug tools.
     el.debugPeek.addEventListener("click", () => {
@@ -21138,12 +21434,22 @@ const UIRenderer = (() => {
      so a kill/refresh can't lose a completed purchase. Only the campaign save is
      coalesced; every other ninelives.* key still writes through immediately. */
   let pendingSavePhase = null;   // latest requested phase while a write coalesces; null = nothing pending
+  // MYST1: set while a placement walk runs ON THE MAP (the mystery stickerPack
+  // walk). The walk's confirm taps persist "store" (the shared apply path), but
+  // the player never left the map — campaignSaveBlob rewrites the phase at write
+  // time so a mid-walk refresh resumes on the map with the node's dispatch
+  // intact. typeof-guarded: the STKLAG2 harness extracts these functions without
+  // this let, and a bare reference would throw there.
+  let placementSavePhase = null;
   let saveCoalesceTimer = null;  // the trailing-write debounce handle
   const SAVE_COALESCE_MS = 300;  // one write ~300ms after the last persist in a burst
 
   // Snapshot the campaign + resume point for `phase`. Serialized at write time
   // so a coalesced write always reflects the LATEST completed state.
   function campaignSaveBlob(phase) {
+    // MYST1: a map-context placement walk (mystery stickerPack) checkpoints the
+    // map even when a confirming tap asked for "store" (see placementSavePhase).
+    if (typeof placementSavePhase !== "undefined" && placementSavePhase) phase = placementSavePhase;
     const blob = { schema: 1, phase, deckId: selectedDeckId, campaign: campaign.serialize() };
     // For an in-progress run, also checkpoint the deal: the seed replays the
     // EXACT starting board on resume (so a refresh can't be used to fish for a
@@ -21408,6 +21714,9 @@ const UIRenderer = (() => {
                       // dealt, is the active surface and its card motion runs)
     clearSave();          // a fresh campaign supersedes any saved one
     track("game_started");   // analytics (fail-silent)
+    // Drop any leftover run context (a quit mid-ambush never ran onRunEnd) so
+    // the fresh campaign's first deal can't inherit a stale forced subset.
+    ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
     campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
     // INSTANT TAP RESPONSE (measured: the reset→render block below is the
@@ -21483,7 +21792,14 @@ const UIRenderer = (() => {
     const nodePiles = (node && node.piles) ? node.piles : 9;
     const fullDeck = campaign.getRunDeck();
     const SS = RunMap.SUBSET;
-    const wantSubset = subsetDealsEnabled && !isBoss && fullDeck.length > SS.threshold;
+    // MYST1 AMBUSH: a FORCED subset rides in as subsetOverride (fresh entry:
+    // { forced, cards, piles, ambush }; a RESUME: the persisted dealSubset) or —
+    // on a RESHUFFLE, which passes no override — as the live currentDealSubset.
+    // Forced deals ignore both the deck-size threshold and the subset debug
+    // toggle: the ambush config (items.js) is the deal's whole shape.
+    const forcedSpec = (subsetOverride && subsetOverride.forced) ? subsetOverride
+      : ((!subsetOverride && currentDealSubset && currentDealSubset.forced) ? currentDealSubset : null);
+    const wantSubset = !isBoss && (forcedSpec ? true : (subsetDealsEnabled && fullDeck.length > SS.threshold));
 
     let deckForDeal, piles;
     if (wantSubset && subsetOverride && Array.isArray(subsetOverride.ids)) {
@@ -21496,6 +21812,13 @@ const UIRenderer = (() => {
       deckForDeal = subsetOverride.ids.map(id => byId.get(id)).filter(Boolean);
       piles = subsetOverride.piles;
       if (!deckForDeal.length || !piles) { deckForDeal = null; }   // stale → fall through to a fresh roll
+    }
+    if (wantSubset && !deckForDeal && forcedSpec) {
+      // AMBUSH fresh roll (entry / reshuffle): `cards` cards to survive on
+      // `piles` piles — straight from items.js mystery.ambush via the spec.
+      piles = forcedSpec.piles;
+      const N = Math.min(fullDeck.length, (forcedSpec.cards || 0) + piles);
+      deckForDeal = pickRandomSubset(fullDeck, N);
     }
     if (wantSubset && !deckForDeal) {
       // Fresh roll (entry / reshuffle): survive count S in [min,max], solve piles
@@ -21513,7 +21836,16 @@ const UIRenderer = (() => {
       deckForDeal = fullDeck;
     }
     subsetDealActive = wantSubset;
-    currentDealSubset = wantSubset ? { ids: deckForDeal.map(c => c.id), piles } : null;
+    // A forced (ambush) subset keeps its spec fields so the RESHUFFLE re-roll
+    // and the persisted dealSubset both carry the ambush context (bounty + the
+    // masked node) across a mid-ambush refresh.
+    currentDealSubset = wantSubset
+      ? (forcedSpec
+          ? { ids: deckForDeal.map(c => c.id), piles, forced: true, cards: forcedSpec.cards, ambush: forcedSpec.ambush || null }
+          : { ids: deckForDeal.map(c => c.id), piles })
+      : null;
+    // The ambush context lives ON the subset: any non-ambush deal clears it.
+    ambushDeal = (currentDealSubset && currentDealSubset.ambush) || null;
     // Snapshot the subset's OWN composition (by current rank / suit; jokers apart)
     // so the histogram can decrement the full-deck view by cards drawn this deal
     // without ever exposing the subset's makeup. Cleared for a full-deck deal.
@@ -23019,6 +23351,12 @@ const UIRenderer = (() => {
     resolveStaticSelfDestruct();   // deal end → roll Static volatility (indicator + maybe destroy)
 
     const won = result === "win";
+    // MYST1 AMBUSH: this deal was a mystery ambush (its ctx rode in on the
+    // forced subset, so a resumed ambush still carries it). The ambush is an
+    // EXTRA deal: the masked node beneath is NOT cleared by it, a clear pays
+    // the configured bounty, and the node's own dispatch runs after.
+    const wasAmbush = !!ambushDeal;
+    const ambushInfo = wasAmbush ? ambushDeal : null;
     const board = payload.board;
     const aliveCount = board.aliveCount();
 
@@ -23041,6 +23379,10 @@ const UIRenderer = (() => {
     // here depends on the loss being fatal — soften it in reset() if needed.
     if (!won) {
       track("run_lost");   // analytics (fail-silent) — loss screen
+      // An ambush loss is a NORMAL campaign loss — no special casing; just drop
+      // the ambush context so nothing stale outlives the wipe (the forced
+      // currentDealSubset too — a fresh campaign must never re-force it).
+      ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;
       // The little box takes it gently: eyes close, one small tear, a slow slump
       // (persistent mood on both characters; cleared on the next run start).
       CharMood.loss();
@@ -23099,6 +23441,15 @@ const UIRenderer = (() => {
     // Lucky Coin, Tribute costs, All Hearts), itemized straight from the run's
     // tally. run.bonusCoins == Σ bonusEvents during play.
     const run = payload.run || {};
+    // AMBUSH bounty (items.js mystery.ambush.bounty, carried on the deal's ctx):
+    // rides the run's OWN bonus channel — an itemized event line, exactly like
+    // Suit Bounty / Middle Reward — so the payout formula and the summary's
+    // breakdown pick it up untouched.
+    if (wasAmbush && ambushInfo && ambushInfo.bounty > 0) {
+      run.bonusCoins = (run.bonusCoins || 0) + ambushInfo.bounty;
+      run.bonusEvents = run.bonusEvents || {};
+      run.bonusEvents.Ambush = (run.bonusEvents.Ambush || 0) + ambushInfo.bounty;
+    }
     const eventLines = Object.entries(run.bonusEvents || {})
       .map(([label, amount]) => ({ label, amount }));
     const payout = Economy.breakdown({
@@ -23134,12 +23485,22 @@ const UIRenderer = (() => {
     // next phase's openings, so the player just keeps travelling the one map
     // (moveToNode syncs the phase as they cross). Only the FINAL boss (the ♠
     // boss = runMap.runBossId) ends the run as a WIN.
+    // AMBUSH: the cleared deal was the mystery event's, NOT the node's — the
+    // masked node stays un-cleared; its own dispatch (after the summary) owns it.
     const clearedNode = campaign.currentNode();
-    if (clearedNode) campaign.markNodeCleared(clearedNode.id);
+    if (clearedNode && !wasAmbush) campaign.markNodeCleared(clearedNode.id);
     // ENDLESS: an endless boss falling just generated the NEXT stage — record
     // the new depth in lifetime stats as each stage opens.
     if (campaign.isEndless && campaign.isEndless()) Stats.endlessReached(campaign.endlessStagesReached());
-    const runWon = !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
+    const runWon = !wasAmbush && !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
+    // AMBUSH cleared: queue the masked node's dispatch for the summary's
+    // Continue (continueCampaign) and drop the forced subset so the node's own
+    // deal (if any) rolls fresh — never re-forced by the ambush spec.
+    if (wasAmbush) {
+      pendingAmbushNodeId = ambushInfo ? ambushInfo.nodeId : null;
+      ambushDeal = null;
+      currentDealSubset = null;
+    }
 
     // DEAL CLEARED → happy dance + WIN MUSIC, both at the instant the FINAL
     // CARD LANDS on its pile. The engine emits "resolved" then "won" in the
@@ -23196,7 +23557,10 @@ const UIRenderer = (() => {
     } else {
       // Show the coin breakdown, then continue back to the (current or new-phase)
       // map to pick the next node. Checkpoint so a refresh resumes at the map.
-      persistCampaign("map");
+      // AMBUSH: skip that checkpoint — the deal's own "run" checkpoint stays
+      // authoritative, so a refresh before Continue REPLAYS the ambush deal
+      // instead of resuming on the map with the masked node left un-resolved.
+      if (!wasAmbush) persistCampaign("map");
       // If anything was GAINED mid-deal, place it first (post-deal screen), THEN
       // show the summary. Nothing gained → straight to the summary.
       playWinCinematic(board, () => showPostDealPlacement(() => showRunComplete(coins)));
@@ -23204,6 +23568,16 @@ const UIRenderer = (() => {
   }
 
   function continueCampaign() {
+    // AMBUSH aftermath: the deal just cleared was the mystery event's ambush —
+    // the node it masked resolves NOW through the normal dispatch (if it's
+    // itself a deal, the player plays both — intended).
+    if (pendingAmbushNodeId != null) {
+      const nid = pendingAmbushNodeId; pendingAmbushNodeId = null;
+      const node = campaign.getNode(nid);
+      showProgressionMap(startRun);
+      if (node) finishResolveNode(node, nid);
+      return;
+    }
     // After a won deal/boss: return to the phase map to choose the next node.
     showProgressionMap(startRun);
   }
@@ -23644,7 +24018,7 @@ const UIRenderer = (() => {
       mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
       mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards (packs of 3+; 2-card stops show their faces)") +
       mapKeyRow("t-pickup", "", nodeCardHtml(card), "Card", "joins your deck when you pass") +
-      mapKeyRow("t-myst", "", '<span class="mn-myst">?</span>', "Mystery", "revealed when you arrive") +
+      mapKeyRow("t-myst", "", '<span class="mn-myst">?</span>', "Mystery", "a gamble, good or bad, revealed when you arrive") +
       mapKeyRow("t-home", "", mapNodeInner({ type: "home" }), "Home", "mama; the finish at the top");
   }
   function openMapKey() {
@@ -23958,7 +24332,7 @@ const UIRenderer = (() => {
       const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
       nodes += '<button type="button" class="pm-node t-' + (hidden ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
         ' data-nid="' + n.id + '"' +
-        ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — revealed when you arrive" : mapNodeLabel(n)) + '">' +
+        ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n)) + '">' +
         (hidden ? '<span class="mn-myst">?</span>' : mapNodeInner(n, suit, state)) + '</button>';
     });
     // HOME / origin node: a distinct non-interactive base where the run begins
@@ -24194,7 +24568,7 @@ const UIRenderer = (() => {
       el.mapScroll.scrollTop = el.mapScroll.scrollHeight;
     }
   }
-  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); closeMapKey(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
+  function hideProgressionMap() { document.body.classList.remove("on-map"); el.mapOverlay.classList.add("hidden"); closeFossilDetail(); closeMysteryEvent(); closeMapKey(); startDriftSync(); updateBoardMotion(); renderDeckStrip(); updateShellHeight(); setMapAnimsIdle(true); }
   /* HEAT FIX #3 — overlays hide via opacity:0 (not display:none), so the
      HIDDEN map's animations (node pulses, spotlight, avatar bob/dart) kept
      ticking style during 100% of every deal (measured: 5-6 live animations
@@ -24284,8 +24658,9 @@ const UIRenderer = (() => {
     const travelNext = () => {
       if (idx >= legs.length) {
         // The marker has ARRIVED. A mystery gets its reveal moment first —
-        // the "?" flips into the true node — then the node plays as normal.
-        if (wasHidden) playMysteryReveal(id, () => finishResolveNode(node, id));
+        // the "?" flips into the true node — then its EVENT rolls (MYST1), then
+        // the node plays as normal. A normal node dispatches straight away.
+        if (wasHidden) playMysteryReveal(id, () => runMysteryEvent(node, id));
         else finishResolveNode(node, id);
         return;
       }
@@ -24308,6 +24683,151 @@ const UIRenderer = (() => {
     const btn = el.mapTrack.querySelector('.pm-node[data-nid="' + id + '"]');
     if (btn) { btn.classList.add("myst-pop"); }
     setTimeout(cb, 720);
+  }
+
+  /* ── MYSTERY EVENT (MYST1 Stage 2) ────────────────────────────────────────
+     A hidden node's arrival rolls ONE weighted outcome (items.js `mystery`,
+     seeded by run seed + node id — the same node always resolves the same way,
+     a refresh can never re-roll or re-grant). The state half (coins / grants /
+     curses) is applied AND checkpointed before the modal opens; the modal
+     announces the outcome, then Continue runs its flow (picker / placement walk
+     / reveal / ambush deal), and the UNDERLYING node dispatches as normal. ── */
+  function runMysteryEvent(node, id) {
+    const key = campaign.rollMysteryEvent(id);
+    const d = campaign.applyMysteryEvent(key, id);
+    // EXACTLY-ONCE: the reveal (revealedNodes) + any mutation must be durable
+    // BEFORE any picker/deal — flush so a kill on the modal can't lose it. A
+    // refresh re-reads the revealed node and skips the event entirely.
+    persistCampaign("map");
+    flushCampaignSave();
+    // A null descriptor = the rolled outcome was impossible right now (e.g. no
+    // eligible card for a curse) — the node simply plays without an event.
+    if (!d) { finishResolveNode(node, id); return; }
+    openMysteryEvent(d, () => continueMysteryEvent(d, node, id));
+  }
+
+  let mysteryEventContinue = null;   // the Continue button's one-shot continuation
+  let mysteryArtHelp = null;         // hold-for-help on the outcome art
+  const MYSTERY_GOOD = { coinBonus: 1, stickerPack: 1, cardPack: 1, freeRemoval: 1, stickerStrip: 1 };
+  /** Hold-help copy for an innately cursed card: the toll derives from items.js
+      mystery.cursedCardTribute, never a hardcoded number. */
+  function cursedCardHelp(card) {
+    const n = itemNum(ItemData.mystery, "cursedCardTribute", 1);
+    return { title: "Cursed " + (card ? miniRankLabel(card) + card.suit : "card"),
+             desc: "Innate curse — when this card lands → −" + n + " coin" + (n === 1 ? "" : "s") };
+  }
+  function openMysteryEvent(d, onContinue) {
+    mysteryEventContinue = (typeof onContinue === "function") ? onContinue : null;
+    el.mysteryEvent.classList.toggle("me-bad", !MYSTERY_GOOD[d.key]);
+    el.mysteryEventTitle.textContent = d.title || "Mystery";
+    el.mysteryEventSub.textContent = d.desc || "";
+    let art = "", help = null;
+    if (d.key === "coinBonus" || d.key === "coinLoss") {
+      art = '<span class="me-coins">' + COIN_SVG + (d.key === "coinBonus" ? "+" : "−") + d.amount + "</span>";
+    } else if (d.key === "stickerPack" || d.key === "cursedSticker") {
+      const t = StickerTypes.get(d.stickerId);
+      art = t ? stickerChip(d.stickerId, { seed: "me" }) : "";
+      if (t) help = { title: t.icon + " " + t.label, desc: t.description || d.desc || "" };
+    } else if (d.key === "cardPack" || d.key === "cursedCard") {
+      art = d.card ? miniCardHtml(d.card) : "";
+      if (d.key === "cursedCard") help = cursedCardHelp(d.card);
+    } else if (d.key === "freeRemoval") {
+      art = miniCardHtml({ blank: true });
+    } else if (d.key === "stickerStrip") {
+      art = '<span class="me-glyph">🫧</span>';
+    } else if (d.key === "ambush") {
+      art = '<span class="me-glyph">⚔️</span>';
+    }
+    if (!help && d.desc) help = { title: d.title || "Mystery", desc: d.desc };
+    mysteryArtHelp = help;
+    el.mysteryEventArt.innerHTML = art;
+    el.mysteryEvent.classList.remove("hidden");
+    Sound.pack();
+    updateBoardMotion();   // an overlay is up — the board pauses behind it
+  }
+  function closeMysteryEvent() {
+    if (!el.mysteryEvent) return;
+    el.mysteryEvent.classList.add("hidden");
+    mysteryArtHelp = null;
+    updateBoardMotion();
+  }
+  function confirmMysteryEvent() {
+    const fn = mysteryEventContinue; mysteryEventContinue = null;
+    closeMysteryEvent();
+    if (fn) fn();
+  }
+  /* Continue → the outcome's interactive flow, then the underlying node's
+     normal dispatch (fallThrough). Passive outcomes fall through at once. */
+  function continueMysteryEvent(d, node, id) {
+    const fallThrough = () => finishResolveNode(node, id);
+    if (d.key === "freeRemoval") { openMapBlankRemove(1, fallThrough); return; }
+    if (d.key === "stickerStrip") { openMapStickerStrip(fallThrough); return; }
+    if (d.key === "stickerPack") {
+      // The sticker is already in the inventory (applyMysteryEvent granted it) —
+      // surface it the same way ANY granted sticker surfaces: a placement walk
+      // over the pending queue (confirm OR cancel both end it), then the node
+      // beneath plays. The walk checkpoints "map", not "store" (placementSavePhase).
+      placementSavePhase = "map";
+      onPlacementQueueEmpty = () => {
+        onPlacementQueueEmpty = null;
+        placementSavePhase = null;
+        fallThrough();
+      };
+      placementWalk = true;
+      continuePendingPlacement();
+      return;
+    }
+    if (d.key === "cardPack") { openMapPackReveal([d.card], fallThrough); return; }
+    if (d.key === "ambush") { startAmbushDeal(d, id); return; }
+    fallThrough();   // coinBonus / coinLoss / cursedSticker / cursedCard — done
+  }
+  /* AMBUSH: the map drops and a forced subset deal starts — `cards` cards on
+     `piles` piles, knobs from items.js mystery.ambush via the descriptor (never
+     hardcoded). It rides the STANDARD startRun path (a forced subsetOverride),
+     so the run-phase checkpoint — seed + forced subset + ambush ctx — resumes a
+     mid-ambush refresh exactly. A clear pays the normal payout + the bounty
+     (awarded in onRunEnd through the run's own bonus channel); a loss is a
+     normal campaign loss; the masked node dispatches after the deal. */
+  function startAmbushDeal(d, nodeId) {
+    const cfg = d.ambush || ItemData.mystery.ambush;
+    const jumpFrom = (mapAvatarEl && document.body.contains(mapAvatarEl))
+      ? mapAvatarEl.getBoundingClientRect() : null;
+    hideProgressionMap();
+    startRun(undefined, undefined, {
+      forced: true, cards: cfg.cards, piles: cfg.piles,
+      ambush: { nodeId: nodeId, bounty: cfg.bounty },
+    });
+    jumpMapCharToDeck(jumpFrom);
+  }
+  /* STRIP picker (the stickerStrip outcome): the remove-mode skin on
+     #stickerApplyModal; only cards carrying ≥1 sticker are enabled. Confirm
+     rides the bottom bar; it strips ONE random sticker (removeRandomStickerFrom
+     — destroyed, not returned) and shows what was stripped. ✕ / backdrop
+     declines (allowed — like declining a Blank's removal). */
+  let pendingStripDone = null;
+  function openMapStickerStrip(onDone) {
+    if (!campaign) { if (onDone) onDone(); return; }
+    const any = campaign.getRunDeckLive().some(c => (c.stickers || []).length > 0);
+    if (!any) { if (onDone) onDone(); return; }   // nothing to strip — the event fizzles
+    pendingStripDone = (typeof onDone === "function") ? onDone : null;
+    cardPickMode = "strip";
+    pendingApplyStickerId = null; pendingSwapTrayIndex = null;
+    selectedApplyCardId = null; pendingBuyStickerSlot = null; pendingBlankRemovals = 0;
+    applyPickerBusy = false;   // a fresh picker is never busy (self-healing)
+    closeModalPrompt();
+    if (el.saHead) el.saHead.textContent = "Cleanse — strip a sticker";
+    if (el.saBanner) el.saBanner.innerHTML = '<span class="me-glyph">🫧</span>' +
+      '<span class="sa-name">Cleanse</span>' +
+      '<span class="sa-desc">Pick a card — one random sticker is stripped from it, free. The stripped sticker is destroyed.</span>';
+    if (el.saHint) el.saHint.textContent = "Tap a stickered card.";
+    stickerApplyChrome();
+    renderStickerApplyCards();
+    DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
+    el.stickerApplyModal.classList.remove("hidden");
+  }
+  function finishMysteryStrip() {
+    const done = pendingStripDone; pendingStripDone = null;
+    if (done) done();
   }
   function finishResolveNode(node, id) {
     if (node.type === "pickup") {
@@ -25106,7 +25626,11 @@ const UIRenderer = (() => {
     if (card.blank) return '<div class="mini-card mc-special mc-blank"><span class="mcs-sym">∅</span><span class="mcs-lab">Removal</span></div>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? stickerChip(st.type, { seed: "mc" }) : ""; }).join("");
-    return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
+    // CURSED (MYST1): the innate mystery curse marks the face — violet tint + a
+    // small curse swirl top-left (distinct from the sticker badges top-right).
+    const curse = card.cursed ? '<span class="mc-curse" aria-hidden="true">' + glyph("swirl") + "</span>" : "";
+    return '<div class="mini-card' + (s.red ? " red" : "") + (card.cursed ? " mc-cursed" : "") + '">' +
+      curse +
       '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
   }
@@ -25538,7 +26062,11 @@ const UIRenderer = (() => {
     applyCardsById = new Map(cards.map(c => [c.id, c]));
     const frag = document.createDocumentFragment();
     for (const c of cards) {
-      const ok = cardPickMode !== "sticker" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
+      // STRIP mode (mystery Cleanse): only cards carrying ≥1 sticker are enabled;
+      // apply mode checks per-sticker eligibility; remove/swap enable everything.
+      const ok = cardPickMode === "strip" ? (c.stickers || []).length > 0
+        : cardPickMode !== "sticker" ? true
+        : campaign.canApplySticker(c, pendingApplyStickerId);
       const sig = applyCardSig(c) + "|" + (ok ? 1 : 0);
       let rec = applyCardNodes.get(c.id);
       if (!rec || rec.sig !== sig) {
@@ -25606,10 +26134,13 @@ const UIRenderer = (() => {
   /* REMOVE mode (map Blank): the player picks any deck card and it's permanently
      removed — the deck shrinks by one. Chained once per Blank when a map pack
      reveals several. Cancelling (✕ / backdrop) skips the removal — declining the
-     thinning is allowed; nothing else is lost. */
+     thinning is allowed; nothing else is lost. `onDone` (MYST1: the mystery
+     freeRemoval outcome) runs after the LAST picker resolves OR is declined. */
   let pendingBlankRemovals = 0;
-  function openMapBlankRemove(count) {
+  let pendingMapRemovalDone = null;   // continuation after a mystery-granted removal
+  function openMapBlankRemove(count, onDone) {
     pendingBlankRemovals = Math.max(1, count || 1);
+    pendingMapRemovalDone = (typeof onDone === "function") ? onDone : null;
     openCardRemove();
   }
   /* STORE Removal purchase: the same choose-a-card-to-remove picker as the map
@@ -25748,6 +26279,7 @@ const UIRenderer = (() => {
     const card = applyCardsById.get(id);
     if (!card) return;
     if (cardPickMode === "sticker" && !campaign.canApplySticker(card, pendingApplyStickerId)) return;
+    if (cardPickMode === "strip" && !(card.stickers || []).length) return;   // cleanse needs a stickered card
     selectedApplyCardId = id;
     refreshApplySelection();
     // The confirm rides the shared bottom prompt bar (lifted over this modal
@@ -25770,6 +26302,11 @@ const UIRenderer = (() => {
       msg = "Replace <b>" + miniRankLabel(card) + " " + card.suit +
         "</b> with <b>" + (pc ? miniRankLabel(pc) + " " + pc.suit : "the new card") + "</b>?";
       applyLabel = "Swap";
+    } else if (cardPickMode === "strip") {
+      const nSt = (card.stickers || []).length;
+      msg = "Strip ONE random sticker from <b>" + miniRankLabel(card) + " " + card.suit +
+        "</b>? It carries " + nSt + " — the stripped one is destroyed.";
+      applyLabel = "Strip";
     } else {
       const t = StickerTypes.get(pendingApplyStickerId);
       const buying = pendingBuyStickerSlot != null;
@@ -25876,9 +26413,44 @@ const UIRenderer = (() => {
         updateDeckIndicator();      // map header deck count
         refreshMapDeckPanel();
         setAvatarCount(campaign.deckSize());
+        const done = pendingMapRemovalDone; pendingMapRemovalDone = null;   // MYST1: mystery freeRemoval continuation
+        if (done) done();
       };
       // The removed card dissolves in place before the picker leaves/chains.
       if (removed) dissolveApplyCard(removedId, finishMap); else finishMap();
+      return;
+    }
+    if (cardPickMode === "strip") {
+      // MYST1 Cleanse: strip ONE random sticker (destroyed), show what was
+      // stripped in place (badge gone on the re-render + a named hint + the
+      // flash), then close and continue into the underlying node's dispatch.
+      const stripId = selectedApplyCardId;
+      const removedType = campaign.removeRandomStickerFrom(stripId);
+      const rt = removedType ? StickerTypes.get(removedType) : null;
+      if (removedType) {
+        if (engine) engine.logAction("Mystery Cleanse stripped " + ((rt && rt.label) || removedType) + " from a card");
+        Sound.purchase();
+        persistCampaign("map");
+      }
+      selectedApplyCardId = null;
+      closeModalPrompt();
+      applyPickerBusy = true;   // own the picker until the close completes
+      renderStickerApplyCards();
+      const stripBtn = el.saCards && el.saCards.querySelector('[data-card-id="' + stripId + '"]');
+      if (el.saHint) el.saHint.textContent = removedType
+        ? "Stripped " + ((rt && rt.label) || removedType) + " — it's gone for good."
+        : "Nothing left to strip.";
+      const finishStrip = () => {
+        applyPickerBusy = false;
+        if (stripBtn) stripBtn.classList.remove("sa-flash");
+        cardPickMode = "sticker";
+        el.stickerApplyModal.classList.add("hidden");
+        applyCardsById = new Map();
+        renderDeckStrip();
+        finishMysteryStrip();
+      };
+      if (stripBtn && removedType && !prefersReduce()) { stripBtn.classList.add("sa-flash"); setTimeout(finishStrip, 850); }
+      else finishStrip();
       return;
     }
     if (cardPickMode === "swap") {
@@ -26002,6 +26574,18 @@ const UIRenderer = (() => {
       selectedApplyCardId = null;
       closeModalPrompt();
       el.stickerApplyModal.classList.add("hidden");
+      const done = pendingMapRemovalDone; pendingMapRemovalDone = null;   // MYST1: declined removal still continues
+      if (done) done();
+      return;
+    }
+    // MYST1 Cleanse (strip) mode: ✕ / backdrop DECLINES the strip — nothing is
+    // removed, and the underlying node's dispatch still runs.
+    if (cardPickMode === "strip") {
+      cardPickMode = "sticker";
+      selectedApplyCardId = null;
+      closeModalPrompt();
+      el.stickerApplyModal.classList.add("hidden");
+      finishMysteryStrip();
       return;
     }
     // ✕ / backdrop CANCELS. A store-purchase sticker was never charged (payment only

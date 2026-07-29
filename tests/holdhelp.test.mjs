@@ -116,7 +116,7 @@ export function run() {
     r.ok(ai.includes("mapNodeLabel(n)"), "the node label comes from mapNodeLabel (the map key's single source)");
     r.ok(ai.includes("campaign.nodeHidden && campaign.nodeHidden(n.id)"), "concealed mystery nodes stay hidden (nodeHidden read directly — no tutorial mask)");
     r.ok(!ai.includes("mysteryMasked"), "the map hold has no tutorial mask dependency (the Zen-first tour never touches the map)");
-    r.ok(ai.includes("??? — revealed when you arrive"), "a concealed node's hold copy keeps the mystery");
+    r.ok(ai.includes("??? — a gamble, good or bad, revealed when you arrive"), "a concealed node's hold copy reads as a gamble, revealed on arrival");
     r.ok(ai.includes("mapSuppress") && /stopPropagation\(\)/.test(ai), "the release after a map hold cannot travel (capture-phase suppression)");
   }
 

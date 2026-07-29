@@ -62,6 +62,8 @@ import { run as storageKeys } from "./storage-keys.test.mjs";
 import { run as holdHelp } from "./holdhelp.test.mjs";
 import { run as confirmBar } from "./confirmbar.test.mjs";
 import { run as mapgen1 } from "./mapgen1.test.mjs";
+import { run as mysteryEvents } from "./mystery-events.test.mjs";
+import { run as mysteryUi } from "./mystery-ui.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -124,6 +126,8 @@ const SUITES = [
   ["holdhelp", holdHelp],
   ["confirmbar", confirmBar],
   ["mapgen1", mapgen1],
+  ["mystery-events", mysteryEvents],
+  ["mystery-ui", mysteryUi],
 ];
 
 let pass = 0,

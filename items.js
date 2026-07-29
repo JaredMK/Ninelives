@@ -202,6 +202,15 @@ const NINELIVES_ITEMS = {
       description: "When this card lands correctly → bank a Same Charge (max 1)" },
     { id: "activateSamePower", label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 12,
       description: "When this card lands correctly → fire your equipped Same-Power" },
+    // ---- CURSED stickers (mystery "?" node events ONLY) ---------------------
+    // cursed: true keeps a sticker OUT of every normal grant pool (store offers,
+    // sticker packs, pack-card generation, Mr. Smith's grants, Wild Sticker) —
+    // only a mystery event applies one. price: 0 (never sold). value = coins
+    // LOST each time the carrying card lands on a pile (behavior "tributeCoin").
+    { id: "leech",      label: "Leech",       icon: "🪱", kind: "behavior", behavior: "tributeCoin", value: 1, tier: "common", price: 0, cursed: true,
+      description: "Cursed — when this card lands → −1 coin" },
+    { id: "leech2",     label: "Leech Swarm", icon: "🦟", kind: "behavior", behavior: "tributeCoin", value: 2, tier: "common", price: 0, cursed: true,
+      description: "Cursed — when this card lands → −2 coins" },
   ],
 
   /* --------------------------------------------------------------------
@@ -417,6 +426,32 @@ const NINELIVES_ITEMS = {
      Mr. Smith's map grants (+1 nodes / map packs).
   -------------------------------------------------------------------- */
   packStickerOdds: [[0.01, 4], [0.04, 3], [0.15, 2], [0.48, 1]],
+
+  /* --------------------------------------------------------------------
+     MYSTERY ("?") NODE EVENTS — arriving at a hidden map node rolls ONE of
+     these outcomes (seeded by run seed + node id, so the same node always
+     resolves the same way) and applies it on top of the underlying node.
+     weights:           relative roll weight per outcome key.
+     coinRangeByStage:  [min,max] coin amount for coinBonus/coinLoss, indexed
+                        by stage (0-based; endless stages clamp to the last).
+     ambush:            the ambush deal — a subset of `cards` cards on `piles`
+                        piles, paying `bounty` coins on a clear.
+     cursedCardTribute: coins LOST each time an innately cursed card (minted
+                        by the cursedCard outcome) lands on a pile.
+     cursedCardRankRange: [min,max] rank the cursedCard outcome mints at
+                        (mid ranks, so the curse lands in playable territory).
+  -------------------------------------------------------------------- */
+  mystery: {
+    weights: {
+      coinBonus: 20, stickerPack: 12, cardPack: 10, freeRemoval: 8,
+      stickerStrip: 8, cursedSticker: 12, cursedCard: 10, coinLoss: 10,
+      ambush: 8,
+    },
+    coinRangeByStage: [[6, 12], [12, 22], [20, 34]],
+    ambush: { cards: 15, piles: 4, bounty: 15 },
+    cursedCardTribute: 1,
+    cursedCardRankRange: [7, 9],
+  },
 
   /* --------------------------------------------------------------------
      PACKS — buying reveals `size` random items; the player keeps `keep`.

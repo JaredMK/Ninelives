@@ -157,6 +157,36 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.05 (Kimi, MYST1)** — mystery "?" nodes are now real event gambles;
+  READ THIS BEFORE TOUCHING THE MAP ARRIVAL FLOW OR STICKER POOLS:
+  - The "?" mask is UNCHANGED (cosmetic `n.mystery` roll; no generator/genV
+    change). Arrival at a hidden node now runs `runMysteryEvent` (after
+    `playMysteryReveal`, before `finishResolveNode`'s type dispatch): a
+    seeded roll (`campaign.rollMysteryEvent(nodeId)` — deterministic per
+    (runSeed, nodeId), weights in `items.js` `mystery`) whose outcome
+    resolves ON TOP of the underlying node, which then still dispatches
+    normally. Exactly-once rides on the persisted `revealedNodes`; the
+    event flushes a "map" save before any picker/deal.
+  - `items.js` gained a `mystery` section (weights, coinRangeByStage,
+    ambush {cards,piles,bounty}, cursedCardTribute, cursedCardRankRange)
+    and CURSED stickers (`cursed: true`, e.g. leech/leech2, behavior
+    `tributeCoin`). Cursed entries are excluded from every grant pool via
+    `StickerTypes.grantable()` — any NEW random-sticker path must use it
+    (or filter `cursed`) or curses leak into stores/packs.
+  - Cards can now carry `cursed: true` (minted by `mintCursedCard`,
+    nextCardId++ like mintJokerId). Restore's spread-copy carries the flag
+    for free; the engine levies the innate toll in `maybeStickerTribute`
+    (the Bury 2 shape: negative addBonus + sticker-coins emit + Telem).
+    `duplicateCard` intentionally does NOT propagate `cursed` to copies.
+  - Save format: `dealSubset` gained optional `forced`/`cards`/`ambush`
+    fields (additive — old saves lack them, old readers ignore them).
+    Ambush deals ride the standard "run" checkpoint; post-ambush-win
+    deliberately skips the "map" checkpoint so a refresh replays the
+    ambush instead of stranding the un-dispatched node. Module vars:
+    `ambushDeal`, `pendingAmbushNodeId`, `placementSavePhase` (typeof-
+    guarded write-time phase override in campaignSaveBlob — STKLAG2's
+    function-extraction harness depends on the guard).
+
 - **v5.03 (Kimi, STKLAG3/4)** — sticker-apply perf + save-write timing:
   - The coalesced campaign save is now TWO-STAGE: `persistCampaign` arms
     `armSaveWrite()` — a 300ms trailing setTimeout that hands the actual
