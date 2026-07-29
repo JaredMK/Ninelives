@@ -367,13 +367,24 @@ const NativeApp = (() => {
   }
   .hud .hud-same img { width: 15px; height: 15px; display: block; }
   .hud .hud-same.charged {
+    position: relative;
     background: rgba(227,192,101,0.20);
-    box-shadow: 0 0 8px var(--amber), 0 0 2px var(--amber); transform: scale(1.05);
+    box-shadow: 0 0 10px var(--amber), 0 0 3px var(--amber); transform: scale(1.05);
   }
   .hud .hud-same.empty { opacity: 0.4; filter: grayscale(0.65); background: none; }
-  @keyframes sameChargePulse { 0%,100% { box-shadow: 0 0 10px var(--amber), 0 0 3px var(--amber); } 50% { box-shadow: 0 0 18px var(--amber), 0 0 6px var(--amber); } }
-  .hud .hud-same.charged { animation: sameChargePulse 1.5s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .hud .hud-same.charged { animation: none; } }
+  /* THERMAL1: the charge pulse is an OPACITY crossfade on a bright ::after
+     glow layer — same look and rhythm as the old keyframe, but compositor-
+     only. Animating box-shadow repaints the chip every frame for the entire
+     deal (paint-level power draw = heat on long sessions); the map pulses
+     already proved this pattern (~5531). Box-shadow animation is now banned
+     game-wide for always-on FX — transform/opacity only. */
+  .hud .hud-same.charged::after {
+    content: ""; position: absolute; inset: -3px; border-radius: 999px; z-index: -1;
+    box-shadow: 0 0 18px var(--amber), 0 0 6px var(--amber);
+    opacity: 0; pointer-events: none; animation: sameChargeFade 1.5s ease-in-out infinite;
+  }
+  @keyframes sameChargeFade { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .hud .hud-same.charged::after { animation: none; content: none; } }
 
   /* ── #4 SAME CHARGE — bigger + bolder (important survival resource). ───────── */
   .hud .hud-same { width: 30px; height: 30px; font-size: 20px; }
@@ -533,13 +544,20 @@ const NativeApp = (() => {
     content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px;
     border-radius: 50%; background: var(--pathway); box-shadow: 0 0 0 2px rgba(248,242,235,0.9);
   }
-  .cph-banner.activatable { animation: pillarActivatable 1.3s ease-in-out infinite; }
-  @keyframes pillarActivatable {
-    0%, 100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14), 0 0 0 0 rgba(110,81,166,0.0); }
-    50%      { box-shadow: 0 1px 3px rgba(74,50,40,0.14), 0 0 0 4px rgba(110,81,166,0.32); }
+  /* THERMAL1: the activatable pulse is an OPACITY crossfade on a ::before
+     ring — same violet pulse and rhythm, compositor-only (the old keyframe
+     animated box-shadow = a repaint every frame; banned game-wide for
+     always-on FX). The ::after corner dot is unchanged. */
+  .cph-banner.activatable { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
+  .cph-banner.activatable::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
+    box-shadow: 0 0 0 4px rgba(110,81,166,0.32);
+    opacity: 0; pointer-events: none; animation: pillarActiveFade 1.3s ease-in-out infinite;
   }
+  @keyframes pillarActiveFade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
-    .cph-banner.activatable { animation: none; outline: 2px solid var(--pathway); outline-offset: 1px; }
+    .cph-banner.activatable::before { animation: none; content: none; }
+    .cph-banner.activatable { outline: 2px solid var(--pathway); outline-offset: 1px; }
   }
 
   /* Placement launcher — a pill IN the control row (opens the placement sheet).
@@ -5532,7 +5550,7 @@ const NativeApp = (() => {
     box-shadow: 0 0 0 2px rgba(224,151,60,0.45); }
   .pm-node.s-legal::after { content: ""; position: absolute; inset: -7px; border-radius: 16px; z-index: -1;
     box-shadow: 0 0 0 3px rgba(224,151,60,0.9), 0 0 15px 2px rgba(224,151,60,0.55);
-    opacity: 0; will-change: opacity; animation: pmPulseFade 1.4s ease-in-out infinite; }
+    opacity: 0; animation: pmPulseFade 1.4s ease-in-out infinite; }
   @keyframes pmPulseFade { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
   .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.06); }
   /* Current position = unmistakable suit-coloured ring + glow (same crossfade
@@ -5542,7 +5560,7 @@ const NativeApp = (() => {
     box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)), 0 0 16px 3px var(--here-glow, rgba(188,66,112,0.5)); }
   .pm-node.s-here::after { content: ""; position: absolute; inset: -8px; border-radius: 18px; z-index: -1;
     box-shadow: 0 0 0 4px var(--here-col, var(--accent-2)), 0 0 24px 6px var(--here-glow, rgba(188,66,112,0.66));
-    opacity: 0; will-change: opacity; animation: pmPulseFade 1.6s ease-in-out infinite; }
+    opacity: 0; animation: pmPulseFade 1.6s ease-in-out infinite; }
   .pm-node.p-d.s-here { --here-col: #c8506e; --here-glow: rgba(200,80,110,0.5); }
   .pm-node.p-c.s-here { --here-col: #5a6b86; --here-glow: rgba(90,107,134,0.5); }
   .pm-node.p-s.s-here { --here-col: #3c4864; --here-glow: rgba(60,72,100,0.5); }
@@ -7367,7 +7385,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.14 · full-viewport backdrop blur removed (on-device freeze fix)";
+const APP_VERSION = "v5.15 · box-shadow pulses → compositor crossfades + ambient gap capture (THERMAL1)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -30293,12 +30311,13 @@ const UIRenderer = (() => {
     }
     function setOn(v) {
       on = !!v;
-      if (on) { onSince = performance.now(); startLongTasks(); }
+      if (on) { onSince = performance.now(); startLongTasks(); ambientGap.arm(); }
       else {
         if (onSince != null) { onAccumMs += performance.now() - onSince; onSince = null; }
         if (obs) { obs.disconnect(); obs = null; }
         pickerSession = null;    // a mid-session toggle-off ends the picker session
         frameGap.disarm();
+        ambientGap.disarm();
       }
       console.log("[perf] instrumentation " + (on ? "ON — main flows + >50ms long tasks logged" : "OFF"));
     }
@@ -30391,6 +30410,61 @@ const UIRenderer = (() => {
       return { arm, disarm, stats, get active() { return rafId != null; } };
     })();
 
+    /* AMBIENT GAP SAMPLER (THERMAL1): the picker sampler above only measures
+       while the picker is open — the rest of the session (deals, map, store)
+       was unmeasured, which is why the on-device 1.4-5.9s stalls are still
+       unattributed. While capture is ON and NO picker session is active, this
+       loop measures frame gaps on EVERY screen into the same kind of rolling
+       window, plus a worst-5 list (ms + timestamp) so a dump can point at the
+       exact moment a stall happened. Same contract as the picker sampler:
+       debug-only measurement (timestamps only, no DOM, no storage), armed by
+       setOn(true), paused by pickerOpened (the session stats take over),
+       resumed by pickerClosed, stopped by setOn(false) — NOT a game clock. */
+    const ambientGap = (() => {
+      const WIN = 600;              // ~10s of frames at 60fps
+      const gaps = [];              // rolling window of recent frame gaps (ms)
+      const worst = [];             // top-5 { ms, at(s) }, longest first
+      let rafId = null, last = 0, max = 0, sum = 0, janky = 0, frames = 0;
+      function note(g, at) {
+        for (let i = 0; i < 5; i++) {
+          if (!worst[i] || g > worst[i].ms) {
+            worst.splice(i, 0, { ms: +g.toFixed(1), at: +(at / 1000).toFixed(2) });
+            if (worst.length > 5) worst.length = 5;
+            break;
+          }
+        }
+      }
+      function stats() {
+        return { max: +max.toFixed(1), mean: gaps.length ? +(sum / gaps.length).toFixed(1) : 0,
+                 janky, frames, worst: worst.slice() };
+      }
+      function tick(t) {
+        if (!on) { disarm(); return; }
+        if (last) {
+          const g = t - last;
+          gaps.push(g); sum += g; frames++;
+          if (g > max) max = g;
+          if (g > 100) { janky++; note(g, t); }
+          if (gaps.length > WIN) {
+            const old = gaps.shift(); sum -= old;
+            if (old > 100) janky--;
+            if (old >= max) { max = 0; for (const x of gaps) if (x > max) max = x; }
+          }
+        }
+        last = t;
+        rafId = requestAnimationFrame(tick);
+      }
+      function arm() {
+        if (!on || rafId != null) return;
+        last = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+      function disarm() {
+        if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+      }
+      return { arm, disarm, stats, get active() { return rafId != null; } };
+    })();
+
     // Picker session bookkeeping: opened by the open-picker wrappers (only
     // when the modal actually unhid), closed by closeStickerApply OR the
     // sampler's hidden-self-terminate — whichever fires first.
@@ -30399,6 +30473,7 @@ const UIRenderer = (() => {
       if (!on) return;
       pickerSession = { kind, t0: performance.now() };
       mark("picker:open");
+      ambientGap.disarm();      // the picker session stats take over
       frameGap.arm();
     }
     function pickerClosed() {
@@ -30408,6 +30483,7 @@ const UIRenderer = (() => {
       mark("picker:closed", ctx);
       pickerSession = null;
       frameGap.disarm();
+      ambientGap.arm();         // back to ambient coverage
     }
 
     /** Compact paste-friendly report (PERFCAP): UA, capture on-time, journey
@@ -30440,10 +30516,15 @@ const UIRenderer = (() => {
       }
       L.push("-- timings >= 50ms --");
       for (const e of report(50)) L.push(e.name + " " + e.ms.toFixed(1) + "ms @" + e.at.toFixed(2) + "s");
+      const a = ambientGap.stats();
+      L.push("-- ambient (all screens) --");
+      L.push("frames " + a.frames + " · gap max " + a.max + "ms mean " + a.mean + "ms janky " + a.janky);
+      for (const w of a.worst) L.push("worst " + w.ms + "ms @" + w.at.toFixed(2) + "s");
       return L.join("\n");
     }
     return { setOn, time, mark, markAfterPaint, pickerOpened, pickerClosed, dump, report, entries,
-             PERF_CAP, PERF_SLACK, get on() { return on; }, get sampling() { return frameGap.active; } };
+             PERF_CAP, PERF_SLACK, get on() { return on; }, get sampling() { return frameGap.active; },
+             get ambient() { return ambientGap.active; }, ambientStats: ambientGap.stats };
   })();
   if (typeof window !== "undefined") window.__perf = Perf;   // read-only report hook (tests/tuning)
 

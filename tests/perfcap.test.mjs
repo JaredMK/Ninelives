@@ -97,14 +97,18 @@ export function run() {
     const Perf = g.Perf;
     const rafAtLoad = rafCount;
     Perf.setOn(true);
+    r.eq(rafCount, rafAtLoad + 1, "capture on arms the ambient gap sampler (one rAF)");
+    r.ok(Perf.ambient, "…the ambient sampler reports active");
     Perf.pickerOpened("sticker");
-    r.eq(rafCount, rafAtLoad + 1, "capture on: pickerOpened arms the sampler (exactly one rAF)");
-    r.ok(Perf.sampling, "…the sampler reports active");
+    r.eq(rafCount, rafAtLoad + 2, "pickerOpened swaps ambient for the picker sampler (one new rAF)");
+    r.ok(Perf.sampling, "…the picker sampler reports active");
+    r.ok(!Perf.ambient, "…and the ambient sampler pauses while the picker is open");
     Perf.mark("picker:firstPaint");
     Perf.mark("picker:gridFirstBatch");
     Perf.time("picker:selectCard", () => {});
     Perf.pickerClosed();
-    r.ok(!Perf.sampling, "pickerClosed disarms the sampler");
+    r.ok(!Perf.sampling, "pickerClosed disarms the picker sampler");
+    r.ok(Perf.ambient, "…and the ambient sampler resumes");
     const open = Perf.entries.find(e => e.mark && e.stage === "picker:open");
     r.ok(!!open, "a picker:open journey mark was recorded");
     r.ok(open && open.ctx && "gapMax" in open.ctx && "gapMean" in open.ctx && "janky" in open.ctx,
@@ -114,10 +118,10 @@ export function run() {
       "picker:closed carries the session length (openMs)");
     // A second open while capture is still on re-arms cleanly.
     Perf.pickerOpened("remove");
-    r.eq(rafCount, rafAtLoad + 2, "a fresh picker open re-arms the sampler (one new rAF)");
+    r.eq(rafCount, rafAtLoad + 4, "a fresh picker open re-arms cleanly (ambient resume + session arm)");
     Perf.pickerClosed();
     Perf.setOn(false);
-    r.ok(!Perf.sampling, "setOn(false) leaves the sampler disarmed");
+    r.ok(!Perf.sampling && !Perf.ambient, "setOn(false) disarms both samplers");
   }
 
   // --- Behavioral: dump() ----------------------------------------------------
@@ -137,6 +141,8 @@ export function run() {
       "…listing the journey marks in order");
     r.ok(d.includes("-- journeys --") && d.includes("-- timings"),
       "…with the journeys and timings sections");
+    r.ok(d.includes("-- ambient (all screens) --"),
+      "…with the ambient all-screens gap section (THERMAL1)");
     const m = d.match(/entries (\d+)\/(\d+)/);
     r.ok(!!m && +m[1] <= +m[2], "the header entry count never exceeds PERF_CAP (slack is hidden)");
     Perf.setOn(false);
@@ -226,6 +232,27 @@ export function run() {
     // The picker grid is vinyl-flattened — no filter survives on its chips.
     r.ok(html.includes(".sa-lite .dcs-ic { filter: none; }"),
       "the picker chip-icon drop-shadow is permanently off (.sa-lite scope)");
+  }
+
+  // --- Structural: THERMAL1 — box-shadow pulses are compositor crossfades ----
+  {
+    r.ok(!html.includes("@keyframes sameChargePulse") && !html.includes("@keyframes pillarActivatable"),
+      "the box-shadow-pulsing keyframes are gone (paint-per-frame is banned for always-on FX)");
+    const charge = html.match(/@keyframes sameChargeFade \{[^}]*\}/);
+    const pillar = html.match(/@keyframes pillarActiveFade \{[^}]*\}/);
+    r.ok(!!charge && charge[0].includes("opacity") && !charge[0].includes("box-shadow"),
+      "sameChargeFade is an opacity crossfade");
+    r.ok(!!pillar && pillar[0].includes("opacity") && !pillar[0].includes("box-shadow"),
+      "pillarActiveFade is an opacity crossfade");
+    r.ok(/\.hud \.hud-same\.charged::after \{[^}]*pointer-events: none;[^}]*animation: sameChargeFade/.test(html),
+      "the HUD Same charge glow rides a ::after layer with the crossfade");
+    r.ok(/\.cph-banner\.activatable::before \{[^}]*pointer-events: none;[^}]*animation: pillarActiveFade/.test(html),
+      "the pillar activatable ring rides a ::before layer with the crossfade");
+    r.ok(html.includes(".hud .hud-same.charged::after { animation: none; content: none; }")
+      && html.includes(".cph-banner.activatable::before { animation: none; content: none; }"),
+      "reduced-motion kills both crossfades");
+    r.ok(!/\.pm-node\.s-(legal|here)::after[^}]*will-change/.test(html),
+      "no blanket will-change on the map pulse pseudo-layers");
   }
 
   return r.summary();

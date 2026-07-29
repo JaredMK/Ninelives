@@ -157,6 +157,27 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.15 (Kimi, THERMAL1)** — box-shadow animation is BANNED game-wide for
+  always-on FX; READ THIS BEFORE ADDING ANY ANIMATION:
+  - Animating `box-shadow` repaints the element EVERY FRAME (paint-level
+    power draw = device heat = the iOS throttling behind the on-device
+    multi-second stalls). The last two offenders are converted:
+    `sameChargePulse` → `sameChargeFade` (`.hud .hud-same.charged::after`
+    glow layer), `pillarActivatable` → `pillarActiveFade`
+    (`.cph-banner.activatable::before` ring) — both opacity crossfades, same
+    look/rhythm, compositor-only, following the map-pulse precedent (~5531).
+    New always-on animations must animate transform/opacity ONLY (one-shot
+    entrance tweens may still ease whatever they need).
+  - Blanket `will-change: opacity` removed from the pm-node pulse pseudos —
+    pre-promotion holds GPU memory; opacity animations composite on demand.
+  - The Perf module gained an AMBIENT gap sampler (`ambientGap`, beside
+    `frameGap`): armed by `setOn(true)`, paused by `pickerOpened`, resumed by
+    `pickerClosed`, stopped by `setOn(false)`; measures every screen into a
+    600-frame window + a worst-5 list; `dump()` prints an
+    `-- ambient (all screens) --` section. Same debug-only measurement
+    contract (no DOM, no storage, zero cost when off). `Perf.ambient` /
+    `Perf.ambientStats()` exposed for tests.
+
 - **v5.14 (Kimi, PERFFIX2)** — full-viewport backdrop blur BANNED; READ THIS
   BEFORE ADDING ANY backdrop-filter:
   - The flat-A/B on-device capture convicted `.deck-modal`'s
