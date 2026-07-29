@@ -25177,6 +25177,11 @@ const UIRenderer = (() => {
     // genuine 3+ (a live 2-pack would render two faces, not the stack art).
     const pack = nodes.find(n => n.type === "pack" && (n.packCount || 3) >= 3) || { packCount: 3, suit: "" };
     const card = { suit: "♥", value: 7 };   // any face-up card — the art is the lesson
+    // MYST3: the Mystery exemplar is a REAL first-class mystery node when this
+    // run has one (genV ≥ 3); a map without any (legacy genV < 3, or none
+    // rolled) falls back to a bare stand-in. Either way the art is drawn by
+    // mapNodeInner's mystery case — the uniform "?" back — so it can't drift.
+    const myst = live("mystery") || { type: "mystery" };
     el.mapKeyPanel.innerHTML =
       '<div class="mk-head"><b>Map key</b><button class="mk-close" type="button" aria-label="Close">×</button></div>' +
       mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; pips show difficulty 1–3") +
@@ -25184,7 +25189,7 @@ const UIRenderer = (() => {
       mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
       mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards (packs of 3+; 2-card stops show their faces)") +
       mapKeyRow("t-pickup", "", nodeCardHtml(card), "Card", "joins your deck when you pass") +
-      mapKeyRow("t-myst", "", '<span class="mn-myst">?</span>', "Mystery", "a gamble, good or bad, revealed when you arrive") +
+      mapKeyRow("t-myst", "", mapNodeInner(myst, null, "far"), "Mystery", "a gamble, good or bad, revealed when you arrive") +
       mapKeyRow("t-home", "", mapNodeInner({ type: "home" }), "Home", "mama; the finish at the top");
   }
   function openMapKey() {
@@ -25286,7 +25291,9 @@ const UIRenderer = (() => {
   /* Worried when a reachable next node is a low-pile (hard) deal or the boss. */
   function avatarReachMood() {
     const legal = (campaign.legalNextNodes && campaign.legalNextNodes()) || [];
-    // A hidden mystery (?) deal must not leak through the character's worry.
+    // A mystery (?) never reads as a threat: first-class (genV ≥ 3) it is its
+    // own type — never a deal/boss — and the nodeHidden guard keeps even a
+    // hidden one from leaking through the character's worry.
     return legal.some(n => !(campaign.nodeHidden && campaign.nodeHidden(n.id))
       && (n.type === "boss" || (n.type === "deal" && n.piles != null && n.piles <= 4))) ? "worried" : null;
   }

@@ -266,6 +266,29 @@ export function run() {
       "the debug map-addr overlay has a NODE_HALF mystery entry (the mn-myst 38×48 half-box)");
   }
 
+  // ── MYST3 Stage B: the map key's Mystery row resolves against a real node ─
+  {
+    const key = fnBody(src, "renderMapKey");
+    r.ok(key.includes('const myst = live("mystery") || { type: "mystery" };'),
+      "the map key's Mystery row resolves against a real first-class mystery node (genV ≥ 3), "
+      + "degrading to a bare stand-in on maps with none (legacy genV < 3)");
+    r.ok(key.includes('mapNodeInner(myst, null, "far")'),
+      "…and draws the \"?\" through mapNodeInner's mystery case (one art source — never the open state)");
+  }
+
+  // ── MYST3: no stray legacy-mask references survive ─────────────────────────
+  {
+    // n.mystery (the genV < 3 cosmetic mask) is legitimate ONLY in: the legacy
+    // mask roll (GEN_CONFIG.mysteryChance), the legacy joker unveil
+    // (unveilJokerNodes), and the restore migration (mystMigrated). Everywhere
+    // else mystery is the first-class TYPE.
+    const occ = [...src.matchAll(/\bn\.mystery\b/g)]
+      .map(m => src.slice(Math.max(0, m.index - 400), m.index + 60));
+    r.ok(occ.length > 0, "the legacy n.mystery mask paths still exist (genV < 3 regen must keep working)");
+    r.ok(occ.every(o => /mysteryChance|unveilJokerNodes|mystMigrated|MYST3 migration/.test(o)),
+      "no stray n.mystery references outside the legacy regen / joker unveil / migration");
+  }
+
   // ── store outcome (MYST2/MYST3): the detour → Done → completeMystery wiring
   {
     const cont = fnBody(src, "continueMysteryEvent");

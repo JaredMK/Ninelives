@@ -120,7 +120,7 @@ export function run() {
     const key = fnBody(src, "renderMapKey");
     r.ok(key.length > 0, "renderMapKey found");
     // Every row reuses the live node-markup functions — the key can't drift.
-    for (const fn of ["mapDealCluster(deal, false)", "mapDealCluster(boss, true)", "mapShopStall()", "mapPackStack(pack)", "nodeCardHtml(card)", "mn-myst", 'mapNodeInner({ type: "home" })']) {
+    for (const fn of ["mapDealCluster(deal, false)", "mapDealCluster(boss, true)", "mapShopStall()", "mapPackStack(pack)", "nodeCardHtml(card)", 'mapNodeInner(myst, null, "far")', 'mapNodeInner({ type: "home" })']) {
       r.ok(key.includes(fn), "legend row built from live markup: " + fn);
     }
     r.eq((key.match(/mapKeyRow\(/g) || []).length, 7, "legend has exactly 7 entries (pass dots omitted)");
