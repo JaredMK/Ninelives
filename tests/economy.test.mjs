@@ -1,56 +1,140 @@
-// Coin payout: (alive piles) × (cards in the smallest NON-anchored alive pile)
-// + Extra Coin bonus. Extra Coin now pays the pile's card count per sticker
-// (Σ stickers × pile cards). Anchor excludes a pile from the "smallest" term.
+// Coin payout (ECON1): a cleared deal pays a FLAT base by stage & difficulty
+//     dealBase + stage × (1 + rating)     (items.js `economy` section)
+// (a boss forces rating 3 and adds bossBonus) PLUS the item-driven bonuses
+// (Extra Coin units × the Payout sticker's `value`, pillar payouts, the live
+// in-run event tally). The old piles × smallest product survives as the deal
+// SCORE (breakdown still reports it) but no longer feeds the coin total.
+// Ambush/subset deals carry no stage/rating → no flat base (the bounty is the
+// reward). All expectations below derive from the items.js knobs — a data
+// retune must not break this suite.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadGame, makeRunner } from "./_harness.mjs";
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ITEMS_SRC = readFileSync(join(HERE, "..", "items.js"), "utf8");
+
 export function run() {
-  const { Economy, BoardState } = loadGame();
+  const { Economy, BoardState, ItemData } = loadGame();
   const r = makeRunner("economy.test.mjs");
   const { EXTRA_COIN_VALUE } = Economy.COIN_CONFIG;
+  const BASE = ItemData.economy.dealBase;
+  const BOSS = ItemData.economy.bossBonus;
+  const flat = (stage, rating) => BASE + stage * (1 + rating);
 
   // Old coefficients are gone.
   r.ok(!("WIN_BONUS" in Economy.COIN_CONFIG), "flat win bonus coefficient is gone");
   r.ok(!("PER_ALIVE_PILE" in Economy.COIN_CONFIG), "alive-piles×2 coefficient is gone");
 
+  // --- Validation: the economy section is required and fail-loud ----------
+  {
+    let threw = null;
+    try { loadGame({ itemsSource: ITEMS_SRC.replace("economy: {", "economyGone: {") }); }
+    catch (e) { threw = e; }
+    r.ok(threw && /items\.js validation FAILED/.test(threw.message), "a missing economy section fails loudly at load");
+  }
+  {
+    let threw = null;
+    try { loadGame({ itemsSource: ITEMS_SRC.replace(/dealBase: \d+/, "dealBase: -1") }); }
+    catch (e) { threw = e; }
+    r.ok(threw && /items\.js validation FAILED/.test(threw.message), "a non-positive dealBase fails loudly at load");
+  }
+  {
+    let threw = null;
+    try { loadGame({ itemsSource: ITEMS_SRC.replace(/bossBonus: \d+/, 'bossBonus: "1"') }); }
+    catch (e) { threw = e; }
+    r.ok(threw && /items\.js validation FAILED/.test(threw.message), "a non-numeric bossBonus fails loudly at load");
+  }
+
+  // --- dealFlat: the flat table, read straight from the knobs -------------
+  {
+    r.eq(Economy.dealFlat(1, 1, false), flat(1, 1), "stage 1 easy = dealBase + 1×2 (the 3-coin anchor)");
+    r.eq(Economy.dealFlat(1, 2, false), flat(1, 2), "stage 1 mid");
+    r.eq(Economy.dealFlat(1, 3, false), flat(1, 3), "stage 1 hard");
+    r.eq(Economy.dealFlat(2, 1, false), flat(2, 1), "stage 2 easy");
+    r.eq(Economy.dealFlat(2, 3, false), flat(2, 3), "stage 2 hard");
+    r.eq(Economy.dealFlat(3, 2, false), flat(3, 2), "stage 3 mid");
+    // Endless: the stage index keeps counting past 3.
+    r.eq(Economy.dealFlat(4, 1, false), flat(4, 1), "endless stage 4 easy keeps counting");
+    r.eq(Economy.dealFlat(5, 3, false), flat(5, 3), "endless stage 5 hard keeps counting");
+    // Boss: rating forced 3 (whatever is passed) + bossBonus.
+    r.eq(Economy.dealFlat(1, 1, true), flat(1, 3) + BOSS, "boss forces rating 3 (passed rating ignored) + bossBonus");
+    r.eq(Economy.dealFlat(3, 3, true), flat(3, 3) + BOSS, "stage 3 boss");
+    r.eq(Economy.dealFlat(4, 2, true), flat(4, 3) + BOSS, "endless boss");
+    // Ambush / no stage context / no rating → no flat base.
+    r.eq(Economy.dealFlat(0, 2, false), 0, "no stage → 0 (ambush/subset)");
+    r.eq(Economy.dealFlat(2, 0, false), 0, "no rating → 0 (node without a difficulty)");
+    r.eq(Economy.dealFlat(2, undefined, false), 0, "missing rating → 0");
+  }
+
   // No coins on a loss.
-  r.eq(Economy.computeRunPayout({ won: false, aliveCount: 9, minAliveCards: 4, extraCoinUnits: 3 }), 0,
+  r.eq(Economy.computeRunPayout({ won: false, flat: 9, aliveCount: 9, minAliveCards: 4, extraCoinUnits: 3 }), 0,
     "loss pays 0 coins");
 
-  // Win = aliveCount × minAliveCards + extraCoinUnits × EXTRA_COIN_VALUE.
-  const stats = { won: true, aliveCount: 5, minAliveCards: 4, extraCoinUnits: 12 };
-  r.eq(Economy.computeRunPayout(stats), 5 * 4 + 12 * EXTRA_COIN_VALUE,
-    "win pays product + Extra Coin bonus (5×4 + 12 = 32)");
+  // Win = flat + extraCoinUnits × EXTRA_COIN_VALUE (product NOT in the total).
+  const stats = { won: true, flat: Economy.dealFlat(2, 2, false), stage: 2, rating: 2,
+    aliveCount: 5, minAliveCards: 4, extraCoinUnits: 12 };
+  r.eq(Economy.computeRunPayout(stats), flat(2, 2) + 12 * EXTRA_COIN_VALUE,
+    "win pays flat + Extra Coin bonus (product excluded)");
 
   // Itemized breakdown matches the run-complete structure.
   const bd = Economy.breakdown(stats);
+  r.eq(bd.flat, flat(2, 2), "breakdown flat base");
+  r.eq(bd.stage, 2, "breakdown stage carried through");
+  r.eq(bd.rating, 2, "breakdown rating carried through");
   r.eq(bd.alivePiles, 5, "breakdown alive-pile count");
   r.eq(bd.minPileCards, 4, "breakdown smallest-alive-pile card count");
-  r.eq(bd.product, 20, "breakdown product (5 × 4)");
+  r.eq(bd.product, 20, "breakdown product (5 × 4) — the SCORE, still reported");
   r.eq(bd.extraCoinUnits, 12, "breakdown Extra Coin units");
   r.eq(bd.extraCoinBonus, 12 * EXTRA_COIN_VALUE, "breakdown Extra Coin bonus");
-  r.eq(bd.total, 32, "breakdown total = product + Extra Coin bonus");
+  r.eq(bd.total, flat(2, 2) + 12 * EXTRA_COIN_VALUE, "breakdown total = flat + Extra Coin bonus");
   r.eq(bd.total, Economy.computeRunPayout(stats), "breakdown total matches computeRunPayout");
   r.ok(!("extraCoinCards" in bd), "breakdown no longer reports the old per-card count");
 
+  // The product no longer feeds the total: same flat, wildly different
+  // products → identical totals.
+  {
+    const big = Economy.breakdown({ won: true, flat: 7, aliveCount: 6, minAliveCards: 9 });
+    const small = Economy.breakdown({ won: true, flat: 7, aliveCount: 1, minAliveCards: 1 });
+    r.eq(big.total, small.total, "product no longer feeds the coin total (score only)");
+    r.ok(big.product > small.product, "…while the products themselves still differ (score)");
+    r.eq(big.total, 7, "a bare win pays exactly the flat base");
+  }
+
   // Edge guard: 0 alive piles -> product 0 (not NaN), even with stickers.
-  const none = Economy.breakdown({ won: true, aliveCount: 0, minAliveCards: 6, extraCoinUnits: 2 });
+  const none = Economy.breakdown({ won: true, flat: 3, aliveCount: 0, minAliveCards: 6, extraCoinUnits: 2 });
   r.eq(none.product, 0, "0 alive piles -> product 0");
   r.ok(!Number.isNaN(none.total), "0 alive piles -> total is a number (not NaN)");
-  r.eq(none.total, 2 * EXTRA_COIN_VALUE, "0 alive piles -> total is just the Extra Coin bonus");
+  r.eq(none.total, 3 + 2 * EXTRA_COIN_VALUE, "0 alive piles -> total is flat + Extra Coin bonus");
 
-  // Missing fields default to 0 (no NaN leak).
+  // Missing fields default to 0 (no NaN leak) — ambush shape: no flat, just
+  // the bounty riding the event tally.
   const noMin = Economy.breakdown({ won: true, aliveCount: 4, extraCoinUnits: 0 });
-  r.eq(noMin.total, 0, "missing minAliveCards -> product 0");
+  r.eq(noMin.flat, 0, "missing flat -> 0 (ambush zero-base)");
+  r.eq(noMin.total, 0, "missing flat + no bonuses -> total 0");
+  const ambush = Economy.breakdown({ won: true, aliveCount: 4, minAliveCards: 2,
+    eventBonus: ItemData.mystery.ambush.bounty, eventLines: [{ label: "Ambush", amount: ItemData.mystery.ambush.bounty }] });
+  r.eq(ambush.total, ItemData.mystery.ambush.bounty, "ambush win pays exactly the bounty (no flat base)");
+  r.eq(ambush.product, 8, "…but the ambush clear still SCORES (product reported)");
 
-  const lost = Economy.breakdown({ won: false, aliveCount: 9, minAliveCards: 4, extraCoinUnits: 5 });
+  const lost = Economy.breakdown({ won: false, flat: 9, aliveCount: 9, minAliveCards: 4, extraCoinUnits: 5 });
   r.eq(lost.total, 0, "breakdown on a loss totals 0");
+  r.eq(lost.flat, 0, "no flat base on a loss");
   r.eq(lost.extraCoinBonus, 0, "no Extra Coin bonus on a loss");
+
+  // Negative clamp: a Tribute cost can drag the bonus below zero; the total
+  // clamps at 0 (a win never charges the player).
+  const neg = Economy.breakdown({ won: true, flat: 2, aliveCount: 1, minAliveCards: 1, eventBonus: -5 });
+  r.eq(neg.total, 0, "a Tribute cost can't push the total below 0");
+  const negPart = Economy.breakdown({ won: true, flat: 5, eventBonus: -3 });
+  r.eq(negPart.total, 2, "a smaller Tribute cost just eats into the flat base");
 
   // Interest (the +1/10-coins-held payout) has been REMOVED — passing a stray
   // interest stat must NOT affect the total any more.
-  const noInterest = Economy.breakdown({ won: true, aliveCount: 2, minAliveCards: 1, interest: 4 });
+  const noInterest = Economy.breakdown({ won: true, flat: 4, aliveCount: 2, minAliveCards: 1, interest: 4 });
   r.eq(noInterest.interest, undefined, "interest is no longer itemized on the breakdown");
-  r.eq(noInterest.total, 2 * 1, "total ignores any interest stat (product only)");
+  r.eq(noInterest.total, 4, "total ignores any interest stat (flat only)");
 
   // --- BoardState.minAliveCards (dead piles excluded) --------------------
   {
@@ -60,9 +144,10 @@ export function run() {
     b.push(2, {});                                 // pile 2: 1 card, but DEAD
     b.kill(2);
     r.eq(b.minAliveCards(), 2, "minAliveCards ignores the dead 1-card pile -> 2");
-    const e2e = Economy.breakdown({ won: true, aliveCount: b.aliveCount(),
+    const e2e = Economy.breakdown({ won: true, flat: 6, aliveCount: b.aliveCount(),
       minAliveCards: b.minAliveCards(), extraCoinUnits: b.extraCoinUnits() });
-    r.eq(e2e.total, 2 * 2, "end-to-end product from a real board (2 × 2 = 4)");
+    r.eq(e2e.product, 2 * 2, "end-to-end product (score) from a real board (2 × 2 = 4)");
+    r.eq(e2e.total, 6, "end-to-end total is the flat base alone (no stickers)");
   }
   {
     const dead = BoardState.create(2);
@@ -75,9 +160,6 @@ export function run() {
   {
     // pile 0: 2 cards but ANCHORED; pile 1: 5 cards; pile 2: 4 cards.
     // Smallest NON-anchored = 4 (pile 2). True smallest = 2 (anchored pile 0).
-    const b = BoardState.create(3);
-    b.push(0, ANCHOR()); b.push(0, {});            // anchored, 2 cards (anchor still on top? no — buried!)
-    // Re-do: anchor must be the TOP card to count. Build so anchor is top.
     const b2 = BoardState.create(3);
     b2.push(0, {}); b2.push(0, ANCHOR());          // pile 0: 2 cards, anchor on TOP
     b2.push(1, {}); b2.push(1, {}); b2.push(1, {}); b2.push(1, {}); b2.push(1, {}); // pile 1: 5
@@ -85,7 +167,7 @@ export function run() {
     r.ok(b2.isAnchored(0), "pile 0 top carries Anchor -> anchored");
     r.ok(!b2.isAnchored(1), "pile 1 has no Anchor");
     r.eq(b2.trueMinAliveCards(), 2, "trueMin counts the anchored 2-card pile");
-    r.eq(b2.minAliveCards(), 4, "payout min EXCLUDES the anchored pile -> 4 (pile 2)");
+    r.eq(b2.minAliveCards(), 4, "score min EXCLUDES the anchored pile -> 4 (pile 2)");
   }
   {
     // Anchor buried (not the top) does NOT exclude.
@@ -138,12 +220,14 @@ export function run() {
     b.push(1, { stickers: [{ type: "extraCoin" }] });
     // pile 2: 5 cards plain
     for (let i = 0; i < 5; i++) b.push(2, {});
-    // min non-anchored = 4 (pile 1); alive = 3; product = 12; extraCoin = 4 -> 16
-    const bd2 = Economy.breakdown({ won: true, aliveCount: b.aliveCount(),
+    // score: min non-anchored = 4 (pile 1); alive = 3; product = 12
+    // coins: flat + extraCoin 4 × value
+    const bd2 = Economy.breakdown({ won: true, flat: 5, aliveCount: b.aliveCount(),
       minAliveCards: b.minAliveCards(), extraCoinUnits: b.extraCoinUnits() });
     r.eq(b.minAliveCards(), 4, "e2e: anchored pile excluded -> min 4");
     r.eq(b.extraCoinUnits(), 4, "e2e: Extra Coin on a 4-card pile -> 4 units");
-    r.eq(bd2.total, 3 * 4 + 4, "e2e total = 3×4 + 4 = 16");
+    r.eq(bd2.product, 12, "e2e: product (score) = 3×4 = 12");
+    r.eq(bd2.total, 5 + 4 * EXTRA_COIN_VALUE, "e2e: total = flat + Extra Coin (product excluded)");
   }
 
   return r.summary();

@@ -140,16 +140,17 @@ export function run() {
 
   // --- Economy folds the Pillar bonus into the coin total ---------------
   {
-    const base = Economy.breakdown({ won: true, aliveCount: 4, minAliveCards: 2, extraCoinUnits: 0 });
+    const FLAT = Economy.dealFlat(2, 3, false);   // stage-2 hard base, from the items.js knobs
+    const base = Economy.breakdown({ won: true, flat: FLAT, aliveCount: 4, minAliveCards: 2, extraCoinUnits: 0 });
     r.eq(base.pillarBonus, 0, "absent pillarBonus defaults to 0 (backward-compatible)");
-    r.eq(base.total, 8, "base total without Pillars = 4 × 2");
+    r.eq(base.total, FLAT, "base total without Pillars = the flat base");
 
     const withPillar = Economy.breakdown({
-      won: true, aliveCount: 4, minAliveCards: 2, extraCoinUnits: 0,
+      won: true, flat: FLAT, aliveCount: 4, minAliveCards: 2, extraCoinUnits: 0,
       pillarBonus: 10, pillarLines: [{ label: "Column Guardian", detail: "Column 1 survived", amount: 10 }],
     });
     r.eq(withPillar.pillarBonus, 10, "pillarBonus carried through");
-    r.eq(withPillar.total, 18, "total folds in the Pillar bonus (8 + 10)");
+    r.eq(withPillar.total, FLAT + 10, "total folds in the Pillar bonus (flat + 10)");
     r.eq(withPillar.pillarLines.length, 1, "itemized lines preserved for the UI");
 
     // A loss never pays Pillars, even if stats are supplied.

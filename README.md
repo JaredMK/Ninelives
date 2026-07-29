@@ -50,9 +50,12 @@ identical. All band/joker data lives in `difficulty.js`.
 Coins are awarded on a **won deal** only:
 
 ```
-coins = (alive piles) × (cards in the smallest alive pile)
+coins = flat deal reward (by stage & difficulty — items.js `economy`)
       + Payout-sticker bonus + scoring-Pillar bonuses + live bonus tally
       (clamped so the total never drops below 0)
+
+score = (alive piles) × (cards in the smallest alive pile)   ← per cleared
+        deal, folded into the campaign/endless score (personal bests only)
 ```
 
 Between deals, **store** nodes offer a one-screen shop: a small weighted
@@ -106,7 +109,7 @@ boot.
 | `ItemData` (:7263) · `DifficultyData` (:7412) · `TutorialData` (:7527) | Load + validate the three data files. |
 | `DECK_RULES` (:7602) | Per-deck modifiers (suits, price multiplier, sticker rules). |
 | `StickerTypes` · `PillarTypes` · `BaseTypes` · `SamePowerTypes` · `PackTypes` | Registries over the items.js groups. |
-| `Economy` (:7735) | Pure win-payout math. |
+| `Economy` (:8372) | Pure win-payout math: the flat deal reward + item bonuses; the piles×smallest product rides the breakdown as the score. |
 | `DeckManager` (:7810) | Card pool: build, seeded shuffle (mulberry32), draw, peek. |
 | `RunMap` (:8021) | Seeded map generator; reads tier bands live from DifficultyData. |
 | `DeckStats` (:9605) · `BoardState` (:9628) | Deck composition tallies; live pile board. |

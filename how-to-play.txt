@@ -46,11 +46,13 @@ Guess *right* and the card joins the pile, so it grows taller. Guess
 
 SLIDE 5 — Clear the deck, earn coins
 ------------------------------------
-[Visual: 4 (piles alive) × 3 (smallest pile) = 12 coins]
+[Visual: coin chip "7" (stage-2 coin reward) · "4 × 3 = 12" (score)]
 
-Survive the whole *deck* to win the run. You earn coins equal to the number
-of *surviving piles × the number of cards in the smallest pile*. Keep every
-pile alive and evenly sized to get the most coins.
+Survive the whole *deck* to win the deal. The coin *reward* is a flat
+amount set by the *stage* and the deal's *difficulty* — harder deals pay
+more, and each map node's chip shows it. *Surviving piles × the number of
+cards in your smallest pile* is now your *score* — chased for personal
+bests, not coins.
 
 
 SLIDE 6 — Spend between runs

@@ -360,7 +360,8 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 1, "live tally during play = 1 (the Suit Bounty)");
     e.debug.winNow();                                      // all piles alive → Guardian +5
 
-    // Rebuild the run-complete summary exactly as onRunEnd does.
+    // Rebuild the run-complete summary exactly as onRunEnd does (ECON1: the
+    // flat base is 0 here — this fixture drives no map node).
     const board = payload.board, pp = payload.pillarPayout;
     const eventBonus = payload.run.bonusCoins;             // live part (Suit Bounty = 1)
     const bd = Economy.breakdown({
@@ -369,21 +370,22 @@ export function run() {
       eventBonus, eventLines: [],
     });
     r.eq(pp.bonus, 7, "Column Guardian (col 3 all-alive) pays +7 at run end");
-    // The HUD's folded final value is exactly (total − product) = the summary's
+    // The HUD's folded final value is exactly (total − flat) = the summary's
     // total bonus, and equals live + Guardian + Extra Coin.
-    const finalTracker = bd.total - bd.product;
+    const finalTracker = bd.total - bd.flat;
     r.eq(finalTracker, eventBonus + pp.bonus + bd.extraCoinBonus, "final tracker = live + Guardian + Extra Coin");
     r.eq(finalTracker, 8, "final bonus reconciles to the summary: 1 live + 7 Guardian = 8");
   }
 
   // --- Economy folds the live bonus into the total ----------------------
   {
+    const FLAT = Economy.dealFlat(1, 1, false);   // stage-1 easy base, from the items.js knobs
     const withEvent = Economy.breakdown({
-      won: true, aliveCount: 3, minAliveCards: 2,
+      won: true, flat: FLAT, aliveCount: 3, minAliveCards: 2,
       eventBonus: 4, eventLines: [{ label: "Middle Reward", amount: 4 }],
     });
     r.eq(withEvent.eventBonus, 4, "eventBonus carried through");
-    r.eq(withEvent.total, 10, "total folds in the live bonus (3×2 + 4)");
+    r.eq(withEvent.total, FLAT + 4, "total folds in the live bonus (flat + 4)");
     r.eq(withEvent.eventLines.length, 1, "itemized event lines preserved for the UI");
 
     const neg = Economy.breakdown({ won: true, aliveCount: 1, minAliveCards: 1, eventBonus: -5 });

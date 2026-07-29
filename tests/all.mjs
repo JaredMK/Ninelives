@@ -4,6 +4,7 @@
 // the SUITES list as features land (economy, stickers, store, apply, ...).
 import { run as tieRule } from "./tie-rule.test.mjs";
 import { run as economy } from "./economy.test.mjs";
+import { run as score } from "./score.test.mjs";
 import { run as sticker } from "./sticker.test.mjs";
 import { run as engineStickers } from "./engine-stickers.test.mjs";
 // [run-map rework] stage.test.mjs (old stages×deals schedule) retired — rewritten in reconcile section
@@ -72,6 +73,7 @@ import { run as stkperf1 } from "./stkperf1.test.mjs";
 const SUITES = [
   ["tie-rule", tieRule],
   ["economy", economy],
+  ["score", score],
   ["sticker", sticker],
   ["engine-stickers", engineStickers],
   // ["stage", stage],  // retired with the old stage schedule (see run-map reconcile)

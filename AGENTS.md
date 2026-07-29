@@ -157,6 +157,31 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.11 (Kimi, ECON1)** — reward economy rework; READ THIS BEFORE
+  TOUCHING PAYOUTS, THE Economy MODULE, OR SAVE STATS:
+  - Deal coin reward is FLAT: `Economy.dealFlat(stage, rating, isBoss)` =
+    `dealBase + stage×(1+rating)` (boss: rating 3 + bossBonus), knobs in
+    items.js `economy { dealBase: 1, bossBonus: 1 }` — the dealBase 1 is
+    what makes stage-1 easy pay 3. Stage = node phase+1 (endless keeps
+    counting). The old piles×smallest PRODUCT no longer feeds coins;
+    item-driven bonuses (Payout stickers, pillar payouts, run.bonusCoins)
+    pay on top unchanged. Ambush pays NO flat base (bounty only).
+    Post-win reconciliation: `run.bonusCoins = total − flat`.
+  - `breakdown()` still returns product fields — they're the SCORE now:
+    `runScore` folds product per clear (win only); `scoreBanked` stamps at
+    the ♠ boss (mirrors cardsFlippedBanked); `getCampaignScore()`/
+    `getEndlessScore()` accessors. Stats bests `bestCampaignScore`/
+    `bestEndlessScore`, Math.max folds, EXHIBITION-GATED like runCleared.
+  - Mystery coinBonus now tallies totalCoinsEarned (was bypassed).
+  - UI: map deal/boss nodes show the REWARD chip (dealBadge, knob-derived,
+    pips gone); HUD `#hudScoreChip` (Score pre-boss / Endless after);
+    #dealStatus shows "Reward +N · Score M" (dealFlatReward module var
+    captured in startRun, mirrors onRunEnd's derivation); endStats score
+    tiles render "— · not recorded" for exhibition.
+  - Economy sanity (measured on genV3 maps): route income ≈ 22/37/52 per
+    stage (~111/run vs ~130-200 before) — mildly starved early by design;
+    price retuning is Jared's call in items.js.
+
 - **v5.10 (Kimi + concurrent, STKPERF1/STKRB1)** — sticker-apply perf pass;
   READ THIS BEFORE TOUCHING THE SAVE PATH, Stats, OR THE PICKER GRID:
   - **Fossil sidecar**: `runFossils` NO LONGER rides the campaign blob — it

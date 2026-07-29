@@ -351,6 +351,12 @@ const NativeApp = (() => {
   }
   .hud .hud-dop b { font-size: 15px; font-weight: 800; }
   .hud .hud-dop .coin-ico { font-size: 13px; }
+  /* ECON1 score chip: the running campaign/endless score beside the coins. */
+  .hud .hud-score-chip {
+    color: var(--text); display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap;
+  }
+  .hud .hud-score-chip .hl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .hud .hud-score-chip b { font-size: 15px; font-weight: 800; }
   /* Same Charge indicator: the equals-synapse mark — lit + amber-glowing when
      CHARGED (the auto-save backstop is armed), dim/desaturated when EMPTY. (Uses
      the game's logo, like the Same-Power chip beside it, so the two read as one
@@ -494,11 +500,13 @@ const NativeApp = (() => {
      telemetry — menu screens are z 1400): the bar must paint + tap above them
      while the confirm is pending (showMenuConfirm). */
   body.menu-confirm .play-controls { z-index: 1500; }
-  /* ZEN MODE strips the campaign chrome: no coin HUD, no suit/stage track, no
-     Same-Power chip, no deal-status payout row (fitBoard reclaims its height —
-     it checks offsetParent). The Same-Charge indicator + histogram stay. */
+  /* ZEN MODE strips the campaign chrome: no coin HUD, no score chip, no
+     suit/stage track, no Same-Power chip, no deal-status payout row (fitBoard
+     reclaims its height — it checks offsetParent). The Same-Charge indicator +
+     histogram stay. */
   body.zen-mode #hudStageRun,
   body.zen-mode .hud-dop,
+  body.zen-mode #hudScoreChip,
   body.zen-mode #hudSamePower,
   body.zen-mode #dealStatus { display: none; }
   /* …which would leave the full-width HUD band as an empty cream bar around
@@ -5273,18 +5281,10 @@ const NativeApp = (() => {
     background: var(--amber); border: 1.5px solid #e6a445;
     box-shadow: 0 2px 6px rgba(74,50,40,0.28); z-index: 4;
   }
-  /* DIFFICULTY SCORE (1-3) badge on a regular deal: three pips filled to the
-     score, tinted by severity. No raw card/pile number — just the danger read. */
-  .pm-node .mn-piles.mn-diff { gap: 2.5px; padding: 0 6px; background: #fbf1e2; border-color: #e6c79a; }
-  .pm-node .mn-diff i { width: 5px; height: 5px; border-radius: 50%;
-    background: rgba(74,50,40,0.22); }
-  .pm-node .mn-diff i.on { box-shadow: 0 0 3px rgba(0,0,0,0.25) inset; }
-  .pm-node .mn-diff.diff-1 { border-color: #6cae74; }
-  .pm-node .mn-diff.diff-1 i.on { background: #4e9a57; }
-  .pm-node .mn-diff.diff-2 { border-color: #e0a445; }
-  .pm-node .mn-diff.diff-2 i.on { background: #e08a2c; }
-  .pm-node .mn-diff.diff-3 { border-color: #d05a4e; }
-  .pm-node .mn-diff.diff-3 i.on { background: #c7392b; }
+  /* COIN REWARD chip (ECON1): the deal's flat payout — coin icon + amount on
+     the amber pill (deals AND bosses). Higher number = harder deal. */
+  .pm-node .mn-piles.mn-reward { gap: 2.5px; padding: 0 6px; }
+  .pm-node .mn-reward .coin-ico { font-size: 10px; }
   /* BOSS full-deck marker: a distinct dark pill (never a difficulty pip row) so
      a boss reads at a glance as "the whole deck, always". */
   .pm-node .mn-piles.mn-full { font-size: 8.5px; font-weight: 900; letter-spacing: 0.6px;
@@ -6586,9 +6586,9 @@ const NativeApp = (() => {
   </header>
 
   <!-- Slim HUD line — four-suit phase tracker · Same Charge · equipped Same-Power
-       · coin balance. (The deal-status score expression moved to its own row
-       between the histogram and the board; see #dealStatus below.) -->
-  <div class="hud" title="Phase progress (♥ ♦ ♣ ♠) · Same Charge · coins">
+       · coin balance · score. (The deal-status reward/score expression lives on
+       its own row between the histogram and the board; see #dealStatus below.) -->
+  <div class="hud" title="Phase progress (♥ ♦ ♣ ♠) · Same Charge · coins · score">
     <span class="hud-sr suit-track" id="hudStageRun" aria-label="Phase progress"></span>
     <!-- The synapse-equals mark is INLINED (data URI mirror of icons/logo.svg):
          the iOS app bundle ships no icons/ directory, so a relative src 404s
@@ -6596,22 +6596,21 @@ const NativeApp = (() => {
          for regressions of this. -->
     <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23c0436c' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%238e2f4e'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="" draggable="false" /></span>
     <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
+    <!-- ECON1: the run SCORE chip (campaign score pre-boss, endless score once
+         banked). Hold-for-help attached at boot (attachInput). -->
+    <span class="hud-score-chip" id="hudScoreChip"><span class="hl" id="hudScoreLab">Score</span> <b id="hudScore">0</b></span>
     <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
   <main>
-    <!-- Deal-status row: surviving piles × smallest pile + bonus. Its own glance
-         row, between the top histogram band and the board (relocated from the
-         top bar). Same info + same element ids — only the position changed. -->
-    <div class="deal-status" id="dealStatus" title="Coins you'll earn clearing this deal: surviving piles × the smallest surviving pile, plus bonus">
-      <!-- (the "Clear reward" caption was dropped — the factors speak for
-           themselves; the full formula lives in this row's hold title) -->
+    <!-- Deal-status row: this deal's flat coin REWARD (fixed at deal start) ·
+         the live SCORE projection (surviving piles × smallest pile if cleared
+         now). Its own glance row, between the top histogram band and the board. -->
+    <div class="deal-status" id="dealStatus" title="Reward: flat coins for clearing this deal (by stage & difficulty) · Score: surviving piles × smallest pile — personal bests only">
       <span class="hud-score">
-        <span class="hl">Piles</span><b id="aliveCount">9</b>
-        <span class="hx">×</span>
-        <span class="hl">Smallest</span><b id="minPileCount" class="min-accent">1</b>
-        <span class="hx">+</span>
-        <span class="hl">Bonus</span><b id="bonusCoins" class="bonus-accent">+0</b>
+        <span class="hl">Reward</span><b id="dealReward" class="bonus-accent">+0</b>
+        <span class="hx">·</span>
+        <span class="hl">Score</span><b id="dealScore" class="min-accent">0</b>
       </span>
     </div>
     <!-- Play row: the left rail (vertical pip matrix + deck count) beside the
@@ -6872,6 +6871,10 @@ const NativeApp = (() => {
           <div class="run-stat-label">Accuracy</div>
         </div>
       </div>
+      <!-- ECON1: the run's SCORE tiles (campaign score + best; the endless
+           split joins post-boss). Rendered from opts.endStats.score by
+           showOverlay; an exhibition run shows its score but no best claim. -->
+      <div class="summary-tiles score-tiles hidden" id="endScoreTiles"></div>
       <div class="end-pillars">
         <div class="summary-label">Ending Board</div>
         <div class="ep-cols" id="endPillars"></div>
@@ -7335,7 +7338,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.10 · sticker-apply perf: fossil sidecar (save writes −84%), coalesced Stats, chunked picker paint";
+const APP_VERSION = "v5.11 · flat deal payouts (stage × difficulty, knobs in items.js) + new Score system with bests";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7947,6 +7950,13 @@ const ItemData = (() => {
     if (!Array.isArray(D.stickers) || !D.stickers.some(s => s && s.cursed === true))
       problems.push("[items.js] stickers: at least one entry must carry `cursed: true` (the mystery cursedSticker outcome's pool)");
   }
+  // ECONOMY (ECON1) — the flat deal-payout knobs (the formula is documented
+  // on the section itself in items.js).
+  const eco = D.economy;
+  if (!eco || typeof eco !== "object") problems.push("[items.js] economy: missing config object");
+  else for (const k of ["dealBase", "bossBonus"])
+    if (typeof eco[k] !== "number" || !isFinite(eco[k]) || eco[k] <= 0)
+      problems.push("[items.js] economy." + k + ": must be a positive finite number");
   if (problems.length) {
     problems.forEach(p => console.error(p));
     throw new Error("items.js validation FAILED — " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + " (see console.error lines above)");
@@ -8356,26 +8366,49 @@ const PackTypes = (() => {
 
 /* ----------------------------------------------------------------
    Economy — pure coin payout (no DOM, no state). Coins are awarded on
-   a WIN only; every coefficient is a named config constant.
+   a WIN only. ECON1: a cleared deal pays a FLAT amount by stage and
+   difficulty (dealFlat) plus item-driven bonuses; the old piles×smallest
+   product survives as the SCORE (breakdown still reports it) but no
+   longer feeds the coin total. Every coefficient is a named knob in
+   items.js (the `economy` section / the Payout sticker's `value`).
 ---------------------------------------------------------------- */
 const Economy = (() => {
   const COIN_CONFIG = {
-    // Payout = (alive piles) × (cards in the smallest NON-anchored alive pile)
-    // + Extra Coin bonus. The product has no coefficient; the only tunable is
-    // the Extra Coin unit value below.
     // × Extra Coin units (Σ stickers × that pile's cards) — the unit value is
     // the Payout sticker's `value` knob in items.js.
     EXTRA_COIN_VALUE: itemNum(StickerTypes.get("extraCoin"), "value", 1),
   };
-  /** stats: { won, aliveCount, minAliveCards, extraCoinUnits, pillarBonus,
-      pillarLines, eventBonus, eventLines }. Returns the itemized payout so the UI
-      can show where coins came from without recomputing. computeRunPayout() is
-      just breakdown().total. pillarBonus/pillarLines and eventBonus/eventLines are
-      optional (absent → 0 / []), so callers that don't compute them stay
-      backward-compatible. `eventBonus` is the live in-run bonus tally (Middle
-      Reward, Lucky Coin, Tribute costs, All Hearts) — it can be negative. */
+  /** The FLAT coin payout for clearing a deal:
+        dealBase + stage × (1 + rating)        (items.js `economy` section)
+      stage = the 1-based map phase (endless phases keep counting: 4, 5, …);
+      rating = the deal's 1..3 stage-relative difficulty score. A boss forces
+      rating 3 and adds bossBonus. No stage context (ambush/subset deals,
+      a missing rating) pays NO flat base — returns 0. */
+  function dealFlat(stage, rating, isBoss) {
+    if (!(stage > 0)) return 0;
+    const r = isBoss ? 3 : (rating || 0);
+    if (!(r > 0)) return 0;
+    return itemNum(ItemData.economy, "dealBase", 1)
+      + stage * (1 + r)
+      + (isBoss ? itemNum(ItemData.economy, "bossBonus", 1) : 0);
+  }
+  /** stats: { won, flat, stage, rating, aliveCount, minAliveCards,
+      extraCoinUnits, pillarBonus, pillarLines, eventBonus, eventLines }.
+      Returns the itemized payout so the UI can show where coins came from
+      without recomputing. computeRunPayout() is just breakdown().total.
+      `flat` is the dealFlat() base (0 for ambush/subset deals); `stage`/
+      `rating` ride along for the UI. pillarBonus/pillarLines and
+      eventBonus/eventLines are optional (absent → 0 / []), so callers that
+      don't compute them stay backward-compatible. `eventBonus` is the live
+      in-run bonus tally (Middle Reward, Lucky Coin, Tribute costs, All
+      Hearts) — it can be negative. The piles×smallest PRODUCT is still
+      computed and returned — it is the deal SCORE now — but it no longer
+      feeds the coin total. */
   function breakdown(stats, cfg = COIN_CONFIG) {
     const won = !!(stats && stats.won);
+    const flat = won ? (stats.flat || 0) : 0;
+    const stage = won ? (stats.stage || 0) : 0;
+    const rating = won ? (stats.rating || 0) : 0;
     const alivePiles = won ? (stats.aliveCount || 0) : 0;
     const minPileCards = won ? (stats.minAliveCards || 0) : 0;
     const extraCoinUnits = won ? (stats.extraCoinUnits || 0) : 0;
@@ -8386,26 +8419,28 @@ const Economy = (() => {
     // Live in-run bonus coins (already accrued during play; may be negative).
     const eventBonus = won ? (stats.eventBonus || 0) : 0;
     const eventLines = won ? (stats.eventLines || []) : [];
-    // Product of alive piles and the smallest alive pile's card count. The
-    // guard keeps it 0 (never NaN) when there are no alive piles.
+    // Product of alive piles and the smallest alive pile's card count — the
+    // deal SCORE (folded into the campaign score at the payout site), not
+    // coins. The guard keeps it 0 (never NaN) when there are no alive piles.
     const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
     const extraCoinBonus = extraCoinUnits * cfg.EXTRA_COIN_VALUE;
     return {
       won,
+      flat, stage, rating,
       alivePiles, minPileCards, product,
       extraCoinUnits, extraCoinValue: cfg.EXTRA_COIN_VALUE, extraCoinBonus,
       pillarBonus, pillarLines,
       eventBonus, eventLines,
-      // The product can't go negative, but a Tribute cost can drag the bonus
+      // The flat base can't go negative, but a Tribute cost can drag the bonus
       // below zero; clamp the TOTAL at 0 so a win never charges the player coins.
-      total: Math.max(0, product + extraCoinBonus + pillarBonus + eventBonus),
+      total: Math.max(0, flat + extraCoinBonus + pillarBonus + eventBonus),
     };
   }
   /** Coins earned (the total of breakdown()). */
   function computeRunPayout(stats, cfg = COIN_CONFIG) {
     return breakdown(stats, cfg).total;
   }
-  return { COIN_CONFIG, computeRunPayout, breakdown };
+  return { COIN_CONFIG, computeRunPayout, breakdown, dealFlat };
 })();
 
 /* ----------------------------------------------------------------
@@ -12963,6 +12998,12 @@ const CampaignState = (() => {
     // that moment, so an endless death only adds the flips made SINCE.
     let runWonBanked = false;
     let cardsFlippedBanked = 0;
+    // ECON1 SCORE: every cleared deal folds its piles×smallest PRODUCT (the old
+    // coin component, now score-only) into runScore. At the ♠ boss the score
+    // banks exactly like the win/cards banking above (scoreBanked) — the
+    // campaign score freezes there and everything after is endless score.
+    let runScore = 0;
+    let scoreBanked = 0;
     // ENDLESS MODE: chosen on the victory screen. Stages past the ♠ boss
     // generate LAZILY (each endless boss's fall generates the next, from the
     // REAL deck size — the original grow-as-you-go rule) with rising bands
@@ -13474,7 +13515,11 @@ const CampaignState = (() => {
       const coinAmount = () => range[0] + Math.floor(rng() * (range[1] - range[0] + 1));
       const coinBonus = () => {
         const amount = coinAmount();
+        // ECON1: ride the earnCoins accounting — the balance AND the
+        // gross-earned total (the mystery cache used to bypass
+        // totalCoinsEarned). coinLoss stays balance-only (never re-adds).
         coins += amount;
+        totalCoinsEarned += amount;
         return { key: "coinBonus", title: "Cache", amount, desc: "+" + amount + " coins" };
       };
       switch (key) {
@@ -14141,9 +14186,19 @@ const CampaignState = (() => {
          Set exactly once, at the final boss's win; persisted. An endless-mode
          death after this never re-records the campaign (see runWonBanked) and
          only adds the cards flipped SINCE the banking to the lifetime tally. */
-      markRunWon() { runWonBanked = true; cardsFlippedBanked = totalCardsFlipped; },
+      markRunWon() { runWonBanked = true; cardsFlippedBanked = totalCardsFlipped; scoreBanked = runScore; },
       runWonBanked() { return runWonBanked; },
       unbankedCardsFlipped() { return Math.max(0, totalCardsFlipped - cardsFlippedBanked); },
+
+      /* ---- ECON1 SCORE (piles × smallest, folded per cleared deal) ---- */
+      addRunScore(n) { runScore += Math.max(0, n || 0); return runScore; },
+      getRunScore() { return runScore; },
+      /** The CAMPAIGN score: pre-boss it IS the running total; once banked at
+          the ♠ boss it freezes at the banked value (endless play can't move it). */
+      getCampaignScore() { return runWonBanked ? scoreBanked : runScore; },
+      /** The ENDLESS score: everything scored since the ♠-boss banking
+          (0 until the win banks). */
+      getEndlessScore() { return runWonBanked ? Math.max(0, runScore - scoreBanked) : 0; },
 
       /* ---- ENDLESS MODE (chosen on the victory screen) ---- */
       isEndless() { return endless; },
@@ -15083,6 +15138,8 @@ const CampaignState = (() => {
         playedCounted = false;
         runWonBanked = false;
         cardsFlippedBanked = 0;
+        runScore = 0;
+        scoreBanked = 0;
         endless = false;
         sameCharge = false;
         stickerInventory = {};
@@ -15136,6 +15193,7 @@ const CampaignState = (() => {
           coins,
           playedCounted,
           runWonBanked, cardsFlippedBanked,   // ♠-boss win banking (endless death can't undo/duplicate it)
+          runScore, scoreBanked,              // ECON1 score: running total + the ♠-boss banked split
           endless,                            // endless mode chosen (stages past ♠ in stageEntryDecks)
           sameCharge,
           stickerInventory: { ...stickerInventory },
@@ -15226,6 +15284,8 @@ const CampaignState = (() => {
         playedCounted = !!s.playedCounted;   // default false for pre-guard saves
         runWonBanked = !!s.runWonBanked;     // default false for pre-home saves
         cardsFlippedBanked = s.cardsFlippedBanked || 0;
+        runScore = s.runScore || 0;          // default 0 for pre-ECON1 saves
+        scoreBanked = s.scoreBanked || 0;
         endless = !!s.endless;               // default false for pre-endless saves
         sameCharge = !!s.sameCharge;
         stickerInventory = { ...(s.stickerInventory || {}) };
@@ -15439,6 +15499,10 @@ const Stats = (() => {
     lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
     bestEndless: 0,   // deepest ENDLESS stage ever entered (0 = never went endless)
+    // ECON1 lifetime score bests (Math.max folds, exhibition-gated at the call
+    // sites exactly like runCleared): the ♠-boss-banked campaign score and the
+    // best post-bank endless score.
+    bestCampaignScore: 0, bestEndlessScore: 0,
     // UNLOCK1 item-unlock counters (the fixed set UNLOCK_COUNTERS bumps; all
     // additive — old saves merge them in as zeros via the {...DEF, ...parsed}
     // read, no migration). Every increment gates on !campaign.isExhibition()
@@ -15540,6 +15604,11 @@ const Stats = (() => {
     addCardsFlipped(n) { const s = get(); s.lifetimeCardsFlipped += Math.max(0, n || 0); put(s); },
     /** Deepest endless stage entered — recorded as each endless stage opens. */
     endlessReached(n) { const s = get(); s.bestEndless = Math.max(s.bestEndless || 0, n || 0); put(s); },
+    /** ECON1: the ♠-boss-banked campaign score — Math.max fold at the bank. */
+    recordCampaignScore(n) { const s = get(); s.bestCampaignScore = Math.max(s.bestCampaignScore || 0, n || 0); put(s); },
+    /** ECON1: the post-bank endless score — Math.max fold at each endless
+        clear and at an endless death. */
+    recordEndlessScore(n) { const s = get(); s.bestEndlessScore = Math.max(s.bestEndlessScore || 0, n || 0); put(s); },
     /** Fold a finished deal's draw/guess counts into the lifetime tallies (every
         deal end — win or loss). `drawn` = cards drawn during play (guesses plus
         non-guess movements like bury/donate); `correct`/`total` are the guess
@@ -16401,11 +16470,16 @@ const UIRenderer = (() => {
     svhProbe: document.getElementById("svhProbe"),
     deckCount: document.getElementById("deckCount"),
     deckFace: document.getElementById("deckFace"),
-    aliveCount: document.getElementById("aliveCount"),
-    minPileCount: document.getElementById("minPileCount"),
-    bonusCoins: document.getElementById("bonusCoins"),
+    // ECON1: the deal-status row's two numbers (reward fixed at deal start;
+    // score = the live piles × smallest projection). The old aliveCount /
+    // minPileCount / bonusCoins ids are retired.
+    dealReward: document.getElementById("dealReward"),
+    dealScore: document.getElementById("dealScore"),
     hudStageRun: document.getElementById("hudStageRun"),
     hudDopamine: document.getElementById("hudDopamine"),
+    hudScoreChip: document.getElementById("hudScoreChip"),
+    hudScoreLab: document.getElementById("hudScoreLab"),
+    hudScore: document.getElementById("hudScore"),
     hudSame: document.getElementById("hudSame"),
     hudSamePower: document.getElementById("hudSamePower"),
     swipeLabel: document.getElementById("swipeLabel"),
@@ -16501,6 +16575,7 @@ const UIRenderer = (() => {
     endCoins: document.getElementById("endCoins"),
     endPillars: document.getElementById("endPillars"),
     endGuessTiles: document.getElementById("endGuessTiles"),
+    endScoreTiles: document.getElementById("endScoreTiles"),   // ECON1: score + best tiles
     endCorrect: document.getElementById("endCorrect"),
     endWrong: document.getElementById("endWrong"),
     endAccuracy: document.getElementById("endAccuracy"),
@@ -16766,6 +16841,10 @@ const UIRenderer = (() => {
   // off the (persisted) forced subset, so a mid-ambush refresh resumes with the
   // bounty + the masked node intact. Re-derived by every startRun.
   let ambushDeal = null;
+  // ECON1: the live deal's FLAT coin reward (Economy.dealFlat of its node),
+  // captured by every startRun — the deal-status row shows it fixed for the
+  // deal's life. 0 for an ambush (the bounty IS the reward) and out of a deal.
+  let dealFlatReward = 0;
   // Ambush cleared → its UNDERLYING node still owes its dispatch; continueCampaign
   // (the summary's Continue) runs it through the normal finishResolveNode path.
   let pendingAmbushNodeId = null;
@@ -17080,17 +17159,14 @@ const UIRenderer = (() => {
 
   function renderHud(board, deck) {
     el.deckCount.textContent = deck.remaining();
-    // Top-bar factors: alive piles × smallest alive pile — the SAME source the
-    // Economy module reads for the payout product. No recomputation here.
-    el.aliveCount.textContent = board.aliveCount();
-    el.minPileCount.textContent = board.minAliveCards();
-    // Live bonus-coin tally for the run (0 until an effect moves it; can be
-    // negative from a Tribute cost). Reads the engine's run state directly.
-    if (el.bonusCoins) {
-      const run = engine ? engine.getRun() : null;
-      const bonus = run ? (run.bonusCoins || 0) : 0;
-      el.bonusCoins.textContent = (bonus > 0 ? "+" : "") + bonus;
-      el.bonusCoins.classList.toggle("bonus-neg", bonus < 0);
+    // Deal-status row (ECON1): the deal's FLAT coin reward (captured at deal
+    // start — fixed for the deal) and the live SCORE projection = surviving
+    // piles × smallest alive pile if the deal cleared right now. The score
+    // factors come from the SAME board accessors the Economy module reads.
+    if (el.dealReward) el.dealReward.textContent = "+" + dealFlatReward;
+    if (el.dealScore) {
+      const alive = board.aliveCount();
+      el.dealScore.textContent = alive > 0 ? alive * board.minAliveCards() : 0;
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
@@ -18144,13 +18220,19 @@ const UIRenderer = (() => {
         : suit + " " + (PHASE_LABEL[suit] || "") + " " + (phaseIdx + 1) + "/" + phases)
       + " · Deck " + (campaign.deckSize ? campaign.deckSize() : 0);
     const dop = campaign.getCoins();
+    // ECON1 SCORE chip: the campaign score pre-boss; once the ♠ boss banks the
+    // win, the chip flips to the ENDLESS score (the label makes the context).
+    const banked = !!(campaign.runWonBanked && campaign.runWonBanked());
+    const scoreLab = banked ? "Endless" : "Score";
+    const scoreVal = banked ? campaign.getEndlessScore() : campaign.getCampaignScore();
     const tracker = suitTrackerHtml();
-    const key = sr + "|" + dop + "|" + tracker;
+    const key = sr + "|" + dop + "|" + tracker + "|" + scoreLab + scoreVal;
     if (key === stageRunLast) return;   // nothing changed — no innerHTML churn
     stageRunLast = key;
     // Slim HUD bar (play screen): the four-suit phase tracker.
     if (el.hudStageRun) el.hudStageRun.innerHTML = tracker;
     if (el.hudDopamine) el.hudDopamine.textContent = dop;
+    if (el.hudScore) { el.hudScoreLab.textContent = scoreLab; el.hudScore.textContent = scoreVal; }
     // Global fixed badge (shown over the store/modals only) keeps the text form.
     el.stageRun.innerHTML = sr + " · " + COIN_SVG + " " + dop;
   }
@@ -20119,14 +20201,16 @@ const UIRenderer = (() => {
     // HUD chips: hold-for-help everywhere (tap does nothing on these). Copy lives
     // here as the single source — the markup title attributes are set from it.
     const HUD_SAME_HELP = "Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort";
-    const DEAL_STATUS_HELP = "Coins you'll earn clearing this deal: surviving piles × the smallest surviving pile, plus bonus";
+    const DEAL_STATUS_HELP = "Reward: the flat coins this deal pays on a clear — set by its stage & difficulty (harder pays more), fixed for the deal. Score: surviving piles × the smallest surviving pile if you cleared right now — personal bests only, never coins.";
+    const HUD_SCORE_HELP = "Your score: surviving piles × the smallest pile on each cleared deal, added up over the run. Banked as your campaign score when the ♠ boss falls — deals after that build your endless score. Chased for personal bests only; it never changes coins or play.";
     if (el.hudSame) { el.hudSame.title = HUD_SAME_HELP; attachHoldHelp(el.hudSame, () => showTextHelp("Same Charge", HUD_SAME_HELP)); }
     if (el.hudSamePower) attachHoldHelp(el.hudSamePower, () => {
       const id = campaign && campaign.getSamePower && campaign.getSamePower();
       if (id) openSamePowerInfo(id);
     }, closeCardInfo);
     attachHoldHelp(el.stageRun, () => showTextHelp("The climb", "3 stages, each ending at a boss deal. Clear the stage-3 boss to win the campaign — losing any deal ends it."));
-    if (el.dealStatus) { el.dealStatus.title = DEAL_STATUS_HELP; attachHoldHelp(el.dealStatus, () => showTextHelp("Clear reward", DEAL_STATUS_HELP)); }
+    if (el.dealStatus) { el.dealStatus.title = DEAL_STATUS_HELP; attachHoldHelp(el.dealStatus, () => showTextHelp("Reward & Score", DEAL_STATUS_HELP)); }
+    if (el.hudScoreChip) { el.hudScoreChip.title = HUD_SCORE_HELP; attachHoldHelp(el.hudScoreChip, () => showTextHelp("Score", HUD_SCORE_HELP)); }
 
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
@@ -21981,10 +22065,11 @@ const UIRenderer = (() => {
      the view multiplies/sums nothing. */
   /* Deal-cleared payout breakdown. PRESENTATION ONLY — it regroups the SAME
      itemized values from Economy.breakdown into four reward sections (deal /
-     stickers / pillars) with italic sub-bullets, then the grand Total.
-     No value is recomputed: every number comes straight from `b`; the sections
-     sum to b.total exactly (b.total = product + extraCoinBonus + pillarBonus +
-     eventBonus). Live in-run bonuses (b.eventLines) are split into
+     score / stickers / pillars) with italic sub-bullets, then the grand Total.
+     No value is recomputed: every number comes straight from `b`; the COIN
+     sections sum to b.total exactly (b.total = flat + extraCoinBonus +
+     pillarBonus + eventBonus, clamped ≥ 0) — the "Score earned" line is NOT
+     coins and joins no sum. Live in-run bonuses (b.eventLines) are split into
      sticker- vs pillar-driven by label (pillar live-bonuses use a Pillar's label:
      Suit Bonus / Streak Bank / Fibonacci — everything else is sticker-driven). */
   /* Reveal the coin breakdown line-by-line with a per-line rising ping, then
@@ -22037,8 +22122,17 @@ const UIRenderer = (() => {
     const stickerEvents = events.filter(p => !pillarLabels.has(p.label));
     const pillarEvents = events.filter(p => pillarLabels.has(p.label));
 
-    // 1) Deal reward — base survival (surviving × smallest).
-    let html = mainLine("Deal reward", b.product) +
+    // 1) Deal reward — the FLAT stage/difficulty payout (ECON1). An ambush has
+    // no flat base (stage 0): its bounty arrives as an event line below.
+    let html = mainLine("Deal reward", b.flat) +
+      subWrap(b.stage > 0
+        ? subRow("Stage " + b.stage + " · rating " + b.rating + "/3", "flat")
+        : subRow("Ambush", "no flat reward"));
+
+    // 1b) Score earned — the piles × smallest product, a SCORE now (never
+    // coins). Not part of the coin total; the factors ride as sub-rows.
+    html += '<div class="dc-line dc-score"><span class="dc-lab">Score earned</span>' +
+      '<span class="dc-val">+' + b.product + "</span></div>" +
       subWrap(subRow("Surviving piles", b.alivePiles) + subRow("Smallest pile", b.minPileCards + " cards"));
 
     // 2) Sticker rewards — Extra Coin ("Payout") + sticker-driven live bonuses.
@@ -22120,14 +22214,16 @@ const UIRenderer = (() => {
       el.overlayUnlocks.classList.toggle("hidden", !ups.length);
     }
 
-    // End-of-campaign stats: cumulative cards flipped + gross coins earned, and
-    // the Pillars the player finished with, by column.
+    // End-of-campaign stats: cumulative cards flipped + gross coins earned, the
+    // run SCORE + bests (ECON1), and the Pillars the player finished with.
     if (opts.endStats) {
       el.endCards.textContent = opts.endStats.cardsFlipped;
       el.endCoins.innerHTML = COIN_SVG + " " + opts.endStats.coinsEarned;
       el.endPillars.innerHTML = endBoardHtml(opts.endStats.pillars, opts.endStats.bases);
+      if (el.endScoreTiles) el.endScoreTiles.innerHTML = endScoreTilesHtml(opts.endStats.score);
     }
     el.endSummary.classList.toggle("hidden", !opts.endStats);
+    if (el.endScoreTiles) el.endScoreTiles.classList.toggle("hidden", !(opts.endStats && opts.endStats.score));
 
     // This-run guess tally (game over): correct / wrong / accuracy.
     if (opts.guessStats) {
@@ -22325,12 +22421,42 @@ const UIRenderer = (() => {
 
   /** Cumulative end-of-campaign stats, read from existing campaign state. */
   function endStats() {
+    const banked = !!(campaign.runWonBanked && campaign.runWonBanked());
+    const s = Stats.get();
     return {
       cardsFlipped: campaign.totalCardsFlipped,
       coinsEarned: campaign.totalCoinsEarned,
       pillars: campaign.getColumnPillars(),
       bases: campaign.getColumnBases(),
+      // ECON1: the run's score + lifetime bests. The endless split appears
+      // only once the win is banked (post-boss). Exhibition runs show their
+      // score but bests never record — the tiles must make no best claim.
+      score: {
+        campaign: campaign.getCampaignScore(),
+        bestCampaign: s.bestCampaignScore || 0,
+        endless: banked ? campaign.getEndlessScore() : null,
+        bestEndless: s.bestEndlessScore || 0,
+        exhibition: !!(campaign.isExhibition && campaign.isExhibition()),
+      },
     };
+  }
+
+  /** The score tiles row on the win/loss summary (pure formatting of
+      endStats().score; numbers only, no user strings). */
+  function endScoreTilesHtml(sc) {
+    if (!sc) return "";
+    const tile = (v, l) => '<div class="run-stat"><div class="run-stat-value">' + v +
+      '</div><div class="run-stat-label">' + l + "</div></div>";
+    // Exhibition: the score shows, but the best slots stay blank-labelled —
+    // bests don't record, so nothing here may claim one.
+    const bestVal = sc.exhibition ? "—" : sc.bestCampaign;
+    const bestLab = sc.exhibition ? "Best · not recorded" : "Best";
+    let html = tile(sc.campaign, "Score") + tile(bestVal, bestLab);
+    if (sc.endless != null) {
+      html += tile(sc.endless, "Endless") +
+        tile(sc.exhibition ? "—" : sc.bestEndless, sc.exhibition ? "Best · not recorded" : "Endless best");
+    }
+    return html;
   }
 
   /** The guess that WOULD have survived the fatal draw: higher / lower / same.
@@ -22957,6 +23083,7 @@ const UIRenderer = (() => {
     // Drop any leftover run context (a quit mid-ambush never ran onRunEnd) so
     // the fresh campaign's first deal can't inherit a stale forced subset.
     ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;
+    dealFlatReward = 0;   // ECON1: no live deal → no flat reward
     reshuffleIndex = 0;   // SEED1: the deal-identity counter starts clean too
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
     campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
@@ -23109,6 +23236,14 @@ const UIRenderer = (() => {
       : null;
     // The ambush context lives ON the subset: any non-ambush deal clears it.
     ambushDeal = (currentDealSubset && currentDealSubset.ambush) || null;
+    // ECON1: fix the deal's FLAT coin reward for its whole life (the
+    // deal-status row). Mirrors the onRunEnd payout derivation exactly:
+    // stage = the node's 1-based phase, rating = its stage-relative
+    // difficulty; an ambush pays NO flat base (the bounty is the reward).
+    dealFlatReward = ambushDeal ? 0
+      : Economy.dealFlat(node && typeof node.phase === "number" ? node.phase + 1 : 0,
+          isBoss ? 3 : (node && node.targetD > 0 ? RunMap.difficultyScore(node.targetD, node.phase, false) : 0),
+          isBoss);
     // Snapshot the subset's OWN composition (by current rank / suit; jokers apart)
     // so the histogram can decrement the full-deck view by cards drawn this deal
     // without ever exposing the subset's makeup. Cleared for a full-deck deal.
@@ -24672,6 +24807,9 @@ const UIRenderer = (() => {
         // Normal game-over flow, but never a recorded loss — only the cards
         // flipped SINCE the banking join the lifetime tally.
         if (!exhibition) Stats.addCardsFlipped(campaign.unbankedCardsFlipped());
+        // ECON1: fold the endless score reached before the death into the
+        // lifetime best (endless clears already fold theirs at each clear).
+        if (!exhibition) Stats.recordEndlessScore(campaign.getEndlessScore());
       } else {
         // Lifetime stats (isolated store): record how far this game got.
         if (!exhibition) {
@@ -24737,10 +24875,25 @@ const UIRenderer = (() => {
     }
     const eventLines = Object.entries(run.bonusEvents || {})
       .map(([label, amount]) => ({ label, amount }));
+    // ECON1 FLAT BASE: stage = the node's 1-based map phase (endless phases
+    // keep counting — stage 4, 5, …); rating = the node's stage-relative
+    // difficulty score. A boss forces rating 3 + the boss bonus inside
+    // dealFlat. An ambush (or any deal without a node difficulty) pays NO
+    // flat base — the bounty IS the reward and rides the event tally above.
+    const payoutNode = campaign.currentNode();
+    const payoutBoss = !wasAmbush && !!(payoutNode && payoutNode.type === "boss");
+    const payoutStage = !wasAmbush && payoutNode && typeof payoutNode.phase === "number"
+      ? payoutNode.phase + 1 : 0;
+    const payoutRating = payoutBoss ? 3
+      : (payoutStage && payoutNode.targetD > 0
+          ? RunMap.difficultyScore(payoutNode.targetD, payoutNode.phase, false) : 0);
     const payout = Economy.breakdown({
       won: true,
+      flat: Economy.dealFlat(payoutStage, payoutRating, payoutBoss),
+      stage: payoutStage,
+      rating: payoutRating,
       aliveCount,
-      // Smallest NON-anchored alive pile — the payout multiplier (engine-side,
+      // Smallest NON-anchored alive pile — the SCORE multiplier (engine-side,
       // anchors excluded; same source as the orange HUD highlight).
       minAliveCards: board.minAliveCards(),
       // Extra Coin units: Σ (stickers on an alive top × that pile's card count).
@@ -24752,17 +24905,24 @@ const UIRenderer = (() => {
       eventLines,
     });
     if (payout.total > 0) campaign.earnCoins(payout.total);
+    // ECON1 SCORE: the piles×smallest product is the deal SCORE — folded per
+    // clear (win only; a lost deal scores nothing, exactly as it never paid).
+    campaign.addRunScore(payout.product);
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
 
     // Lifetime stats (isolated store): this run was cleared.
     if (!exhibition) Stats.runCleared(payout.total, campaign.currentStage, campaign.currentRunIndex);
+    // ECON1: the win was already banked at the ♠ boss → this clear is an
+    // ENDLESS clear; fold the running endless score into the lifetime best.
+    if (!exhibition && campaign.runWonBanked && campaign.runWonBanked())
+      Stats.recordEndlessScore(campaign.getEndlessScore());
 
     // Fold the end-of-run bonuses (Extra Coin, Column Guardian) into the live
     // bonus tracker so its FINAL value equals the summary's total bonus
-    // (everything except the piles × smallest product). This is what the player
-    // sees if they hold-to-peek the board behind the run-complete screen, so it
-    // must reconcile exactly. Display-only — payout above is already computed.
-    run.bonusCoins = payout.total - payout.product;
+    // (everything except the flat base). An ambush's flat is 0, so its bounty
+    // (in the event tally) survives whole. Bookkeeping only — the payout above
+    // is already computed (the old HUD Bonus chip that displayed this is gone).
+    run.bonusCoins = payout.total - payout.flat;
     renderHud(board, payload.deck);
 
     // CONTINUOUS map: a deal/boss node was just cleared. Mark it. Beating a
@@ -24830,6 +24990,9 @@ const UIRenderer = (() => {
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
         campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+      // ECON1: the campaign score froze at the banking — fold it into the
+      // lifetime best (endless play can never move it again).
+      Stats.recordCampaignScore(campaign.getCampaignScore());
       // DECK CHAIN: a win with this deck permanently unlocks the next
       // (Pinky → Mamma → Mr. Smith → Lammy; persisted in localStorage).
       // A FIRST win arms the one-time unlock celebration, shown when the run
@@ -25202,16 +25365,16 @@ const UIRenderer = (() => {
         dealBadge(n, big) +
       '</span>';
   }
-  /* The node badge under a deal/boss cluster. A regular deal shows a 1-3
-     DIFFICULTY SCORE as filled pips (green/amber/red) — no raw card/pile
-     numbers. A boss shows a distinct FULL marker (it always plays the whole
-     deck). The score is the node's target danger bucketed by RunMap. */
+  /* The node badge under a deal/boss cluster: the deal's FLAT COIN REWARD
+     (ECON1), computed at render from the node's stage (phase + 1) and its
+     stage-relative difficulty score — the SAME dealFlat the payout uses, so
+     the chip can never drift from what the deal actually pays. Higher number
+     = harder deal = bigger reward; no legend needed. Bosses carry the chip
+     too (rating forced to 3 + the boss bonus inside dealFlat). */
   function dealBadge(n, big) {
-    const score = RunMap.difficultyScore(n && n.targetD, n && n.phase, big);
-    if (big) return "";   // bosses carry no badge (the FULL marker is retired)
-    let pips = "";
-    for (let i = 1; i <= 3; i++) pips += '<i' + (i <= score ? ' class="on"' : "") + '></i>';
-    return '<span class="mn-piles mn-diff diff-' + score + '">' + pips + '</span>';
+    const stage = n && typeof n.phase === "number" ? n.phase + 1 : 0;
+    const rating = big ? 3 : RunMap.difficultyScore(n && n.targetD, n && n.phase, false);
+    return '<span class="mn-piles mn-reward">' + COIN_SVG + Economy.dealFlat(stage, rating, big) + '</span>';
   }
   /* PACK (2+) → a small stacked-cards motif in the ACTIVE character's colour,
      with a "+N ♦" count badge. Contents stay hidden until opened. Alt decks
@@ -25278,8 +25441,8 @@ const UIRenderer = (() => {
   function mapNodeLabel(n) {
     if (n.type === "pass") return "The trail passes through";
     if (n.type === "mystery") return "Mystery — a gamble, good or bad…";
-    if (n.type === "boss") return "BOSS — full deck · difficulty " + RunMap.difficultyScore(n.targetD, n.phase, true) + "/3 (this stage)";
-    if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 (this stage)";
+    if (n.type === "boss") return "BOSS — full deck · reward " + Economy.dealFlat(typeof n.phase === "number" ? n.phase + 1 : 0, 3, true) + " coins";
+    if (n.type === "deal") return "Deal — reward " + Economy.dealFlat(typeof n.phase === "number" ? n.phase + 1 : 0, RunMap.difficultyScore(n.targetD, n.phase, false), false) + " coins (difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 — harder pays more)";
     if (n.type === "store") return "Shop";
     if (n.type === "home") return "Home — mama ♥ is waiting";
     if (n.type === "pack") {
@@ -25327,8 +25490,8 @@ const UIRenderer = (() => {
     const myst = live("mystery") || { type: "mystery" };
     el.mapKeyPanel.innerHTML =
       '<div class="mk-head"><b>Map key</b><button class="mk-close" type="button" aria-label="Close">×</button></div>' +
-      mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; pips show difficulty 1–3") +
-      mapKeyRow("t-boss", "--mk-s:0.52", mapDealCluster(boss, true), "Boss", "full-deck deal; guards the stage exit") +
+      mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; the chip shows its coin reward — harder deals pay more") +
+      mapKeyRow("t-boss", "--mk-s:0.52", mapDealCluster(boss, true), "Boss", "full-deck deal; biggest reward; guards the stage exit") +
       mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
       mapKeyRow("t-pack", "", mapPackStack(pack), "Pack", "+" + (pack.packCount || 3) + " hidden cards (packs of 3+; 2-card stops show their faces)") +
       mapKeyRow("t-pickup", "", nodeCardHtml(card), "Card", "joins your deck when you pass") +
@@ -29512,6 +29675,8 @@ const UIRenderer = (() => {
       [s.lifetimeCorrectGuesses + pct(acc), "Correct draws"],
       [s.lifetimeDopamine, "Lifetime coins"],
       [s.bestCampaignDopamine, "Most coins in a run"],
+      [s.bestCampaignScore || 0, "Best campaign score"],
+      [s.bestEndlessScore || 0, "Best endless score"],
       [s.bestEndless || 0, "Deepest endless stage"],
     ];
     // ZEN section — Zen mode's OWN record (ZenStats; a separate store, so the
@@ -29716,16 +29881,15 @@ const UIRenderer = (() => {
       },
       { // 5 — clear the deck, earn coins
         art: '<div class="wt-score">' +
-          '<div class="cell"><span class="num">4</span><span class="lab">piles alive</span></div>' +
-          '<span class="op">×</span>' +
-          '<div class="cell"><span class="num">3</span><span class="lab">smallest pile</span></div>' +
-          '<span class="op">=</span>' +
-          '<div class="cell"><span class="num coin">' + coin + '12</span><span class="lab">coins</span></div>' +
+          '<div class="cell"><span class="num coin">' + coin + Economy.dealFlat(2, 2, false) + '</span><span class="lab">stage-2 coin reward</span></div>' +
+          '<span class="op">·</span>' +
+          '<div class="cell"><span class="num">4 × 3 = 12</span><span class="lab">score</span></div>' +
           "</div>",
         cap: '<span class="lead">Clear the deck, earn coins</span>' +
-          "Survive the whole <b>deck</b> to win the deal. You earn coins equal to " +
-          "<b>surviving piles × the cards in your smallest pile</b>. " +
-          "Keep every pile alive and evenly sized to earn the most coins.",
+          "Survive the whole <b>deck</b> to win the deal. The coin <b>reward</b> is a flat amount set by the " +
+          "<b>stage</b> and the deal's <b>difficulty</b> — harder deals pay more, and each map node's chip shows it. " +
+          "<b>Surviving piles × the cards in your smallest pile</b> is now your <b>score</b> — " +
+          "chased for personal bests, not coins.",
       },
       { // 6 — the map layer (the climb home)
         art: '<div class="wt-map">' +

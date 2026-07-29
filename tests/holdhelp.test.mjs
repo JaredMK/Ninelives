@@ -102,6 +102,10 @@ export function run() {
     r.ok(/getSamePower\(\)/.test(ai) && ai.includes("openSamePowerInfo(id)"), "the hudSamePower hold opens the equipped power's info");
     r.ok(ai.includes("attachHoldHelp(el.stageRun"), "stageRun has hold-for-help");
     r.ok(ai.includes("attachHoldHelp(el.dealStatus"), "dealStatus has hold-for-help");
+    // ECON1: the HUD score chip carries hold-for-help, copy from its own const.
+    r.ok(ai.includes("HUD_SCORE_HELP"), "the score-chip help copy const is present");
+    r.ok(ai.includes("el.hudScoreChip.title = HUD_SCORE_HELP"), "hudScoreChip's title is set from the const (single source)");
+    r.ok(ai.includes("attachHoldHelp(el.hudScoreChip"), "hudScoreChip has hold-for-help");
   }
 
   // ============================================================

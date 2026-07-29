@@ -479,6 +479,24 @@ const NINELIVES_ITEMS = {
   },
 
   /* --------------------------------------------------------------------
+     ECONOMY — the flat deal payout (ECON1). Coins paid on a cleared deal:
+       dealBase + stage × (1 + rating)
+     stage  = the 1-based map phase (endless phases keep counting: 4, 5, …);
+     rating = the deal's 1..3 stage-relative difficulty
+              (RunMap.difficultyScore of the node's targetD). A boss forces
+              rating 3 and adds bossBonus. Ambush deals pay NO flat base
+              (their bounty is the reward). Anchor: a stage-1 easy deal pays
+              dealBase + 1×(1+1) = 3 — dealBase is WHY the anchor is 3.
+     Item-driven bonuses (Payout stickers, pillar payouts, the in-run event
+     tally) pay ON TOP, unchanged — the flat base is the guaranteed income;
+     items are how you get rich.
+  -------------------------------------------------------------------- */
+  economy: {
+    dealBase: 1,    // flat base every cleared deal pays before the stage term
+    bossBonus: 1,   // extra flat coins a cleared boss pays on top
+  },
+
+  /* --------------------------------------------------------------------
      PACKS — buying reveals `size` random items; the player keeps `keep`.
      Card-pack picks go to the pending pack tray (pre-run deck swap);
      sticker-pack picks go straight to the sticker inventory.

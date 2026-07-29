@@ -113,8 +113,10 @@ export function run() {
     r.ok(/tie[\s\S]{0,40}kills/i.test(body) || /kills[\s\S]{0,40}Higher or Lower/i.test(body),
       "manual states ties kill a directional (Higher/Lower) guess");
     r.ok(/Aces are high/.test(body), "manual states Aces are high");
-    r.ok(/surviving piles × the cards in your smallest pile/.test(body),
-      "manual states the coin formula");
+    r.ok(/flat amount set by the/.test(body) && /harder deals pay more/.test(body),
+      "manual states the coin reward is flat by stage & difficulty");
+    r.ok(/Surviving piles × the cards in your smallest pile/.test(body) && /now your <b>score<\/b>/.test(body),
+      "manual states piles × smallest is now the SCORE (personal bests, not coins)");
     r.ok(/Mama's home/.test(body) && /climb/i.test(body),
       "manual describes the map climb to Mama's home");
     r.ok(/grow your deck/i.test(body) && /run ends/i.test(body),
