@@ -157,6 +157,45 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.06 (Kimi, MYST2)** — mystery-node refinement + Pinky Regular joker
+  economy; READ THIS BEFORE TOUCHING MYSTERY OUTCOMES, JOKER ECONOMY, OR RUN
+  START:
+  - items.js `mystery.weights` final table (boons 62 / banes 34): coinBonus
+    15 · cards 12 · stickerPack 10 · freeRemoval 8 · stickerStrip 7 · joker 5
+    · store 5 ‖ cursedSticker 14 · coinLoss 12 · ambush 8. `cardPack` and
+    `cursedCard` are GONE (knobs `cursedCardTribute`/`cursedCardRankRange`
+    deleted); `cardGrantRange: [1,3]` added. New outcome cases live in
+    `CampaignState.applyMysteryEvent`.
+  - **Cursed cards are retired.** `mintCursedCard`, the engine innate-curse
+    toll in `maybeStickerTribute` (the `tributeCoin` sticker branch STAYS —
+    leech/leech2 untouched), and all cursed-card UI are removed. `restore()`
+    strips `cursed: true` cards from baseDeck + ownedIds on load (no refund).
+    A stray `cursed` flag in a mid-deal checkpoint is inert.
+  - **Joker outcome gate is HELD-vs-CAP** (`jokersHeld() < jokerCapFor()`),
+    NOT `jokersAllowed()` — the fixed-scheme blanket-false would bar Pinky
+    Regular, an authorized source. At cap the roll deterministically folds to
+    coinBonus; Legendary (cap 0) can never roll it.
+  - **Store outcome** rides a one-shot `mysteryStoreContinue` hook: armed in
+    `continueMysteryEvent`, invoked from the store Done handler after
+    `persistCampaign("map")`, cleared on use and at the top of
+    `showProgressionMap`. Refresh during the detour = store skipped, node
+    dispatches on return.
+  - **difficulty.js gained `startJokers: { pink: 1 }`** on Regular (cap now
+    4). `DifficultyData.startJokers(deckId, tierId)` accessor; `startNewRun`
+    mints them BEFORE `genRunMap()`. **Pregen threading:** `runStartSize(dId,
+    tId)` (next to `runGenKey`) = GEN_CONFIG.startDeckSize + startJokers —
+    `pregenerateRun`'s entry ladder AND startNewRun both derive from it;
+    change one side without the other and every Start press cache-misses into
+    a multi-second synchronous build.
+  - Debug peek: hidden "?" nodes render `<span class="pm-myst-out">` from the
+    pure `rollMysteryEvent(n.id)`, hidden by CSS unless `body.debug-access`.
+  - Cursed stickers (leech/leech2) render with `dcs-cursed` + the violet
+    `#7a4fd0` face in `stickerChip` AND the board badge path (`faceOf`/
+    `clsOf`/`edgeOf`) — any new chip-rendering path must route cursed types
+    the same way.
+  - Outcome animations are pure CSS keyframes on `.me-art mea-<key>` +
+    `MYSTERY_SOUND` map at modal open; `prefers-reduced-motion` kills them.
+
 - **v5.05 (Kimi, MYST1)** — mystery "?" nodes are now real event gambles;
   READ THIS BEFORE TOUCHING THE MAP ARRIVAL FLOW OR STICKER POOLS:
   - The "?" mask is UNCHANGED (cosmetic `n.mystery` roll; no generator/genV

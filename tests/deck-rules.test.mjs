@@ -19,20 +19,32 @@ export function run() {
   {
     const { G, camp } = fresh(null);
     const cards = startCards(camp);
+    const startJ = G.DifficultyData.startJokers("pink", "regular");
     r.eq(camp.getDeckId(), "pink", "a fresh campaign defaults to Pinky");
-    r.eq(cards.length, 13, "Pinky starts with 13 cards");
-    r.ok(cards.every(c => c.suit === "♥"), "Pinky's start deck is the 13 hearts");
+    r.eq(cards.length, 13 + startJ, "Pinky starts with 13 + the tier's startJokers cards (" + (13 + startJ) + ")");
+    r.eq(cards.filter(c => c.joker).length, startJ, "…exactly the data's startJokers count are Jokers");
+    r.ok(cards.filter(c => !c.joker).every(c => c.suit === "♥"), "Pinky's other start cards are the 13 hearts");
     r.ok(cards.every(c => c.stickers.length === 0), "Pinky starts unstickered");
     r.eq(camp.getColumnPillars().filter(Boolean).length, 0, "Pinky starts with empty Pillar slots");
     r.eq(camp.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price, "Pinky pays list price");
     r.eq(camp.suitsInPlay().length, 2, "Pinky stage 1 has 2 suits in play (♥ + ♦)");
+    // Master/Legendary carry no startJokers: the start deck stays the pure 13.
+    for (const tier of ["master", "legendary"]) {
+      camp.setTier(tier); camp.reset();
+      const t = startCards(camp);
+      r.eq(t.length, 13 + G.DifficultyData.startJokers("pink", tier),
+        "Pinky " + tier + " starts at 13 + startJokers (" + (13 + G.DifficultyData.startJokers("pink", tier)) + ")");
+      r.ok(t.every(c => !c.joker && c.suit === "♥"), "…pure hearts, no Jokers, on " + tier);
+    }
+    camp.setTier("regular"); camp.reset();   // leave the campaign as found
   }
 
   // ---- SHARED (Mamma): random-suit start, all suits, no extra modifier -----
   {
-    const { camp } = fresh("mamma");
+    const { G, camp } = fresh("mamma");
     const cards = startCards(camp);
-    r.eq(cards.length, 13, "Mamma starts with 13 cards");
+    r.eq(cards.length, 13 + G.DifficultyData.startJokers("mamma", "regular"),
+      "Mamma starts with 13 + her startJokers cards");
     const ranks = cards.map(c => c.currentRank).sort((a, b) => a - b).join(",");
     r.eq(ranks, "2,3,4,5,6,7,8,9,10,11,12,13,14", "Mamma holds one card of EVERY rank");
     r.eq(camp.suitsInPlay().length, 4, "Mamma has all four suits in play from the start");
@@ -94,9 +106,10 @@ export function run() {
 
   // ---- MR. SMITH: 2x prices + a random eligible sticker on every card ------
   {
-    const { camp } = fresh("smith");
+    const { G, camp } = fresh("smith");
     const cards = startCards(camp);
-    r.eq(cards.length, 13, "Smith starts with 13 cards");
+    r.eq(cards.length, 13 + G.DifficultyData.startJokers("smith", "regular"),
+      "Smith starts with 13 + his startJokers cards");
     r.ok(cards.every(c => c.stickers.length === 1), "every Smith start card carries exactly 1 sticker");
     r.eq(camp.priceOf("gainCoin"), 4, "Smith pays 2x for stickers (gainCoin list 2 → 4)");
     r.eq(camp.priceOfPillar("heartBounty"), 18, "Smith pays 2x for Pillars (9 → 18)");

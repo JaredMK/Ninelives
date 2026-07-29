@@ -1,5 +1,6 @@
 // Run-map structure (replaces the old stages×deals progression). A run travels
-// 3 phase-maps (♦ → ♣ → ♠); hearts are pre-held (start = 13 hearts). The deck is
+// 3 phase-maps (♦ → ♣ → ♠); hearts are pre-held (start = 13 hearts + the
+// tier's startJokers Jokers, difficulty.js). The deck is
 // the ACCUMULATED draft (grows via pickup/pack nodes); a deal deals the WHOLE
 // deck across the node's pile count. This suite covers the deck/draft, phase
 // advancement, the generated graph's validity, suit-in-play gating, layout, and
@@ -7,16 +8,21 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, RunMap, DeckManager } = loadGame();
+  const { CampaignState, RunMap, DeckManager, DifficultyData } = loadGame();
   const r = makeRunner("run-map.test.mjs");
+  // The default campaign is Pinky Regular: startDeckSize base cards plus the
+  // tier's startJokers (data-derived — never pin the count).
+  const START_JOKERS = DifficultyData.startJokers("pink", "regular");
+  const START = RunMap.GEN_CONFIG.startDeckSize + START_JOKERS;
 
-  // ---- starting deck: 13 hearts, ready to play immediately ----------------
+  // ---- starting deck: 13 hearts + startJokers, ready to play immediately ---
   {
     const c = CampaignState.create();
-    r.eq(c.deckSize(), 13, "a fresh campaign holds 13 cards");
+    r.eq(c.deckSize(), START, "a fresh campaign holds startDeckSize + startJokers cards (" + START + ")");
     const deck = c.getRunDeck();
-    r.eq(deck.length, 13, "getRunDeck() deals the whole 13-card draft");
-    r.ok(deck.every(x => x.suit === "♥"), "the starting 13 are all hearts (pre-held)");
+    r.eq(deck.length, START, "getRunDeck() deals the whole " + START + "-card draft");
+    r.ok(deck.filter(x => !x.joker).every(x => x.suit === "♥"), "the starting non-Jokers are all hearts (pre-held)");
+    r.eq(deck.filter(x => x.joker).length, START_JOKERS, "…plus exactly the tier's startJokers Jokers");
     r.eq(c.getPhaseIndex(), 0, "starts in phase 0 (♦)");
     r.eq(c.phaseSuit(), "♦", "phase 0 travels diamonds");
   }
@@ -94,7 +100,7 @@ export function run() {
     r.ok(!c.advancePhase(), "advancePhase from ♠ → false (the ♠ boss fell = run won)");
     r.ok(c.isComplete(), "isComplete() once the ♠ boss is beaten");
     // The deck (hearts) persists across phases (the draft is never wiped mid-run).
-    r.eq(c.deckSize(), 13, "the accumulated deck carries across phases");
+    r.eq(c.deckSize(), START, "the accumulated deck carries across phases");
   }
 
   // ---- suits in play grow with the phase (drives item gating) -------------
@@ -451,8 +457,8 @@ export function run() {
     // average per-stage route collection (GEN_CONFIG.predictedRouteCards).
     const prc = RunMap.GEN_CONFIG.predictedRouteCards;
     const wire0 = JSON.parse(JSON.stringify(c.serialize()));
-    r.eq(wire0.stageEntryDecks[1], 13 + prc, "the ♣ stage's entry deck is the PREDICTION (13 + " + prc + ")");
-    r.eq(wire0.stageEntryDecks[2], 13 + 2 * prc, "the ♠ stage's entry deck is the PREDICTION (13 + " + 2 * prc + ")");
+    r.eq(wire0.stageEntryDecks[1], START + prc, "the ♣ stage's entry deck is the PREDICTION (" + START + " + " + prc + ")");
+    r.eq(wire0.stageEntryDecks[2], START + 2 * prc, "the ♠ stage's entry deck is the PREDICTION (" + START + " + " + 2 * prc + ")");
     // The map is FIXED for the run: felling the ♦ boss changes NOTHING (no
     // regeneration — the visible upper stages never reshuffle).
     const clubBossBefore = map.phases[1].bossId;
@@ -464,7 +470,7 @@ export function run() {
     r.eq(after.phases.length, 3, "the map still holds three stages after the ♦ boss falls");
     r.eq(after.phases[1].bossId, clubBossBefore, "…and the ♣ stage did NOT regenerate (map fixed for the run)");
     const wire = JSON.parse(JSON.stringify(c.serialize()));
-    r.eq(wire.stageEntryDecks[1], 13 + prc, "the ♣ entry stays the prediction (never overwritten by the real deck)");
+    r.eq(wire.stageEntryDecks[1], START + prc, "the ♣ entry stays the prediction (never overwritten by the real deck)");
     // moving onto a ♣ (phase-1) node flips the campaign into phase ♣.
     const clubNode = after.nodes.find(n => n.phase === 1);
     c.moveToNode(clubNode.id);
@@ -521,7 +527,7 @@ export function run() {
     c.advancePhase();
     c.reset();
     r.eq(c.getPhaseIndex(), 0, "reset → phase 0");
-    r.eq(c.deckSize(), 13, "reset → 13 hearts");
+    r.eq(c.deckSize(), START, "reset → the start deck (13 hearts + startJokers)");
     r.eq(c.phaseSuit(), "♦", "reset → diamonds phase");
   }
 
@@ -633,16 +639,17 @@ export function run() {
     const shown = c.previewPickupCard(nJ);
     r.ok(shown && shown.joker, "a special +1 node previews as a JOKER (shown on the map)");
     const before = c.deckSize();
+    const jokersBefore = c.jokerCount();   // the start deck may already hold startJokers
     const granted = c.resolvePickup(nJ);
     r.ok(granted && granted.joker, "taking the node grants a Joker");
     r.eq(c.deckSize(), before + 1, "the Joker joins the deck like any card (+1)");
     r.ok(c.getRunDeck().some(x => x.joker), "the run deck holds the Joker");
-    r.eq(c.jokerCount(), 1, "jokerCount() sees the owned Joker (histogram feed)");
+    r.eq(c.jokerCount(), jokersBefore + 1, "jokerCount() sees the owned Joker (histogram feed)");
     // A save round-trips both the owned Joker and any still-locked sentinel.
     const wire = JSON.parse(JSON.stringify(c.serialize()));
     const c2 = CampaignState.create();
     r.ok(c2.restore(wire), "a save with an owned Joker restores");
-    r.eq(c2.jokerCount(), 1, "the restored deck still holds the Joker");
+    r.eq(c2.jokerCount(), jokersBefore + 1, "the restored deck still holds the Joker");
     r.eq(c2.deckSize(), c.deckSize(), "restored deck size matches");
     r.ok(c2.nodeCard(nJ) && c2.nodeCard(nJ).joker, "the cleared node still displays its Joker after restore");
   }
@@ -669,13 +676,14 @@ export function run() {
   // ---- MAP SPECIALS: Joker + Blank inside map packs ------------------------
   {
     const c = CampaignState.create();
+    const jokersBefore = c.jokerCount();   // the start deck may already hold startJokers
     c._setMapSpecialRoll(() => true);
     const before = c.deckSize();
     const cards = c.resolvePack({ type: "pack", packCount: 3, suit: "♦" });
     r.eq(cards.length, 3, "an all-special +3 pack still reveals 3 items");
     r.ok(cards.every(x => x.joker), "…all Jokers (roll pinned)");
     r.eq(c.deckSize(), before + 3, "every pack Joker joined the deck");
-    r.eq(c.jokerCount(), 3, "jokerCount() reflects all three");
+    r.eq(c.jokerCount(), jokersBefore + 3, "jokerCount() reflects all three");
     c._setMapSpecialRoll(() => false);
     const blanks = c.resolvePack({ type: "pack", packCount: 2, suit: "♦" });
     r.eq(blanks.length, 2, "an all-Blank +2 pack reveals 2 items");
@@ -685,13 +693,19 @@ export function run() {
   // ---- MAP SPECIALS: a new run prunes stale Joker identities ---------------
   {
     const c = CampaignState.create();
+    const startJokers = c.jokerCount();   // the fresh start deck's own Jokers (difficulty.js startJokers)
+    const startIds = new Set(c.getRunDeck().filter(x => x.joker).map(x => x.id));
     c._setMapSpecialRoll(() => true);
     c.resolvePickup({ id: 930001, type: "pickup", suit: "♦" });
-    r.eq(c.jokerCount(), 1, "a Joker owned mid-run");
+    const midId = c.getRunDeck().filter(x => x.joker && !startIds.has(x.id)).map(x => x.id)[0];
+    r.eq(c.jokerCount(), startJokers + 1, "a Joker owned mid-run");
     c._setMapSpecialRoll(() => null);   // the fresh map's locks roll normally
     c.startNewRun();
-    r.eq(c.jokerCount(), 0, "a new run's deck starts without the old Joker");
-    r.ok(!c.getDeck().some(x => x.joker), "…and the stale Joker identity was pruned from the base deck");
+    r.eq(c.jokerCount(), startJokers, "a new run's deck starts with only its own startJokers Jokers");
+    r.ok(midId != null && !c.getDeck().some(x => x.id === midId),
+      "…and the stale mid-run Joker identity was pruned from the base deck");
+    r.ok(c.getDeck().filter(x => x.joker).length >= startJokers,
+      "…while the new run's startJokers Jokers survive the prune (they're owned)");
   }
 
   // ---- PERF2: pre-generated run maps (deck-select idle) -------------------
@@ -703,6 +717,8 @@ export function run() {
     c.reset();   // startNewRun consumes the stash (matching deck/tier key)
     const map = c.getMap();
     r.eq(map.nodes.filter(n => n.jokerNode).length, 2, "the consumed map carries pinky-regular's fixed Joker nodes");
+    r.eq(c.serialize().stageEntryDecks[0], START,
+      "the consumed run's stage-0 entry counts the startJokers (the pregen ladder threads the real start size)");
     // The pregen's seed rides along — a save regenerates the SAME map.
     const wire = JSON.parse(JSON.stringify(c.serialize()));
     const c2 = CampaignState.create();

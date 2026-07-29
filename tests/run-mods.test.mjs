@@ -12,6 +12,11 @@ export function run() {
 
   const COLS = [3, 4, 3];   // col 0 = piles 0-2, col 1 = 3-6, col 2 = 7-9
   const card = (value, suit) => ({ value, suit, label: String(value), stickers: [], red: suit === "♥" || suit === "♦" });
+  // A fresh pink/regular campaign pre-holds a starting Joker (difficulty.js
+  // startJokers) — deal these fixtures a joker-free deck so the random deal
+  // can't land ★ on a pile top: a Joker takes the suit/rank write but toCard
+  // still projects ★/0 (the durability these fixtures pin is a base-card rule).
+  const dealCards = (camp) => camp.getCards().filter(c => !c.joker && !c.blank);
 
   // --- #1 Cast: value change persists onto the campaign card -------------
   // Cast copies the column's bottom pile RANK onto the other tops. Mimic the real
@@ -19,7 +24,7 @@ export function run() {
   // persistent deck (campaign.randomizeCard) → re-materialize.
   {
     const camp = CampaignState.create();
-    const e = GameEngine.create(camp.getCards(), 7, { cols: COLS });
+    const e = GameEngine.create(dealCards(camp), 7, { cols: COLS });
     e.start();
     e.startRun([null, null, null], ["setValue", null, null]);   // Cast on col 0
     const b = e.getBoard();
@@ -40,7 +45,7 @@ export function run() {
   // --- #1 Suit Setter: suit change persists onto the campaign cards ------
   {
     const camp = CampaignState.create();
-    const e = GameEngine.create(camp.getCards(), 7, { cols: COLS });
+    const e = GameEngine.create(dealCards(camp), 7, { cols: COLS });
     e.start();
     e.startRun([null, null, null], ["setSuit", null, null]);   // Suit Setter on col 0
     const b = e.getBoard();
@@ -60,7 +65,7 @@ export function run() {
   // --- #1 Wild Sticker: the single-card sticker persists too -------------
   {
     const camp = CampaignState.create();
-    const e = GameEngine.create(camp.getCards(), 7, { cols: COLS });
+    const e = GameEngine.create(dealCards(camp), 7, { cols: COLS });
     e.start();
     e.startRun([null, null, null], ["randomSticker", null, null]);
     const res = e.baseActivate(0);

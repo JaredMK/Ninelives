@@ -1,12 +1,16 @@
-// MYST1 — mystery "?" node events (Stage 1: data + DOM-free core).
+// MYST2 — mystery "?" node events (data + DOM-free core).
 //  - items.js `mystery` config validates fail-loudly; cursed stickers parse.
 //  - rollMysteryEvent(nodeId) is a pure seeded weighted roll (same seed+node
 //    → same key); applyMysteryEvent performs the outcome's state mutation.
+//  - New outcomes: cards (N suit-gated grants in cardGrantRange), joker
+//    (held-vs-cap gated, deterministic coinBonus fold at cap), store
+//    (descriptor marker — the UI opens the store visit).
+//  - The cursedCard outcome is RETIRED: old saves strip cursed cards on load.
 //  - Cursed stickers are excluded from EVERY normal grant pool (store offers,
 //    sticker packs, pack-card generation, Mr. Smith's grants) yet stay
 //    gettable by id and applicable.
-//  - Engine: tributeCoin stickers and innately cursed cards pay a negative
-//    "sticker-coins" tribute on landing (Bury 2's exact shape).
+//  - Engine: tributeCoin stickers pay a negative "sticker-coins" tribute on
+//    landing (Bury 2's exact shape).
 // RULES only — every expected number is read from ItemData, never pinned.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -46,12 +50,14 @@ export function run() {
     "coinRangeByStage is a non-empty array of well-formed [min,max] pairs");
   r.ok(["cards", "piles", "bounty"].every(k => typeof M.ambush[k] === "number" && M.ambush[k] > 0),
     "the ambush deal knobs (cards/piles/bounty) are positive numbers");
-  r.ok(typeof M.cursedCardTribute === "number" && M.cursedCardTribute > 0,
-    "cursedCardTribute is a positive number");
-  r.ok(Array.isArray(M.cursedCardRankRange) && M.cursedCardRankRange.length === 2
-    && M.cursedCardRankRange[0] >= 2 && M.cursedCardRankRange[1] <= 14
-    && M.cursedCardRankRange[0] <= M.cursedCardRankRange[1],
-    "cursedCardRankRange is a well-formed [min,max] rank pair");
+  r.ok(Array.isArray(M.cardGrantRange) && M.cardGrantRange.length === 2
+    && M.cardGrantRange.every(n => Number.isInteger(n) && n >= 1)
+    && M.cardGrantRange[0] <= M.cardGrantRange[1],
+    "cardGrantRange is a well-formed [min,max] pair of positive integers");
+  r.ok(wKeys.indexOf("cursedCard") === -1 && wKeys.indexOf("cardPack") === -1,
+    "the retired outcomes (cursedCard, cardPack) are out of the weights table");
+  r.ok(M.cursedCardTribute === undefined && M.cursedCardRankRange === undefined,
+    "…and their knobs are gone from items.js");
 
   // ── data: the cursed stickers ─────────────────────────────────────────────
   r.ok(CURSED_IDS.length >= 2, "at least two cursed sticker entries exist (" + CURSED_IDS.join(", ") + ")");
@@ -64,7 +70,7 @@ export function run() {
   // ── validator: a malformed mystery section fails loudly on load ───────────
   {
     let threw = null;
-    try { loadGame({ itemsSource: ITEMS_SRC.replace("coinBonus: 20,", "coinBonus: -1,") }); }
+    try { loadGame({ itemsSource: ITEMS_SRC.replace(/coinBonus: \d+,/, "coinBonus: -1,") }); }
     catch (e) { threw = e; }
     r.ok(threw && /items\.js validation FAILED/.test(threw.message), "a negative outcome weight throws on load");
   }
@@ -200,7 +206,7 @@ export function run() {
     r.eq(d0.amount, 0, "…and the descriptor reports the floored amount");
   }
 
-  // ── applyMysteryEvent: stickerPack / cardPack ─────────────────────────────
+  // ── applyMysteryEvent: stickerPack / cards ────────────────────────────────
   {
     const c = CampaignState.create();
     const d = c.applyMysteryEvent("stickerPack", 13);
@@ -210,23 +216,102 @@ export function run() {
     r.ok(typeof d.stickerLabel === "string" && d.stickerLabel.length > 0, "the descriptor names the sticker");
   }
   {
+    // cards: N grants, N inside cardGrantRange, suit-gated to the current
+    // stage's suit (Pinky phase 0 → ♦), all owned, deck grows by exactly N.
     const c = CampaignState.create();
     const sizeBefore = c.deckSize();
-    const d = c.applyMysteryEvent("cardPack", 14);
-    r.ok(d && d.card && d.cardId != null, "cardPack returns the minted card");
-    r.eq(c.deckSize(), sizeBefore + 1, "cardPack grows the deck by exactly one");
-    r.ok(c.getRunDeck().some(x => x.id === d.cardId), "the minted card is owned (dealt in the run deck)");
-    r.ok(!d.card.cursed, "a cardPack card is never innately cursed");
+    const d = c.applyMysteryEvent("cards", 14);
+    r.ok(d && d.key === "cards" && Array.isArray(d.cards), "cards returns the granted cards array");
+    r.ok(d.cards.length >= M.cardGrantRange[0] && d.cards.length <= M.cardGrantRange[1],
+      "…the grant count lies inside cardGrantRange (got " + d.cards.length + ")");
+    r.ok(d.cards.every(x => x && !x.joker && !x.blank && x.suit === "♦"),
+      "…every granted card is a regular card of the stage suit (♦)");
+    r.eq(c.deckSize(), sizeBefore + d.cards.length, "…the deck grew by exactly the grant count");
+    r.ok(d.cards.every(x => c.getRunDeck().some(y => y.id === x.id)), "…every granted card is owned");
+    // Deterministic per (seed, node): a restored twin rolls the same count.
+    const snap = JSON.parse(JSON.stringify(CampaignState.create().serialize()));
+    const c1 = CampaignState.create(); c1.restore(snap);
+    const c2 = CampaignState.create(); c2.restore(snap);
+    r.eq(c1.applyMysteryEvent("cards", 77).cards.length, c2.applyMysteryEvent("cards", 77).cards.length,
+      "the grant count is deterministic per (seed, node)");
+  }
+  {
+    // Alt decks roll ALL suits per slot (the map-pack rule).
+    const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();
+    const suits = new Set();
+    for (let id = 200; id < 240 && suits.size < 2; id++)
+      (c.applyMysteryEvent("cards", id).cards || []).forEach(x => suits.add(x.suit));
+    r.ok(suits.size >= 2, "an alt deck's cards outcome spans suits (" + [...suits].join(" ") + ")");
+  }
+
+  // ── applyMysteryEvent: joker (held-vs-cap, deterministic fold) ───────────
+  {
+    // Below the cap: a real Joker is minted + owned. Mamma Regular carries the
+    // roaming guaranteed node (1 reserved slot) under the data's cap.
+    const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();
+    const budget = c.jokerBudget();
+    r.ok(budget.committed < budget.cap, "fixture: below the cap (" + budget.committed + "/" + budget.cap + ")");
+    const sizeBefore = c.deckSize();
+    const d = c.applyMysteryEvent("joker", 30);
+    r.ok(d && d.key === "joker" && d.card && d.card.joker, "joker mints a real Joker below the cap");
+    r.eq(c.deckSize(), sizeBefore + 1, "…grown into the deck");
+    r.ok(c.getRunDeck().some(x => x.id === d.cardId), "…owned immediately");
+    // At the cap the roll folds DETERMINISTICALLY to coinBonus: fill every
+    // remaining slot via the pinned map-special roll, then apply again.
+    c._setMapSpecialRoll(() => true);
+    const packNode = c.getMap().nodes.find(n => n.type === "pack");
+    for (let i = 0; i < budget.cap - budget.committed - 1; i++)
+      c.resolvePack({ ...packNode, packCount: 1 });
+    c._setMapSpecialRoll(null);
+    r.eq(c.jokerBudget().committed, budget.cap, "fixture: the cap is now full");
+    const coinsBefore = c.getCoins(), sizeAtCap = c.deckSize();
+    const folded = c.applyMysteryEvent("joker", 30);
+    r.ok(folded && folded.key === "coinBonus", "at cap the joker roll folds to coinBonus");
+    r.ok(c.getCoins() > coinsBefore, "…paying the coin amount");
+    r.eq(c.deckSize(), sizeAtCap, "…minting no card");
+    const folded2 = c.applyMysteryEvent("joker", 30);
+    r.ok(folded2 && folded2.key === "coinBonus" && folded2.amount === folded.amount,
+      "…and the fold is deterministic for the same (seed, node)");
+  }
+  {
+    // Pinky Regular's fixed scheme bans RANDOM sources (jokersAllowed) but the
+    // mystery joker is an authorized source while under the cap — held-vs-cap,
+    // never the scheme's blanket-false.
+    const c = CampaignState.create();   // default pink / regular
+    const budget = c.jokerBudget();
+    r.ok(!budget.allowed, "fixture: pinky regular's random sources are off (fixed scheme)");
+    r.ok(budget.committed < budget.cap, "fixture: under the cap (" + budget.committed + "/" + budget.cap + ")");
+    const d = c.applyMysteryEvent("joker", 31);
+    r.ok(d && d.key === "joker" && d.card && d.card.joker,
+      "pinky regular CAN receive the mystery Joker while under the cap");
+  }
+  {
+    // Legendary (cap 0): the joker roll ALWAYS folds — never a Joker.
+    const c = CampaignState.create();
+    c.setTier("legendary"); c.reset();
+    const d = c.applyMysteryEvent("joker", 32);
+    r.ok(d && d.key === "coinBonus", "legendary: the joker outcome always folds to coinBonus");
+    r.ok(c.getRunDeck().every(x => !x.joker), "…and no Joker ever lands in the deck");
   }
 
   // ── applyMysteryEvent: descriptor-only outcomes mutate nothing ────────────
-  for (const key of ["freeRemoval", "stickerStrip", "ambush"]) {
+  for (const key of ["freeRemoval", "stickerStrip", "ambush", "store"]) {
     const c = CampaignState.create();
     const coins0 = c.getCoins(), size0 = c.deckSize();
     const d = c.applyMysteryEvent(key, 15);
     r.ok(d && d.key === key && typeof d.title === "string" && typeof d.desc === "string",
       key + " returns a titled descriptor");
     r.ok(c.getCoins() === coins0 && c.deckSize() === size0, key + " mutates no campaign state (descriptor only)");
+  }
+  {
+    // The store outcome's descriptor is the marker Stage B dispatches on:
+    // key + copy only — the UI opens the store visit, then the node resolves.
+    const c = CampaignState.create();
+    const d = c.applyMysteryEvent("store", 21);
+    r.ok(d && d.key === "store" && d.title.length > 0 && d.desc.length > 0,
+      "store returns the store-visit marker descriptor");
   }
   {
     const c = CampaignState.create();
@@ -245,22 +330,28 @@ export function run() {
     r.ok(c.getCardById(d.cardId).stickers.some(s => s.type === d.stickerId),
       "…and the sticker really lands on that card");
   }
+  // ── MYST2 migration: a save carrying a retired cursed card strips it on load ──
   {
     const c = CampaignState.create();
     const sizeBefore = c.deckSize();
-    const d = c.applyMysteryEvent("cursedCard", 19);
-    r.ok(d && d.card && d.card.cursed === true, "cursedCard mints a cursed:true card");
-    r.ok(d.card.currentRank >= M.cursedCardRankRange[0] && d.card.currentRank <= M.cursedCardRankRange[1],
-      "…at a rank inside items.js cursedCardRankRange (got " + d.card.currentRank + ")");
-    r.eq(c.deckSize(), sizeBefore + 1, "…grown into the deck");
-    r.ok(c.getRunDeck().some(x => x.id === d.cardId), "…owned immediately (appears in the run deck)");
-    // serialize → restore round-trip: the cursed flag and ownership survive.
     const snap = JSON.parse(JSON.stringify(c.serialize()));
+    // Forge a pre-MYST2 save exactly as the retired cursedCard outcome wrote
+    // it: an innately cursed minted card in the base deck, owned.
+    const cursed = { id: 90001, suit: "♣", originalRank: 8, currentRank: 8,
+                     modifications: [], stickers: [], compoundHits: 0, cursed: true };
+    snap.baseDeck.push(cursed);
+    snap.ownedIds.push(cursed.id);
+    snap.nextCardId = cursed.id + 1;
     const c2 = CampaignState.create();
-    r.ok(c2.restore(snap), "the campaign with a cursed card restores");
-    const restored = c2.getCardById(d.cardId);
-    r.ok(restored && restored.cursed === true, "the cursed flag survives serialize → restore");
-    r.ok(c2.getRunDeck().some(x => x.id === d.cardId), "…and the card is still owned after restore");
+    r.ok(c2.restore(snap), "a save holding a cursed card still restores");
+    r.eq(c2.getCardById(cursed.id), null, "the cursed card is stripped from the base deck on load");
+    r.ok(!c2.getRunDeck().some(x => x.id === cursed.id), "…and from ownership (the run deck never deals it)");
+    r.eq(c2.deckSize(), sizeBefore, "…the rest of the deck is intact (same size as the pristine campaign)");
+    r.ok(c2.getCards().every(x => !x.cursed), "…and no cursed flag survives anywhere in the restored deck");
+    const re = JSON.parse(JSON.stringify(c2.serialize()));
+    r.ok(re.baseDeck.every(x => !x.cursed) && re.ownedIds.indexOf(cursed.id) === -1,
+      "…re-serializing can't resurrect it");
+    r.eq(c.applyMysteryEvent("cursedCard", 19), null, "the retired cursedCard key resolves to null");
   }
 
   // ── removeRandomStickerFrom ───────────────────────────────────────────────
@@ -280,7 +371,7 @@ export function run() {
     r.eq(c.removeRandomStickerFrom(cleanId, mulberry(32)), null, "null (no mutation) on a stickerless card");
   }
 
-  // ── engine: tributeCoin sticker + innate curse pay on landing ─────────────
+  // ── engine: tributeCoin sticker pays on landing ───────────────────────────
   const COLS = [3, 4, 3];
   const mkEngine = () => {
     const e = GameEngine.create(DeckManager.buildStandardDeck(), 9, { cols: COLS });
@@ -305,23 +396,17 @@ export function run() {
       "a negative sticker-coins event fires with the sticker's label");
   }
   {
-    const e = mkEngine();
-    let coinEvent = null;
-    e.onEvent((t, p) => { if (t === "sticker-coins") coinEvent = p; });
-    landOn(e, { id: 9102, label: "7", value: 7, suit: "♣", red: false, cursed: true,
-                stickers: [], suitGuards: {}, heartsRemaining: 0 });
-    r.ok(e.getBoard().isActive(0), "the innately cursed card lands (pile survives)");
-    r.eq(e.getRun().bonusCoins, -M.cursedCardTribute, "the bonus tally drops by mystery.cursedCardTribute");
-    r.ok(coinEvent && coinEvent.amount === -M.cursedCardTribute && coinEvent.label === "Cursed",
-      "a negative sticker-coins event fires with the Cursed label");
-  }
-  {
-    // control: an ordinary card pays nothing (the negative tallies above are
-    // the tributes, not ambient landing noise).
+    // control: an ordinary card pays nothing (the negative tally above is the
+    // tribute, not ambient landing noise) — and a stray `cursed` flag from an
+    // old mid-deal checkpoint is inert (the innate toll is retired).
     const e = mkEngine();
     landOn(e, { id: 9103, label: "7", value: 7, suit: "♦", red: true,
                 stickers: [], suitGuards: {}, heartsRemaining: 0 });
     r.eq(e.getRun().bonusCoins, 0, "control: a plain landing moves no coins");
+    const e2 = mkEngine();
+    landOn(e2, { id: 9104, label: "7", value: 7, suit: "♣", red: false, cursed: true,
+                 stickers: [], suitGuards: {}, heartsRemaining: 0 });
+    r.eq(e2.getRun().bonusCoins, 0, "a stray cursed flag pays nothing (retired toll)");
   }
 
   return r.summary();

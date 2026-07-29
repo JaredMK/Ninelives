@@ -147,6 +147,47 @@ export function run() {
       "…an unknown tier gets null (no silent Regular fallback)");
   }
 
+  // ---- startJokers (MYST2): per-deck starting Jokers, data + accessor -------
+  {
+    const { DifficultyData } = loadGame();
+    const reg = DifficultyData.tier("regular");
+    r.ok(reg.startJokers && typeof reg.startJokers === "object",
+      "Regular carries the startJokers block");
+    r.eq(DifficultyData.startJokers("pink", "regular"), reg.startJokers.pink,
+      "startJokers(pink, regular) reads the data's count live");
+    r.eq(DifficultyData.startJokers("mamma", "regular"), 0,
+      "…a deck the data does NOT list gets 0");
+    r.eq(DifficultyData.startJokers("pink", "master"), 0,
+      "…and so does Pinky on Master");
+    r.eq(DifficultyData.startJokers("pink", "legendary"), 0,
+      "…and Pinky on Legendary");
+    r.eq(DifficultyData.startJokers("pink", "nonsense"), 0,
+      "…an unknown tier gets 0 (no silent Regular fallback)");
+  }
+
+  // ---- startJokers: malformed entries FAIL LOUDLY naming tier + field -------
+  {
+    const cases = [
+      ["block not an object", (d) => { d.tiers.regular.startJokers = [1]; }, "tiers.regular", "startJokers"],
+      ["empty deck-id key", (d) => { d.tiers.regular.startJokers = { "": 1 }; }, "tiers.regular", "deck-id key"],
+      ["count zero", (d) => { d.tiers.regular.startJokers = { pink: 0 }; }, "startJokers.pink", "positive integer"],
+      ["count negative", (d) => { d.tiers.regular.startJokers = { pink: -1 }; }, "startJokers.pink", "positive integer"],
+      ["count non-integer", (d) => { d.tiers.regular.startJokers = { pink: 1.5 }; }, "startJokers.pink", "positive integer"],
+      ["count not a number", (d) => { d.tiers.regular.startJokers = { pink: "1" }; }, "startJokers.pink", "positive integer"],
+    ];
+    for (const [name, mutate, entry, field] of cases) {
+      const { threw, errs } = loadExpectingFailure(mutate);
+      r.ok(threw && /difficulty\.js validation FAILED/.test(threw.message), `malformed startJokers (${name}) throws on load`);
+      r.ok(errs.some((l) => l.includes(entry) && l.includes(field)),
+        `…and a console.error names "${entry}" + "${field}"`);
+    }
+    // Control: the field stays OPTIONAL — a tier without it validates clean.
+    let ok = true;
+    try { loadGame({ difficultySource: difficultySourceWith(d => { delete d.tiers.regular.startJokers; }) }); }
+    catch (e) { ok = false; }
+    r.ok(ok, "a tier with no startJokers block still validates clean");
+  }
+
   // ---- fixedJokers: malformed entries FAIL LOUDLY naming tier + field -------
   {
     const cases = [

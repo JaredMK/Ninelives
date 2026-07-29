@@ -4101,6 +4101,21 @@ const NativeApp = (() => {
   .dcs-ic .ico, .dcs-ic svg { width: 100%; height: 100%; display: block; fill: currentColor; }
   .dcs-ic .ico.spent { opacity: 1; }   /* spent state is shown on the whole chip, not the icon */
   .dcs.spent { opacity: 0.5; filter: grayscale(0.45); }
+  /* CURSED vinyl (MYST2 — leech/leech2): corrupted but still a die-cut sticker
+     (same .dcs format/size). The violet face + dark edge ride the inline
+     --dcs-* vars (set by the chip builders); here the dark jagged halo, the
+     corruption swirl over the gloss, and the desaturated icon. */
+  .dcs.dcs-cursed {
+    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(43, 24, 84, 0.95),
+                0 3px 7px rgba(43, 24, 84, 0.55);
+  }
+  .dcs.dcs-cursed .dcs-gloss {
+    background:
+      radial-gradient(95% 95% at 68% 80%, rgba(32, 14, 66, 0.55), rgba(32, 14, 66, 0) 62%),
+      repeating-conic-gradient(from 18deg, rgba(24, 10, 52, 0.22) 0deg 11deg, rgba(24, 10, 52, 0) 11deg 29deg),
+      linear-gradient(135deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.08) 26%, rgba(255,255,255,0) 48%);
+  }
+  .dcs.dcs-cursed .dcs-ic { filter: saturate(0.5) brightness(0.94) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
   .dcs-n {
     position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
     background: #2a1d24; color: #fff; border: 1.5px solid #fff; border-radius: 999px;
@@ -4699,6 +4714,10 @@ const NativeApp = (() => {
     touch-action: manipulation;
   }
   body.debug-access .debug-toggle { display: flex; }
+  /* MYST2 debug peek: the seeded outcome tag on a hidden "?" map node renders
+     ALWAYS, but shows only under debug access — the toggle reacts instantly,
+     no map re-render needed (same idiom as the debug toggle itself). */
+  body:not(.debug-access) .pm-myst-out { display: none; }
   .debug-toggle:active { transform: scale(0.92); opacity: 0.9; }
 
   /* AUTOPILOT (debug): the ▶/⏸ pilot button beside the debug toggle. It exists
@@ -5226,6 +5245,15 @@ const NativeApp = (() => {
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 9px rgba(60,40,80,0.35); }
   .mn-myst::after { content: ""; position: absolute; inset: 3px; border-radius: 5px;
     border: 1px dashed rgba(239,227,251,0.35); }
+  /* DEBUG PEEK (MYST2): the seeded outcome label, a tiny violet tag under the
+     "?" — hidden unless body.debug-access (gated next to the debug rule). */
+  .pm-myst-out {
+    position: absolute; left: 50%; top: calc(100% + 3px); transform: translateX(-50%);
+    padding: 1px 5px; border-radius: 6px; z-index: 7;
+    background: #7a4fd0; color: #fff; font-size: 8px; font-weight: 800; line-height: 1.3;
+    white-space: nowrap; pointer-events: none;
+    box-shadow: 0 1px 3px rgba(42, 20, 80, 0.5);
+  }
   /* Reveal pop: the just-arrived node flips in from small + tilted, overshoots,
      and settles on the s-here scale (1.1) so there's no snap at the end. */
   .pm-node.myst-pop { animation: mystPop 0.6s cubic-bezier(0.34, 1.4, 0.5, 1); z-index: 4; }
@@ -6048,20 +6076,87 @@ const NativeApp = (() => {
   }
   .mystery-event .me-go:active { transform: scale(0.96); }
 
-  /* CURSED cards (MYST1 — the mystery cursedCard outcome): a violet-tinted face
-     with a small curse swirl, distinct at a glance like the Joker's gold — shown
-     everywhere the card face renders (mini cards, board front, deck reveal). */
-  .mini-card.mc-cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); color: #4c2a86; border-color: #b79ae0; }
-  .mini-card.mc-cursed.red { color: #7c2f6b; }
-  .mini-card .mc-curse { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; color: #7a4fd0; }
-  .mini-card .mc-curse .ico { display: block; width: 100%; height: 100%; }
-  .face.front.cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); }
-  .pile-badges .dcs.pb-curse { --dcs-size: 17px; }
-  .deck-pile .ds-face.cursed { background: linear-gradient(160deg, #efe6fb, #d9c6f2); color: #4c2a86; }
-  .deck-pile .ds-face .dsf-curse { position: absolute; top: 1px; left: 1px; width: 12px; height: 12px; color: #7a4fd0; }
-  .deck-pile .ds-face .dsf-curse .ico { display: block; width: 100%; height: 100%; }
-  .peek-info .pk-ic.pk-curse, .card-info-panel .pk-ic.pk-curse { color: #7a4fd0; }
-  .peek-info .pk-ic.pk-curse .ico, .card-info-panel .pk-ic.pk-curse .ico { display: block; width: 18px; height: 18px; }
+  /* MYST2 outcome animations — the art area carries a mea-<key> variant (set
+     in openMysteryEvent); each plays ONE short beat (300–700ms) at modal open.
+     Pure CSS keyframes (no JS timing); reduced motion kills them all below. */
+  .mystery-event .mea-coinBonus .me-coins { animation: meaCoinPop 0.5s cubic-bezier(0.34, 1.5, 0.5, 1) both; }
+  @keyframes meaCoinPop {
+    0% { transform: scale(0.2); opacity: 0; }
+    62% { transform: scale(1.18); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .mystery-event .mea-coinLoss .me-coins { color: var(--danger); animation: meaCoinDrain 0.65s ease-in both; }
+  @keyframes meaCoinDrain {
+    0% { transform: translateY(-8px) scale(1.1); opacity: 0; }
+    45% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(9px) scale(0.92); opacity: 0.55; }
+  }
+  .mystery-event .mea-cards .mini-card { animation: meaCardFlip 0.55s cubic-bezier(0.3, 1.3, 0.5, 1) both; }
+  .mystery-event .mea-cards .mini-card:nth-child(2) { animation-delay: 0.12s; }
+  .mystery-event .mea-cards .mini-card:nth-child(3) { animation-delay: 0.24s; }
+  .mystery-event .mea-cards .mini-card:nth-child(4) { animation-delay: 0.36s; }
+  @keyframes meaCardFlip {
+    0% { transform: rotateY(88deg) scale(0.7); opacity: 0; }
+    100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+  }
+  .mystery-event .mea-joker .mini-card { animation: meaJokerIn 0.6s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+  @keyframes meaJokerIn {
+    0% { transform: rotateY(92deg) scale(0.72); opacity: 0; box-shadow: 0 0 0 rgba(122, 79, 208, 0); }
+    55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(122, 79, 208, 0.75), 0 0 12px rgba(224, 185, 90, 0.8); }
+    100% { transform: rotateY(0deg) scale(1); box-shadow: 0 0 10px rgba(224, 185, 90, 0.35); }
+  }
+  .mystery-event .mea-store .me-glyph { animation: meaWhoosh 0.42s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  @keyframes meaWhoosh {
+    0% { transform: translateX(-46px) skewX(-14deg); opacity: 0; }
+    70% { transform: translateX(4px) skewX(3deg); opacity: 1; }
+    100% { transform: translateX(0) skewX(0); opacity: 1; }
+  }
+  .mystery-event .mea-stickerPack .dcs { animation: meaChipDrop 0.5s cubic-bezier(0.3, 1.45, 0.5, 1) both; }
+  @keyframes meaChipDrop {
+    0% { transform: translateY(-38px) scale(1.25) rotate(var(--dcs-rot)); opacity: 0; }
+    65% { transform: translateY(3px) scale(0.97) rotate(var(--dcs-rot)); opacity: 1; }
+    100% { transform: translateY(0) scale(1) rotate(var(--dcs-rot)); opacity: 1; }
+  }
+  .mystery-event .mea-stickerStrip .me-glyph { animation: meaPeelOff 0.6s ease-out both; }
+  @keyframes meaPeelOff {
+    0% { transform: translate(-10px, -18px) rotate(-24deg) scale(1.15); opacity: 0; }
+    60% { transform: translate(2px, 2px) rotate(4deg); opacity: 1; }
+    100% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  }
+  .mystery-event .mea-freeRemoval .mini-card { animation: meaFadeIn 0.55s ease-out both; }
+  @keyframes meaFadeIn { 0% { opacity: 0; transform: scale(0.86); } 100% { opacity: 1; transform: scale(1); } }
+  /* cursedSticker: the corrupted chip SLAMS onto the afflicted mini card, with
+     a violet flash blooming behind it (the .me-slam wrapper positions both). */
+  .mystery-event .me-slam { position: relative; display: inline-flex; }
+  .mystery-event .me-slam .dcs { position: absolute; top: -8px; right: -8px; --dcs-size: 40px; animation: meaSlam 0.55s cubic-bezier(0.3, 1.2, 0.5, 1) both; }
+  @keyframes meaSlam {
+    0% { transform: translate(-30px, -30px) scale(1.7) rotate(-30deg); opacity: 0; }
+    55% { transform: translate(0, 0) scale(0.92) rotate(var(--dcs-rot)); opacity: 1; }
+    75% { transform: scale(1.08) rotate(var(--dcs-rot)); }
+    100% { transform: scale(1) rotate(var(--dcs-rot)); }
+  }
+  .mystery-event .me-slam::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 10px; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(122, 79, 208, 0.85), rgba(122, 79, 208, 0));
+    opacity: 0; animation: meaCurseFlash 0.6s ease-out both;
+  }
+  @keyframes meaCurseFlash {
+    0%, 40% { opacity: 0; transform: scale(0.6); }
+    58% { opacity: 0.9; transform: scale(1.05); }
+    100% { opacity: 0; transform: scale(1.25); }
+  }
+  .mystery-event .mea-ambush .me-glyph { animation: meaAmbushShake 0.6s ease-in-out both; }
+  @keyframes meaAmbushShake {
+    0% { transform: scale(0.6); opacity: 0; filter: none; }
+    25% { transform: scale(1.15) translateX(-4px); opacity: 1; filter: drop-shadow(0 0 10px rgba(200, 60, 70, 0.9)); }
+    45% { transform: scale(1.1) translateX(4px); }
+    65% { transform: scale(1.12) translateX(-3px); }
+    85% { transform: scale(1.05) translateX(2px); }
+    100% { transform: scale(1) translateX(0); filter: drop-shadow(0 0 4px rgba(200, 60, 70, 0.45)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mystery-event .me-art *, .mystery-event .me-art *::after { animation: none !important; }
+  }
   /* ============================================================
      FELT CONTRAST PASS — every rule that put dark ink DIRECTLY on the old
      cream background gets a light on-felt ink here (late in the sheet so it
@@ -7045,7 +7140,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.05 · mystery nodes are real gambles: boons, curses, ambush deals";
+const APP_VERSION = "v5.06 · mystery: debug peek, cards/joker/store outcomes, Pinky starts with a Joker";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7458,6 +7553,12 @@ const STICKER_BEHAVIOR_CAT = {
   heavy: "util", anchor: "util", shuffle: "util", donate: "util",
 };
 const STICKER_EDGE = { common: "#c9cfd4", uncommon: "#7cc089", rare: "#6ba4d8" };
+/* Curse identity (MYST2): cursed stickers (items.js `cursed: true` — leech/
+   leech2, mystery-event only) wear a corrupted violet face + dark jagged edge
+   at EVERY chip site (stickerChip + the board badges), so a curse reads as a
+   corrupted sticker, never as a normal one. */
+const CURSE_VIOLET = "#7a4fd0";
+const CURSE_EDGE = "#46306e";
 function stickerCat(t) { return !t ? "util" : (t.kind === "rank" ? "rank" : (STICKER_BEHAVIOR_CAT[t.behavior] || "util")); }
 function stickerFaceColor(t) { return STICKER_FACE[stickerCat(t)] || STICKER_FACE.util; }
 /* Deterministic small rotation in ±[3,12]° from a seed string (stable across
@@ -7472,7 +7573,7 @@ const STICKER_RARITY_COLOR = STICKER_FACE;   // back-compat alias (face palette)
 function dieCutChip(iconHtml, tier, opts) {
   opts = opts || {};
   const face = opts.face || STICKER_FACE.util;
-  const edge = STICKER_EDGE[tier] || STICKER_EDGE.common;
+  const edge = opts.edge || STICKER_EDGE[tier] || STICKER_EDGE.common;
   const rot = (opts.rot != null ? opts.rot : 0);
   // Suit-restriction badge: the allowed suit symbol(s) riding the chip's
   // BOTTOM rim (opts.suits ← the sticker's items.js `suits` field, so any
@@ -7490,13 +7591,17 @@ function dieCutChip(iconHtml, tier, opts) {
     "</span>";
 }
 /* Convenience: a die-cut chip straight from a sticker type id — fills in the
-   category face colour and a stable rotation (seed it per-instance via opts.seed). */
+   category face colour and a stable rotation (seed it per-instance via opts.seed).
+   CURSED types override to the curse identity (violet face, dark edge, the
+   dcs-cursed corruption class) — they never read as a normal sticker. */
 function stickerChip(typeId, opts) {
   const t = StickerTypes.get(typeId);
   if (!t) return "";
   opts = opts || {};
   return dieCutChip(t.icon, t.tier, Object.assign({}, opts, {
-    face: stickerFaceColor(t),
+    cls: [opts.cls, t.cursed ? "dcs-cursed" : null].filter(Boolean).join(" ") || undefined,
+    face: t.cursed ? CURSE_VIOLET : stickerFaceColor(t),
+    edge: t.cursed ? CURSE_EDGE : undefined,
     rot: opts.rot != null ? opts.rot : dcsRot(typeId + "|" + (opts.seed || "")),
     suits: t.suits,   // items.js restriction → bottom-rim suit badge(s)
   }));
@@ -7600,7 +7705,7 @@ const ItemData = (() => {
   if (!my || typeof my !== "object") problems.push("[items.js] mystery: missing config object");
   else {
     const mw = my.weights || {};
-    for (const k of ["coinBonus", "stickerPack", "cardPack", "freeRemoval", "stickerStrip", "cursedSticker", "cursedCard", "coinLoss", "ambush"])
+    for (const k of ["coinBonus", "cards", "stickerPack", "freeRemoval", "stickerStrip", "joker", "store", "cursedSticker", "coinLoss", "ambush"])
       if (typeof mw[k] !== "number" || !isFinite(mw[k]) || mw[k] <= 0)
         problems.push("[items.js] mystery.weights." + k + ": must be a positive number");
     const cr = my.coinRangeByStage;
@@ -7612,17 +7717,15 @@ const ItemData = (() => {
           || typeof pair[1] !== "number" || !isFinite(pair[1]) || pair[1] < pair[0])
         problems.push("[items.js] mystery.coinRangeByStage[" + i + "]: must be a [min,max] pair of numbers with 0 ≤ min ≤ max");
     });
+    const cg = my.cardGrantRange;
+    if (!Array.isArray(cg) || cg.length !== 2
+        || typeof cg[0] !== "number" || !isFinite(cg[0]) || Math.floor(cg[0]) !== cg[0] || cg[0] < 1
+        || typeof cg[1] !== "number" || !isFinite(cg[1]) || Math.floor(cg[1]) !== cg[1] || cg[1] < cg[0])
+      problems.push("[items.js] mystery.cardGrantRange: must be a [min,max] pair of integers with 1 ≤ min ≤ max");
     const am = my.ambush || {};
     for (const k of ["cards", "piles", "bounty"])
       if (typeof am[k] !== "number" || !isFinite(am[k]) || am[k] <= 0)
         problems.push("[items.js] mystery.ambush." + k + ": must be a positive number");
-    if (typeof my.cursedCardTribute !== "number" || !isFinite(my.cursedCardTribute) || my.cursedCardTribute <= 0)
-      problems.push("[items.js] mystery.cursedCardTribute: must be a positive number (innate cursed-card tribute per landing)");
-    const rr = my.cursedCardRankRange;
-    if (!Array.isArray(rr) || rr.length !== 2
-        || typeof rr[0] !== "number" || !isFinite(rr[0]) || Math.floor(rr[0]) !== rr[0] || rr[0] < 2
-        || typeof rr[1] !== "number" || !isFinite(rr[1]) || Math.floor(rr[1]) !== rr[1] || rr[1] > 14 || rr[1] < rr[0])
-      problems.push("[items.js] mystery.cursedCardRankRange: must be a [min,max] pair of integer ranks with 2 ≤ min ≤ max ≤ 14");
     // The cursedSticker outcome rolls from the stickers flagged `cursed: true`.
     if (!Array.isArray(D.stickers) || !D.stickers.some(s => s && s.cursed === true))
       problems.push("[items.js] stickers: at least one entry must carry `cursed: true` (the mystery cursedSticker outcome's pool)");
@@ -7743,6 +7846,20 @@ const DifficultyData = (() => {
         });
       }
     }
+    // startJokers — OPTIONAL per-deck starting Jokers: an object mapping
+    // deck-id strings to a positive integer count (Jokers the deck begins
+    // every run with on this tier, counted against jokerCap).
+    if (t.startJokers !== undefined) {
+      const sj = t.startJokers;
+      if (!sj || typeof sj !== "object" || Array.isArray(sj))
+        bad("invalid `startJokers` (object mapping deck ids to positive integer counts)");
+      else for (const deckKey of Object.keys(sj)) {
+        const n = sj[deckKey];
+        if (typeof deckKey !== "string" || !deckKey) { bad("`startJokers` has an empty deck-id key"); continue; }
+        if (typeof n !== "number" || !isFinite(n) || Math.floor(n) !== n || n <= 0)
+          bad("`startJokers." + deckKey + "` must be a positive integer (got " + JSON.stringify(n) + ")");
+      }
+    }
     for (const key of ["stageBands", "bossBands"]) {
       const b = t[key];
       if (!Array.isArray(b) || b.length !== 3) { bad("`" + key + "` must be an array of exactly 3 [lo, hi] pairs"); continue; }
@@ -7789,6 +7906,15 @@ const DifficultyData = (() => {
       const fj = t && t.fixedJokers;
       const stages = fj ? fj[deckId] : null;
       return (Array.isArray(stages) && stages.length) ? stages : null;
+    },
+    /** The number of Jokers a deck STARTS every run with on a tier (0 when
+        the pair isn't listed). Same no-fallback contract as
+        fixedJokerStages — a bogus tier id must not inherit Regular's. */
+    startJokers(deckId, tierId) {
+      const t = D.tiers[tierId];
+      const sj = t && t.startJokers;
+      const n = sj ? sj[deckId] : 0;
+      return (typeof n === "number" && isFinite(n) && n > 0) ? n : 0;
     },
     zenIds: ZEN_IDS,
     zen(id) { return D.zen[id] || D.zen.easy; },
@@ -8180,9 +8306,6 @@ const DeckManager = (() => {
       // Compound: lifetime count of correct guesses made against this identity
       // (persisted on the campaign card). Pays (compoundHits − 1) if alive on top.
       compoundHits: card.compoundHits || 0,
-      // Innate curse (MYST1 — mystery-event cursed cards): every landing pays a
-      // coin tribute (see maybeStickerTribute). Projected like any card flag.
-      cursed: card.cursed === true,
       // Snowball Bury: the per-card bury size X (persisted on the campaign card,
       // like compoundHits). Grows on correct placements, resets on a wrong one.
       snowball: card.snowball || 0,
@@ -10357,24 +10480,13 @@ const GameEngine = (() => {
 
     /** Sticker tributes carried by the DRAWN card that just landed on a SURVIVING
         pile: Bury 1 / Bury 2 bury the card(s) IMMEDIATELY, no prompt; a Leech
-        (tributeCoin) and an innately CURSED card pay a flat coin toll instead.
+        (tributeCoin) pays a flat coin toll instead.
         When a sticker carries a coinCost, deduct it from the bonus tally on the
         same landing (Bury 2 costs 7). Can't afford → the effect still happens
         and the tally simply goes negative. Uncapped (bounded only by the draw
         deck). Every toll surfaces through the same negative "sticker-coins"
         cue, so the UI float + coin-loss sound come free. */
     function maybeStickerTribute(index, drawn) {
-      // Innate curse (MYST1): the card itself is cursed — every landing leeches
-      // the tribute (items.js mystery.cursedCardTribute). Identical in shape to
-      // the sticker toll below.
-      if (drawn && drawn.cursed) {
-        const tribute = itemNum(ItemData.mystery, "cursedCardTribute", 1);
-        if (tribute) {
-          addBonus("Cursed", -tribute);
-          emit("sticker-coins", { index, label: "Cursed", amount: -tribute, board, deck, run });
-          recT("sticker", "cursedCard", "Cursed", { coins: -tribute });
-        }
-      }
       const stickers = (drawn && drawn.stickers) || [];
       if (!stickers.length) return;
       for (const s of stickers) {
@@ -12661,6 +12773,12 @@ const CampaignState = (() => {
     let pregenBuild = null;          // in-flight chunked build { key, tier, seed, entries, stepper, id }
     let pregenBuildId = 0;           // supersession/cancel guard: stale slices see a newer id and stop
     const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-");
+    /** The deck size a fresh run ENTERS with: the 13 start cards plus any
+        starting Jokers (difficulty.js startJokers). pregenerateRun's entry
+        ladder and startNewRun's real deck BOTH derive from this, so a Start
+        press always consumes the pregen (entry0 match) instead of falling
+        back to a multi-second synchronous build. */
+    const runStartSize = (dId, tId) => RunMap.GEN_CONFIG.startDeckSize + DifficultyData.startJokers(dId, tId);
     // One idle slice = ONE stage build (requestIdleCallback keeps the carousel
     // responsive; the setTimeout fallback mirrors the UI's schedulePregen).
     const pregenSlice = (fn) => {
@@ -12682,7 +12800,7 @@ const CampaignState = (() => {
       if (pregenCache.has(key)) return false;                    // already ready
       if (pregenBuild && pregenBuild.key === key) return false;  // already building
       RunMap.setDifficultyTier(tId);                             // preview tier (restore/genRunMap re-set it)
-      const e0 = RunMap.GEN_CONFIG.startDeckSize, prc = RunMap.GEN_CONFIG.predictedRouteCards;
+      const e0 = runStartSize(dId, tId), prc = RunMap.GEN_CONFIG.predictedRouteCards;
       const entries = [e0, e0 + prc, e0 + 2 * prc];
       // Pregen maps are only ever consumed by NEW runs → always the CURRENT
       // generator version (the genV gate only matters for restored saves).
@@ -12708,7 +12826,7 @@ const CampaignState = (() => {
       // start). Later stages use PREDICTED entry decks — entry + the average
       // route collection per stage (see GEN_CONFIG.predictedRouteCards) — and
       // the map stays FIXED for the run (no regeneration at a boss fall).
-      const entry0 = ownedIds.length || RunMap.GEN_CONFIG.startDeckSize;
+      const entry0 = ownedIds.length || runStartSize(deckId, difficultyTier);
       const prc = RunMap.GEN_CONFIG.predictedRouteCards;
       stageEntryDecks = [entry0, entry0 + prc, entry0 + 2 * prc];
       // PERF2: consume a matching pre-generated map (its seed rides along, so
@@ -12932,30 +13050,15 @@ const CampaignState = (() => {
       baseDeck.push(card);
       return card.id;
     }
-    /** Mint a CURSED persistent card (MYST1 — the mystery "?" cursedCard
-        outcome): a REAL mid-rank card that joins the deck like any granted
-        card, but innately cursed — every landing of it pays a coin tribute
-        (GameEngine; the amount is items.js mystery.cursedCardTribute). The
-        `cursed` flag is a plain extra field on the standard card shape, so
-        serialize/restore rides the existing spread-copy untouched. */
-    function mintCursedCard(rng = Math.random) {
-      const rr = ItemData.mystery.cursedCardRankRange;   // mid ranks (items.js)
-      const suit = ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)];
-      const rank = rr[0] + Math.floor(rng() * (rr[1] - rr[0] + 1));
-      const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank,
-                     modifications: [], stickers: [], compoundHits: 0, cursed: true };
-      baseDeck.push(card);
-      return card;
-    }
-
     /* ── MYSTERY ("?") NODE EVENTS (MYST1) ───────────────────────────────
        Arriving at a hidden node rolls ONE weighted outcome, seeded by
        (runSeed, nodeId) — the same node always resolves the same way,
        including after a save/restore. Every number lives in items.js
-       `mystery` (weights, coin ranges, ambush deal, curse tribute); nothing
-       is hardcoded here. Stage 2 wires the UI reveal; the ambush deal and
-       the free-removal/sticker-strip pickers resolve through the EXISTING
-       flows (descriptor-only outcomes below mutate nothing themselves). */
+       `mystery` (weights, coin ranges, card-grant range, ambush deal);
+       nothing is hardcoded here. Stage 2 wires the UI reveal; the store
+       visit, the ambush deal and the free-removal/sticker-strip pickers
+       resolve through the EXISTING flows (descriptor-only outcomes below
+       mutate nothing themselves). */
     const MYSTERY_KEY_SALT = 0x4d455654;     // "MEVT" — outcome-key roll (distinct from the map's mystery display salt)
     const MYSTERY_DETAIL_SALT = 0x4d414d54;  // "MAMT" — amounts / sticker / card picks
     function mysteryRng(nodeId, salt) {
@@ -12992,12 +13095,14 @@ const CampaignState = (() => {
       const M = ItemData.mystery;
       const range = M.coinRangeByStage[Math.min(phaseIndex, M.coinRangeByStage.length - 1)];
       const coinAmount = () => range[0] + Math.floor(rng() * (range[1] - range[0] + 1));
+      const coinBonus = () => {
+        const amount = coinAmount();
+        coins += amount;
+        return { key: "coinBonus", title: "Cache", amount, desc: "+" + amount + " coins" };
+      };
       switch (key) {
-        case "coinBonus": {
-          const amount = coinAmount();
-          coins += amount;
-          return { key, title: "Cache", amount, desc: "+" + amount + " coins" };
-        }
+        case "coinBonus":
+          return coinBonus();
         case "coinLoss": {
           const amount = Math.min(coins, coinAmount());   // floored at 0 — never negative
           coins -= amount;
@@ -13011,13 +13116,47 @@ const CampaignState = (() => {
           return { key, title: "Imprint", stickerId: sid, stickerLabel: t ? t.label : sid,
                    desc: "A " + (t ? t.label : sid) + " sticker joins your inventory" };
         }
-        case "cardPack": {
-          const card = genNormalCard(rng);   // pack-odds card (may carry stickers)
-          baseDeck.push(card);
-          ownedIds.push(card.id);
-          return { key, title: "Windfall", card, cardId: card.id,
-                   desc: persistentCardName(card) + " joins your deck" };
+        case "cards": {
+          // N regular cards, N rolled in items.js cardGrantRange, suit-gated
+          // per the map-pack rule: the current stage's suit, or a per-slot
+          // random suit for the alt decks and endless stages (never a
+          // Joker/Blank). Grant goes through the resolvePack idiom
+          // (pickSuitDraftId — mints a duplicate of the suit once its unique
+          // pool is spoken for, so the grant can never come up short or
+          // off-suit).
+          const gr = M.cardGrantRange;
+          const n = gr[0] + Math.floor(rng() * (gr[1] - gr[0] + 1));
+          const anySuit = rules().altSuits || phaseIndex >= PHASE_SUITS.length;   // the map-pack rule
+          const cards = [];
+          for (let i = 0; i < n; i++) {
+            const slotSuit = anySuit ? ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)] : phaseSuit();
+            const id = pickSuitDraftId(slotSuit);
+            if (id == null) break;
+            ownedIds.push(id);
+            cards.push(rollGrantStickers(findById(id)));   // Mr. Smith: grants may carry stickers
+          }
+          if (!cards.length) return null;
+          return { key, title: "Windfall", cards, cardIds: cards.map(c => c.id),
+                   desc: cards.length === 1
+                     ? persistentCardName(cards[0]) + " joins your deck"
+                     : cards.length + " cards join your deck" };
         }
+        case "joker": {
+          // Apply-time gate: HELD-vs-CAP (never jokersAllowed() — the fixed
+          // scheme's blanket-false would bar Pinky Regular, an authorized
+          // source within its cap). Cap full (Legendary: always) → the roll
+          // DETERMINISTICALLY folds to the coin boon instead.
+          if (jokersHeld() >= jokerCapFor()) return coinBonus();
+          const jid = mintJokerId();
+          ownedIds.push(jid);
+          const card = findById(jid);
+          return { key, title: "Wild Card", card, cardId: jid,
+                   desc: "A ★ Joker joins your deck" };
+        }
+        case "store":
+          // Descriptor only — the UI opens a full store visit on the spot; the
+          // underlying node dispatches after the store closes.
+          return { key, title: "Detour", desc: "The store opens on the spot — the node waits for you" };
         case "freeRemoval":
           // Descriptor only — the UI opens the choose-a-card-to-remove flow;
           // the removal itself goes through removeDeckCard.
@@ -13037,12 +13176,6 @@ const CampaignState = (() => {
           return { key, title: "Cursed", stickerId: t.id, stickerLabel: t.label,
                    cardId: card.id, card,
                    desc: t.label + " afflicts your " + persistentCardName(card) };
-        }
-        case "cursedCard": {
-          const card = mintCursedCard(rng);
-          ownedIds.push(card.id);
-          return { key, title: "Cursed Card", card, cardId: card.id,
-                   desc: "A cursed " + persistentCardName(card) + " joins your deck — it leeches coins every time it lands" };
         }
         case "ambush":
           // Descriptor only (Stage 2 deals it) — the numbers ride along live
@@ -13232,9 +13365,10 @@ const CampaignState = (() => {
     }
     /** Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
         Pinky pre-holds the 13 hearts; alt decks (Mamma/Smith/Lammy) hold one
-        card of EACH RANK at a random suit. Mr. Smith's start cards each roll
-        one random eligible sticker; Lammy's six column slots pre-fill with 3
-        random Pillars + 3 random Bases. */
+        card of EACH RANK at a random suit. Decks listed in the tier's
+        startJokers (difficulty.js) also begin holding that many Jokers. Mr.
+        Smith's start cards each roll one random eligible sticker; Lammy's six
+        column slots pre-fill with 3 random Pillars + 3 random Bases. */
     function startNewRun() {
       phaseIndex = 0;
       if (rules().altSuits) {
@@ -13245,6 +13379,12 @@ const CampaignState = (() => {
       } else {
         ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
       }
+      // STARTING JOKERS (difficulty.js startJokers): minted + owned BEFORE the
+      // map generates, so the run's entry deck size (and the pregen ladder it
+      // must match) counts them. genRunMap's stale-Joker prune keeps these
+      // (they're owned) while dropping a previous run's unowned Jokers.
+      const startJokers = DifficultyData.startJokers(deckId, difficultyTier);
+      for (let i = 0; i < startJokers; i++) ownedIds.push(mintJokerId());
       runSeed = generateSeed();
       runGenVersion = RUN_GEN_VERSION;   // fresh seed → current generator (the genV gate protects only RESUMED seeds)
       genRunMap();
@@ -14627,6 +14767,17 @@ const CampaignState = (() => {
           modifications: (c.modifications || []).slice(),
           stickers: knownStickers(c.stickers),
         }));
+        // MYST2 migration: the cursedCard mystery outcome (and its innate
+        // coin toll) is retired — strip every innately cursed card an old
+        // save carries: out of the base deck AND out of ownership, before
+        // the lock pass below re-locks nodes against the restored deck. No
+        // refund. A stray `cursed` flag on a mid-deal checkpoint card is
+        // simply inert now (nothing reads it).
+        const retiredCursed = new Set(baseDeck.filter(c => c.cursed === true).map(c => c.id));
+        if (retiredCursed.size) {
+          baseDeck = baseDeck.filter(c => !retiredCursed.has(c.id));
+          ownedIds = ownedIds.filter(id => !retiredCursed.has(id));
+        }
         // Card Packs (default for saves written before packs existed).
         packTray = Array.isArray(s.packTray)
           ? s.packTray.map(c => ({ ...c, modifications: (c.modifications || []).slice(), stickers: knownStickers(c.stickers) }))
@@ -16012,19 +16163,24 @@ const UIRenderer = (() => {
     const badges = pileEl.querySelector(".pile-badges");
     if (!badges) return;
     const stickers = (card && card.stickers) || [];
-    // CURSED (MYST1): an innately cursed card carries a violet curse chip even
-    // with no stickers — so the early bail must account for it.
-    const cursed = !!(card && card.cursed);
     // Bail before any registry work for the common bare card (nothing to draw,
     // nothing drawn) — most piles most of the time.
-    if (!cursed && !stickers.length && !badges.firstChild) return;
+    if (!stickers.length && !badges.firstChild) return;
     // One pass over the card's stickers → per-type counts (the registry loop
     // below asks for every type; a filter() per type was O(registry × stickers)).
     const counts = {};
     for (const s of stickers) counts[s.type] = (counts[s.type] || 0) + 1;
     const n = (type) => counts[type] || 0;
     const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
-    const faceOf = (id) => stickerFaceColor(StickerTypes.get(id));
+    // CURSED stickers (MYST2 — leech/leech2) wear the curse-violet face + the
+    // corrupted-die-cut class everywhere a chip renders (stickerChip does the
+    // same for every other chip site).
+    const faceOf = (id) => { const t = StickerTypes.get(id); return t && t.cursed ? CURSE_VIOLET : stickerFaceColor(t); };
+    const clsOf = (id, cls) => {
+      const t = StickerTypes.get(id);
+      return [cls, t && t.cursed ? "dcs-cursed" : null].filter(Boolean).join(" ") || undefined;
+    };
+    const edgeOf = (id) => { const t = StickerTypes.get(id); return t && t.cursed ? CURSE_EDGE : undefined; };
     // Each vinyl leans toward the top-right corner (~−11°) and fans a little as
     // more stack, with a seeded jitter so it's stable per card but hand-placed.
     const seed = (card && card.id != null) ? card.id : "x";
@@ -16032,13 +16188,10 @@ const UIRenderer = (() => {
     const rotN = (id) => { const r = (-11 + idx * 8) + (dcsRot(seed + "|" + id + "|" + idx) % 5); idx++; return Math.max(-15, Math.min(15, r)); };
     // One die-cut vinyl per kind, with a small ×count when stacked.
     const chip = (id, icon, count, cls) =>
-      count > 0 ? dieCutChip(icon, tierOf(id), { count: count > 1 ? count : null, cls: cls, face: faceOf(id), rot: rotN(id) }) : "";
+      count > 0 ? dieCutChip(icon, tierOf(id), { count: count > 1 ? count : null, cls: clsOf(id, cls), face: faceOf(id), edge: edgeOf(id), rot: rotN(id) }) : "";
     const counter = (id, icon, count) =>
-      dieCutChip(icon, tierOf(id), { count: count, face: faceOf(id), rot: rotN(id) });
+      dieCutChip(icon, tierOf(id), { count: count, cls: clsOf(id), face: faceOf(id), edge: edgeOf(id), rot: rotN(id) });
     let html = "";
-    // Innate curse (MYST1): a violet swirl vinyl — reads like a sticker badge,
-    // but it can't be peeled (it's the card itself that's cursed).
-    if (cursed) html += dieCutChip(glyph("swirl"), "rare", { cls: "pb-curse", face: "#7a4fd0", rot: rotN("curse") });
     // Every registered sticker type → one vinyl from its category + rarity
     // (Snowball / Compound draw a live counter below, so skip their flat chip).
     for (const t of StickerTypes.all()) {
@@ -16078,9 +16231,6 @@ const UIRenderer = (() => {
     // JOKER face reads GOLD everywhere (same palette as its mini-card / map
     // node face) instead of black stars on the plain white front.
     front.classList.toggle("joker", !!card.joker);
-    // CURSED (MYST1): the innate mystery curse tints the face violet (the
-    // matching curse chip rides the badge overlay — renderStickerBadges).
-    front.classList.toggle("cursed", !!card.cursed);
     // (Matte cards: the old per-card --glow halo was removed — no setter needed.)
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
@@ -16314,9 +16464,7 @@ const UIRenderer = (() => {
     const wasRevealed = el.deckStat && el.deckStat.classList.contains("revealed");
     el.deckFace.classList.toggle("red", !!next.red);
     el.deckFace.classList.toggle("joker", !!next.joker);   // gold, like every Joker face
-    el.deckFace.classList.toggle("cursed", !!next.cursed);   // violet, like every cursed face (MYST1)
-    el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>" +
-      (next.cursed ? '<span class="dsf-curse" aria-hidden="true">' + glyph("swirl") + "</span>" : "");
+    el.deckFace.innerHTML = '<span class="dsf-rank">' + next.label + '</span><span class="dsf-suit">' + next.suit + "</span>";
     el.deckFace.classList.remove("hidden");
     if (el.deckStat) el.deckStat.classList.add("revealed");
     if (!wasRevealed) pulseDeckPeek();
@@ -17243,16 +17391,6 @@ const UIRenderer = (() => {
     if (card.joker) return '<div class="pk-head">★ Joker</div>' +
       '<div class="pk-desc">Always safe on any guess</div>';
     const head = '<div class="pk-head">Card ' + escHtml(card.label + card.suit) + "</div>";
-    // CURSED (MYST1): an innately cursed card leads with its toll — the number
-    // derives from items.js mystery.cursedCardTribute, never a hardcoded copy.
-    let curseRow = "";
-    if (card.cursed) {
-      const n = itemNum(ItemData.mystery, "cursedCardTribute", 1);
-      curseRow = '<div class="pk-item"><span class="pk-ic pk-curse">' + glyph("swirl") + "</span><span>" +
-        '<span class="pk-name">Cursed</span>' +
-        '<div class="pk-desc">' + escHtml("Innate curse — when this card lands → −" + n + " coin" + (n === 1 ? "" : "s")) + "</div>" +
-        "</span></div>";
-    }
     const stickers = card.stickers || [];
     // During setup, a stickered card can have ALL its stickers peeled off (with a
     // confirmation). Peeled stickers are destroyed, not returned.
@@ -17260,8 +17398,7 @@ const UIRenderer = (() => {
     const peelBtn = (inSetup && stickers.length && index != null)
       ? '<button class="pk-peel" data-peel-index="' + index + '" type="button">Peel off all stickers</button>'
       : "";
-    if (!stickers.length) return head + curseRow +
-      (card.cursed ? "" : '<div class="pk-empty">No stickers on this card.</div>');
+    if (!stickers.length) return head + '<div class="pk-empty">No stickers on this card.</div>';
     const counts = {};
     stickers.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
     let body = "";
@@ -17280,7 +17417,7 @@ const UIRenderer = (() => {
           (state ? '<div class="pk-state">' + escHtml(state) + "</div>" : "") +
         "</span></div>";
     });
-    return head + curseRow + body + peelBtn;
+    return head + body + peelBtn;
   }
   function pillarPeekHtml(col) {
     const binding = campaign ? campaign.getColumnPillars() : [];
@@ -19383,8 +19520,14 @@ const UIRenderer = (() => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
       const node = campaign.currentNode();
+      // A mystery "store" detour sits ON TOP of a non-store node — the guard
+      // clears only a real store node; the node beneath owes its dispatch.
       if (node && node.type === "store") campaign.markNodeCleared(node.id);
       persistCampaign("map");
+      // MYST2: a mystery "store" outcome's one-shot continuation — the node
+      // beneath the detour dispatches now (the map comes back up inside it).
+      const mystHook = mysteryStoreContinue; mysteryStoreContinue = null;
+      if (mystHook) { mystHook(); return; }
       showProgressionMap(startRun);
     });
     // Progression map: navigate by tapping nodes (no Enter button). The current
@@ -24267,6 +24410,17 @@ const UIRenderer = (() => {
   }
   /* ── /DEBUG: map node addresses ─────────────────────────────────────────── */
 
+  /* DEBUG PEEK (MYST2): a hidden "?" node's SEEDED outcome label, rendered as
+     a tiny tag under the "?" — visible only under body.debug-access (CSS-gated
+     next to the debug-toggle rule, so the debug switch needs no re-render).
+     The roll is campaign.rollMysteryEvent — PURE (no state change); the titles
+     mirror the descriptor titles applyMysteryEvent builds (debug-only copy —
+     the player-facing reveal copy is the descriptor's). */
+  const MYSTERY_OUTCOME_LABEL = {
+    coinBonus: "Cache", coinLoss: "Toll", cards: "Windfall", stickerPack: "Imprint",
+    freeRemoval: "Purge", stickerStrip: "Cleanse", joker: "Wild Card",
+    store: "Detour", cursedSticker: "Cursed", ambush: "Ambush",
+  };
   function renderProgressionMap() {
     const map = campaign.getMap();
     if (!map) { el.mapTrack.innerHTML = ""; return; }
@@ -24328,17 +24482,24 @@ const UIRenderer = (() => {
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
       // MYSTERY (?): an un-arrived mystery node hides its true face — a
       // face-down "?" card in place of the real art (deals hide their
-      // difficulty chip too, since the whole cluster is replaced).
+      // difficulty chip too, since the whole cluster is replaced). The debug
+      // peek tag rides inside the button (CSS shows it only under debug-access).
       const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
       nodes += '<button type="button" class="pm-node t-' + (hidden ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
         ' data-nid="' + n.id + '"' +
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n)) + '">' +
-        (hidden ? '<span class="mn-myst">?</span>' : mapNodeInner(n, suit, state)) + '</button>';
+        (hidden
+          ? '<span class="mn-myst">?</span><span class="pm-myst-out">' + escHtml(MYSTERY_OUTCOME_LABEL[campaign.rollMysteryEvent(n.id)] || "?") + '</span>'
+          : mapNodeInner(n, suit, state)) + '</button>';
     });
     // HOME / origin node: a distinct non-interactive base where the run begins
-    // (the 13-heart start). The marker starts here; it's dimmed once you set out.
+    // (the start deck — 13 base cards + the tier's startJokers, difficulty.js).
+    // The size derives live so Pinky Regular reads 14 (13 + 1 start Joker).
+    const homeStart = RunMap.GEN_CONFIG.startDeckSize +
+      DifficultyData.startJokers(campaign.getDeckId(), campaign.getTier());
+    // The marker starts here; it's dimmed once you set out.
     nodes += '<button type="button" class="pm-node t-home s-' + (atStart ? "home-here" : "done") + '" disabled' +
-      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (' + ((campaign.deckRules && campaign.deckRules().altSuits) ? '13 cards' : '13 hearts') + ')">' +
+      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (' + ((campaign.deckRules && campaign.deckRules().altSuits) ? homeStart + ' cards' : homeStart + ' hearts') + ')">' +
       '<span class="mn-home"><span class="mn-home-ico">⌂</span></span></button>';
     // DEBUG MAP ADDRESSES (removable): stamp each node with its address tag, just
     // above the node, when the debug overlay is toggled on. Off → empty string.
@@ -24504,6 +24665,10 @@ const UIRenderer = (() => {
   }
 
   function showProgressionMap(onEnter) {
+    // A mystery "store" detour's one-shot continuation never survives leaving
+    // the store any other way (menu quit, refresh-resume): reaching the map
+    // means the detour is over — drop any hook that was never consumed.
+    mysteryStoreContinue = null;
     // PINKY AT HOME with nowhere further to go (no endless stages generated):
     // the victory screen IS this state's screen — a resume/refresh landing
     // here must re-show it, never a dead-end map with no legal node.
@@ -24707,15 +24872,18 @@ const UIRenderer = (() => {
   }
 
   let mysteryEventContinue = null;   // the Continue button's one-shot continuation
+  let mysteryStoreContinue = null;   // the "store" outcome's one-shot: dispatch the node beneath once the store closes
   let mysteryArtHelp = null;         // hold-for-help on the outcome art
-  const MYSTERY_GOOD = { coinBonus: 1, stickerPack: 1, cardPack: 1, freeRemoval: 1, stickerStrip: 1 };
-  /** Hold-help copy for an innately cursed card: the toll derives from items.js
-      mystery.cursedCardTribute, never a hardcoded number. */
-  function cursedCardHelp(card) {
-    const n = itemNum(ItemData.mystery, "cursedCardTribute", 1);
-    return { title: "Cursed " + (card ? miniRankLabel(card) + card.suit : "card"),
-             desc: "Innate curse — when this card lands → −" + n + " coin" + (n === 1 ? "" : "s") };
-  }
+  const MYSTERY_GOOD = { coinBonus: 1, stickerPack: 1, cards: 1, freeRemoval: 1, stickerStrip: 1, joker: 1, store: 1 };
+  /* Per-outcome presentation (MYST2): the art area carries a mea-<key> class
+     (CSS keyframes on .me-art variants, killed under prefers-reduced-motion)
+     and the modal announces itself with the outcome's own sound at open. The
+     Sound module self-gates on its enabled pref — no extra guard here. */
+  const MYSTERY_SOUND = {
+    coinBonus: "coin", coinLoss: "coinLoss", cards: "mapAdd", joker: "deckUnlock",
+    store: "refresh", stickerPack: "sticker", stickerStrip: "sticker",
+    freeRemoval: "pack", cursedSticker: "bad", ambush: "deal",
+  };
   function openMysteryEvent(d, onContinue) {
     mysteryEventContinue = (typeof onContinue === "function") ? onContinue : null;
     el.mysteryEvent.classList.toggle("me-bad", !MYSTERY_GOOD[d.key]);
@@ -24724,13 +24892,23 @@ const UIRenderer = (() => {
     let art = "", help = null;
     if (d.key === "coinBonus" || d.key === "coinLoss") {
       art = '<span class="me-coins">' + COIN_SVG + (d.key === "coinBonus" ? "+" : "−") + d.amount + "</span>";
-    } else if (d.key === "stickerPack" || d.key === "cursedSticker") {
+    } else if (d.key === "stickerPack") {
       const t = StickerTypes.get(d.stickerId);
       art = t ? stickerChip(d.stickerId, { seed: "me" }) : "";
       if (t) help = { title: t.icon + " " + t.label, desc: t.description || d.desc || "" };
-    } else if (d.key === "cardPack" || d.key === "cursedCard") {
+    } else if (d.key === "cursedSticker") {
+      const t = StickerTypes.get(d.stickerId);
+      // The curse SLAMS onto the afflicted card — the corrupted chip over its
+      // mini card, with a violet flash (CSS, .mea-cursedSticker).
+      art = '<span class="me-slam">' + (d.card ? miniCardHtml(d.card) : "") +
+        (t ? stickerChip(d.stickerId, { seed: "me" }) : "") + "</span>";
+      if (t) help = { title: t.icon + " " + t.label, desc: t.description || d.desc || "" };
+    } else if (d.key === "cards") {
+      art = (d.cards || []).map(c => miniCardHtml(c)).join("");
+    } else if (d.key === "joker") {
       art = d.card ? miniCardHtml(d.card) : "";
-      if (d.key === "cursedCard") help = cursedCardHelp(d.card);
+    } else if (d.key === "store") {
+      art = '<span class="me-glyph">🏪</span>';
     } else if (d.key === "freeRemoval") {
       art = miniCardHtml({ blank: true });
     } else if (d.key === "stickerStrip") {
@@ -24740,9 +24918,11 @@ const UIRenderer = (() => {
     }
     if (!help && d.desc) help = { title: d.title || "Mystery", desc: d.desc };
     mysteryArtHelp = help;
+    el.mysteryEventArt.className = "fd-art me-art mea-" + d.key;   // the outcome's animation variant
     el.mysteryEventArt.innerHTML = art;
     el.mysteryEvent.classList.remove("hidden");
-    Sound.pack();
+    const sfx = MYSTERY_SOUND[d.key];
+    if (sfx && Sound[sfx]) Sound[sfx]();
     updateBoardMotion();   // an overlay is up — the board pauses behind it
   }
   function closeMysteryEvent() {
@@ -24777,9 +24957,28 @@ const UIRenderer = (() => {
       continuePendingPlacement();
       return;
     }
-    if (d.key === "cardPack") { openMapPackReveal([d.card], fallThrough); return; }
+    if (d.key === "cards") { openMapPackReveal(d.cards, fallThrough); return; }
     if (d.key === "ambush") { startAmbushDeal(d, id); return; }
-    fallThrough();   // coinBonus / coinLoss / cursedSticker / cursedCard — done
+    if (d.key === "store") {
+      // STORE (MYST2): a full store visit on the spot, through the NORMAL
+      // showStore path (map drops, board pauses, Done returns). fresh=false —
+      // a saved offer is never clobbered (no free reroll off a refresh). The
+      // underlying node dispatches AFTER the store closes: the one-shot hook
+      // is consumed by the store's Done handler (storeStartBtn) right after
+      // its "map" checkpoint. It's cleared on use and by showProgressionMap,
+      // so it can never fire twice or leak into a later store visit; a
+      // refresh mid-visit simply never re-arms it (the revealed node was
+      // already checkpointed — the store is skipped and the player moves on,
+      // the documented simplification).
+      mysteryStoreContinue = () => {
+        mysteryStoreContinue = null;
+        showProgressionMap();          // the detour ends back on the map…
+        fallThrough();                 // …which immediately plays the node beneath
+      };
+      showStore(false);
+      return;
+    }
+    fallThrough();   // coinBonus / coinLoss / cursedSticker / joker — done
   }
   /* AMBUSH: the map drops and a forced subset deal starts — `cards` cards on
      `piles` piles, knobs from items.js mystery.ambush via the descriptor (never
@@ -25626,11 +25825,7 @@ const UIRenderer = (() => {
     if (card.blank) return '<div class="mini-card mc-special mc-blank"><span class="mcs-sym">∅</span><span class="mcs-lab">Removal</span></div>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
     const badges = (card.stickers || []).map(st => { const t = StickerTypes.get(st.type); return t ? stickerChip(st.type, { seed: "mc" }) : ""; }).join("");
-    // CURSED (MYST1): the innate mystery curse marks the face — violet tint + a
-    // small curse swirl top-left (distinct from the sticker badges top-right).
-    const curse = card.cursed ? '<span class="mc-curse" aria-hidden="true">' + glyph("swirl") + "</span>" : "";
-    return '<div class="mini-card' + (s.red ? " red" : "") + (card.cursed ? " mc-cursed" : "") + '">' +
-      curse +
+    return '<div class="mini-card' + (s.red ? " red" : "") + '">' +
       '<div class="mc-rank">' + miniRankLabel(card) + '</div><div class="mc-suit">' + s.symbol + '</div>' +
       (badges ? '<div class="mc-badges">' + badges + '</div>' : "") + "</div>";
   }

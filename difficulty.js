@@ -40,6 +40,12 @@
                             whatever jokerCap says; Blanks keep their share).
                             Decks NOT listed keep jokerCap +
                             guaranteedMapJoker unchanged.
+     tiers.<id>.startJokers OPTIONAL per-deck starting Jokers:
+                            { <deckId>: count }. The listed decks BEGIN every
+                            run on this tier with `count` Jokers already
+                            minted into the deck (they count toward jokerCap
+                            from node one). Same shape as fixedJokers; decks
+                            not listed start with none.
      endlessBandStep        past stage 3, BOTH edges of BOTH bands lift by
                             this much per endless stage, starting from the
                             selected tier's stage-3 bands
@@ -87,7 +93,7 @@ const NINELIVES_DIFFICULTY = {
       label: "Regular",
       stageBands: [[1.5, 3.0], [2.0, 4.0], [3.0, 5.0]],
       bossBands:  [[2.3, 3.25], [3.75, 4.25], [4.75, 5.5]],
-      jokerCap: 2,
+      jokerCap: 4,
       guaranteedMapJoker: true,
       // PINKY's fixed-Joker scheme (see the header): the roaming guarantee
       // above is replaced by exactly TWO fixed post-boss corridor Joker
@@ -95,6 +101,9 @@ const NINELIVES_DIFFICULTY = {
       // Joker source turns off. Pinky-only; the other decks keep the
       // roaming rule.
       fixedJokers: { pink: [0, 1] },
+      // PINKY also STARTS a Regular run holding one Joker (counted against
+      // the cap from node one: 1 held + 2 fixed corridor nodes = 3 of 4).
+      startJokers: { pink: 1 },
     },
     // Unlocks after beating the deck's Regular.
     master: {

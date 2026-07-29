@@ -5,11 +5,16 @@
 //    checkpointed (persistCampaign("map") + flush) BEFORE the modal opens;
 //  - the #mysteryEvent modal announces the outcome, then each interactive
 //    outcome chains to its flow (removal picker / strip picker / placement walk
-//    / pack reveal / ambush deal) and the underlying node still dispatches;
+//    / pack reveal / ambush deal / store detour) and the underlying node still
+//    dispatches;
 //  - the ambush deal is a FORCED subset configured from items.js (never
 //    hardcoded), its bounty rides the run's bonus channel, and a mid-ambush
 //    refresh resumes through the standard run checkpoint;
-//  - cursed cards render their mark everywhere a face is drawn.
+//  - MYST2: cursed CARDS are retired (no render branch survives); cursed
+//    STICKERS wear the corrupted violet die-cut identity at every chip site;
+//    every outcome has a mea-<key> animation variant + its own open sound;
+//    hidden nodes carry a debug-only seeded-outcome peek tag; the Home
+//    tooltip derives the start deck size (13 + startJokers) live.
 // RULES/wiring only — every tunable stays in items.js.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -105,12 +110,12 @@ export function run() {
     r.ok(cont.includes('placementSavePhase = "map"'),
       "…and the walk checkpoints the map, not the store (mid-walk refresh safety)");
     const spAt = cont.indexOf('d.key === "stickerPack"');
-    const spBlock = cont.slice(spAt, cont.indexOf('d.key === "cardPack"'));
+    const spBlock = cont.slice(spAt, cont.indexOf('d.key === "cards"'));
     r.ok(spBlock.includes("placementWalk = true") && spBlock.includes("continuePendingPlacement()")
       && spBlock.includes("onPlacementQueueEmpty"),
       "stickerPack surfaces through the inventory → placement walk, then falls through");
-    r.ok(/d\.key === "cardPack"[\s\S]{0,80}openMapPackReveal\(\[d\.card\]/.test(cont),
-      "cardPack reveals the granted card via openMapPackReveal, then falls through");
+    r.ok(/d\.key === "cards"[\s\S]{0,80}openMapPackReveal\(d\.cards/.test(cont),
+      "cards reveals the granted cards via openMapPackReveal, then falls through");
     r.ok(/d\.key === "ambush"[\s\S]{0,80}startAmbushDeal\(d, id\)/.test(cont),
       "ambush hands off to the forced-deal starter");
     r.ok(cont.indexOf("fallThrough();   // coinBonus") !== -1 || /fallThrough\(\);\s*\/\/.*coin/.test(cont),
@@ -192,23 +197,106 @@ export function run() {
       "Continue after the ambush dispatches the underlying node normally");
   }
 
-  // ── cursed card visuals: a mark wherever a face renders ───────────────────
+  // ── cursed CARDS are retired (MYST2): no render branch survives ──────────
   {
-    r.ok(fnBody(src, "miniCardHtml").includes("mc-cursed"),
-      "mini cards render the cursed face class (packs, pickers, inspector, pile fan)");
-    r.ok(fnBody(src, "paintFront").includes('front.classList.toggle("cursed", !!card.cursed)'),
-      "the board face tints for a cursed top card");
-    r.ok(fnBody(src, "renderStickerBadges").includes("pb-curse"),
-      "…and carries the violet curse chip in the badge overlay");
-    r.ok(fnBody(src, "renderDeckReveal").includes('el.deckFace.classList.toggle("cursed"'),
-      "the Scout deck-reveal face marks a cursed upcoming card");
-    const peek = fnBody(src, "cardPeekHtml");
-    r.ok(peek.includes("card.cursed") && peek.includes("cursedCardTribute"),
-      "hold-for-help on a cursed card explains the toll, derived from items.js");
-    r.ok(!/→ −\d/.test(peek), "…never a hardcoded toll number");
-    r.ok(/\.mini-card\.mc-cursed \{/.test(html) && /\.face\.front\.cursed \{/.test(html)
-      && /\.deck-pile \.ds-face\.cursed \{/.test(html),
-      "the cursed face CSS exists for mini cards, the board front and the deck reveal");
+    r.ok(!fnBody(src, "miniCardHtml").includes("cursed"),
+      "mini cards no longer render a cursed face (packs, pickers, inspector, pile fan)");
+    r.ok(!fnBody(src, "paintFront").includes("cursed"),
+      "the board face has no cursed tint branch");
+    r.ok(!fnBody(src, "renderStickerBadges").includes("card.cursed"),
+      "…and no innate-curse chip in the badge overlay");
+    r.ok(!fnBody(src, "renderDeckReveal").includes("cursed"),
+      "the Scout deck-reveal face has no cursed branch");
+    r.ok(!fnBody(src, "cardPeekHtml").includes("cursed"),
+      "hold-for-help has no innate-curse row");
+    r.ok(!/mc-cursed|mc-curse|pb-curse|dsf-curse|pk-curse/.test(html),
+      "the cursed card CSS/markup hooks are gone");
+  }
+
+  // ── debug peek (MYST2): the seeded outcome tag on hidden "?" nodes ───────
+  {
+    const rpm = fnBody(src, "renderProgressionMap");
+    r.ok(rpm.includes("pm-myst-out") && rpm.includes("campaign.rollMysteryEvent(n.id)"),
+      "a hidden node renders the seeded-outcome debug tag (rollMysteryEvent is pure)");
+    r.ok(rpm.includes('<span class="pm-myst-out">\' + escHtml('),
+      "…with its label through escHtml");
+    r.ok(/body:not\(\.debug-access\) \.pm-myst-out \{ display:\s*none; \}/.test(html),
+      "…CSS-gated to debug access (no re-render on toggle)");
+    r.ok(/\.pm-myst-out \{/.test(html), "…and styled as the tiny violet tag under the ?");
+  }
+
+  // ── store outcome (MYST2): the detour → Done → dispatch-the-node wiring ──
+  {
+    const cont = fnBody(src, "continueMysteryEvent");
+    const stAt = cont.indexOf('d.key === "store"');
+    const ssAt = cont.indexOf("showStore(false)");
+    r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("fallThrough();   // coinBonus"),
+      "the store outcome opens a full store visit on the spot (fresh=false — a saved offer survives)");
+    r.ok(cont.includes("mysteryStoreContinue = () =>"),
+      "…and arms the one-shot continuation for the node beneath");
+    const ai = fnBody(src, "attachInput");
+    const doneAt = ai.indexOf("storeStartBtn.addEventListener");
+    const done = ai.slice(doneAt, doneAt + 1000);
+    r.ok(done.includes('node.type === "store"'),
+      "…Done still clears only a REAL store node (the node beneath owes its dispatch)");
+    const persistAt = done.indexOf('persistCampaign("map")');
+    r.ok(persistAt !== -1 && persistAt < done.indexOf("mysteryStoreContinue"),
+      "…Done checkpoints the map BEFORE consuming the hook");
+    r.ok(/= mysteryStoreContinue; mysteryStoreContinue = null;[\s\S]{0,120}mystHook\(\); return;/.test(done),
+      "…the hook is one-shot (read + cleared before use)");
+    r.ok(done.indexOf("showProgressionMap(startRun)") > done.indexOf("mystHook(); return;"),
+      "…a normal store visit still returns to the map when no hook is armed");
+    r.ok(fnBody(src, "showProgressionMap").includes("mysteryStoreContinue = null"),
+      "reaching the map any other way drops an unconsumed hook (no leak across visits)");
+  }
+
+  // ── cursed sticker identity (MYST2): corrupted violet die-cut everywhere ─
+  {
+    const sc = fnBody(src, "stickerChip");
+    r.ok(sc.includes("t.cursed") && sc.includes("dcs-cursed"),
+      "stickerChip flags cursed types with the corruption class");
+    r.ok(sc.includes("CURSE_VIOLET") && sc.includes("CURSE_EDGE"),
+      "…with the curse-violet face + dark edge");
+    const rsb = fnBody(src, "renderStickerBadges");
+    r.ok(rsb.includes("dcs-cursed") && rsb.includes("CURSE_VIOLET"),
+      "the board pile badges route cursed stickers to the same identity");
+    r.ok(html.includes('const CURSE_VIOLET = "#7a4fd0"'),
+      "the face is the established curse violet #7a4fd0");
+    r.ok(/\.dcs\.dcs-cursed \{/.test(html) && /\.dcs\.dcs-cursed \.dcs-gloss/.test(html)
+      && /\.dcs\.dcs-cursed \.dcs-ic/.test(html),
+      "the corrupted-vinyl CSS exists (dark halo, corruption swirl, desaturated icon)");
+  }
+
+  // ── outcome presentation (MYST2): every key → animation variant + sound ──
+  {
+    const open = fnBody(src, "openMysteryEvent");
+    const SOUNDS = {
+      coinBonus: "coin", coinLoss: "coinLoss", cards: "mapAdd", joker: "deckUnlock",
+      store: "refresh", stickerPack: "sticker", stickerStrip: "sticker",
+      freeRemoval: "pack", cursedSticker: "bad", ambush: "deal",
+    };
+    r.ok(open.includes('"fd-art me-art mea-" + d.key'),
+      "the art area carries the outcome's mea-<key> animation variant");
+    r.ok(open.includes("MYSTERY_SOUND[d.key]") && open.includes("Sound[sfx]()"),
+      "the mapped sound fires at modal open through the Sound module (self-gated on the pref)");
+    Object.keys(SOUNDS).forEach(k => {
+      r.ok(html.includes(".mea-" + k), k + ": a .me-art animation variant exists");
+      r.ok(new RegExp(k + ': "' + SOUNDS[k] + '"').test(src), k + " → Sound." + SOUNDS[k]);
+    });
+    r.ok(!open.includes("Sound.pack()"), "…replacing the old one-size-fits-all pack sound");
+    r.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.mystery-event \.me-art/.test(html),
+      "the outcome animations die under reduced motion");
+    r.ok(open.includes("me-slam") && /\.me-slam \.dcs/.test(html),
+      "cursedSticker slams the corrupted chip onto the afflicted mini card");
+  }
+
+  // ── Home tooltip (MYST2): derives the start deck size live ───────────────
+  {
+    const rpm = fnBody(src, "renderProgressionMap");
+    r.ok(rpm.includes("RunMap.GEN_CONFIG.startDeckSize")
+      && rpm.includes("DifficultyData.startJokers(campaign.getDeckId(), campaign.getTier())"),
+      "the Home tooltip derives the start size (startDeckSize + startJokers) live");
+    r.ok(!/'13 hearts'/.test(rpm) && !/'13 cards'/.test(rpm), "…never a hardcoded 13");
   }
 
   // ── copy: the hidden node now reads as a gamble ───────────────────────────

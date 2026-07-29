@@ -431,26 +431,29 @@ const NINELIVES_ITEMS = {
      MYSTERY ("?") NODE EVENTS — arriving at a hidden map node rolls ONE of
      these outcomes (seeded by run seed + node id, so the same node always
      resolves the same way) and applies it on top of the underlying node.
-     weights:           relative roll weight per outcome key.
+     weights:           relative roll weight per outcome key. Boons:
+                        coinBonus / cards / stickerPack / freeRemoval /
+                        stickerStrip / joker / store; banes: cursedSticker /
+                        coinLoss / ambush. The joker outcome folds to
+                        coinBonus at apply time when the tier's jokerCap is
+                        already full (deterministic, held-vs-cap).
      coinRangeByStage:  [min,max] coin amount for coinBonus/coinLoss, indexed
                         by stage (0-based; endless stages clamp to the last).
+     cardGrantRange:    [min,max] how many cards the cards outcome grants
+                        (suit-gated like a map pack: the current stage's suit,
+                        all four suits for the alt decks).
      ambush:            the ambush deal — a subset of `cards` cards on `piles`
                         piles, paying `bounty` coins on a clear.
-     cursedCardTribute: coins LOST each time an innately cursed card (minted
-                        by the cursedCard outcome) lands on a pile.
-     cursedCardRankRange: [min,max] rank the cursedCard outcome mints at
-                        (mid ranks, so the curse lands in playable territory).
   -------------------------------------------------------------------- */
   mystery: {
     weights: {
-      coinBonus: 20, stickerPack: 12, cardPack: 10, freeRemoval: 8,
-      stickerStrip: 8, cursedSticker: 12, cursedCard: 10, coinLoss: 10,
-      ambush: 8,
+      coinBonus: 15, cards: 12, stickerPack: 10, freeRemoval: 8,
+      stickerStrip: 7, joker: 5, store: 5, cursedSticker: 14,
+      coinLoss: 12, ambush: 8,
     },
     coinRangeByStage: [[6, 12], [12, 22], [20, 34]],
+    cardGrantRange: [1, 3],
     ambush: { cards: 15, piles: 4, bounty: 15 },
-    cursedCardTribute: 1,
-    cursedCardRankRange: [7, 9],
   },
 
   /* --------------------------------------------------------------------

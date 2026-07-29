@@ -9,8 +9,10 @@
 // per run, one forced corridor +1 CARD node directly after the stage-1 boss
 // and one after the stage-2 boss (both visible, never a mystery, never in a
 // pack), and NO other Joker source at all. Decks the data does not list keep
-// Regular's roaming guaranteed node + cap 2 (tested on Mamma below). Master:
-// cap 1, no guarantee. Legendary: no Jokers anywhere.
+// Regular's roaming guaranteed node + jokerCap (tested on Mamma below).
+// STARTJOKERS (MYST2) — difficulty.js `startJokers` additionally MINTS Jokers
+// into the deck at run start (today Pinky Regular: 1); they count as held
+// from node one. Master: cap 1, no guarantee. Legendary: no Jokers anywhere.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -29,8 +31,9 @@ function difficultySourceWith(mutate) {
 }
 
 export function run() {
-  const { CampaignState } = loadGame();
+  const { CampaignState, DifficultyData } = loadGame();
   const r = makeRunner("joker-caps.test.mjs");
+  const START_J = DifficultyData.startJokers("pink", "regular");   // Pinky Regular's starting Jokers
   const TIERS = {};   // read live from the registry via the campaign API
   for (const tier of ["regular", "master", "legendary"]) {
     const c = CampaignState.create();
@@ -50,6 +53,13 @@ export function run() {
     const c = CampaignState.create();   // default deck = pink
     c.setTier("regular");
     c.reset();
+    // STARTJOKERS: the run begins holding the data's startJokers Jokers —
+    // they count as HELD from node one (with the two fixed corridor
+    // sentinels reserving their slots on top).
+    r.eq(c.getRunDeck().filter(x => x.joker).length, START_J,
+      "pinky regular: the run starts holding exactly the data's startJokers Jokers (" + START_J + ")");
+    r.eq(c.jokerBudget().committed, START_J + 2,
+      "…and they count as held alongside the two fixed-node reservations (" + (START_J + 2) + "/" + c.jokerBudget().cap + ")");
     const map = c.getMap();
     const fixed = map.nodes.filter(n => n.jokerNode).sort((a, b) => a.phase - b.phase);
     r.eq(fixed.length, 2, "pinky regular: exactly TWO fixed Joker nodes on the map");
@@ -84,7 +94,8 @@ export function run() {
     const g0 = c.resolvePickup(fixed[0]); c.markNodeCleared(fixed[0].id);
     const g1 = c.resolvePickup(fixed[1]); c.markNodeCleared(fixed[1].id);
     r.ok(!!(g0 && g0.joker && g1 && g1.joker), "taking the two nodes grants two real Jokers");
-    r.eq(c.getRunDeck().filter(x => x.joker).length, 2, "…the deck then holds exactly 2 Jokers");
+    r.eq(c.getRunDeck().filter(x => x.joker).length, START_J + 2,
+      "…the deck then holds the startJokers + 2 corridor Jokers (" + (START_J + 2) + ")");
     // …and Removal never reopens a random source (the scheme is absolute).
     c.getRunDeck().filter(x => x.joker).forEach(j => c.removeDeckCard(j.id));
     r.ok(!c.jokerBudget().allowed, "…removing them does NOT reopen random Jokers");
@@ -125,27 +136,31 @@ export function run() {
     r.eq(nodes, 0, tier + ": no standalone Joker node ever generates (8 runs)");
   }
 
-  // --- held-count gating + REOPEN on removal (non-Pinky regular, cap 2) ---
-  if (TIERS.regular === 2) {
+  // --- held-count gating + REOPEN on removal (non-Pinky regular) ----------
+  {
+    const cap = TIERS.regular;
     const c = CampaignState.create();
     c.setDeck("mamma");   // Pinky Regular uses the fixed scheme (tested above)
     c.setTier("regular");
     c.reset();
     r.eq(c.jokerBudget().committed, 1, "regular: the untaken guaranteed node reserves one held slot");
-    r.ok(c.jokerBudget().allowed, "…one slot still open");
+    r.ok(c.jokerBudget().allowed, "…slots still open (" + 1 + "/" + cap + ")");
     // take the guaranteed node → the reservation becomes a held deck Joker
     const jn = jokerNodes(c)[0];
     const granted = c.resolvePickup(jn);
     c.markNodeCleared(jn.id);
     r.ok(granted && granted.joker, "taking the node grants a real Joker");
     r.eq(c.jokerBudget().committed, 1, "…count carries over (reserved → held, no double count)");
-    // fill the second slot via a forced map-pack Joker (test hook bypasses the gate)
+    // fill every remaining slot via forced map-pack Jokers (test hook bypasses the gate)
     c._setMapSpecialRoll(() => true);
     const packNode = c.getMap().nodes.find(n => n.type === "pack");
-    const minted = c.resolvePack({ ...packNode, packCount: 1 }).filter(x => x && x.joker);
+    let minted = 0;
+    for (let i = 0; i < cap - 1; i++)
+      minted += c.resolvePack({ ...packNode, packCount: 1 }).filter(x => x && x.joker).length;
     c._setMapSpecialRoll(null);
-    r.eq(minted.length, 1, "a second Joker can still be minted below the cap");
-    r.ok(!c.jokerBudget().allowed, "holding 2: Jokers stop appearing");
+    r.eq(minted, cap - 1, "Jokers keep minting up to the cap (" + cap + ")");
+    r.eq(c.jokerBudget().committed, cap, "…holding exactly the cap now");
+    r.ok(!c.jokerBudget().allowed, "at cap: Jokers stop appearing");
     const seq = (vals) => { let i = 0; return () => (i < vals.length ? vals[i++] : 0.5); };
     r.ok(!c.genPackCard(seq([0.001, 0.1])).joker, "…store-pack joker rolls fall through to normal cards");
     let packJokers = 0;

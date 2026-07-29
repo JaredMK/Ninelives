@@ -6,7 +6,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState } = loadGame();
+  const { CampaignState, DifficultyData } = loadGame();
   const r = makeRunner("persistence.test.mjs");
 
   // --- snapshot shape ---------------------------------------------------
@@ -16,11 +16,15 @@ export function run() {
     // The 52 base identities (ids 0..51) are always present. The deck may
     // already be LARGER at creation: map generation mints duplicate suit
     // cards when a stage rolls more +1 pickup nodes than the suit has
-    // unowned cards (draftIdForNode's exhausted-pool fallback).
+    // unowned cards (draftIdForNode's exhausted-pool fallback), and the
+    // tier's startJokers (difficulty.js) mint their Jokers at run start.
     const baseIds = new Set(s.baseDeck.filter(c => c.id <= 51).map(c => c.id));
     r.eq(baseIds.size, 52, "snapshot holds all 52 base card identities");
     const extras = s.baseDeck.filter(c => c.id > 51);
-    r.ok(extras.every(c => !c.joker && !c.blank), "creation-time extras are only minted suit duplicates (never Jokers/Blanks)");
+    const startJ = DifficultyData.startJokers("pink", "regular");
+    r.eq(extras.filter(c => c.joker).length, startJ,
+      "creation-time Joker extras are exactly the tier's startJokers (" + startJ + ")");
+    r.ok(extras.every(c => !c.blank), "creation-time extras are only minted suit duplicates + startJokers (never Blanks)");
   }
 
   // --- full round-trip through JSON (as storage would do) ---------------
