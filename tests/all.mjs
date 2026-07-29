@@ -65,6 +65,7 @@ import { run as mapgen1 } from "./mapgen1.test.mjs";
 import { run as mysteryEvents } from "./mystery-events.test.mjs";
 import { run as mysteryUi } from "./mystery-ui.test.mjs";
 import { run as seeds } from "./seeds.test.mjs";
+import { run as unlocks } from "./unlocks.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -130,6 +131,7 @@ const SUITES = [
   ["mystery-events", mysteryEvents],
   ["mystery-ui", mysteryUi],
   ["seeds", seeds],
+  ["unlocks", unlocks],
 ];
 
 let pass = 0,

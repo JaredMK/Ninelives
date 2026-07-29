@@ -33,6 +33,28 @@
                   (the game never hardcodes effect text)
      …tunables    any other numeric field is an effect knob (value, step,
                   threshold, digCount, peelChance, …) — safe to hand-edit
+     unlock       OPTIONAL item-unlock gate: { type, stat, count }. ABSENT = a
+                  starting item, always available — the ship state: no entry
+                  carries this field, so every roll pool is identical to the
+                  pre-feature game. When set, the item stays out of every roll
+                  pool (sticker grants, store classes, sticker packs, Lammy's
+                  pre-equip) until the LIFETIME counter `stat` (the Stats
+                  record, ninelives.stats.v1) reaches `count`. `type` is
+                  documentary — "milestone" (progression counters) or
+                  "behavior" (playstyle counters); both gate identically and
+                  it only flavors the hint copy. `stat` is one of these 15:
+                    dealsSurvived      runsPlayed        runsWon
+                    bossesBeaten       endlessStagesReached
+                    coinsEarnedLifetime
+                    cardsBuried        samesCalled       correctSames
+                    jokersPlayed       stickersApplied   pillarsPlaced
+                    basesPlaced        removalsUsed      pilesLost
+                  `count` is a positive finite number. A malformed gate fails
+                  loudly at load (the validator names the item id).
+                  Example (keep it COMMENTED — no live unlock field ships
+                  without the full feature pass):
+   // { id: "example", label: "…", tier: "rare", price: 20, description: "…",
+   //   unlock: { type: "behavior", stat: "cardsBuried", count: 15 } },
 
    Malformed entries do NOT silently disappear: the game validates this file
    on load and fails loudly in the console with the offending item id.

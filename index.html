@@ -2145,6 +2145,78 @@ const NativeApp = (() => {
     .deck-unlock-pop.revealed .duc-charwrap, .deck-unlock-pop.revealed .duc-spark { animation: none; }
     .deck-unlock-pop.revealed .duc-spark { opacity: 0.9; }
   }
+
+  /* ── UNLOCK1: ITEM-UNLOCK POPS — the deck-unlock celebration generalized into
+     a QUEUE (one pop per newly-unlocked item, drained by CONTINUE). Same idiom:
+     the item's own tile (the store's class renderers via unlockObjectHtml)
+     starts as a silhouette under a padlock, then .revealed flips to full art
+     with the bounce + sparkles + ta-daa (Sound.deckUnlock). The eyebrow carries
+     the class label, the name reveals, the copy is the derived "how you earned
+     it" (ItemUnlocks.hintFor — never hand-written). */
+  .iuc-objwrap { position: relative; min-width: min(52vw, 190px); height: clamp(130px, 24vh, 168px);
+    display: flex; align-items: center; justify-content: center;
+    filter: brightness(0) opacity(0.72);
+    transition: filter 0.9s ease, opacity 0.9s ease; }
+  .item-unlock-pop.revealed .iuc-objwrap {
+    filter: brightness(1) opacity(1);
+    animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+  @media (prefers-reduced-motion: reduce) {
+    .iuc-objwrap { transition: none; }
+    .item-unlock-pop.revealed .iuc-objwrap { animation: none; }
+  }
+
+  /* Shared object slot for the unlock surfaces (toast, overlay rows, Collection
+     tiles): one definite-height box every class renderer sizes off (the shelf's
+     .ti-obj idiom — the pillar pennant / base plaque need explicit boxes, the
+     sticker vinyl locks to a circle, the pack foil fills the height). --h is
+     set per surface; the silhouette filter is the locked/mystery treatment. */
+  .ulk-obj { --h: 96px; width: 100%; height: var(--h); position: relative;
+    display: flex; align-items: center; justify-content: center; }
+  .ulk-obj .dcs { width: auto; height: calc(var(--h) * 0.78); aspect-ratio: 1; --dcs-size: calc(var(--h) * 0.68); }
+  .ulk-obj .cph-banner.pennant.big { height: var(--h); width: calc(var(--h) * 0.82); }
+  .ulk-obj .base-banner.plaque.big { height: calc(var(--h) * 0.44); width: calc(var(--h) * 1.06); max-width: none; }
+  .ulk-obj .pack-foil.big { width: auto; height: 100%; }
+  .ulk-obj .sp-badge { max-height: 100%; box-sizing: border-box; }
+  .silhouette { filter: brightness(0) opacity(0.72); }
+
+  /* Death/win overlay "almost there" rows (opts.unlocks, from
+     ItemUnlocks.nearestLocked): silhouette tile + remaining-count hint +
+     progress bar. Empty/absent → the section hides (.hidden, per-component). */
+  .ov-unlocks { display: flex; flex-direction: column; gap: 7px; width: min(86vw, 320px); margin-top: 2px; }
+  .ov-unlocks.hidden { display: none; }
+  .ov-unlock { display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+    background: rgba(255,255,255,0.07); border-radius: 12px; }
+  .ov-unlock-obj { flex: 0 0 auto; width: 56px; }
+  .ov-unlock-obj .ulk-obj { --h: 50px; }
+  .ov-unlock-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .ov-unlock-hint { font-size: 12px; color: var(--on-felt); }
+  .ulk-bar { width: 100%; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.16); overflow: hidden; }
+  .ulk-fill { display: block; height: 100%; border-radius: inherit; background: var(--amber); }
+  .ulk-count { font-size: 10.5px; color: var(--on-felt-muted); }
+
+  /* ── COLLECTION screen (UNLOCK1) — every items.js entry by class, the
+     #zenSelect pattern (corner back, opaque felt). The list is the one scroll
+     column; tiles are cheap pure-HTML renders of the store class renderers. */
+  #collectionScreen { justify-content: flex-start; }
+  .col-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
+  .col-hint { font-size: 13px; color: var(--on-felt-muted); text-align: center;
+    max-width: min(86vw, 340px); line-height: 1.4; }
+  .col-list { flex: 1 1 auto; min-height: 0; width: min(94vw, 420px); overflow-y: auto;
+    -webkit-overflow-scrolling: touch; display: flex; flex-direction: column;
+    gap: 14px; padding: 2px 2px 14px; }
+  .col-head { font-family: var(--font-display); font-weight: 800; font-size: 15px;
+    color: var(--on-felt); letter-spacing: 1.2px; text-transform: uppercase;
+    opacity: 0.85; margin-bottom: 8px; }
+  .col-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .col-tile { display: flex; flex-direction: column; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.06); border: none; border-radius: 12px;
+    padding: 8px 6px; font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+  .col-tile.locked { cursor: default; }
+  .col-obj { width: 100%; }
+  .col-obj .ulk-obj { --h: 62px; }
+  .col-name { font-size: 12px; font-weight: 700; color: var(--on-felt);
+    text-align: center; line-height: 1.15; }
+  .col-tile-hint { font-size: 10.5px; color: var(--on-felt-muted); text-align: center; line-height: 1.25; }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
      stacked title. SVG = crisp at any size. Negative margin trims the SVG's
@@ -6736,6 +6808,11 @@ const NativeApp = (() => {
     <!-- SEED1: the run's share seed on the win/loss screens — tap copies it.
          Rendered from opts.seed (showOverlay); empty/hidden otherwise. -->
     <div class="ov-seed hidden" id="overlaySeed" role="button" tabindex="0"></div>
+    <!-- UNLOCK1: the nearest upcoming item unlocks (death/win screens) — each a
+         silhouette tile + remaining-count hint + progress bar. Rendered from
+         opts.unlocks (showOverlay, ItemUnlocks.nearestLocked); hidden when the
+         list is empty or absent (always empty while no item carries a gate). -->
+    <div class="ov-unlocks hidden" id="overlayUnlocks"></div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
     <div class="summary-block hidden" id="endSummary">
       <div class="summary-tiles">
@@ -7112,6 +7189,18 @@ const NativeApp = (() => {
     <button class="zs-start" id="zsStart" type="button" disabled>Start</button>
   </div>
 
+  <!-- COLLECTION (UNLOCK1) — every items.js entry by class (Stickers / Pillars /
+       Bases / Same-Powers / Packs), the #zenSelect pattern (corner back, opaque
+       felt, one scroll column). Unlocked tiles show full art + name and hold for
+       the registry help; locked tiles silhouette with the derived unlock hint +
+       a live progress bar. Rebuilt per visit (renderCollection). -->
+  <div class="menu-screen hidden" id="collectionScreen">
+    <button class="nav-btn col-back-btn" id="colBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
+    <div class="ds-title">Collection</div>
+    <div class="col-hint">Every sticker, Pillar, Base, Same-Power and pack. Locked ones show how to earn them — hold an unlocked tile for what it does.</div>
+    <div class="col-list" id="colList"></div>
+  </div>
+
   <!-- Artifact telemetry table (debug only — playtest balancing). -->
   <div class="sheet-overlay hidden" id="telemOverlay">
     <div class="sheet-panel telem-panel">
@@ -7214,7 +7303,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.07 · shareable run seeds: enter/view/copy a 7-char code, seeded runs are exhibition";
+const APP_VERSION = "v5.08 · item-unlock framework: unlock field, lifetime stats, Collection screen (nothing locked yet)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7681,6 +7770,16 @@ function stickerChip(typeId, opts) {
   }));
 }
 
+/* UNLOCK1 — the 15 lifetime counters an item's optional `unlock` gate may
+   reference (items.js documents the field + this list in its header;
+   ItemUnlocks maps each name to its Stats source and hint copy). ONE shared
+   list: the items.js validator rejects any `unlock.stat` outside it. */
+const ITEM_UNLOCK_STATS = [
+  "dealsSurvived", "runsPlayed", "runsWon", "bossesBeaten", "endlessStagesReached",
+  "coinsEarnedLifetime", "cardsBuried", "samesCalled", "correctSames", "jokersPlayed",
+  "stickersApplied", "pillarsPlaced", "basesPlaced", "removalsUsed", "pilesLost",
+];
+
 /* ----------------------------------------------------------------
    ItemData — loads + VALIDATES the shop-item data file (items.js, the
    NINELIVES_ITEMS global). Every registry below (StickerTypes /
@@ -7713,6 +7812,18 @@ const ItemData = (() => {
       if (typeof e.price !== "number" || !isFinite(e.price) || e.price < 0) bad("`price` must be a non-negative number (got " + JSON.stringify(e.price) + ")");
       if (typeof e.description !== "string" || !e.description) bad("missing/invalid `description` (string)");
       if (e.weight != null && (typeof e.weight !== "number" || !(e.weight > 0))) bad("`weight` must be a positive number when set");
+      // UNLOCK1: optional item-unlock gate — when present it must be a fully
+      // formed { type, stat, count } (the items.js header documents the shape
+      // and the 15 supported stats; absent = a starting item, always available).
+      if (e.unlock != null) {
+        const u = e.unlock;
+        if (typeof u !== "object" || Array.isArray(u)) bad("`unlock` must be an object { type, stat, count }");
+        else {
+          if (u.type !== "milestone" && u.type !== "behavior") bad("`unlock.type` must be \"milestone\" or \"behavior\" (got " + JSON.stringify(u.type) + ")");
+          if (ITEM_UNLOCK_STATS.indexOf(u.stat) === -1) bad("`unlock.stat` must be one of " + ITEM_UNLOCK_STATS.join(" | ") + " (got " + JSON.stringify(u.stat) + ")");
+          if (typeof u.count !== "number" || !isFinite(u.count) || u.count <= 0) bad("`unlock.count` must be a positive finite number (got " + JSON.stringify(u.count) + ")");
+        }
+      }
       if (e.suits != null) {
         const SUIT_SYMS = ["♠", "♥", "♦", "♣"];
         if (!Array.isArray(e.suits) || !e.suits.length) bad("`suits` must be a non-empty array of suit symbols when set");
@@ -8110,7 +8221,11 @@ const StickerTypes = (() => {
   // cursed type and the apply path accepts it (the mystery cursedSticker event
   // applies one directly).
   const GRANTABLE = reg.all().filter(t => !t.cursed);
-  reg.grantable = () => GRANTABLE.slice();
+  // UNLOCK1: locked stickers (items.js `unlock` field) also stay out of every
+  // grant pool until their stat threshold is met. ItemUnlocks is read LAZILY
+  // (grantable() is only ever called at roll time, long after every module in
+  // this script has initialized), so there is no init-order trap.
+  reg.grantable = () => GRANTABLE.filter(t => ItemUnlocks.isUnlocked(t));
   return reg;
 })();
 
@@ -11166,6 +11281,8 @@ const GameEngine = (() => {
           const kill = pickOne(colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♠")));
           if (kill == null) break;
           board.kill(kill);
+          // UNLOCK1: pile-death signal (drives the lifetime piles-lost counter app-side).
+          emit("pile-killed", { index: kill, board, deck, run });
           if (run.tellPiles) run.tellPiles.delete(kill);      // dead pile drops any Tell hint
           run.kamikazeRevealLeft = pk;                        // peek the next `pk` draws (display-only)
           // Last Rites on the SACRIFICED pile's column (any death counts).
@@ -11382,6 +11499,7 @@ const GameEngine = (() => {
           const targets = colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♥"));
           for (const i of targets) {
             board.kill(i);
+            emit("pile-killed", { index: i, board, deck, run });   // UNLOCK1 pile-death signal
             if (run.tellPiles) run.tellPiles.delete(i);
             const dc = run.pileColumns ? run.pileColumns[i] : null;
             const dd = resolvePillarDef(dc);
@@ -12170,6 +12288,7 @@ const GameEngine = (() => {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
         board.kill(index);
+        emit("pile-killed", { index, board, deck, run });   // UNLOCK1 pile-death signal
         logLine("→ " + cardName(drawn) + " landed on " + cardName(current) + " · pile died");
         // Last Rites: a pile in this column just died — peek the next upcoming card.
         if (pillar && pillar.effect === "lastRites") peekPillar(col, pillar);
@@ -12653,13 +12772,23 @@ const CampaignState = (() => {
       slot is { kind, id } (+ { card } for the card class). */
   function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null) {
     const CW = ItemData.store.classWeights;
+    // UNLOCK1: every registry class pool is pre-filtered to UNLOCKED items
+    // (grantable() already filters stickers — cursed AND locked). A class whose
+    // unlocked pool is EMPTY drops to w: 0 — the existing "card"-class
+    // pattern — so cwTotal renormalizes over the remaining classes instead of
+    // rolling dead null slots. (Ship state: no item carries an unlock field,
+    // so every pool below is byte-identical to the unfiltered one.)
+    const cls = (key, w, types) => {
+      const pool = types.filter(t => ItemUnlocks.isUnlocked(t));
+      return { key, w: pool.length ? w : 0, types: pool };
+    };
     const classes = [
-      { key: "sticker", w: CW.sticker, types: StickerTypes.grantable() },   // cursed stickers never sell
-      { key: "pillar", w: CW.pillar, types: PillarTypes.all() },
-      { key: "base", w: CW.base, types: BaseTypes.all() },
-      { key: "pack", w: CW.pack, types: PackTypes.all() },
+      cls("sticker", CW.sticker, StickerTypes.grantable()),   // cursed stickers never sell
+      cls("pillar", CW.pillar, PillarTypes.all()),
+      cls("base", CW.base, BaseTypes.all()),
+      cls("pack", CW.pack, PackTypes.all()),
       { key: "card", w: genCard ? CW.card : 0, types: null },   // needs the campaign's card generator
-      { key: "samepower", w: CW.samepower, types: SamePowerTypes.all() },
+      cls("samepower", CW.samepower, SamePowerTypes.all()),
     ];
     const cwTotal = classes.reduce((a, c) => a + c.w, 0) || 1;
     const slots = [];
@@ -13327,6 +13456,9 @@ const CampaignState = (() => {
           // through removeRandomStickerFrom / removeStickerInstances.
           return { key, title: "Cleanse", desc: "Strip a sticker from a card — free" };
         case "cursedSticker": {
+          // UNGATED by design (UNLOCK1): the bane pool rolls from ALL cursed
+          // stickers regardless of unlock gates — a curse is INFLICTED, never
+          // player-acquired, so gating it would only shrink the bane table.
           const cursedTypes = ItemData.stickers.filter(t => t.cursed === true);
           if (!cursedTypes.length) return null;
           const t = cursedTypes[Math.floor(rng() * cursedTypes.length)];
@@ -13588,13 +13720,25 @@ const CampaignState = (() => {
         // 3 random DISTINCT Pillars + 3 random distinct Bases straight into the
         // six column slots. The sticker-centric Bases (Wild Sticker / Sticker
         // Harvest) are excluded — under noStickers they could never do anything.
+        // UNLOCK1: locked items stay out of the pre-equip roll too; a short
+        // unlocked pool pads with nulls — the normal empty-slot shape
+        // (new Array(COLUMN_SLOTS).fill(null)) — never a locked item.
         const roll3 = (ids) => {
           const pool = ids.slice();
           for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(startRng() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
-          return pool.slice(0, COLUMN_SLOTS);
+          const picked = pool.slice(0, COLUMN_SLOTS);
+          while (picked.length < COLUMN_SLOTS) picked.push(null);
+          return picked;
         };
-        columnPillars = roll3(PillarTypes.ids);
-        columnBases = roll3(BaseTypes.ids.filter(id => id !== "randomSticker" && id !== "stickerHarvest"));
+        const unlockedIds = (reg, ids) => ids.filter(id => ItemUnlocks.isUnlocked(reg.get(id)));
+        columnPillars = roll3(unlockedIds(PillarTypes, PillarTypes.ids));
+        columnBases = roll3(unlockedIds(BaseTypes, BaseTypes.ids.filter(id => id !== "randomSticker" && id !== "stickerHarvest")));
+        // UNLOCK1: the prefill IS a placement — count it toward the lifetime
+        // pillar/base placement counters (an exhibition run banks nothing).
+        if (!exhibition) Stats.bumpAll({
+          pillarsPlaced: columnPillars.filter(Boolean).length,
+          basesPlaced: columnBases.filter(Boolean).length,
+        });
       }
     }
     // A freshly-CREATED campaign is immediately playable (13 hearts + a phase-0
@@ -14213,6 +14357,8 @@ const CampaignState = (() => {
         if (pillarInventory[typeId] <= 0) delete pillarInventory[typeId];
         if (displaced) pillarInventory[displaced] = (pillarInventory[displaced] || 0) + 1;
         columnPillars[col] = typeId;
+        // UNLOCK1: lifetime placement counter (an exhibition run banks nothing).
+        if (!exhibition) Stats.bump("pillarsPlaced");
         return true;
       },
       /** Pick a placed Pillar back up off column `col` into inventory (clears the
@@ -14324,6 +14470,8 @@ const CampaignState = (() => {
         if (baseInventory[typeId] <= 0) delete baseInventory[typeId];
         if (displaced) baseInventory[displaced] = (baseInventory[displaced] || 0) + 1;
         columnBases[col] = typeId;
+        // UNLOCK1: lifetime placement counter (an exhibition run banks nothing).
+        if (!exhibition) Stats.bump("basesPlaced");
         return true;
       },
       /** Pick a placed Base back up off column `col` into inventory. Returns the
@@ -14576,7 +14724,12 @@ const CampaignState = (() => {
       applySticker(id, typeId) {
         const card = findById(id);
         if (!this.canApplySticker(card, typeId)) return false;
-        return applyStickerToCard(card, typeId, { rng: actRng() });
+        const applied = applyStickerToCard(card, typeId, { rng: actRng() });
+        // UNLOCK1: player-applied sticker counter — this method is the
+        // chokepoint every player apply flow funnels through (pickers, store
+        // purchases, pack reveals, Wild Sticker). Exhibition banks nothing.
+        if (applied && !exhibition) Stats.bump("stickersApplied");
+        return applied;
       },
 
       /** The BASE state a card reverts to if peeled — original rank + the suit it
@@ -14800,6 +14953,8 @@ const CampaignState = (() => {
         baseDeck.splice(di, 1);
         const oi = ownedIds.indexOf(id);
         if (oi !== -1) ownedIds.splice(oi, 1);
+        // UNLOCK1: lifetime removal counter (an exhibition run banks nothing).
+        if (!exhibition) Stats.bump("removalsUsed");
         return true;
       },
 
@@ -15109,12 +15264,25 @@ const Stats = (() => {
     lifetimeCorrectGuesses: 0, lifetimeGuesses: 0,
     furthestStage: 0, furthestRun: 0,
     bestEndless: 0,   // deepest ENDLESS stage ever entered (0 = never went endless)
+    // UNLOCK1 item-unlock counters (the fixed set UNLOCK_COUNTERS bumps; all
+    // additive — old saves merge them in as zeros via the {...DEF, ...parsed}
+    // read, no migration). Every increment gates on !campaign.isExhibition()
+    // at the call site, matching the SEED1 banking rule.
+    bossesBeaten: 0, cardsBuried: 0, samesCalled: 0, correctSames: 0,
+    jokersPlayed: 0, stickersApplied: 0, pillarsPlaced: 0, basesPlaced: 0,
+    removalsUsed: 0, pilesLost: 0,
     // LIFETIME per-deck/tier win log: { "lammy.master": true, ... } — a second,
     // independent record of every campaign win (deck + tier). DeckUnlocks
     // grants retroactively from it on load, so tier unlocks can always be
     // rebuilt even if the deckwins store was lost or a win was mis-recorded.
     deckTierWins: {},
   };
+  // UNLOCK1: the ONLY fields bump()/bumpAll() may touch — the additive
+  // item-unlock counters in DEF above (never the legacy tallies).
+  const UNLOCK_COUNTERS = [
+    "bossesBeaten", "cardsBuried", "samesCalled", "correctSames", "jokersPlayed",
+    "stickersApplied", "pillarsPlaced", "basesPlaced", "removalsUsed", "pilesLost",
+  ];
   const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
   // One-time key migration: this store predates the ninelives.* prefix, which
   // the native bridge (NativeApp) exclusively mirrors to Capacitor Preferences —
@@ -15186,8 +15354,174 @@ const Stats = (() => {
       s.lifetimeGuesses += Math.max(0, total || 0);
       put(s);
     },
+    /** UNLOCK1: fold a LOST deal's in-play coins into the lifetime tally.
+        A WON deal's coins already ride Stats.runCleared's fold of the payout
+        (payout.total includes the in-play bonus tally) — folding again there
+        would double-count, so ONLY the loss path calls this. Closes the gap
+        where coins earned during a losing deal used to vanish unrecorded. */
+    addLostDealCoins(n) { const s = get(); s.lifetimeDopamine += Math.max(0, n || 0); put(s); },
+    /** UNLOCK1: bump ONE item-unlock counter by `n` (default 1). Fields
+        outside the fixed UNLOCK_COUNTERS set are ignored. */
+    bump(field, n) { this.bumpAll({ [field]: n == null ? 1 : n }); },
+    /** UNLOCK1: bump several item-unlock counters in ONE read-modify-write
+        (per-guess call sites batch their deltas). Non-positive / unknown
+        fields are skipped; an all-empty batch never touches storage. */
+    bumpAll(deltas) {
+      let s = null;
+      for (const f in deltas) {
+        if (UNLOCK_COUNTERS.indexOf(f) === -1) continue;
+        const n = Math.max(0, deltas[f] || 0);
+        if (!n) continue;
+        if (!s) s = get();
+        s[f] = (s[f] || 0) + n;
+      }
+      if (s) put(s);
+    },
     reset() { put({ ...DEF }); },
   };
+})();
+
+/* ----------------------------------------------------------------
+   ItemUnlocks — UNLOCK1 item-unlock gates (DOM-free, harness-testable). An
+   items.js entry may carry `unlock: { type, stat, count }`: the item stays
+   out of every roll pool (grantable / store classes / packs / Lammy's
+   pre-equip) until the LIFETIME counter `stat` (ITEM_UNLOCK_STATS) reaches
+   `count`. Unlocked-ness is DERIVED LIVE from Stats — stats only grow, so a
+   derivation never flips back. The persisted known-set (own key, SaveStore
+   idiom) exists ONLY to detect newly-unlocked items for the toast queue: on
+   first load it initializes SILENTLY to the full derived set, so a veteran
+   already past every threshold never gets retroactive toast spam. Ship
+   state: no item carries an unlock field, so every pool is byte-identical
+   to before and checkNewUnlocks() can only ever return [].
+---------------------------------------------------------------- */
+const ItemUnlocks = (() => {
+  const KEY = "ninelives.itemunlocks.v1";
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  // stat name → its live value, read off the Stats record. ONE reader per
+  // ITEM_UNLOCK_STATS entry: the aliases point at pre-existing counters
+  // (coinsEarnedLifetime reads lifetimeDopamine — the loss gap is closed by
+  // Stats.addLostDealCoins, so it counts every deal win or loss), the rest
+  // at the UNLOCK1 additive Stats fields.
+  const READERS = {
+    dealsSurvived:        s => s.runsCleared,
+    runsPlayed:           s => s.gamesPlayed,
+    runsWon:              s => s.campaignsWon,
+    bossesBeaten:         s => s.bossesBeaten,
+    endlessStagesReached: s => s.bestEndless,
+    coinsEarnedLifetime:  s => s.lifetimeDopamine,
+    cardsBuried:          s => s.cardsBuried,
+    samesCalled:          s => s.samesCalled,
+    correctSames:         s => s.correctSames,
+    jokersPlayed:         s => s.jokersPlayed,
+    stickersApplied:      s => s.stickersApplied,
+    pillarsPlaced:        s => s.pillarsPlaced,
+    basesPlaced:          s => s.basesPlaced,
+    removalsUsed:         s => s.removalsUsed,
+    pilesLost:            s => s.pilesLost,
+  };
+  // Hint copy per stat — the ONE place "how to earn it" phrasing lives
+  // (never hand-written into UI; the toasts / Collection read hintFor).
+  const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+  const HINTS = {
+    dealsSurvived:        n => "Clear " + pl(n, "deal"),
+    runsPlayed:           n => "Play " + pl(n, "run"),
+    runsWon:              n => "Win " + pl(n, "run"),
+    bossesBeaten:         n => "Beat " + pl(n, "boss", "bosses"),
+    endlessStagesReached: n => "Reach endless stage " + n,
+    coinsEarnedLifetime:  n => "Earn " + n + " lifetime coins",
+    cardsBuried:          n => "Bury " + pl(n, "card"),
+    samesCalled:          n => "Call Same " + pl(n, "time"),
+    correctSames:         n => "Win " + n + " Same " + (n === 1 ? "call" : "calls"),
+    jokersPlayed:         n => "Play " + pl(n, "Joker"),
+    stickersApplied:      n => "Apply " + pl(n, "sticker"),
+    pillarsPlaced:        n => "Place " + pl(n, "Pillar"),
+    basesPlaced:          n => "Place " + pl(n, "Base"),
+    removalsUsed:         n => "Remove " + pl(n, "card"),
+    pilesLost:            n => "Lose " + pl(n, "pile"),
+  };
+  /** The current lifetime value of a stat (0 for an unknown name). */
+  function statValue(name) {
+    const r = READERS[name];
+    if (!r) return 0;
+    return Math.max(0, r(Stats.get()) || 0);
+  }
+  /** Is this item def currently available? No unlock field = starting item. */
+  function isUnlocked(def) {
+    const u = def && def.unlock;
+    if (!u) return true;
+    return statValue(u.stat) >= u.count;
+  }
+  /** Every item def across every items.js group (flat, registry order). */
+  function allDefs() {
+    return [].concat(ItemData.stickers, ItemData.pillars, ItemData.bases,
+      ItemData.samePowers, ItemData.packs);
+  }
+  /** "Bury 15 cards" / "Win 3 runs" — derived from the unlock field, never
+      hand-written. "" for a starting item (no gate to describe). */
+  function hintFor(def) {
+    const u = def && def.unlock;
+    if (!u) return "";
+    const f = HINTS[u.stat];
+    return f ? f(u.count) : "";
+  }
+  // ── known-set persistence (toast detection only — never affects gating) ──
+  let knownCache = null;   // null = not loaded/derived yet
+  function loadKnown() {
+    if (!ok()) return null;
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw == null) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && Array.isArray(parsed.known)
+        ? parsed.known.filter(id => typeof id === "string") : [];
+    } catch (e) { return null; }
+  }
+  function persistKnown(arr) {
+    if (!ok()) return;
+    try { localStorage.setItem(KEY, JSON.stringify({ known: arr })); } catch (e) { /* ignore */ }
+  }
+  /** The known-set, lazy. FIRST LOAD (no stored blob): initialized SILENTLY to
+      the full derived unlocked set — retroactive, no toast spam — and persisted. */
+  function knownSet() {
+    if (knownCache) return knownCache;
+    const stored = loadKnown();
+    if (stored) return (knownCache = stored);
+    knownCache = allDefs().filter(isUnlocked).map(d => d.id);
+    persistKnown(knownCache);
+    return knownCache;
+  }
+  /** Derived-unlocked items not yet in the known-set: stamp them (persist) and
+      return their descriptors { id, def, hint } for the toast queue. Call at
+      deal end / run end only — never mid-guess. */
+  function checkNewUnlocks() {
+    const known = knownSet();
+    const fresh = allDefs().filter(d => d.unlock && isUnlocked(d) && known.indexOf(d.id) === -1);
+    if (fresh.length) {
+      for (const d of fresh) known.push(d.id);
+      persistKnown(known);
+    }
+    return fresh.map(d => ({ id: d.id, def: d, hint: hintFor(d) }));
+  }
+  /** The n LOCKED items closest to unlocking, by progress fraction desc (the
+      death/win-screen "almost there" block). */
+  function nearestLocked(n = 1) {
+    return allDefs()
+      .filter(d => d.unlock && !isUnlocked(d))
+      .map(d => {
+        const current = statValue(d.unlock.stat), count = d.unlock.count;
+        return { id: d.id, def: d, current, count,
+                 fraction: count > 0 ? Math.min(1, current / count) : 0,
+                 hint: hintFor(d) };
+      })
+      .sort((a, b) => b.fraction - a.fraction)
+      .slice(0, Math.max(0, n || 0));
+  }
+  function reset() {
+    knownCache = null;
+    if (ok()) try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+  }
+  return { STATS: ITEM_UNLOCK_STATS.slice(), statValue, isUnlocked, hintFor,
+           checkNewUnlocks, nearestLocked, reset };
 })();
 
 /* ----------------------------------------------------------------
@@ -15891,6 +16225,9 @@ const UIRenderer = (() => {
     zsList: document.getElementById("zsList"),
     zsStart: document.getElementById("zsStart"),
     zsBack: document.getElementById("zsBack"),
+    collectionScreen: document.getElementById("collectionScreen"),   // UNLOCK1: item collection page
+    colList: document.getElementById("colList"),
+    colBack: document.getElementById("colBack"),
     menuBtn: document.getElementById("menuBtn"),
     mapStoreBtn: document.getElementById("mapStoreBtn"),
     statsOverlay: document.getElementById("statsOverlay"),
@@ -15958,6 +16295,7 @@ const UIRenderer = (() => {
     runProgress: document.getElementById("runProgress"),
     zenEndStats: document.getElementById("zenEndStats"),
     overlaySeed: document.getElementById("overlaySeed"),     // SEED1: win/loss share-seed line
+    overlayUnlocks: document.getElementById("overlayUnlocks"),   // UNLOCK1: nearest-unlock progress rows
     endSummary: document.getElementById("endSummary"),
     endCards: document.getElementById("endCards"),
     endCoins: document.getElementById("endCoins"),
@@ -18552,7 +18890,9 @@ const UIRenderer = (() => {
   }
 
   /* Populate the debug grant dropdowns from the registries (every sticker and
-     every Pillar). Built once, lazily, when debug is first shown. */
+     every Pillar). Built once, lazily, when debug is first shown.
+     UNGATED by design (UNLOCK1): debug grants list EVERY registry entry,
+     locked or not — QA must be able to reach any item directly. */
   function buildDebugGrants() {
     const fill = (sel, items) => {
       sel.innerHTML = "";
@@ -19685,6 +20025,13 @@ const UIRenderer = (() => {
     });
     if (el.zsBack) el.zsBack.addEventListener("click", () => { Sound.tap(); hideZenSelect(); if (zenSelectReturn) zenSelectReturn(); });
 
+    // Collection page (UNLOCK1): Back mirrors zsBack; hold an UNLOCKED tile for
+    // its registry help — delegated ONCE here on the persistent list (tiles are
+    // rebuilt each visit). Locked tiles carry no data-id, so the resolver never
+    // fires for them (the unlock hint on the tile is their help).
+    if (el.colBack) el.colBack.addEventListener("click", () => { Sound.tap(); hideCollection(); if (collectionReturn) collectionReturn(); });
+    attachStoreHoldHelp(el.colList, (tile) => ({ kind: tile.dataset.kind, id: tile.dataset.id }), ".col-tile[data-id]");
+
     // Hold-to-peek the final board on run-complete screens: pressing the
     // overlay (anywhere except the button) fades it away to reveal the board
     // underneath; releasing restores it. Read-only — never mutates state.
@@ -20777,6 +21124,15 @@ const UIRenderer = (() => {
           if (!(campaign.isExhibition && campaign.isExhibition())) Stats.runPlayed();
           persistCampaign("run");
         }
+        // UNLOCK1: per-guess item-unlock counters, folded in one write
+        // (campaign deals only — Zen tallies into its own store above, and an
+        // exhibition run banks nothing).
+        if (!zenMode && !(campaign.isExhibition && campaign.isExhibition())) {
+          const deltas = {};
+          if (payload.guess === "same") { deltas.samesCalled = 1; if (payload.correct) deltas.correctSames = 1; }
+          if ((payload.drawn && payload.drawn.joker) || (payload.current && payload.current.joker)) deltas.jokersPlayed = 1;
+          Stats.bumpAll(deltas);
+        }
         const pileEl = pileEls[payload.index];
         const cardEl = pileEl.querySelector(".card");
         const reduce = prefersReduce();
@@ -20916,6 +21272,10 @@ const UIRenderer = (() => {
       }
 
       case "buried": {
+        // UNLOCK1: lifetime bury counter — every bury effect funnels through
+        // the engine's single "buried" emit (campaign deals only; an
+        // exhibition run banks nothing).
+        if (!zenMode && !(campaign.isExhibition && campaign.isExhibition())) Stats.bump("cardsBuried", payload.count || 0);
         // Cards were tucked under the pile from the deck (any bury effect). A
         // face-down card TRAVELS from the deck to the pile, then the tuck
         // flourish plays — reading as the card flying in and tucking under.
@@ -20935,6 +21295,15 @@ const UIRenderer = (() => {
         } else {
           setTimeout(tuck, reduce ? 0 : 380);
         }
+        break;
+      }
+
+      case "pile-killed": {
+        // UNLOCK1: lifetime piles-lost counter. The engine emits this on every
+        // IN-PLAY pile death (kamikaze, the suit-kill pillars, the fatal
+        // guess) — the debug loseNow() sweep deliberately does NOT emit, so QA
+        // can't pad the stat. Campaign deals only; exhibition banks nothing.
+        if (!zenMode && !(campaign.isExhibition && campaign.isExhibition())) Stats.bump("pilesLost");
         break;
       }
 
@@ -21539,6 +21908,16 @@ const UIRenderer = (() => {
       el.overlaySeed.classList.toggle("hidden", !opts.seed);
     }
 
+    // UNLOCK1: the nearest upcoming item unlocks (death/win screens) — one
+    // silhouette + hint + progress row per entry, same hidden-toggle idiom as
+    // the seed line. opts.unlocks comes from ItemUnlocks.nearestLocked; empty
+    // or absent → the section hides (always empty while no item carries a gate).
+    if (el.overlayUnlocks) {
+      const ups = opts.unlocks || [];
+      el.overlayUnlocks.innerHTML = ups.map(unlockProgressHtml).join("");
+      el.overlayUnlocks.classList.toggle("hidden", !ups.length);
+    }
+
     // End-of-campaign stats: cumulative cards flipped + gross coins earned, and
     // the Pillars the player finished with, by column.
     if (opts.endStats) {
@@ -21791,6 +22170,7 @@ const UIRenderer = (() => {
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
       seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the loss screen
+      unlocks: ItemUnlocks.nearestLocked(2),   // UNLOCK1: "almost there" rows (hidden when empty)
       peek: false,             // no hold-to-peek-the-board on the loss screen
       btnLabel: "MAIN MENU",
       // The run TERMINATES here — after an ENDLESS death this is where a first
@@ -21824,6 +22204,7 @@ const UIRenderer = (() => {
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
       seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the victory screen
+      unlocks: ItemUnlocks.nearestLocked(2),   // UNLOCK1: "almost there" rows (hidden when empty)
       peek: false,
       btnLabel: "CONTINUE — ENDLESS MODE",
       action: enterEndlessMode,
@@ -21992,11 +22373,18 @@ const UIRenderer = (() => {
   /* THE UNLOCK CELEBRATION (presentation only): the newly-unlocked character
      appears greyed under a padlock, then the lock pops away, the colour floods
      in with a bounce + sparkles + a ta-daa, and the name is revealed. Shown at
-     most once per unlock; CONTINUE resumes the normal flow (`onDone`). */
+     most once per unlock; CONTINUE resumes the normal flow (`onDone`).
+     UNLOCK1: run TERMINATION is also the item-unlock checkpoint — AFTER any
+     deck pop (or immediately, when none is armed), the item pop queue checks
+     for newly-unlocked items and drains BEFORE the flow resumes. */
   function maybeShowUnlockCelebration(onDone) {
     const d = pendingUnlockCelebration;
     pendingUnlockCelebration = null;               // consume — never repeats
-    if (!d) { onDone(); return; }
+    // The SECOND (run-end) checkNewUnlocks checkpoint: catches gates crossed by
+    // run-level stat folds (run won / campaign ended) that landed AFTER the
+    // deal-end checkpoint. Stamps once; [] → no UI, straight through.
+    const finish = () => queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), onDone);
+    if (!d) { finish(); return; }
     const prev = DECKS.find(x => x.id === d.requires);
     const wrap = document.createElement("div");
     wrap.className = "deck-unlock-pop";
@@ -22024,8 +22412,93 @@ const UIRenderer = (() => {
     wrap.querySelector(".duc-continue").addEventListener("click", () => {
       Sound.continueTap();
       wrap.remove();
-      onDone();
+      finish();
     });
+  }
+
+  /* ── UNLOCK1: ITEM-UNLOCK POPS (the deck-unlock idiom, generalized to a
+     QUEUE). Each pop shows the item's own tile (the store's class renderers)
+     as a silhouette under a padlock; ~800ms later (80ms reduced-motion) the
+     .revealed flip floods the art in with the bounce + sparkles + ta-daa, and
+     the name + derived "how you earned it" line appear. CONTINUE drains the
+     next queued pop; an empty queue calls onDone straight through (no UI).
+     The descriptors come from the two checkNewUnlocks checkpoints only (deal
+     end in onRunEnd, run end above) — never mid-guess. */
+  /** Which registry an items.js def lives in (its store/class kind). */
+  function itemKindOf(def) {
+    if (!def) return "sticker";
+    if (StickerTypes.get(def.id)) return "sticker";
+    if (PillarTypes.get(def.id)) return "pillar";
+    if (BaseTypes.get(def.id)) return "base";
+    if (SamePowerTypes.get(def.id)) return "samepower";
+    return "pack";
+  }
+  /** The item's tile — the SAME dispatch the store tile/detail uses (stickerChip
+      routes cursed stickers to the dcs-cursed identity for free). */
+  function unlockObjectHtml(kind, def) {
+    return kind === "pillar" ? pathwayBannerHtml(def, { size: "shop" })
+      : kind === "base" ? baseBannerHtml(def, "charged", { size: "shop" })
+      : kind === "pack" ? packObjectHtml(def, { size: "shop" })
+      : kind === "samepower" ? samePowerBadgeHtml(def)
+      : stickerChip(def.id, { seed: "unlock" });
+  }
+  /** Drain the queue one pop at a time; empty → onDone() synchronously. */
+  function queueItemUnlockPops(unlocks, onDone) {
+    const queue = (unlocks || []).slice();
+    const next = () => {
+      const u = queue.shift();
+      if (!u) { onDone(); return; }
+      showItemUnlockPop(u, next);
+    };
+    next();
+  }
+  function showItemUnlockPop(u, onNext) {
+    const kind = itemKindOf(u.def);
+    const wrap = document.createElement("div");
+    wrap.className = "deck-unlock-pop item-unlock-pop";
+    wrap.innerHTML =
+      '<div class="duc-panel">' +
+        '<div class="duc-eyebrow">New ' + (KIND_LABEL[kind] || "item") + ' unlocked</div>' +
+        '<div class="iuc-objwrap">' + unlockObjectHtml(kind, u.def) +
+          '<span class="duc-lock">🔒</span>' +
+          '<span class="duc-spark s1">✦</span><span class="duc-spark s2">✦</span>' +
+          '<span class="duc-spark s3">✦</span><span class="duc-spark s4">✦</span>' +
+        '</div>' +
+        '<div class="duc-name">???</div>' +
+        '<div class="duc-copy">' + escHtml(u.hint) + '</div>' +
+        '<button class="play-btn duc-continue" type="button">CONTINUE</button>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    // A breath on the silhouette first, THEN the reveal (instant under reduced
+    // motion — the CSS drops the transitions there too).
+    setTimeout(() => {
+      if (!wrap.parentNode) return;
+      wrap.classList.add("revealed");
+      wrap.querySelector(".duc-name").textContent = u.def.label;
+      Sound.deckUnlock();
+    }, prefersReduce() ? 80 : 800);
+    wrap.querySelector(".duc-continue").addEventListener("click", () => {
+      Sound.continueTap();
+      wrap.remove();
+      onNext();
+    });
+  }
+  /* The death/win overlay "almost there" row (opts.unlocks, from
+     ItemUnlocks.nearestLocked): silhouette tile + the remaining-count hint
+     (hintFor re-derived at the REMAINING count — never hand-written) + a
+     progress bar with the live count. */
+  function unlockProgressHtml(u) {
+    const remaining = Math.max(0, u.count - u.current);
+    const left = ItemUnlocks.hintFor({ unlock: { stat: u.def.unlock.stat, count: remaining } });
+    const pct = Math.max(0, Math.min(100, Math.round(u.fraction * 100)));
+    return '<div class="ov-unlock">' +
+      '<span class="ov-unlock-obj"><span class="ulk-obj silhouette">' +
+        unlockObjectHtml(itemKindOf(u.def), u.def) + '</span></span>' +
+      '<span class="ov-unlock-info">' +
+        '<span class="ov-unlock-hint">? — ' + escHtml(left) + ' to go</span>' +
+        '<span class="ulk-bar"><span class="ulk-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="ulk-count">' + Math.min(u.current, u.count) + ' / ' + u.count + '</span>' +
+      '</span></div>';
   }
   /** The deck the CURRENT campaign is being played with (win credit target).
       Set on Start Run; restored with a resumed save; defaults to Pinky. */
@@ -23013,7 +23486,7 @@ const UIRenderer = (() => {
     // (it fades to opacity 0, revealing the board) — keep the network drifting then.
     const overlayCovers = up(el.overlay) && !el.overlay.classList.contains("peek");
     if (overlayCovers || up(el.storeOverlay) || up(el.mapOverlay) || up(el.mainMenu)
-        || up(el.zenSelect) || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
+        || up(el.zenSelect) || up(el.collectionScreen) || up(el.statsOverlay) || up(el.manualOverlay) || up(el.gameMenu)) return false;
     return true;
   }
   /* Pause the board's perpetual card breathing (CSS) whenever a full overlay
@@ -23959,6 +24432,13 @@ const UIRenderer = (() => {
       // the ambush context so nothing stale outlives the wipe (the forced
       // currentDealSubset too — a fresh campaign must never re-force it).
       ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;
+      // UNLOCK1: fold the LOST deal's in-play coin tally into the lifetime
+      // counter (coinsEarnedLifetime). A WON deal's coins already ride
+      // Stats.runCleared's fold of payout.total — which INCLUDES this tally —
+      // so only the loss path folds here; folding both would double-count.
+      // Closes the gap where coins earned during a losing deal vanished
+      // unrecorded. A negative tally (tribute costs) folds as 0.
+      if (!exhibition) Stats.addLostDealCoins((payload.run && payload.run.bonusCoins) || 0);
       // The little box takes it gently: eyes close, one small tear, a slow slump
       // (persistent mood on both characters; cleared on the next run start).
       CharMood.loss();
@@ -23976,7 +24456,10 @@ const UIRenderer = (() => {
             campaign.totalCardsFlipped, campaign.totalCoinsEarned);
         }
       }
-      showCampaignFailed(payload.run);
+      // UNLOCK1: DEAL END is an item-unlock checkpoint (all of this deal's stat
+      // folds landed above) — any newly-unlocked item pops, queued, BEFORE the
+      // death overlay appears. Stamps once here; [] → no UI, straight through.
+      queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showCampaignFailed(payload.run));
       return;
     }
 
@@ -24067,6 +24550,9 @@ const UIRenderer = (() => {
     // masked node stays un-cleared; its own dispatch (after the summary) owns it.
     const clearedNode = campaign.currentNode();
     if (clearedNode && !wasAmbush) campaign.markNodeCleared(clearedNode.id);
+    // UNLOCK1: lifetime boss counter — the cleared node was a BOSS (an ambush
+    // deal never counts; an exhibition run banks nothing).
+    if (!exhibition && clearedNode && !wasAmbush && clearedNode.type === "boss") Stats.bump("bossesBeaten");
     // ENDLESS: an endless boss falling just generated the NEXT stage — record
     // the new depth in lifetime stats as each stage opens.
     if (campaign.isEndless && campaign.isEndless() && !exhibition) Stats.endlessReached(campaign.endlessStagesReached());
@@ -24094,6 +24580,14 @@ const UIRenderer = (() => {
       if (runWon) Sound.runClear(); else Sound.dealWon();
       done();
     });
+
+    // UNLOCK1: DEAL END is an item-unlock checkpoint — every deal-level stat
+    // fold landed above (cards buried / sames / Jokers / coins / bosses). The
+    // run-level folds inside the runWon block below (campaignEnded) are caught
+    // by the SECOND checkpoint at run termination (maybeShowUnlockCelebration).
+    // Stamps once here; the pops queue ahead of the summary screen, [] → no UI.
+    const freshUnlocks = ItemUnlocks.checkNewUnlocks();
+    const showDealSummary = () => queueItemUnlockPops(freshUnlocks, () => showRunComplete(coins));
 
     if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared
@@ -24135,7 +24629,7 @@ const UIRenderer = (() => {
       // (and endless mode beyond it) — so the boss resolves like any other won
       // deal: summary → map, where the home node is now the legal next step.
       persistCampaign("map");
-      playWinCinematic(board, () => showPostDealPlacement(() => showRunComplete(coins)));
+      playWinCinematic(board, () => showPostDealPlacement(showDealSummary));
     } else {
       // Show the coin breakdown, then continue back to the (current or new-phase)
       // map to pick the next node. Checkpoint so a refresh resumes at the map.
@@ -24145,7 +24639,7 @@ const UIRenderer = (() => {
       if (!wasAmbush) persistCampaign("map");
       // If anything was GAINED mid-deal, place it first (post-deal screen), THEN
       // show the summary. Nothing gained → straight to the summary.
-      playWinCinematic(board, () => showPostDealPlacement(() => showRunComplete(coins)));
+      playWinCinematic(board, () => showPostDealPlacement(showDealSummary));
     }
   }
 
@@ -25802,7 +26296,7 @@ const UIRenderer = (() => {
       '<div style="white-space:pre-line;font-size:12.5px;line-height:1.34;">' + escHtml(info.desc || "") + '</div>';
     el.cardInfo.classList.remove("hidden");
   }
-  function attachStoreHoldHelp(container, resolve) {
+  function attachStoreHoldHelp(container, resolve, sel) {
     if (!container) return;
     // A DELIBERATE long-press shows help; a normal tap buys. 350ms was too short —
     // ordinary mobile taps often exceed it, so the timer would fire (showing help
@@ -25811,7 +26305,9 @@ const UIRenderer = (() => {
     // well above a normal tap, so a buy tap always starts its flow.
     const HOLD_MS = 500;
     let holdTimer = null, held = false;
-    const tileOf = (e) => (e.target && e.target.closest) ? e.target.closest(".store-tile:not(.empty)") : null;
+    // `sel` overrides the tile selector (the Collection screen reuses this
+    // delegation for its own tile class; the store keeps the default).
+    const tileOf = (e) => (e.target && e.target.closest) ? e.target.closest(sel || ".store-tile:not(.empty)") : null;
     container.addEventListener("pointerdown", (e) => {
       const tile = tileOf(e); if (!tile) return;
       // Fresh interaction: clear any stale suppress (a long-press may not fire a
@@ -28097,6 +28593,62 @@ const UIRenderer = (() => {
   }
   function hideZenSelect() { el.zenSelect.classList.add("hidden"); }
 
+  /* ── COLLECTION (UNLOCK1) — every items.js entry grouped by class, the
+     #zenSelect full-screen pattern (corner Back, opaque felt, one scroll
+     column). Unlocked tiles: full art (the store's class renderers) + name,
+     hold for the registry help (boot-delegated on the persistent list).
+     Locked tiles: silhouette, "?" name, the derived unlock hint and a live
+     progress bar — all read LIVE from ItemUnlocks on every visit, so an
+     items.js retune or a crossed threshold is reflected with no code change.
+     Ship state (no unlock fields) renders everything unlocked. */
+  let collectionReturn = null;   // how the corner Back returns (to the menu)
+  const COLLECTION_GROUPS = [
+    { group: "stickers",   label: "Stickers",    kind: "sticker" },
+    { group: "pillars",    label: "Pillars",     kind: "pillar" },
+    { group: "bases",      label: "Bases",       kind: "base" },
+    { group: "samePowers", label: "Same-Powers", kind: "samepower" },
+    { group: "packs",      label: "Packs",       kind: "pack" },
+  ];
+  function collectionTileHtml(kind, def) {
+    const obj = unlockObjectHtml(kind, def);
+    if (ItemUnlocks.isUnlocked(def)) {
+      // data-kind/data-id arm the boot-time hold-help delegation.
+      return '<button type="button" class="col-tile" data-kind="' + kind + '" data-id="' + escHtml(def.id) + '">' +
+        '<span class="col-obj"><span class="ulk-obj">' + obj + '</span></span>' +
+        '<span class="col-name">' + escHtml(def.label) + '</span></button>';
+    }
+    const current = ItemUnlocks.statValue(def.unlock.stat);
+    const count = def.unlock.count;
+    const pct = count > 0 ? Math.max(0, Math.min(100, Math.round((current / count) * 100))) : 0;
+    // Locked: no data-id → the hold-help delegation never resolves it (the
+    // unlock hint ON the tile is its help). Silhouette + "?" + hint + bar.
+    return '<div class="col-tile locked">' +
+      '<span class="col-obj"><span class="ulk-obj silhouette">' + obj + '</span></span>' +
+      '<span class="col-name">?</span>' +
+      '<span class="col-tile-hint">' + escHtml(ItemUnlocks.hintFor(def)) + '</span>' +
+      '<span class="ulk-bar"><span class="ulk-fill" style="width:' + pct + '%"></span></span>' +
+      '<span class="ulk-count">' + Math.min(current, count) + ' / ' + count + '</span></div>';
+  }
+  function renderCollection() {
+    // Rebuilt per visit into the persistent container (the zenSelect idiom);
+    // the hold-help listener was attached ONCE at boot on el.colList.
+    el.colList.innerHTML = COLLECTION_GROUPS.map(g =>
+      '<div class="col-section"><div class="col-head">' + g.label + '</div>' +
+      '<div class="col-grid">' +
+        ItemData[g.group].map(def => collectionTileHtml(g.kind, def)).join("") +
+      '</div></div>').join("");
+  }
+  function showCollection(canContinue) {
+    collectionReturn = () => showMainMenu(canContinue);
+    el.stageRun.classList.add("off");
+    setScreenNav(false, false, false);
+    el.overlay.classList.add("hidden");
+    renderCollection();
+    el.collectionScreen.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the opaque page → pause its card animations
+  }
+  function hideCollection() { el.collectionScreen.classList.add("hidden"); }
+
   function startZen(diffId) {
     zenMode = { diff: diffId, deck: null, counted: false, flips: 0, correct: 0 };
     document.body.classList.add("zen-mode");
@@ -28297,6 +28849,10 @@ const UIRenderer = (() => {
       action: () => { hideMainMenu(); showZenSelect(canContinue); } });
     items.push({ label: "How to Play", ico: "search", action: showManual });
     items.push({ label: "Stats", ico: "graph", action: showStats });
+    // UNLOCK1: the item collection — unconditional, same presence rules as
+    // Stats. Its own full-screen page (#collectionScreen, the zenSelect
+    // pattern); Back returns here with Continue preserved.
+    items.push({ label: "Collection", ico: "die", action: () => { hideMainMenu(); showCollection(canContinue); } });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
     buildMenu(el.menuButtons, items);
     if (!campaignUnlocked()) {

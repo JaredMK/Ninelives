@@ -157,6 +157,40 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.08 (Kimi, UNLOCK1)** — item-unlock framework (ships with NOTHING
+  locked); READ THIS BEFORE ADDING unlock FIELDS OR TOUCHING ROLL POOLS:
+  - items.js items may carry `unlock: {type:"milestone"|"behavior", stat,
+    count}` (documented in the items.js header with the 15 stat names +
+    a commented example). Validators fail loud on malformed shapes.
+  - `ItemUnlocks` module (~15440, DOM-free): `statValue(name)` maps the 15
+    public stat names to Stats fields (10 NEW additive Stats.DEF fields:
+    bossesBeaten, cardsBuried, samesCalled, correctSames, jokersPlayed,
+    stickersApplied, pillarsPlaced, basesPlaced, removalsUsed, pilesLost;
+    the rest alias existing fields). `isUnlocked` derives LIVE from Stats —
+    stats only grow, so derivation is stable; the persisted
+    `ninelives.itemunlocks.v1` known-set exists ONLY to detect NEW unlocks
+    for toasts (first load initializes it silently = retroactive).
+  - EVERY new Stats increment gates on `!campaign.isExhibition()` at the
+    call site (SEED1 parity). New engine emit: `"pile-killed"` (BoardState
+    kill sites) — debug loseNow deliberately does NOT emit.
+  - Gating is PRE-FILTER, never in-loop reroll: `StickerTypes.grantable()`
+    filters locked (covers ~9 roll sites); `rollUnifiedSlots` pre-filters
+    each class pool with `w: 0` for an empty class (the `card` pattern);
+    Lammy preEquip filters + null-pads to COLUMN_SLOTS. UNGATED by design:
+    the cursed-sticker bane pool and debug grants. Any NEW random-item path
+    must draw from grantable()/the filtered pools or locks leak.
+  - Toasts: `ItemUnlocks.checkNewUnlocks()` is called ONLY at deal end and
+    run end (never mid-guess) — it STAMPS the known-set, so never call it
+    without a screen to show the pops on. The pop queue chains inside
+    `maybeShowUnlockCelebration`. Death/win screens render
+    `ItemUnlocks.nearestLocked(2)` progress bars via a showOverlay section.
+  - Collection screen: main-menu button, `.menu-screen` full page, boot-
+    attached delegated hold-help (500ms store idiom), cursed stickers route
+    through stickerChip (dcs-cursed).
+  - The ship-state pins in tests/unlocks.test.mjs are written to SURVIVE
+    the user adding real unlock fields (they read the registry
+    dynamically) — keep them that way.
+
 - **v5.07 (Kimi, SEED1)** — shareable run seeds + full-stream determinism;
   READ THIS BEFORE TOUCHING ANY RNG CALL SITE OR THE SAVE FORMAT:
   - `SeedCode` (~7219): 7-char base-31 codes (alphabet
