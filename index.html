@@ -725,13 +725,22 @@ const NativeApp = (() => {
      settling only when the peek ends — much stronger + persistent than the
      one-shot trigger pulse, so the small corner deck can't be missed. The
      `.revealed` class is on the deck stack the entire time the face is up. */
-  @keyframes deckPeekGlow {
-    0%, 100% { filter: drop-shadow(0 0 5px rgba(133,104,192,0.62)); }
-    50%      { filter: drop-shadow(0 0 14px rgba(133,104,192,1)); }
+  /* THERMAL2: the peek glow was the last always-on FILTER animation
+     (drop-shadow pulsing every frame = repaint per frame, on a HUD chip
+     visible above every bottom-sheet modal). Now: static base glow on the
+     element + an OPACITY-crossfaded ::after halo — same violet pulse,
+     compositor-only. Filter/box-shadow animation stays banned for always-on
+     FX (THERMAL1). */
+  .deck-stack.revealed { position: relative; box-shadow: 0 0 5px rgba(133,104,192,0.62); border-radius: 10px; }
+  .deck-stack.revealed::after {
+    content: ""; position: absolute; inset: -3px; border-radius: 12px; z-index: -1;
+    box-shadow: 0 0 14px rgba(133,104,192,1);
+    opacity: 0; pointer-events: none; animation: deckPeekFade 1.3s ease-in-out infinite;
   }
-  .deck-stack.revealed { animation: deckPeekGlow 1.3s ease-in-out infinite; }
+  @keyframes deckPeekFade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
-    .deck-stack.revealed { animation: none; filter: drop-shadow(0 0 9px rgba(133,104,192,0.95)); }
+    .deck-stack.revealed::after { animation: none; content: none; }
+    .deck-stack.revealed { box-shadow: 0 0 9px rgba(133,104,192,0.95); }
   }
 
   /* ── DECK CHARACTER ─────────────────────────────────────────────────────────
@@ -4739,8 +4748,12 @@ const NativeApp = (() => {
   body:has(.deck-modal:not(.hidden)) .pm-node.s-legal::after,
   body:has(.deck-modal:not(.hidden)) .pm-node.s-here::after,
   body:has(.deck-modal:not(.hidden)) .map-avatar,
+  body:has(.deck-modal:not(.hidden)) .map-avatar .av-body,
+  body:has(.deck-modal:not(.hidden)) .map-avatar .av-face,
   body:has(.deck-modal:not(.hidden)) .hud .hud-same.charged,
   body:has(.deck-modal:not(.hidden)) .cph-banner.activatable,
+  body:has(.deck-modal:not(.hidden)) .deck-stack.revealed,
+  body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-face,
   body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-pupil { animation-play-state: paused; }
   /* PERFFIX: the picker grid is vinyl-flattened (sa-lite) — drop the last
      surviving filter (the chip-icon drop-shadow, ~150 chips at 46-card
@@ -7385,7 +7398,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.15 · box-shadow pulses → compositor crossfades + ambient gap capture (THERMAL1)";
+const APP_VERSION = "v5.16 · last filter-loop killed (deck peek) + stall attribution in perf dumps";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -30333,6 +30346,16 @@ const UIRenderer = (() => {
 
     // JOURNEY CONTEXT: a tiny snapshot attached to picker-journey marks so an
     // on-device dump can correlate jank with deck size / sticker load.
+    // THERMAL2: + which picker flow (kind) and which screen sits underneath —
+    // the v5.15 dump showed picker-only stalls with a clean ambient, so the
+    // next dump must say WHERE the picker was open.
+    function currentUnder() {
+      try {
+        if (document.body.classList.contains("on-map")) return "map";
+        if (el.storeOverlay && !el.storeOverlay.classList.contains("hidden")) return "store";
+        return "board";
+      } catch (e) { return "?"; }
+    }
     function journeyCtx() {
       let deck = null, stickers = null;
       try {
@@ -30345,7 +30368,8 @@ const UIRenderer = (() => {
         }
       } catch (e) { /* measurement must never break the game */ }
       const g = frameGap.stats();
-      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky };
+      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky,
+               kind: pickerSession ? pickerSession.kind : null, under: currentUnder() };
     }
     // Journey mark: { mark:true, stage, at(s), ctx }. picker:* stages pick up
     // the journey context automatically when no ctx is passed.
@@ -30426,9 +30450,10 @@ const UIRenderer = (() => {
       const worst = [];             // top-5 { ms, at(s) }, longest first
       let rafId = null, last = 0, max = 0, sum = 0, janky = 0, frames = 0;
       function note(g, at) {
+        const scr = currentUnder();
         for (let i = 0; i < 5; i++) {
           if (!worst[i] || g > worst[i].ms) {
-            worst.splice(i, 0, { ms: +g.toFixed(1), at: +(at / 1000).toFixed(2) });
+            worst.splice(i, 0, { ms: +g.toFixed(1), at: +(at / 1000).toFixed(2), scr });
             if (worst.length > 5) worst.length = 5;
             break;
           }
@@ -30506,6 +30531,8 @@ const UIRenderer = (() => {
         let c = "";
         if (e.ctx) {
           const bits = [];
+          if (e.ctx.kind) bits.push(e.ctx.kind);
+          if (e.ctx.under) bits.push("over " + e.ctx.under);
           if (e.ctx.deck != null) bits.push("deck " + e.ctx.deck);
           if (e.ctx.stickers != null) bits.push("stk " + e.ctx.stickers);
           if (e.ctx.openMs != null) bits.push("open " + e.ctx.openMs + "ms");
@@ -30519,7 +30546,7 @@ const UIRenderer = (() => {
       const a = ambientGap.stats();
       L.push("-- ambient (all screens) --");
       L.push("frames " + a.frames + " · gap max " + a.max + "ms mean " + a.mean + "ms janky " + a.janky);
-      for (const w of a.worst) L.push("worst " + w.ms + "ms @" + w.at.toFixed(2) + "s");
+      for (const w of a.worst) L.push("worst " + w.ms + "ms @" + w.at.toFixed(2) + "s" + (w.scr ? " [" + w.scr + "]" : ""));
       return L.join("\n");
     }
     return { setOn, time, mark, markAfterPaint, pickerOpened, pickerClosed, dump, report, entries,
@@ -30581,6 +30608,12 @@ const UIRenderer = (() => {
     // not a reassignable declaration in this scope — reassign the (writable)
     // property instead. Same off = single-boolean-check wrapper.
     DeckInspector.renderCompositionInto = wrap("deck:renderComposition", DeckInspector.renderCompositionInto);
+    // THERMAL2: the on-device stalls sit BETWEEN the wrapped picker functions
+    // (all <50ms) — wrap the two heavy unwrapped paths that fire around
+    // selection/close: the prompt-bar build and the post-close strip rebuild
+    // (which recreates every mini-card in the deck band at big decks).
+    showActionBar = wrap("ui:actionBar", showActionBar);
+    renderDeckStrip = wrap("deck:renderStrip", renderDeckStrip);
   }
 
   return { init };

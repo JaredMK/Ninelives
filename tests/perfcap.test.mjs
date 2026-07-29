@@ -221,7 +221,9 @@ export function run() {
     r.ok(pauses.length > 0, "PERFFIX: deck-modal-open pause rules exist (animation-play-state: paused)");
     const paused = pauses.join("\n");
     for (const sel of [".pm-node.s-legal::after", ".pm-node.s-here::after", ".map-avatar",
-                       ".hud .hud-same.charged", ".cph-banner.activatable", ".ds-deckchar .dc-pupil"])
+                       ".map-avatar .av-body", ".map-avatar .av-face",
+                       ".hud .hud-same.charged", ".cph-banner.activatable",
+                       ".deck-stack.revealed", ".ds-deckchar .dc-face", ".ds-deckchar .dc-pupil"])
       r.ok(paused.includes(sel), "PERFFIX: pause list covers " + sel);
     // Confirm-window keyframes must never animate `filter` (per-frame software
     // repaint of the card region — the measured 200-390ms apply frames).
@@ -253,6 +255,26 @@ export function run() {
       "reduced-motion kills both crossfades");
     r.ok(!/\.pm-node\.s-(legal|here)::after[^}]*will-change/.test(html),
       "no blanket will-change on the map pulse pseudo-layers");
+  }
+
+  // --- Structural: THERMAL2 — last filter loop killed + stall attribution ----
+  {
+    r.ok(!html.includes("@keyframes deckPeekGlow"),
+      "the deck-peek drop-shadow filter loop is gone (filter animation banned for always-on FX)");
+    const peek = html.match(/@keyframes deckPeekFade \{[^}]*\}/);
+    r.ok(!!peek && peek[0].includes("opacity") && !peek[0].includes("filter") && !peek[0].includes("box-shadow"),
+      "deckPeekFade is an opacity crossfade");
+    r.ok(/\.deck-stack\.revealed::after \{[^}]*pointer-events: none;[^}]*animation: deckPeekFade/.test(html),
+      "the peek glow rides a ::after halo layer with the crossfade");
+    // Stall attribution: journey context carries the picker kind + the screen
+    // underneath, the ambient worst-list carries the screen, and the two
+    // previously unwrapped heavy paths around select/close are timed.
+    r.ok(src.includes("kind: pickerSession ? pickerSession.kind : null") && src.includes("under: currentUnder()"),
+      "journey context stamps the picker kind + the screen underneath");
+    r.ok(src.includes('bits.push("over " + e.ctx.under)'),
+      "the dump prints the screen underneath each picker mark");
+    r.ok(src.includes('wrap("ui:actionBar", showActionBar)') && src.includes('wrap("deck:renderStrip", renderDeckStrip)'),
+      "showActionBar + renderDeckStrip are wrapped (the unwrapped gap around the stalls)");
   }
 
   return r.summary();

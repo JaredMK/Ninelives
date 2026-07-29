@@ -157,6 +157,26 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.16 (Kimi, THERMAL2)** — last always-on filter loop killed + stall
+  attribution; READ THIS BEFORE TRUSTING A "CLEAN" DESKTOP PROFILE:
+  - The v5.15 on-device dump proved the game runs clean everywhere EXCEPT
+    picker sessions (ambient: 2946 frames, mean 16.9ms) — yet picker sessions
+    still hit 2.5-3.4s single-frame stalls and one 20s ~6fps session, with
+    ALL wrapped JS <50ms. Attribution is now baked into the capture:
+    journeyCtx stamps `kind` (sticker/removal/remove/swap/strip) + `under`
+    (map/store/board via body.on-map / storeOverlay.hidden), the dump prints
+    them per mark, and the ambient worst-5 entries carry `[screen]`.
+    `showActionBar` + `renderDeckStrip` (the two heavy unwrapped paths around
+    select/close) are now wrapped as `ui:actionBar` / `deck:renderStrip`.
+  - `deckPeekGlow` (an infinite drop-shadow FILTER animation on the HUD deck
+    chip, visible above bottom-sheet modals) is converted to the
+    opacity-crossfade pattern (`deckPeekFade` on `::after`, static base
+    glow). Filter OR box-shadow animation for always-on FX is banned
+    game-wide — no exceptions remain in the stylesheet.
+  - The `:has(.deck-modal:not(.hidden))` pause list gained
+    `.deck-stack.revealed`, `.map-avatar .av-body/.av-face`,
+    `.ds-deckchar .dc-face`.
+
 - **v5.15 (Kimi, THERMAL1)** — box-shadow animation is BANNED game-wide for
   always-on FX; READ THIS BEFORE ADDING ANY ANIMATION:
   - Animating `box-shadow` repaints the element EVERY FRAME (paint-level
