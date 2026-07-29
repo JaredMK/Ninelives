@@ -14,11 +14,12 @@
 // clock — it dies with the modal); (d) Perf.dump(), a paste-friendly text
 // report copied by a new debug-panel button via copySeed.
 //
-// Part 2 is the debug "flat picker (A/B)" checkbox toggling body.perf-flat,
-// whose CSS (scoped to #stickerApplyModal + the map pulses) strips the
-// suspected iOS-compositor-expensive styling: backdrop blur, the .dcs-ic
-// drop-shadow, the filter-animating saFlash/saRemove keyframes (swapped for
-// opacity-only equivalents), and the pmPulseFade node pulses.
+// Part 2 is the debug "flat picker (A/B)" checkbox toggling body.perf-flat.
+// After PERFFIX (v5.13) its only remaining job is killing the deck-modal
+// backdrop blur — the other suspects became permanent fixes: background
+// animators pause under any open deck-modal (body:has(.deck-modal:not(.hidden))
+// + animation-play-state), the saFlash/saRemove keyframes are filter-free,
+// and the picker chip-icon drop-shadow is off in the .sa-lite scope.
 //
 // Everything is debug-gated: with capture OFF each wrapper/mark is a single
 // boolean check and no rAF is requested; with body.perf-flat absent no flat
@@ -105,6 +106,8 @@ export function run() {
     r.ok(!!open, "a picker:open journey mark was recorded");
     r.ok(open && open.ctx && "gapMax" in open.ctx && "gapMean" in open.ctx && "janky" in open.ctx,
       "…picker marks auto-attach the frame-gap context");
+    r.ok(open && open.ctx && "flat" in open.ctx,
+      "…and the perf-flat A/B state is stamped into the context");
     const closed = Perf.entries.find(e => e.mark && e.stage === "picker:closed");
     r.ok(closed && closed.ctx && typeof closed.ctx.openMs === "number",
       "picker:closed carries the session length (openMs)");
@@ -133,6 +136,8 @@ export function run() {
       "…listing the journey marks in order");
     r.ok(d.includes("-- journeys --") && d.includes("-- timings"),
       "…with the journeys and timings sections");
+    const m = d.match(/entries (\d+)\/(\d+)/);
+    r.ok(!!m && +m[1] <= +m[2], "the header entry count never exceeds PERF_CAP (slack is hidden)");
     Perf.setOn(false);
   }
 
@@ -198,20 +203,37 @@ export function run() {
     r.ok(html.includes("body.perf-flat #stickerApplyModal.deck-modal")
       && /body\.perf-flat #stickerApplyModal\.deck-modal \{[^}]*backdrop-filter: none;\s*-webkit-backdrop-filter: none;/.test(html),
       "flat CSS kills the picker backdrop blur (prefixed + unprefixed)");
-    r.ok(html.includes("body.perf-flat #stickerApplyModal .dcs-ic { filter: none; }"),
-      "flat CSS kills the sticker-icon drop-shadow inside the picker");
-    r.ok(/body\.perf-flat #stickerApplyModal \.sa-card\.sa-flash \.mini-card \{ animation-name: saFlashFlat; \}/.test(html)
-      && /body\.perf-flat #stickerApplyModal \.sa-card\.sa-remove \.mini-card \{ animation-name: saRemoveFlat; \}/.test(html),
-      "flat CSS swaps saFlash/saRemove for opacity-only keyframes");
-    r.ok(html.includes("@keyframes saFlashFlat") && html.includes("@keyframes saRemoveFlat"),
-      "…the opacity-only keyframes are defined (base animations untouched)");
-    r.ok(html.includes("body.perf-flat .pm-node.s-legal::after")
-      && html.includes("body.perf-flat .pm-node.s-here::after"),
-      "flat CSS pauses the map-node pulse animations");
+    // After PERFFIX the blur kill is perf-flat's ONLY remaining job — the icon
+    // shadow, filter keyframes, and map-pulse pauses are permanent fixes now.
+    r.ok(!html.includes("saFlashFlat") && !html.includes("saRemoveFlat"),
+      "the flat animation-swap keyframes are gone (base animations are filter-free now)");
+    r.ok(!/body\.perf-flat[^{]*\.dcs-ic/.test(html) && !/body\.perf-flat[^{]*\.pm-node/.test(html),
+      "perf-flat no longer carries the (now permanent) icon-shadow / map-pulse rules");
     // Every flat rule is gated on body.perf-flat (nothing leaks into normal play):
     // the selectors above all carry the prefix, and the base rules are unmodified.
     r.ok(!/\.perf-flat[^{]*\{[^}]*backdrop-filter: blur/.test(html),
       "no flat rule re-introduces a blur");
+  }
+
+  // --- Structural: PERFFIX permanent fixes -----------------------------------
+  {
+    // Background animators pause whenever ANY deck-modal covers them (:has(),
+    // self-syncing across every open/close path — no JS hook, no stranded state).
+    const pauses = html.match(/body:has\(\.deck-modal:not\(\.hidden\)\)[^{]*\{[^}]*animation-play-state: paused/g) || [];
+    r.ok(pauses.length > 0, "PERFFIX: deck-modal-open pause rules exist (animation-play-state: paused)");
+    const paused = pauses.join("\n");
+    for (const sel of [".pm-node.s-legal::after", ".pm-node.s-here::after", ".map-avatar",
+                       ".hud .hud-same.charged", ".cph-banner.activatable", ".ds-deckchar .dc-pupil"])
+      r.ok(paused.includes(sel), "PERFFIX: pause list covers " + sel);
+    // Confirm-window keyframes must never animate `filter` (per-frame software
+    // repaint under the full-viewport blur — the measured 200-390ms apply frames).
+    const flash = html.match(/@keyframes saFlash \{[\s\S]*?\n  \}/);
+    const remove = html.match(/@keyframes saRemove \{[\s\S]*?\n  \}/);
+    r.ok(!!flash && !flash[0].includes("filter"), "saFlash keyframes are filter-free");
+    r.ok(!!remove && !remove[0].includes("filter"), "saRemove keyframes are filter-free");
+    // The picker grid is vinyl-flattened — no filter survives on its chips.
+    r.ok(html.includes(".sa-lite .dcs-ic { filter: none; }"),
+      "the picker chip-icon drop-shadow is permanently off (.sa-lite scope)");
   }
 
   return r.summary();

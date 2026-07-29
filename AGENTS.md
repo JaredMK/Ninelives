@@ -157,6 +157,32 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.13 (Kimi, PERFFIX)** — on-device-indicted render-cost fixes; READ THIS
+  BEFORE ADDING ALWAYS-ON ANIMATIONS OR PICKER FX:
+  - **The `body:has(.deck-modal:not(.hidden))` pause contract** (CSS block by
+    the picker styles): while ANY deck-modal is open, the background animators
+    (`.pm-node.s-legal/.s-here::after`, `.map-avatar`, `.hud .hud-same.charged`,
+    `.cph-banner.activatable`, `.ds-deckchar .dc-pupil`) get
+    `animation-play-state: paused`. Reason: the deck-modal's full-viewport
+    `backdrop-filter: blur` re-blurs whatever changes behind it — on-device
+    (iPhone 18.7, deck 32-46): 17-34ms mean frame gap + 300-600ms tap frames
+    while all picker JS was <50ms. ANY NEW always-on animation that can sit
+    behind a deck-modal MUST be added to this list. `:has()` keeps it
+    self-syncing across every open/close path — do not replace it with a JS
+    hook (stranded-state risk).
+  - **Filter keyframes are banned in picker FX**: `saFlash`/`saRemove` are
+    transform/opacity only (animating `filter` forced per-frame software
+    repaints of a blurred region — the 200-390ms apply frames). New card FX
+    must animate transform/opacity only.
+  - `.sa-lite .dcs-ic { filter: none }` — the picker grid is vinyl-flat; the
+    board keeps its shadows.
+  - `body.perf-flat` (debug A/B) now ONLY kills the deck-modal backdrop blur —
+    its icon-shadow/animation/map-pulse rules were deleted when they became
+    permanent. If an on-device re-capture (flat off) shows a clean baseline,
+    the blur is exonerated; if not, the blur goes next.
+  - `journeyCtx()` stamps `flat` into every picker mark; the dump header
+    hides ring slack (`Math.min(entries.length, PERF_CAP)`).
+
 - **v5.12 (Kimi, PERFCAP)** — on-device perf capture + flat-picker A/B; READ
   THIS BEFORE TOUCHING THE Perf MODULE OR PICKER CSS:
   - The `Perf` IIFE (end of the game script) is now ring-CAPPED
