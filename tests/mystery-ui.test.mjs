@@ -229,7 +229,7 @@ export function run() {
   {
     const cont = fnBody(src, "continueMysteryEvent");
     const stAt = cont.indexOf('d.key === "store"');
-    const ssAt = cont.indexOf("showStore(false)");
+    const ssAt = cont.indexOf("showStore(false, id)");   // SEED1: the detour offer keys to the mystery node's id
     r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("fallThrough();   // coinBonus"),
       "the store outcome opens a full store visit on the spot (fresh=false — a saved offer survives)");
     r.ok(cont.includes("mysteryStoreContinue = () =>"),

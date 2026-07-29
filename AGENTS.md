@@ -157,6 +157,39 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.07 (Kimi, SEED1)** — shareable run seeds + full-stream determinism;
+  READ THIS BEFORE TOUCHING ANY RNG CALL SITE OR THE SAVE FORMAT:
+  - `SeedCode` (~7219): 7-char base-31 codes (alphabet
+    `ABCDEFGHJKMNPQRSTUVWXYZ23456789` — 31 chars, NOT base-32; 31^7 > 2^32,
+    bijective, decode rejects overflow). Share string format:
+    `DECK-TIER-CODE` via `runSeedShareStr()`.
+  - `CampaignState.runRng(...keys)` is THE substream helper. Every content
+    RNG in a run derives from runSeed keyed by stable ids: start rolls
+    ("start"), store offer ("store", nodePos), reroll ("store", nodePos,
+    rerollIndex), store packs ("storepack", nodePos, slot), sealed packs
+    ("pack", nodeId), grant stickers ("grant", nodeId), deal seeds
+    ("deal"|"ambush", nodeId, reshuffleIndex), player-choice randoms
+    ("act", actionCounter++). `Math.random` survives ONLY as the default
+    param for id-less QA/test paths. NEVER add a bare Math.random to a
+    campaign content path — key it.
+  - Deal-seed identity: `reshuffleIndex` module var beside `redealCost`,
+    incremented by `doReshuffle`, persisted in the save blob
+    (`blob.reshuffleIndex`); resume still replays the persisted deal seed —
+    keying only replaces the Math.random MINT.
+  - `pregenerateRun(dId, tId, seedOverride)` / `runGenKey` thread seeds;
+    seeded pregen keys are distinct from seedless (neither can hijack the
+    other). `startCampaign(seedU32)` → `setSeedOverride` (one-shot).
+  - **Exhibition runs** (player-entered seed): `campaign.isExhibition()`,
+    persisted in the save. They checkpoint normally but bank NOTHING — gates
+    at Stats.runPlayed/addDeal/addCardsFlipped/campaignEnded/runCleared/
+    endlessReached, the whole win-bank block (markRunWon/recordDeckWin/
+    DeckUnlocks), and all Telem.purchase sites. `track()` analytics are
+    deliberately ungated.
+  - Save format gained `exhibition` + `actionCounter` (additive, defensive
+    reads; pre-v5.07 saves default false/0).
+  - Native share sheet intentionally absent — needs @capacitor/share +
+    Xcode rebuild; clipboard copy (`copySeed`) ships instead.
+
 - **v5.06 (Kimi, MYST2)** — mystery-node refinement + Pinky Regular joker
   economy; READ THIS BEFORE TOUCHING MYSTERY OUTCOMES, JOKER ECONOMY, OR RUN
   START:

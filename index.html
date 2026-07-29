@@ -2027,6 +2027,31 @@ const NativeApp = (() => {
   .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--edge-2); transition: background 0.2s, transform 0.2s; }
   .ds-dot.on { background: var(--accent-2); transform: scale(1.25); }
   .ds-dot.locked-dot { box-shadow: inset 0 0 0 1.5px var(--muted); background: transparent; }
+  /* SEED1: "Have a seed?" — one shared control under the pager dots (outside
+     the carousel, so horizontal swipes never touch it). The toggle reveals a
+     fixed-width 7-char input + a live validation note; the note reserves its
+     line height so valid/invalid flips never shift the layout. */
+  .ds-seed { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ds-seed-toggle { background: none; border: none; padding: 6px 14px; cursor: pointer;
+    color: var(--on-felt, #f2ece2); opacity: 0.75; font-family: var(--font-text);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.4px;
+    text-decoration: underline; text-underline-offset: 3px; touch-action: manipulation; }
+  .ds-seed-toggle:active { opacity: 1; }
+  .ds-seed-body { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .ds-seed-body.hidden { display: none; }
+  .ds-seed-input {
+    width: min(52vw, 176px); padding: 8px 10px; text-align: center;
+    font-family: var(--font-text); font-size: 16px; font-weight: 800;
+    letter-spacing: 3px; text-transform: uppercase; color: #3a2e33;
+    background: rgba(255,255,255,0.94); border: 1.5px solid var(--edge-2);
+    border-radius: 10px; outline: none; touch-action: manipulation;
+  }
+  .ds-seed-input:focus { border-color: var(--amber); box-shadow: 0 0 8px rgba(199,126,31,0.35); }
+  .ds-seed-input::placeholder { color: rgba(58,46,51,0.35); letter-spacing: 3px; }
+  .ds-seed-note { min-height: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--on-felt, #f2ece2); opacity: 0.85; }
+  .ds-seed-note.ok { color: #ffd9a0; opacity: 1; }
+  .ds-seed-note.err { color: #ff9d9d; opacity: 1; }
   /* Back = the corner-nav convention (circular arrow, top-left — see .nav-btn),
      not a bottom text pill. Fixed INSIDE the fixed #deckSelect, so it shows and
      hides with the screen and stacks above the carousel. */
@@ -2190,6 +2215,21 @@ const NativeApp = (() => {
      the buttons, never a button itself. */
   .menu-note { color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center;
     padding: 2px 10px 0; opacity: 0.85; }
+  /* SEED1: the pause-menu seed row (campaign runs only) — a dashed pill above
+     the buttons; the whole row is the tap-to-copy target. Shares .seed-hint /
+     .seed-tag with the overlay seed line. */
+  .menu-seed { width: min(82vw, 300px); margin: 0 auto 10px; padding: 8px 12px;
+    display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+    border: 1px dashed var(--edge-2); border-radius: 12px; cursor: pointer;
+    font-family: var(--font-text); font-size: 12.5px; font-weight: 800; letter-spacing: 1px;
+    color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .menu-seed.hidden { display: none; }
+  .menu-seed:active { transform: scale(0.98); }
+  .menu-seed.copied { border-color: var(--amber); border-style: solid; }
+  .seed-tag { font-size: 9.5px; font-weight: 800; font-style: italic; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--amber-text); }
+  .seed-hint { font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); }
+  .copied .seed-hint { color: var(--amber-text); }
   .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: clamp(10px, 3vh, 20px); opacity: 0.6; }
 
   /* Bottom-sheet panels (stats / manual / in-game menu). */
@@ -2753,6 +2793,19 @@ const NativeApp = (() => {
   .zen-endstats.hidden { display: none; }
   .zen-endstats .run-stat { flex: 1 1 28%; min-width: 84px; padding: 10px 8px; }
   .zen-endstats .run-stat-value { font-size: 22px; }
+  /* SEED1: the win/loss share-seed line (overlay) — same copy idiom as the
+     pause-menu row (.seed-hint / .copied flash). Light ink: the overlay is
+     dark felt. */
+  .ov-seed { margin: 0 0 10px; padding: 6px 14px; display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-text); font-size: 12px; font-weight: 800; letter-spacing: 1.1px;
+    color: var(--on-felt); cursor: pointer; touch-action: manipulation;
+    user-select: none; -webkit-user-select: none;
+    border: 1px dashed rgba(240,234,224,0.45); border-radius: 999px; }
+  .ov-seed.hidden { display: none; }
+  .ov-seed:active { transform: scale(0.98); }
+  .ov-seed.copied { border-color: var(--amber); border-style: solid; }
+  .ov-seed .seed-hint { color: rgba(240,234,224,0.6); }
+  .ov-seed.copied .seed-hint { color: #ffd9a0; }
 
   .summary-block {
     width: min(82vw, 320px);
@@ -6581,6 +6634,8 @@ const NativeApp = (() => {
         <button class="debug-close" id="debugClose" type="button" aria-label="Close">×</button>
       </div>
       <div class="debug-body">
+        <!-- SEED1: the active run's share seed (display-only), refreshed by refreshDebug. -->
+        <div class="debug-sub">seed: <b id="debugSeed">—</b></div>
         <div class="debug-sub">next draw: <b id="debugNext">—</b></div>
         <div class="debug-sub">force next card →</div>
         <div class="debug-ranks" id="debugRanks"></div>
@@ -6678,6 +6733,9 @@ const NativeApp = (() => {
     <!-- Zen per-game end lines (this game only): flips/correct + outcome count.
          Populated from the live zenMode counters; empty/hidden outside Zen. -->
     <div class="zen-endstats hidden" id="zenEndStats"></div>
+    <!-- SEED1: the run's share seed on the win/loss screens — tap copies it.
+         Rendered from opts.seed (showOverlay); empty/hidden otherwise. -->
+    <div class="ov-seed hidden" id="overlaySeed" role="button" tabindex="0"></div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
     <div class="summary-block hidden" id="endSummary">
       <div class="summary-tiles">
@@ -7024,6 +7082,19 @@ const NativeApp = (() => {
     <div class="ds-title">Choose your deck</div>
     <div class="ds-carousel" id="dsCarousel"></div>
     <div class="ds-dots" id="dsDots"></div>
+    <!-- SEED1: one shared "Have a seed?" control for the whole screen (not
+         per-panel — it lives OUTSIDE the swipe carousel so it never steals a
+         deck swipe or a tier tap). The toggle reveals a 7-char code input;
+         a valid code flags the run EXHIBITION (no progression credit). -->
+    <div class="ds-seed" id="dsSeed">
+      <button class="ds-seed-toggle" id="dsSeedToggle" type="button" aria-expanded="false">Have a seed?</button>
+      <div class="ds-seed-body hidden" id="dsSeedBody">
+        <input class="ds-seed-input" id="dsSeedInput" type="text" maxlength="7"
+          inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+          placeholder="XK4T9QD" aria-label="Run seed code" />
+        <div class="ds-seed-note" id="dsSeedNote" aria-live="polite"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ZEN DIFFICULTY — the Zen menu item's full-screen page (the #deckSelect
@@ -7079,6 +7150,9 @@ const NativeApp = (() => {
     <div class="sheet-panel menu-sheet">
       <div class="sheet-head"><span>Menu</span>
         <button class="sheet-close" id="gameMenuClose" type="button" aria-label="Close">×</button></div>
+      <!-- SEED1: the run's share seed (campaign runs only) — tap copies it.
+           Filled by showGameMenu; hidden in Zen. -->
+      <div class="menu-seed hidden" id="gameMenuSeed" role="button" tabindex="0"></div>
       <div class="menu-buttons" id="gameMenuButtons"></div>
     </div>
   </div>
@@ -7140,7 +7214,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.06 · mystery: debug peek, cards/joker/store outcomes, Pinky starts with a Joker";
+const APP_VERSION = "v5.07 · shareable run seeds: enter/view/copy a 7-char code, seeded runs are exhibition";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8207,6 +8281,44 @@ function makeRng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/* ----------------------------------------------------------------
+   SeedCode (SEED1) — the shareable 7-char form of a 32-bit run seed.
+   Crockford-ish unambiguous alphabet (no 0/O/1/I/L — 31 symbols;
+   31^7 > 2^32), so every u32 encodes bijectively and decode rejects
+   codes that would overflow 32 bits. Pure + DOM-free. The deck /
+   tier context travels in the SHARE string ("PINKY-REGULAR-XK4T9QD"),
+   never in the code itself (the select screen supplies both).
+---------------------------------------------------------------- */
+const SeedCode = (() => {
+  // 31 unambiguous symbols (no 0/O/1/I/L). 31^7 ≈ 2.75e10 > 2^32, so 7 chars
+  // still cover every u32 bijectively; decode rejects codes past 0xFFFFFFFF.
+  const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const BASE = ALPHABET.length;   // 31
+  const LENGTH = 7;
+  /** u32 → 7-char code (fixed width, most-significant char first). */
+  function encode(u32) {
+    let v = (typeof u32 === "number" ? u32 : 0) >>> 0, out = "";
+    for (let i = 0; i < LENGTH; i++) { out = ALPHABET[v % BASE] + out; v = Math.floor(v / BASE); }
+    return out;
+  }
+  /** 7-char code → u32, or null (trim/case tolerant; rejects bad chars,
+      wrong length, and values past 0xFFFFFFFF). */
+  function decode(str) {
+    if (typeof str !== "string") return null;
+    const s = str.trim().toUpperCase();
+    if (s.length !== LENGTH) return null;
+    let v = 0;
+    for (let i = 0; i < LENGTH; i++) {
+      const idx = ALPHABET.indexOf(s[i]);
+      if (idx === -1) return null;
+      v = v * BASE + idx;
+    }
+    if (v > 0xFFFFFFFF) return null;   // the 7-char space is wider than u32
+    return v >>> 0;
+  }
+  return { ALPHABET, LENGTH, encode, decode };
+})();
 
 /* ----------------------------------------------------------------
    DeckManager
@@ -12602,6 +12714,18 @@ const CampaignState = (() => {
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
     let revealedNodes = [];       // MYSTERY (?) node ids the player has arrived at (display-only)
     let runSeed = 0;              // seeds deterministic map generation
+    // SEED1 — a player-ENTERED seed (deck-select code) rides here into the next
+    // startNewRun (consumed once). `exhibition` marks runs built from an entered
+    // seed: they checkpoint normally but bank NO progression (gated at the
+    // Stats/DeckUnlocks/Telem call sites via isExhibition()).
+    let pendingSeedOverride = null;   // u32 set by setSeedOverride, consumed by startNewRun
+    let runSeedKeyed = null;          // the entered seed THIS run was built with (pregen key)
+    let exhibition = false;           // true while the run's seed was player-entered
+    // SEED1 action stream: player-choice randoms (sticker-apply random rank/suit
+    // picks, Cleanse strip pick, Static Pillar self-destruct) key off this
+    // persisted counter — deterministic given the same action sequence (that IS
+    // the contract), and a refresh can't re-roll an action.
+    let actionCounter = 0;
     // The REAL deck size entering each stage, captured the moment the stage is
     // generated (stage 0 at run start; stage p+1 when stage p's boss falls).
     // Together with runSeed this makes the whole map deterministic for restore.
@@ -12772,7 +12896,8 @@ const CampaignState = (() => {
     const pregenCache = new Map();   // runGenKey → { seed, entries, map } (pristine until consumed)
     let pregenBuild = null;          // in-flight chunked build { key, tier, seed, entries, stepper, id }
     let pregenBuildId = 0;           // supersession/cancel guard: stale slices see a newer id and stop
-    const runGenKey = (dId, tId) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-");
+    const runGenKey = (dId, tId, seed) => tId + "|" + (DifficultyData.fixedJokerStages(dId, tId) ? "FJ" : "-")
+      + ((typeof seed === "number") ? "|s" + (seed >>> 0) : "");   // SEED1: an entered seed keys its own entry (never collides with seedless)
     /** The deck size a fresh run ENTERS with: the 13 start cards plus any
         starting Jokers (difficulty.js startJokers). pregenerateRun's entry
         ladder and startNewRun's real deck BOTH derive from this, so a Start
@@ -12794,9 +12919,13 @@ const CampaignState = (() => {
       pregenBuild = null;
     }
     /** Start building the run map for (deck, tier) in idle time. Returns true
-        if a build STARTED; false when the key is already cached or in flight. */
-    function pregenerateRun(dId, tId) {
-      const key = runGenKey(dId, tId);
+        if a build STARTED; false when the key is already cached or in flight.
+        SEED1: `seedOverride` (a player-entered seed) builds the pregen with THAT
+        seed under its own key, so Start on a seeded run consumes a map built
+        from the entered seed — never a silently swapped one. */
+    function pregenerateRun(dId, tId, seedOverride) {
+      const hasSeed = (typeof seedOverride === "number") && isFinite(seedOverride);
+      const key = runGenKey(dId, tId, hasSeed ? (seedOverride >>> 0) : null);
       if (pregenCache.has(key)) return false;                    // already ready
       if (pregenBuild && pregenBuild.key === key) return false;  // already building
       RunMap.setDifficultyTier(tId);                             // preview tier (restore/genRunMap re-set it)
@@ -12806,7 +12935,7 @@ const CampaignState = (() => {
       // generator version (the genV gate only matters for restored saves).
       const opts = { postBossJokerStages: DifficultyData.fixedJokerStages(dId, tId) || [],
                      genVersion: RUN_GEN_VERSION };
-      const seed = generateSeed();
+      const seed = hasSeed ? (seedOverride >>> 0) : generateSeed();
       pregenBuild = { key, tier: tId, seed, entries,
                       stepper: RunMap.makeRunStepper(seed, entries, opts), id: ++pregenBuildId };
       pregenSlice(pregenStep);
@@ -12834,7 +12963,7 @@ const CampaignState = (() => {
       // Consumption DELETES the cache entry: the map object is mutated during
       // play, so it may never be handed out twice. Other keys stay cached.
       pregenCancel();   // a run is starting — any in-flight chunked build is moot
-      const key = runGenKey(deckId, difficultyTier);
+      const key = runGenKey(deckId, difficultyTier, runSeedKeyed);   // SEED1: a seeded run consumes only a same-seed pregen
       const hit = pregenCache.get(key);
       if (hit && hit.entries[0] === entry0) {
         runSeed = hit.seed;
@@ -12895,8 +13024,10 @@ const CampaignState = (() => {
     }
     /** Choose a card id to draft for a PACK. Prefers the current phase's suit;
         `mixed` (or an exhausted suit) lets it pull any card. Skips owned cards AND
-        cards locked to +1 nodes (those are reserved for their node's display). */
-    function pickDraftId(mixed) {
+        cards locked to +1 nodes (those are reserved for their node's display).
+        SEED1: `rng` threads a keyed stream (every campaign caller passes one);
+        Math.random remains only as the QA/test default. */
+    function pickDraftId(mixed, rng = Math.random) {
       const taken = reservedSet(null);
       let pool = idsOfSuit(phaseSuit()).filter(id => !taken.has(id));
       if (mixed || pool.length === 0) {
@@ -12909,18 +13040,19 @@ const CampaignState = (() => {
       // its exact pair at generation), so even the any-card pool can genuinely
       // empty — mint a phase-suit duplicate instead of failing the grant, the
       // same exhausted-pool rule every other draft site follows.
-      if (!pool.length) return mintSuitCardId(phaseSuit());
-      return pool[Math.floor(Math.random() * pool.length)];
+      if (!pool.length) return mintSuitCardId(phaseSuit(), null, rng);
+      return pool[Math.floor(rng() * pool.length)];
     }
     /** Mint a fresh DUPLICATE card of `suit` (random rank, no stickers/mods) into
         the persistent deck and return its id. The accumulated deck is a GROWING
         draft: a suit has only 13 unique base cards, so once those are spoken for a
         pack mints duplicates — that's how a +N pack always grants exactly N cards
-        of its suit (and how decks grow past 52, the "bigger deck = worse" knob). */
-    function mintSuitCardId(suit, rank) {
+        of its suit (and how decks grow past 52, the "bigger deck = worse" knob).
+        SEED1: `rng` keys the random rank when `rank` isn't forced. */
+    function mintSuitCardId(suit, rank, rng = Math.random) {
       // `rank` is normally random; forcedCardId passes an exact rank so an
       // authored pin can be honored even when every existing copy is claimed.
-      if (rank == null) rank = MIN_RANK + Math.floor(Math.random() * (MAX_RANK - MIN_RANK + 1));
+      if (rank == null) rank = MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));
       const card = { id: nextCardId++, suit, originalRank: rank, currentRank: rank,
                      modifications: [], stickers: [], compoundHits: 0 };
       baseDeck.push(card);
@@ -12929,12 +13061,13 @@ const CampaignState = (() => {
     /** Draft a card of EXACTLY `suit` for a PACK: prefer an unowned base/duplicate
         already in the deck, else MINT a fresh duplicate. Never off-suit, never
         null — the displayed suit is the source of truth, and a +N pack grants
-        exactly N of that suit (duplicates once the 13 unique cards run out). */
-    function pickSuitDraftId(suit) {
+        exactly N of that suit (duplicates once the 13 unique cards run out).
+        SEED1: `rng` threads a keyed stream from the granting node/outcome. */
+    function pickSuitDraftId(suit, rng = Math.random) {
       const taken = reservedSet(null);
       const pool = idsOfSuit(suit).filter(id => !taken.has(id));
-      if (!pool.length) return mintSuitCardId(suit);   // unique suit pool exhausted → mint a duplicate
-      return pool[Math.floor(Math.random() * pool.length)];
+      if (!pool.length) return mintSuitCardId(suit, null, rng);   // unique suit pool exhausted → mint a duplicate
+      return pool[Math.floor(rng() * pool.length)];
     }
     /** The suit a draft NODE pulls from — its own phase's suit (not the live
         phaseIndex), so a not-yet-reached node previews from the right pool. */
@@ -13050,6 +13183,34 @@ const CampaignState = (() => {
       baseDeck.push(card);
       return card.id;
     }
+    /* ── SEEDED SUBSTREAMS (SEED1) ─────────────────────────────────────
+       runRng(...keys) derives an independent deterministic stream from the
+       run's seed, keyed by STABLE identifiers (a stream label, a node id, a
+       visit/reroll/reshuffle index) — never by Math.random call order, so a
+       run's content no longer depends on which nodes the player visited
+       first. String keys fold through a small FNV-1a hash, numeric keys
+       through the golden-ratio multiply. EXISTING inline mixes (mysteryRng,
+       draftIdForNode, packSlotIdFor, the genV ladder) keep their exact
+       formulas for save compatibility — runRng keys only NEW streams. */
+    function seedStrHash(s) {
+      let h = 2166136261;   // FNV-1a 32-bit
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return h >>> 0;
+    }
+    function runRng(...keys) {
+      let mix = 0x9e3779b9;
+      for (const k of keys) {
+        const part = (typeof k === "string")
+          ? seedStrHash(k)
+          : (Math.imul(((k >>> 0) + 1) >>> 0, 0x9e3779b1) >>> 0);
+        mix = (mix ^ part) >>> 0;
+      }
+      return makeRng((runSeed >>> 0) ^ mix);
+    }
+    /** The ACTION stream: one keyed stream per player-choice random, off the
+        persisted actionCounter (see the declaration). */
+    function actRng() { return runRng("act", actionCounter++); }
+
     /* ── MYSTERY ("?") NODE EVENTS (MYST1) ───────────────────────────────
        Arriving at a hidden node rolls ONE weighted outcome, seeded by
        (runSeed, nodeId) — the same node always resolves the same way,
@@ -13130,10 +13291,10 @@ const CampaignState = (() => {
           const cards = [];
           for (let i = 0; i < n; i++) {
             const slotSuit = anySuit ? ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)] : phaseSuit();
-            const id = pickSuitDraftId(slotSuit);
+            const id = pickSuitDraftId(slotSuit, rng);
             if (id == null) break;
             ownedIds.push(id);
-            cards.push(rollGrantStickers(findById(id)));   // Mr. Smith: grants may carry stickers
+            cards.push(rollGrantStickers(findById(id), rng));   // Mr. Smith: grants may carry stickers
           }
           if (!cards.length) return null;
           return { key, title: "Windfall", cards, cardIds: cards.map(c => c.id),
@@ -13250,7 +13411,7 @@ const CampaignState = (() => {
       if (endlessNode) {
         const suit = ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)];
         pool = idsOfSuit(suit).filter(id => !taken.has(id));
-        if (!pool.length) pool = [mintSuitCardId(suit)];
+        if (!pool.length) pool = [mintSuitCardId(suit, null, rng)];
       } else {
         pool = idsOfSuit(suitForNode(node)).filter(id => !taken.has(id));
         if (node && node.mixed) {
@@ -13259,14 +13420,14 @@ const CampaignState = (() => {
           if (any.length) pool = any;
           // even the any-card pool can empty now that revealed +2 packs
           // reserve at generation — mint the node's suit like the branch below
-          else if (!pool.length) return mintSuitCardId(suitForNode(node));
+          else if (!pool.length) return mintSuitCardId(suitForNode(node), null, rng);
         } else if (pool.length === 0) {
           // BUGFIX: a stage can carry MORE +1 nodes than its suit has unique
           // cards (e.g. 15 pickups vs 13 ♦) — the old any-card fallback then
           // locked an OFF-SUIT card onto a suit-gated stage. MINT a duplicate
           // of the node's suit instead — exactly how packs keep granting an
           // exhausted suit — so a stage's pickups never show off-suit.
-          return mintSuitCardId(suitForNode(node));
+          return mintSuitCardId(suitForNode(node), null, rng);
         }
       }
       if (!pool.length) return null;
@@ -13328,7 +13489,7 @@ const CampaignState = (() => {
       const suit = endlessNode ? ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)]
         : ((node.suit && node.suit !== "★") ? node.suit : suitForNode(node));
       const pool = idsOfSuit(suit).filter(id => !taken.has(id));
-      if (!pool.length) return mintSuitCardId(suit);   // unique suit pool exhausted → mint a duplicate
+      if (!pool.length) return mintSuitCardId(suit, null, rng);   // unique suit pool exhausted → mint a duplicate
       return pool[Math.floor(rng() * pool.length)];
     }
     /** The two exact cards a REVEALED +2 pack is locked to (assigns + caches on
@@ -13371,10 +13532,33 @@ const CampaignState = (() => {
         column slots pre-fill with 3 random Pillars + 3 random Bases. */
     function startNewRun() {
       phaseIndex = 0;
+      // SEED1 — the run's seed is established FIRST, before ANY start roll:
+      // a player-entered seed wins (marking the run EXHIBITION — no progression
+      // credit); otherwise adopt the matching pregen's seed up front (so every
+      // start roll keys to the run's FINAL seed — genRunMap's later adoption of
+      // the same hit is then a no-op) or mint fresh. Every downstream stream
+      // (map, start suits/stickers/prefill, node-keyed substreams) derives from
+      // this runSeed, so an entered seed replays the whole run exactly.
+      const entered = (pendingSeedOverride != null) ? (pendingSeedOverride >>> 0) : null;
+      pendingSeedOverride = null;   // one-shot: a later reset/start mints fresh
+      exhibition = (entered != null);
+      runSeedKeyed = entered;
+      let adopted = null;
+      if (entered == null) {
+        const preHit = pregenCache.get(runGenKey(deckId, difficultyTier, null));
+        // entry0 is KNOWN here (ownedIds resets to exactly runStartSize below) —
+        // the same contract pregenerateRun's ladder and genRunMap both derive.
+        if (preHit && preHit.entries[0] === runStartSize(deckId, difficultyTier)) adopted = preHit.seed;
+      }
+      runSeed = (entered != null) ? entered : (adopted != null ? adopted : generateSeed());
+      runGenVersion = RUN_GEN_VERSION;   // fresh seed → current generator (the genV gate protects only RESUMED seeds)
+      // SEED1: alt-deck start suits / Smith start stickers / Lammy prefill all
+      // draw from the run's "start" substream — keyed to the FINAL seed above.
+      const startRng = runRng("start");
       if (rules().altSuits) {
         ownedIds = DeckManager.RANKS.map(r => {
           const four = baseDeck.filter(c => !c.joker && !c.blank && c.originalRank === r.value);
-          return four[Math.floor(Math.random() * four.length)].id;
+          return four[Math.floor(startRng() * four.length)].id;
         });
       } else {
         ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
@@ -13385,8 +13569,6 @@ const CampaignState = (() => {
       // (they're owned) while dropping a previous run's unowned Jokers.
       const startJokers = DifficultyData.startJokers(deckId, difficultyTier);
       for (let i = 0; i < startJokers; i++) ownedIds.push(mintJokerId());
-      runSeed = generateSeed();
-      runGenVersion = RUN_GEN_VERSION;   // fresh seed → current generator (the genV gate protects only RESUMED seeds)
       genRunMap();
       if (rules().startStickers) {
         // One random sticker per starting card, drawn ONLY from the stickers
@@ -13398,8 +13580,8 @@ const CampaignState = (() => {
           card.stickers = [];   // idempotent: a re-rolled start never stacks
           const elig = StickerTypes.grantable().filter(t => stickerCardEligible(card, t.id)
             && (t.kind !== "rank" || (t.rankDelta > 0 ? card.currentRank < MAX_RANK : card.currentRank > MIN_RANK)));
-          const t = elig[Math.floor(Math.random() * elig.length)];
-          if (t) applyStickerToCard(card, t.id);
+          const t = elig[Math.floor(startRng() * elig.length)];
+          if (t) applyStickerToCard(card, t.id, { rng: startRng });
         }
       }
       if (rules().preEquip) {
@@ -13408,7 +13590,7 @@ const CampaignState = (() => {
         // Harvest) are excluded — under noStickers they could never do anything.
         const roll3 = (ids) => {
           const pool = ids.slice();
-          for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+          for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(startRng() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
           return pool.slice(0, COLUMN_SLOTS);
         };
         columnPillars = roll3(PillarTypes.ids);
@@ -13440,6 +13622,22 @@ const CampaignState = (() => {
       /** Bind the difficulty tier (bands only). Call BEFORE reset(). */
       setTier(id) { difficultyTier = DifficultyData.tierIds.indexOf(id) !== -1 ? id : "regular"; },
       getTier() { return difficultyTier; },
+      /* ---- SEED1: entered seeds / exhibition / seeded substreams ---- */
+      /** Hand the next startNewRun a player-ENTERED seed (u32; null clears).
+          Consumed once — the run it builds is flagged EXHIBITION (no
+          progression credit, gated via isExhibition at the Stats/Telem sites). */
+      setSeedOverride(u32) { pendingSeedOverride = (typeof u32 === "number" && isFinite(u32)) ? (u32 >>> 0) : null; },
+      /** The seed this run was built from (entered or minted) — the code the
+          pause menu / end screens share via SeedCode.encode. */
+      getRunSeed() { return runSeed; },
+      /** True while this run's seed was player-entered: checkpoints run
+          normally, but Stats / DeckUnlocks / Telem never credit it. */
+      isExhibition() { return exhibition; },
+      /** A deterministic substream of the run's seed, keyed by stable
+          identifiers (label, node id, index) — see the SEED1 block above. */
+      runRng,
+      /** One keyed stream per player-choice random (persisted counter). */
+      actRng,
       deckRules() { return rules(); },
       /** Lammy: stickers are unusable everywhere (store, packs, effects). */
       stickersLocked() { return rules().noStickers; },
@@ -13600,7 +13798,10 @@ const CampaignState = (() => {
         const card = findById(id);
         if (!card) return null;
         if (ownedIds.indexOf(id) === -1) ownedIds.push(id);   // the locked card is reserved, so never a dup — guarded anyway
-        return rollGrantStickers(card);   // Mr. Smith: map grants may carry stickers
+        // SEED1: Mr. Smith's grant stickers key to the NODE (one grant per node),
+        // so a shared seed replays the exact stickers; id-less literals (QA) use
+        // the action stream.
+        return rollGrantStickers(card, (node && node.id != null) ? runRng("grant", node.id) : actRng());   // Mr. Smith: map grants may carry stickers
       },
       /** Resolve a pack node → add up to `packCount` cards, all of the node's
           DISPLAYED suit (node.suit). A pack showing diamonds grants only diamonds;
@@ -13617,16 +13818,23 @@ const CampaignState = (() => {
         // borrows a real node's id but a different count (tests/QA) rolls.
         const locked = (node && node.id != null && node.packCount === 2) ? packCards[node.id] : null;
         if (locked) {
+          // SEED1: Mr. Smith's grant stickers on the committed pair key to the
+          // NODE (slot order is the fixed draw order) — same seed, same stickers.
+          const grantRng = runRng("grant", node.id);
           return locked.map(sid => {
             if (sid === SPECIAL_BLANK) return specialCardFor(SPECIAL_BLANK);
             const card = findById(sid);
             if (!card) return null;
             if (ownedIds.indexOf(sid) === -1) ownedIds.push(sid);   // reserved run-wide, so never a dup — guarded anyway
-            return rollGrantStickers(card);
+            return rollGrantStickers(card, grantRng);
           }).filter(Boolean);
         }
         const out = [];
         const n = (node && node.packCount) || 3;
+        // SEED1: a sealed pack's contents key to its NODE ("pack" substream) —
+        // visit order no longer matters. Id-less node literals (tests/QA) keep
+        // the Math.random roll.
+        const rng = (node && node.id != null) ? runRng("pack", node.id) : Math.random;
         // ENDLESS packs (node suit "★" / endless phase) grant ALL FOUR suits:
         // each slot rolls its own random suit. Base-run packs keep granting
         // exactly their displayed suit. Specials roll the same either way.
@@ -13635,15 +13843,15 @@ const CampaignState = (() => {
           || rules().altSuits;   // alt decks: pack slots roll all four suits
         const suit = (node && node.suit && node.suit !== "★") ? node.suit : phaseSuit();
         for (let i = 0; i < n; i++) {
-          const special = rollMapSpecial(Math.random);
+          const special = rollMapSpecial(rng);
           if (special != null) {
             if (special) { const jid = mintJokerId(); ownedIds.push(jid); out.push(findById(jid)); }
             else out.push(specialCardFor(SPECIAL_BLANK));   // a removal, never a deck slot
             continue;
           }
-          const slotSuit = endlessNode ? ALL_SUITS[Math.floor(Math.random() * ALL_SUITS.length)] : suit;
-          const id = pickSuitDraftId(slotSuit); if (id == null) break; ownedIds.push(id);
-          out.push(rollGrantStickers(findById(id)));   // Mr. Smith: pack slots may carry stickers
+          const slotSuit = endlessNode ? ALL_SUITS[Math.floor(rng() * ALL_SUITS.length)] : suit;
+          const id = pickSuitDraftId(slotSuit, rng); if (id == null) break; ownedIds.push(id);
+          out.push(rollGrantStickers(findById(id), rng));   // Mr. Smith: pack slots may carry stickers
         }
         return out;
       },
@@ -14239,7 +14447,13 @@ const CampaignState = (() => {
         coins -= storeOffer.rerollCost;
         const rolled = removalSlotEnabled ? STORE_SLOTS - 1 : STORE_SLOTS;
         storeOffer.slots = [];   // the outgoing shelf's Jokers vanish first (they'd otherwise count as held during the re-roll)
-        storeOffer.slots = rollUnifiedSlots(Math.random, rolled, (r) => this.genStoreCard(r));
+        // SEED1: the reroll keys to (store node, reroll index) — the index
+        // derived from the PERSISTED reroll-cost ladder, so a restored offer
+        // continues the same deterministic sequence. No node (legacy/QA) falls
+        // back to Math.random.
+        const rerollIndex = Math.max(0, Math.round((storeOffer.rerollCost - REROLL_BASE_COST) / REROLL_STEP));
+        const rng = (nodePos != null) ? runRng("store", nodePos, rerollIndex) : Math.random;
+        storeOffer.slots = rollUnifiedSlots(rng, rolled, (r) => this.genStoreCard(r));
         if (removalSlotEnabled) storeOffer.slots.push(removalSlot());
         storeOffer.rerollCost += REROLL_STEP;
         return true;
@@ -14356,11 +14570,13 @@ const CampaignState = (() => {
 
       /** Apply a sticker to a specific persistent card. Returns true if applied.
           Delegates to the shared applyStickerToCard (Change-Suit Random spans all
-          suits here, matching the original behavior). */
+          suits here, matching the original behavior). SEED1: the random
+          rank/suit picks ride the ACTION stream (persisted counter) — the same
+          action sequence replays the same picks, and a refresh can't re-roll. */
       applySticker(id, typeId) {
         const card = findById(id);
         if (!this.canApplySticker(card, typeId)) return false;
-        return applyStickerToCard(card, typeId);
+        return applyStickerToCard(card, typeId, { rng: actRng() });
       },
 
       /** The BASE state a card reverts to if peeled — original rank + the suit it
@@ -14532,9 +14748,11 @@ const CampaignState = (() => {
       applyMysteryEvent,
       /** Remove ONE random sticker instance from a card (the stickerStrip
           mystery outcome). Randomness: injectable `rng` (tests pin it seeded),
-          defaulting to Math.random. Returns the removed type id, or null when
-          the card carries no stickers. */
-      removeRandomStickerFrom(cardId, rng = Math.random) {
+          defaulting to the ACTION stream (SEED1 — the strip pick replays per
+          action sequence; a refresh can't fish for a different sticker).
+          Returns the removed type id, or null when the card carries no stickers. */
+      removeRandomStickerFrom(cardId, rng) {
+        rng = rng || actRng();
         const card = findById(cardId);
         if (!card || !card.stickers || !card.stickers.length) return null;
         const at = Math.floor(rng() * card.stickers.length);
@@ -14620,6 +14838,7 @@ const CampaignState = (() => {
         packTray = [];
         nextCardId = 52;
         runFossils = [];
+        actionCounter = 0;   // SEED1: the action stream restarts with the campaign
         startNewRun();   // NEW structure: phase 0 (♦), 13 hearts pre-held, fresh map
       },
 
@@ -14639,6 +14858,8 @@ const CampaignState = (() => {
           // restore must regenerate through the SAME version's path.
           phaseIndex, runSeed, nodePos,
           genV: runGenVersion,
+          exhibition,                          // SEED1: player-entered seed → no progression credit
+          actionCounter,                       // SEED1: action-stream position (sticker/strip/static rolls)
           stageEntryDecks: stageEntryDecks.slice(),   // per-stage entry deck sizes (map regen input)
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
@@ -14689,6 +14910,11 @@ const CampaignState = (() => {
         // NEW run structure: restore the draft + position, regenerate the map.
         phaseIndex = Math.max(0, Math.min(PHASE_SUITS.length, s.phaseIndex || 0));
         runSeed = (s.runSeed >>> 0) || generateSeed();
+        // SEED1 (additive; pre-seed saves default to a normal banked run + a
+        // fresh action stream — their rolls predate the stream anyway):
+        exhibition = !!s.exhibition;
+        actionCounter = (typeof s.actionCounter === "number" && s.actionCounter >= 0) ? (s.actionCounter | 0) : 0;
+        pendingSeedOverride = null; runSeedKeyed = null;   // a restore never re-enters a seed
         ownedIds = Array.isArray(s.ownedIds) ? s.ownedIds.slice() : idsOfSuit(START_SUIT).slice();
         clearedNodes = Array.isArray(s.clearedNodes) ? s.clearedNodes.slice() : [];
         revealedNodes = Array.isArray(s.revealedNodes) ? s.revealedNodes.slice() : [];   // pre-mystery saves: none revealed
@@ -15657,6 +15883,10 @@ const UIRenderer = (() => {
     dsCarousel: document.getElementById("dsCarousel"),
     dsDots: document.getElementById("dsDots"),
     dsBack: document.getElementById("dsBack"),
+    dsSeedToggle: document.getElementById("dsSeedToggle"),   // SEED1: "Have a seed?" entry (deck select)
+    dsSeedBody: document.getElementById("dsSeedBody"),
+    dsSeedInput: document.getElementById("dsSeedInput"),
+    dsSeedNote: document.getElementById("dsSeedNote"),
     zenSelect: document.getElementById("zenSelect"),   // Zen difficulty page (unlock ladder)
     zsList: document.getElementById("zsList"),
     zsStart: document.getElementById("zsStart"),
@@ -15681,6 +15911,7 @@ const UIRenderer = (() => {
     manualClose: document.getElementById("manualClose"),
     gameMenu: document.getElementById("gameMenu"),
     gameMenuButtons: document.getElementById("gameMenuButtons"),
+    gameMenuSeed: document.getElementById("gameMenuSeed"),   // SEED1: pause-menu seed row (campaign only)
     gameMenuClose: document.getElementById("gameMenuClose"),
     bottomRegion: document.getElementById("bottomRegion"),
     placeLauncher: document.getElementById("placeLauncher"),
@@ -15726,6 +15957,7 @@ const UIRenderer = (() => {
     overlayMsg: document.getElementById("overlayMsg"),
     runProgress: document.getElementById("runProgress"),
     zenEndStats: document.getElementById("zenEndStats"),
+    overlaySeed: document.getElementById("overlaySeed"),     // SEED1: win/loss share-seed line
     endSummary: document.getElementById("endSummary"),
     endCards: document.getElementById("endCards"),
     endCoins: document.getElementById("endCoins"),
@@ -15845,6 +16077,7 @@ const UIRenderer = (() => {
     debugToggle: document.getElementById("debugToggle"),
     debugClose: document.getElementById("debugClose"),
     debugNext: document.getElementById("debugNext"),
+    debugSeed: document.getElementById("debugSeed"),         // SEED1: active run's share seed
     debugRanks: document.getElementById("debugRanks"),
     debugPeek: document.getElementById("debugPeek"),
     debugTrim: document.getElementById("debugTrim"),
@@ -15891,6 +16124,7 @@ const UIRenderer = (() => {
   let campaign = null;        // persists across runs (campaign-level only)
   let overlayAction = null;   // what the primary overlay button does right now
   let overlayAction2 = null;  // the optional second overlay button's action (victory screen)
+  let overlaySeedStr = null;  // SEED1: the share string the overlay seed row's tap copies
   let overlayPeekable = false; // run-complete screens allow hold-to-peek the board
   let selected = null;        // currently selected pile index, or null
   let peelPendingIndex = null; // pile index whose card awaits a peel confirmation
@@ -15965,6 +16199,12 @@ const UIRenderer = (() => {
   const REDEAL_BASE_COST = 10;   // reshuffle price at the start of EVERY deal
   const REDEAL_STEP = 1;         // +1 per reshuffle within the same deal
   let redealCost = REDEAL_BASE_COST;
+  /* SEED1 — deal-seed identity: a deal's seed mints from the campaign's
+     ("deal"|"ambush", nodeId, reshuffleIndex) substream, so the same node on the
+     same seed always deals the same board and a reshuffle steps to the NEXT
+     deterministic board (never a Math.random fish). The counter resets on every
+     fresh deal entry and persists beside redealCost in the run checkpoint. */
+  let reshuffleIndex = 0;
   let appliedThisPhase = false;
   // SUBSET DEALS: once the deck grows past RunMap.SUBSET.threshold, a regular
   // (non-boss) deal plays a random SUBSET of the deck (see startRun). While a
@@ -16367,8 +16607,10 @@ const UIRenderer = (() => {
     if (!campaign.spendCoins(redealCost)) return;                  // can't afford
     Sound.shuffle();   // a re-DEAL is a shuffle — the shared riffle, like every other shuffle source
     if (engine.logAction) engine.logAction("Reshuffled the deal-out (−" + redealCost + " coins)");
-    // Fresh random seed = a new deal-out of the SAME deck; the escalated price
-    // carries into the re-dealt run (startRun persists both).
+    // SEED1: step the deal identity — the re-deal mints from the NEXT keyed
+    // board of the SAME node (startRun persists both seed and index), so a
+    // refresh can never fish for a different reshuffle outcome.
+    reshuffleIndex++;
     startRun(undefined, redealCost + REDEAL_STEP);
     updateStageRun();   // coin balance changed
   }
@@ -18265,6 +18507,12 @@ const UIRenderer = (() => {
   }
 
   function refreshDebug() {
+    // SEED1: the active run's share seed rides the top of the panel — shown
+    // even between deals (engine down), so it updates BEFORE the engine guard.
+    if (el.debugSeed) {
+      const share = (!zenMode && campaign) ? runSeedShareStr() : null;
+      el.debugSeed.textContent = share || "—";
+    }
     if (!debugOn || !engine) return;
     const next = engine.debug.peekNext(1)[0];
     el.debugNext.textContent = next ? next.label : "—";
@@ -19369,7 +19617,9 @@ const UIRenderer = (() => {
         selectedDeckId = start.dataset.deck || "pink";   // the deck this campaign's win will credit
         const selChip = start.closest(".ds-panel") && start.closest(".ds-panel").querySelector(".ds-tier.sel");
         selectedTierId = (selChip && selChip.dataset.tier) || "regular";
-        hideDeckSelect(); startCampaign();
+        // SEED1: a valid entered seed starts an exhibition run; an invalid /
+        // empty input reads as undefined → a normal run (Start is never blocked).
+        hideDeckSelect(); startCampaign(dsEnteredSeed());
       }
     });
     if (el.dsCarousel) el.dsCarousel.addEventListener("scroll", () => {
@@ -19381,6 +19631,40 @@ const UIRenderer = (() => {
       schedulePregen();   // PERF2: the browsed deck changed → refresh the pregen (key-deduped)
     }, { passive: true });
     if (el.dsBack) el.dsBack.addEventListener("click", () => { hideDeckSelect(); if (deckSelectReturn) deckSelectReturn(); });
+
+    // SEED1: "Have a seed?" — the toggle reveals the code input; typing
+    // normalizes (uppercase, A–Z0–9 only, 7 chars), validates live and
+    // re-keys the browsing pregen (schedulePregen reads dsEnteredSeed at fire
+    // time, so deck swipes / tier taps / seed edits share the one path). The
+    // control lives OUTSIDE the carousel: it never intercepts a deck swipe,
+    // and these boot-time listeners attach once to persistent elements.
+    if (el.dsSeedToggle) el.dsSeedToggle.addEventListener("click", () => {
+      Sound.tap();
+      const nowHidden = el.dsSeedBody.classList.toggle("hidden");
+      el.dsSeedToggle.setAttribute("aria-expanded", String(!nowHidden));
+      if (!nowHidden) { updateSeedNote(); try { el.dsSeedInput.focus(); } catch (_) {} }
+    });
+    if (el.dsSeedInput) el.dsSeedInput.addEventListener("input", () => {
+      const norm = el.dsSeedInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, SeedCode.LENGTH);
+      if (norm !== el.dsSeedInput.value) el.dsSeedInput.value = norm;
+      updateSeedNote();
+      schedulePregen();   // the entered seed changed → re-key the browsing pregen
+    });
+    // Seed copy rows (pause menu + win/loss overlay): tap copies the share
+    // string. The overlay row also swallows pointerdown so a tap on it can
+    // never arm the hold-to-peek fade on peekable overlays.
+    if (el.gameMenuSeed) el.gameMenuSeed.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const share = runSeedShareStr();
+      if (share) { Sound.tap(); copySeed(share, el.gameMenuSeed); }
+    });
+    if (el.overlaySeed) {
+      el.overlaySeed.addEventListener("pointerdown", (e) => e.stopPropagation());
+      el.overlaySeed.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (overlaySeedStr) { Sound.tap(); copySeed(overlaySeedStr, el.overlaySeed); }
+      });
+    }
 
     // Zen difficulty page: one delegated handler on the list (entries are
     // rebuilt each show). Tapping an UNLOCKED difficulty SELECTS it (no game
@@ -20489,7 +20773,8 @@ const UIRenderer = (() => {
           zenMode.flips++; if (payload.correct) zenMode.correct++;   // per-game overlay counters
         } else if (campaign && !campaign.isPlayedCounted()) {
           campaign.markPlayed();
-          Stats.runPlayed();
+          // SEED1 EXHIBITION: a player-seeded run never counts as a run played.
+          if (!(campaign.isExhibition && campaign.isExhibition())) Stats.runPlayed();
           persistCampaign("run");
         }
         const pileEl = pileEls[payload.index];
@@ -21243,6 +21528,17 @@ const UIRenderer = (() => {
       el.zenEndStats.classList.toggle("hidden", !opts.zenStats);
     }
 
+    // SEED1: the run's share seed (win/loss screens) — tap-to-copy, same
+    // hidden-toggle idiom as zenEndStats. overlaySeedStr arms the boot-time
+    // click handler with the string to copy.
+    overlaySeedStr = opts.seed || null;
+    if (el.overlaySeed) {
+      el.overlaySeed.innerHTML = opts.seed
+        ? '<span class="seed-label">SEED · ' + escHtml(opts.seed) + '</span><span class="seed-hint">tap to copy</span>'
+        : "";
+      el.overlaySeed.classList.toggle("hidden", !opts.seed);
+    }
+
     // End-of-campaign stats: cumulative cards flipped + gross coins earned, and
     // the Pillars the player finished with, by column.
     if (opts.endStats) {
@@ -21494,6 +21790,7 @@ const UIRenderer = (() => {
         wrong: Math.max(0, total - correct),
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
+      seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the loss screen
       peek: false,             // no hold-to-peek-the-board on the loss screen
       btnLabel: "MAIN MENU",
       // The run TERMINATES here — after an ENDLESS death this is where a first
@@ -21526,6 +21823,7 @@ const UIRenderer = (() => {
         wrong: Math.max(0, total - correct),
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
+      seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the victory screen
       peek: false,
       btnLabel: "CONTINUE — ENDLESS MODE",
       action: enterEndlessMode,
@@ -21544,7 +21842,8 @@ const UIRenderer = (() => {
      own house. Every later stage generates as its predecessor's boss falls. */
   function enterEndlessMode() {
     campaign.startEndless();
-    Stats.endlessReached(campaign.endlessStagesReached());   // endless stage 1 entered
+    // SEED1 EXHIBITION: endless depth is progression — gated like the rest.
+    if (!(campaign.isExhibition && campaign.isExhibition())) Stats.endlessReached(campaign.endlessStagesReached());   // endless stage 1 entered
     persistCampaign("map");
     showProgressionMap(startRun);
   }
@@ -21601,6 +21900,7 @@ const UIRenderer = (() => {
     if (phase === "run" && engine) {
       blob.runSeed = engine.getSeed();
       blob.redealCost = redealCost;
+      blob.reshuffleIndex = reshuffleIndex;   // SEED1: the next reshuffle's keyed-board index survives the refresh
       blob.appliedThisPhase = appliedThisPhase;
       // Subset deals: persist WHICH cards + pile count so a resume rebuilds the
       // exact same board (a fresh roll would hand out a different subset — a free
@@ -21757,6 +22057,101 @@ const UIRenderer = (() => {
     }
   }
 
+  /* ── SEED1: "Have a seed?" (deck select) + the share string + copy ───────
+     One shared control under the carousel — persistent markup OUTSIDE the
+     swipe track, so listeners attach ONCE at boot and deck swipes / tier
+     taps never touch it. A valid 7-char code flags the run EXHIBITION (no
+     progression credit) and re-keys the browsing pregen to the entered
+     seed; an invalid or empty code is simply a normal run. The control
+     resets on every showDeckSelect. */
+  /** The currently-entered VALID seed (u32), or undefined when the input is
+      empty or invalid — invalid = treated as absent (a normal run). */
+  function dsEnteredSeed() {
+    if (!el.dsSeedInput) return undefined;
+    const v = el.dsSeedInput.value.trim();
+    if (!v) return undefined;
+    const u = SeedCode.decode(v);
+    return (typeof u === "number") ? u : undefined;
+  }
+  /** Live validation note under the input: the exhibition label on a valid
+      code, an inline error on a full-but-invalid one, nothing when empty. */
+  function updateSeedNote() {
+    if (!el.dsSeedNote || !el.dsSeedInput) return;
+    const v = el.dsSeedInput.value.trim();
+    el.dsSeedNote.classList.remove("ok", "err");
+    if (!v) { el.dsSeedNote.textContent = ""; return; }
+    if (dsEnteredSeed() === undefined) {
+      el.dsSeedNote.textContent = v.length < SeedCode.LENGTH
+        ? "Keep typing — 7 characters" : "Not a valid seed code";
+      el.dsSeedNote.classList.add("err");
+    } else {
+      el.dsSeedNote.textContent = "Seeded run — progression disabled";
+      el.dsSeedNote.classList.add("ok");
+    }
+  }
+  /** Back to the pristine closed/empty state (every deck-select entry). */
+  function resetSeedEntry() {
+    if (!el.dsSeedInput) return;
+    el.dsSeedInput.value = "";
+    updateSeedNote();
+    if (el.dsSeedBody) el.dsSeedBody.classList.add("hidden");
+    if (el.dsSeedToggle) el.dsSeedToggle.setAttribute("aria-expanded", "false");
+  }
+
+  /** The run's SHARE string: "PINKY-REGULAR-XK4T9QD" — deck name + tier label
+      (uppercased, stripped to A–Z0–9) + the 7-char SeedCode of the run seed.
+      Deck/tier travel as CONTEXT only; the entered code is just the 7-char
+      part (the select screen supplies both). Shared by the pause menu, the
+      win/loss overlay and the debug panel. null outside a campaign run. */
+  function runSeedShareStr() {
+    if (!campaign || zenMode || !campaign.getRunSeed) return null;
+    const seed = campaign.getRunSeed();
+    if (typeof seed !== "number" || !isFinite(seed)) return null;
+    const squash = (s) => String(s == null ? "" : s).toUpperCase().replace(/[^A-Z0-9]+/g, "");
+    const deck = DECKS.find(d => d.id === campaign.getDeckId());
+    const tier = DifficultyData.tier(campaign.getTier());
+    return squash(deck ? deck.name : campaign.getDeckId())
+      + "-" + squash(tier ? tier.label : campaign.getTier())
+      + "-" + SeedCode.encode(seed);
+  }
+  /** Copy `str` to the clipboard, then flash "copied ✓" on `elm`'s .seed-hint
+      (when present). navigator.clipboard needs a secure context + gesture — a
+      tap qualifies, but the Capacitor webview / older Safari can still
+      refuse, so a hidden-textarea execCommand("copy") fallback runs on
+      rejection or absence. No native share sheet: that needs
+      @capacitor/share + an Xcode rebuild. */
+  let copyFlashTimer = 0;
+  function copySeed(str, elm) {
+    const flash = () => {
+      if (!elm) return;
+      const hint = elm.querySelector(".seed-hint");
+      elm.classList.add("copied");
+      if (hint) {
+        if (hint.dataset.orig == null) hint.dataset.orig = hint.textContent;
+        hint.textContent = "copied ✓";
+      }
+      clearTimeout(copyFlashTimer);
+      copyFlashTimer = setTimeout(() => {
+        elm.classList.remove("copied");
+        if (hint && hint.dataset.orig != null) hint.textContent = hint.dataset.orig;
+      }, 900);
+    };
+    const legacy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = str;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch (_) {}
+      ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(str).then(flash, () => { legacy(); flash(); });
+    else { legacy(); flash(); }
+  }
+
   /* The new-run deck picker: a swipeable carousel of decks. The unlocked Pink
      Deck has a Start Run; locked decks are greyed with their unlock note.
      Presentation/flow only — picking the Pink Deck just runs startCampaign(). */
@@ -21795,6 +22190,7 @@ const UIRenderer = (() => {
     el.dsCarousel.scrollLeft = 0;
     dsPerkIndex = -1;
     perkDeckPanel(0);   // the first (pink) deck opens highlighted → it perks up
+    resetSeedEntry();   // SEED1: a fresh entry starts with no seed entered
     el.deckSelect.classList.remove("hidden");
     updateBoardMotion();
     schedulePregen(true);      // PERF2: build the run map while the player browses —
@@ -21836,8 +22232,12 @@ const UIRenderer = (() => {
         if (el.deckSelect.classList.contains("hidden")) return;
         // MAPGEN1: pregenerateRun only STARTS a chunked build now (one stage
         // per idle slice inside the campaign) — this call itself is cheap.
+        // SEED1: a valid entered seed rides along, keying the pregen to it
+        // (undefined = the normal seedless entry); dsEnteredSeed is read at
+        // FIRE time, so deck swipes, tier taps and seed edits all re-key
+        // through this one path.
         const started = Perf.time("deck-select:pregen(" + sel.tier + ")",
-          () => campaign.pregenerateRun(sel.deck, sel.tier));
+          () => campaign.pregenerateRun(sel.deck, sel.tier, dsEnteredSeed()));
         if (started) console.log("[map] pregenerating " + sel.tier
           + " run (chunked, one stage per idle slice)");
       };
@@ -21852,7 +22252,7 @@ const UIRenderer = (() => {
     else pregenTimer = setTimeout(fire, 350);
   }
 
-  function startCampaign() {
+  function startCampaign(seedU32) {
     hideMainMenu();   // every entry path leaves the title menu (so the board, once
                       // dealt, is the active surface and its card motion runs)
     clearSave();          // a fresh campaign supersedes any saved one
@@ -21860,8 +22260,12 @@ const UIRenderer = (() => {
     // Drop any leftover run context (a quit mid-ambush never ran onRunEnd) so
     // the fresh campaign's first deal can't inherit a stale forced subset.
     ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;
+    reshuffleIndex = 0;   // SEED1: the deal-identity counter starts clean too
     campaign.setDeck(selectedDeckId);   // bind the deck CHARACTER's rules first —
     campaign.setTier(selectedTierId);   // — and the difficulty tier (bands only);
+    // SEED1: a player-entered seed rides into the reset's startNewRun (one-shot;
+    // the run it builds is flagged exhibition — checkpoints, but no progression).
+    if (typeof seedU32 === "number" && isFinite(seedU32)) campaign.setSeedOverride(seedU32 >>> 0);
     // INSTANT TAP RESPONSE (measured: the reset→render block below is the
     // Start press's freeze — ~0.4s warm-pregen / multi-second cold under a
     // phone-class CPU). The map overlay's felt backdrop goes up THIS frame
@@ -21897,12 +22301,14 @@ const UIRenderer = (() => {
    */
   /* Draw `n` random cards from a deck array (Fisher-Yates partial shuffle on a
      copy — order-agnostic; the engine reshuffles what it's handed). `n` is
-     clamped to the deck size, so a near-threshold deck can hand back everything. */
-  function pickRandomSubset(deck, n) {
+     clamped to the deck size, so a near-threshold deck can hand back everything.
+     SEED1: `rng` threads the deal's keyed substream (fresh mints); resumes pass
+     no rng — they rebuild the SAVED subset instead of rolling. */
+  function pickRandomSubset(deck, n, rng = Math.random) {
     const a = deck.slice();
     n = Math.max(0, Math.min(a.length, n | 0));
     for (let i = 0; i < n; i++) {
-      const j = i + Math.floor(Math.random() * (a.length - i));
+      const j = i + Math.floor(rng() * (a.length - i));
       const t = a[i]; a[i] = a[j]; a[j] = t;
     }
     return a.slice(0, n);
@@ -21944,6 +22350,21 @@ const UIRenderer = (() => {
       : ((!subsetOverride && currentDealSubset && currentDealSubset.forced) ? currentDealSubset : null);
     const wantSubset = !isBoss && (forcedSpec ? true : (subsetDealsEnabled && fullDeck.length > SS.threshold));
 
+    // SEED1 — deal-seed identity. A FRESH mint (a new deal entry or a reshuffle
+    // — never a RESUME, which replays the persisted seed untouched) draws from
+    // the deal's keyed substream: ("ambush", nodeId, reshuffleIndex) for a
+    // mystery ambush, else ("deal", nodeId, reshuffleIndex). The subset rolls
+    // below AND the engine seed all draw from this ONE stream, so the same
+    // (runSeed, node, reshuffle count) always deals the same board. A fresh
+    // entry (no redeal price carried in) resets the reshuffle counter;
+    // doReshuffle has already stepped it for a re-deal.
+    const freshMint = (seedOverride === undefined || seedOverride === null);
+    if (freshMint && typeof redealCostOverride !== "number") reshuffleIndex = 0;
+    const dealNodeId = (forcedSpec && forcedSpec.ambush && forcedSpec.ambush.nodeId != null)
+      ? forcedSpec.ambush.nodeId
+      : ((node && node.id != null) ? node.id : 0);
+    const dealRng = freshMint ? campaign.runRng(forcedSpec ? "ambush" : "deal", dealNodeId, reshuffleIndex) : null;
+
     let deckForDeal, piles;
     if (wantSubset && subsetOverride && Array.isArray(subsetOverride.ids)) {
       // RESUME: rebuild the exact saved subset IN ITS SAVED ORDER (drop any ids
@@ -21959,19 +22380,21 @@ const UIRenderer = (() => {
     if (wantSubset && !deckForDeal && forcedSpec) {
       // AMBUSH fresh roll (entry / reshuffle): `cards` cards to survive on
       // `piles` piles — straight from items.js mystery.ambush via the spec.
+      // SEED1: the subset draws from the deal's keyed "ambush" stream.
       piles = forcedSpec.piles;
       const N = Math.min(fullDeck.length, (forcedSpec.cards || 0) + piles);
-      deckForDeal = pickRandomSubset(fullDeck, N);
+      deckForDeal = pickRandomSubset(fullDeck, N, dealRng || Math.random);
     }
     if (wantSubset && !deckForDeal) {
       // Fresh roll (entry / reshuffle): survive count S in [min,max], solve piles
       // from the node's target danger, draw a random (S + piles) subset.
+      // SEED1: S and the subset draw from the deal's keyed "deal" stream.
       const targetD = (node && typeof node.targetD === "number")
         ? node.targetD : (nodePiles ? (fullDeck.length - nodePiles) / nodePiles : 3);
-      const S = SS.min + Math.floor(Math.random() * (SS.max - SS.min + 1));
+      const S = SS.min + Math.floor((dealRng || Math.random)() * (SS.max - SS.min + 1));
       piles = RunMap.solveSubsetPiles(S, targetD);
       const N = Math.min(fullDeck.length, S + piles);
-      deckForDeal = pickRandomSubset(fullDeck, N);
+      deckForDeal = pickRandomSubset(fullDeck, N, dealRng || Math.random);
     }
     if (!wantSubset) {
       // Full-deck deal (small deck or boss): the node's solved pile count.
@@ -22030,7 +22453,11 @@ const UIRenderer = (() => {
     // is delegated on the board, so no per-pile handlers accumulate.
     buildBoard(cfg.cols);
 
-    engine.start(seedOverride);
+    // SEED1: a fresh deal's seed is ONE draw from the deal's keyed substream
+    // (after any subset rolls above) — the checkpoint below persists it via
+    // engine.getSeed(), and a resume replays that persisted seed exactly (the
+    // keyed mint never touches the restore path).
+    engine.start(freshMint ? (Math.floor(dealRng() * 0x100000000) >>> 0) : seedOverride);
     // Checkpoint the run start: a refresh now resumes this run's sticker phase
     // with the same board + redeal price. STKLAG2: run start is a durability
     // point — flush so the run checkpoint (and any pending store save it just
@@ -23462,7 +23889,9 @@ const UIRenderer = (() => {
       if (!id) continue;
       const t = PillarTypes.get(id);
       if (!t || !t.selfDestruct) continue;
-      const destroyed = Math.random() < t.selfDestruct;
+      // SEED1: the volatility roll rides the ACTION stream (persisted counter) —
+      // a refresh replays the same outcome instead of fishing for a Safe.
+      const destroyed = campaign.actRng()() < t.selfDestruct;
       showStaticIndicator(c, t, destroyed);
       if (destroyed) {
         campaign.removeColumnPillar(c);   // destroyed → cleared, no refund
@@ -23512,9 +23941,13 @@ const UIRenderer = (() => {
     // correct/total into the campaign running totals (win or loss) so the
     // summary's right/wrong covers every deal, not just the last one.
     campaign.addRunGuesses(payload.run.correctGuesses, payload.run.totalGuesses);
+    // SEED1 EXHIBITION: a player-seeded run checkpoints and plays exactly like a
+    // normal one but banks NO progression — lifetime stats, deck unlocks and
+    // purchase telemetry all gate on this single flag.
+    const exhibition = !!(campaign.isExhibition && campaign.isExhibition());
     // Lifetime draw + guess tallies: every deal's cards drawn during play, plus
     // its guess accuracy (correct + total), win OR loss.
-    Stats.addDeal(payload.run.cardsDrawn, payload.run.correctGuesses, payload.run.totalGuesses);
+    if (!exhibition) Stats.addDeal(payload.run.cardsDrawn, payload.run.correctGuesses, payload.run.totalGuesses);
 
     // LOSS ends the campaign. We deliberately do NOT record or advance: the
     // failed screen reads the stage/run we died on, and "New Campaign" funnels
@@ -23534,12 +23967,14 @@ const UIRenderer = (() => {
         // ENDLESS death: the campaign was already banked as WON at the ♠ boss.
         // Normal game-over flow, but never a recorded loss — only the cards
         // flipped SINCE the banking join the lifetime tally.
-        Stats.addCardsFlipped(campaign.unbankedCardsFlipped());
+        if (!exhibition) Stats.addCardsFlipped(campaign.unbankedCardsFlipped());
       } else {
         // Lifetime stats (isolated store): record how far this game got.
-        Stats.addCardsFlipped(campaign.totalCardsFlipped);
-        Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
-          campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+        if (!exhibition) {
+          Stats.addCardsFlipped(campaign.totalCardsFlipped);
+          Stats.campaignEnded(false, campaign.currentStage, campaign.currentRunIndex,
+            campaign.totalCardsFlipped, campaign.totalCoinsEarned);
+        }
       }
       showCampaignFailed(payload.run);
       return;
@@ -23613,7 +24048,7 @@ const UIRenderer = (() => {
     const coins = { earned: payout.total, balance: campaign.getCoins(), breakdown: payout };
 
     // Lifetime stats (isolated store): this run was cleared.
-    Stats.runCleared(payout.total, campaign.currentStage, campaign.currentRunIndex);
+    if (!exhibition) Stats.runCleared(payout.total, campaign.currentStage, campaign.currentRunIndex);
 
     // Fold the end-of-run bonuses (Extra Coin, Column Guardian) into the live
     // bonus tracker so its FINAL value equals the summary's total bonus
@@ -23634,7 +24069,7 @@ const UIRenderer = (() => {
     if (clearedNode && !wasAmbush) campaign.markNodeCleared(clearedNode.id);
     // ENDLESS: an endless boss falling just generated the NEXT stage — record
     // the new depth in lifetime stats as each stage opens.
-    if (campaign.isEndless && campaign.isEndless()) Stats.endlessReached(campaign.endlessStagesReached());
+    if (campaign.isEndless && campaign.isEndless() && !exhibition) Stats.endlessReached(campaign.endlessStagesReached());
     const runWon = !wasAmbush && !!(clearedNode && clearedNode.type === "boss" && campaign.isRunBoss(clearedNode.id));
     // AMBUSH cleared: queue the masked node's dispatch for the summary's
     // Continue (continueCampaign) and drop the forced subset so the node's own
@@ -23669,6 +24104,9 @@ const UIRenderer = (() => {
       // record the campaign as WON at the ♠ boss. Going home or dying deep in
       // endless mode later can neither undo nor double-count it (the banked
       // flag guards the loss path; only post-boss flips get added there).
+      // SEED1 EXHIBITION: a player-seeded run banks NOTHING — no win record,
+      // no deck unlock, no celebration (the run itself plays on to home/endless).
+      if (!exhibition) {
       campaign.markRunWon();
       Stats.addCardsFlipped(campaign.totalCardsFlipped);
       Stats.campaignEnded(true, campaign.currentStage, campaign.currentRunIndex,
@@ -23691,6 +24129,7 @@ const UIRenderer = (() => {
       if (wonTier !== "regular" && DeckUnlocks.recordWin(selectedDeckId, "regular") ) {
         const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
         pendingUnlockCelebration = pendingUnlockCelebration || DECKS[wonIdx + 1] || null;
+      }
       }
       // The campaign is NOT over: Pinky's HOME sits just above the fallen boss
       // (and endless mode beyond it) — so the boss resolves like any other won
@@ -24975,7 +25414,7 @@ const UIRenderer = (() => {
         showProgressionMap();          // the detour ends back on the map…
         fallThrough();                 // …which immediately plays the node beneath
       };
-      showStore(false);
+      showStore(false, id);   // SEED1: the detour offer keys to the MYSTERY node's id
       return;
     }
     fallThrough();   // coinBonus / coinLoss / cursedSticker / joker — done
@@ -25086,7 +25525,7 @@ const UIRenderer = (() => {
       // ~50ms of script+layout at phone speed). Consume the one-shot arrival
       // pop (it would otherwise fire, oddly, on the render after LEAVING).
       mapArrive = false;
-      showStore();
+      showStore(true, id);   // SEED1: the offer keys to this store node
     } else if (node.type === "home") {
       // PINKY IS HOME — the run's true finish line. Deliberately NOT marked
       // cleared here: the victory screen's choice decides what happens next
@@ -25170,7 +25609,7 @@ const UIRenderer = (() => {
      Spend coins on stickers; they go into the campaign inventory and are
      applied to cards DURING the next run (see the in-run sticker tray).
      Shown after every run so banked coins are always spendable. */
-  function showStore(fresh = true) {
+  function showStore(fresh = true, nodeId = null) {
     // STKLAG2: entering the store is a durability point — flush any pending save
     // from the previous screen (e.g. the map checkpoint) before we roll/open.
     flushCampaignSave();
@@ -25185,7 +25624,14 @@ const UIRenderer = (() => {
     if (el.stageRun) el.stageRun.classList.add("off");   // the persistent top shell carries stage/deck now
     // Fresh visit rolls a new offer; a RESUME (fresh=false) keeps the saved
     // offer so a refresh while shopping can't hand out a free reroll.
-    if (fresh || !campaign.getStoreOffer()) campaign.openStore();
+    if (fresh || !campaign.getStoreOffer()) {
+      // SEED1: the visit's offer keys to the NODE — the map store node's id, or
+      // the MYSTERY node's id for a detour (both sit at nodePos) — so a store's
+      // contents depend on the seed + node, never on visit order.
+      const keyId = (nodeId != null) ? nodeId
+        : ((campaign.nodePos && campaign.nodePos() != null) ? campaign.nodePos() : null);
+      campaign.openStore(keyId != null ? campaign.runRng("store", keyId) : undefined);
+    }
     // The deck-slot character shows in the store — keep its stage mood current
     // (same anxious → hopeful → bright arc as the map).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
@@ -25590,7 +26036,8 @@ const UIRenderer = (() => {
     const kind = sdDetailKind, id = sdDetailId, slot = selectedMixedSlot;
     if (slot == null) return;
     if ((kind === "pillar" || kind === "base") && sdPlaceCol == null) return;
-    const res = campaign.buyMixedSlot(slot, Math.random);
+    // SEED1: a pack buy's contents key to (store node, slot) — never call order.
+    const res = campaign.buyMixedSlot(slot, campaign.runRng("storepack", campaign.nodePos(), slot));
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
@@ -25600,7 +26047,7 @@ const UIRenderer = (() => {
       if (prev && prev !== id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
       const t = SamePowerTypes.get(id);
       if (engine) engine.logAction("Store: equipped Same-Power " + ((t && t.label) || id));
-      try { Telem.purchase("samepower", id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
+      try { if (!campaign.isExhibition()) { Telem.purchase("samepower", id, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
       updateSamePowerHud();
     } else {
       const reg = kind === "pillar" ? PillarTypes : BaseTypes;
@@ -25615,7 +26062,7 @@ const UIRenderer = (() => {
       const ok = kind === "pillar" ? campaign.placePillar(id, col) : campaign.placeBase(id, col);
       const t = reg.get(id);
       if (ok && engine) engine.logAction("Store: bought " + KIND_LABEL[kind] + " " + ((t && t.label) || id) + " → column " + (col + 1));
-      try { Telem.purchase(kind, id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
+      try { if (!campaign.isExhibition()) { Telem.purchase(kind, id, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
     }
     persistCampaign("store");
     closeStoreDetail();
@@ -25839,16 +26286,17 @@ const UIRenderer = (() => {
     const offer = campaign.getStoreOffer();
     const s = offer && offer.slots ? offer.slots[slot] : null;
     if (!s) return;
-    const res = campaign.buyMixedSlot(slot, Math.random);
+    // SEED1: a pack buy's contents key to (store node, slot) — never call order.
+    const res = campaign.buyMixedSlot(slot, campaign.runRng("storepack", campaign.nodePos(), slot));
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
     if (res.kind === "pillar" || res.kind === "base") {
-      try { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.scheduleFlush(); } catch (e) {}
+      try { if (!campaign.isExhibition()) { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.scheduleFlush(); } } catch (e) {}
     }
     if (res.kind === "samepower") {
       const t = SamePowerTypes.get(s.id);
-      try { Telem.purchase("samepower", s.id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
+      try { if (!campaign.isExhibition()) { Telem.purchase("samepower", s.id, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
       renderStore();
       refreshDebug();
       placePendingItem({ kind: "samepower", id: s.id });   // equip immediately
@@ -25869,7 +26317,7 @@ const UIRenderer = (() => {
       // pack-keep walk a pack-picked card gets (degenerates to one card, and it
       // gets the same Skip so a single bought card can be declined too).
       if (engine) engine.logAction("Store: bought a card" + (res.card && res.card.joker ? " (★ Joker)" : ""));
-      try { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.scheduleFlush(); } catch (e) {}
+      try { if (!campaign.isExhibition()) { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.scheduleFlush(); } } catch (e) {}
       renderStore();
       refreshDebug();
       startPackKeepWalk();
@@ -26025,7 +26473,7 @@ const UIRenderer = (() => {
     st.chosen.forEach(idx => {
       const sid = st.items[idx];
       campaign.addStickerToInventory(sid);
-      try { const sdef = StickerTypes.get(sid); Telem.purchase("sticker", sid, sdef && sdef.label); } catch (e) {}
+      try { if (!campaign.isExhibition()) { const sdef = StickerTypes.get(sid); Telem.purchase("sticker", sid, sdef && sdef.label); } } catch (e) {}
     });
     try { Telem.flush(); } catch (e) {}
     closePackReveal(); renderStore();
@@ -26679,7 +27127,7 @@ const UIRenderer = (() => {
       // sticker stays in the offer, nothing spent).
       if (pendingBuyStickerSlot != null) {
         if (!campaign.buyOfferedSticker(pendingBuyStickerSlot)) { return; }
-        try { Telem.purchase("sticker", pendingApplyStickerId, t && t.label); Telem.scheduleFlush(); } catch (e) {}
+        try { if (!campaign.isExhibition()) { Telem.purchase("sticker", pendingApplyStickerId, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
         if (engine) engine.logAction("Store: bought Sticker " + ((t && t.label) || pendingApplyStickerId));
       }
       if (campaign.applySticker(selectedApplyCardId, pendingApplyStickerId)) {
@@ -27881,6 +28329,9 @@ const UIRenderer = (() => {
       else {
         const seed = (typeof saved.runSeed === "number") ? saved.runSeed : undefined;
         const cost = (typeof saved.redealCost === "number") ? saved.redealCost : undefined;
+        // SEED1: restore the reshuffle counter BEFORE startRun — its end-of-deal
+        // checkpoint re-persists it, and the next reshuffle keys off it.
+        reshuffleIndex = (typeof saved.reshuffleIndex === "number") ? saved.reshuffleIndex : 0;
         startRun(seed, cost, saved.dealSubset || undefined);
         if (saved.appliedThisPhase) appliedThisPhase = true;
       }
@@ -27893,6 +28344,18 @@ const UIRenderer = (() => {
 
   /* ---- in-game menu (pause) ---- */
   function showGameMenu() {
+    // SEED1: the run's share seed above the buttons (campaign runs only — Zen
+    // has no run seed). Tap-to-copy rides the boot-time handler in attachInput.
+    const menuShare = (!zenMode && campaign) ? runSeedShareStr() : null;
+    if (el.gameMenuSeed) {
+      el.gameMenuSeed.classList.toggle("hidden", !menuShare);
+      if (menuShare) {
+        el.gameMenuSeed.innerHTML =
+          '<span class="seed-label">SEED · ' + escHtml(SeedCode.encode(campaign.getRunSeed())) + '</span>'
+          + (campaign.isExhibition() ? '<span class="seed-tag">exhibition</span>' : '')
+          + '<span class="seed-hint">tap to copy</span>';
+      }
+    }
     // ZEN: no campaign actions here — never "New Run". Restart deals a fresh
     // Zen game at the SAME difficulty; Quit routes through the Zen teardown
     // (navigational only — the campaign save was never written).

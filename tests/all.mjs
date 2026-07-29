@@ -64,6 +64,7 @@ import { run as confirmBar } from "./confirmbar.test.mjs";
 import { run as mapgen1 } from "./mapgen1.test.mjs";
 import { run as mysteryEvents } from "./mystery-events.test.mjs";
 import { run as mysteryUi } from "./mystery-ui.test.mjs";
+import { run as seeds } from "./seeds.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -128,6 +129,7 @@ const SUITES = [
   ["mapgen1", mapgen1],
   ["mystery-events", mysteryEvents],
   ["mystery-ui", mysteryUi],
+  ["seeds", seeds],
 ];
 
 let pass = 0,
