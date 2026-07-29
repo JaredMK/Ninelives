@@ -283,6 +283,10 @@ export function run() {
     r.ok((JSON.parse(storage.getItem(KEY)).known || []).indexOf(d.id) !== -1,
       "…and the stamp persisted under ninelives.itemunlocks.v1");
     // A SECOND game over the same storage remembers the stamp (no re-toast).
+    // STKRB1: Stats writes are coalesced — flush() is the durability point a
+    // reload reads (the app calls it from flushCampaignSave at transitions /
+    // pagehide; the harness's no-op timers never fire the debounce).
+    Stats.flush();
     const g2 = loadGame({ localStorage: storage });
     g2.StickerTypes.get(d.id).unlock = LOCK("cardsBuried", 5);
     r.eq(g2.ItemUnlocks.checkNewUnlocks().length, 0, "the stamp survives a reload (no repeat toast)");

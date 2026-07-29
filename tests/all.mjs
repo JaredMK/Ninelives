@@ -66,6 +66,8 @@ import { run as mysteryEvents } from "./mystery-events.test.mjs";
 import { run as mysteryUi } from "./mystery-ui.test.mjs";
 import { run as seeds } from "./seeds.test.mjs";
 import { run as unlocks } from "./unlocks.test.mjs";
+import { run as stkrb1 } from "./stkrb1.test.mjs";
+import { run as stkperf1 } from "./stkperf1.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -132,6 +134,8 @@ const SUITES = [
   ["mystery-ui", mysteryUi],
   ["seeds", seeds],
   ["unlocks", unlocks],
+  ["stkrb1", stkrb1],
+  ["stkperf1", stkperf1],
 ];
 
 let pass = 0,

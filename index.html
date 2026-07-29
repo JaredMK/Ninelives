@@ -4627,8 +4627,30 @@ const NativeApp = (() => {
   /* (No content-visibility windowing here: it blanked off-screen cards on iOS
      until scroll forced a paint of their inline-SVG chips — the "cards appear
      2-3s after scrolling" stall — and it deferred hit-testing. The picker grid
-     now caches each card's parsed node (see applyCardNodes), so full paint
-     happens once per open and scrolling is pure compositing.) */
+     caches each card's parsed node (see applyCardNodes) and mounts in batched
+     rAF chunks (STKRB1), so paint is chunked per open and scrolling is pure
+     compositing.) */
+  /* STKRB1: flatter chip paint INSIDE the picker grid only. A full grid carries
+     ~150 die-cut chips and the full vinyl treatment (two stacked radial
+     gradients + a double box-shadow + a per-chip rotate on every badge) was
+     the measured picker paint cost. Scoped to .sa-lite (the #saCards grid):
+     the chip keeps its die-cut shape, face colour, icon, count pill and suit
+     badge — and the dcs-cursed routing — but drops the gradient stack, the
+     glow ring and the rotation. Board, store, banner and modal chips keep
+     the full vinyl. */
+  .sa-lite .dcs {
+    background: var(--dcs-face, #6f7a66);
+    box-shadow: 0 2px 4px rgba(70, 44, 40, 0.35);
+    transform: none;
+  }
+  .sa-lite .dcs-gloss { display: none; }
+  .sa-lite .dcs.dcs-cursed {
+    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(43, 24, 84, 0.95),
+                0 2px 4px rgba(43, 24, 84, 0.5);
+  }
+  .sa-lite .dcs.dcs-cursed .dcs-gloss { display: none; }
+  .sa-lite .dcs-n { transform: none; }                    /* no rotation left to counter */
+  .sa-lite .dcs-suits { transform: translateX(-50%); }    /* keep the centering, drop the counter-rotate */
   .sa-card .mini-card { transition: transform 0.08s ease; }
   .sa-card:active .mini-card { transform: scale(0.95); }
   .sa-card.sa-disabled { opacity: 0.3; filter: grayscale(0.5); cursor: not-allowed; }
@@ -7101,7 +7123,7 @@ const NativeApp = (() => {
       <div class="deck-modal-hist hidden" id="saHist"></div>
       <div class="deck-modal-suits hidden" id="saSuits"></div>
       <div class="deck-modal-total" id="saHint">Tap a card to apply this sticker.</div>
-      <div class="deck-cards sa-cards" id="saCards"></div>
+      <div class="deck-cards sa-cards sa-lite" id="saCards"></div>
     </div>
   </div>
 
@@ -7313,7 +7335,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.09 · mystery is its own node type — the gamble IS the node's whole content";
+const APP_VERSION = "v5.10 · sticker-apply perf: fossil sidecar (save writes −84%), coalesced Stats, chunked picker paint";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -12994,8 +13016,22 @@ const CampaignState = (() => {
     // surviving network so the map can redraw the shape of how that run ended.
     // DISPLAY-ONLY — never read by any rule; recorded as a passive snapshot of the
     // end-of-run board. Each: { stage, run, alive, total, nodes:[{x,y}], edges:[[i,j]] }.
-    // Persisted with the campaign and wiped on reset() like everything else.
+    // STKPERF1: fossils persist in their OWN sidecar key (ninelives.fossils.v1),
+    // NOT the campaign save blob — at late-run sizes they were ~45% of every
+    // coalesced save write (and every iOS Preferences mirror) while changing
+    // ~once per deal. CampaignState stays storage-agnostic: it keeps the live
+    // records + a dirty flag; the UI save layer writes/reads the sidecar.
     let runFossils = [];
+    let fossilsDirty = false;   // a record changed since the last sidecar write
+    // The ONE validator for fossil payloads from storage (old inline saves AND
+    // the sidecar) — unknown shapes degrade to [] instead of crashing a resume.
+    const parseFossils = (list) => (Array.isArray(list) ? list : [])
+      .filter(f => f && typeof f.stage === "number" && typeof f.run === "number")
+      .map(f => ({
+        stage: f.stage, run: f.run, alive: f.alive || 0, total: f.total || 0,
+        nodes: Array.isArray(f.nodes) ? f.nodes.map(n => ({ x: n.x, y: n.y })) : [],
+        edges: Array.isArray(f.edges) ? f.edges.map(e => [e[0], e[1]]) : [],
+      }));
     // The deck CHARACTER this campaign plays (gameplay rules, not just skin).
     // Set by the UI before reset() on a fresh campaign; restored with a save.
     let deckId = "pink";
@@ -14149,6 +14185,7 @@ const CampaignState = (() => {
         };
         const at = runFossils.findIndex(f => f.stage === stage && f.run === run);
         if (at >= 0) runFossils[at] = rec; else runFossils.push(rec);
+        fossilsDirty = true;   // STKPERF1: the sidecar write rides the next save flush
       },
       /** All recorded run fossils (display copy). */
       getRunFossils() {
@@ -14165,6 +14202,20 @@ const CampaignState = (() => {
         return { stage: f.stage, run: f.run, alive: f.alive, total: f.total,
           nodes: f.nodes.map(n => ({ x: n.x, y: n.y })), edges: f.edges.map(e => [e[0], e[1]]) };
       },
+      /* STKPERF1 sidecar contract (the UI save layer owns the storage):
+         serializeFossils() = the sidecar payload; restoreFossils() = adopt a
+         sidecar read (validated, [] on anything malformed); the dirty flag
+         gates sidecar writes so they land ONLY when a fossil changed. */
+      serializeFossils() {
+        return runFossils.map(f => ({
+          stage: f.stage, run: f.run, alive: f.alive, total: f.total,
+          nodes: f.nodes.map(n => ({ x: n.x, y: n.y })),
+          edges: f.edges.map(e => [e[0], e[1]]),
+        }));
+      },
+      restoreFossils(list) { runFossils = parseFossils(list); fossilsDirty = false; },
+      hasUnsavedFossils() { return fossilsDirty; },
+      markFossilsSaved() { fossilsDirty = false; },
 
       /** True once the run is won (the ♠ boss fell). */
       isComplete() { return phaseIndex >= PHASE_SUITS.length || !!(runMap && runMap.runBossIds && runMap.runBossIds.some(b => clearedNodes.indexOf(b) !== -1)); },
@@ -15045,6 +15096,7 @@ const CampaignState = (() => {
         packTray = [];
         nextCardId = 52;
         runFossils = [];
+        fossilsDirty = false;
         actionCounter = 0;   // SEED1: the action stream restarts with the campaign
         startNewRun();   // NEW structure: phase 0 (♦), 13 hearts pre-held, fresh map
       },
@@ -15097,12 +15149,11 @@ const CampaignState = (() => {
           baseDeck: this._copyCards(),
           packTray: packTray.map(c => ({ ...c, modifications: c.modifications.slice(), stickers: c.stickers.map(s => ({ ...s })) })),
           nextCardId,
-          // Display-only progression-map fossils (deep-copied; safe to omit on
-          // older saves — restore() defaults to []).
-          runFossils: runFossils.map(f => ({
-            stage: f.stage, run: f.run, alive: f.alive, total: f.total,
-            nodes: f.nodes.map(n => ({ x: n.x, y: n.y })), edges: f.edges.map(e => [e[0], e[1]]),
-          })),
+          // STKPERF1: runFossils deliberately NOT serialized here — they ride
+          // the ninelives.fossils.v1 sidecar (serializeFossils/restoreFossils)
+          // so every coalesced save write shrinks by their (~45%) payload.
+          // restore() still ADOPTS an old save's inline runFossils (one-time
+          // migration into the sidecar).
         };
       },
 
@@ -15261,16 +15312,18 @@ const CampaignState = (() => {
         }
         lockAllPickupCards();   // re-lock any +1 node missing a card (old saves) — committed ones are kept
         ensureGuaranteedJoker();   // pre-cap saves gain the guaranteed map Joker too (no-op if one exists)
-        // Progression-map fossils (default [] for saves written before the map).
-        runFossils = Array.isArray(s.runFossils)
-          ? s.runFossils
-              .filter(f => f && typeof f.stage === "number" && typeof f.run === "number")
-              .map(f => ({
-                stage: f.stage, run: f.run, alive: f.alive || 0, total: f.total || 0,
-                nodes: Array.isArray(f.nodes) ? f.nodes.map(n => ({ x: n.x, y: n.y })) : [],
-                edges: Array.isArray(f.edges) ? f.edges.map(e => [e[0], e[1]]) : [],
-              }))
-          : [];
+        // STKPERF1: fossils live in the ninelives.fossils.v1 sidecar now — a
+        // NEW save has no inline payload (the UI restores the sidecar via
+        // restoreFossils after this returns). An OLD save's inline payload is
+        // ADOPTED here and left dirty, so the UI populates the sidecar on the
+        // same boot (one-time migration; the next save drops the field).
+        if (Array.isArray(s.runFossils)) {
+          runFossils = parseFossils(s.runFossils);
+          fossilsDirty = runFossils.length > 0;
+        } else {
+          runFossils = [];
+          fossilsDirty = false;
+        }
         return true;
       },
     };
@@ -15325,12 +15378,55 @@ const SaveStore = (() => {
 })();
 
 /* ----------------------------------------------------------------
+   FossilStore — STKPERF1 sidecar for the display-only progression-map
+   fossils. They used to ride the campaign save blob: ~45% of EVERY
+   coalesced save write (and its iOS Preferences mirror) at late-run sizes,
+   while changing only ~once per deal. Now the campaign blob never carries
+   them; this key is written ONLY when a fossil was recorded since the last
+   write (the campaign's fossilsDirty flag gates it), through the SAME
+   two-stage save flush the campaign blob uses — no timer of its own.
+   SaveStore idiom: try/caught, defensive parse, silent no-op without
+   storage; the ninelives.* prefix auto-mirrors to Capacitor Preferences.
+   clearSave() clears this key with the campaign save (they're one logical
+   campaign — a wiped campaign must never resurrect its fossils).
+---------------------------------------------------------------- */
+const FossilStore = (() => {
+  const KEY = "ninelives.fossils.v1";
+  const ok = () => { try { return typeof localStorage !== "undefined"; } catch (e) { return false; } };
+  return {
+    load() {
+      if (!ok()) return null;
+      try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; }
+      catch (e) { return null; }
+    },
+    save(list) {
+      if (!ok()) return;
+      try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) { /* quota/serialize — ignore */ }
+    },
+    clear() {
+      if (!ok()) return;
+      try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    },
+  };
+})();
+
+/* ----------------------------------------------------------------
    Stats — lifetime player record across games. The ONLY new persistent
    system. Stored under its OWN localStorage key, completely separate from
    the campaign save (so the per-campaign wipe never touches it) and from
    gameplay state (it only READS run/campaign results at end-of-run hooks
    and writes its own counters — it never influences play). Degrades to a
    silent no-op where localStorage is unavailable.
+
+   STKRB1 write coalescing: put() used to do a synchronous
+   get+parse+stringify+setItem per call (and, on iOS, a native Preferences
+   bridge post per call — a per-guess/per-apply cost). Now put() only
+   mutates the in-memory cache and schedules ONE trailing write (250ms
+   debounce, the persistCampaign idiom); get() reads the warm cache, so
+   reads stay live and correct even with a write pending. Stats.flush()
+   forces the pending write synchronously — called from flushCampaignSave,
+   which already runs at every durability point (screen transitions, run
+   start/end, pagehide/visibilitychange-hidden).
 ---------------------------------------------------------------- */
 const Stats = (() => {
   const KEY = "ninelives.stats.v1";
@@ -15378,12 +15474,34 @@ const Stats = (() => {
       }
     } catch (e) { /* ignore */ }
   })();
-  function get() {
-    if (!ok()) return { ...DEF };
-    try { return { ...DEF, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
-    catch (e) { return { ...DEF }; }
+  /* STKRB1: in-memory cache is the source of truth once warm — get() never
+     re-parses storage mid-session, put() only dirties the cache and re-arms
+     ONE trailing debounced write (a burst of bumps collapses to a single
+     setItem / native bridge post). */
+  const STATS_WRITE_DEBOUNCE_MS = 250;
+  let cache = null;
+  let statsDirty = false;
+  let statsWriteTimer = null;
+  function writeStatsNow() {
+    if (statsWriteTimer !== null) { clearTimeout(statsWriteTimer); statsWriteTimer = null; }
+    if (!statsDirty || !cache) return;
+    statsDirty = false;
+    if (ok()) try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) { /* ignore */ }
   }
-  function put(s) { if (ok()) try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* ignore */ } }
+  function get() {
+    if (cache) return { ...cache };
+    let s = { ...DEF };
+    if (ok()) try { s = { ...DEF, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; }
+    catch (e) { s = { ...DEF }; }
+    cache = s;
+    return { ...s };
+  }
+  function put(s) {
+    cache = { ...DEF, ...s };
+    statsDirty = true;
+    if (statsWriteTimer !== null) clearTimeout(statsWriteTimer);
+    statsWriteTimer = setTimeout(writeStatsNow, STATS_WRITE_DEBOUNCE_MS);
+  }
   // Rank a Stage·Run position for "furthest reached" (Stage dominates Run).
   const rank = (st, rn) => st * 100 + rn;
   return {
@@ -15457,6 +15575,9 @@ const Stats = (() => {
       if (s) put(s);
     },
     reset() { put({ ...DEF }); },
+    /** STKRB1: force any pending coalesced write to storage SYNCHRONOUSLY
+        now — called from flushCampaignSave at every durability point. */
+    flush() { writeStatsNow(); },
   };
 })();
 
@@ -22371,11 +22492,26 @@ const UIRenderer = (() => {
     }
     return blob;
   }
+  /* STKPERF1: the fossil sidecar write — dirty-guarded, so it lands ONLY when
+     a fossil was recorded since the last write (recordRunFossil runs at a
+     deal end, right before the map/store transition whose flush fires this).
+     Called from writeCampaignSaveNow below: the trailing idle write AND every
+     transition/pagehide flush both carry it — the sidecar needs no timer of
+     its own, and durability matches the campaign blob's exactly. typeof-
+     guarded like placementSavePhase: the stklag2/stkperf1 harnesses extract
+     these functions without FossilStore in scope. */
+  function writeFossilSidecarNow() {
+    if (!campaign || zenMode || typeof FossilStore === "undefined") return;
+    if (!campaign.hasUnsavedFossils || !campaign.hasUnsavedFossils()) return;
+    FossilStore.save(campaign.serializeFossils());
+    campaign.markFossilsSaved();
+  }
   // The ONE synchronous write: land whatever's pending and disarm the timer.
   // No-op when nothing is pending (so a transition flush never resurrects a
   // just-cleared campaign, and clearSave's cancel below stays authoritative).
   function writeCampaignSaveNow() {
     if (saveCoalesceTimer !== null) { clearTimeout(saveCoalesceTimer); saveCoalesceTimer = null; }
+    writeFossilSidecarNow();   // STKPERF1: rides EVERY save flush (dirty-guarded no-op)
     if (pendingSavePhase === null || !campaign || zenMode) { pendingSavePhase = null; return; }
     const phase = pendingSavePhase;
     pendingSavePhase = null;
@@ -22414,15 +22550,22 @@ const UIRenderer = (() => {
   // DURABILITY: force any pending campaign save to disk SYNCHRONOUSLY now. Call
   // at every durability-critical moment (screen transitions, run start/end,
   // pagehide/visibilitychange-hidden) so a kill/refresh keeps every completed
-  // purchase. Cheap when nothing is pending (a no-op).
-  function flushCampaignSave() { writeCampaignSaveNow(); }
+  // purchase. Cheap when nothing is pending (a no-op). STKRB1: Stats' coalesced
+  // write flushes here too — this one chokepoint already covers every
+  // durability point (incl. the pagehide/visibilitychange pair).
+  function flushCampaignSave() { writeCampaignSaveNow(); try { Stats.flush(); } catch (e) {} }
   // (Zen guard mirrors persistCampaign: no Zen path clears the campaign save.)
   // Cancel any pending coalesced write FIRST — a scheduled save must never land
   // after (and resurrect) a campaign we just wiped (new campaign, loss, done).
+  // STKPERF1: the fossil sidecar is part of the same logical campaign — clear
+  // it too, and drop the dirty flag so a later flush can't resurrect fossils
+  // for a wiped campaign.
   function clearSave() {
     if (zenMode) return;
     if (saveCoalesceTimer !== null) { clearTimeout(saveCoalesceTimer); saveCoalesceTimer = null; }
     pendingSavePhase = null;
+    if (campaign && campaign.markFossilsSaved) campaign.markFossilsSaved();
+    if (typeof FossilStore !== "undefined") FossilStore.clear();
     SaveStore.clear();
   }
 
@@ -27316,20 +27459,39 @@ const UIRenderer = (() => {
   const applyCardNodes = new Map();   // cardId -> { sig, btn }
   const applyCardSig = (c) => (c.currentRank != null ? c.currentRank : "") + "|" + c.suit +
     "|" + (c.joker ? "J" : c.blank ? "B" : "") + "|" + (c.stickers || []).map(s => s.type).join(",");
+  // STRIP mode (mystery Cleanse): only cards carrying ≥1 sticker are enabled;
+  // apply mode checks per-sticker eligibility; remove/swap enable everything.
+  // ONE rule shared by the grid render and the targeted confirm update.
+  const applyCardEligible = (c) =>
+    cardPickMode === "strip" ? (c.stickers || []).length > 0
+    : cardPickMode !== "sticker" ? true
+    : campaign.canApplySticker(c, pendingApplyStickerId);
+  /* STKRB1 BATCHED MOUNT: appending all N cached buttons on open still forced
+     a whole-grid style/layout/paint pass on the tap (the measured cold-open
+     stall at 40+ cards). Now the first screenful mounts synchronously and the
+     rest streams in via rAF chunks (fixed card heights → no layout jumps;
+     the chunk rate outruns a flick). Chunks are generation-guarded (the
+     pregenBuildId idiom): every open/re-render/close bumps applyGridGen and
+     stale chunks self-terminate — no setInterval, no re-arming timers.
+     applyGridOrder/applyGridAppended track the stream so a confirm can
+     drainApplyGrid() (finish the mount synchronously) before touching it. */
+  const APPLY_FIRST_BATCH = 24;   // ~2 viewports, mounted synchronously on open
+  const APPLY_CHUNK = 16;         // cards appended per rAF chunk thereafter
+  let applyGridGen = 0;           // generation guard for the chunk stream
+  let applyGridOrder = [];        // this render's buttons, sorted
+  let applyGridAppended = 0;      // how many of applyGridOrder are mounted
   function renderStickerApplyCards() {
     if (!el.saCards || !campaign) return;
+    const gen = ++applyGridGen;   // kills any pending chunk stream
     // Live read-only refs — no whole-deck deep copy per render (STKLAG4);
     // .slice() keeps the sort off the campaign's own array.
     const cards = campaign.getRunDeckLive().slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
     applyCardsById = new Map(cards.map(c => [c.id, c]));
-    const frag = document.createDocumentFragment();
-    for (const c of cards) {
-      // STRIP mode (mystery Cleanse): only cards carrying ≥1 sticker are enabled;
-      // apply mode checks per-sticker eligibility; remove/swap enable everything.
-      const ok = cardPickMode === "strip" ? (c.stickers || []).length > 0
-        : cardPickMode !== "sticker" ? true
-        : campaign.canApplySticker(c, pendingApplyStickerId);
+    const order = new Array(cards.length);
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[i];
+      const ok = applyCardEligible(c);
       const sig = applyCardSig(c) + "|" + (ok ? 1 : 0);
       let rec = applyCardNodes.get(c.id);
       if (!rec || rec.sig !== sig) {
@@ -27344,11 +27506,106 @@ const UIRenderer = (() => {
       }
       rec.btn.classList.remove("sa-remove", "sa-flash");   // leftover confirm FX from a previous open
       rec.btn.classList.toggle("sa-selected", selectedApplyCardId === c.id);
-      frag.appendChild(rec.btn);
+      order[i] = rec.btn;
     }
-    el.saCards.replaceChildren(frag);
     // Prune nodes for cards no longer in the deck (removals, swaps).
     for (const id of applyCardNodes.keys()) if (!applyCardsById.has(id)) applyCardNodes.delete(id);
+    // Mount the first batch NOW; stream the rest in generation-guarded rAF
+    // chunks into the same scroll container (writes only — no layout reads).
+    applyGridOrder = order;
+    const frag = document.createDocumentFragment();
+    const first = Math.min(APPLY_FIRST_BATCH, order.length);
+    for (let i = 0; i < first; i++) frag.appendChild(order[i]);
+    el.saCards.replaceChildren(frag);
+    applyGridAppended = first;
+    const step = () => {
+      // A re-open/close (gen bump) or a hidden modal kills this stream.
+      if (gen !== applyGridGen) return;
+      if (el.stickerApplyModal && el.stickerApplyModal.classList.contains("hidden")) return;
+      const end = Math.min(applyGridAppended + APPLY_CHUNK, order.length);
+      const more = document.createDocumentFragment();
+      for (let i = applyGridAppended; i < end; i++) more.appendChild(order[i]);
+      el.saCards.appendChild(more);
+      applyGridAppended = end;
+      if (end < order.length) requestAnimationFrame(step);
+    };
+    if (applyGridAppended < order.length) requestAnimationFrame(step);
+  }
+  /* STKRB1: finish a batched mount SYNCHRONOUSLY (a confirm is about to touch
+     the grid — it can't wait for the stream) and cancel the pending chunks.
+     No-op once the mount is complete (the common case — the stream drains in
+     a few frames, long before a human can tap + confirm). */
+  function drainApplyGrid() {
+    applyGridGen++;   // stale chunks self-terminate
+    if (!el.saCards || applyGridAppended >= applyGridOrder.length) return;
+    const rest = document.createDocumentFragment();
+    for (let i = applyGridAppended; i < applyGridOrder.length; i++) rest.appendChild(applyGridOrder[i]);
+    el.saCards.appendChild(rest);
+    applyGridAppended = applyGridOrder.length;
+  }
+  /* STKRB1: O(N) classList-only eligibility sync — flip sa-disabled + the
+     disabled attribute (and the cached sig) for any card whose eligibility
+     changed, WITHOUT re-parsing its button (the mini-card HTML doesn't
+     depend on eligibility, so class+attr is the whole visual delta). */
+  function refreshApplyEligibility() {
+    applyCardsById.forEach((c, id) => {
+      const rec = applyCardNodes.get(id);
+      if (!rec) return;
+      const faceSig = applyCardSig(c);
+      const ok = applyCardEligible(c);
+      if (rec.sig === faceSig + "|" + (ok ? 1 : 0)) return;   // already current
+      if (rec.sig !== faceSig + "|" + (ok ? 0 : 1)) return;   // face changed too — a rebuild path owns that, not a class flip
+      rec.sig = faceSig + "|" + (ok ? 1 : 0);
+      rec.btn.classList.toggle("sa-disabled", !ok);
+      if (ok) rec.btn.removeAttribute("disabled");
+      else rec.btn.setAttribute("disabled", "");
+    });
+  }
+  /* STKRB1 TARGETED CONFIRM UPDATE: after a card-MODIFYING confirm (a rank /
+     suit sticker, or a Cleanse strip), update ONLY the touched card — rebuild
+     its one button through the sig cache (its face changed), move it to its
+     new sorted slot, and classList-sync the rest. Returns the card's live
+     button (for the flash), or null if it's gone. The old code re-rendered
+     the WHOLE grid here — a full-grid style/layout on the confirm tap. */
+  function updateApplyCardInPlace(cardId) {
+    if (!el.saCards || !campaign) return null;
+    const card = campaign.getCardById(cardId);   // live ref — the mutation is already on it
+    if (!card) return null;
+    drainApplyGrid();   // a confirm owns the grid now — finish any batched mount first
+    const ok = applyCardEligible(card);
+    const sig = applyCardSig(card) + "|" + (ok ? 1 : 0);
+    let rec = applyCardNodes.get(cardId);
+    const oldBtn = rec ? rec.btn : null;
+    if (!rec || rec.sig !== sig) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "deck-card sa-card" + (ok ? "" : " sa-disabled");
+      btn.dataset.cardId = cardId;
+      if (!ok) btn.setAttribute("disabled", "");
+      btn.innerHTML = miniCardHtml(card);   // the ONE parse for this visual state
+      rec = { sig, btn };
+      applyCardNodes.set(cardId, rec);
+    }
+    const btn = rec.btn;
+    btn.classList.remove("sa-remove", "sa-flash", "sa-selected");
+    // A rebuild created a NEW element — swap the stale one out of the grid
+    // (render's replaceChildren does this wholesale; here it's one node).
+    if (oldBtn && oldBtn !== btn && oldBtn.parentNode === el.saCards) el.saCards.removeChild(oldBtn);
+    // Move it to its (possibly new) sorted slot — one node move, no rebuild.
+    // (children reads no layout; keys come from the live card refs.)
+    let before = null;
+    const kids = el.saCards.children;
+    for (let i = 0; i < kids.length; i++) {
+      const k = kids[i];
+      if (k === btn) continue;
+      const kc = applyCardsById.get(Number(k.dataset.cardId));
+      if (!kc) continue;
+      const d = (kc.currentRank - card.currentRank) || (SUIT_ORDER[kc.suit] - SUIT_ORDER[card.suit]);
+      if (d > 0) { before = k; break; }
+    }
+    el.saCards.insertBefore(btn, before);
+    refreshApplyEligibility();
+    return btn;
   }
   /* Move the .sa-selected ring to the current selection IN PLACE. Selecting a
      card changes nothing else in the grid, so tearing the whole innerHTML down
@@ -27698,8 +27955,9 @@ const UIRenderer = (() => {
       selectedApplyCardId = null;
       closeModalPrompt();
       applyPickerBusy = true;   // own the picker until the close completes
-      renderStickerApplyCards();
-      const stripBtn = el.saCards && el.saCards.querySelector('[data-card-id="' + stripId + '"]');
+      // STKRB1: repaint ONLY the stripped card (its badge is gone and it may
+      // have become ineligible) — was a full grid re-render on the tap.
+      const stripBtn = updateApplyCardInPlace(stripId);
       if (el.saHint) el.saHint.textContent = removedType
         ? "Stripped " + ((rt && rt.label) || removedType) + " — it's gone for good."
         : "Nothing left to strip.";
@@ -27757,8 +28015,8 @@ const UIRenderer = (() => {
         persistCampaign("store");   // the ONE save for this apply — kept synchronous on the tap
         savedOnTap = true;
         // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
-        // shows its change IN PLACE before the picker leaves: repaint the grid
-        // (the changed card re-renders — and may re-sort — to its NEW face),
+        // shows its change IN PLACE before the picker leaves: update JUST the
+        // changed card (it re-renders — and may re-sort — to its NEW face),
         // flash + sparkle it, THEN close as usual. Non-modifying stickers keep
         // the immediate close (their card face didn't change).
         const modifies = t && (t.kind === "rank" ||
@@ -27766,15 +28024,26 @@ const UIRenderer = (() => {
         if (modifies && el.saCards) {
           const flashId = selectedApplyCardId;
           selectedApplyCardId = null;               // no lingering selection ring
-          renderStickerApplyCards();
-          const btn = el.saCards.querySelector('[data-card-id="' + flashId + '"]');
+          // STKRB1: targeted single-card update (was: a full grid re-render +
+          // a synchronous bring-into-view = a forced whole-grid layout on the
+          // confirm tap).
+          const btn = updateApplyCardInPlace(flashId);
           if (btn) {
             pendingApplyStickerId = null; pendingSwapTrayIndex = null;
             pendingBuyStickerSlot = null;
             closeModalPrompt();
             applyPickerBusy = true;   // the 850ms flash owns the picker
-            btn.scrollIntoView({ block: "nearest" });   // a re-sort may have moved it
             btn.classList.add("sa-flash");
+            // A re-sort may have moved the card out of view — but NEVER force
+            // layout on the tap frame. Next frame: one cheap geometry check,
+            // scrolling only if the card is actually outside the container's
+            // visible window.
+            requestAnimationFrame(() => {
+              if (!btn.isConnected || !el.saCards) return;
+              const cR = el.saCards.getBoundingClientRect();
+              const bR = btn.getBoundingClientRect();
+              if (bR.top < cR.top || bR.bottom > cR.bottom) btn.scrollIntoView({ block: "nearest" });
+            });
             setTimeout(() => {
               applyPickerBusy = false;
               btn.classList.remove("sa-flash");
@@ -27811,6 +28080,7 @@ const UIRenderer = (() => {
     });
   }
   function closeStickerApply() {
+    applyGridGen++;   // STKRB1: closing cancels any pending batched-mount chunks
     if (applyPickerBusy) return;   // a confirm's close animation is already completing the flow
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
     // PACK-KEEP WALK: ✕ / backdrop = "skip this one" (decline + advance), same as
@@ -29713,6 +29983,13 @@ const UIRenderer = (() => {
       }
     }
     if (restored) {
+      /* STKPERF1: fossils ride the ninelives.fossils.v1 sidecar. restore()
+         ADOPTED an old save's inline payload (left dirty) → populate the
+         sidecar now, same boot. A new save has none inline → read the
+         sidecar ([] when absent; malformed → []). Either way the map's
+         fossils match whatever storage holds, with no crash on any combo. */
+      if (campaign.hasUnsavedFossils()) writeFossilSidecarNow();
+      else campaign.restoreFossils(FossilStore.load());
       // A cleared ♠ boss no longer means FINISHED: the campaign continues to
       // Pinky's home (victory screen pending) and through endless mode — only
       // discard when it's complete AND neither of those states is live.

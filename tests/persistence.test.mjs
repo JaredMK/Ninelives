@@ -137,12 +137,26 @@ export function run() {
     copy.nodes.push({ x: 9, y: 9 });
     r.eq(c.getRunFossil(1, 1).nodes.length, 1, "getRunFossil returns an independent copy");
 
-    // Round-trips through the JSON wire.
+    // Round-trips through the JSON wire. STKPERF1: fossils deliberately no
+    // longer ride serialize() (they shrank every coalesced save write by
+    // ~45%) — their persistence contract is the serializeFossils /
+    // restoreFossils sidecar pair (ninelives.fossils.v1, UI-owned).
     const restored = CampaignState.create();
     r.ok(restored.restore(JSON.parse(JSON.stringify(c.serialize()))), "restore accepts the snapshot");
-    r.eq(restored.getRunFossils().length, 2, "both fossils survive save/restore");
+    r.eq(restored.getRunFossils().length, 0, "serialize() carries NO fossils (sidecar-owned, STKPERF1)");
+    restored.restoreFossils(JSON.parse(JSON.stringify(c.serializeFossils())));
+    r.eq(restored.getRunFossils().length, 2, "both fossils survive the sidecar round-trip");
     r.eq(restored.getRunFossil(1, 2).alive, 7, "restored fossil keeps its alive count");
     r.eq(restored.getRunFossil(1, 2).edges.length, 1, "restored fossil keeps its edges");
+    // Migration: an OLD save's INLINE runFossils is still adopted by restore()
+    // (one-time, into the sidecar) and left dirty so the UI populates the
+    // sidecar on the same boot.
+    const legacyBlob = JSON.parse(JSON.stringify(c.serialize()));
+    legacyBlob.runFossils = JSON.parse(JSON.stringify(c.serializeFossils()));
+    const migrated = CampaignState.create();
+    r.ok(migrated.restore(legacyBlob), "an old inline-fossil save still restores");
+    r.eq(migrated.getRunFossils().length, 2, "…its inline fossils are adopted (migration path)");
+    r.ok(migrated.hasUnsavedFossils(), "…and left dirty so the sidecar gets populated");
 
     // Backward-compat: a save with no runFossils field restores to [].
     const legacy = JSON.parse(JSON.stringify(c.serialize()));

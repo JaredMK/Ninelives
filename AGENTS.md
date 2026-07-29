@@ -157,6 +157,29 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.10 (Kimi + concurrent, STKPERF1/STKRB1)** — sticker-apply perf pass;
+  READ THIS BEFORE TOUCHING THE SAVE PATH, Stats, OR THE PICKER GRID:
+  - **Fossil sidecar**: `runFossils` NO LONGER rides the campaign blob — it
+    persists in `ninelives.fossils.v1`, written only when a fossil changes
+    (`fossilsDirty` flag; the write rides the SAME two-stage
+    armSaveWrite/flushCampaignSave mechanism, no new timer). Restore adopts
+    inline fossils from old saves; clearSave clears the sidecar too. Blob
+    at a 50-card fixture: 45.0 KB → 7.2 KB per deferred write.
+  - **Stats writes are coalesced** (STKRB1): bump/bumpAll dirty-mark in
+    memory (get() reads the warm cache, never storage); the trailing write
+    + `Stats.flush()` fires from `flushCampaignSave` — the single
+    durability chokepoint (transitions/pagehide). Never add a synchronous
+    Stats write to a tap path.
+  - **Picker grid**: mount is rAF-CHUNKED per open (finish synchronously on
+    confirm); eligibility sync is O(N) classList-only; confirms do targeted
+    single-card updates; chip paint is flatter INSIDE the picker grid only.
+    content-visibility windowing remains banned (the iOS blank-cards stall,
+    comment ~4627).
+  - Step 0 profiling verdict (agent-37): picker/apply JS was already
+    sub-millisecond at 50 cards; remaining felt latency = designed
+    animation holds (850/720ms, contract-preserved) + device paint. If jank
+    persists on-device, get a Safari timeline before more surgery.
+
 - **v5.09 (Kimi + concurrent, MYST3)** — mystery is a FIRST-CLASS node type;
   READ THIS BEFORE TOUCHING THE GENERATOR, MAP ARRIVAL, OR nodeHidden:
   - genV is now 3 (`RUN_GEN_VERSION`, ~13017). At genV≥3 `rollType(rng,

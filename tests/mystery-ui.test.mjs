@@ -149,9 +149,13 @@ export function run() {
     r.ok(open.includes('cardPickMode = "strip"'), "the strip picker reuses #stickerApplyModal in a strip mode");
     r.ok(open.includes("(c.stickers || []).length > 0"),
       "…opened only when some card carries a sticker (else the event fizzles)");
-    const render = fnBody(src, "renderStickerApplyCards");
-    r.ok(/cardPickMode === "strip" \? \(c\.stickers \|\| \[\]\)\.length > 0/.test(render),
-      "only stickered cards are enabled in the grid");
+    // STKRB1: the eligibility rule is now ONE shared helper (grid render +
+    // the targeted confirm update both read it).
+    r.ok(/applyCardEligible = \(c\) =>\s*cardPickMode === "strip" \? \(c\.stickers \|\| \[\]\)\.length > 0/.test(src),
+      "only stickered cards are enabled in the grid (one shared eligibility rule)");
+    r.ok(fnBody(src, "renderStickerApplyCards").includes("applyCardEligible(")
+      && fnBody(src, "updateApplyCardInPlace").includes("applyCardEligible("),
+      "…the grid render AND the targeted confirm update share it");
     const confirm = fnBody(src, "confirmApplySticker");
     r.ok(confirm.includes("campaign.removeRandomStickerFrom(stripId)"),
       "confirm strips ONE random sticker through the campaign core");

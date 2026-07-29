@@ -74,7 +74,10 @@ export function run() {
     // several fresh runs (the RULE is "pickups roll all suits", unchanged).
     const suits = new Set();
     let pickups = 0;
-    for (let k = 0; k < 6 && suits.size < 3; k++) {
+    // Sweep until BOTH pins have enough evidence (suit span AND pickup count) —
+    // exiting on suits.size alone could strand the pickups tally on a lucky
+    // first run (a rare flake: 3 suits met by ~4 pickups).
+    for (let k = 0; k < 8 && (suits.size < 3 || pickups < 6); k++) {
       camp.reset();
       const map = camp.getMap();
       map.nodes.filter(n => n.type === "pickup")

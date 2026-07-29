@@ -121,19 +121,33 @@ export function run() {
       "…the deferred tail is exactly the heavy pair (histogram repaint + placement/store rebuild)");
   }
 
-  // --- R7) The card-MODIFYING flash-then-close is preserved (+ deduped) -------
+  // --- R7) The card-MODIFYING flash-then-close is preserved (+ STKRB1 targeted) --
   {
     r.ok(confirm.includes('t.kind === "rank"')
       && confirm.includes('["changeSuitTo", "changeSuitRandom", "randomFixedValue"].indexOf(t.behavior) !== -1'),
       "the modifies-card detection (rank / suit-change / random) is intact");
-    r.ok(confirm.includes("renderStickerApplyCards();") && confirm.includes('btn.classList.add("sa-flash");'),
-      "…the changed card re-renders to its new face and flashes in place");
+    // STKRB1: the changed card now updates IN PLACE — a targeted single-card
+    // rebuild through the sig cache — instead of a full grid re-render.
+    r.ok(confirm.includes("updateApplyCardInPlace(flashId)") && confirm.includes('btn.classList.add("sa-flash");'),
+      "…the changed card updates in place to its new face and flashes");
+    r.ok(!confirm.includes("renderStickerApplyCards("),
+      "…NO full grid rebuild anywhere on the confirm paths (STKRB1)");
+    // The tap frame never forces a synchronous layout: the one bring-into-view
+    // rides a rAF after the close begins and only fires when the card is
+    // actually outside the container's visible window.
+    r.eq(countOf(confirm, "scrollIntoView"), 1,
+      "…exactly one bring-into-view remains (the conditional post-tap scroll)");
+    r.ok(confirm.indexOf("requestAnimationFrame(() => {") !== -1
+      && confirm.indexOf("requestAnimationFrame(() => {") < confirm.indexOf("scrollIntoView"),
+      "…and it runs inside a rAF — never a forced layout on the tap frame");
     r.ok(/setTimeout\(\(\) => \{[\s\S]*?btn\.classList\.remove\("sa-flash"\);[\s\S]*?stickerApplyModal\.classList\.add\("hidden"\);/.test(confirm),
       "…then closes the picker after the flash");
     // The modifies path already deferred behind the 850ms flash; its heavy tail
     // is now wrapped in the same one-shot suppression (no double-persist there).
     const flashAt = confirm.indexOf('btn.classList.add("sa-flash");');
-    const flashTail = confirm.slice(flashAt, flashAt + 700);
+    // (Wide window: STKRB1's conditional post-tap scroll rAF sits between the
+    // flash and the close tail — the suppression block is ~1.2k chars out.)
+    const flashTail = confirm.slice(flashAt, flashAt + 1400);
     r.ok(flashTail.includes("suppressStorePersistOnce = true")
       && /finally \{ suppressStorePersistOnce = false; \}/.test(flashTail),
       "…and its continuePendingPlacement runs with the store-persist suppressed (single save)");

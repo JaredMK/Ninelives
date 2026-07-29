@@ -77,6 +77,7 @@ export function run() {
   const persist = fnBody(src, "persistCampaign");
   const flush = fnBody(src, "flushCampaignSave");
   const writeNow = fnBody(src, "writeCampaignSaveNow");
+  const sidecar = fnBody(src, "writeFossilSidecarNow");   // STKPERF1: writeCampaignSaveNow calls it
   const arm = fnBody(src, "armSaveWrite");
   const blobFn = fnBody(src, "campaignSaveBlob");
   const clear = fnBody(src, "clearSave");
@@ -171,6 +172,10 @@ export function run() {
       "let saveCoalesceTimer = null;",
       "const SAVE_COALESCE_MS = 300;",
       "function campaignSaveBlob(phase) " + blobFn,
+      // STKPERF1: writeCampaignSaveNow calls writeFossilSidecarNow — include it
+      // (its FossilStore reference is typeof-guarded, so the store's absence
+      // here is exactly the guarded no-op path).
+      "function writeFossilSidecarNow() " + sidecar,
       "function writeCampaignSaveNow() " + writeNow,
       "function armSaveWrite() " + arm,
       "function persistCampaign(phase) " + persist,
