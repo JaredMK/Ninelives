@@ -157,6 +157,20 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.03 (Kimi, STKLAG3/4)** — sticker-apply perf + save-write timing:
+  - The coalesced campaign save is now TWO-STAGE: `persistCampaign` arms
+    `armSaveWrite()` — a 300ms trailing setTimeout that hands the actual
+    serialize+write to `requestIdleCallback` (bounded 1500ms, setTimeout
+    fallback) so it never lands inside a tap animation. `flushCampaignSave()`
+    is still the synchronous durability write at transitions/pagehide.
+    `tests/stklag2.test.mjs` pins the mechanism (fake timers + fake rIC).
+  - New read-only CampaignState accessors: `getCardById(id)` (one live card,
+    replaces `getCards().find(...)`) and `getRunDeckLive()` (live owned-card
+    refs, replaces `getRunDeck()` in render-only paths). Both return LIVE
+    objects — never mutate them; mutations go through the mutator methods.
+  - `Telem.scheduleFlush()` debounces purchase-path telemetry writes;
+    `Telem.flush()` stays synchronous at transitions/pagehide.
+
 - **v5.02 (Claude, MAPGEN1)** — map generation reworked for speed; READ THIS
   BEFORE TOUCHING RunMap OR THE PREGEN PATH:
   - `RunMap.makeRunStepper(seed, entries, opts)` builds one stage per

@@ -124,12 +124,12 @@ const NativeApp = (() => {
     document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
   }
   /** ONE game-side hook (called at the top of the engine-event handler):
-      haptics on correct guesses / saves / win-loss, keep-awake per deal. */
+      haptics on guesses (correct AND wrong) / saves / win-loss, keep-awake per deal. */
   function event(type, payload) {
     if (!native) return;
     const H = plugin("Haptics"), K = plugin("KeepAwake");
     try {
-      if (type === "resolved" && payload && payload.correct) { if (H) H.impact({ style: "LIGHT" }); }
+      if (type === "resolved" && payload) { if (H) H.impact({ style: "LIGHT" }); }   // every guess resolves — wrong guesses were the one silent outcome
       else if (type === "same-saved" || type === "heart-broken" || type === "guarded" || type === "second-wind") { if (H) H.impact({ style: "MEDIUM" }); }
       else if (type === "same-banked") { if (H) H.impact({ style: "MEDIUM" }); }
       else if (type === "won") { if (H) H.notification({ type: "SUCCESS" }); if (K && K.allowSleep) K.allowSleep(); }
@@ -223,7 +223,7 @@ const NativeApp = (() => {
        help, tray help, action-bar chip, pack-reveal info), so the components
        can't drift apart again. Layout/colors stay per-component. */
     --info-title-size: 13px;
-    --info-desc-size: 11.5px;
+    --info-desc-size: 12.5px;   /* raised from 11.5: every item-help surface lifts at once */
     --info-desc-lh: 1.4;
     --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band (run: hidden) */
     /* ---- CASINO FELT — the table everything sits on ----------------------
@@ -236,7 +236,8 @@ const NativeApp = (() => {
     --felt-2: #2C6B53;       /* lifted table centre (lightened from #1B4634) */
     --felt-3: #153B2C;       /* deepest vignette edge (lightened from #0B241B) */
     --on-felt: #F0EAE0;      /* light ink directly on the felt */
-    --on-felt-muted: rgba(240, 234, 224, 0.62);
+    --on-felt-muted: rgba(240, 234, 224, 0.75);   /* raised from 0.62: small text on felt failed AA (~4.15:1) */
+    --amber-text: #9A6712;   /* text-safe amber for numerals on light panels (--amber #C77E1F is 2.94:1 — keep it for glows/accents only) */
     --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
   }
 
@@ -341,10 +342,10 @@ const NativeApp = (() => {
     white-space: nowrap; font-weight: 700;
   }
   .hud .hud-score b { font-size: 15px; font-weight: 800; }
-  .hud .hud-score .hl { font-size: 8.5px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
+  .hud .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
   .hud .hud-score .hx { color: var(--muted); font-size: 12px; margin: 0 1px; }
   .hud .hud-dop {
-    color: var(--amber); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    color: var(--amber-text); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     /* Clear the fixed top-right inventory button (mirror of hud-sr's left clear). */
     margin-right: 30px;
   }
@@ -410,13 +411,13 @@ const NativeApp = (() => {
   .deal-status .hud-score { color: var(--text); display: inline-flex; align-items: baseline;
     gap: 1px; white-space: nowrap; font-weight: 700; }
   .deal-status .hud-score b { font-size: 17px; font-weight: 800; margin: 0 1px; }
-  .deal-status .hud-score .hl { font-size: 9px; color: var(--muted); margin: 0 1px 0 7px;
+  .deal-status .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 1px 0 7px;
     text-transform: uppercase; letter-spacing: 0.3px; font-weight: 800; }
   .deal-status .hud-score .hx { color: var(--muted); font-size: 13px; margin: 0 2px; }
   /* The SAME guess button also glows while a charge is banked (contextual cue). */
   .btn.same.charged { box-shadow: 0 0 0 2px var(--amber), 0 2px 8px rgba(0,0,0,0.2); }
   /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
-  .min-accent { color: var(--amber) !important; }
+  .min-accent { color: var(--amber-text) !important; }
   .bonus-accent { color: var(--accent-2) !important; margin-left: 4px; }
   .bonus-accent.bonus-neg { color: var(--bad) !important; }
 
@@ -966,7 +967,7 @@ const NativeApp = (() => {
   .ds-blue { background: var(--accent-2); }
   .ds-bar.ds-active .ds-grey { background: rgba(74,52,44,0.40); }
   .ds-bar.ds-active .ds-blue { background: var(--amber); }
-  .ds-rank { font-size: 9px; font-weight: 800; color: var(--muted); line-height: 1.3; }
+  .ds-rank { font-size: 10px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom). Each row = a left rank
      label + a bar of notches equal to that rank's OWN total count, laid out on a
@@ -975,7 +976,7 @@ const NativeApp = (() => {
      (its drawn notches show grey); PINK = how many remain. */
   .rail .ds-bars { flex-direction: column; align-items: stretch; }
   .rail .ds-bar { flex-direction: row; align-items: center; gap: 3px; }
-  .rail .ds-rank { flex: none; width: 12px; text-align: right; font-size: 8px; line-height: 1; }
+  .rail .ds-rank { flex: none; width: 14px; text-align: right; font-size: 10px; line-height: 1; }
   .ds-pips { display: grid; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
     grid-template-columns: repeat(4, 1fr); justify-content: start; }
   .ds-pip { min-width: 0; height: 8px; border-radius: 2.5px; background: rgba(74,52,44,0.30); }   /* grey = total (drawn) */
@@ -2213,6 +2214,7 @@ const NativeApp = (() => {
     letter-spacing: 1px; color: var(--accent-2); margin-bottom: 12px;
   }
   .sheet-close {
+    position: relative;
     width: 30px; height: 30px; border-radius: 50%;
     background: var(--panel-2); color: var(--text);
     border: 1px solid var(--edge-2); font-size: 18px; line-height: 1; cursor: pointer;
@@ -2482,6 +2484,12 @@ const NativeApp = (() => {
   }
   .menu-btn { left: calc(env(safe-area-inset-left) + 4px); }
   .nav-btn .ico { font-size: 17px; }
+  /* 44px touch targets on the 30px chrome (Apple HIG floor): an invisible
+     ::after expands the hit area 7px on every side (30 + 7 + 7 = 44) without
+     changing the visual. Same idea as .tut-skip's explicit ≥44px treatment. */
+  .nav-btn::after, .sheet-close::after, .deck-modal-close::after, .store-help-btn::after {
+    content: ""; position: absolute; inset: -7px; border-radius: inherit;
+  }
   .nav-btn.hidden { display: none; }
   .nav-btn:active { transform: scale(0.92); }
   /* A quick pop when something lands in the inventory (e.g. Replica's copy). */
@@ -2555,7 +2563,7 @@ const NativeApp = (() => {
      A circular "?" that lives IN the store header (in-flow, not the fixed
      corner nav), clustered beside Refresh (margin-left:auto) so it never
      overlaps the coin balance on the left. */
-  .store-help-btn { flex: none; margin-left: auto; align-self: center;
+  .store-help-btn { flex: none; margin-left: auto; align-self: center; position: relative;
     width: 30px; height: 30px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--accent-2);
@@ -2884,7 +2892,7 @@ const NativeApp = (() => {
   .store-head { display: flex; flex-direction: column; gap: 1px; }
   .store-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: 0.3px; color: var(--text); line-height: 1; }
   .store-balance { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
-  .store-balance b { color: var(--amber); font-size: 17px; font-weight: 800; }
+  .store-balance b { color: var(--amber-text); font-size: 17px; font-weight: 800; }
   .store-balance .coin-ico { font-size: 13px; }
   /* Refresh: a defined store-level control (re-rolls the whole offering). */
   .store-reroll { flex: none; display: inline-flex; align-items: center; gap: 6px;
@@ -4369,6 +4377,7 @@ const NativeApp = (() => {
     letter-spacing: 0.5px;
   }
   .deck-modal-close {
+    position: relative;
     background: var(--panel);
     color: var(--text);
     border: none;
@@ -4848,7 +4857,7 @@ const NativeApp = (() => {
     font-size: 11px;
     color: var(--muted);
     padding: 6px 0 10px;
-    opacity: 0.6;
+    opacity: 0.8;
   }
 
   /* ============================================================
@@ -6864,9 +6873,8 @@ const NativeApp = (() => {
   </div>
 
   <!-- DECK SELECT — shown when starting a new run. A swipeable carousel of decks:
-       only the Pink Deck is playable now; the rest are locked placeholders
-       ("Unlock after beating Pink Deck"). Infrastructure for future decks/maps —
-       the roster is data-driven (see DECKS), so adding a deck is data-only. -->
+       the roster is data-driven (see DECKS); each deck carries its own unlock
+       rule, so adding a deck is data-only. -->
   <div class="menu-screen hidden" id="deckSelect">
     <button class="nav-btn ds-back-btn" id="dsBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
     <div class="ds-title">Choose your deck</div>
@@ -6988,7 +6996,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.02 · map generation: cached, chunked, 10× faster";
+const APP_VERSION = "v5.03 · sticker-apply perf + legibility: contrast, type floor, hit areas";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7043,6 +7051,16 @@ const Telem = (() => {
     try { if (dirty && ok()) { localStorage.setItem(KEY, JSON.stringify(mem)); dirty = false; } }
     catch (e) { /* quota/serialize — ignore */ }
   }
+  /* Purchase paths record on the tap; a synchronous setItem (+ native mirror)
+     there is main-thread work inside the buy animation. scheduleFlush() lands
+     the write on a trailing debounce instead; pagehide/visibilitychange and
+     run/deal transitions still call flush() synchronously, so durability is
+     unchanged (telemetry is best-effort analytics either way). */
+  let flushTimer = null;
+  function scheduleFlush() {
+    if (flushTimer !== null) return;   // one trailing write per burst
+    flushTimer = setTimeout(() => { flushTimer = null; flush(); }, 800);
+  }
   function entry(klass, id, label) {
     let a = mem.art[id];
     if (!a) a = mem.art[id] = { klass: klass, label: label || id };
@@ -7078,6 +7096,7 @@ const Telem = (() => {
       catch (e) { /* never throw */ }
     },
     flush,
+    scheduleFlush,
     get() { try { return JSON.parse(JSON.stringify(mem)); } catch (e) { return { art: {} }; } },
     since() { try { return mem.since || 0; } catch (e) { return 0; } },
     reset() { try { mem = { v: 1, since: Date.now(), art: {} }; dirty = true; flush(); } catch (e) { /* ignore */ } },
@@ -13394,6 +13413,11 @@ const CampaignState = (() => {
       getDeck() { return this._copyCards(); },
       /** Same — used for sticker inspection across all card identities. */
       getCards() { return this._copyCards(); },
+      /** The LIVE persistent card with the given id, or null. READ-ONLY:
+          callers must not mutate it (mutation goes through applySticker /
+          the dedicated mutators). Use this instead of getCards().find() when
+          only one card is needed — getCards() deep-copies the whole deck. */
+      getCardById(id) { return findById(id); },
 
       /** The deck dealt THIS deal: the player's ACCUMULATED DRAFT (every owned
           card). This is the whole deck for every deal — bigger decks are worse.
@@ -13404,6 +13428,15 @@ const CampaignState = (() => {
       },
       /** The accumulated deck size (the survival-difficulty number). */
       deckSize() { return ownedIds.length; },
+      /** The LIVE persistent cards of the run deck (owned only), READ-ONLY —
+          for renderers that only inspect (the sticker-apply picker grid).
+          Never mutate the returned cards; mutations go through the mutator
+          methods. Same membership as getRunDeck() without the whole-deck deep
+          copy on every grid render (STKLAG4). */
+      getRunDeckLive() {
+        const own = new Set(ownedIds);
+        return baseDeck.filter(c => own.has(c.id));
+      },
 
       /** Card count per CURRENT rank value, 2..14 (whole 52-card base deck). */
       composition() {
@@ -17115,7 +17148,9 @@ const UIRenderer = (() => {
     if (!campaign || !el.cardInfo || !el.cardInfoPanel) return;
     // ZEN: ids resolve against the ZEN deck (campaign ids overlap 0..51 and
     // could show a different — possibly stickered — campaign card).
-    const card = ((zenMode && zenMode.deck) || campaign.getRunDeck() || []).find(c => c.id === cardId);
+    const card = (zenMode && zenMode.deck)
+      ? zenMode.deck.find(c => c.id === cardId)
+      : campaign.getCardById(cardId);   // live read-only ref — no whole-deck copy per hold (STKLAG4)
     if (!card) return;
     // Persistent deck cards carry currentRank/suit but no `label`; synthesise one
     // so cardPeekHtml's header reads correctly (e.g. "Card J♥").
@@ -17128,7 +17163,12 @@ const UIRenderer = (() => {
      — so the sticker picker keeps tap-to-select while gaining hold-for-help. */
   function attachCardHoldHelp(container, onTap) {
     if (!container) return;
-    const HOLD_MS = 350;
+    // 180ms — matches the deck quick-peek / pillar / base / generic-peekInfo
+    // hold threshold, so hold-for-help feels identical on every surface.
+    // (In-play PILE holds stay at 350ms on purpose: piles also tap AND swipe,
+    // so the longer threshold disambiguates the gesture. Store items use
+    // 500ms — a press-and-read there must not flash help.)
+    const HOLD_MS = 180;
     let holdTimer = null, held = false;
     const cardOf = (e) => (e.target && e.target.closest) ? e.target.closest("[data-card-id]") : null;
     container.addEventListener("pointerdown", (e) => {
@@ -17723,7 +17763,7 @@ const UIRenderer = (() => {
     } else if (t.behavior === "randomFixedValue") {
       // The random rank was decided on the PERSISTENT card by applySticker;
       // mirror it onto the live card so the new value takes effect this run.
-      const persisted = campaign.getCards().find(c => c.id === card.id);
+      const persisted = campaign.getCardById(card.id);
       if (persisted) {
         card.value = persisted.currentRank;
         const r = DeckManager.RANKS.find(r => r.value === card.value);
@@ -17744,7 +17784,7 @@ const UIRenderer = (() => {
       // campaign.applySticker (the random pick happens there). Mirror that exact
       // suit (and its red/black color) onto the live card so the change — and any
       // Suit Bounty it now qualifies for — takes effect this run.
-      const persisted = campaign.getCards().find(c => c.id === card.id);
+      const persisted = campaign.getCardById(card.id);
       const sym = persisted ? persisted.suit : card.suit;
       const s = DeckManager.SUITS.find(x => x.symbol === sym) || DeckManager.SUITS[0];
       card.suit = s.symbol;
@@ -21131,6 +21171,23 @@ const UIRenderer = (() => {
     pendingSavePhase = null;
     SaveStore.save(campaignSaveBlob(phase));
   }
+  /* The trailing edge of the debounce: 300ms after the last persist, hand the
+     write to an IDLE callback. The serialize+stringify+setItem (+ the native
+     Preferences mirror on iOS) is main-thread work that grows with deck size,
+     stickers placed and fossils recorded — landing it 300ms after a tap put
+     it squarely inside the 850ms close/flash animation (STKLAG3). The idle
+     timeout bounds the delay; transition/pagehide flushes stay synchronous
+     via writeCampaignSaveNow, so durability is unchanged. A stale idle
+     callback (a newer persist re-armed the debounce in the meantime) skips —
+     the newer timer schedules its own idle write. */
+  function armSaveWrite() {
+    saveCoalesceTimer = setTimeout(() => {
+      saveCoalesceTimer = null;
+      if (typeof requestIdleCallback === "function")
+        requestIdleCallback(() => { if (saveCoalesceTimer === null) writeCampaignSaveNow(); }, { timeout: 1500 });
+      else writeCampaignSaveNow();
+    }, SAVE_COALESCE_MS);
+  }
   function persistCampaign(phase) {
     if (!campaign) return;
     // ZEN ISOLATION: a Zen session never writes the campaign save (the blob
@@ -21142,7 +21199,7 @@ const UIRenderer = (() => {
     // transition (belt), and every transition/pagehide flushes it (suspenders).
     pendingSavePhase = phase;
     if (saveCoalesceTimer !== null) clearTimeout(saveCoalesceTimer);
-    saveCoalesceTimer = setTimeout(writeCampaignSaveNow, SAVE_COALESCE_MS);
+    armSaveWrite();
   }
   // DURABILITY: force any pending campaign save to disk SYNCHRONOUSLY now. Call
   // at every durability-critical moment (screen transitions, run start/end,
@@ -24825,7 +24882,7 @@ const UIRenderer = (() => {
       if (prev && prev !== id) { campaign.discardSamePowerFromInventory(prev); campaign.addCoins(sellValueOf(SamePowerTypes.get(prev))); }
       const t = SamePowerTypes.get(id);
       if (engine) engine.logAction("Store: equipped Same-Power " + ((t && t.label) || id));
-      try { Telem.purchase("samepower", id, t && t.label); Telem.flush(); } catch (e) {}
+      try { Telem.purchase("samepower", id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
       updateSamePowerHud();
     } else {
       const reg = kind === "pillar" ? PillarTypes : BaseTypes;
@@ -24840,7 +24897,7 @@ const UIRenderer = (() => {
       const ok = kind === "pillar" ? campaign.placePillar(id, col) : campaign.placeBase(id, col);
       const t = reg.get(id);
       if (ok && engine) engine.logAction("Store: bought " + KIND_LABEL[kind] + " " + ((t && t.label) || id) + " → column " + (col + 1));
-      try { Telem.purchase(kind, id, t && t.label); Telem.flush(); } catch (e) {}
+      try { Telem.purchase(kind, id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
     }
     persistCampaign("store");
     closeStoreDetail();
@@ -25069,11 +25126,11 @@ const UIRenderer = (() => {
     selectedMixedSlot = null;
     Sound.purchase();
     if (res.kind === "pillar" || res.kind === "base") {
-      try { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.flush(); } catch (e) {}
+      try { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.scheduleFlush(); } catch (e) {}
     }
     if (res.kind === "samepower") {
       const t = SamePowerTypes.get(s.id);
-      try { Telem.purchase("samepower", s.id, t && t.label); Telem.flush(); } catch (e) {}
+      try { Telem.purchase("samepower", s.id, t && t.label); Telem.scheduleFlush(); } catch (e) {}
       renderStore();
       refreshDebug();
       placePendingItem({ kind: "samepower", id: s.id });   // equip immediately
@@ -25094,7 +25151,7 @@ const UIRenderer = (() => {
       // pack-keep walk a pack-picked card gets (degenerates to one card, and it
       // gets the same Skip so a single bought card can be declined too).
       if (engine) engine.logAction("Store: bought a card" + (res.card && res.card.joker ? " (★ Joker)" : ""));
-      try { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.flush(); } catch (e) {}
+      try { Telem.purchase("card", res.card && res.card.joker ? "joker" : "card", res.card && res.card.joker ? "Joker card" : "Single card"); Telem.scheduleFlush(); } catch (e) {}
       renderStore();
       refreshDebug();
       startPackKeepWalk();
@@ -25475,7 +25532,9 @@ const UIRenderer = (() => {
     "|" + (c.joker ? "J" : c.blank ? "B" : "") + "|" + (c.stickers || []).map(s => s.type).join(",");
   function renderStickerApplyCards() {
     if (!el.saCards || !campaign) return;
-    const cards = (campaign.getRunDeck() || []).slice().sort((a, b) =>
+    // Live read-only refs — no whole-deck deep copy per render (STKLAG4);
+    // .slice() keeps the sort off the campaign's own array.
+    const cards = campaign.getRunDeckLive().slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
     applyCardsById = new Map(cards.map(c => [c.id, c]));
     const key = cards.map(c => c.id).join(",");
@@ -25861,7 +25920,7 @@ const UIRenderer = (() => {
       // sticker stays in the offer, nothing spent).
       if (pendingBuyStickerSlot != null) {
         if (!campaign.buyOfferedSticker(pendingBuyStickerSlot)) { return; }
-        try { Telem.purchase("sticker", pendingApplyStickerId, t && t.label); Telem.flush(); } catch (e) {}
+        try { Telem.purchase("sticker", pendingApplyStickerId, t && t.label); Telem.scheduleFlush(); } catch (e) {}
         if (engine) engine.logAction("Store: bought Sticker " + ((t && t.label) || pendingApplyStickerId));
       }
       if (campaign.applySticker(selectedApplyCardId, pendingApplyStickerId)) {
@@ -25988,7 +26047,7 @@ const UIRenderer = (() => {
      and Same-Powers always have a target, so they always count. */
   function pendingBlockCount() {
     if (!campaign) return 0;
-    const deck = campaign.getRunDeck() || [];
+    const deck = campaign.getRunDeckLive();   // read-only eligibility scan — no deep copy (STKLAG4)
     let n = campaign.packTrayCount ? campaign.packTrayCount() : 0;
     const sinv = campaign.getInventory();
     for (const t of StickerTypes.all()) {
@@ -27674,7 +27733,7 @@ const UIRenderer = (() => {
       // Balatro-style card list: every card of the current stage (rank+suit+
       // Imprints), with the set of ids still in the draw pile. Order-free.
       getCards: () => {
-        const cards = (zenMode && zenMode.deck) ? zenMode.deck : (campaign ? campaign.getRunDeck() : []);
+        const cards = (zenMode && zenMode.deck) ? zenMode.deck : (campaign ? campaign.getRunDeckLive() : []);
         const playing = engine && engine.getStatus() === "playing";
         const remaining = playing
           ? new Set(engine.getDeck()._peekAll().map(c => c.id))

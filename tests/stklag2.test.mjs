@@ -8,13 +8,17 @@
 //
 // The fix: persistCampaign() no longer writes on the tap — it SCHEDULES a single
 // trailing (debounced) write, so a click's many persists AND several rapid
-// clicks collapse to ONE SaveStore.save (one native mirror). Durability is
-// preserved by flushCampaignSave() — a synchronous write NOW — called at every
-// screen transition (map/store entry, run start/end) and on pagehide/
-// visibilitychange-hidden, so a kill/refresh can't lose a completed purchase.
-// clearSave() cancels any pending write so a queued save can't resurrect a wiped
-// campaign. Only the campaign save is coalesced; other ninelives.* keys are
-// untouched (the Storage write-through monkey-patch is not changed).
+// clicks collapse to ONE SaveStore.save (one native mirror). STKLAG3 moved the
+// write itself off the animation window: the trailing timer hands the write to
+// an idle callback (requestIdleCallback with a bounded timeout, setTimeout
+// fallback) via armSaveWrite(), so the serialize+stringify+native-mirror never
+// lands inside a tap animation. Durability is preserved by flushCampaignSave()
+// — a synchronous write NOW — called at every screen transition (map/store
+// entry, run start/end) and on pagehide/visibilitychange-hidden, so a
+// kill/refresh can't lose a completed purchase. clearSave() cancels any pending
+// write so a queued save can't resurrect a wiped campaign. Only the campaign
+// save is coalesced; other ninelives.* keys are untouched (the Storage
+// write-through monkey-patch is not changed).
 //
 // This suite (a) EXTRACTS the coalescer functions from source and drives them
 // with fake timers + a counting SaveStore to prove a burst of N persists writes
@@ -73,6 +77,7 @@ export function run() {
   const persist = fnBody(src, "persistCampaign");
   const flush = fnBody(src, "flushCampaignSave");
   const writeNow = fnBody(src, "writeCampaignSaveNow");
+  const arm = fnBody(src, "armSaveWrite");
   const blobFn = fnBody(src, "campaignSaveBlob");
   const clear = fnBody(src, "clearSave");
   // Two `init` (DeckInspector's init(opts) and UIRenderer's); anchor the latter.
@@ -80,14 +85,20 @@ export function run() {
 
   // --- Structural: persistCampaign schedules, does NOT write on the tap -------
   {
-    r.ok(persist.length > 0 && flush.length > 0 && writeNow.length > 0,
-      "persistCampaign / flushCampaignSave / writeCampaignSaveNow all exist");
-    r.ok(persist.includes("setTimeout(writeCampaignSaveNow") && persist.includes("pendingSavePhase = phase"),
-      "persistCampaign SCHEDULES a trailing write (setTimeout) keeping the latest phase");
+    r.ok(persist.length > 0 && flush.length > 0 && writeNow.length > 0 && arm.length > 0,
+      "persistCampaign / flushCampaignSave / writeCampaignSaveNow / armSaveWrite all exist");
+    r.ok(persist.includes("armSaveWrite()") && persist.includes("pendingSavePhase = phase"),
+      "persistCampaign SCHEDULES a trailing write (via armSaveWrite) keeping the latest phase");
     r.ok(!persist.includes("SaveStore.save"),
       "…and no longer calls SaveStore.save on the tap (write moved off the per-click path)");
     r.ok(persist.includes("clearTimeout(saveCoalesceTimer)"),
       "…re-arming the debounce collapses a burst into one write");
+    // STKLAG3: the trailing timer hands the write to an IDLE callback (with a
+    // bounded timeout + setTimeout fallback) so the serialize+write never
+    // lands inside a tap animation.
+    r.ok(arm.includes("setTimeout(") && arm.includes("requestIdleCallback")
+      && arm.includes("writeCampaignSaveNow()"),
+      "armSaveWrite stages the write through an idle callback (bounded, with fallback)");
     // The one synchronous write lives in writeCampaignSaveNow, guarded so a
     // no-pending flush never writes (can't resurrect a cleared campaign).
     r.ok(writeNow.includes("SaveStore.save(campaignSaveBlob(phase))"),
@@ -150,8 +161,10 @@ export function run() {
   }
 
   // --- Behavioral: extract the coalescer + drive it with fake timers ---------
-  // Build the real coalescer in isolation (its module-scoped lets + the five
+  // Build the real coalescer in isolation (its module-scoped lets + the six
   // functions) over a counting SaveStore + fake timers + a real CampaignState.
+  // The fake requestIdleCallback reuses the timer queue, so the two-stage
+  // write (trailing timer → idle callback) takes TWO fire()s to land.
   function buildCoalescer(campaign) {
     const parts = [
       "let pendingSavePhase = null;",
@@ -159,6 +172,7 @@ export function run() {
       "const SAVE_COALESCE_MS = 300;",
       "function campaignSaveBlob(phase) " + blobFn,
       "function writeCampaignSaveNow() " + writeNow,
+      "function armSaveWrite() " + arm,
       "function persistCampaign(phase) " + persist,
       "function flushCampaignSave() " + flush,
       "function clearSave() " + clear,
@@ -175,15 +189,16 @@ export function run() {
       clear() { this.clears++; },
     };
     const factory = new Function(
-      "SaveStore", "setTimeout", "clearTimeout",
+      "SaveStore", "setTimeout", "clearTimeout", "requestIdleCallback",
       "campaign", "selectedDeckId", "engine", "redealCost", "appliedThisPhase", "currentDealSubset", "zenMode",
       parts);
-    const api = factory(store, setT, clrT, campaign, "pink", null, 0, false, null, null);
+    const api = factory(store, setT, clrT, setT, campaign, "pink", null, 0, false, null, null);
     return { api, store, fire, pending: () => timers.length };
   }
 
   // (a) A burst of N persists writes 0 saves synchronously; the trailing timer
-  //     lands exactly ONE — independent of how many persists (or renders) fired.
+  //     stages ONE idle write — independent of how many persists (or renders)
+  //     fired — and the idle callback lands exactly ONE save.
   {
     const camp = CampaignState.create(); camp.reset();
     const c = buildCoalescer(camp);
@@ -193,7 +208,10 @@ export function run() {
     r.eq(c.pending(), 1, "…exactly one timer pending for the whole burst (debounce collapsed it)");
     r.eq(c.api._pending(), "store", "…keeping the latest requested phase");
     c.fire();
-    r.eq(c.store.saves, 1, "…firing the debounce lands EXACTLY ONE save for the burst");
+    r.eq(c.store.saves, 0, "…firing the trailing timer only STAGES the idle write (STKLAG3)");
+    r.eq(c.pending(), 1, "…exactly one idle callback staged");
+    c.fire();
+    r.eq(c.store.saves, 1, "…the idle write lands EXACTLY ONE save for the burst");
     r.ok(!c.api._armed() && c.api._pending() === null, "…and clears the timer/pending after the write");
   }
 
