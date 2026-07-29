@@ -63,6 +63,11 @@ export function run() {
   const r = makeRunner("unlocks.test.mjs");
 
   // ── SHIP STATE: no entry carries an unlock field → pools are identical ──
+  // NOTE FOR THE FIRST REAL GATE: the pins in this section (zero unlock
+  // fields, grantable identity, checkNewUnlocks [], nearestLocked 0) pin
+  // the NOTHING-LOCKED ship state and are EXPECTED to be rewritten when the
+  // first items.js entry gains a real `unlock` — relax them to skip gated
+  // defs dynamically rather than deleting them.
   {
     const { ItemData, StickerTypes } = loadGame();
     const groups = ["stickers", "pillars", "bases", "samePowers", "packs"];
