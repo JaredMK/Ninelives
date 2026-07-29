@@ -4483,13 +4483,12 @@ const NativeApp = (() => {
   .pd-item .mini-card { width: 38px; height: 52px; flex: none; }
   .pd-item-t { font-size: 12.5px; font-weight: 700; color: var(--text); }
   .pd-place-btn { width: 100%; }
-  .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex;
-    /* Skip layout+paint of cards scrolled OUT of the picker's scroll viewport —
-       native windowing, so a 50-card deck only paints the ~dozen visible cards
-       (and their die-cut sticker chips) instead of all 150 chips on every open.
-       The intrinsic size matches a cell (52x74) so scroll height + grid layout
-       are unchanged and there is no visual difference for on-screen cards. */
-    content-visibility: auto; contain-intrinsic-size: 52px 74px; }
+  .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex; }
+  /* (No content-visibility windowing here: it blanked off-screen cards on iOS
+     until scroll forced a paint of their inline-SVG chips — the "cards appear
+     2-3s after scrolling" stall — and it deferred hit-testing. The picker grid
+     now caches each card's parsed node (see applyCardNodes), so full paint
+     happens once per open and scrolling is pure compositing.) */
   .sa-card .mini-card { transition: transform 0.08s ease; }
   .sa-card:active .mini-card { transform: scale(0.95); }
   .sa-card.sa-disabled { opacity: 0.3; filter: grayscale(0.5); cursor: not-allowed; }
@@ -6996,7 +6995,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.03 · sticker-apply perf + legibility: contrast, type floor, hit areas";
+const APP_VERSION = "v5.04 · picker grid: cached card nodes, no scroll pop-in on removal";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -25518,16 +25517,16 @@ const UIRenderer = (() => {
   // (getRunDeck deep-copies every card + its stickers; per-tap that both burned
   // CPU and churned garbage on late-game 40+ card decks).
   let applyCardsById = new Map();
-  // Per-open reuse state for the picker grid: the last-rendered card ORDER (id
-  // sequence) and each card's visual SIGNATURE (rank/suit/stickers). An apply
-  // changes exactly ONE card, so the grid is PATCHED in place — only the changed
-  // card's button is rebuilt, the other 40-50 buttons (and their die-cut sticker
-  // chips) are left untouched — instead of tearing down + re-parsing + repainting
-  // the whole grid on every open (the deck-size-scaling lag). A full rebuild
-  // happens only when the ORDER changes (cards added/removed, or a rank/suit
-  // sticker re-sorts the deck) or on the first open.
-  let applyGridKey = null;              // joined id-sequence of the rendered grid
-  const applyGridSigs = new Map();      // cardId -> last-rendered visual signature
+  /* Picker-grid DOM cache: each card's BUTTON is parsed ONCE per visual state
+     (rank/suit/stickers/eligibility signature) and kept in applyCardNodes;
+     re-renders just re-append the cached nodes in the new order
+     (replaceChildren moves nodes — zero innerHTML re-parse). The old
+     innerHTML rebuild re-parsed 40+ mini-cards and ~150 inline-SVG sticker
+     chips on every order change (a removal, a rank/suit sticker re-sort) —
+     the 2-3s confirm stall on late-game decks. Entries are pruned to the
+     current deck on every render, and transient confirm-FX classes
+     (sa-remove/sa-flash) are stripped when a node is reused. */
+  const applyCardNodes = new Map();   // cardId -> { sig, btn }
   const applyCardSig = (c) => (c.currentRank != null ? c.currentRank : "") + "|" + c.suit +
     "|" + (c.joker ? "J" : c.blank ? "B" : "") + "|" + (c.stickers || []).map(s => s.type).join(",");
   function renderStickerApplyCards() {
@@ -25537,35 +25536,28 @@ const UIRenderer = (() => {
     const cards = campaign.getRunDeckLive().slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
     applyCardsById = new Map(cards.map(c => [c.id, c]));
-    const key = cards.map(c => c.id).join(",");
-    const children = el.saCards.children;
-    const canReuse = key === applyGridKey && children.length === cards.length;
-    if (!canReuse) {
-      // FULL rebuild (first open / order changed): one innerHTML write.
-      applyGridSigs.clear();
-      el.saCards.innerHTML = cards.map(c => {
-        const ok = cardPickMode !== "sticker" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
-        applyGridSigs.set(c.id, applyCardSig(c));
-        return '<button type="button" class="deck-card sa-card' + (ok ? "" : " sa-disabled") +
-          (selectedApplyCardId === c.id ? " sa-selected" : "") + '" data-card-id="' + c.id + '"' +
-          (ok ? "" : " disabled") + ">" + miniCardHtml(c) + "</button>";
-      }).join("");
-      applyGridKey = key;
-      return;
-    }
-    // INCREMENTAL patch: same cards in the same order — rebuild only a card whose
-    // signature changed (the just-stickered one), and re-apply the per-card
-    // disabled/selected state (cheap class toggles; no teardown, no re-parse).
-    for (let i = 0; i < cards.length; i++) {
-      const c = cards[i], btn = children[i];
-      if (!btn) continue;
-      const sig = applyCardSig(c);
-      if (applyGridSigs.get(c.id) !== sig) { btn.innerHTML = miniCardHtml(c); applyGridSigs.set(c.id, sig); }
+    const frag = document.createDocumentFragment();
+    for (const c of cards) {
       const ok = cardPickMode !== "sticker" ? true : campaign.canApplySticker(c, pendingApplyStickerId);
-      btn.classList.toggle("sa-disabled", !ok);
-      if (ok) btn.removeAttribute("disabled"); else btn.setAttribute("disabled", "");
-      btn.classList.toggle("sa-selected", selectedApplyCardId === c.id);
+      const sig = applyCardSig(c) + "|" + (ok ? 1 : 0);
+      let rec = applyCardNodes.get(c.id);
+      if (!rec || rec.sig !== sig) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "deck-card sa-card" + (ok ? "" : " sa-disabled");
+        btn.dataset.cardId = c.id;
+        if (!ok) btn.setAttribute("disabled", "");
+        btn.innerHTML = miniCardHtml(c);   // the ONE parse for this visual state
+        rec = { sig, btn };
+        applyCardNodes.set(c.id, rec);
+      }
+      rec.btn.classList.remove("sa-remove", "sa-flash");   // leftover confirm FX from a previous open
+      rec.btn.classList.toggle("sa-selected", selectedApplyCardId === c.id);
+      frag.appendChild(rec.btn);
     }
+    el.saCards.replaceChildren(frag);
+    // Prune nodes for cards no longer in the deck (removals, swaps).
+    for (const id of applyCardNodes.keys()) if (!applyCardsById.has(id)) applyCardNodes.delete(id);
   }
   /* Move the .sa-selected ring to the current selection IN PLACE. Selecting a
      card changes nothing else in the grid, so tearing the whole innerHTML down
