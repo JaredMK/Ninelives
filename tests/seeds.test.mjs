@@ -42,10 +42,12 @@ function seededPair(seed, deck = "pink", tier = "regular") {
   return { g, a, b };
 }
 
-/** Structural map signature: ids, types, adds, pack counts, suits, mystery flags. */
+/** Structural map signature: ids, types, adds, pack counts, suits, piles.
+    (genV ≥ 3: first-class mystery rides in n.type; the legacy n.mystery mask
+    flag never appears on a fresh map.) */
 function mapSig(c) {
   return JSON.stringify(c.getMap().nodes.map(n =>
-    [n.id, n.type, n.add || 0, n.packCount || 0, n.suit || "", !!n.mystery, n.piles || 0]));
+    [n.id, n.type, n.add || 0, n.packCount || 0, n.suit || "", n.piles || 0]));
 }
 
 /** Offer signature WITHOUT minted card ids (nextCardId legitimately differs once

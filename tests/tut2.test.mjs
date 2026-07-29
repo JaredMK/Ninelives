@@ -158,7 +158,7 @@ export function run() {
     const c = CampaignState.create();
     c.reset();
     const snap = c.serialize();
-    const regen = RunMap.generateRun(snap.runSeed, snap.stageEntryDecks, { postBossJokerStages: [0, 1] });
+    const regen = RunMap.generateRun(snap.runSeed, snap.stageEntryDecks, { postBossJokerStages: [0, 1], genVersion: snap.genV });
     const mapSig = (m) => m.nodes.map(n => [n.id, n.type, n.row, n.piles || 0, n.mystery ? 1 : 0,
       (n.next || []).join(".")].join(":")).join("|");
     r.eq(mapSig(c.getMap()), mapSig(regen),

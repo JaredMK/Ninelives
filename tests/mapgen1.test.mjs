@@ -113,19 +113,21 @@ export function run() {
     for (const tier of ["regular", "master"]) {
       for (const s of SEEDS.slice(0, 6)) {
         for (const fj of [[], FJ]) {
-          quiet(() => {
-            RunMap.setDifficultyTier(tier);
-            const opts = { postBossJokerStages: fj, genVersion: 2 };
-            const sync = RunMap.generateRun(s, entries, opts);
-            const stepper = RunMap.makeRunStepper(s, entries, opts);
-            let steps = 1; while (stepper.step()) steps++;
-            stepCounts.add(steps);
-            if (mapHash(sync) !== mapHash(stepper.finish())) allEqual = false;
-          });
+          for (const genV of [2, 3]) {   // MYST3: the first-class mystery generator must chunk identically too
+            quiet(() => {
+              RunMap.setDifficultyTier(tier);
+              const opts = { postBossJokerStages: fj, genVersion: genV };
+              const sync = RunMap.generateRun(s, entries, opts);
+              const stepper = RunMap.makeRunStepper(s, entries, opts);
+              let steps = 1; while (stepper.step()) steps++;
+              stepCounts.add(steps);
+              if (mapHash(sync) !== mapHash(stepper.finish())) allEqual = false;
+            });
+          }
         }
       }
     }
-    r.ok(allEqual, "drained stepper output is hash-identical to sync generateRun (6 seeds × reg/master × FJ/–)");
+    r.ok(allEqual, "drained stepper output is hash-identical to sync generateRun (6 seeds × reg/master × FJ/– × genV 2+3)");
     r.ok([...stepCounts].every((n) => n === entries.length),
       "the stepper builds exactly one stage per step() (" + entries.length + " stages per run)");
   }
@@ -288,13 +290,13 @@ export function run() {
       o.upgraded = c3.serialize().genV;
       return o;
     });
-    r.eq(out.genV, 2, "a new campaign serializes genV 2");
-    r.ok(out.restored, "a genV-2 save restores");
-    r.eq(out.roundTrip, 2, "genV survives the serialize→restore round-trip");
+    r.eq(out.genV, 3, "a new campaign serializes genV 3 (MYST3)");
+    r.ok(out.restored, "a genV-3 save restores");
+    r.eq(out.roundTrip, 3, "genV survives the serialize→restore round-trip");
     r.ok(out.sameMapSize, "the restored map regenerates structurally identical from the saved seed");
     r.ok(out.legacyRestored, "a save WITHOUT genV (pre-mapgen1) still restores");
     r.eq(out.legacyGenV, 1, "…and regenerates through the LEGACY path (genV defaults to 1)");
-    r.eq(out.upgraded, 2, "a fresh run after a legacy restore stamps the current genVersion (fresh seed)");
+    r.eq(out.upgraded, 3, "a fresh run after a legacy restore stamps the current genVersion (fresh seed)");
   }
 
   return r.summary();

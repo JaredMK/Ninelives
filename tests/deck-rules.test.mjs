@@ -69,12 +69,19 @@ export function run() {
   {
     const { camp } = fresh("mamma");
     camp._setMapSpecialRoll(() => null);   // no Joker/Removal — pure suit check
-    camp.reset();
-    const map = camp.getMap();
+    // MYST3: ~1/4 of type-rolled nodes are first-class mysteries now, so one
+    // run holds only a handful of pickups — union the locked suits across
+    // several fresh runs (the RULE is "pickups roll all suits", unchanged).
     const suits = new Set();
-    map.nodes.filter(n => n.type === "pickup")
-      .forEach(n => { const c = camp.nodeCard(n); if (c && c.suit && !c.joker && !c.blank) suits.add(c.suit); });
-    r.ok(suits.size >= 3, "Mamma's +1 pickups span suits across the run (" + [...suits].join(" ") + ")");
+    let pickups = 0;
+    for (let k = 0; k < 6 && suits.size < 3; k++) {
+      camp.reset();
+      const map = camp.getMap();
+      map.nodes.filter(n => n.type === "pickup")
+        .forEach(n => { pickups++; const c = camp.nodeCard(n); if (c && c.suit && !c.joker && !c.blank) suits.add(c.suit); });
+    }
+    r.ok(pickups >= 6, "the sweep met enough +1 pickups (" + pickups + ")");
+    r.ok(suits.size >= 3, "Mamma's +1 pickups span suits across runs (" + [...suits].join(" ") + ")");
     // Pinky control: stage-0 (♦-phase) pickups lock only ♦ cards.
     {
       const { camp: pk } = fresh(null);

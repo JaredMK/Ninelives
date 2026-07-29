@@ -157,6 +157,39 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.09 (Kimi + concurrent, MYST3)** — mystery is a FIRST-CLASS node type;
+  READ THIS BEFORE TOUCHING THE GENERATOR, MAP ARRIVAL, OR nodeHidden:
+  - genV is now 3 (`RUN_GEN_VERSION`, ~13017). At genV≥3 `rollType(rng,
+    genV)` rolls `["mystery", GEN_CONFIG.mysteryTypeWeight]` (25/125 ≈ 20%)
+    INSIDE the type table — mysteries carve out of deals/packs/pickups
+    naturally, repairs see final types, and convergence IMPROVED (34.6 vs
+    50.3 avg attempts/stage). `setType` has a mystery branch (deletes
+    add/packCount/suit/mixed/piles). The genV<3 cosmetic mask roll in
+    makeRunStepper stays byte-exact for old saves.
+  - `nodeHidden` is TYPE-based (`n.type === "mystery"`) — the `mystery`
+    flag exists only on genV<3 regenerated maps. Any new code testing
+    hidden-ness must use nodeHidden, never `n.mystery`.
+  - Arrival: the seeded event IS the node's entire content (no underlying
+    dispatch). `completeMystery(id)` (markNodeCleared + persist +
+    showProgressionMap) is the SINGLE exit for every continuation —
+    passive, pickers, store hook, ambush aftermath, impossible outcome, and
+    finishResolveNode's explicit mystery branch (a REVEALED mystery re-tap
+    completes, never re-rolls — exactly-once rides on the persisted reveal
+    + applied-before-modal flush).
+  - Migration: two-phase restore conversion (persisted `mystMigrated`,
+    gated runGenVersion<3) — unvisited masked nodes convert to type mystery
+    in place (deal fields + nodeCards/packCards locks scrubbed); first
+    restore exempts revealed (visited) nodes, re-migration converts them.
+    NO genV<3 overlay arrival path remains. Edge case: an old run's ENDLESS
+    extension generates genV-2 stages whose mask flags are inert (nodes
+    render revealed, no events) — known, accepted.
+  - Rendering: `mapNodeInner` mystery case ("?", `.open` while revealed-
+    not-cleared); cleared = spent/faded state; debug peek (`pm-myst-out`)
+    unchanged; hold-help/label/key carry Mystery copy.
+  - NOTE: a second agent worked concurrently on this change in the same
+    tree (also committed 86aa8f3). The merged state was verified coherent
+    and suite-certified — review diffs before assuming sole authorship.
+
 - **v5.08 (Kimi, UNLOCK1)** — item-unlock framework (ships with NOTHING
   locked); READ THIS BEFORE ADDING unlock FIELDS OR TOUCHING ROLL POOLS:
   - items.js items may carry `unlock: {type:"milestone"|"behavior", stat,

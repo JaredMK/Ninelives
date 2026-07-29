@@ -1,20 +1,27 @@
-// MYST1 Stage 2 — mystery "?" node event UI wiring (source-contract suite in
-// the holdhelp.test.mjs style: loadGame() proves the script still evaluates,
-// fnBody/regex checks pin the wiring):
+// MYST3 — mystery "?" node event UI wiring (source-contract suite in the
+// holdhelp.test.mjs style: loadGame() proves the script still evaluates,
+// fnBody/regex checks pin the wiring). MYST3 made mystery a FIRST-CLASS node
+// type: the seeded event IS the node's entire content — there is no node
+// underneath — and completeMystery (markNodeCleared + checkpoint + back to
+// the map) is the single exit for EVERY continuation:
 //  - the event fires on arrival ONLY when the node was hidden, and is applied +
 //    checkpointed (persistCampaign("map") + flush) BEFORE the modal opens;
 //  - the #mysteryEvent modal announces the outcome, then each interactive
 //    outcome chains to its flow (removal picker / strip picker / placement walk
-//    / pack reveal / ambush deal / store detour) and the underlying node still
-//    dispatches;
+//    / pack reveal / ambush deal / store detour) — every one ending in
+//    completeMystery, never an underlying-node dispatch;
 //  - the ambush deal is a FORCED subset configured from items.js (never
 //    hardcoded), its bounty rides the run's bonus channel, and a mid-ambush
 //    refresh resumes through the standard run checkpoint;
-//  - MYST2: cursed CARDS are retired (no render branch survives); cursed
+//  - Stage B rendering: mapNodeInner owns the "?" art in every state (hidden /
+//    revealed-open / cleared-spent), the t-myst class sticks in every state,
+//    hidden nodes carry a debug-only seeded-outcome peek tag, hold-help/title
+//    copy reads as a gamble, and the debug map-addr overlay has a NODE_HALF
+//    mystery entry;
+//  - MYST2 legacy: cursed CARDS are retired (no render branch survives); cursed
 //    STICKERS wear the corrupted violet die-cut identity at every chip site;
 //    every outcome has a mea-<key> animation variant + its own open sound;
-//    hidden nodes carry a debug-only seeded-outcome peek tag; the Home
-//    tooltip derives the start deck size (13 + startJokers) live.
+//    the Home tooltip derives the start deck size (13 + startJokers) live.
 // RULES/wiring only — every tunable stays in items.js.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -75,8 +82,11 @@ export function run() {
       'persistCampaign("map") lands at resolution, BEFORE the modal (exactly-once)');
     r.ok(run.includes("flushCampaignSave()"),
       "…and the checkpoint is flushed synchronously (a kill on the modal can't lose it)");
-    r.ok(run.includes("if (!d) { finishResolveNode(node, id); return; }"),
-      "an impossible outcome (null descriptor) falls straight through to the node");
+    r.ok(run.includes("if (!d) { completeMystery(id); return; }"),
+      "an impossible outcome (null descriptor) just completes the mystery — nothing underneath");
+    r.ok(fnBody(src, "completeMystery").includes("campaign.markNodeCleared(id)")
+      && fnBody(src, "completeMystery").includes('persistCampaign("map")'),
+      "completeMystery clears + checkpoints the node (the MYST3 single exit)");
   }
 
   // ── the #mysteryEvent modal (fossilDetail idiom, Continue-only) ───────────
@@ -118,8 +128,8 @@ export function run() {
       "cards reveals the granted cards via openMapPackReveal, then falls through");
     r.ok(/d\.key === "ambush"[\s\S]{0,80}startAmbushDeal\(d, id\)/.test(cont),
       "ambush hands off to the forced-deal starter");
-    r.ok(cont.indexOf("fallThrough();   // coinBonus") !== -1 || /fallThrough\(\);\s*\/\/.*coin/.test(cont),
-      "passive outcomes (coins / curses) fall through immediately");
+    r.ok(cont.includes("const done = () => completeMystery(id);") && /done\(\);\s*\/\/.*coin/.test(cont),
+      "passive outcomes (coins / curses) complete the mystery immediately");
   }
 
   // ── freeRemoval: the removal picker carries the continuation ─────────────
@@ -130,7 +140,7 @@ export function run() {
     r.ok(confirm.includes("pendingMapRemovalDone"),
       "…consumed when the removal confirms");
     r.ok(fnBody(src, "closeStickerApply").includes("pendingMapRemovalDone"),
-      "…and also when it's declined (✕ / backdrop) — the node still dispatches");
+      "…and also when it's declined (✕ / backdrop) — the mystery completes either way");
   }
 
   // ── stickerStrip: the strip picker mode ───────────────────────────────────
@@ -148,7 +158,7 @@ export function run() {
     r.ok(confirm.includes('persistCampaign("map")'),
       "…and checkpoints the map on the tap");
     r.ok(confirm.includes("finishMysteryStrip()") && fnBody(src, "closeStickerApply").includes("finishMysteryStrip()"),
-      "confirm AND decline both run the continuation into the node's dispatch");
+      "confirm AND decline both run the continuation into completeMystery");
   }
 
   // ── ambush: forced subset from items.js, bounty on the bonus channel ──────
@@ -180,21 +190,23 @@ export function run() {
     r.ok(end.includes("run.bonusEvents.Ambush"),
       "a clear awards the bounty as an itemized bonus line (the eventBonus channel)");
     r.ok(end.includes("if (clearedNode && !wasAmbush) campaign.markNodeCleared(clearedNode.id)"),
-      "the ambush win does NOT clear the masked node (it still owes its dispatch)");
+      "the ambush win does NOT clear the mystery node (completeMystery owns that clear)");
     r.ok(end.includes("const runWon = !wasAmbush &&"),
       "…and can never count as the run-winning boss clear");
     r.ok(end.includes("if (!wasAmbush) persistCampaign(\"map\")"),
       "no map checkpoint after an ambush — a refresh replays the ambush deal");
     r.ok(end.includes("pendingAmbushNodeId = ambushInfo ? ambushInfo.nodeId : null"),
-      "…the masked node's dispatch is queued for the summary's Continue");
+      "…the mystery's completion is queued for the summary's Continue");
     r.ok(end.includes("ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;"),
       "a loss drops the whole ambush context — incl. the forced subset (no stale re-force)");
     r.ok(fnBody(src, "startCampaign").includes("ambushDeal = null; pendingAmbushNodeId = null; currentDealSubset = null;"),
       "a fresh campaign also clears any leftover ambush context (quit mid-ambush)");
 
     const cc = fnBody(src, "continueCampaign");
-    r.ok(cc.includes("pendingAmbushNodeId") && cc.includes("finishResolveNode(node, nid)"),
-      "Continue after the ambush dispatches the underlying node normally");
+    r.ok(cc.includes("pendingAmbushNodeId") && cc.includes("completeMystery(nid)"),
+      "Continue after the ambush completes the mystery (the ambush WAS its content)");
+    r.ok(!cc.slice(0, cc.indexOf("// After a won deal/boss")).includes("finishResolveNode"),
+      "…never dispatching an underlying node (MYST3: there is none)");
   }
 
   // ── cursed CARDS are retired (MYST2): no render branch survives ──────────
@@ -225,20 +237,51 @@ export function run() {
     r.ok(/\.pm-myst-out \{/.test(html), "…and styled as the tiny violet tag under the ?");
   }
 
-  // ── store outcome (MYST2): the detour → Done → dispatch-the-node wiring ──
+  // ── MYST3 Stage B: the "?" is the node's face in EVERY render state ──────
+  {
+    const inner = fnBody(src, "mapNodeInner");
+    r.ok(/n\.type === "mystery"\)\s*return '<span class="mn-myst/.test(inner),
+      "mapNodeInner has a first-class mystery case returning the mn-myst \"?\" art");
+    r.ok(inner.includes('state === "here" ? " open" : ""'),
+      "…a revealed-but-open mystery (arrived, outcome modal up) wears the .open state");
+    r.ok(inner.indexOf('n.type === "mystery"') < inner.indexOf("mapPickupInner(n, state)"),
+      "…and a mystery NEVER falls through to pickup art");
+    const rpm = fnBody(src, "renderProgressionMap");
+    r.ok(rpm.includes("t-' + (n.type === \"mystery\" ? \"myst\" : n.type)"),
+      "the t-myst class sticks in every state (hidden / revealed / cleared)");
+    r.ok(rpm.indexOf("mapNodeInner(n, suit, state)") !== -1
+      && rpm.indexOf("pm-myst-out") > rpm.indexOf("mapNodeInner(n, suit, state)"),
+      "the \"?\" art comes from mapNodeInner; the hidden branch only appends the peek");
+    r.ok(/\.mn-myst\.open \{/.test(html) && /\.mn-myst\.open::after/.test(html),
+      "the revealed-open \"?\" is styled (lit frame, solid inner border)");
+    r.ok(/\.pm-node\.t-myst\.s-done \.mn-myst \{/.test(html),
+      "a cleared mystery renders as a spent, muted-violet \"?\" (on the shared s-done fade)");
+    const label = fnBody(src, "mapNodeLabel");
+    r.ok(label.includes('n.type === "mystery"') && label.includes("a gamble, good or bad"),
+      "mapNodeLabel names a mystery node (hold-help + title single source)");
+    const ai = fnBody(src, "attachInput");
+    r.ok(ai.includes('isMyst ? "Mystery" : "Map node"'),
+      "hold-help titles a mystery node \"Mystery\" in every state (not just hidden)");
+    r.ok(/mystery:\s*\[19, 24\]/.test(src),
+      "the debug map-addr overlay has a NODE_HALF mystery entry (the mn-myst 38×48 half-box)");
+  }
+
+  // ── store outcome (MYST2/MYST3): the detour → Done → completeMystery wiring
   {
     const cont = fnBody(src, "continueMysteryEvent");
     const stAt = cont.indexOf('d.key === "store"');
     const ssAt = cont.indexOf("showStore(false, id)");   // SEED1: the detour offer keys to the mystery node's id
-    r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("fallThrough();   // coinBonus"),
+    r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("done();   // coinBonus"),
       "the store outcome opens a full store visit on the spot (fresh=false — a saved offer survives)");
     r.ok(cont.includes("mysteryStoreContinue = () =>"),
-      "…and arms the one-shot continuation for the node beneath");
+      "…and arms the one-shot continuation for when the store closes");
+    r.ok(/mysteryStoreContinue = \(\) => \{[\s\S]{0,120}completeMystery\(id\);/.test(cont),
+      "…which completes the mystery (Done's type-guard clears only a REAL store node)");
     const ai = fnBody(src, "attachInput");
     const doneAt = ai.indexOf("storeStartBtn.addEventListener");
     const done = ai.slice(doneAt, doneAt + 1000);
     r.ok(done.includes('node.type === "store"'),
-      "…Done still clears only a REAL store node (the node beneath owes its dispatch)");
+      "…Done still clears only a REAL store node (the mystery's clear rides the hook)");
     const persistAt = done.indexOf('persistCampaign("map")');
     r.ok(persistAt !== -1 && persistAt < done.indexOf("mysteryStoreContinue"),
       "…Done checkpoints the map BEFORE consuming the hook");

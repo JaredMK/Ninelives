@@ -5358,10 +5358,9 @@ const NativeApp = (() => {
     box-shadow: 0 0 0 3px rgba(178, 58, 92, 0.14); }
   .pm-node.t-pass.s-done .mn-pass { background: rgba(178, 58, 92, 0.24); box-shadow: none; }
 
-  /* MYSTERY (?) node — a face-down violet card hiding the node's true type
-     until the player arrives (rolled once at generation; purely cosmetic).
-     One uniform size regardless of what hides beneath, so the silhouette
-     never gives the type away. */
+  /* MYSTERY (?) node — first-class (MYST3): the "?" IS the node's type, a
+     face-down violet card drawn in every state. One uniform size regardless
+     of the seeded outcome underneath, so the silhouette never tips the gamble. */
   .mn-myst { position: relative; display: flex; align-items: center; justify-content: center;
     width: 38px; height: 48px; border-radius: 8px;
     background: linear-gradient(160deg, #5a4468, #3a2a46);
@@ -5370,6 +5369,17 @@ const NativeApp = (() => {
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 9px rgba(60,40,80,0.35); }
   .mn-myst::after { content: ""; position: absolute; inset: 3px; border-radius: 5px;
     border: 1px dashed rgba(239,227,251,0.35); }
+  /* REVEALED-BUT-OPEN (arrived, the outcome modal is up): the frame lights —
+     the dashed inner border turns solid and the face glows while the gamble
+     resolves. Static styling only (nothing to motion-gate). */
+  .mn-myst.open { border-color: #b79ce0; color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 0 12px rgba(122,79,208,0.55); }
+  .mn-myst.open::after { border-style: solid; border-color: rgba(239,227,251,0.55); }
+  /* CLEARED: the gamble is spent — a muted violet husk under the shared
+     s-done fade (opacity/grayscale + the ✓ chip every cleared node gets). */
+  .pm-node.t-myst.s-done .mn-myst { background: linear-gradient(160deg, #463a50, #302838);
+    border-color: #5d5165; color: #9d8fae; box-shadow: none; }
+  .pm-node.t-myst.s-done .mn-myst::after { border-color: rgba(157,143,174,0.22); }
   /* DEBUG PEEK (MYST2): the seeded outcome label, a tiny violet tag under the
      "?" — hidden unless body.debug-access (gated next to the debug rule). */
   .pm-myst-out {
@@ -7303,7 +7313,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.08 · item-unlock framework: unlock field, lifetime stats, Collection screen (nothing locked yet)";
+const APP_VERSION = "v5.09 · mystery is its own node type — the gamble IS the node's whole content";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8661,13 +8671,18 @@ const RunMap = (() => {
     startSuit: "♥",
     startDeckSize: 13,            // 13 hearts pre-held at run start
 
-    // MYSTERY (?) nodes — Slay-the-Spire style: each eligible node has this
-    // chance to DISPLAY as a "?" until the player arrives at it. Purely
-    // cosmetic hiding: the node underneath generates completely normally
-    // (types, quotas, validation all untouched); the roll happens once, at
-    // generation, deterministically from (runSeed, node id) — so a resume's
-    // regeneration hides the exact same nodes. Bosses, home and pass points
-    // are always visible.
+    // MYSTERY (?) nodes — Slay-the-Spire style. genV ≥ 3 (MYST3): mystery is
+    // a FIRST-CLASS node type rolled INSIDE rollType at mysteryTypeWeight
+    // (25/125 ≈ 20% — the old mask's feel). The seeded mystery event is the
+    // node's ENTIRE content: no hidden deal/pack/store underneath, and it
+    // contributes 0 cards / 0 deals to every route sum (addOf), so the
+    // validator excludes it for free. Bosses, home, pass points, stores and
+    // the stage-0 opening row are never mysteries.
+    mysteryTypeWeight: 25,
+    // LEGACY genV < 3 ONLY (restored pre-MYST3 saves): the retired cosmetic
+    // mask — each eligible node had this chance to DISPLAY as a "?" over a
+    // fully normal node underneath (the double-grant MYST3 removes), rolled
+    // deterministically from (runSeed, node id). genV ≥ 3 never reads this.
     mysteryChance: 0.2,
 
     // Graph shape (per stage). Slay-the-Spire style: nodes sit on a 3-lane
@@ -8692,8 +8707,9 @@ const RunMap = (() => {
                                  // (min/max forks per route) so it can be tuned by
                                  // path count; never a hard gate.
 
-    // Node-type roll. Every non-boss node is DEAL/PACK/CARD by these weights;
-    // STORES are then placed to quota (GEN_CONFIG.stores) over eligible nodes. Tune these to
+    // Node-type roll. Every non-boss node is DEAL/PACK/CARD by these weights
+    // (genV ≥ 3 adds MYSTERY at mysteryTypeWeight — see above); STORES are
+    // then placed to quota (GEN_CONFIG.stores) over eligible nodes. Tune these to
     // move the failure histogram. packWeights = the +N size distribution.
     // 13-row tuning: routes have ~8 add slots but the SAME 11-15 card budget,
     // so the average add must sit near 1.5 — CARD weight up (15 -> 40) and
@@ -9129,8 +9145,17 @@ const RunMap = (() => {
     for (const e of entries) { if ((x -= e[1]) < 0) return e[0]; }
     return entries[entries.length - 1][0];
   }
-  const rollType = (rng) => wpick(rng, [["deal", GEN_CONFIG.typeWeights.deal],
-    ["pack", GEN_CONFIG.typeWeights.pack], ["card", GEN_CONFIG.typeWeights.card]]);
+  /* rollType(rng, genV): the weighted node-type roll. genV ≥ 3 (MYST3) adds
+     MYSTERY as a first-class entry at GEN_CONFIG.mysteryTypeWeight; genV < 3
+     uses the legacy three-way table ONLY — it never reads the mystery weight,
+     and both tables draw exactly one rng() call (wpick), so a v1/v2 map is
+     bit-identical to the pre-MYST3 generator. */
+  const rollType = (rng, genV) => genV >= 3
+    ? wpick(rng, [["deal", GEN_CONFIG.typeWeights.deal],
+      ["pack", GEN_CONFIG.typeWeights.pack], ["card", GEN_CONFIG.typeWeights.card],
+      ["mystery", GEN_CONFIG.mysteryTypeWeight]])
+    : wpick(rng, [["deal", GEN_CONFIG.typeWeights.deal],
+      ["pack", GEN_CONFIG.typeWeights.pack], ["card", GEN_CONFIG.typeWeights.card]]);
 
   /* ── STRUCTURE: draw `paths` random monotone lane-walks bottom->top; their
      union is the graph (shared cells = merges/braids). Paths are drawn
@@ -9194,8 +9219,9 @@ const RunMap = (() => {
      both deck extremes, distinct within a row). Returns a phase map or null;
      the caller re-validates and retries. Difficulty/store/card rules are the
      validator's job, not construction's — this just rolls and lightly repairs. */
-  function tryBuildStage(phaseIndex, rng, entryDeck, relax) {
+  function tryBuildStage(phaseIndex, rng, entryDeck, relax, opts) {
     const C = GEN_CONFIG;
+    const genV = (opts && opts.genVersion) || 1;   // gates the first-class MYSTERY type roll (genV ≥ 3); 1-2 roll the legacy three-way table only
     const suit = suitFor(phaseIndex);
     const bandHiExtra = relax * C.relaxBandStep;
     // ── CARD-BUDGET anchor (STRUCTURE-FREE, so infeasible relax rungs fail in
@@ -9272,16 +9298,19 @@ const RunMap = (() => {
       if (dA || dD) for (const i of routesAt[n.id]) { cardSum[i] += dA; dealCnt[i] += dD; }
     };
 
-    // ── roll types (DEAL/PACK/CARD); stage-0 row-0 forced to deal ──
+    // ── roll types (DEAL/PACK/CARD — genV ≥ 3 adds MYSTERY); stage-0 row-0
+    //    forced to deal. A mystery rolls to a bare type: no add/packCount/
+    //    suit (the else branch) — the seeded event is its whole content. ──
     const setType = (n, t) => noteChange(n, () => {
       n.type = t;
       if (t === "pack") { n.packCount = wpick(rng, C.packWeights); n.add = n.packCount; n.suit = suit; n.mixed = false; }
       else if (t === "card") { n.type = "pickup"; n.add = 1; n.suit = suit; n.mixed = false; delete n.packCount; }
+      else if (t === "mystery") { delete n.add; delete n.packCount; delete n.suit; delete n.mixed; }   // a bare type — the event is its whole content
       else { delete n.add; delete n.packCount; if (t === "deal") n.suit = suit; }
     });
     body.forEach(n => {
       if (firstRowDeal && n.row === 0) { setType(n, "deal"); return; }
-      setType(n, rollType(rng));
+      setType(n, rollType(rng, genV));
     });
 
     // ── VETOES: no uniform row; a parent's children not all one type. Run
@@ -9299,7 +9328,7 @@ const RunMap = (() => {
         const flip = row.filter(n => !storeOf(n));           // never reroll a placed store
         if (!flip.length) continue;
         const n = pick(rng, flip);
-        let t, guard = 0; do { t = rollType(rng); } while (t === row[0].type && rowTypeKey(row[0]) !== "card" && guard++ < 8);
+        let t, guard = 0; do { t = rollType(rng, genV); } while (t === row[0].type && rowTypeKey(row[0]) !== "card" && guard++ < 8);
         setType(n, t);
       }
       // sibling children all one type
@@ -9311,7 +9340,7 @@ const RunMap = (() => {
         const flip = kids.filter(n => !storeOf(n) && n.type !== "boss");
         if (!flip.length) return;
         const n = pick(rng, flip);
-        let t, guard = 0; do { t = rollType(rng); } while (rowTypeKey(n) === t && guard++ < 8);
+        let t, guard = 0; do { t = rollType(rng, genV); } while (rowTypeKey(n) === t && guard++ < 8);
         setType(n, t);
       });
     }
@@ -9381,6 +9410,7 @@ const RunMap = (() => {
     const gapOK = (c) => all.filter(storeOf).every(s =>
       !dealFreeReaches(c.id, s.id) && !dealFreeReaches(s.id, c.id));
     const storeCands = () => body.filter(n => !storeOf(n) && n.type !== "boss" && n.type !== "deal"
+      && n.type !== "mystery"   // genV ≥ 3: a mystery is never a store candidate (its event may BE a store visit)
       && !(firstRowDeal && n.row === 0)
       && !edgeAdjToStore(n) && !rowHasStore(n.row) && gapOK(n));
     const makeStore = (n) => noteChange(n, () => { delete n.add; delete n.packCount; delete n.suit; n.type = "store"; });
@@ -9683,14 +9713,14 @@ const RunMap = (() => {
      { ok: phase } on convergence, else { ok:null, best, bestErrs, lastErrors,
      hist } — the caller decides whether to accept the best effort or ladder
      to a derived seed (genVersion ≥ 2). */
-  function stageAttemptLoop(phaseIndex, seed, entryDeck) {
+  function stageAttemptLoop(phaseIndex, seed, entryDeck, opts) {
     const C = GEN_CONFIG;
     let best = null, bestErrs = Infinity, lastErrors = null;
     const hist = {};
     for (let attempt = 0; attempt < C.attempts * (1 + C.relaxSteps); attempt++) {
       const relax = Math.min(C.relaxSteps, Math.floor(attempt / C.attempts));
       const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
-      const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax);
+      const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax, opts);
       if (!ph) { hist["build-null"] = (hist["build-null"] || 0) + 1; continue; }
       mergeForcedPackChains(ph);   // forced pack corridors collapse BEFORE validation
       const bandX = relax * C.relaxBandStep;
@@ -9705,20 +9735,27 @@ const RunMap = (() => {
   }
 
   /* generateStage(phaseIndex, seed, entryDeck, opts?):
-     opts.genVersion gates the SEED LADDER (mapgen1). Some tier/entry pairs
-     (master/legendary bands are tight) exhaust the whole 240-attempt ladder at
-     an unlucky seed and ship a BEST-EFFORT (rule-violating) map. genVersion ≥ 2
-     retries such a stage at up to seedLadderRungs DERIVED seeds — deterministic
-     (hash(seed, rung)), so a save regenerates identically. The gate exists
-     because saves REGENERATE their map from the saved seed on Continue: an
-     in-progress v1 save must replay the EXACT legacy path (no ladder, same
-     best-effort map), so restore passes the save's genV (default 1) while new
-     campaigns pass the current version. Seeds that converge on rung 0 are
-     bit-identical under every genVersion — the ladder only fires on failure. */
+     opts.genVersion gates TWO versioned behaviors:
+       • genVersion ≥ 2 — the SEED LADDER (mapgen1). Some tier/entry pairs
+         (master/legendary bands are tight) exhaust the whole 240-attempt
+         ladder at an unlucky seed and ship a BEST-EFFORT (rule-violating)
+         map. genVersion ≥ 2 retries such a stage at up to seedLadderRungs
+         DERIVED seeds — deterministic (hash(seed, rung)), so a save
+         regenerates identically.
+       • genVersion ≥ 3 — the first-class MYSTERY type (MYST3): rollType's
+         table gains a mystery entry (GEN_CONFIG.mysteryTypeWeight) and the
+         post-generation cosmetic mask (makeRunStepper) is skipped. genV < 3
+         keeps the exact legacy table + mask behavior (bit-identical).
+     The gate exists because saves REGENERATE their map from the saved seed
+     on Continue: an in-progress v1/v2 save must replay the EXACT legacy path
+     (no ladder / no conversion, same map), so restore passes the save's genV
+     (default 1) while new campaigns pass the current version. Seeds that
+     converge on rung 0 are bit-identical under every genVersion — the ladder
+     only fires on failure. */
   function generateStage(phaseIndex, seed, entryDeck, opts) {
     const C = GEN_CONFIG;
     entryDeck = entryDeck || C.startDeckSize;
-    const first = stageAttemptLoop(phaseIndex, seed, entryDeck);
+    const first = stageAttemptLoop(phaseIndex, seed, entryDeck, opts);
     if (first.ok) return first.ok;
     const genV = (opts && opts.genVersion) || 1;
     let accepted = first;
@@ -9727,7 +9764,7 @@ const RunMap = (() => {
         // Derived-seed hash: nonzero xor for every rung ≥ 1, so no rung ever
         // replays the base seed's attempt sequence.
         const seed2 = ((seed >>> 0) ^ Math.imul(rung, 0x9e3779b1)) >>> 0;
-        const res = stageAttemptLoop(phaseIndex, seed2, entryDeck);
+        const res = stageAttemptLoop(phaseIndex, seed2, entryDeck, opts);
         if (res.ok) {
           console.log("[RunMap] generateStage(" + phaseIndex + ", entry " + entryDeck
             + "): seed ladder rung " + rung + " converged (base seed exhausted its attempts)");
@@ -10098,6 +10135,10 @@ const RunMap = (() => {
     // generateRun callers are never contaminated by another campaign's deck.
     const postBossJokerStages = (opts && Array.isArray(opts.postBossJokerStages))
       ? opts.postBossJokerStages : [];
+    // The generator version this run builds with (the save-compat gate): <3
+    // replays the exact legacy path (post-generation mystery mask), ≥3 makes
+    // mystery a first-class node type inside tryBuildStage.
+    const genV = (opts && opts.genVersion) || 1;
     const phases = [];
     const nodes = [];
     const byId = {};
@@ -10123,12 +10164,14 @@ const RunMap = (() => {
         n.phase = p;
         n.localRow = n.row;
         n.row = rowOffset + n.row;                      // GLOBAL row (stacked)
-        // MYSTERY roll (display-only): deterministic per (runSeed, global id)
-        // — independent of generation attempts/order, so extending the map
-        // (endless) or regenerating on resume hides the SAME nodes. Bosses
-        // never hide (home + pass points never enter this loop as rollable:
-        // home is added below; pass points are exempted here).
-        if (n.type !== "boss" && n.type !== "pass" && n.type !== "home") {
+        // MYSTERY mask (genV < 3 ONLY — legacy saves): display-only hiding,
+        // deterministic per (runSeed, global id) — independent of generation
+        // attempts/order, so extending the map (endless) or regenerating on
+        // resume hides the SAME nodes. Bosses never hide (home + pass points
+        // never enter this loop as rollable: home is added below; pass
+        // points are exempted here). genV ≥ 3 maps carry FIRST-CLASS mystery
+        // nodes (rolled inside tryBuildStage) and never run this roll.
+        if (genV < 3 && n.type !== "boss" && n.type !== "pass" && n.type !== "home") {
           const mr = makeRng((seed >>> 0) ^ Math.imul(n.id + 1, 0x9e3779b1) ^ 0x6d797374);
           if (mr() < GEN_CONFIG.mysteryChance) n.mystery = true;
         }
@@ -12842,6 +12885,10 @@ const CampaignState = (() => {
     let nodePos = null;           // current node id, or null = at the run start (below ♦ row 0)
     let clearedNodes = [];        // node ids already resolved this RUN (across all phases)
     let revealedNodes = [];       // MYSTERY (?) node ids the player has arrived at (display-only)
+    // MYST3: true once a genV<3 save's overlay→first-class migration has run
+    // (persisted) — a RE-migration converts every un-cleared masked node,
+    // including post-migration reveals (they have no typed content to keep).
+    let mystMigrated = false;
     let runSeed = 0;              // seeds deterministic map generation
     // SEED1 — a player-ENTERED seed (deck-select code) rides here into the next
     // startNewRun (consumed once). `exhibition` marks runs built from an entered
@@ -12972,13 +13019,17 @@ const CampaignState = (() => {
     /* ── MAP-GENERATOR VERSION (mapgen1) ──
        genVersion 2 adds the deterministic seed ladder (RunMap.generateStage):
        a stage that exhausts every attempt retries at derived seeds instead of
-       shipping a rule-violating best-effort map. The version is PER-CAMPAIGN
-       state because saves REGENERATE their map from (runSeed, stageEntryDecks)
-       on Continue — regenerating a v1 save through the v2 path could swap the
-       map out mid-run. So: fresh runs (fresh seeds) stamp the CURRENT version;
-       serialize carries it as `genV`; restore replays the SAVED version,
-       defaulting to 1 for pre-mapgen1 saves (exact legacy regeneration). */
-    const RUN_GEN_VERSION = 2;
+       shipping a rule-violating best-effort map. genVersion 3 (MYST3) makes
+       mystery a FIRST-CLASS node type: eligible nodes convert to "mystery"
+       inside tryBuildStage and the old cosmetic "?" mask never rolls — the
+       seeded mystery event is the node's entire content. The version is
+       PER-CAMPAIGN state because saves REGENERATE their map from (runSeed,
+       stageEntryDecks) on Continue — regenerating a v1/v2 save through the
+       v3 path could swap the map out mid-run. So: fresh runs (fresh seeds)
+       stamp the CURRENT version; serialize carries it as `genV`; restore
+       replays the SAVED version, defaulting to 1 for pre-mapgen1 saves
+       (exact legacy regeneration — mask + overlay flow intact). */
+    const RUN_GEN_VERSION = 3;
     let runGenVersion = RUN_GEN_VERSION;
     /** The generateRun options for this campaign's deck/tier (see JOKER3). */
     const runGenOpts = () => ({ postBossJokerStages: fixedJokerStages() || [], genVersion: runGenVersion });
@@ -13101,7 +13152,7 @@ const CampaignState = (() => {
       } else {
         runMap = RunMap.generateRun(runSeed, stageEntryDecks, runGenOpts());
       }
-      nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {}; packCards = {};
+      nodePos = null; clearedNodes = []; revealedNodes = []; nodeCards = {}; packCards = {}; mystMigrated = false;
       // Drop UNOWNED Jokers left over from an earlier run (a granted Joker is
       // minted into baseDeck; a new run resets ownedIds to the 13 hearts, so a
       // stale one is unreachable junk). Normal ranks never need this — they're
@@ -13444,8 +13495,8 @@ const CampaignState = (() => {
                    desc: "A ★ Joker joins your deck" };
         }
         case "store":
-          // Descriptor only — the UI opens a full store visit on the spot; the
-          // underlying node dispatches after the store closes.
+          // Descriptor only — the UI opens a full store visit on the spot;
+          // the mystery completes when the store closes (the Done hook).
           return { key, title: "Detour", desc: "The store opens on the spot — the node waits for you" };
         case "freeRemoval":
           // Descriptor only — the UI opens the choose-a-card-to-remove flow;
@@ -13842,13 +13893,14 @@ const CampaignState = (() => {
       },
       nodeCleared(id) { return clearedNodes.indexOf(id) !== -1; },
       clearedNodeIds() { return clearedNodes.slice(); },
-      /** MYSTERY (?) nodes — display-only hiding rolled at generation.
+      /** MYSTERY (?) nodes — first-class (genV ≥ 3) after MYST3: the "?" IS
+          the node's type; the seeded event is its whole content.
           nodeHidden: should the map still draw this node as a "?"? True only
           while it's an un-arrived, un-cleared mystery. revealNode: the player
-          arrived — record it (persisted) so it stays face-up for the run. */
+          arrived — record it (persisted) so the event can never re-roll. */
       nodeHidden(id) {
         const n = runMap && runMap.byId ? runMap.byId[id] : null;
-        return !!(n && n.mystery && nodePos !== id
+        return !!(n && n.type === "mystery" && nodePos !== id
           && revealedNodes.indexOf(id) === -1 && clearedNodes.indexOf(id) === -1);
       },
       revealNode(id) { if (revealedNodes.indexOf(id) === -1) revealedNodes.push(id); },
@@ -15019,6 +15071,7 @@ const CampaignState = (() => {
           ownedIds: ownedIds.slice(),
           clearedNodes: clearedNodes.slice(),
           revealedNodes: revealedNodes.slice(),   // mystery (?) nodes already revealed
+          mystMigrated,                         // MYST3: a genV<3 save's overlay→first-class migration already ran once
 
           nodeCards: { ...nodeCards },   // single-card nodes' committed exact cards (shown == granted)
           // PACK2: revealed +2 packs' committed pairs — additive key (older
@@ -15158,6 +15211,32 @@ const CampaignState = (() => {
         if (retiredCursed.size) {
           baseDeck = baseDeck.filter(c => !retiredCursed.has(c.id));
           ownedIds = ownedIds.filter(id => !retiredCursed.has(id));
+        }
+        // MYST3 migration: a pre-genV3 save regenerates with the legacy
+        // cosmetic "?" mask (n.mystery) over fully normal nodes. Convert every
+        // UNVISITED masked node to a first-class mystery — the event becomes
+        // its entire content, so the typed fields were never seen and are
+        // scrubbed with their card locks (nodeCards/packCards). VISITED nodes
+        // (cleared, revealed, or the current position) keep their real type:
+        // their content was already shown/played and the legacy overlay flow
+        // is done with them. RE-migration (mystMigrated — the save has been
+        // through this once): the visited-REVEALED exception no longer
+        // applies — a post-migration reveal was a first-class arrival (no
+        // typed content to preserve), so it converts again; only cleared /
+        // current-position nodes stay untouched. After this, nodeHidden
+        // (type-based) agrees with every map everywhere.
+        mystMigrated = !!s.mystMigrated;   // additive; pre-MYST3 saves default false
+        if (runMap && runGenVersion < 3) {
+          for (const n of runMap.nodes) {
+            if (!n.mystery) continue;
+            if (clearedNodes.indexOf(n.id) !== -1 || nodePos === n.id) continue;
+            if (!mystMigrated && revealedNodes.indexOf(n.id) !== -1) continue;   // legacy visit: content shown — keep it
+            delete n.add; delete n.packCount; delete n.mystery;
+            delete n.piles; delete n.targetD; delete n.suit; delete n.mixed;
+            n.type = "mystery";
+            delete nodeCards[n.id]; delete packCards[n.id];
+          }
+          mystMigrated = true;   // the next restore re-migrates, not first-migrates
         }
         // Card Packs (default for saves written before packs existed).
         packTray = Array.isArray(s.packTray)
@@ -20151,12 +20230,13 @@ const UIRenderer = (() => {
       // The shop is a MAP NODE now: leaving marks it cleared and returns to the map.
       closeStore();
       const node = campaign.currentNode();
-      // A mystery "store" detour sits ON TOP of a non-store node — the guard
-      // clears only a real store node; the node beneath owes its dispatch.
+      // A mystery "store" detour's node IS a mystery (MYST3) — the guard
+      // clears only a real store node; completeMystery (the hook) owns the
+      // mystery's clear.
       if (node && node.type === "store") campaign.markNodeCleared(node.id);
       persistCampaign("map");
-      // MYST2: a mystery "store" outcome's one-shot continuation — the node
-      // beneath the detour dispatches now (the map comes back up inside it).
+      // MYST2: a mystery "store" outcome's one-shot continuation — the
+      // mystery completes now (checkpointed inside completeMystery).
       const mystHook = mysteryStoreContinue; mysteryStoreContinue = null;
       if (mystHook) { mystHook(); return; }
       showProgressionMap(startRun);
@@ -20182,7 +20262,8 @@ const UIRenderer = (() => {
           const n = map && map.byId ? map.byId[nid] : null;
           if (!n) { mapHeld = false; mapSuppress = false; return; }
           const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
-          showTextHelp(hidden ? "Mystery" : "Map node", hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n));
+          const isMyst = n.type === "mystery";
+          showTextHelp(isMyst ? "Mystery" : "Map node", hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n));
         }, 350);
       });
       const mapRelease = () => {
@@ -24547,7 +24628,8 @@ const UIRenderer = (() => {
     // (moveToNode syncs the phase as they cross). Only the FINAL boss (the ♠
     // boss = runMap.runBossId) ends the run as a WIN.
     // AMBUSH: the cleared deal was the mystery event's, NOT the node's — the
-    // masked node stays un-cleared; its own dispatch (after the summary) owns it.
+    // mystery node stays un-cleared here; completeMystery (after the summary's
+    // Continue) owns the clear.
     const clearedNode = campaign.currentNode();
     if (clearedNode && !wasAmbush) campaign.markNodeCleared(clearedNode.id);
     // UNLOCK1: lifetime boss counter — the cleared node was a BOSS (an ambush
@@ -24645,13 +24727,13 @@ const UIRenderer = (() => {
 
   function continueCampaign() {
     // AMBUSH aftermath: the deal just cleared was the mystery event's ambush —
-    // the node it masked resolves NOW through the normal dispatch (if it's
-    // itself a deal, the player plays both — intended).
+    // the ambush WAS the mystery node's content (MYST3), so the node completes
+    // now: cleared, checkpointed on the map (a refresh resumes on the map,
+    // never into an already-won ambush replay).
     if (pendingAmbushNodeId != null) {
       const nid = pendingAmbushNodeId; pendingAmbushNodeId = null;
-      const node = campaign.getNode(nid);
+      if (campaign.getNode(nid)) { completeMystery(nid); return; }
       showProgressionMap(startRun);
-      if (node) finishResolveNode(node, nid);
       return;
     }
     // After a won deal/boss: return to the phase map to choose the next node.
@@ -24906,7 +24988,7 @@ const UIRenderer = (() => {
      the curve clears every NON-endpoint node. Node footprints (+ a small margin)
      are the obstacles. Shared by the rendered edges AND the avatar travel, so the
      box follows the exact routed trail. Layout/visual only — structure untouched. */
-  const NODE_HALF = { pickup: [25, 31], pack: [25, 29], deal: [30, 27], boss: [40, 35], store: [26, 26], home: [30, 30] };
+  const NODE_HALF = { pickup: [25, 31], pack: [25, 29], deal: [30, 27], boss: [40, 35], store: [26, 26], home: [30, 30], mystery: [19, 24] };
   let _obsKey = null, _obs = null;
   function mapObstacles() {
     const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
@@ -25041,10 +25123,18 @@ const UIRenderer = (() => {
     }
     // PINKY'S HOME (the top-of-map finish line): mama's house with a warm ♥.
     if (n.type === "home") return '<span class="mn-home mn-mama"><span class="mn-home-ico">⌂</span><span class="mn-mama-heart">♥</span></span>';
+    // MYSTERY (?) — first-class (MYST3): the "?" IS the node's face in EVERY
+    // state, so a revealed/cleared mystery never falls through to pickup art.
+    // A revealed-but-open one (arrived; the outcome modal is up) wears .open;
+    // a cleared one fades to a spent husk via the .s-done CSS. An un-arrived
+    // (hidden) one renders this same art plus the debug peek tag, appended by
+    // the caller.
+    if (n.type === "mystery") return '<span class="mn-myst' + (state === "here" ? " open" : "") + '">?</span>';
     return mapPickupInner(n, state);                                   // exactly 1 card → the exact card
   }
   function mapNodeLabel(n) {
     if (n.type === "pass") return "The trail passes through";
+    if (n.type === "mystery") return "Mystery — a gamble, good or bad…";
     if (n.type === "boss") return "BOSS — full deck · difficulty " + RunMap.difficultyScore(n.targetD, n.phase, true) + "/3 (this stage)";
     if (n.type === "deal") return "Deal — difficulty " + RunMap.difficultyScore(n.targetD, n.phase, false) + "/3 (this stage)";
     if (n.type === "store") return "Shop";
@@ -25413,17 +25503,19 @@ const UIRenderer = (() => {
       const state = cleared.has(n.id) ? "done" : (n.id === pos ? "here" : (legal.has(n.id) ? "legal" : "far"));
       const arrive = (state === "here" && mapArrive) ? " arrived" : "";
       const action = (state === "legal") ? ' data-action="node" data-node="' + n.id + '"' : "";
-      // MYSTERY (?): an un-arrived mystery node hides its true face — a
-      // face-down "?" card in place of the real art (deals hide their
-      // difficulty chip too, since the whole cluster is replaced). The debug
-      // peek tag rides inside the button (CSS shows it only under debug-access).
+      // MYSTERY (?) — first-class (MYST3): the "?" IS the node's type, so the
+      // t-myst class + mn-myst art (mapNodeInner) apply in EVERY state —
+      // hidden, revealed-open (.open), cleared (the shared s-done fade). While
+      // un-arrived the title stays ??? and the debug peek tag rides inside the
+      // button (CSS shows it only under debug-access).
       const hidden = campaign.nodeHidden && campaign.nodeHidden(n.id);
-      nodes += '<button type="button" class="pm-node t-' + (hidden ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
+      nodes += '<button type="button" class="pm-node t-' + (n.type === "mystery" ? "myst" : n.type) + ' p-' + (SUIT_CLASS[suit] || "d") + ' s-' + state + arrive + '"' + action +
         ' data-nid="' + n.id + '"' +
         ' style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px;" title="' + (hidden ? "??? — a gamble, good or bad, revealed when you arrive" : mapNodeLabel(n)) + '">' +
+        mapNodeInner(n, suit, state) +
         (hidden
-          ? '<span class="mn-myst">?</span><span class="pm-myst-out">' + escHtml(MYSTERY_OUTCOME_LABEL[campaign.rollMysteryEvent(n.id)] || "?") + '</span>'
-          : mapNodeInner(n, suit, state)) + '</button>';
+          ? '<span class="pm-myst-out">' + escHtml(MYSTERY_OUTCOME_LABEL[campaign.rollMysteryEvent(n.id)] || "?") + '</span>'
+          : "") + '</button>';
     });
     // HOME / origin node: a distinct non-interactive base where the run begins
     // (the start deck — 13 base cards + the tier's startJokers, difficulty.js).
@@ -25755,9 +25847,10 @@ const UIRenderer = (() => {
     let idx = 0, curId = fromId, curXY = fromXY;
     const travelNext = () => {
       if (idx >= legs.length) {
-        // The marker has ARRIVED. A mystery gets its reveal moment first —
-        // the "?" flips into the true node — then its EVENT rolls (MYST1), then
-        // the node plays as normal. A normal node dispatches straight away.
+        // The marker has ARRIVED. An unrevealed MYSTERY gets its reveal
+        // moment first — the "?" pops — then its EVENT rolls (MYST1); the
+        // event IS the node's entire content (MYST3 — nothing underneath).
+        // A normal node dispatches straight away.
         if (wasHidden) playMysteryReveal(id, () => runMysteryEvent(node, id));
         else finishResolveNode(node, id);
         return;
@@ -25783,29 +25876,43 @@ const UIRenderer = (() => {
     setTimeout(cb, 720);
   }
 
-  /* ── MYSTERY EVENT (MYST1 Stage 2) ────────────────────────────────────────
-     A hidden node's arrival rolls ONE weighted outcome (items.js `mystery`,
+  /* ── MYSTERY EVENT (MYST1 Stage 2 / MYST3 first-class) ────────────────────
+     A mystery node's arrival rolls ONE weighted outcome (items.js `mystery`,
      seeded by run seed + node id — the same node always resolves the same way,
      a refresh can never re-roll or re-grant). The state half (coins / grants /
      curses) is applied AND checkpointed before the modal opens; the modal
      announces the outcome, then Continue runs its flow (picker / placement walk
-     / reveal / ambush deal), and the UNDERLYING node dispatches as normal. ── */
+     / reveal / ambush deal / store detour). MYST3: the event IS the node's
+     ENTIRE content — there is no node underneath — so every continuation ends
+     in completeMystery. ── */
+  /* completeMystery(id): the mystery node's whole resolution is done — clear
+     it, checkpoint the map, and put the player back on the map picking the
+     next step. EVERY mystery continuation ends here: passive outcomes at
+     once, picker confirm/decline, the placement walk, the pack reveal, the
+     store detour's Done hook, the ambush aftermath, an impossible outcome,
+     and a revealed revisit (finishResolveNode's mystery branch). */
+  function completeMystery(id) {
+    campaign.markNodeCleared(id);
+    persistCampaign("map");
+    showProgressionMap(startRun);
+  }
   function runMysteryEvent(node, id) {
     const key = campaign.rollMysteryEvent(id);
     const d = campaign.applyMysteryEvent(key, id);
     // EXACTLY-ONCE: the reveal (revealedNodes) + any mutation must be durable
     // BEFORE any picker/deal — flush so a kill on the modal can't lose it. A
-    // refresh re-reads the revealed node and skips the event entirely.
+    // refresh re-reads the revealed node and skips the event entirely (the
+    // next tap just completes it — never a re-roll, never a re-grant).
     persistCampaign("map");
     flushCampaignSave();
     // A null descriptor = the rolled outcome was impossible right now (e.g. no
-    // eligible card for a curse) — the node simply plays without an event.
-    if (!d) { finishResolveNode(node, id); return; }
+    // eligible card for a curse) — the mystery simply ends.
+    if (!d) { completeMystery(id); return; }
     openMysteryEvent(d, () => continueMysteryEvent(d, node, id));
   }
 
   let mysteryEventContinue = null;   // the Continue button's one-shot continuation
-  let mysteryStoreContinue = null;   // the "store" outcome's one-shot: dispatch the node beneath once the store closes
+  let mysteryStoreContinue = null;   // the "store" outcome's one-shot: completeMystery once the store closes
   let mysteryArtHelp = null;         // hold-for-help on the outcome art
   const MYSTERY_GOOD = { coinBonus: 1, stickerPack: 1, cards: 1, freeRemoval: 1, stickerStrip: 1, joker: 1, store: 1 };
   /* Per-outcome presentation (MYST2): the art area carries a mea-<key> class
@@ -25869,49 +25976,51 @@ const UIRenderer = (() => {
     closeMysteryEvent();
     if (fn) fn();
   }
-  /* Continue → the outcome's interactive flow, then the underlying node's
-     normal dispatch (fallThrough). Passive outcomes fall through at once. */
+  /* Continue → the outcome's interactive flow, then completeMystery — the
+     event was the node's whole content (MYST3). Passive outcomes complete
+     at once. */
   function continueMysteryEvent(d, node, id) {
-    const fallThrough = () => finishResolveNode(node, id);
-    if (d.key === "freeRemoval") { openMapBlankRemove(1, fallThrough); return; }
-    if (d.key === "stickerStrip") { openMapStickerStrip(fallThrough); return; }
+    const done = () => completeMystery(id);
+    if (d.key === "freeRemoval") { openMapBlankRemove(1, done); return; }
+    if (d.key === "stickerStrip") { openMapStickerStrip(done); return; }
     if (d.key === "stickerPack") {
       // The sticker is already in the inventory (applyMysteryEvent granted it) —
       // surface it the same way ANY granted sticker surfaces: a placement walk
-      // over the pending queue (confirm OR cancel both end it), then the node
-      // beneath plays. The walk checkpoints "map", not "store" (placementSavePhase).
+      // over the pending queue (confirm OR cancel both end it), then the
+      // mystery completes. The walk checkpoints "map", not "store" (placementSavePhase).
       placementSavePhase = "map";
       onPlacementQueueEmpty = () => {
         onPlacementQueueEmpty = null;
         placementSavePhase = null;
-        fallThrough();
+        done();
       };
       placementWalk = true;
       continuePendingPlacement();
       return;
     }
-    if (d.key === "cards") { openMapPackReveal(d.cards, fallThrough); return; }
+    if (d.key === "cards") { openMapPackReveal(d.cards, done); return; }
     if (d.key === "ambush") { startAmbushDeal(d, id); return; }
     if (d.key === "store") {
       // STORE (MYST2): a full store visit on the spot, through the NORMAL
       // showStore path (map drops, board pauses, Done returns). fresh=false —
       // a saved offer is never clobbered (no free reroll off a refresh). The
-      // underlying node dispatches AFTER the store closes: the one-shot hook
-      // is consumed by the store's Done handler (storeStartBtn) right after
-      // its "map" checkpoint. It's cleared on use and by showProgressionMap,
-      // so it can never fire twice or leak into a later store visit; a
-      // refresh mid-visit simply never re-arms it (the revealed node was
-      // already checkpointed — the store is skipped and the player moves on,
-      // the documented simplification).
+      // mystery completes AFTER the store closes: the one-shot hook is
+      // consumed by the store's Done handler (storeStartBtn) right after its
+      // "map" checkpoint (Done's type-guard clears only a REAL store node —
+      // this node is a mystery, so completeMystery owns the clear). The hook
+      // is cleared on use and by showProgressionMap, so it can never fire
+      // twice or leak into a later store visit; a refresh mid-visit simply
+      // never re-arms it (the revealed node was already checkpointed — the
+      // store is skipped and the player moves on, the documented
+      // simplification).
       mysteryStoreContinue = () => {
         mysteryStoreContinue = null;
-        showProgressionMap();          // the detour ends back on the map…
-        fallThrough();                 // …which immediately plays the node beneath
+        completeMystery(id);
       };
       showStore(false, id);   // SEED1: the detour offer keys to the MYSTERY node's id
       return;
     }
-    fallThrough();   // coinBonus / coinLoss / cursedSticker / joker — done
+    done();   // coinBonus / coinLoss / cursedSticker / joker — done
   }
   /* AMBUSH: the map drops and a forced subset deal starts — `cards` cards on
      `piles` piles, knobs from items.js mystery.ambush via the descriptor (never
@@ -25919,7 +26028,7 @@ const UIRenderer = (() => {
      so the run-phase checkpoint — seed + forced subset + ambush ctx — resumes a
      mid-ambush refresh exactly. A clear pays the normal payout + the bounty
      (awarded in onRunEnd through the run's own bonus channel); a loss is a
-     normal campaign loss; the masked node dispatches after the deal. */
+     normal campaign loss; the mystery node completes after the deal. */
   function startAmbushDeal(d, nodeId) {
     const cfg = d.ambush || ItemData.mystery.ambush;
     const jumpFrom = (mapAvatarEl && document.body.contains(mapAvatarEl))
@@ -26029,6 +26138,14 @@ const UIRenderer = (() => {
       persistCampaign("map");
       hideProgressionMap();   // the map overlay sits ABOVE #overlay — drop it so the victory screen shows
       showPinkyHome();
+    } else if (node.type === "mystery") {
+      // MYSTERY (MYST3): the seeded event is the node's ENTIRE content and it
+      // already ran at arrival (an unrevealed mystery routes through
+      // runMysteryEvent, never here). Reaching here means a REVEALED mystery
+      // was tapped again — e.g. a refresh landed mid-flow (store detour,
+      // picker) with the outcome long since applied and checkpointed — so the
+      // node just completes: cleared, back to the map, NEVER a re-roll.
+      completeMystery(id);
     } else {
       // Deal / Boss: launch the deal. The SAME character that just travelled the
       // trail to this node now "jumps" off the node into the bottom-right deck

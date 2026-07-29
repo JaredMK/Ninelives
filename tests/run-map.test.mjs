@@ -118,7 +118,7 @@ export function run() {
   {
     for (let s = 1; s <= 6; s++) {
       const entry = 13;
-      const m = RunMap.generateStage(0, s * 12345 + 7, entry);
+      const m = RunMap.generateStage(0, s * 12345 + 7, entry, { genVersion: 3 });   // MYST3: validator pins run on the current generator
       r.ok(m && m.nodes.length > 4, "stage " + s + ": a non-trivial graph");
       r.ok(m.row0.length >= 1, "stage " + s + ": has at least one opening node");
       const boss = m.byId[m.bossId];
@@ -195,7 +195,7 @@ export function run() {
   // ---- later stages generate against their REAL entry deck ----------------
   {
     for (const [p, entry] of [[1, 27], [2, 40]]) {
-      const m = RunMap.generateStage(p, 4242 + p, entry);
+      const m = RunMap.generateStage(p, 4242 + p, entry, { genVersion: 3 });
       // a stage may carry a LOGGED relax step (the band top stretches when
       // integer piles + card floors leave no strict solution) — honor it
       const bandX = (m._gen ? m._gen.relax : 0) * RunMap.GEN_CONFIG.relaxBandStep;
@@ -212,7 +212,7 @@ export function run() {
   {
     const p = 1, entry = 26;
     for (let s2 = 1; s2 <= 5; s2++) {
-      const m = RunMap.generateStage(p, s2 * 6007, entry);
+      const m = RunMap.generateStage(p, s2 * 6007, entry, { genVersion: 3 });
       r.eq(m.bossIds.length, 1, "seed " + s2 + ": exactly one boss (twins removed)");
       const routes = RunMap.enumerateRoutes(m);
       r.ok(routes.every(rt => rt[rt.length - 1] === m.bossId), "seed " + s2 + ": every route converges on THE boss");
@@ -222,7 +222,7 @@ export function run() {
   // ---- generateRun: stages stack; later stages appear as they're entered --
   {
     for (let s = 1; s <= 4; s++) {
-      const run = RunMap.generateRun(s * 9001 + 3, [13, 27, 40]);
+      const run = RunMap.generateRun(s * 9001 + 3, [13, 27, 40], { genVersion: 3 });
       r.ok(run && run.nodes.length > 12, "run " + s + ": a large combined graph");
       r.eq(run.phases.length, 3, "run " + s + ": three phases when all entries are known");
       // ids are unique across the whole run (namespaced per phase).
@@ -250,10 +250,10 @@ export function run() {
     }
     // LAZY: with only stage 0 entered, only stage 0 exists — and no node can
     // falsely count as the run boss until the ♠ stage is generated.
-    const partial = RunMap.generateRun(777, [13]);
+    const partial = RunMap.generateRun(777, [13], { genVersion: 3 });
     r.eq(partial.phases.length, 1, "a fresh run generates only the ♦ stage");
     r.eq(partial.runBossId, null, "no run boss until the ♠ stage exists");
-    const two = RunMap.generateRun(777, [13, 26]);
+    const two = RunMap.generateRun(777, [13, 26], { genVersion: 3 });
     r.eq(two.phases.length, 2, "entering ♣ generates the second stage");
     r.eq(two.phases[0].bossId, partial.phases[0].bossId, "the ♦ stage regenerates IDENTICALLY (same seed + entry)");
     r.eq(two.runBossId, null, "still no run boss before the ♠ stage");

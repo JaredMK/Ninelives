@@ -286,13 +286,16 @@ export function run() {
     const label = fnBody(src, "mapNodeLabel");
     r.ok(label.includes('"2 cards — "') && label.includes("Removal"),
       "mapNodeLabel names the two committed cards (Blank slot reads Removal)");
-    // MYSTERY hiding is upstream of mapNodeInner: the "?" swap still gates it
-    // (MYST2: the hidden branch also carries the debug-only .pm-myst-out peek
-    // tag — mapNodeInner must stay exclusively in the revealed branch).
-    const hideSwap = /\(hidden\s*\?([\s\S]{0,400}?):\s*mapNodeInner\(n, suit, state\)/.exec(src);
-    r.ok(!!hideSwap && hideSwap[1].includes('<span class="mn-myst">?</span>')
-      && hideSwap[1].includes("pm-myst-out") && hideSwap[1].indexOf("mapNodeInner") === -1,
-      'an un-arrived mystery still hides the pair behind "?" (reveal re-renders the faces)');
+    // MYST3: mystery is a first-class TYPE — mapNodeInner's mystery case owns
+    // the "?" art in every state, so a committed pair can never leak through a
+    // hidden node (only mystery-type nodes report hidden now). The hidden
+    // branch only APPENDS the debug-only .pm-myst-out peek tag.
+    r.ok(/n\.type === "mystery"\)\s*return '<span class="mn-myst/.test(inner),
+      'mapNodeInner renders a first-class mystery as the "?" face (never pickup art)');
+    const hideSwap = /\(hidden\s*\?\s*'<span class="pm-myst-out">'([\s\S]{0,200}?):\s*""\)/.exec(fnBody(src, "renderProgressionMap"));
+    r.ok(!!hideSwap && hideSwap[1].includes("escHtml(MYSTERY_OUTCOME_LABEL[campaign.rollMysteryEvent(n.id)]")
+      && hideSwap[1].indexOf("mapNodeInner") === -1 && hideSwap[1].indexOf("nodeCardHtml") === -1,
+      "the hidden branch adds ONLY the debug peek tag — no real node art can leak");
     const fin = fnBody(src, "finishResolveNode");
     const revealedAt = fin.indexOf("packNodeCards(node)");
     const modalAt = fin.indexOf("openMapPackReveal(");
