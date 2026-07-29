@@ -14,18 +14,21 @@
 // clock — it dies with the modal); (d) Perf.dump(), a paste-friendly text
 // report copied by a new debug-panel button via copySeed.
 //
-// Part 2 is the debug "flat picker (A/B)" checkbox toggling body.perf-flat.
-// After PERFFIX (v5.13) its only remaining job is killing the deck-modal
-// backdrop blur — the other suspects became permanent fixes: background
-// animators pause under any open deck-modal (body:has(.deck-modal:not(.hidden))
-// + animation-play-state), the saFlash/saRemove keyframes are filter-free,
-// and the picker chip-icon drop-shadow is off in the .sa-lite scope.
+// Part 2 is RETIRED (PERFFIX2, v5.14): the debug "flat picker (A/B)" toggle
+// A/B'd the deck-modal backdrop blur on-device, and the blur was convicted —
+// blur-on produced 2.9-15 SECOND main-thread freezes at a 72-card picker
+// (taps queueing and firing all at once), blur-off was clean. The blur is
+// permanently removed from .deck-modal and the toggle is gone. The other
+// PERFFIX fixes stay: background animators pause under any open deck-modal
+// (body:has(.deck-modal:not(.hidden)) + animation-play-state), the
+// saFlash/saRemove keyframes are filter-free, and the picker chip-icon
+// drop-shadow is off in the .sa-lite scope.
 //
 // Everything is debug-gated: with capture OFF each wrapper/mark is a single
-// boolean check and no rAF is requested; with body.perf-flat absent no flat
-// rule matches. This suite pins the mechanism behaviorally (through the real
-// Perf module, reached via window.__perf) and the picker/DEBUG wiring
-// structurally (the stubbed DOM can't drive the picker UI).
+// boolean check and no rAF is requested. This suite pins the mechanism
+// behaviorally (through the real Perf module, reached via window.__perf) and
+// the picker/DEBUG wiring structurally (the stubbed DOM can't drive the
+// picker UI).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -106,8 +109,6 @@ export function run() {
     r.ok(!!open, "a picker:open journey mark was recorded");
     r.ok(open && open.ctx && "gapMax" in open.ctx && "gapMean" in open.ctx && "janky" in open.ctx,
       "…picker marks auto-attach the frame-gap context");
-    r.ok(open && open.ctx && "flat" in open.ctx,
-      "…and the perf-flat A/B state is stamped into the context");
     const closed = Perf.entries.find(e => e.mark && e.stage === "picker:closed");
     r.ok(closed && closed.ctx && typeof closed.ctx.openMs === "number",
       "picker:closed carries the session length (openMs)");
@@ -186,33 +187,24 @@ export function run() {
     r.ok(src.includes('Perf.mark("picker:applyDone")'), "apply-done mark after the apply mutation + save");
   }
 
-  // --- Structural: debug panel markup + wiring (both toggles, the button) ----
+  // --- Structural: debug panel markup + wiring (the button) ------------------
   {
-    r.ok(html.includes('id="debugPerfFlat"'), "flat-picker checkbox markup sits in the debug panel");
     r.ok(html.includes('id="debugPerfCopy"'), "copy-perf-report button markup sits in the debug panel");
-    r.ok(src.includes('document.getElementById("debugPerfFlat")') && src.includes('document.getElementById("debugPerfCopy")'),
-      "both controls are in the el refs");
-    r.ok(src.includes('document.body.classList.toggle("perf-flat", el.debugPerfFlat.checked)'),
-      "the checkbox wiring toggles body.perf-flat only");
+    r.ok(src.includes('document.getElementById("debugPerfCopy")'), "the button is in the el refs");
     r.ok(src.includes("copySeed(Perf.dump(), el.debugPerfCopy)"),
       "the button copies Perf.dump() through copySeed (WKWebView clipboard fallback)");
+    // perf-flat is RETIRED (PERFFIX2): the A/B convicted the blur, the blur is
+    // gone from .deck-modal, and the toggle has no job left.
+    r.ok(!html.includes("debugPerfFlat") && !html.includes("perf-flat"),
+      "the perf-flat A/B toggle is fully retired (markup, refs, wiring, CSS)");
   }
 
-  // --- Structural: body.perf-flat CSS is scoped + flat-only ------------------
+  // --- Structural: full-viewport backdrop blur is BANNED (PERFFIX2) ----------
   {
-    r.ok(html.includes("body.perf-flat #stickerApplyModal.deck-modal")
-      && /body\.perf-flat #stickerApplyModal\.deck-modal \{[^}]*backdrop-filter: none;\s*-webkit-backdrop-filter: none;/.test(html),
-      "flat CSS kills the picker backdrop blur (prefixed + unprefixed)");
-    // After PERFFIX the blur kill is perf-flat's ONLY remaining job — the icon
-    // shadow, filter keyframes, and map-pulse pauses are permanent fixes now.
-    r.ok(!html.includes("saFlashFlat") && !html.includes("saRemoveFlat"),
-      "the flat animation-swap keyframes are gone (base animations are filter-free now)");
-    r.ok(!/body\.perf-flat[^{]*\.dcs-ic/.test(html) && !/body\.perf-flat[^{]*\.pm-node/.test(html),
-      "perf-flat no longer carries the (now permanent) icon-shadow / map-pulse rules");
-    // Every flat rule is gated on body.perf-flat (nothing leaks into normal play):
-    // the selectors above all carry the prefix, and the base rules are unmodified.
-    r.ok(!/\.perf-flat[^{]*\{[^}]*backdrop-filter: blur/.test(html),
-      "no flat rule re-introduces a blur");
+    const modal = html.match(/\.deck-modal \{[\s\S]*?\n  \}/);
+    const body = modal ? modal[0].replace(/\/\*[\s\S]*?\*\//g, "") : "";   // strip the explanatory comment
+    r.ok(!!modal && !body.includes("backdrop-filter"),
+      ".deck-modal carries NO backdrop-filter (the on-device 2.9-15s freeze cause)");
   }
 
   // --- Structural: PERFFIX permanent fixes -----------------------------------
@@ -226,7 +218,7 @@ export function run() {
                        ".hud .hud-same.charged", ".cph-banner.activatable", ".ds-deckchar .dc-pupil"])
       r.ok(paused.includes(sel), "PERFFIX: pause list covers " + sel);
     // Confirm-window keyframes must never animate `filter` (per-frame software
-    // repaint under the full-viewport blur — the measured 200-390ms apply frames).
+    // repaint of the card region — the measured 200-390ms apply frames).
     const flash = html.match(/@keyframes saFlash \{[\s\S]*?\n  \}/);
     const remove = html.match(/@keyframes saRemove \{[\s\S]*?\n  \}/);
     r.ok(!!flash && !flash[0].includes("filter"), "saFlash keyframes are filter-free");

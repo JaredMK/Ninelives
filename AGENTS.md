@@ -157,6 +157,27 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.14 (Kimi, PERFFIX2)** — full-viewport backdrop blur BANNED; READ THIS
+  BEFORE ADDING ANY backdrop-filter:
+  - The flat-A/B on-device capture convicted `.deck-modal`'s
+    `backdrop-filter: blur(4px)`: blur-ON produced 2.9s and 15s main-thread
+    freezes at a 72-card picker (taps queued and all fired at unfreeze — the
+    user's "clicked through all the buttons at once" symptom); blur-OFF was
+    clean at the same deck sizes. The blur is removed permanently; the scrim
+    (`rgba(48,36,32,0.7)`) stays. **Never put backdrop-filter on a
+    full-viewport element** — small-area blurs (chips, bars) elsewhere in the
+    stylesheet are fine and stay.
+  - The `perf-flat` debug toggle is RETIRED (markup, el ref, wiring, CSS, the
+    `flat` journeyCtx stamp — all gone). Its A/B did its job.
+  - The v5.13 `:has()` pause contract STAYS (background animators pause under
+    any open deck-modal) — still saves GPU/battery under modals and reduces
+    session heat; the saFlash/saRemove filter-free keyframes and
+    `.sa-lite .dcs-ic` flattening stay too.
+  - One unexplained outlier remains from the flat-ON capture: a single 8.2s
+    stall right after a pack reveal (`#packReveal` kept its blur even in flat
+    mode — same class of bug, now covered by the global removal). If a freeze
+    ever recurs on-device, look at the pack-reveal → picker handoff first.
+
 - **v5.13 (Kimi, PERFFIX)** — on-device-indicted render-cost fixes; READ THIS
   BEFORE ADDING ALWAYS-ON ANIMATIONS OR PICKER FX:
   - **The `body:has(.deck-modal:not(.hidden))` pause contract** (CSS block by

@@ -4493,8 +4493,12 @@ const NativeApp = (() => {
     position: fixed;
     inset: 0;
     background: rgba(48, 36, 32, 0.7);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    /* NO backdrop-filter here, ever (PERFFIX2): a full-viewport blur must
+       re-blur whatever changes behind/within it, and on-device (iPhone,
+       72-card picker) it froze the main thread for 2.9-15 SECONDS with taps
+       queueing and firing all at once. The flat-A/B capture proved blur-on =
+       freezes, blur-off = clean. Small-area blurs elsewhere are fine; a
+       full-viewport one is banned. */
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -4669,10 +4673,9 @@ const NativeApp = (() => {
   .sa-card.sa-flash { position: relative; z-index: 2; }
   .sa-card.sa-flash .mini-card { animation: saFlash 0.85s ease; }
   /* PERFFIX: transform/opacity ONLY in these keyframes — animating `filter`
-     forces a per-frame software repaint of the card region, and under the
-     deck-modal's full-viewport backdrop-filter that repaint invalidates a
-     blurred area every frame (measured on-device as 200-390ms frames around
-     apply). The pop still reads via scale + the ✨ sparkle. */
+     forces a per-frame software repaint of the card region (measured
+     on-device as 200-390ms frames around apply). The pop still reads via
+     scale + the ✨ sparkle. */
   @keyframes saFlash {
     0%   { transform: scale(1); }
     22%  { transform: scale(1.22); }
@@ -4706,15 +4709,15 @@ const NativeApp = (() => {
   }
   @keyframes saRemoveFade { to { opacity: 0; } }
   /* PERFFIX — pause background animators while ANY deck-modal covers them.
-     The deck-modal's full-viewport backdrop-filter must re-blur whatever
-     changes behind it; these always-on animations (map pulses, avatar bob,
-     HUD/pillar box-shadow pulses, deck-char blink) were forcing a full-screen
-     re-blur every frame under an open modal (on-device: 17-34ms mean frame
-     gap + 300-600ms tap frames, picker JS all <50ms). :has() keeps this
-     self-syncing across every open/close path — no JS hook, no stranded
-     state. animation-play-state (not animation:none) preserves pose.
-     ANY NEW always-on animation that can sit behind a deck-modal must be
-     added to this list. */
+     These always-on animations (map pulses, avatar bob, HUD/pillar box-shadow
+     pulses, deck-char blink) keep painting/compositing under an open modal —
+     under the (now removed) full-viewport blur they forced a re-blur every
+     frame (on-device: 17-34ms mean frame gap + 300-600ms tap frames, picker
+     JS all <50ms); without the blur they still burn GPU/battery for content
+     the player can't see. :has() keeps this self-syncing across every
+     open/close path — no JS hook, no stranded state. animation-play-state
+     (not animation:none) preserves pose. ANY NEW always-on animation that
+     can sit behind a deck-modal must be added to this list. */
   body:has(.deck-modal:not(.hidden)) .pm-node.s-legal::after,
   body:has(.deck-modal:not(.hidden)) .pm-node.s-here::after,
   body:has(.deck-modal:not(.hidden)) .map-avatar,
@@ -4725,12 +4728,6 @@ const NativeApp = (() => {
      surviving filter (the chip-icon drop-shadow, ~150 chips at 46-card
      decks). Imperceptible at 15px; the board keeps its shadows. */
   .sa-lite .dcs-ic { filter: none; }
-  /* PERFCAP A/B — "flat picker" (DEBUG-ONLY): body.perf-flat is toggled by
-     the debug "flat picker (A/B)" checkbox. After PERFFIX its ONLY remaining
-     job is killing the deck-modal backdrop blur — the A/B lever for whether
-     the blur itself still costs on-device now that the content behind it is
-     static. With the class absent this matches nothing. */
-  body.perf-flat #stickerApplyModal.deck-modal { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
     padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
   .store-apply-btn.hidden { display: none; }
@@ -6791,7 +6788,6 @@ const NativeApp = (() => {
           <label class="debug-check"><input type="checkbox" id="debugRemovalSlot" checked> store slot 6 = Removal</label>
           <label class="debug-check"><input type="checkbox" id="debugAutopilot"> autopilot (odds-based guesser)</label>
           <label class="debug-check"><input type="checkbox" id="debugPerfMode"> perf instrumentation (console)</label>
-          <label class="debug-check"><input type="checkbox" id="debugPerfFlat"> flat picker (A/B)</label>
         </div>
         <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
         <div class="debug-sub">jump to map node (by address) →</div>
@@ -7371,7 +7367,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.13 · pause bg animations under modals + filter-free picker FX (on-device PERFFIX)";
+const APP_VERSION = "v5.14 · full-viewport backdrop blur removed (on-device freeze fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16735,7 +16731,6 @@ const UIRenderer = (() => {
     debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
     debugAutopilot: document.getElementById("debugAutopilot"),       // DEBUG: autopilot enable/disable
     debugPerfMode: document.getElementById("debugPerfMode"),         // DEBUG: perf instrumentation on/off
-    debugPerfFlat: document.getElementById("debugPerfFlat"),         // DEBUG: flat-picker A/B on/off (PERFCAP)
     debugPerfCopy: document.getElementById("debugPerfCopy"),         // DEBUG: copy the perf report (PERFCAP)
     autoPilotBtn: document.getElementById("autoPilotBtn"),           // DEBUG: autopilot ▶/⏸ (beside the 🐞)
     autoPilotSpeed: document.getElementById("autoPilotSpeed"),       // DEBUG: autopilot speed slider (slow ←→ fast)
@@ -20657,12 +20652,6 @@ const UIRenderer = (() => {
     // DEBUG PERF MODE (PERF1): flow timings + long-task logging to the console.
     if (el.debugPerfMode) el.debugPerfMode.addEventListener("change", () => {
       Perf.setOn(el.debugPerfMode.checked);
-    });
-    // DEBUG FLAT PICKER (PERFCAP): A/B variant stripping the suspected
-    // iOS-compositor-expensive CSS from the apply picker (the body.perf-flat
-    // rules). Class-only toggle — zero effect while unchecked.
-    if (el.debugPerfFlat) el.debugPerfFlat.addEventListener("change", () => {
-      document.body.classList.toggle("perf-flat", el.debugPerfFlat.checked);
     });
     // DEBUG PERF REPORT (PERFCAP): copy the paste-friendly Perf.dump() text
     // (memory-only — reuses copySeed's clipboard + WKWebView fallback).
@@ -30337,9 +30326,7 @@ const UIRenderer = (() => {
         }
       } catch (e) { /* measurement must never break the game */ }
       const g = frameGap.stats();
-      let flat = false;
-      try { flat = document.body.classList.contains("perf-flat"); } catch (e) { /* measurement must never break the game */ }
-      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky, flat };
+      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky };
     }
     // Journey mark: { mark:true, stage, at(s), ctx }. picker:* stages pick up
     // the journey context automatically when no ctx is passed.
@@ -30446,7 +30433,6 @@ const UIRenderer = (() => {
           if (e.ctx.deck != null) bits.push("deck " + e.ctx.deck);
           if (e.ctx.stickers != null) bits.push("stk " + e.ctx.stickers);
           if (e.ctx.openMs != null) bits.push("open " + e.ctx.openMs + "ms");
-          if (e.ctx.flat) bits.push("flat");
           if (e.ctx.gapMax) bits.push("gap max " + e.ctx.gapMax + "ms mean " + e.ctx.gapMean + "ms janky " + e.ctx.janky);
           if (bits.length) c = " {" + bits.join(" · ") + "}";
         }
