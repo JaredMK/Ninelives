@@ -4700,6 +4700,21 @@ const NativeApp = (() => {
     .sa-card.sa-remove .mini-card { animation: saRemoveFade 0.5s ease forwards; }
   }
   @keyframes saRemoveFade { to { opacity: 0; } }
+  /* PERFCAP A/B — "flat picker" (DEBUG-ONLY): body.perf-flat is toggled by the
+     debug "flat picker (A/B)" checkbox to strip the CSS suspected expensive on
+     the iOS compositor (backdrop blur, drop-shadow filters, filter-animating
+     keyframes) from the sticker-apply picker ONLY, and to pause the map-node
+     pulses. With the class absent none of these rules match — zero effect on
+     normal play. The base animations/keyframes above are untouched. */
+  body.perf-flat #stickerApplyModal.deck-modal { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  body.perf-flat #stickerApplyModal .dcs-ic { filter: none; }
+  body.perf-flat #stickerApplyModal .sa-card.sa-flash .mini-card { animation-name: saFlashFlat; }
+  body.perf-flat #stickerApplyModal .sa-card.sa-remove .mini-card { animation-name: saRemoveFlat; }
+  @keyframes saFlashFlat { 0% { opacity: 1; } 22% { opacity: 0.5; } 55% { opacity: 0.85; } 100% { opacity: 1; } }
+  @keyframes saRemoveFlat { from { opacity: 1; } to { opacity: 0; } }
+  body.perf-flat .pm-node.s-legal::after, body.perf-flat .pm-node.s-here::after {
+    animation: none; will-change: auto; opacity: 0.5;   /* static ring — keeps the affordance, kills the per-frame fade */
+  }
   .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
     padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
   .store-apply-btn.hidden { display: none; }
@@ -6760,6 +6775,7 @@ const NativeApp = (() => {
           <label class="debug-check"><input type="checkbox" id="debugRemovalSlot" checked> store slot 6 = Removal</label>
           <label class="debug-check"><input type="checkbox" id="debugAutopilot"> autopilot (odds-based guesser)</label>
           <label class="debug-check"><input type="checkbox" id="debugPerfMode"> perf instrumentation (console)</label>
+          <label class="debug-check"><input type="checkbox" id="debugPerfFlat"> flat picker (A/B)</label>
         </div>
         <!-- DEBUG JUMP TO NODE (removable): teleport position to any map node by address -->
         <div class="debug-sub">jump to map node (by address) →</div>
@@ -6811,6 +6827,7 @@ const NativeApp = (() => {
           <button class="debug-btn" id="debugTelemView">📊 stats</button>
           <button class="debug-btn" id="debugTelemCsv">⬇ CSV</button>
           <button class="debug-btn" id="debugTelemReset">reset</button>
+          <button class="debug-btn" id="debugPerfCopy">📋 copy perf report</button>
         </div>
         <div class="debug-ver" id="debugVer">build —</div>
       </div>
@@ -7338,7 +7355,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.11 · flat deal payouts (stage × difficulty, knobs in items.js) + new Score system with bests";
+const APP_VERSION = "v5.12 · on-device perf capture (debug) + flat-picker A/B variant";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16702,6 +16719,8 @@ const UIRenderer = (() => {
     debugRemovalSlot: document.getElementById("debugRemovalSlot"),   // DEBUG: store slot-6 Removal on/off
     debugAutopilot: document.getElementById("debugAutopilot"),       // DEBUG: autopilot enable/disable
     debugPerfMode: document.getElementById("debugPerfMode"),         // DEBUG: perf instrumentation on/off
+    debugPerfFlat: document.getElementById("debugPerfFlat"),         // DEBUG: flat-picker A/B on/off (PERFCAP)
+    debugPerfCopy: document.getElementById("debugPerfCopy"),         // DEBUG: copy the perf report (PERFCAP)
     autoPilotBtn: document.getElementById("autoPilotBtn"),           // DEBUG: autopilot ▶/⏸ (beside the 🐞)
     autoPilotSpeed: document.getElementById("autoPilotSpeed"),       // DEBUG: autopilot speed slider (slow ←→ fast)
     debugJumpSel: document.getElementById("debugJumpSel"),   // DEBUG JUMP TO NODE (removable)
@@ -20622,6 +20641,17 @@ const UIRenderer = (() => {
     // DEBUG PERF MODE (PERF1): flow timings + long-task logging to the console.
     if (el.debugPerfMode) el.debugPerfMode.addEventListener("change", () => {
       Perf.setOn(el.debugPerfMode.checked);
+    });
+    // DEBUG FLAT PICKER (PERFCAP): A/B variant stripping the suspected
+    // iOS-compositor-expensive CSS from the apply picker (the body.perf-flat
+    // rules). Class-only toggle — zero effect while unchecked.
+    if (el.debugPerfFlat) el.debugPerfFlat.addEventListener("change", () => {
+      document.body.classList.toggle("perf-flat", el.debugPerfFlat.checked);
+    });
+    // DEBUG PERF REPORT (PERFCAP): copy the paste-friendly Perf.dump() text
+    // (memory-only — reuses copySeed's clipboard + WKWebView fallback).
+    if (el.debugPerfCopy) el.debugPerfCopy.addEventListener("click", () => {
+      copySeed(Perf.dump(), el.debugPerfCopy);
     });
     // Speed slider: live — the next scheduled move already uses the new pace.
     if (el.autoPilotSpeed) {
@@ -27680,6 +27710,7 @@ const UIRenderer = (() => {
     const first = Math.min(APPLY_FIRST_BATCH, order.length);
     for (let i = 0; i < first; i++) frag.appendChild(order[i]);
     el.saCards.replaceChildren(frag);
+    Perf.mark("picker:gridFirstBatch");   // PERFCAP: first viewport mounted (no-op when capture is off)
     applyGridAppended = first;
     const step = () => {
       // A re-open/close (gen bump) or a hidden modal kills this stream.
@@ -27691,6 +27722,7 @@ const UIRenderer = (() => {
       el.saCards.appendChild(more);
       applyGridAppended = end;
       if (end < order.length) requestAnimationFrame(step);
+      else Perf.mark("picker:gridStreamed");   // PERFCAP: the rAF chunk stream drained naturally
     };
     if (applyGridAppended < order.length) requestAnimationFrame(step);
   }
@@ -27705,6 +27737,7 @@ const UIRenderer = (() => {
     for (let i = applyGridAppended; i < applyGridOrder.length; i++) rest.appendChild(applyGridOrder[i]);
     el.saCards.appendChild(rest);
     applyGridAppended = applyGridOrder.length;
+    Perf.mark("picker:gridDrained");   // PERFCAP: synchronous drain — a confirm owns the grid now
   }
   /* STKRB1: O(N) classList-only eligibility sync — flip sa-disabled + the
      disabled attribute (and the cached sig) for any card whose eligibility
@@ -27965,6 +27998,7 @@ const UIRenderer = (() => {
     if (cardPickMode === "strip" && !(card.stickers || []).length) return;   // cleanse needs a stickered card
     selectedApplyCardId = id;
     refreshApplySelection();
+    Perf.markAfterPaint("picker:selectPaint");   // PERFCAP: selection ring painted (no rAF when capture is off)
     // The confirm rides the shared bottom prompt bar (lifted over this modal
     // via body.modal-prompt). The message keeps its bold names + coin icons —
     // code-built markup, so opts.html (never player input). The button label
@@ -28177,6 +28211,7 @@ const UIRenderer = (() => {
         Sound.purchase();
         persistCampaign("store");   // the ONE save for this apply — kept synchronous on the tap
         savedOnTap = true;
+        Perf.mark("picker:applyDone");   // PERFCAP: apply mutation + save committed
         // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
         // shows its change IN PLACE before the picker leaves: update JUST the
         // changed card (it re-renders — and may re-sort — to its NEW face),
@@ -30193,11 +30228,21 @@ const UIRenderer = (() => {
   const Perf = (() => {
     let on = false;
     let obs = null;
+    let onSince = null;    // performance.now() when capture was last turned on
+    let onAccumMs = 0;     // total capture on-time across toggles
     const stack = [];      // active instrumented ops, innermost last
-    const entries = [];    // every finished timing { name, ms, at(s) }
+    const entries = [];    // every finished timing { name, ms, at(s) } + journey marks
     const secs = (t) => (t / 1000).toFixed(2) + "s";
+    // CAPPED RING (PERFCAP): a long on-device capture must NOT grow entries
+    // without bound — same pattern as pushLog's LOG_CAP/LOG_SLACK (~10684):
+    // trim in slack batches so the prune is amortized O(1) per append.
+    const PERF_CAP = 400, PERF_SLACK = 64;
+    function pushEntry(en) {
+      entries.push(en);
+      if (entries.length > PERF_CAP + PERF_SLACK) entries.splice(0, entries.length - PERF_CAP);
+    }
     function log(name, ms, start) {
-      entries.push({ name, ms: +ms.toFixed(1), at: +(start / 1000).toFixed(2) });
+      pushEntry({ name, ms: +ms.toFixed(1), at: +(start / 1000).toFixed(2) });
       console.log("[perf] " + name + " " + ms.toFixed(1) + "ms @ " + secs(start));
     }
     function time(name, fn) {
@@ -30229,12 +30274,12 @@ const UIRenderer = (() => {
             let during = null;
             for (let i = entries.length - 1; i >= 0 && !during; i--) {
               const en = entries[i];
-              if (en.name.indexOf("LONGTASK") === 0) continue;
+              if (en.mark || en.name.indexOf("LONGTASK") === 0) continue;
               const s = en.at * 1000, f = s + en.ms;
               if (s <= t1 && f >= t0) during = en.name;
             }
             if (!during) during = stack.length ? stack[stack.length - 1] : "(untracked)";
-            entries.push({ name: "LONGTASK during " + during, ms: +e.duration.toFixed(1), at: +(e.startTime / 1000).toFixed(2) });
+            pushEntry({ name: "LONGTASK during " + during, ms: +e.duration.toFixed(1), at: +(e.startTime / 1000).toFixed(2) });
             console.log("[perf] ⏸ LONG TASK " + e.duration.toFixed(0) + "ms @ " + secs(e.startTime) + " during " + during);
           }
         });
@@ -30243,15 +30288,157 @@ const UIRenderer = (() => {
     }
     function setOn(v) {
       on = !!v;
-      if (on) startLongTasks();
-      else if (obs) { obs.disconnect(); obs = null; }
+      if (on) { onSince = performance.now(); startLongTasks(); }
+      else {
+        if (onSince != null) { onAccumMs += performance.now() - onSince; onSince = null; }
+        if (obs) { obs.disconnect(); obs = null; }
+        pickerSession = null;    // a mid-session toggle-off ends the picker session
+        frameGap.disarm();
+      }
       console.log("[perf] instrumentation " + (on ? "ON — main flows + >50ms long tasks logged" : "OFF"));
     }
-    /** Every timing at/over minMs (default 100), sorted by duration desc. */
+    /** Every timing at/over minMs (default 100), sorted by duration desc.
+        (Journey marks carry no ms and are excluded by the filter.) */
     function report(minMs) {
       return entries.filter(e => e.ms >= (minMs == null ? 100 : minMs)).sort((a, b) => b.ms - a.ms);
     }
-    return { setOn, time, report, entries, get on() { return on; } };
+
+    /* PERFCAP — journey marks + on-device frame-gap capture. All of it is
+       debug-only: with capture OFF every entry point below is a single
+       boolean check, and nothing here ever writes to storage or the DOM. */
+
+    // JOURNEY CONTEXT: a tiny snapshot attached to picker-journey marks so an
+    // on-device dump can correlate jank with deck size / sticker load.
+    function journeyCtx() {
+      let deck = null, stickers = null;
+      try {
+        if (campaign) {
+          const d = campaign.getRunDeckLive();   // live read-only refs
+          deck = d.length;
+          let s = 0;
+          for (const c of d) s += (c.stickers || []).length;
+          stickers = s;
+        }
+      } catch (e) { /* measurement must never break the game */ }
+      const g = frameGap.stats();
+      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky };
+    }
+    // Journey mark: { mark:true, stage, at(s), ctx }. picker:* stages pick up
+    // the journey context automatically when no ctx is passed.
+    function mark(stage, ctx) {
+      if (!on) return;
+      if (ctx === undefined && stage.indexOf("picker:") === 0) ctx = journeyCtx();
+      pushEntry({ mark: true, stage, at: +(performance.now() / 1000).toFixed(2), ctx });
+    }
+    // Mark on the NEXT PAINT (one rAF) — for tap → visual-ack stages. Off: no rAF.
+    function markAfterPaint(stage) {
+      if (!on) return;
+      requestAnimationFrame(() => mark(stage));
+    }
+
+    /* FRAME-GAP SAMPLER (PERFCAP): WKWebView does NOT fire "longtask" entries,
+       so on-device main-thread stalls are invisible to the observer above.
+       While capture is ON and the apply picker is OPEN, this rAF loop measures
+       per-frame gaps into a rolling window (recent max / mean / count of
+       >100ms "janky" frames). Measurement only — reads timestamps, touches no
+       DOM, no storage. NOT a second animation clock: it is armed by
+       pickerOpened, self-terminates on the first frame the modal is hidden
+       (covers EVERY close path — confirm tails, pack-walk advance, ✕/backdrop)
+       and is cancelled by pickerClosed/setOn(false); it dies with the modal,
+       so the one-animation-clock invariant (the single drift rAF) is kept. */
+    const frameGap = (() => {
+      const WIN = 180;              // ~3s of frames at 60fps
+      const gaps = [];              // rolling window of recent frame gaps (ms)
+      let rafId = null, last = 0, max = 0, sum = 0, janky = 0;
+      function stats() {
+        return { max: +max.toFixed(1), mean: gaps.length ? +(sum / gaps.length).toFixed(1) : 0,
+                 janky, frames: gaps.length };
+      }
+      function tick(t) {
+        // Self-terminate on ANY close path (a classList read, not a layout read).
+        if (!on || !el.stickerApplyModal || el.stickerApplyModal.classList.contains("hidden")) {
+          disarm();
+          pickerClosed();   // stamps picker:closed with the final gap stats
+          return;
+        }
+        if (last) {
+          const g = t - last;
+          gaps.push(g); sum += g;
+          if (g > max) max = g;
+          if (g > 100) janky++;
+          if (gaps.length > WIN) {
+            const old = gaps.shift(); sum -= old;
+            if (old > 100) janky--;
+            if (old >= max) { max = 0; for (const x of gaps) if (x > max) max = x; }
+          }
+        }
+        last = t;
+        rafId = requestAnimationFrame(tick);
+      }
+      function arm() {
+        if (!on || rafId != null) return;
+        gaps.length = 0; last = 0; max = 0; sum = 0; janky = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+      function disarm() {
+        if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+      }
+      return { arm, disarm, stats, get active() { return rafId != null; } };
+    })();
+
+    // Picker session bookkeeping: opened by the open-picker wrappers (only
+    // when the modal actually unhid), closed by closeStickerApply OR the
+    // sampler's hidden-self-terminate — whichever fires first.
+    let pickerSession = null;
+    function pickerOpened(kind) {
+      if (!on) return;
+      pickerSession = { kind, t0: performance.now() };
+      mark("picker:open");
+      frameGap.arm();
+    }
+    function pickerClosed() {
+      if (!on || !pickerSession) return;
+      const ctx = journeyCtx();
+      ctx.openMs = +(performance.now() - pickerSession.t0).toFixed(1);
+      mark("picker:closed", ctx);
+      pickerSession = null;
+      frameGap.disarm();
+    }
+
+    /** Compact paste-friendly report (PERFCAP): UA, capture on-time, journey
+        marks with inter-mark deltas + context, and the >=50ms timings.
+        Memory-only — the debug "copy perf report" button copies this text. */
+    function dump() {
+      const L = ["== ninelives perf dump =="];
+      let ua = "?";
+      try { ua = (typeof navigator !== "undefined" && navigator.userAgent) || "?"; } catch (e) {}
+      L.push("ua: " + ua);
+      const onMs = onAccumMs + (on && onSince != null ? performance.now() - onSince : 0);
+      L.push("capture: " + (on ? "ON" : "OFF") + " · on-time " + (onMs / 1000).toFixed(1) +
+        "s · entries " + entries.length + "/" + PERF_CAP);
+      L.push("-- journeys --");
+      let prev = null;
+      for (const e of entries) {
+        if (!e.mark) continue;
+        const d = prev == null ? "" : " +" + ((e.at - prev) * 1000).toFixed(1) + "ms";
+        prev = e.at;
+        let c = "";
+        if (e.ctx) {
+          const bits = [];
+          if (e.ctx.deck != null) bits.push("deck " + e.ctx.deck);
+          if (e.ctx.stickers != null) bits.push("stk " + e.ctx.stickers);
+          if (e.ctx.openMs != null) bits.push("open " + e.ctx.openMs + "ms");
+          if (e.ctx.gapMax) bits.push("gap max " + e.ctx.gapMax + "ms mean " + e.ctx.gapMean + "ms janky " + e.ctx.janky);
+          if (bits.length) c = " {" + bits.join(" · ") + "}";
+        }
+        L.push(e.stage + " @" + e.at.toFixed(2) + "s" + d + c);
+      }
+      L.push("-- timings >= 50ms --");
+      for (const e of report(50)) L.push(e.name + " " + e.ms.toFixed(1) + "ms @" + e.at.toFixed(2) + "s");
+      return L.join("\n");
+    }
+    return { setOn, time, mark, markAfterPaint, pickerOpened, pickerClosed, dump, report, entries,
+             PERF_CAP, PERF_SLACK, get on() { return on; }, get sampling() { return frameGap.active; } };
   })();
   if (typeof window !== "undefined") window.__perf = Perf;   // read-only report hook (tests/tuning)
 
@@ -30261,6 +30448,19 @@ const UIRenderer = (() => {
      single boolean check. Measurement only — no behavior change. */
   {
     const wrap = (name, fn) => function (...args) { return Perf.time(name, () => fn.apply(this, args)); };
+    // PERFCAP: open-picker wrapper — times the open, then (only when the modal
+    // actually unhid; the open fns no-op on an empty deck / no campaign / a
+    // fizzled strip) opens a picker session (journey mark + frame-gap sampler)
+    // and schedules the first-paint mark as a double-rAF after the unhide.
+    const wrapOpen = (name, kind, fn) => function (...args) {
+      if (!Perf.on) return fn.apply(this, args);
+      const r = Perf.time(name, () => fn.apply(this, args));
+      if (el.stickerApplyModal && !el.stickerApplyModal.classList.contains("hidden")) {
+        Perf.pickerOpened(kind);
+        requestAnimationFrame(() => requestAnimationFrame(() => Perf.mark("picker:firstPaint")));
+      }
+      return r;
+    };
     showDeckSelect = wrap("deck-select:show", showDeckSelect);
     startCampaign = wrap("deck-select:startCampaign", startCampaign);
     startRun = wrap("deal:startRun", startRun);
@@ -30268,9 +30468,33 @@ const UIRenderer = (() => {
     renderStore = wrap("store:render", renderStore);
     renderProgressionMap = wrap("map:render", renderProgressionMap);
     showProgressionMap = wrap("map:show", showProgressionMap);
-    openStickerApply = wrap("sticker:openPicker", openStickerApply);
+    openStickerApply = wrapOpen("sticker:openPicker", "sticker", openStickerApply);
     renderStickerApplyCards = wrap("sticker:renderPickerCards", renderStickerApplyCards);
     confirmApplySticker = wrap("sticker:confirmApply", confirmApplySticker);
+    // PERFCAP: the rest of the apply-picker journey. Every target below is a
+    // top-level function DECLARATION in this scope (verified — the same
+    // writable-binding trick as above); off = a single boolean check per call.
+    openStoreRemoval = wrapOpen("picker:openRemoval", "removal", openStoreRemoval);
+    openCardRemove = wrapOpen("picker:openRemove", "remove", openCardRemove);
+    openCardSwap = wrapOpen("picker:openSwap", "swap", openCardSwap);
+    openMapStickerStrip = wrapOpen("picker:openStrip", "strip", openMapStickerStrip);
+    selectApplyCard = wrap("picker:selectCard", selectApplyCard);
+    updateApplyCardInPlace = wrap("picker:updateCardInPlace", updateApplyCardInPlace);
+    dissolveApplyCard = wrap("picker:dissolveCard", dissolveApplyCard);
+    drainApplyGrid = wrap("picker:drainGrid", drainApplyGrid);
+    deferConfirmTail = wrap("picker:deferConfirmTail", deferConfirmTail);
+    closeStickerApply = (function (fn) {
+      return function (...args) {
+        if (!Perf.on) return fn.apply(this, args);
+        const r = Perf.time("picker:close", () => fn.apply(this, args));
+        Perf.pickerClosed();   // confirm-path closes end via the sampler's self-terminate instead
+        return r;
+      };
+    })(closeStickerApply);
+    // DeckInspector.renderCompositionInto is a METHOD on the module object,
+    // not a reassignable declaration in this scope — reassign the (writable)
+    // property instead. Same off = single-boolean-check wrapper.
+    DeckInspector.renderCompositionInto = wrap("deck:renderComposition", DeckInspector.renderCompositionInto);
   }
 
   return { init };

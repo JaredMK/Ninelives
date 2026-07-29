@@ -190,7 +190,7 @@ function buildPicker(src, deck, opts = {}) {
   };
   const factory = new Function(
     "campaign", "el", "document", "requestAnimationFrame", "miniCardHtml",
-    "cardPickMode", "pendingApplyStickerId", "selectedApplyCardId",
+    "cardPickMode", "pendingApplyStickerId", "selectedApplyCardId", "Perf",
     region + "\n;return { renderStickerApplyCards, drainApplyGrid, refreshApplyEligibility,"
     + " updateApplyCardInPlace, applyCardNodes, FIRST: APPLY_FIRST_BATCH, CHUNK: APPLY_CHUNK,"
     + " _gen: () => applyGridGen, _appended: () => applyGridAppended, _bump: () => { applyGridGen++; } };");
@@ -198,7 +198,10 @@ function buildPicker(src, deck, opts = {}) {
     campaign, el, dom.document,
     (fn) => { rafQ.push(fn); return rafQ.length; },
     (c) => "<i>" + c.id + "</i>",
-    opts.mode || "sticker", "rankUp", null);
+    opts.mode || "sticker", "rankUp", null,
+    // PERFCAP no-op stub: the extracted region carries Perf.mark journey calls
+    // (capture-off no-ops in the real game; inert here too).
+    { mark() {}, markAfterPaint() {}, time(n, fn) { return fn(); } });
   return {
     api, el, dom,
     rafPending: () => rafQ.length,

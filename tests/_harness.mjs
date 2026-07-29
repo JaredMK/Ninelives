@@ -88,9 +88,10 @@ export function loadGame(opts = {}) {
     navigator: { maxTouchPoints: 0 },
     setTimeout: () => 0,
     clearTimeout: () => {},
-    requestAnimationFrame: () => 0,
-    cancelAnimationFrame: () => {},
-    console,
+    // Overridable for suites that need to count/observe scheduling (PERFCAP).
+    requestAnimationFrame: opts.requestAnimationFrame || (() => 0),
+    cancelAnimationFrame: opts.cancelAnimationFrame || (() => {}),
+    console: opts.console || console,
   };
 
   const factory = new Function(
@@ -99,7 +100,7 @@ export function loadGame(opts = {}) {
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
       " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData," +
       " TutorialData, DifficultyData, Stats, ZenStats, ZenUnlocks, SeedCode, ItemUnlocks," +
-      " cardMatchesSuit, cardIsWildSuit };"
+      " cardMatchesSuit, cardIsWildSuit, Perf: (typeof window !== \"undefined\" ? window.__perf : undefined) };"
   );
   return factory(...Object.values(sandbox));
 }

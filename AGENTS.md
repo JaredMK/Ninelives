@@ -157,6 +157,35 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.12 (Kimi, PERFCAP)** — on-device perf capture + flat-picker A/B; READ
+  THIS BEFORE TOUCHING THE Perf MODULE OR PICKER CSS:
+  - The `Perf` IIFE (end of the game script) is now ring-CAPPED
+    (`PERF_CAP 400` + `PERF_SLACK 64` batch splice, the `pushLog` pattern) —
+    never push to `entries` directly, go through `pushEntry`.
+  - Journey capture: `Perf.mark(stage, ctx)` / `markAfterPaint` (single
+    boolean check when off; `picker:*` stages auto-attach deck size, sticker
+    count, frame-gap stats). `Perf.dump()` builds the paste-friendly report;
+    the debug "📋 copy perf report" button dumps via `copySeed` (memory-only
+    — NEVER route capture through localStorage; the Capacitor shim posts a
+    native message per `ninelives.*` setItem).
+  - Frame-gap sampler (`frameGap` IIFE): armed by `Perf.pickerOpened(kind)`,
+    SELF-TERMINATES on the first frame `#stickerApplyModal` has `.hidden`
+    (covers every close path — do not add per-close disarm calls), cancelled
+    by `pickerClosed()`/`setOn(false)`. WKWebView never fires longtask, so
+    this sampler is the on-device jank/thermal proxy. It is measurement-only
+    and dies with the modal — NOT a second animation clock.
+  - Wrap block after the Perf module reassigns top-level function
+    DECLARATIONS only; `DeckInspector.renderCompositionInto` is a method —
+    wrapped by property reassignment instead. `tests/stkrb1.test.mjs`
+    re-evaluates picker internals with a no-op Perf stub — new in-body
+    `Perf.mark` calls must keep that stub shape working.
+  - `body.perf-flat` (debug "flat picker (A/B)" checkbox) strips the
+    suspected iOS-compositor-expensive CSS from `#stickerApplyModal` only:
+    backdrop-filter (both prefixes), `.dcs-ic` drop-shadows, saFlash/saRemove
+    filter animations (swapped to opacity-only saFlashFlat/saRemoveFlat
+    keyframes — base animations untouched), and the map-node pmPulseFade
+    pulses. All rules scoped to the class; absent = zero effect.
+
 - **v5.11 (Kimi, ECON1)** — reward economy rework; READ THIS BEFORE
   TOUCHING PAYOUTS, THE Economy MODULE, OR SAVE STATS:
   - Deal coin reward is FLAT: `Economy.dealFlat(stage, rating, isBoss)` =
