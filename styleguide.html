@@ -1,0 +1,414 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRT CASINO — Shoulda Said Same styleguide</title>
+<style>
+  /* ============================================================
+     CRT CASINO styleguide — the ONE reference for the v5.3x restyle.
+     A haunted video poker machine from 1985. Felt green, phosphor
+     glow, chunky pixels, scanlines. This page is the contract:
+     if a game surface disagrees with this page, the surface is wrong.
+     ============================================================ */
+  @font-face { font-family: 'VT323'; src: url('app/assets/fonts/VT323.woff2') format('woff2'); font-display: swap; }
+  @font-face { font-family: 'Press Start 2P'; src: url('app/assets/fonts/PressStart2P.woff2') format('woff2'); font-display: swap; }
+
+  :root {
+    /* THE LOCKED PALETTE — no other colors allowed anywhere.
+       (Intermediate hues may ONLY be produced optically, by dithering
+       two palette colors — see §1 rules.) */
+    --felt-deep: #142820;   /* deep felt background            */
+    --felt-mid:  #1e3a2c;   /* panels / recessed chrome        */
+    --card-face: #ece4cf;   /* aged cream, never pure white    */
+    --suit-red:  #c22f45;   /* hearts/diamonds + danger        */
+    --ink:       #10100e;   /* black elements / outlines       */
+    --gold:      #d9a441;   /* coins ONLY (+ gold accents)     */
+    --phosphor:  #4ef08a;   /* CTAs, highlights, score — the ONLY thing that may glow */
+    --shadow:    #000000;   /* hard offset down-right, NO blur */
+
+    --px: 2px;              /* the pixel-grid unit: borders 2-4px, offsets in multiples */
+    --glow: 0 0 6px rgba(78, 240, 138, 0.55);   /* THE one glow (static text-shadow / drop) */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+  html { background: var(--felt-deep); }
+  body {
+    font-family: 'VT323', monospace;
+    color: var(--card-face);
+    background: var(--felt-deep);
+    padding: 24px 16px 80px;
+    max-width: 900px; margin: 0 auto;
+    font-size: 20px; line-height: 1.25;
+    -webkit-font-smoothing: none; font-smooth: never;
+    text-rendering: optimizeSpeed;
+  }
+  h1, h2, h3 { font-family: 'Press Start 2P', monospace; color: var(--phosphor); text-shadow: var(--glow); }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  h2 { font-size: 14px; margin: 44px 0 12px; border-bottom: var(--px) solid var(--felt-mid); padding-bottom: 8px; }
+  h3 { font-size: 11px; color: var(--gold); text-shadow: none; margin: 20px 0 8px; }
+  p, li { color: var(--card-face); }
+  small, .muted { color: var(--card-face); opacity: 0.62; }
+  code { font-family: 'VT323', monospace; color: var(--gold); background: var(--felt-mid); padding: 1px 5px; font-size: 0.9em; }
+  .rule { border-left: 4px solid var(--phosphor); background: var(--felt-mid); padding: 8px 12px; margin: 10px 0; }
+  .rule.no { border-left-color: var(--suit-red); }
+
+  /* pixel panel: THE standard container. 2px ink border, hard 4px shadow. */
+  .panel {
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow);
+    padding: 14px; margin: 12px 0;
+    image-rendering: pixelated;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+
+  /* §1 palette swatches */
+  .sw { width: 128px; }
+  .sw .chip { height: 56px; border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow); }
+  .sw .lbl { font-size: 16px; margin-top: 6px; }
+  .sw .hex { color: var(--gold); font-size: 15px; }
+
+  /* §2 CRT treatment — the EXACT game overlay, demoed inside a box.
+     In game: ONE fixed full-viewport div (#crtOverlay), pointer-events:none,
+     z-index above everything, both images STATIC. Zero per-frame work. */
+  .crt-demo { position: relative; overflow: hidden; }
+  .crt-layer {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.13) 0 1px, transparent 1px 2px),                    /* scanlines: 2px period */
+      radial-gradient(ellipse 140% 105% at 50% 45%, transparent 62%, rgba(0,0,0,0.28) 100%);           /* corner vignette */
+  }
+  @keyframes crt-flicker { 0% {opacity:1} 25% {opacity:0.72} 40% {opacity:1} 60% {opacity:0.85} 100% {opacity:1} }
+  .crt-flicker { animation: crt-flicker 240ms steps(4) 1; }   /* ONE-SHOT, big events only (deal won/lost) */
+
+  /* §3 type specimens */
+  .spec { display: grid; grid-template-columns: 64px 1fr 1fr; gap: 4px 12px; align-items: baseline; }
+  .spec .vt { font-family: 'VT323', monospace; }
+  .spec .ps { font-family: 'Press Start 2P', monospace; }
+  .spec .sz { color: var(--gold); font-size: 14px; }
+  .spec div { white-space: nowrap; overflow: hidden; }
+
+  /* §4 buttons — the pixel button recipe.
+     Rest:    2px ink border + 4px hard shadow, face color per role.
+     Pressed: translate(2px,2px) + shadow 2px (the button "sinks" one pixel step).
+     Disabled: felt-mid face, 45% text, shadow 2px, no glow. */
+  .pbtn {
+    font-family: inherit; font-size: 20px; cursor: pointer;
+    border: var(--px) solid var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow);
+    padding: 8px 18px; background: var(--felt-mid); color: var(--card-face);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .pbtn:active, .pbtn.pressed { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
+  .pbtn.cta { background: var(--phosphor); color: var(--ink); text-shadow: none; box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); font-weight: bold; }
+  .pbtn.cta.outline { background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow); }
+  .pbtn.charged { background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow); border-color: var(--phosphor); box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); }
+  .pbtn.gold { background: var(--felt-deep); color: var(--gold); border-color: var(--gold); }
+  .pbtn.danger { background: var(--suit-red); color: var(--card-face); }
+  .pbtn:disabled, .pbtn.disabled { background: var(--felt-mid); color: rgba(236,228,207,0.45); box-shadow: 2px 2px 0 0 var(--shadow); text-shadow: none; cursor: default; transform: none; }
+
+  /* §5 cards — NUMERAL-FIRST. The rank IS the card at small scales. */
+  .pcard {
+    background: var(--card-face); color: var(--ink);
+    border: var(--px) solid var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow);
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; font-family: 'VT323', monospace;
+  }
+  .pcard.red { color: var(--suit-red); }
+  .pcard .rank { line-height: 0.8; font-weight: bold; }
+  .pcard .suit { line-height: 1; }
+  .pcard .pips { position: absolute; inset: 4px; display: flex; justify-content: space-between; font-size: 12px; opacity: 0.8; }
+  .c100 { width: 96px;  height: 134px; } .c100 .rank { font-size: 64px; } .c100 .suit { font-size: 26px; }
+  .c75  { width: 72px;  height: 100px; } .c75 .rank  { font-size: 48px; } .c75 .suit  { font-size: 20px; }
+  .c50  { width: 48px;  height: 67px;  border-width: 2px; box-shadow: 2px 2px 0 0 var(--shadow); } .c50 .rank { font-size: 34px; } .c50 .suit { font-size: 14px; }
+  .pcard.joker { background: var(--felt-deep); color: var(--gold); border-color: var(--gold); }
+  .pcard.blank { background: var(--felt-mid); color: rgba(236,228,207,0.5); }
+  .pcard.wild .rank { color: var(--phosphor); text-shadow: var(--glow); }
+  .pcard.back { color: transparent; }
+  /* dithered card back + the ONLY sanctioned texture technique: baked pattern tiles */
+  .dither-red   { background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; image-rendering: pixelated; }
+  .dither-gold  { background-image: url('data:image/gif;base64,R0lGODlhAgACAIABANmkQRQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; image-rendering: pixelated; }
+  .dither-felt  { background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAB46LBQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; image-rendering: pixelated; }
+  /* map web lines: dashed pixel edges in low-contrast felt tone */
+  .webline { height: 4px; background: repeating-linear-gradient(90deg, var(--felt-mid) 0 8px, transparent 8px 14px); width: 260px; }
+  .webline.lit { background: repeating-linear-gradient(90deg, var(--phosphor) 0 8px, transparent 8px 14px); box-shadow: none; }
+
+  /* §6 sprites */
+  canvas.sprite, img.sprite { image-rendering: pixelated; width: 96px; height: 96px; background: var(--felt-mid); border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow); }
+  .icon24 { image-rendering: pixelated; width: 72px; height: 72px; background: var(--felt-mid); border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow); }
+
+  /* §7 stat bar (HUD) — recedes into felt mid-tone; ONLY score is phosphor */
+  .hudbar { display: flex; gap: 10px; align-items: center; background: var(--felt-mid); border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow); padding: 6px 10px; font-size: 18px; }
+  .hudbar .coin { color: var(--gold); }
+  .hudbar .score { color: var(--phosphor); text-shadow: var(--glow); margin-left: auto; }
+  .hudbar .dim { opacity: 0.62; }
+
+  /* §8 inventory checklist */
+  ul.inv { list-style: none; margin: 6px 0 18px; }
+  ul.inv li { padding: 3px 0; border-bottom: 1px solid rgba(30,58,44,0.6); font-size: 17px; }
+  ul.inv code { font-size: 13px; }
+  ul.inv small { color: rgba(236,228,207,0.55); font-size: 14px; }
+  .count { color: var(--gold); text-shadow: none; }
+  .verdict { border: var(--px) solid var(--phosphor); background: var(--felt-mid); box-shadow: 4px 4px 0 0 var(--shadow); padding: 12px 14px; margin: 14px 0; }
+  .verdict b { color: var(--phosphor); text-shadow: var(--glow); }
+  table { border-collapse: collapse; margin: 10px 0; } td, th { border: 1px solid var(--felt-mid); padding: 4px 10px; font-size: 17px; text-align: left; }
+</style>
+
+<h1>CRT CASINO</h1>
+<p class="muted">Shoulda Said Same · restyle contract · a haunted video poker machine from 1985. Felt green, phosphor glow, chunky pixels, scanlines. <b>Strictly aesthetic — zero behavior changes.</b> Living reference: update this page first, then the game.</p>
+
+<h2>§1 · Palette — locked, 8 colors, no others</h2>
+<div class="row">
+  <div class="sw"><div class="chip" style="background:#142820"></div><div class="lbl">deep felt <span class="hex">#142820</span></div><small>app background, screen wells</small></div>
+  <div class="sw"><div class="chip" style="background:#1e3a2c"></div><div class="lbl">felt mid <span class="hex">#1e3a2c</span></div><small>panels, HUD, recessed chrome</small></div>
+  <div class="sw"><div class="chip" style="background:#ece4cf"></div><div class="lbl">card face <span class="hex">#ece4cf</span></div><small>aged cream — never pure white</small></div>
+  <div class="sw"><div class="chip" style="background:#c22f45"></div><div class="lbl">suit red <span class="hex">#c22f45</span></div><small>♥ ♦, danger, death</small></div>
+  <div class="sw"><div class="chip" style="background:#10100e"></div><div class="lbl">ink <span class="hex">#10100e</span></div><small>outlines, ♠ ♣, text on light</small></div>
+  <div class="sw"><div class="chip" style="background:#d9a441"></div><div class="lbl">coin gold <span class="hex">#d9a441</span></div><small>coins, prices, secondary accents</small></div>
+  <div class="sw"><div class="chip" style="background:#4ef08a"></div><div class="lbl">phosphor <span class="hex">#4ef08a</span></div><small>CTAs, highlights, score. The ONLY glow.</small></div>
+  <div class="sw"><div class="chip" style="background:#000000"></div><div class="lbl">shadow <span class="hex">#000000</span></div><small>hard offset ↘, zero blur</small></div>
+</div>
+<div class="rule"><b>Optical mixing rule:</b> intermediate hues exist ONLY as dithers of two palette colors (baked pattern tiles, <code>image-rendering: pixelated</code>). Example: Pinky's "pink" = 2×2 checker of suit red + card face. Flat intermediate hex values are forbidden.</div>
+<div class="rule no"><b>Forbidden:</b> gradients-as-texture, blur of any kind, rounded corners, pure white, glow on anything but phosphor, translucent white washes (use felt-mid panels instead).</div>
+<div class="row" style="align-items:center">
+  <div><div class="chip dither-red" style="width:128px;height:56px;border:2px solid var(--ink);box-shadow:4px 4px 0 0 #000"></div><small>"pink" = red⊕cream dither</small></div>
+  <div><div class="chip dither-gold" style="width:128px;height:56px;border:2px solid var(--ink);box-shadow:4px 4px 0 0 #000"></div><small>"brass" = gold⊕deep-felt dither</small></div>
+  <div><div class="chip dither-felt" style="width:128px;height:56px;border:2px solid var(--ink);box-shadow:4px 4px 0 0 #000"></div><small>felt texture = mid⊕deep dither</small></div>
+</div>
+
+<h2>§2 · CRT treatment</h2>
+<div class="panel crt-demo">
+  <div style="padding:10px">
+    <div style="font-size:24px;color:var(--phosphor);text-shadow:var(--glow)">DEAL CLEARED · +240</div>
+    <div style="font-size:18px">Sample panel under the exact game overlay: 2px scanlines + corner vignette, one static layer.</div>
+    <div style="font-size:16px" class="muted">Readability check at small size — this line is 16px under scanlines.</div>
+    <div style="font-size:12px" class="muted">And this one is 12px. If you can read this, the opacity is right (≤0.13).</div>
+  </div>
+  <div class="crt-layer"></div>
+</div>
+<div class="rule"><b>Implementation (perf-locked, honors THERMAL bans):</b> ONE fixed full-viewport <code>#crtOverlay</code> div, <code>pointer-events:none</code>, topmost z-index; both background-images static; no filter, no backdrop-filter, no per-frame work. Flicker = one-shot 240ms <code>steps(4)</code> opacity keyframe on that layer, fired ONLY on deal won/lost. Nothing else animates.</div>
+<button class="pbtn cta" onclick="const l=document.querySelector('.crt-layer');l.classList.remove('crt-flicker');void l.offsetWidth;l.classList.add('crt-flicker')">TEST FLICKER (one-shot)</button>
+
+<h2>§3 · Typography — one family everywhere</h2>
+<p>Candidates at the game's REAL smallest sizes (survey: absolute min 7px, 76 declarations &lt; 11px):</p>
+<div class="panel">
+  <div class="spec">
+    <div class="sz">px</div><div class="sz">VT323</div><div class="sz">Press Start 2P</div>
+    <div class="sz">7</div><div class="vt" style="font-size:7px">HIGHER · LOWER · SAME +3 coins K♠ 10♦</div><div class="ps" style="font-size:7px">HIGHER · LOWER · SAME +3 K♠</div>
+    <div class="sz">8</div><div class="vt" style="font-size:8px">HIGHER · LOWER · SAME +3 coins K♠ 10♦</div><div class="ps" style="font-size:8px">HIGHER · LOWER · SAME +3 K♠</div>
+    <div class="sz">9</div><div class="vt" style="font-size:9px">Buy &amp; Apply · 12 — Add to any ♠ card</div><div class="ps" style="font-size:9px">Buy &amp; Apply · 12</div>
+    <div class="sz">10</div><div class="vt" style="font-size:10px">Buy &amp; Apply · 12 — Add to any ♠ card</div><div class="ps" style="font-size:10px">Buy &amp; Apply · 12</div>
+    <div class="sz">12</div><div class="vt" style="font-size:12px">Ace high · suits don't matter · build v5.30</div><div class="ps" style="font-size:12px">Ace high · suits don't matter</div>
+    <div class="sz">13</div><div class="vt" style="font-size:13px">Spade Peeker — peek the next draw while a ♠ tops a pile</div><div class="ps" style="font-size:13px">Spade Peeker — peek the draw</div>
+    <div class="sz">16</div><div class="vt" style="font-size:16px">STAGE 2 · RUN 4 · 38 CARDS · 214 COINS</div><div class="ps" style="font-size:16px">STAGE 2 · RUN 4</div>
+    <div class="sz">20</div><div class="vt" style="font-size:20px">SHOULDA SAID SAME</div><div class="ps" style="font-size:20px">SHOULDA SAID SAME</div>
+  </div>
+</div>
+<div class="verdict"><b>VERDICT: VT323</b> is the game family — at 7–10px (a quarter of all text) Press Start 2P collapses into unreadable blocks while VT323 stays legible; VT323 has lowercase for item descriptions; and its condensed width survives the 390px phone layouts. <b>Press Start 2P is reserved for display headers only</b> (screen titles, "SHOULDA SAID SAME", the version footer wordmark) at ≥11px — a two-tier system with ONE body family, matching 1985 cabinet practice (bitmap body + display marquee). Migration policy: text currently at 7px moves to 8px VT323 (pure visual change; VT323's condensed advance means no layout overflow).</div>
+
+<h2>§4 · Buttons — every state</h2>
+<div class="panel"><div class="row">
+  <button class="pbtn cta">HIGHER</button>
+  <button class="pbtn cta pressed">HIGHER (pressed)</button>
+  <button class="pbtn cta" disabled>HIGHER (disabled)</button>
+  <button class="pbtn charged">SAME ◆ CHARGED</button>
+  <button class="pbtn cta outline">SAME (ready)</button>
+</div>
+<p class="muted" style="margin-top:8px">Higher / Same / Lower are the most alive elements on screen: phosphor fill (or phosphor outline for Same-ready), the only glow, hard shadows. Pressed = sink 2px, shadow halves. Same-charged = deep-felt face, phosphor border+text+glow.</p>
+<div class="row" style="margin-top:12px">
+  <button class="pbtn">MENU ITEM</button>
+  <button class="pbtn gold">BUY · 12</button>
+  <button class="pbtn danger">ABANDON RUN</button>
+  <button class="pbtn disabled">LOCKED</button>
+</div></div>
+
+<h2>§5 · Cards — the numeral IS the card</h2>
+<div class="panel"><div class="row">
+  <div class="pcard c100 red"><div class="pips"><span>♦</span><span style="align-self:flex-end">♦</span></div><div class="rank">10</div><div class="suit">♦</div></div>
+  <div class="pcard c100"><div class="pips"><span>♠</span><span style="align-self:flex-end">♠</span></div><div class="rank">K</div><div class="suit">♠</div></div>
+  <div class="pcard c75 red"><div class="rank">Q</div><div class="suit">♥</div></div>
+  <div class="pcard c75 joker"><div class="rank">★</div><div class="suit">JOKER</div></div>
+  <div class="pcard c50"><div class="rank">7</div><div class="suit">♣</div></div>
+  <div class="pcard c50 red"><div class="rank">A</div><div class="suit">♦</div></div>
+  <div class="pcard c50 blank"><div class="rank">?</div></div>
+  <div class="pcard c50 wild"><div class="rank">4</div><div class="suit">✳</div></div>
+  <div class="pcard c50 back dither-red"></div>
+</div>
+<p class="muted" style="margin-top:8px">100% / 75% / 50%. Corner pips are decoration at 100% ONLY — at ≤75% the oversized centered numeral carries everything (deals reach 40+ cards). Readability beats pip fidelity. Card backs = dither tile per deck. Never pure white; never rounded.</p>
+<h3>Map web lines — dashed pixel edges, low-contrast felt (lit = phosphor for the taken path)</h3>
+<div class="webline"></div><div style="height:8px"></div><div class="webline lit"></div>
+</div>
+
+<h2>§6 · Sprites — one grid, one outline</h2>
+<div class="panel">
+  <div class="row">
+    <span><canvas class="sprite" id="spIdle" width="16" height="16"></canvas><br><small>Pinky · idle</small></span>
+    <span><canvas class="sprite" id="spHappy" width="16" height="16"></canvas><br><small>Pinky · happy</small></span>
+    <span><canvas class="sprite" id="spSad" width="16" height="16"></canvas><br><small>Pinky · sad</small></span>
+  </div>
+  <p class="muted" style="margin-top:8px">All four characters: 16×16 base grid, 1px ink outline (renders 2px+ at game scale), palette colors + dither mixes only (Pinky body = red⊕cream), drawn once at boot to canvas → data-URI, swapped per state class. States required per character: idle, looking, happy, sad, win-dance, map-trail + tier accessories (belt/bow/hat/tie/monocle) as overlay rows in the same sheet. No smoothing anywhere (<code>image-rendering: pixelated</code>).</p>
+</div>
+
+<h2>§7 · Item icons — 16×16 on the same grid</h2>
+<div class="panel">
+  <div class="row" id="iconRow"></div>
+  <p class="muted" style="margin-top:8px">Sticker, pillar, base, Same-Power, card pack, coin. Suit-restriction badge = 8×8 corner chip (red/ink suit on cream). Cursed/corrupted = same icon with scattered phosphor "bit-rot" pixels + one displaced row. All icons share the outline weight and read at 16px real size.</p>
+</div>
+
+<h2>§8 · Stat bar — recedes into the felt</h2>
+<div class="hudbar"><span class="dim">STG 2·3</span><span>♥ ♦ ♣ ♠</span><span class="coin">◉ 214</span><span class="dim">DECK 38</span><span class="score">SCORE 1180</span></div>
+<p class="muted" style="margin-top:6px">Stat bar and coin counters sit in felt-mid, dimmed; the score chip is the single phosphor element. Nothing here glows except score; nothing pulses.</p>
+
+<h2>§9 · Surface inventory — the restyle is done when every box is checked</h2>
+<p class="muted">66 surfaces from the v5.29 code sweep. Checkbox state persists locally (this page is the tracker). Chunks match the migration commit order.</p>
+<h3>Chunk 1 — Deal board + guess rail <span class="count">(19 surfaces)</span></h3>
+<ul class="inv">
+<li><label><input type="checkbox"> <b>Slim HUD line (suit phase track, Same Charge, Same-Power chip, score chip, coin balance)</b> <code>.hud (index.html:6710) — #hudStageRun #hudSame #hudSamePower #hudScoreChip #hudScore #hudD</code><br><small>Always-on play HUD; #hudSamePower has an activate button .sp-on-btn (17412) and hold-help</small></label></li>
+<li><label><input type="checkbox"> <b>Stage·Run floating badge</b> <code>#stageRun .stage-run (index.html:6704; CSS fixed 290)</code><br><small>Fixed top-center badge shown over store/modals; play screen carries stage in HUD instead</small></label></li>
+<li><label><input type="checkbox"> <b>Deal-status row (Reward + live Score projection)</b> <code>#dealStatus (index.html:6728) — #dealReward #dealScore</code><br><small>Glance row between top band and board</small></label></li>
+<li><label><input type="checkbox"> <b>Left rail: vertical rank histogram + deck stack + deck character</b> <code>#rail (6739) — #deckStrip #deckStripScrub #deckStripBars (6742), #deckStat #deckChar #deck</code><br><small>Deck character is the animated mascot (idle/happy/sad/celebrate dances per deck skin); tap=deck modal, hold=quick peek. </small></label></li>
+<li><label><input type="checkbox"> <b>Board: 3x3 pile grid + pillar plaques (top) + base plaques (bottom)</b> <code>#board (6753); built rows .board-pillars/.bp-cell (23514), .board-grid/.board-col (23524),</code><br><small>Cards, dead-marks, pile-count plaques, sticker badges, base count badge (24428), activatable pulse, action-target outlin</small></label></li>
+<li><label><input type="checkbox"> <b>Play controls row (guess buttons / helpers)</b> <code>#playControls (6763) — #actions (#btnHigher #btnSame #btnLower, 6770), #placeLauncher (676</code><br><small>Fixed-height control row; #actionPrompt also lives here (listed under cross-cutting)</small></label></li>
+<li><label><input type="checkbox"> <b>Bottom histogram band (ACTIVE layout)</b> <code>#histBand (6799)</code><br><small>GUESS_SIDE_LAYOUT=true makes this the live deck histogram position; also a tutorial anchor</small></label></li>
+<li><label><input type="checkbox"> <b>Placement sheet (artifact inventory: Cards/Stickers/Pillars/Bases/Same tabs)</b> <code>#placeSheet + #placeBackdrop (6805-6806) — #setupInv #setupTabs #setupStrip #packTrayEl #s</code><br><small>Slide-up sheet over the bottom bars during setup/place flows</small></label></li>
+<li><label><input type="checkbox"> <b>Card/item info popup (hold-help panel)</b> <code>#cardInfo &gt; #cardInfoPanel (6834; CSS fixed 4905, z-85)</code><br><small>SHARED panel: also store hold-help showStoreItemHelp() 26906 and Collection detail showCollectionItemDetail() 26917</small></label></li>
+<li><label><input type="checkbox"> <b>Swipe-guess floating label</b> <code>#swipeLabel (6841; CSS 1218)</code><br><small>HIGHER/LOWER/SAME follows the finger during pile swipes</small></label></li>
+<li><label><input type="checkbox"> <b>Peek info popup + peek band mode</b> <code>#peekInfo (7288; CSS 4891); body.peek-band (CSS ~1107)</code><br><small>Hold a pile/pillar/base during play; peek-band expands histogram band</small></label></li>
+<li><label><input type="checkbox"> <b>Deck quick peek</b> <code>#deckQuick (7281; CSS 4873)</code><br><small>Press-and-hold the deck stack</small></label></li>
+<li><label><input type="checkbox"> <b>Deck inspection modal (full breakdown, histogram + suits + scrubber)</b> <code>#deckModal (7212) — #deckModalTotal #deckModalHist #deckModalSuits #deckScrub #deckBreakdo</code><br><small>Also opened read-only from pack reveal (#packDeckBtn)</small></label></li>
+<li><label><input type="checkbox"> <b>Pile fan-out viewer</b> <code>#pileFan (7292; CSS 4437)</code><br><small>Face-up memory aid of one pile; opened by pile corner .fan-all-btn (18046)</small></label></li>
+<li><label><input type="checkbox"> <b>&#x27;Shoulda said same&#x27; nudge</b> <code>.shoulda-nudge (created 20882)</code><br><small>Teasing chip over a pile that died on a tie, with card wince</small></label></li>
+<li><label><input type="checkbox"> <b>Subset-deal reveal (fan of card backs, &#x27;X of Y in play&#x27;)</b> <code>.subset-reveal .sr-fan .sr-label .sr-sub (created 21046; CSS fixed 1678)</code><br><small>~1.2s flourish before a subset deal</small></label></li>
+<li><label><input type="checkbox"> <b>Traveling-card / deal-cascade FX</b> <code>.fly-card (CSS 1439); .bury-tuck (21178); .av-fly reuse</code><br><small>Balatro-style arcs for every card move; hidden under reduced motion</small></label></li>
+<li><label><input type="checkbox"> <b>Coin/save float chips + Same-Power fire pulse</b> <code>.pillar-float (+ .pile-float .save-float .bury-float .neg variants) (created 21201)</code><br><small>THE shared +N/-N/SAVED floating cue over piles and pillar/base banners</small></label></li>
+<li><label><input type="checkbox"> <b>Tutorial bubbles + highlight ring</b> <code>.tut-layer &gt; .tut-ring + .tut-bubble (created 17755; CSS 1926, z-1600)</code><br><small>First-run Zen tour; copy from tutorial.js; anchors: board, pile, deck char, Same shield, histogram</small></label></li>
+</ul>
+<h3>Chunk 2 — Map <span class="count">(10 surfaces)</span></h3>
+<ul class="inv">
+<li><label><input type="checkbox"> <b>Progression map overlay (climb, nodes, fossils, boss, home)</b> <code>#mapOverlay (7152) — .map-depth #mapBg, #mapFoot, #mapScroll .map-sizer #mapTrack, retired</code><br><small>Node taps: current=start run, cleared=fossil detail, ?=mystery; #histBand relocates into #mapFoot</small></label></li>
+<li><label><input type="checkbox"> <b>Map avatar (Pinky box) + travel/collect FX</b> <code>.map-avatar (.av-shift .av-body .av-badge), .av-fly (25879; CSS 6155)</code><br><small>Deck-character skin, moods per stage, card-collect flights, count badge</small></label></li>
+<li><label><input type="checkbox"> <b>Map spotlight layers</b> <code>.map-dim + .map-spot (created 25793-25794)</code><br><small>Full-map dim + warm glow riding the avatar</small></label></li>
+<li><label><input type="checkbox"> <b>Map key legend (&#x27;?&#x27; button + panel)</b> <code>#mapKeyBtn (7414) + #mapKeyPanel (7415; CSS fixed 2694)</code><br><small>Built at open time from live node markup; CSS-gated on body.on-map</small></label></li>
+<li><label><input type="checkbox"> <b>Map → Store back button</b> <code>#mapStoreBtn (7411; CSS 2661)</code><br><small>Bottom-left fixed button, map only</small></label></li>
+<li><label><input type="checkbox"> <b>Fossil detail popup (cleared-run network)</b> <code>#fossilDetail (7188; CSS 6310) — #fossilDetailTitle #fossilDetailArt #fossilDetailSub</code><br><small>View-only; ✕/backdrop dismiss</small></label></li>
+<li><label><input type="checkbox"> <b>Mystery &#x27;?&#x27; event reveal</b> <code>#mysteryEvent .me-panel (7202) — #mysteryEventTitle #mysteryEventArt #mysteryEventSub #mys</code><br><small>Good/bad rim tint; Continue-only (no dismiss). Outcomes route to pack reveal / removal / strip pickers / store detour / </small></label></li>
+<li><label><input type="checkbox"> <b>Map overscroll Easter egg</b> <code>#mapEgg (7183)</code><br><small>Hidden line revealed by rubber-band overscroll at map bottom</small></label></li>
+<li><label><input type="checkbox"> <b>Map-granted pickers (mystery outcomes)</b> <code>reuse #stickerApplyModal and #packReveal</code><br><small>Forced flows: no ✕/backdrop dismiss in strip mode</small></label></li>
+<li><label><input type="checkbox"> <b>Debug map node addresses + mystery peek tags</b> <code>.pm-addr labels; debug checkbox #debugMapAddr (6884)</code><br><small>Playtester-only overlay stamped per node</small></label></li>
+</ul>
+<h3>Chunk 3 — Store + popups <span class="count">(9 surfaces)</span></h3>
+<ul class="inv">
+<li><label><input type="checkbox"> <b>Store overlay (shelf, loadout, footer)</b> <code>#storeOverlay (7011) — .store-top #storeCoins #storeHelpBtn #rerollBtn, #storeItems shelf,</code><br><small>Between-runs shop; unified object shelf, equipped loadout reference, GO TO MAP</small></label></li>
+<li><label><input type="checkbox"> <b>Store item-type legend panel</b> <code>#storeKeyPanel (7419; CSS fixed 2739)</code><br><small>Opened by #storeHelpBtn (7023); rebuilt from live shelf renderers</small></label></li>
+<li><label><input type="checkbox"> <b>Store detail popup (buy/sell focus view)</b> <code>#storeDetail &gt; #sdPanel (7068) — #sdObj #sdTier #sdName #sdDesc, #sdPlace #sdCols placemen</code><br><small>Sell confirm rides prompt bar (closeStoreSellConfirm 27268)</small></label></li>
+<li><label><input type="checkbox"> <b>Pack reveal (pick-one/two from a bought pack)</b> <code>#packReveal .confirm-overlay (7114; CSS 3411) — #packTitle #packItems #packMsg #packDeckBt</code><br><small>Forced pick, Skip allowed; map version openMapPackReveal() 27490</small></label></li>
+<li><label><input type="checkbox"> <b>Pack item info help slot</b> <code>#packItemHelp .item-help (7134; CSS 4009)</code><br><small>Sits above the pack reveal overlay</small></label></li>
+<li><label><input type="checkbox"> <b>Sticker-apply / card picker modal (5 modes: apply, buy-apply, removal, strip, swap)</b> <code>#stickerApplyModal (7229) — #saHead #saTrash #saSkip #saClose #saBanner #saHist #saSuits #</code><br><small>Confirms ride the prompt bar via body.modal-prompt (closeModalPrompt 28844); sticker-fly animation .dcs.sa-fly (CSS 4754</small></label></li>
+<li><label><input type="checkbox"> <b>Item place picker (pillar/base → column)</b> <code>#itemPlaceModal (7255) — #ipHead #ipBanner #ipHint #ipColumns</code><br><small>Place-on-purchase; Same-Power equip variant</small></label></li>
+<li><label><input type="checkbox"> <b>Post-deal placement screen (&#x27;Spoils of the deal&#x27;)</b> <code>#postDealScreen .overlay.postdeal (7271) — #postDealList #postDealPlaceBtn</code><br><small>Only when items were gained mid-deal; walks each into the pickers</small></label></li>
+<li><label><input type="checkbox"> <b>Store refresh (reroll) confirm</b> <code>body.store-confirm on #actionPrompt</code><br><small>Prompt-bar confirm lifted over store</small></label></li>
+</ul>
+<h3>Chunk 4 — Menus, deck select, collection, summary + popups/toasts <span class="count">(17 surfaces)</span></h3>
+<ul class="inv">
+<li><label><input type="checkbox"> <b>Main menu (title screen)</b> <code>#mainMenu .menu-screen (7295) — .menu-tagline .menu-logo .menu-title #menuButtons #menuFoo</code><br><small>Continue/New Run/Zen/How to Play/Stats/Collection/Sound/Reset progress; first-launch gate note; build line in #menuFoot</small></label></li>
+<li><label><input type="checkbox"> <b>Deck select carousel + seed entry</b> <code>#deckSelect (7312) — #dsBack #dsCarousel #dsDots, #dsSeed #dsSeedToggle #dsSeedBody #dsSee</code><br><small>Swipeable deck roster with unlock rules; 7-char seed code flags run EXHIBITION</small></label></li>
+<li><label><input type="checkbox"> <b>Zen difficulty select</b> <code>#zenSelect (7336) — #zsBack .zs-hint #zsList #zsStart</code><br><small>Difficulty ladder from difficulty.js; select-then-Start</small></label></li>
+<li><label><input type="checkbox"> <b>Collection screen</b> <code>#collectionScreen (7352) — #colBack .col-hint #colList</code><br><small>All items by class; locked = silhouette + hint + progress bar</small></label></li>
+<li><label><input type="checkbox"> <b>Collection item detail popup</b> <code>reuses #cardInfo/#cardInfoPanel (z-override on collection)</code><br><small>Help text + lifetime Telem usage lines</small></label></li>
+<li><label><input type="checkbox"> <b>Lifetime Stats sheet</b> <code>#statsOverlay .sheet-overlay (7374) — #statsGrid #statsReset</code><br><small>Reset stats double-confirms via showMenuConfirm</small></label></li>
+<li><label><input type="checkbox"> <b>How to Play manual (slide deck)</b> <code>#manualOverlay .sheet-overlay (7384) — #manualBody</code><br><small>Mock cards/boards drawn in HTML; can arm tutorial replay</small></label></li>
+<li><label><input type="checkbox"> <b>In-game pause menu</b> <code>#gameMenu .sheet-overlay (7393) — #gameMenuSeed #gameMenuButtons</code><br><small>Zen and campaign variants; tap-to-copy seed line; New Run confirm via prompt bar</small></label></li>
+<li><label><input type="checkbox"> <b>Start / end overlay (multi-mode)</b> <code>#overlay (6943) — #overlayIcon #overlayTitle #overlayMsg #runProgress #zenEndStats #overla</code><br><small>THE shared full-screen phase overlay; kind/cls classes: win, lose, deal-cleared, pinky-home</small></label></li>
+<li><label><input type="checkbox"> <b>Start screen (campaign intro)</b> <code>#overlay default mode</code><br><small>Logo + rules copy + START RUN</small></label></li>
+<li><label><input type="checkbox"> <b>Deal-cleared payout screen (coin tally)</b> <code>#overlay.deal-cleared + #overlayCoins (CSS 4056)</code><br><small>Reward lines appear one by one with coin pings; hold-to-peek board (#peekHint, .peek)</small></label></li>
+<li><label><input type="checkbox"> <b>Game-over / campaign-failed screen</b> <code>#overlay.lose + #lossFossils (6946)</code><br><small>&#x27;Shoulda said &lt;word&gt;&#x27; header; bouncing/colliding fossil field; seed line; unlock-progress rows; guess tiles</small></label></li>
+<li><label><input type="checkbox"> <b>Victory screen (&#x27;Pinky is home&#x27;)</b> <code>#overlay.win.pinky-home</code><br><small>Run summary + CONTINUE—ENDLESS MODE / GO TO MAIN MENU; win banked at boss</small></label></li>
+<li><label><input type="checkbox"> <b>Zen end screen</b> <code>#overlay + #zenEndStats (6958)</code><br><small>Per-game flip/correct lines; win keeps the network-pulse celebration beat</small></label></li>
+<li><label><input type="checkbox"> <b>Deck-unlock celebration popup</b> <code>.deck-unlock-pop .duc-panel (created 22916; CSS 2140, z-2000)</code><br><small>Padlock pops, color floods in, sparkles + ta-daa, name reveal, CONTINUE</small></label></li>
+<li><label><input type="checkbox"> <b>Item-unlock pop queue</b> <code>.deck-unlock-pop.item-unlock-pop (created 22984; CSS 2183)</code><br><small>Same idiom generalized to items; drains one CONTINUE at a time</small></label></li>
+<li><label><input type="checkbox"> <b>Reset-progress flow (double confirm)</b> <code>main-menu item → body.menu-confirm prompt bar</code><br><small>Two chained confirms; only sound pref survives</small></label></li>
+</ul>
+<h3>Chunks 5/6 — Cross-cutting (characters, icons, shared chrome, final sweep) <span class="count">(11 surfaces)</span></h3>
+<ul class="inv">
+<li><label><input type="checkbox"> <b>Boot splash / loading screen</b> <code>#bootSplash (6549; CSS head lines 20-49)</code><br><small>JarHead cream jar art + wordmark; first painted frame</small></label></li>
+<li><label><input type="checkbox"> <b>Neural tissue background atmosphere</b> <code>#tissue (6682; CSS 5165, z:-1) — .haze .blob, .veins svg</code><br><small>Behind ALL content; win cinematic pulses the veins</small></label></li>
+<li><label><input type="checkbox"> <b>Shared bottom prompt bar (EVERY confirm/notice/help)</b> <code>#actionPrompt (#actionPromptText #actionPromptBtns) in #playControls (6780); body classes </code><br><small>PROMPT1: bury, shuffle/donate, pack-replace, peel, trash, sell, reroll, New Run, stats/telemetry reset, failure notices,</small></label></li>
+<li><label><input type="checkbox"> <b>Static-volatility toast</b> <code>.static-toast (.safe/.boom) (created 24917; CSS 4471)</code><br><small>Only toast family in the game; anchors over a board column at deal end</small></label></li>
+<li><label><input type="checkbox"> <b>Global nav corner buttons</b> <code>#menuBtn (7408); .nav-btn CSS 2636</code><br><small>Menu top-left on play/store/map; setScreenNav&#x27;s &#x27;inv&#x27; param is vestigial (no inventory button element exists)</small></label></li>
+<li><label><input type="checkbox"> <b>Footer build line</b> <code>footer + #buildTag (6940)</code><br><small>&#x27;Ace high · suits don&#x27;t matter · build …&#x27;</small></label></li>
+<li><label><input type="checkbox"> <b>Debug panel</b> <code>#debugOverlay (6852; CSS 5023) — seed/next-draw readouts, #debugRanks force-card grid, too</code><br><small>Opened by corner 🐞, ?debug URL, or triple-tap title; body.debug-access gates extras</small></label></li>
+<li><label><input type="checkbox"> <b>Debug toggle + autopilot controls</b> <code>#debugToggle (6845), #autoPilotBtn (6848), #autoPilotSpeed range (6851); CSS 4982/5011</code><br><small>Fixed bottom-left; ▶/⏸ + speed slider only while autopilot enabled</small></label></li>
+<li><label><input type="checkbox"> <b>Artifact telemetry sheet (debug)</b> <code>#telemOverlay .sheet-overlay (7360) — #telemMeta #telemBody + CSV/reset buttons</code><br><small>Playtest balancing table</small></label></li>
+<li><label><input type="checkbox"> <b>Shared icon sprite + coin icon</b> <code>svg.icon-sprite (6593) — #icon-coin, icon-glow/icon-bevel filters; .ico-slot/data-ico glyp</code><br><small>Restyle target: bevel/glow recipe + coin used in HUD, store, debug, overlays</small></label></li>
+<li><label><input type="checkbox"> <b>Viewport probe (not user-visible)</b> <code>#svhProbe (6580; CSS 1259)</code><br><small>Zero-width 100svh measuring element — no restyle needed, listed for completeness</small></label></li>
+</ul>
+<h3>Known ambiguities (resolve during migration, note the resolution here)</h3>
+<ul class="inv">
+  <li><label><input type="checkbox"> <b>#hint</b> — aria-hidden, out of layout; JS still writes it → keep unthemed, confirm no visual leak</label></li>
+  <li><label><input type="checkbox"> <b>Rail-histogram alternate layout</b> — <code>GUESS_SIDE_LAYOUT=true</code> ships histogram in #histBand; the rail-histogram styles are the revertable alternate → theme BOTH or explicitly drop the alternate</label></li>
+  <li><label><input type="checkbox"> <b>.map-hdr</b> — retired/hidden but #mapPhase/#mapDeck still written → theme-or-ignore decision</label></li>
+  <li><label><input type="checkbox"> <b>Win cinematic + deal-out cascade</b> — animation states of parent surfaces; recheck after chunks 1-2 that no old-palette frames remain</label></li>
+</ul>
+
+<h2>§10 · Hard rules (perf + pixel)</h2>
+<ul>
+  <li>Pixel grid: borders 2–4px; offsets/shadows in 2px steps; square corners ONLY (<code>border-radius: 0</code> everywhere).</li>
+  <li>Shadows: <code>box-shadow: 4px 4px 0 0 #000</code> (2px at 50% scale) — never blurred, never colored.</li>
+  <li>Glow: static <code>text-shadow: 0 0 6px rgba(78,240,138,.55)</code> on phosphor elements only. Never animated, never on other colors.</li>
+  <li>Texture: baked dither tiles (data-URI GIF/PNG) — no gradients-as-texture, no runtime filters. (The CRT overlay's scanline/vignette images are the one sanctioned gradient use: they're the CRT, not texture.)</li>
+  <li>CRT overlay: ONE static fixed layer, pointer-inert, zero per-frame work. Flicker one-shot ≤240ms on big events only.</li>
+  <li>No new continuous animations. Existing animation *count* may only go down. All THERMAL bans hold: no full-viewport backdrop-filter, no box-shadow pulses, no blanket will-change, no filter loops.</li>
+  <li>Fonts: VT323 body + Press Start 2P display, self-hosted woff2 in <code>app/assets/fonts/</code>, loaded in BOTH paths (online link block + offline fonts.css); <code>font-smoothing: none</code>.</li>
+  <li>PERFCAP wrapped function names must survive untouched (tests/perfcap.test.mjs pins them).</li>
+  <li>Sounds that clash with the theme: FLAG for the later audio pass, do not change.</li>
+</ul>
+
+<script>
+/* sprite + icon demos: pixel matrices → canvas, the exact technique the game will use.
+   Palette indices: . transparent, K ink, C cream, R red, G gold, P phosphor, F felt-mid, D deep-felt */
+const PAL = { K:'#10100e', C:'#ece4cf', R:'#c22f45', G:'#d9a441', P:'#4ef08a', F:'#1e3a2c', D:'#142820' };
+/* "pink" body: alternating R/C per pixel = optical pink at distance */
+function draw(id, rows) {
+  const cv = document.getElementById(id) || (() => { const c = document.createElement('canvas'); c.width = c.height = 16; c.className = 'icon24'; document.getElementById('iconRow').appendChild(c); return c; })();
+  const g = cv.getContext('2d');
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '.') return;
+    if (ch === 'p') { g.fillStyle = ((x + y) % 2) ? PAL.R : PAL.C; }  /* dithered pink */
+    else g.fillStyle = PAL[ch];
+    g.fillRect(x, y, 1, 1);
+  }));
+}
+const CAT_BASE = [
+'................',
+'..K..........K..',
+'.KpK........KpK.',
+'.KppK......KppK.',
+'.KppppKKKKppppK.',
+'.KppppppppppppK.',
+'.KppppppppppppK.',
+'EYES',
+'.KppppppppppppK.',
+'MOUTH',
+'..KppppppppppK..',
+'..KppppppppppK..',
+'.KppppppppppppK.',
+'.KppKppppppKppK.',
+'.KKK.KKKKKK.KKK.',
+'................'];
+const face = (eyes, mouth) => CAT_BASE.map(r => r === 'EYES' ? eyes : r === 'MOUTH' ? mouth : r);
+draw('spIdle',  face('.KppKppppppKppK.', '.KpppppKKpppppK.'));
+draw('spHappy', face('.KpPpppppppPppK.', '.KppppKKKKppppK.'));
+draw('spSad',   face('.KpKpppppppKppK.', '.KpppKKKKKKpppK.'));
+/* six item icons */
+draw('', ['................','...KKKKKKKKK....','..KCCCCCCCCCK...','..KCCRRRRCCCK...','..KCRRRRRRCCK...','..KCRRRRRRCCK...','..KCCRRRRCCCK...','..KCCCCCCCCCK...','..KCCCCCCCCCK...','...KKKKKKKKK....','......KK........','......KK........','................','................','................','................']); /* sticker */
+draw('', ['................','....KKKKKKKK....','....KGGGGGGK....','.....KGGGGK.....','.....KGGGGK.....','.....KGGGGK.....','.....KGGGGK.....','.....KGGGGK.....','.....KGGGGK.....','.....KGGGGK.....','....KGGGGGGK....','...KGGGGGGGGK...','..KGGGGGGGGGGK..','..KKKKKKKKKKKK..','................','................']); /* pillar */
+draw('', ['................','................','................','................','..KKKKKKKKKKKK..','..KFFFFFFFFFFK..','..KFPPFFFFPPFK..','..KFFFFFFFFFFK..','..KFFFFFFFFFFK..','..KFPPFFFFPPFK..','..KFFFFFFFFFFK..','..KKKKKKKKKKKK..','................','................','................','................']); /* base */
+draw('', ['................','.......KK.......','......KPPK......','.....KPPPPK.....','....KPPPPPPK....','...KPPPPPPPPK...','..KPPPKPPKPPPK..','..KPPPKPPKPPPK..','...KPPPPPPPPK...','....KPPPPPPK....','.....KPPPPK.....','......KPPK......','.......KK.......','................','................','................']); /* same-power */
+draw('', ['................','..KKKKKKKKKK....','..KCCCCCCCCK....','..KCKKKKKKCKK...','..KCKCCCCCCKCK..','..KCKCRRCCCKCK..','..KCKCRRCCCKCK..','..KCKCCCCCCKCK..','..KCKCCCCCCKCK..','..KCKKKKKKKKCK..','..KKCCCCCCCCKK..','...KKKKKKKKKK...','................','................','................','................']); /* card pack */
+draw('', ['................','.....KKKKKK.....','....KGGGGGGK....','...KGGKKKKGGK...','..KGGKGGGGKGGK..','..KGKGGKKGGKGK..','..KGKGKGGKGKGK..','..KGKGKGGKGKGK..','..KGKGGKKGGKGK..','..KGGKGGGGKGGK..','...KGGKKKKGGK...','....KGGGGGGK....','.....KKKKKK.....','................','................','................']); /* coin */
+/* checklist persistence */
+document.querySelectorAll('ul.inv input[type=checkbox]').forEach((cb, i) => {
+  const key = 'crtguide.' + i;
+  cb.checked = localStorage.getItem(key) === '1';
+  cb.addEventListener('change', () => localStorage.setItem(key, cb.checked ? '1' : '0'));
+});
+</script>
