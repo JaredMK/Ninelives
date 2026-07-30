@@ -107,18 +107,28 @@ export function run() {
       "…the kept save is the synchronous store checkpoint that flags savedOnTap");
   }
 
-  // --- R1) Immediate acknowledgement on the shared close tail ----------------
+  // --- R1) The fly owns the close for every successful sticker apply ---------
   {
-    // The fall-through (non-modifying sticker + shared close) closes the prompt
-    // bar AND begins the picker close BEFORE handing the heavy tail to the
-    // frame-deferred rebuild.
+    // STICKER FLY (v5.22): the old immediate-ack (close on the tap frame) is
+    // gone for successful applies — the banner chip flies onto the card, the
+    // card updates + flashes at the landing, THEN the picker closes (≈850ms,
+    // the old modifying-branch length). The immediate ack survives ONLY for a
+    // failed apply / the reduced-motion non-modifying path.
+    r.ok(confirm.includes("flyStickerToCard(flyBtn, () => {"),
+      "every successful sticker apply starts the chip fly");
+    const land = confirm.slice(confirm.indexOf("flyStickerToCard(flyBtn, () => {"));
+    r.ok(land.indexOf("updateApplyCardInPlace(flyId)") < land.indexOf('btn.classList.add("sa-flash")')
+      && land.indexOf('btn.classList.add("sa-flash")') < land.indexOf("setTimeout(() => finishApply(btn), 400)"),
+      "…on landing the card updates in place (chip appears), pops, and closes 400ms later");
+    r.ok(confirm.includes("const finishApply = (btn) => {")
+      && confirm.includes("suppressStorePersistOnce = true"),
+      "…the shared close tail suppresses the store's redundant second checkpoint");
+    r.ok(/prefersReduce\(\)[\s\S]{0,700}deferConfirmTail\(savedOnTap/.test(confirm),
+      "…reduced motion skips the fly (flash if modifying, instant close otherwise)");
     const ackAt = confirm.indexOf('closeModalPrompt();\n    el.stickerApplyModal.classList.add("hidden");');
-    r.ok(ackAt !== -1, "the close tail closes the prompt bar + modal on the tap frame (immediate ack)");
-    const deferAt = confirm.indexOf("deferConfirmTail(savedOnTap, function ()");
+    r.ok(ackAt !== -1, "the failure fall-through still closes the prompt bar + modal on the tap frame");
+    const deferAt = confirm.lastIndexOf("deferConfirmTail(savedOnTap, function ()");
     r.ok(deferAt !== -1 && ackAt < deferAt, "…and defers renderDeckStrip + continuePendingPlacement AFTER that");
-    const tailFn = confirm.slice(deferAt);
-    r.ok(/deferConfirmTail\(savedOnTap, function \(\) \{\s*renderDeckStrip\(\);\s*continuePendingPlacement\(\);/.test(tailFn),
-      "…the deferred tail is exactly the heavy pair (histogram repaint + placement/store rebuild)");
   }
 
   // --- R7) The card-MODIFYING flash-then-close is preserved (+ STKRB1 targeted) --
@@ -126,9 +136,9 @@ export function run() {
     r.ok(confirm.includes('t.kind === "rank"')
       && confirm.includes('["changeSuitTo", "changeSuitRandom", "randomFixedValue"].indexOf(t.behavior) !== -1'),
       "the modifies-card detection (rank / suit-change / random) is intact");
-    // STKRB1: the changed card now updates IN PLACE — a targeted single-card
+    // STKRB1: the changed card updates IN PLACE — a targeted single-card
     // rebuild through the sig cache — instead of a full grid re-render.
-    r.ok(confirm.includes("updateApplyCardInPlace(flashId)") && confirm.includes('btn.classList.add("sa-flash");'),
+    r.ok(confirm.includes("updateApplyCardInPlace(flyId)") && confirm.includes('btn.classList.add("sa-flash");'),
       "…the changed card updates in place to its new face and flashes");
     r.ok(!confirm.includes("renderStickerApplyCards("),
       "…NO full grid rebuild anywhere on the confirm paths (STKRB1)");
@@ -137,17 +147,17 @@ export function run() {
     // nothing can leave the visible window).
     r.eq(countOf(confirm, "scrollIntoView"), 0,
       "…no bring-into-view remains (the card never moves — SORT-FROZEN)");
-    r.ok(/setTimeout\(\(\) => \{[\s\S]*?btn\.classList\.remove\("sa-flash"\);[\s\S]*?stickerApplyModal\.classList\.add\("hidden"\);/.test(confirm),
-      "…then closes the picker after the flash");
-    // The modifies path already deferred behind the 850ms flash; its heavy tail
-    // is now wrapped in the same one-shot suppression (no double-persist there).
-    const flashAt = confirm.indexOf('btn.classList.add("sa-flash");');
-    // (Wide window: STKRB1's conditional post-tap scroll rAF sits between the
-    // flash and the close tail — the suppression block is ~1.2k chars out.)
-    const flashTail = confirm.slice(flashAt, flashAt + 1400);
-    r.ok(flashTail.includes("suppressStorePersistOnce = true")
-      && /finally \{ suppressStorePersistOnce = false; \}/.test(flashTail),
-      "…and its continuePendingPlacement runs with the store-persist suppressed (single save)");
+    // The fly mounts its clone INSIDE the modal (the THERMAL4 background
+    // flatten must not strip the chip's vinyl mid-flight).
+    const fly = fnBody(src, "flyStickerToCard");
+    r.ok(fly.includes('el.saBanner.querySelector(".dcs")') && fly.includes("cloneNode(true)")
+      && fly.includes("el.stickerApplyModal || document.body"),
+      "…the fly clones the banner chip and mounts inside the modal");
+    r.ok(fly.includes("transitionend") && fly.includes("setTimeout(() => finish(fly), 600)"),
+      "…done fires exactly once (transitionend OR the safety timeout)");
+    r.ok(html.includes(".dcs.sa-fly {") && /dcs\.sa-fly \{[^}]*transition: transform[^}]*opacity/.test(html)
+      && !/dcs\.sa-fly \{[^}]*filter/.test(html.replace(/filter: none/g, "")),
+      "…the fly tween is transform/opacity only (picker-FX filter ban)");
   }
 
   // --- R8) Non-goal guard: removal/swap tails still route + persist normally --

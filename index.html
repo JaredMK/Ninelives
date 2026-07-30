@@ -4734,6 +4734,14 @@ const NativeApp = (() => {
     .sa-card.sa-flash .mini-card { animation: none; outline: 3px solid var(--amber); outline-offset: 2px; }
     .sa-card.sa-flash::after { animation: none; opacity: 1; }
   }
+  /* STICKER FLY (v5.22): the confirm's chip clone — a fixed one-shot tween from
+     the banner to the target card (transform/opacity only, per the picker-FX
+     filter ban above). pointer-transparent, above the deck modal; JS positions
+     it at the banner chip's rect and transitions it onto the card. */
+  .dcs.sa-fly {
+    position: fixed; z-index: 200; margin: 0; pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.3, 0.7, 0.3, 1), opacity 0.45s ease;
+  }
   /* Farewell for a card LEAVING the deck (Removal / pack swap): a brief lift,
      then it crumples away — played in place before the picker closes. */
   .sa-card.sa-remove { pointer-events: none; position: relative; z-index: 2; }
@@ -7437,7 +7445,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.21 · picker grid sort-frozen mid-session (rank/suit stickers no longer jump cards)";
+const APP_VERSION = "v5.22 · sticker fly: the chip visibly lands on the card on every apply";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -28145,6 +28153,47 @@ const UIRenderer = (() => {
     btn.classList.add("sa-remove");
     setTimeout(done, 720);
   }
+  /* STICKER FLY (v5.22): on a sticker confirm, a clone of the banner's chip
+     visibly FLIES onto the target card before the picker closes — the apply
+     reads as the sticker LANDING (the old non-modifying path just dropped the
+     screen on the tap frame). One-shot transform/opacity tween (never an
+     always-on animation, no filter); rect reads happen inside the rAF off the
+     tap frame (the sanctioned post-tap pattern). `done` fires exactly once —
+     transitionend or a safety timeout, whichever first. Reduced motion callers
+     skip this entirely (straight to the flash/close). */
+  function flyStickerToCard(targetBtn, done) {
+    let fired = false;
+    const finish = (fly) => {
+      if (fired) return;
+      fired = true;
+      if (fly && fly.parentNode) fly.parentNode.removeChild(fly);
+      done();
+    };
+    requestAnimationFrame(() => {
+      const srcChip = el.saBanner && el.saBanner.querySelector(".dcs");
+      if (!srcChip || !targetBtn || !targetBtn.isConnected) { finish(null); return; }
+      const sR = srcChip.getBoundingClientRect();
+      const tR = targetBtn.getBoundingClientRect();
+      const fly = srcChip.cloneNode(true);
+      fly.classList.add("sa-fly");
+      fly.style.left = sR.left + "px";
+      fly.style.top = sR.top + "px";
+      // Mount INSIDE the modal: the THERMAL4 background-flatten strips shadows
+      // from body children outside .deck-modal — the flying chip keeps its
+      // vinyl in here (fixed positioning still uses viewport coords; no
+      // ancestor of the modal transforms/filters).
+      (el.stickerApplyModal || document.body).appendChild(fly);
+      requestAnimationFrame(() => {
+        if (!fly.isConnected) { finish(fly); return; }
+        const dx = (tR.left + tR.width / 2) - (sR.left + sR.width / 2);
+        const dy = (tR.top + tR.height / 2) - (sR.top + sR.height / 2);
+        fly.style.transform = "translate(" + dx + "px," + dy + "px) scale(0.55)";
+        fly.style.opacity = "0.85";
+        fly.addEventListener("transitionend", () => finish(fly), { once: true });
+        setTimeout(() => finish(fly), 600);   // safety net (hidden tab, missed transitionend)
+      });
+    });
+  }
   // One-shot: swallows the NEXT renderStore's internal checkpoint (see renderStore).
   // Only ever true for the synchronous span of a deferred confirm tail — its
   // finally resets it — so it can never leak into an unrelated renderStore.
@@ -28306,47 +28355,61 @@ const UIRenderer = (() => {
         persistCampaign("store");   // the ONE save for this apply — kept synchronous on the tap
         savedOnTap = true;
         Perf.mark("picker:applyDone");   // PERFCAP: apply mutation + save committed
-        // A card-MODIFYING sticker (rank shift, suit change, random rank/suit)
-        // shows its change IN PLACE before the picker leaves: update JUST the
-        // changed card (it re-renders — and may re-sort — to its NEW face),
-        // flash + sparkle it, THEN close as usual. Non-modifying stickers keep
-        // the immediate close (their card face didn't change).
+        // STICKER FLY (v5.22): EVERY successful apply now shows the sticker
+        // landing — the banner chip flies onto the card, THEN the card updates
+        // (badges gain the chip) and pops, THEN the picker closes. Modifying
+        // stickers (rank/suit) ride the same path (their targeted in-place
+        // face update happens at the landing). Total hold ≈ 850ms, the old
+        // modifying-branch length.
         const modifies = t && (t.kind === "rank" ||
           ["changeSuitTo", "changeSuitRandom", "randomFixedValue"].indexOf(t.behavior) !== -1);
-        if (modifies && el.saCards) {
-          const flashId = selectedApplyCardId;
-          selectedApplyCardId = null;               // no lingering selection ring
-          // STKRB1: targeted single-card update (was: a full grid re-render +
-          // a synchronous bring-into-view = a forced whole-grid layout on the
-          // confirm tap).
-          const btn = updateApplyCardInPlace(flashId);
-          if (btn) {
-            pendingApplyStickerId = null; pendingSwapTrayIndex = null;
-            pendingBuyStickerSlot = null;
-            closeModalPrompt();
-            applyPickerBusy = true;   // the 850ms flash owns the picker
-            btn.classList.add("sa-flash");
-            setTimeout(() => {
-              applyPickerBusy = false;
-              btn.classList.remove("sa-flash");
-              el.stickerApplyModal.classList.add("hidden");
-              applyCardsById = new Map();
-              renderDeckStrip();
-              // The 850ms flash already gave the tap its acknowledgement and
-              // painted; the store save was written on the tap, so suppress
-              // renderStore's redundant second checkpoint here too.
-              suppressStorePersistOnce = true;
-              try { continuePendingPlacement(); } finally { suppressStorePersistOnce = false; }
-            }, 850);
-            return;
+        const flyId = selectedApplyCardId;
+        const flyRec = applyCardNodes.get(flyId);
+        const flyBtn = flyRec ? flyRec.btn : null;
+        selectedApplyCardId = null;               // no lingering selection ring
+        pendingApplyStickerId = null; pendingSwapTrayIndex = null;
+        pendingBuyStickerSlot = null;
+        closeModalPrompt();
+        applyPickerBusy = true;   // the fly + flash own the picker
+        // The shared close tail: the save was written on the tap, so suppress
+        // renderStore's redundant second checkpoint in continuePendingPlacement.
+        const finishApply = (btn) => {
+          applyPickerBusy = false;
+          if (btn) btn.classList.remove("sa-flash");
+          el.stickerApplyModal.classList.add("hidden");
+          applyCardsById = new Map();
+          renderDeckStrip();
+          suppressStorePersistOnce = true;
+          try { continuePendingPlacement(); } finally { suppressStorePersistOnce = false; }
+        };
+        if (prefersReduce()) {
+          // Reduced motion: no fly — flash a modifying card in place, close
+          // instantly otherwise (the old immediate ack).
+          if (modifies && flyBtn) {
+            const btn = updateApplyCardInPlace(flyId);
+            if (btn) { btn.classList.add("sa-flash"); setTimeout(() => finishApply(btn), 850); return; }
           }
+          applyPickerBusy = false;
+          el.stickerApplyModal.classList.add("hidden");
+          applyCardsById = new Map();
+          deferConfirmTail(savedOnTap, function () { renderDeckStrip(); continuePendingPlacement(); });
+          return;
         }
+        flyStickerToCard(flyBtn, () => {
+          // LANDED: the card updates NOW (its badges gain the chip, a modifying
+          // sticker's new face shows) and pops.
+          const btn = updateApplyCardInPlace(flyId);
+          if (btn) btn.classList.add("sa-flash");
+          setTimeout(() => finishApply(btn), 400);
+        });
+        return;
       }
     }
-    // IMMEDIATE ACK (non-modifying sticker + the shared close tail): hide the
-    // confirm button and begin the picker close on THIS frame — the engine state
-    // and (on success) the save were already committed above. Everything below
-    // was the long synchronous task that made Apply feel dead under CPU throttle.
+    // IMMEDIATE ACK (the shared close tail — reached when a sticker apply or
+    // swap FAILED to commit, nothing saved): hide the confirm button and begin
+    // the picker close on THIS frame. Successful sticker applies take the fly
+    // path above instead. Everything below was the long synchronous task that
+    // made Apply feel dead under CPU throttle.
     closeModalPrompt();
     el.stickerApplyModal.classList.add("hidden");
     pendingApplyStickerId = null; pendingSwapTrayIndex = null; selectedApplyCardId = null;

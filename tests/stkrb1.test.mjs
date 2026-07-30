@@ -274,7 +274,7 @@ export function run() {
       "…no full re-mount, no forced layout");
     r.ok(!eligSync.includes("innerHTML"),
       "refreshApplyEligibility never re-parses (classList + attribute only)");
-    r.ok(confirm.includes("updateApplyCardInPlace(flashId)") && confirm.includes("updateApplyCardInPlace(stripId)"),
+    r.ok(confirm.includes("updateApplyCardInPlace(flyId)") && confirm.includes("updateApplyCardInPlace(stripId)"),
       "the modifying-sticker AND Cleanse-strip confirms both ride the targeted update");
     r.ok(!confirm.includes("renderStickerApplyCards("),
       "…no confirm path re-renders the whole grid");
