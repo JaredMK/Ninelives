@@ -67,6 +67,7 @@ import { run as mysteryEvents } from "./mystery-events.test.mjs";
 import { run as mysteryUi } from "./mystery-ui.test.mjs";
 import { run as seeds } from "./seeds.test.mjs";
 import { run as unlocks } from "./unlocks.test.mjs";
+import { run as reset1 } from "./reset1.test.mjs";
 import { run as stkrb1 } from "./stkrb1.test.mjs";
 import { run as stkperf1 } from "./stkperf1.test.mjs";
 import { run as perfcap } from "./perfcap.test.mjs";
@@ -137,6 +138,7 @@ const SUITES = [
   ["mystery-ui", mysteryUi],
   ["seeds", seeds],
   ["unlocks", unlocks],
+  ["reset1", reset1],
   ["stkrb1", stkrb1],
   ["stkperf1", stkperf1],
   ["perfcap", perfcap],

@@ -138,14 +138,21 @@ export function run() {
     // retroactive pass re-grants nothing) the unlock store alone keeps it open.
     const g2 = loadGame({ localStorage: storage });
     r.ok(g2.ZenUnlocks.unlocked(ids[1]), "…and stays open across a reload after the reset");
-    // The store deliberately has NO reset — nothing for the button to call.
-    r.ok(typeof g2.ZenUnlocks.reset === "undefined", "ZenUnlocks exposes no reset()");
+    // RESET1 (v5.25): the store now HAS a reset — but ONLY the full-progress
+    // wipe calls it; the stats-screen reset never does (verified in reset1).
+    r.ok(typeof g2.ZenUnlocks.reset === "function", "ZenUnlocks exposes reset() for the full-progress wipe ONLY");
   }
 
   // ---- source contracts: page rendering, win path, overlay unchanged -------
   {
     const src = gameScript();
-    r.ok(!src.includes("ZenUnlocks.reset"), "nothing in the game (incl. the stats Reset button) resets ZenUnlocks");
+    // RESET1 (v5.25): ZenUnlocks.reset() exists now — its ONLY call site is
+    // resetAllProgress (the full-progress wipe); the stats Reset button still
+    // never touches the ladder (reset1 pins that directly).
+    const resetBody = fnBody(src, "resetAllProgress");
+    r.ok(resetBody.includes("ZenUnlocks.reset()"), "the full-progress wipe clears the Zen ladder");
+    r.ok(!fnBody(src, "el.statsReset.addEventListener").includes("ZenUnlocks"),
+      "the stats Reset button still never touches ZenUnlocks");
     // R2: the page reads every number LIVE from the registries — ids/labels
     // via DifficultyData, deck size derived suitCount×13, gate via ZenUnlocks.
     const page = fnBody(src, "showZenSelect");

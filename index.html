@@ -7463,7 +7463,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.24 · Collection items are tappable — detail popup with lifetime usage stats";
+const APP_VERSION = "v5.25 · Reset progress — main-menu double-confirmed full wipe (sound survives)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -15568,6 +15568,10 @@ const SaveStore = (() => {
       if (!available) return;
       try { localStorage.setItem("ninelives.pref." + key, val); } catch (e) { /* ignore */ }
     },
+    clearPref(key) {
+      if (!available) return;
+      try { localStorage.removeItem("ninelives.pref." + key); } catch (e) { /* ignore */ }
+    },
   };
 })();
 
@@ -16052,6 +16056,9 @@ const DeckUnlocks = (() => {
     },
     /** Has any campaign ever been won with `deckId`? */
     wonWith(deckId) { return !!get()[deckId]; },
+    /** RESET1: wipe the whole win record (the full-progress reset ONLY — the
+        Stats screen's reset never touches this store). */
+    reset() { if (ok()) try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } },
     /** Has this deck been beaten at `tier`? (regular reads the legacy key.) */
     wonWithTier(deckId, tier) {
       const key = (!tier || tier === "regular") ? deckId : deckId + "." + tier;
@@ -16097,7 +16104,8 @@ DeckUnlocks.grantRetroactive(Stats.get());
    opens the next). DeckUnlocks' model with its OWN localStorage key —
    deliberately SEPARATE from ZenStats: the Stats screen's reset empties
    the zen tallies, and a reset must never re-lock a difficulty, so the
-   ladder reads ONLY this store (which no reset touches).
+   ladder reads ONLY this store (which the stats-screen reset never touches
+   — only RESET1's full-progress wipe calls ZenUnlocks.reset()).
    RETROACTIVE: wins already recorded in ZenStats (from before this store
    existed, or after this blob was lost) re-grant at load — wins ≥ 1
    means the difficulty was beaten.
@@ -16138,6 +16146,10 @@ const ZenUnlocks = (() => {
       w[diffId] = true; put(w);
       return true;
     },
+    /** RESET1: wipe the whole beaten record (the full-progress reset ONLY —
+        the Stats screen's reset never touches this store, so a stats wipe
+        still never re-locks a difficulty). */
+    reset() { if (ok()) try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } },
     /** Load-time repair: every difficulty ZenStats already shows a win for
         is credited here — an existing Zen winner finds the next difficulty
         open on their first visit to the page, and a lost blob heals. */
@@ -22844,6 +22856,26 @@ const UIRenderer = (() => {
     if (campaign && campaign.markFossilsSaved) campaign.markFossilsSaved();
     if (typeof FossilStore !== "undefined") FossilStore.clear();
     SaveStore.clear();
+  }
+
+  /* RESET1 — total progress wipe (main-menu "Reset progress"). Clears EVERY
+     ninelives.* store: the campaign save + fossil sidecar, lifetime Stats,
+     Zen stats, the item-unlock known-set, telemetry, and the deck/zen unlock
+     ladders, plus the tutorial + campaign-unlock prefs. The SOUND pref
+     deliberately survives (a device setting, not progress). The caller
+     reloads afterwards so every module re-reads empty storage — nothing
+     here mutates live in-memory game state. The ninelives.* write-through
+     shim propagates each removal to Capacitor Preferences natively. */
+  function resetAllProgress() {
+    clearSave();
+    Stats.reset();
+    ZenStats.reset();
+    ItemUnlocks.reset();
+    Telem.reset();
+    DeckUnlocks.reset();
+    ZenUnlocks.reset();
+    SaveStore.clearPref("tutorial2");
+    SaveStore.clearPref(CAMPAIGN_UNLOCK_PREF);
   }
 
   /* ---- DECK ROSTER — Pinky → Mamma → Mr. Smith → Lammy --------------------
@@ -29652,6 +29684,18 @@ const UIRenderer = (() => {
     // pattern); Back returns here with Continue preserved.
     items.push({ label: "Collection", ico: "die", action: () => { hideMainMenu(); showCollection(canContinue); } });
     items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
+    // RESET1: total progress wipe — double-confirmed through the shared prompt
+    // bar (the destructive idiom), then a reload so every module re-reads empty
+    // storage. Only the sound pref survives.
+    items.push({ label: "Reset progress", ico: "loss", cls: "danger", action: () => showMenuConfirm(
+      "Reset ALL progress?",
+      "Reset",
+      () => showMenuConfirm(
+        "Really erase everything?",
+        "Erase everything",
+        () => { resetAllProgress(); location.reload(); },
+        "The campaign, decks, unlocks, stats and tutorial all reset — this can't be undone."),
+      "Campaign, decks, unlocks, stats and the tutorial are wiped — only the sound setting survives.") });
     buildMenu(el.menuButtons, items);
     if (!campaignUnlocked()) {
       const note = document.createElement("div");
