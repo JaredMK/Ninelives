@@ -6917,7 +6917,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.49 · Sound + Reset live under Settings";
+const APP_VERSION = "v5.50 · the Removal card is a torn card now";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8406,21 +8406,24 @@ const PixelArt = (() => {
       '..KCKCKCKCKCKK..',
       '..KKKKKKKKKKKK..',
       '................'],
+    // v5.50: a card TORN IN HALF (offset halves, interlocking jagged tear,
+    // a broken red pip split across the gap) — "removal" reads as destruction,
+    // not the old abstract circle-slash scribble.
     removal: [
       '................',
-      '...KKKKKKKKKK...',
-      '...KCCCCCCCCK...',
-      '...KCCKKKKCCK...',
-      '...KCKCCCKKCK...',
-      '...KCKCCKCKCK...',
-      '...KCKCKCCKCK...',
-      '...KCKKCCCKCK...',
-      '...KCCKKKKCCK...',
-      '...KCCCCCCCCK...',
-      '...KCCCCCCssK...',
-      '...KCCCCCCssK...',
-      '...KCCCCCsssK...',
-      '...KKKKKKKKKK...',
+      '..KKKKKK........',
+      '..KCCCCK.KKKK...',
+      '..KCCCCKKKCCKK..',
+      '..KCCCKK.KCCCK..',
+      '..KCRRK..KRCCK..',
+      '..KCRRKK.KRRCK..',
+      '..KCCCCK..KRCK..',
+      '..KCCCKK.KCCCK..',
+      '..KCCCK..KCCCK..',
+      '..KCCCKK.KCCCK..',
+      '..KCCCCK.KCCCK..',
+      '..KKKKKK.KCCCK..',
+      '.........KKKKK..',
       '................',
       '................'],
     coin: [
