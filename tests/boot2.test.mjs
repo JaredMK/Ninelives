@@ -80,8 +80,16 @@ export function run() {
     r.ok(cssAt !== -1 && heavyAt !== -1 && cssAt < heavyAt, "splash CSS sits in <head> before the heavy game CSS");
     const css = head.slice(cssAt, head.indexOf("</style>", cssAt));
     r.ok(css.includes("position: fixed") && css.includes("inset: 0"), "splash is fixed inset-0 (covers safe areas with viewport-fit=cover)");
-    r.ok(css.includes("background: #f6f3ec"), "splash background is the JarHead cream #f6f3ec");
-    r.ok(css.includes("color: #20313a"), "wordmark ink is the logo ink #20313a");
+    // CRT CASINO: the splash backdrop/inks come from the LOCKED palette. Read
+    // the token values LIVE from the game's own :root block (never re-pin the
+    // hex here) and hold the splash's flat literals to them — the splash CSS
+    // itself must stay token-free (it paints before the main sheet parses).
+    const feltDeep = (html.match(/--felt-deep:\s*(#[0-9a-fA-F]{6})/) || [])[1];
+    const cardFace = (html.match(/--card-face:\s*(#[0-9a-fA-F]{6})/) || [])[1];
+    r.ok(!!feltDeep && !!cardFace, "locked palette tokens (--felt-deep/--card-face) found in the game sheet");
+    r.ok(css.includes("background: " + feltDeep), "splash background is the CRT deep felt (matches --felt-deep)");
+    r.ok(css.includes("color: " + cardFace), "wordmark ink is the aged cream (matches --card-face)");
+    r.ok(!css.includes("var(--"), "splash CSS stays token-free (paints before the main sheet)");
     r.ok(/-apple-system|system-ui/.test(css), "wordmark uses a system font stack (no web-font wait)");
     const z = css.match(/z-index:\s*(\d+)/);
     r.ok(!!z && Number(z[1]) > 2000, "splash z-index sits above every game overlay (max 2000 in the main CSS)");
@@ -125,10 +133,14 @@ export function run() {
   }
 
   // --- R4) Native handoff: config + shim hide() gated on native --------------
+  const feltDeep = (html.match(/--felt-deep:\s*(#[0-9a-fA-F]{6})/) || [])[1] || "";
   {
     const cfg = JSON.parse(readFileSync(join(HERE, "..", "app", "capacitor.config.json"), "utf8"));
     r.eq(cfg.plugins.SplashScreen.launchAutoHide, false, "capacitor.config.json: launchAutoHide is false (shim owns the hide)");
-    r.eq(cfg.plugins.SplashScreen.backgroundColor.toLowerCase(), "#f6f3ec", "capacitor.config.json: native splash backdrop is #f6f3ec");
+    r.eq(cfg.plugins.SplashScreen.backgroundColor.toLowerCase(), feltDeep.toLowerCase(),
+      "capacitor.config.json: native splash backdrop matches the game's --felt-deep (seamless handoff)");
+    r.eq((cfg.ios.backgroundColor || "").toLowerCase(), feltDeep.toLowerCase(),
+      "capacitor.config.json: webview backdrop matches --felt-deep too (no light flash at the edges)");
     r.ok(!("launchShowDuration" in cfg.plugins.SplashScreen), "launchShowDuration dropped (meaningless with launchAutoHide:false)");
     const boot = fnBody(shim, "boot");
     r.ok(boot.length > 0, "NativeApp.boot found in the head shim");
@@ -140,8 +152,9 @@ export function run() {
       "native splash hides only after the HTML splash has painted (double rAF = one committed frame)");
   }
 
-  // --- R5) The three splash PNGs: 2732×2732 flat solid #f6f3ec ---------------
+  // --- R5) The three splash PNGs: 2732×2732 flat solid --felt-deep -----------
   {
+    const want = [1, 3, 5].map((i) => parseInt(feltDeep.slice(i, i + 2), 16));
     const dir = join(HERE, "..", "app", "ios", "App", "App", "Assets.xcassets", "Splash.imageset");
     for (const name of ["splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"]) {
       const b = readFileSync(join(dir, name));
@@ -151,8 +164,8 @@ export function run() {
       const idatAt = b.indexOf(Buffer.from("IDAT", "ascii"));
       const idatLen = b.readUInt32BE(idatAt - 4);
       const raw = inflateSync(b.subarray(idatAt + 4, idatAt + 4 + idatLen));
-      r.ok(raw[0] === 0 && raw[1] === 0xf6 && raw[2] === 0xf3 && raw[3] === 0xec,
-        name + ": corner pixel decodes to #f6f3ec (flat solid, no art)");
+      r.ok(raw[0] === 0 && raw[1] === want[0] && raw[2] === want[1] && raw[3] === want[2],
+        name + ": corner pixel decodes to --felt-deep " + feltDeep + " (flat solid, no art)");
     }
   }
 

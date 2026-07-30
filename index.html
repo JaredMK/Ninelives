@@ -26,7 +26,7 @@
     align-items: center;
     justify-content: center;
     gap: 20px;
-    background: #f6f3ec;         /* JarHead cream — matches the native launch splash for a seamless handoff */
+    background: #142820;         /* CRT deep felt — matches the native launch splash for a seamless handoff */
     opacity: 1;
     transition: opacity 400ms ease;
   }
@@ -36,7 +36,7 @@
        must never flash-swap or wait. */
     font: 600 clamp(18px, 5vw, 23px)/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     letter-spacing: 0.05em;
-    color: #20313a;              /* logo ink */
+    color: #ece4cf;              /* aged cream on the felt (the jar art keeps its own brand inks) */
   }
   /* Fade-out: input falls through immediately (the menu below is ready);
      the node itself is removed from the DOM right after the transition. */
@@ -115,8 +115,8 @@ const NativeApp = (() => {
   function uiSetup() {
     document.body.classList.add("native-app");
     const SB = plugin("StatusBar");
-    // Style.Light = dark status-bar text, for the game's light cream shell.
-    if (SB && SB.setStyle) SB.setStyle({ style: "LIGHT" }).catch(() => {});
+    // Style.Dark = light status-bar text, for the CRT deep-felt shell.
+    if (SB && SB.setStyle) SB.setStyle({ style: "DARK" }).catch(() => {});
     // The game owns every gesture: no pinch zoom, no double-tap zoom. (Pull-
     // to-refresh/rubber-band are killed by body.native-app CSS + the iOS
     // contentInset config; in-game scroll areas keep their own behavior.)
@@ -253,7 +253,10 @@ const NativeApp = (() => {
     --on-felt: #ece4cf;      /* cream ink directly on the felt */
     --on-felt-muted: rgba(236, 228, 207, 0.75);   /* small text on felt */
     --amber-text: #d9a441;   /* gold numerals (dark panels read gold directly) */
-    --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
+    /* Felt texture = the baked mid⊕deep dither TILE (§1 optical-mix rule); the
+       old --felt-grain feTurbulence raster is retired — the ONE sanctioned
+       texture technique is a pixel tile, and this one matches the map's. */
+    --felt-tile: url('data:image/gif;base64,R0lGODlhAgACAIABAB46LBQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -519,8 +522,8 @@ const NativeApp = (() => {
   .play-controls.prompting { overflow: visible; }
   .action-prompt.with-help {
     position: absolute; bottom: 0; left: 0; right: 0; width: auto; z-index: 5;
-    background: var(--panel); border: 1px solid var(--edge-2);
-    border-radius: var(--radius); box-shadow: 4px 4px 0 0 var(--shadow);
+    background: var(--panel); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 8px 12px;
   }
   /* SELL1: selling an equipped item from the store confirms on the SAME bottom
@@ -554,16 +557,21 @@ const NativeApp = (() => {
      the board). */
   body.zen-mode .hud { width: auto; justify-content: center; padding: 3px 10px; margin: 2px auto 0; }
   .ap-btns { flex: 0 0 auto; display: flex; gap: 8px; }
+  /* §4 pixel buttons on the shared prompt bar. Roles: default = felt-mid plain
+     (Cancel/No/Back), .primary = phosphor commit, .danger = suit-red destroy,
+     .gold = a coin-spending commit. Pressing sinks one pixel step. */
   .ap-btn {
-    border: none; border-radius: var(--radius); padding: 9px 15px;
-    font-size: 13px; font-weight: 800; letter-spacing: 0.2px; color: var(--text);
-    background: var(--panel); border: 1px solid var(--edge-2);
+    border-radius: 0; padding: 9px 15px;
+    font-size: 13px; font-weight: 800; letter-spacing: 0.6px; color: var(--text);
+    text-transform: uppercase; font-family: var(--font-text);
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
     box-shadow: 4px 4px 0 0 var(--shadow); cursor: pointer; touch-action: manipulation;
     transition: transform 0.08s ease;
   }
   .ap-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   .ap-btn.primary { background: var(--phosphor); color: var(--ink); border-color: var(--ink); }
   .ap-btn.danger { background: var(--suit-red); color: var(--card-face); border-color: var(--ink); }
+  .ap-btn.gold { background: var(--felt-deep); color: var(--gold); border-color: var(--gold); }
 
   /* "Tap to activate" indicator on a currently-activatable Pillar banner. A
      pulsing violet ring (+ a small corner dot) signals it's tappable now. */
@@ -1940,17 +1948,9 @@ const NativeApp = (() => {
   /* ============================================================
      MAIN MENU · SHEETS (stats / manual / in-game menu) · MENU BUTTON
      ============================================================ */
-  /* LOST-PATHS texture: tangled, wandering string paths that double back and
-     DEAD-END in a small dot — the visual language for "he's lost". One muted
-     warm-grey SVG tile shared by every character-facing surface (menus + the
-     phase overlays); bolder than a watermark, but low-contrast so text, buttons
-     and the character always win. Never used on the in-deal board or the map
-     (the map's REAL paths must stay unambiguous). */
-  :root {
-    /* Recoloured for the FELT base: light sage strands so the "lost" tangle
-       reads on the dark green (was warm brown on cream). */
-    --lost-paths: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 480'%3E%3Cg fill='none' stroke='%23cfe0d4' stroke-opacity='.14' stroke-width='2.5'%3E%3Cpath d='M28 452 C86 392 148 428 156 348 C163 276 92 262 112 202 C130 148 202 172 212 122'/%3E%3Cpath d='M300 474 C258 402 362 384 352 312 C344 258 272 272 286 212'/%3E%3Cpath d='M424 236 C472 214 476 276 424 264 C384 255 402 200 362 212'/%3E%3Cpath d='M56 58 C122 82 98 152 162 162 C224 172 208 92 262 100'/%3E%3Cpath d='M470 96 C420 58 384 132 332 102 C294 80 322 34 284 24'/%3E%3Cpath d='M198 470 C208 424 152 404 168 366'/%3E%3Cpath d='M8 300 C60 310 74 262 40 246'/%3E%3Cpath d='M470 380 C428 366 440 320 396 312 C356 305 356 348 318 338'/%3E%3C/g%3E%3Cg fill='%23cfe0d4' fill-opacity='.20'%3E%3Ccircle cx='214' cy='114' r='3.5'/%3E%3Ccircle cx='289' cy='203' r='3.5'/%3E%3Ccircle cx='355' cy='214' r='3.5'/%3E%3Ccircle cx='270' cy='101' r='3.5'/%3E%3Ccircle cx='277' cy='22' r='3.5'/%3E%3Ccircle cx='171' cy='358' r='3.5'/%3E%3Ccircle cx='36' cy='242' r='3.5'/%3E%3Ccircle cx='311' cy='336' r='3.5'/%3E%3C/g%3E%3C/svg%3E");
-  }
+  /* (The LOST-PATHS tangle + feTurbulence grain that used to texture the
+     character-facing screens are retired: CRT CASINO's one sanctioned texture
+     is a baked dither tile — §1/§10 — and the menus share the map's felt tile.) */
   .menu-screen {
     position: fixed; inset: 0; z-index: 1400; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1960,15 +1960,11 @@ const NativeApp = (() => {
        body.native-app's safe-area padding, so the notch/home-bar insets are
        folded into its own padding — covers the iOS app AND home-screen web. */
     padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
-    /* OPAQUE base (was translucent + backdrop blur: the live board ghosted
-       through as smudges). FELT-GREEN table with the fabric grain, the rose
-       glow accents kept, and the lost-paths tangle layered ON TOP. */
-    background:
-      var(--lost-paths) 0 0 / 460px repeat,
-      var(--felt-grain) 0 0 / 160px repeat,
-      radial-gradient(125% 90% at 50% 16%, rgba(200,120,145,0.14), transparent 56%),
-      radial-gradient(115% 80% at 50% 102%, rgba(46,124,110,0.20), transparent 56%),
-      radial-gradient(ellipse at 50% 45%, var(--felt-2), var(--felt) 60%, var(--felt-3));
+    /* OPAQUE deep-felt table (blocks the live board behind it) — flat by
+       design: no gradients-as-texture (§1), the vignette lives on #crtOverlay.
+       The baked felt-nap dither rides the ::before layer below so its
+       image-rendering:pixelated can't inherit into the logo/characters. */
+    background: var(--felt-deep);
     color: var(--on-felt);   /* text directly on the felt reads light */
   }
   .menu-screen.hidden { display: none; }
@@ -2026,50 +2022,36 @@ const NativeApp = (() => {
   @media (prefers-reduced-motion: reduce) { .tut-ring { animation: none; transition: none;
     box-shadow: var(--glow); } }
 
-  /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
-     a single cheap composited animation (no per-frame JS), holds still under
-     reduced motion. Evokes the game's neural warmth without clutter. */
+  /* Felt-nap texture layer: the SAME baked mid⊕deep dither tile the map's
+     .map-bg uses, on its own static pseudo so image-rendering:pixelated never
+     inherits into the logo/characters. This layer REPLACES the old breathing
+     menu glow (a blurred radial + a 9s infinite animation): blur is banned
+     game-wide (§10) and the standing-animation count may only go down — a
+     static tile idles the compositor completely (its scene-idle pause rule is
+     gone WITH the animation). */
   .menu-screen::before {
-    content: ""; position: absolute; left: 50%; top: 30%; width: 88vw; max-width: 520px; aspect-ratio: 1;
-    transform: translate(-50%, -50%); border-radius: 50%; z-index: 0; pointer-events: none;
-    background: radial-gradient(circle, rgba(232,139,176,0.20), rgba(160,116,214,0.10) 45%, transparent 70%);
-    filter: blur(16px); animation: menuGlow 9s ease-in-out infinite;
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: var(--felt-tile) 0 0 / 4px 4px repeat;
+    image-rendering: pixelated;
   }
-  @keyframes menuGlow {
-    /* Opacity ONLY — animating scale() on a blurred layer forces the GPU to
-       re-rasterize the blur every frame (measured "Very High" Energy Impact
-       on iOS at an idle menu). Alpha-only lets the compositor cache the
-       blurred layer once; the base rule's translate keeps the centering. */
-    0%,100% { opacity: 0.65; }
-    50%     { opacity: 1; }
-  }
-  @media (prefers-reduced-motion: reduce) { .menu-screen::before { animation: none; } }
-  /* GPU idle: while the board is covered (body.scene-idle — menus/overlays up),
-     freeze the glow so the compositor can sleep. Measured on iOS: continuous
-     menu animation held GPU energy at ~44%; a static (still visible) glow lets
-     it idle. Mirrors the #tissue .haze pause rule. Same treatment for the
-     board's deck character, whose breathe/dart keyframes and blink timer kept
-     running invisibly behind the menu after the first deal — #deckChar only,
-     the deck-select characters are the visible stars of their screen. */
-  body.scene-idle .menu-screen::before { animation-play-state: paused; }
+  /* GPU idle: while the board is covered (body.scene-idle — menus/overlays
+     up), freeze the board's deck character, whose breathe/dart keyframes and
+     blink timer kept running invisibly behind the menu after the first deal —
+     #deckChar only, the deck-select characters are the visible stars of their
+     screen. (Mirrors the #tissue .haze pause rule.) */
   body.scene-idle #deckChar .dc-body,
   body.scene-idle #deckChar .dc-face { animation-play-state: paused; }
-  /* Keep the content above the ambient glow. */
+  /* Keep the content above the felt-nap layer. */
   .menu-screen > * { position: relative; z-index: 1; }
 
   /* ---- DECK SELECT carousel (new-run deck picker) ---- */
-  /* NO ambient glow here: the menu glow's top-30% focal spot (behind the
-     LOGO on the main menu) lands squarely behind the carousel character on
-     this layout, where its slow 9s pulse reads as a faint halo appearing
-     around the body right after the perk bounce. The characters rest on
-     plain felt with only their own drop-shadow. */
-  #deckSelect::before { content: none; }
   #deckSelect { gap: clamp(10px, 2.4vh, 18px);
     /* Same unconditional safe-area fold as .menu-screen (its 20px/0 override). */
     padding: calc(20px + env(safe-area-inset-top, 0px)) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
-  /* Display face (Press Start 2P) is ~2x wider per glyph — sized to clear a
-     390px phone at max-content width (full retheme in a later chunk). */
-  .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; max-width: 94vw; text-align: center; color: var(--text); letter-spacing: 0.3px; }
+  /* Screen title — the display marquee (§3): Press Start 2P, phosphor, THE
+     static glow. Sized to clear a 390px phone at max-content width. */
+  .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; max-width: 94vw; text-align: center;
+    color: var(--phosphor); text-shadow: var(--glow); letter-spacing: 0.3px; text-transform: uppercase; }
   .ds-hint { font-size: 12px; color: var(--muted); margin-top: -6px; }
   /* Horizontal scroll-snap track: one deck panel per page; native swipe. */
   .ds-carousel {
@@ -2084,70 +2066,83 @@ const NativeApp = (() => {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
     padding: 8px 26px;
   }
-  /* The deck's character, rendered large. Reuses the in-game .deck-char art (so a
-     deck's colour = its character's colour); locked decks are greyed. */
+  /* The deck's character, rendered large. Reuses the in-game .deck-char art (so
+     a deck's colour = its character's colour — art itself is chunk-5 turf).
+     The blurred drop-shadow is retired (§10: no blur of any kind); locked
+     decks flatten to the shared ink SILHOUETTE under a display-face "?" —
+     the mystery treatment, matching the Collection's locked tiles. */
   .ds-deckchar {
     position: relative; width: min(46vw, 168px); aspect-ratio: 56 / 76;
-    filter: drop-shadow(0 10px 20px rgba(74,40,55,0.32));
   }
   .ds-deckchar .deck-char { pointer-events: none; }
   /* Scale the eyes up for the big render (the in-game cap is sized for the 56px slot). */
   .ds-deckchar .dc-eye { max-width: none; width: 15%; height: 17%; }
-  .ds-panel.locked .ds-deckchar { filter: grayscale(0.92) brightness(0.86) drop-shadow(0 8px 16px rgba(50,40,45,0.28)); opacity: 0.7; }
+  /* Silhouette the INNER character (not the wrap): the "?" ::after lives on
+     the wrap and must escape the brightness(0) — a child can't undo a parent
+     filter. */
+  .ds-panel.locked .ds-deckchar .deck-char { filter: brightness(0) opacity(0.72); }
   .ds-panel.locked .ds-deckchar::after {
-    content: "🔒"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: 40px; filter: grayscale(0); opacity: 0.92; text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    content: "?"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 34px; font-weight: 800;
+    color: var(--card-face); text-shadow: 2px 2px 0 var(--shadow);
   }
   .ds-name { font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--text); }
   .ds-panel.locked .ds-name { color: var(--muted); }
   .ds-sub { font-size: 13px; color: var(--muted); text-align: center; max-width: 80%; line-height: 1.4; min-height: 2.6em; }
   .ds-lock { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center;
-    background: rgba(74,52,44,0.07); border: 1px solid rgba(74,52,44,0.16); border-radius: 999px; padding: 6px 14px; }
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0; padding: 6px 14px; }
   .ds-start { min-width: 180px; }
   /* Difficulty tier row on each unlocked deck panel: Regular / Master /
-     Legendary chips; locked tiers grey out with a "Beat <prior>" note. */
-  .ds-tiers { display: flex; gap: 6px; justify-content: center; margin: 2px 0 10px; }
-  .ds-tier { flex: 0 1 auto; min-width: 82px; padding: 6px 10px; border-radius: 999px;
-    border: 1.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08);
-    color: var(--on-felt, #f2ece2); font-family: var(--font-text); font-size: 11.5px;
+     Legendary chips as §4 pixel buttons; the pick lights PHOSPHOR (the
+     selection colour everywhere — store slots, place picker); locked tiers
+     dim by opacity only (no grayscale filter) with a "Beat <prior>" note. */
+  .ds-tiers { display: flex; gap: 8px; justify-content: center; margin: 2px 0 10px; }
+  .ds-tier { flex: 0 1 auto; min-width: 82px; padding: 6px 10px; border-radius: 0;
+    border: var(--px) solid var(--ink); background: var(--felt-mid);
+    box-shadow: 2px 2px 0 0 var(--shadow);
+    color: var(--text); font-family: var(--font-text); font-size: 11.5px;
     font-weight: 800; letter-spacing: 0.3px; cursor: pointer; touch-action: manipulation;
     transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease; }
-  .ds-tier:active { transform: scale(0.96); }
-  .ds-tier.sel { border-color: var(--amber, #C77E1F); background: rgba(199,126,31,0.22);
-    box-shadow: 0 0 8px rgba(199,126,31,0.35); }
-  .ds-tier.locked { opacity: 0.42; cursor: not-allowed; filter: grayscale(0.5); }
+  .ds-tier:active { transform: translate(2px, 2px); box-shadow: none; }
+  .ds-tier.sel { border-color: var(--phosphor); background: var(--felt-deep);
+    color: var(--phosphor); text-shadow: var(--glow); }
+  .ds-tier.locked { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
   .ds-tier .dst-lock { display: block; font-size: 8.5px; font-weight: 700; font-style: italic;
     letter-spacing: 0.2px; opacity: 0.85; margin-top: 1px; text-transform: none; }
-  /* Pager dots. */
+  /* Pager dots (status dots keep their circles — they read AS dots, not chrome). */
   .ds-dots { display: flex; gap: 8px; justify-content: center; }
-  .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--edge-2); transition: background 0.2s, transform 0.2s; }
-  .ds-dot.on { background: var(--accent-2); transform: scale(1.25); }
-  .ds-dot.locked-dot { box-shadow: inset 0 0 0 1.5px var(--muted); background: transparent; }
+  .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--card-face); opacity: 0.35;
+    transition: background 0.2s, opacity 0.2s, transform 0.2s; }
+  .ds-dot.on { background: var(--phosphor); opacity: 1; transform: scale(1.25); }
+  .ds-dot.locked-dot { box-shadow: inset 0 0 0 1.5px var(--muted); background: transparent; opacity: 1; }
   /* SEED1: "Have a seed?" — one shared control under the pager dots (outside
      the carousel, so horizontal swipes never touch it). The toggle reveals a
      fixed-width 7-char input + a live validation note; the note reserves its
      line height so valid/invalid flips never shift the layout. */
   .ds-seed { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .ds-seed-toggle { background: none; border: none; padding: 6px 14px; cursor: pointer;
-    color: var(--on-felt, #f2ece2); opacity: 0.75; font-family: var(--font-text);
+    color: var(--text); opacity: 0.75; font-family: var(--font-text);
     font-size: 12px; font-weight: 700; letter-spacing: 0.4px;
     text-decoration: underline; text-underline-offset: 3px; touch-action: manipulation; }
   .ds-seed-toggle:active { opacity: 1; }
   .ds-seed-body { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .ds-seed-body.hidden { display: none; }
+  /* Seed code entry: a recessed deep-felt well, gold code text (a coin-like
+     collectible), phosphor focus ring — THE one glow, static. */
   .ds-seed-input {
     width: min(52vw, 176px); padding: 8px 10px; text-align: center;
     font-family: var(--font-text); font-size: 16px; font-weight: 800;
-    letter-spacing: 3px; text-transform: uppercase; color: #3a2e33;
-    background: rgba(255,255,255,0.94); border: 1.5px solid var(--edge-2);
-    border-radius: 10px; outline: none; touch-action: manipulation;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--gold);
+    background: var(--felt-deep); border: var(--px) solid var(--ink);
+    border-radius: 0; outline: none; touch-action: manipulation;
   }
-  .ds-seed-input:focus { border-color: var(--amber); box-shadow: 0 0 8px rgba(199,126,31,0.35); }
-  .ds-seed-input::placeholder { color: rgba(58,46,51,0.35); letter-spacing: 3px; }
+  .ds-seed-input:focus { border-color: var(--phosphor); box-shadow: var(--glow); }
+  .ds-seed-input::placeholder { color: var(--muted); letter-spacing: 3px; }
   .ds-seed-note { min-height: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
-    color: var(--on-felt, #f2ece2); opacity: 0.85; }
-  .ds-seed-note.ok { color: #ffd9a0; opacity: 1; }
-  .ds-seed-note.err { color: #ff9d9d; opacity: 1; }
+    color: var(--text); opacity: 0.85; }
+  .ds-seed-note.ok { color: var(--gold); opacity: 1; }
+  /* Error = the danger role, readable on the felt: cream on a suit-red chip. */
+  .ds-seed-note.err { color: var(--card-face); background: var(--suit-red); padding: 0 6px; opacity: 1; }
   /* Back = the corner-nav convention (circular arrow, top-left — see .nav-btn),
      not a bottom text pill. Fixed INSIDE the fixed #deckSelect, so it shows and
      hides with the screen and stacks above the carousel. */
@@ -2163,36 +2158,40 @@ const NativeApp = (() => {
     max-width: 300px; line-height: 1.5; margin-top: -2px; }
   .zs-list { display: flex; flex-direction: column; gap: 12px; width: min(84vw, 330px); margin-top: 6px; }
   /* One difficulty per row: name, live deck shape, and its Zen win count.
-     The chip language mirrors the deck-select tier chips (same felt surface). */
+     §4 pixel panels — felt-mid face, ink frame, hard shadow; pressing sinks
+     one pixel step (the deck-select tier-chip language, row-sized). */
   .zs-entry { display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 13px 16px; border-radius: 16px;
-    border: 1.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08);
+    padding: 13px 16px; border-radius: 0;
+    border: var(--px) solid var(--ink); background: var(--felt-mid);
+    box-shadow: 4px 4px 0 0 var(--shadow);
     color: var(--on-felt); font-family: var(--font-text); cursor: pointer;
     touch-action: manipulation; transition: transform 0.1s ease, background 0.12s ease; }
-  .zs-entry:active { transform: scale(0.97); }
-  .zs-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: 0.4px; }
+  .zs-entry:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
+  .zs-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; letter-spacing: 0.4px; }
   .zs-meta { font-size: 12.5px; color: var(--on-felt-muted); }
   .zs-wins { font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-felt-muted); }
-  /* Locked = the deck-select locked-tier visual language: greyed + disabled
-     (real label kept), with the unlock condition stated in its note line. */
-  .zs-entry.locked { opacity: 0.42; filter: grayscale(0.5); cursor: not-allowed; }
+  /* Locked = greyed + disabled (real label kept, opacity only — no grayscale
+     filter), with the unlock condition stated in its note line. */
+  .zs-entry.locked { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
   .zs-entry.locked:active { transform: none; }
   .zs-lock { font-size: 11.5px; font-weight: 700; font-style: italic; letter-spacing: 0.2px; }
-  /* SELECTED entry (select-then-Start): a lit accent ring + brighter surface,
-     so the pick is unmistakable before Start is tapped. */
-  .zs-entry.selected { border-color: var(--accent-2); background: rgba(227,107,151,0.16);
-    box-shadow: 0 0 0 1.5px var(--accent-2), 0 4px 14px rgba(0,0,0,0.28); }
-  /* Start button: greyed + inert until a difficulty is picked, then primary-
-     filled. Sits below the list (≥44px tall — comfortable phone tap target). */
+  /* SELECTED entry (select-then-Start): phosphor frame + name + the selection
+     fill — the pick is unmistakable before Start is tapped. */
+  .zs-entry.selected { border-color: var(--phosphor); background: var(--felt-deep);
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); }
+  .zs-entry.selected .zs-name { color: var(--phosphor); text-shadow: var(--glow); }
+  /* Start button: the §4 disabled state until a difficulty is picked, then the
+     phosphor CTA. Sits below the list (≥44px tall — comfortable phone tap). */
   .zs-start { margin-top: 14px; width: min(84vw, 330px); padding: 14px 16px;
-    border: none; border-radius: 16px; font-family: var(--font-display); font-weight: 800;
-    font-size: 18px; letter-spacing: 0.6px; text-transform: uppercase; cursor: pointer;
+    border: var(--px) solid var(--ink); border-radius: 0; font-family: var(--font-display); font-weight: 800;
+    font-size: 15px; letter-spacing: 0.6px; text-transform: uppercase; cursor: pointer;
     touch-action: manipulation; transition: transform 0.1s ease, opacity 0.12s ease;
-    background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.5); }
-  .zs-start[disabled] { cursor: not-allowed; opacity: 0.55; }
-  .zs-start.ready { background: linear-gradient(180deg, var(--accent-2), #d05a87);
-    color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,0.32); }
-  .zs-start.ready:active { transform: scale(0.97); }
+    background: var(--felt-mid); color: rgba(236, 228, 207, 0.45);
+    box-shadow: 2px 2px 0 0 var(--shadow); }
+  .zs-start[disabled] { cursor: not-allowed; }
+  .zs-start.ready { background: var(--phosphor); color: var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); }
+  .zs-start.ready:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
 
   /* ── DECK-UNLOCK CELEBRATION (presentation only) ───────────────────────────
      Fires ONCE, at run termination after the FIRST win with a deck: the next
@@ -2201,24 +2200,35 @@ const NativeApp = (() => {
      and a ta-daa (Sound.deckUnlock). CONTINUE resumes the normal flow. */
   .deck-unlock-pop { position: fixed; inset: 0; z-index: 2000; display: flex;
     align-items: center; justify-content: center; padding: 24px;
-    background: rgba(22, 58, 44, 0.95); }
+    background: rgba(16, 16, 14, 0.95); }   /* ink scrim (chunk-2/3 idiom), no blur */
   .duc-panel { text-align: center; max-width: 330px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .duc-eyebrow { font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--on-felt-muted); }
-  .duc-charwrap { position: relative; width: min(46vw, 168px); aspect-ratio: 56 / 76;
-    filter: grayscale(0.92) brightness(0.86) drop-shadow(0 8px 16px rgba(50,40,45,0.28));
-    opacity: 0.72; transition: filter 0.9s ease, opacity 0.9s ease; }
-  .duc-charwrap .deck-char { pointer-events: none; }
+  .duc-eyebrow { font-family: var(--font-display); font-size: 11px; font-weight: 800;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+  /* Locked state = the shared ink SILHOUETTE (no grayscale/drop-shadow blur);
+     the reveal floods brightness back in — the same one-shot filter/opacity
+     transition, just with §10-legal endpoints. The filter sits on the INNER
+     character, never the wrap: the padlock/sparks share the wrap, and a child
+     can't escape a parent's brightness(0). */
+  .duc-charwrap { position: relative; width: min(46vw, 168px); aspect-ratio: 56 / 76; }
+  .duc-charwrap .deck-char { pointer-events: none;
+    filter: brightness(0) opacity(0.72);
+    transition: filter 0.9s ease, opacity 0.9s ease; }
   .duc-charwrap .dc-eye { max-width: none; width: 15%; height: 17%; }
+  /* The padlock: the JS emits an emoji glyph, but emoji ignore `color` and
+     break the palette — zero the glyph and paint a 16-grid pixel padlock
+     (gold body, ink shackle-outline) as a background sprite instead. */
   .duc-lock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: 40px; opacity: 0.92; text-shadow: 0 2px 6px rgba(0,0,0,0.4);
-    transition: opacity 0.4s ease, transform 0.45s ease; z-index: 2; }
-  .deck-unlock-pop.revealed .duc-charwrap {
-    filter: grayscale(0) brightness(1) drop-shadow(0 10px 22px rgba(74,40,55,0.4)); opacity: 1;
-    animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+    font-size: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges' width='16' height='16'%3E%3Cpath fill='%2310100e' d='M4 1h8v1H4zM3 2h2v5H3zm8 0h2v5h-2zM2 7h12v8H2z'/%3E%3Cpath fill='%23d9a441' d='M3 8h10v6H3z'/%3E%3Cpath fill='%2310100e' d='M7 9h2v2H7zm0 2h2v2H7z' opacity='0.9'/%3E%3C/svg%3E") center / 44px 44px no-repeat;
+    image-rendering: pixelated;
+    opacity: 0.92; transition: opacity 0.4s ease, transform 0.45s ease; z-index: 2; }
+  .deck-unlock-pop.revealed .duc-charwrap { animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+  .deck-unlock-pop.revealed .duc-charwrap .deck-char { filter: brightness(1) opacity(1); }
   .deck-unlock-pop.revealed .duc-lock { opacity: 0; transform: scale(1.7) rotate(-14deg); }
   @keyframes ducBounce { 0% { transform: scale(1); } 45% { transform: scale(1.12); } 70% { transform: scale(0.96); } 100% { transform: scale(1); } }
-  .duc-spark { position: absolute; font-size: 20px; color: #ffd97a; opacity: 0; pointer-events: none;
-    text-shadow: 0 0 10px rgba(230,183,74,0.8); z-index: 3; }
+  /* Sparkles: phosphor (the ONLY glow) — the celebration accent. */
+  .duc-spark { position: absolute; font-size: 20px; color: var(--phosphor); opacity: 0; pointer-events: none;
+    text-shadow: var(--glow); z-index: 3; }
   .duc-spark.s1 { top: -6%; left: -8%; }  .duc-spark.s2 { top: 4%; right: -12%; font-size: 15px; }
   .duc-spark.s3 { bottom: 10%; left: -14%; font-size: 16px; } .duc-spark.s4 { bottom: -4%; right: -6%; }
   .deck-unlock-pop.revealed .duc-spark { animation: ducSpark 1.1s ease-out forwards; }
@@ -2228,9 +2238,9 @@ const NativeApp = (() => {
   @keyframes ducSpark { 0% { opacity: 0; transform: scale(0.3) rotate(0deg); }
     30% { opacity: 1; transform: scale(1.25) rotate(25deg); }
     100% { opacity: 0; transform: scale(0.6) rotate(60deg) translateY(-14px); } }
-  .duc-name { font-family: var(--font-display); font-weight: 800; font-size: 26px; color: var(--on-felt-muted);
+  .duc-name { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--on-felt-muted);
     transition: color 0.5s ease; min-height: 1.2em; }
-  .deck-unlock-pop.revealed .duc-name { color: var(--on-felt); }
+  .deck-unlock-pop.revealed .duc-name { color: var(--phosphor); text-shadow: var(--glow); }
   .duc-copy { font-size: 14.5px; line-height: 1.5; color: var(--on-felt-muted); max-width: 280px;
     opacity: 0; transition: opacity 0.6s ease 0.35s; }
   .deck-unlock-pop.revealed .duc-copy { opacity: 1; }
@@ -2250,14 +2260,16 @@ const NativeApp = (() => {
      the class label, the name reveals, the copy is the derived "how you earned
      it" (ItemUnlocks.hintFor — never hand-written). */
   .iuc-objwrap { position: relative; min-width: min(52vw, 190px); height: clamp(130px, 24vh, 168px);
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center; }
+  /* Silhouette the OBJECT children only — the padlock + sparks live on the
+     same wrap and must escape the brightness(0) (see .duc-charwrap note). */
+  .iuc-objwrap > :not(.duc-lock):not(.duc-spark) {
     filter: brightness(0) opacity(0.72);
     transition: filter 0.9s ease, opacity 0.9s ease; }
-  .item-unlock-pop.revealed .iuc-objwrap {
-    filter: brightness(1) opacity(1);
-    animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+  .item-unlock-pop.revealed .iuc-objwrap { animation: ducBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s; }
+  .item-unlock-pop.revealed .iuc-objwrap > :not(.duc-lock):not(.duc-spark) { filter: brightness(1) opacity(1); }
   @media (prefers-reduced-motion: reduce) {
-    .iuc-objwrap { transition: none; }
+    .iuc-objwrap > :not(.duc-lock):not(.duc-spark) { transition: none; }
     .item-unlock-pop.revealed .iuc-objwrap { animation: none; }
   }
 
@@ -2281,13 +2293,16 @@ const NativeApp = (() => {
   .ov-unlocks { display: flex; flex-direction: column; gap: 7px; width: min(86vw, 320px); margin-top: 2px; }
   .ov-unlocks.hidden { display: none; }
   .ov-unlock { display: flex; align-items: center; gap: 10px; padding: 7px 10px;
-    background: rgba(255,255,255,0.07); border-radius: 12px; }
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0; }
   .ov-unlock-obj { flex: 0 0 auto; width: 56px; }
   .ov-unlock-obj .ulk-obj { --h: 50px; }
   .ov-unlock-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .ov-unlock-hint { font-size: 12px; color: var(--on-felt); }
-  .ulk-bar { width: 100%; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.16); overflow: hidden; }
-  .ulk-fill { display: block; height: 100%; border-radius: inherit; background: var(--amber); }
+  /* Progress bar: a recessed ink-framed well; the fill is phosphor (progress
+     toward the highlight moment, not a coin value). */
+  .ulk-bar { width: 100%; height: 8px; border-radius: 0; background: var(--felt-deep);
+    border: 1px solid var(--ink); overflow: hidden; }
+  .ulk-fill { display: block; height: 100%; border-radius: 0; background: var(--phosphor); }
   .ulk-count { font-size: 10.5px; color: var(--on-felt-muted); }
 
   /* ── COLLECTION screen (UNLOCK1) — every items.js entry by class, the
@@ -2299,13 +2314,18 @@ const NativeApp = (() => {
     max-width: min(86vw, 340px); line-height: 1.4; }
   .col-list { flex: 1 1 auto; min-height: 0; width: min(94vw, 420px); overflow-y: auto;
     -webkit-overflow-scrolling: touch; display: flex; flex-direction: column;
-    gap: 14px; padding: 2px 2px 14px; }
-  .col-head { font-family: var(--font-display); font-weight: 800; font-size: 15px;
-    color: var(--on-felt); letter-spacing: 1.2px; text-transform: uppercase;
-    opacity: 0.85; margin-bottom: 8px; }
+    gap: 14px; padding: 2px 6px 14px 2px; }
+  /* Class headers: the §3 sub-header voice — display face, gold, no glow. */
+  .col-head { font-family: var(--font-display); font-weight: 800; font-size: 12px;
+    color: var(--gold); letter-spacing: 1.2px; text-transform: uppercase;
+    margin-bottom: 8px; }
   .col-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  /* Tiles are §4 pixel panels; the flatten rules below already keep the ~102-
+     tile column raster-cheap, so the frame is border+flat fill only (the 2px
+     hard shadow is per-tile but unblurred — same class of cost as the border). */
   .col-tile { display: flex; flex-direction: column; align-items: center; gap: 5px;
-    background: rgba(255,255,255,0.06); border: none; border-radius: 12px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 2px 2px 0 0 var(--shadow);
     padding: 8px 6px; font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
   .col-tile.locked { cursor: default; }
   .col-obj { width: 100%; }
@@ -2326,7 +2346,7 @@ const NativeApp = (() => {
   #colList .pack-foil { filter: none; }
   #colList .dcs { box-shadow: none; }
   #colList .dcs-gloss { display: none; }
-  #colList .sp-badge { box-shadow: 0 2px 5px rgba(74,40,55,0.25); }
+  #colList .sp-badge { box-shadow: none; }
   #colList .pennant .pb-rod { box-shadow: none; }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
@@ -2334,14 +2354,15 @@ const NativeApp = (() => {
      built-in vertical padding so it sits comfortably close to the title. */
   .menu-logo {
     width: clamp(96px, 30vw, 124px); height: auto; display: block;
-    margin: 0 auto -10px;
-    filter: drop-shadow(0 2px 6px rgba(2,1,4,0.55));
+    margin: 0 auto -10px;   /* the old blurred lift is retired (§10: no blur) */
   }
-  /* Title — "Shoulda said" on one line, "same" below; three equal-size words
-     with slight tilts. Now on the display marquee face (Press Start 2P), which
-     is ~2x wider per glyph than the old face — the clamp is sized so the long
-     row still clears a 390px phone. (Full menu retheme lands in a later
-     chunk; this keeps the layout intact meanwhile.) */
+  /* Title — "Shoulda said" on one line, "same" below; the display marquee face
+     (Press Start 2P, ~2x wider per glyph — the clamp clears a 390px phone).
+     THE wordmark: cream words, the last word PHOSPHOR with the one static
+     glow. Words sit square on the pixel grid (the hand-tilted rotations are
+     gone — a 1985 marquee doesn't lean). Shared verbatim by the game-over
+     header (.go-title), where the glowing last word is the guess that would
+     have survived. */
   .menu-title {
     display: flex; flex-direction: column; align-items: center;
     font-family: var(--font-display); font-weight: 800;
@@ -2353,14 +2374,12 @@ const NativeApp = (() => {
     gap: clamp(7px, 2.4vw, 15px);
   }
   .menu-title .mt-w {
-    display: inline-block; white-space: nowrap; transform-origin: 50% 60%;
-    text-shadow: 0 1px 3px rgba(74, 44, 52, 0.22);
+    display: inline-block; white-space: nowrap;
+    text-shadow: 2px 2px 0 var(--shadow);
   }
-  .menu-title .mt-a, .menu-title .mt-b { color: #3A2E36; }   /* dark warm ink */
-  .menu-title .mt-c { color: #E0577E; margin-top: 2px; }     /* rose emphasis */
-  .menu-title .mt-a { transform: rotate(-4deg); }
-  .menu-title .mt-b { transform: rotate(2deg); }
-  .menu-title .mt-c { transform: rotate(-2deg); }
+  .menu-title .mt-a, .menu-title .mt-b { color: var(--card-face); }
+  .menu-title .mt-c { color: var(--phosphor); margin-top: 2px;
+    text-shadow: var(--glow), 2px 2px 0 var(--shadow); }
   /* Tagline sits ABOVE the logo (flex gap handles the spacing). Bigger + bolder
      + higher-contrast for legibility; same uppercase tagline style. */
   .menu-tagline { color: var(--text); font-size: 15px; font-weight: 800; letter-spacing: 1.5px;
@@ -2370,31 +2389,29 @@ const NativeApp = (() => {
      unaffected. */
   .menu-buttons { display: flex; flex-direction: column; gap: 9px; width: min(82vw, 300px);
     margin: clamp(6px, 2vh, 16px) auto 0; }
-  /* Crafted buttons: a soft inner top-highlight + layered shadow give weight; the
-     press sinks (translateY + reduced shadow). A clear hierarchy — the primary
-     action is larger, gradient-filled, and gently glows. */
+  /* §4 pixel buttons: felt-mid face, ink frame, hard 4px shadow; pressing
+     sinks one pixel step (shadow halves). Hierarchy: .primary = the phosphor
+     CTA (the ONLY glow), .danger = suit-red face. The old inner-highlight
+     bevels, gradients and hover-brightness filters are all retired. */
   .menu-item {
     display: flex; align-items: center; justify-content: center; gap: 9px;
     width: 100%; padding: 13px 18px;
-    font-family: var(--font-text); font-size: 14.5px; font-weight: 700; letter-spacing: 1px;
-    color: var(--text); background: linear-gradient(180deg, #fcf8f3, var(--panel));
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: 0 4px 11px rgba(74,50,40,0.12), inset 0 1px 0 rgba(255,255,255,0.7);
+    font-family: var(--font-text); font-size: 15px; font-weight: 700; letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text); background: var(--felt-mid);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer; touch-action: manipulation;
-    transition: transform 0.09s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    transition: transform 0.09s ease, box-shadow 0.15s ease;
   }
-  .menu-item:hover { filter: brightness(1.02); box-shadow: 0 6px 14px rgba(74,50,40,0.15), inset 0 1px 0 rgba(255,255,255,0.7); }
-  .menu-item:active { transform: translateY(1px) scale(0.99);
-    box-shadow: 0 2px 5px rgba(74,50,40,0.16), inset 0 1px 0 rgba(255,255,255,0.5); }
+  .menu-item:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   .menu-item.primary {
-    color: #fff; border: none; font-size: 16px; font-weight: 800; padding: 15px 18px; letter-spacing: 1.2px;
-    background: linear-gradient(180deg, #d65a87, var(--accent));
-    box-shadow: 0 7px 18px rgba(200,74,120,0.42), inset 0 1px 0 rgba(255,255,255,0.35);
+    color: var(--ink); font-size: 16px; font-weight: 800; padding: 15px 18px; letter-spacing: 1.4px;
+    background: var(--phosphor);
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
   }
-  .menu-item.primary:hover { filter: brightness(1.04); }
-  .menu-item.primary:active { transform: translateY(1px) scale(0.99);
-    box-shadow: 0 3px 9px rgba(200,74,120,0.4), inset 0 1px 0 rgba(255,255,255,0.3); }
-  .menu-item.danger { color: var(--danger); border-color: var(--danger); background: linear-gradient(180deg, #fdf6f7, var(--panel)); }
+  .menu-item.primary:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .menu-item.danger { color: var(--card-face); background: var(--suit-red); }
   .menu-item .ico { font-size: 18px; opacity: 0.92; }
   /* First-launch pointer while the campaign is still gated — plain text under
      the buttons, never a button itself. */
@@ -2403,58 +2420,71 @@ const NativeApp = (() => {
   /* SEED1: the pause-menu seed row (campaign runs only) — a dashed pill above
      the buttons; the whole row is the tap-to-copy target. Shares .seed-hint /
      .seed-tag with the overlay seed line. */
+  /* Seed rows read GOLD (a collectible code, coin-adjacent): dashed gold
+     frame, square; a copy flash solidifies the frame. */
   .menu-seed { width: min(82vw, 300px); margin: 0 auto 10px; padding: 8px 12px;
     display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
-    border: 1px dashed var(--edge-2); border-radius: 12px; cursor: pointer;
+    border: var(--px) dashed var(--gold); border-radius: 0; cursor: pointer;
     font-family: var(--font-text); font-size: 12.5px; font-weight: 800; letter-spacing: 1px;
     color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
   .menu-seed.hidden { display: none; }
   .menu-seed:active { transform: scale(0.98); }
-  .menu-seed.copied { border-color: var(--amber); border-style: solid; }
+  .menu-seed.copied { border-style: solid; }
   .seed-tag { font-size: 9.5px; font-weight: 800; font-style: italic; letter-spacing: 0.6px;
-    text-transform: uppercase; color: var(--amber-text); }
+    text-transform: uppercase; color: var(--gold); }
   .seed-hint { font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); }
-  .copied .seed-hint { color: var(--amber-text); }
-  .menu-foot { color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: clamp(10px, 3vh, 20px); opacity: 0.6; }
+  .copied .seed-hint { color: var(--gold); }
+  /* Version line: body face — the long build descriptor wraps hopelessly in
+     the wide display face at 390px, and legibility beats marquee here. */
+  .menu-foot { color: var(--muted); font-size: 12px;
+    letter-spacing: 1px; margin-top: clamp(10px, 3vh, 20px); opacity: 0.6; }
 
-  /* Bottom-sheet panels (stats / manual / in-game menu). */
+  /* Bottom-sheet panels (stats / manual / in-game menu): felt-mid pixel
+     panels rising from the bottom edge over an INK scrim (no blur, no
+     translucent-warm wash). Squared; the ink frame replaces the old blurred
+     lift shadow (a bottom sheet's ↘ shadow would fall off-screen anyway). */
   .sheet-overlay {
     position: fixed; inset: 0; z-index: 1600;
     display: flex; align-items: flex-end; justify-content: center;
-    background: rgba(48, 36, 32, 0.66);
+    background: rgba(16, 16, 14, 0.72);
   }
   .sheet-overlay.hidden { display: none; }
   .sheet-panel {
     width: min(100%, 460px); max-height: 86vh; overflow-y: auto;
-    background: linear-gradient(180deg, var(--bg-2), var(--panel));
-    border: 1px solid var(--edge-2); border-bottom: none;
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -10px 30px rgba(4,2,6,0.6);
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink); border-bottom: none;
+    border-radius: 0;
     padding: 14px 16px 22px;
   }
   .menu-sheet { padding-bottom: 16px; }
+  /* Sheet titles = screen titles: display marquee, phosphor, the static glow. */
   .sheet-head {
     display: flex; align-items: center; justify-content: space-between;
-    font-family: var(--font-display); font-weight: 700; font-size: 18px;
-    letter-spacing: 1px; color: var(--accent-2); margin-bottom: 12px;
+    font-family: var(--font-display); font-weight: 700; font-size: 13px;
+    letter-spacing: 1px; color: var(--phosphor); text-shadow: var(--glow);
+    text-transform: uppercase; margin-bottom: 12px;
   }
   .sheet-close {
     position: relative;
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--panel-2); color: var(--text);
-    border: 1px solid var(--edge-2); font-size: 18px; line-height: 1; cursor: pointer;
+    width: 30px; height: 30px; border-radius: 0;
+    background: var(--felt-deep); color: var(--text); text-shadow: none;
+    border: var(--px) solid var(--ink); font-size: 18px; line-height: 1; cursor: pointer;
   }
+  /* Reset stats = destructive: the §4 danger face. */
   .sheet-reset {
     margin-top: 14px; width: 100%; padding: 9px;
-    background: transparent; color: var(--danger);
-    border: 1px solid var(--danger); border-radius: 10px;
+    background: var(--suit-red); color: var(--card-face);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 2px 2px 0 0 var(--shadow);
+    font-family: var(--font-text); text-transform: uppercase; letter-spacing: 0.6px;
     font-weight: 700; font-size: 12px; cursor: pointer;
   }
+  .sheet-reset:active { transform: translate(2px, 2px); box-shadow: none; }
   /* Artifact telemetry table (debug only). Wide table → horizontal scroll. */
   .telem-panel { width: min(100%, 760px); }
   .telem-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
   .telem-actions { display: flex; gap: 8px; margin-bottom: 10px; }
-  .telem-scroll { overflow: auto; max-height: 64vh; -webkit-overflow-scrolling: touch; border: 1px solid var(--edge-2); border-radius: 10px; }
+  .telem-scroll { overflow: auto; max-height: 64vh; -webkit-overflow-scrolling: touch; border: var(--px) solid var(--ink); border-radius: 0; }
   .telem-table { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
   .telem-table th, .telem-table td { padding: 4px 7px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--edge-2); }
   .telem-table th { position: sticky; top: 0; background: var(--bg-2); color: var(--accent-2); font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; user-select: none; }
@@ -2463,46 +2493,51 @@ const NativeApp = (() => {
   .telem-table tr.zero td { opacity: 0.45; }   /* never-triggered artifacts dimmed */
   .telem-table td.name { font-weight: 700; color: var(--text); }
   .telem-table td.rate { color: var(--amber); font-weight: 700; }
-  /* Stats grid */
+  /* Stats grid: numbers recessed into deep-felt wells on the felt-mid sheet;
+     the VALUES are the phosphor readouts (a bank of little CRT counters). */
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .stat-tile {
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 12px;
+    background: var(--felt-deep); border: var(--px) solid var(--ink); border-radius: 0;
     padding: 10px 12px; text-align: center;
   }
-  .stat-tile .sv { font-family: var(--font-display); font-weight: 700; font-size: 22px;
-    color: var(--accent-2); line-height: 1.1; }
+  .stat-tile .sv { font-family: var(--font-display); font-weight: 700; font-size: 16px;
+    color: var(--phosphor); text-shadow: var(--glow); line-height: 1.2; }
   /* Inline secondary percentage beside a count (Runs won, Correct draws). */
-  .stat-tile .sv .pct { font-size: 14px; font-weight: 600; color: var(--muted); }
+  .stat-tile .sv .pct { font-family: var(--font-text); font-size: 13px; font-weight: 600;
+    color: var(--muted); text-shadow: none; }
   .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
-    color: var(--muted); margin-top: 3px; }
+    color: var(--muted); margin-top: 4px; }
   /* Section headers on the Stats screen — full-width labels over each block
-     ("Runs" over the campaign tiles, "Zen" over the Zen split). */
+     ("Runs" over the campaign tiles, "Zen" over the Zen split): §3 sub-header
+     voice, gold display face. */
   .stats-head { grid-column: 1 / -1; font-family: var(--font-display); font-weight: 800;
-    font-size: 15px; letter-spacing: 0.6px; color: var(--text); margin: 2px 0 -2px; }
+    font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--gold); margin: 2px 0 -2px; }
   /* ZEN section of the Stats screen: one sub-block per difficulty, each a legacy
      summary line + a twin wins/loss histogram (tap the outcome bar to toggle).
      Its OWN record — separate store from the campaign "Runs" tiles above. */
-  .stats-zen { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--edge);
-    border-radius: 12px; padding: 10px 12px; }
-  .stats-zen .sz-head { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
-    color: var(--muted); margin-bottom: 6px; }
+  .stats-zen { grid-column: 1 / -1; background: var(--felt-deep); border: var(--px) solid var(--ink);
+    border-radius: 0; padding: 10px 12px; }
+  .stats-zen .sz-head { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
   /* ZEN4 — ONE combined histogram: a segmented scope filter, a single stats
      line, an optional Back chip (when drilled), and VERTICAL bars. */
   /* Segmented filter row: All / Easy / Medium / Hard — always four, one selected. */
   .zf-row { display: flex; gap: 4px; margin: 0 0 8px; }
-  .zf-opt { flex: 1; min-height: 32px; padding: 4px 2px; border: 1px solid var(--edge);
-    border-radius: 8px; background: rgba(0,0,0,0.14); color: var(--muted);
+  /* Segmented scope filter: pixel chips; the live scope is the phosphor key. */
+  .zf-opt { flex: 1; min-height: 32px; padding: 4px 2px; border: var(--px) solid var(--ink);
+    border-radius: 0; background: var(--felt-mid); color: var(--muted);
     font-size: 11px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; }
-  .zf-opt.selected { background: var(--accent); border-color: var(--accent);
-    color: #0c1015; }
+  .zf-opt.selected { background: var(--phosphor); border-color: var(--ink);
+    color: var(--ink); }
   .zf-opt:active { opacity: 0.85; }
   /* The single scope stats line (combined under All, one difficulty otherwise). */
-  .zh-scope { font-size: 10.5px; color: var(--muted); margin: 0 0 8px; }
-  .zh-scope b { font-family: var(--font-display); font-weight: 700; color: var(--accent-2); }
+  .zh-scope { font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+  .zh-scope b { font-weight: 700; color: var(--phosphor); }
   /* Back chip — present only when drilled into a distribution (level 1). */
   .zh-back { display: inline-flex; align-items: center; min-height: 30px; padding: 3px 12px;
-    margin: 0 0 8px; border: 1px solid var(--edge); border-radius: 8px;
-    background: rgba(0,0,0,0.14); color: var(--accent-2); font-size: 11.5px;
+    margin: 0 0 8px; border: var(--px) solid var(--ink); border-radius: 0;
+    background: var(--felt-mid); color: var(--phosphor); font-size: 11.5px;
     font-weight: 700; cursor: pointer; }
   .zh-back:active { opacity: 0.85; }
   /* ZEN6 — ONE continuous histogram across THREE view states on a single node
@@ -2539,7 +2574,7 @@ const NativeApp = (() => {
      "Wins"/"Losses" word fits, and a faint panel + gap marking it the
      aggregate/grand-total. */
   .zh-wins .zc-lagg, .zh-loss .zc-wagg { flex-basis: 62px; max-width: 62px; margin-right: 12px;
-    background: rgba(255,255,255,0.045); border-radius: 8px; }
+    background: var(--felt-mid); border-radius: 0; }
   .zh-wins .zc-lagg .zv-k, .zh-loss .zc-wagg .zv-k { font-size: 10.5px; font-weight: 700; }
   /* Columns absent from the current state fold away (zero footprint, faded,
      inert). Each state hides exactly the two roles it doesn't show — flex-basis
@@ -2553,12 +2588,13 @@ const NativeApp = (() => {
   .zv-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
   /* The bar height rides a per-state CSS var so the class swap animates it as
      the visible max changes between states. */
-  .zv-bar { width: 100%; min-height: 2px; border-radius: 5px 5px 0 0;
+  .zv-bar { width: 100%; min-height: 2px; border-radius: 0;
     height: var(--hb); transition: height 300ms cubic-bezier(0.22,0.61,0.36,1); }
   .zh-wins .zv-bar { height: var(--hw); }
   .zh-loss .zv-bar { height: var(--hl); }
-  .zv-win .zv-bar { background: linear-gradient(180deg, #58c988, #3fa96b); }
-  .zv-loss .zv-bar { background: linear-gradient(180deg, #e0705c, #c8503f); }
+  /* Flat palette bars: wins PHOSPHOR, losses SUIT-RED (gradients retired). */
+  .zv-win .zv-bar { background: var(--phosphor); }
+  .zv-loss .zv-bar { background: var(--suit-red); }
   .zv-k { margin-top: 4px; font-size: 10.5px; color: var(--muted); white-space: nowrap;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   /* Aggregate columns are the drill tap targets — bolder key, pointer, active cue. */
@@ -2575,43 +2611,46 @@ const NativeApp = (() => {
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
     border-left: 2px solid var(--accent); padding-left: 10px; }
   .manual-body h4 {
-    font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
-    color: var(--accent-2); margin: 14px 0 4px;
+    font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: 0.5px;
+    color: var(--phosphor); margin: 14px 0 4px;
   }
   .manual-body h4:first-child { margin-top: 0; }
   .manual-body p { margin: 0 0 6px; color: var(--text); }
   .manual-body .mi { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-2); font-weight: 700; }
   .manual-body .ico { font-size: 15px; }
 
-  /* ---- How to Play: guided walkthrough (replaces the old text manual) ---- */
+  /* ---- How to Play: guided walkthrough (replaces the old text manual) ----
+     The mock stage is a recessed deep-felt screen well (the rose stage-light
+     radials are retired — §1 no gradients-as-texture). */
   .wt { display: flex; flex-direction: column; }
   .wt-stage {
     position: relative; cursor: pointer; user-select: none; -webkit-user-select: none;
-    border-radius: 14px; padding: 18px 14px 14px; min-height: 244px;
-    background:
-      radial-gradient(120% 80% at 50% 0%, rgba(232,139,176,0.09), transparent 62%),
-      var(--bg-2);
-    border: 1px solid var(--edge);
+    border-radius: 0; padding: 18px 14px 14px; min-height: 244px;
+    background: var(--felt-deep);
+    border: var(--px) solid var(--ink);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
   }
-  .wt-stage:active { background:
-      radial-gradient(120% 80% at 50% 0%, rgba(232,139,176,0.14), transparent 62%), var(--bg-2); }
+  .wt-stage:active { background: var(--felt-mid); }
   .wt-art { display: flex; align-items: center; justify-content: center;
     flex-wrap: wrap; gap: 10px; min-height: 100px; }
   .wt-cap { text-align: center; color: var(--text); font-size: 12.5px; line-height: 1.5;
     max-width: 330px; margin: 0 auto; }
   .wt-cap b { color: var(--accent-2); }
   .wt-cap .lead { display: block; font-family: var(--font-display); font-weight: 700;
-    font-size: 16px; letter-spacing: 0.4px; color: var(--accent-2); margin-bottom: 5px; }
-  /* Face-down deck stack (the "work through the deck" slide) */
+    font-size: 12px; letter-spacing: 0.4px; color: var(--phosphor); text-shadow: var(--glow); margin-bottom: 5px; }
+  /* Face-down deck stack (the "work through the deck" slide): the REAL deck
+     back — the red⊕cream baked dither the board's .ds-back wears. */
   .wt-deck { position: relative; width: 54px; height: 72px; }
-  .wt-deck .db { position: absolute; width: 50px; height: 68px; border-radius: 7px;
-    background: linear-gradient(155deg, var(--panel-2), var(--bg-2));
-    border: 1px solid var(--edge-2); box-shadow: 0 3px 8px rgba(2,1,4,0.5); }
+  .wt-deck .db { position: absolute; width: 50px; height: 68px; border-radius: 0;
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); }
   .wt-deck .db.top { display: flex; align-items: center; justify-content: center; }
-  .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 5px; border: 1px solid rgba(232,139,176,0.35); }
-  .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 999px;
-    background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; box-shadow: 4px 4px 0 0 var(--shadow); }
+  .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 0; border: 2px dashed rgba(16, 16, 14, 0.42); }
+  .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 0;
+    background: var(--phosphor); color: var(--ink); border: 1px solid var(--ink);
+    font-size: 10px; font-weight: 800; box-shadow: 2px 2px 0 0 var(--shadow); }
   .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
   .wt-smallboard .mini-card { width: 34px; }
   .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
@@ -2619,15 +2658,16 @@ const NativeApp = (() => {
 
   .wt-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 10px; }
   .wt-dots { display: flex; gap: 6px; }
-  .wt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--edge-2); transition: background 0.15s; }
-  .wt-dot.on { background: var(--accent); }
+  .wt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--card-face); opacity: 0.35; transition: background 0.15s, opacity 0.15s; }
+  .wt-dot.on { background: var(--phosphor); opacity: 1; }
   .wt-right { display: flex; gap: 8px; }
-  .wt-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
-    border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
+  .wt-btn { background: var(--felt-deep); color: var(--text); border: var(--px) solid var(--ink);
+    border-radius: 0; padding: 8px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
+    box-shadow: 2px 2px 0 0 var(--shadow); text-transform: uppercase;
     font-family: var(--font-text); letter-spacing: 0.4px; }
-  .wt-btn.primary { color: #fff; border: none; background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
-  .wt-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; padding-left: 4px; }
-  .wt-btn:active { transform: scale(0.97); }
+  .wt-btn.primary { color: var(--ink); background: var(--phosphor); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .wt-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; box-shadow: none; padding-left: 4px; }
+  .wt-btn:active { transform: translate(2px, 2px); box-shadow: none; }
   .wt-btn.hidden { display: none; }
 
   /* Mock board grid (slide 1) */
@@ -2644,28 +2684,30 @@ const NativeApp = (() => {
   .wt-tag.bad { color: var(--bad); }
   .wt-stack { position: relative; width: 52px; height: 86px; }
   .wt-stack .mini-card { position: absolute; left: 0; }
-  .wt-stack.dead .mini-card { opacity: 0.32; filter: grayscale(0.7); }
+  .wt-stack.dead .mini-card { opacity: 0.32; }   /* dim by opacity only — no grayscale filter */
   .wt-x { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--bad); font-size: 30px; font-weight: 800; z-index: 2; }
   .wt-grow { position: absolute; top: -8px; right: -10px; color: var(--good); font-size: 14px; font-weight: 800; }
   /* Score formula (slide 4) */
   .wt-score { display: flex; align-items: flex-end; gap: 9px; }
   .wt-score .cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .wt-score .num { font-family: var(--font-display); font-weight: 700; font-size: 27px; color: var(--accent-2); line-height: 1; }
-  .wt-score .num.coin { color: var(--accent); display: inline-flex; align-items: center; gap: 3px; }
+  .wt-score .num { font-family: var(--font-display); font-weight: 700; font-size: 20px;
+    color: var(--phosphor); text-shadow: var(--glow); line-height: 1; }
+  .wt-score .num.coin { color: var(--gold); text-shadow: none; display: inline-flex; align-items: center; gap: 3px; }
   .wt-score .lab { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .wt-score .op { font-size: 20px; color: var(--muted); padding-bottom: 9px; }
   /* Store + placement flow (slide 5) */
   .wt-flow { display: flex; flex-direction: column; gap: 12px; }
   .wt-flow-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
-  .wt-arrow { color: var(--accent); font-size: 18px; font-weight: 800; }
-  .wt-shop-item { width: 78px; border: 1px solid var(--edge-2); border-radius: 12px; background: var(--panel);
+  .wt-arrow { color: var(--phosphor); font-size: 18px; font-weight: 800; }
+  .wt-shop-item { width: 78px; border: var(--px) solid var(--ink); border-radius: 0; background: var(--felt-mid);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
   .wt-shop-item .ico { font-size: 20px; color: var(--accent-2); }
   .wt-shop-item .nm { font-size: 10px; font-weight: 700; color: var(--text); }
-  .wt-shop-item .pr { font-size: 11px; font-weight: 800; color: var(--accent-2); display: inline-flex; align-items: center; gap: 2px; }
-  .wt-pillar-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
-    background: rgba(169,140,216,0.18); border: 1px solid var(--pathway); color: var(--pathway-2);
+  .wt-shop-item .pr { font-size: 11px; font-weight: 800; color: var(--gold); display: inline-flex; align-items: center; gap: 2px; }
+  .wt-pillar-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 0;
+    background: var(--felt-deep); border: 1px solid var(--gold); color: var(--gold);
     font-size: 9.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
   .wt-pillar-tag .ico { font-size: 12px; }
   .wt-mini-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
@@ -2675,9 +2717,9 @@ const NativeApp = (() => {
   .wt-mini-col .mini-card .mc-suit { font-size: 12px; }
   /* Map-layer slide (the climb) — a compact vertical node trail, top = home. */
   .wt-map { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .wt-mapnode { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 999px;
-    font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; background: var(--panel); border: 1px solid var(--edge-2); color: var(--text); }
-  .wt-mapnode.home { background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: #fff; border: none; }
+  .wt-mapnode { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 0;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; background: var(--felt-mid); border: 1px solid var(--ink); color: var(--text); }
+  .wt-mapnode.home { background: var(--phosphor); color: var(--ink); border-color: var(--ink); }
   .wt-mapnode.grow { color: var(--good); border-color: var(--good); }
   .wt-mapline { color: var(--muted); font-size: 13px; line-height: 0.7; }
   /* Store item-class list slide (aligned to the STOREHELP1 legend + PACKS1). */
@@ -2686,8 +2728,8 @@ const NativeApp = (() => {
   .wt-classlist b { color: var(--accent-2); }
   /* "Replay tutorial" footer action (secondary — never the primary Next/Got it). */
   .wt-replay-row { display: flex; justify-content: center; margin-top: 10px; }
-  .wt-replay { background: transparent; border: 1px solid var(--edge-2); color: var(--muted);
-    border-radius: 999px; padding: 7px 16px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  .wt-replay { background: transparent; border: 1px solid var(--ink); color: var(--muted);
+    border-radius: 0; padding: 7px 16px; font-size: 11.5px; font-weight: 700; cursor: pointer;
     font-family: var(--font-text); letter-spacing: 0.4px; display: inline-flex; align-items: center; gap: 6px; }
   .wt-replay:active { transform: scale(0.97); }
   .wt-replay .ico { display: inline-flex; width: 13px; height: 13px; }
@@ -2700,10 +2742,10 @@ const NativeApp = (() => {
   .nav-btn {
     position: fixed; z-index: 55;
     top: calc(env(safe-area-inset-top) + 4px);
-    width: 30px; height: 30px; border-radius: 999px;
+    width: 30px; height: 30px; border-radius: 0;   /* squared into the pixel chrome (§10) */
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); box-shadow: 4px 4px 0 0 var(--shadow);
+    background: var(--felt-mid); color: var(--text);
+    border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer; touch-action: manipulation;
     transition: transform 0.08s ease;
   }
@@ -2716,7 +2758,7 @@ const NativeApp = (() => {
     content: ""; position: absolute; inset: -7px; border-radius: inherit;
   }
   .nav-btn.hidden { display: none; }
-  .nav-btn:active { transform: scale(0.92); }
+  .nav-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   /* A quick pop when something lands in the inventory (e.g. Replica's copy). */
   .nav-btn.nav-pop { animation: navPop 0.28s ease; }
   @keyframes navPop { 0%,100% { transform: scale(1); } 45% { transform: scale(1.28); } }
@@ -2835,12 +2877,11 @@ const NativeApp = (() => {
   .overlay {
     position: fixed;
     inset: 0;
-    /* Dark felt-green glass (was translucent cream) — panels/cards float on it
-       like paper on the table; hold-to-peek still needs the see-through.
-       THERMAL5: no backdrop-filter — full-viewport blurs are banned (v5.14);
-       at 93% opacity the blur touched under 7% of pixels anyway (the map
-       override proved the removal invisible). */
-    background: rgba(22, 58, 44, 0.93);
+    /* INK scrim (the chunk-2/3 idiom — every CRT scrim is near-black ink,
+       never a colour wash): panels/cards float on it; hold-to-peek still
+       needs the slight see-through. THERMAL5: no backdrop-filter —
+       full-viewport blurs are banned (v5.14). */
+    background: rgba(16, 16, 14, 0.93);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2851,22 +2892,25 @@ const NativeApp = (() => {
     transition: opacity 0.3s ease;
   }
   .overlay.hidden { opacity: 0; pointer-events: none; }
-  /* LOST-PATHS texture on every phase overlay (start / deal summary / win /
-     loss / store / post-deal placement) — the same tangled dead-ending paths
-     as the menus. z-index -1 keeps it under all content while still painting
-     over the overlay's own backdrop; it fades with the overlay (peek intact).
-     (The overlay backdrop KEEPS its slight translucency — hold-to-peek needs
-     the board underneath.) */
-  .overlay::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-    background: var(--lost-paths) 0 0 / 460px repeat; }
+  /* (The lost-paths tangle that textured every phase overlay is retired with
+     the menus' — the ink scrim stays clean; the .overlay.store/.overlay.map
+     ::before content:none overrides remain as belt for the pseudo's absence.) */
   /* Hold-to-peek: fade the overlay to reveal the final board underneath. It
      keeps capturing the pointer (no pointer-events:none) so release restores. */
   .overlay.peek { opacity: 0; transition: opacity 0.12s ease; }
+  /* Deal resolution frames: a hard inset bezel — WIN rims phosphor (the
+     celebration accent), LOSS rims suit-red on the ink. Static, unblurred;
+     they ride the overlay's own opacity for peek/fade. */
+  .overlay.win { box-shadow: inset 0 0 0 4px var(--phosphor); }
+  .overlay.lose { box-shadow: inset 0 0 0 4px var(--suit-red); }
 
   /* Loss-screen fossil field: bouncing/colliding beaten-deal networks behind the
      content. The layer sits at z-index 0; on the loss overlay the content is
      lifted above it so the message/button stay readable + interactive. */
-  .loss-fossils { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .loss-fossils { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    /* Death is suit-red on ink: fossilSvg() inks with var(--net), so scoping
+       the token here retints every bouncing network without touching the JS. */
+    --net: var(--suit-red); }
   .loss-fossils.hidden { display: none; }
   .overlay.lose > :not(.loss-fossils) { position: relative; z-index: 1; }
   .loss-fossil { position: absolute; top: 0; left: 0; opacity: 0.5; will-change: transform; }
@@ -2884,16 +2928,18 @@ const NativeApp = (() => {
   .overlay h2 {
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 38px;
-    letter-spacing: 3px;
+    /* Display marquee: PS2P is ~2x wider per glyph, so the old 38px banner
+       drops to a size that clears 390px; the soft shadow goes hard. */
+    font-size: clamp(17px, 5.6vw, 24px);
+    letter-spacing: 1px;
     margin: 0 0 8px;
     color: var(--text);
-    text-shadow: 0 2px 8px rgba(2, 1, 4, 0.6);
+    text-shadow: 2px 2px 0 var(--shadow);
   }
   .overlay p  { color: var(--muted); margin: 0 0 22px; max-width: 320px; line-height: 1.5; }
   .overlay .big { font-size: 56px; margin-bottom: 6px; }
   .overlay .big.hidden { display: none; }
-  .overlay.win h2 { color: var(--good); }
+  .overlay.win h2 { color: var(--phosphor); text-shadow: var(--glow), 2px 2px 0 var(--shadow); }
   .overlay.lose h2 { color: var(--bad); }
   /* Game-over header: a small "Game over" eyebrow over the menu's exact title
      treatment, whose last word is the guess that would have survived. The menu
@@ -2904,7 +2950,7 @@ const NativeApp = (() => {
   }
   .overlay .go-line {
     font-family: var(--font-display);
-    font-weight: 700; font-size: 14px; letter-spacing: 3px;
+    font-weight: 700; font-size: 12px; letter-spacing: 2px;
     text-transform: uppercase; color: var(--bad);
   }
   .overlay .menu-title.go-title { margin: 2px 0 0; }
@@ -2926,13 +2972,14 @@ const NativeApp = (() => {
     box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
   }
   .play-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
-  /* Second overlay action (the victory screen's main-menu exit): a quieter,
-     outlined pill under the primary — the primary keeps the warm gradient. */
+  /* Second overlay action (the victory screen's main-menu exit): the §4 plain
+     pixel button under the phosphor primary. */
   .play-btn.play-btn-2 {
-    margin-top: 10px; background: none; color: var(--on-felt);
-    border: 2px solid rgba(240, 234, 224, 0.45); box-shadow: none;
+    margin-top: 10px; background: var(--felt-mid); color: var(--text);
+    border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow);
     font-size: 15px; padding: 12px 32px;
   }
+  .play-btn.play-btn-2:active { transform: translate(2px, 2px); box-shadow: none; }
   .play-btn.play-btn-2.hidden { display: none; }
   /* In-board Start Run button (sticker phase). Sized like the guess row so the
      layout doesn't jump when it's swapped for the buttons. */
@@ -2985,7 +3032,7 @@ const NativeApp = (() => {
     display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
   .zen-endstats.hidden { display: none; }
   .zen-endstats .run-stat { flex: 1 1 28%; min-width: 84px; padding: 10px 8px; }
-  .zen-endstats .run-stat-value { font-size: 22px; }
+  .zen-endstats .run-stat-value { font-size: 15px; }
   /* SEED1: the win/loss share-seed line (overlay) — same copy idiom as the
      pause-menu row (.seed-hint / .copied flash). Light ink: the overlay is
      dark felt. */
@@ -2993,12 +3040,12 @@ const NativeApp = (() => {
     font-family: var(--font-text); font-size: 12px; font-weight: 800; letter-spacing: 1.1px;
     color: var(--on-felt); cursor: pointer; touch-action: manipulation;
     user-select: none; -webkit-user-select: none;
-    border: 1px dashed rgba(240,234,224,0.45); border-radius: 999px; }
+    border: var(--px) dashed var(--gold); border-radius: 0; }
   .ov-seed.hidden { display: none; }
   .ov-seed:active { transform: scale(0.98); }
-  .ov-seed.copied { border-color: var(--amber); border-style: solid; }
-  .ov-seed .seed-hint { color: rgba(240,234,224,0.6); }
-  .ov-seed.copied .seed-hint { color: #ffd9a0; }
+  .ov-seed.copied { border-style: solid; }
+  .ov-seed .seed-hint { color: var(--muted); }
+  .ov-seed.copied .seed-hint { color: var(--gold); }
 
   .summary-block {
     width: min(82vw, 320px);
@@ -3018,18 +3065,22 @@ const NativeApp = (() => {
     gap: 10px;
     justify-content: center;
   }
+  /* Summary tiles: felt-mid pixel plaques; the value is a phosphor readout. */
   .run-stat {
     flex: 1;
-    background: var(--panel);
-    border-radius: 12px;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 12px 8px;
     box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .run-stat-value {
-    font-size: 26px;
+    font-family: var(--font-display);
+    font-size: 17px;
     font-weight: 800;
-    color: var(--accent-2);
-    line-height: 1.1;
+    color: var(--phosphor);
+    text-shadow: var(--glow);
+    line-height: 1.2;
   }
   .run-stat-label {
     font-size: 10px;
@@ -3045,22 +3096,23 @@ const NativeApp = (() => {
   .end-pillars .summary-label { margin-bottom: 5px; }
   .ep-cols {
     display: flex; flex-direction: column; gap: 4px;
-    background: var(--panel); border-radius: 12px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
     padding: 8px 10px; box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .ep-band { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
   .ep-cell {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 2px; text-align: center; min-height: 40px; padding: 4px 3px; border-radius: 8px;
-    background: rgba(74,52,44,0.05); border: 1px solid var(--edge);
+    gap: 2px; text-align: center; min-height: 40px; padding: 4px 3px; border-radius: 0;
+    background: var(--felt-deep); border: 1px solid var(--ink);
   }
   .ep-cell.empty { background: none; border-style: dashed; }
   .ep-cell .ep-icon { font-size: 17px; line-height: 1; }
   .ep-cell .ep-name { font-size: 9.5px; font-weight: 800; line-height: 1.12; color: var(--text); }
   .ep-cell .ep-dash { color: var(--muted); font-weight: 700; }
-  /* Pillar row reads violet (pathway), Base row reads bronze — echoing the board. */
-  .ep-pillars .ep-cell:not(.empty) { border-color: var(--pathway-2); background: rgba(110,81,166,0.08); }
-  .ep-bases .ep-cell:not(.empty) { border-color: #b07a3c; background: rgba(176,122,60,0.10); }
+  /* Pillar row rims GOLD (the pillar identity since chunk 3); the Base row
+     stays quiet cream — same at-a-glance split, palette-only. */
+  .ep-pillars .ep-cell:not(.empty) { border-color: var(--gold); }
+  .ep-bases .ep-cell:not(.empty) { border-color: var(--card-face); }
   .ep-colnums { padding: 1px 0; }
   .ep-colnum {
     text-align: center; font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
@@ -4160,8 +4212,9 @@ const NativeApp = (() => {
   .overlay-coins {
     width: min(82vw, 320px);
     margin: 2px auto 16px;
-    background: var(--panel);
-    border-radius: 12px;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 10px 14px;
     box-shadow: 4px 4px 0 0 var(--shadow);
     font-size: 13px;
@@ -4174,18 +4227,18 @@ const NativeApp = (() => {
   .ocoins-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
   .ocoins-row .lbl { color: var(--text); }
   .ocoins-row .dim { color: var(--muted); font-weight: 600; font-size: 12px; }
-  .ocoins-row .val { font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .ocoins-row .val { font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }   /* coin values read GOLD (§1) */
   .ocoins-sum {
-    border-top: 1px solid rgba(74, 52, 44, 0.12);
+    border-top: 1px solid var(--ink);
     margin-top: 4px; padding-top: 5px;
   }
   .ocoins-sum .lbl { font-weight: 800; }
   .ocoins-balance { text-align: right; margin-top: 6px; font-size: 12px; color: var(--muted); }
 
-  /* ---- Deal-cleared payout screen (matches diecut deal-cleared mockup) ----
-     Header in the themed Baloo 2 font, a white breakdown panel with main reward
-     lines (label left / coin value right) and italic-black indented sub-bullets,
-     and an emphasised grand Total. Presentation/copy only. */
+  /* ---- Deal-cleared payout screen ----
+     Phosphor display headline over a felt-mid pixel panel of reward lines
+     (label left / GOLD coin value right) with dim indented sub-bullets and an
+     emphasised grand Total. Presentation/copy only. */
   .overlay.deal-cleared #overlayIcon { display: none; }   /* no icon — title leads */
   /* PINKY IS HOME — compact, fits one phone screen (the default win layout
      overflowed top AND bottom: centered flex clips both ends). Content is
@@ -4193,41 +4246,42 @@ const NativeApp = (() => {
      when it fits and top-aligned + scrollable on very short viewports. */
   .overlay.pinky-home { justify-content: flex-start; overflow-y: auto; }
   .overlay.pinky-home #overlayIcon { margin-top: auto; font-size: 38px; margin-bottom: 2px; }
-  .overlay.pinky-home h2 { font-size: 26px; margin: 2px 0 4px; }
+  .overlay.pinky-home h2 { font-size: 18px; margin: 2px 0 4px; }
   .overlay.pinky-home .run-progress { margin: 0 0 4px; }
   .overlay.pinky-home .summary-block { margin-top: 4px; }
   .overlay.pinky-home .summary-tiles .run-stat { padding: 8px 10px; }
-  .overlay.pinky-home .summary-tiles .run-stat-value { font-size: 19px; }
+  .overlay.pinky-home .summary-tiles .run-stat-value { font-size: 14px; }
   .overlay.pinky-home .end-pillars { margin-top: 8px; }
   .overlay.pinky-home .play-btn { margin-top: 10px; }
   .overlay.pinky-home .play-btn-2 { margin-bottom: auto; }
   .overlay.deal-cleared h2,
   .overlay.deal-cleared.win h2 {
-    font-family: "Baloo 2", var(--font-display);
-    font-weight: 800; font-size: 34px; letter-spacing: 0;
-    text-transform: none; text-shadow: none; color: var(--accent);
+    font-family: var(--font-display);
+    font-weight: 800; font-size: clamp(16px, 5vw, 22px); letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--phosphor);
+    text-shadow: var(--glow), 2px 2px 0 var(--shadow);
     margin: 0 0 6px;
   }
   .overlay.deal-cleared .run-progress { color: var(--accent-2); margin-bottom: 22px; }
   .overlay.deal-cleared .overlay-coins {
     width: min(86vw, 340px); margin: 0 auto 4px;
-    background: var(--bg-2); border: 1px solid var(--edge-2); border-radius: 16px;
-    padding: 16px; box-shadow: 0 4px 14px rgba(120, 90, 70, 0.12); font-size: 14px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
+    padding: 16px; box-shadow: 4px 4px 0 0 var(--shadow); font-size: 14px;
   }
   .dc-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 12px; }
   .dc-line:first-child { margin-top: 0; }
   .dc-lab { font-weight: 700; font-size: 15px; color: var(--text); }
-  .dc-val { font-weight: 700; font-size: 15px; color: var(--card-red); font-variant-numeric: tabular-nums;
+  .dc-val { font-weight: 700; font-size: 15px; color: var(--gold); font-variant-numeric: tabular-nums;
     display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
   .dc-sub { margin: 3px 0 0 14px; }
-  .dc-sub > div { font-style: italic; font-size: 12px; color: #1c1418;
+  .dc-sub > div { font-style: italic; font-size: 12px; color: var(--muted);
     display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 2px; }
   .dc-sub .dc-sv { font-style: normal; font-weight: 600; color: var(--text); white-space: nowrap; }
   .dc-sub .coin-ico { vertical-align: -0.15em; }
   .dc-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--edge-2); }
-  .dc-total .dc-lab { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 18px; }
-  .dc-total .dc-val { font-family: "Baloo 2", var(--font-display); font-weight: 800; font-size: 20px; color: var(--card-red); }
+    margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--ink); }
+  .dc-total .dc-lab { font-family: var(--font-display); font-weight: 800; font-size: 13px; text-transform: uppercase; }
+  .dc-total .dc-val { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--gold); }
   /* Running balance after this deal's earnings are added. */
   .dc-balance { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 8px; }
   .dc-balance .dc-bal-lab { font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -4597,14 +4651,17 @@ const NativeApp = (() => {
      Pillar's column cell also shatter-shakes. Fixed overlay, self-removing. */
   .static-toast {
     position: fixed; z-index: 90; transform: translate(-50%, -130%);
-    padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
-    white-space: nowrap; pointer-events: none; box-shadow: 0 4px 12px rgba(40,24,30,0.35);
+    padding: 5px 11px; border-radius: 0; font-size: 12.5px; font-weight: 800;
+    white-space: nowrap; pointer-events: none; box-shadow: 2px 2px 0 0 var(--shadow);
     display: inline-flex; align-items: center; gap: 5px;
     animation: staticToast 1.7s cubic-bezier(0.3,0.9,0.4,1) forwards;
   }
   .static-toast .st-ic { font-size: 13px; }
-  .static-toast.safe { background: #eafaf0; color: #1d6e3b; border: 1px solid #34a85c; }
-  .static-toast.boom { background: #fdecea; color: #9c281c; border: 1px solid #db4233; }
+  /* Outcome chips on the palette: SAFE = phosphor on deep felt (the good
+     glow), DESTROYED = cream on suit red (the danger face). */
+  .static-toast.safe { background: var(--felt-deep); color: var(--phosphor);
+    text-shadow: var(--glow); border: var(--px) solid var(--phosphor); }
+  .static-toast.boom { background: var(--suit-red); color: var(--card-face); border: var(--px) solid var(--ink); }
   @keyframes staticToast {
     0%   { opacity: 0; transform: translate(-50%, -100%) scale(0.8); }
     14%  { opacity: 1; transform: translate(-50%, -140%) scale(1.06); }
@@ -5113,11 +5170,12 @@ const NativeApp = (() => {
      never takes layout space or fights the play-surface scroll-lock. */
   .debug-toggle {
     /* Above EVERY other overlay (store/inv/run-complete all sit ≤ 62) so the
-       toggle is reachable from any screen, including the store. */
+       toggle is reachable from any screen, including the store. Framed like
+       the rest of the pixel chrome (dev tool, but it sits over game screens). */
     position: fixed; left: 8px; bottom: 8px; z-index: 90;
-    width: 34px; height: 34px; border-radius: 50%;
-    background: rgba(251, 246, 241, 0.7); border: 1px solid var(--edge-2);
-    color: var(--accent-2); font-size: 16px; line-height: 1;
+    width: 34px; height: 34px; border-radius: 0;
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    color: var(--text); font-size: 16px; line-height: 1;
     /* Hidden in the normal build — the 🐞 toggle is a dev tool and never
        shows during play. It appears only once debug access is granted
        (?debug URL, or any path that opens the panel — see body.debug-access,
@@ -5158,16 +5216,19 @@ const NativeApp = (() => {
   .debug-overlay {
     position: fixed; inset: 0; z-index: 95;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(48, 36, 32, 0.55);
+    background: rgba(16, 16, 14, 0.55);   /* ink scrim, like every other veil */
     padding: 16px;
   }
   .debug-overlay.hidden { display: none; }
+  /* FRAME ONLY restyled (squared, ink border, flat aged-cream face) — the
+     panel INTERNALS are a dev tool and keep their own light-surface styling;
+     the dashed border stays as the "not a game surface" marker. */
   .debug-panel {
     width: min(94vw, 430px);
     max-height: 80svh; max-height: 80vh;
     display: flex; flex-direction: column;
-    border: 1px dashed var(--edge-2); border-radius: 14px;
-    background: rgba(251, 246, 241, 0.98); box-shadow: 4px 4px 0 0 var(--shadow);
+    border: var(--px) dashed var(--ink); border-radius: 0;
+    background: var(--card-face); box-shadow: 4px 4px 0 0 var(--shadow);
     font-size: 12px;
   }
   /* Internal scroll so debug content never needs the (locked) page to scroll. */
@@ -5181,15 +5242,15 @@ const NativeApp = (() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: var(--accent-2);
+    color: var(--ink);   /* frame header sits on the light dev surface */
     font-weight: 800;
     letter-spacing: 1px;
     padding: 10px 12px;
-    border-bottom: 1px solid rgba(74, 52, 44, 0.08);
+    border-bottom: 1px solid var(--ink);
   }
-  .debug-head b { color: var(--accent); }
+  .debug-head b { color: var(--suit-red); }
   .debug-close {
-    background: none; border: none; color: var(--text);
+    background: none; border: none; color: var(--ink);
     font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
     touch-action: manipulation;
   }
@@ -5316,9 +5377,13 @@ const NativeApp = (() => {
   img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
     -webkit-user-drag: none; pointer-events: none; }
 
-  /* Felt NAP: a static fine speckle over the whole surface — the fabric grain. */
-  #tissue::after { content: ""; position: absolute; inset: 0;
-    background: var(--felt-grain); background-size: 160px 160px; }
+  /* Felt NAP: the baked mid⊕deep dither tile — the same 4px pixel weave the
+     map's .map-bg wears, replacing the old feTurbulence noise raster (the
+     last one in the sheet; §10 allows dither tiles only). On ::before so it
+     lies UNDER the haze/vein children (the old ::after grain was a 5% wash;
+     an opaque-pixel tile above them would bury the atmosphere). */
+  #tissue::before { content: ""; position: absolute; inset: 0;
+    background: var(--felt-tile) 0 0 / 4px 4px repeat; image-rendering: pixelated; }
   /* Layer A — soft warm haze blobs. LAYER-DIET (THERMAL5): the blobs used to
      be three SEPARATE filter:blur(46px) + will-change + infinite-animation
      layers — ~10MB of standing texture and an expensive gaussian re-raster on
@@ -6591,15 +6656,14 @@ const NativeApp = (() => {
      wins ties). Panels, cards, buttons and chips deliberately KEEP the light
      palette — they read as paper sitting on the felt table.
      ============================================================ */
-  /* Menus + deck select */
-  .menu-title .mt-a, .menu-title .mt-b { color: #F2ECE2; }
+  /* Menus + deck select (title words are set in the main .menu-title rules —
+     cream + the phosphor last word; no override needed here anymore) */
   .menu-tagline { color: var(--on-felt); }
   .menu-foot { color: var(--on-felt-muted); }
   .ds-name { color: var(--on-felt); }
   .ds-panel.locked .ds-name { color: var(--on-felt-muted); }
   .ds-sub { color: var(--on-felt-muted); }
-  .ds-lock { color: var(--on-felt-muted); background: rgba(240,234,224,0.08);
-    border-color: rgba(240,234,224,0.22); }
+  .ds-lock { color: var(--on-felt-muted); }
   /* Overlays (start / deal summary / win / loss + the store/map shells) */
   .overlay h2 { color: var(--on-felt); }
   .overlay p { color: var(--on-felt-muted); }
@@ -6632,8 +6696,8 @@ const NativeApp = (() => {
   body.guess-side #histBand .ds-bar.ds-joker.ds-active .ds-rank { color: #ecc25a; }
   /* Suit-count chart's 5th cell: the suitless Jokers' ★, in the same gold. */
   .suit-counts .sc-cell.sc-joker .sc-suit { color: #c9a23f; }
-  /* Deck-select heading + the deal-status score row + the page footer */
-  .ds-title { color: var(--on-felt); }
+  /* Deal-status score row + the page footer (.ds-title keeps its phosphor
+     marquee treatment from the main rules — no override here) */
   .deal-status .hud-score { color: var(--on-felt); }
   .deal-status .hud-score .hl, .deal-status .hud-score .hx { color: var(--on-felt-muted); }
   footer { color: var(--on-felt-muted); }
@@ -6713,9 +6777,10 @@ const NativeApp = (() => {
 </head>
 <body>
   <!-- ── BOOT SPLASH — FIRST element in <body>, so the first painted frame is
-       always JarHead cream + mark, never the raw play-screen chrome below.
-       The mark is the jarhead-logo.svg art inlined (background rect dropped —
-       the container paints the cream; ids namespaced boot- so they can't
+       always the deep-felt brand hold + mark, never the raw play-screen chrome
+       below. The mark is the jarhead-logo.svg art inlined (background rect
+       dropped — the container paints the backdrop, now the CRT felt; the jar
+       keeps its own brand inks; ids namespaced boot- so they can't
        collide with the icon-sprite defs). Removed from the DOM by the boot
        callback after init + min-hold + fade — it must not linger over input,
        and the document-capture stale-tap guard never sees it. -->
@@ -6886,7 +6951,7 @@ const NativeApp = (() => {
          the iOS app bundle ships no icons/ directory, so a relative src 404s
          offline and WKWebView renders the broken-image "?". build-www audits
          for regressions of this. -->
-    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23c0436c' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%238e2f4e'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="" draggable="false" /></span>
+    <span class="hud-same empty" id="hudSame" title="Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23d9a441' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%23d9a441'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%234ef08a'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="" draggable="false" /></span>
     <span class="hud-samepower hidden" id="hudSamePower" role="button" aria-label="Equipped Same-Power" title="Equipped Same-Power — tap or hold for its effect"></span>
     <!-- ECON1: the run SCORE chip (campaign score pre-boss, endless score once
          banked). Hold-for-help attached at boot (attachInput). -->
@@ -7470,7 +7535,7 @@ const NativeApp = (() => {
     <!-- Logo INLINED (data URI mirror of icons/logo.svg — kept on disk for the
          app-icon pipeline): the offline app bundle has no icons/, and a 404'd
          img is WKWebView's broken-image "?" square. -->
-    <img class="menu-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23c0436c' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%238e2f4e'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="Shoulda Said Same logo" width="100" height="100" draggable="false" />
+    <img class="menu-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg stroke='%23d9a441' stroke-width='9' stroke-linecap='round'%3E%3Cline x1='30' y1='40' x2='70' y2='40'/%3E%3Cline x1='30' y1='60' x2='70' y2='60'/%3E%3C/g%3E%3Cg fill='%23d9a441'%3E%3Ccircle cx='30' cy='40' r='8'/%3E%3Ccircle cx='70' cy='40' r='8'/%3E%3Ccircle cx='30' cy='60' r='8'/%3E%3Ccircle cx='70' cy='60' r='8'/%3E%3C/g%3E%3Cg fill='%234ef08a'%3E%3Ccircle cx='52' cy='40' r='3'/%3E%3Ccircle cx='48' cy='60' r='3'/%3E%3C/g%3E%3C/svg%3E" alt="Shoulda Said Same logo" width="100" height="100" draggable="false" />
     <h1 class="menu-title">
       <span class="mt-row"><span class="mt-w mt-a">Shoulda</span><span class="mt-w mt-b">said</span></span>
       <span class="mt-w mt-c">same</span>
@@ -7631,7 +7696,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.32 · CRT CASINO 3/6: pixel store, dithered packs";
+const APP_VERSION = "v5.33 · CRT CASINO 4/6: pixel menus, phosphor wordmark";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -29787,7 +29852,7 @@ const UIRenderer = (() => {
     });
     const show = () => showOverlay({
       kind: won ? "win" : "lose",
-      // WIN mirrors the campaign deal-cleared heading (Baloo title, no icon); the
+      // WIN mirrors the campaign deal-cleared heading (display title, no icon); the
       // coin block/board/fossils never appear because Zen sets no coins/endStats.
       // LOSS mirrors the campaign game-over header: the "Game over" eyebrow over
       // the menu-title treatment ending in the guess that would have SURVIVED the
