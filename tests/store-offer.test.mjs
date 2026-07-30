@@ -10,7 +10,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData } = loadGame();
+  const { CampaignState, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData, Stats } = loadGame();
   const r = makeRunner("store-offer.test.mjs");
   // The shelf-shape knobs — read live from items.js so a data retune stays green.
   const SLOTS = ItemData.store.slots;
@@ -273,9 +273,23 @@ export function run() {
       return seen;
     };
     const s1 = sample(CampaignState.create(), 2000);          // Stage 1: ♦ ♥
-    r.ok(s1.has("diamondGuard") && s1.has("heartGuard"), "Stage 1 offers the ♦ and ♥ guards");
-    r.ok(s1.has("clubGuard"), "Stage 1 offers the ♣ guard too (gating removed)");
-    r.ok(s1.has("suitImmunity"), "…and the ♠ guard (all items any time)");
+    // Suit-STAGE gating stays removed: off-stage suits roll at Stage 1,
+    // proven via UNGATED suit items (the guards are unlock-gated now).
+    r.ok(s1.has("changeSuitClub") && s1.has("changeSuitSpade"),
+      "Stage 1 offers ♣/♠ suit items (suit-stage gating stays removed)");
+    // UNLOCK2: at zero lifetime stats no GATED sticker ever rolls —
+    // registry-driven over whatever items.js currently gates.
+    const gatedStickers = ItemData.stickers.filter(d => d.unlock).map(d => d.id);
+    r.ok(gatedStickers.every(id => !s1.has(id)),
+      "zero-stat store never offers a gated sticker (" + gatedStickers.length + " gated)");
+    // …and satisfying a gate opens the roll: seed the guards' stats and the
+    // (previously absent) guards can appear.
+    ["dealsSurvived", "cardsBuried", "pilesLost"].forEach(s => Stats.bump(s, 999));
+    Stats.bump("coinsEarnedLifetime", 9999);
+    const s2 = sample(CampaignState.create(), 2000);
+    r.ok(s2.has("clubGuard") || s2.has("heartGuard") || s2.has("diamondGuard") || s2.has("suitImmunity"),
+      "…and once the stats are met, guards roll again");
+    Stats.reset();
   }
 
   // --- Suit-lock: suited PILLARS obey the same gate ---------------------
@@ -304,8 +318,16 @@ export function run() {
       return seen;
     };
     const b1 = sampleBases(CampaignState.create(), 3000);      // Stage 1: ♦ ♥
-    r.ok(b1.has("clubDig"), "Stage 1 CAN offer Club Dig (gating removed)");
+    // Suit-STAGE gating stays removed; Club Dig is unlock-gated now, so the
+    // any-stage rule is proven by seeding its stat and re-sampling.
     r.ok(b1.has("tax"), "Stage 1 offers Heart Tax (♥ in play)");
+    const gatedBases = ItemData.bases.filter(d => d.unlock).map(d => d.id);
+    r.ok(gatedBases.every(id => !b1.has(id)),
+      "zero-stat store never offers a gated base (" + gatedBases.length + " gated)");
+    Stats.bump("cardsBuried", 999);
+    const b2 = sampleBases(CampaignState.create(), 3000);
+    r.ok(b2.has("clubDig"), "Stage 1 CAN offer Club Dig once its bury gate is met (any-stage rule holds)");
+    Stats.reset();
   }
 
   // --- Removal store slot (default ON): permanent last slot, fixed price, repeatable

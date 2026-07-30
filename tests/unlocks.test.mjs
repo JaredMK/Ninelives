@@ -62,25 +62,48 @@ const BIG = 1e9;   // an unreachable threshold (finite, valid) — always locked
 export function run() {
   const r = makeRunner("unlocks.test.mjs");
 
-  // ── SHIP STATE: no entry carries an unlock field → pools are identical ──
-  // NOTE FOR THE FIRST REAL GATE: the pins in this section (zero unlock
-  // fields, grantable identity, checkNewUnlocks [], nearestLocked 0) pin
-  // the NOTHING-LOCKED ship state and are EXPECTED to be rewritten when the
-  // first items.js entry gains a real `unlock` — relax them to skip gated
-  // defs dynamically rather than deleting them.
+  // ── LIVE PROGRESSION (UNLOCK2, v5.41): the catalog carries real gates ──
+  // These pins are REGISTRY-DRIVEN (rules, not tunables): retuning a
+  // threshold or moving a gate to a different stat must not break them.
   {
-    const { ItemData, StickerTypes } = loadGame();
+    const { ItemData, StickerTypes, ItemUnlocks } = loadGame({ localStorage: memStorage() });
     const groups = ["stickers", "pillars", "bases", "samePowers", "packs"];
-    const withUnlock = [];
+    let gated = 0, started = {};
+    for (const g of groups) {
+      started[g] = 0;
+      for (const d of ItemData[g]) {
+        if (d.unlock != null) {
+          gated++;
+          r.ok(ItemUnlocks.STATS.indexOf(d.unlock.stat) !== -1,
+            g + "." + d.id + " gates on a KNOWN stat (" + d.unlock.stat + ")");
+        } else started[g]++;
+      }
+    }
+    r.ok(gated > 0, "the progression is LIVE: items carry unlock gates (" + gated + ")");
     for (const g of groups)
-      for (const d of ItemData[g]) if (d.unlock != null) withUnlock.push(g + "." + d.id);
-    r.eq(withUnlock.length, 0, "SHIP STATE: no items.js entry carries an `unlock` field"
-      + (withUnlock.length ? " (" + withUnlock.join(", ") + ")" : ""));
-    // With zero gates the unlock filter is the identity: grantable() is exactly
-    // the non-cursed pool, in registry order (byte-identical roll pools).
+      r.ok(started[g] >= 2, g + " keeps >=2 STARTING items (" + started[g]
+        + ") — the store class roll never starves at zero stats");
+    // The bury chicken-and-egg guard: cardsBuried gates exist, so at least
+    // one bury SOURCE must be a starting item or the ladder can never open.
+    const burySeed = ItemData.stickers.find(d => d.id === "oneTribute");
+    r.ok(burySeed && burySeed.unlock == null,
+      "Bury 1 (oneTribute) stays a starting item — the cardsBuried ladder's seed");
+    // The four requested Zen events are all actually used by the design.
+    for (const zs of ["zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon"]) {
+      const users = groups.flatMap(g => ItemData[g].filter(d => d.unlock && d.unlock.stat === zs));
+      r.ok(users.length >= 1, "at least one item gates on " + zs + " (" + users.length + ")");
+    }
+    // A plausible FIRST SESSION (a couple of deals, a few deaths, one Zen
+    // easy win) opens a healthy handful of unlocks — the drip starts fast.
+    const first = { dealsSurvived: 3, pilesLost: 3, zenGamesPlayed: 1, zenEasyWon: 1 };
+    const opened = groups.flatMap(g => ItemData[g].filter(d => d.unlock
+      && first[d.unlock.stat] != null && first[d.unlock.stat] >= d.unlock.count));
+    r.ok(opened.length >= 4, "a typical first session unlocks >=4 items (got " + opened.length + ")");
+    // The unlock filter at zero stats: grantable() === the ungated non-cursed
+    // pool, in registry order.
     r.eq(JSON.stringify(StickerTypes.grantable().map(t => t.id)),
-      JSON.stringify(StickerTypes.all().filter(t => !t.cursed).map(t => t.id)),
-      "…grantable() === the non-cursed pool, in order (the filter is the identity)");
+      JSON.stringify(StickerTypes.all().filter(t => !t.cursed && ItemUnlocks.isUnlocked(t)).map(t => t.id)),
+      "…grantable() === the ungated non-cursed pool, in order");
     r.ok(StickerTypes.grantable().length < StickerTypes.all().length,
       "…(sanity: cursed stickers still exist and stay excluded)");
     // items.js header documents the field, the 15 stats and the commented example.
@@ -91,8 +114,9 @@ export function run() {
     const headerStats = ["dealsSurvived", "runsPlayed", "runsWon", "bossesBeaten",
       "endlessStagesReached", "coinsEarnedLifetime", "cardsBuried", "samesCalled",
       "correctSames", "jokersPlayed", "stickersApplied", "pillarsPlaced",
-      "basesPlaced", "removalsUsed", "pilesLost"];
-    r.ok(headerStats.every(s => ITEMS_SRC.includes(s)), "…listing all 15 supported stats");
+      "basesPlaced", "removalsUsed", "pilesLost",
+      "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon"];
+    r.ok(headerStats.every(s => ITEMS_SRC.includes(s)), "…listing all 19 supported stats");
   }
 
   // ── VALIDATOR: a well-formed gate loads; every malformed shape fails loud ──
@@ -127,9 +151,10 @@ export function run() {
     const EXPECTED = ["dealsSurvived", "runsPlayed", "runsWon", "bossesBeaten",
       "endlessStagesReached", "coinsEarnedLifetime", "cardsBuried", "samesCalled",
       "correctSames", "jokersPlayed", "stickersApplied", "pillarsPlaced",
-      "basesPlaced", "removalsUsed", "pilesLost"];
+      "basesPlaced", "removalsUsed", "pilesLost",
+      "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon"];
     r.eq(JSON.stringify(ItemUnlocks.STATS), JSON.stringify(EXPECTED),
-      "ItemUnlocks.STATS is exactly the documented 15-name list");
+      "ItemUnlocks.STATS is exactly the documented 19-name list");
     Stats.reset();
     r.ok(EXPECTED.every(n => typeof ItemUnlocks.statValue(n) === "number"
       && isFinite(ItemUnlocks.statValue(n)) && ItemUnlocks.statValue(n) >= 0),
@@ -174,15 +199,16 @@ export function run() {
 
   // ── GATING: an injected locked def leaves every pool ────────────────────
   {
-    const { CampaignState, StickerTypes, PillarTypes, ItemData } = loadGame();
+    const { CampaignState, StickerTypes, PillarTypes, ItemData, ItemUnlocks } = loadGame();
     // grantable(): lock one sticker → excluded, order of the rest preserved.
     const victim = StickerTypes.grantable()[0];
     victim.unlock = LOCK("cardsBuried", BIG);
     r.ok(StickerTypes.grantable().every(t => t.id !== victim.id),
       "a locked sticker leaves grantable()");
     r.eq(JSON.stringify(StickerTypes.grantable().map(t => t.id)),
-      JSON.stringify(StickerTypes.all().filter(t => !t.cursed && t.id !== victim.id).map(t => t.id)),
-      "…the rest unchanged, in order");
+      JSON.stringify(StickerTypes.all().filter(t => !t.cursed && t.id !== victim.id
+        && ItemUnlocks.isUnlocked(t)).map(t => t.id)),
+      "…the rest of the UNLOCKED pool unchanged, in order");
     // Store roll: lock one pillar → 300 visits never offer it; the class keeps
     // its weight (its pool renormalizes over the remaining pillars).
     const pilVictim = PillarTypes.all()[0];
@@ -268,6 +294,10 @@ export function run() {
     const d = StickerTypes.grantable()[0];
     d.unlock = LOCK("cardsBuried", 5);
     Stats.reset();
+    // UNLOCK2: boot now PRIMES the known-set at load — before this test's
+    // gate existed — so clear it; the next check re-inits with the injected
+    // gate in place (modeling a profile that always had it).
+    ItemUnlocks.reset();
     // First load below threshold: silent init stamps the CURRENT derived set
     // (everything else), the locked item stays unknown and locked.
     r.eq(ItemUnlocks.checkNewUnlocks().length, 0, "below threshold: no new unlocks");
@@ -299,7 +329,11 @@ export function run() {
     const d = g.StickerTypes.grantable()[0];
     d.unlock = LOCK("cardsBuried", 5);
     g.Stats.reset();
-    g.Stats.bump("cardsBuried", 50);   // long past the gate before ANY ItemUnlocks call
+    g.Stats.bump("cardsBuried", 50);   // long past the gate
+    // UNLOCK2: boot priming stamped at load (zero stats) — model the
+    // veteran's TRUE first load on this build by clearing the known-set so
+    // the next call is the first-ever init WITH the big stats present.
+    g.ItemUnlocks.reset();
     r.eq(g.ItemUnlocks.checkNewUnlocks().length, 0,
       "first load past the threshold: retroactive silent init — zero toasts");
     r.ok((JSON.parse(storage.getItem("ninelives.itemunlocks.v1")).known || []).indexOf(d.id) !== -1,
@@ -315,21 +349,29 @@ export function run() {
     const storage = memStorage();
     const { ItemUnlocks, StickerTypes, PillarTypes, Stats } = loadGame({ localStorage: storage });
     Stats.reset();
+    // UNLOCK2: the live catalog now carries real gates, so nearestLocked is
+    // never empty — assert ORDERING on injected markers with progress
+    // fractions ABOVE every real zero-stat gate (0.5 and 0.25 beat 0/…).
     const a = StickerTypes.grantable()[0]; a.unlock = LOCK("cardsBuried", 10);
     const b = PillarTypes.all()[0];      b.unlock = LOCK("pilesLost", 4);
     Stats.bumpAll({ cardsBuried: 5, pilesLost: 1 });   // fractions .5 vs .25
-    const near2 = ItemUnlocks.nearestLocked(2);
-    r.eq(near2.length, 2, "nearestLocked(2) returns both locked items");
-    r.eq(near2[0].id, a.id, "…closest-first (higher progress fraction wins)");
-    r.eq(near2[1].id, b.id, "…then the further one");
-    r.eq(near2[0].current, 5, "…carrying the live current count");
-    r.eq(near2[0].count, 10, "…and the gate count");
+    const nearAll = ItemUnlocks.nearestLocked(200);
+    const posA = nearAll.findIndex(u => u.id === a.id);
+    const posB = nearAll.findIndex(u => u.id === b.id);
+    r.ok(posA !== -1 && posB !== -1, "nearestLocked includes both injected locked items");
+    r.ok(posA < posB, "…closest-first (higher progress fraction wins)");
+    // Real gates on the SAME stats sit behind the markers only if their
+    // fraction is lower; every other zero-progress gate must rank below A.
+    r.ok(posA < nearAll.findIndex(u => u.current === 0),
+      "…zero-progress real gates rank below the .5-progress marker");
+    r.eq(nearAll[posA].current, 5, "…carrying the live current count");
+    r.eq(nearAll[posA].count, 10, "…and the gate count");
     r.eq(ItemUnlocks.nearestLocked(1).length, 1, "…n caps the list");
     r.eq(ItemUnlocks.nearestLocked(0).length, 0, "…n=0 returns nothing");
-    Stats.bump("cardsBuried", 5);   // a unlocks (10/10) — only b stays
-    const near1 = ItemUnlocks.nearestLocked(5);
-    r.eq(near1.length, 1, "an item that reaches its gate leaves nearestLocked");
-    r.eq(near1[0].id, b.id, "…leaving the still-locked one");
+    Stats.bump("cardsBuried", 5);   // a unlocks (10/10) — b stays
+    const nearAfter = ItemUnlocks.nearestLocked(200);
+    r.ok(nearAfter.every(u => u.id !== a.id), "an item that reaches its gate leaves nearestLocked");
+    r.ok(nearAfter.some(u => u.id === b.id), "…the still-locked marker remains");
   }
 
   // ── Exhibition gates: CampaignState-internal increments (behavioral) ────
@@ -458,9 +500,14 @@ export function run() {
     r.ok(popBody.includes("wrap.remove();") && popBody.includes("onNext();"),
       "…CONTINUE removes the pop and drains the next one");
 
-    // ── checkNewUnlocks: exactly the TWO checkpoints, once per path ──
-    r.eq(countOf(src, "ItemUnlocks.checkNewUnlocks()"), 3,
-      "checkNewUnlocks has exactly 3 call sites (deal-end loss path, deal-end win path, run end)");
+    // ── checkNewUnlocks: exactly the known checkpoints, once per path ──
+    r.eq(countOf(src, "ItemUnlocks.checkNewUnlocks()"), 4,
+      "checkNewUnlocks has exactly 4 call sites (deal-end loss/win paths, run end, Zen end — UNLOCK2)");
+    // UNLOCK2 boot-priming: the known-set baseline is pinned BEFORE any play,
+    // so a fresh profile's FIRST session pops its crossings (the lazy init at
+    // a game-end checkpoint used to swallow them).
+    r.ok(src.includes("ItemUnlocks.primeKnown()"),
+      "the known-set is primed at boot (fresh profiles pop first-session unlocks)");
     r.eq(countOf(runEndBody, "ItemUnlocks.checkNewUnlocks()"), 2,
       "…onRunEnd (deal end) holds the two mutually-exclusive branch sites");
     r.ok(runEndBody.includes("queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showCampaignFailed(payload.run))"),
@@ -485,8 +532,8 @@ export function run() {
       "…the death screen passes the section (nearest 2)");
     r.ok(homeBody.includes("unlocks: ItemUnlocks.nearestLocked(2)"),
       "…the win screen passes it too");
-    r.eq(loadGame().ItemUnlocks.nearestLocked(2).length, 0,
-      "…INERT AT SHIP: no unlock fields → the section can only ever be empty");
+    r.eq(loadGame({ localStorage: memStorage() }).ItemUnlocks.nearestLocked(2).length, 2,
+      "…LIVE as of UNLOCK2: real gates exist, so the almost-there section has rows at zero stats");
 
     // ── The Collection screen ──
     r.ok(html.includes('id="collectionScreen"') && html.includes('id="colList"') && html.includes('id="colBack"'),

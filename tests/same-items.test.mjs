@@ -7,7 +7,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, StickerTypes, BaseTypes } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, StickerTypes, BaseTypes, Stats } = loadGame();
   const r = makeRunner("same-items.test.mjs");
 
   const deck = () => DeckManager.buildStandardDeck();
@@ -134,14 +134,17 @@ export function run() {
   }
 
   // ================= STORE POOL: all four roll at rare weight =================
+  // (UNLOCK2: all four are Same-mastery gated — seed the counters first.)
   {
+    Stats.bumpAll({ samesCalled: 999, correctSames: 999 });
     const c = CampaignState.create();
     const want = new Set(["rechargeSameShield", "activateSamePower", "rechargeSame", "activateSame"]);
     const seen = new Set();
     for (let i = 0; i < 6000 && seen.size < want.size; i++) {
       c.openStore().slots.forEach(s => { if (s && want.has(s.id)) seen.add(s.id); });
     }
-    r.eq(seen.size, want.size, "all four new items surface in the unified store pool (" + [...seen].sort().join(",") + ")");
+    r.eq(seen.size, want.size, "all four new items surface in the unified store pool once unlocked (" + [...seen].sort().join(",") + ")");
+    Stats.reset();
   }
 
   return r.summary();

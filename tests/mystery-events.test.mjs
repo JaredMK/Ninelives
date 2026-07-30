@@ -103,8 +103,10 @@ export function run() {
   // ── cursed stickers never enter the grant pools ───────────────────────────
   {
     r.ok(StickerTypes.grantable().every(t => !t.cursed), "StickerTypes.grantable() excludes cursed types");
-    r.eq(StickerTypes.grantable().length, StickerTypes.all().length - CURSED_IDS.length,
-      "grantable() is exactly all() minus the cursed entries");
+    // UNLOCK2: grantable() is the UNLOCKED non-cursed pool (registry-driven).
+    r.eq(StickerTypes.grantable().length,
+      StickerTypes.all().filter(t => !t.cursed && t.unlock == null).length,
+      "grantable() at zero stats is exactly the ungated non-cursed pool");
   }
   {
     // Store offers: fresh visits (seeded) + rerolls (Math.random path shares

@@ -157,6 +157,20 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.41 (Claude, UNLOCK2)** — the item-unlock progression is LIVE: 69 of
+  102 items.js entries now carry `unlock:` gates (33 simple starting items);
+  4 new Zen stats (`zenGamesPlayed`/`zenEasyWon`/`zenMediumWon`/`zenHardWon`)
+  read ZenStats directly (retroactive for veterans). Design intent: gates are
+  THEMATIC (bury items unlock by burying, Same items by Same play, the whole
+  peek/information family via Zen, death-themed pillars via pilesLost).
+  Rules to keep: `oneTribute` must stay UNGATED (the cardsBuried ladder's
+  only seed source — chicken-and-egg); every class keeps ≥2 starting items
+  (store class roll starves otherwise); the Zen end screen is now the 4th
+  checkNewUnlocks checkpoint; `ItemUnlocks.primeKnown()` runs at boot (fixes
+  first-session unlocks being silently swallowed by the lazy known-set init —
+  do not remove). Tests are registry-driven (retune thresholds freely in
+  items.js; moving a gate to an unknown stat fails loudly).
+
 - **v5.36 (Kimi, CRTAUDIT)** — independent palette-purity audit of the CRT
   restyle + the leftovers fixed; READ THIS BEFORE RE-ADDING VIOLET OR BLUR:
   - Curse FX glows are PHOSPHOR now: `meaJokerIn` and `.me-slam::after`

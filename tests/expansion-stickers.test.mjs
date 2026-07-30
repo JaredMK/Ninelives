@@ -4,7 +4,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, StickerTypes } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, StickerTypes, Stats } = loadGame();
   const r = makeRunner("expansion-stickers.test.mjs");
 
   const baseDeck = () => DeckManager.buildStandardDeck();
@@ -59,7 +59,17 @@ export function run() {
     r.ok(seen.has("changeSuitDiamond"), "Stage 1 offers Change to ♦");
     r.ok(seen.has("changeSuitClub"), "Stage 1 offers Change to ♣ too (gating removed — all items any time)");
     r.ok(seen.has("changeSuitSpade"), "…and Change to ♠");
-    r.ok(seen.has("quickBury"), "suit-free stickers offer from Stage 1 as before");
+    // quickBury is unlock-gated now (UNLOCK2): prove the any-stage rule by
+    // seeding its stat and resampling.
+    {
+      Stats.bump("cardsBuried", 999);
+      const c2 = CampaignState.create();
+      const seen2 = new Set();
+      for (let i = 0; i < 1500 && !seen2.has("quickBury"); i++)
+        c2.openStore().slots.forEach(s => { if (s && s.kind === "sticker") seen2.add(s.id); });
+      r.ok(seen2.has("quickBury"), "suit-free stickers offer from Stage 1 once unlocked");
+      Stats.reset();
+    }
   }
 
   // ---- Loose Change: emits a sticker-coins payout (0..3) every correct land ----

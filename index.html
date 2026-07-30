@@ -6867,7 +6867,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.40 · faces you can love: 32px eyes, glints, bespoke dances";
+const APP_VERSION = "v5.41 · item unlocks are LIVE — 69 gates, Zen earns the peeks";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8762,6 +8762,11 @@ const ITEM_UNLOCK_STATS = [
   "dealsSurvived", "runsPlayed", "runsWon", "bossesBeaten", "endlessStagesReached",
   "coinsEarnedLifetime", "cardsBuried", "samesCalled", "correctSames", "jokersPlayed",
   "stickersApplied", "pillarsPlaced", "basesPlaced", "removalsUsed", "pilesLost",
+  // UNLOCK2 (v5.41): Zen-mode gates — read from ZenStats (per-difficulty
+  // games/wins), not the campaign Stats record. Zen is available from the
+  // very first session (the tutorial lives there), so these are reachable
+  // before any campaign progress.
+  "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon",
 ];
 
 /* ----------------------------------------------------------------
@@ -16653,6 +16658,14 @@ const ItemUnlocks = (() => {
     basesPlaced:          s => s.basesPlaced,
     removalsUsed:         s => s.removalsUsed,
     pilesLost:            s => s.pilesLost,
+    // Zen readers ignore the Stats record — Zen keeps its own per-difficulty
+    // store (ZenStats, ninelives.zenstats.v1). Reading it directly means a
+    // veteran's existing Zen record counts retroactively (and the silent
+    // first-load known-set init keeps that from toast-spamming them).
+    zenGamesPlayed:       () => DifficultyData.zenIds.reduce((a, id) => a + (ZenStats.get(id).games || 0), 0),
+    zenEasyWon:           () => ZenStats.get("easy").wins || 0,
+    zenMediumWon:         () => ZenStats.get("medium").wins || 0,
+    zenHardWon:           () => ZenStats.get("hard").wins || 0,
   };
   // Hint copy per stat — the ONE place "how to earn it" phrasing lives
   // (never hand-written into UI; the toasts / Collection read hintFor).
@@ -16673,6 +16686,10 @@ const ItemUnlocks = (() => {
     basesPlaced:          n => "Place " + pl(n, "Base"),
     removalsUsed:         n => "Remove " + pl(n, "card"),
     pilesLost:            n => "Lose " + pl(n, "pile"),
+    zenGamesPlayed:       n => "Play " + pl(n, "Zen game"),
+    zenEasyWon:           n => n === 1 ? "Beat Zen on Easy" : "Beat Zen Easy " + n + " times",
+    zenMediumWon:         n => n === 1 ? "Beat Zen on Medium" : "Beat Zen Medium " + n + " times",
+    zenHardWon:           n => n === 1 ? "Beat Zen on Hard" : "Beat Zen Hard " + n + " times",
   };
   /** The current lifetime value of a stat (0 for an unknown name). */
   function statValue(name) {
@@ -16755,8 +16772,16 @@ const ItemUnlocks = (() => {
     knownCache = null;
     if (ok()) try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
   }
+  /** BOOT-TIME known-set priming (UNLOCK2 fix): the lazy first-load init
+      stamps the CURRENT derived set — if the first stamp happened at a
+      game-end checkpoint, everything unlocked DURING that first game was
+      swallowed silently (a fresh player's first Zen win popped nothing).
+      Priming at boot pins the baseline BEFORE any play, so the first
+      checkpoint sees the session's crossings. Veterans load their stored
+      set — unchanged behavior. */
+  function primeKnown() { knownSet(); }
   return { STATS: ITEM_UNLOCK_STATS.slice(), statValue, isUnlocked, hintFor,
-           checkNewUnlocks, nearestLocked, reset };
+           checkNewUnlocks, nearestLocked, reset, primeKnown };
 })();
 
 /* ----------------------------------------------------------------
@@ -30426,7 +30451,10 @@ const UIRenderer = (() => {
       if (won) Sound.dealWon(); else Sound.dealLost();
       done();
     });
-    const show = () => showOverlay({
+    // UNLOCK2: Zen results move the zen* gate stats, so the Zen end screen is
+    // an item-unlock checkpoint too — the pop queue drains BEFORE the overlay
+    // (same idiom as the campaign checkpoints; [] → no UI, straight through).
+    const show = () => queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showOverlay({
       kind: won ? "win" : "lose",
       // WIN mirrors the campaign deal-cleared heading (display title, no icon); the
       // coin block/board/fossils never appear because Zen sets no coins/endStats.
@@ -30445,7 +30473,7 @@ const UIRenderer = (() => {
       action: startZenDeal,
       btn2Label: "Menu",
       btn2Action: zenQuitToMenu,
-    });
+    }));
     // A win keeps the shared celebration beat (network pulse cinematic) before
     // the overlay; a loss shows as soon as the death presentation has played
     // (the "lost" handler already sequences that via pendingRunEnd).
@@ -31302,6 +31330,7 @@ const UIRenderer = (() => {
     }
     updateStageRun();   // reflect restored stage/run/coins
     migrateCampaignUnlock(saved);   // existing players predate the campaign gate — keep Play visible
+    ItemUnlocks.primeKnown();   // UNLOCK2: pin the known-set baseline BEFORE any play (see primeKnown)
     buildBoard(campaign.layoutForRun(canContinue ? campaign.currentRunIndex : 1).cols, false);
     showMainMenu(canContinue);
 
