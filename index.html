@@ -6343,6 +6343,9 @@ const NativeApp = (() => {
           <button class="debug-btn" id="debugAutoPlay">▶ auto-play</button>
           <button class="debug-btn" id="debugAutoStop">■ stop</button>
         </div>
+        <!-- UNLOCK3: one-tap full progression unlock (decks × tiers, every
+             item gate, the Zen ladder, the campaign gate). Debug only. -->
+        <button class="debug-btn" id="debugUnlockAll">🔓 unlock everything</button>
         <div class="debug-sub">grant (free) →</div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugStickerSel"></select>
@@ -6912,7 +6915,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.46 · every sticker has its own face; collection scrolls light";
+const APP_VERSION = "v5.47 · unlocks pop at run end only; debug unlock-everything";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17509,6 +17512,18 @@ const Stats = (() => {
       if (s) put(s);
     },
     reset() { put({ ...DEF }); },
+    /** DEBUG ONLY (the panel's 🔓 unlock-all): flood every stat an item gate
+        can read — the UNLOCK_COUNTERS plus the legacy tallies the aliased
+        readers use (runsCleared/gamesPlayed/campaignsWon/bossesBeaten/
+        bestEndless/lifetimeDopamine) — to at least 999. Never called by
+        gameplay. */
+    debugFloodForUnlocks() {
+      const s = get();
+      for (const f of UNLOCK_COUNTERS) s[f] = Math.max(s[f] || 0, 999);
+      for (const f of ["runsCleared", "gamesPlayed", "campaignsWon", "bossesBeaten", "bestEndless", "lifetimeDopamine"])
+        s[f] = Math.max(s[f] || 0, 999);
+      put(s);
+    },
     /** STKRB1: force any pending coalesced write to storage SYNCHRONOUSLY
         now — called from flushCampaignSave at every durability point. */
     flush() { writeStatsNow(); },
@@ -18611,6 +18626,7 @@ const UIRenderer = (() => {
     debugForceSame: document.getElementById("debugForceSame"),
     debugAutoN: document.getElementById("debugAutoN"),
     debugAutoPlay: document.getElementById("debugAutoPlay"),
+    debugUnlockAll: document.getElementById("debugUnlockAll"),
     debugAutoStop: document.getElementById("debugAutoStop"),
     debugAddPillar: document.getElementById("debugAddPillar"),
     debugColPillarSel: document.getElementById("debugColPillarSel"),
@@ -22618,6 +22634,20 @@ const UIRenderer = (() => {
       refreshDebug();
     });
     if (el.debugAutoPlay) el.debugAutoPlay.addEventListener("click", debugAutoPlay);
+    // UNLOCK3 debug: flood every gate-read stat, credit the Zen ladder, record
+    // a win for every deck×tier (deck chain + difficulty chain), open the
+    // campaign gate, then stamp the item known-set SILENTLY (no 69-pop spam).
+    if (el.debugUnlockAll) el.debugUnlockAll.addEventListener("click", () => {
+      Stats.debugFloodForUnlocks();
+      DifficultyData.zenIds.forEach((id) => {
+        for (let i = 0; i < 5; i++) { ZenStats.gamePlayed(id); ZenStats.win(id, 1); }
+      });
+      DECKS.forEach((d) => DifficultyData.tierIds.forEach((t) => DeckUnlocks.recordWin(d.id, t)));
+      SaveStore.setPref("campaignUnlocked", "1");
+      ItemUnlocks.checkNewUnlocks();   // silent stamp — everything reads as long-known
+      // No navigation — the unlocks are live on the next screen visit.
+      if (el.debugPeekOut) el.debugPeekOut.textContent = "unlocked: all decks, tiers, items, zen ladder";
+    });
     if (el.debugAutoStop) el.debugAutoStop.addEventListener("click", () => { stopAutoPlay(); el.debugPeekOut.textContent = "auto-play: stopped"; });
     if (el.debugSetPC0) el.debugSetPC0.addEventListener("click", () => debugSetColumnPillar(0));
     if (el.debugSetPC1) el.debugSetPC1.addEventListener("click", () => debugSetColumnPillar(1));
@@ -26960,13 +26990,13 @@ const UIRenderer = (() => {
       done();
     });
 
-    // UNLOCK1: DEAL END is an item-unlock checkpoint — every deal-level stat
-    // fold landed above (cards buried / sames / Jokers / coins / bosses). The
-    // run-level folds inside the runWon block below (campaignEnded) are caught
-    // by the SECOND checkpoint at run termination (maybeShowUnlockCelebration).
-    // Stamps once here; the pops queue ahead of the summary screen, [] → no UI.
-    const freshUnlocks = ItemUnlocks.checkNewUnlocks();
-    const showDealSummary = () => queueItemUnlockPops(freshUnlocks, () => showRunComplete(coins));
+    // UNLOCK3 (v5.47): DEAL END is NO LONGER an unlock checkpoint — pops mid-
+    // run broke the flow (player report), so crossings accumulate SILENTLY
+    // and surface at RUN TERMINATION only (loss → showCampaignFailed's
+    // checkpoint; win/stop → maybeShowUnlockCelebration's). Deliberately NO
+    // checkNewUnlocks call here: a call would STAMP the known-set and swallow
+    // the pops forever.
+    const showDealSummary = () => showRunComplete(coins);
 
     if (runWon) {
       track("run_won");   // analytics (fail-silent) — full run cleared

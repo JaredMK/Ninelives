@@ -165,8 +165,9 @@ generator, save format, caches — so the next session starts from reality.)*
   peek/information family via Zen, death-themed pillars via pilesLost).
   Rules to keep: `oneTribute` must stay UNGATED (the cardsBuried ladder's
   only seed source — chicken-and-egg); every class keeps ≥2 starting items
-  (store class roll starves otherwise); the Zen end screen is now the 4th
-  checkNewUnlocks checkpoint; `ItemUnlocks.primeKnown()` runs at boot (fixes
+  (store class roll starves otherwise); unlock pops fire at RUN TERMINATION + Zen end ONLY (UNLOCK3
+  v5.47 removed the per-deal checkpoint — never re-add a mid-run
+  checkNewUnlocks call: it stamps the known-set and swallows the pops); `ItemUnlocks.primeKnown()` runs at boot (fixes
   first-session unlocks being silently swallowed by the lazy known-set init —
   do not remove). Tests are registry-driven (retune thresholds freely in
   items.js; moving a gate to an unknown stat fails loudly).

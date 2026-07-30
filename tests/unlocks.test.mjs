@@ -506,19 +506,24 @@ export function run() {
 
     // ── checkNewUnlocks: exactly the known checkpoints, once per path ──
     r.eq(countOf(src, "ItemUnlocks.checkNewUnlocks()"), 4,
-      "checkNewUnlocks has exactly 4 call sites (deal-end loss/win paths, run end, Zen end — UNLOCK2)");
+      "checkNewUnlocks has exactly 4 call sites (run-loss, run-termination, Zen end, the debug unlock-all's silent stamp — UNLOCK3)");
+    // UNLOCK3: pops NEVER fire at a mid-run deal end — the deal-summary path
+    // must not call checkNewUnlocks at all (a call there would stamp the
+    // known-set and swallow the run-end pops).
+    const dealSummaryZone = src.slice(src.indexOf("const showDealSummary"), src.indexOf("const showDealSummary") + 400);
+    r.ok(!dealSummaryZone.includes("checkNewUnlocks"),
+      "the deal-end summary path never checks/stamps unlocks (they surface at run termination)");
     // UNLOCK2 boot-priming: the known-set baseline is pinned BEFORE any play,
     // so a fresh profile's FIRST session pops its crossings (the lazy init at
     // a game-end checkpoint used to swallow them).
     r.ok(src.includes("ItemUnlocks.primeKnown()"),
       "the known-set is primed at boot (fresh profiles pop first-session unlocks)");
-    r.eq(countOf(runEndBody, "ItemUnlocks.checkNewUnlocks()"), 2,
-      "…onRunEnd (deal end) holds the two mutually-exclusive branch sites");
+    r.eq(countOf(runEndBody, "ItemUnlocks.checkNewUnlocks()"), 1,
+      "…onRunEnd holds ONLY the loss (run-over) site — deal wins never check (UNLOCK3)");
     r.ok(runEndBody.includes("queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showCampaignFailed(payload.run))"),
-      "…the loss path queues the pops BEFORE the death overlay");
-    r.ok(runEndBody.includes("const freshUnlocks = ItemUnlocks.checkNewUnlocks();")
-      && runEndBody.includes("queueItemUnlockPops(freshUnlocks, () => showRunComplete(coins))"),
-      "…the win path checks once, then queues the pops ahead of the deal-clear summary");
+      "…the loss path queues the pops BEFORE the death overlay (a loss ENDS the run)");
+    r.ok(runEndBody.includes("const showDealSummary = () => showRunComplete(coins);"),
+      "…the deal-clear summary shows with NO unlock check — crossings wait for run termination");
     r.eq(countOf(celebrBody, "ItemUnlocks.checkNewUnlocks()"), 1,
       "…run end (maybeShowUnlockCelebration) is the one second checkpoint");
     r.ok(celebrBody.indexOf("pendingUnlockCelebration = null") < celebrBody.indexOf("ItemUnlocks.checkNewUnlocks()"),
