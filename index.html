@@ -7462,7 +7462,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.27 · Layer diet: map background merged to one plane (dot field folded in)";
+const APP_VERSION = "v5.28 · Picker XL-lite gate lowered to 28 cards (flat tiles earlier)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -27855,8 +27855,10 @@ const UIRenderer = (() => {
      box-shadow / border / grayscale filters on tiles) — the per-tile raster
      of a full-styled grid at 80+ cards exhausts iOS layer backing store
      (measured on-device: transparent textures + multi-second tap queues at
-     deck 82-87). 40 keeps full styling everywhere it's proven clean. */
-  const SA_XLITE_DECK = 40;
+     deck 82-87). THERMAL5 lowered the gate 40 → 28: the v5.18 timeline at a
+     ~40-card deck showed the same purge/re-upload stalls WITH the gate
+     unmet, so the flat tiles start earlier. */
+  const SA_XLITE_DECK = 28;
   let applyGridGen = 0;           // generation guard for the chunk stream
   let applyGridOrder = [];        // this render's buttons, sorted
   let applyGridAppended = 0;      // how many of applyGridOrder are mounted
