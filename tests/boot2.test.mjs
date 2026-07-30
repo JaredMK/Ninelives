@@ -69,7 +69,9 @@ export function run() {
     r.ok(!/\bsrc=/.test(s), "splash has NO src= references (inline-only — offline bundle + first-parse paint)");
     r.ok(!s.includes('<rect width="1024"'), "the logo's background rect is dropped (container paints the cream)");
     // The mark keeps the logo's parts: jar lid+body, face, liquid, bubbles, floaters.
-    for (const part of ["bootJarInner", "#20b5c6", "#7b4fc9", "#f5941d", "ellipse"]) {
+    // (CRT CASINO: the floaters/liquid re-inked to the palette — suit-red /
+    // phosphor / gold; the cream+ink jar brand hexes stay the pinned exception.)
+    for (const part of ["bootJarInner", "#4ef08a", "#c22f45", "#d9a441", "ellipse"]) {
       r.ok(s.includes(part), "splash mark keeps logo part: " + part);
     }
     r.ok(/class="boot-wordmark">JarHead Labs</.test(s), 'wordmark "JarHead Labs" present as text');

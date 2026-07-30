@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- JarHead Labs mark — vector recreation of the raster logo:
-       smiling mason jar, teal liquid with two bubbles, and three floating
-       shapes (teal dot, purple dot, orange page) escaping the mouth. -->
+       smiling mason jar, phosphor liquid with two bubbles, and three floating
+       shapes (phosphor dot, suit-red dot, gold page) escaping the mouth. -->
   <rect width="1024" height="1024" fill="#f6f3ec"/>
   <!-- floating shapes -->
-  <circle cx="487" cy="186" r="36" fill="#7b4fc9"/>
-  <circle cx="549" cy="255" r="23" fill="#20b5c6"/>
-  <path d="M596 128 q0 -16 16 -16 l64 0 q16 0 16 16 l0 46 q0 8 -8 8 l-30 0 0 24 q0 16 -16 16 l-26 0 q-16 0 -16 -16 z" fill="#f5941d"/>
+  <circle cx="487" cy="186" r="36" fill="#c22f45"/>
+  <circle cx="549" cy="255" r="23" fill="#4ef08a"/>
+  <path d="M596 128 q0 -16 16 -16 l64 0 q16 0 16 16 l0 46 q0 8 -8 8 l-30 0 0 24 q0 16 -16 16 l-26 0 q-16 0 -16 -16 z" fill="#d9a441"/>
   <!-- jar lid -->
   <rect x="366" y="298" width="292" height="62" rx="22" fill="#f6f3ec" stroke="#20313a" stroke-width="34"/>
   <!-- jar body (shoulders flare from the neck, rounded base) -->
@@ -17,7 +17,7 @@
     <path d="M412 360 l0 28 q0 26 -20 42 q-50 40 -50 100 l0 246 q0 73 73 73 l194 0 q73 0 73 -73 l0 -246 q0 -60 -50 -100 q-20 -16 -20 -42 l0 -28 z"/>
   </clipPath>
   <g clip-path="url(#jarInner)">
-    <path d="M330 620 q60 -34 120 -12 q78 28 150 6 q46 -14 100 4 l0 280 -370 0 z" fill="#20b5c6"/>
+    <path d="M330 620 q60 -34 120 -12 q78 28 150 6 q46 -14 100 4 l0 280 -370 0 z" fill="#4ef08a"/>
     <circle cx="566" cy="682" r="21" fill="#f6f3ec"/>
     <circle cx="506" cy="740" r="16" fill="#f6f3ec"/>
   </g>

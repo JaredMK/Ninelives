@@ -61,8 +61,7 @@ npm run sync
 exactly two things, failing loudly if either pattern is missing:
 
 1. the Google Fonts `<link>`s → the bundled `fonts/fonts.css`
-   (Chakra Petch 500/600/700, Josefin Sans 600/700, Baloo 2 800 — latin
-   subsets committed under `assets/fonts/`), and
+   (VT323 + Press Start 2P — latin subsets committed under `assets/fonts/`), and
 2. the Google Analytics loader `<script>` → removed (its inline config is a
    documented no-op when gtag never loads).
 

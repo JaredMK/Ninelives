@@ -556,14 +556,14 @@ const NativeApp = (() => {
   .ap-btn.gold { background: var(--felt-deep); color: var(--gold); border-color: var(--gold); }
 
   /* "Tap to activate" indicator on a currently-activatable Pillar banner. A
-     pulsing violet ring (+ a small corner dot) signals it's tappable now. */
+     pulsing phosphor ring (+ a small corner dot) signals it's tappable now. */
   .cph-banner.activatable { cursor: pointer; overflow: visible; }
   .cph-banner.activatable::after {
     content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px;
     border-radius: 50%; background: var(--phosphor); box-shadow: 0 0 0 2px var(--ink);
   }
   /* THERMAL1: the activatable pulse is an OPACITY crossfade on a ::before
-     ring — same violet pulse and rhythm, compositor-only (the old keyframe
+     ring — same phosphor pulse and rhythm, compositor-only (the old keyframe
      animated box-shadow = a repaint every frame; banned game-wide for
      always-on FX). The ::after corner dot is unchanged. */
   .cph-banner.activatable { box-shadow: 2px 2px 0 0 var(--shadow); }
@@ -703,7 +703,7 @@ const NativeApp = (() => {
   .deck-pile .ds-back:nth-child(2) { left: 3px; top: 1px; }
   .deck-pile .ds-back.ds-top { left: 6px; top: 0; }
   /* Scout reveal: the top of the deck shows the upcoming card's face (matte
-     off-white card, pathway-violet edge to signal it's the revealed look-ahead).
+     off-white card, pathway-gold edge to signal it's the revealed look-ahead).
      No glow — on-theme with the rest of the matte cards. */
   .deck-pile .ds-face {
     position: absolute; left: 6px; top: 0; width: 50px; height: 72px; border-radius: 0;
@@ -735,7 +735,7 @@ const NativeApp = (() => {
   /* While a peek reveals the upcoming card (whole stack flagged .revealed), the
      card covers the character — hide the count so it doesn't bleed past the card. */
   .deck-stack.revealed .deck-count { opacity: 0; }
-  /* Peek TRIGGER pulse: a single attention-drawing scale + violet glow when the
+  /* Peek TRIGGER pulse: a single attention-drawing scale + phosphor glow when the
      upcoming card is first revealed, then it settles. Draws the eye to the small
      corner deck so the reveal isn't missed. One-shot (JS re-arms it per trigger). */
   @keyframes deckPeekPulse {
@@ -746,14 +746,14 @@ const NativeApp = (() => {
   .deck-pile.peek-pulse { animation: deckPeekPulse 0.55s ease; }
   @media (prefers-reduced-motion: reduce) { .deck-pile.peek-pulse { animation: none; } }
   /* Peek SUSTAINED glow: while a peek is actively showing the upcoming card, the
-     whole deck GLOWS continuously (a clearly visible violet halo that breathes),
+     whole deck GLOWS continuously (a clearly visible phosphor halo that breathes),
      settling only when the peek ends — much stronger + persistent than the
      one-shot trigger pulse, so the small corner deck can't be missed. The
      `.revealed` class is on the deck stack the entire time the face is up. */
   /* THERMAL2: the peek glow was the last always-on FILTER animation
      (drop-shadow pulsing every frame = repaint per frame, on a HUD chip
      visible above every bottom-sheet modal). Now: static base glow on the
-     element + an OPACITY-crossfaded ::after halo — same violet pulse,
+     element + an OPACITY-crossfaded ::after halo — same phosphor pulse,
      compositor-only. Filter/box-shadow animation stays banned for always-on
      FX (THERMAL1). */
   .deck-stack.revealed { position: relative; box-shadow: var(--glow); border-radius: 0; }   /* THE one glow (§10) */
@@ -1607,7 +1607,7 @@ const NativeApp = (() => {
   .pile.dead .dead-mark { display: none; }
   @keyframes cardDissolve {
     from { opacity: 1; }
-    to   { opacity: 0; transform: scale(0.78); filter: blur(3px); }
+    to   { opacity: 0; transform: scale(0.78); }
   }
   @media (prefers-reduced-motion: reduce) {
     .pile.dead .card { animation: none; opacity: 0; }
@@ -3244,7 +3244,7 @@ const NativeApp = (() => {
     border: var(--px) solid var(--ink); border-radius: 0;
     padding: 7px 10px 9px; box-shadow: 4px 4px 0 0 var(--shadow); }
   /* The panel's own header rule, tinted neutral so it's clearly NOT one of the
-     coloured offer shelves (rose/violet). */
+     coloured offer shelves. */
   .store-loadout .shelf-h { color: var(--muted); margin: 0 1px 6px; }
   .store-loadout .shelf-h .tag { opacity: 0.7; }
   .loadout-grid { display: flex; align-items: stretch; gap: 8px; }
@@ -3632,7 +3632,7 @@ const NativeApp = (() => {
     cursor: pointer;
   }
   /* Equipped Pathway = a wavy tapered SYNAPSE banner (same language as the
-     board's connection network) in violet, with travelling dots both ways and
+     board's connection network) in gold, with travelling dots both ways and
      the Pathway's own icon riding on a dark halo at the centre (instant ID). */
   .cph-banner {
     position: relative; width: 100%; height: 100%; border-radius: 0; overflow: hidden;
@@ -3740,9 +3740,10 @@ const NativeApp = (() => {
 
   /* ---- BASES: the bottom-of-column active-artifact row ----
      A deliberately DISTINCT look from the Pillar synapse ribbon: a flat, light
-     "foundation slab" with squared bottom corners and a thick footing edge, in a
-     warm bronze (not Pillar violet), so a Base reads instantly as a different
-     class. Mirrors the Pillar row's sizing + reservation so fitBoard accounts for
+     "foundation slab" with squared bottom corners and a thick footing edge, so a
+     Base reads instantly as a different class from the Pillar ribbon (now the §7
+     pixel plaque — see below). Mirrors the Pillar row's sizing + reservation so
+     fitBoard accounts for
      it. The row sits BELOW the grid (bottom of every column). */
   .board-bases { display: none; }
   .board.has-bases .board-bases,
@@ -4966,7 +4967,7 @@ const NativeApp = (() => {
      pilot is actually running. */
   .ap-btn { left: 48px; }
   .ap-btn.hidden { display: none; }
-  .ap-btn.running { opacity: 0.95; background: var(--amber); color: #3A2A18; border-color: var(--amber); }
+  .ap-btn.running { opacity: 0.95; background: var(--amber); color: var(--ink); border-color: var(--amber); }
   /* Autopilot speed slider (beside ▶/⏸): LEFT = slow (1 card / 2s), RIGHT =
      fast (4 cards / 1s). Live — the running pilot picks the new pace up on
      its next move. Same fixed corner family as the toggle + pilot button. */
@@ -5033,14 +5034,14 @@ const NativeApp = (() => {
     margin-bottom: 10px;
   }
   /* The ★ (force-a-Joker) cell reads gold like the card it injects. */
-  .debug-btn.debug-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a);
-    color: #7a5300; border-color: #e6b74a; font-weight: 800; }
+  .debug-btn.debug-joker { background: var(--gold);
+    color: var(--ink); border-color: var(--gold); font-weight: 800; }
 
   .debug-btn {
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--edge-2);
-    border-radius: 8px;
+    border-radius: 0;
     padding: 9px 4px;
     font-size: 12px;
     font-weight: 700;
@@ -5048,7 +5049,7 @@ const NativeApp = (() => {
     transition: transform 0.08s ease, background 0.12s ease;
   }
   .debug-btn:active { transform: scale(0.94); }
-  .debug-btn.armed { background: var(--accent-2); color: #06203a; }
+  .debug-btn.armed { background: var(--accent-2); color: var(--ink); }
 
   /* DEBUG MAP ADDRESSES (removable): checkbox row in the debug panel */
   .debug-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); cursor: pointer; }
@@ -5060,7 +5061,7 @@ const NativeApp = (() => {
   .debug-sel {
     flex: 1 1 auto; min-width: 0;
     background: var(--panel); color: var(--text);
-    border: 1px solid var(--edge-2); border-radius: 8px;
+    border: 1px solid var(--edge-2); border-radius: 0;
     padding: 6px 8px; font-size: 12px;
   }
   .debug-grant .debug-btn { flex: 0 0 auto; }
@@ -5069,7 +5070,7 @@ const NativeApp = (() => {
     margin-top: 8px;
     min-height: 14px;
     color: var(--muted);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: var(--font-text);
     word-break: break-word;
   }
   /* Logbook — the main scrollable content of the debug panel. Its OWN internal
@@ -5082,13 +5083,13 @@ const NativeApp = (() => {
     -webkit-overflow-scrolling: touch;
     background: rgba(0,0,0,0.22);
     border: 1px solid var(--panel-2);
-    border-radius: 8px;
+    border-radius: 0;
     padding: 4px;
   }
   .debug-log .dl-empty { color: var(--muted); padding: 6px; font-style: italic; }
   .debug-log .dl-entry {
     padding: 5px 4px 6px;
-    border-top: 1px solid rgba(74,52,44,0.08);
+    border-top: 1px solid rgba(16,16,14,0.08);
   }
   .debug-log .dl-entry:first-child { border-top: none; }
   .debug-log .dl-title {
@@ -5096,7 +5097,7 @@ const NativeApp = (() => {
     margin-bottom: 2px;
   }
   .debug-log .dl-line {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: var(--font-text);
     font-size: 11px; line-height: 1.45; color: var(--text);
     padding-left: 12px; border-left: 2px solid var(--panel-2); margin-left: 2px;
     white-space: pre-wrap; word-break: break-word;
@@ -5109,7 +5110,7 @@ const NativeApp = (() => {
     border-top: 1px dashed var(--edge-2);
     text-align: center;
     color: var(--muted);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: var(--font-text);
     letter-spacing: 0.5px;
   }
 
@@ -5183,11 +5184,11 @@ const NativeApp = (() => {
     from { transform: translate3d(-3%, -2%, 0); }
     to   { transform: translate3d(4%, 3%, 0); }
   }
-  /* Layer B — faint, heavily-blurred, STATIC dark-rose veins (pure texture).
+  /* Layer B — faint, thin felt-mid vein strokes, STATIC (pure texture).
      Stroke colour/cap set in CSS (SVG presentation attrs don't support var()). */
   #tissue .veins {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    filter: blur(2.5px); opacity: 0.5;
+    opacity: 0.5;
   }
   #tissue .veins path { stroke: var(--vein); stroke-linecap: round; }
   @media (prefers-reduced-motion: reduce) {
@@ -5791,8 +5792,8 @@ const NativeApp = (() => {
   }
   .mystery-event .mea-joker .mini-card { animation: meaJokerIn 0.6s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
   @keyframes meaJokerIn {
-    0% { transform: rotateY(92deg) scale(0.72); opacity: 0; box-shadow: 0 0 0 rgba(122, 79, 208, 0); }
-    55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(122, 79, 208, 0.75), 0 0 12px rgba(217, 164, 65, 0.8); }   /* curse-violet family + §1 gold */
+    0% { transform: rotateY(92deg) scale(0.72); opacity: 0; box-shadow: 0 0 0 rgba(78, 240, 138, 0); }
+    55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(78, 240, 138, 0.75), 0 0 12px rgba(217, 164, 65, 0.8); }   /* phosphor (§7) + §1 gold */
     /* rests glow-free: a persistent gold bloom would break the phosphor-only
        glow rule the moment the one-shot lands (fill:both keeps 100% forever) */
     100% { transform: rotateY(0deg) scale(1); box-shadow: 2px 2px 0 0 var(--shadow); }
@@ -5829,7 +5830,7 @@ const NativeApp = (() => {
   }
   .mystery-event .me-slam::after {
     content: ""; position: absolute; inset: -6px; border-radius: 0; pointer-events: none;   /* the radial fades to transparent — no rounding (§10) */
-    background: radial-gradient(closest-side, rgba(122, 79, 208, 0.85), rgba(122, 79, 208, 0));
+    background: radial-gradient(closest-side, rgba(78, 240, 138, 0.85), rgba(78, 240, 138, 0));
     opacity: 0; animation: meaCurseFlash 0.6s ease-out both;
   }
   @keyframes meaCurseFlash {
@@ -5990,9 +5991,9 @@ const NativeApp = (() => {
   <div id="bootSplash" aria-hidden="true">
     <svg viewBox="296 96 432 800" xmlns="http://www.w3.org/2000/svg">
       <!-- floating shapes escaping the jar -->
-      <circle cx="487" cy="186" r="36" fill="#7b4fc9"/>
-      <circle cx="549" cy="255" r="23" fill="#20b5c6"/>
-      <path d="M596 128 q0 -16 16 -16 l64 0 q16 0 16 16 l0 46 q0 8 -8 8 l-30 0 0 24 q0 16 -16 16 l-26 0 q-16 0 -16 -16 z" fill="#f5941d"/>
+      <circle cx="487" cy="186" r="36" fill="#c22f45"/>
+      <circle cx="549" cy="255" r="23" fill="#4ef08a"/>
+      <path d="M596 128 q0 -16 16 -16 l64 0 q16 0 16 16 l0 46 q0 8 -8 8 l-30 0 0 24 q0 16 -16 16 l-26 0 q-16 0 -16 -16 z" fill="#d9a441"/>
       <!-- jar lid -->
       <rect x="366" y="298" width="292" height="62" rx="22" fill="#f6f3ec" stroke="#20313a" stroke-width="34"/>
       <!-- jar body -->
@@ -6003,7 +6004,7 @@ const NativeApp = (() => {
         <path d="M412 360 l0 28 q0 26 -20 42 q-50 40 -50 100 l0 246 q0 73 73 73 l194 0 q73 0 73 -73 l0 -246 q0 -60 -50 -100 q-20 -16 -20 -42 l0 -28 z"/>
       </clipPath>
       <g clip-path="url(#bootJarInner)">
-        <path d="M330 620 q60 -34 120 -12 q78 28 150 6 q46 -14 100 4 l0 280 -370 0 z" fill="#20b5c6"/>
+        <path d="M330 620 q60 -34 120 -12 q78 28 150 6 q46 -14 100 4 l0 280 -370 0 z" fill="#4ef08a"/>
         <circle cx="566" cy="682" r="21" fill="#f6f3ec"/>
         <circle cx="506" cy="740" r="16" fill="#f6f3ec"/>
       </g>
@@ -6827,7 +6828,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.35 · CRT CASINO complete — 66/66 surfaces, faster than v5.29";
+const APP_VERSION = "v5.36 · CRT audit cleanup: phosphor curse FX, palette splash + debug";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op

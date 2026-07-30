@@ -157,6 +157,36 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.36 (Kimi, CRTAUDIT)** — independent palette-purity audit of the CRT
+  restyle + the leftovers fixed; READ THIS BEFORE RE-ADDING VIOLET OR BLUR:
+  - Curse FX glows are PHOSPHOR now: `meaJokerIn` and `.me-slam::after`
+    (meaCurseFlash) flashed curse-violet — both are rgba(78,240,138,*) per
+    §7 (cursed = phosphor bit-rot, NOT violet; phosphor is the only glow).
+    The `CURSE_VIOLET #7a4fd0`/`CURSE_EDGE` constants, the `.pm-myst-out`
+    violet debug tag, and the STICKER_FACE/STICKER_EDGE legacy hexes are
+    KEPT on purpose: Claude pinned them (mystery-ui.test.mjs) as debug
+    chrome / dead underlay (`--dcs-face`/`--dcs-edge` are written inline
+    but NOTHING consumes them — the pxi art is the chip face). If §7 should
+    purge these too, that's a spec decision — update mystery-ui's pins.
+  - Boot-splash jar floaters/liquid re-inked to palette (suit-red /
+    phosphor / gold) in index.html AND icons/jarhead-logo.svg; boot2's
+    part-list pin updated. The jar's `#f6f3ec`/`#20313a` brand inks +
+    `rx=22` lid remain the test-pinned exception. `icons/logo.svg` now
+    matches the inlined gold+phosphor data-URIs (app-icon pipeline source).
+  - Debug panel palette-purified (ap-btn/debug-joker/armed ink-on-gold,
+    square corners, VT323 instead of ui-monospace) — it was the one
+    checklist surface with legacy hexes left.
+  - `cardDissolve` and `#tissue .veins` lost their blur() (blur is banned
+    game-wide; veins are now thin flat felt-mid strokes).
+  - Legacy font files pruned from app/assets/fonts (Baloo2/ChakraPetch/
+    JosefinSans were orphans; fonts.css already only had VT323+PS2P).
+    `app/www` is stale build output — `npm run build` in app/ refreshes.
+    The bundled AppIcon-512@2x.png still has the OLD accent colors —
+    regenerating it = Xcode rebuild territory.
+  - Palette audit re-runnable: hex/rgb/filter/blur/radius scan now shows
+    ZERO fixable violations (remainder = pinned exceptions above, one-shot
+    feedback pulses, the CRT overlay, sanctioned dither/mask gradients).
+
 - **v5.30–v5.35 (Claude, CRT CASINO)** — the ENTIRE game is restyled to a
   locked pixel-art aesthetic; `/styleguide.html` is the visual CONTRACT
   (locked 8-color palette, optical-dither rule for intermediate hues, CRT
