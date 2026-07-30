@@ -2496,6 +2496,18 @@ const NativeApp = (() => {
   .zh-wins .zc-lagg, .zh-loss .zc-wagg { flex-basis: 62px; max-width: 62px; margin-right: 12px;
     background: var(--felt-mid); border-radius: 0; }
   .zh-wins .zc-lagg .zv-k, .zh-loss .zc-wagg .zv-k { font-size: 10.5px; font-weight: 700; }
+  /* WINS drill mirror fix: the condensed Losses lead moves to the RIGHT edge
+     (flex order — it sits before the win columns in the DOM), so wins expand
+     from the LEFT exactly as losses do in their drill. */
+  .zh-wins .zc-lagg { order: 1; margin-right: 0; margin-left: 12px; }
+  /* Axis caption under a drilled histogram — names what the bars measure.
+     Both captions are always in the DOM (the drill toggles ONLY the histo's
+     state class); the sibling selector shows the one for the active state. */
+  .zh-axis { font-size: 11px; color: var(--muted); text-align: center;
+    margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .zh-axis .za-w, .zh-axis .za-l { display: none; }
+  .zv-histo.zh-wins + .zh-axis .za-w { display: inline; }
+  .zv-histo.zh-loss + .zh-axis .za-l { display: inline; }
   /* Columns absent from the current state fold away (zero footprint, faded,
      inert). Each state hides exactly the two roles it doesn't show — flex-basis
      joins max-width at 0 so a folding aggregate (basis 120) truly reaches 0. */
@@ -6867,7 +6879,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.41 · item unlocks are LIVE — 69 gates, Zen earns the peeks";
+const APP_VERSION = "v5.42 · zen histogram: wins expand left + axis captions";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -30792,9 +30804,16 @@ const UIRenderer = (() => {
     });
     const stateCls = drill === "wins" ? "zh-wins" : drill === "losses" ? "zh-loss" : "zh-both";
     // R4: the Back chip lives in the wrap; CSS shows it only when drilled.
+    // Axis caption: name what a drilled breakdown's bars MEASURE (the user
+    // couldn't tell). BOTH captions render persistently — zenSetDrill swaps
+    // only the histo's state class (no re-render, the fold is one CSS
+    // transition), so a sibling selector shows the right caption per state.
+    const axis = '<div class="zh-axis">' +
+      '<span class="za-w">piles remaining at the win</span>' +
+      '<span class="za-l">cards remaining at the loss</span></div>';
     const drillWrap = '<div class="zh-drillwrap' + (drill ? " zh-drilled" : "") + '">' +
       '<button class="zh-back" type="button">‹ Back</button>' +
-      '<div class="zv-histo ' + stateCls + '">' + cols + '</div></div>';
+      '<div class="zv-histo ' + stateCls + '">' + cols + '</div>' + axis + '</div>';
     return filter + scopeLine + drillWrap;
   }
   /** Re-render just the Zen section in place (statsGrid keeps its Runs tiles).
