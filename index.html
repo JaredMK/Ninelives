@@ -2154,6 +2154,13 @@ const NativeApp = (() => {
   .duc-copy { font-size: 14.5px; line-height: 1.5; color: var(--on-felt-muted); max-width: 280px;
     opacity: 0; transition: opacity 0.6s ease 0.35s; }
   .deck-unlock-pop.revealed .duc-copy { opacity: 1; }
+  /* Post-reveal footnote: how the item was earned (the description takes over
+     .duc-copy — see showItemUnlockPop). */
+  .duc-earned { font-size: 11px; color: var(--on-felt-muted); opacity: 0;
+    margin-top: 5px; text-transform: uppercase; letter-spacing: 0.4px;
+    transition: opacity 0.6s ease 0.5s; }
+  .duc-earned.hidden { display: none; }
+  .deck-unlock-pop.revealed .duc-earned { opacity: 0.75; }
   .duc-continue { margin-top: 8px; opacity: 0; pointer-events: none; transition: opacity 0.5s ease 0.75s; }
   .deck-unlock-pop.revealed .duc-continue { opacity: 1; pointer-events: auto; }
   @media (prefers-reduced-motion: reduce) {
@@ -6879,7 +6886,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.42 · zen histogram: wins expand left + axis captions";
+const APP_VERSION = "v5.43 · unlock pops explain the item; menu says CLIMB";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -23929,13 +23936,17 @@ const UIRenderer = (() => {
     wrap.innerHTML =
       '<div class="duc-panel">' +
         '<div class="duc-eyebrow">New ' + (KIND_LABEL[kind] || "item") + ' unlocked</div>' +
-        '<div class="iuc-objwrap">' + unlockObjectHtml(kind, u.def) +
+        '<div class="iuc-objwrap">' +
+          // .ulk-obj gives the art its size contract — without it a sticker
+          // chip renders at its tiny intrinsic size (player report).
+          '<span class="ulk-obj" style="--h:110px">' + unlockObjectHtml(kind, u.def) + '</span>' +
           '<span class="duc-lock">🔒</span>' +
           '<span class="duc-spark s1">✦</span><span class="duc-spark s2">✦</span>' +
           '<span class="duc-spark s3">✦</span><span class="duc-spark s4">✦</span>' +
         '</div>' +
         '<div class="duc-name">???</div>' +
         '<div class="duc-copy">' + escHtml(u.hint) + '</div>' +
+        '<div class="duc-earned hidden"></div>' +
         '<button class="play-btn duc-continue" type="button">CONTINUE</button>' +
       '</div>';
     document.body.appendChild(wrap);
@@ -23945,6 +23956,16 @@ const UIRenderer = (() => {
       if (!wrap.parentNode) return;
       wrap.classList.add("revealed");
       wrap.querySelector(".duc-name").textContent = u.def.label;
+      // The reveal answers "what does it DO?" — the copy swaps from the earn
+      // hint to the item's registry description (live knobs via describeItem;
+      // never hand-written), with the earn condition kept as a small footnote.
+      const d = describeItem(kind, u.def.id);
+      if (d && d.desc) {
+        wrap.querySelector(".duc-copy").textContent = d.desc;
+        const earned = wrap.querySelector(".duc-earned");
+        earned.textContent = "Earned: " + u.hint;
+        earned.classList.remove("hidden");
+      }
       Sound.deckUnlock();
     }, prefersReduce() ? 80 : 800);
     wrap.querySelector(".duc-continue").addEventListener("click", () => {
@@ -30554,7 +30575,7 @@ const UIRenderer = (() => {
     // counted Zen session (campaignUnlocked). Until then Zen is the whole
     // menu — the game teaches itself inside free play first.
     if (campaignUnlocked())
-      items.push({ label: canContinue ? "New Run" : "Play", ico: "spark", cls: canContinue ? "" : "primary",
+      items.push({ label: canContinue ? "New Run" : "Climb", ico: "spark", cls: canContinue ? "" : "primary",
         action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
     // ZEN — the standalone higher/lower game. The difficulty choice is its
     // own full-screen page (#zenSelect, the deck-select pattern): Easy is
