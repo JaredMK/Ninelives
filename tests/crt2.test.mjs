@@ -156,6 +156,25 @@ export function run() {
       "the spot still rides the identical travel tween");
   }
 
+  // --- Boundary rubber-band (v5.37): velocity-seeded spring, retargetable ---
+  {
+    const mib = fnBody(src, "mapImpactBounce");
+    r.ok(mib.includes("mapSpringAt(") && mib.includes("mapFlingV"),
+      "the boundary bounce is the analytic spring seeded by the measured fling velocity");
+    r.ok(mib.includes("mapSpringAnim.cancel()"),
+      "…and retargets a running spring (cancel + re-seed) instead of dead-stopping");
+    r.ok(!src.includes("mapBounceBusy"),
+      "the mapBounceBusy hard-guard is gone (a second impact blends, never a silent stop)");
+    r.ok(mib.includes("Math.tanh"), "the apex is tanh-soft-capped, never hard-clipped");
+    r.ok(mib.includes("prefersReduce()"), "reduced motion still skips the spring entirely");
+    // Layout-read hygiene: the scroll + touchmove paths ride the cached
+    // extent; the only scrollHeight reads are render-time + gesture-start.
+    r.ok(src.includes("const max = mapScrollMax;"),
+      "boundary checks read the cached extent, not scrollHeight, per event");
+    r.ok(src.includes("mapScrollMax = el.mapScroll.scrollHeight - el.mapScroll.clientHeight"),
+      "…which is refreshed at render and gesture start (one read per gesture)");
+  }
+
   // --- Avatar frame + map chrome --------------------------------------------
   {
     const body = cssRule(html, ".av-body");

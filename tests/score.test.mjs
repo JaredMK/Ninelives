@@ -250,13 +250,21 @@ export function run() {
       "DEAL_STATUS_HELP explains the flat reward + the score (single source)");
 
     // SUMMARY tally: Deal reward shows the FLAT amount with stage/rating
-    // context; Score earned shows the product; the coin total excludes it.
+    // context; Score renders as its OWN plaque (scorePlaqueHtml → #overlayScore,
+    // phosphor run-stat idiom) — clearly delineated from the coin list, which
+    // must NOT contain a score line (the tally never pings for score).
     const cbh = fnBody(src, "coinBreakdownHtml");
     r.ok(cbh.includes('mainLine("Deal reward", b.flat)'), "the summary's Deal reward is the flat amount");
     r.ok(cbh.includes('"Stage " + b.stage') && cbh.includes('b.rating + "/3"'),
       "…with the stage · rating context");
-    r.ok(cbh.includes("Score earned") && cbh.includes("b.product"),
-      "…and a Score earned line carries the product");
+    r.ok(!cbh.includes("Score earned"), "…and the coin list no longer blends a score line in");
+    const sph = fnBody(src, "scorePlaqueHtml");
+    r.ok(sph.includes("b.product") && sph.includes("run-stat-value"),
+      "the Score plaque carries the product as a phosphor run-stat readout");
+    r.ok(sph.includes("b.alivePiles") && sph.includes("b.minPileCards"),
+      "…with the piles × smallest factors as its sub line");
+    r.ok(html.includes('id="overlayScore"') && src.includes("el.overlayScore.innerHTML = scorePlaqueHtml"),
+      "…rendered into its own #overlayScore element, separate from #overlayCoins");
     r.ok(cbh.includes("no flat reward"), "…an ambush flags its missing flat base");
 
     // END SUMMARY: score + best tiles (endless split post-boss); an

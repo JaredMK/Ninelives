@@ -230,5 +230,29 @@ export function run() {
     r.eq(bd2.total, 5 + 4 * EXTRA_COIN_VALUE, "e2e: total = flat + Extra Coin (product excluded)");
   }
 
+  // ── Economy.liveBonus — the above-board "base + bonus" live readout ──
+  // Must agree with breakdown(): liveBonus(stats) === total − flat for the
+  // same inputs whenever the clamp doesn't fire (the UI/summary reconciliation
+  // invariant), reading the SAME EXTRA_COIN_VALUE knob.
+  {
+    const cases = [
+      { liveBonusCoins: 0, pillarBonus: 0, extraCoinUnits: 0 },
+      { liveBonusCoins: 3, pillarBonus: 2, extraCoinUnits: 4 },
+      { liveBonusCoins: 7, pillarBonus: 0, extraCoinUnits: 1 },
+    ];
+    for (const c of cases) {
+      const lb = Economy.liveBonus(c);
+      const bd = Economy.breakdown({ won: true, flat: 5, aliveCount: 3, minAliveCards: 4,
+        extraCoinUnits: c.extraCoinUnits, pillarBonus: c.pillarBonus, eventBonus: c.liveBonusCoins });
+      r.eq(lb, bd.total - 5, "liveBonus === breakdown total − flat (live " +
+        c.liveBonusCoins + " / pillars " + c.pillarBonus + " / extra " + c.extraCoinUnits + ")");
+    }
+    // A Tribute-dragged tally passes through signed (the UI shows it red);
+    // breakdown clamps its TOTAL at 0 — the two only diverge under the clamp.
+    r.eq(Economy.liveBonus({ liveBonusCoins: -4, pillarBonus: 0, extraCoinUnits: 0 }), -4,
+      "liveBonus passes a negative live tally through signed");
+    r.eq(Economy.liveBonus({}), 0, "liveBonus of empty stats is 0 (never NaN)");
+  }
+
   return r.summary();
 }

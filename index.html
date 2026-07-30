@@ -446,6 +446,11 @@ const NativeApp = (() => {
   .min-accent { color: var(--amber-text) !important; }
   .bonus-accent { color: var(--accent-2) !important; margin-left: 4px; }
   .bonus-accent.bonus-neg { color: var(--bad) !important; }
+  /* The live item-driven bonus riding the base reward ("+3+2"): phosphor —
+     it's item value the player built, distinct from the gold-ish fixed base.
+     A Tribute-dragged negative bonus flips to the danger red. */
+  .deal-status .dr-bonus { color: var(--phosphor); margin-left: 1px; }
+  .deal-status .dr-bonus.neg { color: var(--suit-red); }
 
   /* Deck counter row — below the board, right-aligned (reference info). */
   .board-foot {
@@ -3999,6 +4004,14 @@ const NativeApp = (() => {
   .item-help .ih-title { font-weight: 800; font-size: var(--info-title-size); margin-bottom: 5px; color: var(--accent-2); }
   .item-help .ih-body { font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); }
 
+  /* The deal's SCORE plaque above the coin tally — run-stat idiom (phosphor
+     readout), same width as the coin panel so the two values stack as clearly
+     separate blocks. Not flexed (run-stat's flex:1 is for the tile row). */
+  .overlay-score { width: min(82vw, 320px); margin: 2px auto 8px; }
+  .overlay-score .os-plaque { flex: none; text-align: center; padding: 8px; }
+  .overlay-score .run-stat-label { margin-top: 2px; }
+  .overlay-score.hidden { display: none; }
+
   /* Coins earned/total line on the run-complete overlay. */
   /* Itemized coin breakdown on the run-complete / campaign screens. */
   .overlay-coins {
@@ -4881,6 +4894,19 @@ const NativeApp = (() => {
     padding: 13px 14px; font-size: 13px; color: var(--text);
   }
 
+  /* Collection detail extras: the item's art centered above the text, and the
+     ◀ ▶ pager row — §4 pixel buttons at thumb size (44px hit), clamped ends
+     dim. Only present when the Collection opened the shared panel. */
+  .card-info-panel .cid-obj { display: flex; justify-content: center; margin: 2px 0 10px; }
+  .card-info-panel .cid-nav { display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(236,228,207,0.14); }
+  .card-info-panel .cid-arrow { min-width: 44px; min-height: 40px; cursor: pointer;
+    font-family: inherit; font-size: 16px; background: var(--felt-deep); color: var(--phosphor);
+    border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); }
+  .card-info-panel .cid-arrow:active { transform: translate(2px, 2px); box-shadow: none; }
+  .card-info-panel .cid-arrow:disabled { color: rgba(236,228,207,0.35); box-shadow: none;
+    cursor: default; transform: none; }
+  .card-info-panel .cid-count { font-size: 12px; opacity: 0.65; }
   .peek-info .pk-head, .card-info-panel .pk-head { font-weight: 800; font-size: 14px; margin-bottom: 7px; color: var(--accent-2); }
   .peek-info .pk-item, .card-info-panel .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid var(--felt-deep); }
   .peek-info .pk-item:first-of-type, .card-info-panel .pk-item:first-of-type { border-top: none; }
@@ -6092,10 +6118,11 @@ const NativeApp = (() => {
   </div>
 
   <main>
-    <!-- Deal-status row: this deal's flat coin REWARD (fixed at deal start) ·
-         the live SCORE projection (surviving piles × smallest pile if cleared
-         now). Its own glance row, between the top histogram band and the board. -->
-    <div class="deal-status" id="dealStatus" title="Reward: flat coins for clearing this deal (by stage & difficulty) · Score: surviving piles × smallest pile — personal bests only">
+    <!-- Deal-status row: this deal's coin REWARD as base+bonus (base fixed at
+         deal start; bonus = live item-driven coins on top) · the live SCORE
+         factors (surviving piles × smallest pile if cleared now). Its own
+         glance row, between the top histogram band and the board. -->
+    <div class="deal-status" id="dealStatus" title="Reward: base coins for clearing this deal (by stage & difficulty) + the live item bonus · Score: surviving piles × smallest pile — personal bests only">
       <span class="hud-score">
         <span class="hl">Reward</span><b id="dealReward" class="bonus-accent">+0</b>
         <span class="hx">·</span>
@@ -6370,6 +6397,9 @@ const NativeApp = (() => {
         <div class="ep-cols" id="endPillars"></div>
       </div>
     </div>
+    <!-- Deal-cleared SPLIT: Score is ITS OWN plaque (phosphor — never coins),
+         clearly delineated from the gold coin tally below it. -->
+    <div class="overlay-score hidden" id="overlayScore"></div>
     <div class="overlay-coins hidden" id="overlayCoins"></div>
     <button class="play-btn" id="playBtn">PLAY</button>
     <button class="play-btn play-btn-2 hidden" id="playBtn2"></button>
@@ -6828,7 +6858,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.36 · CRT audit cleanup: phosphor curse FX, palette splash + debug";
+const APP_VERSION = "v5.37 · reward base+bonus, score split, collection pager, springy map";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8898,7 +8928,20 @@ const Economy = (() => {
   function computeRunPayout(stats, cfg = COIN_CONFIG) {
     return breakdown(stats, cfg).total;
   }
-  return { COIN_CONFIG, computeRunPayout, breakdown, dealFlat };
+  /** LIVE item-driven bonus — the coins items have put on top of the flat
+      reward if the deal cleared right now: banked live events (the run's
+      bonusCoins), the Scoring-Pillar payout, and Extra Coin sticker units.
+      Same inputs as breakdown(), so at the deal-end fold this equals
+      total − flat by construction — the above-board "base + bonus" line and
+      the summary can never disagree. May go negative mid-deal (Tribute
+      costs); callers render it signed. */
+  function liveBonus(stats, cfg = COIN_CONFIG) {
+    const live = (stats && stats.liveBonusCoins) || 0;
+    const pillars = (stats && stats.pillarBonus) || 0;
+    const extraUnits = (stats && stats.extraCoinUnits) || 0;
+    return live + pillars + extraUnits * cfg.EXTRA_COIN_VALUE;
+  }
+  return { COIN_CONFIG, computeRunPayout, breakdown, dealFlat, liveBonus };
 })();
 
 /* ----------------------------------------------------------------
@@ -17050,6 +17093,7 @@ const UIRenderer = (() => {
     endWrong: document.getElementById("endWrong"),
     endAccuracy: document.getElementById("endAccuracy"),
     overlayCoins: document.getElementById("overlayCoins"),
+    overlayScore: document.getElementById("overlayScore"),
     peekHint: document.getElementById("peekHint"),
     playBtn: document.getElementById("playBtn"),
     playBtn2: document.getElementById("playBtn2"),
@@ -17638,13 +17682,32 @@ const UIRenderer = (() => {
   function renderHud(board, deck) {
     el.deckCount.textContent = deck.remaining();
     // Deal-status row (ECON1): the deal's FLAT coin reward (captured at deal
-    // start — fixed for the deal) and the live SCORE projection = surviving
-    // piles × smallest alive pile if the deal cleared right now. The score
-    // factors come from the SAME board accessors the Economy module reads.
-    if (el.dealReward) el.dealReward.textContent = "+" + dealFlatReward;
+    // start — fixed for the deal) shown as BASE+BONUS — the bonus is the live
+    // item-driven pile-on (events + Scoring Pillars + Extra Coin stickers) via
+    // Economy.liveBonus, which equals the summary's total−flat by
+    // construction. Score shows its FACTORS (piles × smallest); the product
+    // rides along as a data attribute. Same board accessors Economy reads.
+    if (el.dealReward) {
+      let liveBonusNow = 0;
+      if (engine && engine.getRun) {
+        const run = engine.getRun();
+        const pp = engine.pillarPayout ? engine.pillarPayout() : { bonus: 0 };
+        liveBonusNow = Economy.liveBonus({
+          liveBonusCoins: run ? run.bonusCoins : 0,
+          pillarBonus: pp ? pp.bonus : 0,
+          extraCoinUnits: board.extraCoinUnits ? board.extraCoinUnits() : 0,
+        });
+      }
+      el.dealReward.innerHTML = "+" + dealFlatReward + (liveBonusNow !== 0
+        ? '<span class="dr-bonus' + (liveBonusNow < 0 ? " neg" : "") + '">' +
+          (liveBonusNow > 0 ? "+" + liveBonusNow : String(liveBonusNow)) + "</span>"
+        : "");
+    }
     if (el.dealScore) {
       const alive = board.aliveCount();
-      el.dealScore.textContent = alive > 0 ? alive * board.minAliveCards() : 0;
+      const smallest = alive > 0 ? board.minAliveCards() : 0;
+      el.dealScore.textContent = alive > 0 ? alive + "×" + smallest : "0";
+      el.dealScore.dataset.product = String(alive > 0 ? alive * smallest : 0);
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
@@ -20541,6 +20604,18 @@ const UIRenderer = (() => {
         }
         return;
       }
+      // Collection detail ◀ ▶ paging (delegated here at boot — invariant 3):
+      // step through the grid-order list without closing the panel. The row
+      // only exists when the collection opened the panel, so other panel
+      // content can never hit this branch.
+      const pg = e.target.closest("[data-col-page]");
+      if (pg && !pg.disabled) {
+        const list = collectionPageList();
+        const idx = list.findIndex(it => it.kind === colDetailKind && it.id === colDetailId);
+        const next = idx === -1 ? null : list[idx + (parseInt(pg.dataset.colPage, 10) || 0)];
+        if (next) showCollectionItemDetail(next.kind, next.id);
+        return;
+      }
       if (e.target === el.cardInfo) closeCardInfo();
     });
 
@@ -20679,7 +20754,7 @@ const UIRenderer = (() => {
     // HUD chips: hold-for-help everywhere (tap does nothing on these). Copy lives
     // here as the single source — the markup title attributes are set from it.
     const HUD_SAME_HELP = "Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort";
-    const DEAL_STATUS_HELP = "Reward: the flat coins this deal pays on a clear — set by its stage & difficulty (harder pays more), fixed for the deal. Score: surviving piles × the smallest surviving pile if you cleared right now — personal bests only, never coins.";
+    const DEAL_STATUS_HELP = "Reward: base + bonus. The base is the flat coins this deal pays on a clear — set by its stage & difficulty (harder pays more), fixed for the deal. The bonus is what your items have piled on top so far (stickers, pillars, bases — live, and a Tribute can drag it negative). Score: surviving piles × the smallest surviving pile if you cleared right now — personal bests only, never coins.";
     const HUD_SCORE_HELP = "Your score: surviving piles × the smallest pile on each cleared deal, added up over the run. Banked as your campaign score when the ♠ boss falls — deals after that build your endless score. Chased for personal bests only; it never changes coins or play.";
     if (el.hudSame) { el.hudSame.title = HUD_SAME_HELP; attachHoldHelp(el.hudSame, () => showTextHelp("Same Charge", HUD_SAME_HELP)); }
     if (el.hudSamePower) attachHoldHelp(el.hudSamePower, () => {
@@ -21025,7 +21100,9 @@ const UIRenderer = (() => {
         // Stage lock: scrolling above the unlocked stages stops at the line —
         // the elastic stretch continues the motion instead of a dead stop.
         if (s < mapScrollLock) { el.mapScroll.scrollTop = mapScrollLock; s = mapScrollLock; mapImpactBounce(1); }
-        const max = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
+        // Boundary via the CACHED extent (set at render + gesture start) — no
+        // scrollHeight/clientHeight layout reads inside the scroll handler.
+        const max = mapScrollMax;
         if (s >= max - 0.5 && mapScrollPrev < max - 6) mapImpactBounce(-1);   // fling into the bottom edge
         mapScrollPrev = s;
         el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
@@ -21035,6 +21112,9 @@ const UIRenderer = (() => {
       // bottom edge, revealed only during that pull).
       el.mapScroll.addEventListener("touchstart", (e) => {
         mapTouchActive = true; mapTouchY = e.touches[0].clientY; mapPullRaw = 0;
+        // ONE extent read per gesture (animated descendants wobble it a few
+        // px between renders) — every move/scroll then uses the cache.
+        mapScrollMax = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
       }, { passive: true });
       el.mapScroll.addEventListener("touchmove", (e) => {
         if (mapTouchY == null) return;
@@ -21042,7 +21122,7 @@ const UIRenderer = (() => {
         const dy = y - mapTouchY;
         mapTouchY = y;
         const sc = el.mapScroll;
-        const max = sc.scrollHeight - sc.clientHeight;
+        const max = mapScrollMax;   // cached at touchstart — no per-move layout reads
         const atTop = sc.scrollTop <= mapScrollLock + 0.5;
         // TOLERANT bottom: animated descendants (avatar bob, bounce transforms)
         // wobble the scroller's scrollable overflow a few px, which can leave
@@ -22600,6 +22680,17 @@ const UIRenderer = (() => {
     setTimeout(revealNext, startDelay);
   }
 
+  /* The deal's SCORE as its own plaque (run-stat idiom: felt-mid pixel
+     plaque, phosphor readout + THE glow) — deliberately separate from the
+     gold coin list so Score and Coins read as two distinct values. Shows the
+     product big and the factors ("N piles × M smallest") as the sub line. */
+  function scorePlaqueHtml(b) {
+    return '<div class="run-stat os-plaque">' +
+      '<div class="run-stat-value">SCORE +' + b.product + "</div>" +
+      '<div class="run-stat-label">' + b.alivePiles + " piles × " + b.minPileCards + " smallest</div>" +
+      "</div>";
+  }
+
   function coinBreakdownHtml(coins) {
     const b = coins.breakdown;
     if (!b) return '<div class="dc-total"><span class="dc-lab">Total</span><span class="dc-val">' + COIN_SVG + coins.balance + "</span></div>";
@@ -22622,11 +22713,9 @@ const UIRenderer = (() => {
         ? subRow("Stage " + b.stage + " · rating " + b.rating + "/3", "flat")
         : subRow("Ambush", "no flat reward"));
 
-    // 1b) Score earned — the piles × smallest product, a SCORE now (never
-    // coins). Not part of the coin total; the factors ride as sub-rows.
-    html += '<div class="dc-line dc-score"><span class="dc-lab">Score earned</span>' +
-      '<span class="dc-val">+' + b.product + "</span></div>" +
-      subWrap(subRow("Surviving piles", b.alivePiles) + subRow("Smallest pile", b.minPileCards + " cards"));
+    // (Score moved OUT of this coin list — it renders as its own phosphor
+    // plaque via scorePlaqueHtml/#overlayScore, so Score and Coins read as two
+    // clearly delineated values and the coin tally never pings for score.)
 
     // 2) Sticker rewards — Extra Coin ("Payout") + sticker-driven live bonuses.
     const stickerBullets = [];
@@ -22744,6 +22833,13 @@ const UIRenderer = (() => {
     // the total — the deal-won payoff moment.
     if (opts.coins) { el.overlayCoins.innerHTML = coinBreakdownHtml(opts.coins); animateCoinTally(el.overlayCoins); }
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
+    // Score plaque: only when this overlay carries a full deal breakdown (the
+    // deal-cleared screen); loss/plain overlays have no product to show.
+    const sb = opts.coins && opts.coins.breakdown;
+    if (el.overlayScore) {
+      if (sb) el.overlayScore.innerHTML = scorePlaqueHtml(sb);
+      el.overlayScore.classList.toggle("hidden", !sb);
+    }
 
     // Hold-to-peek the final board (run-complete / campaign screens only).
     overlayPeekable = !!opts.peek;
@@ -26273,6 +26369,9 @@ const UIRenderer = (() => {
       }
     }
     if (el.mapScroll && el.mapScroll.scrollTop < mapScrollLock) el.mapScroll.scrollTop = mapScrollLock;
+    // Cache the scroll extent alongside the lock (render-time layout is
+    // settled here) — the scroll/touch handlers read the cache, never layout.
+    if (el.mapScroll) mapScrollMax = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
     // Fog veil over everything above the lock line (the not-yet-unlocked
     // stages), so the elastic top-overscroll peek shows fog, never spoilers.
     {
@@ -26318,12 +26417,15 @@ const UIRenderer = (() => {
   // only changes BETWEEN deals, never per reveal. Set at map render.
   const mapEggSalt = Math.floor(Math.random() * MAP_EGG_LINES.length);
   let mapPullRaw = 0, mapPullD = 0, mapTouchY = null, mapTouchActive = false;
-  let mapBounceBusy = false, mapBounceMuteUntil = 0, mapScrollPrev = 0;
-  let mapFlingV = 0, mapFlingT = 0;   // live fling speed (px/ms) — scales the boundary rubber-band
+  let mapBounceMuteUntil = 0, mapScrollPrev = 0;
+  let mapFlingV = 0, mapFlingT = 0;   // live fling speed (px/ms) — seeds the boundary spring
+  let mapScrollMax = 0;               // scrollHeight−clientHeight, cached at render + gesture start
+  let mapEggEl = null;                // #mapEgg is static markup — resolve once
+  function getMapEgg() { return mapEggEl || (mapEggEl = document.getElementById("mapEgg")); }
   function mapPullApply(d) {
     mapPullD = d;
     if (el.mapTrack) el.mapTrack.style.transform = d ? "translateY(" + d.toFixed(1) + "px)" : "";
-    const egg = document.getElementById("mapEgg");   // rides the pull in sync
+    const egg = getMapEgg();   // rides the pull in sync
     if (egg) egg.style.transform = "translate(-50%," + (d ? d.toFixed(1) : 0) + "px)";
   }
   function mapPullRelease() {
@@ -26340,31 +26442,61 @@ const UIRenderer = (() => {
         [{ transform: "translate(-50%," + from.toFixed(1) + "px)" }, { transform: "translate(-50%,0px)" }], spring);
     }
   }
-  /** Small impact bounce when a momentum fling hits a boundary (dir +1 = the
-      stage lock above, −1 = the bottom edge). Muted briefly after renders so
+  /** iOS-style rubber-band when a momentum fling hits a boundary (dir +1 =
+      the stage lock above, −1 = the bottom edge). The scrollTop clamp halts
+      native momentum, so the visual continuation is an ANALYTIC DAMPED SPRING
+      SEEDED WITH THE MEASURED FLING VELOCITY — motion stays velocity-
+      continuous through the boundary (no stop-then-stretch), the apex depth
+      tracks the fling with a soft tanh cap, and the settle is the spring's
+      own decay. Sampled into WAAPI keyframes (avatarTravelTo precedent): no
+      rAF, no per-frame work. RETARGETABLE: a second impact cancels the
+      running spring and re-seeds from its analytic state — pure math, zero
+      layout reads — so back-to-back impacts blend instead of dead-stopping
+      (the old busy-flag hard-guard is gone). Muted briefly after renders so
       programmatic repositioning never fake-bounces. */
+  const MAP_SPRING = { om: 10.98, lam: 8.68, dur: 560, cap: 96, floor: 16 };  // underdamped ζ≈0.62 — first apex ~82ms, settled <1px by 560ms
+  const MAP_SPRING_K = 0.035;   // apex(px) per unit v0(px/s) for the ζ/ω above (x0 = 0)
+  let mapSpringAnim = null, mapSpringT0 = 0, mapSpringX0 = 0, mapSpringV0 = 0;
+  function mapSpringAt(tSec) {   // analytic position + velocity of the running spring
+    const { om, lam } = MAP_SPRING;
+    const e = Math.exp(-lam * tSec), s = Math.sin(om * tSec), c = Math.cos(om * tSec);
+    const B = (mapSpringV0 + lam * mapSpringX0) / om;
+    const x = e * (mapSpringX0 * c + B * s);
+    const v = -lam * x + e * (B * om * c - mapSpringX0 * om * s);
+    return { x, v };
+  }
   function mapImpactBounce(dir) {
-    if (mapBounceBusy || mapTouchActive || prefersReduce()) return;
+    if (mapTouchActive || prefersReduce()) return;
     if (performance.now() < mapBounceMuteUntil) return;
     if (!el.mapTrack || typeof el.mapTrack.animate !== "function") return;
-    mapBounceBusy = true;
-    // SAFARI-STYLE rubber-band, VELOCITY-SCALED: the clamp halts the native
-    // scroll, so the stretch must READ as the fling continuing — its depth
-    // tracks the measured fling speed (a hard fling stretches ~4× deeper
-    // than a drift), it launches at full speed, decelerates as the band
-    // tightens, hangs at the apex, then eases home. Never a hard snap.
-    const amp = Math.max(22, Math.min(96, Math.abs(mapFlingV) * 34));
-    const D = dir * amp;
-    const frames = (fmt) => [
-      { transform: fmt(0), easing: "cubic-bezier(0.16, 0.84, 0.28, 1)" },     // impact → stretch (launches fast, decelerates)
-      { transform: fmt(D), offset: 0.36, easing: "cubic-bezier(0.42, 0, 0.22, 1.05)" }, // apex → soft eased return
-      { transform: fmt(0) },
-    ];
-    const dip = { duration: 560 + amp * 2.6 };   // deeper stretch = longer, calmer return
-    const a = el.mapTrack.animate(frames((y) => "translateY(" + y + "px)"), dip);
-    const egg = document.getElementById("mapEgg");
-    if (egg) egg.animate(frames((y) => "translate(-50%," + y + "px)"), dip);
-    a.onfinish = () => { mapBounceBusy = false; };
+    const now = performance.now();
+    // Seed: the fling's velocity in px/s, floored so even a slow drift dips
+    // visibly, aimed into the stretch direction.
+    let x0 = 0;
+    let v0 = dir * Math.max(MAP_SPRING.floor / MAP_SPRING_K, Math.abs(mapFlingV) * 1000);
+    if (mapSpringAnim) {   // retarget: carry the running spring's live state
+      const st = mapSpringAt((now - mapSpringT0) / 1000);
+      x0 = st.x; v0 += st.v;
+      mapSpringAnim.cancel();
+      mapSpringAnim = null;
+    }
+    // Soft-cap the projected apex (tanh keeps the approach smooth, never a
+    // hard ceiling): scale the seed velocity so the peak lands ≤ cap.
+    const rawPeak = Math.abs(v0) * MAP_SPRING_K + Math.abs(x0);
+    if (rawPeak > 1) v0 *= (MAP_SPRING.cap * Math.tanh(rawPeak / MAP_SPRING.cap)) / rawPeak;
+    mapSpringX0 = x0; mapSpringV0 = v0; mapSpringT0 = now;
+    const N = 16, frames = [], eggFrames = [];
+    for (let i = 0; i <= N; i++) {
+      const y = (i === N ? 0 : mapSpringAt((MAP_SPRING.dur / 1000) * (i / N)).x).toFixed(1);
+      frames.push({ transform: "translateY(" + y + "px)" });
+      eggFrames.push({ transform: "translate(-50%," + y + "px)" });
+    }
+    const dip = { duration: MAP_SPRING.dur, easing: "linear" };   // the spring shape IS the keyframes
+    const a = el.mapTrack.animate(frames, dip);
+    const egg = getMapEgg();
+    if (egg) egg.animate(eggFrames, dip);
+    mapSpringAnim = a;
+    a.onfinish = () => { if (mapSpringAnim === a) mapSpringAnim = null; };
   }
   /* OFF-SCREEN NODE CULLING: the whole run renders (by design — the full climb
      is scrollable), but on late/endless maps 90%+ of the 200+ nodes sit far
@@ -27128,10 +27260,31 @@ const UIRenderer = (() => {
      Telem (times bought / effects triggered / deals active) — only lines with a
      nonzero count render. The popup rides the collection z-override (the screen
      is z-1400, the popup z-85 without it). */
+  /* Collection detail paging: the flattened tappable set in GRID ORDER
+     (COLLECTION_GROUPS × items.js array order, unlocked only — locked tiles
+     have no data-id and never open a detail). Rebuilt per open: 101 entries,
+     and an unlock crossed mid-session pages correctly on the next tap. */
+  let colDetailKind = null, colDetailId = null;   // the entry the panel shows
+  function collectionPageList() {
+    const out = [];
+    COLLECTION_GROUPS.forEach(g => (ItemData[g.group] || []).forEach(def => {
+      if (ItemUnlocks.isUnlocked(def)) out.push({ kind: g.kind, id: def.id });
+    }));
+    return out;
+  }
+  function collectionRegistryFor(kind) {
+    return kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes :
+      kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;
+  }
   function showCollectionItemDetail(kind, id) {
     if (!el.cardInfoPanel || !el.cardInfo) return;
     let html = itemHelpHtml(kind, id);
     if (!html) return;
+    colDetailKind = kind; colDetailId = id;
+    // The item's ART above the text — the same renderer its grid tile uses.
+    const def = collectionRegistryFor(kind).get(id);
+    if (def) html = '<div class="cid-obj"><span class="ulk-obj" style="--h:72px">' +
+      unlockObjectHtml(kind, def) + "</span></div>" + html;
     const s = Telem.itemSummary(id);
     if (s) {
       const lines = [];
@@ -27140,6 +27293,18 @@ const UIRenderer = (() => {
       if (s.dealsActive > 0) lines.push("Deals active: " + s.dealsActive);
       if (lines.length) html += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(236,228,207,0.14);font-size:11.5px;opacity:0.78;">' +   // cream hairline on the felt-mid panel (§1)
         lines.map(escHtml).join(" · ") + '</div>';
+    }
+    // ◀ ▶ paging through the grid without closing — clamped at the ends
+    // (dimmed disabled arrow, no wrap). ONLY this caller emits the nav row;
+    // the panel's other users (board/store/Same-Power help) are unchanged.
+    const list = collectionPageList();
+    const idx = list.findIndex(it => it.kind === kind && it.id === id);
+    if (idx !== -1 && list.length > 1) {
+      html += '<div class="cid-nav">' +
+        '<button type="button" class="cid-arrow" data-col-page="-1"' + (idx === 0 ? " disabled" : "") + '>◀</button>' +
+        '<span class="cid-count">' + (idx + 1) + " / " + list.length + "</span>" +
+        '<button type="button" class="cid-arrow" data-col-page="1"' + (idx === list.length - 1 ? " disabled" : "") + '>▶</button>' +
+        "</div>";
     }
     el.cardInfoPanel.innerHTML = html;
     el.cardInfo.classList.remove("hidden");

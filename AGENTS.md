@@ -451,9 +451,14 @@ generator, save format, caches — so the next session starts from reality.)*
   - Mystery coinBonus now tallies totalCoinsEarned (was bypassed).
   - UI: map deal/boss nodes show the REWARD chip (dealBadge, knob-derived,
     pips gone); HUD `#hudScoreChip` (Score pre-boss / Endless after);
-    #dealStatus shows "Reward +N · Score M" (dealFlatReward module var
-    captured in startRun, mirrors onRunEnd's derivation); endStats score
-    tiles render "— · not recorded" for exhibition.
+    #dealStatus shows "Reward +BASE(+BONUS) · Score PILES×SMALLEST" as of
+    v5.37 (dealFlatReward module var captured in startRun mirrors onRunEnd's
+    derivation; the live bonus is Economy.liveBonus — events + pillar payout
+    + Extra Coin units, === total−flat by construction; the score product
+    rides #dealScore's data-product); endStats score tiles render
+    "— · not recorded" for exhibition. The deal-cleared summary splits
+    Score into its own #overlayScore plaque (scorePlaqueHtml) — the coin
+    list must never re-grow a score line (pinned in score.test).
   - Economy sanity (measured on genV3 maps): route income ≈ 22/37/52 per
     stage (~111/run vs ~130-200 before) — mildly starved early by design;
     price retuning is Jared's call in items.js.

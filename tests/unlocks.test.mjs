@@ -541,6 +541,18 @@ export function run() {
       && src.includes("showCollectionItemDetail(tile.dataset.kind, tile.dataset.id)")
       && src.includes("if (storeHoldSuppress) { storeHoldSuppress = false; return; }"),
       "…the tap is delegated ONCE at boot, hold-suppressed, unlocked tiles only");
+    // v5.37 detail upgrade: the item's own art + ◀ ▶ paging without closing.
+    r.ok(detBody.includes("unlockObjectHtml(kind, def)"),
+      "…the detail shows the item's art via the SAME renderer its tile uses");
+    r.ok(detBody.includes("data-col-page") && detBody.includes("collectionPageList()"),
+      "…and emits the pager over the grid-order unlocked list (this caller only)");
+    r.ok(detBody.includes('idx === 0 ? " disabled"') && detBody.includes('idx === list.length - 1 ? " disabled"'),
+      "…arrows clamp at the ends (disabled, no wrap)");
+    const cpl = bodyOf("function collectionPageList()", "function collectionRegistryFor");
+    r.ok(cpl.includes("COLLECTION_GROUPS.forEach") && cpl.includes("ItemUnlocks.isUnlocked(def)"),
+      "…the paging list is COLLECTION_GROUPS × items.js order, unlocked only");
+    r.ok(src.includes('e.target.closest("[data-col-page]")'),
+      "…arrow taps ride the boot-time delegated #cardInfo handler (invariant 3)");
   }
 
   return r.summary();
