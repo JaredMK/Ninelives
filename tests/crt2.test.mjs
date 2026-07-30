@@ -159,10 +159,10 @@ export function run() {
   // --- Avatar frame + map chrome --------------------------------------------
   {
     const body = cssRule(html, ".av-body");
-    r.ok(body.includes("border: var(--px) solid var(--ink)")
-      && body.includes("box-shadow: 2px 2px 0 0 var(--shadow)")
+    r.ok(body.includes("var(--spr-ov), var(--spr)")
+      && body.includes("image-rendering: pixelated")
       && body.includes("border-radius: 0"),
-      "the avatar card frame is inked, hard-shadowed and square (skin = chunk 5)");
+      "the avatar body is the chunk-5 pixel sprite canvas (overlay + frame layers, crisp)");
     r.ok(body.includes("animation: avBob"), "the idle bob (pause-list member) survives");
     r.ok(cssRule(html, ".av-badge").includes("border-radius: 0"), "the deck-count badge is a square chip");
     r.ok(cssRule(html, ".map-store-btn").includes("border-radius: 0")

@@ -74,6 +74,7 @@ import { run as perfcap } from "./perfcap.test.mjs";
 import { run as crt2 } from "./crt2.test.mjs";
 import { run as crt3 } from "./crt3.test.mjs";
 import { run as crt4 } from "./crt4.test.mjs";
+import { run as crt5 } from "./crt5.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -148,6 +149,7 @@ const SUITES = [
   ["crt2", crt2],
   ["crt3", crt3],
   ["crt4", crt4],
+  ["crt5", crt5],
 ];
 
 let pass = 0,

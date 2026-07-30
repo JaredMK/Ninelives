@@ -100,7 +100,7 @@ export function loadGame(opts = {}) {
       "\n;return { DeckManager, DeckStats, BoardState, GameEngine, CampaignState, RunMap," +
       " Economy, StickerTypes, PillarTypes, BaseTypes, PackTypes, SamePowerTypes, ItemData," +
       " TutorialData, DifficultyData, Stats, ZenStats, ZenUnlocks, SeedCode, ItemUnlocks," +
-      " DeckUnlocks, SaveStore, Telem," +
+      " DeckUnlocks, SaveStore, Telem, PixelArt," +
       " cardMatchesSuit, cardIsWildSuit, Perf: (typeof window !== \"undefined\" ? window.__perf : undefined) };"
   );
   return factory(...Object.values(sandbox));

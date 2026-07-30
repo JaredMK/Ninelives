@@ -293,10 +293,13 @@ export function run() {
       "…the gloss layer drops inside the picker");
     r.ok((html.match(/\.sa-lite \.dcs\.dcs-cursed/g) || []).length >= 1,
       "…the cursed routing keeps a (flattened) treatment inside the picker");
+    // Chunk 5 (sprite mode): the chip art is the PixelArt sticker icon — the
+    // pin follows: pixel background + crisp scaling + the kept die-cut tilt.
     const base = /\n  \.dcs \{\n[\s\S]*?\n  \}/.exec(html);
-    r.ok(!!base && base[0].includes("radial-gradient") && base[0].includes("box-shadow")
+    r.ok(!!base && base[0].includes("var(--pxi-sticker)")
+      && base[0].includes("image-rendering: pixelated")
       && base[0].includes("rotate(var(--dcs-rot))"),
-      "the base .dcs vinyl (board / store / banner) keeps its full treatment");
+      "the base .dcs chip (board / store / banner) is the pixel sticker with the die-cut tilt");
   }
 
   // ── Structural: Stats write coalescing -----------------------------------

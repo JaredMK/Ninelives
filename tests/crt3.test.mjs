@@ -146,10 +146,11 @@ export function run() {
 
   // --- Removal object -------------------------------------------------------
   {
+    // Chunk 5 (sprite mode): the object is the pixel removal card (∅ baked in).
     const ro = cssRule(html, ".removal-obj");
-    r.ok(ro.includes("var(--felt-mid)") && ro.includes("var(--felt-deep)")
-      && ro.includes("var(--px) solid var(--ink)"),
-      ".removal-obj is the felt-stripe blank card");
+    r.ok(ro.includes("var(--pxi-removal)") && ro.includes("image-rendering: pixelated"),
+      ".removal-obj is the pixel removal card");
+    r.ok(!html.includes('<span class="ro-sym">'), "the text ∅ symbol span is retired (baked in the art)");
     r.ok(!html.includes("#efeaf2") && !html.includes("#e2dbe8"), "the stitched-grey lilac palette is purged");
   }
 
@@ -211,34 +212,33 @@ export function run() {
       "the pack-show card-flip literal is untouched");
   }
 
-  // --- Pack foils: baked dithers, per-deck window backs ---------------------
+  // --- Pack foils: chunk-5 pixel foils (crimps/window/contents baked in) ----
   {
-    const foil = cssRule(html, ".pack-foil");
-    r.ok(foil.includes("var(--px) solid var(--ink)") && foil.includes("2px 2px 0 0 var(--shadow)"),
-      ".pack-foil is ink-framed with the hard pixel shadow");
-    r.ok(!foil.includes("filter"), "the blurred drop-shadow filter on the foil is gone");
-    const body = cssRule(html, ".pf-body");
-    r.ok(body.includes("data:image/gif") && body.includes("image-rendering: pixelated")
-      && !body.includes("linear-gradient"),
-      "the card-pack wrap is a baked brass dither (no foil gradient)");
-    const sbody = cssRule(html, ".pack-foil.pf-sticker .pf-body");
-    r.ok(sbody.includes("data:image/gif") && !sbody.includes("linear-gradient"),
-      "the sticker-pack wrap is a baked phosphor dither");
-    r.ok(cssRule(html, ".pf-sheen").includes("display: none"), "the foil sheen is retired");
-    for (const sel of [".pf-crimp", ".pack-foil.pf-sticker .pf-crimp"])
-      r.ok(/repeating-linear-gradient\(90deg, var\(--(gold|phosphor)\) 0 3px, var\(--ink\) 3px 6px\)/.test(cssRule(html, sel)),
-        sel + " crimp = hard palette stripes");
-    // Window cards = the ACTIVE deck's dither back, same baked tiles chunk 2
-    // gave the map's .mn-pack stacks (tile equality proven per deck).
-    const backs = cssRule(html, ".pf-cards i");
-    r.ok(backs.includes("data:image/gif") && !backs.includes("linear-gradient"),
-      "window cards are dithered backs (default Pinky red⊕cream)");
-    for (const deck of ["mamma", "smith", "lammy"]) {
-      const mapTile = (cssRule(html, ".mdeck-" + deck + " .mn-pack .mpk-card").match(/base64,([A-Za-z0-9+/=]+)/) || [])[1];
-      const storeRule = cssRule(html, "#storeOverlay.mdeck-" + deck + " .pf-cards i");
-      r.ok(!!mapTile && storeRule.includes(mapTile),
-        deck + " pack-back dither tile matches the map's chunk-2 tile exactly");
-    }
+    // Sprite mode replaced the CSS crimp/dither/window painting with the
+    // PixelArt foil icons; the type still reads at a glance from the art vars.
+    const art = cssRule(html, ".pf-art");
+    r.ok(art.includes("var(--pxi-packCard)") && art.includes("image-rendering: pixelated"),
+      ".pf-art draws the pixel card-pack foil, crisp");
+    r.ok(cssRule(html, ".pack-foil.pf-sticker .pf-art").includes("var(--pxi-packSticker)"),
+      "sticker packs swap to the felt sticker foil");
+    r.ok(cssRule(html, ".pack-foil.pf-large .pf-art").includes("var(--pxi-packLarge)"),
+      "keep-2 premium packs wear the brass star foil");
+    r.ok(!html.includes('<span class="pf-crimp') && !html.includes('<span class="pf-window'),
+      "the CSS-built crimp/window spans are retired from the builder");
+    // The premium class is registry-driven (keep >= 2), never an id pin.
+    const po = fnBody(src, "packObjectHtml");
+    r.ok(po.includes("(t.keep || 0) >= 2") && po.includes("pf-large"),
+      "packObjectHtml derives pf-large from the live registry `keep` field");
+    r.ok(g.PackTypes.all().some(t => (t.keep || 0) >= 2) && g.PackTypes.all().some(t => (t.keep || 0) < 2),
+      "the live registry exercises both foil classes");
+    // Tear-open still rides the same class hook (whole-foil animation now).
+    r.ok(cssRule(html, ".pack-foil.tearing").includes("packTear"),
+      "the tear-open animation survives on the whole foil");
+    // The map's per-deck .mn-pack tint mechanism is untouched (deck tint now
+    // lives ONLY on the map stacks; the shop foil is class art).
+    for (const deck of ["mamma", "smith", "lammy"])
+      r.ok(cssRule(html, ".mdeck-" + deck + " .mn-pack .mpk-card").includes("data:image/gif"),
+        deck + " map pack-stack keeps its chunk-2 deck-tinted dither tile");
     r.ok(fnBody(src, "showStore").includes('classList.add("mdeck-" + selectedDeck().id)'),
       "showStore stamps the live deck skin on #storeOverlay (mirrors the map stamp)");
   }
