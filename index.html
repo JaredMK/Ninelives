@@ -7437,7 +7437,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.20 · Cleanse is forced: no ✕/backdrop escape until a sticker is stripped";
+const APP_VERSION = "v5.21 · picker grid sort-frozen mid-session (rank/suit stickers no longer jump cards)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -27854,10 +27854,13 @@ const UIRenderer = (() => {
   }
   /* STKRB1 TARGETED CONFIRM UPDATE: after a card-MODIFYING confirm (a rank /
      suit sticker, or a Cleanse strip), update ONLY the touched card — rebuild
-     its one button through the sig cache (its face changed), move it to its
-     new sorted slot, and classList-sync the rest. Returns the card's live
-     button (for the flash), or null if it's gone. The old code re-rendered
-     the WHOLE grid here — a full-grid style/layout on the confirm tap. */
+     its one button through the sig cache (its face changed) and classList-sync
+     the rest. SORT-FROZEN (v5.21): the card KEEPS its grid slot for the rest of
+     the session — its face shows the new rank/suit but it never jumps position
+     mid-picker; the next open's renderStickerApplyCards re-sorts from the deck.
+     Returns the card's live button (for the flash), or null if it's gone. The
+     old code re-rendered the WHOLE grid here — a full-grid style/layout on the
+     confirm tap. */
   function updateApplyCardInPlace(cardId) {
     if (!el.saCards || !campaign) return null;
     const card = campaign.getCardById(cardId);   // live ref — the mutation is already on it
@@ -27879,22 +27882,16 @@ const UIRenderer = (() => {
     }
     const btn = rec.btn;
     btn.classList.remove("sa-remove", "sa-flash", "sa-selected");
-    // A rebuild created a NEW element — swap the stale one out of the grid
-    // (render's replaceChildren does this wholesale; here it's one node).
-    if (oldBtn && oldBtn !== btn && oldBtn.parentNode === el.saCards) el.saCards.removeChild(oldBtn);
-    // Move it to its (possibly new) sorted slot — one node move, no rebuild.
-    // (children reads no layout; keys come from the live card refs.)
-    let before = null;
-    const kids = el.saCards.children;
-    for (let i = 0; i < kids.length; i++) {
-      const k = kids[i];
-      if (k === btn) continue;
-      const kc = applyCardsById.get(Number(k.dataset.cardId));
-      if (!kc) continue;
-      const d = (kc.currentRank - card.currentRank) || (SUIT_ORDER[kc.suit] - SUIT_ORDER[card.suit]);
-      if (d > 0) { before = k; break; }
+    // A rebuild created a NEW element — put it in the OLD node's exact slot and
+    // drop the stale one (SORT-FROZEN: never re-sort mid-session; the next
+    // picker open re-sorts from the deck). An unrebuilt button is already in
+    // its slot — nothing to move.
+    if (oldBtn && oldBtn !== btn && oldBtn.parentNode === el.saCards) {
+      el.saCards.insertBefore(btn, oldBtn);
+      el.saCards.removeChild(oldBtn);
+    } else if (!btn.parentNode) {
+      el.saCards.appendChild(btn);   // defensive: card wasn't mounted (streamed grid)
     }
-    el.saCards.insertBefore(btn, before);
     refreshApplyEligibility();
     return btn;
   }
@@ -28329,16 +28326,6 @@ const UIRenderer = (() => {
             closeModalPrompt();
             applyPickerBusy = true;   // the 850ms flash owns the picker
             btn.classList.add("sa-flash");
-            // A re-sort may have moved the card out of view — but NEVER force
-            // layout on the tap frame. Next frame: one cheap geometry check,
-            // scrolling only if the card is actually outside the container's
-            // visible window.
-            requestAnimationFrame(() => {
-              if (!btn.isConnected || !el.saCards) return;
-              const cR = el.saCards.getBoundingClientRect();
-              const bR = btn.getBoundingClientRect();
-              if (bR.top < cR.top || bR.bottom > cR.bottom) btn.scrollIntoView({ block: "nearest" });
-            });
             setTimeout(() => {
               applyPickerBusy = false;
               btn.classList.remove("sa-flash");

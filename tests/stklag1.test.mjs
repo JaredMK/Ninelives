@@ -132,14 +132,11 @@ export function run() {
       "…the changed card updates in place to its new face and flashes");
     r.ok(!confirm.includes("renderStickerApplyCards("),
       "…NO full grid rebuild anywhere on the confirm paths (STKRB1)");
-    // The tap frame never forces a synchronous layout: the one bring-into-view
-    // rides a rAF after the close begins and only fires when the card is
-    // actually outside the container's visible window.
-    r.eq(countOf(confirm, "scrollIntoView"), 1,
-      "…exactly one bring-into-view remains (the conditional post-tap scroll)");
-    r.ok(confirm.indexOf("requestAnimationFrame(() => {") !== -1
-      && confirm.indexOf("requestAnimationFrame(() => {") < confirm.indexOf("scrollIntoView"),
-      "…and it runs inside a rAF — never a forced layout on the tap frame");
+    // SORT-FROZEN (v5.21): the card keeps its grid slot for the session — the
+    // conditional bring-into-view is gone with the re-sort (nothing moves, so
+    // nothing can leave the visible window).
+    r.eq(countOf(confirm, "scrollIntoView"), 0,
+      "…no bring-into-view remains (the card never moves — SORT-FROZEN)");
     r.ok(/setTimeout\(\(\) => \{[\s\S]*?btn\.classList\.remove\("sa-flash"\);[\s\S]*?stickerApplyModal\.classList\.add\("hidden"\);/.test(confirm),
       "…then closes the picker after the flash");
     // The modifies path already deferred behind the 850ms flash; its heavy tail

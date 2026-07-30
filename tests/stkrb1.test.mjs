@@ -268,8 +268,8 @@ export function run() {
     r.eq(countOf(targeted, "createElement"), 1,
       "updateApplyCardInPlace builds at most ONE button (the touched card, via the sig cache)");
     r.ok(targeted.includes("campaign.getCardById(cardId)") && targeted.includes("drainApplyGrid()")
-      && targeted.includes("el.saCards.insertBefore(btn, before)") && targeted.includes("refreshApplyEligibility()"),
-      "…rebuild-one + move-to-sorted-slot + classList-only eligibility sync");
+      && targeted.includes("el.saCards.insertBefore(btn, oldBtn)") && targeted.includes("refreshApplyEligibility()"),
+      "…rebuild-one + take-the-old-node's-exact-slot + classList-only eligibility sync");
     r.ok(!targeted.includes("replaceChildren(") && !targeted.includes("scrollIntoView("),
       "…no full re-mount, no forced layout");
     r.ok(!eligSync.includes("innerHTML"),
@@ -278,11 +278,8 @@ export function run() {
       "the modifying-sticker AND Cleanse-strip confirms both ride the targeted update");
     r.ok(!confirm.includes("renderStickerApplyCards("),
       "…no confirm path re-renders the whole grid");
-    const rafAt = confirm.indexOf("requestAnimationFrame(() => {");
-    r.ok(rafAt !== -1 && rafAt < confirm.indexOf("scrollIntoView"),
-      "the one bring-into-view rides a rAF after the tap frame");
-    r.ok(confirm.includes("if (bR.top < cR.top || bR.bottom > cR.bottom)"),
-      "…and only fires when the card is actually outside the visible window");
+    r.ok(!confirm.includes("scrollIntoView"),
+      "…and no bring-into-view remains (SORT-FROZEN: the card never moves, so it can't leave view)");
   }
 
   // ── Structural: .sa-lite scoped to the picker grid -----------------------
@@ -382,15 +379,15 @@ export function run() {
     r.eq(p.dom.created.length - createdBefore, 1,
       "…exactly ONE button rebuilt (the sig-changed card) — not 50");
     r.eq(p.el.saCards.children.length, 50, "…the grid stays complete (no re-mount)");
-    // The grid must be in non-decreasing (rank, suit) order with the bumped
-    // card in the rank-14 group (its exact slot among the 14♠ twins is free).
-    const keys = p.el.saCards.children.map((n) => SORT_KEY(deck.find((c) => c.id === Number(n.dataset.cardId))));
-    r.ok(keys.every((k, i) => i === 0 || keys[i - 1] <= k),
-      "…the grid is still in sorted (rank, suit) order after the move");
-    r.ok(SORT_KEY(deck[0]) >= keys[0] && String(p.el.saCards.children[keys.lastIndexOf(SORT_KEY(deck[0]))].dataset.cardId) === "0",
-      "…the bumped card sits in its new rank-14 slot (no longer first)");
+    // SORT-FROZEN (v5.21): the bumped card KEEPS its grid slot for the rest of
+    // the session — its face shows rank 14 but it never jumps mid-picker; the
+    // next open's render re-sorts from the deck.
+    r.eq(String(p.el.saCards.children[0].dataset.cardId), "0",
+      "…the bumped card stays in its OLD slot (sort is frozen until the next open)");
     const stillThere = before.filter((n) => p.el.saCards.children.indexOf(n) !== -1);
-    r.eq(stillThere.length, 49, "…every other node is identity-preserved (moved, never re-parsed)");
+    r.eq(stillThere.length, 49, "…every other node is identity-preserved (never re-parsed)");
+    r.ok(before.every((n, i) => p.el.saCards.children[i] === n || n === before[0]),
+      "…and no node changed position (the only swap is the rebuilt node into slot 0)");
     r.ok(!btn.classList.contains("sa-selected") && !btn.classList.contains("sa-flash"),
       "…transient confirm-FX classes are stripped from the rebuilt button");
 
