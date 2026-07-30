@@ -312,10 +312,11 @@ export function run() {
     r.ok(decl.includes("filter: none !important"), "…background filters are killed while a deck-modal is open");
     r.ok(!/body:has\(\.deck-modal:not\(\.hidden\)\) \.deck-modal/.test(html),
       "…the modal subtree itself is NOT flattened");
-    // The ambient haze blobs (blur(46px) + infinite drift) join the pause list.
+    // The ambient haze layer (THERMAL5: ONE radial-gradient layer now, still an
+    // infinite drift) joins the pause list.
     const pauses = html.match(/body:has\(\.deck-modal:not\(\.hidden\)\)[^{]*\{[^}]*animation-play-state: paused/g) || [];
-    r.ok(pauses.join("\n").includes("#tissue .blob"),
-      "…#tissue .blob haze pauses under deck-modals (pause-list contract)");
+    r.ok(pauses.join("\n").includes("#tissue .haze"),
+      "…#tissue .haze pauses under deck-modals (pause-list contract)");
   }
 
   return r.summary();

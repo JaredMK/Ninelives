@@ -1988,7 +1988,7 @@ const NativeApp = (() => {
   /* GPU idle: while the board is covered (body.scene-idle — menus/overlays up),
      freeze the glow so the compositor can sleep. Measured on iOS: continuous
      menu animation held GPU energy at ~44%; a static (still visible) glow lets
-     it idle. Mirrors the #tissue .blob pause rule. Same treatment for the
+     it idle. Mirrors the #tissue .haze pause rule. Same treatment for the
      board's deck character, whose breathe/dart keyframes and blink timer kept
      running invisibly behind the menu after the first deal — #deckChar only,
      the deck-select characters are the visible stars of their screen. */
@@ -4790,7 +4790,7 @@ const NativeApp = (() => {
   body:has(.deck-modal:not(.hidden)) .deck-stack.revealed,
   body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-face,
   body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-pupil,
-  body:has(.deck-modal:not(.hidden)) #tissue .blob { animation-play-state: paused; }
+  body:has(.deck-modal:not(.hidden)) #tissue .haze { animation-play-state: paused; }
   /* PERFFIX: the picker grid is vinyl-flattened (sa-lite) — drop the last
      surviving filter (the chip-icon drop-shadow, ~150 chips at 46-card
      decks). Imperceptible at 15px; the board keeps its shadows. */
@@ -5183,25 +5183,32 @@ const NativeApp = (() => {
   /* Felt NAP: a static fine speckle over the whole surface — the fabric grain. */
   #tissue::after { content: ""; position: absolute; inset: 0;
     background: var(--felt-grain); background-size: 160px 160px; }
-  /* Layer A — soft warm haze blobs, drifting very slowly. */
-  #tissue .haze { position: absolute; inset: 0; }
-  #tissue .blob {
-    position: absolute; border-radius: 50%;
-    filter: blur(46px); opacity: 0.22;
-    will-change: transform;
-  }
-  #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%; background: #2E7C5C; animation: hazeDrift 34s ease-in-out infinite alternate; }
-  #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%; background: #1E6A63; animation: hazeDrift 44s ease-in-out -12s infinite alternate-reverse; }
-  #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%; background: #35754A; animation: hazeDrift 52s ease-in-out -22s infinite alternate; }
-  /* Perf: hold the slow background blobs while the BOARD IS COVERED (opaque
-     menus / the ~95%-opaque phase overlays hide them anyway) — no per-frame
-     compositing of three half-screen blurred layers behind screens where their
-     drift can't be seen. updateBoardMotion toggles the class; the blobs resume
-     the moment the live board is showing. */
-  body.scene-idle #tissue .blob { animation-play-state: paused; }
-  /* Translate-only drift (no scale): scaling a 46px-blurred half-screen layer
-     forces Safari to re-rasterise the blur every frame; a pure translate stays
-     compositor-cheap. The slow positional drift — the visible motion — is kept. */
+  /* Layer A — soft warm haze blobs. LAYER-DIET (THERMAL5): the blobs used to
+     be three SEPARATE filter:blur(46px) + will-change + infinite-animation
+     layers — ~10MB of standing texture and an expensive gaussian re-raster on
+     every purge recovery (the on-device composite stalls). Now the three
+     blobs are plain radial-gradient circles painted INTO the single animated
+     .haze layer: 1 layer, no filter, no per-blob animation — same slow drift,
+     same 0.22-opacity fuzz. */
+  #tissue .haze { position: absolute; inset: 0; will-change: transform;
+    animation: hazeDrift 46s ease-in-out infinite alternate; }
+  #tissue .blob { position: absolute; opacity: 0.22; }
+  #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%;
+    background: radial-gradient(circle, #2E7C5C 0%, rgba(46,124,92,0) 68%); }
+  #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%;
+    background: radial-gradient(circle, #1E6A63 0%, rgba(30,106,99,0) 68%); }
+  #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%;
+    background: radial-gradient(circle, #35754A 0%, rgba(53,117,74,0) 68%); }
+  /* Perf: hold the slow background haze while the BOARD IS COVERED (opaque
+     menus / the ~95%-opaque phase overlays hide it anyway) — no per-frame
+     compositing of a full-screen layer behind screens where its drift can't
+     be seen. updateBoardMotion toggles the class; the haze resumes the
+     moment the live board is showing. */
+  body.scene-idle #tissue .haze { animation-play-state: paused; }
+  /* Translate-only drift (no scale): scaling a full-screen layer forces
+     Safari to re-rasterise it every frame; a pure translate stays
+     compositor-cheap. The slow positional drift — the visible motion — is
+     kept. */
   @keyframes hazeDrift {
     from { transform: translate3d(-3%, -2%, 0); }
     to   { transform: translate3d(4%, 3%, 0); }
@@ -5214,7 +5221,7 @@ const NativeApp = (() => {
   }
   #tissue .veins path { stroke: var(--vein); stroke-linecap: round; }
   @media (prefers-reduced-motion: reduce) {
-    #tissue .blob { animation: none !important; }
+    #tissue .haze { animation: none !important; }
   }
 
   /* ============================================================
@@ -7463,7 +7470,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.25 · Reset progress — main-menu double-confirmed full wipe (sound survives)";
+const APP_VERSION = "v5.26 · Layer diet: haze blobs merged into one filter-free gradient layer";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
