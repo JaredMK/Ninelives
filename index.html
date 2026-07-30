@@ -6924,7 +6924,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.51 · unlock pacing: ~4 per climb, capped ceremony";
+const APP_VERSION = "v5.52 · sound survives iOS interruptions (auto-recovery)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -17948,16 +17948,47 @@ ZenUnlocks.grantRetroactive();
 const Sound = (() => {
   let ctx = null;
   let enabled = (typeof SaveStore !== "undefined" && SaveStore.getPref("sound")) !== "0";
+  /* iOS RECOVERY (v5.52, player report: sound dies after minutes and never
+     returns). WKWebView suspends the context on ANY audio interruption
+     (notification, backgrounding, screen lock, Siri) — the state can read
+     "suspended" OR the WebKit-only "interrupted", resume() only reliably
+     works from inside a user gesture, and a repeatedly-interrupted context
+     can end up permanently dead. The ladder: (1) any non-running state gets
+     a resume attempt on every cue AND on every pointerdown (a real gesture);
+     (2) a resume that REJECTS repeatedly marks the context dead; (3) a dead
+     or "closed" context is torn down and REBUILT fresh on the next cue. */
+  let resumeFails = 0;
+  function tryResume(c) {
+    try {
+      const p = c.resume();
+      if (p && p.then) p.then(() => { resumeFails = 0; }, () => {
+        if (++resumeFails >= 3) { try { c.close(); } catch (e) { /* already dead */ } if (ctx === c) ctx = null; resumeFails = 0; }
+      });
+    } catch (e) { /* ignore */ }
+  }
   function ac() {
     if (!enabled) return null;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      if (!ctx) ctx = new AC();
-      if (ctx.state === "suspended") ctx.resume();
+      if (ctx && ctx.state === "closed") ctx = null;   // dead context → rebuild
+      if (!ctx) { ctx = new AC(); resumeFails = 0; }
+      if (ctx.state !== "running") tryResume(ctx);     // covers "interrupted" too
       return ctx;
     } catch (e) { return null; }
   }
+  // Boot-time recovery hooks (registered ONCE — invariant 3): every tap is a
+  // legal gesture window for resume, and returning to the foreground retries.
+  try {
+    if (typeof document !== "undefined" && document.addEventListener) {
+      document.addEventListener("pointerdown", () => {
+        if (enabled && ctx && ctx.state !== "running") ac();
+      }, { capture: true, passive: true });
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && enabled && ctx && ctx.state !== "running") ac();
+      });
+    }
+  } catch (e) { /* no DOM (test harness) — cues already no-op there */ }
   /* ── CUTE / PLAYFUL voice. A single flexible tone with an optional pitch
      GLIDE (the bounce) and gentle vibrato — warm sine/triangle timbres, quick
      attacks, soft tails. This is the character's voice, not an arcade. ── */
