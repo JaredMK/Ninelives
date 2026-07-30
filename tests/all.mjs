@@ -72,6 +72,7 @@ import { run as stkrb1 } from "./stkrb1.test.mjs";
 import { run as stkperf1 } from "./stkperf1.test.mjs";
 import { run as perfcap } from "./perfcap.test.mjs";
 import { run as crt2 } from "./crt2.test.mjs";
+import { run as crt3 } from "./crt3.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -144,6 +145,7 @@ const SUITES = [
   ["stkperf1", stkperf1],
   ["perfcap", perfcap],
   ["crt2", crt2],
+  ["crt3", crt3],
 ];
 
 let pass = 0,

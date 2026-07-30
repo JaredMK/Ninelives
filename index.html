@@ -226,6 +226,9 @@ const NativeApp = (() => {
     --trim-common: #1e3a2c; /* common: quiet felt edge */
     --trim-uncommon: #ece4cf; /* uncommon: cream */
     --trim-rare: #d9a441;   /* rare: gold */
+    /* (foil gradient stops retired in chunk 3 — the pack wrap is a baked
+       gold⊕deep-felt / phosphor⊕felt-mid dither tile now; tokens kept for
+       the chunk-6 dead-code sweep) */
     --foil-1: #d9a441;      /* CARD-pack foil → gold on deep felt */
     --foil-2: #142820;
     --foil-sticker-1: #4ef08a; /* STICKER-pack foil → phosphor on felt */
@@ -502,6 +505,10 @@ const NativeApp = (() => {
      a help/description line (.ap-desc) — used by pillar/base help + base decisions. */
   .ap-text .ap-q { display: block; font-size: var(--info-title-size); }
   .ap-text .ap-desc { display: block; font-size: var(--info-desc-size); font-weight: 600; line-height: var(--info-desc-lh); color: var(--muted); margin-top: 1px; white-space: pre-line; }
+  /* Picker-confirm message accents on the bar: destroyed-stickers warning in
+     danger red; a coin cost always reads gold (§1). */
+  .ap-text .warn-stickers { color: var(--suit-red); }
+  .ap-text .sa-cost { color: var(--gold); }
   /* Help-carrying prompts can exceed the FIXED strip height (long Base/Pillar
      descriptions). Instead of clipping (overflow:hidden above), anchor them to
      the strip's bottom edge and let them grow UPWARD over the band above, on the
@@ -2785,13 +2792,13 @@ const NativeApp = (() => {
      corner nav), clustered beside Refresh (margin-left:auto) so it never
      overlaps the coin balance on the left. */
   .store-help-btn { flex: none; margin-left: auto; align-self: center; position: relative;
-    width: 30px; height: 30px; border-radius: 999px;
+    width: 30px; height: 30px; border-radius: 0;   /* squared with the rest of the chrome (§10) */
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--accent); box-shadow: 4px 4px 0 0 var(--shadow);
+    background: var(--felt-mid); color: var(--text);
+    border: var(--px) solid var(--ink); box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer; touch-action: manipulation; transition: transform 0.08s ease; }
   .store-help-btn .ico { font-size: 15px; font-weight: 900; line-height: 1; }
-  .store-help-btn:active { transform: scale(0.92); }
+  .store-help-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   /* The legend panel: OPAQUE, lifted above #storeOverlay (z 50) + its shelf and
      the buy-detail (z 66) so a glance can't hide behind the goods. Centred under
      the header shell; caps to a 390px phone and scrolls if the seven rows run
@@ -2802,8 +2809,8 @@ const NativeApp = (() => {
     width: min(340px, calc(100vw - 24px));
     max-height: calc(100dvh - var(--shell-h, 0px) - 74px); overflow-y: auto; overscroll-behavior: contain;
     background: var(--panel); color: var(--text);
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: 0 10px 28px rgba(30, 16, 24, 0.42);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 8px 12px 10px; }
   .store-key-panel.hidden { display: none; }
   .sk-head { display: flex; align-items: center; justify-content: space-between;
@@ -3086,13 +3093,18 @@ const NativeApp = (() => {
     justify-content: flex-start; align-items: center;
     overflow: hidden; gap: 0;
     padding: 12px 12px max(8px, env(safe-area-inset-bottom));
-    /* Felt table with the shop's warm LAMPLIGHT dimmed to suit the dark base. */
-    background:
-      radial-gradient(115% 70% at 50% 40%, rgba(255,220,170,0.10), rgba(255,238,212,0) 62%),
-      rgba(22, 58, 44, 0.95);
+    /* CRT CASINO: one flat deep-felt screen well (§1) — the warm lamplight
+       radial + translucent green glass are retired with the map's (chunk 2);
+       the plaque shelf below carries the depth instead. */
+    background: var(--felt-deep);
   }
+  /* No lost-paths tangle behind the shop either (same call as .overlay.map). */
+  .overlay.store::before { content: none; }
 
-  /* Coin balance + inventory: pinned to the top of the shop, always visible. */
+  /* Coin balance + inventory: pinned to the top of the shop, always visible.
+     DEAD CSS (no .store-coins/.sc-inv element remains — the header is
+     .store-top/.store-balance now): left byte-identical for chunk-6 deletion
+     alongside the other retired blocks (.store-views, .store-desc). */
   .store-coins {
     position: sticky; top: 34px; z-index: 6;
     width: min(94vw, 380px);
@@ -3133,16 +3145,19 @@ const NativeApp = (() => {
   .store-balance { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
   .store-balance b { color: var(--amber-text); font-size: 17px; font-weight: 800; }
   .store-balance .coin-ico { font-size: 13px; }
-  /* Refresh: a defined store-level control (re-rolls the whole offering). */
+  /* Refresh: a defined store-level control (re-rolls the whole offering).
+     §4 gold button — it spends coins: deep-felt face, gold text + frame,
+     hard shadow; pressing sinks it one pixel step. */
   .store-reroll { flex: none; display: inline-flex; align-items: center; gap: 6px;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--accent); border-radius: 999px;
-    padding: 8px 16px; font-size: 12.5px; font-weight: 800;
+    background: var(--felt-deep); color: var(--gold);
+    border: var(--px) solid var(--gold); border-radius: 0;
+    padding: 8px 14px; font-size: 12.5px; font-weight: 800;
+    font-family: var(--font-text); text-transform: uppercase; letter-spacing: 0.6px;
     cursor: pointer; touch-action: manipulation; box-shadow: 4px 4px 0 0 var(--shadow); }
   .store-reroll .ico { font-size: 15px; }
   .store-reroll .coin-ico { font-size: 12px; }
-  .store-reroll:disabled { background: var(--panel-2); color: var(--muted); border-color: var(--edge-2); box-shadow: none; cursor: default; }
-  .store-reroll:active { transform: scale(0.97); }
+  .store-reroll:disabled { background: var(--felt-mid); color: var(--muted); border-color: var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); cursor: default; }
+  .store-reroll:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
 
   /* THE shelf: one unlabelled section holding the unified offer grid. It grows
      to fill the middle of the screen with no scroll. */
@@ -3157,18 +3172,16 @@ const NativeApp = (() => {
   .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 500; font-style: italic;
     letter-spacing: 0.2px; opacity: 0.62; text-transform: none; color: var(--muted); }
 
-  /* Same-Power badge: the power's glyph over its name, ringed in synapse-rose
-     so it reads as a "links" artifact. Used on store tiles + the setup chip.
-     OPAQUE light-rose plate (was a translucent wash that inherited the dark
-     felt behind the store shelves, leaving dark ink on a dark chip): like the
-     sticker vinyls / base slabs, the object is a light-faced plate with dark
-     ink, so it reads identically on the felt and on light panels. */
+  /* Same-Power badge: the power's glyph over its name. CRT CASINO: the old
+     light-rose plate maps onto the palette — a deep-felt pixel plate, ink
+     frame, hard shadow, with the unique logo in PHOSPHOR (it's an electric
+     artifact — the "alive" accent) and the name in cream. The per-power logo
+     art itself is chunk-5 territory; this is just the plate. */
   .sp-badge { display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 8px 12px; border-radius: 12px;
-    background: linear-gradient(180deg, #FCF4F7, #F1DCE6);
-    border: 1.5px solid var(--net, #C84A78);
-    box-shadow: 0 4px 10px rgba(74,40,55,0.30), 0 0 10px rgba(200,74,120,0.25),
-      inset 0 1px 0 rgba(255,255,255,0.75); }
+    padding: 8px 12px; border-radius: 0;
+    background: var(--felt-deep);
+    border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow); }
   /* On the SHELF, size the badge up toward its pennant/pack neighbours.
      FIXED plate box: the badge used to shrink-wrap its name, so two-line names
      (Same Peeker / Same Heavy / Link Shuffler) rendered visibly bigger plates
@@ -3178,14 +3191,14 @@ const NativeApp = (() => {
   .store-tile .sp-badge .sp-mark { width: 32px; height: 32px; flex: none; }
   .store-tile .sp-badge-name { font-size: 12.5px; line-height: 1.15; text-align: center; }
   .sp-badge-ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-  /* Each Same-Power's UNIQUE inline-SVG logo (GLYPHS[id]); currentColor inks it in
-     the badge's dark rose so it reads clearly on the light rose gradient. */
-  .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; color: var(--net-dot, #8E2F4E); user-select: none; -webkit-user-drag: none; }
+  /* Each Same-Power's UNIQUE inline-SVG logo (GLYPHS[id]); currentColor inks it
+     phosphor on the deep-felt plate. */
+  .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; color: var(--phosphor); user-select: none; -webkit-user-drag: none; }
   .sp-info-ico .ico { width: 20px; height: 20px; display: block; }
   .sp-badge-name { font-family: var(--font-text); font-size: 11px; font-weight: 700;
-    letter-spacing: 0.3px; color: var(--net-dot, #8E2F4E); }
+    letter-spacing: 0.3px; color: var(--card-face); }
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
-  .tray-samepower.armed { outline: 2px solid var(--net, #C84A78); outline-offset: 2px; border-radius: 12px; }
+  .tray-samepower.armed { outline: 2px solid var(--phosphor); outline-offset: 2px; border-radius: 0; }
 
   /* FIVE objects flowing a 3-wide grid (3 + 2). The grid STRETCHES to fill the
      shelf's grown space so each tile gets the full height; the object inside is
@@ -3195,20 +3208,38 @@ const NativeApp = (() => {
   .store-row.big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px;
     flex: 1 1 0; min-height: 0; align-content: stretch; }
 
-  /* The shop tile is NOT a card — it's a transparent tap target. The physical
-     object (sticker/pillar/base/pack) IS the item; only a small white coin-chip
-     price pill sits beneath it. No card chrome, no name, no rarity text. */
+  /* CRT CASINO shelf tile: a pixel PLAQUE frame (felt-mid face, ink border,
+     hard shadow) holding the merchandise. The object inside is still the item
+     (its art is chunk-5 territory); the frame carries the shelf's depth and a
+     thin rarity strip along the top edge (tier classes stamped by offerTile,
+     mapped to the palette: common=quiet cream, uncommon=gold, rare=phosphor).
+     No name / kind text on the shelf — the detail popup carries those. */
   .store-tile {
-    position: relative; min-width: 0; height: 100%; background: none; border: none;
+    position: relative; min-width: 0; height: 100%;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-    padding: 4px 2px 6px; cursor: pointer;
+    padding: 8px 4px 8px; cursor: pointer;
     transition: transform 0.12s ease;
   }
-  .store-tile:active { transform: scale(0.96); }
+  .store-tile:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
+  /* Rarity strip: a 4px inner band under the plaque's top edge. */
+  .store-tile::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 4px;
+    pointer-events: none; }
+  .store-tile.srt-common::before { background: var(--card-face); opacity: 0.30; }
+  .store-tile.srt-uncommon::before { background: var(--gold); }
+  .store-tile.srt-rare::before { background: var(--phosphor); }
+  /* Pixel grid (§10): the old per-slot merchandise tilt is retired — rotated
+     art shimmers off-grid inside the crisp plaque frames. offerTile still
+     writes the inline rotate (kept: markup shape unchanged); this cancels it.
+     (The sticker chip's own --dcs-rot die-cut tilt is a separate, pinned
+     treatment and stays.) */
+  .store-tile .ti-obj { transform: none !important; }
   .store-tile.disabled { opacity: 0.5; }   /* unaffordable: dimmed, still tappable for the detail */
   /* Lammy — stickers unusable: sticker items / sticker packs on the shelf are
      LOCKED — flat grey, no pointer, not tappable (the button is disabled). */
-  .store-tile.tile-stickerlock { opacity: 0.32; filter: grayscale(0.85); cursor: not-allowed; }
+  .store-tile.tile-stickerlock { opacity: 0.32; cursor: not-allowed; }   /* dim-only (the grayscale filter is retired, §10) */
   .store-tile.empty { visibility: hidden; pointer-events: none; }
   /* Object area — FLEXES to fill whatever row height remains, capped at 116px, so
      all three objects align AND shrink together when the shelves compress (short
@@ -3238,27 +3269,21 @@ const NativeApp = (() => {
   .store-tile .ti-obj.obj-sticker .dcs { width: auto; height: min(68px, 100%); aspect-ratio: 1; --dcs-size: 60px; }
   .store-tile .ti-obj.obj-base .base-banner.plaque { height: min(46px, 100%); }
   .store-tile .ti-obj.obj-samepower .sp-badge { max-height: 100%; box-sizing: border-box; }
-  /* Soft contact shadow so each object sits ON the surface, not floating. */
-  .store-tile .ti-obj::after {
-    content: ""; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
-    width: 56%; height: 11px; border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(70,44,40,0.20), rgba(70,44,40,0) 72%);
-    pointer-events: none;
-  }
-  .store-tile .ti-obj.obj-pillar::after { bottom: 6px; }
-  /* Small white coin-chip price pill near the object. */
-  .store-tile .ti-price { font-size: 12.5px; font-weight: 800; color: var(--text);
+  /* (soft radial contact shadow retired — blur is banned (§10); the plaque's
+     own hard shadow grounds the goods now) */
+  /* Price: gold on an ink chip — coins are ALWAYS gold (§1). */
+  .store-tile .ti-price { font-size: 12.5px; font-weight: 800; color: var(--gold);
     display: inline-flex; align-items: center; gap: 3px;
-    background: #fff; border-radius: 999px; padding: 2px 9px 2px 7px;
-    box-shadow: 0 2px 6px rgba(74,44,52,0.18); }
+    background: var(--ink); border-radius: 0; padding: 2px 9px 2px 7px;
+    border: 1px solid rgba(217, 164, 65, 0.4); }
   .store-tile .ti-price .coin-ico { font-size: 12px; color: var(--amber); }
-  /* Removal store object — a stitched-grey ∅ card (matches the Removal pack/map
-     face), so the permanent slot reads as "thin your deck". */
+  /* Removal store object — a stitched BLANK card (∅) in the mc-blank felt
+     palette: hard felt-stripe weave, ink frame, dim cream symbol. */
   .removal-obj { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    width: 46px; height: 64px; border-radius: 8px; box-sizing: border-box;
-    background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
-    border: 1.5px solid #ccc2d6; color: #6a6076;
-    box-shadow: 0 3px 8px rgba(74,52,44,0.28), inset 0 1px 0 rgba(255,255,255,0.7); }
+    width: 46px; height: 64px; border-radius: 0; box-sizing: border-box;
+    background: repeating-linear-gradient(135deg, var(--felt-mid), var(--felt-mid) 5px, var(--felt-deep) 5px, var(--felt-deep) 10px);
+    border: var(--px) solid var(--ink); color: rgba(236, 228, 207, 0.6);
+    box-shadow: 2px 2px 0 0 var(--shadow); }
   .removal-obj .ro-sym { font-size: 26px; line-height: 1; font-weight: 800; }
   .removal-obj .ro-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
   .store-tile .ti-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
@@ -3280,10 +3305,10 @@ const NativeApp = (() => {
      three columns (pillar chip over base chip) plus the Same-Power. Fixed height
      (flex:0) so it never steals room from the scroll-free offer shelves. Each cell
      taps/holds to its help text. */
-  .store-loadout { width: min(94vw, 440px); flex: 0 0 auto; margin-top: 6px;
-    background: rgba(74,52,44,0.05);
-    border: 1px solid rgba(74,52,44,0.16); border-radius: 13px;
-    padding: 7px 10px 9px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.5); }
+  .store-loadout { width: min(94vw, 440px); flex: 0 0 auto; margin-top: 8px;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    padding: 7px 10px 9px; box-shadow: 4px 4px 0 0 var(--shadow); }
   /* The panel's own header rule, tinted neutral so it's clearly NOT one of the
      coloured offer shelves (rose/violet). */
   .store-loadout .shelf-h { color: var(--muted); margin: 0 1px 6px; }
@@ -3294,30 +3319,28 @@ const NativeApp = (() => {
   .lo-col-n { font-size: 8.5px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
     color: var(--muted); text-align: center; opacity: 0.7; }
   .lo-same { flex: 0 0 auto; display: flex; align-items: stretch; }
-  /* An equipped chip: small icon glyph + label. Pillar = violet identity, base =
-     amber, same-power = synapse rose, matching their board/shelf colour-coding. */
+  /* An equipped chip: small icon glyph + label on a recessed deep-felt slab.
+     Class identity by TEXT colour within the palette: pillar = gold (its board
+     rod/emblem), base = cream, Same-Power = phosphor (the electric artifact). */
   .lo-chip { display: flex; align-items: center; gap: 5px; min-width: 0;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 9px;
+    background: var(--felt-deep); border: 1px solid var(--ink); border-radius: 0;
     padding: 5px 7px; cursor: pointer; touch-action: manipulation;
     font-size: 10.5px; font-weight: 700; color: var(--text); transition: transform 0.1s ease; }
-  .lo-chip:active { transform: scale(0.96); }
+  .lo-chip:active { transform: translate(2px, 2px); }
   .lo-chip .lo-ico { width: 15px; height: 15px; flex: 0 0 auto; display: inline-flex;
     align-items: center; justify-content: center; font-size: 13px; line-height: 1; }
   .lo-chip .lo-ico .ico, .lo-chip .lo-ico svg { width: 15px; height: 15px; display: block; }
   .lo-chip .lo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lo-chip.pillar { background: rgba(110,81,166,0.12); border-color: var(--pathway); color: var(--pathway-2); }
-  .lo-chip.base   { background: rgba(214,150,60,0.13); border-color: var(--amber); color: #8a5a14; }
-  /* Same opaque light-rose plate as .sp-badge (the translucent wash went
-     dark-on-dark over the felt loadout panel). */
-  .lo-chip.samepower { background: linear-gradient(180deg, #FCF4F7, #F1DCE6);
-    border-color: var(--net, #C84A78); color: var(--net-dot, #8E2F4E);
+  .lo-chip.pillar { color: var(--gold); }
+  .lo-chip.base   { color: var(--card-face); }
+  .lo-chip.samepower { color: var(--phosphor);
     flex-direction: column; gap: 3px; padding: 6px 10px; justify-content: center; }
   .lo-chip.samepower .lo-ico { width: 18px; height: 18px; font-size: 16px; }
   .lo-chip.samepower .lo-ico .sp-mark { width: 18px; height: 18px; }
   /* Empty slot: a muted, non-interactive placeholder so the column structure
      still reads even when nothing is equipped there. */
   .lo-empty { display: flex; align-items: center; justify-content: center;
-    border: 1px dashed var(--edge-2); border-radius: 9px; padding: 5px 7px;
+    border: 1px dashed rgba(236, 228, 207, 0.3); border-radius: 0; padding: 5px 7px;
     font-size: 10px; font-weight: 600; color: var(--muted); opacity: 0.7; }
 
   /* ---- Shop item detail overlay: a focused look at one object ----
@@ -3325,16 +3348,21 @@ const NativeApp = (() => {
      and Buy. Tap the backdrop or ✕ to dismiss. */
   .store-detail { position: fixed; inset: 0; z-index: 66;
     display: flex; align-items: center; justify-content: center; padding: 26px;
-    background: rgba(38,28,26,0.56);
+    background: rgba(16, 16, 14, 0.72);   /* ink-based scrim (chunk-2 idiom) */
     animation: storeDetailIn 0.16s ease; }
   .store-detail.hidden { display: none; }
   @keyframes storeDetailIn { from { opacity: 0; } to { opacity: 1; } }
+  /* The focus view sits on the standard pixel panel now (it used to be bare
+     text floating on the blurred backdrop — unreadable idiom under §1). */
   .sd-panel { position: relative; width: min(86vw, 330px);
+    max-height: min(86vh, 100%); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    box-shadow: 4px 4px 0 0 var(--shadow); padding: 14px 12px 16px;
     display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
-  .sd-close { position: absolute; top: -10px; right: -6px; width: 34px; height: 34px;
-    border-radius: 999px; border: none; background: rgba(255,255,255,0.92); color: var(--muted);
-    font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-  .sd-close:active { transform: scale(0.94); }
+  .sd-close { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
+    border-radius: 0; border: var(--px) solid var(--ink); background: var(--felt-deep); color: var(--text);
+    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 2px 2px 0 0 var(--shadow); }
+  .sd-close:active { transform: translate(2px, 2px); box-shadow: none; }
   /* The object, modestly larger than the shelf (was 156px + 1.5x scale — it
      swallowed most of the panel and crushed the description/chooser/buttons
      below; the popup now gives the TEXT the room). */
@@ -3359,23 +3387,27 @@ const NativeApp = (() => {
   /* SAME collapse for the base plaque (and the same Safari transfer failure):
      explicit 62 × var(--plaque-ar 2.4) ≈ 149. Detail-scoped. */
   .sd-obj.obj-base .base-banner.plaque.big { height: 48px; width: 115px; max-width: none; }
+  /* Tier ladder mapped to the palette (same read as the shelf's rarity strip):
+     common = quiet cream, uncommon = gold, rare = phosphor. */
   .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
-    color: rgba(255,255,255,0.6); }
-  .sd-tier[data-tier="uncommon"] { color: #7fc4e8; }
-  .sd-tier[data-tier="rare"] { color: #e8b964; }
-  .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 21px; color: #fff;
-    line-height: 1.1; }
-  .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.86); margin-bottom: 4px; white-space: pre-line; }
+    color: rgba(236, 228, 207, 0.55); }
+  .sd-tier[data-tier="uncommon"] { color: var(--gold); }
+  .sd-tier[data-tier="rare"] { color: var(--phosphor); text-shadow: var(--glow); }
+  /* Display face at a size long Pillar names survive at 330px panel width. */
+  .sd-name { font-family: var(--font-display); font-weight: 800; font-size: 14px; color: var(--card-face);
+    line-height: 1.35; }
+  .sd-desc { font-size: 13px; line-height: 1.5; color: rgba(236, 228, 207, 0.86); margin-bottom: 4px; white-space: pre-line; }
   /* Comparison inside the buy popup: shown WHENEVER a target slot is picked —
      the EQUIPPED item (or a same-sized "None equipped" placeholder when the
      slot is empty) beside the INCOMING item, over an explicit "Replace X with
      Y?" / "Place Y?" line. Identical layout for filling and replacing. */
   .sd-compare { display: flex; align-items: stretch; gap: 7px; margin: 8px 0 0; width: 100%; }
   .sd-compare.hidden { display: none; }
-  .sdc-side { flex: 1 1 0; min-width: 0; background: var(--panel-2);
-    border: 1px solid var(--edge-2); border-radius: 10px; padding: 7px 6px 8px;
+  .sdc-side { flex: 1 1 0; min-width: 0; background: var(--felt-deep);
+    border: 1px solid var(--ink); border-radius: 0; padding: 7px 6px 8px;
     display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .sdc-side.sdc-new { border-color: var(--pathway); box-shadow: inset 0 0 0 1px rgba(110,81,166,0.25); }
+  /* The INCOMING side reads phosphor — the highlight accent, the side you act on. */
+  .sdc-side.sdc-new { border: var(--px) solid var(--phosphor); }
   .sdc-tag { font-size: 9px; font-weight: 800; letter-spacing: 0.09em;
     text-transform: uppercase; color: var(--muted); }
   .sdc-obj { height: 58px; width: 100%; display: flex; align-items: center; justify-content: center; }
@@ -3384,35 +3416,35 @@ const NativeApp = (() => {
   .sdc-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.2; }
   .sdc-desc { font-size: 10px; line-height: 1.35; color: var(--muted);
     text-align: center; max-height: 62px; overflow-y: auto; }
-  .sdc-arrow { align-self: center; flex: 0 0 auto; font-size: 16px; font-weight: 800; color: #cdb9f4; }
+  .sdc-arrow { align-self: center; flex: 0 0 auto; font-size: 16px; font-weight: 800; color: var(--gold); }
   /* Empty-slot placeholder: the same box, a dashed slot silhouette inside
      (sized per item family via the cmp-* class on .sd-compare). */
   .sdc-side.sdc-none .sdc-name { color: var(--muted); font-style: italic; font-weight: 700; }
-  .sdc-slot-empty { display: block; width: 46px; height: 54px; border-radius: 8px;
-    border: 1.5px dashed rgba(74,52,44,0.4); background: rgba(74,52,44,0.05); }
-  .sd-compare.cmp-base .sdc-slot-empty { width: 78px; height: 32px; border-radius: 6px; }
-  .sd-compare.cmp-samepower .sdc-slot-empty { width: 46px; height: 46px; border-radius: 50%; }
-  /* Light text on the dark blurred backdrop (was body-ink black — unreadable). */
+  .sdc-slot-empty { display: block; width: 46px; height: 54px; border-radius: 0;
+    border: var(--px) dashed rgba(236, 228, 207, 0.35); background: none; }
+  .sd-compare.cmp-base .sdc-slot-empty { width: 78px; height: 32px; }
+  .sd-compare.cmp-samepower .sdc-slot-empty { width: 46px; height: 46px; }
   .sd-replace-q { margin: 7px 0 0; font-size: 12.5px; font-weight: 700; text-align: center;
-    color: rgba(255,255,255,0.9); }
+    color: rgba(236, 228, 207, 0.9); }
   .sd-replace-q.hidden { display: none; }
-  .sd-replace-q b { color: #cdb9f4; }
+  .sd-replace-q b { color: var(--gold); }
 
   /* Placement chooser inside the buy popup (pillars / bases / Same-Power): pick the
      slot, then confirm buy+place with the button below. */
   .sd-place { width: 100%; display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px;
-    border-top: 1px solid rgba(255,255,255,0.18); padding-top: 10px; }   /* subtle break after the description */
+    border-top: 1px solid rgba(236, 228, 207, 0.18); padding-top: 10px; }   /* subtle break after the description */
   .sd-place.hidden { display: none; }
   .sd-place-h { font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
-    color: rgba(255,255,255,0.74); text-transform: uppercase; }
+    color: rgba(236, 228, 207, 0.74); text-transform: uppercase; }
   .sd-cols { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
   .sd-col { flex: 1 1 0; min-width: 0; max-width: 130px; overflow: hidden;
     display: flex; flex-direction: column; gap: 2px;
-    background: rgba(255,255,255,0.10); border: 1.5px solid rgba(255,255,255,0.22);
-    border-radius: 10px; padding: 7px 8px; cursor: pointer; touch-action: manipulation;
-    color: #fff; transition: transform 0.1s ease, border-color 0.12s ease, background 0.12s ease; }
-  .sd-col:active { transform: scale(0.97); }
-  .sd-col.sd-col-sel { border-color: #fff; background: rgba(255,255,255,0.22); }
+    background: var(--felt-deep); border: var(--px) solid var(--ink);
+    border-radius: 0; padding: 7px 8px; cursor: pointer; touch-action: manipulation;
+    color: var(--text); transition: transform 0.1s ease, border-color 0.12s ease, background 0.12s ease; }
+  .sd-col:active { transform: translate(2px, 2px); }
+  /* Picked slot lights phosphor (selection = the one sanctioned highlight). */
+  .sd-col.sd-col-sel { border-color: var(--phosphor); background: var(--sel); }
   .sd-col .sdc-n { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; }
   /* Occupant name: wrap to at most TWO lines inside the cell, then clip —
      long Pillar names (e.g. "Diamond Distribution") must never spill into
@@ -3427,26 +3459,37 @@ const NativeApp = (() => {
      visible on the read-only equipped view), and the new equipped-only Sell
      must start hidden on offer details. */
   .sd-buy.hidden { display: none; }
-  .sh-buy { flex: none; background: linear-gradient(135deg, var(--accent-2), var(--accent));
-    color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
-    font-weight: 800; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
-    box-shadow: 0 4px 14px rgba(224,87,126,0.4); }
+  /* BUY = the §4 GOLD button (it spends coins): deep-felt face, gold text +
+     frame, hard shadow, press sinks a pixel step. */
+  .sh-buy { flex: none; background: var(--felt-deep);
+    color: var(--gold); border: var(--px) solid var(--gold); border-radius: 0; padding: 10px 22px;
+    font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+    box-shadow: 4px 4px 0 0 var(--shadow); }
   .sh-buy .coin-ico { font-size: 13px; }
-  .sh-buy:disabled { background: var(--panel-2); color: var(--muted); cursor: default; box-shadow: none; }
-  .sh-buy:active { transform: scale(0.97); }
+  .sh-buy:disabled { background: var(--felt-mid); color: var(--muted); border-color: var(--ink);
+    cursor: default; box-shadow: 2px 2px 0 0 var(--shadow); }
+  .sh-buy:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
+  /* SELL (equipped-only) is destructive — it wears the §4 danger red frame. */
+  #sdSell { color: var(--suit-red); border-color: var(--suit-red); }
 
-  /* Pack-reveal Confirm button (still used by the reveal modal). */
-  .buy-confirm { width: min(94vw, 380px); padding: 8px 12px; border: none; border-radius: 10px;
-    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 4px 4px 0 0 var(--shadow);
-    background: var(--accent); color: #fff; transition: transform 0.08s ease, opacity 0.15s ease; }
-  .buy-confirm:active { transform: scale(0.98); }
-  .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
+  /* Pack-reveal Confirm — the COMMITTED action of the reveal flow, so it's the
+     §4 phosphor CTA: phosphor face, ink text, hard shadow + THE glow. */
+  .buy-confirm { width: min(94vw, 380px); padding: 10px 12px;
+    border: var(--px) solid var(--ink); border-radius: 0;
+    font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+    cursor: pointer; box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
+    background: var(--phosphor); color: var(--ink); transition: transform 0.08s ease, opacity 0.15s ease; }
+  .buy-confirm:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .buy-confirm:disabled { opacity: 1; background: var(--felt-mid); color: var(--muted);
+    box-shadow: 2px 2px 0 0 var(--shadow); cursor: default; }
   .buy-confirm.hidden { display: none; }
   /* Skip / take nothing on the pack reveal (secondary, under Confirm). */
   .pack-skip-btn { width: min(94vw, 380px); margin-top: 8px; padding: 8px 12px;
-    background: transparent; color: var(--muted); border: 1px solid var(--edge-2); border-radius: 10px;
-    font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
-  .pack-skip-btn:active { transform: scale(0.98); }
+    background: var(--felt-deep); color: var(--muted); border: var(--px) solid var(--ink); border-radius: 0;
+    font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation;
+    box-shadow: 2px 2px 0 0 var(--shadow); }
+  .pack-skip-btn:active { transform: translate(2px, 2px); box-shadow: none; }
   .pack-skip-btn.hidden { display: none; }
   /* Inside the pack panel, Confirm + Skip span the panel exactly like the
      full-width deck button, so every button lines up centred and nothing
@@ -3467,21 +3510,24 @@ const NativeApp = (() => {
   .store-actions .store-view-btn { flex: 0 0 auto; padding: 9px 14px; }
   /* The store deck character sits at the action row's left, tappable like in a deal. */
   .play-btn.store-start { flex: 1; margin: 0; padding: 11px 18px; font-size: 15px; }
-  /* Locked while items await placement: clearly out of play, no press feedback. */
-  .play-btn.store-start:disabled { opacity: 0.45; filter: grayscale(0.55); cursor: not-allowed; box-shadow: none; }
+  /* Locked while items await placement: §4 disabled — felt-mid face, dim
+     text, sunk shadow, no glow, no press feedback (the old grayscale filter
+     is retired: no runtime filters, §10). */
+  .play-btn.store-start:disabled { background: var(--felt-mid); color: var(--muted);
+    cursor: not-allowed; box-shadow: 2px 2px 0 0 var(--shadow); }
   .play-btn.store-start:disabled:active { transform: none; }
 
   /* Confirmation dialog (Trash Pillar) — a modal above the store. */
   .confirm-overlay {
     position: fixed; inset: 0; z-index: 70;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(48,36,32,0.62);
+    background: rgba(16, 16, 14, 0.72);   /* ink scrim, same as the detail */
     padding: 20px;
   }
   .confirm-overlay.hidden { display: none; }
   .confirm-panel {
     width: min(90vw, 340px); background: var(--panel);
-    border: 1px solid var(--edge-2); border-radius: 14px; box-shadow: 4px 4px 0 0 var(--shadow);
+    border: var(--px) solid var(--ink); border-radius: 0; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 18px 16px; text-align: center;
   }
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
@@ -3504,18 +3550,21 @@ const NativeApp = (() => {
   .card.shuffling { animation: shuffleWiggle 0.42s ease-in-out 2; }
   @media (prefers-reduced-motion: reduce) { .card.shuffling { animation: none; } }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
-  .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: none; touch-action: manipulation; }
-  .confirm-cancel { background: var(--panel-2); color: var(--text); }
-  .confirm-danger { background: var(--danger); color: #fff; }
-  .confirm-actions button:active { transform: scale(0.97); }
+  .confirm-actions button { flex: 1 1 0; padding: 11px 0; border-radius: 0; font-weight: 800; font-size: 13px;
+    cursor: pointer; border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); touch-action: manipulation; }
+  .confirm-cancel { background: var(--felt-deep); color: var(--text); }
+  .confirm-danger { background: var(--suit-red); color: var(--card-face); }   /* §4 danger */
+  .confirm-actions button:active { transform: translate(2px, 2px); box-shadow: none; }
 
   /* ---- Pack reveal modal + mini-cards (shared by reveal + pre-run tray) ---- */
   .pack-panel {
     width: min(94vw, 420px); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 14px;
+    background: var(--panel); border: var(--px) solid var(--ink); border-radius: 0;
     box-shadow: 4px 4px 0 0 var(--shadow); padding: 16px 14px; text-align: center;
   }
-  .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
+  /* Reveal headline on the display marquee face, phosphor + THE glow. */
+  .pack-title { font-family: var(--font-display); font-weight: 800; font-size: 13px;
+    color: var(--phosphor); text-shadow: var(--glow); line-height: 1.4; margin-bottom: 10px; }
   .pack-items { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; }
   .pack-items > * { flex: 1 1 0; min-width: 0; }
   /* Store auto-description panel — always-visible, fixed slot (no layout jump). */
@@ -3535,12 +3584,13 @@ const NativeApp = (() => {
   /* Read-only "view deck composition" aid on the card-pick screen. */
   .pack-deck-btn {
     margin-top: 12px; width: 100%;
-    background: transparent; color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 10px;
+    background: var(--felt-deep); color: var(--text);
+    border: var(--px) solid var(--ink); border-radius: 0;
     padding: 9px 12px; font-size: 13px; font-weight: 700;
     cursor: pointer; touch-action: manipulation;
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
-  .pack-deck-btn:active { transform: scale(0.98); }
+  .pack-deck-btn:active { transform: translate(2px, 2px); box-shadow: none; }
   .pack-deck-btn.hidden { display: none; }
   /* Center each option's content: the cell flexes to 1fr but the sticker chip /
      mini-card inside is a FIXED width, so without centering it hugs the cell's
@@ -3550,7 +3600,7 @@ const NativeApp = (() => {
   .pack-item:active { transform: scale(0.95); }
   .pack-item.dim { opacity: 0.3; }
   .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-  .pack-item.chosen .pk-sticker { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 8px; }
+  .pack-item.chosen .pk-sticker { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 0; }
   /* Map card-grant reveal (pack-show): the Windfall presentation — the mystery
      modal's green rim + the same staggered meaCardFlip beat (transform/opacity
      only), so every map card grant reads like the Windfall popup. The CSS
@@ -3578,11 +3628,12 @@ const NativeApp = (() => {
     overflow-y: auto; overscroll-behavior: contain;
   }
 
-  /* Sticker chip (revealed sticker-pack item). */
+  /* Sticker chip (revealed sticker-pack item): a recessed felt well framing
+     the vinyl (the keep-choice outline rides this box). */
   .pk-sticker {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
-    width: 64px; padding: 8px 4px; border-radius: 10px;
-    background: rgba(74,52,44,0.06); border: 1px solid var(--edge-2);
+    width: 64px; padding: 8px 4px; border-radius: 0;
+    background: var(--felt-deep); border: 1px solid var(--ink);
   }
   .pk-sticker .pks-ic { font-size: 22px; line-height: 1; }
   .pk-sticker .pks-name { font-size: 9px; font-weight: 700; color: var(--text); line-height: 1.1; }
@@ -3901,61 +3952,71 @@ const NativeApp = (() => {
   .base-banner.big { width: min(100%, 144px); }
   .base-banner.big .base-name { font-size: 11px; }
 
-  /* ---- PACK = sealed foil pack (shop object) ---- */
+  /* ---- PACK = sealed foil pack (shop object). CRT CASINO: the smooth foil
+     gradients + sheen are retired (§1) — the wrap is a baked OPTICAL DITHER:
+     card pack = "brass" (gold⊕deep-felt), sticker pack = phosphor⊕felt-mid —
+     with hard-stop crimp stripes, an ink frame and the hard pixel shadow. ---- */
   .pack-foil {
     position: relative; width: 64px; aspect-ratio: 3 / 4;
     display: flex; flex-direction: column;
-    filter: drop-shadow(0 6px 11px rgba(50,30,55,0.38));
+    border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .pf-crimp {
     flex: none; height: 11%;
-    background: repeating-linear-gradient(90deg, #c3a9e8 0 3px, #6b4ba2 3px 6px);
-    border: 1px solid rgba(40,20,60,0.4);
+    background: repeating-linear-gradient(90deg, var(--gold) 0 3px, var(--ink) 3px 6px);
+    border: none;
   }
-  .pf-crimp.top { border-radius: 5px 5px 0 0; border-bottom: none; }
-  .pf-crimp.bottom { border-radius: 0 0 5px 5px; border-top: none; }
+  .pf-crimp.top { border-bottom: 1px solid var(--ink); }
+  .pf-crimp.bottom { border-top: 1px solid var(--ink); }
   .pf-body {
     position: relative; flex: 1 1 auto; overflow: hidden;
-    background: linear-gradient(155deg, var(--foil-1) 0%, var(--foil-2) 100%);
-    border-left: 1px solid rgba(40,20,60,0.4); border-right: 1px solid rgba(40,20,60,0.4);
+    background: var(--felt-deep) url('data:image/gif;base64,R0lGODlhAgACAIABANmkQRQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
     display: flex; align-items: center; justify-content: center;
   }
-  .pf-sheen {
-    position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(118deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0) 34%, rgba(255,255,255,0.14) 58%, rgba(255,255,255,0) 78%);
-  }
+  .pf-sheen { display: none; }   /* foil sheen retired: dither IS the material */
   .pf-window {
-    position: relative; width: 78%; height: 66%; border-radius: 5px;
-    background: rgba(18,8,28,0.34); border: 1px solid rgba(255,255,255,0.30);
-    box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
+    position: relative; width: 78%; height: 66%; border-radius: 0;
+    background: var(--ink); border: 1px solid rgba(236, 228, 207, 0.3);
+    box-shadow: none;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   }
+  /* The cards peeking in the window are face-down BACKS wearing the ACTIVE
+     deck character's dither skin (they'll join that deck — same rationale and
+     the same chunk-2 baked tiles as the map's .mn-pack stacks). Default =
+     Pinky red⊕cream; per-deck overrides below ride the mdeck-* class showStore
+     stamps on #storeOverlay (mirroring the map's stamp). */
   .pf-cards { display: flex; align-items: flex-end; }
   .pf-cards i {
-    width: 11px; height: 16px; border-radius: 2px; display: block;
-    background: linear-gradient(180deg, #fff, #e7dff0);
-    border: 0.5px solid rgba(60,40,80,0.4); box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    width: 11px; height: 16px; border-radius: 0; display: block;
+    background: var(--card-face) url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: 1px solid var(--ink); box-shadow: none;
   }
+  #storeOverlay.mdeck-mamma .pf-cards i { background: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRdmkQSH5BAAKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
+  #storeOverlay.mdeck-smith .pf-cards i { background: var(--felt-deep) url('data:image/gif;base64,R0lGODlhAgACAIABANmkQRQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
+  #storeOverlay.mdeck-lammy .pf-cards i { background: url('data:image/gif;base64,R0lGODlhAgACAIABABAQDuzkzyH5BAAKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
   .pf-cards i:nth-child(1) { transform: rotate(-12deg) translateX(4px); z-index: 1; }
   .pf-cards i:nth-child(2) { transform: translateY(-2px); z-index: 2; }
   .pf-cards i:nth-child(3) { transform: rotate(12deg) translateX(-4px); z-index: 1; }
   .pf-name {
-    font-family: var(--font-display, "Baloo 2"); font-size: 7px; font-weight: 800;
-    color: #fff; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    font-family: var(--font-text); font-size: 8px; font-weight: 800;
+    color: var(--card-face); text-transform: uppercase; letter-spacing: 0.5px; text-align: center;
+    text-shadow: none;
   }
   .pack-foil.big { width: 96px; }
   .pack-foil.big .pf-cards i { width: 16px; height: 23px; }
   .pack-foil.big .pf-name { font-size: 9.5px; }
-  /* ---- STICKER pack = a DISTINCT teal foil + die-cut sticker contents, so it
-     reads apart from the violet card pack at a glance (no label needed). Only the
-     material colour + the window contents change; it stays the same wrapped,
-     openable foil object. ---- */
+  /* ---- STICKER pack = a DISTINCT phosphor⊕felt dither + die-cut sticker
+     contents, so it reads apart from the brass card pack at a glance (no label
+     needed). Only the material changes; same wrapped, openable foil object. ---- */
   .pack-foil.pf-sticker .pf-body {
-    background: linear-gradient(155deg, var(--foil-sticker-1) 0%, var(--foil-sticker-2) 100%);
+    background: var(--felt-mid) url('data:image/gif;base64,R0lGODlhAgACAIABAE7wih46LCH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
   }
   .pack-foil.pf-sticker .pf-crimp {
-    background: repeating-linear-gradient(90deg, #8fe0d6 0 3px, #1f6f73 3px 6px);
+    background: repeating-linear-gradient(90deg, var(--phosphor) 0 3px, var(--ink) 3px 6px);
   }
   /* Fanned die-cut stickers peeking out of the window (mirrors .pf-cards's fan). */
   .pf-stickers { display: flex; align-items: center; justify-content: center; }
@@ -4732,28 +4793,31 @@ const NativeApp = (() => {
   .pd-item .cph-banner.pennant { height: 46px; width: 38px; flex: none; }
   .pd-item .base-banner.plaque { height: 32px; width: 77px; max-width: none; flex: none; }
   .sa-cards { max-height: 50vh; }
-  /* Pillar/Base column picker (place-on-purchase). */
+  /* Pillar/Base column picker (place-on-purchase): recessed felt slots inside
+     the felt-mid modal; the picked one lights phosphor. */
   .ip-columns { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 6px; }
   .ip-col { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--panel); border: 1.5px solid var(--edge-2); border-radius: 12px; padding: 13px 14px;
+    background: var(--felt-deep); border: var(--px) solid var(--ink); border-radius: 0; padding: 13px 14px;
     cursor: pointer; touch-action: manipulation; }
-  .ip-col:active { transform: scale(0.99); }
-  .ip-col.ip-selected { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .ip-col:active { transform: translate(2px, 2px); }
+  .ip-col.ip-selected { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); background: var(--sel); }
   .ip-col-n { font-weight: 800; font-size: 14px; color: var(--text); }
   .ip-col-occ { font-size: 12px; color: var(--muted); }
-  /* Post-deal placement screen (Section 3) — the pickers (z-80) open on top. */
-  .pd-panel { background: linear-gradient(180deg, #FBF6F1, #F1E8DE); border: 1px solid var(--edge-2);
-    border-radius: 16px; width: min(94vw, 420px); max-height: 84vh; overflow-y: auto;
+  /* Post-deal placement screen (Section 3) — the pickers (z-80) open on top.
+     Standard pixel panel (the old warm-paper gradient is off-palette). */
+  .pd-panel { background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; width: min(94vw, 420px); max-height: 84vh; overflow-y: auto;
     padding: 18px 18px calc(16px + env(safe-area-inset-bottom)); box-shadow: 4px 4px 0 0 var(--shadow); }
-  .pd-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--accent-2); }
+  .pd-title { font-family: var(--font-display); font-weight: 800; font-size: 14px; line-height: 1.4;
+    color: var(--phosphor); text-shadow: var(--glow); }
   .pd-sub { color: var(--muted); font-size: 12.5px; margin: 3px 0 12px; }
   .pd-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; text-align: left; }
-  .pd-item { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--edge-2);
-    border-radius: 12px; padding: 8px 12px; }
+  .pd-item { display: flex; align-items: center; gap: 10px; background: var(--felt-deep); border: 1px solid var(--ink);
+    border-radius: 0; padding: 8px 12px; }
   .pd-item .mini-card { width: 38px; height: 52px; flex: none; }
   .pd-item-t { font-size: 12.5px; font-weight: 700; color: var(--text); }
   .pd-place-btn { width: 100%; }
-  .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 9px; display: flex; }
+  .sa-card { background: none; border: none; padding: 0; cursor: pointer; border-radius: 0; display: flex; }
   /* (No content-visibility windowing here: it blanked off-screen cards on iOS
      until scroll forced a paint of their inline-SVG chips — the "cards appear
      2-3s after scrolling" stall — and it deferred hit-testing. The picker grid
@@ -4885,10 +4949,15 @@ const NativeApp = (() => {
     box-shadow: none !important;
     filter: none !important;
   }
-  .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
-    padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
+  /* "Place item(s)" — the REQUIRED next action while GO TO MAP is locked, so
+     it's a phosphor CTA in the §4 pixel recipe. */
+  .store-apply-btn { flex: 0 0 auto; background: var(--phosphor); color: var(--ink);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    padding: 9px 14px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+    cursor: pointer; touch-action: manipulation; white-space: nowrap;
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); }
   .store-apply-btn.hidden { display: none; }
-  .store-apply-btn:active { transform: scale(0.97); }
+  .store-apply-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
 
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
@@ -7562,7 +7631,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.31 · CRT CASINO 2/6: pixel map, phosphor trail";
+const APP_VERSION = "v5.32 · CRT CASINO 3/6: pixel store, dithered packs";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26863,6 +26932,11 @@ const UIRenderer = (() => {
     // The deck-slot character shows in the store — keep its stage mood current
     // (same anxious → hopeful → bright arc as the map).
     CharMood.setStage(campaign.getPhaseIndex ? campaign.getPhaseIndex() : 0);
+    // Pack-foil window cards wear the ACTIVE deck's dither skin (the cards
+    // will join that deck) — same mdeck-* stamp the map uses for .mn-pack.
+    // Presentation only; CSS reads it off #storeOverlay.
+    el.storeOverlay.classList.remove("mdeck-pink", "mdeck-mamma", "mdeck-smith", "mdeck-lammy");
+    el.storeOverlay.classList.add("mdeck-" + selectedDeck().id);
     selectedStickerSlot = null; selectedMixedSlot = null;
     el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
     renderStore();
@@ -26948,7 +27022,10 @@ const UIRenderer = (() => {
     // the shelf at the normal ratio but render LOCKED — greyed, untappable.
     const stickerLocked = campaign.stickersLocked && campaign.stickersLocked()
       && (kind === "sticker" || (kind === "pack" && t.kind === "sticker"));
-    btn.className = "store-tile tile-" + kind + (affordable ? "" : " disabled") + (stickerLocked ? " tile-stickerlock" : "");
+    // srt-<tier> is presentation only: the plaque frame's rarity strip (CRT
+    // restyle) — read LIVE off the registry def like everything else here.
+    btn.className = "store-tile tile-" + kind + (t.tier ? " srt-" + t.tier : "")
+      + (affordable ? "" : " disabled") + (stickerLocked ? " tile-stickerlock" : "");
     if (stickerLocked) btn.disabled = true;
     btn.dataset.slot = slot;
     // The OBJECT ITSELF is the shelf item — the SAME component shown when
@@ -28355,9 +28432,13 @@ const UIRenderer = (() => {
       applyLabel = buying ? "Buy & Apply" : "Apply";
     }
     document.body.classList.add("modal-prompt");
+    // §4 button roles (presentation only — same handler either way): a card
+    // leaving the deck forever (Removal / pack swap-out) confirms on the red
+    // DANGER button; applying a sticker is constructive → phosphor primary.
+    const destructive = cardPickMode === "remove" || cardPickMode === "swap";
     showActionBar(msg, [
       { label: "Back", cls: "no", onClick: cancelApplyChoice },
-      { label: applyLabel, cls: "primary", onClick: confirmApplySticker },
+      { label: applyLabel, cls: destructive ? "danger" : "primary", onClick: confirmApplySticker },
     ], [], { html: true, dismiss: cancelApplyChoice });
   }
   /* Farewell moment for a card LEAVING the deck (Removal / pack swap): its
