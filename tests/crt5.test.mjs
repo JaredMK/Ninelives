@@ -1,8 +1,10 @@
 // CRT5 — CRT CASINO chunk 5: characters + item icons everywhere (strictly
-// aesthetic). The four deck characters and the item-class art become 16×16
-// pixel sprites rendered ONCE at boot by the inline PixelArt module and
-// consumed through CSS custom properties; the EXISTING DeckChar/CharMood
-// class machinery (untouched) just picks frames. Checks in the crt2-4 style:
+// aesthetic). The four deck characters are 32×32 pixel sprites (doubled from
+// 16 so every face carries real eye anatomy: cream sclera + ink pupil + a 1px
+// phosphor glint) and the item-class art stays 16×16, all rendered ONCE at
+// boot by the inline PixelArt module and consumed through CSS custom
+// properties; the EXISTING DeckChar/CharMood class machinery (untouched)
+// just picks frames. Checks in the crt2-4 style:
 // loadGame() proves the script evaluates (PixelArt validates its matrices at
 // load — malformed art throws), registry-driven shape checks tie the sprite
 // sheet to the live DECKS/tier/suit data (no pinned tunables), source-shape
@@ -81,6 +83,56 @@ export function run() {
     // Dithers only mix palette letters (the §1 optical-mixing rule).
     for (const [d, pair] of Object.entries(P.DITHER))
       r.ok(pair.every(c => P.PALETTE[c]), "dither '" + d + "' mixes two palette colours");
+    // MIXED-GRID sheet: characters + overlays are 32×32 (the eye-anatomy
+    // upgrade), icons 16×16, badges 8×8 — the renderer sizes each canvas
+    // from its matrix, so the grids are pinned HERE, on the live data.
+    const square = (rows, n) => rows.length === n && rows.every(r => r.length === n);
+    for (const id of deckIds) {
+      r.ok(STATES.every(st => square(P.SPRITES[id][st], 32)),
+        "deck '" + id + "' sprites are on the 32 grid");
+      r.ok(TIERS.every(t => square(P.TIER_ACCESSORY[id][t], 32)),
+        "deck '" + id + "' overlays share the sprite grid (contain-fit anchor contract)");
+    }
+    r.ok(Object.values(P.ICONS).every(rows => square(rows, 16)), "item icons stay 16×16");
+    r.ok(Object.values(P.SUIT_BADGES).every(rows => square(rows, 8)), "suit badges stay 8×8");
+    // Eye anatomy: every character's open-eyed poses carry the 1px phosphor
+    // glint (P) — the glossy-highlight charm from the reference art. (happy
+    // may close the eyes; dance may add confetti — idle/look/trail are the
+    // guaranteed open-eye states.)
+    for (const id of deckIds)
+      for (const st of ["idle", "look", "trail"])
+        r.ok(P.SPRITES[id][st].some(row => row.includes("P")),
+          "deck '" + id + "' " + st + " eyes carry the phosphor glint");
+    // Bespoke expressions: each state is genuinely distinct art per character
+    // (no shared-face grammar), and gaze is a real change (look != idle).
+    for (const id of deckIds) {
+      const f = (st) => P.SPRITES[id][st].join("\n");
+      r.ok(f("look") !== f("idle") && f("happy") !== f("idle") && f("sad") !== f("idle")
+        && f("happy") !== f("dance"),
+        "deck '" + id + "' idle/look/happy/sad/dance are distinct drawings");
+    }
+    // Box-anchor contract: the ink bars the tier overlays hang on (box top
+    // 4-5, lid-bottom 9-10, box bottom 26-27) never move across the five
+    // standing states — the reason ONE overlay fits them all.
+    for (const id of deckIds)
+      for (const st of ["look", "happy", "sad", "dance"])
+        for (const y of [4, 5, 9, 10, 26, 27])
+          r.eq(P.SPRITES[id][st][y], P.SPRITES[id].idle[y],
+            "deck '" + id + "' " + st + " keeps anchor row " + y);
+    // Mamma's head-bow overlay must COVER her baked rose bow in every
+    // standing pose (flopped dance bow included) — a peeking baked pixel
+    // would double-draw the bow under a tier accessory.
+    if (P.SPRITES.mamma && P.TIER_ACCESSORY.mamma) {
+      for (const st of ["idle", "look", "happy", "sad", "dance"])
+        for (const t of TIERS) {
+          let covered = true;
+          for (let y = 0; y < 4; y++)
+            for (let x = 6; x <= 25; x++)   // the box span — dance confetti flies outside it
+              if (P.SPRITES.mamma[st][y][x] !== "." && P.TIER_ACCESSORY.mamma[t][y][x] === ".")
+                covered = false;
+          r.ok(covered, "mamma " + t + " bow overlay fully covers the baked bow in " + st);
+        }
+    }
     // DOM-guarded renderer: in this node harness the data-URIs degrade to ""
     // (strings, never throws) — the browser renders real PNGs at boot.
     r.ok(typeof P.icon("coin") === "string" && typeof P.sprite("pink", "idle") === "string",
