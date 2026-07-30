@@ -277,5 +277,23 @@ export function run() {
       "showActionBar + renderDeckStrip are wrapped (the unwrapped gap around the stalls)");
   }
 
+  // --- Structural: THERMAL3 — XL-lite picker at big decks --------------------
+  {
+    // On-device mechanism (user-observed + dump-correlated): at 80+ card decks
+    // the full-styled picker grid exhausts iOS layer backing store — icons and
+    // deck art turn TRANSPARENT and taps queue for seconds while tiles
+    // re-rasterize. XL-lite drops the per-tile raster (18px-blur shadow,
+    // border, per-card grayscale filter) at SA_XLITE_DECK+ cards.
+    r.ok(/const SA_XLITE_DECK = \d+;/.test(src), "SA_XLITE_DECK threshold declared by the picker internals");
+    r.ok(src.includes('el.saCards.classList.toggle("sa-xlite", cards.length >= SA_XLITE_DECK)'),
+      "renderStickerApplyCards toggles sa-xlite by deck size");
+    r.ok(/\.sa-xlite \.mini-card \{ box-shadow: none; border: none; \}/.test(html),
+      "xl-lite tiles drop the 18px-blur shadow + border");
+    r.ok(/\.sa-xlite \.sa-card\.sa-disabled \{ filter: none; \}/.test(html),
+      "xl-lite disabled cards dim without a per-card grayscale filter layer");
+    r.ok(src.includes('document.getElementsByTagName("*").length') && src.includes('bits.push("dom " + e.ctx.dom)'),
+      "journey context + dump carry the DOM node count (layer-pressure correlation)");
+  }
+
   return r.summary();
 }

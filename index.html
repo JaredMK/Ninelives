@@ -4759,6 +4759,13 @@ const NativeApp = (() => {
      surviving filter (the chip-icon drop-shadow, ~150 chips at 46-card
      decks). Imperceptible at 15px; the board keeps its shadows. */
   .sa-lite .dcs-ic { filter: none; }
+  /* XL-LITE (THERMAL2): at SA_XLITE_DECK+ cards the picker tiles go flat —
+     no 18px-blur box-shadow (the per-tile raster that exhausts iOS backing
+     store), no border, and disabled cards dim by opacity alone (a grayscale
+     filter per ineligible card is a filter layer EACH). Toggled on #saCards
+     by deck size in renderStickerApplyCards; zero gameplay/layout change. */
+  .sa-xlite .mini-card { box-shadow: none; border: none; }
+  .sa-xlite .sa-card.sa-disabled { filter: none; }
   .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
     padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
   .store-apply-btn.hidden { display: none; }
@@ -7398,7 +7405,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.16 · last filter-loop killed (deck peek) + stall attribution in perf dumps";
+const APP_VERSION = "v5.17 · XL-lite picker at 40+ cards (iOS layer-memory fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -27706,6 +27713,12 @@ const UIRenderer = (() => {
      drainApplyGrid() (finish the mount synchronously) before touching it. */
   const APPLY_FIRST_BATCH = 24;   // ~2 viewports, mounted synchronously on open
   const APPLY_CHUNK = 16;         // cards appended per rAF chunk thereafter
+  /* THERMAL2: at/above this deck size the picker renders XL-lite (no
+     box-shadow / border / grayscale filters on tiles) — the per-tile raster
+     of a full-styled grid at 80+ cards exhausts iOS layer backing store
+     (measured on-device: transparent textures + multi-second tap queues at
+     deck 82-87). 40 keeps full styling everywhere it's proven clean. */
+  const SA_XLITE_DECK = 40;
   let applyGridGen = 0;           // generation guard for the chunk stream
   let applyGridOrder = [];        // this render's buttons, sorted
   let applyGridAppended = 0;      // how many of applyGridOrder are mounted
@@ -27716,6 +27729,14 @@ const UIRenderer = (() => {
     // .slice() keeps the sort off the campaign's own array.
     const cards = campaign.getRunDeckLive().slice().sort((a, b) =>
       (a.currentRank - b.currentRank) || (SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]));
+    // THERMAL2: at big decks the picker's per-tile raster (an 18px-blur
+    // box-shadow + a grayscale filter per disabled card, ×N tiles) exhausts
+    // the GPU/backing-store budget on iOS — the on-device symptom is
+    // discarded layer contents (icons/deck art turning TRANSPARENT) and taps
+    // queuing for seconds while tiles re-rasterize. XL-lite drops the shadow,
+    // the border and the grayscale at SA_XLITE_DECK+ cards: same layout, same
+    // info, flat paint. Below the threshold the picker keeps full styling.
+    el.saCards.classList.toggle("sa-xlite", cards.length >= SA_XLITE_DECK);
     applyCardsById = new Map(cards.map(c => [c.id, c]));
     const order = new Array(cards.length);
     for (let i = 0; i < cards.length; i++) {
@@ -30368,7 +30389,9 @@ const UIRenderer = (() => {
         }
       } catch (e) { /* measurement must never break the game */ }
       const g = frameGap.stats();
-      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky,
+      let dom = null;
+      try { dom = document.getElementsByTagName("*").length; } catch (e) { /* measurement only */ }
+      return { deck, stickers, gapMax: g.max, gapMean: g.mean, janky: g.janky, dom,
                kind: pickerSession ? pickerSession.kind : null, under: currentUnder() };
     }
     // Journey mark: { mark:true, stage, at(s), ctx }. picker:* stages pick up
@@ -30534,6 +30557,7 @@ const UIRenderer = (() => {
           if (e.ctx.kind) bits.push(e.ctx.kind);
           if (e.ctx.under) bits.push("over " + e.ctx.under);
           if (e.ctx.deck != null) bits.push("deck " + e.ctx.deck);
+          if (e.ctx.dom != null) bits.push("dom " + e.ctx.dom);
           if (e.ctx.stickers != null) bits.push("stk " + e.ctx.stickers);
           if (e.ctx.openMs != null) bits.push("open " + e.ctx.openMs + "ms");
           if (e.ctx.gapMax) bits.push("gap max " + e.ctx.gapMax + "ms mean " + e.ctx.gapMean + "ms janky " + e.ctx.janky);

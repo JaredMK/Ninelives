@@ -157,6 +157,26 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.17 (Kimi, THERMAL3)** — the huge-deck picker failure is LAYER-MEMORY
+  exhaustion, not speed; READ THIS BEFORE TOUCHING PICKER TILE STYLING:
+  - User-observed mechanism (matches every dump): taps "land" seconds late
+    while scrolling stays alive, sounds fire but the UI doesn't repaint, and
+    afterwards icons/deck art turn TRANSPARENT = iOS discarding layer
+    contents under backing-store memory pressure. Ambient capture the same
+    session: 7841 frames, mean 16.7ms, janky 0 — throughput was never the
+    issue; the per-tile RASTER at 82-87-card pickers is.
+  - Fix: **XL-lite mode** — `SA_XLITE_DECK` (40, const by APPLY_FIRST_BATCH)
+    gates `sa-xlite` on `#saCards` (toggled in renderStickerApplyCards):
+    `.mini-card` loses the 18px-blur box-shadow + border, `.sa-disabled`
+    loses its per-card grayscale FILTER (opacity alone). Same layout, same
+    info, same gameplay — flat paint. Keep new picker tile styling flat at
+    any size; if you add a per-tile effect, it must be opacity/transform.
+  - journeyCtx/dump now carry `dom <N>` (document node count) so future
+    dumps can confirm the pressure correlation.
+  - NOTE: a full picker/gameplay rewrite was considered and rejected — the
+    dumps prove logic is fast (<50ms) and ambient is clean; the failure is
+    resource footprint, which rewrites don't address.
+
 - **v5.16 (Kimi, THERMAL2)** — last always-on filter loop killed + stall
   attribution; READ THIS BEFORE TRUSTING A "CLEAN" DESKTOP PROFILE:
   - The v5.15 on-device dump proved the game runs clean everywhere EXCEPT
