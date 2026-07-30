@@ -175,6 +175,17 @@ export function run() {
       "…which is refreshed at render and gesture start (one read per gesture)");
   }
 
+  // --- Node cards are numeral-first too (v5.38 regression pin) --------------
+  {
+    // The board's centre-rank rule is scoped `.card .rank-mid`; node cards
+    // have no `.card` ancestor AND the sub-64px clamp hides their corner
+    // indices — so without their own rule, map pickups show only the suit.
+    r.ok(html.includes(".node-card .rank-mid {"),
+      "map node-cards carry their own oversized centre-rank rule");
+    r.ok(html.includes(".node-card .rank-mid") && html.includes("calc(var(--ps) * 0.66)"),
+      "…sized from the node-card's own --ps scale (the rank IS the card at 42px)");
+  }
+
   // --- Avatar frame + map chrome --------------------------------------------
   {
     const body = cssRule(html, ".av-body");

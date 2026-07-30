@@ -5397,8 +5397,16 @@ const NativeApp = (() => {
     box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .node-card .front.red { color: var(--card-red); }
-  .node-card .pip { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    font-size: calc(var(--ps) * 0.30); line-height: 1; opacity: 0.82; }
+  /* §5 NUMERAL-FIRST on node cards too (v5.38 fix): the oversized centre rank
+     rule is scoped `.card .rank-mid`, which map node-cards don't have — and
+     the sub-64px clamp collapses their corner indices — so pickup nodes
+     showed ONLY the suit. Mirror the board's centre-rank/pip layout at the
+     node-card's own --ps scale. */
+  .node-card .rank-mid { position: absolute; top: 47%; left: 50%;
+    transform: translate(-50%, -55%); font-size: calc(var(--ps) * 0.66);
+    font-weight: 800; line-height: 0.8; pointer-events: none; white-space: nowrap; }
+  .node-card .pip { position: absolute; top: 78%; left: 50%; transform: translate(-50%,-50%);
+    font-size: calc(var(--ps) * 0.22); line-height: 1; opacity: 0.9; }
   .node-card .s .suit-svg, .node-card .pip .suit-svg { width: 1em; height: 1em; display: block; }
   /* PICKUP specials — Joker / Blank wear the pack-reveal mini-card palette
      (mc-joker gold-on-deep-felt, mc-blank dimmed felt-mid) so the special
@@ -6858,7 +6866,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.37 · reward base+bonus, score split, collection pager, springy map";
+const APP_VERSION = "v5.38 · map card nodes show their rank again";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
