@@ -97,12 +97,30 @@ export function run() {
       const users = groups.flatMap(g => ItemData[g].filter(d => d.unlock && d.unlock.stat === zs));
       r.ok(users.length >= 1, "at least one item gates on " + zs + " (" + users.length + ")");
     }
-    // A plausible FIRST SESSION (a couple of deals, a few deaths, one Zen
-    // easy win) opens a healthy handful of unlocks — the drip starts fast.
-    const first = { dealsSurvived: 3, pilesLost: 3, zenGamesPlayed: 1, zenEasyWon: 1 };
-    const opened = groups.flatMap(g => ItemData[g].filter(d => d.unlock
-      && first[d.unlock.stat] != null && first[d.unlock.stat] >= d.unlock.count));
-    r.ok(opened.length >= 4, "a typical first session unlocks >=4 items (got " + opened.length + ")");
+    // PACING CONTRACT (v5.51 — player report: ~30 pops after one climb):
+    // under the documented solid-winning-climb growth model, NO climb may
+    // cross more than 5 gates, and the early drip stays alive (climbs 1-3
+    // each open >=2). Registry-driven: retuning counts inside these bounds
+    // is free; re-bunching the ladders fails here.
+    const GROWTH = { dealsSurvived: 12, runsPlayed: 1, runsWon: 1, bossesBeaten: 3,
+      cardsBuried: 12, stickersApplied: 9, pillarsPlaced: 5, basesPlaced: 4,
+      removalsUsed: 3, samesCalled: 5, correctSames: 3, jokersPlayed: 2,
+      pilesLost: 4, coinsEarnedLifetime: 90 };
+    const perClimb = {};
+    for (const g of groups) for (const d of ItemData[g]) {
+      if (!d.unlock || GROWTH[d.unlock.stat] == null) continue;   // zen/endless: session-paced
+      const k = Math.ceil(d.unlock.count / GROWTH[d.unlock.stat]);
+      perClimb[k] = (perClimb[k] || 0) + 1;
+    }
+    for (const k of Object.keys(perClimb))
+      r.ok(perClimb[k] <= 5, "winning climb " + k + " crosses <=5 gates (got " + perClimb[k] + ")");
+    for (const k of [1, 2, 3])
+      r.ok((perClimb[k] || 0) >= 2, "early climb " + k + " still opens >=2 (got " + (perClimb[k] || 0) + ")");
+    // A first Zen session keeps its own small drip (session-paced, not climb).
+    const zenFirst = groups.flatMap(g => ItemData[g].filter(d => d.unlock
+      && (d.unlock.stat === "zenGamesPlayed" || d.unlock.stat === "zenEasyWon") && d.unlock.count <= 1));
+    r.ok(zenFirst.length >= 1 && zenFirst.length <= 4,
+      "the first Zen win pops a small handful (" + zenFirst.length + ")");
     // The unlock filter at zero stats: grantable() === the ungated non-cursed
     // pool, in registry order.
     r.eq(JSON.stringify(StickerTypes.grantable().map(t => t.id)),
@@ -488,8 +506,9 @@ export function run() {
     // ── The toast queue: exists, reveals, sounds, drains one pop per CONTINUE ──
     r.ok(src.includes("function queueItemUnlockPops(unlocks, onDone)"),
       "UNLOCK1 UI: the item-unlock pop queue exists");
-    r.ok(src.includes("const u = queue.shift();") && src.includes("if (!u) { onDone(); return; }"),
-      "…it drains one pop at a time, empty queue → onDone straight through (no UI)");
+    r.ok(src.includes("const u = queue.shift();")
+      && src.includes("if (!u) { if (rest) showItemUnlockSummaryPop(rest, onDone); else onDone(); return; }"),
+      "…it drains one pop at a time; empty queue → summary tail or onDone straight through");
     r.ok(src.includes("function showItemUnlockPop(u, onNext)"),
       "…the single-pop presenter exists");
     const popBody = bodyOf("function showItemUnlockPop(u, onNext)", "function unlockProgressHtml(u)");
@@ -518,6 +537,17 @@ export function run() {
     // a game-end checkpoint used to swallow them).
     r.ok(src.includes("ItemUnlocks.primeKnown()"),
       "the known-set is primed at boot (fresh profiles pop first-session unlocks)");
+    // CEREMONY CAP (v5.51): at most MAX_SOLO_POPS solo pops; the tail
+    // collapses into ONE summary pop — a big climb is never a long click-through.
+    r.ok(src.includes("const MAX_SOLO_POPS = 3;"), "the solo-pop cap exists (3)");
+    const qip = bodyOf("function queueItemUnlockPops(unlocks, onDone)", "function showItemUnlockSummaryPop");
+    r.ok(qip.includes("queue.splice(MAX_SOLO_POPS)") && qip.includes("showItemUnlockSummaryPop(rest, onDone)"),
+      "…overflow splices into the summary pop");
+    r.ok(qip.includes("MAX_SOLO_POPS + 1"),
+      "…a single overflow item still pops solo (no \"1 more\" summary)");
+    const sump = bodyOf("function showItemUnlockSummaryPop(unlocks, onNext)", "function unlockProgressHtml");
+    r.ok(sump.includes("more items unlocked") && sump.includes("duc-continue"),
+      "the summary pop lists the count with ONE continue");
     r.eq(countOf(runEndBody, "ItemUnlocks.checkNewUnlocks()"), 1,
       "…onRunEnd holds ONLY the loss (run-over) site — deal wins never check (UNLOCK3)");
     r.ok(runEndBody.includes("queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showCampaignFailed(payload.run))"),

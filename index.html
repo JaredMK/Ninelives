@@ -2163,6 +2163,13 @@ const NativeApp = (() => {
     transition: opacity 0.6s ease 0.5s; }
   .duc-earned.hidden { display: none; }
   .deck-unlock-pop.revealed .duc-earned { opacity: 0.75; }
+  /* Summary-pop shelf (the collapsed unlock tail): a row of item art, no
+     silhouette tease; the pop mounts already-revealed. */
+  .iusp-shelf { display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+    gap: 8px; margin: 10px 0 4px; }
+  .iusp-shelf .ulk-obj { flex: none; }
+  .iusp-more { font-size: 15px; font-weight: 800; color: var(--gold); }
+  .item-unlock-pop.revealed .duc-continue { opacity: 1; pointer-events: auto; }
   .duc-continue { margin-top: 8px; opacity: 0; pointer-events: none; transition: opacity 0.5s ease 0.75s; }
   .deck-unlock-pop.revealed .duc-continue { opacity: 1; pointer-events: auto; }
   @media (prefers-reduced-motion: reduce) {
@@ -6917,7 +6924,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.50 · the Removal card is a torn card now";
+const APP_VERSION = "v5.51 · unlock pacing: ~4 per climb, capped ceremony";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -24829,15 +24836,45 @@ const UIRenderer = (() => {
       : kind === "samepower" ? samePowerBadgeHtml(def)
       : stickerChip(def.id, { seed: "unlock" });
   }
-  /** Drain the queue one pop at a time; empty → onDone() synchronously. */
+  /** Drain the queue one pop at a time; empty → onDone() synchronously.
+      CEREMONY CAP (v5.51): at most MAX_SOLO_POPS individual pops — anything
+      beyond collapses into ONE summary pop ("N more unlocked"), so even an
+      exceptional climb never needs a long click-through (player report: ~30
+      pops after a climb). A single overflow item still pops solo (a "1 more"
+      summary would be sillier than just showing it). */
+  const MAX_SOLO_POPS = 3;
   function queueItemUnlockPops(unlocks, onDone) {
     const queue = (unlocks || []).slice();
+    const rest = queue.length > MAX_SOLO_POPS + 1 ? queue.splice(MAX_SOLO_POPS) : null;
     const next = () => {
       const u = queue.shift();
-      if (!u) { onDone(); return; }
+      if (!u) { if (rest) showItemUnlockSummaryPop(rest, onDone); else onDone(); return; }
       showItemUnlockPop(u, next);
     };
     next();
+  }
+  /** The collapsed tail: one pop, a shelf of the unlocked items' art, one
+      CONTINUE. Reveals immediately (no ??? tease — these are the overflow). */
+  function showItemUnlockSummaryPop(unlocks, onNext) {
+    const wrap = document.createElement("div");
+    wrap.className = "deck-unlock-pop item-unlock-pop revealed";
+    const shelf = unlocks.slice(0, 6).map(u =>
+      '<span class="ulk-obj" style="--h:52px;width:52px">' + unlockObjectHtml(itemKindOf(u.def), u.def) + "</span>").join("");
+    const extra = unlocks.length > 6 ? '<span class="iusp-more">+' + (unlocks.length - 6) + "</span>" : "";
+    wrap.innerHTML =
+      '<div class="duc-panel">' +
+        '<div class="duc-eyebrow">' + unlocks.length + " more items unlocked</div>" +
+        '<div class="iusp-shelf">' + shelf + extra + "</div>" +
+        '<div class="duc-copy" style="opacity:1">All waiting in your Collection.</div>' +
+        '<button class="play-btn duc-continue" type="button">CONTINUE</button>' +
+      "</div>";
+    document.body.appendChild(wrap);
+    Sound.deckUnlock();
+    wrap.querySelector(".duc-continue").addEventListener("click", () => {
+      Sound.continueTap();
+      wrap.remove();
+      onNext();
+    });
   }
   function showItemUnlockPop(u, onNext) {
     const kind = itemKindOf(u.def);
