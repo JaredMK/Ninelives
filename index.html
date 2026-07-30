@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#ECE3DA" />
+<meta name="theme-color" content="#142820" />
 <title>Shoulda Said Same</title>
 <!-- ── BOOT SPLASH — CRITICAL CSS ────────────────────────────────────────────
      Must sit BEFORE every other stylesheet/script so the #bootSplash element
@@ -154,37 +154,48 @@ const NativeApp = (() => {
   return { native, boot, event };
 })();
 </script>
-<!-- Neural type system: Josefin Sans (soft organic display, for titles) +
-     Chakra Petch (clean technical, for ranks/gameplay text). -->
+<!-- CRT CASINO type system: VT323 (the ONE body face — stays legible at the
+     game's 8px floor) + Press Start 2P (display headers >= 11px only). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
      THEME / TOKENS
      ============================================================ */
   :root {
-    /* ---- Neural palette — LIGHT THEME (warm cream, deep rose) -------------
+    /* ---- CRT CASINO — THE LOCKED 8-COLOR PALETTE (styleguide.html §1) ------
+       A haunted 1985 video poker machine: felt green, phosphor glow, chunky
+       pixels. NO colors outside these 8 anywhere; intermediate hues exist
+       only as dithers of two palette colors (baked data-URI tiles). */
+    --felt-deep: #142820;   /* deep felt — app background, screen wells */
+    --felt-mid:  #1e3a2c;   /* panels, HUD, recessed chrome */
+    --suit-red:  #c22f45;   /* hearts/diamonds, danger, death */
+    --ink:       #10100e;   /* outlines, black suits, text on light */
+    --gold:      #d9a441;   /* coins, prices, secondary accents */
+    --phosphor:  #4ef08a;   /* CTAs, highlights, score — the ONLY glow */
+    --px: 2px;              /* pixel-grid unit: borders 2-4px, offsets in 2px steps */
+    --glow: 0 0 6px rgba(78, 240, 138, 0.55);   /* THE one glow (static, phosphor only) */
+    /* ---- Legacy token names, remapped onto the locked palette --------------
        Names unchanged so the existing chrome inherits the new palette. */
-    --bg: #ECE3DA;          /* warm cream base */
-    --bg-2: #FBF7F3;        /* lifted near-white centre */
-    --panel: #F8F2EB;       /* warm light panel surface */
-    --accent: #C84A78;      /* deep neural rose (primary; reads on light) */
-    --accent-2: #BC4270;    /* deep rose (secondary highlights/stats) */
-    --net: #C84A78;         /* connection-network links (deep rose, reads on light) */
-    --net-dot: #8E2F4E;     /* connection-network signal dots (dark, visible on light) */
-    --good: #3F9D6A;        /* deep sage — survival/correct */
-    --bad: #C9405C;         /* deep rose-red — loss/wrong */
-    --text: #241C28;        /* dark ink (on cream) */
-    --muted: #6E5E68;       /* muted plum-grey */
-    /* Matte cards: bright-white face that lifts off the cream, deep two-color
-       suits, a defined warm-grey border. */
-    --card-face: #FFFDFB;
-    --card-ink: #241C28;
-    --card-red: #C0364F;
-    --card-border: #D8CCC0;
-    --radius: 14px;
+    --bg: #142820;          /* deep felt base */
+    --bg-2: #1e3a2c;        /* lifted panel tone */
+    --panel: #1e3a2c;       /* felt-mid panel surface */
+    --accent: #4ef08a;      /* phosphor (primary highlight) */
+    --accent-2: #4ef08a;    /* phosphor (secondary highlights/stats) */
+    --net: #1e3a2c;         /* connection-network links — low-contrast felt (§5 web lines) */
+    --net-dot: #4ef08a;     /* connection-network signal dots — phosphor */
+    --good: #4ef08a;        /* survival/correct — phosphor */
+    --bad: #c22f45;         /* loss/wrong — suit red */
+    --text: #ece4cf;        /* aged-cream ink on felt */
+    --muted: rgba(236, 228, 207, 0.62);   /* dimmed cream */
+    /* Cards: aged-cream face (never pure white), ink border, two-color suits. */
+    --card-face: #ece4cf;
+    --card-ink: #10100e;
+    --card-red: #c22f45;
+    --card-border: #10100e;
+    --radius: 0px;          /* square corners ONLY (§10) */
     /* (see img rule below --shadow for the iOS save-image guard) */
     /* Canonical object aspect ratios (width/height). Each game object keeps ONE
        shape everywhere it's drawn — store, board, detail, loadout, post-deal — by
@@ -194,29 +205,31 @@ const NativeApp = (() => {
     --pennant-ar: 0.82;   /* Pillar pennant — banner, slightly portrait */
     --plaque-ar: 2.4;     /* Base plaque — wide engraved nameplate */
     --gap: clamp(8px, 2.6vw, 16px);
-    --shadow: 0 6px 18px rgba(74, 50, 40, 0.16);
+    /* Shadow COLOR (§1): every box-shadow is a hard down-right offset of this,
+       zero blur — "4px 4px 0 0 var(--shadow)" (2px at half scale). */
+    --shadow: #000000;
     /* ---- Type system ----------------------------------------------------- */
-    --font-display: "Josefin Sans", "Gill Sans", "Optima", sans-serif;
-    --font-text: "Chakra Petch", "SF Mono", "Segoe UI", system-ui, sans-serif;
+    --font-display: "Press Start 2P", "VT323", monospace;
+    --font-text: "VT323", monospace;
     /* Reserved accents for later phases. */
-    --amber: #C77E1F;       /* deep amber — limiting-pile / gold (reads on light) */
-    --edge: rgba(74, 52, 44, 0.16);      /* warm hairline on light */
-    --edge-2: #D8CCC0;                   /* defined warm-grey border for panels/chrome */
-    --panel-2: #ECE3D9;     /* raised inner surface (inputs, secondary buttons) */
-    --sel: rgba(200, 74, 120, 0.14);     /* warm rose selection fill */
-    --danger: #B0374F;      /* deep rose-red for destructive actions */
-    --pathway: #6E51A6;     /* Pathway identity (deep violet, reads on light) */
-    --pathway-2: #8568C0;   /* medium violet for accents/icons */
-    /* Pillar cloth (plum) + rarity trim (richer = rarer). Foil pack (cooler violet). */
-    --plum-1: #7a4f93;      /* top-lit plum */
-    --plum-2: #553463;      /* shaded plum bottom */
-    --trim-common: #9c7b46; /* tarnished bronze */
-    --trim-uncommon: #c3c9d0; /* silver */
-    --trim-rare: #e6bb46;   /* gold */
-    --foil-1: #8a5cc6;      /* CARD-pack foil (cool metallic violet, distinct from plum) */
-    --foil-2: #5b3aa0;
-    --foil-sticker-1: #2fa39c; /* STICKER-pack foil (teal vinyl — instantly distinct from the violet card pack) */
-    --foil-sticker-2: #1d6e72;
+    --amber: #d9a441;       /* coin gold — limiting-pile / prices */
+    --edge: #10100e;        /* hairline → ink */
+    --edge-2: #10100e;      /* panel/chrome border → ink */
+    --panel-2: #142820;     /* recessed inner surface (inputs, wells) → deep felt */
+    --sel: rgba(78, 240, 138, 0.16);     /* phosphor selection fill */
+    --danger: #c22f45;      /* destructive actions — suit red */
+    --pathway: #d9a441;     /* Pathway identity → gold accents */
+    --pathway-2: #d9a441;   /* pathway icons → gold */
+    /* Pillar cloth (felt) + rarity trim ladder within the palette. */
+    --plum-1: #1e3a2c;      /* cloth top → felt mid */
+    --plum-2: #142820;      /* cloth bottom → deep felt */
+    --trim-common: #1e3a2c; /* common: quiet felt edge */
+    --trim-uncommon: #ece4cf; /* uncommon: cream */
+    --trim-rare: #d9a441;   /* rare: gold */
+    --foil-1: #d9a441;      /* CARD-pack foil → gold on deep felt */
+    --foil-2: #142820;
+    --foil-sticker-1: #4ef08a; /* STICKER-pack foil → phosphor on felt */
+    --foil-sticker-2: #1e3a2c;
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
     /* Shared item-info typography — ONE source for every info slot (store
@@ -227,17 +240,16 @@ const NativeApp = (() => {
     --info-desc-lh: 1.4;
     --bottom-h: clamp(92px, 15vh, 120px);   /* setup inventory band (run: hidden) */
     /* ---- CASINO FELT — the table everything sits on ----------------------
-       Deep dark casino-green base across every screen. The light-cream panel
-       tokens above are untouched on purpose: panels/cards/buttons read as
-       paper ON the felt table. Text that sits DIRECTLY on the felt uses the
-       on-felt inks below. --felt-grain is a tiny turbulence tile (soft white
-       speckle) that gives the surface its fabric nap. */
-    --felt: #1D4E3B;         /* casino-green base (lightened from #123227) */
-    --felt-2: #2C6B53;       /* lifted table centre (lightened from #1B4634) */
-    --felt-3: #153B2C;       /* deepest vignette edge (lightened from #0B241B) */
-    --on-felt: #F0EAE0;      /* light ink directly on the felt */
-    --on-felt-muted: rgba(240, 234, 224, 0.75);   /* raised from 0.62: small text on felt failed AA (~4.15:1) */
-    --amber-text: #9A6712;   /* text-safe amber for numerals on light panels (--amber #C77E1F is 2.94:1 — keep it for glows/accents only) */
+       CRT CASINO: one flat deep-felt plane (all three legacy stops collapse to
+       --felt-deep, flattening the old radial vignette to a solid — the corner
+       vignette now lives on the #crtOverlay layer instead). Text directly on
+       the felt uses the cream on-felt inks. */
+    --felt: #142820;         /* deep felt base */
+    --felt-2: #142820;       /* (was lifted centre — flattened) */
+    --felt-3: #142820;       /* (was vignette edge — flattened) */
+    --on-felt: #ece4cf;      /* cream ink directly on the felt */
+    --on-felt-muted: rgba(236, 228, 207, 0.75);   /* small text on felt */
+    --amber-text: #d9a441;   /* gold numerals (dark panels read gold directly) */
     --felt-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
   }
 
@@ -260,7 +272,10 @@ const NativeApp = (() => {
     background: transparent;
     color: var(--text);
     font-family: var(--font-text);
-    -webkit-font-smoothing: antialiased;
+    /* Pixel type renders RAW (§3): no smoothing, no speed-costing ligatures. */
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+    text-rendering: optimizeSpeed;
     display: flex;
     flex-direction: column;
     min-height: 100%;
@@ -294,12 +309,12 @@ const NativeApp = (() => {
     font-weight: 800;
     letter-spacing: 0.6px;
     text-transform: uppercase;
-    color: var(--accent-2);
-    background: var(--panel);
-    border: 1px solid var(--edge);
-    border-radius: 999px;
+    color: var(--gold);
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 4px 14px;
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer;            /* tap to open the Imprint stash */
     user-select: none; -webkit-user-select: none;
   }
@@ -325,13 +340,15 @@ const NativeApp = (() => {
 
   /* Layout 4 — one slim HUD line: Stage·Run · score expression · dopamine. */
   .hud {
+    /* §8: the stat bar RECEDES into felt-mid — square panel, ink border, hard
+       shadow. Only the score chip inside it is phosphor; nothing else glows. */
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     width: min(98vw, 460px); margin: 4px auto 0; padding: 5px 13px;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px;
-    box-shadow: var(--shadow);
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .hud .hud-sr {
-    color: var(--accent-2); font-size: 10.5px; font-weight: 800;
+    color: var(--muted); font-size: 10.5px; font-weight: 800;
     letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
     /* Clear the fixed top-left menu button (30px + 8px inset) so they never
        overlap the Stage/Run text. */
@@ -345,17 +362,18 @@ const NativeApp = (() => {
   .hud .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
   .hud .hud-score .hx { color: var(--muted); font-size: 12px; margin: 0 1px; }
   .hud .hud-dop {
-    color: var(--amber-text); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    color: var(--gold); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     /* Clear the fixed top-right inventory button (mirror of hud-sr's left clear). */
     margin-right: 30px;
   }
   .hud .hud-dop b { font-size: 15px; font-weight: 800; }
   .hud .hud-dop .coin-ico { font-size: 13px; }
-  /* ECON1 score chip: the running campaign/endless score beside the coins. */
+  /* ECON1 score chip: THE one phosphor element in the stat bar (§8). */
   .hud .hud-score-chip {
-    color: var(--text); display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap;
+    color: var(--phosphor); text-shadow: var(--glow);
+    display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap;
   }
-  .hud .hud-score-chip .hl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .hud .hud-score-chip .hl { font-size: 10px; color: var(--muted); text-shadow: none; text-transform: uppercase; letter-spacing: 0.4px; }
   .hud .hud-score-chip b { font-size: 15px; font-weight: 800; }
   /* Same Charge indicator: the equals-synapse mark — lit + amber-glowing when
      CHARGED (the auto-save backstop is armed), dim/desaturated when EMPTY. (Uses
@@ -363,13 +381,13 @@ const NativeApp = (() => {
      "Same" unit; the charge is the glowing, border-less one.) */
   .hud .hud-same {
     font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
-    width: 19px; height: 19px; border-radius: 999px; transition: all 0.18s ease;
+    width: 19px; height: 19px; border-radius: 0; transition: all 0.18s ease;
   }
   .hud .hud-same img { width: 15px; height: 15px; display: block; }
   .hud .hud-same.charged {
     position: relative;
-    background: rgba(227,192,101,0.20);
-    box-shadow: 0 0 10px var(--amber), 0 0 3px var(--amber); transform: scale(1.05);
+    background: var(--felt-deep);
+    box-shadow: 0 0 10px var(--phosphor), 0 0 3px var(--phosphor); transform: scale(1.05);
   }
   .hud .hud-same.empty { opacity: 0.4; filter: grayscale(0.65); background: none; }
   /* THERMAL1: the charge pulse is an OPACITY crossfade on a bright ::after
@@ -379,8 +397,8 @@ const NativeApp = (() => {
      already proved this pattern (~5531). Box-shadow animation is now banned
      game-wide for always-on FX — transform/opacity only. */
   .hud .hud-same.charged::after {
-    content: ""; position: absolute; inset: -3px; border-radius: 999px; z-index: -1;
-    box-shadow: 0 0 18px var(--amber), 0 0 6px var(--amber);
+    content: ""; position: absolute; inset: -3px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 18px var(--phosphor), 0 0 6px var(--phosphor);
     opacity: 0; pointer-events: none; animation: sameChargeFade 1.5s ease-in-out infinite;
   }
   @keyframes sameChargeFade { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
@@ -389,23 +407,24 @@ const NativeApp = (() => {
   /* ── #4 SAME CHARGE — bigger + bolder (important survival resource). ───────── */
   .hud .hud-same { width: 30px; height: 30px; font-size: 20px; }
   .hud .hud-same img { width: 23px; height: 23px; }
-  .hud .hud-same.charged { background: rgba(227,192,101,0.28); transform: scale(1.1);
-    box-shadow: 0 0 12px var(--amber), 0 0 3px var(--amber); border: 1.5px solid var(--amber); }
+  .hud .hud-same.charged { background: var(--felt-deep); transform: scale(1.1);
+    box-shadow: 0 0 12px var(--phosphor), 0 0 3px var(--phosphor); border: 1.5px solid var(--phosphor); }
 
   /* ── #2 FOUR-SUIT PHASE TRACKER (replaces the phase text in the HUD). ─────────
      DONE = full-colour suit, ACTIVE = highlighted (scale + amber glow + chip),
      TODO = dim. ♥ ♦ render red, ♣ ♠ dark. */
   .hud .suit-track { display: inline-flex; align-items: center; gap: 6px; margin-left: 30px; }
-  .suit-track .st-suit { font-size: 16px; line-height: 1; font-weight: 800; color: #3c4356;
+  .suit-track .st-suit { font-size: 16px; line-height: 1; font-weight: 800; color: var(--text);
     opacity: 0.26; transition: opacity 0.2s ease, transform 0.2s ease, text-shadow 0.2s ease; }
-  .suit-track .st-suit.st-red { color: #c8506e; }
+  .suit-track .st-suit.st-red { color: var(--suit-red); }
   .suit-track .st-done { opacity: 1; }
-  .suit-track .st-active { opacity: 1; transform: scale(1.28); text-shadow: 0 0 8px var(--amber), 0 0 3px var(--amber); }
+  /* Active suit: scale-up only — glow stays reserved for phosphor (§1). */
+  .suit-track .st-active { opacity: 1; transform: scale(1.28); }
   /* Alt decks (Mamma/Smith/Lammy): a plain stage 1·2·3 indicator replaces the
      four-suit tracker — same states (done/active/todo), numbered coins. */
-  .suit-track .st-suit.st-stage { font-size: 12px; width: 19px; height: 19px; border-radius: 50%;
+  .suit-track .st-suit.st-stage { font-size: 12px; width: 19px; height: 19px; border-radius: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    border: 1.5px solid currentColor; color: #3c4356; }
+    border: 1.5px solid currentColor; color: var(--text); }
   .suit-track .st-suit.st-stage.st-active { transform: scale(1.15); }
 
   /* ── #1 SUIT-COUNT CHART (beside the rank histogram) — 2×2 of "♥ rem/total",
@@ -414,10 +433,10 @@ const NativeApp = (() => {
     grid-template-columns: auto auto; gap: 1px 7px; padding: 0 5px 0 1px; }
   .suit-counts .sc-cell { display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; line-height: 1.3; white-space: nowrap; }
-  .suit-counts .sc-suit { font-size: 11.5px; color: #3c4356; }
-  .suit-counts .sc-cell.sc-red .sc-suit { color: #c8506e; }
+  .suit-counts .sc-suit { font-size: 11.5px; color: var(--text); }
+  .suit-counts .sc-cell.sc-red .sc-suit { color: var(--suit-red); }
   .suit-counts .sc-num { color: var(--muted); font-weight: 700; }
-  .suit-counts .sc-num b { color: var(--ink); font-weight: 800; }
+  .suit-counts .sc-num b { color: var(--text); font-weight: 800; }
 
   /* ── #3 DEAL-STATUS ROW — the CLEAR-REWARD factors (surviving piles × smallest
      surviving pile + bonus), each labelled, between the histogram and the board
@@ -431,8 +450,10 @@ const NativeApp = (() => {
   .deal-status .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 1px 0 7px;
     text-transform: uppercase; letter-spacing: 0.3px; font-weight: 800; }
   .deal-status .hud-score .hx { color: var(--muted); font-size: 13px; margin: 0 2px; }
-  /* The SAME guess button also glows while a charge is banked (contextual cue). */
-  .btn.same.charged { box-shadow: 0 0 0 2px var(--amber), 0 2px 8px rgba(0,0,0,0.2); }
+  /* The SAME guess button while a charge is banked: §4 "charged" recipe —
+     deep-felt face, phosphor border + text + THE glow. */
+  .btn.same.charged { background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow);
+    border-color: var(--phosphor); box-shadow: 4px 4px 0 0 var(--shadow), var(--glow); }
   /* Score accents: weakest ties to the limiting-neuron amber; bonus rose / red. */
   .min-accent { color: var(--amber-text) !important; }
   .bonus-accent { color: var(--accent-2) !important; margin-left: 4px; }
@@ -492,7 +513,7 @@ const NativeApp = (() => {
   .action-prompt.with-help {
     position: absolute; bottom: 0; left: 0; right: 0; width: auto; z-index: 5;
     background: var(--panel); border: 1px solid var(--edge-2);
-    border-radius: var(--radius); box-shadow: var(--shadow);
+    border-radius: var(--radius); box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 8px 12px;
   }
   /* SELL1: selling an equipped item from the store confirms on the SAME bottom
@@ -530,34 +551,34 @@ const NativeApp = (() => {
     border: none; border-radius: var(--radius); padding: 9px 15px;
     font-size: 13px; font-weight: 800; letter-spacing: 0.2px; color: var(--text);
     background: var(--panel); border: 1px solid var(--edge-2);
-    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+    box-shadow: 4px 4px 0 0 var(--shadow); cursor: pointer; touch-action: manipulation;
     transition: transform 0.08s ease;
   }
-  .ap-btn:active { transform: scale(0.96); }
-  .ap-btn.primary { background: linear-gradient(180deg, #7bf08a, var(--good)); color: #0c1124; border-color: transparent; }
-  .ap-btn.danger { background: linear-gradient(180deg, #ff9a9a, var(--bad)); color: #fff; border-color: transparent; }
+  .ap-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
+  .ap-btn.primary { background: var(--phosphor); color: var(--ink); border-color: var(--ink); }
+  .ap-btn.danger { background: var(--suit-red); color: var(--card-face); border-color: var(--ink); }
 
   /* "Tap to activate" indicator on a currently-activatable Pillar banner. A
      pulsing violet ring (+ a small corner dot) signals it's tappable now. */
   .cph-banner.activatable { cursor: pointer; overflow: visible; }
   .cph-banner.activatable::after {
     content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px;
-    border-radius: 50%; background: var(--pathway); box-shadow: 0 0 0 2px rgba(248,242,235,0.9);
+    border-radius: 50%; background: var(--phosphor); box-shadow: 0 0 0 2px var(--ink);
   }
   /* THERMAL1: the activatable pulse is an OPACITY crossfade on a ::before
      ring — same violet pulse and rhythm, compositor-only (the old keyframe
      animated box-shadow = a repaint every frame; banned game-wide for
      always-on FX). The ::after corner dot is unchanged. */
-  .cph-banner.activatable { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
+  .cph-banner.activatable { box-shadow: 2px 2px 0 0 var(--shadow); }
   .cph-banner.activatable::before {
     content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
-    box-shadow: 0 0 0 4px rgba(110,81,166,0.32);
+    box-shadow: 0 0 0 4px rgba(78, 240, 138, 0.4);
     opacity: 0; pointer-events: none; animation: pillarActiveFade 1.3s ease-in-out infinite;
   }
   @keyframes pillarActiveFade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     .cph-banner.activatable::before { animation: none; content: none; }
-    .cph-banner.activatable { outline: 2px solid var(--pathway); outline-offset: 1px; }
+    .cph-banner.activatable { outline: 2px solid var(--phosphor); outline-offset: 1px; }
   }
 
   /* Placement launcher — a pill IN the control row (opens the placement sheet).
@@ -565,16 +586,16 @@ const NativeApp = (() => {
      board keeps the SAME layout as in play. */
   .place-launcher {
     flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-    background: linear-gradient(180deg, #fff, var(--panel)); color: var(--accent-2);
-    border: 1.5px solid var(--accent); border-radius: 999px;
-    padding: 8px 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.2px;
-    cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation; white-space: nowrap;
+    background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    padding: 8px 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase;
+    cursor: pointer; box-shadow: 4px 4px 0 0 var(--shadow); touch-action: manipulation; white-space: nowrap;
   }
   .place-launcher.hidden { display: none; }
-  .place-launcher:active { transform: scale(0.98); }
+  .place-launcher:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   .place-launcher .pl-ico { font-size: 10px; }
   .place-launcher .pl-n {
-    background: var(--accent-2); color: #fff; border-radius: 999px;
+    background: var(--phosphor); color: var(--ink); text-shadow: none; border-radius: 0;
     min-width: 18px; height: 18px; padding: 0 5px;
     display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
   }
@@ -586,7 +607,7 @@ const NativeApp = (() => {
     flex: 1 1 auto; min-width: 0; height: 100%;
     display: flex; flex-direction: column; justify-content: center; gap: 1px;
     padding: 4px 10px; text-align: left;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 12px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
   }
   .play-controls .tray-help .th-desc {
     font-size: 10.5px; line-height: 1.25; color: var(--muted);
@@ -598,7 +619,7 @@ const NativeApp = (() => {
      board (its cards + stickers) stays clearly visible while placing. */
   .place-backdrop {
     position: fixed; inset: 0; z-index: 64;
-    background: rgba(40,30,28,0.18);
+    background: rgba(0,0,0,0.22);
     opacity: 1; transition: opacity 0.18s ease;
   }
   .place-backdrop.hidden { display: none; }
@@ -608,8 +629,8 @@ const NativeApp = (() => {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 66;
     width: min(100%, 560px); margin: 0 auto;
     max-height: 64vh; display: flex; flex-direction: column;
-    background: var(--panel); border: 1px solid var(--edge-2);
-    border-radius: 18px 18px 0 0; box-shadow: 0 -10px 34px rgba(40,26,20,0.38);
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: 0 -4px 0 0 var(--shadow);
     padding: 4px 12px max(12px, env(safe-area-inset-bottom));
     transform: translateY(110%); pointer-events: none;
     transition: transform 0.26s cubic-bezier(0.3,0.1,0.3,1);
@@ -617,13 +638,15 @@ const NativeApp = (() => {
   .place-sheet.open { transform: translateY(0); pointer-events: auto; }
   .ps-head { display: flex; align-items: center; gap: 8px; padding: 4px 2px 6px; position: relative; }
   .ps-grip { position: absolute; left: 50%; top: 2px; transform: translateX(-50%);
-    width: 38px; height: 4px; border-radius: 999px; background: var(--edge-2); }
-  .ps-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--text); flex: 1; }
+    width: 38px; height: 4px; border-radius: 0; background: var(--ink); }
+  .ps-title { font-family: var(--font-text); text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 800; font-size: 15px; color: var(--text); flex: 1; }
   .ps-done {
-    flex: none; background: var(--accent); color: #fff; border: none; border-radius: 999px;
-    padding: 7px 16px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+    flex: none; background: var(--phosphor); color: var(--ink); border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 2px 2px 0 0 var(--shadow);
+    padding: 7px 16px; font-size: 13px; font-weight: 800; text-transform: uppercase; cursor: pointer; touch-action: manipulation;
   }
-  .ps-done:active { transform: scale(0.97); }
+  .ps-done:active { transform: translate(2px, 2px); box-shadow: none; }
   /* The setup inventory now lives in the sheet: tabs on top, the item strip below
      with room to show the full (tall) artifact chips without clipping. */
   .place-sheet .setup-inv { flex: 1 1 auto; min-height: 0; }
@@ -643,19 +666,19 @@ const NativeApp = (() => {
   .setup-tab {
     flex: 1 1 0; min-width: 0;
     display: inline-flex; align-items: center; justify-content: center; gap: 3px;
-    background: var(--panel); color: var(--muted);
-    border: 1px solid var(--edge-2); border-radius: 999px;
+    background: var(--felt-deep); color: var(--muted);
+    border: var(--px) solid var(--ink); border-radius: 0;
     padding: 4px 3px; font-size: 10px; font-weight: 800; letter-spacing: 0;
     cursor: pointer; touch-action: manipulation;
   }
   .setup-tab .stab-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .setup-tab .stab-n {
-    flex: none; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 999px;
-    background: rgba(74,52,44,0.10); color: var(--text);
+    flex: none; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 0;
+    background: rgba(0,0,0,0.3); color: var(--text);
     font-size: 8.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
   }
-  .setup-tab.active { color: #fff; background: var(--accent-2); border-color: var(--accent-2); }
-  .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: #fff; }
+  .setup-tab.active { color: var(--ink); background: var(--phosphor); border-color: var(--ink); }
+  .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: var(--card-face); }
   .setup-tab.empty { opacity: 0.4; cursor: default; }
   /* The strip holds the active family's horizontally-scrolling row. */
   .setup-strip { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; }
@@ -672,29 +695,30 @@ const NativeApp = (() => {
      remaining count rendered large + bold ON the top card. */
   .deck-pile { position: relative; width: 56px; height: 76px; flex: none; }
   .deck-pile .ds-back {
-    position: absolute; width: 50px; height: 72px; border-radius: 8px;
-    background: repeating-linear-gradient(135deg, #d8c7b8 0 6px, #cbb8a6 6px 12px);
-    border: 1px solid var(--edge-2); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    /* Card back = the sanctioned baked dither tile (§5): red⊕cream 2×2. */
+    position: absolute; width: 50px; height: 72px; border-radius: 0;
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .deck-pile .ds-back:nth-child(1) { left: 0; top: 3px; }
   .deck-pile .ds-back:nth-child(2) { left: 3px; top: 1px; }
-  .deck-pile .ds-back.ds-top { left: 6px; top: 0;
-    background: repeating-linear-gradient(135deg, #e7d8ca 0 6px, #d8c6b5 6px 12px);
-    border-color: var(--pathway); }
+  .deck-pile .ds-back.ds-top { left: 6px; top: 0; }
   /* Scout reveal: the top of the deck shows the upcoming card's face (matte
      off-white card, pathway-violet edge to signal it's the revealed look-ahead).
      No glow — on-theme with the rest of the matte cards. */
   .deck-pile .ds-face {
-    position: absolute; left: 6px; top: 0; width: 50px; height: 72px; border-radius: 8px;
+    position: absolute; left: 6px; top: 0; width: 50px; height: 72px; border-radius: 0;
     background: var(--card-face); color: var(--card-ink);
-    border: 1px solid var(--pathway-2); box-shadow: 0 2px 5px rgba(0,0,0,0.45);
+    border: var(--px) solid var(--phosphor); box-shadow: 2px 2px 0 0 var(--shadow);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-weight: 800; line-height: 1; z-index: 1;
   }
   .deck-pile .ds-face.hidden { display: none; }
   .deck-pile .ds-face.red { color: var(--card-red); }
-  .deck-pile .ds-face.joker { background: linear-gradient(160deg, #fff3c9, #ffd97a);
-    color: #7a5300; border-color: #e6b74a; }
+  .deck-pile .ds-face.joker { background: var(--felt-deep);
+    color: var(--gold); border-color: var(--gold); }
   .deck-pile .ds-face .dsf-rank { font-size: 22px; }
   .deck-pile .ds-face .dsf-suit { font-size: 17px; margin-top: 2px; }
   /* Cards-remaining count — a CHILD of the character's body (.dc-body), so it
@@ -704,8 +728,8 @@ const NativeApp = (() => {
      at any value. White number with a soft dark halo reads over the pink body. */
   .deck-count { position: absolute; left: 0; right: 0; top: 46%; bottom: 3%; z-index: 2; pointer-events: none;
     display: flex; align-items: center; justify-content: center; line-height: 0.82; }
-  .deck-count b { font-family: var(--font-display); font-size: 32px; font-weight: 800; color: #fff;
-    white-space: nowrap; text-shadow: 0 1px 2px rgba(74,30,45,0.6), 0 0 5px rgba(74,30,45,0.45); }
+  .deck-count b { font-family: var(--font-text); font-size: 32px; font-weight: 800; color: var(--card-face);
+    white-space: nowrap; text-shadow: 2px 2px 0 var(--shadow); }
   .deck-count .ds-lbl { display: none; }   /* the number alone reads as cards-left; keeps the face clear */
   /* While a peek reveals the upcoming card (whole stack flagged .revealed), the
      card covers the character — hide the count so it doesn't bleed past the card. */
@@ -714,9 +738,9 @@ const NativeApp = (() => {
      upcoming card is first revealed, then it settles. Draws the eye to the small
      corner deck so the reveal isn't missed. One-shot (JS re-arms it per trigger). */
   @keyframes deckPeekPulse {
-    0%   { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(133,104,192,0)); }
-    32%  { transform: scale(1.16); filter: drop-shadow(0 0 9px rgba(133,104,192,0.9)); }
-    100% { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(133,104,192,0)); }
+    0%   { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(78,240,138,0)); }
+    32%  { transform: scale(1.16); filter: drop-shadow(0 0 9px rgba(78,240,138,0.9)); }
+    100% { transform: scale(1);    filter: drop-shadow(0 0 0 rgba(78,240,138,0)); }
   }
   .deck-pile.peek-pulse { animation: deckPeekPulse 0.55s ease; }
   @media (prefers-reduced-motion: reduce) { .deck-pile.peek-pulse { animation: none; } }
@@ -731,16 +755,16 @@ const NativeApp = (() => {
      element + an OPACITY-crossfaded ::after halo — same violet pulse,
      compositor-only. Filter/box-shadow animation stays banned for always-on
      FX (THERMAL1). */
-  .deck-stack.revealed { position: relative; box-shadow: 0 0 5px rgba(133,104,192,0.62); border-radius: 10px; }
+  .deck-stack.revealed { position: relative; box-shadow: 0 0 5px rgba(78,240,138,0.62); border-radius: 0; }
   .deck-stack.revealed::after {
-    content: ""; position: absolute; inset: -3px; border-radius: 12px; z-index: -1;
-    box-shadow: 0 0 14px rgba(133,104,192,1);
+    content: ""; position: absolute; inset: -3px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 14px rgba(78,240,138,1);
     opacity: 0; pointer-events: none; animation: deckPeekFade 1.3s ease-in-out infinite;
   }
   @keyframes deckPeekFade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     .deck-stack.revealed::after { animation: none; content: none; }
-    .deck-stack.revealed { box-shadow: 0 0 9px rgba(133,104,192,0.95); }
+    .deck-stack.revealed { box-shadow: 0 0 9px rgba(78,240,138,0.95); }
   }
 
   /* ── DECK CHARACTER ─────────────────────────────────────────────────────────
@@ -984,8 +1008,8 @@ const NativeApp = (() => {
   .deck-strip {
     position: relative; flex: 1 1 auto; min-height: 0; min-width: 0;
     display: flex; flex-direction: column;
-    background: rgba(255,255,255,0.42); border: 1px solid rgba(74,52,44,0.07);
-    border-radius: 11px; padding: 6px 4px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; padding: 6px 4px;
     touch-action: none;            /* drag scrubs, never scrolls the locked page */
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
@@ -995,13 +1019,15 @@ const NativeApp = (() => {
   .ds-bar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
   .ds-track {
     position: relative; width: 100%; flex: 1 1 auto;
-    border-radius: 2px 2px 0 0; overflow: hidden;
+    border-radius: 0; overflow: hidden;
   }
-  .ds-grey, .ds-blue { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 2px 2px 0 0; }
-  .ds-grey { background: rgba(74,52,44,0.22); }
-  .ds-blue { background: var(--accent-2); }
-  .ds-bar.ds-active .ds-grey { background: rgba(74,52,44,0.40); }
-  .ds-bar.ds-active .ds-blue { background: var(--amber); }
+  .ds-grey, .ds-blue { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0; }
+  /* Histogram reads on felt-mid: recessed deep-felt = the drawn total, cream =
+     cards still in the deck; the scrubbed rank flips to gold. No glow here. */
+  .ds-grey { background: var(--felt-deep); }
+  .ds-blue { background: var(--card-face); }
+  .ds-bar.ds-active .ds-grey { background: var(--ink); }
+  .ds-bar.ds-active .ds-blue { background: var(--gold); }
   .ds-rank { font-size: 10px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom). Each row = a left rank
@@ -1014,16 +1040,16 @@ const NativeApp = (() => {
   .rail .ds-rank { flex: none; width: 14px; text-align: right; font-size: 10px; line-height: 1; }
   .ds-pips { display: grid; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
     grid-template-columns: repeat(4, 1fr); justify-content: start; }
-  .ds-pip { min-width: 0; height: 8px; border-radius: 2.5px; background: rgba(74,52,44,0.30); }   /* grey = total (drawn) */
-  .ds-pip.filled { background: linear-gradient(90deg, var(--accent-2), #e36b97); }                /* pink = remaining */
-  .ds-bar.ds-active .ds-pip { background: rgba(74,52,44,0.46); }
-  .ds-bar.ds-active .ds-pip.filled { background: var(--amber); }
+  .ds-pip { min-width: 0; height: 8px; border-radius: 0; background: var(--felt-deep); }   /* recessed = total (drawn) */
+  .ds-pip.filled { background: var(--card-face); }                                         /* cream = remaining */
+  .ds-bar.ds-active .ds-pip { background: var(--ink); }
+  .ds-bar.ds-active .ds-pip.filled { background: var(--gold); }
   /* Rail deck chip — compact striped pile + remaining count at the rail's bottom. */
   .rail .deck-stack { flex: none; justify-content: center;
-    background: rgba(255,255,255,0.42); border: 1px solid rgba(74,52,44,0.07);
-    border-radius: 11px; padding: 5px 3px; }
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; padding: 5px 3px; }
   .rail .deck-pile { width: 36px; height: 48px; }
-  .rail .deck-pile .ds-back { width: 31px; height: 45px; border-radius: 5px; }
+  .rail .deck-pile .ds-back { width: 31px; height: 45px; border-radius: 0; }
   .rail .deck-pile .ds-back:nth-child(1) { left: 0; top: 2px; }
   .rail .deck-pile .ds-back:nth-child(2) { left: 2px; top: 1px; }
   .rail .deck-pile .ds-back.ds-top { left: 4px; top: 0; }
@@ -1037,7 +1063,7 @@ const NativeApp = (() => {
     position: absolute; left: 100%; top: 4px; bottom: auto; margin-left: 6px;
     width: max-content; max-width: 220px; white-space: nowrap; text-align: left;
     font-size: 11px; font-weight: 700; color: var(--text); z-index: 6;
-    background: rgba(251,246,241,0.96); border: 1px solid var(--edge-2); border-radius: 8px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
     padding: 3px 6px; pointer-events: none;
   }
   .ds-scrub.hidden { display: none; }
@@ -1099,7 +1125,7 @@ const NativeApp = (() => {
   /* Bottom CONTROL STRIP — a substantial band: histogram (fills) + prominent
      deck (right). Horizontal bars, ranks 2→A left→right. */
   .hist-band { width: min(99vw, 540px); margin: 5px auto 0; display: flex; align-items: stretch; gap: 8px;
-    background: rgba(248,242,235,0.5); border: 1px solid var(--edge-2); border-radius: 14px; padding: 6px 9px; }
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0; padding: 6px 9px; }
   .hist-band.hidden { display: none; }
   /* #6 — Hold-to-see-help takes over the WHOLE deck container's room in active
      play: while a help peek is held, EVERY item in the band — the rank histogram,
@@ -1113,8 +1139,8 @@ const NativeApp = (() => {
     position: relative; left: auto; right: auto; top: auto; transform: none;
     flex: 1 1 auto; min-width: 0; width: auto; max-width: none; align-self: stretch;
     max-height: 100%; overflow-y: auto;
-    background: rgba(251,246,241,0.99); border: 1px solid var(--edge-2);
-    border-radius: 10px; box-shadow: none; padding: 4px 10px; z-index: 1;
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: none; padding: 4px 10px; z-index: 1;
     font-size: 12px; line-height: 1.32;
   }
   body.peek-band #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
@@ -1127,12 +1153,12 @@ const NativeApp = (() => {
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
   body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 9px; }
   body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: var(--ds-pip-gap, 2px); width: 100%; min-width: 0; }
-  body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: var(--ds-pip-h, 9px); min-width: 0; min-height: 0; border-radius: 2.5px; }
+  body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: var(--ds-pip-h, 9px); min-width: 0; min-height: 0; border-radius: 0; }
   /* Prominent deck chip in the strip (un-scaled, big count). */
   body.guess-side #histBand .deck-stack { flex: none; transform: none; align-self: center;
-    background: rgba(255,255,255,0.55); border: 1px solid rgba(74,52,44,0.10); border-radius: 11px; padding: 4px 8px; }
+    background: var(--felt-deep); border: var(--px) solid var(--ink); border-radius: 0; padding: 4px 8px; }
   body.guess-side #histBand .deck-pile { width: 46px; height: 60px; }
-  body.guess-side #histBand .deck-pile .ds-back { width: 40px; height: 56px; border-radius: 6px; }
+  body.guess-side #histBand .deck-pile .ds-back { width: 40px; height: 56px; border-radius: 0; }
   body.guess-side #histBand .deck-pile .ds-back:nth-child(1) { left: 0; top: 3px; }
   body.guess-side #histBand .deck-pile .ds-back:nth-child(2) { left: 3px; top: 1px; }
   body.guess-side #histBand .deck-pile .ds-back.ds-top { left: 6px; top: 0; }
@@ -1152,8 +1178,8 @@ const NativeApp = (() => {
   body.guess-side.play-active .ctl-help { display: none; }
   body.guess-side:not(.play-active) .play-controls,
   body.guess-side .play-controls.prompting {
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 6px 8px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 4px 4px 0 0 var(--shadow); padding: 6px 8px;
   }
   /* SETUP shows the histogram too (so the player reads the deck while placing).
      The Start Deal / Redeal control bar is RAISED to float just above the histBand
@@ -1183,7 +1209,7 @@ const NativeApp = (() => {
   }
   body.thumb-deal .rail #actions.hidden { visibility: hidden; }   /* keep the strip reserved (no board shift on Start) */
   body.thumb-deal .rail #actions .btn {
-    width: 100%; height: 100%; padding: 0; border-radius: 13px; font-size: 33px; line-height: 1;
+    width: 100%; height: 100%; padding: 0; border-radius: 0; font-size: 33px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
   }
   body.thumb-deal .rail #actions .btn.same { font-size: 28px; align-self: stretch; }
@@ -1220,18 +1246,17 @@ const NativeApp = (() => {
     transform: translate(-50%, -50%);
     display: flex; flex-direction: column; align-items: center; gap: 0;
     font-family: var(--font-text); font-weight: 900; text-align: center;
-    opacity: 0.55;
-    /* soft white halo (lifts off the busy network) + a faint dark edge for
-       definition — readable on the light board without any background scrim. */
-    text-shadow: 0 0 16px rgba(255,255,255,0.75), 0 1px 2px rgba(0,0,0,0.16);
+    opacity: 0.72;
+    /* hard pixel drop only — readable over cream cards AND the deep felt. */
+    text-shadow: 2px 2px 0 var(--shadow);
   }
   .swipe-label .sl-glyph { font-size: 62px; line-height: 0.82; }
   .swipe-label .sl-word { font-size: 27px; letter-spacing: 4px; }
   .swipe-label.hidden { display: none; }
-  /* Colours echo the rest of the game: Higher = green, Lower = pink/red, Same = amber. */
-  .swipe-label.dir-higher { color: #1f8f5c; }
-  .swipe-label.dir-lower  { color: #c64a5b; }
-  .swipe-label.dir-same   { color: #c2902a; }
+  /* Palette-locked: Higher = phosphor, Lower = suit red, Same = gold. */
+  .swipe-label.dir-higher { color: var(--phosphor); }
+  .swipe-label.dir-lower  { color: var(--suit-red); }
+  .swipe-label.dir-same   { color: var(--gold); }
   @media (prefers-reduced-motion: no-preference) {
     .swipe-label { transition: color 0.12s ease; }
   }
@@ -1241,8 +1266,8 @@ const NativeApp = (() => {
   .hud .hud-samepower {
     display: inline-flex; align-items: center; justify-content: center;
     width: 22px; height: 22px; margin-left: -2px; cursor: pointer; vertical-align: middle;
-    border-radius: 7px; border: 1px solid var(--net, #C84A78);
-    background: rgba(200,74,120,0.12); box-shadow: 0 0 6px rgba(200,74,120,0.22);
+    border-radius: 0; border: 1px solid var(--gold);
+    background: var(--felt-deep); box-shadow: none;
   }
   .hud .hud-samepower.hidden { display: none; }
   .hud .hud-samepower img { width: 16px; height: 16px; display: block; }
@@ -1377,14 +1402,14 @@ const NativeApp = (() => {
     width: min(calc(var(--pile-w-fit, 80px) * 0.9), calc(var(--pile-h-fit, 110px) * 0.9 * var(--card-ar)));
     height: auto;
     aspect-ratio: var(--card-ar);
-    /* Portrait cards: corner radius scales with the card so it reads as a real
-       playing card (not a squat oval) at any size. */
-    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
+    /* Pixel cards: square corners only (§10). */
+    border-radius: 0;
     transform-style: preserve-3d;
-    /* MATTE: no neon/glow. A defined crisp edge (border on the face) + a real
-       warm drop shadow so the white card clearly lifts off the cream board.
-       Glow lives only on the connection network now. */
-    box-shadow: 0 6px 14px rgba(74, 50, 40, 0.18), 0 2px 5px rgba(74, 50, 40, 0.12);
+    /* Hard offset shadow, zero blur — 4px at full size stepping down to 2px on
+       the small-card boards (§10's 2px-step rule, tracked off --pile-size). */
+    box-shadow: clamp(2px, calc(var(--pile-size, 88px) * 0.04), 4px)
+                clamp(2px, calc(var(--pile-size, 88px) * 0.04), 4px)
+                0 0 var(--shadow);
     /* Gentle, independent floating drift is now JS-driven (computed phase per
        card — zero layout reads — so the network endpoints can move with it). The
        breathing scale on .front stays CSS. transform-origin matches the old
@@ -1409,10 +1434,12 @@ const NativeApp = (() => {
   .bury-tuck {
     position: absolute; left: 50%; top: 50%;
     width: 62%; height: 62%;
-    border-radius: 14px;
-    background: linear-gradient(160deg, var(--accent-2), var(--accent));
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 4px 10px rgba(74, 50, 40, 0.25);
+    border-radius: 0;
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: 1px solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 0;
@@ -1439,19 +1466,21 @@ const NativeApp = (() => {
   .fly-card {
     z-index: 60; pointer-events: none; will-change: transform;
     backface-visibility: hidden; -webkit-backface-visibility: hidden;
-    box-shadow: 0 9px 22px rgba(74, 50, 40, 0.30), 0 3px 8px rgba(74, 50, 40, 0.18);
+    box-shadow: 4px 4px 0 0 var(--shadow);
   }
-  /* Face-down clone = a card lifted off the deck (warm tan back + dashed crest),
-     matching the deck-stack look so the travel reads as "off the deck". */
+  /* Face-down clone = a card lifted off the deck: the same red⊕cream dither
+     back as the deck stack, so the travel reads as "off the deck". */
   .fly-card.face-down {
-    border-radius: 18px;
-    background: repeating-linear-gradient(135deg, #e2d2c4 0 6px, #d3c1b0 6px 12px);
-    border: 1px solid var(--pathway-2);
+    border-radius: 0;
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: var(--px) solid var(--ink);
     display: flex; align-items: center; justify-content: center;
   }
   .fly-card.face-down::after {
-    content: ""; width: 58%; height: 58%; border-radius: 10px;
-    border: 2px dashed rgba(120, 90, 70, 0.42);
+    content: ""; width: 58%; height: 58%; border-radius: 0;
+    border: 2px dashed rgba(16, 16, 14, 0.42);
   }
   @media (prefers-reduced-motion: reduce) { .fly-card { display: none; } }
 
@@ -1468,7 +1497,7 @@ const NativeApp = (() => {
   .card .face {
     position: absolute;
     inset: 0;
-    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
+    border-radius: 0;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     display: flex;
@@ -1481,18 +1510,16 @@ const NativeApp = (() => {
      stay in proportion at any pile size. Padding is also pile-relative, giving
      the corner ranks clear margin from the edge. */
   .card .front {
-    /* MATTE solid off-white face — flat, no glow, no feathered edge. */
+    /* Aged-cream face, 2px ink border, flat — the §5 pixel card. */
     background: var(--card-face);
     color: var(--card-ink);
-    /* Ranks/suits on Chakra Petch — clean + technical, fully legible. */
+    /* Ranks/suits in VT323 — the numeral IS the card. */
     font-family: var(--font-text);
     --ps: calc(var(--pile-size, 88px) * 0.9);   /* type tracks the 90% card */
-    padding: calc(var(--ps) * 0.09);
+    padding: calc(var(--ps) * 0.07);
     justify-content: space-between;
-    /* Defined warm-grey edge so the white face reads as a crisp printed card on
-       the cream board (replaces the old dark hairline). */
-    border: 1px solid var(--card-border);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(74, 50, 40, 0.05);
+    border: var(--px) solid var(--ink);
+    box-shadow: none;
   }
   /* Very subtle breathing — life, not distraction (per-card desync via --bd).
      HEAT FIX #1: ONE animation per pile on this shared wrapper (face + badge
@@ -1525,13 +1552,15 @@ const NativeApp = (() => {
   }
 
   .card .front.red { color: var(--card-red); }
-  /* JOKER — a GOLD card face (the mini-card / map-node palette): gold cloth,
-     dark-gold ink for the ★ ranks/pip, and a soft gilt glow. */
+  /* JOKER — gold-on-deep-felt (§5): ★ ranks in coin gold, gold frame, no glow. */
   .card .front.joker {
-    background: linear-gradient(160deg, #fff3c9, #ffd97a);
-    color: #7a5300; border-color: #e6b74a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 10px rgba(230,183,74,0.5);
+    background: var(--felt-deep);
+    color: var(--gold); border-color: var(--gold);
+    box-shadow: none;
   }
+  /* WILD SUIT (sticker on the top card): phosphor rank + THE glow (§5). The
+     class is toggled by renderStickerBadges alongside the badge itself. */
+  .card .front.wild .rank-mid { color: var(--phosphor); text-shadow: var(--glow); }
   /* Classic suit symbols, drawn crisp; inherit the front's ink/red colour. */
   .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
   .card .pip .suit-svg { opacity: 0.9; }
@@ -1569,32 +1598,44 @@ const NativeApp = (() => {
   .rank-top { align-self: flex-start; }
   .rank-bottom { align-self: flex-end; transform: rotate(180deg); }
 
-  /* Corner index: rank ~21% of the pile, suit glyph ~13%, hugging the corner.
-     Sized so even the widest rank ("10", ~1.2x a single glyph) clears the
-     centered pip horizontally with margin. */
-  /* Rank is the single most important read — make it large + bold. */
-  .rank-top .r, .rank-bottom .r { font-size: calc(var(--ps) * 0.30); font-weight: 800; }
-  .rank-top .s, .rank-bottom .s { font-size: calc(var(--ps) * 0.155); }
+  /* §5 NUMERAL-FIRST: the corner indices are DECORATION, shown only on big
+     cards. The clamp() collapses them to 0 (invisible, zero layout) once the
+     pile drops under ~64px — a pure-CSS size gate, no JS, no media query —
+     so 40-card boards show only the oversized centre rank. */
+  .rank-top, .rank-bottom {
+    font-size: clamp(0px, calc((var(--pile-size, 88px) - 64px) * 0.5), calc(var(--ps) * 0.16));
+  }
+  .rank-top .r, .rank-bottom .r { font-size: 1em; font-weight: 800; }
+  .rank-top .s, .rank-bottom .s { font-size: 0.72em; }
 
-  /* Center suit: 32% of the pile (was an unbounded ~11vw that overran the
-     corners). The corner indices hug left/right; this centered pip leaves a
-     clear band (~3%+ of the pile even against the two-digit "10") on each side,
-     so it never collides as piles scale up. */
+  /* THE RANK — oversized, centred, carries the whole read at every scale. */
+  .card .rank-mid {
+    position: absolute;
+    top: 47%; left: 50%;
+    transform: translate(-50%, -55%);
+    font-size: calc(var(--ps) * 0.66);
+    font-weight: 800;
+    line-height: 0.8;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  /* Centre suit: small, tucked under the big rank. */
   .card .pip {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 76%; left: 50%;
     transform: translate(-50%, -50%);
-    font-size: calc(var(--ps) * 0.28);
+    font-size: calc(var(--ps) * 0.2);
     line-height: 1;
-    opacity: 0.8;
+    opacity: 0.9;
     pointer-events: none;
   }
 
-  /* back (face down / dead) */
+  /* back (face down / dead) — the §5 dithered back: red⊕cream baked tile. */
   .card .back {
-    background:
-      repeating-linear-gradient(45deg, var(--panel-2) 0 8px, #2f2538 8px 16px);
-    border: 2px solid var(--edge-2);
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: var(--px) solid var(--ink);
     transform: rotateY(180deg);
     align-items: center;
     justify-content: center;
@@ -1603,27 +1644,27 @@ const NativeApp = (() => {
   .card .back .crest {
     width: 60%;
     height: 60%;
-    border-radius: 12px;
-    border: 2px dashed rgba(255,255,255,0.35);
+    border-radius: 0;
+    border: 2px dashed rgba(16,16,14,0.45);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: clamp(20px, 8vw, 34px);
-    color: rgba(255,255,255,0.6);
+    color: rgba(16,16,14,0.6);
   }
 
   /* dead-pile marker: a cold, faint scar over the card that killed the pile */
   .card .dead-mark {
     position: absolute;
     inset: 0;
-    border-radius: 22px;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: clamp(26px, 12vw, 56px);
     font-weight: 600;
-    color: rgba(110, 48, 68, 0.5);
-    background: rgba(110, 48, 68, 0.07);
+    color: rgba(194, 47, 69, 0.55);
+    background: rgba(194, 47, 69, 0.08);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.45s ease;
@@ -1651,9 +1692,9 @@ const NativeApp = (() => {
      (.pile-count.min) — no ring around the card. (The win cinematic still
      highlights the limiting node; see .board.win-cine .pile.limit.) */
 
-  /* selected highlight */
+  /* selected highlight — phosphor ring over the hard pixel shadow */
   .pile.selected .card {
-    box-shadow: 0 0 0 3px var(--accent), 0 4px 12px rgba(2, 1, 4, 0.6);   /* crisp ring, no blur halo */
+    box-shadow: 0 0 0 3px var(--phosphor), 4px 4px 0 0 var(--shadow);
   }
 
   /* deal-in animation */
@@ -1685,37 +1726,40 @@ const NativeApp = (() => {
   /* Each card is a FACE-DOWN back (rose/dark diagonal weave — the deck-character
      palette), fanned by rotating around a low pivot. No face, no rank: anonymous. */
   .sr-card { position: absolute; left: 50%; top: 34%; width: 30px; height: 44px; margin: -22px 0 0 -15px;
-    border-radius: 4px; transform-origin: 50% 150%;
+    border-radius: 0; transform-origin: 50% 150%;
     transform: rotate(var(--a)) scale(0.55); opacity: 0;
-    background: repeating-linear-gradient(135deg, #b23a5c, #b23a5c 3px, #8e2f4e 3px, #8e2f4e 6px);
-    border: 1px solid rgba(255,255,255,0.32);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.18);
+    background-color: var(--card-face);
+    background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    border: 1px solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     animation: srDeal 0.32s cubic-bezier(0.3,0.9,0.4,1.25) forwards;
     transition: filter 0.36s ease, opacity 0.36s ease, box-shadow 0.36s ease; }
   @keyframes srDeal { to { transform: rotate(var(--a)) scale(1); opacity: 1; } }
-  /* The unused portion greys out; the in-play portion stays lit with a soft glow.
-     Both remain anonymous backs — this only ever shows how MANY, never which. */
+  /* The unused portion greys out; the in-play portion stays lit (phosphor —
+     the one sanctioned glow). Both remain anonymous backs — this only ever
+     shows how MANY, never which. */
   .subset-reveal.dimmed .sr-card.dim { filter: grayscale(1) brightness(0.42); opacity: 0.4; }
-  .subset-reveal.dimmed .sr-card.lit { box-shadow: 0 2px 8px rgba(0,0,0,0.42), 0 0 9px rgba(226,140,172,0.55); }
-  .sr-label { font-family: var(--font-display); font-weight: 800; font-size: 21px; letter-spacing: 0.3px;
-    color: #fbeef2; text-shadow: 0 2px 7px rgba(0,0,0,0.6); opacity: 0; transform: translateY(6px);
+  .subset-reveal.dimmed .sr-card.lit { box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .sr-label { font-family: var(--font-text); font-weight: 800; font-size: 21px; letter-spacing: 0.3px;
+    color: var(--card-face); text-shadow: 2px 2px 0 var(--shadow); opacity: 0; transform: translateY(6px);
     transition: opacity 0.3s ease 0.12s, transform 0.3s ease 0.12s; }
-  .sr-label b { color: #ffd9e4; }
+  .sr-label b { color: var(--gold); }
   .subset-reveal.in .sr-label { opacity: 1; transform: translateY(0); }
-  .sr-sub { font-family: var(--font-text); font-size: 12px; color: rgba(240,230,235,0.72);
+  .sr-sub { font-family: var(--font-text); font-size: 12px; color: var(--on-felt-muted);
     opacity: 0; transition: opacity 0.3s ease 0.2s; }
   .subset-reveal.in .sr-sub { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .sr-card { animation: none; opacity: 1; transform: rotate(var(--a)); } }
 
   /* pulse feedback for correct/incorrect */
-  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(63,157,106,0.6);} 100%{box-shadow:0 0 0 15px rgba(63,157,106,0);} }
+  @keyframes goodPulse { 0%{box-shadow:0 0 0 0 rgba(78,240,138,0.6);} 100%{box-shadow:0 0 0 15px rgba(78,240,138,0);} }
   /* The ripple rides a dedicated overlay (::after) rather than .card itself: the
      card's `animation` slot is owned by the perpetual cardDrift float, and CSS
      `animation` is not additive — flashing on .card would REPLACE cardDrift and
      drop its transform, snapping the card to centre and back (the guess twitch).
      The overlay shares the card's box + radius and rides along with its drift. */
   .card::after {
-    content: ""; position: absolute; inset: 0; border-radius: 22px;
+    content: ""; position: absolute; inset: 0; border-radius: 0;
     pointer-events: none;
   }
   .pile.flash-good .card::after { animation: goodPulse 0.5s ease; }
@@ -1731,9 +1775,9 @@ const NativeApp = (() => {
   .card.landing .front { animation: cardLand 0.34s ease both; }
   /* A clear DEATH FLASH before the dissolve, so the kill registers first. */
   @keyframes deathFlash {
-    0%   { background: rgba(255,120,140,0);    box-shadow: 0 0 0 0 rgba(224,107,128,0); }
-    22%  { background: rgba(255,120,140,0.52); box-shadow: 0 0 0 5px rgba(224,107,128,0.9); }
-    100% { background: rgba(255,120,140,0);    box-shadow: 0 0 0 16px rgba(224,107,128,0); }
+    0%   { background: rgba(194,47,69,0);    box-shadow: 0 0 0 0 rgba(194,47,69,0); }
+    22%  { background: rgba(194,47,69,0.52); box-shadow: 0 0 0 5px rgba(194,47,69,0.9); }
+    100% { background: rgba(194,47,69,0);    box-shadow: 0 0 0 16px rgba(194,47,69,0); }
   }
   .pile.death-flash .card::after { animation: deathFlash 0.32s ease; }
 
@@ -1758,11 +1802,11 @@ const NativeApp = (() => {
     position: absolute; left: 50%; top: 46%;
     transform: translate(-50%, -50%); transform-origin: 50% 50%;
     z-index: 6; pointer-events: none; opacity: 0;
-    font-family: var(--font-display); font-weight: 700;
+    font-family: var(--font-text); font-weight: 700;
     font-size: clamp(8.5px, 2.5vw, 11.5px); letter-spacing: 0.3px; white-space: nowrap;
-    color: var(--text); background: rgba(248,242,235,0.94);
-    border: 1px solid var(--edge-2); border-radius: 8px; padding: 3px 8px;
-    box-shadow: 0 2px 8px rgba(2,1,4,0.5);
+    color: var(--text); background: var(--felt-mid);
+    border: 1px solid var(--ink); border-radius: 0; padding: 3px 8px;
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .shoulda-nudge.show { animation: shouldaPop 1.3s ease forwards; }
   @keyframes shouldaPop {
@@ -1793,19 +1837,19 @@ const NativeApp = (() => {
   @keyframes faceRecede { to { opacity: 0.12; } }
   /* nodes keep (and the limiting node intensifies) their glow as faces fade */
   .board.win-cine .pile:not(.dead) .card {
-    box-shadow: 0 0 12px rgba(200, 74, 120, 0.45), 0 0 0 1px rgba(74,52,44,0.18);
+    box-shadow: 0 0 12px rgba(78, 240, 138, 0.45), 0 0 0 1px rgba(16, 16, 14, 0.4);
     transition: box-shadow 0.6s ease;
   }
-  /* The limiting node flashes amber briefly (~1s), then DISSOLVES back to the
+  /* The limiting node flashes gold briefly (~1s), then DISSOLVES back to the
      soft node glow — the highlight does not persist after the win moment. */
   .board.win-cine .pile.limit .card {
     animation: limitFlash 1.8s ease-in-out 0.6s forwards;
   }
   @keyframes limitFlash {
-    0%   { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(224, 151, 60, 0.5); }
-    30%  { box-shadow: 0 0 0 3px var(--amber), 0 0 34px rgba(224, 151, 60, 0.92); }
-    65%  { box-shadow: 0 0 0 3px var(--amber), 0 0 30px rgba(224, 151, 60, 0.82); }
-    100% { box-shadow: 0 0 12px rgba(200, 74, 120, 0.45), 0 0 0 1px rgba(74, 52, 44, 0.18); }
+    0%   { box-shadow: 0 0 0 2px var(--amber), 0 0 16px rgba(217, 164, 65, 0.5); }
+    30%  { box-shadow: 0 0 0 3px var(--amber), 0 0 34px rgba(217, 164, 65, 0.92); }
+    65%  { box-shadow: 0 0 0 3px var(--amber), 0 0 30px rgba(217, 164, 65, 0.82); }
+    100% { box-shadow: 0 0 12px rgba(78, 240, 138, 0.45), 0 0 0 1px rgba(16, 16, 14, 0.4); }
   }
   @media (prefers-reduced-motion: reduce) {
     .board.win-cine .pile:not(.dead) .card .front { animation: none; opacity: 0.14; }
@@ -1827,39 +1871,45 @@ const NativeApp = (() => {
   .actions.hidden { visibility: hidden; }
 
   .btn {
-    border: none;
-    border-radius: var(--radius);
+    /* §4 pixel CTA: phosphor face, ink border, hard shadow + THE glow —
+       Higher/Same/Lower are the most alive elements on screen. */
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 6px 6px;          /* short, thumb-row along the bottom */
     font-size: 14px;
     font-weight: 800;
     letter-spacing: 0.3px;
-    color: #0c1124;
-    box-shadow: var(--shadow);
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--phosphor);
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
     cursor: pointer;
-    transition: transform 0.08s ease, filter 0.15s ease, opacity 0.12s ease;
+    transition: transform 0.08s ease, opacity 0.12s ease;
   }
-  .btn:active { transform: scale(0.96); }
-  /* Muted, near-flat solid fills (calmer than the old loud gradients) — still
-     three clearly distinct colours so the buttons read apart at a glance. */
-  .btn.higher { background: #6cbd86; color: #0e2417; }
-  .btn.lower  { background: #db8794; color: #2a1014; }
-  /* During a drag-guess (swipe up / down / sideways) the armed direction's button
-     POPS (lifts, brightens, white ring) and the other two grey out — so a swipe
-     shows which guess is selected even though the finger is on the board. */
-  .btn.dim { opacity: 0.28; filter: grayscale(0.85); }
-  .btn.lit { transform: translateY(-2px) scale(1.05); filter: brightness(1.1) saturate(1.12);
-    box-shadow: 0 0 0 3px rgba(255,255,255,0.85), 0 5px 14px rgba(0,0,0,0.3); z-index: 1; }
-  .btn.same.lit { transform: translateY(-2px) scale(1.05); }
-  /* Disabled (no pile selected): present but visibly inert. */
-  .actions.guess-disabled .btn { opacity: 0.42; filter: saturate(0.5); pointer-events: none; box-shadow: none; }
+  /* Pressed = the button SINKS one pixel step (§4): translate + halved shadow. */
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .btn.higher { background: var(--phosphor); color: var(--ink); }
+  .btn.lower  { background: var(--phosphor); color: var(--ink); }
+  /* During a drag-guess (swipe up / down / sideways) the armed direction's
+     button PRESSES (sinks, §4 pressed state) and the other two dim — so a
+     swipe shows which guess is selected even though the finger is on the
+     board. Opacity only: no filters on the always-visible control row. */
+  .btn.dim { opacity: 0.28; }
+  .btn.lit { transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); z-index: 1; }
+  .btn.same.lit { transform: translate(2px, 2px); }
+  /* Disabled (no pile selected): §4 disabled — felt-mid face, dim text, no glow. */
+  .actions.guess-disabled .btn { background: var(--felt-mid); color: rgba(236,228,207,0.45);
+    text-shadow: none; opacity: 1; pointer-events: none; box-shadow: 2px 2px 0 0 var(--shadow); }
   /* #6: the Same button still accepts press-and-hold so its equipped Same-Power's
      help can be read at any time (a TAP-guess is separately guarded on selection,
      so this never lets you guess with no pile selected). */
   .actions.guess-disabled .btn.same { pointer-events: auto; }
 
-  /* "Same" is a smaller, secondary option wedged between higher/lower. */
+  /* "Same" — the §4 "ready" outline CTA wedged between Higher/Lower:
+     deep-felt face, phosphor text + THE glow (charged adds the phosphor border). */
   .btn.same {
-    background: #e3c065; color: #2a2410;
+    background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow);
     padding: 7px 3px;
     font-size: 12px;
     align-self: center;
@@ -1871,8 +1921,8 @@ const NativeApp = (() => {
   .btn.same .sp-on-btn {
     position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--net, #C84A78); color: #fff;
-    border: 1.5px solid #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    background: var(--gold); color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 0; box-shadow: 2px 2px 0 0 var(--shadow);
     pointer-events: none;
   }
   .btn.same .sp-on-btn .ico { width: 12px; height: 12px; display: block; }
@@ -1924,22 +1974,25 @@ const NativeApp = (() => {
      (ninelives.pref.tutorial2); Skip ends it any time. The How to Play
      manual in the menu is unchanged. */
   .tut-layer { position: fixed; inset: 0; z-index: 1600; pointer-events: none; }
-  .tut-ring { position: fixed; border-radius: 14px; pointer-events: none;
-    border: 2.5px solid var(--accent-2);
+  .tut-ring { position: fixed; border-radius: 0; pointer-events: none;
+    border: 2.5px solid var(--phosphor);
+    box-shadow: var(--glow);
     transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
     animation: tutPulse 1.5s ease-in-out infinite; }
+  /* THERMAL-safe pulse: opacity only over the static phosphor glow above
+     (the old keyframes animated box-shadow — paint every frame). */
   @keyframes tutPulse {
-    0%,100% { box-shadow: 0 0 0 3px rgba(188,66,112,0.16), 0 0 12px 2px rgba(188,66,112,0.30); }
-    50%     { box-shadow: 0 0 0 6px rgba(188,66,112,0.28), 0 0 22px 4px rgba(188,66,112,0.45); }
+    0%,100% { opacity: 0.55; }
+    50%     { opacity: 1; }
   }
   .tut-ring.hidden, .tut-bubble.hidden { display: none; }
   .tut-bubble { position: fixed; max-width: 300px; pointer-events: auto;
-    background: var(--panel, #fff); border: 2px solid var(--accent-2); border-radius: 14px;
-    padding: 11px 13px 9px; box-shadow: 0 8px 24px rgba(74,30,45,0.25);
+    background: var(--felt-mid); border: 2px solid var(--phosphor); border-radius: 0;
+    padding: 11px 13px 9px; box-shadow: 4px 4px 0 0 var(--shadow);
     font-size: 13.5px; line-height: 1.45; color: var(--text); }
   .tut-bubble::before {   /* the little pointer toward the anchor */
     content: ""; position: absolute; width: 12px; height: 12px;
-    background: var(--panel, #fff); border: 2px solid var(--accent-2);
+    background: var(--felt-mid); border: 2px solid var(--phosphor);
     transform: rotate(45deg); left: var(--arrow-x, 50%); margin-left: -6px; }
   .tut-bubble.arrow-up::before   { top: -8px;    border-right: none; border-bottom: none; }
   .tut-bubble.arrow-down::before { bottom: -8px; border-left: none;  border-top: none; }
@@ -1959,12 +2012,12 @@ const NativeApp = (() => {
      (no background; negative margins keep the actions row compact). */
   .tut-skip { background: none; border: none; color: var(--muted); font-size: 12px;
     cursor: pointer; padding: 15px 12px; margin: -9px -8px; text-decoration: underline; }
-  .tut-next { background: linear-gradient(180deg, var(--accent), #ff9d4d); color: #fff;
-    border: none; border-radius: 999px; padding: 7px 18px; font-weight: 800; font-size: 13px;
-    cursor: pointer; box-shadow: 0 2px 6px rgba(74,30,45,0.25); }
-  .tut-next:active { transform: scale(0.96); }
+  .tut-next { background: var(--phosphor); color: var(--ink);
+    border: var(--px) solid var(--ink); border-radius: 0; padding: 7px 18px; font-weight: 800; font-size: 13px;
+    text-transform: uppercase; cursor: pointer; box-shadow: 2px 2px 0 0 var(--shadow); }
+  .tut-next:active { transform: translate(2px, 2px); box-shadow: none; }
   @media (prefers-reduced-motion: reduce) { .tut-ring { animation: none; transition: none;
-    box-shadow: 0 0 0 4px rgba(188,66,112,0.25); } }
+    box-shadow: var(--glow); } }
 
   /* Subtle ambient life: one slow breathing focal glow behind the logo/title —
      a single cheap composited animation (no per-frame JS), holds still under
@@ -2007,7 +2060,9 @@ const NativeApp = (() => {
   #deckSelect { gap: clamp(10px, 2.4vh, 18px);
     /* Same unconditional safe-area fold as .menu-screen (its 20px/0 override). */
     padding: calc(20px + env(safe-area-inset-top, 0px)) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
-  .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 24px; color: var(--text); letter-spacing: 0.3px; }
+  /* Display face (Press Start 2P) is ~2x wider per glyph — sized to clear a
+     390px phone at max-content width (full retheme in a later chunk). */
+  .ds-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; max-width: 94vw; text-align: center; color: var(--text); letter-spacing: 0.3px; }
   .ds-hint { font-size: 12px; color: var(--muted); margin-top: -6px; }
   /* Horizontal scroll-snap track: one deck panel per page; native swipe. */
   .ds-carousel {
@@ -2275,13 +2330,15 @@ const NativeApp = (() => {
     margin: 0 auto -10px;
     filter: drop-shadow(0 2px 6px rgba(2,1,4,0.55));
   }
-  /* Playful Baloo 2 title — "Shoulda said" on one line, "same" below; three
-     equal-size words with slight tilts. Exact casing in the markup (lowercase
-     but a leading capital S). Light theme: dark warm ink + a rose "same". */
+  /* Title — "Shoulda said" on one line, "same" below; three equal-size words
+     with slight tilts. Now on the display marquee face (Press Start 2P), which
+     is ~2x wider per glyph than the old face — the clamp is sized so the long
+     row still clears a 390px phone. (Full menu retheme lands in a later
+     chunk; this keeps the layout intact meanwhile.) */
   .menu-title {
     display: flex; flex-direction: column; align-items: center;
-    font-family: "Baloo 2", var(--font-display); font-weight: 800;
-    font-size: clamp(30px, 10vw, 44px); line-height: 1.04;
+    font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(15px, 5.4vw, 23px); line-height: 1.2;
     letter-spacing: 0; margin: 6px 0 6px; text-align: center;
   }
   .menu-title .mt-row {
@@ -2547,7 +2604,7 @@ const NativeApp = (() => {
   .wt-deck .db.top { display: flex; align-items: center; justify-content: center; }
   .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 5px; border: 1px solid rgba(232,139,176,0.35); }
   .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 999px;
-    background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; box-shadow: var(--shadow); }
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; box-shadow: 4px 4px 0 0 var(--shadow); }
   .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
   .wt-smallboard .mini-card { width: 34px; }
   .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
@@ -2639,7 +2696,7 @@ const NativeApp = (() => {
     width: 30px; height: 30px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); box-shadow: var(--shadow);
+    border: 1px solid var(--edge-2); box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer; touch-action: manipulation;
     transition: transform 0.08s ease;
   }
@@ -2666,7 +2723,7 @@ const NativeApp = (() => {
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--accent); border-radius: 999px;
     padding: 9px 16px 9px 13px; font-family: var(--font-text); font-size: 13px; font-weight: 800;
-    box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation;
+    box-shadow: 4px 4px 0 0 var(--shadow); cursor: pointer; touch-action: manipulation;
   }
   .map-store-btn .ico { font-size: 16px; }
   .map-store-btn.hidden { display: none; }
@@ -2728,7 +2785,7 @@ const NativeApp = (() => {
     width: 30px; height: 30px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--accent); box-shadow: var(--shadow);
+    border: 1px solid var(--accent); box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer; touch-action: manipulation; transition: transform 0.08s ease; }
   .store-help-btn .ico { font-size: 15px; font-weight: 900; line-height: 1; }
   .store-help-btn:active { transform: scale(0.92); }
@@ -2846,18 +2903,19 @@ const NativeApp = (() => {
   .summary-tiles.guess-tiles.hidden { display: none; }
 
   .play-btn {
-    background: linear-gradient(180deg, var(--accent), #ff9d4d);
-    color: #fff;
-    border: none;
-    border-radius: 999px;
+    background: var(--phosphor);
+    color: var(--ink);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 16px 40px;
     font-size: 18px;
     font-weight: 800;
     letter-spacing: 1px;
+    text-transform: uppercase;
     cursor: pointer;
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
   }
-  .play-btn:active { transform: scale(0.97); }
+  .play-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
   /* Second overlay action (the victory screen's main-menu exit): a quieter,
      outlined pill under the primary — the primary keeps the warm gradient. */
   .play-btn.play-btn-2 {
@@ -2878,11 +2936,12 @@ const NativeApp = (() => {
   /* Redeal (pre-run reshuffle). Secondary look — muted, outlined — so it reads
      as the optional/paid action next to the primary Start Run. */
   .play-btn.redeal {
+    /* §4 outline CTA: deep-felt face, phosphor text, ink frame + hard shadow. */
     flex: 0 0 auto;
-    background: transparent;
-    color: var(--accent);
-    border: 2px solid var(--accent);
-    box-shadow: none;
+    background: var(--felt-deep);
+    color: var(--phosphor); text-shadow: var(--glow);
+    border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     padding: 10px 12px;
     font-size: 13px;
     letter-spacing: 0.3px;
@@ -2890,10 +2949,12 @@ const NativeApp = (() => {
   }
   .play-btn.redeal.hidden { display: none; }
   .play-btn.redeal:disabled {
-    opacity: 0.4;
     cursor: not-allowed;
-    border-color: #6b6b6b;
-    color: #9a9a9a;
+    background: var(--felt-mid);
+    border-color: var(--ink);
+    color: rgba(236, 228, 207, 0.45);
+    text-shadow: none;
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .play-btn.redeal:disabled:active { transform: none; }
 
@@ -2952,7 +3013,7 @@ const NativeApp = (() => {
     background: var(--panel);
     border-radius: 12px;
     padding: 12px 8px;
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .run-stat-value {
     font-size: 26px;
@@ -2975,7 +3036,7 @@ const NativeApp = (() => {
   .ep-cols {
     display: flex; flex-direction: column; gap: 4px;
     background: var(--panel); border-radius: 12px;
-    padding: 8px 10px; box-shadow: var(--shadow);
+    padding: 8px 10px; box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .ep-band { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
   .ep-cell {
@@ -3074,7 +3135,7 @@ const NativeApp = (() => {
     background: var(--panel); color: var(--accent-2);
     border: 1px solid var(--accent); border-radius: 999px;
     padding: 8px 16px; font-size: 12.5px; font-weight: 800;
-    cursor: pointer; touch-action: manipulation; box-shadow: var(--shadow); }
+    cursor: pointer; touch-action: manipulation; box-shadow: 4px 4px 0 0 var(--shadow); }
   .store-reroll .ico { font-size: 15px; }
   .store-reroll .coin-ico { font-size: 12px; }
   .store-reroll:disabled { background: var(--panel-2); color: var(--muted); border-color: var(--edge-2); box-shadow: none; cursor: default; }
@@ -3373,7 +3434,7 @@ const NativeApp = (() => {
 
   /* Pack-reveal Confirm button (still used by the reveal modal). */
   .buy-confirm { width: min(94vw, 380px); padding: 8px 12px; border: none; border-radius: 10px;
-    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow);
+    font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 4px 4px 0 0 var(--shadow);
     background: var(--accent); color: #fff; transition: transform 0.08s ease, opacity 0.15s ease; }
   .buy-confirm:active { transform: scale(0.98); }
   .buy-confirm:disabled { opacity: 0.4; background: var(--panel); color: var(--muted); cursor: default; }
@@ -3417,7 +3478,7 @@ const NativeApp = (() => {
   .confirm-overlay.hidden { display: none; }
   .confirm-panel {
     width: min(90vw, 340px); background: var(--panel);
-    border: 1px solid var(--edge-2); border-radius: 14px; box-shadow: var(--shadow);
+    border: 1px solid var(--edge-2); border-radius: 14px; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 18px 16px; text-align: center;
   }
   .confirm-msg { font-size: 14px; line-height: 1.5; margin-bottom: 16px; color: var(--text); }
@@ -3449,7 +3510,7 @@ const NativeApp = (() => {
   .pack-panel {
     width: min(94vw, 420px); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: var(--shadow); padding: 16px 14px; text-align: center;
+    box-shadow: 4px 4px 0 0 var(--shadow); padding: 16px 14px; text-align: center;
   }
   .pack-title { font-weight: 800; font-size: 15px; color: var(--accent-2); margin-bottom: 10px; }
   .pack-items { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; }
@@ -3528,10 +3589,10 @@ const NativeApp = (() => {
     /* Same canonical card SHAPE (--card-ar) as the board card: set the width per
        context, height follows the ratio — so mini cards never read as a different
        shape than the board's. */
-    position: relative; width: 52px; aspect-ratio: var(--card-ar); border-radius: 7px;
+    position: relative; width: 52px; aspect-ratio: var(--card-ar); border-radius: 0;
     background: var(--card-face); color: var(--card-ink);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-weight: 800; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.1);
+    font-weight: 800; box-shadow: 2px 2px 0 0 var(--shadow); border: var(--px) solid var(--ink);
   }
   .mini-card.red { color: var(--card-red); }
   /* Joker + Blank pack options: their own faces (a symbol + a name), distinct
@@ -3539,18 +3600,19 @@ const NativeApp = (() => {
   .mini-card.mc-special { gap: 3px; }
   .mini-card.mc-special .mcs-sym { font-size: 22px; line-height: 1; }
   .mini-card.mc-special .mcs-lab { font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
-  .mini-card.mc-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a); color: #7a5300;
-    border-color: #e6b74a; box-shadow: 0 0 8px rgba(230,183,74,0.5), var(--shadow); }
-  .mini-card.mc-blank { background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
-    color: #6a6076; border-color: #ccc2d6; }
+  .mini-card.mc-joker { background: var(--felt-deep); color: var(--gold);
+    border-color: var(--gold); box-shadow: 2px 2px 0 0 var(--shadow); }
+  .mini-card.mc-blank { background: var(--felt-mid);
+    color: rgba(236, 228, 207, 0.5); border-color: var(--ink); }
   /* Balatro-style deck grid (modal): every stage card; faded = already drawn. */
   .deck-cards { display: grid; grid-template-columns: repeat(auto-fill, 52px);
     gap: 7px; justify-content: center; padding: 2px; }
   .deck-card { display: flex; }
   .deck-card.drawn { opacity: 0.26; filter: grayscale(0.45); }
   .deck-card.drawn .mini-card { box-shadow: none; }
-  .mini-card .mc-rank { font-size: 19px; line-height: 1; }
-  .mini-card .mc-suit { font-size: 16px; line-height: 1.1; }
+  /* Numeral-first at mini scale too (§5): rank up, suit tucked under it. */
+  .mini-card .mc-rank { font-size: 24px; line-height: 0.9; }
+  .mini-card .mc-suit { font-size: 13px; line-height: 1.1; }
   .mini-card .mc-badges {
     position: absolute; top: 2px; right: 2px; font-size: 9px; line-height: 1;
     display: flex; gap: 1px; max-width: 70%; flex-wrap: wrap; justify-content: flex-end;
@@ -3569,7 +3631,7 @@ const NativeApp = (() => {
   .pack-tray.hidden { display: none; }
   .pack-tray .pt-card { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; position: relative; }
   .pack-tray .pt-card:active { transform: scale(0.95); }
-  .pack-tray .pt-card.armed .mini-card { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pack-tray .pt-card.armed .mini-card { outline: 2px solid var(--phosphor); outline-offset: 2px; }
   .pack-tray .pt-label { font-size: 8px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
@@ -3597,23 +3659,23 @@ const NativeApp = (() => {
      board's connection network) in violet, with travelling dots both ways and
      the Pathway's own icon riding on a dark halo at the centre (instant ID). */
   .cph-banner {
-    position: relative; width: 100%; height: 100%; border-radius: 8px; overflow: hidden;
-    background: linear-gradient(180deg, rgba(110,81,166,0.20), rgba(110,81,166,0.08));
-    border: 1px solid var(--pathway);
-    box-shadow: 0 1px 3px rgba(74,50,40,0.14), inset 0 1px 0 rgba(255,255,255,0.5);
+    position: relative; width: 100%; height: 100%; border-radius: 0; overflow: hidden;
+    background: var(--felt-mid);
+    border: 1px solid var(--gold);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .cph-banner.empty {
     width: min(72%, 74px); height: 64%; margin: 0 auto;
-    background: rgba(110,81,166,0.04);
-    border: 1px dashed rgba(110,81,166,0.30);
-    border-radius: 6px 6px 0 0; box-shadow: none;
+    background: none;
+    border: 1px dashed rgba(217, 164, 65, 0.35);
+    border-radius: 0; box-shadow: none;
   }
   .cph-syn { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .cph-syn .syn-ribbon { fill: var(--pathway-2); opacity: 0.55; }
-  .cph-syn .syn-dot { fill: #fff0ff; }
+  .cph-syn .syn-ribbon { fill: var(--gold); opacity: 0.55; }
+  .cph-syn .syn-dot { fill: var(--card-face); }
   .cph-ico {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: 18px; height: 18px; font-size: 13px; color: #f4ecf3;
+    width: 18px; height: 18px; font-size: 13px; color: var(--card-face);
     display: flex; align-items: center; justify-content: center;
   }
   .cph-ico .cph-halo {
@@ -3629,32 +3691,32 @@ const NativeApp = (() => {
     position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
     min-width: 15px; height: 15px; padding: 0 3px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 999px;
+    border-radius: 0;
     font-family: var(--font-text);
     font-size: 10px; font-weight: 800; line-height: 1;
-    color: #f4ecf3; background: rgba(12,8,16,0.55);
-    border: 1px solid rgba(255,255,255,0.30);
+    color: var(--card-face); background: var(--ink);
+    border: 1px solid rgba(236, 228, 207, 0.4);
     font-variant-numeric: tabular-nums;
     transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
   }
   .cph-streak.zero { opacity: 0.5; }
   .cph-streak.hot {
-    color: #2a121d; background: var(--amber);
-    border-color: #fff; box-shadow: 0 0 6px rgba(199,126,31,0.7);
+    color: var(--ink); background: var(--amber);
+    border-color: var(--ink); box-shadow: none;
   }
   .cph-streak.bump { transform: translateY(-50%) scale(1.35); }
   /* Second Wind charged/used pip: bright green ↻ when charged, dim grey when
      spent (and the banner itself desaturates so "used" reads at a glance). */
   .cph-sw {
     position: absolute; right: 2px; bottom: -1px;
-    min-width: 16px; height: 16px; padding: 0 2px; border-radius: 999px;
+    min-width: 16px; height: 16px; padding: 0 2px; border-radius: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: 800; line-height: 1;
-    color: #fff; background: var(--good); border: 1px solid #fff;
-    box-shadow: 0 0 5px rgba(63,157,106,0.6); transition: all 0.2s ease;
+    color: var(--ink); background: var(--phosphor); border: 1px solid var(--ink);
+    box-shadow: none; transition: all 0.2s ease;
   }
   .cph-sw.spent {
-    color: #faf6f3; background: rgba(74,52,44,0.4); border-color: rgba(74,52,44,0.5);
+    color: var(--muted); background: var(--felt-deep); border-color: var(--ink);
     box-shadow: none; text-decoration: line-through;
   }
   .cph-banner.sw-spent { filter: grayscale(0.7) brightness(0.93); opacity: 0.82; }
@@ -3675,9 +3737,9 @@ const NativeApp = (() => {
   .cph-banner.pennant.srt-uncommon { --pb-trim: var(--trim-uncommon); }
   .cph-banner.pennant.srt-rare     { --pb-trim: var(--trim-rare); }
   .pennant .pb-rod {
-    flex: none; width: 98%; height: 5px; border-radius: 3px; z-index: 2;
-    background: linear-gradient(180deg, #e6d09a 0%, #b7945a 45%, #7c5f30 100%);
-    box-shadow: 0 1px 2px rgba(40,24,10,0.45), inset 0 1px 0 rgba(255,255,255,0.4);
+    flex: none; width: 98%; height: 5px; border-radius: 0; z-index: 2;
+    background: var(--gold);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   /* The swallowtail shape (shared by the trim layer + the inset cloth face). */
   .pennant .pb-cloth, .pennant .pb-face {
@@ -3686,30 +3748,30 @@ const NativeApp = (() => {
   .pennant .pb-cloth {
     position: relative; flex: 1 1 auto; width: 92%; margin-top: -1px;   /* match the column width */
     background: var(--pb-trim);                 /* the trim shows around the inset face */
-    filter: drop-shadow(0 3px 4px rgba(50,30,55,0.4));
+    filter: drop-shadow(2px 2px 0 var(--shadow));   /* hard pixel drop — the clip-path needs filter, not box-shadow */
     padding: 2px 2px 0;
   }
   .pennant .pb-face {
     position: relative; width: 100%; height: 100%;
-    background: linear-gradient(180deg, var(--plum-1) 0%, var(--plum-2) 100%);
+    background: var(--felt-mid);
     display: flex; align-items: flex-start; justify-content: center;
   }
-  /* Top-light sheen on the cloth. */
+  /* (sheen retired: pixel cloth is flat) */
   .pennant .pb-shade {
     position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 32%);
+    background: none;
   }
-  /* Dark circular emblem holding the icon, near the top of the cloth. */
+  /* Ink emblem chip holding the gold icon, near the top of the cloth. */
   .pennant .pb-emblem {
     /* Sit higher + slightly smaller so the icon clears the swallowtail notch at
        the cloth's bottom (it was being clipped in the shorter on-board row). */
     position: absolute; left: 50%; top: 9%; transform: translateX(-50%);
     width: 54%; max-width: 27px; aspect-ratio: 1; height: auto;
-    color: #f4ecf3; z-index: 1;
+    color: var(--gold); z-index: 1;
   }
   .pennant .pb-emblem .cph-halo {
-    position: absolute; inset: -10%; border-radius: 50%;
-    background: radial-gradient(circle, rgba(16,8,22,0.95) 58%, rgba(16,8,22,0) 82%);
+    position: absolute; inset: -10%; border-radius: 0;
+    background: var(--ink);
   }
   .pennant .pb-emblem .ico { position: relative; width: 64%; height: 64%; }
   /* Re-anchor the live badges to the cloth face (lower area, clear of the emblem). */
@@ -3749,49 +3811,51 @@ const NativeApp = (() => {
      and a green LED that lights when charged. Rarity = the metal tone (--mtl-*).
      Keeps the .base-banner wrapper + charged/spent/empty/fired/activatable. */
   .base-banner.plaque {
-    /* Default = utility purple; the .fam-* class sets the real family colour. */
-    --mtl-hi: #c59cff; --mtl-mid: #8a4fd6; --mtl-lo: #5e2f9e; --mtl-edge: #44226f;
+    /* CRT plaques: ONE flat palette face per family (--mtl-mid) + a matching
+       symbol ink (--mtl-ink); --mtl-hi/--mtl-lo retired with the metal
+       gradient. Default = utility (felt-mid face, cream symbol). */
+    --mtl-mid: #1e3a2c; --mtl-ink: #ece4cf;
     /* Fixed plaque shape everywhere (no stretch): fill the slot's HEIGHT, derive
        width from --plaque-ar, clamp to the slot width. */
     position: relative; height: 100%; width: auto; aspect-ratio: var(--plaque-ar);
     max-width: 96%; margin: 0 auto; overflow: hidden;
-    border-radius: 6px;
+    border-radius: 0;
     display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 9px;
-    background: linear-gradient(180deg, var(--mtl-hi) 0%, var(--mtl-mid) 46%, var(--mtl-lo) 100%);
-    border: 1.5px solid var(--mtl-edge);
-    box-shadow: 0 2px 4px rgba(20,12,30,0.3), inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -2px 3px rgba(0,0,0,0.28);
+    background: var(--mtl-mid);
+    border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
-  /* Bar colour = FAMILY (effect type). */
-  .base-banner.plaque.fam-dig     { --mtl-hi: #7fe39a; --mtl-mid: #34a85c; --mtl-lo: #1d6e3b; --mtl-edge: #14502a; }  /* green  — dig/bury */
-  .base-banner.plaque.fam-peek    { --mtl-hi: #8cc9ff; --mtl-mid: #2f86db; --mtl-lo: #1c5699; --mtl-edge: #143f70; }  /* blue   — peek/reveal */
-  .base-banner.plaque.fam-destroy { --mtl-hi: #ff958a; --mtl-mid: #db4233; --mtl-lo: #9c281c; --mtl-edge: #711a12; }  /* red    — destroy */
-  .base-banner.plaque.fam-coins   { --mtl-hi: #ffe18d; --mtl-mid: #e3ac33; --mtl-lo: #a8761c; --mtl-edge: #7a5414; }  /* gold   — coins/economy */
-  .base-banner.plaque.fam-util    { --mtl-hi: #c59cff; --mtl-mid: #8a4fd6; --mtl-lo: #5e2f9e; --mtl-edge: #44226f; }  /* purple — manipulate/utility */
+  /* Bar colour = FAMILY (effect type), locked to the 8-color palette. */
+  .base-banner.plaque.fam-dig     { --mtl-mid: #4ef08a; --mtl-ink: #10100e; }  /* phosphor — dig/bury */
+  .base-banner.plaque.fam-peek    { --mtl-mid: #ece4cf; --mtl-ink: #10100e; }  /* cream    — peek/reveal */
+  .base-banner.plaque.fam-destroy { --mtl-mid: #c22f45; --mtl-ink: #ece4cf; }  /* red      — destroy */
+  .base-banner.plaque.fam-coins   { --mtl-mid: #d9a441; --mtl-ink: #10100e; }  /* gold     — coins/economy */
+  .base-banner.plaque.fam-util    { --mtl-mid: #1e3a2c; --mtl-ink: #ece4cf; }  /* felt     — manipulate/utility */
   .base-banner.empty {
     width: min(80%, 96px);
-    background: rgba(120,90,40,0.05);
-    border: 1px dashed rgba(120,90,40,0.34); border-radius: 6px;
+    background: none;
+    border: 1px dashed rgba(217, 164, 65, 0.35); border-radius: 0;
     box-shadow: none;
   }
   .bp-screw {
-    position: absolute; width: 4px; height: 4px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #fff6df, #7c5f2c 70%, #4f3a16);
-    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.3);
+    position: absolute; width: 4px; height: 4px; border-radius: 0;
+    background: var(--ink);
+    box-shadow: none;
   }
   .bp-screw.s-tl { left: 3px; top: 3px; } .bp-screw.s-tr { right: 3px; top: 3px; }
   .bp-screw.s-bl { left: 3px; bottom: 3px; } .bp-screw.s-br { right: 3px; bottom: 3px; }
-  /* Bold filled WHITE symbol — fills most of the bar height, game-y + legible. */
+  /* Bold filled symbol in the family's ink — fills most of the bar height. */
   .base-banner.plaque .base-sym {
-    display: flex; align-items: center; justify-content: center; gap: 1px; color: #fff;
+    display: flex; align-items: center; justify-content: center; gap: 1px; color: var(--mtl-ink);
     line-height: 1;
   }
   .base-banner.plaque .base-sym .ico {
     width: 21px; height: 21px; fill: currentColor;
-    filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.4));
+    filter: none;
   }
   .base-banner.plaque .base-sym .bsym-x {
-    font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 12px; color: #fff;
-    text-shadow: 0 1px 1.5px rgba(0,0,0,0.45); margin-left: -1px;
+    font-family: var(--font-text); font-weight: 800; font-size: 12px; color: var(--mtl-ink);
+    text-shadow: none; margin-left: -1px;
   }
   .base-banner.big .base-sym .ico { width: 26px; height: 26px; }
   .base-banner.big .base-sym .bsym-x { font-size: 14px; }
@@ -3799,18 +3863,19 @@ const NativeApp = (() => {
      coloured by tier (consistent with the silver/gold rarity reads elsewhere). */
   .base-banner.base-rarity, .base-banner .base-rarity {
     position: absolute; left: 50%; bottom: 1.5px; transform: translateX(-50%) rotate(45deg);
-    width: 6px; height: 6px; border-radius: 1.5px; z-index: 2;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.28), inset 0 0 0 0.5px rgba(255,255,255,0.5);
+    width: 6px; height: 6px; border-radius: 0; z-index: 2;
+    box-shadow: 0 0 0 1px var(--ink);
   }
-  .base-rarity.srt-common   { background: #cdbfa6; }
-  .base-rarity.srt-uncommon { background: #c3c9d0; }   /* silver */
-  .base-rarity.srt-rare     { background: #e6bb46; }   /* gold */
-  /* Green LED dot (charged) → dark/off (spent). */
+  .base-rarity.srt-common   { background: #1e3a2c; }   /* felt (quiet) */
+  .base-rarity.srt-uncommon { background: #ece4cf; }   /* cream */
+  .base-rarity.srt-rare     { background: #d9a441; }   /* gold */
+  /* Phosphor LED dot (charged) → dark/off (spent). Status dot stays a dot;
+     the phosphor glow is the one sanctioned glow. */
   .base-charge {
     position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
     width: 6px; height: 6px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #c9ffd9, var(--good) 60%, #1f7a4a);
-    box-shadow: 0 0 5px 1px rgba(63,157,106,0.8), inset 0 0 1px rgba(0,0,0,0.3);
+    background: var(--phosphor);
+    box-shadow: 0 0 4px 1px rgba(78, 240, 138, 0.7);
   }
   /* Base live counter: a small dark chip on the plaque's top-left showing the
      Base's current "if activated now" value (Heart Tax ♥ count, Heart Demolish
@@ -3818,9 +3883,9 @@ const NativeApp = (() => {
   .base-count-badge {
     position: absolute; left: 3px; top: 2px;
     min-width: 13px; height: 13px; padding: 0 3px; box-sizing: border-box;
-    border-radius: 7px; background: rgba(20,12,30,0.78); color: #ffd9e0;
+    border-radius: 0; background: var(--ink); color: var(--card-face);
     font-size: 9px; font-weight: 800; line-height: 13px; text-align: center;
-    border: 1px solid rgba(255,180,200,0.55); pointer-events: none; z-index: 2;
+    border: 1px solid rgba(236, 228, 207, 0.55); pointer-events: none; z-index: 2;
     transition: transform 0.12s ease;
   }
   .base-count-badge.zero { opacity: 0.5; }
@@ -3828,7 +3893,7 @@ const NativeApp = (() => {
   .tray-obj .base-count-badge { display: none; }   /* live counter is board-only */
   .base-banner.spent { filter: brightness(0.97); opacity: 0.82; }
   .base-banner.spent .base-charge {
-    background: radial-gradient(circle at 35% 30%, #6a6258, #3a342c 70%); box-shadow: inset 0 0 1px rgba(0,0,0,0.4);
+    background: var(--felt-deep); box-shadow: none;
   }
   .base-banner.big { width: min(100%, 144px); }
   .base-banner.big .base-name { font-size: 11px; }
@@ -3910,39 +3975,39 @@ const NativeApp = (() => {
      greying that follows). Mirrors the Pillar-fire pulse. */
   .base-banner.fired { animation: baseFired 0.62s ease; }
   @keyframes baseFired {
-    0%   { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
-    22%  { box-shadow: 0 0 0 3px rgba(176,122,60,0.7), 0 0 16px 2px rgba(176,122,60,0.75); transform: translateY(-1px); }
-    100% { box-shadow: 0 1px 3px rgba(74,50,40,0.14); }
+    0%   { box-shadow: 2px 2px 0 0 var(--shadow); }
+    22%  { box-shadow: 0 0 0 3px rgba(217,164,65,0.7), 0 0 16px 2px rgba(217,164,65,0.75); transform: translateY(-1px); }
+    100% { box-shadow: 2px 2px 0 0 var(--shadow); }
   }
   @media (prefers-reduced-motion: reduce) { .base-banner.fired { animation: none; } }
-  /* Activatable cue: a STATIC bronze ring + glow (no blinking) — clearly "ready
+  /* Activatable cue: a STATIC gold ring (no blinking) — clearly "ready
      to tap" without the pulsing that read as too busy. */
   .base-banner.activatable {
-    cursor: pointer; outline: 2px solid #b07a3c; outline-offset: 1px;
-    box-shadow: 0 0 0 2px rgba(176,122,60,0.4), 0 0 9px 1px rgba(176,122,60,0.5), inset 0 1px 0 rgba(255,255,255,0.5);
+    cursor: pointer; outline: 2px solid var(--gold); outline-offset: 1px;
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .board.placing-base .base-cell { cursor: pointer; }
-  .board.placing-base .base-cell .base-banner { outline: 2px dashed #b07a3c; outline-offset: 1px; }
+  .board.placing-base .base-cell .base-banner { outline: 2px dashed var(--gold); outline-offset: 1px; }
   .board.armed-base .pile:not(.dead) { cursor: pointer; }
   /* Demolish targeting: highlight the Pillar banners you may destroy (the
      reverse of the activation glow — a warning ring on a tappable Pillar). */
   .board.armed-base-pillar .bp-cell .cph-banner:not(.empty) {
-    cursor: pointer; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 12px;
+    cursor: pointer; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 0;
   }
 
-  /* Pillar-effect feedback: a brief violet pulse/glow on the banner when its
+  /* Pillar-effect feedback: a brief gold pulse on the banner when its
      effect fires, and (for coin rewards) a "+N" that floats up and fades. The
      .bp-cell is position:relative, so the float anchors over its column. */
   .cph-banner.fired { animation: pillarFire 0.6s ease-out; z-index: 2; }
   @keyframes pillarFire {
-    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(133,104,192,0); }
-    28%  { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(133,104,192,0.42), 0 0 12px 2px rgba(133,104,192,0.6); }
-    100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(133,104,192,0); }
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(217,164,65,0); }
+    28%  { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(217,164,65,0.42), 0 0 12px 2px rgba(217,164,65,0.6); }
+    100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(217,164,65,0); }
   }
   .pillar-float {
     position: absolute; left: 50%; top: -2px; transform: translateX(-50%);
-    font-family: var(--font-text); font-size: 13px; font-weight: 800; color: var(--amber);
-    text-shadow: 0 1px 2px rgba(255,255,255,0.85), 0 0 2px rgba(255,255,255,0.6);
+    font-family: var(--font-text); font-size: 13px; font-weight: 800; color: var(--gold);
+    text-shadow: 2px 2px 0 var(--shadow);
     pointer-events: none; white-space: nowrap; z-index: 6;
     animation: pillarFloat 1s ease-out forwards;
   }
@@ -3966,39 +4031,39 @@ const NativeApp = (() => {
      (.flash-good) and the red death-flash, so a rescued wrong guess is unmistakable
      and names its rescuer. */
   @keyframes savedRing {
-    0%   { box-shadow: 0 0 0 0 rgba(45,150,180,0.0); }
-    25%  { box-shadow: 0 0 0 4px rgba(45,150,180,0.66), 0 0 18px 5px rgba(45,150,180,0.5); }
-    100% { box-shadow: 0 0 0 12px rgba(45,150,180,0.0); }
+    0%   { box-shadow: 0 0 0 0 rgba(78,240,138,0.0); }
+    25%  { box-shadow: 0 0 0 4px rgba(78,240,138,0.66), 0 0 18px 5px rgba(78,240,138,0.5); }
+    100% { box-shadow: 0 0 0 12px rgba(78,240,138,0.0); }
   }
   .pile.saved-pulse .card { animation: savedRing 0.75s ease-out; }
   @media (prefers-reduced-motion: reduce) {
-    .pile.saved-pulse .card { animation: none; outline: 3px solid #2e96b4; outline-offset: 1px; }
+    .pile.saved-pulse .card { animation: none; outline: 3px solid var(--phosphor); outline-offset: 1px; }
   }
   .pillar-float.save-float {
-    top: 4px; z-index: 8; color: #15677e; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
-    background: rgba(226,245,251,0.94); border: 1px solid rgba(45,150,180,0.75);
-    border-radius: 999px; padding: 2px 8px;
-    text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+    top: 4px; z-index: 8; color: var(--phosphor); font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
+    background: var(--ink); border: 1px solid var(--phosphor);
+    border-radius: 0; padding: 2px 8px;
+    text-shadow: var(--glow);
   }
 
-  /* Same-Power firing — a distinct synapse-rose pulse on the called (hub) pile and
-     each DIRECTLY-linked target, so a Same-Power activation reads as its OWN event
-     (not a generic correct pulse). Echoes the connection-network rose (--net). */
+  /* Same-Power firing — a distinct gold pulse on the called (hub) pile and
+     each DIRECTLY-linked target, so a Same-Power activation reads as its OWN
+     event (not the phosphor correct/saved pulses). */
   @keyframes powerPulse {
-    0%   { box-shadow: 0 0 0 0 rgba(200,74,120,0.0); }
-    25%  { box-shadow: 0 0 0 4px rgba(200,74,120,0.62), 0 0 16px 4px rgba(200,74,120,0.45); }
-    100% { box-shadow: 0 0 0 12px rgba(200,74,120,0.0); }
+    0%   { box-shadow: 0 0 0 0 rgba(217,164,65,0.0); }
+    25%  { box-shadow: 0 0 0 4px rgba(217,164,65,0.62), 0 0 16px 4px rgba(217,164,65,0.45); }
+    100% { box-shadow: 0 0 0 12px rgba(217,164,65,0.0); }
   }
   .pile.power-pulse .card { animation: powerPulse 0.72s ease-out; }
   .pile.power-pulse.power-hub .card { animation-duration: 0.9s; }   /* the hub reads a touch stronger */
-  @media (prefers-reduced-motion: reduce) { .pile.power-pulse .card { animation: none; outline: 2px solid var(--net); outline-offset: 1px; } }
+  @media (prefers-reduced-motion: reduce) { .pile.power-pulse .card { animation: none; outline: 2px solid var(--gold); outline-offset: 1px; } }
   /* Multi-card bury count — a subtle neutral chip at the pile's base (where cards
      tuck under), so a 3-card bury reads distinctly from a 1-card one. Deliberately
-     grey (not coin-amber / not save-teal) and only shown for 2+ cards. */
+     quiet (not coin-gold / not save-phosphor) and only shown for 2+ cards. */
   .pillar-float.bury-float {
-    top: auto; bottom: 6px; z-index: 7; color: #6b5a52; font-size: 10px; font-weight: 800; letter-spacing: 0.2px;
-    background: rgba(238,232,226,0.94); border: 1px solid rgba(120,100,88,0.4);
-    border-radius: 999px; padding: 1px 7px; text-shadow: none;
+    top: auto; bottom: 6px; z-index: 7; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.2px;
+    background: var(--felt-mid); border: 1px solid var(--ink);
+    border-radius: 0; padding: 1px 7px; text-shadow: none;
   }
 
   /* Shared item-info chrome (.ih-title/.ih-body) + base geometry. Its one live
@@ -4015,11 +4080,11 @@ const NativeApp = (() => {
     pointer-events: auto;
     width: min(92vw, 340px);
     max-height: 42vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(251, 246, 241, 0.98);
-    border: 1px solid var(--edge-2);
-    border-radius: 12px;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 12px 14px;
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow);
     text-align: left;
   }
   .item-help.hidden { display: none; }
@@ -4034,7 +4099,7 @@ const NativeApp = (() => {
     background: var(--panel);
     border-radius: 12px;
     padding: 10px 14px;
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow);
     font-size: 13px;
   }
   .overlay-coins.hidden { display: none; }
@@ -4122,20 +4187,20 @@ const NativeApp = (() => {
   .setup-inv.armed .setup-strip { display: none; }
   .tray-help {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 12px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
     padding: 6px 10px; text-align: left;
   }
   .tray-help.hidden { display: none; }
   .tray-help .th-row { display: flex; align-items: center; gap: 8px; }
-  .tray-help .th-title { font-family: var(--font-display); font-weight: 700; font-size: var(--info-title-size);
+  .tray-help .th-title { font-family: var(--font-text); font-weight: 700; font-size: var(--info-title-size);
     color: var(--accent-2); display: inline-flex; align-items: center; gap: 5px; flex: 1; min-width: 0; }
   .tray-help .th-title .ico { font-size: 16px; flex: none; }
   .tray-help .th-desc { display: block; font-size: var(--info-desc-size); line-height: var(--info-desc-lh); color: var(--text); margin-top: 3px; white-space: pre-line; }
   /* Trash: a deliberate, clearly-marked discard (opens a confirm dialog first). */
   .tray-help .th-trash {
     flex: none; display: inline-flex; align-items: center; gap: 4px;
-    background: rgba(181,67,90,0.14); color: var(--bad);
-    border: 1px solid var(--danger); border-radius: 999px;
+    background: var(--felt-deep); color: var(--bad);
+    border: 1px solid var(--danger); border-radius: 0;
     padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .tray-help .th-trash .ico { font-size: 13px; }
@@ -4143,8 +4208,8 @@ const NativeApp = (() => {
   .tray-help .th-trash:active { transform: scale(0.95); }
   /* Close (✕): disarm and return to the item strip. */
   .tray-help .th-close {
-    flex: none; width: 22px; height: 22px; border-radius: 999px;
-    background: var(--panel-2); color: var(--text); border: 1px solid var(--edge-2);
+    flex: none; width: 22px; height: 22px; border-radius: 0;
+    background: var(--felt-deep); color: var(--text); border: 1px solid var(--ink);
     font-size: 12px; line-height: 1; cursor: pointer; touch-action: manipulation;
     position: relative;   /* anchors the invisible hit-area extension below */
   }
@@ -4153,19 +4218,19 @@ const NativeApp = (() => {
   .tray-help .th-close::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
   .tray-help .th-close:active { transform: scale(0.92); }
   .tray-sticker {
-    background: var(--panel);
-    border: 2px solid transparent;
-    border-radius: 999px;
+    background: var(--felt-deep);
+    border: 2px solid var(--ink);
+    border-radius: 0;
     padding: 6px 12px;
     font-size: 15px;
     display: flex;
     align-items: center;
     gap: 5px;
     cursor: pointer;
-    box-shadow: var(--shadow);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .tray-sticker .ts-count { font-size: 12px; font-weight: 800; color: var(--accent-2); }
-  .tray-sticker.armed { border-color: var(--accent); transform: scale(1.05); }
+  .tray-sticker.armed { border-color: var(--phosphor); transform: scale(1.05); }
 
   /* Pillar tray (setup): owned, unplaced Pillars — tap to arm, then tap a board
      column to place. Same one-row, horizontally-scrolling strip as stickers. */
@@ -4176,21 +4241,21 @@ const NativeApp = (() => {
   }
   .pillar-tray.hidden { display: none; }
   .tray-pillar {
-    background: var(--panel); border: 2px solid transparent; border-radius: 999px;
+    background: var(--felt-deep); border: 2px solid var(--ink); border-radius: 0;
     padding: 6px 12px; font-size: 15px; display: flex; align-items: center; gap: 5px;
-    cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
+    cursor: pointer; box-shadow: 2px 2px 0 0 var(--shadow); white-space: nowrap;
   }
   .tray-pillar .tp-name { font-size: 12px; font-weight: 800; color: var(--accent-2); }
   .tray-pillar .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
-  .tray-pillar.armed { border-color: var(--pathway); transform: scale(1.05); }
-  /* Active (placed-on-board) Pillar chip — read-only, in the Pathway/violet
+  .tray-pillar.armed { border-color: var(--phosphor); transform: scale(1.05); }
+  /* Active (placed-on-board) Pillar chip — read-only, in the Pathway/gold
      identity with the column it occupies, so held vs. active read distinctly. */
-  .tray-pillar.placed { background: rgba(110,81,166,0.14); border-color: var(--pathway); }
-  .tray-pillar.placed .tp-name { color: var(--pathway-2); }
+  .tray-pillar.placed { background: var(--felt-mid); border-color: var(--gold); }
+  .tray-pillar.placed .tp-name { color: var(--gold); }
   .tray-pillar .tp-col {
-    font-size: 9px; font-weight: 800; color: var(--pathway-2);
+    font-size: 9px; font-weight: 800; color: var(--gold);
     text-transform: uppercase; letter-spacing: 0.4px;
-    background: rgba(110,81,166,0.16); border-radius: 999px; padding: 1px 6px;
+    background: var(--ink); border-radius: 0; padding: 1px 6px;
   }
   /* Base tray (setup): owned, unplaced Bases — tap to arm, then tap a column's
      bottom base slot to place. Same scrolling strip as Pillars, bronze identity. */
@@ -4200,14 +4265,14 @@ const NativeApp = (() => {
   }
   .base-tray.hidden { display: none; }
   .tray-base {
-    background: rgba(176,122,60,0.10); border: 2px solid #b07a3c; border-bottom-width: 3px;
-    border-radius: 10px 10px 5px 5px;
+    background: var(--felt-deep); border: 2px solid var(--gold); border-bottom-width: 3px;
+    border-radius: 0;
     padding: 6px 12px; font-size: 15px; display: flex; align-items: center; gap: 5px;
-    cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
+    cursor: pointer; box-shadow: 2px 2px 0 0 var(--shadow); white-space: nowrap;
   }
-  .tray-base .tp-name { font-size: 12px; font-weight: 800; color: #7a4f1e; }
+  .tray-base .tp-name { font-size: 12px; font-weight: 800; color: var(--gold); }
   .tray-base .ts-count { font-size: 12px; font-weight: 800; color: var(--muted); }
-  .tray-base.armed { border-color: var(--accent); transform: scale(1.05); }
+  .tray-base.armed { border-color: var(--phosphor); transform: scale(1.05); }
 
   /* Tray inventory chips show the REAL object (small) instead of a glyph. */
   .tray-obj { gap: 7px; }
@@ -4231,7 +4296,7 @@ const NativeApp = (() => {
      not the cards. Highlight the slots and light up the empty placeholders so it
      reads as "drop it here". The cards get no placement outline. */
   .board.placing-pillar .bp-cell { cursor: pointer; }
-  .board.placing-pillar .bp-cell .cph-banner { outline: 2px dashed var(--pathway); outline-offset: 1px; }
+  .board.placing-pillar .bp-cell .cph-banner { outline: 2px dashed var(--gold); outline-offset: 1px; }
   .board.placing-pillar .bp-cell .cph-banner.empty {
     background: rgba(110,81,166,0.14);
     border-color: var(--pathway);
@@ -4264,22 +4329,21 @@ const NativeApp = (() => {
     --dcs-size: 26px; --dcs-bw: calc(var(--dcs-size) * 0.12); --dcs-rot: 0deg;
     position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center;
     width: var(--dcs-size); height: var(--dcs-size);
-    border-radius: 50%;
+    border-radius: 0;
     background:
-      radial-gradient(120% 120% at 30% 22%, rgba(255,255,255,0.55), rgba(255,255,255,0) 42%),
-      radial-gradient(130% 130% at 70% 115%, rgba(0,0,0,0.30), rgba(0,0,0,0) 55%),
+      radial-gradient(120% 120% at 30% 22%, rgba(236,228,207,0.35), rgba(236,228,207,0) 42%),
       var(--dcs-face, #6f7a66);
-    border: var(--dcs-bw) solid var(--dcs-edge, #fff);
-    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) rgba(255,255,255,0.85),
-                0 3px 6px rgba(70,44,40,0.40);
+    border: var(--dcs-bw) solid var(--dcs-edge, #ece4cf);
+    box-shadow: 0 0 0 calc(var(--dcs-bw) * 0.5) var(--ink),
+                2px 2px 0 0 var(--shadow);
     transform: rotate(var(--dcs-rot));
     /* visible: the count pill (.dcs-n) and the suit-restriction badge
        (.dcs-suits) both ride the OUTER rim — they must not be clipped. */
     overflow: visible;
   }
   .dcs-gloss {
-    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-    background: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 26%, rgba(255,255,255,0) 48%);
+    position: absolute; inset: 0; border-radius: 0; pointer-events: none;
+    background: linear-gradient(135deg, rgba(236,228,207,0.4) 0%, rgba(236,228,207,0.1) 26%, rgba(236,228,207,0) 48%);
   }
   .dcs-ic { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 58%; height: 58%; color: #fff;
     filter: drop-shadow(0 1px 1px rgba(0,0,0,0.32)); }
@@ -4303,7 +4367,7 @@ const NativeApp = (() => {
   .dcs.dcs-cursed .dcs-ic { filter: saturate(0.5) brightness(0.94) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
   .dcs-n {
     position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
-    background: #2a1d24; color: #fff; border: 1.5px solid #fff; border-radius: 999px;
+    background: var(--ink); color: var(--card-face); border: 1.5px solid var(--card-face); border-radius: 0;
     font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
     transform: rotate(calc(var(--dcs-rot) * -1)); z-index: 2;
   }
@@ -4321,12 +4385,12 @@ const NativeApp = (() => {
     font-style: normal; display: inline-flex; align-items: center; justify-content: center;
     width: max(10px, calc(var(--dcs-size) * 0.34));
     height: max(10px, calc(var(--dcs-size) * 0.34));
-    border-radius: 999px; background: #fff;
-    box-shadow: 0 1px 2px rgba(70, 44, 40, 0.35);
+    border-radius: 0; background: var(--card-face);
+    box-shadow: 1px 1px 0 0 var(--shadow);
     font-size: max(8px, calc(var(--dcs-size) * 0.26)); line-height: 1; font-weight: 800;
   }
-  .dcs-suits i.red { color: var(--card-red, #c8506e); }
-  .dcs-suits i.blk { color: #2a2a33; }
+  .dcs-suits i.red { color: var(--card-red); }
+  .dcs-suits i.blk { color: var(--ink); }
 
   /* On-card sticker badges: ONE uniform fixed size for every sticker. */
   .pile-badges .dcs {
@@ -4359,24 +4423,24 @@ const NativeApp = (() => {
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-text);
     font-size: calc(var(--pile-size, 88px) * 0.17); font-weight: 800; line-height: 1;
-    color: #f5e0e9; background: #2a1d24;
-    border: 1.5px solid #c07088;
-    border-radius: 9px;
+    color: var(--card-face); background: var(--ink);
+    border: 1.5px solid var(--card-face);
+    border-radius: 0;
     z-index: 3;
     pointer-events: none;
   }
-  /* Limiting pile(s): count equals the current smallest alive pile → amber pill
-     (pairs with the card's amber ring). Applied to every tying pile. */
+  /* Limiting pile(s): count equals the current smallest alive pile → gold chip
+     (pairs with the card's gold ring). Applied to every tying pile. */
   .pile-count.min {
-    color: #1c1206; background: var(--amber);
-    border-color: var(--amber);
+    color: var(--ink); background: var(--gold);
+    border-color: var(--ink);
   }
   /* Anchored true-lowest pile: the board's smallest, but EXCLUDED from payout —
-     dark pill with an amber ring: "lowest, but it doesn't count." */
+     dark chip with a gold frame: "lowest, but it doesn't count." */
   .pile-count.min-anchored {
-    background: #241a20;
-    color: var(--amber);
-    border-color: var(--amber);
+    background: var(--ink);
+    color: var(--gold);
+    border-color: var(--gold);
   }
 
   /* ---- Pile FAN-OUT viewer (presentation-only memory aid) ----
@@ -4393,9 +4457,9 @@ const NativeApp = (() => {
     content: ""; position: absolute; z-index: -1; pointer-events: none;
     left: 50%; top: 50%;
     width: calc(var(--pile-size, 88px) * 0.84); aspect-ratio: var(--card-ar);
-    border-radius: clamp(9px, calc(var(--pile-size, 80px) * 0.15), 17px);
-    background: var(--card-face, #fbf6f1); border: 1px solid var(--card-border, #ddd0c4);
-    box-shadow: 0 2px 6px rgba(40, 24, 30, 0.20);
+    border-radius: 0;
+    background: var(--card-face); border: 1px solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     animation: fanPeek 0.24s ease;
   }
   .board.fan-hint .pile:not(.dead)::before {
@@ -4417,19 +4481,18 @@ const NativeApp = (() => {
   body.play-active .fan-all-btn {
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     width: 100%; flex: 0 0 46px; margin-bottom: 2px; padding: 0;
-    /* MUTED control chip on the felt (the old card-white plate outshone the
-       actual cards) — a quiet translucent well, like a tool, not a card. */
-    background: rgba(16, 38, 30, 0.30); color: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.20); border-radius: 13px;
+    /* Quiet recessed tool chip — a deep-felt well, not a card. */
+    background: var(--felt-deep); color: rgba(236, 228, 207, 0.72);
+    border: var(--px) solid var(--ink); border-radius: 0;
     cursor: pointer; touch-action: manipulation;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.18);
+    box-shadow: none;
   }
   .fan-all-btn svg { width: 24px; height: 24px; display: block; }
-  .fan-all-btn .fab-lbl { font: 800 7.5px/1 var(--font-text); letter-spacing: 0.6px; text-transform: uppercase; }
-  body.play-active .fan-all-btn.on { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
-  .fan-all-btn:active { transform: scale(0.95); }
+  .fan-all-btn .fab-lbl { font: 800 8px/1 var(--font-text); letter-spacing: 0.6px; text-transform: uppercase; }
+  body.play-active .fan-all-btn.on { background: var(--phosphor); color: var(--ink); border-color: var(--ink); }
+  .fan-all-btn:active { transform: translate(1px, 1px); }
   /* The fanned pile keeps a marker ring so it's clear WHICH pile is open. */
-  .pile.fanned .card { box-shadow: 0 0 0 3px var(--accent-2), 0 4px 12px rgba(2, 1, 4, 0.6); }
+  .pile.fanned .card { box-shadow: 0 0 0 3px var(--phosphor), 4px 4px 0 0 var(--shadow); }
 
   /* The fan panel: a centred popup of the pile's cards FACE UP, top card
      first, lightly staggered rotations (the "fan"), wrapping into rows and
@@ -4438,8 +4501,8 @@ const NativeApp = (() => {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
     z-index: 66; width: min(92vw, 360px); max-height: 62vh;
     display: flex; flex-direction: column;
-    background: rgba(251, 246, 241, 0.98); border: 1px solid var(--edge-2);
-    border-radius: 14px; box-shadow: var(--shadow);
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 12px 13px 10px; color: var(--text);
   }
   .pile-fan.hidden { display: none; }
@@ -4459,11 +4522,11 @@ const NativeApp = (() => {
   .pile-fan .pf-card:nth-child(4n+3) { transform: rotate(-1.6deg); }
   .pile-fan .pf-card:nth-child(4n)   { transform: rotate(3deg); }
   .pile-fan .pf-top { position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-    z-index: 2; padding: 1px 5px; border-radius: 999px; font-size: 8px; font-weight: 900;
-    letter-spacing: 0.5px; color: #fff; background: var(--accent-2); white-space: nowrap; }
-  /* Matching marker on the LAST fanned card (the pile's bottom) — same pill,
+    z-index: 2; padding: 1px 5px; border-radius: 0; font-size: 8px; font-weight: 900;
+    letter-spacing: 0.5px; color: var(--ink); background: var(--phosphor); white-space: nowrap; }
+  /* Matching marker on the LAST fanned card (the pile's bottom) — same chip,
      anchored under the card, muted so TOP stays the loud one. */
-  .pile-fan .pf-bottom { top: auto; bottom: -8px; background: #6f7a86; }
+  .pile-fan .pf-bottom { top: auto; bottom: -8px; background: var(--felt-deep); color: var(--card-face); }
   .pile-fan .pf-note { font-size: 10.5px; color: var(--muted); text-align: center; margin-top: 7px; }
   /* Static volatility indicator: a brief toast over the column at deal end saying
      the Static Pillar is Safe (green) or Destroyed (red), with a pop. A destroyed
@@ -4510,8 +4573,8 @@ const NativeApp = (() => {
     padding: 0 calc(var(--pile-size, 88px) * 0.05);
     display: inline-flex; align-items: center; justify-content: center;
     font-size: calc(var(--pile-size, 88px) * 0.16); font-weight: 900; line-height: 1;
-    color: #fff; background: #5663b6; border: 1.5px solid #fff; border-radius: 999px;
-    box-shadow: 0 1px 3px rgba(20,12,40,0.45);
+    color: var(--card-face); background: var(--ink); border: 1.5px solid var(--card-face); border-radius: 0;
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .pile-hint.hidden { display: none; }
   .pile.dead .pile-hint { display: none; }
@@ -4523,8 +4586,8 @@ const NativeApp = (() => {
   .board.arming .pile:not(.dead)::after {
     content: "";
     position: absolute; inset: 3px;
-    border: 2px dashed var(--accent);
-    border-radius: 22px;
+    border: 2px dashed var(--phosphor);
+    border-radius: 0;
     pointer-events: none;
     z-index: 3;
   }
@@ -4544,7 +4607,7 @@ const NativeApp = (() => {
   .deck-modal {
     position: fixed;
     inset: 0;
-    background: rgba(48, 36, 32, 0.7);
+    background: rgba(0, 0, 0, 0.7);
     /* NO backdrop-filter here, ever (PERFFIX2): a full-viewport blur must
        re-blur whatever changes behind/within it, and on-device (iPhone,
        72-card picker) it froze the main thread for 2.9-15 SECONDS with taps
@@ -4561,16 +4624,16 @@ const NativeApp = (() => {
   }
   .deck-modal.hidden { display: none; }
   .deck-modal-panel {
-    background: linear-gradient(180deg, #FBF6F1, #F1E8DE);
-    border: 1px solid var(--edge-2);
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
     border-bottom: none;
-    border-radius: 16px 16px 0 0;
+    border-radius: 0;
     width: min(100%, 460px);
     max-height: 80vh;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
-    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 -4px 0 0 var(--shadow);
   }
   .deck-modal-head {
     display: flex;
@@ -4582,31 +4645,31 @@ const NativeApp = (() => {
   }
   .deck-modal-close {
     position: relative;
-    background: var(--panel);
+    background: var(--felt-deep);
     color: var(--text);
-    border: none;
+    border: var(--px) solid var(--ink);
     width: 30px;
     height: 30px;
-    border-radius: 8px;
+    border-radius: 0;
     font-size: 14px;
     cursor: pointer;
   }
   /* Trash action for a bought sticker that must be placed-or-trashed (no defer).
      Reads as a destructive escape: muted until armed, then a clear warning red. */
   .sa-trash-btn {
-    background: var(--panel); color: var(--muted);
-    border: 1px solid var(--edge-2); border-radius: 8px;
+    background: var(--felt-deep); color: var(--muted);
+    border: var(--px) solid var(--ink); border-radius: 0;
     padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer;
     touch-action: manipulation;
   }
   .sa-trash-btn.hidden { display: none; }
   .sa-trash-btn:active { transform: scale(0.96); }
-  .sa-trash-btn.armed { background: #c0392b; color: #fff; border-color: #97271c; }
+  .sa-trash-btn.armed { background: var(--suit-red); color: var(--card-face); border-color: var(--ink); }
   /* PACK-KEEP WALK Skip: same chrome-button shell as Trash (header slot next to ✕);
      a plain neutral affordance — declining a kept card, not a destructive spend. */
   .sa-skip-btn {
-    background: var(--panel); color: var(--muted);
-    border: 1px solid var(--edge-2); border-radius: 8px;
+    background: var(--felt-deep); color: var(--muted);
+    border: var(--px) solid var(--ink); border-radius: 0;
     padding: 5px 12px; font-size: 12px; font-weight: 800; cursor: pointer;
     touch-action: manipulation;
   }
@@ -4625,10 +4688,10 @@ const NativeApp = (() => {
   .deck-modal-hist .ds-bar { height: 100%; }
   .deck-modal-hist .dh-legend { display: flex; align-items: center; justify-content: center; gap: 5px;
     font-size: 9px; font-weight: 700; color: var(--muted); margin-top: 5px; }
-  .deck-modal-hist .dh-k { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-left: 8px; }
+  .deck-modal-hist .dh-k { width: 9px; height: 9px; border-radius: 0; display: inline-block; margin-left: 8px; }
   .deck-modal-hist .dh-k:first-child { margin-left: 0; }
-  .deck-modal-hist .dh-k-rem { background: var(--accent-2); }
-  .deck-modal-hist .dh-k-all { background: rgba(74,52,44,0.30); }
+  .deck-modal-hist .dh-k-rem { background: var(--card-face); }
+  .deck-modal-hist .dh-k-all { background: var(--felt-deep); }
 
   /* Suit breakdown — remaining/total per suit, next to the rank histogram. */
   .deck-modal-suits {
@@ -4642,7 +4705,7 @@ const NativeApp = (() => {
   }
   .deck-modal-suits .dsuit {
     display: inline-flex; align-items: center; gap: 3px;
-    background: var(--panel); border-radius: 999px; padding: 3px 9px;
+    background: var(--felt-deep); border-radius: 0; padding: 3px 9px;
     font-weight: 800; color: var(--text);
   }
   .deck-modal-suits .dsuit.red { color: var(--card-red); }
@@ -4678,7 +4741,7 @@ const NativeApp = (() => {
   /* Post-deal placement screen (Section 3) — the pickers (z-80) open on top. */
   .pd-panel { background: linear-gradient(180deg, #FBF6F1, #F1E8DE); border: 1px solid var(--edge-2);
     border-radius: 16px; width: min(94vw, 420px); max-height: 84vh; overflow-y: auto;
-    padding: 18px 18px calc(16px + env(safe-area-inset-bottom)); box-shadow: var(--shadow); }
+    padding: 18px 18px calc(16px + env(safe-area-inset-bottom)); box-shadow: 4px 4px 0 0 var(--shadow); }
   .pd-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--accent-2); }
   .pd-sub { color: var(--muted); font-size: 12.5px; margin: 3px 0 12px; }
   .pd-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; text-align: left; }
@@ -4704,7 +4767,7 @@ const NativeApp = (() => {
      the full vinyl. */
   .sa-lite .dcs {
     background: var(--dcs-face, #6f7a66);
-    box-shadow: 0 2px 4px rgba(70, 44, 40, 0.35);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     transform: none;
   }
   .sa-lite .dcs-gloss { display: none; }
@@ -4826,9 +4889,9 @@ const NativeApp = (() => {
 
   /* Scrubber readout — updates as a finger drags across the rank rows. */
   .bd-scrub {
-    background: rgba(232, 139, 176, 0.10);
-    border: 1px solid rgba(232, 139, 176, 0.35);
-    border-radius: 10px;
+    background: var(--felt-deep);
+    border: 1px solid var(--ink);
+    border-radius: 0;
     padding: 7px 10px;
     margin-bottom: 10px;
     font-size: 13px;
@@ -4837,7 +4900,7 @@ const NativeApp = (() => {
   }
   .bd-scrub.hidden { display: none; }
   .bd-scrub .sc-hi { color: var(--good); font-weight: 800; }
-  .bd-scrub .sc-eq { color: var(--accent-2); font-weight: 800; }
+  .bd-scrub .sc-eq { color: var(--gold); font-weight: 800; }
   .bd-scrub .sc-lo { color: var(--bad); font-weight: 800; }
 
   /* The rows are a drag surface: vertical drags scrub (don't scroll the
@@ -4852,15 +4915,15 @@ const NativeApp = (() => {
     border-radius: 6px;
   }
   .bd-row.empty { opacity: 0.35; }
-  .bd-row.scrub-active { background: rgba(232, 139, 176, 0.18); outline: 1px solid rgba(232, 139, 176, 0.5); }
+  .bd-row.scrub-active { background: rgba(78, 240, 138, 0.14); outline: 1px solid rgba(78, 240, 138, 0.5); }
   .bd-rank { font-weight: 800; text-align: center; }
   .bd-bar {
     height: 8px;
-    background: rgba(74, 52, 44, 0.08);
-    border-radius: 5px;
+    background: var(--felt-deep);
+    border-radius: 0;
     overflow: hidden;
   }
-  .bd-fill { display: block; height: 100%; background: var(--accent-2); border-radius: 5px; }
+  .bd-fill { display: block; height: 100%; background: var(--card-face); border-radius: 0; }
   .bd-num {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -4877,12 +4940,12 @@ const NativeApp = (() => {
     transform: translateX(-50%);
     z-index: 61;
     pointer-events: none;
-    background: rgba(251, 246, 241, 0.96);
-    border: 1px solid var(--edge-2);
-    border-radius: 12px;
+    background: var(--felt-mid);
+    border: var(--px) solid var(--ink);
+    border-radius: 0;
     padding: 10px 12px;
     width: min(88vw, 360px);
-    box-shadow: var(--shadow);
+    box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .deck-quick.hidden { display: none; }
 
@@ -4892,8 +4955,8 @@ const NativeApp = (() => {
     position: fixed; left: 50%; top: 15%; transform: translateX(-50%);
     z-index: 64; pointer-events: none;
     width: min(92vw, 360px); max-height: 66vh; overflow: hidden;
-    background: rgba(251, 246, 241, 0.98); border: 1px solid var(--edge-2);
-    border-radius: 12px; box-shadow: var(--shadow);
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 11px 13px; font-size: 13px; color: var(--text);
   }
   .peek-info.hidden { display: none; }
@@ -4905,7 +4968,7 @@ const NativeApp = (() => {
   .card-info {
     position: fixed; inset: 0; z-index: 85;   /* above the deck/sticker-picker modals (z-80) for hold-help */
     display: flex; align-items: center; justify-content: center;
-    background: rgba(48,36,32,0.55);
+    background: rgba(0, 0, 0, 0.55);
     padding: 18px;
   }
   .card-info.hidden { display: none; }
@@ -4914,13 +4977,13 @@ const NativeApp = (() => {
   body:has(#collectionScreen:not(.hidden)) .card-info { z-index: 1500; }
   .card-info-panel {
     width: min(92vw, 360px); max-height: 76vh; overflow-y: auto; overscroll-behavior: contain;
-    background: rgba(251,246,241,0.99); border: 1px solid var(--edge-2);
-    border-radius: 12px; box-shadow: var(--shadow);
+    background: var(--felt-mid); border: var(--px) solid var(--ink);
+    border-radius: 0; box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 13px 14px; font-size: 13px; color: var(--text);
   }
 
   .peek-info .pk-head, .card-info-panel .pk-head { font-weight: 800; font-size: 14px; margin-bottom: 7px; color: var(--accent-2); }
-  .peek-info .pk-item, .card-info-panel .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(74,52,44,0.08); }
+  .peek-info .pk-item, .card-info-panel .pk-item { display: flex; gap: 9px; padding: 6px 0; border-top: 1px solid var(--felt-deep); }
   .peek-info .pk-item:first-of-type, .card-info-panel .pk-item:first-of-type { border-top: none; }
   .peek-info .pk-ic, .card-info-panel .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
   .peek-info .pk-name, .card-info-panel .pk-name { font-weight: 700; }
@@ -4932,8 +4995,8 @@ const NativeApp = (() => {
      this button re-enables pointer events for itself to stay tappable. */
   .peek-info .pk-unplace {
     pointer-events: auto; margin-top: 9px; width: 100%;
-    background: rgba(181,67,90,0.14); color: var(--bad);
-    border: 1px solid var(--danger); border-radius: 10px;
+    background: var(--felt-deep); color: var(--bad);
+    border: var(--px) solid var(--danger); border-radius: 0;
     padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .peek-info .pk-unplace:active { transform: scale(0.98); }
@@ -4941,16 +5004,16 @@ const NativeApp = (() => {
      space (the HUD chip's info popup), mirroring the pillar/base "remove" button. */
   .sp-unequip {
     margin-top: 9px; width: 100%;
-    background: rgba(181,67,90,0.14); color: var(--bad);
-    border: 1px solid var(--danger); border-radius: 10px;
+    background: var(--felt-deep); color: var(--bad);
+    border: var(--px) solid var(--danger); border-radius: 0;
     padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .sp-unequip:active { transform: scale(0.98); }
   /* "Peel off all stickers" — a destructive action (same danger styling). */
   .peek-info .pk-peel {
     pointer-events: auto; margin-top: 9px; width: 100%;
-    background: rgba(181,67,90,0.14); color: var(--bad);
-    border: 1px solid var(--danger); border-radius: 10px;
+    background: var(--felt-deep); color: var(--bad);
+    border: var(--px) solid var(--danger); border-radius: 0;
     padding: 8px 12px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .peek-info .pk-peel:active { transform: scale(0.98); }
@@ -5032,7 +5095,7 @@ const NativeApp = (() => {
     max-height: 80svh; max-height: 80vh;
     display: flex; flex-direction: column;
     border: 1px dashed var(--edge-2); border-radius: 14px;
-    background: rgba(251, 246, 241, 0.98); box-shadow: var(--shadow);
+    background: rgba(251, 246, 241, 0.98); box-shadow: 4px 4px 0 0 var(--shadow);
     font-size: 12px;
   }
   /* Internal scroll so debug content never needs the (locked) page to scroll. */
@@ -5165,11 +5228,13 @@ const NativeApp = (() => {
   #tissue {
     position: fixed; inset: 0;
     z-index: -1; pointer-events: none; overflow: hidden;
-    --vein: #3E7C62;   /* felt-visible deep sage veins (lifted with the felt) */
-    /* deep casino-green felt: lifted table centre, darker vignette edges */
+    --vein: #1e3a2c;   /* felt-mid veins — barely-there texture on the deep felt */
+    /* CRT CASINO: the felt tokens all collapse to deep felt, so this paints a
+       single flat plane; the two accent radials are felt-mid whispers. The
+       corner vignette now lives on #crtOverlay. */
     background:
-      radial-gradient(circle at 28% 22%, rgba(64, 150, 110, 0.12), transparent 46%),
-      radial-gradient(circle at 78% 72%, rgba(28, 96, 88, 0.12), transparent 48%),
+      radial-gradient(circle at 28% 22%, rgba(30, 58, 44, 0.5), transparent 46%),
+      radial-gradient(circle at 78% 72%, rgba(30, 58, 44, 0.5), transparent 48%),
       radial-gradient(ellipse at 50% 45%, var(--felt-2), var(--felt) 55%, var(--felt-3));
   }
   /* iOS long-press guard: the game's only real <img> elements (the HUD Same
@@ -5193,11 +5258,11 @@ const NativeApp = (() => {
     animation: hazeDrift 46s ease-in-out infinite alternate; }
   #tissue .blob { position: absolute; opacity: 0.22; }
   #tissue .b1 { width: 46vw; height: 46vw; left: 6%;  top: 12%;
-    background: radial-gradient(circle, #2E7C5C 0%, rgba(46,124,92,0) 68%); }
+    background: radial-gradient(circle, #1e3a2c 0%, rgba(30,58,44,0) 68%); }
   #tissue .b2 { width: 56vw; height: 56vw; left: 52%; top: 52%;
-    background: radial-gradient(circle, #1E6A63 0%, rgba(30,106,99,0) 68%); }
+    background: radial-gradient(circle, #1e3a2c 0%, rgba(30,58,44,0) 68%); }
   #tissue .b3 { width: 50vw; height: 50vw; left: 24%; top: 78%;
-    background: radial-gradient(circle, #35754A 0%, rgba(53,117,74,0) 68%); }
+    background: radial-gradient(circle, #1e3a2c 0%, rgba(30,58,44,0) 68%); }
   /* Perf: hold the slow background haze while the BOARD IS COVERED (opaque
      menus / the ~95%-opaque phase overlays hide it anyway) — no per-frame
      compositing of a full-screen layer behind screens where its drift can't
@@ -5325,7 +5390,7 @@ const NativeApp = (() => {
        top-right, ~34px each) so the phase + deck text never slides under them —
        the same clearance the play HUD uses, keeping the banner consistent. */
     padding: 5px 42px;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px; box-shadow: var(--shadow);
+    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px; box-shadow: 4px 4px 0 0 var(--shadow);
     font-family: var(--font-text); font-weight: 800;
   }
   .map-hdr .map-phase { font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase;
@@ -6316,7 +6381,7 @@ const NativeApp = (() => {
   .fd-panel {
     position: relative; width: min(86vw, 320px);
     background: var(--panel); border: 1px solid var(--edge-2); border-radius: 18px;
-    box-shadow: var(--shadow); padding: 18px 18px 20px; text-align: center;
+    box-shadow: 4px 4px 0 0 var(--shadow); padding: 18px 18px 20px; text-align: center;
   }
   .fd-close {
     position: absolute; top: 8px; right: 11px; border: none; background: none;
@@ -6536,6 +6601,27 @@ const NativeApp = (() => {
   body.native-app .store-overlay {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  /* ============================================================
+     CRT OVERLAY (§2) — the ONE full-viewport treatment layer.
+     A single fixed, pointer-inert, TOPMOST div (last element in <body>):
+     2px-period scanlines + a corner vignette, both STATIC background-images.
+     Perf-locked per the THERMAL convictions: no filter, no backdrop-filter,
+     no will-change, zero per-frame work — the layer never invalidates.
+     The only motion is .crt-flicker: a ONE-SHOT 240ms steps(4) opacity
+     keyframe fired from showOverlay() when a deal resolves won/lost.
+     ============================================================ */
+  #crtOverlay {
+    position: fixed; inset: 0;
+    z-index: 100001;             /* above everything, incl. the boot splash (100000) */
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.13) 0 1px, transparent 1px 2px),                    /* scanlines: 2px period */
+      radial-gradient(ellipse 140% 105% at 50% 45%, transparent 62%, rgba(0,0,0,0.28) 100%);           /* corner vignette */
+  }
+  @keyframes crt-flicker { 0% {opacity:1} 25% {opacity:0.72} 40% {opacity:1} 60% {opacity:0.85} 100% {opacity:1} }
+  #crtOverlay.crt-flicker { animation: crt-flicker 240ms steps(4) 1; }
+  @media (prefers-reduced-motion: reduce) { #crtOverlay.crt-flicker { animation: none; } }
 </style>
 </head>
 <body>
@@ -7458,7 +7544,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.29 · Full-viewport backdrop blurs purged game-wide (7 overlays)";
+const APP_VERSION = "v5.30 · CRT CASINO 1/6: felt, phosphor, pixel cards (board+rail)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7612,7 +7698,7 @@ function suitPath(s, scale) {
 const SLASH = '<path d="M5 19L19 5" stroke="var(--bad)" stroke-width="2.4" stroke-linecap="round"/>';
 const CUP = '<path d="M4.5 14a7.5 7.5 0 0 0 15 0" fill="none" stroke="currentColor" stroke-width="2"/>';
 const ENC = '<path d="M12 3v8" stroke="currentColor" stroke-width="2"/><path d="M8 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="16" width="14" height="3" rx="1.5"/>';
-const T = (s, x) => '<text x="' + (x || 12) + '" y="16.5" text-anchor="middle" font-size="12.5" font-weight="800" font-family="Chakra Petch, sans-serif" fill="currentColor">' + s + "</text>";
+const T = (s, x) => '<text x="' + (x || 12) + '" y="16.5" text-anchor="middle" font-size="12.5" font-weight="800" font-family="VT323, monospace" fill="currentColor">' + s + "</text>";
 const GLYPHS = {
   dot: '<circle cx="12" cy="12" r="4"/>',
   // Same-Power logos — unique per power, one consistent monoline style: every
@@ -17046,6 +17132,7 @@ const UIRenderer = (() => {
     front.className = "face front";
     front.innerHTML = `
       <div class="rank-top"><span class="r"></span><span class="s"></span></div>
+      <div class="rank-mid"></div>
       <div class="pip"></div>
       <div class="rank-bottom"><span class="r"></span><span class="s"></span></div>`;
 
@@ -17169,6 +17256,10 @@ const UIRenderer = (() => {
     const counts = {};
     for (const s of stickers) counts[s.type] = (counts[s.type] || 0) + 1;
     const n = (type) => counts[type] || 0;
+    // §5 wild face: a Wild Suit sticker turns the centre rank phosphor (CSS
+    // .front.wild) — presentation only, riding the same per-top-card pass.
+    const frontEl = pileEl.querySelector(".front");
+    if (frontEl) frontEl.classList.toggle("wild", n("wildSuit") > 0);
     const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
     // CURSED stickers (MYST2 — leech/leech2) wear the curse-violet face + the
     // corrupted-die-cut class everywhere a chip renders (stickerChip does the
@@ -17229,9 +17320,12 @@ const UIRenderer = (() => {
     // JOKER face reads GOLD everywhere (same palette as its mini-card / map
     // node face) instead of black stars on the plain white front.
     front.classList.toggle("joker", !!card.joker);
-    // (Matte cards: the old per-card --glow halo was removed — no setter needed.)
     pileEl.querySelectorAll(".rank-top .r, .rank-bottom .r")
       .forEach(n => n.textContent = card.label);
+    // §5 numeral-first: the oversized centre rank carries the read at every
+    // scale (the corner indices collapse to 0 on small cards, pure CSS).
+    const mid = pileEl.querySelector(".rank-mid");
+    if (mid) mid.textContent = card.label;
     const svg = suitGlyph(card.suit);
     pileEl.querySelectorAll(".rank-top .s, .rank-bottom .s")
       .forEach(n => n.innerHTML = svg);
@@ -22320,11 +22414,24 @@ const UIRenderer = (() => {
     return html;
   }
 
+  /* CRT flicker (§2): a ONE-SHOT 240ms steps(4) opacity dip on the scanline
+     overlay, fired ONLY where a deal resolves won/lost (the shared overlay's
+     win/lose presentations). Presentation-only — remove/reflow/re-add is the
+     standard restart idiom; the one offsetWidth read is a tap-time event, not
+     a per-frame path. */
+  function crtFlicker() {
+    const glass = document.getElementById("crtOverlay");
+    if (!glass) return;
+    glass.classList.remove("crt-flicker");
+    void glass.offsetWidth;
+    glass.classList.add("crt-flicker");
+  }
   function showOverlay(opts) {
     stopLossFossils();   // clear any prior loss animation when (re)showing the overlay
     clearAnimQueue();    // drop any pending travel steps when a phase overlay takes over
     el.overlay.classList.remove("hidden", "win", "lose", "deal-cleared", "pinky-home");
     updateBoardMotion();   // board is now covered → pause its perpetual card animations
+    if (opts.kind === "win" || opts.kind === "lose") crtFlicker();   // deal resolved → one CRT blink
     // The start/win/lose overlay carries its own progress line + actions, so
     // hide the floating Stage·Run badge and all global nav buttons while it's up.
     if (el.stageRun) el.stageRun.classList.add("off");
@@ -25516,6 +25623,7 @@ const UIRenderer = (() => {
     const g = suitGlyph(card.suit), lbl = miniRankLabel(card);
     return '<span class="node-card"><span class="front' + (s.red ? " red" : "") + '">' +
         '<span class="rank-top"><span class="r">' + lbl + '</span><span class="s">' + g + '</span></span>' +
+        '<span class="rank-mid">' + lbl + '</span>' +
         '<span class="pip">' + g + '</span>' +
         '<span class="rank-bottom"><span class="r">' + lbl + '</span><span class="s">' + g + '</span></span>' +
       '</span></span>';
@@ -30895,5 +31003,8 @@ NativeApp.boot(() => {
   finally { dismissBootSplash(); }
 });
 </script>
+<!-- CRT overlay (§2): the one static scanline+vignette layer, topmost and
+     pointer-inert — LAST in <body> so nothing ever paints above the glass. -->
+<div id="crtOverlay" aria-hidden="true"></div>
 </body>
 </html>
