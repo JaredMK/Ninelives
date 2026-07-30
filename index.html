@@ -2713,21 +2713,23 @@ const NativeApp = (() => {
   /* A quick pop when something lands in the inventory (e.g. Replica's copy). */
   .nav-btn.nav-pop { animation: navPop 0.28s ease; }
   @keyframes navPop { 0%,100% { transform: scale(1); } 45% { transform: scale(1.28); } }
-  /* Map → Store: a back-arrow pill anchored to the LEFT (reads as "back to the
-     store"), on the map only. */
+  /* Map → Store: a back-arrow pixel button anchored to the LEFT (reads as
+     "back to the store"), on the map only. §4 recipe: felt-mid face, ink
+     border, hard shadow; pressing sinks it one pixel step. */
   .map-store-btn {
     position: fixed; z-index: 55;
     bottom: calc(env(safe-area-inset-bottom) + 12px);
     left: calc(env(safe-area-inset-left) + 10px);
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--accent); border-radius: 999px;
-    padding: 9px 16px 9px 13px; font-family: var(--font-text); font-size: 13px; font-weight: 800;
+    background: var(--felt-mid); color: var(--text);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    padding: 9px 16px 9px 13px; font-family: var(--font-text); font-size: 14px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
     box-shadow: 4px 4px 0 0 var(--shadow); cursor: pointer; touch-action: manipulation;
   }
   .map-store-btn .ico { font-size: 16px; }
   .map-store-btn.hidden { display: none; }
-  .map-store-btn:active { transform: scale(0.96); }
+  .map-store-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   /* MAP KEY ("?") — a MAP control, MAP ONLY. It sits in the map area's
      top-right corner, dropped BELOW the .hud bar so it reads as map chrome and
      can't be mistaken for the coins/score on the menu-bar line. The map overlay
@@ -2740,6 +2742,7 @@ const NativeApp = (() => {
   .map-key-btn {
     right: calc(env(safe-area-inset-right) + 4px);
     top: calc(var(--shell-h, 46px) + 6px);
+    border-radius: 0;   /* map-only chrome squares off now (§10) */
     display: none; }
   body.on-map .map-key-btn { display: inline-flex; }
   .map-key-btn .ico { font-size: 15px; font-weight: 900; }
@@ -2753,9 +2756,9 @@ const NativeApp = (() => {
     right: calc(env(safe-area-inset-right) + 6px);
     width: min(252px, calc(100vw - 20px));
     max-height: calc(100dvh - var(--shell-h, 46px) - 56px); overflow-y: auto;
-    background: var(--panel); color: var(--text);
-    border: 1px solid var(--edge-2); border-radius: 14px;
-    box-shadow: 0 10px 28px rgba(30, 16, 24, 0.42);
+    background: var(--felt-mid); color: var(--text);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 4px 4px 0 0 var(--shadow);
     padding: 8px 12px 10px;
   }
   /* Off the map the panel can't linger either (belt to the JS close). */
@@ -5304,44 +5307,35 @@ const NativeApp = (() => {
        longest-lived overlay, with an always-running pulse — paid it constantly
        (measured ~1/3 of the map's per-frame cost). THERMAL5 removed the blur
        from the base .overlay itself; this note stays as the receipt. */
-    /* OPAQUE base (same felt hue, alpha 1): the generic .overlay is 93%
+    /* OPAQUE base (deep felt, alpha 1): the generic .overlay is 93%
        translucent, which let the frozen board/piles ghost through behind the
        map. The map paints its own full atmosphere, so nothing should bleed. */
-    background: rgb(22, 58, 44);
+    background: var(--felt-deep);
   }
 
-  /* Depth atmosphere behind the climb: warm + settled at the BOTTOM (the path
-     you've conquered), cool + faint toward the TOP (the unknown summit). Fixed,
-     so the climb scrolls over it — atmospheric depth for free. */
+  /* Depth plane behind the climb (CRT CASINO: ONE flat felt well — the old
+     amber/cream/suit-wash radials are gone; the corner vignette lives on
+     #crtOverlay). Kept as the #mapBg positioning parent. */
   .map-depth {
     position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-    /* Warm glowing cream to match the deal screen (#tissue): a soft amber bloom
-       at the foot, a gentle cream centre, and a faint CURRENT-SUIT wash up top. */
-    background:
-      radial-gradient(120% 62% at 50% 112%, rgba(224,151,60,0.18), rgba(224,151,60,0) 60%),
-      radial-gradient(115% 66% at 50% 6%, var(--suit-wash, rgba(205,130,150,0.10)), transparent 58%),
-      radial-gradient(95% 60% at 50% 48%, rgba(255,244,226,0.55), rgba(255,244,226,0) 70%);
   }
-  /* PARALLAX BACKGROUND (map): the lost-paths tangle + felt grain + dot field
-     share ONE slow plane (0.15× scroll). LAYER-DIET (THERMAL5): the dot field
-     used to be a SECOND full-height plane (.map-parallax, 0.32×) — another
-     ~17MB standing texture feeding the purge/re-upload stalls. Merged into
-     this one layer; the two-speed depth effect is surrendered (imperceptible
-     in play). Every texture repeats inside a common 480px period (tangle 480,
-     grain 160, dots 80/120 — nudged from 76/119 so they tile the wrap): the
-     layer bleeds exactly one period below the viewport and the JS offset
-     WRAPS at 480, keeping the translate tiny, seamless, and compositor-only
-     — one layer, no per-frame layout reads, no repaints. The dot alphas bake
-     in the old plane's 0.7 opacity (0.13→0.09, 0.11→0.08). */
+  /* PARALLAX BACKGROUND (map): ONE slow plane (0.15× scroll) — LAYER-DIET
+     (THERMAL5) merged the old second plane; that stands. CRT CASINO retile:
+     the lost-paths tangle + feTurbulence grain + gradient dot fields are
+     replaced by two BAKED pixel tiles (§10 — no gradients-as-texture, no
+     runtime filters): a 2×2 felt-mid⊕transparent dither (the felt nap, 4px)
+     and a 96px sparse ink-speck tile (what the parallax visibly moves).
+     Both periods divide the 480px JS wrap (480 = 120×4 = 5×96), so the
+     translate stays tiny, seamless, and compositor-only — one layer, no
+     per-frame layout reads, no repaints. */
   .map-bg {
     position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 480px);
     transform: translateY(var(--parbg, 0px));
     will-change: transform; pointer-events: none;
+    image-rendering: pixelated;
     background:
-      radial-gradient(circle, rgba(199,126,31,0.09) 1.1px, transparent 1.6px) 10px 0 / 80px 80px repeat,
-      radial-gradient(circle, rgba(200,74,120,0.08) 1px, transparent 1.5px) 48px 30px / 120px 120px repeat,
-      var(--lost-paths) 0 0 / 480px repeat,
-      var(--felt-grain) 0 0 / 160px repeat;
+      url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAAfElEQVR42u3XgQ3AIAgAQSYg7L+sxCEkJN4lHaC+FRsBAMOq8tzHSggA4AhlVwCFfWIAjlAEAAAA12IBAMCQRAA7SAAAAHDNFQAADEUerpMA1gkAANdBAbyAHQQAGPIIAAC4RAgAAAAA+DUXAGwgAQDAkEQA8EkjAAD8oAEtXFSprdRVpQAAAABJRU5ErkJggg==') 0 0 / 96px 96px repeat,
+      url('data:image/gif;base64,R0lGODlhAgACAIABAB46LBQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=') 0 0 / 4px 4px repeat;
   }
   @media (prefers-reduced-motion: reduce) { .map-bg { transform: none; } }
   /* The generic overlay tangle (.overlay::before) is replaced on the MAP by the
@@ -5401,42 +5395,43 @@ const NativeApp = (() => {
   .map-hdr .map-deck b { font-size: 15px; color: var(--accent-2); margin: 0 1px; }
   @keyframes deckGain { 0% { transform: scale(1); } 35% { transform: scale(1.2); color: var(--amber); } 100% { transform: scale(1); } }
   .map-hdr .map-deck.gain b { display: inline-block; animation: deckGain 0.5s ease; }
-  /* Whole-map SUIT TINT: header colour + a faint suit wash agree with the deal. */
-  .overlay.map.tint-d { --suit-col: #c8506e; --suit-wash: rgba(200,80,110,0.12); }
-  .overlay.map.tint-c { --suit-col: #5a6b86; --suit-wash: rgba(90,107,134,0.13); }
-  .overlay.map.tint-s { --suit-col: #3c4864; --suit-wash: rgba(60,72,100,0.15); }
+  /* (The old whole-map suit-tint rules are retired with the depth-plane washes:
+     JS still toggles .tint-d/-c/-s but nothing reads --suit-col/--suit-wash on
+     the flat felt map — the phase hand-off is carried by the band labels.) */
 
   .phase-map { position: relative; margin: 8px auto 0; }
   .phase-map .map-edges { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; }
-  /* TRAIL = the deal screen's rose SYNAPSE web: dusty-rose curves (--net) with a
-     small signal dot (--net-dot) on each, replacing the old neutral grey lines. */
-  .map-edge { fill: none; stroke: var(--net); stroke-width: 3; stroke-linecap: round; opacity: 0.5; }
-  /* TRAVELED edges (both endpoints cleared) are the route the player took — make
-     them the BOLDEST line on the map: clearly THICKER and BRIGHTER than the
-     untraveled rest, in a luminous rose with a soft glow so the path up the map
-     reads at a glance. (Untraveled base + current-node `active` edges unchanged.) */
-  .map-edge.done { stroke: var(--net-trail, #F79ABC); stroke-width: 6; opacity: 1;
-    filter: drop-shadow(0 0 3px rgba(247,154,188,0.85)); }
-  .map-edge.active { stroke-width: 4; opacity: 0.95; }
-  .map-dot { fill: var(--net-dot); opacity: 0.5; }
-  .map-dot.active { opacity: 0.95; }
-  .map-dot.done { fill: var(--net-trail, #F79ABC); opacity: 1; }
+  /* TRAIL (§5 web lines): DASHED PIXEL EDGES — butt caps, 8px dash / 6px gap,
+     low-contrast felt tone (--net = felt-mid) so the untraveled web recedes
+     into the table. A 4px pixel "signal dot" square sits on each curve. */
+  .map-edge { fill: none; stroke: var(--net); stroke-width: 4; stroke-linecap: butt; stroke-dasharray: 8 6; opacity: 1; }
+  /* Edges leaving the CURRENT node: cream dashes — readable next-move hints
+     (declared BEFORE .done so a travelled edge keeps its phosphor). */
+  .map-edge.active { stroke: var(--card-face); opacity: 0.55; }
+  /* TRAVELED edges (both endpoints cleared) are the route the player took —
+     the LIT PATH: phosphor dashes at full strength, the map's one highlight
+     (§5 .webline.lit — no glow filter: SVG strokes never blur, §10). */
+  .map-edge.done { stroke: var(--phosphor); stroke-width: 4; opacity: 1; }
+  .map-dot { fill: var(--net); opacity: 1; }
+  .map-dot.active { fill: var(--card-face); opacity: 0.7; }
+  .map-dot.done { fill: var(--phosphor); opacity: 1; }
 
-  /* Continuous run-map: per-phase tint BANDS stacked up the climb (♦ foot →
-     ♠ summit), each labelled where its suit takes over. Low alpha keeps every
-     node, edge and label fully legible. */
+  /* Continuous run-map: per-phase BANDS stacked up the climb (♦ foot →
+     ♠ summit), each labelled where its suit takes over. CRT CASINO: flat
+     felt-mid lifts (alpha steps up the climb — palette-only, no gradients);
+     labels carry the phase identity in suit colours. */
   .phase-map.run-map .pm-band { position: absolute; left: 0; right: 0; z-index: 0; pointer-events: none; }
-  .pm-band.p-d { background: linear-gradient(180deg, rgba(200,80,110,0.10), rgba(200,80,110,0.05)); }
-  .pm-band.p-c { background: linear-gradient(180deg, rgba(90,107,134,0.12), rgba(90,107,134,0.05)); }
-  .pm-band.p-s { background: linear-gradient(180deg, rgba(60,72,100,0.16), rgba(60,72,100,0.06)); }
+  .pm-band.p-d { background: rgba(30, 58, 44, 0.14); }
+  .pm-band.p-c { background: rgba(30, 58, 44, 0.24); }
+  .pm-band.p-s { background: rgba(30, 58, 44, 0.34); }
   .pm-band-label {
     position: absolute; left: 10px; z-index: 1; pointer-events: none;
-    font-family: var(--font-text); font-weight: 900; font-size: 11px; letter-spacing: 0.08em;
-    text-transform: uppercase; opacity: 0.6;
+    font-family: var(--font-text); font-weight: 900; font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase; opacity: 0.8;
   }
-  .pm-band-label.p-d { color: #c8506e; }
-  .pm-band-label.p-c { color: #5a6b86; }
-  .pm-band-label.p-s { color: #3c4864; }
+  .pm-band-label.p-d { color: var(--suit-red); }
+  .pm-band-label.p-c { color: var(--card-face); }
+  .pm-band-label.p-s { color: var(--gold); }
 
   /* NODES — transparent click targets sized to their content (real cards, mini
      clusters, pack stacks, shop tiles), so each node carries the deal screen's
@@ -5453,95 +5448,100 @@ const NativeApp = (() => {
     position: absolute; transform: translate(-50%, -50%); z-index: 6;
     pointer-events: none; white-space: nowrap;
     font-family: var(--font-text); font-size: 10px; font-weight: 700; line-height: 1;
-    letter-spacing: 0.04em; color: #fff;
-    background: rgba(18, 14, 28, 0.85); border: 1px solid rgba(255, 255, 255, 0.28);
-    padding: 2px 4px; border-radius: 5px;
+    letter-spacing: 0.04em; color: var(--card-face);
+    background: var(--ink); border: 1px solid var(--card-face);
+    padding: 2px 4px; border-radius: 0;
   }
-  /* Amber pile-count chip (deal/boss) — the deal screen's limiting-pile badge. */
+  /* Gold coin-reward plaque (deal/boss) — square pixel chip: gold face, ink
+     border + numerals, hard 2px shadow (the half-scale §10 offset). */
   .pm-node .mn-piles {
     position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
-    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 900; line-height: 1; color: #1c1206;
-    background: var(--amber); border: 1.5px solid #e6a445;
-    box-shadow: 0 2px 6px rgba(74,50,40,0.28); z-index: 4;
+    font-size: 12px; font-weight: 900; line-height: 1; color: var(--ink);
+    background: var(--gold); border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow); z-index: 4;
   }
   /* COIN REWARD chip (ECON1): the deal's flat payout — coin icon + amount on
-     the amber pill (deals AND bosses). Higher number = harder deal. */
+     the gold plaque (deals AND bosses). Higher number = harder deal. */
   .pm-node .mn-piles.mn-reward { gap: 2.5px; padding: 0 6px; }
   .pm-node .mn-reward .coin-ico { font-size: 10px; }
-  /* BOSS full-deck marker: a distinct dark pill (never a difficulty pip row) so
-     a boss reads at a glance as "the whole deck, always". */
+  /* BOSS full-deck marker: a distinct danger pill (never a difficulty pip row)
+     so a boss reads at a glance as "the whole deck, always". */
   .pm-node .mn-piles.mn-full { font-size: 8.5px; font-weight: 900; letter-spacing: 0.6px;
-    color: #ffe9c2; background: linear-gradient(180deg, #7a2d20, #531a12);
-    border-color: #c77e1f; padding: 0 6px; height: 16px; }
+    color: var(--card-face); background: var(--suit-red);
+    border-color: var(--ink); padding: 0 6px; height: 16px; }
 
-  /* PICKUP — a real white board card (reuses .rank-top/.pip + suitGlyph + card vars). */
+  /* PICKUP — a real board card (reuses .rank-top/.pip + suitGlyph + card vars):
+     cream face, ink border, hard pixel shadow — the §5 card at node scale. */
   .node-card { position: relative; display: block; width: 42px; height: 56px;
-    --pile-size: 46px; --ps: calc(var(--pile-size) * 0.9);
-    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+    --pile-size: 46px; --ps: calc(var(--pile-size) * 0.9); }
   .node-card .front {
-    position: absolute; inset: 0; border-radius: 7px; overflow: hidden;
+    position: absolute; inset: 0; border-radius: 0; overflow: hidden;
     background: var(--card-face); color: var(--card-ink);
-    border: 1px solid var(--card-border); display: flex; flex-direction: column;
+    border: var(--px) solid var(--ink); display: flex; flex-direction: column;
     justify-content: space-between; padding: calc(var(--ps) * 0.09);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .node-card .front.red { color: var(--card-red); }
   .node-card .pip { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
     font-size: calc(var(--ps) * 0.30); line-height: 1; opacity: 0.82; }
   .node-card .s .suit-svg, .node-card .pip .suit-svg { width: 1em; height: 1em; display: block; }
-  /* PICKUP specials — Joker (gold) / Blank (stitched grey), the same palette as
-     the pack-reveal mini cards so the special reads identically everywhere. */
+  /* PICKUP specials — Joker / Blank wear the pack-reveal mini-card palette
+     (mc-joker gold-on-deep-felt, mc-blank dimmed felt-mid) so the special
+     reads identically everywhere. */
   .node-card .front.nc-special { align-items: center; justify-content: center; gap: 2px; }
   .node-card .nc-special .ncs-sym { font-size: 20px; line-height: 1; font-weight: 800; }
   .node-card .nc-special .ncs-lab { font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
-  .node-card .front.nc-joker { background: linear-gradient(160deg, #fff3c9, #ffd97a); color: #7a5300;
-    border-color: #e6b74a; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 8px rgba(230,183,74,0.5); }
-  .node-card .front.nc-blank { background: repeating-linear-gradient(135deg, #efeaf2, #efeaf2 5px, #e2dbe8 5px, #e2dbe8 10px);
-    color: #6a6076; border-color: #ccc2d6; }
+  .node-card .front.nc-joker { background: var(--felt-deep); color: var(--gold);
+    border-color: var(--gold); }
+  .node-card .front.nc-blank { background: var(--felt-mid);
+    color: rgba(236, 228, 207, 0.5); border-color: var(--ink); }
 
   /* DEAL / BOSS — a tilted mini CLUSTER of board-cards ("a deal"). Sized for
      the 3-lane grid (~115px lane pitch on a 348px map). */
   /* DEAL (and BOSS = .big) — a SYNAPSE WEB: four nodes linked to a central hub,
-     with a jagged CRACK/burst at the centre (battle/danger). Rose links/nodes,
-     dark crack with a light rose edge — the game's rose/dark palette. */
-  .mn-synapse { position: relative; display: block; width: 52px; height: 46px;
-    filter: drop-shadow(0 3px 6px rgba(120,45,70,0.28)); }
+     with a jagged CRACK/burst at the centre (battle/danger). CRT CASINO:
+     cream constellation links/nodes on the felt, suit-red crack with an ink
+     edge — danger in the locked palette. No per-node filter (paint diet). */
+  .mn-synapse { position: relative; display: block; width: 52px; height: 46px; }
   .mn-synapse svg { width: 100%; height: 100%; display: block; }
-  .mn-synapse .syn-links path { stroke: #b23a5c; stroke-width: 2; fill: none; }
+  .mn-synapse .syn-links path { stroke: var(--card-face); stroke-width: 2; fill: none; }
   .mn-synapse .syn-links .syn-faint { stroke-opacity: 0.35; stroke-width: 1.4; }
-  .mn-synapse .syn-nodes circle { fill: #b23a5c; }
-  .mn-synapse .syn-crack { fill: #3b2433; stroke: #e0738f; stroke-width: 1.2; stroke-linejoin: bevel; }
+  .mn-synapse .syn-nodes circle { fill: var(--card-face); }
+  .mn-synapse .syn-crack { fill: var(--suit-red); stroke: var(--ink); stroke-width: 1.2; stroke-linejoin: bevel; }
   .mn-synapse.big { width: 72px; height: 62px; }
-  /* Boss = climactic: the same warm glow ring behind the larger web. */
-  .t-boss .mn-synapse.big::before { content: ""; position: absolute; inset: -12px; z-index: -1;
-    border-radius: 50%; background: radial-gradient(circle, rgba(199,126,31,0.40), rgba(199,126,31,0) 70%); }
+  /* Boss = climactic: a GOLD PIXEL CROWN over the larger web (the old warm
+     radial glow ring is retired — glow is phosphor-only, §10). Static baked
+     SVG tile, stepped path on the pixel grid. */
+  .t-boss .mn-synapse.big::before { content: ""; position: absolute; left: 50%; top: -9px;
+    width: 22px; height: 15px; margin-left: -11px; z-index: 1; border-radius: 0;
+    image-rendering: pixelated;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 11'%3E%3Cpath fill='%23d9a441' d='M0 11 V3 H2 V4 H3 V5 H5 V4 H6 V2 H7 V1 H9 V2 H10 V4 H11 V5 H13 V4 H14 V3 H16 V11 Z'/%3E%3C/svg%3E") center / contain no-repeat; }
 
-  /* PACK (2+) — stacked cards in the ACTIVE deck character's colour (the cards
-     join that character's deck, so they wear its skin) + a "+N" count badge.
-     Pinky's pink is the default; the map overlay carries an mdeck-<id> class
-     that recolours the stack for Mamma (rose), Mr. Smith (green), Lammy
-     (violet) — each pulled from the character's own body gradient. */
-  .mn-pack { position: relative; display: block; width: 42px; height: 50px;
-    filter: drop-shadow(0 4px 9px rgba(120,45,70,0.30)); }
+  /* PACK (2+) — stacked card BACKS in the ACTIVE deck character's colour (the
+     cards join that character's deck, so they wear its skin) + a "+N" count
+     badge. CRT CASINO: each skin is an OPTICAL DITHER of two palette colours
+     (§1 — never a flat intermediate): Pinky/default pink = red⊕cream (the §5
+     card back), Mamma rose = red⊕gold, Mr. Smith brass = gold⊕deep-felt,
+     Lammy grey = ink⊕cream. Ink borders, one hard shadow on the front card. */
+  .mn-pack { position: relative; display: block; width: 42px; height: 50px; }
   .mn-pack .mpk-card { position: absolute; top: 50%; left: 50%; width: 30px; height: 40px;
-    border-radius: 5px; border: 1px solid rgba(255,255,255,0.40);
-    background: linear-gradient(155deg, #e0738f, #b23a5c); }   /* --dc-1 / --dc-2 */
-  .mdeck-mamma .mn-pack .mpk-card { background: linear-gradient(155deg, #e997b3, #c25f83); }
-  .mdeck-mamma .mn-pack .mpk-badge { background: #c25f83; border-color: #a24063; }
-  .mdeck-smith .mn-pack .mpk-card { background: linear-gradient(155deg, #96a687, #5f6f52); }
-  .mdeck-smith .mn-pack .mpk-badge { background: #5f6f52; border-color: #4a5840; }
-  .mdeck-lammy .mn-pack .mpk-card { background: linear-gradient(155deg, #a494b4, #6c5c82); }
-  .mdeck-lammy .mn-pack .mpk-badge { background: #6c5c82; border-color: #574a6a; }
+    border-radius: 0; border: var(--px) solid var(--ink);
+    background: var(--card-face) url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated; }
+  .mdeck-mamma .mn-pack .mpk-card { background: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRdmkQSH5BAAKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
+  .mdeck-smith .mn-pack .mpk-card { background: var(--felt-deep) url('data:image/gif;base64,R0lGODlhAgACAIABANmkQRQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
+  .mdeck-lammy .mn-pack .mpk-card { background: url('data:image/gif;base64,R0lGODlhAgACAIABABAQDuzkzyH5BAAKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; }
   .mn-pack .mpk-card.a { transform: translate(-50%,-50%) rotate(-8deg) translate(-4px,2px); }
   .mn-pack .mpk-card.b { transform: translate(-50%,-50%) rotate(0deg); z-index: 1;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
+    box-shadow: 2px 2px 0 0 var(--shadow); }
   .mn-pack .mpk-card.c { transform: translate(-50%,-50%) rotate(8deg) translate(4px,-2px); }
+  /* "+N" loot badge = the same gold plaque idiom as the deal reward chip. */
   .mn-pack .mpk-badge { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
-    z-index: 4; padding: 1px 6px; border-radius: 999px; white-space: nowrap;
-    font-size: 11px; font-weight: 900; color: #fff; background: #b23a5c;
-    border: 1px solid #93304c; box-shadow: 0 2px 6px rgba(120,45,70,0.3); }
+    z-index: 4; padding: 1px 6px; border-radius: 0; white-space: nowrap;
+    font-size: 11px; font-weight: 900; color: var(--ink); background: var(--gold);
+    border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); }
   .mn-pack .mpk-badge i { font-style: normal; }
 
   /* PACK2 — REVEALED +2 pack: both committed card faces, slightly fanned like a
@@ -5551,50 +5551,50 @@ const NativeApp = (() => {
      each is scaled a touch so the pair reads on the 390px map without
      widening the node. The pair shares ONE drop-shadow (per-face shadows
      double up in the overlap). */
-  .mn-pack2 { position: relative; display: block; width: 52px; height: 58px;
-    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+  .mn-pack2 { position: relative; display: block; width: 52px; height: 58px; }
   .mn-pack2 .node-card { position: absolute; top: 50%; left: 50%; filter: none; }
   .mn-pack2 .node-card:first-child { transform: translate(-50%,-50%) scale(0.8) rotate(-9deg) translate(-12px, 1px); }
   .mn-pack2 .node-card:last-child { transform: translate(-50%,-50%) scale(0.8) rotate(9deg) translate(12px, 1px); z-index: 1; }
 
   /* PASS point — a corridor slot freed by the pack-chain merge: a minimal
-     trail dot the marker glides past. Never interactive. */
+     pixel waypoint the marker glides past. Never interactive. */
   .pm-node.t-pass { pointer-events: none; }
-  .mn-pass { display: block; width: 11px; height: 11px; border-radius: 50%;
-    background: rgba(178, 58, 92, 0.4);
-    box-shadow: 0 0 0 3px rgba(178, 58, 92, 0.14); }
-  .pm-node.t-pass.s-done .mn-pass { background: rgba(178, 58, 92, 0.24); box-shadow: none; }
+  .mn-pass { display: block; width: 10px; height: 10px; border-radius: 0;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); }
+  .pm-node.t-pass.s-done .mn-pass { background: var(--felt-deep); }
 
   /* MYSTERY (?) node — first-class (MYST3): the "?" IS the node's type, a
-     face-down violet card drawn in every state. One uniform size regardless
-     of the seeded outcome underneath, so the silhouette never tips the gamble. */
+     face-down INK card (a distinct silhouette: the only black-faced back on
+     the map) with a gold "?" and a dashed cream inner frame, drawn in every
+     state. One uniform size regardless of the seeded outcome underneath, so
+     the silhouette never tips the gamble. */
   .mn-myst { position: relative; display: flex; align-items: center; justify-content: center;
-    width: 38px; height: 48px; border-radius: 8px;
-    background: linear-gradient(160deg, #5a4468, #3a2a46);
-    border: 1px solid #7b668e; color: #efe3fb;
+    width: 38px; height: 48px; border-radius: 0;
+    background: var(--ink);
+    border: var(--px) solid var(--gold); color: var(--gold);
     font-size: 23px; font-weight: 900; line-height: 1;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 9px rgba(60,40,80,0.35); }
-  .mn-myst::after { content: ""; position: absolute; inset: 3px; border-radius: 5px;
-    border: 1px dashed rgba(239,227,251,0.35); }
-  /* REVEALED-BUT-OPEN (arrived, the outcome modal is up): the frame lights —
-     the dashed inner border turns solid and the face glows while the gamble
-     resolves. Static styling only (nothing to motion-gate). */
-  .mn-myst.open { border-color: #b79ce0; color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 0 12px rgba(122,79,208,0.55); }
-  .mn-myst.open::after { border-style: solid; border-color: rgba(239,227,251,0.55); }
-  /* CLEARED: the gamble is spent — a muted violet husk under the shared
+    box-shadow: 2px 2px 0 0 var(--shadow); }
+  .mn-myst::after { content: ""; position: absolute; inset: 3px; border-radius: 0;
+    border: 1px dashed rgba(236, 228, 207, 0.4); }
+  /* REVEALED-BUT-OPEN (arrived, the outcome modal is up): the frame lights
+     PHOSPHOR — the dashed inner border turns solid and the "?" carries the
+     one sanctioned glow while the gamble resolves. Static styling only. */
+  .mn-myst.open { border-color: var(--phosphor); color: var(--phosphor); text-shadow: var(--glow);
+    box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); }
+  .mn-myst.open::after { border-style: solid; border-color: rgba(78, 240, 138, 0.55); }
+  /* CLEARED: the gamble is spent — a muted felt husk under the shared
      s-done fade (opacity/grayscale + the ✓ chip every cleared node gets). */
-  .pm-node.t-myst.s-done .mn-myst { background: linear-gradient(160deg, #463a50, #302838);
-    border-color: #5d5165; color: #9d8fae; box-shadow: none; }
-  .pm-node.t-myst.s-done .mn-myst::after { border-color: rgba(157,143,174,0.22); }
+  .pm-node.t-myst.s-done .mn-myst { background: var(--felt-mid);
+    border-color: var(--ink); color: var(--muted); box-shadow: none; text-shadow: none; }
+  .pm-node.t-myst.s-done .mn-myst::after { border-color: rgba(236, 228, 207, 0.22); }
   /* DEBUG PEEK (MYST2): the seeded outcome label, a tiny violet tag under the
-     "?" — hidden unless body.debug-access (gated next to the debug rule). */
+     "?" — hidden unless body.debug-access (gated next to the debug rule).
+     Keeps the pinned CURSE_VIOLET family (debug chrome, not game palette). */
   .pm-myst-out {
     position: absolute; left: 50%; top: calc(100% + 3px); transform: translateX(-50%);
-    padding: 1px 5px; border-radius: 6px; z-index: 7;
+    padding: 1px 5px; border-radius: 0; z-index: 7;
     background: #7a4fd0; color: #fff; font-size: 8px; font-weight: 800; line-height: 1.3;
     white-space: nowrap; pointer-events: none;
-    box-shadow: 0 1px 3px rgba(42, 20, 80, 0.5);
   }
   /* Reveal pop: the just-arrived node flips in from small + tilted, overshoots,
      and settles on the s-here scale (1.1) so there's no snap at the end. */
@@ -5606,65 +5606,71 @@ const NativeApp = (() => {
   }
 
   /* STORE — a little SHOP STALL: striped triangular awning over a rectangular
-     stall body with a doorway, in the rose/dark palette. */
-  .mn-shop { position: relative; display: block; width: 44px; height: 40px;
-    filter: drop-shadow(0 4px 9px rgba(74,50,40,0.22)); }
+     stall body with a doorway. CRT CASINO: cream body, ink door/outline,
+     suit-red⊕cream casino awning. No per-node filter (paint diet). */
+  .mn-shop { position: relative; display: block; width: 44px; height: 40px; }
   .mn-shop svg { width: 100%; height: 100%; display: block; }
-  .mn-shop .st-body { fill: #f6ecdd; stroke: #3b2433; stroke-width: 1.5; }
-  .mn-shop .st-door { fill: #3b2433; }
-  .mn-shop .st-awn-a { fill: #b23a5c; }   /* awning stripes — deep rose… */
-  .mn-shop .st-awn-b { fill: #e0738f; }   /* …alternating with light rose */
+  .mn-shop .st-body { fill: var(--card-face); stroke: var(--ink); stroke-width: 2; }
+  .mn-shop .st-door { fill: var(--ink); }
+  .mn-shop .st-awn-a { fill: var(--suit-red); }   /* awning stripes — suit red… */
+  .mn-shop .st-awn-b { fill: var(--card-face); }  /* …alternating with cream */
 
   /* HOME / origin node — a little base camp where the run begins. Non-interactive;
-     visually distinct from every action node (a warm hut, not a card/foil). The
-     ⌂ glyph is hidden; the roof + body + heart-on-the-door are drawn in CSS. */
+     visually distinct from every action node (a hut, not a card/foil). The
+     ⌂ glyph is hidden; the roof + body + heart-on-the-door are drawn in CSS.
+     CRT CASINO: suit-red roof, cream body, ink borders, hard pixel shadow. */
   .pm-node.t-home { cursor: default; }
   .mn-home { position: relative; display: block; width: 50px; height: 42px; font-size: 0; }
-  .mn-home::before {   /* roof */
+  .mn-home::before {   /* roof — the rotated square reads as the gable */
     content: ""; position: absolute; top: 1px; left: 50%; transform: translateX(-50%) rotate(45deg);
-    width: 26px; height: 26px; border-radius: 6px 0 0 0;
-    background: linear-gradient(135deg, #d98f6b, #b9613f);
-    box-shadow: 0 2px 5px rgba(74,50,40,0.25); }
+    width: 26px; height: 26px; border-radius: 0;
+    background: var(--suit-red); border: var(--px) solid var(--ink); }
   .mn-home::after {    /* body */
     content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 36px; height: 26px; border-radius: 5px;
-    background: linear-gradient(180deg, #f6ecdd, #e7d5bd); border: 1.5px solid var(--edge-2);
-    box-shadow: 0 4px 9px rgba(74,50,40,0.2); }
+    width: 36px; height: 26px; border-radius: 0;
+    background: var(--card-face); border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow); }
   .mn-home-ico { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); z-index: 1;
     font-size: 13px; line-height: 1; color: var(--card-red); }
   .mn-home-ico::after { content: "♥"; }    /* heart on the door — the 13-heart start */
   /* At home (before the first move) it sits at full strength; dimmed once you set out. */
   .pm-node.t-home.s-done { opacity: 0.5; filter: grayscale(0.4); }
   /* PINKY'S HOME — the top-of-map finish line (mama's house). Same hut art,
-     slightly larger, with a visible warm ♥; interactive once the ♠ boss falls. */
+     slightly larger, with a visible ♥; interactive once the ♠ boss falls. */
   .pm-node.t-home.s-legal, .pm-node.t-home.s-here { cursor: pointer; }
   .mn-mama { width: 58px; height: 50px; }
   .mn-mama::before { width: 32px; height: 32px; }
   .mn-mama::after { width: 44px; height: 30px; }
   .mn-mama .mn-home-ico { font-size: 15px; }
   .mn-mama .mn-mama-heart { position: absolute; top: -7px; right: -3px; z-index: 2;
-    font-size: 15px; line-height: 1; color: var(--card-red);
-    text-shadow: 0 0 8px rgba(200, 80, 110, 0.65); }
+    font-size: 15px; line-height: 1; color: var(--card-red); }
 
-  /* Fallback face-down card (only if a +1 node has no locked card). */
-  .mn-cardback { width: 42px; height: 56px; border-radius: 7px; border: 1px solid rgba(40,20,60,0.45);
-    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 3px, transparent 3px 6px),
-      linear-gradient(155deg, var(--plum-1), var(--plum-2)); }
+  /* Fallback face-down card (only if a +1 node has no locked card) — the §5
+     red⊕cream dithered back with an ink frame. */
+  .mn-cardback { width: 42px; height: 56px; border-radius: 0; border: var(--px) solid var(--ink);
+    background: var(--card-face) url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=');
+    background-size: 4px 4px; image-rendering: pixelated;
+    box-shadow: 2px 2px 0 0 var(--shadow); }
 
-  /* LOCKED-STAGE FOG: an opaque felt veil over every not-yet-unlocked stage,
-     fading out just above the lock line. Normally it sits entirely above the
-     clamped viewport; it EXISTS so the elastic top-overscroll peek shows fog —
-     "the unknown above" — never actual future-stage nodes. */
+  /* LOCKED-STAGE FOG: an opaque felt veil over every not-yet-unlocked stage.
+     Normally it sits entirely above the clamped viewport; it EXISTS so the
+     elastic top-overscroll peek shows fog — "the unknown above" — never
+     actual future-stage nodes. CRT CASINO: the 110px gradient fade becomes a
+     hard ink fog-line + a 12px baked dither dissolve (§10 — no
+     gradients-as-texture); the ::after strip paints below the veil's edge. */
   .map-lockveil { position: absolute; left: -30px; right: -30px; z-index: 6; pointer-events: none;
-    background: linear-gradient(180deg, rgba(15,42,32,0.97) 0%, rgba(15,42,32,0.97) calc(100% - 110px), rgba(15,42,32,0) 100%); }
+    background: rgba(20, 40, 32, 0.97); border-bottom: var(--px) solid var(--ink); }
+  .map-lockveil::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px;
+    background: url('data:image/gif;base64,R0lGODlhAgACAIABABQoIAAAACH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=') 0 0 / 4px 4px;
+    image-rendering: pixelated; }
   /* EASTER EGG: a whispered line hidden below the map's bottom edge — visible
      only while the player rubber-bands past the bottom, bouncing back out of
      sight on release. Rotates through a phrase pool per reveal. */
   .map-egg { position: absolute; left: 50%; top: calc(100% + 12px); bottom: auto; transform: translate(-50%, 0);
     z-index: 2; max-width: 92vw; white-space: normal; text-align: center;
-    font-family: var(--font-text); font-size: 12px; font-style: italic; line-height: 1.35;
-    font-weight: 600; letter-spacing: 0.4px; color: rgba(255,244,226,0.6);
-    pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+    font-family: var(--font-text); font-size: 13px; line-height: 1.35;
+    font-weight: 600; letter-spacing: 0.4px; color: rgba(236, 228, 207, 0.6);
+    pointer-events: none; text-shadow: 1px 1px 0 var(--shadow); }
 
   /* CULLED (far off-screen) nodes: skipped by paint/hit-test entirely while
      scrolled well out of view; an IntersectionObserver lifts the class again
@@ -5676,41 +5682,40 @@ const NativeApp = (() => {
   .pm-node.s-far { opacity: 0.5; filter: grayscale(0.45); }
   .pm-node.s-done { opacity: 0.5; filter: grayscale(0.5); }
   .pm-node.s-done::after { content: "✓"; position: absolute; right: -3px; top: -7px; z-index: 5;
-    font-size: 12px; font-weight: 900; color: #2e9e6b; }
-  /* Reachable next move = pulsing ORANGE highlight. */
+    font-size: 12px; font-weight: 900; color: var(--phosphor); }
+  /* Reachable next move = pulsing GOLD frame. */
   .pm-node.s-legal { cursor: pointer; }
   /* PULSES REBUILT FOR HEAT (late-map perf): animating box-shadow repaints the
      node's area EVERY FRAME, and on the huge late/endless map each repaint
      re-rasterises tiles of a 10k-px surface (plus the dim layer + edge SVG
      above/below) — measured at ~2/3 of the map's whole per-frame cost. The
-     pulse is now a static DIM shadow on ::before and a static BRIGHT shadow on
-     ::after whose OPACITY crossfades — same look, compositor-only, zero paint. */
-  .pm-node.s-legal::before { content: ""; position: absolute; inset: -7px; border-radius: 16px; z-index: -1;
-    box-shadow: 0 0 0 2px rgba(224,151,60,0.45); }
-  .pm-node.s-legal::after { content: ""; position: absolute; inset: -7px; border-radius: 16px; z-index: -1;
-    box-shadow: 0 0 0 3px rgba(224,151,60,0.9), 0 0 15px 2px rgba(224,151,60,0.55);
+     pulse is now a static DIM ring on ::before and a static BRIGHT ring on
+     ::after whose OPACITY crossfades — same look, compositor-only, zero paint.
+     CRT CASINO: square rings, solid gold, zero blur (glow is phosphor-only). */
+  .pm-node.s-legal::before { content: ""; position: absolute; inset: -7px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.5); }
+  .pm-node.s-legal::after { content: ""; position: absolute; inset: -7px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 0 3px var(--gold);
     opacity: 0; animation: pmPulseFade 1.4s ease-in-out infinite; }
   @keyframes pmPulseFade { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
   .pm-node.s-legal:hover { transform: translate(-50%, -50%) scale(1.06); }
-  /* Current position = unmistakable suit-coloured ring + glow (same crossfade
-     trick: dim ring static, bright ring fading in and out on the compositor). */
+  /* Current position = unmistakable PHOSPHOR frame + the one sanctioned glow
+     (same crossfade trick: dim ring static, bright ring fading in and out on
+     the compositor). */
   .pm-node.s-here { transform: translate(-50%, -50%) scale(1.1); z-index: 3; }
-  .pm-node.s-here::before { content: ""; position: absolute; inset: -8px; border-radius: 18px; z-index: -1;
-    box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)), 0 0 16px 3px var(--here-glow, rgba(188,66,112,0.5)); }
-  .pm-node.s-here::after { content: ""; position: absolute; inset: -8px; border-radius: 18px; z-index: -1;
-    box-shadow: 0 0 0 4px var(--here-col, var(--accent-2)), 0 0 24px 6px var(--here-glow, rgba(188,66,112,0.66));
+  .pm-node.s-here::before { content: ""; position: absolute; inset: -8px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 0 3px var(--phosphor); }
+  .pm-node.s-here::after { content: ""; position: absolute; inset: -8px; border-radius: 0; z-index: -1;
+    box-shadow: 0 0 0 4px var(--phosphor), var(--glow);
     opacity: 0; animation: pmPulseFade 1.6s ease-in-out infinite; }
-  .pm-node.p-d.s-here { --here-col: #c8506e; --here-glow: rgba(200,80,110,0.5); }
-  .pm-node.p-c.s-here { --here-col: #5a6b86; --here-glow: rgba(90,107,134,0.5); }
-  .pm-node.p-s.s-here { --here-col: #3c4864; --here-glow: rgba(60,72,100,0.5); }
   /* Arrival cue: the marker "lands" on the node it just travelled to. */
   @keyframes pmArrive { 0% { transform: translate(-50%, 22px) scale(0.7); opacity: 0.4; } 60% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.1); } }
   .pm-node.s-here.arrived { animation: pmArrive 0.42s ease-out; }
   @media (prefers-reduced-motion: reduce) {
     .pm-node.s-legal::after, .pm-node.s-here::after, .pm-node.s-here.arrived, .pm-node.myst-pop { animation: none; }
     .pm-node.s-legal::after, .pm-node.s-here::after { content: none; }
-    .pm-node.s-legal::before { box-shadow: 0 0 0 3px rgba(224,151,60,0.75); }
-    .pm-node.s-here::before { box-shadow: 0 0 0 3px var(--here-col, var(--accent-2)); }
+    .pm-node.s-legal::before { box-shadow: 0 0 0 3px var(--gold); }
+    .pm-node.s-here::before { box-shadow: 0 0 0 3px var(--phosphor); }
     .map-hdr .map-deck.gain { animation: none; }
   }
 
@@ -5721,42 +5726,48 @@ const NativeApp = (() => {
      Animation/presentation only; transform/opacity; respects reduced motion.
      ============================================================ */
   /* ── SPOTLIGHT ON PINKY (presentation only) ────────────────────────────────
-     A gentle uniform dim over the whole map plus a warm radial glow that rides
-     the avatar's exact position (and its travel tween), so the area around
-     Pinky reads lit while the rest of the map recedes — atmosphere, not
-     fog-of-war: the dim is light enough that every node stays readable. Both
-     layers are pointer-events:none and sit BETWEEN the nodes (z 2-3) and the
-     avatar (z 5); the glow moves by composited transform only (the same
-     keyframes as the avatar's hop), so tracking costs no layout reads. */
+     A gentle uniform dim over the whole map plus a NEUTRAL brightness lift
+     that rides the avatar's exact position (and its travel tween), so the
+     area around Pinky reads lit while the rest of the map recedes —
+     atmosphere, not fog-of-war: the dim is light enough that every node
+     stays readable. CRT CASINO: ink-based dim; the spot is a vignette-style
+     cream lift (the palette's white), NOT a colour glow — warmth is not
+     phosphor. Both layers are pointer-events:none and sit BETWEEN the nodes
+     (z 2-3) and the avatar (z 5); the glow moves by composited transform only
+     (the same keyframes as the avatar's hop), so tracking costs no layout
+     reads. Same two layers as ever — nothing new. */
   .map-dim { position: absolute; inset: 0; z-index: 4; pointer-events: none;
-    background: rgba(8, 22, 16, 0.26); }
+    background: rgba(16, 16, 14, 0.3); }
   .map-spot { position: absolute; width: 0; height: 0; z-index: 4;
     pointer-events: none; transform: translate(0, 0); }
   .map-spot::before { content: ""; position: absolute; left: -420px; top: -420px;
     width: 840px; height: 840px; border-radius: 50%;
     background: radial-gradient(circle,
-      rgba(255, 240, 200, 0.38) 0%,
-      rgba(255, 240, 200, 0.22) 26%,
-      rgba(255, 240, 200, 0.08) 46%,
-      rgba(255, 240, 200, 0) 66%); }
+      rgba(236, 228, 207, 0.20) 0%,
+      rgba(236, 228, 207, 0.12) 26%,
+      rgba(236, 228, 207, 0.05) 46%,
+      rgba(236, 228, 207, 0) 66%); }
   .map-avatar { position: absolute; z-index: 5; transform: translate(-50%, -50%);
     pointer-events: none; will-change: transform; }
   .av-shift { position: relative; will-change: transform; }   /* TRAVEL tween target */
   .av-body {
     /* The SAME playing-card proportions (--card-ar 0.70) the character has
        everywhere else (deck slot, deck select, jump clone) — the old 38×40
-       box read as a square blob on the trail. 28px wide → 40px tall. */
-    position: relative; width: 28px; aspect-ratio: var(--card-ar); border-radius: 6px;
+       box read as a square blob on the trail. 28px wide → 40px tall.
+       CRT CASINO frame: square corners, ink border, hard pixel shadow (the
+       character SKIN inside — body colours/faces — is the chunk-5 sprite
+       pass; only the card frame changes here). */
+    position: relative; width: 28px; aspect-ratio: var(--card-ar); border-radius: 0;
     will-change: transform;   /* the idle bob composites on its own tiny layer */
     background: linear-gradient(160deg, var(--av-1, #e0738f), var(--av-2, #b23a5c));
-    border: 1.5px solid rgba(255,255,255,0.5);
-    box-shadow: 0 5px 12px rgba(74,50,40,0.32), inset 0 1px 0 rgba(255,255,255,0.4);
+    border: var(--px) solid var(--ink);
+    box-shadow: 2px 2px 0 0 var(--shadow);
     animation: avBob 3s ease-in-out infinite;   /* IDLE bob */
   }
   @keyframes avBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
   .av-lid {
     position: absolute; left: 3px; right: 3px; top: 3px; height: 9px;
-    border-radius: 4px 4px 2px 2px; transform-origin: 50% 0;
+    border-radius: 0; transform-origin: 50% 0;
     background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.10));
     border: 1px solid rgba(255,255,255,0.42);
   }
@@ -5828,8 +5839,8 @@ const NativeApp = (() => {
   .av-badge {
     position: absolute; right: -8px; bottom: -7px; min-width: 18px; height: 18px; padding: 0 4px;
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--panel); color: var(--av-2, #b23a5c); border: 1.5px solid currentColor;
-    border-radius: 999px; font: 800 11px/1 var(--font-text); box-shadow: 0 2px 5px rgba(74,50,40,0.28); }
+    background: var(--felt-mid); color: var(--gold); border: var(--px) solid var(--ink);
+    border-radius: 0; font: 800 11px/1 var(--font-text); box-shadow: 2px 2px 0 0 var(--shadow); }
   .av-badge b { color: var(--text); }
   .av-badge.bump { animation: avBadgeBump 0.34s ease; }
   @keyframes avBadgeBump { 0% { transform: scale(1); } 45% { transform: scale(1.3); } 100% { transform: scale(1); } }
@@ -5867,7 +5878,7 @@ const NativeApp = (() => {
   .ch-mamma .dc-body::after, .ch-mamma .av-body::after {
     background: radial-gradient(70% 45% at 32% 20%, rgba(255,255,255,0.22), transparent 72%),
       radial-gradient(80% 50% at 50% 108%, rgba(120,40,70,0.18), transparent 70%); }
-  .ch-mamma .dc-body, .ch-mamma .av-body { border-radius: 14px; }   /* softer, rounder */
+  .ch-mamma .dc-body, .ch-mamma .av-body { border-radius: 0; }   /* square corners everywhere (§10) */
   .ch-mamma .x-mouth { display: block; top: 3%; left: 50%; width: 9%; height: 8%;
     margin-left: -4.5%; background: #a83a5e; border-radius: 32%; z-index: 3;
     box-shadow: 0 1px 1px rgba(0,0,0,0.25); }
@@ -6218,8 +6229,8 @@ const NativeApp = (() => {
   }
   /* Collect fly-cards (reuse the board's flyCard arc helper). */
   .av-fly { position: fixed; z-index: 61; pointer-events: none; }
-  .av-fly .mini-card { width: 26px; height: 35px; box-shadow: 0 4px 10px rgba(74,50,40,0.3); }
-  .av-fly-blank { width: 24px; height: 33px; border-radius: 4px; background: var(--card-face); border: 1px solid var(--card-border); box-shadow: 0 4px 10px rgba(74,50,40,0.3); }
+  .av-fly .mini-card { width: 26px; height: 35px; box-shadow: 2px 2px 0 0 var(--shadow); }
+  .av-fly-blank { width: 24px; height: 33px; border-radius: 0; background: var(--card-face); border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); }
   @media (prefers-reduced-motion: reduce) {
     .av-body { animation: none; }
     .map-avatar.collecting .av-body, .map-avatar.collecting .av-lid, .av-badge.bump { animation: none; }
@@ -6374,27 +6385,27 @@ const NativeApp = (() => {
      the map overlay; tap the ✕ or the backdrop to dismiss. Display-only. */
   .fossil-detail {
     position: fixed; inset: 0; z-index: 85;
-    background: rgba(48, 36, 32, 0.55);
+    background: rgba(16, 16, 14, 0.6);
     display: flex; align-items: center; justify-content: center; padding: 24px;
   }
   .fossil-detail.hidden { display: none; }
   .fd-panel {
     position: relative; width: min(86vw, 320px);
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 18px;
+    background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
     box-shadow: 4px 4px 0 0 var(--shadow); padding: 18px 18px 20px; text-align: center;
   }
   .fd-close {
     position: absolute; top: 8px; right: 11px; border: none; background: none;
     color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer;
   }
-  .fd-title { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 17px; color: var(--text); margin-bottom: 12px; }
+  .fd-title { font-family: var(--font-display); font-weight: 800; font-size: 12px; color: var(--gold); margin-bottom: 12px; }
   .fd-art {
     width: min(66vw, 230px); height: min(66vw, 230px); margin: 0 auto;
-    background: var(--card-face); border: 1px solid var(--edge-2); border-radius: 16px;
+    background: var(--card-face); border: var(--px) solid var(--ink); border-radius: 0;
     overflow: hidden;
   }
   .fd-art .fossil { width: 100%; height: 100%; }
-  .fd-sub { font-size: 12px; color: var(--muted); margin-top: 12px; }
+  .fd-sub { font-size: 13px; color: var(--muted); margin-top: 12px; }
 
   /* MYSTERY EVENT modal (MYST1): the fossil-detail shell; a coloured rim reads
      the outcome's polarity (good = green, bad = rose) and the art area centres
@@ -6407,15 +6418,18 @@ const NativeApp = (() => {
   }
   .mystery-event .me-art .mini-card { width: 64px; }
   .mystery-event .me-art .dcs { --dcs-size: 44px; }
-  .mystery-event .me-coins { display: flex; align-items: center; gap: 6px; font-size: 34px; font-weight: 800; }
+  .mystery-event .me-coins { display: flex; align-items: center; gap: 6px; font-size: 34px; font-weight: 800; color: var(--gold); }
   .mystery-event .me-coins .coin-ico { width: 30px; height: 30px; }
   .mystery-event .me-glyph { font-size: 44px; line-height: 1; }
+  /* Continue = the §4 phosphor CTA (pressing sinks it one pixel step). */
   .mystery-event .me-go {
-    margin-top: 14px; border: none; border-radius: 12px; padding: 11px 30px;
-    background: var(--accent); color: #fff; font-weight: 800; font-size: 14px;
+    margin-top: 14px; border: var(--px) solid var(--ink); border-radius: 0; padding: 11px 30px;
+    background: var(--phosphor); color: var(--ink); font-weight: 800; font-size: 15px;
+    text-transform: uppercase; letter-spacing: 1px;
+    box-shadow: 4px 4px 0 0 var(--shadow), var(--glow);
     font-family: inherit; cursor: pointer; touch-action: manipulation;
   }
-  .mystery-event .me-go:active { transform: scale(0.96); }
+  .mystery-event .me-go:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
 
   /* MYST2 outcome animations — the art area carries a mea-<key> variant (set
      in openMysteryEvent); each plays ONE short beat (300–700ms) at modal open.
@@ -6444,7 +6458,9 @@ const NativeApp = (() => {
   @keyframes meaJokerIn {
     0% { transform: rotateY(92deg) scale(0.72); opacity: 0; box-shadow: 0 0 0 rgba(122, 79, 208, 0); }
     55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(122, 79, 208, 0.75), 0 0 12px rgba(224, 185, 90, 0.8); }
-    100% { transform: rotateY(0deg) scale(1); box-shadow: 0 0 10px rgba(224, 185, 90, 0.35); }
+    /* rests glow-free: a persistent gold bloom would break the phosphor-only
+       glow rule the moment the one-shot lands (fill:both keeps 100% forever) */
+    100% { transform: rotateY(0deg) scale(1); box-shadow: 2px 2px 0 0 var(--shadow); }
   }
   .mystery-event .mea-store .me-glyph { animation: meaWhoosh 0.42s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
   @keyframes meaWhoosh {
@@ -6493,7 +6509,9 @@ const NativeApp = (() => {
     45% { transform: scale(1.1) translateX(4px); }
     65% { transform: scale(1.12) translateX(-3px); }
     85% { transform: scale(1.05) translateX(2px); }
-    100% { transform: scale(1) translateX(0); filter: drop-shadow(0 0 4px rgba(200, 60, 70, 0.45)); }
+    /* rests filter-free (fill:both would pin a live red glow filter on the
+       open modal otherwise — glow is phosphor-only, filters cost paint) */
+    100% { transform: scale(1) translateX(0); filter: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .mystery-event .me-art *, .mystery-event .me-art *::after { animation: none !important; }
@@ -7544,7 +7562,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.30 · CRT CASINO 1/6: felt, phosphor, pixel cards (board+rail)";
+const APP_VERSION = "v5.31 · CRT CASINO 2/6: pixel map, phosphor trail";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -25616,7 +25634,7 @@ const UIRenderer = (() => {
      (.front / .rank-top / .pip / .rank-bottom + suitGlyph). Static, node-sized. */
   function nodeCardHtml(card) {
     // Joker / Blank pickups show their own faces (same look as the pack-reveal
-    // mini cards: gold star / stitched grey), face-up like any +1 node card.
+    // mini cards: gold-on-felt star / dimmed felt), face-up like any +1 node card.
     if (card.joker) return '<span class="node-card"><span class="front nc-special nc-joker"><span class="ncs-sym">★</span><span class="ncs-lab">Joker</span></span></span>';
     if (card.blank) return '<span class="node-card"><span class="front nc-special nc-blank"><span class="ncs-sym">∅</span><span class="ncs-lab">Removal</span></span></span>';
     const s = DeckManager.SUITS.find(x => x.symbol === card.suit) || DeckManager.SUITS[0];
@@ -25629,8 +25647,8 @@ const UIRenderer = (() => {
       '</span></span>';
   }
   /* DEAL / BOSS → a SYNAPSE WEB: four nodes linked to a central hub, a jagged
-     crack/burst at the centre (battle/danger), plus the amber pile-count chip.
-     `big` = the boss (larger, glow ring via .t-boss CSS). */
+     crack/burst at the centre (battle/danger), plus the gold coin-reward chip.
+     `big` = the boss (larger, gold crown via .t-boss CSS). */
   function mapDealCluster(n, big) {
     return '<span class="mn-synapse' + (big ? " big" : "") + '">' +
         '<svg viewBox="0 0 48 44" aria-hidden="true">' +
@@ -25673,12 +25691,13 @@ const UIRenderer = (() => {
       '</span>';
   }
   /* STORE → a little SHOP STALL: striped triangular awning over a stall body
-     with a doorway (rose/dark palette; colours in the .mn-shop CSS). */
+     with a doorway (cream/ink/suit-red; colours in the .mn-shop CSS — square
+     pixel corners, rx 0). */
   function mapShopStall() {
     return '<span class="mn-shop">' +
         '<svg viewBox="0 0 44 40" aria-hidden="true">' +
-          '<rect class="st-body" x="7" y="15" width="30" height="21" rx="2"/>' +
-          '<rect class="st-door" x="18.5" y="23" width="9" height="13" rx="1.5"/>' +
+          '<rect class="st-body" x="7" y="15" width="30" height="21" rx="0"/>' +
+          '<rect class="st-door" x="18.5" y="23" width="9" height="13" rx="0"/>' +
           '<path class="st-awn-a" d="M22 3 L4 16 L13 16 Z"/>' +
           '<path class="st-awn-b" d="M22 3 L13 16 L22 16 Z"/>' +
           '<path class="st-awn-a" d="M22 3 L22 16 L31 16 Z"/>' +
@@ -26066,10 +26085,11 @@ const UIRenderer = (() => {
         '<div class="pm-band-label p-' + cls + '" style="top:' + (Math.min(height, yBot) - 22).toFixed(1) + 'px;">' +
         label + '</div>';
     });
-    // TRAIL: each edge is a gently-curved dusty-rose synapse (quoting the deal
-    // screen's connection web) with a small signal dot on the line. Edges leaving
-    // the CURRENT node stand out. Each is ROUTED (routeEdgeControl) so it touches
-    // only its two endpoints and never crosses another node.
+    // TRAIL: each edge is a gently-curved DASHED PIXEL LINE (§5 web lines —
+    // low-contrast felt dashes; the travelled route lights up phosphor via the
+    // .done class) with a small square signal dot on the line. Edges leaving
+    // the CURRENT node stand out. Each is ROUTED (routeEdgeControl) so it
+    // touches only its two endpoints and never crosses another node.
     const edgeSvg = (a, b, active, done, fromId, toId) => {
       const cls = "map-edge" + (active ? " active" : "") + (done ? " done" : "");
       const dotCls = "map-dot" + (active ? " active" : "") + (done ? " done" : "");
@@ -26077,7 +26097,7 @@ const UIRenderer = (() => {
       const dotX = 0.25 * a.x + 0.5 * Q.x + 0.25 * b.x, dotY = 0.25 * a.y + 0.5 * Q.y + 0.25 * b.y;   // curve point at t=0.5
       return '<path d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + Q.x.toFixed(1) + ' ' + Q.y.toFixed(1) +
         ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '" class="' + cls + '"/>' +
-        '<circle cx="' + dotX.toFixed(1) + '" cy="' + dotY.toFixed(1) + '" r="2.2" class="' + dotCls + '"/>';
+        '<rect x="' + (dotX - 2).toFixed(1) + '" y="' + (dotY - 2).toFixed(1) + '" width="4" height="4" class="' + dotCls + '"/>';
     };
     let edges = "";
     const atStart = pos == null;
