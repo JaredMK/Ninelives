@@ -1678,7 +1678,6 @@ const NativeApp = (() => {
   .subset-reveal { position: fixed; inset: 0; z-index: 90;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
     background: radial-gradient(circle at 50% 42%, rgba(20,46,34,0.70), rgba(7,18,13,0.93));
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
     opacity: 0; transition: opacity 0.16s ease; }
   .subset-reveal.in { opacity: 1; }
   .subset-reveal.out { opacity: 0; }
@@ -2770,10 +2769,11 @@ const NativeApp = (() => {
     position: fixed;
     inset: 0;
     /* Dark felt-green glass (was translucent cream) — panels/cards float on it
-       like paper on the table; hold-to-peek still needs the see-through. */
+       like paper on the table; hold-to-peek still needs the see-through.
+       THERMAL5: no backdrop-filter — full-viewport blurs are banned (v5.14);
+       at 93% opacity the blur touched under 7% of pixels anyway (the map
+       override proved the removal invisible). */
     background: rgba(22, 58, 44, 0.93);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3257,12 +3257,11 @@ const NativeApp = (() => {
     font-size: 10px; font-weight: 600; color: var(--muted); opacity: 0.7; }
 
   /* ---- Shop item detail overlay: a focused look at one object ----
-     Dim/blur backdrop; the object rendered larger; rarity, name, description,
+     Dim backdrop; the object rendered larger; rarity, name, description,
      and Buy. Tap the backdrop or ✕ to dismiss. */
   .store-detail { position: fixed; inset: 0; z-index: 66;
     display: flex; align-items: center; justify-content: center; padding: 26px;
     background: rgba(38,28,26,0.56);
-    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
     animation: storeDetailIn 0.16s ease; }
   .store-detail.hidden { display: none; }
   @keyframes storeDetailIn { from { opacity: 0; } to { opacity: 1; } }
@@ -3413,7 +3412,6 @@ const NativeApp = (() => {
     position: fixed; inset: 0; z-index: 70;
     display: flex; align-items: center; justify-content: center;
     background: rgba(48,36,32,0.62);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     padding: 20px;
   }
   .confirm-overlay.hidden { display: none; }
@@ -4901,11 +4899,13 @@ const NativeApp = (() => {
   .peek-info.hidden { display: none; }
 
   /* Card-info popup ("?" button): a tap-dismissable modal reusing the .pk-* look.
-     Backdrop captures taps so tapping off closes it. */
+     Backdrop captures taps so tapping off closes it. THERMAL5: no backdrop-filter
+     here — full-viewport blurs are banned game-wide (the v5.14 conviction:
+     seconds-long main-thread freezes from re-blurring whatever changes behind). */
   .card-info {
     position: fixed; inset: 0; z-index: 85;   /* above the deck/sticker-picker modals (z-80) for hold-help */
     display: flex; align-items: center; justify-content: center;
-    background: rgba(48,36,32,0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    background: rgba(48,36,32,0.55);
     padding: 18px;
   }
   .card-info.hidden { display: none; }
@@ -5024,7 +5024,6 @@ const NativeApp = (() => {
     position: fixed; inset: 0; z-index: 95;
     display: flex; align-items: center; justify-content: center;
     background: rgba(48, 36, 32, 0.55);
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
     padding: 16px;
   }
   .debug-overlay.hidden { display: none; }
@@ -5238,10 +5237,8 @@ const NativeApp = (() => {
     /* NO backdrop blur on the map (heat): the generic .overlay blur(6px)
        re-composites the full screen on every animated frame, and the map — the
        longest-lived overlay, with an always-running pulse — paid it constantly
-       (measured ~1/3 of the map's per-frame cost). The board behind is frozen
-       and 93%-covered, with the map's own atmosphere + textures painted over
-       it, so removing the blur shifts under 2% of pixels by ≤19/765. */
-    backdrop-filter: none; -webkit-backdrop-filter: none;
+       (measured ~1/3 of the map's per-frame cost). THERMAL5 removed the blur
+       from the base .overlay itself; this note stays as the receipt. */
     /* OPAQUE base (same felt hue, alpha 1): the generic .overlay is 93%
        translucent, which let the frozen board/piles ghost through behind the
        map. The map paints its own full atmosphere, so nothing should bleed. */
@@ -6313,7 +6310,6 @@ const NativeApp = (() => {
   .fossil-detail {
     position: fixed; inset: 0; z-index: 85;
     background: rgba(48, 36, 32, 0.55);
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
     display: flex; align-items: center; justify-content: center; padding: 24px;
   }
   .fossil-detail.hidden { display: none; }
@@ -7067,7 +7063,7 @@ const NativeApp = (() => {
   </div>
 
   <!-- Shop item detail: tap a shelf object to focus it — the object rendered
-       larger, then rarity, name, description, and Buy. Dim/blur backdrop; tap
+       larger, then rarity, name, description, and Buy. Dim backdrop; tap
        outside or ✕ to dismiss. Buying here runs the same purchase logic. -->
   <div class="store-detail hidden" id="storeDetail">
     <div class="sd-panel" id="sdPanel">
@@ -7462,7 +7458,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.28 · Picker XL-lite gate lowered to 28 cards (flat tiles earlier)";
+const APP_VERSION = "v5.29 · Full-viewport backdrop blurs purged game-wide (7 overlays)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
