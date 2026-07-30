@@ -2235,6 +2235,8 @@ const NativeApp = (() => {
      #zenSelect pattern (corner back, opaque felt). The list is the one scroll
      column; tiles are cheap pure-HTML renders of the store class renderers. */
   #collectionScreen { justify-content: flex-start; }
+  /* Culled tile (beyond ±1.5 viewports): frame paints, contents don't. */
+  .col-tile.col-cull > * { visibility: hidden; }
   .col-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
   .col-hint { font-size: 13px; color: var(--on-felt-muted); text-align: center;
     max-width: min(86vw, 340px); line-height: 1.4; }
@@ -6924,7 +6926,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.53 · leaner unlock summary pop";
+const APP_VERSION = "v5.54 · collection culls offscreen tiles (fast-flick fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -31351,6 +31353,22 @@ const UIRenderer = (() => {
       '<span class="ulk-bar"><span class="ulk-fill" style="width:' + pct + '%"></span></span>' +
       '<span class="ulk-count">' + Math.min(current, count) + ' / ' + count + '</span></div>';
   }
+  /* COLLECTION CULLING (v5.54, player report: fast flicks blank the list on
+     device): the WKWebView compositor can't rasterize 100+ real tiles at
+     flick speed even after the v5.46 paint diet. The MAP's proven on-device
+     answer (cullMapNodes, HEAT fixes) mirrored here: ONE module-level
+     IntersectionObserver toggles .col-cull on tiles beyond ±1.5 viewports —
+     culled tiles keep their frame (cheap solid paint, the grid stays visible
+     mid-flick) while their CONTENTS skip raster until they approach. */
+  let colCullIO = null;
+  function cullCollectionTiles() {
+    if (colCullIO) { colCullIO.disconnect(); colCullIO = null; }
+    if (typeof IntersectionObserver === "undefined" || !el.colList) return;
+    colCullIO = new IntersectionObserver((entries) => {
+      for (const e of entries) e.target.classList.toggle("col-cull", !e.isIntersecting);
+    }, { root: el.colList, rootMargin: "150% 0px 150% 0px" });
+    el.colList.querySelectorAll(".col-tile").forEach(t => colCullIO.observe(t));
+  }
   function renderCollection() {
     // Rebuilt per visit into the persistent container (the zenSelect idiom);
     // the hold-help listener was attached ONCE at boot on el.colList.
@@ -31359,6 +31377,7 @@ const UIRenderer = (() => {
       '<div class="col-grid">' +
         ItemData[g.group].map(def => collectionTileHtml(g.kind, def)).join("") +
       '</div></div>').join("");
+    cullCollectionTiles();   // observer torn down + rebuilt per render (never accumulates)
   }
   function showCollection(canContinue) {
     collectionReturn = () => showMainMenu(canContinue);
