@@ -111,7 +111,10 @@ export function run() {
     r.ok(cssRule(html, ".store-reroll:active").includes("translate(2px, 2px)"), "…and sinks when pressed");
     r.ok(cssRule(html, ".store-reroll:disabled").includes("var(--felt-mid)"), "…and goes felt-mid when unaffordable");
     const help = cssRule(html, ".store-help-btn");
-    r.ok(help.includes("margin-left: auto"), "the ? keeps its pinned right-cluster layout (storehelp1)");
+    // v5.44: the "?" moved to the RIGHT of Refresh; the right-cluster
+    // auto-margin now lives on .store-reroll (storehelp1 pins the order).
+    r.ok(cssRule(html, ".store-reroll").includes("margin-left: auto"),
+      "the Refresh+? pair keeps the right-cluster layout (auto-margin on Refresh)");
     r.ok(help.includes("border-radius: 0") && help.includes("var(--px) solid var(--ink)"),
       "the ? squares off into the pixel chrome");
     const key = cssRule(html, ".store-key-panel");

@@ -48,10 +48,14 @@ function countOf(hay, needle) {
   return n;
 }
 /** Load the game with ONE extra sticker entry appended to the stickers group,
-    carrying the given unlock field source (raw JS text). */
+    carrying the given unlock field source (raw JS text). The probe is CURSED:
+    a non-cursed sticker without STICKER_ICONS chip art refuses to boot by
+    design (the CRT-STK 1:1 fail-loud contract, pinned in crt5) — cursed types
+    wear the shared corruption art, so the probe loads and the unlock
+    validator is what's under test here. */
 function loadWithProbe(unlockSrc) {
   const probe = '{ id: "__unlockprobe", label: "Probe", icon: "?", kind: "rank", rankDelta: 1,'
-    + ' tier: "common", price: 1, description: "probe", unlock: ' + unlockSrc + " },";
+    + ' tier: "common", price: 1, description: "probe", cursed: true, unlock: ' + unlockSrc + " },";
   const src = ITEMS_SRC.replace('stickers: [\n    { id: "rankUp",', "stickers: [\n    " + probe + '\n    { id: "rankUp",');
   if (src === ITEMS_SRC) throw new Error("probe anchor not found in items.js");
   return loadGame({ itemsSource: src });

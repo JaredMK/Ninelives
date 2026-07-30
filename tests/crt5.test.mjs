@@ -269,7 +269,7 @@ export function run() {
       "cursed chips wear the bit-rot art");
     r.ok(cssRule(html, ".dcs.dcs-cursed .dcs-ic").includes("display: none"),
       "…and drop the raw-emoji glyph (leech/leech2 read as corruption, not emoji)");
-    r.ok(src.includes("t.cursed ? \"\" : t.icon"), "stickerChip routes cursed chips glyph-free");
+    r.ok(src.includes('const face = t.cursed ? "" :'), "stickerChip routes cursed chips glyph-free");
     // Pillar pennant + emblem overlay.
     r.ok(cssRule(html, ".pennant .pb-art").includes("var(--pxi-pillar)"),
       "the pennant is the pixel pillar banner");
@@ -310,6 +310,60 @@ export function run() {
     r.ok(lc.includes("baseSymHtml(t)") && !lc.includes(': \'<span class="lo-ico">\' + (t.icon || "") + \'</span>\';\n    return'
       ) || lc.includes("baseSymHtml(t)"),
       "loadout base chips render the plaque symbol (emoji gap closed)");
+  }
+
+  // --- CRT-STK: per-sticker chip faces, 1:1 with the live registry ----------
+  {
+    // Registry-driven: EVERY non-cursed sticker in the live items.js registry
+    // has its own hand-authored icon; cursed types (leech/leech2) keep the
+    // shared stickerCursed art and take NO entry. A new items.js sticker
+    // without art must fail loud at load — pinned on the source below.
+    const square16 = (rows) => Array.isArray(rows) && rows.length === 16 && rows.every(r => typeof r === "string" && r.length === 16);
+    const LEGAL = new Set([".", "K", "C", "R", "G", "P", "F", "D", "p", "b", "g", "s"]);
+    const nonCursed = g.StickerTypes.all().filter(t => !t.cursed);
+    const cursed = g.StickerTypes.all().filter(t => t.cursed);
+    r.ok(nonCursed.length >= 40 && cursed.length >= 1, "live registry read (" + nonCursed.length + " non-cursed + " + cursed.length + " cursed)");
+    for (const t of nonCursed)
+      r.ok(square16(P.STICKER_ICONS[t.id]), "sticker '" + t.id + "' has its own 16×16 chip face");
+    for (const t of nonCursed)
+      r.ok((P.STICKER_ICONS[t.id] || []).every(row => [...row].every(ch => LEGAL.has(ch))),
+        "sticker '" + t.id + "' art stays on the locked palette alphabet");
+    for (const t of cursed)
+      r.ok(!P.STICKER_ICONS[t.id], "cursed '" + t.id + "' takes no entry (the corruption art IS its face)");
+    r.eq(Object.keys(P.STICKER_ICONS).length, nonCursed.length,
+      "no orphan sticker icons (sheet == the non-cursed registry, 1:1)");
+    // Every icon is a distinct drawing — the whole point of the sheet.
+    const seen = new Map();
+    for (const [id, rows] of Object.entries(P.STICKER_ICONS)) {
+      const key = rows.join("\n");
+      r.ok(!seen.has(key), "icon '" + id + "' is a unique drawing" + (seen.has(key) ? " (duplicates " + seen.get(key) + ")" : ""));
+      seen.set(key, id);
+    }
+    // Fail-loud contract: StickerTypes throws on a non-cursed sticker without
+    // art (source pin + a live probe through the harness).
+    r.ok(src.includes("if (!t.cursed && !PixelArt.STICKER_ICONS[t.id])"),
+      "StickerTypes carries the 1:1 fail-loud check");
+    let threw = false;
+    try {
+      const items = readFileSync(join(HERE, "..", "items.js"), "utf8");
+      loadGame({ itemsSource: items.replace('stickers: [\n    { id: "rankUp",',
+        'stickers: [\n    { id: "__noart", label: "No Art", icon: "?", kind: "rank", rankDelta: 1, tier: "common", price: 1, description: "probe" },\n    { id: "rankUp",') });
+    } catch (e) { threw = String(e && e.message).includes("STICKER_ICONS"); }
+    r.ok(threw, "a non-cursed sticker without chip art refuses to boot (fail-loud probe)");
+    // The render path: boot publishes one --pxi-stk-<id> var + one .pxs-<id>
+    // class per icon; stickerChip's face is the class span with the composed
+    // glyph as the no-canvas fallback; the shared .pxs sizing rule exists.
+    r.ok(src.includes('css += "--pxi-stk-" + k') && src.includes('css += ".pxs-" + k'),
+      "boot render publishes --pxi-stk-<id> vars + .pxs-<id> classes");
+    r.ok(src.includes("PixelArt.stickerIcon(t.id) ? '<span class=\"pxs pxs-' + t.id") ,
+      "stickerChip's face is the pre-rendered pixel icon (glyph = no-canvas fallback)");
+    r.ok(typeof P.stickerIcon(nonCursed[0].id) === "string", "stickerIcon() is DOM-guarded (harness gets a string)");
+    r.ok(cssRule(html, ".dcs-ic .pxs").includes("contain") && cssRule(html, ".dcs-ic .pxs").includes("image-rendering: pixelated"),
+      ".dcs-ic .pxs contain-fits the face, pixel-crisp");
+    // Board pile badges (renderStickerBadges) deliberately KEEP the composed
+    // glyph chips — the tiny ~26px ring stays minimal (flagged for review).
+    r.ok(fnBody(src, "renderStickerBadges").includes("chip(t.id, t.icon, n(t.id))"),
+      "board pile badges keep the minimal glyph look (deliberate)");
   }
 
   // --- Coin: the §7 pixel ring through the untouched <use> mechanism --------
