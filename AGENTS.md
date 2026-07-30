@@ -157,6 +157,37 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.18 (Kimi, THERMAL4)** — the COMPOSITOR is convicted end-to-end; READ
+  THIS BEFORE ADDING SHADOWS/FILTERS OR TRUSTING A CLEAN JS PROFILE:
+  - Evidence: a Web Inspector timeline recorded from the Xcode app (debug
+    builds are inspectable via Safari → Develop → iPhone — the ONLY way to
+    see this; in-game capture can't). 104s session: 21.6s inside `composite`
+    records vs <4s combined for style+layout+paint; long frames were either
+    1-2.4s composite spikes or 550-800ms frames with ~zero recorded work
+    (main thread idle-waiting on the compositor); CPU never exceeded 80%;
+    memory flat ~85-89MB (no leak). Per-frame composite mean hit 50ms in the
+    worst 10s bucket = texture eviction/re-upload THRASH at the
+    backing-store cliff. Mobile Safari was clean in the same game state —
+    iOS gives third-party app webviews lower memory priority, so the shell
+    purges/re-rasters where Safari doesn't. All previous in-game dumps (UA
+    without the Safari token) were from the in-app webview.
+  - Fix: **background flattens under any open deck-modal** —
+    `body:has(.deck-modal:not(.hidden)) body > :not(.deck-modal)` (+ ` *`)
+    kills `box-shadow`/`filter` (!important) outside the modal subtree. The
+    0.7 scrim hides the flat look; freed raster = less eviction pressure,
+    and any forced re-raster is cheap. Same self-syncing :has() gate as the
+    pause contract; the action bar's chrome flattening over a modal is an
+    accepted cosmetic trade.
+  - `#tissue .blob` (blur(46px) + infinite hazeDrift) joined the modal-open
+    pause list. NOTE: `#tissue` blobs and `.map-bg` hold large always-on
+    layers (will-change: transform) — if thrash persists on-device, they
+    are the next raster-footprint candidates.
+  - Diagnostic playbook for the next episode: Xcode-run the app, Safari →
+    Develop → iPhone → the app webview → Timelines (CPU + Rendering Frames
+    + Memory) → record around the lag. Composite-dominated long frames =
+    layer pressure; empty long frames = compositor wait; JS records =
+    actual code (never the case so far).
+
 - **v5.17 (Kimi, THERMAL3)** — the huge-deck picker failure is LAYER-MEMORY
   exhaustion, not speed; READ THIS BEFORE TOUCHING PICKER TILE STYLING:
   - User-observed mechanism (matches every dump): taps "land" seconds late

@@ -4754,7 +4754,8 @@ const NativeApp = (() => {
   body:has(.deck-modal:not(.hidden)) .cph-banner.activatable,
   body:has(.deck-modal:not(.hidden)) .deck-stack.revealed,
   body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-face,
-  body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-pupil { animation-play-state: paused; }
+  body:has(.deck-modal:not(.hidden)) .ds-deckchar .dc-pupil,
+  body:has(.deck-modal:not(.hidden)) #tissue .blob { animation-play-state: paused; }
   /* PERFFIX: the picker grid is vinyl-flattened (sa-lite) — drop the last
      surviving filter (the chip-icon drop-shadow, ~150 chips at 46-card
      decks). Imperceptible at 15px; the board keeps its shadows. */
@@ -4766,6 +4767,25 @@ const NativeApp = (() => {
      by deck size in renderStickerApplyCards; zero gameplay/layout change. */
   .sa-xlite .mini-card { box-shadow: none; border: none; }
   .sa-xlite .sa-card.sa-disabled { filter: none; }
+  /* THERMAL4: while ANY deck-modal is open, the background goes FLAT — no
+     box-shadow, no filter outside the modal subtree. The Xcode-app Web
+     Inspector recording (v5.17 device session) convicted the compositor:
+     21.6s of the 104s capture sat in composite records (style+layout+paint
+     combined < 4s), with 550-800ms frames of ~zero recorded work (main
+     thread idle-waiting) and 1-2.4s composite spikes — per-frame texture
+     eviction/re-upload thrash at the backing-store cliff, worst in picker-
+     heavy phases. Shadows + filters are the big textures: every blurred/
+     shadowed element behind the modal holds raster the compositor must
+     keep or re-upload. Flattening frees that memory while the modal is up
+     (the 0.7 scrim hides the difference) and makes any forced re-raster
+     cheap. Excludes .deck-modal subtrees only; the action bar's chrome
+     flattening over a modal is an accepted cosmetic trade (XL-lite
+     precedent). Same :has() self-syncing gate as the pause contract. */
+  body:has(.deck-modal:not(.hidden)) body > :not(.deck-modal),
+  body:has(.deck-modal:not(.hidden)) body > :not(.deck-modal) * {
+    box-shadow: none !important;
+    filter: none !important;
+  }
   .store-apply-btn { flex: 0 0 auto; background: var(--accent-2); color: #fff; border: none; border-radius: 999px;
     padding: 9px 14px; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; white-space: nowrap; }
   .store-apply-btn.hidden { display: none; }
@@ -7405,7 +7425,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.17 · XL-lite picker at 40+ cards (iOS layer-memory fix)";
+const APP_VERSION = "v5.18 · background flattens under deck-modals (compositor-thrash fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op

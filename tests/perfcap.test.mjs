@@ -295,5 +295,28 @@ export function run() {
       "journey context + dump carry the DOM node count (layer-pressure correlation)");
   }
 
+  // --- Structural: THERMAL4 — background flattens under deck-modals ----------
+  {
+    // The Xcode-app Web Inspector recording convicted the compositor: 21.6s of
+    // 104s in composite records (style+layout+paint < 4s combined), 550-800ms
+    // frames with ~zero recorded work, 1-2.4s composite spikes — per-frame
+    // texture eviction/re-upload thrash at the backing-store cliff. The fix:
+    // no box-shadow / no filter outside the modal subtree while any deck-modal
+    // is open (frees the big textures; the 0.7 scrim hides the flat look).
+    const gate = "body:has(.deck-modal:not(.hidden)) body > :not(.deck-modal)";
+    r.ok(html.includes(gate + ",") && html.includes(gate + " * {"),
+      "THERMAL4: background-flatten rules exist under the deck-modal :has() gate (container + descendants)");
+    const flatBlock = html.slice(html.indexOf(gate + ","));
+    const decl = flatBlock.slice(0, flatBlock.indexOf("}"));
+    r.ok(decl.includes("box-shadow: none !important"), "…background box-shadows are killed while a deck-modal is open");
+    r.ok(decl.includes("filter: none !important"), "…background filters are killed while a deck-modal is open");
+    r.ok(!/body:has\(\.deck-modal:not\(\.hidden\)\) \.deck-modal/.test(html),
+      "…the modal subtree itself is NOT flattened");
+    // The ambient haze blobs (blur(46px) + infinite drift) join the pause list.
+    const pauses = html.match(/body:has\(\.deck-modal:not\(\.hidden\)\)[^{]*\{[^}]*animation-play-state: paused/g) || [];
+    r.ok(pauses.join("\n").includes("#tissue .blob"),
+      "…#tissue .blob haze pauses under deck-modals (pause-list contract)");
+  }
+
   return r.summary();
 }
