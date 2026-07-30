@@ -4909,6 +4909,9 @@ const NativeApp = (() => {
     padding: 18px;
   }
   .card-info.hidden { display: none; }
+  /* COLLECTION tap detail (v5.24): the Collection page is a .menu-screen at
+     z-1400, so the shared popup (z-85) must be lifted while it's open. */
+  body:has(#collectionScreen:not(.hidden)) .card-info { z-index: 1500; }
   .card-info-panel {
     width: min(92vw, 360px); max-height: 76vh; overflow-y: auto; overscroll-behavior: contain;
     background: rgba(251,246,241,0.99); border: 1px solid var(--edge-2);
@@ -7460,7 +7463,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.23 · Collection tiles flattened (fast-scroll blank-row raster fix)";
+const APP_VERSION = "v5.24 · Collection items are tappable — detail popup with lifetime usage stats";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7562,6 +7565,15 @@ const Telem = (() => {
     flush,
     scheduleFlush,
     get() { try { return JSON.parse(JSON.stringify(mem)); } catch (e) { return { art: {} }; } },
+    /** Lightweight per-item read for the Collection detail view — no deep copy
+        of the whole store, just the counts a player cares about (or null). */
+    itemSummary(id) {
+      try {
+        const a = mem.art[id];
+        if (!a) return null;
+        return { purchased: a.purchased || 0, triggers: a.triggers || 0, dealsActive: a.dealsActive || 0 };
+      } catch (e) { return null; }
+    },
     since() { try { return mem.since || 0; } catch (e) { return 0; } },
     reset() { try { mem = { v: 1, since: Date.now(), art: {} }; dirty = true; flush(); } catch (e) { /* ignore */ } },
   };
@@ -20433,11 +20445,19 @@ const UIRenderer = (() => {
     if (el.zsBack) el.zsBack.addEventListener("click", () => { Sound.tap(); hideZenSelect(); if (zenSelectReturn) zenSelectReturn(); });
 
     // Collection page (UNLOCK1): Back mirrors zsBack; hold an UNLOCKED tile for
-    // its registry help — delegated ONCE here on the persistent list (tiles are
+    // its registry help, tap it for the detail popup (help + usage stats) —
+    // delegated ONCE here on the persistent list (tiles are
     // rebuilt each visit). Locked tiles carry no data-id, so the resolver never
     // fires for them (the unlock hint on the tile is their help).
     if (el.colBack) el.colBack.addEventListener("click", () => { Sound.tap(); hideCollection(); if (collectionReturn) collectionReturn(); });
     attachStoreHoldHelp(el.colList, (tile) => ({ kind: tile.dataset.kind, id: tile.dataset.id }), ".col-tile[data-id]");
+    // TAP an unlocked tile → its detail popup (help content + lifetime usage
+    // stats). storeHoldSuppress keeps a hold-for-help from ALSO opening it.
+    if (el.colList) el.colList.addEventListener("click", (e) => {
+      if (storeHoldSuppress) { storeHoldSuppress = false; return; }
+      const tile = e.target && e.target.closest ? e.target.closest(".col-tile[data-id]") : null;
+      if (tile) { Sound.tap(); showCollectionItemDetail(tile.dataset.kind, tile.dataset.id); }
+    });
 
     // Hold-to-peek the final board on run-complete screens: pressing the
     // overlay (anywhere except the button) fades it away to reveal the board
@@ -26837,9 +26857,12 @@ const UIRenderer = (() => {
      store-only (attachStoreHoldHelp is its only caller), so the STORESUIT1 suit
      line needs no storeVisible() gate. */
   let storeHoldSuppress = false;
-  function showStoreItemHelp(kind, id) {
+  /* The shared help-panel content (name + tier, sticker suit line, description)
+     — used by the store hold-help AND the Collection tap detail. Reads the
+     registry LIVE, so an items.js edit changes the text with no code change. */
+  function itemHelpHtml(kind, id) {
     const info = describeItem(kind, id);
-    if (!info || !el.cardInfoPanel || !el.cardInfo) return;
+    if (!info) return "";
     // STORESUIT1: stickers only — the italic restriction line sits between the
     // name and the description. `suits` is read LIVE off the def, so an items.js
     // edit changes the line with no code change. Other kinds aren't applied to a
@@ -26848,13 +26871,38 @@ const UIRenderer = (() => {
     const suitLine = stickerDef
       ? '<div style="font-style:italic;font-size:11.5px;opacity:0.82;margin:-2px 0 5px;">' + escHtml(stickerSuitLine(stickerDef.suits)) + '</div>'
       : "";
-    el.cardInfoPanel.innerHTML =
-      '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
+    return '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
       '<b style="font-size:15px;">' + escHtml(info.label) + '</b>' +
       (info.tier ? '<span style="margin-left:auto;font-size:10px;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;">' + escHtml(info.tier) + '</span>' : "") +
       '</div>' +
       suitLine +
       '<div style="white-space:pre-line;font-size:12.5px;line-height:1.34;">' + escHtml(info.desc || "") + '</div>';
+  }
+  function showStoreItemHelp(kind, id) {
+    if (!el.cardInfoPanel || !el.cardInfo) return;
+    const html = itemHelpHtml(kind, id);
+    if (!html) return;
+    el.cardInfoPanel.innerHTML = html;
+    el.cardInfo.classList.remove("hidden");
+  }
+  /* COLLECTION tap detail (v5.24): the same help panel PLUS lifetime usage from
+     Telem (times bought / effects triggered / deals active) — only lines with a
+     nonzero count render. The popup rides the collection z-override (the screen
+     is z-1400, the popup z-85 without it). */
+  function showCollectionItemDetail(kind, id) {
+    if (!el.cardInfoPanel || !el.cardInfo) return;
+    let html = itemHelpHtml(kind, id);
+    if (!html) return;
+    const s = Telem.itemSummary(id);
+    if (s) {
+      const lines = [];
+      if (s.purchased > 0) lines.push("Times bought: " + s.purchased);
+      if (s.triggers > 0) lines.push("Effects triggered: " + s.triggers);
+      if (s.dealsActive > 0) lines.push("Deals active: " + s.dealsActive);
+      if (lines.length) html += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(74,50,40,0.14);font-size:11.5px;opacity:0.78;">' +
+        lines.map(escHtml).join(" · ") + '</div>';
+    }
+    el.cardInfoPanel.innerHTML = html;
     el.cardInfo.classList.remove("hidden");
   }
   function attachStoreHoldHelp(container, resolve, sel) {

@@ -526,6 +526,21 @@ export function run() {
       "…chips drop shadow + gloss inside the list");
     r.ok(!html.includes("#colList .silhouette"),
       "…locked silhouettes KEEP their defining brightness filter");
+    // v5.24 tap detail: an unlocked tile tap opens the shared help popup with
+    // lifetime usage lines from Telem (only nonzero counts render).
+    r.ok(src.includes("itemSummary(id) {"),
+      "…Telem exposes itemSummary(id) (bought / triggered / deals-active)");
+    const detBody = bodyOf("function showCollectionItemDetail(kind, id)", "function attachStoreHoldHelp");
+    r.ok(detBody.includes("itemHelpHtml(kind, id)") && detBody.includes("Telem.itemSummary(id)")
+      && detBody.includes("Times bought: ") && detBody.includes("Effects triggered: ")
+      && detBody.includes("Deals active: "),
+      "…the detail popup = registry help + conditional usage lines");
+    r.ok(html.includes("body:has(#collectionScreen:not(.hidden)) .card-info { z-index: 1500; }"),
+      "…the popup is lifted above the z-1400 Collection screen");
+    r.ok(src.includes('e.target.closest(".col-tile[data-id]")')
+      && src.includes("showCollectionItemDetail(tile.dataset.kind, tile.dataset.id)")
+      && src.includes("if (storeHoldSuppress) { storeHoldSuppress = false; return; }"),
+      "…the tap is delegated ONCE at boot, hold-suppressed, unlocked tiles only");
   }
 
   return r.summary();

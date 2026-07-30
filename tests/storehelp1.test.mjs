@@ -162,8 +162,10 @@ export function run() {
     sample.suits = before;
 
     // --- B1/B2) the popup inserts the line for STICKERS ONLY, between name + desc, escaped
-    const help = fnBody(src, "showStoreItemHelp");
-    r.ok(help.length > 0, "showStoreItemHelp found");
+    // v5.24: the panel content was extracted into itemHelpHtml (shared by the store
+    // hold-help AND the Collection tap detail) — showStoreItemHelp just delegates.
+    const help = fnBody(src, "itemHelpHtml");
+    r.ok(help.length > 0, "itemHelpHtml found");
     r.ok(/kind === "sticker"/.test(help), "the suit line is gated to sticker items only");
     r.ok(help.includes("StickerTypes.get(id)"), "the popup fetches the sticker def by id (live suits, not a copy)");
     r.ok(help.includes("stickerSuitLine(stickerDef.suits)"), "the popup passes the LIVE def's suits to the mapping helper");
