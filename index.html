@@ -7437,7 +7437,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.19 · Windfall no longer double-popups; map card grants wear the Windfall reveal";
+const APP_VERSION = "v5.20 · Cleanse is forced: no ✕/backdrop escape until a sticker is stripped";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -20516,7 +20516,10 @@ const UIRenderer = (() => {
     if (el.storeApplyStickersBtn) el.storeApplyStickersBtn.addEventListener("click", () => { placementWalk = true; continuePendingPlacement(); });
     if (el.saClose) el.saClose.addEventListener("click", closeStickerApply);
     if (el.saSkip) el.saSkip.addEventListener("click", skipCurrentPackKeep);
-    if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => { if (e.target === el.stickerApplyModal) closeStickerApply(); });
+    if (el.stickerApplyModal) el.stickerApplyModal.addEventListener("click", (e) => {
+      // Cleanse (strip) is forced: the backdrop is inert — only a confirmed strip leaves.
+      if (e.target === el.stickerApplyModal && cardPickMode !== "strip") closeStickerApply();
+    });
     // Sticker picker cards: TAP = select to apply, HOLD = the card's sticker help.
     if (el.saCards) attachCardHoldHelp(el.saCards, (id) => selectApplyCard(id));
     // Deck inspector grid: HOLD a card for its sticker help (display-only list).
@@ -26460,8 +26463,9 @@ const UIRenderer = (() => {
   /* STRIP picker (the stickerStrip outcome): the remove-mode skin on
      #stickerApplyModal; only cards carrying ≥1 sticker are enabled. Confirm
      rides the bottom bar; it strips ONE random sticker (removeRandomStickerFrom
-     — destroyed, not returned) and shows what was stripped. ✕ / backdrop
-     declines (allowed — like declining a Blank's removal). */
+     — destroyed, not returned) and shows what was stripped. The strip is FORCED:
+     no ✕, no backdrop dismiss — the only exit is a confirmed strip. If NO card
+     has stickers the event fizzles at open (the allowed skip). */
   let pendingStripDone = null;
   function openMapStickerStrip(onDone) {
     if (!campaign) { if (onDone) onDone(); return; }
@@ -26477,7 +26481,7 @@ const UIRenderer = (() => {
     if (el.saBanner) el.saBanner.innerHTML = '<span class="me-glyph">🫧</span>' +
       '<span class="sa-name">Cleanse</span>' +
       '<span class="sa-desc">Pick a card — one random sticker is stripped from it, free. The stripped sticker is destroyed.</span>';
-    if (el.saHint) el.saHint.textContent = "Tap a stickered card.";
+    if (el.saHint) el.saHint.textContent = "Tap a stickered card — you must strip one to continue.";
     stickerApplyChrome();
     renderStickerApplyCards();
     DeckInspector.renderCompositionInto(el.saHist, el.saSuits);   // histogram + suit counts, same as the deck view
@@ -27916,7 +27920,9 @@ const UIRenderer = (() => {
   function stickerApplyChrome() {
     if (el.saTrash) el.saTrash.classList.add("hidden");      // no trash — buys cancel cleanly
     if (el.saSkip) el.saSkip.classList.add("hidden");        // Skip is a pack-keep-walk-only affordance
-    if (el.saClose) el.saClose.classList.remove("hidden");   // ✕ cancels (no spend)
+    // ✕ cancels (no spend) in every mode EXCEPT strip: Cleanse is forced — the
+    // only way out is confirming a strip (no-stickers decks never see the modal).
+    if (el.saClose) el.saClose.classList.toggle("hidden", cardPickMode === "strip");
   }
   function openStickerApply(typeId) {
     if (!campaign || !typeId) return;
@@ -28369,6 +28375,12 @@ const UIRenderer = (() => {
     });
   }
   function closeStickerApply() {
+    // MYST1 Cleanse (strip) mode is FORCED: no ✕ (hidden by stickerApplyChrome),
+    // no backdrop dismiss (guarded in attachInput), and this close path refuses
+    // BEFORE any teardown — the only exit is a confirmed strip (finishStrip
+    // hides the modal directly). The no-stickers case never reaches the modal
+    // (openMapStickerStrip fizzles at open).
+    if (cardPickMode === "strip") return;
     applyGridGen++;   // STKRB1: closing cancels any pending batched-mount chunks
     if (applyPickerBusy) return;   // a confirm's close animation is already completing the flow
     applyCardsById = new Map();   // release the picker's card snapshot with the modal
@@ -28398,16 +28410,6 @@ const UIRenderer = (() => {
       el.stickerApplyModal.classList.add("hidden");
       const done = pendingMapRemovalDone; pendingMapRemovalDone = null;   // MYST1: declined removal still continues
       if (done) done();
-      return;
-    }
-    // MYST1 Cleanse (strip) mode: ✕ / backdrop DECLINES the strip — nothing is
-    // removed, and the underlying node's dispatch still runs.
-    if (cardPickMode === "strip") {
-      cardPickMode = "sticker";
-      selectedApplyCardId = null;
-      closeModalPrompt();
-      el.stickerApplyModal.classList.add("hidden");
-      finishMysteryStrip();
       return;
     }
     // ✕ / backdrop CANCELS. A store-purchase sticker was never charged (payment only

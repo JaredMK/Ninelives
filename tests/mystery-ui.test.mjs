@@ -182,8 +182,20 @@ export function run() {
       "confirm strips ONE random sticker through the campaign core");
     r.ok(confirm.includes('persistCampaign("map")'),
       "…and checkpoints the map on the tap");
-    r.ok(confirm.includes("finishMysteryStrip()") && fnBody(src, "closeStickerApply").includes("finishMysteryStrip()"),
-      "confirm AND decline both run the continuation into completeMystery");
+    r.ok(confirm.includes("finishMysteryStrip()"),
+      "confirm runs the continuation into completeMystery");
+    // CLEANSE-FORCED: the strip can no longer be declined — ✕ is hidden in
+    // strip mode, the backdrop tap is inert, and closeStickerApply refuses
+    // strip mode outright (before any teardown). The only skip is the
+    // no-stickers fizzle at open (pinned above).
+    r.ok(fnBody(src, "stickerApplyChrome").includes('el.saClose.classList.toggle("hidden", cardPickMode === "strip")'),
+      "…the ✕ is hidden in strip mode (no cancel affordance)");
+    r.ok(/stickerApplyModal\.addEventListener\("click"[\s\S]{0,220}cardPickMode !== "strip"/.test(src),
+      "…the backdrop tap is inert in strip mode");
+    const close = fnBody(src, "closeStickerApply");
+    const guardAt = close.indexOf('if (cardPickMode === "strip") return;');
+    r.ok(guardAt !== -1 && guardAt < close.indexOf("applyGridGen++") && !close.includes("finishMysteryStrip()"),
+      "…and the close path refuses strip mode FIRST (no teardown, no decline into completeMystery)");
   }
 
   // ── ambush: forced subset from items.js, bounty on the bonus channel ──────
