@@ -513,6 +513,19 @@ export function run() {
       "…the screen pauses board motion behind it (the zenSelect pattern)");
     r.ok(src.includes("up(el.collectionScreen)"),
       "…boardVisible() counts it as a covering screen");
+    // v5.23 raster flatten: ~102 filter/shadow-heavy tiles in one scroll column
+    // hit iOS deferred raster (blank rows until scrolled past) — the list kills
+    // per-tile filters + heavy shadows (locked silhouettes keep theirs).
+    for (const sel of ["#colList .dcs-ic", "#colList .pennant .pb-cloth",
+                       "#colList .base-banner.plaque .base-sym .ico", "#colList .pack-foil"])
+      r.ok(html.includes(sel), "…collection flatten covers " + sel);
+    const flatRule = html.match(/#colList \.pack-foil \{ filter: none; \}/);
+    r.ok(!!flatRule, "…the four filter-heavy art layers go filter-less inside the list");
+    r.ok(html.includes("#colList .dcs { box-shadow: none; }")
+      && html.includes("#colList .dcs-gloss { display: none; }"),
+      "…chips drop shadow + gloss inside the list");
+    r.ok(!html.includes("#colList .silhouette"),
+      "…locked silhouettes KEEP their defining brightness filter");
   }
 
   return r.summary();

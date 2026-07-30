@@ -2252,6 +2252,21 @@ const NativeApp = (() => {
   .col-name { font-size: 12px; font-weight: 700; color: var(--on-felt);
     text-align: center; line-height: 1.15; }
   .col-tile-hint { font-size: 10.5px; color: var(--on-felt-muted); text-align: center; line-height: 1.25; }
+  /* COLLECTION raster flatten (v5.23): ~102 tiles of full store art in one
+     scroll column — every chip/pennant/plaque/foil packs drop-shadow FILTERS +
+     layered shadows, and iOS defers/discards off-screen rows' raster (the
+     blank-rows-until-you-scroll-past symptom). Same fix class as the picker's
+     .sa-lite: inside the list only, kill the per-tile filter + heavy shadow
+     raster. Shapes, colours and layout are untouched; locked silhouettes keep
+     their defining brightness filter. */
+  #colList .dcs-ic,
+  #colList .pennant .pb-cloth,
+  #colList .base-banner.plaque .base-sym .ico,
+  #colList .pack-foil { filter: none; }
+  #colList .dcs { box-shadow: none; }
+  #colList .dcs-gloss { display: none; }
+  #colList .sp-badge { box-shadow: 0 2px 5px rgba(74,40,55,0.25); }
+  #colList .pennant .pb-rod { box-shadow: none; }
   /* Synapse-equals logo (icons/logo.svg) above the title. Square SVG with the
      mark centred, so it carries its own breathing room; sized to balance the
      stacked title. SVG = crisp at any size. Negative margin trims the SVG's
@@ -7445,7 +7460,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.22 · sticker fly: the chip visibly lands on the card on every apply";
+const APP_VERSION = "v5.23 · Collection tiles flattened (fast-scroll blank-row raster fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
