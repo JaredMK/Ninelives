@@ -120,16 +120,37 @@ export function run() {
     r.ok(cont.includes('placementSavePhase = "map"'),
       "…and the walk checkpoints the map, not the store (mid-walk refresh safety)");
     const spAt = cont.indexOf('d.key === "stickerPack"');
-    const spBlock = cont.slice(spAt, cont.indexOf('d.key === "cards"'));
+    const spBlock = cont.slice(spAt, cont.indexOf('d.key === "ambush"'));
     r.ok(spBlock.includes("placementWalk = true") && spBlock.includes("continuePendingPlacement()")
       && spBlock.includes("onPlacementQueueEmpty"),
       "stickerPack surfaces through the inventory → placement walk, then falls through");
-    r.ok(/d\.key === "cards"[\s\S]{0,80}openMapPackReveal\(d\.cards/.test(cont),
-      "cards reveals the granted cards via openMapPackReveal, then falls through");
+    // WINDFALL1: the Windfall popup IS the cards reveal — the follow-up
+    // openMapPackReveal double-popup is gone; cards completes like joker.
+    r.ok(!cont.includes('d.key === "cards"') && !cont.includes("openMapPackReveal(d.cards"),
+      "cards (Windfall) has NO second popup — it falls through to done()");
     r.ok(/d\.key === "ambush"[\s\S]{0,80}startAmbushDeal\(d, id\)/.test(cont),
       "ambush hands off to the forced-deal starter");
-    r.ok(cont.includes("const done = () => completeMystery(id);") && /done\(\);\s*\/\/.*coin/.test(cont),
-      "passive outcomes (coins / curses) complete the mystery immediately");
+    r.ok(cont.includes("const done = () => completeMystery(id);") && /done\(\);\s*\/\/.*cards/.test(cont),
+      "passive outcomes (cards / coins / curses) complete the mystery immediately");
+  }
+
+  // ── map card-grant reveal wears the Windfall presentation ────────────────
+  {
+    const open = fnBody(src, "openMapPackReveal");
+    r.ok(open.includes("Sound.mapAdd()") && !open.includes("Sound.pack()"),
+      "map card grants play the Windfall sting (mapAdd), not the pack tear");
+    r.ok(!open.includes("staggerDealIn"),
+      "…and the CSS flip stagger replaces the button deal-in");
+    r.ok(src.includes('el.packReveal.classList.toggle("pack-show", st.mode === "show")'),
+      "show mode stamps pack-show on the overlay");
+    r.ok(fnBody(src, "closePackReveal").includes('classList.remove("pack-show")'),
+      "…and close sweeps the class off again");
+    r.ok(html.includes(".confirm-overlay.pack-show .pack-panel { border-top: 4px solid var(--good); }"),
+      "pack-show carries the Windfall good-rim");
+    r.ok(html.includes(".confirm-overlay.pack-show .pack-item .mini-card { animation: meaCardFlip"),
+      "…and the same meaCardFlip beat as the Windfall popup");
+    r.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.confirm-overlay\.pack-show/.test(html),
+      "…with reduced-motion killing the flip");
   }
 
   // ── freeRemoval: the removal picker carries the continuation ─────────────
@@ -298,7 +319,7 @@ export function run() {
     const cont = fnBody(src, "continueMysteryEvent");
     const stAt = cont.indexOf('d.key === "store"');
     const ssAt = cont.indexOf("showStore(false, id)");   // SEED1: the detour offer keys to the mystery node's id
-    r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("done();   // coinBonus"),
+    r.ok(stAt !== -1 && ssAt > stAt && ssAt < cont.indexOf("done();   // cards"),
       "the store outcome opens a full store visit on the spot (fresh=false — a saved offer survives)");
     r.ok(cont.includes("mysteryStoreContinue = () =>"),
       "…and arms the one-shot continuation for when the store closes");

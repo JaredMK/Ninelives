@@ -3474,6 +3474,18 @@ const NativeApp = (() => {
   .pack-item.dim { opacity: 0.3; }
   .pack-item.chosen .mini-card { outline: 2px solid var(--accent-2); outline-offset: 2px; }
   .pack-item.chosen .pk-sticker { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 8px; }
+  /* Map card-grant reveal (pack-show): the Windfall presentation — the mystery
+     modal's green rim + the same staggered meaCardFlip beat (transform/opacity
+     only), so every map card grant reads like the Windfall popup. The CSS
+     stagger replaces staggerDealIn in show mode. */
+  .confirm-overlay.pack-show .pack-panel { border-top: 4px solid var(--good); }
+  .confirm-overlay.pack-show .pack-item .mini-card { animation: meaCardFlip 0.55s cubic-bezier(0.3, 1.3, 0.5, 1) both; }
+  .confirm-overlay.pack-show .pack-item:nth-child(2) .mini-card { animation-delay: 0.12s; }
+  .confirm-overlay.pack-show .pack-item:nth-child(3) .mini-card { animation-delay: 0.24s; }
+  .confirm-overlay.pack-show .pack-item:nth-child(4) .mini-card { animation-delay: 0.36s; }
+  @media (prefers-reduced-motion: reduce) {
+    .confirm-overlay.pack-show .pack-item .mini-card { animation: none !important; }
+  }
   /* The revealed-item info help slot reuses .item-help styling but sits ABOVE the
      pack-reveal overlay (z-index 70) and the deck modal (80). Fixed footprint so a
      card with many stickers can't grow the box up over the pack items / buttons —
@@ -7425,7 +7437,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.18 · background flattens under deck-modals (compositor-thrash fix)";
+const APP_VERSION = "v5.19 · Windfall no longer double-popups; map card grants wear the Windfall reveal";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26404,7 +26416,6 @@ const UIRenderer = (() => {
       continuePendingPlacement();
       return;
     }
-    if (d.key === "cards") { openMapPackReveal(d.cards, done); return; }
     if (d.key === "ambush") { startAmbushDeal(d, id); return; }
     if (d.key === "store") {
       // STORE (MYST2): a full store visit on the spot, through the NORMAL
@@ -26426,7 +26437,7 @@ const UIRenderer = (() => {
       showStore(false, id);   // SEED1: the detour offer keys to the MYSTERY node's id
       return;
     }
-    done();   // coinBonus / coinLoss / cursedSticker / joker — done
+    done();   // cards (Windfall showed them) / coinBonus / coinLoss / cursedSticker / joker — done
   }
   /* AMBUSH: the map drops and a forced subset deal starts — `cards` cards on
      `piles` piles, knobs from items.js mystery.ambush via the descriptor (never
@@ -27366,20 +27377,22 @@ const UIRenderer = (() => {
   }
   function closePackReveal() {
     packRevealState = null; closePackItemInfo();
-    el.packReveal.classList.add("hidden"); el.packItems.innerHTML = "";
+    el.packReveal.classList.add("hidden"); el.packReveal.classList.remove("pack-show");
+    el.packItems.innerHTML = "";
   }
 
-  /* Map PACK open: reuse the store's pack-reveal overlay + the SAME deal-in flash,
-     in a reveal-ONLY mode (mode:"show"). The cards are already granted (drafted by
-     resolvePack) — this just shows exactly what was added; there's no pick/keep.
-     Confirm returns to the map and flourishes the deck indicator. */
+  /* Map PACK open: reuse the store's pack-reveal overlay in a reveal-ONLY mode
+     (mode:"show"). The cards are already granted (drafted by resolvePack) — this
+     just shows exactly what was added; there's no pick/keep. The presentation
+     matches the Windfall popup (pack-show rim + CSS card flip, mapAdd sting) —
+     the same reveal language for every map card grant. Confirm returns to the
+     map and flourishes the deck indicator. */
   function openMapPackReveal(cards, onClose) {
     if (!cards || !cards.length) { flashDeckGain(0); if (onClose) onClose(cards || []); return; }
     packRevealState = { kind: "card", mode: "show", items: cards, chosen: [], keep: cards.length, pending: null, onClose: onClose || null };
     el.packReveal.classList.remove("hidden");
     renderPackReveal();
-    staggerDealIn(el.packItems);   // identical reveal motion to the store
-    Sound.pack();                  // a pack was opened / revealed
+    Sound.mapAdd();                // cards joined the deck (Windfall sting)
   }
 
   /* One revealed-item button: just the card/sticker face. Tapping it selects the
@@ -27393,6 +27406,7 @@ const UIRenderer = (() => {
 
   function renderPackReveal() {
     const st = packRevealState; if (!st) return;
+    el.packReveal.classList.toggle("pack-show", st.mode === "show");
     if (st.mode === "show") {
       // Map pack: reveal-only (everything shown was already added to the deck).
       // Cards are tap-for-info but NOT selectable; one Confirm returns to the map.
