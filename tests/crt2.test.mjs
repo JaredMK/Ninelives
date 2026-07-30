@@ -73,9 +73,9 @@ export function run() {
   // --- §5 web lines: dashed pixel edges, lit path = phosphor ----------------
   {
     const edge = cssRule(html, ".map-edge");
-    r.ok(edge.includes("stroke-dasharray") && edge.includes("stroke: var(--net)")
-      && edge.includes("stroke-linecap: butt"),
-      ".map-edge is a dashed pixel line in the low-contrast felt tone (--net)");
+    r.ok(edge.includes("stroke-dasharray") && edge.includes("stroke: var(--card-face)")
+      && edge.includes("stroke-linecap: butt") && edge.includes("opacity: 0.3"),
+      ".map-edge is a dashed pixel line — ghosted cream (v5.45: --net was near-invisible on deep felt)");
     const done = cssRule(html, ".map-edge.done");
     r.ok(done.includes("stroke: var(--phosphor)"), "the travelled path is lit phosphor");
     r.ok(!done.includes("filter") && !done.includes("drop-shadow"),

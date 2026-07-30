@@ -5346,7 +5346,10 @@ const NativeApp = (() => {
   /* TRAIL (§5 web lines): DASHED PIXEL EDGES — butt caps, 8px dash / 6px gap,
      low-contrast felt tone (--net = felt-mid) so the untraveled web recedes
      into the table. A 4px pixel "signal dot" square sits on each curve. */
-  .map-edge { fill: none; stroke: var(--net); stroke-width: 4; stroke-linecap: butt; stroke-dasharray: 8 6; opacity: 1; }
+  /* Base (untravelled) edges: ghosted cream — the felt-mid --net tone was
+     near-invisible on the deep felt (player report). Hierarchy stays:
+     base 0.3 < next-move cream 0.55 < travelled phosphor 1. */
+  .map-edge { fill: none; stroke: var(--card-face); stroke-width: 4; stroke-linecap: butt; stroke-dasharray: 8 6; opacity: 0.3; }
   /* Edges leaving the CURRENT node: cream dashes — readable next-move hints
      (declared BEFORE .done so a travelled edge keeps its phosphor). */
   .map-edge.active { stroke: var(--card-face); opacity: 0.55; }
@@ -5354,7 +5357,7 @@ const NativeApp = (() => {
      the LIT PATH: phosphor dashes at full strength, the map's one highlight
      (§5 .webline.lit — no glow filter: SVG strokes never blur, §10). */
   .map-edge.done { stroke: var(--phosphor); stroke-width: 4; opacity: 1; }
-  .map-dot { fill: var(--net); opacity: 1; }
+  .map-dot { fill: var(--card-face); opacity: 0.3; }
   .map-dot.active { fill: var(--card-face); opacity: 0.7; }
   .map-dot.done { fill: var(--phosphor); opacity: 1; }
 
@@ -6896,7 +6899,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.44 · first climb/store open their keys; ? sits right of Refresh";
+const APP_VERSION = "v5.45 · map paths readable — ghosted cream dashes";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
