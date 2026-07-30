@@ -221,14 +221,9 @@ const NativeApp = (() => {
     --pathway: #d9a441;     /* Pathway identity → gold accents */
     --pathway-2: #d9a441;   /* pathway icons → gold */
     /* (Pillar cloth + rarity-trim tokens retired in chunk 5 — the pennant is
-       the pixel pillar icon; rarity reads on the shelf tile's tier strip.) */
-    /* (foil gradient stops retired in chunk 3 — the pack wrap is a baked
-       gold⊕deep-felt / phosphor⊕felt-mid dither tile now; tokens kept for
-       the chunk-6 dead-code sweep) */
-    --foil-1: #d9a441;      /* CARD-pack foil → gold on deep felt */
-    --foil-2: #142820;
-    --foil-sticker-1: #4ef08a; /* STICKER-pack foil → phosphor on felt */
-    --foil-sticker-2: #1e3a2c;
+       the pixel pillar icon; rarity reads on the shelf tile's tier strip.
+       The chunk-3 --foil-* stops are deleted with the chunk-6 sweep: the pack
+       wrap is a baked gold⊕deep-felt / phosphor⊕felt-mid dither tile.) */
     /* Fixed play-screen regions (stable board: never recomputed per-action). */
     --controls-h: clamp(50px, 8vh, 60px);   /* Start/guess row */
     /* Shared item-info typography — ONE source for every info slot (store
@@ -328,17 +323,8 @@ const NativeApp = (() => {
     text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
   }
   .tray-help .th-desc b { color: var(--accent-2); }
-  /* Sectioned inventory: Stickers · Pillars · Cards, each a labelled group. */
-  .inv-sec { display: flex; flex-direction: column; gap: 6px; }
-  .inv-sec-h { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
-    color: var(--muted); display: flex; align-items: center; gap: 5px; }
-  .inv-sec-h .ico { font-size: 13px; color: var(--accent-2); }
-  .inv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .inv-cards-btn { align-self: flex-start; background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 700;
-    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-  .inv-cards-btn .ico { font-size: 15px; }
-  .inv-cards-btn:active { transform: scale(0.97); }
+  /* (The sectioned in-play inventory popup — .inv-sec/.inv-chips/.inv-cards-btn —
+     was removed with its markup; its rules left with the chunk-6 sweep.) */
 
   /* Layout 4 — one slim HUD line: Stage·Run · score expression · dopamine. */
   .hud {
@@ -410,7 +396,7 @@ const NativeApp = (() => {
   .hud .hud-same { width: 30px; height: 30px; font-size: 20px; }
   .hud .hud-same img { width: 23px; height: 23px; }
   .hud .hud-same.charged { background: var(--felt-deep); transform: scale(1.1);
-    box-shadow: 0 0 12px var(--phosphor), 0 0 3px var(--phosphor); border: 1.5px solid var(--phosphor); }
+    box-shadow: var(--glow); border: var(--px) solid var(--phosphor); }   /* THE one glow (§10); pixel-grid border */
 
   /* ── #2 FOUR-SUIT PHASE TRACKER (replaces the phase text in the HUD). ─────────
      DONE = full-colour suit, ACTIVE = highlighted (scale + amber glow + chip),
@@ -426,7 +412,7 @@ const NativeApp = (() => {
      four-suit tracker — same states (done/active/todo), numbered coins. */
   .suit-track .st-suit.st-stage { font-size: 12px; width: 19px; height: 19px; border-radius: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    border: 1.5px solid currentColor; color: var(--text); }
+    border: var(--px) solid currentColor; color: var(--text); }
   .suit-track .st-suit.st-stage.st-active { transform: scale(1.15); }
 
   /* ── #1 SUIT-COUNT CHART (beside the rank histogram) — 2×2 of "♥ rem/total",
@@ -770,7 +756,7 @@ const NativeApp = (() => {
      element + an OPACITY-crossfaded ::after halo — same violet pulse,
      compositor-only. Filter/box-shadow animation stays banned for always-on
      FX (THERMAL1). */
-  .deck-stack.revealed { position: relative; box-shadow: 0 0 5px rgba(78,240,138,0.62); border-radius: 0; }
+  .deck-stack.revealed { position: relative; box-shadow: var(--glow); border-radius: 0; }   /* THE one glow (§10) */
   .deck-stack.revealed::after {
     content: ""; position: absolute; inset: -3px; border-radius: 0; z-index: -1;
     box-shadow: 0 0 14px rgba(78,240,138,1);
@@ -1657,7 +1643,8 @@ const NativeApp = (() => {
      "X of Y in play" count. Conveys PROPORTION only. Casino-felt vignette. */
   .subset-reveal { position: fixed; inset: 0; z-index: 90;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-    background: radial-gradient(circle at 50% 42%, rgba(20,46,34,0.70), rgba(7,18,13,0.93));
+    /* Scrim stops re-pinned to palette derivatives: felt-deep centre → ink rim. */
+    background: radial-gradient(circle at 50% 42%, rgba(20,40,32,0.70), rgba(16,16,14,0.93));
     opacity: 0; transition: opacity 0.16s ease; }
   .subset-reveal.in { opacity: 1; }
   .subset-reveal.out { opacity: 0; }
@@ -1861,7 +1848,7 @@ const NativeApp = (() => {
     position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
     display: flex; align-items: center; justify-content: center;
     background: var(--gold); color: var(--ink);
-    border: 1.5px solid var(--ink); border-radius: 0; box-shadow: 2px 2px 0 0 var(--shadow);
+    border: var(--px) solid var(--ink); border-radius: 0; box-shadow: 2px 2px 0 0 var(--shadow);
     pointer-events: none;
   }
   .btn.same .sp-on-btn .ico { width: 12px; height: 12px; display: block; }
@@ -2402,6 +2389,16 @@ const NativeApp = (() => {
   .telem-panel { width: min(100%, 760px); }
   .telem-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
   .telem-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+  /* The telemetry SHEET is a real (debug-gated) surface — its two actions wear
+     the §4 plain pixel button, not the exempt debug-panel chrome. */
+  .telem-actions .debug-btn {
+    background: var(--felt-deep); color: var(--text);
+    border: var(--px) solid var(--ink); border-radius: 0;
+    box-shadow: 2px 2px 0 0 var(--shadow);
+    font-family: var(--font-text); text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 8px 12px;
+  }
+  .telem-actions .debug-btn:active { transform: translate(2px, 2px); box-shadow: none; }
   .telem-scroll { overflow: auto; max-height: 64vh; -webkit-overflow-scrolling: touch; border: var(--px) solid var(--ink); border-radius: 0; }
   .telem-table { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
   .telem-table th, .telem-table td { padding: 4px 7px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--edge-2); }
@@ -3068,42 +3065,10 @@ const NativeApp = (() => {
        the plaque shelf below carries the depth instead. */
     background: var(--felt-deep);
   }
-  /* No lost-paths tangle behind the shop either (same call as .overlay.map). */
-  .overlay.store::before { content: none; }
-
-  /* Coin balance + inventory: pinned to the top of the shop, always visible.
-     DEAD CSS (no .store-coins/.sc-inv element remains — the header is
-     .store-top/.store-balance now): left byte-identical for chunk-6 deletion
-     alongside the other retired blocks (.store-views, .store-desc). */
-  .store-coins {
-    position: sticky; top: 34px; z-index: 6;
-    width: min(94vw, 380px);
-    text-align: center;
-    padding: 6px 0 8px;
-    margin: 0;
-    background: rgba(248, 242, 235, 0.96);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border-bottom: 1px solid rgba(74, 52, 44, 0.10);
-  }
-  .store-coins b { color: var(--accent); }
-  .sc-coins { font-size: 18px; font-weight: 800; }
-
-  /* Compact owned-sticker inventory (counts per type). Shared chip style is
-     reused by the in-play inventory popup. */
-  .sc-inv { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 5px; }
-  .inv-chip {
-    display: inline-flex; align-items: center; gap: 2px;
-    background: var(--panel); border-radius: 999px;
-    padding: 2px 7px;
-    font-size: 11px; font-weight: 700;
-  }
-  .inv-chip .ic-n { color: var(--accent-2); font-weight: 800; }
-  /* Placed-on-board Pillar chips read in the Pathway/violet identity so they're
-     clearly distinct from held (unplaced) chips, with the column they sit on. */
-  .inv-chip.placed { background: rgba(110,81,166,0.14); border: 1px solid var(--pathway); color: var(--pathway-2); }
-  .inv-chip .ic-col { color: var(--pathway-2); font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px; }
-  .inv-empty { font-size: 11px; font-weight: 600; color: var(--muted); }
+  /* (Chunk-6 sweep: the .overlay.store::before content:none belt is gone with
+     the generic .overlay::before tangle it guarded against, and the retired
+     shop-header blocks — .store-coins (the game's LAST backdrop-filter pair),
+     .sc-inv, .inv-chip — left with the markup that once carried them.) */
 
   /* ============================================================
      STORE — three colour/shape-coded zones + one fixed help slot.
@@ -3466,17 +3431,9 @@ const NativeApp = (() => {
   .pack-panel .buy-confirm,
   .pack-panel .pack-skip-btn { width: 100%; max-width: 100%; }
 
-  /* View row: Inventory · Cards (secondary, equal width). */
-  .store-views { display: flex; gap: 7px; }
-  .store-view-btn { flex: 1; background: var(--panel); color: var(--accent-2);
-    border: 1px solid var(--edge-2); border-radius: 999px; padding: 9px 6px; font-size: 12px; font-weight: 700;
-    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; touch-action: manipulation; }
-  .store-view-btn .ico { font-size: 15px; }
-  .store-view-btn:disabled { opacity: 0.4; color: var(--muted); cursor: default; }
-  .store-view-btn:active { transform: scale(0.97); }
+  /* (Retired view row .store-views/.store-view-btn deleted — chunk-6 sweep.) */
   /* Bottom action row: a compact Cards (deck) button + the full-width Start. */
   .store-actions { display: flex; gap: 9px; align-items: stretch; }
-  .store-actions .store-view-btn { flex: 0 0 auto; padding: 9px 14px; }
   /* The store deck character sits at the action row's left, tappable like in a deal. */
   .play-btn.store-start { flex: 1; margin: 0; padding: 11px 18px; font-size: 15px; }
   /* Locked while items await placement: §4 disabled — felt-mid face, dim
@@ -3504,11 +3461,11 @@ const NativeApp = (() => {
   .confirm-msg .warn-stickers { color: var(--bad); font-size: 12px; display: inline-block; margin-top: 6px; }
   /* Board input modes for the targeting Pillars (Revive / Kamikaze). */
   .board.armed-revive .pile.dead { cursor: pointer; }
-  .board.armed-revive .pile.dead .card { outline: 2px dashed var(--good); outline-offset: 3px; border-radius: 22px; }
-  .board.armed-kamikaze .pile:not(.dead) .card { outline: 2px dashed var(--bad); outline-offset: 3px; border-radius: 22px; }
+  .board.armed-revive .pile.dead .card { outline: 2px dashed var(--good); outline-offset: 3px; border-radius: 0; }
+  .board.armed-kamikaze .pile:not(.dead) .card { outline: 2px dashed var(--bad); outline-offset: 3px; border-radius: 0; }
   /* Generic "this pile is involved in the pending action" highlight (Donate
      donor/receiver, Shuffle pile) while its bottom prompt is up. */
-  .pile.action-target .card { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 22px; }
+  .pile.action-target .card { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 0; }
   /* Shuffle: a brief riffle wiggle on the pile's card when it's shuffled. */
   @keyframes shuffleWiggle {
     0%, 100% { transform: rotate(0) translateX(0); }
@@ -3536,19 +3493,8 @@ const NativeApp = (() => {
     color: var(--phosphor); text-shadow: var(--glow); line-height: 1.4; margin-bottom: 10px; }
   .pack-items { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; }
   .pack-items > * { flex: 1 1 0; min-width: 0; }
-  /* Store auto-description panel — always-visible, fixed slot (no layout jump). */
-  .store-desc {
-    width: min(96vw, 400px); min-height: 46px;
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 10px;
-    padding: 7px 11px; text-align: left;
-  }
-  .store-desc .sd-empty { color: var(--muted); font-size: 11px; }
-  .store-desc .sd-title { color: var(--accent-2); font-weight: 800; font-size: 13px;
-    display: flex; align-items: center; gap: 5px; }
-  .store-desc .sd-title .ico { font-size: 16px; }
-  .store-desc .sd-tier { color: var(--muted); font-weight: 700; font-size: 9px;
-    text-transform: uppercase; letter-spacing: 0.5px; margin-left: auto; }
-  .store-desc .sd-desc { color: var(--text); font-size: 11px; line-height: 1.4; margin-top: 3px; }
+  /* (Retired .store-desc auto-description panel deleted — chunk-6 sweep; the
+     store detail popup #sdPanel carries name/tier/description now.) */
   .pack-msg { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 14px; line-height: 1.4; }
   /* Read-only "view deck composition" aid on the card-pick screen. */
   .pack-deck-btn {
@@ -3709,8 +3655,10 @@ const NativeApp = (() => {
     display: flex; align-items: center; justify-content: center;
   }
   .cph-ico .cph-halo {
-    position: absolute; inset: -2px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(12,8,16,0.88) 52%, rgba(12,8,16,0) 80%);
+    /* Ink readability halo (palette-derived stops; the radial fades to fully
+       transparent before the corners, so no radius is needed). */
+    position: absolute; inset: -2px; border-radius: 0;
+    background: radial-gradient(circle, rgba(16,16,14,0.88) 52%, rgba(16,16,14,0) 80%);
   }
   .cph-ico .ico { position: relative; }
   @media (prefers-reduced-motion: reduce) { .cph-syn .syn-dot { display: none; } }
@@ -4063,20 +4011,8 @@ const NativeApp = (() => {
     font-size: 13px;
   }
   .overlay-coins.hidden { display: none; }
-  .ocoins-head {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
-    color: var(--muted); font-weight: 700; margin-bottom: 6px;
-  }
-  .ocoins-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-  .ocoins-row .lbl { color: var(--text); }
-  .ocoins-row .dim { color: var(--muted); font-weight: 600; font-size: 12px; }
-  .ocoins-row .val { font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }   /* coin values read GOLD (§1) */
-  .ocoins-sum {
-    border-top: 1px solid var(--ink);
-    margin-top: 4px; padding-top: 5px;
-  }
-  .ocoins-sum .lbl { font-weight: 800; }
-  .ocoins-balance { text-align: right; margin-top: 6px; font-size: 12px; color: var(--muted); }
+  /* (The pre-itemized .ocoins-* row styles are deleted — chunk-6 sweep;
+     coinBreakdownHtml writes only the .dc-* lines below.) */
 
   /* ---- Deal-cleared payout screen ----
      Phosphor display headline over a felt-mid pixel panel of reward lines
@@ -4259,7 +4195,7 @@ const NativeApp = (() => {
   .board.placing-pillar .bp-cell { cursor: pointer; }
   .board.placing-pillar .bp-cell .cph-banner { outline: 2px dashed var(--gold); outline-offset: 1px; }
   .board.placing-pillar .bp-cell .cph-banner.empty {
-    background: rgba(110,81,166,0.14);
+    background: rgba(217, 164, 65, 0.14);   /* gold drop-target wash (§1 — the old pathway violet is retired) */
     border-color: var(--pathway);
   }
 
@@ -4317,7 +4253,7 @@ const NativeApp = (() => {
   .dcs.dcs-cursed .dcs-ic { display: none; }
   .dcs-n {
     position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
-    background: var(--ink); color: var(--card-face); border: 1.5px solid var(--card-face); border-radius: 0;
+    background: var(--ink); color: var(--card-face); border: var(--px) solid var(--card-face); border-radius: 0;
     font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
     transform: rotate(calc(var(--dcs-rot) * -1)); z-index: 2;
   }
@@ -4377,7 +4313,7 @@ const NativeApp = (() => {
     font-family: var(--font-text);
     font-size: calc(var(--pile-size, 88px) * 0.17); font-weight: 800; line-height: 1;
     color: var(--card-face); background: var(--ink);
-    border: 1.5px solid var(--card-face);
+    border: var(--px) solid var(--card-face);
     border-radius: 0;
     z-index: 3;
     pointer-events: none;
@@ -4529,7 +4465,7 @@ const NativeApp = (() => {
     padding: 0 calc(var(--pile-size, 88px) * 0.05);
     display: inline-flex; align-items: center; justify-content: center;
     font-size: calc(var(--pile-size, 88px) * 0.16); font-weight: 900; line-height: 1;
-    color: var(--card-face); background: var(--ink); border: 1.5px solid var(--card-face); border-radius: 0;
+    color: var(--card-face); background: var(--ink); border: var(--px) solid var(--card-face); border-radius: 0;
     box-shadow: 2px 2px 0 0 var(--shadow);
   }
   .pile-hint.hidden { display: none; }
@@ -4874,10 +4810,10 @@ const NativeApp = (() => {
     align-items: center;
     gap: 8px;
     padding: 1px 2px;
-    border-radius: 6px;
+    border-radius: 0;
   }
   .bd-row.empty { opacity: 0.35; }
-  .bd-row.scrub-active { background: rgba(78, 240, 138, 0.14); outline: 1px solid rgba(78, 240, 138, 0.5); }
+  .bd-row.scrub-active { background: rgba(78, 240, 138, 0.14); outline: 2px solid rgba(78, 240, 138, 0.5); }
   .bd-rank { font-weight: 800; text-align: center; }
   .bd-bar {
     height: 8px;
@@ -4989,7 +4925,7 @@ const NativeApp = (() => {
   .deck-quick-grid { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
   .dq-cell {
     background: var(--panel);
-    border-radius: 7px;
+    border-radius: 0;
     padding: 4px 7px;
     font-size: 12px;
     font-weight: 700;
@@ -5044,7 +4980,7 @@ const NativeApp = (() => {
   .ap-speed.hidden { display: none; }
   /* The pile the autopilot is about to act on — telegraphed for one beat
      (~1/4s) before the guess lands so the choice is watchable. */
-  .pile.ap-target { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 10px; }
+  .pile.ap-target { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 0; }
 
   .debug-overlay {
     position: fixed; inset: 0; z-index: 95;
@@ -5305,9 +5241,8 @@ const NativeApp = (() => {
       url('data:image/gif;base64,R0lGODlhAgACAIABAB46LBQoICH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs=') 0 0 / 4px 4px repeat;
   }
   @media (prefers-reduced-motion: reduce) { .map-bg { transform: none; } }
-  /* The generic overlay tangle (.overlay::before) is replaced on the MAP by the
-     moving .map-bg-tangle above — content:none stops the double print. */
-  .overlay.map::before { content: none; }
+  /* (The .overlay.map::before content:none belt is gone with the generic
+     .overlay::before tangle it guarded against — chunk-6 sweep.) */
 
   /* Scroll region — no header/footer; the climb fills the whole overlay and
      navigation is by tapping nodes. Momentum + smooth programmatic scroll. */
@@ -5338,30 +5273,14 @@ const NativeApp = (() => {
   #mapFoot #histBand > .deck-stack { visibility: visible; }
 
   /* ── NEW branching phase-map ──────────────────────────────────────────
-     The new map draws its OWN edges (SVG), so the old centre climbing line is
-     suppressed. Nodes are absolutely positioned within .phase-map. */
-  .overlay.map .map-track::before { display: none; }
-  /* Header = the deal screen's STATUS PILL (rounded panel, shadow); the phase
-     text takes the current suit's colour (--suit-col, set by the tint class). */
-  .map-hdr {
-    display: none;   /* RETIRED bar (phase + deck count): the histogram band above already carries both */
-    position: relative; z-index: 3; align-items: center; justify-content: space-between;
-    gap: 10px; width: min(98vw, 460px); margin: 4px auto 0;
-    /* Reserve room for the fixed corner buttons (menu top-left, inventory
-       top-right, ~34px each) so the phase + deck text never slides under them —
-       the same clearance the play HUD uses, keeping the banner consistent. */
-    padding: 5px 42px;
-    background: var(--panel); border: 1px solid var(--edge-2); border-radius: 999px; box-shadow: 4px 4px 0 0 var(--shadow);
-    font-family: var(--font-text); font-weight: 800;
-  }
-  .map-hdr .map-phase { font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase;
-    color: var(--suit-col, var(--accent-2)); white-space: nowrap; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; }   /* never wrap/overflow under a button */
-  .map-hdr .map-phase b { font-family: var(--font-display); font-size: 14px; text-transform: none; margin-right: 3px; }
-  .map-hdr .map-deck { font-size: 11px; color: var(--ink); white-space: nowrap; }
-  .map-hdr .map-deck b { font-size: 15px; color: var(--accent-2); margin: 0 1px; }
-  @keyframes deckGain { 0% { transform: scale(1); } 35% { transform: scale(1.2); color: var(--amber); } 100% { transform: scale(1); } }
-  .map-hdr .map-deck.gain b { display: inline-block; animation: deckGain 0.5s ease; }
+     The new map draws its OWN edges (SVG). (The old centre-line suppressor
+     .overlay.map .map-track::before left with the single-track CSS it
+     guarded — chunk-6 sweep.) Nodes are absolutely positioned within
+     .phase-map. */
+  /* RETIRED map header bar (phase + deck count): the histogram band above
+     already carries both. JS still writes #mapPhase/#mapDeck, so the element
+     stays in the markup — hidden; its decorative rules are swept. */
+  .map-hdr { display: none; }
   /* (The old whole-map suit-tint rules are retired with the depth-plane washes:
      JS still toggles .tint-d/-c/-s but nothing reads --suit-col/--suit-wash on
      the flat felt map — the phase hand-off is carried by the band labels.) */
@@ -5459,7 +5378,7 @@ const NativeApp = (() => {
      reads identically everywhere. */
   .node-card .front.nc-special { align-items: center; justify-content: center; gap: 2px; }
   .node-card .nc-special .ncs-sym { font-size: 20px; line-height: 1; font-weight: 800; }
-  .node-card .nc-special .ncs-lab { font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
+  .node-card .nc-special .ncs-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }   /* §3 floor: 8px minimum */
   .node-card .front.nc-joker { background: var(--pxi-joker) center / 100% 100% no-repeat;
     image-rendering: pixelated; color: var(--gold);
     border-color: var(--gold); justify-content: flex-end; }
@@ -5692,7 +5611,6 @@ const NativeApp = (() => {
     .pm-node.s-legal::after, .pm-node.s-here::after { content: none; }
     .pm-node.s-legal::before { box-shadow: 0 0 0 3px var(--gold); }
     .pm-node.s-here::before { box-shadow: 0 0 0 3px var(--phosphor); }
-    .map-hdr .map-deck.gain { animation: none; }
   }
 
   /* ============================================================
@@ -5717,7 +5635,7 @@ const NativeApp = (() => {
   .map-spot { position: absolute; width: 0; height: 0; z-index: 4;
     pointer-events: none; transform: translate(0, 0); }
   .map-spot::before { content: ""; position: absolute; left: -420px; top: -420px;
-    width: 840px; height: 840px; border-radius: 50%;
+    width: 840px; height: 840px; border-radius: 0;   /* the radial fades out before the corners — no circle clip needed (§10) */
     background: radial-gradient(circle,
       rgba(236, 228, 207, 0.20) 0%,
       rgba(236, 228, 207, 0.12) 26%,
@@ -5787,145 +5705,11 @@ const NativeApp = (() => {
     .map-avatar.mood-loss .av-body { transition: none; }
   }
 
-  /* The dashed climbing path runs up the centre, BEHIND the nodes. */
-  .map-track-legacy::before {
-    content: ""; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 3px;
-    transform: translateX(-50%); z-index: 0;
-    background: repeating-linear-gradient(var(--edge-2) 0 6px, transparent 6px 12px);
-  }
-
-  /* Per-stage background neural pattern (approach B). Each stage's section of the
-     climb wraps in a .map-band; a faint SVG web sits BEHIND its run nodes,
-     fossils and labels as background texture only. Density rises stage→stage
-     (set per render, scaled to the real stage count). The run nodes have opaque
-     faces, so the web only ever shows in the gaps — it can't bleed through a
-     fossil. Opacity is hard-capped low so it reads as subtle texture, never
-     content. Static (no animation) → no scroll cost. */
-  /* A self-contained stacking context per band, so the pattern reliably sits
-     behind this band's nodes/labels (which carry z-index 1/2) while the central
-     dashed path — drawn on the transparent band — still shows through. */
-  .map-band { position: relative; z-index: 0; }
-  .map-band-bg {
-    position: absolute; left: 0; right: 0; top: 0; bottom: 0;
-    width: 100%; height: 100%; z-index: 0; pointer-events: none;
-    opacity: 0.12;   /* cap — subtle texture only */
-  }
-  .map-band-bg line { stroke: var(--net); stroke-width: 0.7; }
-  .map-band-bg circle { fill: var(--net); }
-  @media (prefers-reduced-motion: reduce) { .map-band-bg { opacity: 0.1; } }
-
-  /* Stage divider + suit callout. The tag carries a solid background so the
-     dotted path behind it is masked (no text-on-line overlap). */
-  .map-stage { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 18px 0 14px; }
-  .map-stage .ms-line { height: 1px; background: var(--edge-2); flex: 1; }
-  .map-stage .ms-tag {
-    font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 12px;
-    color: var(--accent-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
-    letter-spacing: 0.4px;
-    background: var(--bg-2); padding: 2px 10px; border-radius: 999px;
-  }
-  .map-stage .ms-suits { font-size: 13px; letter-spacing: 1px; }
-  .map-stage .ms-suits .red { color: var(--card-red); }
-  .map-newsuit {
-    background: var(--panel); border: 1px solid var(--accent); border-radius: 999px;
-    padding: 2px 9px; font-size: 9.5px; font-weight: 800; color: var(--accent);
-    display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 1px 3px rgba(120,90,70,.12);
-    text-transform: none; letter-spacing: 0.2px;
-  }
-  .map-newsuit .red { color: var(--card-red); font-size: 12px; }
-
-  /* A run row: the NODE is centred on the dotted path; the label lives in the
-     outer column (alternating sides) so it never overlaps the line. */
-  .map-run {
-    position: relative; z-index: 1;
-    display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center;
-    column-gap: 14px; width: 100%; margin: 0 auto 16px;
-  }
-  .map-run > .map-node { grid-column: 2; grid-row: 1; }
-  .map-run > .map-meta { grid-row: 1; }
-  .map-run:not(.right) > .map-meta { grid-column: 3; text-align: left; }
-  .map-run.right > .map-meta { grid-column: 1; text-align: right; }
-  .map-node {
-    width: 76px; height: 76px; border-radius: 16px; flex: 0 0 auto; position: relative;
-    background: var(--card-face); border: 1px solid var(--edge-2);
-    box-shadow: 0 3px 8px rgba(120,90,70,.16);
-    display: flex; align-items: center; justify-content: center;
-  }
-  /* CONQUERED (below the current node): warm + settled, fossils glowing faintly
-     like trophies behind glass. */
-  .map-node.done {
-    border-color: rgba(199,126,31,0.5);
-    background: linear-gradient(180deg, #fffdf9, #fdf4e6);
-    box-shadow: 0 3px 8px rgba(120,90,70,.16), 0 0 14px rgba(224,151,60,0.18);
-  }
-  .map-node.done .fossil { filter: drop-shadow(0 0 3px rgba(224,151,60,0.45)); opacity: 0.95; }
-  .map-node.current {
-    border: 2px solid var(--accent);
-    box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16);
-    animation: mapPulse 1.8s ease-in-out infinite;
-  }
-  @keyframes mapPulse {
-    0%, 100% { box-shadow: 0 0 0 4px var(--sel), 0 3px 8px rgba(120,90,70,.16); }
-    50%      { box-shadow: 0 0 0 7px var(--sel), 0 4px 11px rgba(120,90,70,.22); }
-  }
-  /* A gentle inviting breath on the current node's play button. */
-  .map-node.current .mn-play { animation: mapInvite 1.8s ease-in-out infinite; }
-  @keyframes mapInvite { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-  @media (prefers-reduced-motion: reduce) {
-    .map-node.current { animation: none; }
-    .map-node.current .mn-play { animation: none; }
-  }
-  /* Tappable nodes (current = enter the run; cleared = view its fossil). */
-  .map-node.tappable { cursor: pointer; }
-  .map-node.tappable:active { transform: scale(0.94); }
-  /* AHEAD (locked): cooler + fainter — the unknown path. */
-  .map-node.locked { opacity: 0.46; filter: grayscale(0.25) brightness(0.99); }
-  .map-node.locked { background: linear-gradient(180deg, #fbfaff, #f3f0fa); border-color: rgba(110,81,166,0.28); }
-
-  /* SUMMIT — the final deal: a golden frame + a crown, set apart as the goal. */
-  .map-node.summit {
-    border-color: var(--amber);
-    box-shadow: 0 3px 10px rgba(120,90,70,.18), 0 0 0 3px rgba(224,151,60,0.28), 0 0 20px rgba(224,151,60,0.3);
-    background: linear-gradient(180deg, #fffdf6, #fdf1d8);
-  }
-  .map-node.summit.locked { opacity: 0.8; filter: none; }
-  .map-node.summit.current { animation: summitPulse 2.2s ease-in-out infinite; }
-  @keyframes summitPulse {
-    0%,100% { box-shadow: 0 0 0 4px var(--sel), 0 0 0 3px rgba(224,151,60,0.4), 0 0 22px rgba(224,151,60,0.4); }
-    50%     { box-shadow: 0 0 0 7px var(--sel), 0 0 0 3px rgba(224,151,60,0.6), 0 0 30px rgba(224,151,60,0.6); }
-  }
-  .map-node .mn-crown {
-    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
-    width: 26px; height: 26px; color: var(--amber);
-    filter: drop-shadow(0 1px 2px rgba(120,90,70,0.3));
-  }
-  .map-node.summit.locked .mn-crown { color: rgba(199,126,31,0.7); }
-  @media (prefers-reduced-motion: reduce) { .map-node.summit.current { animation: none; } }
-  .map-node .mn-q { font-family: var(--font-display, "Baloo 2"); font-weight: 800; font-size: 26px; color: var(--accent); }
-  .map-node .mn-lock { color: var(--muted); display: flex; align-items: center; justify-content: center; }
-  .map-node .mn-lock svg { width: 26px; height: 26px; }
-  /* Legacy cleared deal with no recorded fossil — a neutral dot (no checkmark). */
-  .map-node .mn-done { width: 12px; height: 12px; border-radius: 50%; background: var(--good); opacity: 0.55; }
-  .map-node .fossil { width: 100%; height: 100%; }
-  /* Play-button indicator on the current run node — the tap target to start it. */
-  .map-node .mn-play {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: linear-gradient(180deg, var(--accent), #ff9d4d);
-    color: #fff; font-size: 15px; padding-left: 3px;   /* optical-centre the ▶ */
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 7px rgba(200,74,120,.42);
-  }
-  .map-badge {
-    position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
-    font-size: 11px; font-weight: 800; color: #fff; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 1px 3px rgba(74,50,40,.3);
-  }
-  .map-badge.ok { background: var(--good); }
-  .map-badge.cur { background: var(--accent); }
-  .map-meta { font-size: 12.5px; min-width: 0; }
-  .map-meta .mm-name { font-weight: 800; color: var(--text); }
-  .map-meta .mm-name.mm-dim { color: var(--muted); font-weight: 700; }   /* locked runs */
-  .map-meta .mm-go { color: var(--accent); font-size: 10px; font-weight: 800; margin-top: 1px; }
+  /* (Chunk-6 sweep: the retired single-track climb CSS — .map-track-legacy,
+     .map-band/.map-band-bg, .map-stage/.ms-*, .map-newsuit, .map-run/.map-node/
+     .map-meta/.map-badge and their mapPulse/mapInvite/summitPulse loops — is
+     deleted along with its JS builders; the branching .pm-node map below is
+     the ONE map renderer.) */
 
   /* Enlarged fossil detail — opened by tapping a cleared run's node. Sits above
      the map overlay; tap the ✕ or the backdrop to dismiss. Display-only. */
@@ -6008,7 +5792,7 @@ const NativeApp = (() => {
   .mystery-event .mea-joker .mini-card { animation: meaJokerIn 0.6s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
   @keyframes meaJokerIn {
     0% { transform: rotateY(92deg) scale(0.72); opacity: 0; box-shadow: 0 0 0 rgba(122, 79, 208, 0); }
-    55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(122, 79, 208, 0.75), 0 0 12px rgba(224, 185, 90, 0.8); }
+    55% { transform: rotateY(0deg) scale(1.06); opacity: 1; box-shadow: 0 0 26px rgba(122, 79, 208, 0.75), 0 0 12px rgba(217, 164, 65, 0.8); }   /* curse-violet family + §1 gold */
     /* rests glow-free: a persistent gold bloom would break the phosphor-only
        glow rule the moment the one-shot lands (fill:both keeps 100% forever) */
     100% { transform: rotateY(0deg) scale(1); box-shadow: 2px 2px 0 0 var(--shadow); }
@@ -6044,7 +5828,7 @@ const NativeApp = (() => {
     100% { transform: scale(1) rotate(var(--dcs-rot)); }
   }
   .mystery-event .me-slam::after {
-    content: ""; position: absolute; inset: -6px; border-radius: 10px; pointer-events: none;
+    content: ""; position: absolute; inset: -6px; border-radius: 0; pointer-events: none;   /* the radial fades to transparent — no rounding (§10) */
     background: radial-gradient(closest-side, rgba(122, 79, 208, 0.85), rgba(122, 79, 208, 0));
     opacity: 0; animation: meaCurseFlash 0.6s ease-out both;
   }
@@ -6056,7 +5840,7 @@ const NativeApp = (() => {
   .mystery-event .mea-ambush .me-glyph { animation: meaAmbushShake 0.6s ease-in-out both; }
   @keyframes meaAmbushShake {
     0% { transform: scale(0.6); opacity: 0; filter: none; }
-    25% { transform: scale(1.15) translateX(-4px); opacity: 1; filter: drop-shadow(0 0 10px rgba(200, 60, 70, 0.9)); }
+    25% { transform: scale(1.15) translateX(-4px); opacity: 1; filter: drop-shadow(0 0 10px rgba(194, 47, 69, 0.9)); }   /* §1 suit-red flash */
     45% { transform: scale(1.1) translateX(4px); }
     65% { transform: scale(1.12) translateX(-3px); }
     85% { transform: scale(1.05) translateX(2px); }
@@ -6085,24 +5869,18 @@ const NativeApp = (() => {
   .overlay h2 { color: var(--on-felt); }
   .overlay p { color: var(--on-felt-muted); }
   .peek-hint { color: var(--on-felt-muted); }
-  /* Map: labels + band names directly on the felt ground */
-  .map-meta .mm-name { color: var(--on-felt); }
-  .map-meta .mm-name.mm-dim { color: var(--on-felt-muted); }
-  .pm-band-label.p-d { color: #E58BA4; }
-  .pm-band-label.p-c { color: #A9BCD9; }
-  .pm-band-label.p-s { color: #96A8CC; }
-  .map-stage .ms-line { background: rgba(240,234,224,0.22); }
-  /* Play screen: firm up the translucent-white strips (their inner ink is
-     dark), and light-ink the guess-side band that sits bare on the felt. */
-  .deck-strip { background: rgba(252,248,242,0.92); }
-  .rail .deck-stack { background: rgba(252,248,242,0.92); }
+  /* (Chunk-6 sweep: the legacy-map label overrides and the pre-CRT pastel
+     .pm-band-label re-inks are gone — the band labels keep their §1 palette
+     colours from the map section; the old translucent-white .deck-strip /
+     .rail .deck-stack washes are gone too, so the chunk-1 felt-mid panels
+     win the cascade as intended.) */
   body.guess-side #histBand .ds-rank { color: var(--on-felt-muted); }
   /* UNFILLED pips only (:not(.filled)) — the felt recolor must never touch the
      pink REMAINING pips: this selector's #id out-ranks the class-only
      .ds-pip.filled rule, and an unscoped version painted every pip the same
      pale overlay (the histogram showed no remaining counts at all). */
-  body.guess-side #histBand .ds-pip:not(.filled) { background: rgba(240,234,224,0.26); }
-  body.guess-side #histBand .ds-bar.ds-active .ds-pip:not(.filled) { background: rgba(240,234,224,0.44); }
+  body.guess-side #histBand .ds-pip:not(.filled) { background: rgba(236,228,207,0.26); }
+  body.guess-side #histBand .ds-bar.ds-active .ds-pip:not(.filled) { background: rgba(236,228,207,0.44); }
   body.guess-side #histBand .ds-bar.ds-active .ds-rank { color: var(--on-felt); }
   /* JOKER histogram column — the ★ SYMBOL reads gold (it's the Joker's colour
      everywhere), but its bar segments use the STANDARD scheme (grey = drawn,
@@ -6126,9 +5904,9 @@ const NativeApp = (() => {
   .store-balance { color: var(--on-felt-muted); }
   .shelf-h .tag { color: var(--on-felt-muted); }
   .store-msg { color: var(--on-felt-muted); }
-  .store-loadout { background: rgba(240,234,224,0.07); border-color: rgba(240,234,224,0.20);
-    box-shadow: none; }
-  .store-loadout .shelf-h, .store-loadout .lo-col-n { color: var(--on-felt-muted); }
+  /* (Chunk-6 sweep: the stale translucent-wash .store-loadout override is gone —
+     the loadout keeps its chunk-3 pixel panel: felt-mid, ink border, hard
+     shadow. Its header inks stay var(--muted) from the store section.) */
 
   /* ============================================================
      CAPACITOR NATIVE APP (body.native-app — set only inside the iOS wrapper,
@@ -6167,9 +5945,14 @@ const NativeApp = (() => {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   /* Map/store overlays start below the MEASURED shell (--shell-h already
-     includes the body's notch padding) — they only need the bottom inset. */
-  body.native-app .map-overlay,
-  body.native-app .store-overlay {
+     includes the body's notch padding) — they only need the bottom inset.
+     (Chunk-6 audit: the old .map-overlay/.store-overlay class selectors
+     matched nothing — the elements are .overlay.map / .overlay.store — so
+     the generic .overlay rule above was double-padding their tops on iOS.
+     Corrected to the real classes; later + more specific, so it wins.) */
+  body.native-app .overlay.map,
+  body.native-app .overlay.store {
+    padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
@@ -7044,7 +6827,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.34 · CRT CASINO 5/6: sprite characters, pixel icons";
+const APP_VERSION = "v5.35 · CRT CASINO complete — 66/66 surfaces, faster than v5.29";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -19184,7 +18967,7 @@ const UIRenderer = (() => {
       && campaign.getSamePower && campaign.getSamePower() === id);
     el.cardInfoPanel.innerHTML =
       '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
-      '<span class="sp-info-ico" style="width:20px;height:20px;color:var(--net-dot,#8E2F4E);display:inline-flex;">' + glyph(t.id) + '</span>' +
+      '<span class="sp-info-ico" style="width:20px;height:20px;color:var(--net-dot,#4ef08a);display:inline-flex;">' + glyph(t.id) + '</span>' +
       '<b style="font-size:15px;">' + escHtml(t.label) + '</b>' +
       '<span style="margin-left:auto;font-size:10px;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;">' + escHtml(t.tier || "") + '</span></div>' +
       '<div style="white-space:pre-line;font-size:12.5px;line-height:1.34;">' + escHtml(t.description || "") + '</div>' +
@@ -25787,22 +25570,13 @@ const UIRenderer = (() => {
   }
 
   /* ---- progression map (store → map → run) ----
-     A Slay-the-Spire-style climb: the run about to be played sits at the TOP;
-     every cleared run descends below it as a "fossil" of its final surviving
-     network. DISPLAY-ONLY — reads campaign stage/run + recorded fossils, never
-     touches gameplay. Navigation is by tapping nodes: `onEnter` deals the run
-     when the current node (▶) is tapped. */
-  const SUIT_NAME = { "♠": "spades", "♥": "hearts", "♦": "diamonds", "♣": "clubs" };
-  const SUIT_RED = { "♥": true, "♦": true, "♠": false, "♣": false };
+     DISPLAY-ONLY — reads campaign position + recorded fossils, never touches
+     gameplay. Navigation is by tapping nodes: `onEnter` deals the run when a
+     legal node is tapped. (The retired single-track climb builders —
+     mapSuitSpan/suitsForStageDisplay/bandPatternSvg/mapStageHeaderHtml/
+     mapRunNodeHtml/mapBandGradient — left with their CSS in the chunk-6
+     sweep; the branching .pm-node renderer below is the ONE map.) */
   let mapOnEnter = null;
-
-  function mapSuitSpan(sym) {
-    return '<span class="' + (SUIT_RED[sym] ? "red" : "") + '">' + sym + "</span>";
-  }
-  // First (stage+1) suits in canonical order — mirrors CampaignState.suitsForStage.
-  function suitsForStageDisplay(stage) {
-    return DeckManager.SUITS.slice(0, stage + 1).map(s => s.symbol);
-  }
 
   /* SVG of a recorded run's surviving network. Nodes/edges live in logical grid
      space; fit them into a padded square, preserving aspect. `size` sets the
@@ -25833,123 +25607,6 @@ const UIRenderer = (() => {
       s += '<circle cx="' + px(n).toFixed(1) + '" cy="' + py(n).toFixed(1) + '" r="' + dotR.toFixed(2) + '" fill="' + col + '"/>';
     });
     return s + "</svg>";
-  }
-
-  /* Stage divider: the suits in play + (stage 2+) the new-suit "shuffled in"
-     callout, derived from the real suit schedule. */
-  /* Approach B — a faint, STATIC neural web behind one stage's band of the climb.
-     Density scales to the real stage count: stage 1 sparsest, the final stage
-     densest, evenly stepped between (so it adapts if the campaign's stage count
-     changes). Seeded per stage so the pattern is stable across re-renders. The
-     SVG stretches to fill the band (preserveAspectRatio="none"); it's background
-     texture, so mild stretch is fine. Presentation only — never read by any rule. */
-  function bandPatternSvg(stage, maxStage, runCount) {
-    // Evenly stepped 0→1 across stages (guard the single-stage case).
-    const t = maxStage > 1 ? (stage - 1) / (maxStage - 1) : 0;
-    const MIN_NODES = 8, MAX_NODES = 30;
-    const count = Math.round(MIN_NODES + t * (MAX_NODES - MIN_NODES));
-    const vbW = 120, vbH = Math.max(60, Math.round((runCount || 4) * 30));
-    // mulberry32 — small seeded PRNG so the web is deterministic per stage.
-    let seed = (stage * 0x9E3779B1) >>> 0;
-    const rand = () => {
-      seed = (seed + 0x6D2B79F5) >>> 0;
-      let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-    };
-    const pts = [];
-    for (let i = 0; i < count; i++) pts.push([+(rand() * vbW).toFixed(1), +(rand() * vbH).toFixed(1)]);
-    const THRESH = 34, T2 = THRESH * THRESH;
-    let lines = "", dots = "";
-    for (let i = 0; i < pts.length; i++) {
-      for (let j = i + 1; j < pts.length; j++) {
-        const dx = pts[i][0] - pts[j][0], dy = pts[i][1] - pts[j][1];
-        if (dx * dx + dy * dy < T2)
-          lines += '<line x1="' + pts[i][0] + '" y1="' + pts[i][1] + '" x2="' + pts[j][0] + '" y2="' + pts[j][1] + '"/>';
-      }
-      dots += '<circle cx="' + pts[i][0] + '" cy="' + pts[i][1] + '" r="1.2"/>';
-    }
-    return '<svg class="map-band-bg" viewBox="0 0 ' + vbW + ' ' + vbH + '" preserveAspectRatio="none" aria-hidden="true">' +
-      lines + dots + "</svg>";
-  }
-
-  function mapStageHeaderHtml(stage) {
-    const suits = suitsForStageDisplay(stage);
-    const suitStr = suits.map(mapSuitSpan).join(" ");
-    let callout = "";
-    if (stage > 1) {
-      const prev = suitsForStageDisplay(stage - 1);
-      const added = suits.filter(x => prev.indexOf(x) === -1);
-      if (added.length) {
-        const sym = added[0];
-        callout = '<span class="map-newsuit">+ ' + SUIT_NAME[sym] + " " + mapSuitSpan(sym) + " shuffled in</span>";
-      }
-    }
-    return '<div class="map-stage">' +
-        '<span class="ms-line"></span>' +
-        '<span class="ms-tag">STAGE ' + stage + ' <span class="ms-suits">' + suitStr + "</span>" + callout + "</span>" +
-        '<span class="ms-line"></span>' +
-      "</div>";
-  }
-
-  // Padlock for a locked (not-yet-reached) run — inherits the muted node colour.
-  const MAP_LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  const MAP_CROWN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-1.4 11H4.4z"/><circle cx="3" cy="8" r="1.7"/><circle cx="21" cy="8" r="1.7"/><circle cx="12" cy="4" r="1.9"/></svg>';
-
-  /* One run row on the climb. `state` is "current" (a tappable ▶ play button that
-     starts the run), "cleared" (its fossil; tap to enlarge), or "locked" (not yet
-     reached — inert padlock). The node sits centred on the path; the label is in
-     the outer column. `data-action` drives the tap handler (locked = none). */
-  function mapRunNodeHtml(stage, run, state, side) {
-    let nodeClass, inner, meta, attrs = "";
-    // The final deal of the final stage is the SUMMIT — the goal of the climb.
-    const isSummit = stage === campaign.maxStages && run === campaign.maxRunsPerStage;
-    const crown = isSummit ? '<span class="mn-crown" aria-hidden="true">' + MAP_CROWN_SVG + "</span>" : "";
-    const summitCls = isSummit ? " summit" : "";
-    if (state === "current") {
-      nodeClass = "current tappable" + summitCls;
-      attrs = ' data-action="enter"';
-      inner = crown + '<span class="mn-play" aria-hidden="true">▶</span>';
-      meta = '<div class="mm-name">' + (isSummit ? "The Summit" : "Deal " + run) + '</div><div class="mm-go">Tap to play</div>';
-    } else if (state === "locked") {
-      nodeClass = "locked" + summitCls;
-      // The summit shows its crown even while locked — the peak you're climbing to.
-      inner = isSummit ? crown : ('<span class="mn-lock">' + MAP_LOCK_SVG + "</span>");
-      meta = '<div class="mm-name mm-dim">' + (isSummit ? "The Summit" : "Deal " + run) + "</div>";
-    } else {   // cleared — show its fossil (no checkmark). Legacy clears show a dot.
-      const fossil = campaign.getRunFossil(stage, run);
-      if (fossil && fossil.nodes.length) {
-        nodeClass = "done tappable";
-        attrs = ' data-action="fossil" data-stage="' + stage + '" data-run="' + run + '"';
-        inner = fossilSvg(fossil);
-      } else {
-        nodeClass = "done";   // cleared but no recorded shape (legacy)
-        inner = '<span class="mn-done" aria-hidden="true"></span>';
-      }
-      meta = '<div class="mm-name">Deal ' + run + "</div>";
-    }
-    return '<div class="map-run ' + side + '">' +
-        '<div class="map-node ' + nodeClass + '"' + attrs + ">" + inner + "</div>" +
-        '<div class="map-meta">' + meta + "</div>" +
-      "</div>";
-  }
-
-  /* A subtle vertical tint per stage band so the climb shades from one stage
-     into the next as you scroll. Each band runs from its summit-edge colour
-     (top) to its base-edge colour (bottom); a band's base colour equals the
-     next-lower band's summit colour, so the seams are continuous. Warm gold at
-     the foot of the climb → soft rose toward the summit; low alpha keeps nodes,
-     fossils, labels and the neural patterns fully legible. */
-  function mapBandGradient(s, maxStage) {
-    const tint = (t) => {
-      const r = Math.round(232 + (208 - 232) * t);
-      const g = Math.round(158 + (120 - 158) * t);
-      const b = Math.round(84 + (156 - 84) * t);
-      return "rgba(" + r + "," + g + "," + b + ",0.12)";
-    };
-    const top = maxStage > 1 ? s / maxStage : 0.5;          // summit edge (cooler/rose)
-    const bot = maxStage > 1 ? (s - 1) / maxStage : 0.5;    // base edge (warmer/gold)
-    return "linear-gradient(180deg, " + tint(top) + " 0%, " + tint(bot) + " 100%)";
   }
 
   /* ── CONTINUOUS run-map render ────────────────────────────────────────
@@ -27480,7 +27137,7 @@ const UIRenderer = (() => {
       if (s.purchased > 0) lines.push("Times bought: " + s.purchased);
       if (s.triggers > 0) lines.push("Effects triggered: " + s.triggers);
       if (s.dealsActive > 0) lines.push("Deals active: " + s.dealsActive);
-      if (lines.length) html += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(74,50,40,0.14);font-size:11.5px;opacity:0.78;">' +
+      if (lines.length) html += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(236,228,207,0.14);font-size:11.5px;opacity:0.78;">' +   // cream hairline on the felt-mid panel (§1)
         lines.map(escHtml).join(" · ") + '</div>';
     }
     el.cardInfoPanel.innerHTML = html;

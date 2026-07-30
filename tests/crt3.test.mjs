@@ -58,8 +58,11 @@ export function run() {
     const store = cssRule(html, ".overlay.store");
     r.ok(store.includes("background: var(--felt-deep)"), ".overlay.store is the flat deep-felt screen well");
     r.ok(!store.includes("radial-gradient"), "the warm lamplight radial is retired (§1: no gradients-as-texture)");
-    r.ok(cssRule(html, ".overlay.store::before").includes("content: none"),
-      "no lost-paths tangle behind the shop (same call as .overlay.map)");
+    // Chunk-6 sweep: the ::before content:none belts left with the generic
+    // .overlay::before tangle they guarded against — nothing paints a pseudo
+    // texture behind the shop (or the map) any more.
+    r.ok(!/\.overlay(\.store|\.map)?::before\s*\{/.test(html),
+      "no overlay ::before tangle exists — the shop/map content:none belts are swept with it");
     r.ok(store.includes("overflow: hidden"), "the one-screen no-scroll shop layout is untouched");
   }
 

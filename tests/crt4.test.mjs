@@ -211,8 +211,10 @@ export function run() {
       "the death screen's bouncing fossils retint suit-red via the scoped token");
     r.ok(fnBody(src, "fossilSvg").includes('var(--net)'), "…which fossilSvg still inks with");
     r.ok(!html.includes('"Baloo 2", var(--font-display)'), "the deal-cleared Baloo literal is retired");
-    r.ok(cssRule(html, ".ocoins-row .val").includes("var(--gold)")
-      && cssRule(html, ".dc-val").includes("var(--gold)"),
+    // (The dead pre-itemized .ocoins-* rows were deleted in the chunk-6 sweep —
+    // the LIVE .dc-* breakdown lines carry the gold read.)
+    r.ok(!html.includes(".ocoins-row"), "the dead .ocoins-* payout rows are swept");
+    r.ok(cssRule(html, ".dc-val").includes("var(--gold)"),
       "coin values on the payout screens read GOLD (§1)");
     r.ok(cssRule(html, ".run-stat").includes("var(--felt-mid)")
       && cssRule(html, ".run-stat").includes("var(--px) solid var(--ink)"),
@@ -301,10 +303,10 @@ export function run() {
   // --- THERMAL: no new blur / backdrop-filter / standing animations --------
   {
     const styleBlock = html.slice(html.indexOf("THEME / TOKENS"), html.indexOf("</style>", html.indexOf("THEME / TOKENS")));
-    // The one sanctioned backdrop-filter DECLARATION pair (.store-coins, dead
-    // CSS awaiting the chunk-6 sweep) — nothing new may join it.
-    r.eq((styleBlock.match(/backdrop-filter:/g) || []).length, 2,
-      "no new backdrop-filter joined the sheet (only the dead .store-coins pair remains; the rest are ban comments)");
+    // The chunk-6 sweep deleted the last (dead .store-coins) pair — the sheet
+    // now carries ZERO backdrop-filter declarations, and none may ever return.
+    r.eq((styleBlock.match(/backdrop-filter:/g) || []).length, 0,
+      "zero backdrop-filter declarations in the sheet (the dead .store-coins pair is swept; the bans hold)");
     r.ok(!cssRule(html, ".menu-screen::before").includes("blur("),
       "the felt-nap layer is unblurred (the old glow's blur(16px) is gone)");
     r.ok(!cssRule(html, ".menu-screen::before").includes("animation"),

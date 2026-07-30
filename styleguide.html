@@ -341,19 +341,32 @@
 <li><label><input type="checkbox"> <b>Shared icon sprite + coin icon</b> <code>svg.icon-sprite (6593) — #icon-coin, icon-glow/icon-bevel filters; .ico-slot/data-ico glyp</code><br><small>Restyle target: bevel/glow recipe + coin used in HUD, store, debug, overlays</small></label></li>
 <li><label><input type="checkbox"> <b>Viewport probe (not user-visible)</b> <code>#svhProbe (6580; CSS 1259)</code><br><small>Zero-width 100svh measuring element — no restyle needed, listed for completeness</small></label></li>
 </ul>
-<h3>Known ambiguities (resolve during migration, note the resolution here)</h3>
+<h3>Known ambiguities — RESOLVED (chunk 6 final sweep)</h3>
 <ul class="inv">
-  <li><label><input type="checkbox"> <b>#hint</b> — aria-hidden, out of layout; JS still writes it → keep unthemed, confirm no visual leak</label></li>
-  <li><label><input type="checkbox"> <b>Rail-histogram alternate layout</b> — <code>GUESS_SIDE_LAYOUT=true</code> ships histogram in #histBand; the rail-histogram styles are the revertable alternate → theme BOTH or explicitly drop the alternate</label></li>
-  <li><label><input type="checkbox"> <b>.map-hdr</b> — retired/hidden but #mapPhase/#mapDeck still written → theme-or-ignore decision</label></li>
-  <li><label><input type="checkbox"> <b>Win cinematic + deal-out cascade</b> — animation states of parent surfaces; recheck after chunks 1-2 that no old-palette frames remain</label></li>
+  <li><label><input type="checkbox" checked> <b>#hint</b> — aria-hidden, out of layout; JS still writes it → kept unthemed, no visual leak (verified headless)</label></li>
+  <li><label><input type="checkbox" checked> <b>Rail-histogram alternate layout</b> — both layouts themed by chunk 1; the stale late-sheet translucent-white .deck-strip/.deck-stack overrides that fought it were deleted in chunk 6</label></li>
+  <li><label><input type="checkbox" checked> <b>.map-hdr</b> — kept as a <code>display:none</code> stub (JS still writes #mapPhase/#mapDeck); all decorative rules swept</label></li>
+  <li><label><input type="checkbox" checked> <b>Win cinematic + deal-out cascade</b> — no old-palette frames remain (chunk-6 programmatic color audit is clean)</label></li>
+</ul>
+<h3>Final-sweep exceptions (the complete off-palette allowance — nothing else)</h3>
+<ul class="inv">
+  <li><label><input type="checkbox" checked> <b>Curse violet family</b> — <code>CURSE_VIOLET #7a4fd0 / CURSE_EDGE #46306e</code> + rgba(122,79,208) flashes: the corrupted-sticker identity, pinned by tests (mystery-ui)</label></li>
+  <li><label><input type="checkbox" checked> <b>Boot jar brand art</b> — the JarHead Labs jar SVG keeps its brand inks (pinned by boot2/crt4); splash chrome itself is palette</label></li>
+  <li><label><input type="checkbox" checked> <b>Debug panel internals</b> — dev tool, comment-marked in the sheet ("FRAME ONLY restyled"); includes its ui-monospace readout font and the violet debug mystery-peek tags</label></li>
+  <li><label><input type="checkbox" checked> <b>Inert sticker constants</b> — <code>STICKER_FACE/STICKER_EDGE</code> hexes are written as <code>--dcs-face/--dcs-edge</code> for markup-shape compat; no CSS consumes them (chunk 5 retired the painted face)</label></li>
+  <li><label><input type="checkbox" checked> <b>Sanctioned circles</b> — status LEDs (<code>.base-charge</code>), pager/status dots (<code>.ds-dot</code>/<code>.wt-dot</code> — "they read AS dots, not chrome"), and the invisible <code>.th-close</code> touch halo. Radial-gradient halos/spots need no radius (squared in chunk 6 with zero paint change).</label></li>
 </ul>
 
 <h2>§10 · Hard rules (perf + pixel)</h2>
 <ul>
-  <li>Pixel grid: borders 2–4px; offsets/shadows in 2px steps; square corners ONLY (<code>border-radius: 0</code> everywhere).</li>
+  <li>Pixel grid: borders 2–4px; offsets/shadows in 2px steps; square corners ONLY (<code>border-radius: 0</code> everywhere).
+    <br><small>Refined in practice (chunk 6 sweep): 1px is additionally legal at exactly two scales — hairline ROW/TABLE separators
+    (this page's own list/table rules use them) and sub-24px micro-elements (mini-cards, count pills, node badges) where a 2px
+    frame would swallow the face. Fractional borders (1.5px) are banned — they were swept to <code>var(--px)</code>.</small></li>
   <li>Shadows: <code>box-shadow: 4px 4px 0 0 #000</code> (2px at 50% scale) — never blurred, never colored.</li>
-  <li>Glow: static <code>text-shadow: 0 0 6px rgba(78,240,138,.55)</code> on phosphor elements only. Never animated, never on other colors.</li>
+  <li>Glow: static <code>text-shadow: 0 0 6px rgba(78,240,138,.55)</code> on phosphor elements only. Never animated, never on other colors.
+    <br><small>Refined in practice: the SAME recipe may ride <code>box-shadow: var(--glow)</code> on small phosphor-bordered chips
+    (Same-charge chip, revealed deck stack) — one glow, one strength, phosphor only.</small></li>
   <li>Texture: baked dither tiles (data-URI GIF/PNG) — no gradients-as-texture, no runtime filters. (The CRT overlay's scanline/vignette images are the one sanctioned gradient use: they're the CRT, not texture.)</li>
   <li>CRT overlay: ONE static fixed layer, pointer-inert, zero per-frame work. Flicker one-shot ≤240ms on big events only.</li>
   <li>No new continuous animations. Existing animation *count* may only go down. All THERMAL bans hold: no full-viewport backdrop-filter, no box-shadow pulses, no blanket will-change, no filter loops.</li>

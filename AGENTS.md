@@ -157,6 +157,44 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.30–v5.35 (Claude, CRT CASINO)** — the ENTIRE game is restyled to a
+  locked pixel-art aesthetic; `/styleguide.html` is the visual CONTRACT
+  (locked 8-color palette, optical-dither rule for intermediate hues, CRT
+  rules, button/card/sprite specs, the 66-surface inventory + final
+  exception tables). Read it before ANY visual change:
+  - Palette lives in :root tokens (--felt-deep/--felt-mid/--card-face/
+    --suit-red/--ink/--gold/--phosphor/--shadow). New UI uses tokens, never
+    hex. Only --phosphor may glow (static var(--glow)); shadows are hard
+    4px/2px offsets; corners square; texture = baked dither data-URI tiles,
+    never gradients/blur.
+  - Fonts: VT323 body + Press Start 2P display (≥11px), self-hosted in
+    app/assets/fonts/, loaded in BOTH the online link block and offline
+    fonts.css — build-www pattern-matches that head block; keep both paths.
+  - `#crtOverlay` = ONE static scanline+vignette layer (topmost,
+    pointer-inert); `.crt-flicker` one-shot fires only from showOverlay()
+    win/lose. Don't add layers/filters to it.
+  - `PixelArt` module (index.html, ~line 7458): 57 pixel matrices
+    (characters × states + tier overlays + item icons + suit badges),
+    fail-loud validated, rendered ONCE at boot to data-URIs on :root vars
+    (measured 15-26ms, window.__pixelArtBootMs). Character/icon changes =
+    edit matrices there; state classes are unchanged hooks. Tier
+    accessories composite as a second background-image.
+  - Suites crt2-crt5 (~420 checks) pin the aesthetic structurally
+    (registry-driven, no tunables); update them WITH deliberate visual
+    changes, never delete around them. The game's last backdrop-filter and
+    last feTurbulence are GONE — do not reintroduce (extends the THERMAL
+    ban below).
+  - Restyle is strictly aesthetic: all state machines/ids/PERFCAP wraps
+    unchanged. Perf ≤ v5.29 everywhere (map:show ~300ms vs 520-610;
+    store:show ~140-150 vs 227; all idles janky 0).
+  - Known follow-ups (NOT fixed, out of aesthetic scope): menu-confirm bar
+    z-1500 renders under sheet overlays z-1600 (Stats reset / pause New
+    Run confirms functional but invisible — pre-existing, probe
+    scratchpad/base-statsreset.png); endless death screen copy quirk
+    ("REACHED ♦ PHASE 1/3"); iOS safe-area fix for .overlay.map/.store
+    needs device QA; sound registry flagged cues for a future audio pass
+    (list in the v5.35 commit message).
+
 - **v5.29 (Kimi, THERMAL5)** — LAYER DIET after the v5.18 flatten proved
   insufficient; READ THIS BEFORE ADDING will-change, OR FULL-SCREEN LAYERS,
   OR ANY backdrop-filter:
