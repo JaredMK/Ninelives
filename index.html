@@ -346,23 +346,23 @@ const NativeApp = (() => {
     color: var(--text); display: inline-flex; align-items: baseline; gap: 1px;
     white-space: nowrap; font-weight: 700;
   }
-  .hud .hud-score b { font-size: 15px; font-weight: 800; }
-  .hud .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
+  .hud .hud-score b { font-size: 19px; font-weight: 800; }
+  .hud .hud-score .hl { font-size: 12px; color: var(--muted); margin: 0 4px 0 1px; text-transform: uppercase; }
   .hud .hud-score .hx { color: var(--muted); font-size: 12px; margin: 0 1px; }
   .hud .hud-dop {
     color: var(--gold); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     /* Clear the fixed top-right inventory button (mirror of hud-sr's left clear). */
     margin-right: 30px;
   }
-  .hud .hud-dop b { font-size: 15px; font-weight: 800; }
-  .hud .hud-dop .coin-ico { font-size: 13px; }
+  .hud .hud-dop b { font-size: 19px; font-weight: 800; }
+  .hud .hud-dop .coin-ico { font-size: 16px; }
   /* ECON1 score chip: THE one phosphor element in the stat bar (§8). */
   .hud .hud-score-chip {
     color: var(--phosphor); text-shadow: var(--glow);
     display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap;
   }
-  .hud .hud-score-chip .hl { font-size: 10px; color: var(--muted); text-shadow: none; text-transform: uppercase; letter-spacing: 0.4px; }
-  .hud .hud-score-chip b { font-size: 15px; font-weight: 800; }
+  .hud .hud-score-chip .hl { font-size: 12px; color: var(--muted); text-shadow: none; text-transform: uppercase; letter-spacing: 0.4px; }
+  .hud .hud-score-chip b { font-size: 19px; font-weight: 800; }
   /* Same Charge indicator: the equals-synapse mark — lit + amber-glowing when
      CHARGED (the auto-save backstop is armed), dim/desaturated when EMPTY. (Uses
      the game's logo, like the Same-Power chip beside it, so the two read as one
@@ -402,7 +402,7 @@ const NativeApp = (() => {
      DONE = full-colour suit, ACTIVE = highlighted (scale + amber glow + chip),
      TODO = dim. ♥ ♦ render red, ♣ ♠ dark. */
   .hud .suit-track { display: inline-flex; align-items: center; gap: 6px; margin-left: 30px; }
-  .suit-track .st-suit { font-size: 16px; line-height: 1; font-weight: 800; color: var(--text);
+  .suit-track .st-suit { font-size: 20px; line-height: 1; font-weight: 800; color: var(--text);
     opacity: 0.26; transition: opacity 0.2s ease, transform 0.2s ease, text-shadow 0.2s ease; }
   .suit-track .st-suit.st-red { color: var(--suit-red); }
   .suit-track .st-done { opacity: 1; }
@@ -410,7 +410,7 @@ const NativeApp = (() => {
   .suit-track .st-active { opacity: 1; transform: scale(1.28); }
   /* Alt decks (Mamma/Smith/Lammy): a plain stage 1·2·3 indicator replaces the
      four-suit tracker — same states (done/active/todo), numbered coins. */
-  .suit-track .st-suit.st-stage { font-size: 12px; width: 19px; height: 19px; border-radius: 0;
+  .suit-track .st-suit.st-stage { font-size: 14px; width: 23px; height: 23px; border-radius: 0;
     display: inline-flex; align-items: center; justify-content: center;
     border: var(--px) solid currentColor; color: var(--text); }
   .suit-track .st-suit.st-stage.st-active { transform: scale(1.15); }
@@ -420,8 +420,8 @@ const NativeApp = (() => {
   .suit-counts { flex: 0 0 auto; align-self: center; display: grid;
     grid-template-columns: auto auto; gap: 1px 7px; padding: 0 5px 0 1px; }
   .suit-counts .sc-cell { display: inline-flex; align-items: center; gap: 3px;
-    font-size: 10px; line-height: 1.3; white-space: nowrap; }
-  .suit-counts .sc-suit { font-size: 11.5px; color: var(--text); }
+    font-size: 12.5px; line-height: 1.3; white-space: nowrap; }
+  .suit-counts .sc-suit { font-size: 14px; color: var(--text); }
   .suit-counts .sc-cell.sc-red .sc-suit { color: var(--suit-red); }
   .suit-counts .sc-num { color: var(--muted); font-weight: 700; }
   .suit-counts .sc-num b { color: var(--text); font-weight: 800; }
@@ -434,10 +434,10 @@ const NativeApp = (() => {
   /* (the "Clear reward" caption is gone — the row shows just the factors) */
   .deal-status .hud-score { color: var(--text); display: inline-flex; align-items: baseline;
     gap: 1px; white-space: nowrap; font-weight: 700; }
-  .deal-status .hud-score b { font-size: 17px; font-weight: 800; margin: 0 1px; }
-  .deal-status .hud-score .hl { font-size: 10px; color: var(--muted); margin: 0 1px 0 7px;
+  .deal-status .hud-score b { font-size: 21px; font-weight: 800; margin: 0 1px; }
+  .deal-status .hud-score .hl { font-size: 12px; color: var(--muted); margin: 0 1px 0 7px;
     text-transform: uppercase; letter-spacing: 0.3px; font-weight: 800; }
-  .deal-status .hud-score .hx { color: var(--muted); font-size: 13px; margin: 0 2px; }
+  .deal-status .hud-score .hx { color: var(--muted); font-size: 15px; margin: 0 2px; }
   /* The SAME guess button while a charge is banked: §4 "charged" recipe —
      deep-felt face, phosphor border + text + THE glow. */
   .btn.same.charged { background: var(--felt-deep); color: var(--phosphor); text-shadow: var(--glow);
@@ -727,15 +727,17 @@ const NativeApp = (() => {
      bobs, sways, bounces and slumps WITH every body animation (it is part of the
      character, not a fixed overlay). It sits in the LOWER body, clear of the
      sprite's face rows, so the count and eyes are always both readable. */
-  .deck-count { position: absolute; left: 0; right: 0; top: 46%; bottom: 3%; z-index: 2; pointer-events: none;
-    display: flex; align-items: center; justify-content: center; line-height: 0.82; }
+  /* v5.48: a CORNER CHIP (bottom-right), not a face-covering centered overlay
+     — the player couldn't see the character behind the count. Ink chip +
+     gold border carries contrast on every sprite body. */
+  .deck-count { position: absolute; right: 4%; bottom: 4%; left: auto; top: auto; z-index: 2; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; line-height: 0.9;
+    background: var(--ink); border: var(--px) solid var(--gold); padding: 0 4px; }
   /* Pixel OUTLINE (8 hard 2px offsets, §10 shadow law) instead of the single
      drop: the sprite bodies range cream (Lammy/Smith) to brass — the count
      must read on every one of them. */
-  .deck-count b { font-family: var(--font-text); font-size: 32px; font-weight: 800; color: var(--card-face);
-    white-space: nowrap;
-    text-shadow: 2px 0 0 var(--shadow), -2px 0 0 var(--shadow), 0 2px 0 var(--shadow), 0 -2px 0 var(--shadow),
-      2px 2px 0 var(--shadow), -2px -2px 0 var(--shadow), 2px -2px 0 var(--shadow), -2px 2px 0 var(--shadow); }
+  .deck-count b { font-family: var(--font-text); font-size: 18px; font-weight: 800; color: var(--card-face);
+    white-space: nowrap; }   /* the ink chip carries the contrast — no outline needed */
   .deck-count .ds-lbl { display: none; }   /* the number alone reads as cards-left; keeps the face clear */
   /* While a peek reveals the upcoming card (whole stack flagged .revealed), the
      card covers the character — hide the count so it doesn't bleed past the card. */
@@ -912,7 +914,7 @@ const NativeApp = (() => {
      inline by flyCard(); a quick arrival pop lands it in the slot. (The old
      blurred drop-shadow lift is retired — §10: no blur.) */
   .deck-char-jump { z-index: 61; pointer-events: none; }
-  .deck-char-jump .deck-count b { font-size: 26px; }   /* match the in-slot count size for a seamless landing */
+  .deck-char-jump .deck-count b { font-size: 16px; }   /* match the in-slot chip size for a seamless landing */
   .deck-char.dc-arrive .dc-body { animation: dcArrive 0.42s cubic-bezier(0.3, 0.8, 0.4, 1.3); }
   @keyframes dcArrive {
     0%   { transform: translateY(-3px) scale(0.62); }
@@ -955,7 +957,7 @@ const NativeApp = (() => {
   .ds-blue { background: var(--card-face); }
   .ds-bar.ds-active .ds-grey { background: var(--ink); }
   .ds-bar.ds-active .ds-blue { background: var(--gold); }
-  .ds-rank { font-size: 10px; font-weight: 800; color: var(--muted); line-height: 1.3; }
+  .ds-rank { font-size: 11px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom). Each row = a left rank
      label + a bar of notches equal to that rank's OWN total count, laid out on a
@@ -983,7 +985,7 @@ const NativeApp = (() => {
   .rail .deck-pile .ds-face { left: 4px; top: 0; width: 31px; height: 45px; }
   .rail .deck-pile .ds-face .dsf-rank { font-size: 15px; }
   .rail .deck-pile .ds-face .dsf-suit { font-size: 11px; }
-  .rail .deck-count b { font-size: 18px; }   /* position comes from the base .deck-count (in-body, bottom) */
+  .rail .deck-count b { font-size: 13px; }   /* position comes from the base .deck-count (corner chip) */
   /* Scrubber readout — absolute overlay anchored to the rail's right so the wide
      higher/same/lower text reads over the field, never widening the rail. */
   .ds-scrub {
@@ -1078,7 +1080,7 @@ const NativeApp = (() => {
   body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: 56px; background: none; border: none; padding: 0; }
   body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; overflow: hidden; }
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
-  body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 9px; }
+  body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 11px; }
   body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: var(--ds-pip-gap, 2px); width: 100%; min-width: 0; }
   body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: var(--ds-pip-h, 9px); min-width: 0; min-height: 0; border-radius: 0; }
   /* Prominent deck chip in the strip (un-scaled, big count). */
@@ -6915,7 +6917,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.47 · unlocks pop at run end only; debug unlock-everything";
+const APP_VERSION = "v5.48 · deck count off the face; bigger HUD + strip text";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
