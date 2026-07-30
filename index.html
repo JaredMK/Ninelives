@@ -5260,32 +5260,24 @@ const NativeApp = (() => {
       radial-gradient(115% 66% at 50% 6%, var(--suit-wash, rgba(205,130,150,0.10)), transparent 58%),
       radial-gradient(95% 60% at 50% 48%, rgba(255,244,226,0.55), rgba(255,244,226,0) 70%);
   }
-  /* Faint star/dot field that drifts slower than the climb (JS sets --par on
-     scroll → a gentle parallax). Two tiled dot layers at different scales. */
-  .map-parallax {
-    position: absolute; left: 0; right: 0; top: -20%; height: 140%;
-    transform: translateY(var(--par, 0px));
-    background-image:
-      radial-gradient(circle, rgba(199,126,31,0.13) 1.1px, transparent 1.6px),
-      radial-gradient(circle, rgba(200,74,120,0.11) 1px, transparent 1.5px);
-    background-size: 76px 76px, 119px 119px;
-    background-position: 10px 0, 48px 30px;
-    opacity: 0.7;
-  }
-  @media (prefers-reduced-motion: reduce) { .map-parallax { transform: none; } }
-  /* PARALLAX BACKGROUND (map): the lost-paths tangle + the felt grain share
-     ONE slow plane (0.15×) under the dot field's faster one (0.32×) — two
-     depth planes over the static atmosphere gradients. The tangle is tiled at
-     480px here (its natural 460 nudged 4%) so both textures repeat inside a
-     common 480px period: the layer bleeds exactly one period below the
-     viewport and the JS offset WRAPS at 480, keeping the translate tiny,
-     seamless, and compositor-only — one extra layer, no per-frame layout
-     reads, no repaints. */
+  /* PARALLAX BACKGROUND (map): the lost-paths tangle + felt grain + dot field
+     share ONE slow plane (0.15× scroll). LAYER-DIET (THERMAL5): the dot field
+     used to be a SECOND full-height plane (.map-parallax, 0.32×) — another
+     ~17MB standing texture feeding the purge/re-upload stalls. Merged into
+     this one layer; the two-speed depth effect is surrendered (imperceptible
+     in play). Every texture repeats inside a common 480px period (tangle 480,
+     grain 160, dots 80/120 — nudged from 76/119 so they tile the wrap): the
+     layer bleeds exactly one period below the viewport and the JS offset
+     WRAPS at 480, keeping the translate tiny, seamless, and compositor-only
+     — one layer, no per-frame layout reads, no repaints. The dot alphas bake
+     in the old plane's 0.7 opacity (0.13→0.09, 0.11→0.08). */
   .map-bg {
     position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 480px);
     transform: translateY(var(--parbg, 0px));
     will-change: transform; pointer-events: none;
     background:
+      radial-gradient(circle, rgba(199,126,31,0.09) 1.1px, transparent 1.6px) 10px 0 / 80px 80px repeat,
+      radial-gradient(circle, rgba(200,74,120,0.08) 1px, transparent 1.5px) 48px 30px / 120px 120px repeat,
       var(--lost-paths) 0 0 / 480px repeat,
       var(--felt-grain) 0 0 / 160px repeat;
   }
@@ -7165,7 +7157,7 @@ const NativeApp = (() => {
     <!-- Depth backdrop: a fixed atmosphere (warm/settled below = conquered, cool
          and faint above = the unknown summit) with a faint parallax dot layer
          that drifts slower than the climb as you scroll. Presentation only. -->
-    <div class="map-depth" aria-hidden="true"><div class="map-bg" id="mapBg"></div><div class="map-parallax" id="mapParallax"></div></div>
+    <div class="map-depth" aria-hidden="true"><div class="map-bg" id="mapBg"></div></div>
     <!-- Persistent map header — RETIRED from display (the histogram band above
          already carries the deck count and the top bar carries the stage); the
          elements stay for the code that writes them. -->
@@ -7470,7 +7462,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.26 · Layer diet: haze blobs merged into one filter-free gradient layer";
+const APP_VERSION = "v5.27 · Layer diet: map background merged to one plane (dot field folded in)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -16802,7 +16794,6 @@ const UIRenderer = (() => {
     mapFoot: document.getElementById("mapFoot"),
     mapDeck: document.getElementById("mapDeck"),
     mapPhase: document.getElementById("mapPhase"),
-    mapParallax: document.getElementById("mapParallax"),
     mapBg: document.getElementById("mapBg"),
     mapKeyBtn: document.getElementById("mapKeyBtn"),
     mapKeyPanel: document.getElementById("mapKeyPanel"),
@@ -20684,13 +20675,13 @@ const UIRenderer = (() => {
     el.board.addEventListener("animationend", (e) => {
       if (e.animationName === "edgeForm" && e.target.classList) e.target.classList.remove("forming");
     });
-    // Cheap parallax: two background planes drift slower than the climb — the
-    // felt-grain + tangle texture plane at 0.15×, the dot field at 0.32×. One
-    // scrollTop read (the event's own state) + two transform-var writes per
-    // scroll event (no rAF loop, no layout reads) — consistent with §5
-    // discipline. The texture offset WRAPS at the shared 480px tile period, so
-    // the layer stays small and the wrap is invisible on the repeating pattern.
-    if (el.mapScroll && el.mapParallax) {
+    // Cheap parallax: ONE merged background plane (tangle + grain + dots —
+    // THERMAL5) drifts slower than the climb at 0.15×. One scrollTop read
+    // (the event's own state) + one transform-var write per scroll event (no
+    // rAF loop, no layout reads) — consistent with §5 discipline. The texture
+    // offset WRAPS at the shared 480px tile period, so the layer stays small
+    // and the wrap is invisible on the repeating pattern.
+    if (el.mapScroll && el.mapBg) {
       el.mapScroll.addEventListener("scroll", () => {
         let s = el.mapScroll.scrollTop;
         // Track the live fling speed (px/ms, upward positive) so a boundary
@@ -20704,8 +20695,7 @@ const UIRenderer = (() => {
         const max = el.mapScroll.scrollHeight - el.mapScroll.clientHeight;
         if (s >= max - 0.5 && mapScrollPrev < max - 6) mapImpactBounce(-1);   // fling into the bottom edge
         mapScrollPrev = s;
-        el.mapParallax.style.setProperty("--par", (-s * 0.32).toFixed(1) + "px");
-        if (el.mapBg) el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
+        el.mapBg.style.setProperty("--parbg", (-((s * 0.15) % 480)).toFixed(1) + "px");
       }, { passive: true });
       // RUBBER-BAND: touch drags past either boundary follow the finger with a
       // damped offset and spring back on release (the egg lives below the
