@@ -247,8 +247,9 @@ export function run() {
 
   // --- Item icons: the class art everywhere ---------------------------------
   {
-    // The full icon census (17 + 4 suit badges).
-    const ICONS = ["sticker", "stickerCursed", "pillar", "base", "samePower", "packCard", "packSticker",
+    // The full icon census (18 + 4 suit badges). stickerCursed2 = Leech
+    // Swarm's scatter variant (v5.55), routed via .dcs-c-leech2.
+    const ICONS = ["sticker", "stickerCursed", "stickerCursed2", "pillar", "base", "samePower", "packCard", "packSticker",
       "packLarge", "removal", "coin", "joker", "blank", "mystery", "fossil", "seed", "score", "lock"];
     for (const k of ICONS) r.ok(Array.isArray(P.ICONS[k]), "icon '" + k + "' present");
     r.eq(Object.keys(P.ICONS).length, ICONS.length, "no orphan icons");

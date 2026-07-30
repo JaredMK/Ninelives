@@ -4316,6 +4316,8 @@ const NativeApp = (() => {
   .dcs.dcs-cursed {
     background-image: var(--pxi-stickerCursed);
   }
+  /* v5.55: per-id cursed faces — Leech Swarm gets its scatter variant. */
+  .dcs.dcs-cursed.dcs-c-leech2 { background-image: var(--pxi-stickerCursed2); }
   .dcs.dcs-cursed .dcs-gloss { display: none; }
   .dcs.dcs-cursed .dcs-ic { display: none; }
   .dcs-n {
@@ -4733,6 +4735,9 @@ const NativeApp = (() => {
   .sa-lite .dcs-gloss { display: none; }
   .sa-lite .dcs.dcs-cursed {
     background-image: var(--pxi-stickerCursed);
+  }
+  .sa-lite .dcs.dcs-cursed.dcs-c-leech2 {
+    background-image: var(--pxi-stickerCursed2);
     box-shadow: none;
   }
   .sa-lite .dcs.dcs-cursed .dcs-gloss { display: none; }
@@ -6926,7 +6931,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.54 · collection culls offscreen tiles (fast-flick fix)";
+const APP_VERSION = "v5.55 · Leech Swarm wears its own swarm";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -8313,6 +8318,25 @@ const PixelArt = (() => {
       '.....KK.KKK.....',
       '................',
       '................'],
+    // v5.55: Leech SWARM's own corruption — same torn chip family, but a
+    // SCATTER of small leeches instead of Leech's single big one.
+    stickerCursed2: [
+      '................',
+      '.....KKKKKK.....',
+      '...KKCCCPCCKK...',
+      '..KCRRCCCCCCCK..',
+      '..KCRRCCCRRCCK..',
+      '.KCCCCCCCRRCCCK.',
+      '.KCCPCCCCCCCCCK.',
+      '....KCCCCCCCCCCK',
+      '.KCCRRCCCCCCCsK.',
+      '.KCCRRCCCCPCssK.',
+      '..KCCCCRRCCCsK..',
+      '..KCCPCRRCsssK..',
+      '...KKCCCCssKK...',
+      '.....KK.KKK.....',
+      '................',
+      '................'],
     pillar: [
       '................',
       '.KKKKKKKKKKKKKK.',
@@ -9649,7 +9673,7 @@ function stickerChip(typeId, opts) {
   const face = t.cursed ? "" :
     (PixelArt.stickerIcon(t.id) ? '<span class="pxs pxs-' + t.id + '"></span>' : t.icon);
   return dieCutChip(face, t.tier, Object.assign({}, opts, {
-    cls: [opts.cls, t.cursed ? "dcs-cursed" : null].filter(Boolean).join(" ") || undefined,
+    cls: [opts.cls, t.cursed ? "dcs-cursed dcs-c-" + typeId : null].filter(Boolean).join(" ") || undefined,
     face: t.cursed ? CURSE_VIOLET : stickerFaceColor(t),
     edge: t.cursed ? CURSE_EDGE : undefined,
     rot: opts.rot != null ? opts.rot : dcsRot(typeId + "|" + (opts.seed || "")),
