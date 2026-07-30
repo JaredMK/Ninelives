@@ -6917,7 +6917,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.48 · deck count off the face; bigger HUD + strip text";
+const APP_VERSION = "v5.49 · Sound + Reset live under Settings";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -31508,7 +31508,29 @@ const UIRenderer = (() => {
     // Stats. Its own full-screen page (#collectionScreen, the zenSelect
     // pattern); Back returns here with Continue preserved.
     items.push({ label: "Collection", ico: "die", action: () => { hideMainMenu(); showCollection(canContinue); } });
-    items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showMainMenu(canContinue); } });
+    // Sound + Reset live under SETTINGS now (v5.49) — the main list stays
+    // play-focused; Settings re-renders this same menu surface (no new
+    // screen, the reset confirm bar already lifts over it).
+    items.push({ label: "Settings", ico: "reroll", action: () => showSettings(canContinue) });
+    buildMenu(el.menuButtons, items);
+    if (!campaignUnlocked()) {
+      const note = document.createElement("div");
+      note.className = "menu-note";
+      note.textContent = "New here? Start with Zen — the climb home unlocks after your first visit.";
+      el.menuButtons.appendChild(note);
+    }
+    el.menuFoot.textContent = "build " + APP_VERSION;
+    el.mainMenu.classList.remove("hidden");
+    updateBoardMotion();   // board covered by the main menu → pause its card animations
+  }
+  /* SETTINGS (v5.49): Sound + Reset progress, off the main list. Re-renders
+     the SAME menu surface with a different item set — no new screen, no
+     z-order questions (showMenuConfirm's bar already lifts over this menu).
+     Back re-renders the main list with Continue state preserved. */
+  function showSettings(canContinue) {
+    const items = [];
+    items.push({ label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark",
+      action: () => { Sound.toggle(); showSettings(canContinue); } });
     // RESET1: total progress wipe — double-confirmed through the shared prompt
     // bar (the destructive idiom), then a reload so every module re-reads empty
     // storage. Only the sound pref survives.
@@ -31521,16 +31543,8 @@ const UIRenderer = (() => {
         () => { resetAllProgress(); location.reload(); },
         "The campaign, decks, unlocks, stats and tutorial all reset — this can't be undone."),
       "Campaign, decks, unlocks, stats and the tutorial are wiped — only the sound setting survives.") });
+    items.push({ label: "Back", ico: "back", action: () => showMainMenu(canContinue) });
     buildMenu(el.menuButtons, items);
-    if (!campaignUnlocked()) {
-      const note = document.createElement("div");
-      note.className = "menu-note";
-      note.textContent = "New here? Start with Zen — the climb home unlocks after your first visit.";
-      el.menuButtons.appendChild(note);
-    }
-    el.menuFoot.textContent = "build " + APP_VERSION;
-    el.mainMenu.classList.remove("hidden");
-    updateBoardMotion();   // board covered by the main menu → pause its card animations
   }
   function hideMainMenu() { el.mainMenu.classList.add("hidden"); setScreenNav(true, true, false); updateBoardMotion(); }
 

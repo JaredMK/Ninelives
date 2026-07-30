@@ -320,7 +320,7 @@ export function run() {
       "showManual", "showGameMenu", "showOverlay", "showMenuConfirm", "showActionBar",
       "startLossFossils", "maybeShowUnlockCelebration", "showItemUnlockPop", "resetAllProgress"])
       r.ok(src.includes("function " + name + "("), name + " untouched by the restyle");
-    const reset = fnBody(src, "showMainMenu");
+    const reset = fnBody(src, "showSettings");   // v5.49: Sound+Reset moved under Settings
     r.ok(reset.includes('label: "Reset progress"') && reset.includes("showMenuConfirm"),
       "Reset progress still double-confirms through the shared prompt bar");
     r.ok(fnBody(src, "showMenuConfirm").includes('classList.add("menu-confirm")'),
