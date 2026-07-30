@@ -157,6 +157,46 @@ That checklist replaces the retired reviewer agents.
 *(Newest first. Add an entry here when a change alters shared structure —
 generator, save format, caches — so the next session starts from reality.)*
 
+- **v5.29 (Kimi, THERMAL5)** — LAYER DIET after the v5.18 flatten proved
+  insufficient; READ THIS BEFORE ADDING will-change, OR FULL-SCREEN LAYERS,
+  OR ANY backdrop-filter:
+  - Evidence: a second Xcode-app Web Inspector timeline (89s, ~40-card deck,
+    v5.18 live): ~10 frames of 2.2-14.4s, each a single composite record
+    with the main thread 0.4-8% busy (<70ms recorded work), each OPENING
+    with a burst of ~110 paints, ~100 full-viewport, right after a tap.
+    Memory flat (JS 8MB, page ~145MB), 1 GC. Interpretation: the STANDING
+    layer texture footprint (not raster cost — v5.18 already flattened
+    that) exceeds the WKWebView backing-store budget; iOS discards layer
+    contents (the user's "icons turn transparent" symptom) and the next
+    invalidation re-rasters + re-uploads everything. Safari is clean at
+    the same state (higher memory priority) — only the app shows it.
+  - Fixes (all shipped, suite green): (A) `#tissue .blob` ×3 are no longer
+    blur(46px)+will-change layers — they're plain radial-gradient circles
+    painted INTO the one animated `#tissue .haze` layer (pause selectors
+    moved `.blob`→`.haze`). (B) `.map-parallax` is GONE — its dot field is
+    folded into `.map-bg` (tiles nudged 76/119→80/120 so everything
+    repeats inside the 480px wrap; one-speed parallax). (C)
+    `SA_XLITE_DECK` 40→28 (the ~40-card stall session sat under the gate).
+    (D) backdrop-filter is now BANNED ABSOLUTELY on full-viewport elements
+    — purged from `.card-info`, `.subset-reveal`, `.store-detail`,
+    `.confirm-overlay`, `.debug-overlay`, `.fossil-detail`, AND the base
+    `.overlay` (its 93%-opaque background made the blur near-invisible
+    anyway; the `.overlay.map` override was removed as redundant). Only
+    small-area blurs (`.store-coins` bar) remain.
+  - Standing texture saved: ~45MB (~17MB map plane, ~10MB haze layers,
+    ~15MB picker tiles at 28-40 cards) plus every overlay's full-screen
+    filtered pass.
+  - Deferred (NOT done): blanket `will-change: transform` on `.card`
+    (~3 layers × 9 piles + deck/discard). The JS drift writes transforms
+    every frame, so removing it trades texture for per-frame repaints —
+    only revisit if stalls persist after this diet. The `.card-info`
+    full-viewport blur was the last banned-pattern holdout; there are
+    none left.
+  - Next episode playbook: same as THERMAL4 (Xcode-run → Safari →
+    Develop → iPhone → Timelines). If purge-stalls persist, the layer
+    COUNT is the next target (map node pulses, character idle parts,
+    board card faces).
+
 - **v5.18 (Kimi, THERMAL4)** — the COMPOSITOR is convicted end-to-end; READ
   THIS BEFORE ADDING SHADOWS/FILTERS OR TRUSTING A CLEAN JS PROFILE:
   - Evidence: a Web Inspector timeline recorded from the Xcode app (debug
