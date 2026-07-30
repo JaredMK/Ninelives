@@ -64,7 +64,7 @@ export function run() {
     const iReroll = html.indexOf('id="rerollBtn"');
     const iShelf = html.indexOf('id="storeItems"');
     r.ok(iTop !== -1 && iTop < iHelp && iHelp < iShelf, "the help button sits inside .store-top (before the shelf)");
-    r.ok(iCoins < iHelp && iHelp < iReroll, "no overlap: it sits after the coin balance and before Refresh");
+    r.ok(iCoins < iReroll && iReroll < iHelp, "no overlap: it sits to the RIGHT of Refresh (v5.44 player request)");
     // The guided-store gate is retired (the Zen-first tour never enters the
     // store): no .tut-allow class, no gate CSS.
     r.ok(!cls.includes("tut-allow"), "the help button is a plain store button (no tutorial gate classes)");
@@ -77,7 +77,7 @@ export function run() {
     const pc = panelCss ? panelCss[0] : "";
     r.ok(/z-index:\s*84/.test(pc), "the panel is z-lifted (84) above #storeOverlay (50) + shelf + buy-detail (66)");
     r.ok(pc.includes("background: var(--panel)"), "the panel is OPAQUE (solid --panel background)");
-    r.ok(/\.store-help-btn \{[^}]*margin-left:\s*auto/.test(html), "the help button clusters right (margin-left:auto), clear of the coins");
+    r.ok(/\.store-reroll \{[^}]*margin-left:\s*auto/.test(html), "Refresh carries the auto-margin — the Refresh+? pair clusters right, clear of the coins");
 
     // --- A3/A4) renderStoreKey builds SEVEN rows from the live shelf renderers
     const rk = fnBody(src, "renderStoreKey");

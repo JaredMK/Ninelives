@@ -2754,6 +2754,15 @@ const NativeApp = (() => {
   .mk-head { display: flex; align-items: center; justify-content: space-between;
     font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
     color: var(--muted); padding-bottom: 2px; }
+  /* Shared close-chip for both key panels: a VISIBLE bordered pixel chip with
+     a "close" label — the old borderless muted × didn't read as collapsible
+     (player report). Overrides the legacy .mk-close/.sk-close look below. */
+  .key-close { display: inline-flex !important; align-items: center; gap: 4px;
+    background: var(--felt-deep) !important; color: var(--card-face) !important;
+    border: var(--px) solid var(--ink) !important; box-shadow: 2px 2px 0 0 var(--shadow);
+    font-size: 14px !important; padding: 2px 8px; cursor: pointer; }
+  .key-close .kc-lab { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .key-close:active { transform: translate(2px, 2px); box-shadow: none; }
   .mk-close { background: none; border: none; color: var(--muted); font-size: 20px;
     line-height: 1; padding: 0 2px; cursor: pointer; touch-action: manipulation; }
   .mk-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
@@ -2772,7 +2781,7 @@ const NativeApp = (() => {
      A circular "?" that lives IN the store header (in-flow, not the fixed
      corner nav), clustered beside Refresh (margin-left:auto) so it never
      overlaps the coin balance on the left. */
-  .store-help-btn { flex: none; margin-left: auto; align-self: center; position: relative;
+  .store-help-btn { flex: none; align-self: center; position: relative;
     width: 30px; height: 30px; border-radius: 0;   /* squared with the rest of the chrome (§10) */
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--felt-mid); color: var(--text);
@@ -3108,6 +3117,7 @@ const NativeApp = (() => {
      §4 gold button — it spends coins: deep-felt face, gold text + frame,
      hard shadow; pressing sinks it one pixel step. */
   .store-reroll { flex: none; display: inline-flex; align-items: center; gap: 6px;
+    margin-left: auto;   /* clusters Refresh + the "?" (now to its RIGHT) on the right edge */
     background: var(--felt-deep); color: var(--gold);
     border: var(--px) solid var(--gold); border-radius: 0;
     padding: 8px 14px; font-size: 12.5px; font-weight: 800;
@@ -6448,8 +6458,8 @@ const NativeApp = (() => {
            built at open time from the LIVE shelf renderers. margin-left:auto
            clusters it beside Refresh on the right, clear of the coins on the
            left. -->
-      <button class="store-help-btn" id="storeHelpBtn" type="button" aria-label="Store item types" aria-expanded="false"><span class="ico">?</span></button>
       <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
+      <button class="store-help-btn" id="storeHelpBtn" type="button" aria-label="Store item types" aria-expanded="false"><span class="ico">?</span></button>
     </div>
 
     <!-- ONE unified shelf of physical objects resting on the warm shop surface.
@@ -6886,7 +6896,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.43 · unlock pops explain the item; menu says CLIMB";
+const APP_VERSION = "v5.44 · first climb/store open their keys; ? sits right of Refresh";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -26484,7 +26494,7 @@ const UIRenderer = (() => {
     // mapNodeInner's mystery case — the uniform "?" back — so it can't drift.
     const myst = live("mystery") || { type: "mystery" };
     el.mapKeyPanel.innerHTML =
-      '<div class="mk-head"><b>Map key</b><button class="mk-close" type="button" aria-label="Close">×</button></div>' +
+      '<div class="mk-head"><b>Map key</b><button class="mk-close key-close" type="button" aria-label="Close">× <span class="kc-lab">close</span></button></div>' +
       mapKeyRow("t-deal", "", mapDealCluster(deal, false), "Deal", "play a hand; the chip shows its coin reward — harder deals pay more") +
       mapKeyRow("t-boss", "--mk-s:0.52", mapDealCluster(boss, true), "Boss", "full-deck deal; biggest reward; guards the stage exit") +
       mapKeyRow("t-store", "", mapShopStall(), "Shop", "spend coins") +
@@ -26526,7 +26536,7 @@ const UIRenderer = (() => {
     const same    = SamePowerTypes.all()[0];
     const card    = { suit: "♥", value: 7 };   // any face-up card — the art is the lesson
     el.storeKeyPanel.innerHTML =
-      '<div class="sk-head"><b>Store items</b><button class="sk-close" type="button" aria-label="Close">×</button></div>' +
+      '<div class="sk-head"><b>Store items</b><button class="sk-close key-close" type="button" aria-label="Close">× <span class="kc-lab">close</span></button></div>' +
       storeKeyRow(sticker ? stickerChip(sticker.id, { seed: "help" }) : "", "Sticker", "attaches to one card and rides it the whole run.") +
       storeKeyRow(pillar ? pathwayBannerHtml(pillar, { size: "shop" }) : "", "Pillar", "powers a whole column from the top — passive, always on.") +
       storeKeyRow(base ? baseBannerHtml(base, "charged", { size: "shop" }) : "", "Base", "a once-per-deal tap power at the foot of a column.") +
@@ -27089,6 +27099,12 @@ const UIRenderer = (() => {
     refreshMapDeckPanel();
     updateShellHeight();
     updateBoardMotion();   // board covered by the map → pause its card animations
+    // FIRST-EVER climb: open the map key by default so the node shapes are
+    // explained up front — once only (pref-stamped even if closed instantly).
+    if (SaveStore.getPref("mapKeySeen") !== "1") {
+      SaveStore.setPref("mapKeySeen", "1");
+      openMapKey();
+    }
     // Camera DEFAULTS to the PLAYER: centre the view on the avatar (which marks
     // the current node, or the virtual start before the first move), so "you are
     // here" + the reachable moves are immediately in view (clamped at the edges).
@@ -27601,6 +27617,12 @@ const UIRenderer = (() => {
     // suit chart to the accumulated deck, then size the store below the shell.
     renderDeckStrip(); renderSuitCounts(); updateShellHeight();
     updateBoardMotion();   // board covered by the store → pause its card animations
+    // FIRST-EVER store: open the item-type legend by default so the shelf's
+    // classes are explained up front — once only (pref-stamped immediately).
+    if (SaveStore.getPref("storeKeySeen") !== "1") {
+      SaveStore.setPref("storeKeySeen", "1");
+      openStoreKey();
+    }
   }
 
   /* Compact HTML for the player's owned-sticker inventory (counts per type),
