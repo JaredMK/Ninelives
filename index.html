@@ -6924,7 +6924,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.52 · sound survives iOS interruptions (auto-recovery)";
+const APP_VERSION = "v5.53 · leaner unlock summary pop";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -24896,7 +24896,6 @@ const UIRenderer = (() => {
       '<div class="duc-panel">' +
         '<div class="duc-eyebrow">' + unlocks.length + " more items unlocked</div>" +
         '<div class="iusp-shelf">' + shelf + extra + "</div>" +
-        '<div class="duc-copy" style="opacity:1">All waiting in your Collection.</div>' +
         '<button class="play-btn duc-continue" type="button">CONTINUE</button>' +
       "</div>";
     document.body.appendChild(wrap);
