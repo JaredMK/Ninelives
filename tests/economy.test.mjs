@@ -5,8 +5,9 @@
 // in-run event tally). The old piles × smallest product survives as the deal
 // SCORE (breakdown still reports it) but no longer feeds the coin total.
 // Ambush/subset deals carry no stage/rating → no flat base (the bounty is the
-// reward). All expectations below derive from the items.js knobs — a data
-// retune must not break this suite.
+// reward); a flagged AMBUSH additionally scores 0 (v5.63 — coins only). All
+// expectations below derive from the items.js knobs — a data retune must not
+// break this suite.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -116,7 +117,10 @@ export function run() {
   const ambush = Economy.breakdown({ won: true, aliveCount: 4, minAliveCards: 2,
     eventBonus: ItemData.mystery.ambush.bounty, eventLines: [{ label: "Ambush", amount: ItemData.mystery.ambush.bounty }] });
   r.eq(ambush.total, ItemData.mystery.ambush.bounty, "ambush win pays exactly the bounty (no flat base)");
-  r.eq(ambush.product, 8, "…but the ambush clear still SCORES (product reported)");
+  // NOTE: this shape only omits the flat base — it does NOT carry the v5.63
+  // `ambush: true` flag, so it still scores. The real ambush path (which the
+  // payout site flags) is covered in the AMBUSH block above.
+  r.eq(ambush.product, 8, "…a no-flat-base shape alone still scores (the FLAG is what zeroes it)");
 
   const lost = Economy.breakdown({ won: false, flat: 9, aliveCount: 9, minAliveCards: 4, extraCoinUnits: 5 });
   r.eq(lost.total, 0, "breakdown on a loss totals 0");
@@ -228,6 +232,19 @@ export function run() {
     r.eq(b.extraCoinUnits(), 4, "e2e: Extra Coin on a 4-card pile -> 4 units");
     r.eq(bd2.product, 12, "e2e: product (score) = 3×4 = 12");
     r.eq(bd2.total, 5 + 4 * EXTRA_COIN_VALUE, "e2e: total = flat + Extra Coin (product excluded)");
+  }
+
+  // ── AMBUSH: coins only, never scores (v5.63) ───────────────────────────
+  {
+    const stats = { won: true, flat: 0, aliveCount: 4, minAliveCards: 3,
+      extraCoinUnits: 0, eventBonus: 25 };
+    const normal = Economy.breakdown(stats);
+    r.eq(normal.product, 12, "a normal clear scores piles x smallest (4x3)");
+    const amb = Economy.breakdown({ ...stats, ambush: true });
+    r.eq(amb.product, 0, "an AMBUSH scores 0 — the bounty is the whole reward");
+    r.eq(amb.total, normal.total, "…while its COINS are unchanged (bounty still paid)");
+    r.eq(amb.alivePiles, normal.alivePiles, "…the factors still report (UI reads them)");
+    r.eq(amb.minPileCards, normal.minPileCards, "…both of them");
   }
 
   // ── Economy.liveBonus — the above-board "base + bonus" live readout ──

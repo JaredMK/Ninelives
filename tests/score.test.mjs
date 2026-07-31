@@ -267,6 +267,14 @@ export function run() {
       "…with the piles × smallest factors as its sub line");
     r.ok(html.includes('id="overlayScore"') && src.includes("el.overlayScore.innerHTML = scorePlaqueHtml"),
       "…rendered into its own #overlayScore element, separate from #overlayCoins");
+    // v5.63: an AMBUSH pays coins only — no score fold, no plaque, no live
+    // projection. Sourced from Economy (product 0), so the chain follows.
+    r.ok(src.includes("ambush: wasAmbush,"),
+      "the payout site tells Economy the deal was an ambush");
+    r.ok(src.includes("const showScore = !!sb && sb.product > 0;"),
+      "…the summary hides the Score plaque when the deal scored nothing");
+    r.ok(fnBody(src, "renderHud").includes("const scores = !ambushDeal;"),
+      "…and the above-board projection shows no score during an ambush");
     r.ok(cbh.includes("no flat reward"), "…an ambush flags its missing flat base");
 
     // END SUMMARY: score + best tiles (endless split post-boss); an

@@ -6957,7 +6957,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.62 · 12px font floor game-wide; leaner reward line";
+const APP_VERSION = "v5.63 · ambushes pay coins only — they never score";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10337,7 +10337,12 @@ const Economy = (() => {
     // Product of alive piles and the smallest alive pile's card count — the
     // deal SCORE (folded into the campaign score at the payout site), not
     // coins. The guard keeps it 0 (never NaN) when there are no alive piles.
-    const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
+    // v5.63: an AMBUSH pays coins only — its bounty IS the reward, and it
+    // never counts toward the run SCORE. Forcing the product to 0 here makes
+    // the whole chain follow from one place (the per-clear fold, the summary
+    // plaque, and any future consumer).
+    const product = (stats && stats.ambush) ? 0
+      : (alivePiles > 0 ? alivePiles * minPileCards : 0);
     const extraCoinBonus = extraCoinUnits * cfg.EXTRA_COIN_VALUE;
     return {
       won,
@@ -19216,8 +19221,10 @@ const UIRenderer = (() => {
     if (el.dealScore) {
       const alive = board.aliveCount();
       const smallest = alive > 0 ? board.minAliveCards() : 0;
-      el.dealScore.textContent = alive > 0 ? alive + "×" + smallest : "0";
-      el.dealScore.dataset.product = String(alive > 0 ? alive * smallest : 0);
+      // An ambush pays coins only and never scores (v5.63) — project nothing.
+      const scores = !ambushDeal;
+      el.dealScore.textContent = !scores ? "—" : (alive > 0 ? alive + "×" + smallest : "0");
+      el.dealScore.dataset.product = String(!scores ? 0 : (alive > 0 ? alive * smallest : 0));
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
@@ -24363,10 +24370,13 @@ const UIRenderer = (() => {
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
     // Score plaque: only when this overlay carries a full deal breakdown (the
     // deal-cleared screen); loss/plain overlays have no product to show.
+    // A cleared deal always scores >= 1 (piles x smallest), so product 0 on a
+    // win means an AMBUSH (coins only, v5.63) — no plaque at all.
     const sb = opts.coins && opts.coins.breakdown;
+    const showScore = !!sb && sb.product > 0;
     if (el.overlayScore) {
-      if (sb) el.overlayScore.innerHTML = scorePlaqueHtml(sb);
-      el.overlayScore.classList.toggle("hidden", !sb);
+      if (showScore) el.overlayScore.innerHTML = scorePlaqueHtml(sb);
+      el.overlayScore.classList.toggle("hidden", !showScore);
     }
 
     // Hold-to-peek the final board (run-complete / campaign screens only).
@@ -27066,6 +27076,7 @@ const UIRenderer = (() => {
       flat: Economy.dealFlat(payoutStage, payoutRating, payoutBoss),
       stage: payoutStage,
       rating: payoutRating,
+      ambush: wasAmbush,          // coins only — never scores (v5.63)
       aliveCount,
       // Smallest NON-anchored alive pile — the SCORE multiplier (engine-side,
       // anchors excluded; same source as the orange HUD highlight).
