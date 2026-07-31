@@ -2238,8 +2238,6 @@ const NativeApp = (() => {
   /* Culled tile (beyond ±1.5 viewports): frame paints, contents don't. */
   .col-tile.col-cull > * { visibility: hidden; }
   .col-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
-  .col-hint { font-size: 13px; color: var(--on-felt-muted); text-align: center;
-    max-width: min(86vw, 340px); line-height: 1.4; }
   .col-list { flex: 1 1 auto; min-height: 0; width: min(94vw, 420px); overflow-y: auto;
     -webkit-overflow-scrolling: touch; display: flex; flex-direction: column;
     gap: 14px; padding: 2px 6px 14px 2px; }
@@ -6825,7 +6823,6 @@ const NativeApp = (() => {
   <div class="menu-screen hidden" id="collectionScreen">
     <button class="nav-btn col-back-btn" id="colBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
     <div class="ds-title">Collection</div>
-    <div class="col-hint">Every sticker, Pillar, Base, Same-Power and pack. Locked ones show how to earn them — hold an unlocked tile for what it does.</div>
     <div class="col-list" id="colList"></div>
   </div>
 
@@ -6931,7 +6928,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.55 · Leech Swarm wears its own swarm";
+const APP_VERSION = "v5.56 · cleaner Collection header";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
