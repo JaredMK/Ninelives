@@ -75,6 +75,13 @@ The game targets phones. Four invariants, all currently enforced — keep them:
 - **One-screen store.** The store is a single fixed screen with one unified
   shelf; no tabs, no paging. Sub-flows open as overlays above it and return
   to the same screen.
+- **Stable containers.** A container's size must NOT change when its CONTENT
+  swaps. Hold-for-help takes over the histogram band by OVERLAYING it (the
+  band's children go `visibility:hidden`, never `display:none`) so the band —
+  and the board below it — never move; the Collection detail runs at ONE
+  fixed height for every item so its ◀ ▶ pager never shifts under the thumb.
+  New swap-in-place UI follows the same rule: fixed shell, content scrolls
+  inside it, nothing ever exceeds its container.
 - **Phone-first.** Touch/pointer input first (swipe to guess, hold to peek,
   no hover-dependent UI), safe-area insets on every fixed element, layouts
   must fit ~390px-wide phones (fluid `clamp()`/vw/svh + `fitBoard`, not media

@@ -797,6 +797,12 @@ const NativeApp = (() => {
   .deck-char { position: absolute; inset: 0; z-index: 0; pointer-events: none;
     transform: translate(var(--lean-x, 0px), var(--lean-y, 0px));
     transition: transform 0.5s cubic-bezier(0.33, 1.28, 0.5, 1); }
+  /* v5.61: the sprite is a SQUARE contain-fit, so in the 46x60 deck-pile box
+     it painted only 46px inside a 66x72 slot. Grow the box (bottom-anchored —
+     the character still stands on the same floor) so it fills the slot it
+     already owns: ~60px of art, still inside #deckStat's 66x72. The count
+     chip is positioned on its own parent, so it does not move. */
+  .rail .deck-char, #deckStat .deck-char { inset: -4px -7px -2px -7px; }
   /* THE sprite canvas: tier-accessory overlay layered OVER the frame. Both
      layers are 32×32 squares → identical contain-fit geometry; bottom-anchored
      so every pose stands on the same floor at every context size. No
@@ -1063,10 +1069,15 @@ const NativeApp = (() => {
      they all return. The popup's floating base style (position:fixed; top:15%) is
      overridden to flow inside the band. Only applies in play (body.peek-band is set
      there only). */
-  body.peek-band #histBand > :not(.peek-info) { display: none; }
+  /* v5.61 — STABLE CONTAINER: the band's own children stay IN FLOW (only
+     invisible), so the band keeps its exact height while help is held; the
+     help panel overlays it absolutely. Previously they were display:none and
+     the band collapsed 84px -> 59px, shoving the whole board up. */
+  body.peek-band #histBand { position: relative; }
+  body.peek-band #histBand > :not(.peek-info) { visibility: hidden; }
   body.peek-band #histBand .peek-info {
-    position: relative; left: auto; right: auto; top: auto; transform: none;
-    flex: 1 1 auto; min-width: 0; width: auto; max-width: none; align-self: stretch;
+    position: absolute; inset: 0; left: 0; right: 0; top: 0; transform: none;
+    flex: 0 0 auto; min-width: 0; width: auto; max-width: none; align-self: auto;
     max-height: 100%; overflow-y: auto;
     background: var(--felt-mid); border: var(--px) solid var(--ink);
     border-radius: 0; box-shadow: none; padding: 4px 10px; z-index: 1;
@@ -4951,6 +4962,18 @@ const NativeApp = (() => {
   /* Collection detail extras: the item's art centered above the text, and the
      ◀ ▶ pager row — §4 pixel buttons at thumb size (44px hit), clamped ends
      dim. Only present when the Collection opened the shared panel. */
+  /* v5.61 — STABLE CONTAINER while paging: the panel keeps ONE size for every
+     item (measured range across all 102 items was 212-246px, plus up to ~40px
+     of Telem usage lines), so the ◀ ▶ arrows never move between taps. The
+     text area scrolls if an item ever runs longer; the art and the pager keep
+     their fixed positions. */
+  .card-info-panel.cid-mode { height: min(300px, 62vh); display: flex; flex-direction: column;
+    overflow: hidden; }
+  .card-info-panel.cid-mode .cid-obj { flex: none; }
+  .card-info-panel.cid-mode .ih-body, .card-info-panel.cid-mode .ih-title { flex: none; }
+  /* the description + usage block is the only thing allowed to scroll */
+  .card-info-panel.cid-mode .item-help { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .card-info-panel.cid-mode .cid-nav { flex: none; margin-top: auto; }
   .card-info-panel .cid-obj { display: flex; justify-content: center; margin: 2px 0 10px; }
   .card-info-panel .cid-nav { display: flex; align-items: center; justify-content: space-between;
     gap: 10px; margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(236,228,207,0.14); }
@@ -6925,7 +6948,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.60 · leaner tutorial; unlocks wait for your first climb";
+const APP_VERSION = "v5.61 · bigger characters; containers stop resizing";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -20464,6 +20487,8 @@ const UIRenderer = (() => {
     // Persistent deck cards carry currentRank/suit but no `label`; synthesise one
     // so cardPeekHtml's header reads correctly (e.g. "Card J♥").
     const c = card.label ? card : Object.assign({}, card, { label: miniRankLabel(card) });
+    el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
+    el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
     el.cardInfoPanel.innerHTML = cardPeekHtml(c, null);   // null index → help only (no peel)
     el.cardInfo.classList.remove("hidden");
   }
@@ -20507,6 +20532,7 @@ const UIRenderer = (() => {
     // pillars/bases use from their board-slot peek.
     const canUnequip = !!(engine && engine.canApplyStickers() && campaign
       && campaign.getSamePower && campaign.getSamePower() === id);
+    el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
     el.cardInfoPanel.innerHTML =
       '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">' +
       '<span class="sp-info-ico" style="width:20px;height:20px;color:var(--net-dot,#4ef08a);display:inline-flex;">' + glyph(t.id) + '</span>' +
@@ -28804,6 +28830,7 @@ const UIRenderer = (() => {
     if (!el.cardInfoPanel || !el.cardInfo) return;
     const html = itemHelpHtml(kind, id);
     if (!html) return;
+    el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
     el.cardInfoPanel.innerHTML = html;
     el.cardInfo.classList.remove("hidden");
   }
@@ -28858,6 +28885,7 @@ const UIRenderer = (() => {
         "</div>";
     }
     el.cardInfoPanel.innerHTML = html;
+    el.cardInfoPanel.classList.add("cid-mode");   // fixed-size shell (v5.61)
     el.cardInfo.classList.remove("hidden");
   }
   function attachStoreHoldHelp(container, resolve, sel) {
