@@ -425,7 +425,7 @@ const NINELIVES_ITEMS = {
     { id: "linkRevive", unlock: { type: "behavior", stat: "correctSames", count: 24 }, label: "Rekindle", icon: "🌱",
       effect: "linkRevive", tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Revive the largest dead pile on the board" },
-    // value = coins per directly-linked alive pile.
+    // value = coins per alive pile on the board (board-wide, not just linked).
     { id: "linkCoins", label: "Dividend", icon: "💰",
       effect: "linkCoins", value: 1, tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Gain 1 coin for each alive pile on the board" },
@@ -435,8 +435,8 @@ const NINELIVES_ITEMS = {
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
       effect: "samePeek", tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Peek at the next upcoming card" },
-    // value = pile size added to each directly-linked pile; hubValue = pile
-    // size added to the CALLED pile itself (both last the deal).
+    // value = pile size added to EVERY alive pile (board-wide); hubValue = extra
+    // pile size added to the CALLED pile on top of that (both last the deal).
     { id: "linkHeavy", unlock: { type: "behavior", stat: "correctSames", count: 39 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 1, hubValue: 5, tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Add +1 pile size to every alive pile, and another +5 to the pile you called Same on" },
