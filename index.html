@@ -6457,13 +6457,12 @@ const NativeApp = (() => {
     <!-- SEED1: the run's share seed on the win/loss screens — tap copies it.
          Rendered from opts.seed (showOverlay); empty/hidden otherwise. -->
     <div class="ov-seed hidden" id="overlaySeed" role="button" tabindex="0"></div>
-    <!-- UNLOCK1: the nearest upcoming item unlocks (death/win screens) — each a
-         silhouette tile + remaining-count hint + progress bar. Rendered from
-         opts.unlocks (showOverlay, ItemUnlocks.nearestLocked); hidden when the
-         list is empty or absent (always empty while no item carries a gate). -->
-    <div class="ov-unlocks hidden" id="overlayUnlocks"></div>
     <!-- End-of-campaign stats (loss wipe OR all runs cleared). -->
     <div class="summary-block hidden" id="endSummary">
+      <!-- v5.64: the run's SCORE leads the summary (player request); the
+           "Ending Board" pillar/base recap and the "almost there" unlock rows
+           are gone — the screen states the result, not a shopping list. -->
+      <div class="summary-tiles score-tiles hidden" id="endScoreTiles"></div>
       <div class="summary-tiles">
         <div class="run-stat">
           <div class="run-stat-value" id="endCards">0</div>
@@ -6488,14 +6487,6 @@ const NativeApp = (() => {
           <div class="run-stat-value" id="endAccuracy">0%</div>
           <div class="run-stat-label">Accuracy</div>
         </div>
-      </div>
-      <!-- ECON1: the run's SCORE tiles (campaign score + best; the endless
-           split joins post-boss). Rendered from opts.endStats.score by
-           showOverlay; an exhibition run shows its score but no best claim. -->
-      <div class="summary-tiles score-tiles hidden" id="endScoreTiles"></div>
-      <div class="end-pillars">
-        <div class="summary-label">Ending Board</div>
-        <div class="ep-cols" id="endPillars"></div>
       </div>
     </div>
     <!-- Deal-cleared SPLIT: Score is ITS OWN plaque (phosphor — never coins),
@@ -6957,7 +6948,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.63 · ambushes pay coins only — they never score";
+const APP_VERSION = "v5.64 · climb summary: score first, less clutter";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -18596,11 +18587,9 @@ const UIRenderer = (() => {
     runProgress: document.getElementById("runProgress"),
     zenEndStats: document.getElementById("zenEndStats"),
     overlaySeed: document.getElementById("overlaySeed"),     // SEED1: win/loss share-seed line
-    overlayUnlocks: document.getElementById("overlayUnlocks"),   // UNLOCK1: nearest-unlock progress rows
     endSummary: document.getElementById("endSummary"),
     endCards: document.getElementById("endCards"),
     endCoins: document.getElementById("endCoins"),
-    endPillars: document.getElementById("endPillars"),
     endGuessTiles: document.getElementById("endGuessTiles"),
     endScoreTiles: document.getElementById("endScoreTiles"),   // ECON1: score + best tiles
     endCorrect: document.getElementById("endCorrect"),
@@ -24334,22 +24323,11 @@ const UIRenderer = (() => {
       el.overlaySeed.classList.toggle("hidden", !opts.seed);
     }
 
-    // UNLOCK1: the nearest upcoming item unlocks (death/win screens) — one
-    // silhouette + hint + progress row per entry, same hidden-toggle idiom as
-    // the seed line. opts.unlocks comes from ItemUnlocks.nearestLocked; empty
-    // or absent → the section hides (always empty while no item carries a gate).
-    if (el.overlayUnlocks) {
-      const ups = opts.unlocks || [];
-      el.overlayUnlocks.innerHTML = ups.map(unlockProgressHtml).join("");
-      el.overlayUnlocks.classList.toggle("hidden", !ups.length);
-    }
-
     // End-of-campaign stats: cumulative cards flipped + gross coins earned, the
     // run SCORE + bests (ECON1), and the Pillars the player finished with.
     if (opts.endStats) {
       el.endCards.textContent = opts.endStats.cardsFlipped;
       el.endCoins.innerHTML = COIN_SVG + " " + opts.endStats.coinsEarned;
-      el.endPillars.innerHTML = endBoardHtml(opts.endStats.pillars, opts.endStats.bases);
       if (el.endScoreTiles) el.endScoreTiles.innerHTML = endScoreTilesHtml(opts.endStats.score);
     }
     el.endSummary.classList.toggle("hidden", !opts.endStats);
@@ -24499,25 +24477,6 @@ const UIRenderer = (() => {
       + label) or "—" when empty. Reads campaign.getColumnPillars(). */
   /* The ending board, laid out like the play board: Pillars across the TOP
      (columns 1–N), Bases across the BOTTOM, each in its column position. */
-  function endBoardHtml(pillars, bases) {
-    pillars = pillars || []; bases = bases || [];
-    const nCols = Math.max(pillars.length, bases.length, 1);
-    const cell = (id, reg) => {
-      const t = id ? reg.get(id) : null;
-      return '<div class="ep-cell' + (t ? "" : " empty") + '">' +
-        (t ? '<span class="ep-icon">' + t.icon + '</span><span class="ep-name">' + escHtml(t.label) + '</span>'
-           : '<span class="ep-dash">—</span>') + '</div>';
-    };
-    let pRow = "", cRow = "", bRow = "";
-    for (let c = 0; c < nCols; c++) {
-      pRow += cell(pillars[c], PillarTypes);
-      cRow += '<div class="ep-colnum">Col ' + (c + 1) + '</div>';
-      bRow += cell(bases[c], BaseTypes);
-    }
-    return '<div class="ep-band ep-pillars">' + pRow + '</div>' +
-           '<div class="ep-band ep-colnums">' + cRow + '</div>' +
-           '<div class="ep-band ep-bases">' + bRow + '</div>';
-  }
 
   /** "Stage X of 3 · Deal Y of 4" — shared progress label. */
   function stageRunLabel(suffix) {
@@ -24638,7 +24597,6 @@ const UIRenderer = (() => {
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
       seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the loss screen
-      unlocks: ItemUnlocks.nearestLocked(2),   // UNLOCK1: "almost there" rows (hidden when empty)
       peek: false,             // no hold-to-peek-the-board on the loss screen
       btnLabel: "MAIN MENU",
       // The run TERMINATES here — after an ENDLESS death this is where a first
@@ -24672,7 +24630,6 @@ const UIRenderer = (() => {
         pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       },
       seed: runSeedShareStr(),   // SEED1: tap-to-copy share line on the victory screen
-      unlocks: ItemUnlocks.nearestLocked(2),   // UNLOCK1: "almost there" rows (hidden when empty)
       peek: false,
       btnLabel: "CONTINUE — ENDLESS MODE",
       action: enterEndlessMode,
@@ -25042,19 +24999,6 @@ const UIRenderer = (() => {
      ItemUnlocks.nearestLocked): silhouette tile + the remaining-count hint
      (hintFor re-derived at the REMAINING count — never hand-written) + a
      progress bar with the live count. */
-  function unlockProgressHtml(u) {
-    const remaining = Math.max(0, u.count - u.current);
-    const left = ItemUnlocks.hintFor({ unlock: { stat: u.def.unlock.stat, count: remaining } });
-    const pct = Math.max(0, Math.min(100, Math.round(u.fraction * 100)));
-    return '<div class="ov-unlock">' +
-      '<span class="ov-unlock-obj"><span class="ulk-obj silhouette">' +
-        unlockObjectHtml(itemKindOf(u.def), u.def) + '</span></span>' +
-      '<span class="ov-unlock-info">' +
-        '<span class="ov-unlock-hint">? — ' + escHtml(left) + ' to go</span>' +
-        '<span class="ulk-bar"><span class="ulk-fill" style="width:' + pct + '%"></span></span>' +
-        '<span class="ulk-count">' + Math.min(u.current, u.count) + ' / ' + u.count + '</span>' +
-      '</span></div>';
-  }
   /** The deck the CURRENT campaign is being played with (win credit target).
       Set on Start Run; restored with a resumed save; defaults to Pinky. */
   let selectedDeckId = "pink";

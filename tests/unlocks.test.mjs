@@ -504,7 +504,6 @@ export function run() {
     const overlayBody = bodyOf("function showOverlay(opts)", "function setScreenNav(");
     const menuBody = bodyOf("function showMainMenu(canContinue)", "function hideMainMenu()");
     const colBody = bodyOf("const COLLECTION_GROUPS = [", "function startZen(diffId)");
-    const progressBody = bodyOf("function unlockProgressHtml(u)", null);
 
     // ── The toast queue: exists, reveals, sounds, drains one pop per CONTINUE ──
     r.ok(src.includes("function queueItemUnlockPops(unlocks, onDone)"),
@@ -514,7 +513,7 @@ export function run() {
       "…it drains one pop at a time; empty queue → summary tail or onDone straight through");
     r.ok(src.includes("function showItemUnlockPop(u, onNext)"),
       "…the single-pop presenter exists");
-    const popBody = bodyOf("function showItemUnlockPop(u, onNext)", "function unlockProgressHtml(u)");
+    const popBody = bodyOf("function showItemUnlockPop(u, onNext)", "function queueItemUnlockPops");
     r.ok(popBody.includes('"deck-unlock-pop item-unlock-pop"') && popBody.includes("iuc-objwrap"),
       "…each pop rides the deck-unlock idiom (silhouette object wrap)");
     r.ok(popBody.includes("prefersReduce() ? 80 : 800") && popBody.includes('wrap.classList.add("revealed")'),
@@ -562,7 +561,7 @@ export function run() {
       "…overflow splices into the summary pop");
     r.ok(qip.includes("MAX_SOLO_POPS + 1"),
       "…a single overflow item still pops solo (no \"1 more\" summary)");
-    const sump = bodyOf("function showItemUnlockSummaryPop(unlocks, onNext)", "function unlockProgressHtml");
+    const sump = bodyOf("function showItemUnlockSummaryPop(unlocks, onNext)", "/* The death/win overlay");
     r.ok(sump.includes("more items unlocked") && sump.includes("duc-continue"),
       "the summary pop lists the count with ONE continue");
     r.eq(countOf(runEndBody, "ItemUnlocks.checkNewUnlocks()"), 1,
@@ -576,18 +575,13 @@ export function run() {
     r.ok(celebrBody.indexOf("pendingUnlockCelebration = null") < celebrBody.indexOf("ItemUnlocks.checkNewUnlocks()"),
       "…and it fires AFTER any deck-unlock pop (the pop consumes first)");
 
-    // ── The death/win "nearest unlocks" overlay section ──
-    r.ok(html.includes('id="overlayUnlocks"'), "the overlay carries the #overlayUnlocks section");
-    r.ok(overlayBody.includes("ups.map(unlockProgressHtml)")
-      && overlayBody.includes('el.overlayUnlocks.classList.toggle("hidden", !ups.length)'),
-      "…showOverlay renders it from opts.unlocks and hides it when empty/absent");
-    r.ok(progressBody.includes("silhouette") && progressBody.includes("ulk-fill")
-      && progressBody.includes("hintFor"),
-      "…each row: silhouette tile + derived remaining hint + progress bar");
-    r.ok(failedBody.includes("unlocks: ItemUnlocks.nearestLocked(2)"),
-      "…the death screen passes the section (nearest 2)");
-    r.ok(homeBody.includes("unlocks: ItemUnlocks.nearestLocked(2)"),
-      "…the win screen passes it too");
+    // ── The death/win "almost there" rows are RETIRED (v5.64, player
+    // request: the summary was too busy). nearestLocked() itself stays —
+    // it is still the Collection's ordering helper and a tested unit.
+    r.ok(!html.includes('id="overlayUnlocks"'), "the #overlayUnlocks section is gone");
+    r.ok(!src.includes("unlockProgressHtml"), "…and its row builder with it");
+    r.ok(!failedBody.includes("nearestLocked") && !homeBody.includes("nearestLocked"),
+      "…neither end screen passes an unlock list any more");
     r.eq(loadGame({ localStorage: memStorage() }).ItemUnlocks.nearestLocked(2).length, 2,
       "…LIVE as of UNLOCK2: real gates exist, so the almost-there section has rows at zero stats");
 
