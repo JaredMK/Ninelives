@@ -1,0 +1,6 @@
+# The Xcode project is GENERATED from project.yml — never commit it.
+ShouldaSaidSame.xcodeproj/
+build/
+DerivedData/
+*.xcuserdatad
+.DS_Store

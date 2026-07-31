@@ -1,0 +1,53 @@
+{
+  "itemUnlockStats": [
+    "dealsSurvived",
+    "runsPlayed",
+    "runsWon",
+    "bossesBeaten",
+    "endlessStagesReached",
+    "coinsEarnedLifetime",
+    "cardsBuried",
+    "samesCalled",
+    "correctSames",
+    "jokersPlayed",
+    "stickersApplied",
+    "pillarsPlaced",
+    "basesPlaced",
+    "removalsUsed",
+    "pilesLost",
+    "zenGamesPlayed",
+    "zenEasyWon",
+    "zenMediumWon",
+    "zenHardWon"
+  ],
+  "deckRules": {
+    "pink": {
+      "altSuits": false,
+      "priceMult": 1,
+      "startStickers": false,
+      "noStickers": false,
+      "preEquip": false
+    },
+    "mamma": {
+      "altSuits": true,
+      "priceMult": 1,
+      "startStickers": false,
+      "noStickers": false,
+      "preEquip": false
+    },
+    "smith": {
+      "altSuits": true,
+      "priceMult": 2,
+      "startStickers": true,
+      "noStickers": false,
+      "preEquip": false
+    },
+    "lammy": {
+      "altSuits": true,
+      "priceMult": 1,
+      "startStickers": false,
+      "noStickers": true,
+      "preEquip": true
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "groups": {
+    "deal": [
+      {
+        "anchor": "dealBoard",
+        "text": "*Goal: survive.* Every pile is a life."
+      },
+      {
+        "anchor": "dealPile",
+        "text": "Pick a pile, then *swipe* to guess the next card against that pile's *top card*:\n↑ higher\n↓ lower\nsideways = *same*\nOr tap the pile and use the buttons on the left."
+      },
+      {
+        "anchor": "dealDeckChar",
+        "text": "Every guess draws the next card from *the deck*.\nRight → the pile grows\nWrong → the pile dies\nBeat the *whole deck* before every pile is gone."
+      },
+      {
+        "anchor": "sameShield",
+        "text": "Call *Same* when you expect an equal card. A correct Same charges this *shield*, protecting you from your next incorrect guess."
+      },
+      {
+        "anchor": "dealHistogram",
+        "text": "This strip shows *what's left in the deck*. Hold on a number to see how many cards are higher and lower than it. Tap on the deck to see all the cards."
+      },
+      {
+        "button": "Go",
+        "text": "Your turn — make a guess!"
+      }
+    ],
+    "zenEnd": [
+      {
+        "button": "Let's play",
+        "text": "That's it. *Good luck!*"
+      }
+    ]
+  }
+}

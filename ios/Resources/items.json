@@ -1,0 +1,1610 @@
+{
+  "store": {
+    "slots": 6,
+    "typeCap": 3,
+    "reroll": {
+      "baseCost": 3,
+      "step": 1
+    },
+    "classWeights": {
+      "sticker": 40,
+      "pillar": 20,
+      "base": 20,
+      "pack": 8,
+      "card": 8,
+      "samepower": 4
+    },
+    "tierWeights": {
+      "common": 100,
+      "uncommon": 50,
+      "rare": 20
+    },
+    "card": {
+      "label": "Card",
+      "icon": "🂠",
+      "price": 8,
+      "jokerPrice": 50,
+      "description": "A single card. Swap it into your deck, replacing a card of your choice."
+    },
+    "removal": {
+      "id": "removal",
+      "label": "Removal",
+      "icon": "∅",
+      "price": 10,
+      "description": "Permanently remove a card of your choice from your deck. Repeatable — the slot never empties."
+    }
+  },
+  "stickers": [
+    {
+      "id": "rankUp",
+      "label": "+1 Rank",
+      "icon": "➕",
+      "kind": "rank",
+      "rankDelta": 1,
+      "tier": "common",
+      "price": 1,
+      "description": "+1 card rank (stops at Ace)"
+    },
+    {
+      "id": "rankDown",
+      "label": "−1 Rank",
+      "icon": "➖",
+      "kind": "rank",
+      "rankDelta": -1,
+      "tier": "common",
+      "price": 1,
+      "description": "-1 card rank (stops at 2)"
+    },
+    {
+      "id": "rankUp2",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 9
+      },
+      "label": "+2 Rank",
+      "icon": "⏫",
+      "kind": "rank",
+      "rankDelta": 2,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "+2 card rank (stops at Ace)."
+    },
+    {
+      "id": "rankDown2",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 57
+      },
+      "label": "−2 Rank",
+      "icon": "⏬",
+      "kind": "rank",
+      "rankDelta": -2,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "-2 card rank (stops at 2)"
+    },
+    {
+      "id": "randomFixedValue",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsPlayed",
+        "count": 4
+      },
+      "label": "Random Rank",
+      "icon": "🎰",
+      "kind": "behavior",
+      "behavior": "randomFixedValue",
+      "tier": "uncommon",
+      "price": 1,
+      "description": "Set to random rank"
+    },
+    {
+      "id": "changeSuitRandom",
+      "label": "Random Suit",
+      "icon": "🎲",
+      "kind": "behavior",
+      "behavior": "changeSuitRandom",
+      "tier": "common",
+      "price": 1,
+      "description": "Change to a random suit ♠♣♥♦"
+    },
+    {
+      "id": "changeSuitSpade",
+      "label": "Change to ♠",
+      "icon": "♠️",
+      "kind": "behavior",
+      "behavior": "changeSuitTo",
+      "suit": "♠",
+      "tier": "common",
+      "price": 1,
+      "description": "Change suit to ♠"
+    },
+    {
+      "id": "changeSuitHeart",
+      "label": "Change to ♥",
+      "icon": "♥️",
+      "kind": "behavior",
+      "behavior": "changeSuitTo",
+      "suit": "♥",
+      "tier": "common",
+      "price": 1,
+      "description": "Change suit to ♥"
+    },
+    {
+      "id": "changeSuitDiamond",
+      "label": "Change to ♦",
+      "icon": "♦️",
+      "kind": "behavior",
+      "behavior": "changeSuitTo",
+      "suit": "♦",
+      "tier": "common",
+      "price": 1,
+      "description": "Change suit to ♦"
+    },
+    {
+      "id": "changeSuitClub",
+      "label": "Change to ♣",
+      "icon": "♣️",
+      "kind": "behavior",
+      "behavior": "changeSuitTo",
+      "suit": "♣",
+      "tier": "common",
+      "price": 1,
+      "description": "Change suit to ♣"
+    },
+    {
+      "id": "tieSafe",
+      "label": "Same-Safe",
+      "icon": "🛡️",
+      "kind": "behavior",
+      "behavior": "tieSafe",
+      "tier": "common",
+      "price": 4,
+      "description": "Safe if this card lands on a card of the same rank, or a card of the same rank lands on this card"
+    },
+    {
+      "id": "suitImmunity",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 105
+      },
+      "label": "Spade Guard",
+      "icon": "♠️🪬",
+      "kind": "behavior",
+      "behavior": "suitImmunity",
+      "suit": "♠",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "Safe if this card lands on a ♠, or a ♠ lands on this card"
+    },
+    {
+      "id": "heartGuard",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 243
+      },
+      "label": "Heart Guard",
+      "icon": "♥️🪬",
+      "kind": "behavior",
+      "behavior": "suitImmunity",
+      "suit": "♥",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "Safe if this card lands on a ♥, or a ♥ lands on this card"
+    },
+    {
+      "id": "diamondGuard",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 43
+      },
+      "label": "Diamond Guard",
+      "icon": "♦️🪬",
+      "kind": "behavior",
+      "behavior": "suitImmunity",
+      "suit": "♦",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "Safe if this card lands on a ♦, or a ♦ lands on this card"
+    },
+    {
+      "id": "clubGuard",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 57
+      },
+      "label": "Club Guard",
+      "icon": "♣️🪬",
+      "kind": "behavior",
+      "behavior": "suitImmunity",
+      "suit": "♣",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "Safe if this card lands on a ♣, or a ♣ lands on this card"
+    },
+    {
+      "id": "extraCoin",
+      "label": "Payout",
+      "icon": "💰",
+      "kind": "behavior",
+      "behavior": "extraCoin",
+      "value": 1,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "At deal end → earn coins equal to pile size if this card tops its pile",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "gainCoin",
+      "label": "Bonus Coin",
+      "icon": "🍀",
+      "kind": "behavior",
+      "behavior": "gainCoin",
+      "value": 1,
+      "tier": "common",
+      "price": 2,
+      "description": "When this card lands → +1 coin",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "anchor",
+      "label": "Anchor",
+      "icon": "⚓",
+      "kind": "behavior",
+      "behavior": "anchor",
+      "tier": "common",
+      "price": 3,
+      "description": "At deal end → exclude this pile from the smallest-pile score if this card tops its pile",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "oneTribute",
+      "label": "Bury 1",
+      "icon": "🪦",
+      "kind": "behavior",
+      "behavior": "tribute",
+      "tributeCount": 1,
+      "tier": "rare",
+      "price": 10,
+      "description": "When this card lands → bury 1 deck card under the pile",
+      "suits": [
+        "♣"
+      ]
+    },
+    {
+      "id": "twoTribute",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 117
+      },
+      "label": "Bury 2",
+      "icon": "⚰️",
+      "kind": "behavior",
+      "behavior": "tribute",
+      "tributeCount": 2,
+      "coinCost": 7,
+      "tier": "rare",
+      "price": 16,
+      "description": "When this card lands → bury 2 deck cards under the pile. Costs 7 coins",
+      "suits": [
+        "♣"
+      ]
+    },
+    {
+      "id": "deathBounty",
+      "label": "Last Coin",
+      "icon": "💀",
+      "kind": "behavior",
+      "behavior": "deathBounty",
+      "value": 5,
+      "tier": "common",
+      "price": 3,
+      "description": "When this card lands → +5 coins if it kills a pile",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "heavy",
+      "label": "Heavy",
+      "icon": "🧱",
+      "kind": "behavior",
+      "behavior": "heavy",
+      "value": 1,
+      "tier": "common",
+      "price": 2,
+      "description": "When placed → +1 toward pile size",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "massive",
+      "unlock": {
+        "type": "behavior",
+        "stat": "stickersApplied",
+        "count": 7
+      },
+      "label": "Massive",
+      "icon": "🧱",
+      "kind": "behavior",
+      "behavior": "heavy",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 4,
+      "description": "When placed → +2 toward pile size",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "collector",
+      "unlock": {
+        "type": "behavior",
+        "stat": "stickersApplied",
+        "count": 88
+      },
+      "label": "Collector",
+      "icon": "🧲",
+      "kind": "behavior",
+      "behavior": "collector",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "When this card lands → +2 coins per other sticker on this card",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "compound",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 165
+      },
+      "label": "Compound",
+      "icon": "📈",
+      "kind": "behavior",
+      "behavior": "compound",
+      "step": 1,
+      "tier": "rare",
+      "price": 2,
+      "description": "When this card lands → +X coins. X starts at 0, grows by 1 per correct placement",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "revealNext",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenEasyWon",
+        "count": 1
+      },
+      "label": "Scout",
+      "icon": "👁️",
+      "kind": "behavior",
+      "behavior": "revealNext",
+      "tier": "rare",
+      "price": 12,
+      "description": "When this card lands → peek at the next deck card",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "wildSuit",
+      "label": "Wild Suit",
+      "icon": "♠♥♦♣",
+      "kind": "behavior",
+      "behavior": "wildSuit",
+      "tier": "common",
+      "price": 2,
+      "description": "Counts as every suit"
+    },
+    {
+      "id": "shuffle",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsPlayed",
+        "count": 5
+      },
+      "label": "Shuffle",
+      "icon": "🔀",
+      "kind": "behavior",
+      "behavior": "shuffle",
+      "tier": "uncommon",
+      "price": 2,
+      "description": "When this card lands → optionally shuffle the pile",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "donate",
+      "label": "Donate",
+      "icon": "🤝",
+      "kind": "behavior",
+      "behavior": "donate",
+      "count": 1,
+      "tier": "common",
+      "price": 1,
+      "description": "When this card lands → move 1 buried card from this pile to the smallest pile",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "quickBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 9
+      },
+      "label": "Quick Bury",
+      "icon": "⚡",
+      "kind": "behavior",
+      "behavior": "quickBury",
+      "tier": "uncommon",
+      "price": 7,
+      "description": "When this card lands → bury 1 deck card under the pile",
+      "suits": [
+        "♣"
+      ]
+    },
+    {
+      "id": "twinSpark",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenGamesPlayed",
+        "count": 5
+      },
+      "label": "Twin Spark",
+      "icon": "✨",
+      "kind": "behavior",
+      "behavior": "twinSpark",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "When this card lands → peek at the next card if another pile's top card matches this rank",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "looseChange",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 153
+      },
+      "label": "Loose Change",
+      "icon": "🪙",
+      "kind": "behavior",
+      "behavior": "looseChange",
+      "max": 3,
+      "tier": "uncommon",
+      "price": 4,
+      "description": "When this card lands → +0–3 coins (random)",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "snowball",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 177
+      },
+      "label": "Snowball Bury",
+      "icon": "☃️",
+      "kind": "behavior",
+      "behavior": "snowball",
+      "step": 1,
+      "tier": "rare",
+      "price": 20,
+      "description": "When this card lands → bury X cards. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
+      "suits": [
+        "♣"
+      ]
+    },
+    {
+      "id": "deepPockets",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 1053
+      },
+      "label": "Deep Pockets",
+      "icon": "👛",
+      "kind": "behavior",
+      "behavior": "deepPockets",
+      "per": 10,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "When this card lands → +1 coin per 10 cards left in the deck",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "pillarScout",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pillarsPlaced",
+        "count": 14
+      },
+      "label": "Pillar Scout",
+      "icon": "🔭",
+      "kind": "behavior",
+      "behavior": "pillarScout",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "When this card lands → peek at the next card if this column has no pillar",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "baseScout",
+      "unlock": {
+        "type": "behavior",
+        "stat": "basesPlaced",
+        "count": 15
+      },
+      "label": "Base Scout",
+      "icon": "🔎",
+      "kind": "behavior",
+      "behavior": "baseScout",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "When this card lands → peek at the next card if this column has no base",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "suitSnob",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenEasyWon",
+        "count": 3
+      },
+      "label": "Spade Snob",
+      "icon": "🧐",
+      "kind": "behavior",
+      "behavior": "suitSnob",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "When a ♠ lands on this card → peek at the next deck card"
+    },
+    {
+      "id": "heartSnob",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 603
+      },
+      "label": "Heart Snob",
+      "icon": "💞",
+      "kind": "behavior",
+      "behavior": "heartSnob",
+      "value": 4,
+      "tier": "uncommon",
+      "price": 2,
+      "description": "When a ♥ lands on this card → +4 coins"
+    },
+    {
+      "id": "diamondSnob",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 12
+      },
+      "label": "Diamond Snob",
+      "icon": "💎",
+      "kind": "behavior",
+      "behavior": "diamondSnob",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "When a ♦ lands on this card → shuffle all piles"
+    },
+    {
+      "id": "clubSnob",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 69
+      },
+      "label": "Club Snob",
+      "icon": "🍀",
+      "kind": "behavior",
+      "behavior": "clubSnob",
+      "digCount": 1,
+      "tier": "uncommon",
+      "price": 10,
+      "description": "When a ♣ lands on this card → bury 1 deck card under the pile"
+    },
+    {
+      "id": "heartChoir",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 141
+      },
+      "label": "Heart Choir",
+      "icon": "💕",
+      "kind": "behavior",
+      "behavior": "heartChoir",
+      "value": 1,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When this card lands → +1 coin per other pile with a ♥ top card",
+      "suits": [
+        "♥"
+      ]
+    },
+    {
+      "id": "diamondRipple",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsPlayed",
+        "count": 9
+      },
+      "label": "Diamond Ripple",
+      "icon": "🌊",
+      "kind": "behavior",
+      "behavior": "diamondRipple",
+      "tier": "uncommon",
+      "price": 3,
+      "description": "When this card lands → shuffle every other pile with a ♦ top card",
+      "suits": [
+        "♦"
+      ]
+    },
+    {
+      "id": "clubRoots",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 201
+      },
+      "label": "Club Roots",
+      "icon": "🌱",
+      "kind": "behavior",
+      "behavior": "clubRoots",
+      "digCount": 1,
+      "tier": "rare",
+      "price": 15,
+      "description": "When this card lands → bury 1 deck card under each pile with a ♣ top card",
+      "suits": [
+        "♣"
+      ]
+    },
+    {
+      "id": "spadeWhispers",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenMediumWon",
+        "count": 1
+      },
+      "label": "Spade Whispers",
+      "icon": "🌬️",
+      "kind": "behavior",
+      "behavior": "spadeWhispers",
+      "tier": "rare",
+      "price": 15,
+      "description": "When this card lands → the next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "tell",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenGamesPlayed",
+        "count": 1
+      },
+      "label": "Tell",
+      "icon": "🔮",
+      "kind": "behavior",
+      "behavior": "tell",
+      "tier": "uncommon",
+      "price": 7,
+      "description": "When this card lands → shows if the next deck card is higher, lower, or same",
+      "suits": [
+        "♠"
+      ]
+    },
+    {
+      "id": "rechargeSameShield",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 9
+      },
+      "label": "Recharge Shield",
+      "icon": "🛡️",
+      "kind": "behavior",
+      "behavior": "rechargeSameShield",
+      "tier": "rare",
+      "price": 15,
+      "description": "When this card lands correctly → bank a Same Charge (max 1)"
+    },
+    {
+      "id": "activateSamePower",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 36
+      },
+      "label": "Tap Power",
+      "icon": "🔗",
+      "kind": "behavior",
+      "behavior": "activateSamePower",
+      "tier": "rare",
+      "price": 12,
+      "description": "When this card lands correctly → fire your equipped Same-Power"
+    },
+    {
+      "id": "leech",
+      "label": "Leech",
+      "icon": "🪱",
+      "kind": "behavior",
+      "behavior": "tributeCoin",
+      "value": 1,
+      "tier": "common",
+      "price": 0,
+      "cursed": true,
+      "description": "Cursed — when this card lands → −1 coin"
+    },
+    {
+      "id": "leech2",
+      "label": "Leech Swarm",
+      "icon": "🦟",
+      "kind": "behavior",
+      "behavior": "tributeCoin",
+      "value": 2,
+      "tier": "common",
+      "price": 0,
+      "cursed": true,
+      "description": "Cursed — when this card lands → −2 coins"
+    }
+  ],
+  "pillars": [
+    {
+      "id": "heartBounty",
+      "label": "Heart Bonus",
+      "icon": "♥️",
+      "kind": "scoring",
+      "effect": "suitBounty",
+      "suit": "♥",
+      "value": 1,
+      "tier": "uncommon",
+      "price": 9,
+      "description": "When a ♥ lands in this column → +1 coin"
+    },
+    {
+      "id": "columnTieSafe",
+      "unlock": {
+        "type": "behavior",
+        "stat": "samesCalled",
+        "count": 14
+      },
+      "label": "Column Tie-Safe",
+      "icon": "🛡️",
+      "kind": "guess",
+      "effect": "columnTieSafe",
+      "tier": "rare",
+      "price": 12,
+      "description": "Every pile in this column survives a tie"
+    },
+    {
+      "id": "columnGuardian",
+      "label": "Guardian",
+      "icon": "🏛️",
+      "kind": "scoring",
+      "effect": "columnAllAlive",
+      "value": 7,
+      "tier": "uncommon",
+      "price": 7,
+      "description": "At deal end → +7 coins if every pile in this column survived"
+    },
+    {
+      "id": "clubTribute",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 105
+      },
+      "label": "8 Bury",
+      "icon": "8️⃣",
+      "kind": "composition",
+      "effect": "clubTribute",
+      "digCount": 1,
+      "tier": "rare",
+      "price": 25,
+      "description": "When a ♣ with no stickers lands correctly in this column → bury 1 deck card under that pile"
+    },
+    {
+      "id": "allHeartsCoin",
+      "label": "All Hearts",
+      "icon": "💗",
+      "kind": "scoring",
+      "effect": "allSuitTop",
+      "suit": "♥",
+      "value": 8,
+      "tier": "common",
+      "price": 8,
+      "description": "At deal end → +8 coins if every surviving pile in this column has a ♥ top card"
+    },
+    {
+      "id": "envy",
+      "label": "Envy",
+      "icon": "💚",
+      "kind": "scoring",
+      "effect": "heartPiles",
+      "value": 4,
+      "tier": "common",
+      "price": 8,
+      "description": "At deal end → +4 coins per pile in this column with a ♥ top card"
+    },
+    {
+      "id": "streakBank",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 153
+      },
+      "label": "Streak Size",
+      "icon": "🏦",
+      "kind": "modifier",
+      "effect": "streakSize",
+      "threshold": 3,
+      "tier": "rare",
+      "price": 8,
+      "description": "From the 3rd consecutive correct guess in this column → +1 pile size per guess. Resets on a wrong guess or any guess in another column"
+    },
+    {
+      "id": "streakTribute",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 153
+      },
+      "label": "Streak Bury",
+      "icon": "🔥",
+      "kind": "composition",
+      "effect": "streakTribute",
+      "threshold": 4,
+      "digCount": 1,
+      "tier": "rare",
+      "price": 20,
+      "description": "From the 4th consecutive correct guess in this column → bury 1 deck card per guess. Resets on a wrong guess or any guess in another column"
+    },
+    {
+      "id": "secondWind",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 27
+      },
+      "label": "Second Wind",
+      "icon": "🌬️",
+      "kind": "guess",
+      "effect": "secondWind",
+      "tier": "rare",
+      "price": 12,
+      "description": "The first pile to die in this column is saved — but all its buried cards return to the deck"
+    },
+    {
+      "id": "greedy",
+      "unlock": {
+        "type": "milestone",
+        "stat": "endlessStagesReached",
+        "count": 1
+      },
+      "label": "Greedy",
+      "icon": "🤑",
+      "kind": "scoring",
+      "effect": "greedy",
+      "value": 20,
+      "tier": "rare",
+      "price": 10,
+      "description": "At deal end → +20 coins if every pile in this column survived and no other pillar is on the board"
+    },
+    {
+      "id": "fibonacci",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 18
+      },
+      "label": "Fibonacci",
+      "icon": "🌀",
+      "kind": "live",
+      "effect": "fibonacci",
+      "value": 1,
+      "tier": "rare",
+      "price": 8,
+      "description": "When a Fibonacci-rank card (A/2/3/5/8) lands correctly into this column → +1 coin"
+    },
+    {
+      "id": "highestEven",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 963
+      },
+      "label": "Highest Heart",
+      "icon": "💗",
+      "kind": "scoring",
+      "effect": "highestHeart",
+      "tier": "rare",
+      "price": 15,
+      "description": "At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)"
+    },
+    {
+      "id": "denseBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "stickersApplied",
+        "count": 97
+      },
+      "label": "Dense Bury",
+      "icon": "🧊",
+      "kind": "composition",
+      "effect": "denseBury",
+      "minStickers": 2,
+      "digCount": 1,
+      "tier": "rare",
+      "price": 20,
+      "description": "When a ♣ with 2+ stickers lands correctly in this column → bury 1 deck card under that pile"
+    },
+    {
+      "id": "revive",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 6
+      },
+      "label": "Revive",
+      "icon": "♻️",
+      "kind": "guess",
+      "effect": "revive",
+      "trigger": 10,
+      "tier": "rare",
+      "price": 25,
+      "description": "When a pile in this column reaches 10 cards → revive one dead pile on the board"
+    },
+    {
+      "id": "insurance",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 55
+      },
+      "label": "Insurance",
+      "icon": "🛟",
+      "kind": "scoring",
+      "effect": "insurance",
+      "value": 20,
+      "tier": "rare",
+      "price": 8,
+      "description": "At deal end → +20 coins if only one pile is alive board-wide and it's in this column"
+    },
+    {
+      "id": "ditto",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsWon",
+        "count": 1
+      },
+      "label": "Ditto",
+      "icon": "🪞",
+      "kind": "meta",
+      "effect": "ditto",
+      "tier": "rare",
+      "price": 9,
+      "description": "Mirrors the center column's pillar"
+    },
+    {
+      "id": "stickerCount",
+      "label": "Massive Diamond",
+      "icon": "🏷️",
+      "kind": "modifier",
+      "effect": "heavyDiamond",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 7,
+      "description": "♦ cards in this column count as +2 toward pile size"
+    },
+    {
+      "id": "prime",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 30
+      },
+      "label": "Prime",
+      "icon": "🔢",
+      "kind": "live",
+      "effect": "prime",
+      "value": 1,
+      "tier": "rare",
+      "price": 6,
+      "description": "When a prime-rank card (2/3/5/7) lands correctly in this column → +1 coin"
+    },
+    {
+      "id": "queensEye",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenEasyWon",
+        "count": 5
+      },
+      "label": "Queen's Eye",
+      "icon": "👁️",
+      "kind": "live",
+      "effect": "queensEye",
+      "tier": "uncommon",
+      "price": 8,
+      "description": "When a royal ♠ (J/Q/K) lands correctly in this column → peek at the next card"
+    },
+    {
+      "id": "royalCourt",
+      "label": "Shuffler",
+      "icon": "👑",
+      "kind": "guess",
+      "effect": "shuffler",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "When a ♦ lands in this column → shuffle the other piles in this column"
+    },
+    {
+      "id": "excavator",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 189
+      },
+      "label": "Excavator",
+      "icon": "⛏️",
+      "kind": "scoring",
+      "effect": "excavator",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "At deal end → +2 coins per buried card in this column's largest pile with a ♥ top card"
+    },
+    {
+      "id": "gambler",
+      "label": "Gambler",
+      "icon": "🎲",
+      "kind": "scoring",
+      "effect": "gambler",
+      "value": 10,
+      "chance": 0.5,
+      "tier": "uncommon",
+      "price": 10,
+      "description": "At deal end → 50/50: +10 coins or nothing (requires a ♥ top card in this column)"
+    },
+    {
+      "id": "lastRites",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 47
+      },
+      "label": "Last Rites",
+      "icon": "🕯️",
+      "kind": "live",
+      "effect": "lastRites",
+      "tier": "rare",
+      "price": 25,
+      "description": "When a pile in this column dies → peek at the next card"
+    },
+    {
+      "id": "static",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenMediumWon",
+        "count": 3
+      },
+      "label": "Static",
+      "icon": "🔌",
+      "kind": "live",
+      "effect": "static",
+      "chance": 0.5,
+      "tier": "rare",
+      "price": 6,
+      "description": "When a ♠ lands in this column → 50% chance to peek at the next card"
+    },
+    {
+      "id": "wildAces",
+      "unlock": {
+        "type": "behavior",
+        "stat": "jokersPlayed",
+        "count": 10
+      },
+      "label": "Wild Aces",
+      "icon": "🃏",
+      "kind": "guess",
+      "effect": "wildAces",
+      "tier": "rare",
+      "price": 25,
+      "description": "Aces count as high or low when landing in this column"
+    },
+    {
+      "id": "diamondAnchor",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 177
+      },
+      "label": "Diamond Anchor",
+      "icon": "⚓",
+      "kind": "modifier",
+      "effect": "diamondAnchor",
+      "tier": "rare",
+      "price": 12,
+      "description": "At deal end → exclude any pile in this column with a ♦ top card from the smallest-pile score"
+    },
+    {
+      "id": "diamondDistribution",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 24
+      },
+      "label": "Diamond Distribution",
+      "icon": "⚖️",
+      "kind": "guess",
+      "effect": "diamondDistribution",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When a ♦ lands in this column → redistribute all piles in this column to equal size"
+    }
+  ],
+  "bases": [
+    {
+      "id": "kamikaze",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 21
+      },
+      "label": "Kamikaze",
+      "icon": "💥",
+      "kind": "active",
+      "effect": "kamikaze",
+      "peekCount": 3,
+      "tier": "rare",
+      "price": 15,
+      "description": "Kill a random ♠-topped pile in this column, then peek the next 3 cards"
+    },
+    {
+      "id": "spadePeek",
+      "unlock": {
+        "type": "behavior",
+        "stat": "zenHardWon",
+        "count": 1
+      },
+      "label": "Spade Peeker",
+      "icon": "🔦",
+      "kind": "active",
+      "effect": "spadePeek",
+      "tier": "rare",
+      "price": 15,
+      "description": "Peek the next X cards, where X = piles in this column with a ♠ top card"
+    },
+    {
+      "id": "shuffleColumn",
+      "label": "Upheaval",
+      "icon": "🌀",
+      "kind": "active",
+      "effect": "shuffleColumn",
+      "tier": "common",
+      "price": 9,
+      "description": "Shuffle every pile in this column"
+    },
+    {
+      "id": "revive",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 7
+      },
+      "label": "Phoenix",
+      "icon": "🔥",
+      "kind": "active",
+      "effect": "reviveBase",
+      "tier": "uncommon",
+      "price": 14,
+      "description": "Revive a random dead pile in this column with one fresh card (buried cards return to the deck)"
+    },
+    {
+      "id": "randomSticker",
+      "label": "Wild Sticker",
+      "icon": "🎲",
+      "kind": "active",
+      "effect": "randomSticker",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "Apply a random sticker to a random top card in this column"
+    },
+    {
+      "id": "evenOut",
+      "label": "Ballast",
+      "icon": "🪨",
+      "kind": "active",
+      "effect": "evenOut",
+      "tier": "common",
+      "price": 9,
+      "description": "Redistribute all piles in this column to equal size"
+    },
+    {
+      "id": "setValue",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsWon",
+        "count": 2
+      },
+      "label": "Cast",
+      "icon": "🗿",
+      "kind": "active",
+      "effect": "setValue",
+      "tier": "rare",
+      "price": 12,
+      "description": "Permanently set every top card's rank in this column to the bottom pile's rank"
+    },
+    {
+      "id": "setSuit",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsWon",
+        "count": 6
+      },
+      "label": "Suit Setter",
+      "icon": "🎨",
+      "kind": "active",
+      "effect": "setSuit",
+      "tier": "rare",
+      "price": 18,
+      "description": "Permanently set every top card's suit in this column to the bottom pile's suit"
+    },
+    {
+      "id": "stickerHarvest",
+      "unlock": {
+        "type": "behavior",
+        "stat": "stickersApplied",
+        "count": 79
+      },
+      "label": "Sticker Harvest",
+      "icon": "🌾",
+      "kind": "active",
+      "effect": "stickerHarvest",
+      "target": "pile",
+      "buryPerSticker": 2,
+      "tier": "uncommon",
+      "price": 11,
+      "description": "Choose a pile → bury 2 deck cards per sticker on its top card, then peel all those stickers"
+    },
+    {
+      "id": "refreshBases",
+      "unlock": {
+        "type": "behavior",
+        "stat": "basesPlaced",
+        "count": 31
+      },
+      "label": "Reactor",
+      "icon": "⚛️",
+      "kind": "active",
+      "effect": "refreshBases",
+      "tier": "rare",
+      "price": 17,
+      "description": "Recharge your other two bases (never another Reactor)"
+    },
+    {
+      "id": "clubDig",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 165
+      },
+      "label": "Club Dig",
+      "icon": "♣️",
+      "kind": "active",
+      "effect": "suitDig",
+      "suit": "♣",
+      "digCount": 1,
+      "tier": "rare",
+      "price": 15,
+      "description": "Bury 1 deck card under each ♣-topped pile in this column"
+    },
+    {
+      "id": "demolish",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pillarsPlaced",
+        "count": 19
+      },
+      "label": "Demolish",
+      "icon": "🔨",
+      "kind": "active",
+      "effect": "demolish",
+      "target": "pillar",
+      "peekCount": 2,
+      "tier": "uncommon",
+      "price": 25,
+      "description": "Choose a pillar → destroy it permanently, then peek the next 2 cards"
+    },
+    {
+      "id": "heartDemolish",
+      "unlock": {
+        "type": "behavior",
+        "stat": "pilesLost",
+        "count": 51
+      },
+      "label": "Heart Demolish",
+      "icon": "💔",
+      "kind": "active",
+      "effect": "heartDemolish",
+      "coinPerPile": 7,
+      "tier": "uncommon",
+      "price": 10,
+      "description": "Destroy every ♥-topped pile in this column. +7 coins per pile destroyed"
+    },
+    {
+      "id": "tax",
+      "label": "Heart Tax",
+      "icon": "🧾",
+      "kind": "active",
+      "effect": "tax",
+      "suit": "♥",
+      "coinPerCard": 1,
+      "tier": "uncommon",
+      "price": 9,
+      "description": "+1 coin per ♥ card in this column (top + buried, dead piles excluded)"
+    },
+    {
+      "id": "rechargeSame",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 33
+      },
+      "label": "Recharge Cell",
+      "icon": "🔋",
+      "kind": "active",
+      "effect": "rechargeSameShield",
+      "tier": "rare",
+      "price": 25,
+      "description": "Bank a Same Charge (max 1)"
+    },
+    {
+      "id": "activateSame",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 42
+      },
+      "label": "Power Surge",
+      "icon": "⚡",
+      "kind": "active",
+      "effect": "activateSamePower",
+      "tier": "rare",
+      "price": 20,
+      "description": "Fire your Same-Power on a random pile in this column"
+    }
+  ],
+  "samePowers": [
+    {
+      "id": "linkBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "samesCalled",
+        "count": 34
+      },
+      "label": "Burrow",
+      "icon": "🦫",
+      "effect": "linkBury",
+      "value": 1,
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Bury 1 card under every alive pile"
+    },
+    {
+      "id": "linkRevive",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 24
+      },
+      "label": "Rekindle",
+      "icon": "🌱",
+      "effect": "linkRevive",
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Revive the largest dead pile on the board"
+    },
+    {
+      "id": "linkCoins",
+      "label": "Dividend",
+      "icon": "💰",
+      "effect": "linkCoins",
+      "value": 1,
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Gain 1 coin for each alive pile on the board"
+    },
+    {
+      "id": "linkShuffle",
+      "unlock": {
+        "type": "behavior",
+        "stat": "samesCalled",
+        "count": 39
+      },
+      "label": "Link Shuffler",
+      "icon": "🔀",
+      "effect": "linkShuffle",
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Shuffle every alive pile"
+    },
+    {
+      "id": "samePeek",
+      "label": "Same Peeker",
+      "icon": "👁️",
+      "effect": "samePeek",
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Peek at the next upcoming card"
+    },
+    {
+      "id": "linkHeavy",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 39
+      },
+      "label": "Same Heavy",
+      "icon": "🧱",
+      "effect": "linkHeavy",
+      "value": 1,
+      "hubValue": 5,
+      "tier": "rare",
+      "price": 5,
+      "description": "Trigger: You make a correct Same\nEffect: Add +1 pile size to every alive pile, and another +5 to the pile you called Same on"
+    }
+  ],
+  "packStickerOdds": [
+    [
+      0.01,
+      4
+    ],
+    [
+      0.04,
+      3
+    ],
+    [
+      0.15,
+      2
+    ],
+    [
+      0.48,
+      1
+    ]
+  ],
+  "mystery": {
+    "weights": {
+      "coinBonus": 15,
+      "cards": 12,
+      "stickerPack": 10,
+      "freeRemoval": 8,
+      "stickerStrip": 7,
+      "joker": 5,
+      "store": 5,
+      "cursedSticker": 14,
+      "coinLoss": 12,
+      "ambush": 8
+    },
+    "coinRangeByStage": [
+      [
+        6,
+        12
+      ],
+      [
+        12,
+        22
+      ],
+      [
+        20,
+        34
+      ]
+    ],
+    "cardGrantRange": [
+      1,
+      3
+    ],
+    "ambush": {
+      "cards": 15,
+      "piles": 4,
+      "bounty": 15
+    }
+  },
+  "economy": {
+    "dealBase": 1,
+    "bossBonus": 1
+  },
+  "packs": [
+    {
+      "id": "cardPack",
+      "unlock": {
+        "type": "milestone",
+        "stat": "dealsSurvived",
+        "count": 117
+      },
+      "label": "Large Card Pack",
+      "icon": "🎴",
+      "kind": "card",
+      "tier": "uncommon",
+      "size": 5,
+      "keep": 2,
+      "price": 10,
+      "description": "Reveals 5 random cards. Keep 2 to swap into your deck before a deal, replacing a card of your choice."
+    },
+    {
+      "id": "smallCardPack",
+      "label": "Small Card Pack",
+      "icon": "🎴",
+      "kind": "card",
+      "tier": "common",
+      "size": 3,
+      "keep": 1,
+      "price": 8,
+      "description": "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice."
+    },
+    {
+      "id": "stickerPack",
+      "label": "Small Sticker Pack",
+      "icon": "📦",
+      "kind": "sticker",
+      "tier": "common",
+      "size": 3,
+      "keep": 1,
+      "price": 5,
+      "description": "Reveals 3 random stickers. Keep 1 to add to a card."
+    },
+    {
+      "id": "largeStickerPack",
+      "unlock": {
+        "type": "behavior",
+        "stat": "stickersApplied",
+        "count": 52
+      },
+      "label": "Large Sticker Pack",
+      "icon": "📦",
+      "kind": "sticker",
+      "tier": "common",
+      "size": 5,
+      "keep": 2,
+      "price": 7,
+      "description": "Reveals 5 random stickers. Keep 2 for your inventory. The rest are discarded."
+    }
+  ]
+}

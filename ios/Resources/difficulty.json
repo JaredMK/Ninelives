@@ -1,0 +1,139 @@
+{
+  "endlessBandStep": 1.25,
+  "firstDealBand": [
+    1.25,
+    1.75
+  ],
+  "subset": {
+    "threshold": 35,
+    "min": 15,
+    "max": 35
+  },
+  "tiers": {
+    "regular": {
+      "label": "Regular",
+      "stageBands": [
+        [
+          1.5,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          5
+        ]
+      ],
+      "bossBands": [
+        [
+          2.3,
+          3.25
+        ],
+        [
+          3.75,
+          4.25
+        ],
+        [
+          4.75,
+          5.5
+        ]
+      ],
+      "jokerCap": 4,
+      "guaranteedMapJoker": true,
+      "fixedJokers": {
+        "pink": [
+          0,
+          1
+        ]
+      },
+      "startJokers": {
+        "pink": 1
+      }
+    },
+    "master": {
+      "label": "Master",
+      "stageBands": [
+        [
+          1.5,
+          4
+        ],
+        [
+          3.5,
+          5.5
+        ],
+        [
+          5,
+          6.5
+        ]
+      ],
+      "bossBands": [
+        [
+          3.3,
+          4
+        ],
+        [
+          4.75,
+          5.5
+        ],
+        [
+          6.5,
+          7
+        ]
+      ],
+      "jokerCap": 1,
+      "guaranteedMapJoker": false
+    },
+    "legendary": {
+      "label": "Legendary",
+      "stageBands": [
+        [
+          1.5,
+          4.5
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          5.5,
+          7.5
+        ]
+      ],
+      "bossBands": [
+        [
+          4.3,
+          5
+        ],
+        [
+          5.75,
+          6.5
+        ],
+        [
+          7.5,
+          8
+        ]
+      ],
+      "jokerCap": 0,
+      "guaranteedMapJoker": false
+    }
+  },
+  "zen": {
+    "easy": {
+      "label": "Easy",
+      "suitCount": 2,
+      "piles": 7
+    },
+    "medium": {
+      "label": "Medium",
+      "suitCount": 3,
+      "piles": 8
+    },
+    "hard": {
+      "label": "Hard",
+      "suitCount": 4,
+      "piles": 9
+    }
+  }
+}

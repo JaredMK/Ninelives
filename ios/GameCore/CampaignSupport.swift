@@ -1,0 +1,237 @@
+import Foundation
+
+/// Board layouts. `cols` is the column-size array; `piles` is their sum; `rows`
+/// is the tallest column. Plain data — the renderer maps it to grid positions.
+public struct BoardLayout: Sendable, Equatable {
+    public let cols: [Int]
+    public let piles: Int
+    public let rows: Int
+}
+
+public enum CampaignLayout {
+    /// Column sizes per run index (1-based).
+    public static let runLayouts: [[Int]] = [[3, 3, 3], [3, 4, 3], [4, 4, 4], [4, 5, 4]]
+    public static let maxStages = 3
+    public static let maxRunsPerStage = 4
+    public static let columnSlots = runLayouts[0].count
+    public static let totalRuns = maxStages * maxRunsPerStage
+
+    public static func layoutForRun(_ runIndex: Int) -> BoardLayout {
+        let i = min(max(runIndex, 1), runLayouts.count) - 1
+        let cols = runLayouts[i]
+        return BoardLayout(cols: cols, piles: cols.reduce(0, +), rows: cols.max() ?? 0)
+    }
+
+    /// Derive a board layout for an ARBITRARY pile count (a map node sets the
+    /// pile count). Splits n into up to 3 balanced columns.
+    public static func layoutForPiles(_ n0: Int) -> BoardLayout {
+        let n = max(1, n0)
+        var cols: [Int]
+        if n <= 3 {
+            cols = Array(repeating: 1, count: n)               // 1 per column
+        } else {
+            let base = n / 3, rem = n % 3
+            cols = rem == 1 ? [base, base + 1, base]
+                 : rem == 2 ? [base + 1, base, base + 1]
+                 : [base, base, base]
+            cols = cols.filter { $0 > 0 }
+        }
+        return BoardLayout(cols: cols, piles: cols.reduce(0, +), rows: cols.max() ?? 0)
+    }
+
+    /// Active suits enter in canonical SUITS order. Stage s (1-based) uses the
+    /// first (s + 1) suits.
+    public static func suitsForStage(_ stage: Int) -> [String] {
+        DeckManager.suits.prefix(max(0, stage + 1)).map(\.symbol)
+    }
+}
+
+public let minRank = 2    // 2 is the floor for Decrease
+public let maxRank = 14   // Ace is the ceiling for Increase
+
+/// One shelf slot in a store offer.
+public struct StoreSlot: Sendable, Equatable {
+    /// "sticker" | "pillar" | "base" | "pack" | "samepower" | "card" | "removal"
+    public var kind: String
+    public var id: String
+    /// The generated playing card, for the "card" class only.
+    public var card: CardSpec?
+    public init(kind: String, id: String, card: CardSpec? = nil) {
+        self.kind = kind; self.id = id; self.card = card
+    }
+}
+
+public struct StoreOffer: Sendable, Equatable {
+    public var slots: [StoreSlot?]
+    public var rerollCost: Double
+}
+
+/// The store roll + shared item helpers. Kept beside CampaignState so both the
+/// live campaign and the tests reach the same code the web build uses.
+public enum StoreRoll {
+    /// Pick `n` ids from a registry list, WITH replacement, by rarity weight. A
+    /// type's `weight` (if set) wins; otherwise its `tier` maps through
+    /// tierWeights; otherwise a flat 1.
+    public static func rollIds(_ types: [ItemDef], _ n: Int, _ rng: RNG,
+                               distinct: Bool = false, tierWeights: [String: Double]) -> [String] {
+        let pool = types.map { (id: $0.id, weight: $0.weight ?? tierWeights[$0.tier] ?? 1) }
+        var out: [String] = []
+        for _ in 0..<n {
+            // `distinct` draws WITHOUT replacement (the pack section, whose slot
+            // count equals its type count).
+            let avail = distinct ? pool.filter { !out.contains($0.id) } : pool
+            if avail.isEmpty { break }
+            let total = avail.reduce(0) { $0 + $1.weight }
+            let denom = total == 0 ? 1 : total
+            var r = rng.next() * denom
+            var chosen = avail[avail.count - 1].id
+            for x in avail {
+                r -= x.weight
+                if r < 0 { chosen = x.id; break }
+            }
+            out.append(chosen)
+        }
+        return out
+    }
+
+    /// The TYPE a slot counts against for the per-visit cap. Card packs and
+    /// sticker packs are DIFFERENT types.
+    public static func slotTypeKey(_ kind: String, _ id: String, data: GameData) -> String {
+        guard kind == "pack" else { return kind }
+        return data.packTypes.get(id)?.kind == "card" ? "cardpack" : "stickerpack"
+    }
+
+    /// The PACK-CARD sticker distribution — how many stickers one freshly
+    /// granted card carries. The odds table lives in items.js.
+    public static func packStickerCount(_ roll: Double, data: GameData) -> Int {
+        for pair in data.items.packStickerOdds where roll < pair[0] { return Int(pair[1]) }
+        return 0
+    }
+
+    /// Roll store slots CLASS-FIRST: each slot picks its item CLASS by
+    /// `store.classWeights`, THEN an item within that class weighted by rarity.
+    /// A draw that would put a class past the type cap is rejected and redrawn.
+    /// A class whose unlocked pool is EMPTY drops to weight 0, so the total
+    /// renormalizes over the remaining classes instead of rolling dead slots.
+    public static func rollUnifiedSlots(_ rng: RNG, count: Int, data: GameData,
+                                        isUnlocked: (ItemDef) -> Bool,
+                                        genCard: ((RNG) -> CardSpec?)?) -> [StoreSlot?] {
+        let CW = data.items.store.classWeights
+        let cap = data.items.store.typeCap
+        func cls(_ key: String, _ w: Double, _ types: [ItemDef]) -> (key: String, w: Double, types: [ItemDef]) {
+            let pool = types.filter(isUnlocked)
+            return (key, pool.isEmpty ? 0 : w, pool)
+        }
+        let classes: [(key: String, w: Double, types: [ItemDef])] = [
+            cls("sticker", CW["sticker"] ?? 0, data.stickerTypes.grantableBase()),   // cursed never sell
+            cls("pillar", CW["pillar"] ?? 0, data.pillarTypes.all()),
+            cls("base", CW["base"] ?? 0, data.baseTypes.all()),
+            cls("pack", CW["pack"] ?? 0, data.packTypes.all()),
+            ("card", genCard != nil ? (CW["card"] ?? 0) : 0, []),
+            cls("samepower", CW["samepower"] ?? 0, data.samePowerTypes.all()),
+        ]
+        let cwTotalRaw = classes.reduce(0) { $0 + $1.w }
+        let cwTotal = cwTotalRaw == 0 ? 1 : cwTotalRaw
+        var slots: [StoreSlot?] = []
+        var perType: [String: Int] = [:]
+        for _ in 0..<count {
+            var pick: StoreSlot? = nil
+            // Reject-and-redraw over the class cap; 80 tries is a paranoid ceiling.
+            var attempt = 0
+            while attempt < 80 && pick == nil {
+                attempt += 1
+                var r = rng.next() * cwTotal
+                var chosen = classes[classes.count - 1]
+                for c in classes {
+                    r -= c.w
+                    if r < 0 { chosen = c; break }
+                }
+                if chosen.key == "card" {
+                    if (perType["card"] ?? 0) >= cap { continue }   // cap check BEFORE minting
+                    guard let card = genCard?(rng) else { continue }
+                    pick = StoreSlot(kind: "card", id: "card", card: card)
+                } else {
+                    guard let id = rollIds(chosen.types, 1, rng, tierWeights: data.items.store.tierWeights).first
+                    else { continue }
+                    if (perType[slotTypeKey(chosen.key, id, data: data)] ?? 0) >= cap { continue }
+                    pick = StoreSlot(kind: chosen.key, id: id)
+                }
+            }
+            guard let p = pick else { slots.append(nil); continue }   // unreachable in practice
+            let key = p.kind == "card" ? "card" : slotTypeKey(p.kind, p.id, data: data)
+            perType[key, default: 0] += 1
+            slots.append(p)
+        }
+        return slots
+    }
+
+    /// A fresh offering: `store.slots` class-first slots, reroll at base cost.
+    /// When the Removal slot is on it permanently occupies the LAST slot.
+    public static func freshOffer(_ rng: RNG, data: GameData, removalOn: Bool,
+                                  isUnlocked: (ItemDef) -> Bool,
+                                  genCard: ((RNG) -> CardSpec?)?) -> StoreOffer {
+        let rolled = removalOn ? data.items.store.slots - 1 : data.items.store.slots
+        var slots = rollUnifiedSlots(rng, count: rolled, data: data, isUnlocked: isUnlocked, genCard: genCard)
+        if removalOn { slots.append(StoreSlot(kind: "removal", id: "removal")) }
+        return StoreOffer(slots: slots, rerollCost: data.items.store.reroll.baseCost)
+    }
+}
+
+// MARK: - Seeded substreams (SEED1)
+
+/// FNV-1a 32-bit — folds a string key into the run substream mix.
+public func seedStrHash(_ s: String) -> UInt32 {
+    var h: UInt32 = 2166136261
+    for b in s.unicodeScalars {
+        h ^= UInt32(truncatingIfNeeded: b.value)
+        h = h &* 16777619
+    }
+    return h
+}
+
+/// A key in a run substream: a stable label or a stable numeric identifier.
+public enum RunKey {
+    case s(String)
+    case n(Int)
+}
+
+/// `runRng(...keys)` — an independent deterministic stream derived from the
+/// run's seed, keyed by STABLE identifiers (a stream label, a node id, a
+/// visit/reroll index) — never by call order, so a run's content doesn't depend
+/// on which nodes the player visited first.
+public func runRng(seed: UInt32, _ keys: [RunKey]) -> RNG {
+    var mix: UInt32 = 0x9e3779b9
+    for k in keys {
+        let part: UInt32
+        switch k {
+        case .s(let str): part = seedStrHash(str)
+        case .n(let num): part = jsImul(UInt32(truncatingIfNeeded: num) &+ 1, 0x9e3779b1)
+        }
+        mix = mix ^ part
+    }
+    return RNG(seed: seed ^ mix)
+}
+
+/// `(runSeed >>> 0) ^ (((node.id + 1) * 0x85ebca6b) >>> 0)` — the node-keyed
+/// draft stream. The JS uses a plain `*` here (exact for every reachable node
+/// id, then truncated by `>>> 0`), NOT `Math.imul`.
+public func nodeDraftSeed(seed: UInt32, nodeId: Int) -> UInt32 {
+    seed ^ UInt32(truncatingIfNeeded: Int64(nodeId + 1) &* 0x85ebca6b)
+}
+
+/// The pack-slot stream: the node draft seed xor `Math.imul(slot + 1, 0x9e3779b1)`.
+public func packSlotSeed(seed: UInt32, nodeId: Int, slot: Int) -> UInt32 {
+    nodeDraftSeed(seed: seed, nodeId: nodeId) ^ jsImul(UInt32(truncatingIfNeeded: slot) &+ 1, 0x9e3779b1)
+}
+
+/// The mystery streams: `(runSeed) ^ (Math.imul(nodeId + 1, 0x9e3779b1)) ^ salt`.
+public func mysterySeed(seed: UInt32, nodeId: Int, salt: UInt32) -> UInt32 {
+    seed ^ jsImul(UInt32(truncatingIfNeeded: nodeId) &+ 1, 0x9e3779b1) ^ salt
+}
+
+/// "MEVT" — the outcome-key roll (distinct from the map's mystery display salt).
+public let mysteryKeySalt: UInt32 = 0x4d455654
+/// "MAMT" — amounts / sticker / card picks.
+public let mysteryDetailSalt: UInt32 = 0x4d414d54
+/// "JOKR" — the guaranteed-map-Joker placement roll.
+public let jokerPlacementSalt: UInt32 = 0x4a4f4b52
