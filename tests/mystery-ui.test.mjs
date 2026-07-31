@@ -360,9 +360,16 @@ export function run() {
       "stickerChip flags cursed types with the corruption class");
     r.ok(sc.includes("CURSE_VIOLET") && sc.includes("CURSE_EDGE"),
       "…with the curse-violet face + dark edge");
+    // v5.70: the board badges no longer re-implement the cursed identity —
+    // they render through stickerChip like every other chip surface, so the
+    // curse face/edge/class (asserted above) reaches them by construction.
+    // Verified live: a board-badge leech chip carries dcs-cursed, its per-id
+    // art class, --dcs-face #7a4fd0 and --dcs-edge #46306e.
     const rsb = fnBody(src, "renderStickerBadges");
-    r.ok(rsb.includes("dcs-cursed") && rsb.includes("CURSE_VIOLET"),
-      "the board pile badges route cursed stickers to the same identity");
+    r.ok(rsb.includes("stickerChip(id,"),
+      "the board pile badges route through stickerChip (one cursed identity, one art source)");
+    r.ok(!rsb.includes("dieCutChip("),
+      "…and never build a chip directly (that path showed older art than the help popup)");
     r.ok(html.includes('const CURSE_VIOLET = "#7a4fd0"'),
       "the face is the established curse violet #7a4fd0");
     r.ok(/\.dcs\.dcs-cursed \{/.test(html) && /\.dcs\.dcs-cursed \.dcs-gloss/.test(html)

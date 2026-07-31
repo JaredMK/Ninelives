@@ -1077,9 +1077,14 @@ const NativeApp = (() => {
   body.peek-band #histBand { position: relative; }
   body.peek-band #histBand > :not(.peek-info) { visibility: hidden; }
   body.peek-band #histBand .peek-info {
-    position: absolute; inset: 0; left: 0; right: 0; top: 0; transform: none;
+    /* v5.70: the panel is anchored to the band's TOP and may run TALLER than
+       the band, overlaying the board beneath it — a card with several sticker
+       types used to clip to the ~84px band and show only its first row (and a
+       hold can't be scrolled). The BAND's own box is untouched, so nothing
+       reflows (the v5.61 stable-container rule still holds). */
+    position: absolute; left: 0; right: 0; top: 0; bottom: auto; transform: none;
     flex: 0 0 auto; min-width: 0; width: auto; max-width: none; align-self: auto;
-    max-height: 100%; overflow-y: auto;
+    height: auto; max-height: 60vh; overflow-y: auto; z-index: 40;
     background: var(--felt-mid); border: var(--px) solid var(--ink);
     border-radius: 0; box-shadow: none; padding: 4px 10px; z-index: 1;
     font-size: 12px; line-height: 1.32;
@@ -6975,7 +6980,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.69 · every card in a grant reveal is the same size";
+const APP_VERSION = "v5.70 · card help shows every sticker; badges match the art";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -19082,26 +19087,20 @@ const UIRenderer = (() => {
     // Kept as a hook, toggled in the same per-top-card pass.
     const frontEl = pileEl.querySelector(".front");
     if (frontEl) frontEl.classList.toggle("wild", n("wildSuit") > 0);
-    const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
-    // CURSED stickers (MYST2 — leech/leech2) wear the curse-violet face + the
-    // corrupted-die-cut class everywhere a chip renders (stickerChip does the
-    // same for every other chip site).
-    const faceOf = (id) => { const t = StickerTypes.get(id); return t && t.cursed ? CURSE_VIOLET : stickerFaceColor(t); };
-    const clsOf = (id, cls) => {
-      const t = StickerTypes.get(id);
-      return [cls, t && t.cursed ? "dcs-cursed" : null].filter(Boolean).join(" ") || undefined;
-    };
-    const edgeOf = (id) => { const t = StickerTypes.get(id); return t && t.cursed ? CURSE_EDGE : undefined; };
     // Each vinyl leans toward the top-right corner (~−11°) and fans a little as
     // more stack, with a seeded jitter so it's stable per card but hand-placed.
     const seed = (card && card.id != null) ? card.id : "x";
     let idx = 0;
     const rotN = (id) => { const r = (-11 + idx * 8) + (dcsRot(seed + "|" + id + "|" + idx) % 5); idx++; return Math.max(-15, Math.min(15, r)); };
     // One die-cut vinyl per kind, with a small ×count when stacked.
+    // v5.70: these route through stickerChip (like EVERY other chip surface)
+    // so a board badge wears the sticker's own pixel icon. They used to call
+    // dieCutChip directly with the registry's composed SVG glyph, which left
+    // the card showing older art than the help popup for the same sticker.
     const chip = (id, icon, count, cls) =>
-      count > 0 ? dieCutChip(icon, tierOf(id), { count: count > 1 ? count : null, cls: clsOf(id, cls), face: faceOf(id), edge: edgeOf(id), rot: rotN(id) }) : "";
+      count > 0 ? stickerChip(id, { count: count > 1 ? count : null, cls: cls, rot: rotN(id) }) : "";
     const counter = (id, icon, count) =>
-      dieCutChip(icon, tierOf(id), { count: count, cls: clsOf(id), face: faceOf(id), edge: edgeOf(id), rot: rotN(id) });
+      stickerChip(id, { count: count, rot: rotN(id) });
     let html = "";
     // Every registered sticker type → one vinyl from its category + rarity
     // (Snowball / Compound draw a live counter below, so skip their flat chip).
@@ -20523,7 +20522,6 @@ const UIRenderer = (() => {
     // Persistent deck cards carry currentRank/suit but no `label`; synthesise one
     // so cardPeekHtml's header reads correctly (e.g. "Card J♥").
     const c = card.label ? card : Object.assign({}, card, { label: miniRankLabel(card) });
-    el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
     el.cardInfoPanel.classList.remove("cid-mode");   // not the collection detail
     el.cardInfoPanel.innerHTML = cardPeekHtml(c, null);   // null index → help only (no peel)
     el.cardInfo.classList.remove("hidden");
