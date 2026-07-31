@@ -298,9 +298,9 @@ export function run() {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     e.start();
     const log = e.getRun().log;
-    r.ok(log.length >= 1 && /Run dealt/.test(log[0].title), "logbook: 'Run dealt' entry at run start");
+    r.ok(log.length >= 1 && /Climb dealt/.test(log[0].title), "logbook: 'Climb dealt' entry at climb start");
     e.startRun(["heartBounty", null, null]);
-    r.ok(log.some(en => /Start Run/.test(en.title)), "logbook: 'Start Run' entry");
+    r.ok(log.some(en => /Start Climb/.test(en.title)), "logbook: 'Start Climb' entry");
 
     // Land a ♥ on pile 1 (column 0 holds the Heart Bonus pillar) via a correct guess.
     e.getBoard().top(0).value = 5;
@@ -314,7 +314,7 @@ export function run() {
     r.ok(turn.lines.some(l => /Coins this turn/.test(l)), "logbook: per-turn coins footer");
 
     e.start();   // a fresh run resets the log
-    r.ok(e.getRun().log.length === 1 && /Run dealt/.test(e.getRun().log[0].title), "logbook: resets each run");
+    r.ok(e.getRun().log.length === 1 && /Climb dealt/.test(e.getRun().log[0].title), "logbook: resets each climb");
   }
   {
     // No-revelation: a buried tribute logs a COUNT only — never a card identity.

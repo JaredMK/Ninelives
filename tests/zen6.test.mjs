@@ -46,7 +46,7 @@ export function run() {
   // ---- showStats scaffolding still resets the ephemeral view + heads ---------
   {
     const stats = fnBody(src, "showStats");
-    r.ok(stats.includes('stats-runs-head">Runs'), "showStats heads the campaign tiles with 'Runs'");
+    r.ok(stats.includes('stats-runs-head">Climbs'), "showStats heads the campaign tiles with 'Climbs'");
     r.ok(stats.includes('sz-head">Zen') && stats.includes("zenSectionInner()"),
       "the Zen section is one combined histogram built by zenSectionInner()");
     r.ok(stats.includes('zenView = { scope: "all", drill: null }'),

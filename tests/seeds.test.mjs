@@ -296,7 +296,7 @@ export function run() {
 
     // Validation + Start + pregen threading.
     const noteFn = fnFull("updateSeedNote");
-    r.ok(noteFn.includes("Seeded run — progression disabled"), "a valid code shows the exhibition label");
+    r.ok(noteFn.includes("Seeded climb — progression disabled"), "a valid code shows the exhibition label");
     r.ok(noteFn.includes("dsEnteredSeed()") && fnFull("dsEnteredSeed").includes("SeedCode.decode"),
       "…validation rides SeedCode.decode via dsEnteredSeed (no parallel alphabet)");
     r.ok(src.includes("startCampaign(dsEnteredSeed())"),

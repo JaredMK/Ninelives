@@ -123,7 +123,7 @@ export function run() {
       "manual states piles × smallest is now the SCORE (personal bests, not coins)");
     r.ok(/Mama's home/.test(body) && /climb/i.test(body),
       "manual describes the map climb to Mama's home");
-    r.ok(/grow your deck/i.test(body) && /run ends/i.test(body),
+    r.ok(/grow your deck/i.test(body) && /climb ends/i.test(body),
       "manual states card/pack nodes grow the deck and losing a deal ends the run");
     // The seven store classes, aligned to the STOREHELP1 legend + PACKS1.
     for (const cls of ["Sticker", "Pillar", "Base", "Card", "Pack", "Same-Power", "Removal"])

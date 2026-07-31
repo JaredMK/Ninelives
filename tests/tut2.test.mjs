@@ -132,7 +132,7 @@ export function run() {
       && migrate.includes("Stats.get().gamesPlayed") && migrate.includes("zenGamesPlayed()"),
       "the migration grandfathers: campaign save, done tutorial, counted campaign runs, counted Zen games");
     const menu = fnBody(src, "showMainMenu");
-    r.ok(menu.includes("if (campaignUnlocked())"), "the Play/New Run button is gated on campaignUnlocked()");
+    r.ok(menu.includes("if (campaignUnlocked())"), "the Climb/New Climb button is gated on campaignUnlocked()");
     r.ok(!menu.includes("menu-note"), "no pointer note (v5.57: removed — Zen is the obvious primary CTA while locked)");
     r.ok(!menu.includes("campaignUnlocked()) return"), "…but the menu itself still renders (Zen is the whole menu)");
   }

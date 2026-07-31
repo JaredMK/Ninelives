@@ -198,7 +198,7 @@ export function run() {
     r.eq(ItemUnlocks.hintFor({ id: "x" }), "", "…and \"\" for a starting item (no gate)");
     r.eq(ItemUnlocks.hintFor({ unlock: LOCK("cardsBuried", 15) }), "Bury 15 cards",
       "…the plan's example phrasing (\"Bury 15 cards\")");
-    r.eq(ItemUnlocks.hintFor({ unlock: LOCK("runsWon", 3) }), "Win 3 runs", "…(\"Win 3 runs\")");
+    r.eq(ItemUnlocks.hintFor({ unlock: LOCK("runsWon", 3) }), "Win 3 climbs", "…(\"Win 3 climbs\")");
   }
 
   // ── Stats.bump/bumpAll: only the fixed unlock counters, never negative ────

@@ -2468,20 +2468,20 @@ const NativeApp = (() => {
   }
   .stat-tile .sv { font-family: var(--font-display); font-weight: 700; font-size: 16px;
     color: var(--phosphor); text-shadow: var(--glow); line-height: 1.2; }
-  /* Inline secondary percentage beside a count (Runs won, Correct draws). */
+  /* Inline secondary percentage beside a count (Climbs won, Correct draws). */
   .stat-tile .sv .pct { font-family: var(--font-text); font-size: 13px; font-weight: 600;
     color: var(--muted); text-shadow: none; }
   .stat-tile .sl { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-top: 4px; }
   /* Section headers on the Stats screen — full-width labels over each block
-     ("Runs" over the campaign tiles, "Zen" over the Zen split): §3 sub-header
+     ("Climbs" over the campaign tiles, "Zen" over the Zen split): §3 sub-header
      voice, gold display face. */
   .stats-head { grid-column: 1 / -1; font-family: var(--font-display); font-weight: 800;
     font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase;
     color: var(--gold); margin: 2px 0 -2px; }
   /* ZEN section of the Stats screen: one sub-block per difficulty, each a legacy
      summary line + a twin wins/loss histogram (tap the outcome bar to toggle).
-     Its OWN record — separate store from the campaign "Runs" tiles above. */
+     Its OWN record — separate store from the campaign "Climbs" tiles above. */
   .stats-zen { grid-column: 1 / -1; background: var(--felt-deep); border: var(--px) solid var(--ink);
     border-radius: 0; padding: 10px 12px; }
   .stats-zen .sz-head { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.8px;
@@ -6439,7 +6439,7 @@ const NativeApp = (() => {
           <button class="debug-btn" id="debugEquipSamePower">equip SP</button>
           <button class="debug-btn" id="debugForceSame">force Same✓</button>
         </div>
-        <div class="debug-sub">set active Pillar on a column (mid-run) →</div>
+        <div class="debug-sub">set active Pillar on a column (mid-climb) →</div>
         <div class="debug-grant">
           <select class="debug-sel" id="debugColPillarSel"></select>
           <button class="debug-btn" id="debugSetPC0">C1</button>
@@ -6847,7 +6847,7 @@ const NativeApp = (() => {
       <div class="ds-seed-body hidden" id="dsSeedBody">
         <input class="ds-seed-input" id="dsSeedInput" type="text" maxlength="7"
           inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-          placeholder="XK4T9QD" aria-label="Run seed code" />
+          placeholder="XK4T9QD" aria-label="Climb seed code" />
         <div class="ds-seed-note" id="dsSeedNote" aria-live="polite"></div>
       </div>
     </div>
@@ -6980,7 +6980,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.71 · Dividend pays 1/pile; Same Heavy adds 1 weight/pile";
+const APP_VERSION = "v5.72 · a campaign attempt is a CLIMB, not a run (copy-wide)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -14009,7 +14009,7 @@ const GameEngine = (() => {
       for (let i = 0; i < board.size; i++) {
         board.push(i, deck.draw());
       }
-      logAction("Run dealt — " + board.size + " piles, " + deck.remaining() + " cards in deck");
+      logAction("Climb dealt — " + board.size + " piles, " + deck.remaining() + " cards in deck");
       // Roll this deal's Base randomizers (Set Value's value, Suit Tally's suit),
       // shown to the player. Only when columns are in play (skips legacy/test runs
       // so their rng sequence is untouched). The Suit Tally suit is picked from the
@@ -14090,7 +14090,7 @@ const GameEngine = (() => {
       const boundBases = (run.bases || [])
         .map((bid, c) => bid ? "col " + (c + 1) + "=" + ((BaseTypes.get(bid) || {}).label || bid) : null)
         .filter(Boolean);
-      logAction("Start Run", [
+      logAction("Start Climb", [
         bound.length ? "Pillars: " + bound.join(", ") : "No Pillars bound",
         boundBases.length ? "Bases: " + boundBases.join(", ") : "No Bases bound",
       ]);
@@ -14381,7 +14381,7 @@ const GameEngine = (() => {
         status = "lost";
         run.phase = "ended";
         run.result = "loss";
-        logAction("RUN LOST — all piles in play are dead (no payout)");
+        logAction("CLIMB LOST — all piles in play are dead (no payout)");
         emit("lost", { board, deck, run });
         // FUTURE: HOOKS.onRunComplete({ result: "loss", board });
       } else if (deck.isEmpty()) {
@@ -14391,7 +14391,7 @@ const GameEngine = (() => {
         run.result = "win";
         // Collector and Compound stickers pay LIVE during play; the only end-of-run
         // scoring left is the column Pillars (and Payout), logged into this entry.
-        logBegin("RUN WON — end-of-run bonuses");
+        logBegin("CLIMB WON — end-of-climb bonuses");
         // Column Pillars score at run end (win only). Itemized here so the UI
         // never recomputes column membership.
         const pp = computePillarPayout();
@@ -17676,8 +17676,8 @@ const ItemUnlocks = (() => {
   const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
   const HINTS = {
     dealsSurvived:        n => "Clear " + pl(n, "deal"),
-    runsPlayed:           n => "Play " + pl(n, "run"),
-    runsWon:              n => "Win " + pl(n, "run"),
+    runsPlayed:           n => "Play " + pl(n, "climb"),
+    runsWon:              n => "Win " + pl(n, "climb"),
     bossesBeaten:         n => "Beat " + pl(n, "boss", "bosses"),
     endlessStagesReached: n => "Reach endless stage " + n,
     coinsEarnedLifetime:  n => "Earn " + n + " lifetime coins",
@@ -17730,7 +17730,7 @@ const ItemUnlocks = (() => {
     return [].concat(ItemData.stickers, ItemData.pillars, ItemData.bases,
       ItemData.samePowers, ItemData.packs);
   }
-  /** "Bury 15 cards" / "Win 3 runs" — derived from the unlock field, never
+  /** "Bury 15 cards" / "Win 3 climbs" — derived from the unlock field, never
       hand-written. "" for a starting item (no gate to describe). */
   function hintFor(def) {
     const u = def && def.unlock;
@@ -21236,7 +21236,7 @@ const UIRenderer = (() => {
     const log = (r && r.log) || [];
     const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     if (!log.length) {
-      el.debugLog.innerHTML = '<div class="dl-empty">No events yet this run.</div>';
+      el.debugLog.innerHTML = '<div class="dl-empty">No events yet this climb.</div>';
       return;
     }
     const start = Math.max(0, log.length - DEBUG_LOG_SHOWN);
@@ -21692,7 +21692,7 @@ const UIRenderer = (() => {
   function fillDebugJumpSel() {
     if (!el.debugJumpSel) return;
     const map = (campaign && campaign.getMap) ? campaign.getMap() : null;
-    if (!map) { el.debugJumpSel.innerHTML = '<option value="">(start a run first)</option>'; return; }
+    if (!map) { el.debugJumpSel.innerHTML = '<option value="">(start a climb first)</option>'; return; }
     const addr = buildMapAddresses(map);
     const prev = el.debugJumpSel.value;
     const nodes = map.nodes.slice().sort((a, b) => (a.row - b.row)
@@ -22293,7 +22293,7 @@ const UIRenderer = (() => {
     // here as the single source — the markup title attributes are set from it.
     const HUD_SAME_HELP = "Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort";
     const DEAL_STATUS_HELP = "Reward: base + bonus. The base is the flat coins this deal pays on a clear — set by its stage & difficulty (harder pays more), fixed for the deal. The bonus is what your items have piled on top so far (stickers, pillars, bases — live, and a Tribute can drag it negative). Score: surviving piles × the smallest surviving pile if you cleared right now — personal bests only, never coins.";
-    const HUD_SCORE_HELP = "Your score: surviving piles × the smallest pile on each cleared deal, added up over the run. Banked as your campaign score when the ♠ boss falls — deals after that build your endless score. Chased for personal bests only; it never changes coins or play.";
+    const HUD_SCORE_HELP = "Your score: surviving piles × the smallest pile on each cleared deal, added up over the climb. Banked as your campaign score when the ♠ boss falls — deals after that build your endless score. Chased for personal bests only; it never changes coins or play.";
     if (el.hudSame) { el.hudSame.title = HUD_SAME_HELP; attachHoldHelp(el.hudSame, () => showTextHelp("Same Charge", HUD_SAME_HELP)); }
     if (el.hudSamePower) attachHoldHelp(el.hudSamePower, () => {
       const id = campaign && campaign.getSamePower && campaign.getSamePower();
@@ -24518,18 +24518,18 @@ const UIRenderer = (() => {
     showOverlay({
       icon: glyph("logo"),
       title: "Shoulda Said Same",
-      msg: "A " + campaign.maxStages + "-stage run (" + campaign.maxRunsPerStage
+      msg: "A " + campaign.maxStages + "-stage climb (" + campaign.maxRunsPerStage
          + " deals each). The deck grows by a suit each stage. Lose a single deal "
-         + "and the whole run resets. Survive every card to clear a deal.",
+         + "and the whole climb resets. Survive every card to clear a deal.",
       progress: "Stage 1 of " + campaign.maxStages + " · Deal 1 of " + campaign.maxRunsPerStage,
-      btnLabel: "START RUN",
+      btnLabel: "START CLIMB",
       action: startCampaign,
     });
   }
 
   // Shown only after a WON, non-final run (a loss ends the campaign). This is
   // the between-runs intermission: just the stage/run indicator and the coin
-  // breakdown — no "This Run" / "Campaign" totals.
+  // breakdown — no "This Climb" / "Campaign" totals.
   function showRunComplete(coins) {
     // (The deal-won jingle already played at the run-end trigger, in the same
     // frame as the character's happy dance — not here, this screen shows late.)
@@ -24852,11 +24852,11 @@ const UIRenderer = (() => {
     { id: "pink", name: "Pinky", color: "d", requires: null,
       sub: "Get Pinky home" },
     { id: "mamma", name: "Mamma", color: "h", requires: "pink",
-      sub: "Mamma sets off", unlockNote: "Win a run with Pinky to unlock" },
+      sub: "Mamma sets off", unlockNote: "Win a climb with Pinky to unlock" },
     { id: "smith", name: "Mr. Smith", color: "c", requires: "mamma",
-      sub: "Everything costs more", unlockNote: "Win a run with Mamma to unlock" },
+      sub: "Everything costs more", unlockNote: "Win a climb with Mamma to unlock" },
     { id: "lammy", name: "Lammy", color: "s", requires: "smith",
-      sub: "Stickers don't stick", unlockNote: "Win a run with Mr. Smith to unlock" },
+      sub: "Stickers don't stick", unlockNote: "Win a climb with Mr. Smith to unlock" },
   ];
   /** A deck is selectable when its predecessor has a recorded win. */
   function deckUnlocked(d) { return !d.requires || DeckUnlocks.wonWith(d.requires); }
@@ -25083,7 +25083,7 @@ const UIRenderer = (() => {
         ? "Keep typing — 7 characters" : "Not a valid seed code";
       el.dsSeedNote.classList.add("err");
     } else {
-      el.dsSeedNote.textContent = "Seeded run — progression disabled";
+      el.dsSeedNote.textContent = "Seeded climb — progression disabled";
       el.dsSeedNote.classList.add("ok");
     }
   }
@@ -25179,7 +25179,7 @@ const UIRenderer = (() => {
         '<div class="ds-sub">' + escHtml(open ? (d.sub || "") : "?") + '</div>' +
         tierRow +
         (open
-          ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Run</button>'
+          ? '<button class="play-btn ds-start" type="button" data-deck="' + d.id + '">Start Climb</button>'
           : '<div class="ds-lock">Locked</div>') +
       '</div>';
     }).join("");
@@ -27566,12 +27566,12 @@ const UIRenderer = (() => {
     const card    = { suit: "♥", value: 7 };   // any face-up card — the art is the lesson
     el.storeKeyPanel.innerHTML =
       '<div class="sk-head"><b>Store items</b><button class="sk-close key-close" type="button" aria-label="Close">× <span class="kc-lab">close</span></button></div>' +
-      storeKeyRow(sticker ? stickerChip(sticker.id, { seed: "help" }) : "", "Sticker", "attaches to one card and rides it the whole run.") +
+      storeKeyRow(sticker ? stickerChip(sticker.id, { seed: "help" }) : "", "Sticker", "attaches to one card and rides it the whole climb.") +
       storeKeyRow(pillar ? pathwayBannerHtml(pillar, { size: "shop" }) : "", "Pillar", "powers a whole column from the top — passive, always on.") +
       storeKeyRow(base ? baseBannerHtml(base, "charged", { size: "shop" }) : "", "Base", "a once-per-deal tap power at the foot of a column.") +
       storeKeyRow(miniCardHtml(card), "Card", ItemData.store.card.description) +
       storeKeyRow(pack ? packObjectHtml(pack, { size: "shop" }) : "", "Pack", "reveals several hidden items; you keep some (cards or stickers).") +
-      storeKeyRow(same ? samePowerBadgeHtml(same) : "", "Same-Power", "a single run-long equipped artifact power (one at a time).") +
+      storeKeyRow(same ? samePowerBadgeHtml(same) : "", "Same-Power", "a single climb-long equipped artifact power (one at a time).") +
       storeKeyRow(removalBadgeHtml(), "Removal", ItemData.store.removal.description);
   }
   function openStoreKey() {
@@ -27871,7 +27871,7 @@ const UIRenderer = (() => {
       DifficultyData.startJokers(campaign.getDeckId(), campaign.getTier());
     // The marker starts here; it's dimmed once you set out.
     nodes += '<button type="button" class="pm-node t-home s-' + (atStart ? "home-here" : "done") + '" disabled' +
-      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your run starts here (' + ((campaign.deckRules && campaign.deckRules().altSuits) ? homeStart + ' cards' : homeStart + ' hearts') + ')">' +
+      ' style="left:' + homeXY.x.toFixed(1) + 'px;top:' + homeXY.y.toFixed(1) + 'px;" title="Home — your climb starts here (' + ((campaign.deckRules && campaign.deckRules().altSuits) ? homeStart + ' cards' : homeStart + ' hearts') + ')">' +
       '<span class="mn-home"><span class="mn-home-ico">⌂</span></span></button>';
     // DEBUG MAP ADDRESSES (removable): stamp each node with its address tag, just
     // above the node, when the debug overlay is toggled on. Off → empty string.
@@ -31649,7 +31649,7 @@ const UIRenderer = (() => {
     // counted Zen session (campaignUnlocked). Until then Zen is the whole
     // menu — the game teaches itself inside free play first.
     if (campaignUnlocked())
-      items.push({ label: canContinue ? "New Run" : "Climb", ico: "spark", cls: canContinue ? "" : "primary",
+      items.push({ label: canContinue ? "New Climb" : "Climb", ico: "spark", cls: canContinue ? "" : "primary",
         action: () => { hideMainMenu(); showDeckSelect(canContinue); } });
     // ZEN — the standalone higher/lower game. The difficulty choice is its
     // own full-screen page (#zenSelect, the deck-select pattern): Easy is
@@ -31742,7 +31742,7 @@ const UIRenderer = (() => {
           + '<span class="seed-hint">tap to copy</span>';
       }
     }
-    // ZEN: no campaign actions here — never "New Run". Restart deals a fresh
+    // ZEN: no campaign actions here — never "New Climb". Restart deals a fresh
     // Zen game at the SAME difficulty; Quit routes through the Zen teardown
     // (navigational only — the campaign save was never written).
     buildMenu(el.gameMenuButtons, zenMode ? [
@@ -31754,11 +31754,11 @@ const UIRenderer = (() => {
       { label: "Resume", ico: "win", cls: "primary", action: closeGameMenu },
       { label: "How to Play", ico: "search", action: showManual },
       { label: "Sound: " + (Sound.isOn() ? "On" : "Off"), ico: "spark", action: () => { Sound.toggle(); showGameMenu(); } },
-      { label: "New Run", ico: "spark", action: () => showMenuConfirm(
+      { label: "New Climb", ico: "spark", action: () => showMenuConfirm(
           "Abandon this campaign and start a fresh one?",
-          "New Run",
+          "New Climb",
           () => { closeGameMenu(); startCampaign(); },
-          "The current run, coins and items are wiped — this can't be undone.") },
+          "The current climb, coins and items are wiped — this can't be undone.") },
       { label: "Quit to Menu", ico: "loss", cls: "danger", action: quitToMenu },
     ]);
     el.gameMenu.classList.remove("hidden");
@@ -31949,12 +31949,12 @@ const UIRenderer = (() => {
     // Inline secondary percentage shown after a count (e.g. "12 48%").
     const pct = (n) => ' <span class="pct">' + n + '%</span>';
     const tiles = [
-      [s.gamesPlayed, "Runs played"],
-      [s.campaignsWon + pct(wr), "Runs won"],
+      [s.gamesPlayed, "Climbs played"],
+      [s.campaignsWon + pct(wr), "Climbs won"],
       [s.lifetimeCardsDrawn, "Cards drawn"],
       [s.lifetimeCorrectGuesses + pct(acc), "Correct draws"],
       [s.lifetimeDopamine, "Lifetime coins"],
-      [s.bestCampaignDopamine, "Most coins in a run"],
+      [s.bestCampaignDopamine, "Most coins in a climb"],
       [s.bestCampaignScore || 0, "Best campaign score"],
       [s.bestEndlessScore || 0, "Best endless score"],
       [s.bestEndless || 0, "Deepest endless stage"],
@@ -31965,7 +31965,7 @@ const UIRenderer = (() => {
     zenView = { scope: "all", drill: null };
     // Two clearly-headed sections: campaign "Runs" tiles, then the "Zen" split.
     el.statsGrid.innerHTML =
-      '<div class="stats-head stats-runs-head">Runs</div>' +
+      '<div class="stats-head stats-runs-head">Climbs</div>' +
       tiles.map(([v, l]) =>
         '<div class="stat-tile"><div class="sv">' + v + '</div><div class="sl">' + l + "</div></div>").join("") +
       '<div class="stats-zen"><div class="sz-head">Zen</div>' + zenSectionInner() + '</div>';
@@ -32186,13 +32186,13 @@ const UIRenderer = (() => {
           '<span class="wt-mapnode">Start</span>' +
           "</div>",
         cap: '<span class="lead">Climb the map home</span>' +
-          "A run is a climb up a <b>map</b> of nodes — deals, stores and card pickups — to <b>Mama's home</b> at the top. " +
+          "A climb takes you up a <b>map</b> of nodes — deals, stores and card pickups — to <b>Mama's home</b> at the top. " +
           "<b>Card &amp; pack nodes grow your deck</b>, so later deals run longer and harder. " +
-          "Lose a single deal and the <b>run ends</b>.",
+          "Lose a single deal and the <b>climb ends</b>.",
       },
       { // 7 — the store item classes (aligned to the in-store STOREHELP1 legend)
         art: '<div class="wt-classlist">' +
-          "<div><b>Sticker</b> — attaches to one card and rides it the whole run.</div>" +
+          "<div><b>Sticker</b> — attaches to one card and rides it the whole climb.</div>" +
           "<div><b>Pillar</b> — powers a whole column from the top; passive, always on.</div>" +
           "<div><b>Base</b> — a once-per-deal tap power at the foot of a column.</div>" +
           "<div><b>Card</b> — a single card to swap into your deck.</div>" +

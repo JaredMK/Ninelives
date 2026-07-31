@@ -200,7 +200,7 @@
     <div class="sz">10</div><div class="vt" style="font-size:10px">Buy &amp; Apply · 12 — Add to any ♠ card</div><div class="ps" style="font-size:10px">Buy &amp; Apply · 12</div>
     <div class="sz">12</div><div class="vt" style="font-size:12px">Ace high · suits don't matter · build v5.30</div><div class="ps" style="font-size:12px">Ace high · suits don't matter</div>
     <div class="sz">13</div><div class="vt" style="font-size:13px">Spade Peeker — peek the next draw while a ♠ tops a pile</div><div class="ps" style="font-size:13px">Spade Peeker — peek the draw</div>
-    <div class="sz">16</div><div class="vt" style="font-size:16px">STAGE 2 · RUN 4 · 38 CARDS · 214 COINS</div><div class="ps" style="font-size:16px">STAGE 2 · RUN 4</div>
+    <div class="sz">16</div><div class="vt" style="font-size:16px">STAGE 2 · DEAL 4 · 38 CARDS · 214 COINS</div><div class="ps" style="font-size:16px">STAGE 2 · DEAL 4</div>
     <div class="sz">20</div><div class="vt" style="font-size:20px">SHOULDA SAID SAME</div><div class="ps" style="font-size:20px">SHOULDA SAID SAME</div>
   </div>
 </div>
@@ -218,7 +218,7 @@
 <div class="row" style="margin-top:12px">
   <button class="pbtn">MENU ITEM</button>
   <button class="pbtn gold">BUY · 12</button>
-  <button class="pbtn danger">ABANDON RUN</button>
+  <button class="pbtn danger">ABANDON CLIMB</button>
   <button class="pbtn disabled">LOCKED</button>
 </div></div>
 
@@ -290,7 +290,7 @@
 <li><label><input type="checkbox"> <b>Map spotlight layers</b> <code>.map-dim + .map-spot (created 25793-25794)</code><br><small>Full-map dim + warm glow riding the avatar</small></label></li>
 <li><label><input type="checkbox"> <b>Map key legend (&#x27;?&#x27; button + panel)</b> <code>#mapKeyBtn (7414) + #mapKeyPanel (7415; CSS fixed 2694)</code><br><small>Built at open time from live node markup; CSS-gated on body.on-map</small></label></li>
 <li><label><input type="checkbox"> <b>Map → Store back button</b> <code>#mapStoreBtn (7411; CSS 2661)</code><br><small>Bottom-left fixed button, map only</small></label></li>
-<li><label><input type="checkbox"> <b>Fossil detail popup (cleared-run network)</b> <code>#fossilDetail (7188; CSS 6310) — #fossilDetailTitle #fossilDetailArt #fossilDetailSub</code><br><small>View-only; ✕/backdrop dismiss</small></label></li>
+<li><label><input type="checkbox"> <b>Fossil detail popup (cleared-climb network)</b> <code>#fossilDetail (7188; CSS 6310) — #fossilDetailTitle #fossilDetailArt #fossilDetailSub</code><br><small>View-only; ✕/backdrop dismiss</small></label></li>
 <li><label><input type="checkbox"> <b>Mystery &#x27;?&#x27; event reveal</b> <code>#mysteryEvent .me-panel (7202) — #mysteryEventTitle #mysteryEventArt #mysteryEventSub #mys</code><br><small>Good/bad rim tint; Continue-only (no dismiss). Outcomes route to pack reveal / removal / strip pickers / store detour / </small></label></li>
 <li><label><input type="checkbox"> <b>Map overscroll Easter egg</b> <code>#mapEgg (7183)</code><br><small>Hidden line revealed by rubber-band overscroll at map bottom</small></label></li>
 <li><label><input type="checkbox"> <b>Map-granted pickers (mystery outcomes)</b> <code>reuse #stickerApplyModal and #packReveal</code><br><small>Forced flows: no ✕/backdrop dismiss in strip mode</small></label></li>
@@ -319,10 +319,10 @@
 <li><label><input type="checkbox"> <b>How to Play manual (slide deck)</b> <code>#manualOverlay .sheet-overlay (7384) — #manualBody</code><br><small>Mock cards/boards drawn in HTML; can arm tutorial replay</small></label></li>
 <li><label><input type="checkbox"> <b>In-game pause menu</b> <code>#gameMenu .sheet-overlay (7393) — #gameMenuSeed #gameMenuButtons</code><br><small>Zen and campaign variants; tap-to-copy seed line; New Run confirm via prompt bar</small></label></li>
 <li><label><input type="checkbox"> <b>Start / end overlay (multi-mode)</b> <code>#overlay (6943) — #overlayIcon #overlayTitle #overlayMsg #runProgress #zenEndStats #overla</code><br><small>THE shared full-screen phase overlay; kind/cls classes: win, lose, deal-cleared, pinky-home</small></label></li>
-<li><label><input type="checkbox"> <b>Start screen (campaign intro)</b> <code>#overlay default mode</code><br><small>Logo + rules copy + START RUN</small></label></li>
+<li><label><input type="checkbox"> <b>Start screen (campaign intro)</b> <code>#overlay default mode</code><br><small>Logo + rules copy + START CLIMB</small></label></li>
 <li><label><input type="checkbox"> <b>Deal-cleared payout screen (coin tally)</b> <code>#overlay.deal-cleared + #overlayCoins (CSS 4056)</code><br><small>Reward lines appear one by one with coin pings; hold-to-peek board (#peekHint, .peek)</small></label></li>
 <li><label><input type="checkbox"> <b>Game-over / campaign-failed screen</b> <code>#overlay.lose + #lossFossils (6946)</code><br><small>&#x27;Shoulda said &lt;word&gt;&#x27; header; bouncing/colliding fossil field; seed line; unlock-progress rows; guess tiles</small></label></li>
-<li><label><input type="checkbox"> <b>Victory screen (&#x27;Pinky is home&#x27;)</b> <code>#overlay.win.pinky-home</code><br><small>Run summary + CONTINUE—ENDLESS MODE / GO TO MAIN MENU; win banked at boss</small></label></li>
+<li><label><input type="checkbox"> <b>Victory screen (&#x27;Pinky is home&#x27;)</b> <code>#overlay.win.pinky-home</code><br><small>Climb summary + CONTINUE—ENDLESS MODE / GO TO MAIN MENU; win banked at boss</small></label></li>
 <li><label><input type="checkbox"> <b>Zen end screen</b> <code>#overlay + #zenEndStats (6958)</code><br><small>Per-game flip/correct lines; win keeps the network-pulse celebration beat</small></label></li>
 <li><label><input type="checkbox"> <b>Deck-unlock celebration popup</b> <code>.deck-unlock-pop .duc-panel (created 22916; CSS 2140, z-2000)</code><br><small>Padlock pops, color floods in, sparkles + ta-daa, name reveal, CONTINUE</small></label></li>
 <li><label><input type="checkbox"> <b>Item-unlock pop queue</b> <code>.deck-unlock-pop.item-unlock-pop (created 22984; CSS 2183)</code><br><small>Same idiom generalized to items; drains one CONTINUE at a time</small></label></li>

@@ -61,6 +61,18 @@ The game targets phones. Four invariants, all currently enforced — keep them:
 
 ## Convention 3: UX
 
+- **Player-facing noun is "climb", never "run" (v5.72).** A campaign attempt is
+  a **climb** in every string a player can read — buttons ("Start Climb", "New
+  Climb", "START CLIMB"), stats labels ("Climbs played", "Climbs won", the
+  "Climbs" section head), unlock hints (`HINTS.runsPlayed` → "Play 3 climbs"),
+  help/tutorial copy, deck unlock notes, map tooltips, and the debug logbook.
+  **The code keeps `run`**: identifiers (`run`, `runSeed`, `startRun()`,
+  `isRunStarted()`, `RunMap`), CSS classes (`.run-stat`, `.run-map`,
+  `.stats-runs-head`), telemetry stat keys (`runsPlayed`, `runsWon`) and every
+  localStorage key are UNCHANGED — renaming stat keys or storage keys would
+  silently wipe player progress. So: `run` in code, "climb" on screen. When you
+  add copy, say climb; when you add a field, `run` still matches its neighbours.
+  Note "run" as a *verb* stays ("later deals run longer and harder").
 - **Hold-for-help everywhere.** Every meaningful interactive element (store
   tiles, pillars, bases, stickers, HUD chips, map nodes, cards) shows its help
   on press-and-hold. New UI elements need a hold-help path; copy comes from
