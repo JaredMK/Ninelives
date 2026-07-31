@@ -6928,7 +6928,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.56 · cleaner Collection header";
+const APP_VERSION = "v5.57 · quieter first-launch menu";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -31623,12 +31623,6 @@ const UIRenderer = (() => {
     // screen, the reset confirm bar already lifts over it).
     items.push({ label: "Settings", ico: "reroll", action: () => showSettings(canContinue) });
     buildMenu(el.menuButtons, items);
-    if (!campaignUnlocked()) {
-      const note = document.createElement("div");
-      note.className = "menu-note";
-      note.textContent = "New here? Start with Zen — the climb home unlocks after your first visit.";
-      el.menuButtons.appendChild(note);
-    }
     el.menuFoot.textContent = "build " + APP_VERSION;
     el.mainMenu.classList.remove("hidden");
     updateBoardMotion();   // board covered by the main menu → pause its card animations
