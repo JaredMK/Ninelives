@@ -6982,7 +6982,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.73 · hold-help on coins, guess buttons (always) and the fan toggle";
+const APP_VERSION = "v5.74 · dead Pillar effect paths deleted; Pinky Regular earns both Jokers (no gifted start Joker)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7283,8 +7283,6 @@ const GLYPHS = {
   // Momentum — an accelerating ramp with motion ticks.
   momentum: '<path d="M3 19c6 0 12-3 16-12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 4l1.6 4.4L16 9.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12.5l2.5 1M6 8.5l2.2 1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   // ---- expansion pillars (same monoline neural style) ----
-  // Same Spark — an equals sign throwing off a spark.
-  samespark: '<path d="M5 9h8M5 14h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 4l1 3.4 3.4 1-3.4 1L18 13l-1-3.6-3.4-1 3.4-1z"/>',
   // Recharge Same Shield — a guard shield with an upward recharge arrow.
   recharge_same: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 15.5V9m0 0l-2.6 2.6M12 9l2.6 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   // Activate Same Power — an equals sign (Same) firing a lightning bolt.
@@ -7303,8 +7301,6 @@ const GLYPHS = {
   royalcourt: '<path d="M4 18h16l-1-9-4 4-3-6-3 6-4-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 18h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
   // Excavator — a pickaxe.
   excavator: '<path d="M3 21l9-9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5 8c4-4 10-4 14 0-4-2-7-1-9 1-2 2-3 5-1 9-4-4-4-10-4-10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-  // Echo — nested broadcast arcs.
-  echo: '<circle cx="7" cy="12" r="2"/><path d="M11 8a6 6 0 0 1 0 8M14.5 5a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   // Gambler — a die showing five.
   gambler: '<rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.4"/><circle cx="15.5" cy="8.5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.5" cy="15.5" r="1.4"/><circle cx="15.5" cy="15.5" r="1.4"/>',
   // Tell — the three possible reads stacked: ▲ higher, = same, ▼ lower (a
@@ -7361,9 +7357,9 @@ const ELEM_GLYPH = {
   streakBank: "streak", streakTribute: "streak_encode", secondWind: "wind", greedy: "greedy",
   fibonacci: "fibonacci", highestEven: "highestHeart",
   denseBury: "denseBury", revive: "revive", kamikaze: "kamikaze",
-  sameSpark: "samespark", insurance: "insurance", ditto: "ditto",
+  insurance: "insurance", ditto: "ditto",
   stickerCount: "stickercount", prime: "prime", queensEye: "queenseye",
-  royalCourt: "royalcourt", excavator: "excavator", echo: "echo", gambler: "gambler",
+  royalCourt: "royalcourt", excavator: "excavator", gambler: "gambler",
   // Newest pillars — each gets its OWN emblem (no entry = the generic guardian
   // fallback, which is exactly the store/board "wrong pillar art" bug).
   clubTribute: "club_bury", broadcast: "broadcast", lastRites: "lastrites",
@@ -12511,27 +12507,13 @@ const GameEngine = (() => {
       return resolvePillarDef(run.pileColumns[index]);
     }
 
-    /** Pay a Pillar's coins live: tally + UI fire + trigger any adjacent Echo.
-        The single chokepoint for a live Pillar coin payout. */
+    /** Pay a Pillar's coins live: tally + UI fire. The single chokepoint for a
+        live Pillar coin payout. */
     function payPillar(col, effect, label, amount) {
       addBonus(label, amount);
       firePillar(col, effect, label, amount || 0);
       const pdef = resolvePillarDef(col);   // telemetry: live coin payout (prime/fib/royalCourt)
       if (pdef) recT("pillar", pdef.id, pdef.label, { coins: amount > 0 ? amount : 0, coinsLost: amount < 0 ? -amount : 0 });
-      echoAdjacent(col);
-    }
-    /** Echo: each column NEXT TO `payerCol` that holds an Echo (incl. via Ditto)
-        earns +value. Echo's own payout never calls this — no chains. */
-    function echoAdjacent(payerCol) {
-      if (payerCol == null || !run || !run.pillars) return;
-      for (const c of [payerCol - 1, payerCol + 1]) {
-        if (c < 0 || c >= run.pillars.length) continue;
-        const def = resolvePillarDef(c);
-        if (!def || def.effect !== "echo") continue;
-        addBonus(def.label, def.value || 1);
-        firePillar(c, "echo", def.label, def.value || 1);   // no echoAdjacent → no chain
-        recT("pillar", def.id, def.label, { coins: def.value || 1 });   // telemetry
-      }
     }
     /** Expansion LIVE Pillars on a correct landing: Prime / Royal Court (coins),
         Queen's Eye (peek), Same Spark (spray stickers in-column). `pillar` is the
@@ -12558,17 +12540,6 @@ const GameEngine = (() => {
         // the moving cards (presentation only — indices, never identities).
         const { moved, moves } = redistributeColumn(col);
         if (moved > 0) { firePillar(col, "diamondDistribution", pillar.label, 0, { moves }); logLine(pillar.label + ": redistributed " + moved + " buried card" + (moved === 1 ? "" : "s") + " to even the column"); recT("pillar", pillar.id, pillar.label, { moved }); }
-      } else if (pillar.effect === "sameSpark" && isTie === true && guess === "same") {
-        let n = 0;
-        for (const i of colAlivePiles(col)) {
-          const top = board.top(i);
-          if (!top) continue;
-          // Only stickers this top may carry (Joker/Removal tops are skipped;
-          // `suits` restrictions filter the roll).
-          const sid = pickOne(baseStickerPool().filter(t => stickerCardEligible(top, t.id)).map(t => t.id));
-          if (sid && projectStickerOntoCard(top, sid)) n++;
-        }
-        if (n > 0) { firePillar(col, "sameSpark", pillar.label, 0); logLine("Same Spark: stickered " + n + " pile cards in the column"); recT("pillar", pillar.id, pillar.label, { applied: n }); }
       }
     }
 
@@ -12669,12 +12640,6 @@ const GameEngine = (() => {
       }
       if (buried > 0) {
         logLine((source ? source + ": " : "") + buried + " card" + (buried > 1 ? "s" : "") + " buried, deck −" + buried);
-        // Unearth: any bury under a pile in this column (whatever the source) rolls
-        // ONCE for a 50% chance to peek the next upcoming card. Set before the
-        // "buried" emit so the reveal is up when the UI renders the bury.
-        const ucol = run && run.pileColumns ? run.pileColumns[index] : null;
-        const udef = resolvePillarDef(ucol);
-        if (udef && udef.effect === "unearth" && rng() < 0.5) peekPillar(ucol, udef);
         // Surface the bury so the UI can play a brief "tuck under the pile"
         // animation. Composition only — no card identities/order are emitted.
         emit("buried", { index, count: buried, source: source || "", board, deck, run });
@@ -13785,14 +13750,6 @@ const GameEngine = (() => {
             bonus += amt;
             lines.push({ label: t.label, detail: n + " ♥ top" + (n === 1 ? "" : "s"), amount: amt, col });
           }
-        } else if (t.effect === "symmetryRight") {
-          // +value if this column's alive count equals the RIGHT column's
-          // (wraparound: last column → col 0).
-          const right = (col + 1) % nCols;
-          if (aliveInCol(col) === aliveInCol(right)) {
-            bonus += t.value;
-            lines.push({ label: t.label, detail: "cols " + (col + 1) + " & " + (right + 1) + " match", amount: t.value, col });
-          }
         } else if (t.effect === "greedy") {
           // +value only if this column fully survived AND it's the SOLE Pillar on
           // the board (a second Pillar anywhere — even another Greedy — voids it).
@@ -13825,14 +13782,6 @@ const GameEngine = (() => {
             bonus += t.value;
             lines.push({ label: t.label, detail: "sole survivor in this column", amount: t.value, col });
           }
-        } else if (t.effect === "stickerCount") {
-          // +value per sticker across this column's alive piles — buried cards too.
-          let n = 0;
-          for (const i of colIdxs(col)) {
-            if (!board.isActive(i)) continue;
-            for (const c of board.piles[i].cards) n += (c.stickers ? c.stickers.length : 0);
-          }
-          if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " stickers (buried included)", amount: amt, col }); }
         } else if (t.effect === "excavator") {
           // +value per BURIED card in this column's LARGEST alive pile whose TOP is
           // a ♥ (a Wild Suit top counts). 0 if no ♥-topped alive pile in column.
@@ -13861,21 +13810,6 @@ const GameEngine = (() => {
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
         // the bonus tally (see guess()), so adding it again here would double it.
       }
-      // Echo (end-of-deal): each Echo column earns +value for every PAID
-      // end-of-deal Pillar line in a column next to it. Echo lines themselves
-      // never re-trigger Echo (no chains). Live payouts already paid their Echo
-      // during play, so they are not in `lines` here (no double count).
-      const echoLines = [];
-      for (const ln of lines) {
-        if (!ln || ln.amount <= 0 || ln.col == null || ln.effect === "echo") continue;
-        for (const c of [ln.col - 1, ln.col + 1]) {
-          const def = resolvePillarDef(c);
-          if (!def || def.effect !== "echo") continue;
-          echoLines.push({ label: def.label, detail: "echoed an adjacent payout", amount: def.value || 1, col: c, effect: "echo" });
-        }
-      }
-      for (const el of echoLines) bonus += el.amount;
-      lines.push(...echoLines);
       // Tag each payout line with its resolved Pillar id (telemetry reads this in
       // the UI "won" handler, recorded once per win — never inside this function,
       // which can be called for previews). Additive; gameplay reads label/amount.
@@ -14244,7 +14178,6 @@ const GameEngine = (() => {
         run.suitBountyHits[run.pileColumns[index]] += 1;
         addBonus(pillar.label, pillar.value || 0);
         firePillar(run.pileColumns[index], "suitBounty", pillar.label, pillar.value || 0);
-        echoAdjacent(run.pileColumns[index]);
         recT("pillar", pillar.id, pillar.label, { coins: pillar.value || 0 });
       }
 

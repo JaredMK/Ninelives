@@ -53,13 +53,15 @@ export function run() {
     const c = CampaignState.create();   // default deck = pink
     c.setTier("regular");
     c.reset();
-    // STARTJOKERS: the run begins holding the data's startJokers Jokers —
-    // they count as HELD from node one (with the two fixed corridor
-    // sentinels reserving their slots on top).
-    r.eq(c.getRunDeck().filter(x => x.joker).length, START_J,
-      "pinky regular: the run starts holding exactly the data's startJokers Jokers (" + START_J + ")");
-    r.eq(c.jokerBudget().committed, START_J + 2,
-      "…and they count as held alongside the two fixed-node reservations (" + (START_J + 2) + "/" + c.jokerBudget().cap + ")");
+    // Pinky opens a Regular run on the STANDARD 13 cards — no gifted Joker.
+    // Its two Jokers are EARNED at the fixed corridor nodes below, which
+    // reserve their cap slots from node one (a visible promise).
+    r.eq(START_J, 0, "pinky regular is no longer gifted a starting Joker");
+    r.eq(c.deckSize(), 13, "…the run opens on the standard 13 cards");
+    r.eq(c.getRunDeck().filter(x => x.joker).length, 0,
+      "…holding no Jokers at all on node one");
+    r.eq(c.jokerBudget().committed, 2,
+      "…only the two fixed-node reservations count as held (2/" + c.jokerBudget().cap + ")");
     const map = c.getMap();
     const fixed = map.nodes.filter(n => n.jokerNode).sort((a, b) => a.phase - b.phase);
     r.eq(fixed.length, 2, "pinky regular: exactly TWO fixed Joker nodes on the map");
@@ -94,8 +96,8 @@ export function run() {
     const g0 = c.resolvePickup(fixed[0]); c.markNodeCleared(fixed[0].id);
     const g1 = c.resolvePickup(fixed[1]); c.markNodeCleared(fixed[1].id);
     r.ok(!!(g0 && g0.joker && g1 && g1.joker), "taking the two nodes grants two real Jokers");
-    r.eq(c.getRunDeck().filter(x => x.joker).length, START_J + 2,
-      "…the deck then holds the startJokers + 2 corridor Jokers (" + (START_J + 2) + ")");
+    r.eq(c.getRunDeck().filter(x => x.joker).length, 2,
+      "…the deck then holds exactly the 2 EARNED corridor Jokers — none gifted");
     // …and Removal never reopens a random source (the scheme is absolute).
     c.getRunDeck().filter(x => x.joker).forEach(j => c.removeDeckCard(j.id));
     r.ok(!c.jokerBudget().allowed, "…removing them does NOT reopen random Jokers");

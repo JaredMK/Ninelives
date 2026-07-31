@@ -53,7 +53,14 @@ export function run() {
     r.ok(maps >= 30, "generated " + maps + " genV-3 runs to sweep (" + typed + " type-rolled nodes)");
     r.eq(flags, 0, "genV-3 maps carry NO legacy n.mystery mask flags");
     r.ok(mysteries > 0, "the type roll actually fires (" + mysteries + " first-class mysteries)");
-    r.ok(Math.abs(rate - TARGET) < 0.03,
+    // The observed share is the POST-REPAIR one: tryBuildStage's card-floor /
+    // heavy-route / deal-count repairs churn the deal|pack|card types (a
+    // mystery adds 0 cards, so the repairs never pick one), which nudges the
+    // ratio a point or so off the raw table share — and it moves whenever the
+    // card budget moves (e.g. an entry-deck retune). The band is wide enough to
+    // absorb that while still catching a mis-set mysteryTypeWeight: at ±0.05 the
+    // weight would have to drift ~25 → 19 or 32 to escape.
+    r.ok(Math.abs(rate - TARGET) < 0.05,
       "~" + Math.round(TARGET * 100) + "% of type-rolled nodes roll mystery (observed " + (rate * 100).toFixed(1) + "%)");
     r.eq(badFields, 0, "a mystery node carries no add / packCount / piles / suit (it grants ONLY its event)");
     r.eq(badExempt, 0, "the stage-0 opening row and joker corridors NEVER roll mystery");
