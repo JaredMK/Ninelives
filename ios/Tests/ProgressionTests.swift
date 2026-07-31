@@ -257,24 +257,44 @@ final class ProgressionTests: XCTestCase {
         XCTAssertEqual(data.meta.rules("nope"), pink)
     }
 
-    /// Pinky pre-holds the 13 hearts — plus any Jokers the tier's `startJokers`
-    /// grants (Regular ships one today), which are minted BEFORE the map
-    /// generates so the entry deck size counts them.
-    func testPinkyStartsWithTheThirteenHeartsPlusItsTierStartJokers() {
+    /// v5.74: no deck is gifted a starting Joker any more. Pinky opens every
+    /// tier on the 13 hearts; its two Regular Jokers are EARNED at the fixed
+    /// post-boss corridor nodes.
+    func testPinkyStartsOnTheThirteenHeartsWithNoGiftedJoker() {
         for tier in DifficultyData.tierIds {
             let c = CampaignState()
             c.setDeck("pink"); c.setTier(tier); c.setSeedOverride(1234); c.reset()
             let start = c.getRunDeck()
-            let jokers = data.difficulty.startJokers(deckId: "pink", tierId: tier)
-            XCTAssertEqual(start.count, 13 + jokers, "\(tier): 13 hearts + \(jokers) start Joker(s)")
-            XCTAssertEqual(c.runStartSize("pink", tier), 13 + jokers,
+            XCTAssertEqual(data.difficulty.startJokers(deckId: "pink", tierId: tier), 0,
+                           "\(tier): difficulty.js ships no startJokers")
+            XCTAssertEqual(start.count, 13, "\(tier): the run opens on exactly the 13 hearts")
+            XCTAssertEqual(c.runStartSize("pink", tier), 13,
                            "\(tier): runStartSize must agree with the real deck")
-            let hearts = start.filter { !$0.joker }
-            XCTAssertTrue(hearts.allSatisfy { $0.suit == "♥" }, "\(tier): the non-Joker start cards are all ♥")
-            XCTAssertEqual(Set(hearts.map(\.currentRank)).count, 13, "\(tier): one of each rank")
-            XCTAssertEqual(start.filter(\.joker).count, jokers, "\(tier): the start Jokers are owned")
-            XCTAssertEqual(c.jokersHeld() >= jokers, true, "\(tier): held Jokers count toward the cap")
+            XCTAssertTrue(start.allSatisfy { $0.suit == "♥" }, "\(tier): every start card is a ♥")
+            XCTAssertEqual(Set(start.map(\.currentRank)).count, 13, "\(tier): one of each rank")
+            XCTAssertEqual(start.filter(\.joker).count, 0, "\(tier): no Joker is gifted")
         }
+    }
+
+    /// The two fixed corridor nodes are untouched: Pinky-Regular still gets
+    /// exactly two Jokers, reserved from node one and EARNED by clearing the
+    /// stage-1 and stage-2 bosses.
+    func testPinkyRegularStillEarnsExactlyTwoCorridorJokers() {
+        let c = CampaignState()
+        c.setDeck("pink"); c.setTier("regular"); c.setSeedOverride(4242); c.reset()
+        XCTAssertTrue(c.fixedJokerScheme, "Pinky-Regular runs the fixed-Joker scheme")
+        let corridors = c.runMap!.nodes.filter(\.jokerNode).sorted { ($0.phase ?? 0) < ($1.phase ?? 0) }
+        XCTAssertEqual(corridors.count, 2, "two fixed post-boss corridor nodes")
+        XCTAssertEqual(corridors.map { $0.phase }, [0, 1], "after the stage-1 and stage-2 bosses")
+        XCTAssertTrue(corridors.allSatisfy { c.nodeCard($0)?.joker == true }, "both locked to a Joker")
+        // Held from node one = the two reservations only (no gifted Joker).
+        XCTAssertEqual(c.jokersHeld(), 2, "only the corridor reservations count as held")
+        XCTAssertFalse(c.jokersAllowed(), "the fixed scheme keeps every random Joker source off")
+        // Earning them grows the deck 13 → 15.
+        XCTAssertEqual(c.deckSize(), 13)
+        for n in corridors { XCTAssertEqual(c.resolvePickup(n)?.joker, true, "the corridor grants a real Joker") }
+        XCTAssertEqual(c.deckSize(), 15, "13 + the 2 earned Jokers")
+        XCTAssertEqual(c.getRunDeck().filter(\.joker).count, 2)
     }
 
     func testAltDecksStartWithOneOfEachRankAtRandomSuits() {

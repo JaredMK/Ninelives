@@ -328,21 +328,23 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertTrue(dittoDitto.pillarPayout().lines.isEmpty)
     }
 
-    /// The engine keeps the Echo dispatch alive, but items.js does not ship an
-    /// `echo` Pillar today — skip rather than fail if it is absent, so re-adding
-    /// one to the data file re-arms this test automatically.
-    func testEchoPaysPerAdjacentPaidLineAndNeverChains() throws {
-        guard let echo = data.items.pillars.first(where: { $0.effect == "echo" }),
-              let payer = data.items.pillars.first(where: { $0.effect == "columnAllAlive" })
-        else { throw XCTSkip("items.js ships no `echo` Pillar") }
-        let e = engine(pillars: [payer.id, echo.id, nil])
-        let out = e.pillarPayout()
-        let echoLines = out.lines.filter { $0.effect == "echo" }
-        XCTAssertEqual(echoLines.count, 1, "one echo per adjacent PAID line")
-        XCTAssertEqual(out.bonus, payer.value + echoLines[0].amount)
-        // Two Echoes next to each other never feed one another.
-        let chain = engine(pillars: [echo.id, echo.id, nil])
-        XCTAssertTrue(chain.pillarPayout().lines.isEmpty, "Echo lines never re-trigger Echo")
+    /// v5.74 deleted the dead Pillar effect paths (echo, symmetryRight,
+    /// stickerCount, unearth, sameSpark) from both engines. Nothing may
+    /// re-introduce a dispatch for an effect no items.js entry carries —
+    /// a dead branch is unreachable code that silently rots.
+    func testNoPillarDispatchesAnEffectTheDataFileDoesNotShip() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(contentsOf: root.appendingPathComponent("GameCore/GameEngineEffects.swift"), encoding: .utf8)
+            + (try String(contentsOf: root.appendingPathComponent("GameCore/GameEngine.swift"), encoding: .utf8))
+        let shipped = Set(data.items.pillars.compactMap(\.effect))
+        for dead in ["echo", "symmetryRight", "stickerCount", "unearth", "sameSpark"] {
+            XCTAssertFalse(shipped.contains(dead), "'\(dead)' is back in items.js — re-add its dispatch too")
+            XCTAssertFalse(src.contains("\"\(dead)\""), "GameCore still dispatches the removed effect '\(dead)'")
+        }
+        // The item ID `stickerCount` is LIVE (label "Massive Diamond") — only the
+        // dead EFFECT of that name went. Guard against over-deleting it.
+        XCTAssertNotNil(data.pillarTypes.get("stickerCount"), "the stickerCount ITEM must survive")
+        XCTAssertEqual(data.pillarTypes.get("stickerCount")?.effect, "heavyDiamond")
     }
 
     func testHighestHeartPaysNumberedHeartsOnlyAceOneRoyalsNothing() {

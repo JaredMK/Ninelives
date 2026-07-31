@@ -44,20 +44,6 @@ extension GameEngine {
                 recT("pillar", pillar.id, pillar.label, ["moved": Double(moved)])
             }
 
-        case "sameSpark" where isTie && g == .same:
-            var n = 0
-            for i in colAlivePiles(col) {
-                guard let top = board.top(i) else { continue }
-                // Only stickers this top may carry (Joker/Removal tops skipped).
-                let pool = baseStickerPool().filter { CardRules.stickerEligible(top, $0.id, data: data) }.map(\.id)
-                if let sid = pick(pool), projectStickerOntoCard(top, sid) { n += 1 }
-            }
-            if n > 0 {
-                firePillar(col, "sameSpark", pillar.label, 0)
-                logLine("Same Spark: stickered \(n) pile cards in the column")
-                recT("pillar", pillar.id, pillar.label, ["applied": Double(n)])
-            }
-
         default: break
         }
     }
@@ -455,9 +441,7 @@ extension GameEngine {
         guard let run, let pillars = run.pillars, let pileColumns = run.pileColumns, let cols = run.cols else {
             return PillarPayout(bonus: 0, lines: [])
         }
-        let nCols = cols.count
         func colIdxs(_ c: Int) -> [Int] { (0..<pileColumns.count).filter { pileColumns[$0] == c } }
-        func aliveInCol(_ c: Int) -> Int { colIdxs(c).filter { board.isActive($0) }.count }
         func allAliveInCol(_ c: Int) -> Bool {
             let a = colIdxs(c); return !a.isEmpty && a.allSatisfy { board.isActive($0) }
         }
@@ -493,15 +477,6 @@ extension GameEngine {
                     lines.append(PayoutLine(label: t.label, detail: "\(n) ♥ top\(n == 1 ? "" : "s")", amount: amt, col: col))
                 }
 
-            case "symmetryRight":
-                // +value if this column's alive count equals the RIGHT column's
-                // (wraparound: last column → col 0).
-                let right = (col + 1) % nCols
-                if aliveInCol(col) == aliveInCol(right) {
-                    bonus += t.value
-                    lines.append(PayoutLine(label: t.label, detail: "cols \(col + 1) & \(right + 1) match", amount: t.value, col: col))
-                }
-
             case "greedy":
                 // +value only if this column fully survived AND it's the SOLE
                 // Pillar on the board (a second Pillar anywhere voids it).
@@ -529,19 +504,6 @@ extension GameEngine {
                 if board.aliveCount() == 1 && colIdxs(col).contains(where: { board.isActive($0) }) {
                     bonus += t.value
                     lines.append(PayoutLine(label: t.label, detail: "sole survivor in this column", amount: t.value, col: col))
-                }
-
-            case "stickerCount":
-                // +value per sticker across this column's alive piles — buried too.
-                var n = 0
-                for i in colIdxs(col) where board.isActive(i) {
-                    for c in board.piles[i].cards { n += c.stickers.count }
-                }
-                if n > 0 {
-                    let unit = t.num("value", 1) == 0 ? 1 : t.value
-                    let amt = Double(n) * unit
-                    bonus += amt
-                    lines.append(PayoutLine(label: t.label, detail: "\(n) stickers (buried included)", amount: amt, col: col))
                 }
 
             case "excavator":
@@ -579,21 +541,6 @@ extension GameEngine {
             }
             // NOTE: suitBounty is NOT scored here — it's paid LIVE during play.
         }
-        // Echo (end-of-deal): each Echo column earns +value for every PAID
-        // end-of-deal Pillar line in a column next to it. Echo lines never
-        // re-trigger Echo. Live payouts already paid their Echo during play.
-        var echoLines: [PayoutLine] = []
-        for ln in lines {
-            guard ln.amount > 0, let lcol = ln.col, ln.effect != "echo" else { continue }
-            for c in [lcol - 1, lcol + 1] {
-                guard let def = resolvePillarDef(c), def.effect == "echo" else { continue }
-                let v = def.num("value", 1) == 0 ? 1 : def.value
-                echoLines.append(PayoutLine(label: def.label, detail: "echoed an adjacent payout",
-                                            amount: v, col: c, effect: "echo"))
-            }
-        }
-        for el in echoLines { bonus += el.amount }
-        lines.append(contentsOf: echoLines)
         // Tag each payout line with its resolved Pillar id (telemetry reads this).
         for i in lines.indices where lines[i].id == nil {
             if let d = resolvePillarDef(lines[i].col) { lines[i].id = d.id }

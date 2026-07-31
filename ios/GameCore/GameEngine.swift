@@ -155,13 +155,6 @@ public final class GameEngine {
         }
         if buried > 0 {
             logLine((source.isEmpty ? "" : source + ": ") + "\(buried) card\(buried > 1 ? "s" : "") buried, deck −\(buried)")
-            // Unearth: any bury under a pile in this column rolls ONCE for a 50%
-            // chance to peek the next upcoming card. Set BEFORE the "buried" emit
-            // so the reveal is up when the UI renders the bury.
-            let ucol = run.pileColumns?[index]
-            if let udef = resolvePillarDef(ucol), udef.effect == "unearth", rng.next() < 0.5 {
-                peekPillar(ucol, udef)
-            }
             emit(.buried(index: index, count: buried, source: source))
         }
         return buried
@@ -184,27 +177,13 @@ public final class GameEngine {
         emit(.pillarFired(col: col, effect: effect, label: label, amount: amount, moves: moves))
     }
 
-    /// Pay a Pillar's coins live: tally + UI fire + trigger any adjacent Echo.
+    /// Pay a Pillar's coins live: tally + UI fire. The single chokepoint for a
+    /// live Pillar coin payout.
     func payPillar(_ col: Int?, _ effect: String, _ label: String, _ amount: Double) {
         addBonus(label, amount)
         firePillar(col, effect, label, amount)
         if let pdef = resolvePillarDef(col) {
             recT("pillar", pdef.id, pdef.label, amount > 0 ? ["coins": amount] : ["coinsLost": -amount])
-        }
-        echoAdjacent(col)
-    }
-
-    /// Echo: each column NEXT TO `payerCol` that holds an Echo (incl. via Ditto)
-    /// earns +value. Echo's own payout never calls this — no chains.
-    func echoAdjacent(_ payerCol: Int?) {
-        guard let payerCol, let run, let pillars = run.pillars else { return }
-        for c in [payerCol - 1, payerCol + 1] {
-            if c < 0 || c >= pillars.count { continue }
-            guard let def = resolvePillarDef(c), def.effect == "echo" else { continue }
-            let v = def.num("value", 1) == 0 ? 1 : def.value
-            addBonus(def.label, v)
-            firePillar(c, "echo", def.label, v)   // no echoAdjacent → no chain
-            recT("pillar", def.id, def.label, ["coins": v])
         }
     }
 
@@ -520,7 +499,6 @@ public final class GameEngine {
             run.suitBountyHits![pcol] += 1
             addBonus(pillar.label, pillar.value)
             firePillar(pcol, "suitBounty", pillar.label, pillar.value)
-            echoAdjacent(pcol)
             recT("pillar", pillar.id, pillar.label, ["coins": pillar.value])
         }
 
