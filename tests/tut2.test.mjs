@@ -168,7 +168,7 @@ export function run() {
 
   // --- tutorial.js data: shape + fail-loud validation ------------------------
   {
-    r.eq(TutorialData.stepCounts.deal, 7, "the deal group is exactly 7 steps (choreography contract)");
+    r.eq(TutorialData.stepCounts.deal, 6, "the deal group is exactly 6 steps (v5.60: Ace-high bubble cut)");
     r.eq(TutorialData.stepCounts.zenEnd, 1, "the zenEnd group is exactly 1 step");
     r.eq(Object.keys(TutorialData.stepCounts).length, 2, "…and those are the ONLY groups");
     r.eq(TutorialData.problems.length, 0, "the live tutorial.js validates with zero problems");

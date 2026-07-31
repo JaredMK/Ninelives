@@ -1,7 +1,7 @@
 // TUT4 — Zen-first tutorial copy + How to Play manual + the "Replay tutorial"
 // button. The bubble choreography and DOM anchoring are UI-side, so this
 // suite covers what can be verified DOM-free: the tutorial.js copy (core
-// mechanics ONLY — no campaign concepts), the group shape (deal: 7, zenEnd:
+// mechanics ONLY — no campaign concepts), the group shape (deal: 6, zenEnd:
 // 1), the manual's claims, and the Replay button's one-shot arm + its
 // non-destructive reroute into Zen (the old save-safety confirm is gone —
 // Zen never touches the campaign save).
@@ -37,7 +37,7 @@ export function run() {
 
   // ---- group shape ----------------------------------------------------------
   {
-    r.eq(G.deal.length, 7, "the guided deal teaches in exactly 7 bubbles");
+    r.eq(G.deal.length, 6, "the guided deal teaches in exactly 6 bubbles (v5.60: Ace-high cut)");
     r.eq(G.zenEnd.length, 1, "the deal-end beat is a single bubble");
     r.eq(Object.keys(G).length, 2, "…and those are the ONLY groups (no campaign tour remains)");
     r.eq(TutorialData.problems.length, 0, "tutorial.js validates with zero problems");
@@ -61,21 +61,21 @@ export function run() {
     r.ok(/\*Same\*/.test(G.deal[3].text) && /equal card/i.test(G.deal[3].text)
       && /\*shield\*/.test(G.deal[3].text) && G.deal[3].anchor === "sameShield",
       "deal[3] teaches calling Same on an equal card + the shield charge (M4), on the Same-shield anchor");
-    // M5 — Ace is HIGH, 2 is low (the two never-guess edges).
-    r.ok(G.deal[4].text.includes("Ace is *high*") && /never guess Higher/i.test(G.deal[4].text)
-      && /never guess Lower/i.test(G.deal[4].text),
-      "deal[4] teaches Ace-high and the 2-low edge (M5)");
-    // M6 — the histogram reads what's left in the deck.
-    r.ok(/histogram/i.test(G.deal[5].text) && G.deal[5].anchor === "dealHistogram",
-      "deal[5] teaches the histogram (M6), on the histogram-band anchor");
+    // M5 (Ace-high / 2-low) was CUT from the tour by player request in v5.60 —
+    // those edges are learned in play (the deck strip + a bad guess). The tour
+    // is now 6 steps; the histogram bubble moved up to deal[4].
+    // M6 — the deck strip reads what's left, with its hold/tap affordances.
+    r.ok(/what's left in the deck/i.test(G.deal[4].text) && G.deal[4].anchor === "dealHistogram",
+      "deal[4] teaches the deck strip (M6), on the histogram-band anchor");
+    r.ok(/hold on a number/i.test(G.deal[4].text) && /tap on the deck/i.test(G.deal[4].text),
+      "…including the hold-a-number and tap-the-deck affordances");
     // The send-off.
-    r.eq(G.deal[6].button, "Go", "the last deal bubble's button is 'Go'");
-    r.ok(/Your turn/i.test(G.deal[6].text), "the last deal bubble hands over: 'Your turn'");
-    // The deal-end beat names what unlocks without pushing the player out.
-    r.ok(/climb home/i.test(G.zenEnd[0].text) && /menu/i.test(G.zenEnd[0].text),
-      "zenEnd names the climb home on the menu");
-    r.ok(/stay as long as you like/i.test(G.zenEnd[0].text),
-      "zenEnd invites free Zen play to continue (no prompt to leave)");
+    r.eq(G.deal[5].button, "Go", "the last deal bubble's button is 'Go'");
+    r.ok(/Your turn/i.test(G.deal[5].text), "the last deal bubble hands over: 'Your turn'");
+    // The deal-end beat is a short sign-off (v5.60, player copy) — it no
+    // longer narrates the climb/menu; free Zen play simply continues.
+    r.ok(/good luck/i.test(G.zenEnd[0].text), "zenEnd signs off ('Good luck!')");
+    r.ok(G.zenEnd[0].button === "Let's play", "…on the 'Let's play' button");
   }
 
   // ---- NO campaign concepts in the teaching phase ---------------------------

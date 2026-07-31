@@ -320,6 +320,7 @@ export function run() {
     // gate existed — so clear it; the next check re-inits with the injected
     // gate in place (modeling a profile that always had it).
     ItemUnlocks.reset();
+    ItemUnlocks.markClimbDone();   // v5.60: gates evaluate only after a climb ends (reset clears this too)
     // First load below threshold: silent init stamps the CURRENT derived set
     // (everything else), the locked item stays unknown and locked.
     r.eq(ItemUnlocks.checkNewUnlocks().length, 0, "below threshold: no new unlocks");
@@ -356,6 +357,7 @@ export function run() {
     // veteran's TRUE first load on this build by clearing the known-set so
     // the next call is the first-ever init WITH the big stats present.
     g.ItemUnlocks.reset();
+    g.ItemUnlocks.markClimbDone();   // v5.60
     r.eq(g.ItemUnlocks.checkNewUnlocks().length, 0,
       "first load past the threshold: retroactive silent init — zero toasts");
     r.ok((JSON.parse(storage.getItem("ninelives.itemunlocks.v1")).known || []).indexOf(d.id) !== -1,
@@ -370,6 +372,7 @@ export function run() {
   {
     const storage = memStorage();
     const { ItemUnlocks, StickerTypes, PillarTypes, Stats } = loadGame({ localStorage: storage });
+    ItemUnlocks.markClimbDone();   // v5.60
     Stats.reset();
     // UNLOCK2: the live catalog now carries real gates, so nearestLocked is
     // never empty — assert ORDERING on injected markers with progress
@@ -537,6 +540,20 @@ export function run() {
     // a game-end checkpoint used to swallow them).
     r.ok(src.includes("ItemUnlocks.primeKnown()"),
       "the known-set is primed at boot (fresh profiles pop first-session unlocks)");
+    // FIRST-CLIMB GATE (v5.60): nothing gated unlocks until a CLIMB run ends —
+    // the tutorial Zen round must never hand out items.
+    r.ok(src.includes('const CLIMB_PREF = "firstClimbDone";'), "the first-climb pref exists");
+    const iu = bodyOf("function isUnlocked(def)", "/** Every item def across");
+    r.ok(iu.includes("if (!climbDone()) return false;"),
+      "…isUnlocked keeps GATED items shut until the first climb ends");
+    r.ok(bodyOf("function climbDone()", "function markClimbDone()").includes("if (!ok()) return true;"),
+      "…and FAILS OPEN with no storage (private mode / harness never locks everything)");
+    // Stamped at BOTH campaign terminations, never by the Zen checkpoint.
+    r.ok(countOf(src, "ItemUnlocks.markClimbDone()") >= 3,
+      "…armed at run termination (win/stop + loss) and by the debug unlock-all");
+    const zenTail = src.slice(src.indexOf("const show = () => queueItemUnlockPops"), src.indexOf("const show = () => queueItemUnlockPops") + 300);
+    r.ok(!zenTail.includes("markClimbDone"),
+      "…the ZEN end checkpoint never arms it (a Zen round is not a climb)");
     // CEREMONY CAP (v5.51): at most MAX_SOLO_POPS solo pops; the tail
     // collapses into ONE summary pop — a big climb is never a long click-through.
     r.ok(src.includes("const MAX_SOLO_POPS = 3;"), "the solo-pop cap exists (3)");

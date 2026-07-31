@@ -6925,7 +6925,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.59 · simpler Same-shield tutorial line";
+const APP_VERSION = "v5.60 · leaner tutorial; unlocks wait for your first climb";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10044,7 +10044,7 @@ const TutorialData = (() => {
   // The writer-owned groups and their EXACT step counts. The tour's
   // choreography (which group fires when, what each step rings) lives in
   // index.html — tutorial.js may reword a bubble, never add or remove one.
-  const GROUPS = { deal: 7, zenEnd: 1 };
+  const GROUPS = { deal: 6, zenEnd: 1 };   // v5.60: the Ace-high bubble was cut (player request)
   // The Zen-first tour carries no live placeholders: any {token} in the copy
   // is a writer error and fails loudly here.
   const PLACEHOLDERS = [];
@@ -17638,10 +17638,28 @@ const ItemUnlocks = (() => {
     if (!r) return 0;
     return Math.max(0, r(Stats.get()) || 0);
   }
+  /* FIRST-CLIMB GATE (v5.60, player request: nothing unlocks off the tutorial
+     Zen deal — the drip starts after the first CLIMB run ends). One pref,
+     stamped at campaign run TERMINATION (win, loss, or stopping at home);
+     until it's set every GATED item stays locked, so a new player's first
+     climb is played entirely with the 33 simple starting items. Ungated
+     starting items are unaffected. */
+  const CLIMB_PREF = "firstClimbDone";
+  function climbDone() {
+    // FAIL-OPEN with no persistence (private mode, the DOM-free test harness):
+    // without storage there is no "first climb" to remember, and a player must
+    // never end up with every gated item locked forever.
+    if (!ok()) return true;
+    try { return SaveStore.getPref(CLIMB_PREF) === "1"; } catch (e) { return true; }
+  }
+  function markClimbDone() {
+    try { if (!climbDone()) SaveStore.setPref(CLIMB_PREF, "1"); } catch (e) { /* ignore */ }
+  }
   /** Is this item def currently available? No unlock field = starting item. */
   function isUnlocked(def) {
     const u = def && def.unlock;
     if (!u) return true;
+    if (!climbDone()) return false;   // pre-first-climb: gated items stay shut
     return statValue(u.stat) >= u.count;
   }
   /** Every item def across every items.js group (flat, registry order). */
@@ -17712,6 +17730,7 @@ const ItemUnlocks = (() => {
   function reset() {
     knownCache = null;
     if (ok()) try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    try { SaveStore.clearPref(CLIMB_PREF); } catch (e) { /* ignore */ }
   }
   /** BOOT-TIME known-set priming (UNLOCK2 fix): the lazy first-load init
       stamps the CURRENT derived set — if the first stamp happened at a
@@ -17722,7 +17741,7 @@ const ItemUnlocks = (() => {
       set — unchanged behavior. */
   function primeKnown() { knownSet(); }
   return { STATS: ITEM_UNLOCK_STATS.slice(), statValue, isUnlocked, hintFor,
-           checkNewUnlocks, nearestLocked, reset, primeKnown };
+           checkNewUnlocks, nearestLocked, reset, primeKnown, markClimbDone, climbDone };
 })();
 
 /* ----------------------------------------------------------------
@@ -22707,6 +22726,7 @@ const UIRenderer = (() => {
       });
       DECKS.forEach((d) => DifficultyData.tierIds.forEach((t) => DeckUnlocks.recordWin(d.id, t)));
       SaveStore.setPref("campaignUnlocked", "1");
+      ItemUnlocks.markClimbDone();     // the first-climb gate must be open too
       ItemUnlocks.checkNewUnlocks();   // silent stamp — everything reads as long-known
       // No navigation — the unlocks are live on the next screen visit.
       if (el.debugPeekOut) el.debugPeekOut.textContent = "unlocked: all decks, tiers, items, zen ladder";
@@ -24828,7 +24848,9 @@ const UIRenderer = (() => {
     // The SECOND (run-end) checkNewUnlocks checkpoint: catches gates crossed by
     // run-level stat folds (run won / campaign ended) that landed AFTER the
     // deal-end checkpoint. Stamps once; [] → no UI, straight through.
-    const finish = () => queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), onDone);
+    // The climb is over → arm the item drip (v5.60), then check: the first
+    // climb's own crossings pop here rather than being swallowed.
+    const finish = () => { ItemUnlocks.markClimbDone(); queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), onDone); };
     if (!d) { finish(); return; }
     const prev = DECKS.find(x => x.id === d.requires);
     const wrap = document.createElement("div");
@@ -26937,6 +26959,7 @@ const UIRenderer = (() => {
       // UNLOCK1: DEAL END is an item-unlock checkpoint (all of this deal's stat
       // folds landed above) — any newly-unlocked item pops, queued, BEFORE the
       // death overlay appears. Stamps once here; [] → no UI, straight through.
+      ItemUnlocks.markClimbDone();   // a lost climb still ENDS a climb (v5.60)
       queueItemUnlockPops(ItemUnlocks.checkNewUnlocks(), () => showCampaignFailed(payload.run));
       return;
     }

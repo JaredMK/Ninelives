@@ -73,10 +73,8 @@ const NINELIVES_TUTORIAL = {
         text: "Every guess draws the next card from *the deck*.\nRight → the pile grows\nWrong → the pile dies\nBeat the *whole deck* before every pile is gone." },
       { anchor: "sameShield",
         text: "Call *Same* when you expect an equal card. A correct Same charges this *shield*, protecting you from your next incorrect guess." },
-      { anchor: "dealPile",
-        text: "Cards run *2 up to Ace* — Ace is *high*: never guess Higher against it.\nAnd a 2 is as low as it gets: never guess Lower against that." },
       { anchor: "dealHistogram",
-        text: "This strip is *the histogram* — it counts what's left in the deck at every rank.\nRead it before a guess: tall bars are the cards you're most likely to draw." },
+        text: "This strip shows *what's left in the deck*. Hold on a number to see how many cards are higher and lower than it. Tap on the deck to see all the cards." },
       { button: "Go",
         text: "Your turn — make a guess!" },
     ],
@@ -84,7 +82,7 @@ const NINELIVES_TUTORIAL = {
     // That first guided deal just ended: one passive line, then free play.
     zenEnd: [
       { button: "Let's play",
-        text: "That's the whole game — stay as long as you like.\nThe *climb home* waits on the menu whenever you head back." },
+        text: "That's it. *Good luck!*" },
     ],
 
   },
