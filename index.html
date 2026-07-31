@@ -3627,6 +3627,15 @@ const NativeApp = (() => {
        context, height follows the ratio — so mini cards never read as a different
        shape than the board's. */
     position: relative; width: 52px; aspect-ratio: var(--card-ar); border-radius: 0;
+    /* v5.69: a flex child's automatic minimum is its MIN-CONTENT width. For a
+       plain card that's a 1-2 char rank (tiny), but for a special card it's the
+       uppercase label ("REMOVAL"), which made Joker/Removal refuse to shrink
+       and render far larger than their neighbours in a crowded reveal. */
+    min-width: 0;
+    /* …and content may never stretch the box either: with overflow visible a
+       tall inner symbol/label out-votes aspect-ratio, which left the special
+       cards a couple of px taller than their neighbours in a tight row. */
+    min-height: 0; overflow: hidden;
     background: var(--card-face); color: var(--card-ink);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-weight: 800; box-shadow: 2px 2px 0 0 var(--shadow); border: var(--px) solid var(--ink);
@@ -3634,9 +3643,15 @@ const NativeApp = (() => {
   .mini-card.red { color: var(--card-red); }
   /* Joker + Blank pack options: their own faces (a symbol + a name), distinct
      from a rank/suit card so they read as special picks at a glance. */
+  /* Crowded reveal (many cards at once): the labels cannot fit at the 12px
+     font floor, and the card ART already says Joker / Removal. Dropping the
+     words keeps EVERY card in the row exactly the same size. */
+  .pack-many .mini-card.mc-special .mcs-lab { display: none; }
+  .pack-many .mini-card.mc-special .mcs-sym { font-size: 18px; }
   .mini-card.mc-special { gap: 3px; }
   .mini-card.mc-special .mcs-sym { font-size: 22px; line-height: 1; }
-  .mini-card.mc-special .mcs-lab { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .mini-card.mc-special .mcs-lab { font-size: 12px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
   /* Chunk 5: joker/blank faces are the §7 pixel cards (gold ★ on deep felt /
      smoke stitch fabric). The art fills the card box; the ★ text sym hides
      (baked in) and the label pins to the bottom edge, clear of the star. */
@@ -6960,7 +6975,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.68 · the coin icon is back (WebKit paint fix)";
+const APP_VERSION = "v5.69 · every card in a grant reveal is the same size";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -29448,9 +29463,13 @@ const UIRenderer = (() => {
       innerHtml + "</button>";
   }
 
+  /* Above this many revealed items the row is too tight for the special
+     cards' word labels (see .pack-many) — presentation only. */
+  const PACK_MANY_AT = 5;
   function renderPackReveal() {
     const st = packRevealState; if (!st) return;
     el.packReveal.classList.toggle("pack-show", st.mode === "show");
+    el.packReveal.classList.toggle("pack-many", (st.items || []).length > PACK_MANY_AT);
     if (st.mode === "show") {
       // Map pack: reveal-only (everything shown was already added to the deck).
       // Cards are tap-for-info but NOT selectable; one Confirm returns to the map.
