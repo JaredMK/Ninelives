@@ -122,7 +122,8 @@
   .c50  { width: 48px;  height: 67px;  border-width: 2px; box-shadow: 2px 2px 0 0 var(--shadow); } .c50 .rank { font-size: 34px; } .c50 .suit { font-size: 14px; }
   .pcard.joker { background: var(--felt-deep); color: var(--gold); border-color: var(--gold); }
   .pcard.blank { background: var(--felt-mid); color: rgba(236,228,207,0.5); }
-  .pcard.wild .rank { color: var(--phosphor); text-shadow: var(--glow); }
+  /* v5.65: a WILD SUIT card keeps its natural ink/red rank — the sticker
+     chip marks it, not a recolour (a neon rank misread as a different card). */
   .pcard.back { color: transparent; }
   /* dithered card back + the ONLY sanctioned texture technique: baked pattern tiles */
   .dither-red   { background-image: url('data:image/gif;base64,R0lGODlhAgACAIABAMIvRezkzyH5BAEKAAEALAAAAAACAAIAAAIDDGwFADs='); background-size: 4px 4px; image-rendering: pixelated; }
@@ -230,7 +231,7 @@
   <div class="pcard c50"><div class="rank">7</div><div class="suit">♣</div></div>
   <div class="pcard c50 red"><div class="rank">A</div><div class="suit">♦</div></div>
   <div class="pcard c50 blank"><div class="rank">?</div></div>
-  <div class="pcard c50 wild"><div class="rank">4</div><div class="suit">✳</div></div>
+  <div class="pcard c50"><div class="rank">4</div><div class="suit">✳</div></div>
   <div class="pcard c50 back dither-red"></div>
 </div>
 <p class="muted" style="margin-top:8px">100% / 75% / 50%. Corner pips are decoration at 100% ONLY — at ≤75% the oversized centered numeral carries everything (deals reach 40+ cards). Readability beats pip fidelity. Card backs = dither tile per deck. Never pure white; never rounded.</p>

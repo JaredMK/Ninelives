@@ -1499,9 +1499,11 @@ const NativeApp = (() => {
     color: var(--gold); border-color: var(--gold);
     box-shadow: none;
   }
-  /* WILD SUIT (sticker on the top card): phosphor rank + THE glow (§5). The
-     class is toggled by renderStickerBadges alongside the badge itself. */
-  .card .front.wild .rank-mid { color: var(--phosphor); text-shadow: var(--glow); }
+  /* WILD SUIT (sticker on the top card): the rank keeps its NATURAL suit
+     colour — ink for ♠♣, red for ♥♦ (v5.65, player report: a wild 8♠ turning
+     neon green misread as a different card). The sticker chip on the card is
+     the wild indicator; the rank is never recoloured. The .wild class is
+     still toggled by renderStickerBadges for any future non-colour use. */
   /* Classic suit symbols, drawn crisp; inherit the front's ink/red colour. */
   .card .s .suit-svg, .card .pip .suit-svg { width: 1em; height: 1em; display: block; }
   .card .pip .suit-svg { opacity: 0.9; }
@@ -6948,7 +6950,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.64 · climb summary: score first, less clutter";
+const APP_VERSION = "v5.65 · wild cards keep their real suit colour";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -19047,8 +19049,9 @@ const UIRenderer = (() => {
     const counts = {};
     for (const s of stickers) counts[s.type] = (counts[s.type] || 0) + 1;
     const n = (type) => counts[type] || 0;
-    // §5 wild face: a Wild Suit sticker turns the centre rank phosphor (CSS
-    // .front.wild) — presentation only, riding the same per-top-card pass.
+    // Wild Suit marker class (v5.65: no longer recolours the rank — a wild
+    // card keeps its natural ink/red; the sticker chip is the indicator).
+    // Kept as a hook, toggled in the same per-top-card pass.
     const frontEl = pileEl.querySelector(".front");
     if (frontEl) frontEl.classList.toggle("wild", n("wildSuit") > 0);
     const tierOf = (id) => (StickerTypes.get(id) || {}).tier;
