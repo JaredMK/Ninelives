@@ -12,8 +12,8 @@ import { run as runMap } from "./run-map.test.mjs";  // run-map replaces the old
 import { run as terminology } from "./terminology.test.mjs";
 import { run as pillar } from "./pillar.test.mjs";
 import { run as storeOffer } from "./store-offer.test.mjs";
-import { run as features } from "./fontfloor.test.mjs",
-  "./features.test.mjs";
+import { run as features } from "./features.test.mjs";
+import { run as fontfloor } from "./fontfloor.test.mjs";
 import { run as persistence } from "./persistence.test.mjs";
 import { run as expansion } from "./expansion.test.mjs";
 import { run as packs } from "./packs.test.mjs";
@@ -89,6 +89,7 @@ const SUITES = [
   ["pillar", pillar],
   ["store-offer", storeOffer],
   ["features", features],
+  ["fontfloor", fontfloor],
   ["persistence", persistence],
   ["expansion", expansion],
   ["packs", packs],
