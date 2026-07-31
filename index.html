@@ -2067,8 +2067,6 @@ const NativeApp = (() => {
      list is a single centred column — three finger-height rows fit 390px with
      room to spare, so no carousel machinery. */
   .zs-back-btn { left: calc(env(safe-area-inset-left) + 4px); }
-  .zs-hint { font-size: 13px; color: var(--on-felt-muted); text-align: center;
-    max-width: 300px; line-height: 1.5; margin-top: -2px; }
   .zs-list { display: flex; flex-direction: column; gap: 12px; width: min(84vw, 330px); margin-top: 6px; }
   /* One difficulty per row: name, live deck shape, and its Zen win count.
      §4 pixel panels — felt-mid face, ink frame, hard shadow; pressing sinks
@@ -6807,7 +6805,6 @@ const NativeApp = (() => {
   <div class="menu-screen hidden" id="zenSelect">
     <button class="nav-btn zs-back-btn" id="zsBack" type="button" aria-label="Back"><span class="ico-slot" data-ico="back"></span></button>
     <div class="ds-title">Zen</div>
-    <div class="zs-hint">One quiet higher-or-lower deal. No coins, no items, nothing saved — just you and the deck.</div>
     <div class="zs-list" id="zsList"></div>
     <!-- SELECT-then-Start: tapping an entry only selects it; this button (greyed
          while nothing is picked, primary-filled once one is) is the sole thing
@@ -6928,7 +6925,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.57 · quieter first-launch menu";
+const APP_VERSION = "v5.58 · cleaner Zen header";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
