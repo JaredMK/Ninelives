@@ -101,9 +101,9 @@ const NINELIVES_DIFFICULTY = {
       // Joker source turns off. Pinky-only; the other decks keep the
       // roaming rule.
       fixedJokers: { pink: [0, 1] },
-      // PINKY also STARTS a Regular run holding one Joker (counted against
-      // the cap from node one: 1 held + 2 fixed corridor nodes = 3 of 4).
-      startJokers: { pink: 1 },
+      // No startJokers here: Pinky opens a Regular run on the standard 13
+      // cards. Its two Jokers are EARNED at the fixed post-boss corridor
+      // nodes above, never gifted at the start.
     },
     // Unlocks after beating the deck's Regular.
     master: {

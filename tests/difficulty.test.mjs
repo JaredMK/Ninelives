@@ -147,20 +147,19 @@ export function run() {
       "…an unknown tier gets null (no silent Regular fallback)");
   }
 
-  // ---- startJokers (MYST2): per-deck starting Jokers, data + accessor -------
+  // ---- startJokers: NO deck is gifted a starting Joker any more -------------
+  // The mechanism stays (the accessor + its fail-loud validation below), but no
+  // tier ships a block: Pinky's two Regular Jokers are EARNED at the fixed
+  // post-boss corridor nodes, never handed over at the start.
   {
     const { DifficultyData } = loadGame();
-    const reg = DifficultyData.tier("regular");
-    r.ok(reg.startJokers && typeof reg.startJokers === "object",
-      "Regular carries the startJokers block");
-    r.eq(DifficultyData.startJokers("pink", "regular"), reg.startJokers.pink,
-      "startJokers(pink, regular) reads the data's count live");
-    r.eq(DifficultyData.startJokers("mamma", "regular"), 0,
-      "…a deck the data does NOT list gets 0");
-    r.eq(DifficultyData.startJokers("pink", "master"), 0,
-      "…and so does Pinky on Master");
-    r.eq(DifficultyData.startJokers("pink", "legendary"), 0,
-      "…and Pinky on Legendary");
+    for (const tier of DifficultyData.tierIds) {
+      r.ok(DifficultyData.tier(tier).startJokers === undefined,
+        `${tier} ships no startJokers block`);
+      for (const deck of ["pink", "mamma", "smith", "lammy"])
+        r.eq(DifficultyData.startJokers(deck, tier), 0,
+          `startJokers(${deck}, ${tier}) is 0 — every deck opens on its 13 cards`);
+    }
     r.eq(DifficultyData.startJokers("pink", "nonsense"), 0,
       "…an unknown tier gets 0 (no silent Regular fallback)");
   }

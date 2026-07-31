@@ -222,7 +222,10 @@ export function run() {
   // ── The blob-size pin (the STKPERF1 win, at a 50-card fixture) -------------
   {
     const s0 = JSON.parse(JSON.stringify(CampaignState.create().serialize()));
-    for (let id = 14; id <= 49; id++) s0.ownedIds.push(id);   // own 50 cards
+    // Top up to exactly 50 owned cards, whatever the deck's START size is (it
+    // moves when difficulty.js retunes startJokers) — the pin is about blob
+    // SIZE at 50 cards, not about which ids those are.
+    for (let id = 0; s0.ownedIds.length < 50; id++) s0.ownedIds.push(id);
     const camp = CampaignState.create();
     r.ok(camp.restore(s0) && camp.deckSize() === 50, "built the 50-card fixture");
     for (let st = 1; st <= 6; st++)
