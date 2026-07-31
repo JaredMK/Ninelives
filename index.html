@@ -1511,11 +1511,21 @@ const NativeApp = (() => {
   /* Shared class for every PixelArt <img> (icons rendered inline in markup):
      crisp nearest-neighbour scaling, no drag ghosting. */
   .pxi { image-rendering: pixelated; display: inline-block; -webkit-user-drag: none; }
+  .coin-ico use, .coin-ico image { display: none; }   /* retired paint path (v5.68) */
   /* Currency coin icon — a <use> of the shared #icon-coin symbol (chunk 5:
      the symbol's art is the PIXEL ring coin, fed at boot). Sized in `em`
      so it tracks each container's font-size exactly like the old 🪙 emoji did
      (drop-in at every coin site; no layout shift). */
   .coin-ico {
+    /* v5.68 — WEBKIT FIX: the coin used to paint through
+       <use> -> <symbol> -> <image href=data:> fed at boot. That chain renders
+       in Blink but NOT in WKWebView (player report: the coin vanished, leaving
+       a gap next to the balance). It now paints from the SAME boot-published
+       custom property the sticker chips use, which is proven on device; the
+       <use> child is hidden so nothing double-paints and all ~35 call sites
+       (COIN_SVG + the inline markup) keep working untouched. */
+    background: var(--pxi-coin) center / contain no-repeat;
+    image-rendering: pixelated;
     width: 1.15em; height: 1.15em;
     vertical-align: -0.2em;
     overflow: visible;
@@ -6950,7 +6960,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.67 · Dividend pays 2 per pile; Same Heavy +2 each";
+const APP_VERSION = "v5.68 · the coin icon is back (WebKit paint fix)";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
