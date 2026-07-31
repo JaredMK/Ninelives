@@ -255,8 +255,10 @@ export function run() {
     // must NOT contain a score line (the tally never pings for score).
     const cbh = fnBody(src, "coinBreakdownHtml");
     r.ok(cbh.includes('mainLine("Deal reward", b.flat)'), "the summary's Deal reward is the flat amount");
-    r.ok(cbh.includes('"Stage " + b.stage') && cbh.includes('b.rating + "/3"'),
-      "…with the stage · rating context");
+    // v5.62: the stage · rating sub-row was removed by player request — the
+    // flat amount stands alone (an ambush still explains its missing base).
+    r.ok(!cbh.includes('"Stage " + b.stage'),
+      "…with NO stage · rating sub-row (removed in v5.62)");
     r.ok(!cbh.includes("Score earned"), "…and the coin list no longer blends a score line in");
     const sph = fnBody(src, "scorePlaqueHtml");
     r.ok(sph.includes("b.product") && sph.includes("run-stat-value"),

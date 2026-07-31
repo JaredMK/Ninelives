@@ -302,15 +302,16 @@ const NativeApp = (() => {
   .stage-run {
     position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
     z-index: 1500;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.6px;
     text-transform: uppercase;
+    line-height: 1;             /* v5.62: 12px floor — keep the pill's box tight */
     color: var(--gold);
     background: var(--felt-mid);
     border: var(--px) solid var(--ink);
     border-radius: 0;
-    padding: 4px 14px;
+    padding: 5px 14px;
     box-shadow: 4px 4px 0 0 var(--shadow);
     cursor: pointer;            /* tap to open the Imprint stash */
     user-select: none; -webkit-user-select: none;
@@ -319,7 +320,7 @@ const NativeApp = (() => {
   .stage-run:active { transform: translateX(-50%) scale(0.97); }
 
   .tray-help .th-desc .bh-lede {
-    display: block; font-size: 10px; font-weight: 800; color: var(--muted);
+    display: block; font-size: 12px; font-weight: 800; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
   }
   .tray-help .th-desc b { color: var(--accent-2); }
@@ -336,7 +337,7 @@ const NativeApp = (() => {
     box-shadow: 4px 4px 0 0 var(--shadow);
   }
   .hud .hud-sr {
-    color: var(--muted); font-size: 10.5px; font-weight: 800;
+    color: var(--muted); font-size: 12px; font-weight: 800;
     letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
     /* Clear the fixed top-left menu button (30px + 8px inset) so they never
        overlap the Stage/Run text. */
@@ -595,11 +596,11 @@ const NativeApp = (() => {
   }
   .place-launcher.hidden { display: none; }
   .place-launcher:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
-  .place-launcher .pl-ico { font-size: 10px; }
+  .place-launcher .pl-ico { font-size: 12px; }
   .place-launcher .pl-n {
     background: var(--phosphor); color: var(--ink); text-shadow: none; border-radius: 0;
     min-width: 18px; height: 18px; padding: 0 5px;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
   }
   /* While an item is armed, the armed-item bar TAKES OVER the control row (the
      normal controls hide) — same pattern as the activation prompt — so the band
@@ -612,7 +613,7 @@ const NativeApp = (() => {
     background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
   }
   .play-controls .tray-help .th-desc {
-    font-size: 10.5px; line-height: 1.25; color: var(--muted);
+    font-size: 12px; line-height: 1.25; color: var(--muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
@@ -670,14 +671,14 @@ const NativeApp = (() => {
     display: inline-flex; align-items: center; justify-content: center; gap: 3px;
     background: var(--felt-deep); color: var(--muted);
     border: var(--px) solid var(--ink); border-radius: 0;
-    padding: 4px 3px; font-size: 10px; font-weight: 800; letter-spacing: 0;
+    padding: 4px 3px; font-size: 12px; font-weight: 800; letter-spacing: 0;
     cursor: pointer; touch-action: manipulation;
   }
   .setup-tab .stab-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .setup-tab .stab-n {
     flex: none; min-width: 13px; height: 13px; padding: 0 2px; border-radius: 0;
     background: rgba(0,0,0,0.3); color: var(--text);
-    font-size: 8.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
   }
   .setup-tab.active { color: var(--ink); background: var(--phosphor); border-color: var(--ink); }
   .setup-tab.active .stab-n { background: rgba(0,0,0,0.22); color: var(--card-face); }
@@ -686,7 +687,7 @@ const NativeApp = (() => {
   .setup-strip { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; }
   .setup-strip .tab-panel { width: 100%; }
   .tab-panel.hidden { display: none; }
-  .setup-empty { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; width: 100%; padding: 6px; }
+  .setup-empty { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; width: 100%; padding: 6px; }
   .setup-empty.hidden { display: none; }
 
   /* The DECK — face-down card-stack + count, bottom-right of the region. */
@@ -963,7 +964,7 @@ const NativeApp = (() => {
   .ds-blue { background: var(--card-face); }
   .ds-bar.ds-active .ds-grey { background: var(--ink); }
   .ds-bar.ds-active .ds-blue { background: var(--gold); }
-  .ds-rank { font-size: 11px; font-weight: 800; color: var(--muted); line-height: 1.3; }
+  .ds-rank { font-size: 12px; font-weight: 800; color: var(--muted); line-height: 1.3; }
   .ds-bar.ds-active .ds-rank { color: var(--text); }
   /* RAIL PIP MATRIX — vertical ranks (A top → 2 bottom). Each row = a left rank
      label + a bar of notches equal to that rank's OWN total count, laid out on a
@@ -972,7 +973,7 @@ const NativeApp = (() => {
      (its drawn notches show grey); PINK = how many remain. */
   .rail .ds-bars { flex-direction: column; align-items: stretch; }
   .rail .ds-bar { flex-direction: row; align-items: center; gap: 3px; }
-  .rail .ds-rank { flex: none; width: 14px; text-align: right; font-size: 10px; line-height: 1; }
+  .rail .ds-rank { flex: none; width: 14px; text-align: right; font-size: 12px; line-height: 1; }
   .ds-pips { display: grid; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
     grid-template-columns: repeat(4, 1fr); justify-content: start; }
   .ds-pip { min-width: 0; height: 8px; border-radius: 0; background: var(--felt-deep); }   /* recessed = total (drawn) */
@@ -990,14 +991,14 @@ const NativeApp = (() => {
   .rail .deck-pile .ds-back.ds-top { left: 4px; top: 0; }
   .rail .deck-pile .ds-face { left: 4px; top: 0; width: 31px; height: 45px; }
   .rail .deck-pile .ds-face .dsf-rank { font-size: 15px; }
-  .rail .deck-pile .ds-face .dsf-suit { font-size: 11px; }
+  .rail .deck-pile .ds-face .dsf-suit { font-size: 12px; }
   .rail .deck-count b { font-size: 13px; }   /* position comes from the base .deck-count (corner chip) */
   /* Scrubber readout — absolute overlay anchored to the rail's right so the wide
      higher/same/lower text reads over the field, never widening the rail. */
   .ds-scrub {
     position: absolute; left: 100%; top: 4px; bottom: auto; margin-left: 6px;
     width: max-content; max-width: 220px; white-space: nowrap; text-align: left;
-    font-size: 11px; font-weight: 700; color: var(--text); z-index: 6;
+    font-size: 12px; font-weight: 700; color: var(--text); z-index: 6;
     background: var(--felt-mid); border: var(--px) solid var(--ink); border-radius: 0;
     padding: 3px 6px; pointer-events: none;
   }
@@ -1084,14 +1085,14 @@ const NativeApp = (() => {
     font-size: 12px; line-height: 1.32;
   }
   body.peek-band #histBand .peek-info .pk-head { font-size: 13px; margin-bottom: 2px; }
-  body.peek-band #histBand .peek-info .pk-desc { font-size: 11.5px; margin-top: 0; }
+  body.peek-band #histBand .peek-info .pk-desc { font-size: 12px; margin-top: 0; }
   body.peek-band #histBand .peek-info .pk-state { margin-top: 2px; }
   /* Fixed strip height = a STABLE container the dynamic pip scaling measures
      (renderDeckStrip), so the histogram fits inside it at any deck size. */
   body.guess-side #histBand .deck-strip { flex: 1 1 auto; min-width: 0; height: 56px; background: none; border: none; padding: 0; }
   body.guess-side #histBand .ds-bars { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3px; min-height: 0; height: 100%; overflow: hidden; }
   body.guess-side #histBand .ds-bar { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
-  body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 11px; }
+  body.guess-side #histBand .ds-rank { order: 2; width: auto; text-align: center; font-size: 12px; }
   body.guess-side #histBand .ds-pips { display: flex; flex-direction: column-reverse; align-items: center; gap: var(--ds-pip-gap, 2px); width: 100%; min-width: 0; }
   body.guess-side #histBand .ds-pip { width: 100%; max-width: 17px; height: var(--ds-pip-h, 9px); min-width: 0; min-height: 0; border-radius: 0; }
   /* Prominent deck chip in the strip (un-scaled, big count). */
@@ -1747,7 +1748,7 @@ const NativeApp = (() => {
     transform: translate(-50%, -50%); transform-origin: 50% 50%;
     z-index: 6; pointer-events: none; opacity: 0;
     font-family: var(--font-text); font-weight: 700;
-    font-size: clamp(8.5px, 2.5vw, 11.5px); letter-spacing: 0.3px; white-space: nowrap;
+    font-size: clamp(12px, 2.5vw, 13px); letter-spacing: 0.3px; white-space: nowrap;
     color: var(--text); background: var(--felt-mid);
     border: 1px solid var(--ink); border-radius: 0; padding: 3px 8px;
     box-shadow: 2px 2px 0 0 var(--shadow);
@@ -2024,14 +2025,14 @@ const NativeApp = (() => {
   .ds-tier { flex: 0 1 auto; min-width: 82px; padding: 6px 10px; border-radius: 0;
     border: var(--px) solid var(--ink); background: var(--felt-mid);
     box-shadow: 2px 2px 0 0 var(--shadow);
-    color: var(--text); font-family: var(--font-text); font-size: 11.5px;
+    color: var(--text); font-family: var(--font-text); font-size: 12px;
     font-weight: 800; letter-spacing: 0.3px; cursor: pointer; touch-action: manipulation;
     transition: transform 0.1s ease, background 0.12s ease, border-color 0.12s ease; }
   .ds-tier:active { transform: translate(2px, 2px); box-shadow: none; }
   .ds-tier.sel { border-color: var(--phosphor); background: var(--felt-deep);
     color: var(--phosphor); text-shadow: var(--glow); }
   .ds-tier.locked { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
-  .ds-tier .dst-lock { display: block; font-size: 8.5px; font-weight: 700; font-style: italic;
+  .ds-tier .dst-lock { display: block; font-size: 12px; font-weight: 700; font-style: italic;
     letter-spacing: 0.2px; opacity: 0.85; margin-top: 1px; text-transform: none; }
   /* Pager dots (status dots keep their circles — they read AS dots, not chrome). */
   .ds-dots { display: flex; gap: 8px; justify-content: center; }
@@ -2062,7 +2063,7 @@ const NativeApp = (() => {
   }
   .ds-seed-input:focus { border-color: var(--phosphor); box-shadow: var(--glow); }
   .ds-seed-input::placeholder { color: var(--muted); letter-spacing: 3px; }
-  .ds-seed-note { min-height: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  .ds-seed-note { min-height: 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
     color: var(--text); opacity: 0.85; }
   .ds-seed-note.ok { color: var(--gold); opacity: 1; }
   /* Error = the danger role, readable on the felt: cream on a suit-red chip. */
@@ -2091,12 +2092,12 @@ const NativeApp = (() => {
   .zs-entry:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
   .zs-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; letter-spacing: 0.4px; }
   .zs-meta { font-size: 12.5px; color: var(--on-felt-muted); }
-  .zs-wins { font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-felt-muted); }
+  .zs-wins { font-size: 12px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-felt-muted); }
   /* Locked = greyed + disabled (real label kept, opacity only — no grayscale
      filter), with the unlock condition stated in its note line. */
   .zs-entry.locked { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
   .zs-entry.locked:active { transform: none; }
-  .zs-lock { font-size: 11.5px; font-weight: 700; font-style: italic; letter-spacing: 0.2px; }
+  .zs-lock { font-size: 12px; font-weight: 700; font-style: italic; letter-spacing: 0.2px; }
   /* SELECTED entry (select-then-Start): phosphor frame + name + the selection
      fill — the pick is unmistakable before Start is tapped. */
   .zs-entry.selected { border-color: var(--phosphor); background: var(--felt-deep);
@@ -2124,7 +2125,7 @@ const NativeApp = (() => {
     align-items: center; justify-content: center; padding: 24px;
     background: rgba(16, 16, 14, 0.95); }   /* ink scrim (chunk-2/3 idiom), no blur */
   .duc-panel { text-align: center; max-width: 330px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .duc-eyebrow { font-family: var(--font-display); font-size: 11px; font-weight: 800;
+  .duc-eyebrow { font-family: var(--font-display); font-size: 12px; font-weight: 800;
     letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
   /* Locked state = the shared ink SILHOUETTE (no grayscale/drop-shadow blur);
      the reveal floods brightness back in — the same one-shot filter/opacity
@@ -2167,7 +2168,7 @@ const NativeApp = (() => {
   .deck-unlock-pop.revealed .duc-copy { opacity: 1; }
   /* Post-reveal footnote: how the item was earned (the description takes over
      .duc-copy — see showItemUnlockPop). */
-  .duc-earned { font-size: 11px; color: var(--on-felt-muted); opacity: 0;
+  .duc-earned { font-size: 12px; color: var(--on-felt-muted); opacity: 0;
     margin-top: 5px; text-transform: uppercase; letter-spacing: 0.4px;
     transition: opacity 0.6s ease 0.5s; }
   .duc-earned.hidden { display: none; }
@@ -2238,7 +2239,7 @@ const NativeApp = (() => {
   .ulk-bar { width: 100%; height: 8px; border-radius: 0; background: var(--felt-deep);
     border: 1px solid var(--ink); overflow: hidden; }
   .ulk-fill { display: block; height: 100%; border-radius: 0; background: var(--phosphor); }
-  .ulk-count { font-size: 10.5px; color: var(--on-felt-muted); }
+  .ulk-count { font-size: 12px; color: var(--on-felt-muted); }
 
   /* ── COLLECTION screen (UNLOCK1) — every items.js entry by class, the
      #zenSelect pattern (corner back, opaque felt). The list is the one scroll
@@ -2267,7 +2268,7 @@ const NativeApp = (() => {
   .col-obj .ulk-obj { --h: 62px; }
   .col-name { font-size: 12px; font-weight: 700; color: var(--on-felt);
     text-align: center; line-height: 1.15; }
-  .col-tile-hint { font-size: 10.5px; color: var(--on-felt-muted); text-align: center; line-height: 1.25; }
+  .col-tile-hint { font-size: 12px; color: var(--on-felt-muted); text-align: center; line-height: 1.25; }
   /* COLLECTION raster flatten (v5.23): ~102 tiles of full store art in one
      scroll column — every chip/pennant/plaque/foil packs drop-shadow FILTERS +
      layered shadows, and iOS defers/discards off-screen rows' raster (the
@@ -2368,9 +2369,9 @@ const NativeApp = (() => {
   .menu-seed.hidden { display: none; }
   .menu-seed:active { transform: scale(0.98); }
   .menu-seed.copied { border-style: solid; }
-  .seed-tag { font-size: 9.5px; font-weight: 800; font-style: italic; letter-spacing: 0.6px;
+  .seed-tag { font-size: 12px; font-weight: 800; font-style: italic; letter-spacing: 0.6px;
     text-transform: uppercase; color: var(--gold); }
-  .seed-hint { font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); }
+  .seed-hint { font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); }
   .copied .seed-hint { color: var(--gold); }
   /* Version line: body face — the long build descriptor wraps hopelessly in
      the wide display face at 390px, and legibility beats marquee here. */
@@ -2420,7 +2421,7 @@ const NativeApp = (() => {
   .sheet-reset:active { transform: translate(2px, 2px); box-shadow: none; }
   /* Artifact telemetry table (debug only). Wide table → horizontal scroll. */
   .telem-panel { width: min(100%, 760px); }
-  .telem-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .telem-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .telem-actions { display: flex; gap: 8px; margin-bottom: 10px; }
   /* The telemetry SHEET is a real (debug-gated) surface — its two actions wear
      the §4 plain pixel button, not the exempt debug-panel chrome. */
@@ -2433,11 +2434,11 @@ const NativeApp = (() => {
   }
   .telem-actions .debug-btn:active { transform: translate(2px, 2px); box-shadow: none; }
   .telem-scroll { overflow: auto; max-height: 64vh; -webkit-overflow-scrolling: touch; border: var(--px) solid var(--ink); border-radius: 0; }
-  .telem-table { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .telem-table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
   .telem-table th, .telem-table td { padding: 4px 7px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--edge-2); }
-  .telem-table th { position: sticky; top: 0; background: var(--bg-2); color: var(--accent-2); font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; user-select: none; }
+  .telem-table th { position: sticky; top: 0; background: var(--bg-2); color: var(--accent-2); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; user-select: none; }
   .telem-table td.tl, .telem-table th.tl { text-align: left; }
-  .telem-table tr.grp td { background: var(--panel-2); color: var(--accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; font-size: 10px; text-align: left; }
+  .telem-table tr.grp td { background: var(--panel-2); color: var(--accent-2); font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; font-size: 12px; text-align: left; }
   .telem-table tr.zero td { opacity: 0.45; }   /* never-triggered artifacts dimmed */
   .telem-table td.name { font-weight: 700; color: var(--text); }
   .telem-table td.rate { color: var(--amber); font-weight: 700; }
@@ -2453,20 +2454,20 @@ const NativeApp = (() => {
   /* Inline secondary percentage beside a count (Runs won, Correct draws). */
   .stat-tile .sv .pct { font-family: var(--font-text); font-size: 13px; font-weight: 600;
     color: var(--muted); text-shadow: none; }
-  .stat-tile .sl { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+  .stat-tile .sl { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); margin-top: 4px; }
   /* Section headers on the Stats screen — full-width labels over each block
      ("Runs" over the campaign tiles, "Zen" over the Zen split): §3 sub-header
      voice, gold display face. */
   .stats-head { grid-column: 1 / -1; font-family: var(--font-display); font-weight: 800;
-    font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
+    font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase;
     color: var(--gold); margin: 2px 0 -2px; }
   /* ZEN section of the Stats screen: one sub-block per difficulty, each a legacy
      summary line + a twin wins/loss histogram (tap the outcome bar to toggle).
      Its OWN record — separate store from the campaign "Runs" tiles above. */
   .stats-zen { grid-column: 1 / -1; background: var(--felt-deep); border: var(--px) solid var(--ink);
     border-radius: 0; padding: 10px 12px; }
-  .stats-zen .sz-head { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.8px;
+  .stats-zen .sz-head { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.8px;
     text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
   /* ZEN4 — ONE combined histogram: a segmented scope filter, a single stats
      line, an optional Back chip (when drilled), and VERTICAL bars. */
@@ -2475,17 +2476,17 @@ const NativeApp = (() => {
   /* Segmented scope filter: pixel chips; the live scope is the phosphor key. */
   .zf-opt { flex: 1; min-height: 32px; padding: 4px 2px; border: var(--px) solid var(--ink);
     border-radius: 0; background: var(--felt-mid); color: var(--muted);
-    font-size: 11px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; }
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px; cursor: pointer; }
   .zf-opt.selected { background: var(--phosphor); border-color: var(--ink);
     color: var(--ink); }
   .zf-opt:active { opacity: 0.85; }
   /* The single scope stats line (combined under All, one difficulty otherwise). */
-  .zh-scope { font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+  .zh-scope { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
   .zh-scope b { font-weight: 700; color: var(--phosphor); }
   /* Back chip — present only when drilled into a distribution (level 1). */
   .zh-back { display: inline-flex; align-items: center; min-height: 30px; padding: 3px 12px;
     margin: 0 0 8px; border: var(--px) solid var(--ink); border-radius: 0;
-    background: var(--felt-mid); color: var(--phosphor); font-size: 11.5px;
+    background: var(--felt-mid); color: var(--phosphor); font-size: 12px;
     font-weight: 700; cursor: pointer; }
   .zh-back:active { opacity: 0.85; }
   /* ZEN6 — ONE continuous histogram across THREE view states on a single node
@@ -2523,7 +2524,7 @@ const NativeApp = (() => {
      aggregate/grand-total. */
   .zh-wins .zc-lagg, .zh-loss .zc-wagg { flex-basis: 62px; max-width: 62px; margin-right: 12px;
     background: var(--felt-mid); border-radius: 0; }
-  .zh-wins .zc-lagg .zv-k, .zh-loss .zc-wagg .zv-k { font-size: 10.5px; font-weight: 700; }
+  .zh-wins .zc-lagg .zv-k, .zh-loss .zc-wagg .zv-k { font-size: 12px; font-weight: 700; }
   /* WINS drill mirror fix: the condensed Losses lead moves to the RIGHT edge
      (flex order — it sits before the win columns in the DOM), so wins expand
      from the LEFT exactly as losses do in their drill. */
@@ -2531,7 +2532,7 @@ const NativeApp = (() => {
   /* Axis caption under a drilled histogram — names what the bars measure.
      Both captions are always in the DOM (the drill toggles ONLY the histo's
      state class); the sibling selector shows the one for the active state. */
-  .zh-axis { font-size: 11px; color: var(--muted); text-align: center;
+  .zh-axis { font-size: 12px; color: var(--muted); text-align: center;
     margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
   .zh-axis .za-w, .zh-axis .za-l { display: none; }
   .zv-histo.zh-wins + .zh-axis .za-w { display: inline; }
@@ -2543,7 +2544,7 @@ const NativeApp = (() => {
   .zh-wins .zc-wagg,  .zh-wins .zc-ldist,
   .zh-loss .zc-lagg,  .zh-loss .zc-wdist {
     max-width: 0; flex-basis: 0; margin-left: 0; margin-right: 0; opacity: 0; pointer-events: none; }
-  .zv-c { font-family: var(--font-display); font-weight: 700; font-size: 11px;
+  .zv-c { font-family: var(--font-display); font-weight: 700; font-size: 12px;
     color: var(--text); margin-bottom: 2px; }
   .zv-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
   /* The bar height rides a per-state CSS var so the class swap animates it as
@@ -2555,7 +2556,7 @@ const NativeApp = (() => {
   /* Flat palette bars: wins PHOSPHOR, losses SUIT-RED (gradients retired). */
   .zv-win .zv-bar { background: var(--phosphor); }
   .zv-loss .zv-bar { background: var(--suit-red); }
-  .zv-k { margin-top: 4px; font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  .zv-k { margin-top: 4px; font-size: 12px; color: var(--muted); white-space: nowrap;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   /* Aggregate columns are the drill tap targets — bolder key, pointer, active cue. */
   .zv-tap { cursor: pointer; }
@@ -2571,7 +2572,7 @@ const NativeApp = (() => {
   .manual-body .manual-lede { color: var(--accent-2); font-size: 13.5px; margin: 0 0 8px;
     border-left: 2px solid var(--accent); padding-left: 10px; }
   .manual-body h4 {
-    font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: 0.5px;
+    font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: 0.5px;
     color: var(--phosphor); margin: 14px 0 4px;
   }
   .manual-body h4:first-child { margin-top: 0; }
@@ -2610,11 +2611,11 @@ const NativeApp = (() => {
   .wt-deck .db.top i { width: 36px; height: 54px; border-radius: 0; border: 2px dashed rgba(16, 16, 14, 0.42); }
   .wt-deck .ct { position: absolute; right: -7px; bottom: -7px; padding: 1px 6px; border-radius: 0;
     background: var(--phosphor); color: var(--ink); border: 1px solid var(--ink);
-    font-size: 10px; font-weight: 800; box-shadow: 2px 2px 0 0 var(--shadow); }
+    font-size: 12px; font-weight: 800; box-shadow: 2px 2px 0 0 var(--shadow); }
   .wt-smallboard { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
   .wt-smallboard .mini-card { width: 34px; }
   .wt-smallboard .mini-card .mc-rank { font-size: 13px; }
-  .wt-smallboard .mini-card .mc-suit { font-size: 11px; }
+  .wt-smallboard .mini-card .mc-suit { font-size: 12px; }
 
   .wt-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 10px; }
   .wt-dots { display: flex; gap: 6px; }
@@ -2639,7 +2640,7 @@ const NativeApp = (() => {
   /* Outcome columns (slide 3) */
   .wt-split { display: flex; gap: 20px; align-items: flex-start; justify-content: center; }
   .wt-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  .wt-tag { font-size: 10.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+  .wt-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
   .wt-tag.good { color: var(--good); }
   .wt-tag.bad { color: var(--bad); }
   .wt-stack { position: relative; width: 52px; height: 86px; }
@@ -2654,7 +2655,7 @@ const NativeApp = (() => {
   .wt-score .num { font-family: var(--font-display); font-weight: 700; font-size: 20px;
     color: var(--phosphor); text-shadow: var(--glow); line-height: 1; }
   .wt-score .num.coin { color: var(--gold); text-shadow: none; display: inline-flex; align-items: center; gap: 3px; }
-  .wt-score .lab { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .wt-score .lab { font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
   .wt-score .op { font-size: 20px; color: var(--muted); padding-bottom: 9px; }
   /* Store + placement flow (slide 5) */
   .wt-flow { display: flex; flex-direction: column; gap: 12px; }
@@ -2664,11 +2665,11 @@ const NativeApp = (() => {
     box-shadow: 2px 2px 0 0 var(--shadow);
     padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
   .wt-shop-item .ico { font-size: 20px; color: var(--accent-2); }
-  .wt-shop-item .nm { font-size: 10px; font-weight: 700; color: var(--text); }
-  .wt-shop-item .pr { font-size: 11px; font-weight: 800; color: var(--gold); display: inline-flex; align-items: center; gap: 2px; }
+  .wt-shop-item .nm { font-size: 12px; font-weight: 700; color: var(--text); }
+  .wt-shop-item .pr { font-size: 12px; font-weight: 800; color: var(--gold); display: inline-flex; align-items: center; gap: 2px; }
   .wt-pillar-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 0;
     background: var(--felt-deep); border: 1px solid var(--gold); color: var(--gold);
-    font-size: 9.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+    font-size: 12px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
   .wt-pillar-tag .ico { font-size: 12px; }
   .wt-mini-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .wt-mini-col .col-cards { display: flex; flex-direction: column; gap: 4px; }
@@ -2678,18 +2679,18 @@ const NativeApp = (() => {
   /* Map-layer slide (the climb) — a compact vertical node trail, top = home. */
   .wt-map { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .wt-mapnode { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 0;
-    font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; background: var(--felt-mid); border: 1px solid var(--ink); color: var(--text); }
+    font-size: 12px; font-weight: 800; letter-spacing: 0.4px; background: var(--felt-mid); border: 1px solid var(--ink); color: var(--text); }
   .wt-mapnode.home { background: var(--phosphor); color: var(--ink); border-color: var(--ink); }
   .wt-mapnode.grow { color: var(--good); border-color: var(--good); }
   .wt-mapline { color: var(--muted); font-size: 13px; line-height: 0.7; }
   /* Store item-class list slide (aligned to the STOREHELP1 legend + PACKS1). */
   .wt-classlist { display: flex; flex-direction: column; gap: 5px; text-align: left; width: 258px; }
-  .wt-classlist > div { font-size: 11px; line-height: 1.35; color: var(--text); }
+  .wt-classlist > div { font-size: 12px; line-height: 1.35; color: var(--text); }
   .wt-classlist b { color: var(--accent-2); }
   /* "Replay tutorial" footer action (secondary — never the primary Next/Got it). */
   .wt-replay-row { display: flex; justify-content: center; margin-top: 10px; }
   .wt-replay { background: transparent; border: 1px solid var(--ink); color: var(--muted);
-    border-radius: 0; padding: 7px 16px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+    border-radius: 0; padding: 7px 16px; font-size: 12px; font-weight: 700; cursor: pointer;
     font-family: var(--font-text); letter-spacing: 0.4px; display: inline-flex; align-items: center; gap: 6px; }
   .wt-replay:active { transform: scale(0.97); }
   .wt-replay .ico { display: inline-flex; width: 13px; height: 13px; }
@@ -2773,7 +2774,7 @@ const NativeApp = (() => {
   /* Off the map the panel can't linger either (belt to the JS close). */
   .map-key-panel.hidden, body:not(.on-map) .map-key-panel { display: none; }
   .mk-head { display: flex; align-items: center; justify-content: space-between;
-    font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
     color: var(--muted); padding-bottom: 2px; }
   /* Shared close-chip for both key panels: a VISIBLE bordered pixel chip with
      a "close" label — the old borderless muted × didn't read as collapsible
@@ -2782,7 +2783,7 @@ const NativeApp = (() => {
     background: var(--felt-deep) !important; color: var(--card-face) !important;
     border: var(--px) solid var(--ink) !important; box-shadow: 2px 2px 0 0 var(--shadow);
     font-size: 14px !important; padding: 2px 8px; cursor: pointer; }
-  .key-close .kc-lab { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .key-close .kc-lab { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
   .key-close:active { transform: translate(2px, 2px); box-shadow: none; }
   .mk-close { background: none; border: none; color: var(--muted); font-size: 20px;
     line-height: 1; padding: 0 2px; cursor: pointer; touch-action: manipulation; }
@@ -2796,7 +2797,7 @@ const NativeApp = (() => {
     transform: scale(var(--mk-s, 0.68)); transition: none; }
   .mk-lab { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .mk-lab b { font-size: 12.5px; }
-  .mk-lab small { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+  .mk-lab small { font-size: 12px; color: var(--muted); line-height: 1.3; }
 
   /* STOREHELP1 — the store item-type legend, the shop's mirror of the map key.
      A circular "?" that lives IN the store header (in-flow, not the fixed
@@ -2825,7 +2826,7 @@ const NativeApp = (() => {
     padding: 8px 12px 10px; }
   .store-key-panel.hidden { display: none; }
   .sk-head { display: flex; align-items: center; justify-content: space-between;
-    font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
     color: var(--muted); padding-bottom: 2px; }
   .sk-close { background: none; border: none; color: var(--muted); font-size: 20px;
     line-height: 1; padding: 0 2px; cursor: pointer; touch-action: manipulation; }
@@ -2838,7 +2839,7 @@ const NativeApp = (() => {
   .sk-art > * { transform: scale(var(--sk-s, 0.62)); transform-origin: center; }
   .sk-lab { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .sk-lab b { font-size: 12.5px; }
-  .sk-lab small { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+  .sk-lab small { font-size: 12px; color: var(--muted); line-height: 1.3; }
 
   /* ============================================================
      OVERLAY (win / lose / start)
@@ -2888,7 +2889,7 @@ const NativeApp = (() => {
 
   .peek-hint {
     margin-top: 14px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--muted);
     opacity: 0.8;
   }
@@ -3022,7 +3023,7 @@ const NativeApp = (() => {
   }
   .summary-block.hidden { display: none; }
   .summary-label {
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     color: var(--muted);
@@ -3052,7 +3053,7 @@ const NativeApp = (() => {
     line-height: 1.2;
   }
   .run-stat-label {
-    font-size: 10px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: var(--muted);
@@ -3076,7 +3077,7 @@ const NativeApp = (() => {
   }
   .ep-cell.empty { background: none; border-style: dashed; }
   .ep-cell .ep-icon { font-size: 17px; line-height: 1; }
-  .ep-cell .ep-name { font-size: 9.5px; font-weight: 800; line-height: 1.12; color: var(--text); }
+  .ep-cell .ep-name { font-size: 12px; font-weight: 800; line-height: 1.12; color: var(--text); }
   .ep-cell .ep-dash { color: var(--muted); font-weight: 700; }
   /* Pillar row rims GOLD (the pillar identity since chunk 3); the Base row
      stays quiet cream — same at-a-glance split, palette-only. */
@@ -3084,7 +3085,7 @@ const NativeApp = (() => {
   .ep-bases .ep-cell:not(.empty) { border-color: var(--card-face); }
   .ep-colnums { padding: 1px 0; }
   .ep-colnum {
-    text-align: center; font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
+    text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--muted); font-weight: 800;
   }
 
@@ -3131,7 +3132,7 @@ const NativeApp = (() => {
   .store-top { width: min(94vw, 440px); display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
   .store-head { display: flex; flex-direction: column; gap: 1px; }
   .store-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: 0.3px; color: var(--text); line-height: 1; }
-  .store-balance { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .store-balance { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
   .store-balance b { color: var(--amber-text); font-size: 17px; font-weight: 800; }
   .store-balance .coin-ico { font-size: 13px; }
   /* Refresh: a defined store-level control (re-rolls the whole offering).
@@ -3159,7 +3160,7 @@ const NativeApp = (() => {
     font-weight: 800; font-size: 12px; letter-spacing: 1.1px; text-transform: uppercase;
     margin: 2px 3px 4px; }
   .shelf-h .rule { flex: 1; height: 1px; background: currentColor; opacity: 0.22; }
-  .shelf-h .tag { font-family: var(--font-text); font-size: 10px; font-weight: 500; font-style: italic;
+  .shelf-h .tag { font-family: var(--font-text); font-size: 12px; font-weight: 500; font-style: italic;
     letter-spacing: 0.2px; opacity: 0.62; text-transform: none; color: var(--muted); }
 
   /* Same-Power badge: the power's glyph over its name. CRT CASINO: the old
@@ -3185,7 +3186,7 @@ const NativeApp = (() => {
      phosphor on the deep-felt plate. */
   .sp-badge-ico .sp-mark { width: 24px; height: 24px; display: block; color: var(--phosphor); user-select: none; -webkit-user-drag: none; }
   .sp-info-ico .ico { width: 20px; height: 20px; display: block; }
-  .sp-badge-name { font-family: var(--font-text); font-size: 11px; font-weight: 700;
+  .sp-badge-name { font-family: var(--font-text); font-size: 12px; font-weight: 700;
     letter-spacing: 0.3px; color: var(--card-face); }
   .tray-samepower .to-art { display: flex; align-items: center; justify-content: center; }
   .tray-samepower.armed { outline: 2px solid var(--phosphor); outline-offset: 2px; border-radius: 0; }
@@ -3274,12 +3275,12 @@ const NativeApp = (() => {
     background: var(--pxi-removal) center top / contain no-repeat;
     image-rendering: pixelated;
     color: rgba(236, 228, 207, 0.6); }
-  .removal-obj .ro-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  .removal-obj .ro-lab { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
     transform: translateY(100%); }   /* label hangs under the card art */
   .store-tile .ti-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
   .sd-obj.obj-removal { display: flex; align-items: center; justify-content: center; }
   .sd-obj.obj-removal .removal-obj { width: 60px; height: 84px; }
-  .sd-obj.obj-removal .ro-lab { font-size: 11px; }
+  .sd-obj.obj-removal .ro-lab { font-size: 12px; }
   .store-tile.tile-removal.sel .removal-obj { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Footer pinned to the bottom of the no-scroll store: the action row only. */
@@ -3305,7 +3306,7 @@ const NativeApp = (() => {
   .loadout-grid { display: flex; align-items: stretch; gap: 8px; }
   .lo-cols { flex: 1 1 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .lo-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .lo-col-n { font-size: 8.5px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+  .lo-col-n { font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
     color: var(--muted); text-align: center; opacity: 0.7; }
   .lo-same { flex: 0 0 auto; display: flex; align-items: stretch; }
   /* An equipped chip: small icon glyph + label on a recessed deep-felt slab.
@@ -3314,7 +3315,7 @@ const NativeApp = (() => {
   .lo-chip { display: flex; align-items: center; gap: 5px; min-width: 0;
     background: var(--felt-deep); border: 1px solid var(--ink); border-radius: 0;
     padding: 5px 7px; cursor: pointer; touch-action: manipulation;
-    font-size: 10.5px; font-weight: 700; color: var(--text); transition: transform 0.1s ease; }
+    font-size: 12px; font-weight: 700; color: var(--text); transition: transform 0.1s ease; }
   .lo-chip:active { transform: translate(2px, 2px); }
   .lo-chip .lo-ico { width: 15px; height: 15px; flex: 0 0 auto; display: inline-flex;
     align-items: center; justify-content: center; font-size: 13px; line-height: 1; }
@@ -3330,7 +3331,7 @@ const NativeApp = (() => {
      still reads even when nothing is equipped there. */
   .lo-empty { display: flex; align-items: center; justify-content: center;
     border: 1px dashed rgba(236, 228, 207, 0.3); border-radius: 0; padding: 5px 7px;
-    font-size: 10px; font-weight: 600; color: var(--muted); opacity: 0.7; }
+    font-size: 12px; font-weight: 600; color: var(--muted); opacity: 0.7; }
 
   /* ---- Shop item detail overlay: a focused look at one object ----
      Dim backdrop; the object rendered larger; rarity, name, description,
@@ -3378,7 +3379,7 @@ const NativeApp = (() => {
   .sd-obj.obj-base .base-banner.plaque.big { height: 48px; width: 85px; max-width: none; }
   /* Tier ladder mapped to the palette (same read as the shelf's rarity strip):
      common = quiet cream, uncommon = gold, rare = phosphor. */
-  .sd-tier { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
+  .sd-tier { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
     color: rgba(236, 228, 207, 0.55); }
   .sd-tier[data-tier="uncommon"] { color: var(--gold); }
   .sd-tier[data-tier="rare"] { color: var(--phosphor); text-shadow: var(--glow); }
@@ -3397,13 +3398,13 @@ const NativeApp = (() => {
     display: flex; flex-direction: column; align-items: center; gap: 3px; }
   /* The INCOMING side reads phosphor — the highlight accent, the side you act on. */
   .sdc-side.sdc-new { border: var(--px) solid var(--phosphor); }
-  .sdc-tag { font-size: 9px; font-weight: 800; letter-spacing: 0.09em;
+  .sdc-tag { font-size: 12px; font-weight: 800; letter-spacing: 0.09em;
     text-transform: uppercase; color: var(--muted); }
   .sdc-obj { height: 58px; width: 100%; display: flex; align-items: center; justify-content: center; }
   .sdc-obj .cph-banner.pennant { height: 52px; width: 52px; }
   .sdc-obj .base-banner.plaque { height: 32px; width: auto; aspect-ratio: var(--plaque-ar); }
   .sdc-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.2; }
-  .sdc-desc { font-size: 10px; line-height: 1.35; color: var(--muted);
+  .sdc-desc { font-size: 12px; line-height: 1.35; color: var(--muted);
     text-align: center; max-height: 62px; overflow-y: auto; }
   .sdc-arrow { align-self: center; flex: 0 0 auto; font-size: 16px; font-weight: 800; color: var(--gold); }
   /* Empty-slot placeholder: the same box, a dashed slot silhouette inside
@@ -3423,7 +3424,7 @@ const NativeApp = (() => {
   .sd-place { width: 100%; display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px;
     border-top: 1px solid rgba(236, 228, 207, 0.18); padding-top: 10px; }   /* subtle break after the description */
   .sd-place.hidden { display: none; }
-  .sd-place-h { font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  .sd-place-h { font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
     color: rgba(236, 228, 207, 0.74); text-transform: uppercase; }
   .sd-cols { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
   .sd-col { flex: 1 1 0; min-width: 0; max-width: 130px; overflow: hidden;
@@ -3434,11 +3435,11 @@ const NativeApp = (() => {
   .sd-col:active { transform: translate(2px, 2px); }
   /* Picked slot lights phosphor (selection = the one sanctioned highlight). */
   .sd-col.sd-col-sel { border-color: var(--phosphor); background: var(--sel); }
-  .sd-col .sdc-n { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; }
+  .sd-col .sdc-n { font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; }
   /* Occupant name: wrap to at most TWO lines inside the cell, then clip —
      long Pillar names (e.g. "Diamond Distribution") must never spill into
      the neighbouring column cell. */
-  .sd-col .sdc-occ { font-size: 11.5px; font-weight: 700; line-height: 1.15;
+  .sd-col .sdc-occ { font-size: 12px; font-weight: 700; line-height: 1.15;
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
     -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; }
   .sd-col .sdc-occ.sdc-empty { opacity: 0.6; font-weight: 600; font-style: italic; }
@@ -3606,7 +3607,7 @@ const NativeApp = (() => {
     background: var(--felt-deep); border: 1px solid var(--ink);
   }
   .pk-sticker .pks-ic { font-size: 22px; line-height: 1; }
-  .pk-sticker .pks-name { font-size: 9px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .pk-sticker .pks-name { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.1; }
 
   /* Mini playing card (revealed card-pack item + held pack-tray cards). */
   .mini-card {
@@ -3623,7 +3624,7 @@ const NativeApp = (() => {
      from a rank/suit card so they read as special picks at a glance. */
   .mini-card.mc-special { gap: 3px; }
   .mini-card.mc-special .mcs-sym { font-size: 22px; line-height: 1; }
-  .mini-card.mc-special .mcs-lab { font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .mini-card.mc-special .mcs-lab { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
   /* Chunk 5: joker/blank faces are the §7 pixel cards (gold ★ on deep felt /
      smoke stitch fabric). The art fills the card box; the ★ text sym hides
      (baked in) and the label pins to the bottom edge, clear of the star. */
@@ -3645,7 +3646,7 @@ const NativeApp = (() => {
   .mini-card .mc-rank { font-size: 24px; line-height: 0.9; }
   .mini-card .mc-suit { font-size: 13px; line-height: 1.1; }
   .mini-card .mc-badges {
-    position: absolute; top: 2px; right: 2px; font-size: 9px; line-height: 1;
+    position: absolute; top: 2px; right: 2px; font-size: 12px; line-height: 1;
     display: flex; gap: 1px; max-width: 70%; flex-wrap: wrap; justify-content: flex-end;
   }
 
@@ -3663,7 +3664,7 @@ const NativeApp = (() => {
   .pack-tray .pt-card { background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; position: relative; }
   .pack-tray .pt-card:active { transform: scale(0.95); }
   .pack-tray .pt-card.armed .mini-card { outline: 2px solid var(--phosphor); outline-offset: 2px; }
-  .pack-tray .pt-label { font-size: 8px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pack-tray .pt-label { font-size: 12px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Active-Pillar indicators: ONE fixed horizontal row at the top of the board,
      with a cell per column so each icon is centered over its column AND all
@@ -3726,7 +3727,7 @@ const NativeApp = (() => {
     display: flex; align-items: center; justify-content: center;
     border-radius: 0;
     font-family: var(--font-text);
-    font-size: 10px; font-weight: 800; line-height: 1;
+    font-size: 12px; font-weight: 800; line-height: 1;
     color: var(--card-face); background: var(--ink);
     border: 1px solid rgba(236, 228, 207, 0.4);
     font-variant-numeric: tabular-nums;
@@ -3744,7 +3745,7 @@ const NativeApp = (() => {
     position: absolute; right: 2px; bottom: -1px;
     min-width: 16px; height: 16px; padding: 0 2px; border-radius: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 800; line-height: 1;
+    font-size: 12px; font-weight: 800; line-height: 1;
     color: var(--ink); background: var(--phosphor); border: 1px solid var(--ink);
     box-shadow: none; transition: all 0.2s ease;
   }
@@ -3884,7 +3885,7 @@ const NativeApp = (() => {
     position: absolute; left: 3px; top: 2px;
     min-width: 13px; height: 13px; padding: 0 3px; box-sizing: border-box;
     border-radius: 0; background: var(--ink); color: var(--card-face);
-    font-size: 9px; font-weight: 800; line-height: 13px; text-align: center;
+    font-size: 12px; font-weight: 800; line-height: 13px; text-align: center;
     border: 1px solid rgba(236, 228, 207, 0.55); pointer-events: none; z-index: 2;
     transition: transform 0.12s ease;
   }
@@ -3896,7 +3897,7 @@ const NativeApp = (() => {
     background: var(--felt-deep); box-shadow: none;
   }
   .base-banner.big { width: min(100%, 144px); }
-  .base-banner.big .base-name { font-size: 11px; }
+  .base-banner.big .base-name { font-size: 12px; }
 
   /* ---- PACK = the §7 pixel foil (shop object). CRT CASINO chunk 5: the
      CSS-built crimp/dither/window painting is retired — the sealed pack IS
@@ -3917,12 +3918,12 @@ const NativeApp = (() => {
   .pack-foil.pf-large .pf-art { background-image: var(--pxi-packLarge); }
   .pf-name {
     flex: none;
-    font-family: var(--font-text); font-size: 8px; font-weight: 800;
+    font-family: var(--font-text); font-size: 12px; font-weight: 800;
     color: var(--card-face); text-transform: uppercase; letter-spacing: 0.5px; text-align: center;
     text-shadow: none;
   }
   .pack-foil.big { width: 96px; }
-  .pack-foil.big .pf-name { font-size: 9.5px; }
+  .pack-foil.big .pf-name { font-size: 12px; }
   /* Tear-open: a quick rip + flash of the whole foil, then the reveal modal
      (the separate crimp-rip layer went with the crimp spans). */
   @keyframes packTear {
@@ -4003,7 +4004,7 @@ const NativeApp = (() => {
     .pile.saved-pulse .card { animation: none; outline: 3px solid var(--phosphor); outline-offset: 1px; }
   }
   .pillar-float.save-float {
-    top: 4px; z-index: 8; color: var(--phosphor); font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
+    top: 4px; z-index: 8; color: var(--phosphor); font-size: 12px; font-weight: 800; letter-spacing: 0.3px;
     background: var(--ink); border: 1px solid var(--phosphor);
     border-radius: 0; padding: 2px 8px;
     text-shadow: var(--glow);
@@ -4024,7 +4025,7 @@ const NativeApp = (() => {
      tuck under), so a 3-card bury reads distinctly from a 1-card one. Deliberately
      quiet (not coin-gold / not save-phosphor) and only shown for 2+ cards. */
   .pillar-float.bury-float {
-    top: auto; bottom: 6px; z-index: 7; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.2px;
+    top: auto; bottom: 6px; z-index: 7; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: 0.2px;
     background: var(--felt-mid); border: 1px solid var(--ink);
     border-radius: 0; padding: 1px 7px; text-shadow: none;
   }
@@ -4162,7 +4163,7 @@ const NativeApp = (() => {
     flex: none; display: inline-flex; align-items: center; gap: 4px;
     background: var(--felt-deep); color: var(--bad);
     border: 1px solid var(--danger); border-radius: 0;
-    padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+    padding: 5px 11px; font-size: 12px; font-weight: 800; cursor: pointer; touch-action: manipulation;
   }
   .tray-help .th-trash .ico { font-size: 13px; }
   .tray-help .th-trash.hidden { display: none; }
@@ -4214,7 +4215,7 @@ const NativeApp = (() => {
   .tray-pillar.placed { background: var(--felt-mid); border-color: var(--gold); }
   .tray-pillar.placed .tp-name { color: var(--gold); }
   .tray-pillar .tp-col {
-    font-size: 9px; font-weight: 800; color: var(--gold);
+    font-size: 12px; font-weight: 800; color: var(--gold);
     text-transform: uppercase; letter-spacing: 0.4px;
     background: var(--ink); border-radius: 0; padding: 1px 6px;
   }
@@ -4330,7 +4331,7 @@ const NativeApp = (() => {
   .dcs-n {
     position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; padding: 0 3px;
     background: var(--ink); color: var(--card-face); border: var(--px) solid var(--card-face); border-radius: 0;
-    font-family: var(--font-text); font-size: 9px; font-weight: 800; line-height: 11px; text-align: center;
+    font-family: var(--font-text); font-size: 12px; font-weight: 800; line-height: 11px; text-align: center;
     transform: rotate(calc(var(--dcs-rot) * -1)); z-index: 2;
   }
 
@@ -4473,7 +4474,7 @@ const NativeApp = (() => {
   .pile-fan.hidden { display: none; }
   .pile-fan .pf-head { display: flex; align-items: baseline; justify-content: space-between;
     font-size: 13.5px; font-weight: 800; margin-bottom: 4px; }
-  .pile-fan .pf-order { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+  .pile-fan .pf-order { font-size: 12px; font-weight: 600; color: var(--muted); }
   .pile-fan .pf-cards { display: flex; flex-wrap: wrap; justify-content: center;
     gap: 12px 9px; overflow-y: auto; padding: 10px 2px 12px; min-height: 0;
     -webkit-overflow-scrolling: touch; }   /* bottom padding clears the BOTTOM pill */
@@ -4487,12 +4488,12 @@ const NativeApp = (() => {
   .pile-fan .pf-card:nth-child(4n+3) { transform: rotate(-1.6deg); }
   .pile-fan .pf-card:nth-child(4n)   { transform: rotate(3deg); }
   .pile-fan .pf-top { position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-    z-index: 2; padding: 1px 5px; border-radius: 0; font-size: 8px; font-weight: 900;
+    z-index: 2; padding: 1px 5px; border-radius: 0; font-size: 12px; font-weight: 900;
     letter-spacing: 0.5px; color: var(--ink); background: var(--phosphor); white-space: nowrap; }
   /* Matching marker on the LAST fanned card (the pile's bottom) — same chip,
      anchored under the card, muted so TOP stays the loud one. */
   .pile-fan .pf-bottom { top: auto; bottom: -8px; background: var(--felt-deep); color: var(--card-face); }
-  .pile-fan .pf-note { font-size: 10.5px; color: var(--muted); text-align: center; margin-top: 7px; }
+  .pile-fan .pf-note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 7px; }
   /* Static volatility indicator: a brief toast over the column at deal end saying
      the Static Pillar is Safe (green) or Destroyed (red), with a pop. A destroyed
      Pillar's column cell also shatter-shakes. Fixed overlay, self-removing. */
@@ -4568,7 +4569,7 @@ const NativeApp = (() => {
     -webkit-touch-callout: none;
     user-select: none;
   }
-  .deck-stat .deck-peek-ico { font-size: 10px; opacity: 0.5; margin-left: 1px; }
+  .deck-stat .deck-peek-ico { font-size: 12px; opacity: 0.5; margin-left: 1px; }
   .deck-stat:active { filter: brightness(1.15); }
 
   /* Full breakdown — a bottom sheet, thumb-friendly */
@@ -4655,7 +4656,7 @@ const NativeApp = (() => {
      the % -height track bars used here). */
   .deck-modal-hist .ds-bar { height: 100%; }
   .deck-modal-hist .dh-legend { display: flex; align-items: center; justify-content: center; gap: 5px;
-    font-size: 9px; font-weight: 700; color: var(--muted); margin-top: 5px; }
+    font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 5px; }
   .deck-modal-hist .dh-k { width: 9px; height: 9px; border-radius: 0; display: inline-block; margin-left: 8px; }
   .deck-modal-hist .dh-k:first-child { margin-left: 0; }
   .deck-modal-hist .dh-k-rem { background: var(--card-face); }
@@ -4668,7 +4669,7 @@ const NativeApp = (() => {
   }
   .deck-modal-suits.hidden { display: none; }
   .deck-modal-suits .dsuit-lbl {
-    font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--muted); font-weight: 700; margin-right: 2px;
   }
   .deck-modal-suits .dsuit {
@@ -4679,12 +4680,12 @@ const NativeApp = (() => {
   .deck-modal-suits .dsuit.red { color: var(--card-red); }
   .deck-modal-suits .dsuit-ic { font-size: 14px; line-height: 1; }
   .deck-modal-suits .dsuit-n { font-size: 13px; font-variant-numeric: tabular-nums; }
-  .deck-modal-suits .dsuit-of { color: var(--muted); font-weight: 700; font-size: 11px; }
+  .deck-modal-suits .dsuit-of { color: var(--muted); font-weight: 700; font-size: 12px; }
 
   /* ---- buy-time sticker apply picker (Section 3) ---- */
   .sa-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 8px; }
   .sa-banner .sa-name { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--accent-2); }
-  .sa-banner .sa-desc { flex-basis: 100%; font-size: 11.5px; line-height: 1.35; color: var(--muted); white-space: pre-line; }
+  .sa-banner .sa-desc { flex-basis: 100%; font-size: 12px; line-height: 1.35; color: var(--muted); white-space: pre-line; }
   .sa-banner .ip-art { display: inline-flex; align-items: center; }
   /* The placement-modal banner art gets an explicit box for the same reason as
      the store-detail popup above: the pennant/plaque size themselves off the
@@ -4907,7 +4908,7 @@ const NativeApp = (() => {
     font-weight: 700;
     font-size: 13px;
   }
-  .bd-pct { color: var(--muted); font-weight: 600; font-size: 11px; }
+  .bd-pct { color: var(--muted); font-weight: 600; font-size: 12px; }
 
   /* Quick peek — floats, never intercepts input, vanishes on release */
   .deck-quick {
@@ -4990,7 +4991,7 @@ const NativeApp = (() => {
   .peek-info .pk-ic, .card-info-panel .pk-ic { font-size: 18px; flex: 0 0 auto; line-height: 1.2; }
   .peek-info .pk-name, .card-info-panel .pk-name { font-weight: 700; }
   .peek-info .pk-desc, .card-info-panel .pk-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 1px; white-space: pre-line; }
-  .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 11.5px; margin-top: 3px; }
+  .peek-info .pk-state, .card-info-panel .pk-state { color: var(--amber); font-size: 12px; margin-top: 3px; }
   .peek-info .pk-empty, .card-info-panel .pk-empty { color: var(--muted); font-style: italic; }
   .peek-info .pk-locked { color: var(--muted); }
   /* "Sell for coins" (setup only). The peek popup is pointer-events:none, so
@@ -5201,7 +5202,7 @@ const NativeApp = (() => {
   }
   .debug-log .dl-line {
     font-family: var(--font-text);
-    font-size: 11px; line-height: 1.45; color: var(--text);
+    font-size: 12px; line-height: 1.45; color: var(--text);
     padding-left: 12px; border-left: 2px solid var(--panel-2); margin-left: 2px;
     white-space: pre-wrap; word-break: break-word;
   }
@@ -5219,7 +5220,7 @@ const NativeApp = (() => {
 
   footer {
     text-align: center;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--muted);
     padding: 6px 0 10px;
     opacity: 0.8;
@@ -5440,7 +5441,7 @@ const NativeApp = (() => {
   .pm-addr {
     position: absolute; transform: translate(-50%, -50%); z-index: 6;
     pointer-events: none; white-space: nowrap;
-    font-family: var(--font-text); font-size: 10px; font-weight: 700; line-height: 1;
+    font-family: var(--font-text); font-size: 12px; font-weight: 700; line-height: 1;
     letter-spacing: 0.04em; color: var(--card-face);
     background: var(--ink); border: 1px solid var(--card-face);
     padding: 2px 4px; border-radius: 0;
@@ -5458,10 +5459,10 @@ const NativeApp = (() => {
   /* COIN REWARD chip (ECON1): the deal's flat payout — coin icon + amount on
      the gold plaque (deals AND bosses). Higher number = harder deal. */
   .pm-node .mn-piles.mn-reward { gap: 2.5px; padding: 0 6px; }
-  .pm-node .mn-reward .coin-ico { font-size: 10px; }
+  .pm-node .mn-reward .coin-ico { font-size: 12px; }
   /* BOSS full-deck marker: a distinct danger pill (never a difficulty pip row)
      so a boss reads at a glance as "the whole deck, always". */
-  .pm-node .mn-piles.mn-full { font-size: 8.5px; font-weight: 900; letter-spacing: 0.6px;
+  .pm-node .mn-piles.mn-full { font-size: 12px; font-weight: 900; letter-spacing: 0.6px;
     color: var(--card-face); background: var(--suit-red);
     border-color: var(--ink); padding: 0 6px; height: 16px; }
 
@@ -5482,6 +5483,10 @@ const NativeApp = (() => {
      the sub-64px clamp collapses their corner indices — so pickup nodes
      showed ONLY the suit. Mirror the board's centre-rank/pip layout at the
      node-card's own --ps scale. */
+  /* v5.62 (12px font floor): at 42x56 the corner indices would need to be
+     BELOW the floor to fit, so they go entirely — §5 numeral-first says the
+     centre rank IS the card at this size, and the corner copy is decoration. */
+  .node-card .rank-top, .node-card .rank-bottom { display: none; }
   .node-card .rank-mid { position: absolute; top: 47%; left: 50%;
     transform: translate(-50%, -55%); font-size: calc(var(--ps) * 0.66);
     font-weight: 800; line-height: 0.8; pointer-events: none; white-space: nowrap; }
@@ -5493,7 +5498,11 @@ const NativeApp = (() => {
      reads identically everywhere. */
   .node-card .front.nc-special { align-items: center; justify-content: center; gap: 2px; }
   .node-card .nc-special .ncs-sym { font-size: 20px; line-height: 1; font-weight: 800; }
-  .node-card .nc-special .ncs-lab { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }   /* §3 floor: 8px minimum */
+  /* v5.62 (12px floor): "Removal" no longer fits a 42px card at 12px with
+     letter-spacing — drop the tracking and let the label use the full width
+     (the font stays at the floor; the LABEL gets the room). */
+  .node-card .nc-special .ncs-lab { font-size: 12px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0; width: 100%; text-align: center; }   /* §3 floor: 8px minimum */
   .node-card .front.nc-joker { background: var(--pxi-joker) center / 100% 100% no-repeat;
     image-rendering: pixelated; color: var(--gold);
     border-color: var(--gold); justify-content: flex-end; }
@@ -5545,7 +5554,7 @@ const NativeApp = (() => {
   /* "+N" loot badge = the same gold plaque idiom as the deal reward chip. */
   .mn-pack .mpk-badge { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
     z-index: 4; padding: 1px 6px; border-radius: 0; white-space: nowrap;
-    font-size: 11px; font-weight: 900; color: var(--ink); background: var(--gold);
+    font-size: 12px; font-weight: 900; color: var(--ink); background: var(--gold);
     border: var(--px) solid var(--ink); box-shadow: 2px 2px 0 0 var(--shadow); }
   .mn-pack .mpk-badge i { font-style: normal; }
 
@@ -5603,7 +5612,7 @@ const NativeApp = (() => {
   .pm-myst-out {
     position: absolute; left: 50%; top: calc(100% + 3px); transform: translateX(-50%);
     padding: 1px 5px; border-radius: 0; z-index: 7;
-    background: #7a4fd0; color: #fff; font-size: 8px; font-weight: 800; line-height: 1.3;
+    background: #7a4fd0; color: #fff; font-size: 12px; font-weight: 800; line-height: 1.3;
     white-space: nowrap; pointer-events: none;
   }
   /* Reveal pop: the just-arrived node flips in from small + tilted, overshoots,
@@ -6948,7 +6957,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.61 · bigger characters; containers stop resizing";
+const APP_VERSION = "v5.62 · 12px font floor game-wide; leaner reward line";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -24227,10 +24236,10 @@ const UIRenderer = (() => {
 
     // 1) Deal reward — the FLAT stage/difficulty payout (ECON1). An ambush has
     // no flat base (stage 0): its bounty arrives as an event line below.
+    // v5.62: the "Stage N · rating R/3" sub-row is gone (player request) — the
+    // flat amount speaks for itself. An AMBUSH still explains its missing base.
     let html = mainLine("Deal reward", b.flat) +
-      subWrap(b.stage > 0
-        ? subRow("Stage " + b.stage + " · rating " + b.rating + "/3", "flat")
-        : subRow("Ambush", "no flat reward"));
+      (b.stage > 0 ? "" : subWrap(subRow("Ambush", "no flat reward")));
 
     // (Score moved OUT of this coin list — it renders as its own phosphor
     // plaque via scorePlaqueHtml/#overlayScore, so Score and Coins read as two

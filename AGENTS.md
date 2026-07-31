@@ -75,6 +75,12 @@ The game targets phones. Four invariants, all currently enforced — keep them:
 - **One-screen store.** The store is a single fixed screen with one unified
   shelf; no tabs, no paging. Sub-flows open as overlays above it and return
   to the same screen.
+- **12px font floor.** No text in the game renders below 12px (player
+  report: smaller was unreadable). When something no longer fits at 12px,
+  give the CONTAINER room (drop tracking, widen, or drop redundant
+  decoration — e.g. map node-cards dropped their corner indices, keeping the
+  numeral-first centre rank); never shrink back under the floor. Guarded by
+  tests/fontfloor.test.mjs.
 - **Stable containers.** A container's size must NOT change when its CONTENT
   swaps. Hold-for-help takes over the histogram band by OVERLAYING it (the
   band's children go `visibility:hidden`, never `display:none`) so the band —
