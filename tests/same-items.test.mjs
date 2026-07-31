@@ -68,7 +68,7 @@ export function run() {
 
   // ================= STICKER: Tap Power =================
   {
-    // fires the equipped power on THIS pile's linked piles; banks NO charge.
+    // fires the equipped power BOARD-WIDE (v5.66); banks NO charge.
     const e = mk("linkBury");
     e.setLinks({ 0: [1, 2], 1: [0], 2: [0] });
     const b = e.getBoard();
@@ -77,9 +77,9 @@ export function run() {
     e.onEvent((t, p) => { if (t === "same-power") evt = p; });
     landSticker(e, 0, "activateSamePower");
     r.ok(evt && evt.power === "linkBury", "Tap Power fired the equipped Same-Power");
-    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "…on this pile's linked piles");
-    r.eq(b.pileSize(1), s1 + 1, "linked pile 1 got a Burrow bury");
-    r.eq(b.pileSize(2), s2 + 1, "linked pile 2 got a Burrow bury");
+    r.eq(evt.targets.length, b.aliveCount(), "…on EVERY alive pile (v5.66: links no longer scope powers)");
+    r.eq(b.pileSize(1), s1 + 1, "a pile got a Burrow bury");
+    r.eq(b.pileSize(2), s2 + 1, "…and so did the next one");
     r.ok(!e.sameCharge(), "Tap Power did NOT bank a Same Charge");
   }
 

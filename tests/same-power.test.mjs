@@ -1,11 +1,11 @@
-// The "Same" mechanic — Same-Power slot + direct-link targeting framework.
+// The "Same" mechanic — Same-Power slot + BOARD-WIDE targeting.
 // A correct Same triggers the ONE equipped Same-Power (the only artifact a Same
-// triggers). Every Same-Power acts on the piles DIRECTLY linked (synapse network)
-// to the pile the Same was called on — the hub's direct link-neighbours only, not
-// the transitive network. The UI pushes the link adjacency in via engine.setLinks
-// (mirroring exactly the links the player sees); tests set it directly. This suite
-// covers the registry, the CampaignState equip slot + persistence, the engine
-// link plumbing, and the flagship power (Burrow — bury under each linked pile).
+// triggers). As of v5.66 every Same-Power acts on ALL ALIVE PILES (a revive
+// takes any dead pile) — link adjacency no longer scopes them; the called pile
+// is still reported as the hub and linkHeavy still pays it an extra bonus.
+// engine.setLinks remains (the UI's synapse network) but no power reads it.
+// This suite covers the registry, the CampaignState equip slot + persistence,
+// the engine plumbing, and the flagship power (Burrow).
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
@@ -101,14 +101,14 @@ export function run() {
     sameOn(e, 0, 7);
     r.ok(e.sameCharge(), "the correct Same still banked a charge (Layer 1 holds)");
     r.ok(evt && evt.power === "linkBury", "a same-power event fired naming Burrow");
-    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "targets are exactly the hub's direct links");
-    r.eq(buried, 2, "buried 1 under each of the 2 linked piles");
-    r.eq(b.pileSize(1), s1 + 1, "linked pile 1 grew by 1");
-    r.eq(b.pileSize(2), s2 + 1, "linked pile 2 grew by 1");
-    r.eq(b.pileSize(5), s5, "a NON-linked pile is untouched (direct links only)");
+    r.eq(evt.targets.length, 10, "targets are EVERY alive pile (v5.66 — links no longer scope powers)");
+    r.eq(buried, 10, "buried 1 under each of the 10 alive piles");
+    r.eq(b.pileSize(1), s1 + 1, "a linked pile grew by 1");
+    r.eq(b.pileSize(2), s2 + 1, "…so did the other one");
+    r.eq(b.pileSize(5), s5 + 1, "…and an UNLINKED pile grew too (board-wide)");
   }
 
-  // --- Burrow skips DEAD linked piles (acts on alive links only) ---------
+  // --- Burrow skips DEAD piles (acts on every ALIVE pile) ----------------
   {
     const e = mk({ samePower: "linkBury" });
     const b = e.getBoard();
@@ -118,8 +118,9 @@ export function run() {
     let evt = null;
     e.onEvent((t, p) => { if (t === "same-power") evt = p; });
     sameOn(e, 0, 7);
-    r.eq(JSON.stringify(evt.targets), JSON.stringify([1]), "only the ALIVE linked pile is a Burrow target");
-    r.eq(b.pileSize(1), s1 + 1, "the alive linked pile grew");
+    r.ok(evt.targets.length === 9 && !evt.targets.includes(2),
+      "every ALIVE pile is a Burrow target; the dead one is skipped");
+    r.eq(b.pileSize(1), s1 + 1, "an alive pile grew");
   }
 
   // --- a Same with NOTHING equipped just banks (no power, no event) ------
@@ -153,22 +154,21 @@ export function run() {
     r.eq(JSON.stringify(evt.targets), JSON.stringify([4]), "the event names the revived pile");
   }
 
-  // --- Rekindle revives the LARGEST linked dead pile; ignores non-linked ---
+  // --- Rekindle revives the LARGEST dead pile ANYWHERE on the board -------
   {
     const e = mk({ samePower: "linkRevive" });
     const b = e.getBoard();
     const fill = (i, n) => { b.piles[i].cards = Array.from({ length: n }, () => ({ value: 4, suit: "♠", label: "4", stickers: [] })); };
-    fill(1, 2); b.kill(1);          // linked, 2 cards
-    fill(4, 5); b.kill(4);          // linked, 5 cards (largest) → should win
-    fill(8, 9); b.kill(8);          // NOT linked → must stay dead
+    fill(1, 2); b.kill(1);          // 2 cards
+    fill(4, 5); b.kill(4);          // 5 cards
+    fill(8, 9); b.kill(8);          // 9 cards — UNLINKED but the LARGEST, so it wins now
     e.setLinks({ 0: [1, 4], 1: [0], 4: [0] });
     sameOn(e, 0, 7);
-    r.ok(b.isActive(4), "the largest linked dead pile was revived");
-    r.ok(!b.isActive(1), "the smaller linked dead pile stays dead (only one revived)");
-    r.ok(!b.isActive(8), "a NON-linked dead pile stays dead");
+    r.ok(b.isActive(8), "the largest dead pile board-wide was revived (v5.66: links don't scope it)");
+    r.ok(!b.isActive(1) && !b.isActive(4), "…and only ONE pile is revived");
   }
 
-  // --- Dividend: +5 coins for EACH directly-linked pile (flat per-link) ---
+  // --- Dividend: +value coins for EVERY ALIVE pile (board-wide) ----------
   {
     const e = mk({ samePower: "linkCoins" });
     const b = e.getBoard();
@@ -177,12 +177,18 @@ export function run() {
     let evt = null;
     e.onEvent((t, p) => { if (t === "same-power") evt = p; });
     sameOn(e, 0, 7);
-    r.eq(e.getRun().bonusCoins - before, 10, "Dividend paid 5 × 2 linked piles = 10");
-    r.eq(evt.amount, 10, "the event reports the coins paid");
-    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "the event names every linked pile");
+    // Registry-driven: value × ALIVE piles board-wide (v5.66). NOTE this used
+    // to read "5 × 2 linked = 10" and still totalled 10 by coincidence when the
+    // rule changed to 1 × 10 alive — pinned against the knob now, not a literal.
+    const perPile = SamePowerTypes.get("linkCoins").value;
+    const alive = b.aliveCount();
+    r.eq(e.getRun().bonusCoins - before, perPile * alive,
+      "Dividend paid " + perPile + " × " + alive + " ALIVE piles");
+    r.eq(evt.amount, perPile * alive, "the event reports the coins paid");
+    r.eq(evt.targets.length, alive, "the event names every ALIVE pile (not just links)");
   }
 
-  // --- Link Shuffler: shuffles every ALIVE directly-linked pile ----------
+  // --- Link Shuffler: shuffles every ALIVE pile board-wide ---------------
   {
     const e = mk({ samePower: "linkShuffle" });
     const b = e.getBoard();
@@ -191,7 +197,7 @@ export function run() {
     e.onEvent((t, p) => { if (t === "same-power") evt = p; });
     sameOn(e, 0, 7);
     r.ok(evt && evt.power === "linkShuffle", "a same-power event fired naming Link Shuffler");
-    r.eq(JSON.stringify(evt.targets.slice().sort()), JSON.stringify([1, 2]), "shuffled exactly the hub's direct links");
+    r.eq(evt.targets.length, b.aliveCount(), "shuffled EVERY alive pile (v5.66)");
   }
 
   // --- Same Peeker: peeks the next upcoming card -------------------------
@@ -203,7 +209,7 @@ export function run() {
     r.ok(e.getRun().revealNextActive, "Same Peeker peeks the next card on a correct Same");
   }
 
-  // --- Same Heavy: +value to each linked pile, +hubValue to the CALLED pile
+  // --- Same Heavy: +value to EVERY alive pile, +hubValue extra on the hub
   {
     const def = SamePowerTypes.get("linkHeavy");
     const linkGain = def.value, hubGain = def.hubValue;   // registry knobs, never pinned
@@ -213,11 +219,13 @@ export function run() {
     e.setLinks({ 0: [1, 2], 1: [0], 2: [0], 5: [] });
     const s0 = b.pileSize(0), s1 = b.pileSize(1), s2 = b.pileSize(2), s5 = b.pileSize(5);
     sameOn(e, 0, 7);
-    // the correct Same also LANDS the drawn card on pile 0 (+1 real card).
-    r.eq(b.pileSize(0), s0 + 1 + hubGain, "the CALLED pile gained +" + hubGain + " size (plus the landed card)");
-    r.eq(b.pileSize(1), s1 + linkGain, "linked pile 1 gained +" + linkGain + " size");
-    r.eq(b.pileSize(2), s2 + linkGain, "linked pile 2 gained +" + linkGain + " size");
-    r.eq(b.pileSize(5), s5, "a NON-linked pile is untouched");
+    // the correct Same also LANDS the drawn card on pile 0 (+1 real card), and
+    // the hub is itself an alive pile, so it takes value AND hubValue (v5.66).
+    r.eq(b.pileSize(0), s0 + 1 + linkGain + hubGain,
+      "the CALLED pile gained +" + linkGain + " (board-wide) plus its +" + hubGain + " hub bonus");
+    r.eq(b.pileSize(1), s1 + linkGain, "a linked pile gained +" + linkGain + " size");
+    r.eq(b.pileSize(2), s2 + linkGain, "…so did the other one");
+    r.eq(b.pileSize(5), s5 + linkGain, "…and an UNLINKED pile gained it too (board-wide)");
   }
 
   // --- the power fires ONLY on a correct Same, not other correct guesses --

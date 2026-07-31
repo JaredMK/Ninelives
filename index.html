@@ -6950,7 +6950,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.65 · wild cards keep their real suit colour";
+const APP_VERSION = "v5.66 · Same-Powers hit every alive pile; Dividend pays 1 each";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13585,13 +13585,14 @@ const GameEngine = (() => {
         filtered to alive (default) or dead. Reads run.links — the adjacency the
         UI pushes in — so it mirrors exactly the links the player sees. Returns a
         de-duplicated array of pile indices (never includes `hub`). */
-    function linkedPiles(hub, which) {
-      const raw = (run && run.links && run.links[hub]) || [];
+    /** SAME-POWER TARGETS (v5.66): every Same-Power acts BOARD-WIDE — all
+        alive piles (or all dead piles for a revive), not just the ones
+        synapse-linked to the called pile. `hub` is kept in the signature
+        because linkHeavy still pays its called pile an extra bonus, and the
+        emitted result still names the hub for the UI. */
+    function powerPiles(which) {
       const out = [];
-      const seen = new Set();
-      for (const j of raw) {
-        if (j === hub || seen.has(j)) continue;
-        seen.add(j);
+      for (let j = 0; j < board.size; j++) {
         const alive = board.isActive(j);
         if (which === "dead" ? !alive : alive) out.push(j);
       }
@@ -13599,9 +13600,10 @@ const GameEngine = (() => {
     }
 
     /** A correct Same triggers the player's ONE equipped Same-Power — the only
-        artifact a Same triggers. Every Same-Power acts on the piles DIRECTLY
-        linked (via the synapse network) to `hub`, the pile the Same was called
-        on. No-op when nothing is equipped. Emits "same-power" for UI feedback. */
+        artifact a Same triggers. Every Same-Power acts on ALL ALIVE PILES
+        (v5.66 — previously only the piles synapse-linked to the called pile);
+        `hub` is still the pile the Same was called on. No-op when nothing is
+        equipped. Emits "same-power" for UI feedback. */
     function fireSamePower(hub) {
       if (!run || !run.samePower) return;
       const def = SamePowerTypes.get(run.samePower);
@@ -13609,8 +13611,8 @@ const GameEngine = (() => {
       const result = { power: def.id, label: def.label, hub, effect: def.effect, targets: [], amount: 0 };
       switch (def.effect) {
         case "linkBury": {
-          // Bury `value` card(s) under each ALIVE directly-linked pile.
-          const targets = linkedPiles(hub, "alive");
+          // Bury `value` card(s) under EVERY alive pile (v5.66).
+          const targets = powerPiles("alive");
           let buried = 0;
           for (const j of targets) buried += buryTribute(j, def.value || 1, def.label);
           result.targets = targets;
@@ -13618,10 +13620,11 @@ const GameEngine = (() => {
           break;
         }
         case "linkRevive": {
-          // Revive ONE dead pile directly linked to the hub, keeping its size
-          // (board.revive flips it alive without touching its buried cards). Pick
-          // the largest such dead pile (most cards saved); ties → lowest index.
-          const dead = linkedPiles(hub, "dead");
+          // Revive ONE dead pile ANYWHERE on the board (v5.66), keeping its
+          // size (board.revive flips it alive without touching its buried
+          // cards). Pick the largest dead pile (most cards saved); ties →
+          // lowest index.
+          const dead = powerPiles("dead");
           let pick = null;
           for (const j of dead) if (pick == null || board.pileSize(j) > board.pileSize(pick)) pick = j;
           if (pick != null) {
@@ -13633,9 +13636,9 @@ const GameEngine = (() => {
           break;
         }
         case "linkCoins": {
-          // +value coins for EACH alive directly-linked pile (flat per-link).
-          const targets = linkedPiles(hub, "alive");
-          const amt = (def.value || 5) * targets.length;
+          // +value coins for EVERY alive pile on the board (v5.66).
+          const targets = powerPiles("alive");
+          const amt = itemNum(def, "value", 1) * targets.length;
           if (amt > 0) {
             addBonus(def.label, amt);
             recT("samePower", def.id, def.label, { coins: amt });
@@ -13645,8 +13648,8 @@ const GameEngine = (() => {
           break;
         }
         case "linkShuffle": {
-          // Shuffle each alive directly-linked pile (composition only; hidden order).
-          const targets = linkedPiles(hub, "alive");
+          // Shuffle EVERY alive pile (composition only; hidden order) (v5.66).
+          const targets = powerPiles("alive");
           for (const j of targets) board.shufflePile(j, rng);
           result.targets = targets;
           result.amount = targets.length;
@@ -13659,9 +13662,9 @@ const GameEngine = (() => {
           break;
         }
         case "linkHeavy": {
-          // +value pile size to each directly-linked pile, plus hubValue to
-          // the CALLED pile itself (both persistent this deal).
-          const targets = linkedPiles(hub, "alive");
+          // +value pile size to EVERY alive pile (v5.66), plus hubValue on top
+          // for the CALLED pile itself (both persistent this deal).
+          const targets = powerPiles("alive");
           for (const j of targets) board.addSizeBonus(j, def.value || 5);
           const hubBonus = itemNum(def, "hubValue", 5);
           board.addSizeBonus(hub, hubBonus);
@@ -13670,7 +13673,7 @@ const GameEngine = (() => {
           break;
         }
       }
-      logLine(def.label + " (Same-Power): " + result.targets.length + " linked pile(s)");
+      logLine(def.label + " (Same-Power): " + result.targets.length + " pile(s)");
       emit("same-power", { ...result, board, deck, run });
     }
 

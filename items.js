@@ -421,17 +421,17 @@ const NINELIVES_ITEMS = {
     // value = cards buried under EACH directly-linked alive pile.
     { id: "linkBury", unlock: { type: "behavior", stat: "samesCalled", count: 34 }, label: "Burrow", icon: "🦫",
       effect: "linkBury", value: 1, tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Bury 1 card under each pile directly linked to the pile you called Same on" },
+      description: "Trigger: You make a correct Same\nEffect: Bury 1 card under every alive pile" },
     { id: "linkRevive", unlock: { type: "behavior", stat: "correctSames", count: 24 }, label: "Rekindle", icon: "🌱",
       effect: "linkRevive", tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Revive one dead pile directly linked to the pile you called Same on" },
+      description: "Trigger: You make a correct Same\nEffect: Revive the largest dead pile on the board" },
     // value = coins per directly-linked alive pile.
     { id: "linkCoins", label: "Dividend", icon: "💰",
-      effect: "linkCoins", value: 5, tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Gain 5 coins for each pile directly linked to the pile you called Same on" },
+      effect: "linkCoins", value: 1, tier: "rare", price: 5,
+      description: "Trigger: You make a correct Same\nEffect: Gain 1 coin for each alive pile on the board" },
     { id: "linkShuffle", unlock: { type: "behavior", stat: "samesCalled", count: 39 }, label: "Link Shuffler", icon: "🔀",
       effect: "linkShuffle", tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Shuffle all piles directly linked to the pile you called Same on" },
+      description: "Trigger: You make a correct Same\nEffect: Shuffle every alive pile" },
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
       effect: "samePeek", tier: "rare", price: 5,
       description: "Trigger: You make a correct Same\nEffect: Peek at the next upcoming card" },
@@ -439,7 +439,7 @@ const NINELIVES_ITEMS = {
     // size added to the CALLED pile itself (both last the deal).
     { id: "linkHeavy", unlock: { type: "behavior", stat: "correctSames", count: 39 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 5, hubValue: 5, tier: "rare", price: 5,
-      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to the pile you called Same on and to each pile directly linked to it" },
+      description: "Trigger: You make a correct Same\nEffect: Add +5 pile size to every alive pile, and another +5 to the pile you called Same on" },
   ],
 
   /* --------------------------------------------------------------------
