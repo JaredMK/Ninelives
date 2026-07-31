@@ -106,6 +106,28 @@ export function run() {
     r.ok(ai.includes("HUD_SCORE_HELP"), "the score-chip help copy const is present");
     r.ok(ai.includes("el.hudScoreChip.title = HUD_SCORE_HELP"), "hudScoreChip's title is set from the const (single source)");
     r.ok(ai.includes("attachHoldHelp(el.hudScoreChip"), "hudScoreChip has hold-for-help");
+    // v5.73: the coin balance carries hold-for-help, copy from its own const.
+    r.ok(ai.includes("HUD_COINS_HELP"), "the coins help copy const is present");
+    r.ok(ai.includes("el.hudDop.title = HUD_COINS_HELP"), "hudDop's title is set from the const (single source)");
+    r.ok(ai.includes("attachHoldHelp(el.hudDop"), "the coin balance has hold-for-help");
+  }
+
+  // ============================================================
+  // PART C2 — the rail's fan toggle + always-reachable guess holds (v5.73)
+  // ============================================================
+  {
+    // The fan toggle has a tap ACTION, so it uses the guess-button pattern:
+    // hold shows help and SUPPRESSES the toggle.
+    r.ok(src.includes("FAN_BTN_HELP"), "the fan-button help copy const is present");
+    r.ok(/fanSuppress = false; return;/.test(src), "a fan hold suppresses the release click (no accidental toggle)");
+    r.ok(/showTextHelp\("Fan", FAN_BTN_HELP\)/.test(src), "the fan hold shows the FAN_BTN_HELP copy");
+    // guess-disabled keeps the buttons pointer-LIVE so their help is readable
+    // with no pile selected (tap-guess is guarded in submitGuess).
+    const css = html.slice(0, html.indexOf("</style>"));
+    r.ok(!/guess-disabled[^}]*pointer-events:\s*none/.test(css),
+      "guess-disabled no longer kills pointer events (holds work unselected)");
+    const sg = fnBody(src, "submitGuess");
+    r.ok(sg.includes("if (selected === null) return;"), "…because submitGuess still no-ops with no pile selected");
   }
 
   // ============================================================

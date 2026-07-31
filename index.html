@@ -1861,12 +1861,12 @@ const NativeApp = (() => {
     box-shadow: 2px 2px 0 0 var(--shadow), var(--glow); z-index: 1; }
   .btn.same.lit { transform: translate(2px, 2px); }
   /* Disabled (no pile selected): §4 disabled — felt-mid face, dim text, no glow. */
+  /* #6 (widened v5.73): the buttons stay pointer-live even while greyed, so a
+     press-and-hold can read their help (and an equipped Same-Power's) at any
+     time — a TAP-guess is separately guarded on selection (submitGuess no-ops
+     on selected === null), so this never lets you guess with no pile selected. */
   .actions.guess-disabled .btn { background: var(--felt-mid); color: rgba(236,228,207,0.45);
-    text-shadow: none; opacity: 1; pointer-events: none; box-shadow: 2px 2px 0 0 var(--shadow); }
-  /* #6: the Same button still accepts press-and-hold so its equipped Same-Power's
-     help can be read at any time (a TAP-guess is separately guarded on selection,
-     so this never lets you guess with no pile selected). */
-  .actions.guess-disabled .btn.same { pointer-events: auto; }
+    text-shadow: none; opacity: 1; box-shadow: 2px 2px 0 0 var(--shadow); }
 
   /* "Same" — the §4 "ready" outline CTA wedged between Higher/Lower:
      deep-felt face, phosphor text + THE glow (charged adds the phosphor border). */
@@ -6244,7 +6244,9 @@ const NativeApp = (() => {
     <!-- ECON1: the run SCORE chip (campaign score pre-boss, endless score once
          banked). Hold-for-help attached at boot (attachInput). -->
     <span class="hud-score-chip" id="hudScoreChip"><span class="hl" id="hudScoreLab">Score</span> <b id="hudScore">0</b></span>
-    <span class="hud-dop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
+    <!-- Coin balance. Hold-for-help attached at boot (attachInput), same as the
+         Same Charge and Score chips beside it. -->
+    <span class="hud-dop" id="hudDop"><svg class="coin-ico" aria-hidden="true"><use href="#icon-coin" xlink:href="#icon-coin"/></svg> <b id="hudDopamine">0</b></span>
   </div>
 
   <main>
@@ -6980,7 +6982,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.72 · a campaign attempt is a CLIMB, not a run (copy-wide)";
+const APP_VERSION = "v5.73 · hold-help on coins, guess buttons (always) and the fan toggle";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -18530,6 +18532,7 @@ const UIRenderer = (() => {
     dealScore: document.getElementById("dealScore"),
     hudStageRun: document.getElementById("hudStageRun"),
     hudDopamine: document.getElementById("hudDopamine"),
+    hudDop: document.getElementById("hudDop"),
     hudScoreChip: document.getElementById("hudScoreChip"),
     hudScoreLab: document.getElementById("hudScoreLab"),
     hudScore: document.getElementById("hudScore"),
@@ -19187,6 +19190,9 @@ const UIRenderer = (() => {
      pile spreads a touch (see .board.fan-hint CSS) and a pile TAP opens that
      pile's full fan. NON-BLOCKING by design — guess input (swipes, holds,
      buttons) stays fully live while the hint is showing. */
+  /* Hold-for-help copy for the rail's fan toggle (#fanAllBtn). Single source —
+     the button's own title stays the short on/off label set by setFanHint. */
+  const FAN_BTN_HELP = "Fan — spreads every living pile so the cards underneath peek out, a reminder of what each pile is holding. While it's on, tapping a pile opens that pile's full face-up fan. Tap again to collapse. Pure memory aid: it changes nothing about the deal, and guessing stays live.";
   let fanHintOn = false;
   function setFanHint(on) {
     fanHintOn = !!on;
@@ -19987,8 +19993,26 @@ const UIRenderer = (() => {
           '<rect x="4.3" y="2.8" width="5.4" height="8" rx="1.1"/>' +
           '<rect x="7.2" y="3.6" width="5.4" height="8" rx="1.1" transform="rotate(14 9.9 7.6)"/></g></svg>' +
           '<span class="fab-lbl">Fan</span>';
+        // Hold-for-help (it has a tap action, so it uses the guess-button
+        // pattern: a HOLD shows the help and suppresses the toggle).
+        let fanHoldTimer = null, fanHeld = false, fanSuppress = false;
+        fb.addEventListener("pointerdown", () => {
+          fanHeld = false;
+          clearTimeout(fanHoldTimer);
+          fanHoldTimer = setTimeout(() => {
+            fanHeld = true; fanSuppress = true;
+            showTextHelp("Fan", FAN_BTN_HELP);
+          }, 180);
+        });
+        const fanRelease = () => {
+          clearTimeout(fanHoldTimer);
+          if (fanHeld) { fanHeld = false; closePeekInfo(); }
+        };
+        fb.addEventListener("pointerup", fanRelease);
+        fb.addEventListener("pointercancel", fanRelease);
         fb.addEventListener("click", (e) => {
           e.preventDefault(); e.stopPropagation();
+          if (fanSuppress) { fanSuppress = false; return; }   // a hold already showed help
           closePileFan();            // a full fan can't outlive the hint toggling
           setFanHint(!fanHintOn);
           Sound.tap();
@@ -22293,6 +22317,7 @@ const UIRenderer = (() => {
     // here as the single source — the markup title attributes are set from it.
     const HUD_SAME_HELP = "Same Charge — a correct Same banks it (max 1); it auto-saves a pile from death as a last resort";
     const DEAL_STATUS_HELP = "Reward: base + bonus. The base is the flat coins this deal pays on a clear — set by its stage & difficulty (harder pays more), fixed for the deal. The bonus is what your items have piled on top so far (stickers, pillars, bases — live, and a Tribute can drag it negative). Score: surviving piles × the smallest surviving pile if you cleared right now — personal bests only, never coins.";
+    const HUD_COINS_HELP = "Coins — what you spend in the store on stickers, Pillars, Bases, cards and packs. Earned by clearing deals (base + bonus), plus Payout stickers, Pillar payouts and events. They carry for the whole climb; unlike Score, they change what you can buy.";
     const HUD_SCORE_HELP = "Your score: surviving piles × the smallest pile on each cleared deal, added up over the climb. Banked as your campaign score when the ♠ boss falls — deals after that build your endless score. Chased for personal bests only; it never changes coins or play.";
     if (el.hudSame) { el.hudSame.title = HUD_SAME_HELP; attachHoldHelp(el.hudSame, () => showTextHelp("Same Charge", HUD_SAME_HELP)); }
     if (el.hudSamePower) attachHoldHelp(el.hudSamePower, () => {
@@ -22302,6 +22327,7 @@ const UIRenderer = (() => {
     attachHoldHelp(el.stageRun, () => showTextHelp("The climb", "3 stages, each ending at a boss deal. Clear the stage-3 boss to win the campaign — losing any deal ends it."));
     if (el.dealStatus) { el.dealStatus.title = DEAL_STATUS_HELP; attachHoldHelp(el.dealStatus, () => showTextHelp("Reward & Score", DEAL_STATUS_HELP)); }
     if (el.hudScoreChip) { el.hudScoreChip.title = HUD_SCORE_HELP; attachHoldHelp(el.hudScoreChip, () => showTextHelp("Score", HUD_SCORE_HELP)); }
+    if (el.hudDop) { el.hudDop.title = HUD_COINS_HELP; attachHoldHelp(el.hudDop, () => showTextHelp("Coins", HUD_COINS_HELP)); }
 
     // Single overlay button — its behavior depends on the current phase
     // (start campaign / continue to next run / new campaign).
