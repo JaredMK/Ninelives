@@ -72,7 +72,7 @@ const NINELIVES_TUTORIAL = {
       { anchor: "dealDeckChar",
         text: "Every guess draws the next card from *the deck*.\nRight → the pile grows\nWrong → the pile dies\nBeat the *whole deck* before every pile is gone." },
       { anchor: "sameShield",
-        text: "Call *Same* when you expect an equal card — a *tie kills* a Higher or Lower guess, so 'close' never counts. A correct Same charges this *shield*, saving your next miss." },
+        text: "Call *Same* when you expect an equal card. A correct Same charges this *shield*, protecting you from your next incorrect guess." },
       { anchor: "dealPile",
         text: "Cards run *2 up to Ace* — Ace is *high*: never guess Higher against it.\nAnd a 2 is as low as it gets: never guess Lower against that." },
       { anchor: "dealHistogram",

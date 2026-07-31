@@ -54,9 +54,13 @@ export function run() {
     // M2/M3 — wrong kills the pile; beat the whole deck to win.
     r.ok(/dies/i.test(G.deal[2].text) && /whole deck/i.test(G.deal[2].text),
       "deal[2] teaches wrong→pile dies (M2) and beat the whole deck (M3)");
-    // M4 — a tie kills a directional guess; a correct Same charges the shield.
-    r.ok(/tie kills/i.test(G.deal[3].text) && G.deal[3].anchor === "sameShield",
-      "deal[3] teaches that a TIE kills a Higher/Lower guess (M4), on the Same-shield anchor");
+    // M4 — call Same on an expected equal card; a correct Same charges the
+    // shield. (v5.59: the "a tie kills a Higher/Lower guess" clause was cut
+    // from this step by player request — the mechanic is now taught in play
+    // by the shoulda-said-same nudge, not by the tutorial.)
+    r.ok(/\*Same\*/.test(G.deal[3].text) && /equal card/i.test(G.deal[3].text)
+      && /\*shield\*/.test(G.deal[3].text) && G.deal[3].anchor === "sameShield",
+      "deal[3] teaches calling Same on an equal card + the shield charge (M4), on the Same-shield anchor");
     // M5 — Ace is HIGH, 2 is low (the two never-guess edges).
     r.ok(G.deal[4].text.includes("Ace is *high*") && /never guess Higher/i.test(G.deal[4].text)
       && /never guess Lower/i.test(G.deal[4].text),
