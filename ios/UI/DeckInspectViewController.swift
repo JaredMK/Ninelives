@@ -25,6 +25,10 @@ public final class DeckInspectViewController: UIViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
+        let tissue = TissueView()
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)
         scroll.alwaysBounceVertical = true
         view.addSubview(scroll)
         scroll.addSubview(content)

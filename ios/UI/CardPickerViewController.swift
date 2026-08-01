@@ -61,6 +61,11 @@ public final class CardPickerViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
 
+        let tissue = TissueView()
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)
+
         headerLabel.attributedText = CRTKit.attributed(headerText(), size: 15, color: CRT.phosphor,
                                                        display: true, glow: true)
         view.addSubview(headerLabel)

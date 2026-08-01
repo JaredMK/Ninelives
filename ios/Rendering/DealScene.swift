@@ -20,6 +20,7 @@ public final class DealScene: SKScene {
     private let webLayer = WebLayer()
     private let floatLayer = SKNode()
     private var crt: CRTOverlay!
+    private var tissue: SKSpriteNode!
 
     private var fanButton: PixelButton!
     private var higherButton: PixelButton!
@@ -71,6 +72,14 @@ public final class DealScene: SKScene {
         backgroundColor = CRT.feltDeep
         scaleMode = .resizeFill
 
+        // The #tissue atmosphere under the board (whispers + felt nap + haze,
+        // baked static). z −1: ignoresSiblingOrder is on, so equal-z order is
+        // undefined and the tissue must sit strictly below every sibling.
+        tissue = SKSpriteNode(texture: TissueView.texture(size: size))
+        tissue.position = CGPoint(x: size.width / 2, y: -size.height / 2)
+        tissue.zPosition = -1
+        addChild(tissue)
+
         addChild(boardLayer)
         boardLayer.addChild(webLayer)
         addChild(floatLayer)
@@ -114,6 +123,9 @@ public final class DealScene: SKScene {
         guard layoutDone else { return }
         PixelTexture.flushLayoutCaches()
         hud.resize(width: size.width)
+        tissue.texture = TissueView.texture(size: size)
+        tissue.size = size
+        tissue.position = CGPoint(x: size.width / 2, y: -size.height / 2)
         crt.resize(to: size)
         crt.position = CGPoint(x: size.width / 2, y: -size.height / 2)
         layoutChrome()

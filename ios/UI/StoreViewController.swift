@@ -29,6 +29,7 @@ public final class StoreViewController: UIViewController {
     private let goButton = PixelButtonView("GO TO MAP", role: .cta, fontSize: 18)
     private let prompt = PromptBar()
     private let crt = CRTOverlayUIView()
+    private let tissue = TissueView()
     private var detail: StoreDetailView?
     private var keyPanel: UIView?
 
@@ -49,6 +50,9 @@ public final class StoreViewController: UIViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)          // #tissue atmosphere, bottommost
 
         // Fresh visit rolls a new offer; a resume keeps the saved one (a
         // refresh while shopping can never hand out a free reroll). SEED1: the
@@ -137,6 +141,7 @@ public final class StoreViewController: UIViewController {
         layoutLoadout()
         goButton.frame = CGRect(x: 12, y: goTop, width: b.width - 24, height: goH)
         crt.frame = b
+        tissue.frame = b
         prompt.frame = b
         detail?.frame = b
     }

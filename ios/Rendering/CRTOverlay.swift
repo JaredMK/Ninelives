@@ -48,39 +48,49 @@ public final class CRTOverlay: SKSpriteNode {
     private static func bake(size: CGSize) -> SKTexture {
         let key = "\(Int(size.width))x\(Int(size.height))"
         if let c = cache[key] { return c }
+        let tex = PixelTexture.texture(from: bakeImage(size: size))
+        cache[key] = tex
+        return tex
+    }
+
+    private static var imageCache: [String: UIImage] = [:]
+
+    /// The CRT bitmap as a UIImage — `CRTOverlayUIView` (UIKit screens) uses
+    /// this exact bake so every screen wears the identical overlay.
+    public static func bakeImage(size: CGSize) -> UIImage {
+        let key = "\(Int(size.width))x\(Int(size.height))"
+        if let c = imageCache[key] { return c }
         let img = PixelTexture.image(size: size) { cg in
-            // Scanlines: 2px period, rgba(0,0,0,0.13) on the first row.
+            // Corner vignette FIRST — on the web it sits UNDER the scanlines
+            // (background-image list order). One SMOOTH radial gradient:
+            // `radial-gradient(ellipse 140% 105% at 50% 45%, transparent 62%,
+            // rgba(0,0,0,0.28) 100%)`. A unit-circle gradient drawn under an
+            // affine scale IS the ellipse; .drawsAfterEndLocation holds the
+            // 0.28 edge colour out to the corners like the CSS last stop.
+            let cx = size.width * 0.5, cy = size.height * 0.45
+            let rx = size.width * 0.70, ry = size.height * 0.525   // 140%/105% diameters
+            let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor.clear.cgColor,
+                         UIColor.black.withAlphaComponent(0.28).cgColor] as CFArray,
+                locations: [0.62, 1.0])!
+            cg.saveGState()
+            cg.translateBy(x: cx, y: cy)
+            cg.scaleBy(x: rx, y: ry)
+            cg.drawRadialGradient(gradient, startCenter: .zero, startRadius: 0,
+                                  endCenter: .zero, endRadius: 1,
+                                  options: .drawsAfterEndLocation)
+            cg.restoreGState()
+            // Scanlines on top: 2px period, rgba(0,0,0,0.13) on the first row.
             cg.setFillColor(UIColor.black.withAlphaComponent(0.13).cgColor)
             var y: CGFloat = 0
             while y < size.height {
                 cg.fill(CGRect(x: 0, y: y, width: size.width, height: 1))
                 y += 2
             }
-            // Corner vignette: ellipse 140% × 105% at 50% 45%, transparent to
-            // 62%, then out to rgba(0,0,0,0.28). Drawn as concentric rings so
-            // there is no gradient object and no blur — just flat steps on the
-            // pixel grid, which is also more honest to the aesthetic.
-            let cx = size.width * 0.5, cy = size.height * 0.45
-            let rx = size.width * 0.70, ry = size.height * 0.525   // 140%/105% diameters
-            let steps = 22
-            for i in 0..<steps {
-                let t0 = 0.62 + (1.0 - 0.62) * (CGFloat(i) / CGFloat(steps))
-                let t1 = 0.62 + (1.0 - 0.62) * (CGFloat(i + 1) / CGFloat(steps))
-                let alpha = 0.28 * (CGFloat(i + 1) / CGFloat(steps))
-                cg.setFillColor(UIColor.black.withAlphaComponent(alpha).cgColor)
-                // Ring = outer ellipse minus inner ellipse, via even-odd fill.
-                let outer = CGRect(x: cx - rx * t1, y: cy - ry * t1, width: rx * t1 * 2, height: ry * t1 * 2)
-                let inner = CGRect(x: cx - rx * t0, y: cy - ry * t0, width: rx * t0 * 2, height: ry * t0 * 2)
-                let path = CGMutablePath()
-                path.addEllipse(in: outer)
-                path.addEllipse(in: inner)
-                cg.addPath(path)
-                cg.fillPath(using: .evenOdd)
-            }
         }
-        let tex = PixelTexture.texture(from: img)
-        cache[key] = tex
-        return tex
+        imageCache[key] = img
+        return img
     }
 }
 

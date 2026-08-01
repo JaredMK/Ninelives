@@ -57,6 +57,7 @@ public final class GameFlowController: UIViewController {
     private var tutorialRanThisSession = false
 
     private var current: UIViewController?
+    private let tissue = TissueView()
     private let crt = CRTOverlayUIView()
     let prompt = PromptBar()
     private var autopilot: FlowAutopilot?
@@ -77,6 +78,9 @@ public final class GameFlowController: UIViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)          // the #tissue atmosphere, bottommost
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
         view.addSubview(prompt)

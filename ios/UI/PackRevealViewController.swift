@@ -61,6 +61,11 @@ public final class PackRevealViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
 
+        let tissue = TissueView()
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)
+
         titleLabel.attributedText = CRTKit.attributed(titleText.uppercased(), size: 15,
                                                       color: CRT.phosphor, display: true, glow: true)
         titleLabel.textAlignment = .center

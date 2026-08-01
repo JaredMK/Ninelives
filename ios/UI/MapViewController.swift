@@ -50,6 +50,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private let eggLabel = UILabel()      // the bottom-overscroll Easter egg
     private let avatar = MapAvatarView()
     private let crt = CRTOverlayUIView()
+    private let tissue = TissueView()     // #tissue, visible at the scroll's bounce edges
     private var nodeViews: [Int: MapNodeView] = [:]
     private let keyButton = PixelButtonView("?", role: .plain, fontSize: 16)
     private let storeButton = PixelButtonView("STORE", role: .gold, fontSize: 14)
@@ -81,6 +82,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
+
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)
 
         scroll.delegate = self
         scroll.alwaysBounceVertical = true

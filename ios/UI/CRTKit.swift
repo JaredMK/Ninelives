@@ -236,36 +236,102 @@ public final class CRTOverlayUIView: UIImageView {
         layer.add(a, forKey: "flicker")
     }
 
-    private static var cache: [String: UIImage] = [:]
     static func bake(size: CGSize) -> UIImage {
+        // One bake, one source: the SpriteKit CRTOverlay's shared image —
+        // a SMOOTH radial vignette under the scanlines, no rings.
+        CRTOverlay.bakeImage(size: size)
+    }
+}
+
+/// #tissue — the web's fixed, behind-everything atmosphere layer (index.html
+/// ~5267), baked static: flat feltDeep base, two felt-mid whisper radials,
+/// the felt-nap dither (feltMid checker dots at a 4px period — the web GIF's
+/// second palette index is TRANSPARENT, so only the mid dots paint), and the
+/// three soft haze blobs at 0.22 (the web drifts them on a 46s loop; a static
+/// bake keeps the idle look with zero per-frame work — §10). The vein strokes
+/// are deliberately omitted (barely-there even on the web). Baked once per
+/// size, cached, pointer-inert.
+public final class TissueView: UIImageView {
+    public init() {
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        contentMode = .scaleToFill
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    private var bakedSize: CGSize = .zero
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds.size != bakedSize, bounds.width > 0 else { return }
+        bakedSize = bounds.size
+        image = TissueView.bake(size: bounds.size)
+    }
+
+    private static var cache: [String: UIImage] = [:]
+
+    public static func bake(size: CGSize) -> UIImage {
         let key = "\(Int(size.width))x\(Int(size.height))"
         if let c = cache[key] { return c }
         let img = PixelTexture.image(size: size) { cg in
-            cg.setFillColor(UIColor.black.withAlphaComponent(0.13).cgColor)
-            var y: CGFloat = 0
-            while y < size.height {
-                cg.fill(CGRect(x: 0, y: y, width: size.width, height: 1))
-                y += 2
+            let w = size.width, h = size.height
+            // Base: flat feltDeep (the web's third radial collapses — all the
+            // felt tokens ARE deep felt under CRT CASINO).
+            cg.setFillColor(CRT.feltDeep.cgColor)
+            cg.fill(CGRect(origin: .zero, size: size))
+
+            // Whisper radials: feltMid 0.5 → feltMid 0. A CSS circle-gradient
+            // percentage resolves against diagonal/√2.
+            let diag = hypot(w, h) / 1.4142135623730951
+            func whisper(_ fx: CGFloat, _ fy: CGFloat, _ frac: CGFloat) {
+                let g = CGGradient(
+                    colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                    colors: [CRT.feltMid.withAlphaComponent(0.5).cgColor,
+                             CRT.feltMid.withAlphaComponent(0).cgColor] as CFArray,
+                    locations: [0, 1])!
+                let c = CGPoint(x: w * fx, y: h * fy)
+                cg.drawRadialGradient(g, startCenter: c, startRadius: 0,
+                                      endCenter: c, endRadius: frac * diag, options: [])
             }
-            let cx = size.width * 0.5, cy = size.height * 0.45
-            let rx = size.width * 0.70, ry = size.height * 0.525
-            let steps = 22
-            for i in 0..<steps {
-                let t0 = 0.62 + (1.0 - 0.62) * (CGFloat(i) / CGFloat(steps))
-                let t1 = 0.62 + (1.0 - 0.62) * (CGFloat(i + 1) / CGFloat(steps))
-                let alpha = 0.28 * (CGFloat(i + 1) / CGFloat(steps))
-                cg.setFillColor(UIColor.black.withAlphaComponent(alpha).cgColor)
-                let outer = CGRect(x: cx - rx * t1, y: cy - ry * t1, width: rx * t1 * 2, height: ry * t1 * 2)
-                let inner = CGRect(x: cx - rx * t0, y: cy - ry * t0, width: rx * t0 * 2, height: ry * t0 * 2)
-                let path = CGMutablePath()
-                path.addEllipse(in: outer)
-                path.addEllipse(in: inner)
-                cg.addPath(path)
-                cg.fillPath(using: .evenOdd)
+            whisper(0.28, 0.22, 0.46)
+            whisper(0.78, 0.72, 0.48)
+
+            // Felt nap: 4px-period checker, feltMid dots only (2×2px blocks on
+            // the diagonal of each 4px cell — the web tile's other two pixels
+            // are transparent).
+            cg.setFillColor(CRT.feltMid.cgColor)
+            for y in stride(from: 0, to: Int(h), by: 4) {
+                for x in stride(from: 0, to: Int(w), by: 4) {
+                    cg.fill(CGRect(x: x, y: y, width: 2, height: 2))
+                    cg.fill(CGRect(x: x + 2, y: y + 2, width: 2, height: 2))
+                }
             }
+
+            // Haze blobs: feltMid 0.22 → 0 at 68% radius, at the web's
+            // .b1/.b2/.b3 positions (squares sized in vw, so the y-centre uses
+            // the WIDTH too).
+            func blob(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
+                let g = CGGradient(
+                    colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                    colors: [CRT.feltMid.withAlphaComponent(0.22).cgColor,
+                             CRT.feltMid.withAlphaComponent(0).cgColor] as CFArray,
+                    locations: [0, 1])!
+                let c = CGPoint(x: cx, y: cy)
+                cg.drawRadialGradient(g, startCenter: c, startRadius: 0,
+                                      endCenter: c, endRadius: r * 0.68, options: [])
+            }
+            blob(0.06 * w + 0.23 * w, 0.12 * h + 0.23 * w, 0.23 * w)   // .b1 46vw @ 6%/12%
+            blob(0.52 * w + 0.28 * w, 0.52 * h + 0.28 * w, 0.28 * w)   // .b2 56vw @ 52%/52%
+            blob(0.24 * w + 0.25 * w, 0.78 * h + 0.25 * w, 0.25 * w)   // .b3 50vw @ 24%/78%
         }
         cache[key] = img
         return img
+    }
+
+    /// The same bake as a nearest-neighbour SK texture, for the deal scene.
+    public static func texture(size: CGSize) -> SKTexture {
+        PixelTexture.texture(from: bake(size: size))
     }
 }
 

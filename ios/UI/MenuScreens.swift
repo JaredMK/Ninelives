@@ -7,6 +7,7 @@ class MenuScreenBase: UIViewController {
     unowned let flow: GameFlowController
     let scroll = UIScrollView()
     let content = UIView()
+    private let tissue = TissueView()
     private var y: CGFloat = 0
 
     init(flow: GameFlowController) {
@@ -22,6 +23,9 @@ class MenuScreenBase: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
+        tissue.frame = view.bounds
+        tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(tissue)          // #tissue atmosphere under everything
         scroll.alwaysBounceVertical = true
         view.addSubview(scroll)
         scroll.addSubview(content)
@@ -29,6 +33,7 @@ class MenuScreenBase: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        tissue.frame = view.bounds
         scroll.frame = view.bounds
         content.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: view.bounds.width, height: y)
         scroll.contentSize = CGSize(width: view.bounds.width,
