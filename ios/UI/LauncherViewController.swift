@@ -1,6 +1,46 @@
 import UIKit
 import GameCore
 
+/// The Chunk B demo flow: resolves what the map hands it, with the real
+/// campaign mutations for pickups/packs and a cleared-mark for everything else.
+final class MapDemoDelegate: MapScreenDelegate {
+    private let campaign: CampaignState
+
+    init(campaign: CampaignState) { self.campaign = campaign }
+
+    func mapArrived(at node: MapNode, on map: MapViewController) {
+        switch node.type {
+        case "card", "pickup":
+            // resolvePickup grants the card AND marks the node cleared.
+            let card = campaign.resolvePickup(node)
+            map.collectCards(card.map { [$0] } ?? []) { map.render() }
+        case "pack":
+            // Map packs grant all their cards (store packs are the pick-one flow).
+            let cards = campaign.resolvePack(node)
+            map.collectCards(cards) { map.render() }
+        default:
+            // Deals, stores, bosses, mysteries: cleared inline for the demo.
+            _ = campaign.markNodeCleared(node.id)
+            map.render()
+        }
+    }
+
+    func mapWantsMenu(_ map: MapViewController) {
+        map.dismiss(animated: false)
+    }
+
+    /// Headless verification: hop to a random legal node every 1.6s.
+    func startAutoTravel(on map: MapViewController, hops: Int) {
+        guard hops > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self, weak map] in
+            guard let self, let map else { return }
+            guard let target = self.campaign.legalNextNodes().randomElement() else { return }
+            map.travel(to: target.id)
+            self.startAutoTravel(on: map, hops: hops - 1)
+        }
+    }
+}
+
 /// TEMPORARY Phase 2 entry point — a debug launcher, not a game screen.
 ///
 /// Picks a deck / tier / seed / pile count and starts a deal, so the board can
@@ -63,6 +103,9 @@ public final class LauncherViewController: UIViewController {
         play.setTitle("START DEAL", for: .normal)
         play.heightAnchor.constraint(equalToConstant: 54).isActive = true
 
+        let mapDemo = makeButton(#selector(openMapDemo))
+        mapDemo.setTitle("MAP (PHASE 3 DEMO)", for: .normal)
+
         resultLabel.font = CRT.Font.of(17)
         resultLabel.textColor = CRT.gold
         resultLabel.textAlignment = .center
@@ -72,7 +115,7 @@ public final class LauncherViewController: UIViewController {
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         [title, sub, deckButton, tierButton, pilesButton, cardsButton, itemsButton,
-         labelled("SEED", seedField), play, resultLabel].forEach { stack.addArrangedSubview($0) }
+         labelled("SEED", seedField), play, mapDemo, resultLabel].forEach { stack.addArrangedSubview($0) }
         view.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -103,6 +146,9 @@ public final class LauncherViewController: UIViewController {
         refresh()
         if d.bool(forKey: "autoDeal") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.startDeal() }
+        }
+        if d.bool(forKey: "autoMap") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.openMapDemo() }
         }
     }
 
@@ -158,6 +204,28 @@ public final class LauncherViewController: UIViewController {
         cardsButton.setTitle("CARDS · \(cardCount)", for: .normal)
         itemsButton.setTitle("ITEMS · \(withItems ? "PILLARS + BASES + SAME-POWER" : "NONE")", for: .normal)
     }
+
+    /// Phase 3 Chunk B demo: a fresh campaign's map, standalone. Pickups and
+    /// packs auto-resolve so travel/gating/collect can be exercised end to end;
+    /// deals/stores/bosses just mark cleared (their screens wire up in C/D).
+    @objc private func openMapDemo() {
+        view.endEditing(true)
+        let campaign = CampaignState()
+        campaign.setDeck(decks[deckIndex])
+        campaign.setTier(tiers[tierIndex])
+        if let s = UInt32(seedText) { campaign.setSeedOverride(s) }
+        campaign.startNewRun()
+        let vc = MapViewController(campaign: campaign)
+        vc.debugJumpEnabled = true
+        vc.modalPresentationStyle = .fullScreen
+        let demo = MapDemoDelegate(campaign: campaign)
+        vc.delegate = demo
+        objc_setAssociatedObject(vc, &Self.demoKey, demo, .OBJC_ASSOCIATION_RETAIN)
+        present(vc, animated: false)
+        let hops = UserDefaults.standard.integer(forKey: "autoTravel")
+        if hops > 0 { demo.startAutoTravel(on: vc, hops: hops) }
+    }
+    private static var demoKey: UInt8 = 0
 
     @objc private func startDeal() {
         view.endEditing(true)

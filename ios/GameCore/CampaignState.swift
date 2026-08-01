@@ -151,6 +151,9 @@ public final class CampaignState {
     /// Clamped: endless phases read as ♠ for every suit-flavoured display.
     public func phaseSuit() -> String { phaseSuits[min(phaseIndex, phaseSuits.count - 1)] }
 
+    /// How many campaign stages a run has (the web's `phasesTotal()`).
+    public func phasesTotal() -> Int { phaseSuits.count }
+
     /// Suits currently in play (drives item suit-gating). Alt decks are NOT
     /// suit-segmented: all four suits are in play from the very start.
     public func suitsInPlay() -> [String] {

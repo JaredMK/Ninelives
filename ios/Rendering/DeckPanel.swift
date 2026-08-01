@@ -332,6 +332,15 @@ public enum DeckCharacter {
                                gaze: (dx: Int, dy: Int) = (0, 0)) -> SKTexture {
         let key = Key(deckId: deckId, mood: mood, scale: scale, gx: gaze.dx, gy: gaze.dy)
         if let c = cache[key] { return c }
+        let tex = PixelTexture.texture(from: image(deckId: deckId, mood: mood, scale: scale, gaze: gaze))
+        cache[key] = tex
+        return tex
+    }
+
+    /// The same sprite as a UIImage — the map avatar and the UIKit screens
+    /// (deck select, victory) draw the character with this.
+    public static func image(deckId: String, mood: Mood, scale: Int,
+                             gaze: (dx: Int, dy: Int) = (0, 0)) -> UIImage {
         let g = 16
         let img = PixelTexture.image(size: CGSize(width: g * scale, height: g * scale)) { cg in
             let (a, b) = body(deckId)
@@ -383,8 +392,6 @@ public enum DeckCharacter {
             // A win gets phosphor sparks — the only glow color.
             if mood == .win || mood == .celebrate { px(13, 2, CRT.phosphor); px(2, 4, CRT.phosphor) }
         }
-        let tex = PixelTexture.texture(from: img)
-        cache[key] = tex
-        return tex
+        return img
     }
 }

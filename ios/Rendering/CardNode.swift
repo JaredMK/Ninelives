@@ -62,10 +62,21 @@ public enum CardArt {
 
     private struct Key: Hashable { let face: Face; let scale: Scale }
     private static var cache: [Key: SKTexture] = [:]
+    private static var imageCache: [Key: UIImage] = [:]
 
     public static func texture(_ face: Face, scale: Scale) -> SKTexture {
         let key = Key(face: face, scale: scale)
         if let c = cache[key] { return c }
+        let tex = PixelTexture.texture(from: image(face, scale: scale))
+        cache[key] = tex
+        return tex
+    }
+
+    /// The same baked face as a UIImage — the UIKit screens (map node cards,
+    /// store shelf, pickers) draw with this so a card looks identical everywhere.
+    public static func image(_ face: Face, scale: Scale) -> UIImage {
+        let key = Key(face: face, scale: scale)
+        if let c = imageCache[key] { return c }
 
         let box = scale.size
         let canvas = CGSize(width: box.width + scale.shadow, height: box.height + scale.shadow)
@@ -158,9 +169,8 @@ public enum CardArt {
             }
         }
 
-        let tex = PixelTexture.texture(from: img)
-        cache[key] = tex
-        return tex
+        imageCache[key] = img
+        return img
     }
 
     /// Card backs = dither tile per deck (§5). Pinky's "pink" is the canonical
