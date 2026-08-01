@@ -804,7 +804,10 @@ public final class DealController {
     private func refreshHUD() {
         guard let engine else { return }
         scene.syncHUD(stageLabel: stageLabel(),
-                      suitsInPlay: isZen ? [] : campaign.suitsInPlay(),
+                      phaseIndex: campaign.phaseIndex,
+                      altSuits: campaign.rules().altSuits,
+                      phasesTotal: campaign.phasesTotal(),
+                      showTrack: !isZen,   // web hides the suit track in zen
                       sameCharged: engine.sameCharge,
                       samePower: engine.equippedSamePower(),
                       coins: campaign.getCoins(),

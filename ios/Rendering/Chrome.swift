@@ -130,7 +130,14 @@ public final class HUDBar: SKNode {
     public func resize(width w: CGFloat) { width = w }
 
     /// `STG 2·3 | ♥ ♦ ♣ ♠ | = | ◉ 214 | DECK 38 | SCORE 1180`
-    public func sync(stageLabel: String, suitsInPlay: [String], sameCharged: Bool,
+    /// The suit track mirrors the web's `.suit-track`: ♥ is pre-held (always
+    /// DONE); each phase suit is DONE once cleared, ACTIVE (baked ×1.28 —
+    /// never a live scale) while you're in it, TODO (26% cream) until then.
+    /// Alt decks (Mamma/Smith/Lammy) show bordered 1·2·3 stage chips instead
+    /// (active chip ×1.15). Zen hides the track entirely (web: `body.zen-mode
+    /// #hudStageRun { display:none }`).
+    public func sync(stageLabel: String, phaseIndex: Int, altSuits: Bool,
+                     phasesTotal: Int, showTrack: Bool, sameCharged: Bool,
                      samePower: String?, coins: Int, deckCount: Int, score: Int) {
         let tex = PixelTexture.panel(size: CGSize(width: width, height: height))
         bg.texture = tex; bg.size = tex.size()
@@ -150,15 +157,31 @@ public final class HUDBar: SKNode {
         }
 
         _ = put(PixelTexture.label(stageLabel, size: 16, color: CRT.muted))
-        // The suit phase track: suits in play are cream/red, the rest dimmed.
-        for s in ["♥", "♦", "♣", "♠"] {
-            let live = suitsInPlay.contains(s)
-            let c = live ? CRT.color(forSuit: s) : CRT.cardFace.withAlphaComponent(0.28)
-            // ♠/♣ ink is invisible on felt — use cream for the live black suits.
-            let shown = (live && (s == "♠" || s == "♣")) ? CRT.cardFace : c
-            _ = put(PixelTexture.label(s, size: 17, color: shown), gap: 3)
+        if showTrack {
+            if altSuits {
+                // Alt decks aren't suit-segmented: numbered stage chips.
+                for p in 0..<max(1, phasesTotal) {
+                    let state: ChipState = phaseIndex > p ? .done : (phaseIndex == p ? .active : .todo)
+                    _ = put(stageChip(p + 1, state: state), gap: 4)
+                }
+            } else {
+                // ♥ pre-held → always done; ♦/♣/♠ are phases 0/1/2.
+                let order = ["♥", "♦", "♣", "♠"]
+                let phaseOf = ["♥": -1, "♦": 0, "♣": 1, "♠": 2]
+                for s in order {
+                    let ph = phaseOf[s]!
+                    let done = ph < 0 || phaseIndex > ph
+                    let active = !done && phaseIndex == ph
+                    let base: UIColor = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
+                    let color = (done || active) ? base : CRT.cardFace.withAlphaComponent(0.26)
+                    // The active suit is baked at ×1.28 — a baked size, not a
+                    // live transform (nearest-neighbour non-integer scale
+                    // shimmers; §10 allows no per-frame work anyway).
+                    _ = put(PixelTexture.label(s, size: active ? 22 : 17, color: color), gap: 3)
+                }
+            }
+            x += 5
         }
-        x += 5
         // Same Charge — the equals mark; lit gold when banked.
         sameChargeRect = put(PixelTexture.label("=", size: 18,
                                                 color: sameCharged ? CRT.gold : CRT.cardFace.withAlphaComponent(0.3)))
@@ -191,6 +214,30 @@ public final class HUDBar: SKNode {
         }
         lastCoins = coins
         lastScore = score
+    }
+
+    /// Web `.st-suit.st-stage`: a 23×23 bordered chip (active ×1.15 → 26),
+    /// border + number in cream; TODO at 26%.
+    private enum ChipState { case done, active, todo }
+
+    private func stageChip(_ n: Int, state: ChipState) -> SKSpriteNode {
+        let box: CGFloat = state == .active ? 26 : 23
+        let alpha: CGFloat = state == .todo ? 0.26 : 1
+        let img = PixelTexture.image(size: CGSize(width: box, height: box)) { cg in
+            cg.setStrokeColor(CRT.cardFace.withAlphaComponent(alpha).cgColor)
+            cg.setLineWidth(2)
+            cg.stroke(CGRect(x: 1, y: 1, width: box - 2, height: box - 2))
+        }
+        let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        node.size = CGSize(width: box, height: box)
+        let num = PixelTexture.label("\(n)", size: state == .active ? 16 : 14,
+                                     color: CRT.cardFace.withAlphaComponent(alpha))
+        // put() re-anchors the chip to (0, 0.5): the texture spans x 0…box,
+        // y −box/2…box/2 about the node origin, so the number centres at
+        // (box/2, 0) regardless of the anchor.
+        num.position = CGPoint(x: box / 2, y: 0)
+        node.addChild(num)
+        return node
     }
 }
 

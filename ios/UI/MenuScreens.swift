@@ -586,7 +586,9 @@ final class CollectionViewController: MenuScreenBase {
                 art.contentMode = .scaleAspectFit
                 art.layer.magnificationFilter = .nearest
                 art.alpha = unlocked ? 1 : 0.72
-                art.frame = CGRect(x: 8, y: 10, width: cw - 16, height: 62)
+                // Web tiles wear a SMALL pixel icon (~40px) — not a tile-
+                // filling blowup. 44pt keeps nearest-neighbour steps even.
+                art.frame = CGRect(x: (cw - 44) / 2, y: 14, width: 44, height: 44)
                 art.isUserInteractionEnabled = false
                 tile.addSubview(art)
                 if unlocked {

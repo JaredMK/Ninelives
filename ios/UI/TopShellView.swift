@@ -54,6 +54,11 @@ public final class TopShellView: UIView {
         band.addSubview(bandArt)
         band.isUserInteractionEnabled = true
         band.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(bandTapped)))
+        // The deck band is a compound view — without an explicit label the UI
+        // tests (and VoiceOver) can't find it.
+        band.isAccessibilityElement = true
+        band.accessibilityLabel = "DECK"
+        band.accessibilityTraits = .button
     }
 
     @available(*, unavailable)

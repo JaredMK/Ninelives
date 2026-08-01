@@ -67,6 +67,10 @@ final class StoreDetailView: UIView {
     private func common() {
         backgroundColor = CRT.ink.withAlphaComponent(0.5)
         let outside = UITapGestureRecognizer(target: self, action: #selector(outsideTapped(_:)))
+        // The recognizer fires for taps ANYWHERE on the detail — including the
+        // panel's own buttons — and a recognized tap cancels touch delivery to
+        // them (the Sheets/tutorial cancelsTouchesInView lesson). Don't.
+        outside.cancelsTouchesInView = false
         addGestureRecognizer(outside)
         addSubview(panel)
         objView.contentMode = .scaleAspectFit

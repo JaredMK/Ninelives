@@ -71,4 +71,51 @@ final class ScreenshotUITests: XCTestCase {
         sleep(1)
         shot(app, "11-settings")
     }
+
+    /// The store sub-flows: shelf → detail → (sticker buy) apply picker, then
+    /// the deck inspect off the shell's deck band. Evidence stills only — the
+    /// taps after the first are tolerant (offer contents are seed-dependent).
+    func testStoreFlowWalk() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-resetAll", "1", "-autoStore", "1", "-coins", "30", "-seed", "909"]
+        app.launch()
+        let tile = app.buttons["shelf-0"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 8), "store shelf missing")
+        shot(app, "20-store")
+        tile.tap()
+        sleep(1)
+        shot(app, "21-store-detail")
+
+        // The BUY button's label carries the price ("BUY · ◉ 5") — match by prefix.
+        let buy = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BUY'")).firstMatch
+        if buy.waitForExistence(timeout: 3) {
+            buy.tap()
+            sleep(1)
+            shot(app, "22-card-picker")
+        }
+        // Back out of whatever the buy opened (picker / pack reveal / detail)
+        // — close buttons ride the prompt bar's confirm, so tap through.
+        for _ in 0..<3 {
+            let close = app.buttons["✕"].firstMatch
+            guard close.waitForExistence(timeout: 2) else { break }
+            close.tap()
+            sleep(1)
+            let confirm = app.buttons["SKIP"].firstMatch
+            if confirm.exists { confirm.tap(); sleep(1) }
+        }
+
+        // The detail must really be gone (a stuck detail covers the deck band).
+        XCTAssertFalse(app.buttons["✕"].firstMatch.waitForExistence(timeout: 1),
+                       "store detail did not close")
+        let deck = app.buttons["DECK"].firstMatch
+        XCTAssertTrue(deck.waitForExistence(timeout: 3), "deck band missing")
+        XCTAssertTrue(deck.isHittable, "deck band covered")
+        deck.tap()
+        let inspectClose = app.buttons["✕"].firstMatch
+        XCTAssertTrue(inspectClose.waitForExistence(timeout: 3), "deck inspect did not open")
+        sleep(1)
+        shot(app, "23-deck-inspect")
+        sleep(1)
+        shot(app, "23b-deck-inspect-settled")
+    }
 }

@@ -324,9 +324,11 @@ public final class DealScene: SKScene {
         webLayer.rebuild(centers: pileCenters, alive: visibleAlive, rad: blockRadius)
     }
 
-    public func syncHUD(stageLabel: String, suitsInPlay: [String], sameCharged: Bool, samePower: String?,
+    public func syncHUD(stageLabel: String, phaseIndex: Int, altSuits: Bool,
+                        phasesTotal: Int, showTrack: Bool, sameCharged: Bool, samePower: String?,
                         coins: Int, deckCount: Int, score: Int) {
-        hud.sync(stageLabel: stageLabel, suitsInPlay: suitsInPlay, sameCharged: sameCharged,
+        hud.sync(stageLabel: stageLabel, phaseIndex: phaseIndex, altSuits: altSuits,
+                 phasesTotal: phasesTotal, showTrack: showTrack, sameCharged: sameCharged,
                  samePower: samePower, coins: coins, deckCount: deckCount, score: score)
         sameButton.setRole(sameCharged ? .charged : .ctaOutline)
     }
