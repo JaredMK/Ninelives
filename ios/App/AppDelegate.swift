@@ -50,9 +50,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         let window = UIWindow(frame: UIScreen.main.bounds)
-        let vc = UIViewController()
-        vc.view.backgroundColor = UIColor(red: 0.063, green: 0.063, blue: 0.055, alpha: 1) // #10100e
-        window.rootViewController = vc
+        // Phase 2 boots straight into the debug launcher. The menu → deck
+        // select → map shell is Phase 3.
+        window.rootViewController = LauncherViewController()
         window.makeKeyAndVisible()
         self.window = window
         return true

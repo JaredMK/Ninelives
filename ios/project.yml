@@ -1,4 +1,7 @@
 name: ShouldaSaidSame
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
 options:
   bundleIdPrefix: com.ninelives
   deploymentTarget:
@@ -11,8 +14,10 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGNING_REQUIRED: "NO"
-    CODE_SIGNING_ALLOWED: "NO"
+    # Signing is OFF for the simulator (nothing to sign against) and ON for a
+    # real device, where DEVELOPMENT_TEAM comes from Local.xcconfig.
+    CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]: "NO"
+    CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
     SWIFT_STRICT_CONCURRENCY: minimal
 
@@ -47,19 +52,20 @@ targets:
         ENABLE_TESTABILITY: "YES"
 
   # ── The app ───────────────────────────────────────────────────────────────
-  # Phase 1 renders NOTHING. Rendering/ and UI/ are deliberate empty stubs.
+  # Phase 2: the SpriteKit deal board + a debug launcher. Menus, map and store
+  # are Phase 3.
   ShouldaSaidSame:
     type: application
     platform: iOS
     sources:
       - path: App
         excludes: ["GameCore-Info.plist", "Info.plist"]
-      # Phase 2 lives here. `buildPhase: none` keeps the stub notes visible in
-      # the project navigator without copying them into the app bundle.
       - path: Rendering
-        buildPhase: none
       - path: UI
-        buildPhase: none
+      # VT323 + Press Start 2P, unwrapped from the web's .woff2 by
+      # Tools/convert-fonts.py and registered through UIAppFonts below.
+      - path: Assets
+        buildPhase: resources
     dependencies:
       - target: GameCore
         embed: true
@@ -75,6 +81,12 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiredDeviceCapabilities: [armv7]
+        # XcodeGen flattens the Assets/ tree into the bundle root, so these are
+        # bare filenames — NOT "Fonts/…". A wrong path here shows up as the
+        # fail-loud assert in CRT.Font.of, not as a silent Helvetica swap.
+        UIAppFonts:
+          - VT323.ttf
+          - PressStart2P.ttf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.shouldasaidsame

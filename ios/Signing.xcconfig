@@ -1,0 +1,11 @@
+// Device signing. The simulator needs none; a real iPhone needs YOUR team.
+//
+// Put your Team ID in a local, untracked override rather than editing this
+// file, so the setting never lands in a commit:
+//
+//     echo 'DEVELOPMENT_TEAM = ABCDE12345' > ios/Local.xcconfig
+//
+// Find the ID in Xcode ▸ Settings ▸ Accounts ▸ (your Apple ID) ▸ Manage
+// Certificates, or at developer.apple.com/account under Membership details.
+// A free Apple ID works — apps just expire after 7 days.
+#include? "Local.xcconfig"

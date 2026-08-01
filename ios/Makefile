@@ -5,13 +5,15 @@
 #   make data       # re-export items.js / difficulty.js / tutorial.js → JSON
 #   make fixtures   # re-capture the web-engine ground truth (needs the web repo)
 #   make verify-launch   # boot the app in the simulator and read its boot receipt
+#   make perf       # play a scripted 12-pile deal and print its frame timings
+#   make device-run # build, install and launch on a connected iPhone
 
 SIM      ?= iPhone 17
 PROJECT   = ShouldaSaidSame.xcodeproj
 DD        = build/DerivedData
 BUNDLE_ID = com.ninelives.shouldasaidsame
 
-.PHONY: all project build test data fixtures app verify-launch clean
+.PHONY: all project build test data fixtures app verify-launch device device-run perf clean
 
 all: project build test
 
@@ -56,6 +58,32 @@ verify-launch: app
 	  && echo "✅ still running after 4s — no crash" || (echo "❌ process gone — it crashed"; exit 1); \
 	echo "--- boot receipt ---"; \
 	cat "$$(xcrun simctl get_app_container $$SIMID $(BUNDLE_ID) data)/Documents/boot-receipt.json"
+
+# ── Device ────────────────────────────────────────────────────────────────
+# Needs your Team ID once:  echo 'DEVELOPMENT_TEAM = ABCDE12345' > Local.xcconfig
+device: project
+	xcodebuild build -project $(PROJECT) -scheme ShouldaSaidSame \
+	  -destination 'generic/platform=iOS' -derivedDataPath $(DD) -allowProvisioningUpdates
+
+# Install + launch on the first connected iPhone.
+device-run: device
+	@UDID=$$(xcrun devicectl list devices --hide-headers 2>/dev/null | grep -i 'available' | grep -iv watch | head -1 | awk '{print $$3}'); \
+	if [ -z "$$UDID" ]; then echo "No connected iPhone found — plug it in, unlock it, and trust this Mac."; exit 1; fi; \
+	echo "installing to $$UDID"; \
+	xcrun devicectl device install app --device $$UDID $(DD)/Build/Products/Debug-iphoneos/ShouldaSaidSame.app; \
+	xcrun devicectl device process launch --device $$UDID $(BUNDLE_ID)
+
+# A scripted deal + its frame timings, on the simulator.
+perf: app
+	@SIMID=$$(xcrun simctl list devices available -j | python3 -c \
+	  "import json,sys;d=json.load(sys.stdin)['devices'];print(next(x['udid'] for r in d for x in d[r] if x['name']=='$(SIM)'))"); \
+	xcrun simctl boot $$SIMID 2>/dev/null || true; \
+	xcrun simctl bootstatus $$SIMID -b >/dev/null 2>&1 || true; \
+	xcrun simctl install $$SIMID $(DD)/Build/Products/Debug-iphonesimulator/ShouldaSaidSame.app; \
+	rm -f "$$(xcrun simctl get_app_container $$SIMID $(BUNDLE_ID) data)/Documents/deal-receipt.json"; \
+	xcrun simctl launch $$SIMID $(BUNDLE_ID) -autoDeal 1 -autoPlay 1 -piles 12 -cards 52 -seed 909 -items 1 -fps 1; \
+	echo "playing a scripted 12-pile deal…"; sleep 30; \
+	cat "$$(xcrun simctl get_app_container $$SIMID $(BUNDLE_ID) data)/Documents/deal-receipt.json"
 
 clean:
 	rm -rf $(DD) $(PROJECT)

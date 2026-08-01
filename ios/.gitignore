@@ -4,3 +4,6 @@ build/
 DerivedData/
 *.xcuserdatad
 .DS_Store
+Local.xcconfig
+# Finder/tooling duplicate artifacts ("Foo 2.swift")
+* [0-9].*

@@ -1,10 +1,17 @@
-# Shoulda Said Same — iOS (Phase 1: engine + data)
+# Shoulda Said Same — iOS
 
-A native Swift port of the web game's engine. **Phase 1 renders nothing** —
-`Rendering/` and `UI/` are deliberate empty stubs; SpriteKit lands in Phase 2.
+A native Swift port of the web game. The web build (`../index.html` +
+`../items.js` / `../difficulty.js` / `../tutorial.js`) is the reference
+implementation and stays untouched.
 
-The web build (`../index.html` + `../items.js` / `../difficulty.js` /
-`../tutorial.js`) is the reference implementation and stays untouched.
+- **Phase 1 — engine + data.** `GameCore/` + `Data/`, verified against the real
+  web engine by committed fixtures.
+- **Phase 2 — the DEAL BOARD.** `Rendering/` + `UI/`: a SpriteKit board you can
+  actually play, reached through a temporary debug launcher.
+- **Phase 3 — menus, map, store.** Not built.
+
+The visual contract is `../styleguide.html` (CRT CASINO). If a surface here
+disagrees with that page, this surface is wrong.
 
 ## Build and test
 
@@ -16,6 +23,8 @@ cd ios
 make                 # generate the project, build GameCore, run the tests
 make test            # just the tests
 make verify-launch   # build the app, launch it in the simulator, print its boot receipt
+make perf            # play a scripted 12-pile deal, print its frame timings
+make device-run      # build + install + launch on a connected iPhone (see below)
 ```
 
 The raw commands, if you prefer them:
@@ -49,8 +58,10 @@ simulator. Add a team in Xcode when you want to run on a device.
 | `GameCore/` | The engine. **Pure Swift — zero UIKit/SpriteKit/SwiftUI imports** (enforced by a test). |
 | `Data/` | Codable structs + fail-loud validators over the bundled JSON. |
 | `Resources/` | `items.json`, `difficulty.json`, `tutorial.json`, `meta.json` — generated, see below. |
-| `Rendering/`, `UI/` | Empty Phase 2 stubs. |
-| `App/` | A bare host app: it validates the data, smoke-runs the engine, shows a blank screen. |
+| `Rendering/` | The SpriteKit board: palette, baked textures, cards, piles, the connection web, chrome, the CRT layer. Imports SpriteKit; never touches game rules. |
+| `UI/` | View controllers + gestures + the GameCore wiring, and the temporary debug launcher. |
+| `Assets/Fonts/` | VT323 + Press Start 2P as `.ttf`, unwrapped from the web's `.woff2`. |
+| `App/` | The host app. Validates the data at boot, then shows the launcher. |
 | `Tests/` | XCTest suite. |
 | `Fixtures/` | Ground truth captured from the **real web engine** (committed). |
 | `Tools/` | The Node exporters that produce `Resources/` and `Fixtures/`. |
@@ -136,3 +147,117 @@ make test
 ones pin rules the fixtures can't express (fail-loud validation, boundary
 conditions, invariants across many seeds). Tests read tunables live from the data
 files, so a retune in `items.js` never breaks the suite — only a rule change does.
+
+
+---
+
+## Phase 2 — the deal board
+
+### Running it
+
+The app opens a **debug launcher** (deck / tier / piles / cards / items / seed →
+START DEAL). It is scaffolding for Phase 2 only and gets deleted in Phase 3.
+
+Every option is also a launch argument, so a deal can be started without taps:
+
+```sh
+xcrun simctl launch <UDID> com.ninelives.shouldasaidsame \
+  -autoDeal 1 -piles 12 -cards 52 -seed 4242 -items 1 -fps 1
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `-autoDeal 1` | start a deal immediately |
+| `-autoPlay 1` | play it with the deterministic script the engine traces use |
+| `-piles N` | 1–12 |
+| `-cards N` | 13–52 — a real climb's deck grows, so dial the depth you want |
+| `-deck / -tier` | `pink\|mamma\|smith\|lammy`, `regular\|master\|legendary` |
+| `-items 1` | bind a Pillar per column, a Base, and a Same-Power |
+| `-fps 1` | draw the live frame-time readout |
+| `-demoOverlay fan\|help\|swipe` | open an overlay for a screenshot |
+
+A finished deal writes `Documents/deal-receipt.json` — result, guesses, and the
+run's frame timings. `make perf` runs one and prints it.
+
+### Input
+
+Ported from the web's swipe rules so the feel carries over, with native
+recognizers instead of pointer bookkeeping:
+
+| Gesture | Result |
+| --- | --- |
+| tap a pile | select it |
+| swipe up / down | Higher / Lower |
+| swipe sideways (either way) | Same |
+| release inside the 26pt dead-zone | cancel, pile stays selected |
+| hold a pile (350ms) | its card help, in the deck band |
+| FAN, then tap a pile | that pile's full face-up fan |
+
+`DRAG_THRESH 26`, `TAP_SLOP 8`, `INFO_HOLD_MS 350` — the same constants as
+`index.html`. `RenderingTests` pins the direction mapping against the web rule.
+
+### Perf
+
+The port exists partly to escape the browser's per-frame costs, so the rules are
+strict and mechanical:
+
+- **Everything is baked.** Text, panels, card faces, the CRT layer and the web's
+  dashed edges are rendered to textures once and cached; frames only blit
+  sprites. `Rendering/` uses no `SKEffectNode`, no `CIFilter`, and no
+  `SKShapeNode` on the hot path.
+- **The phosphor glow is baked into the glyph texture**, not applied per frame.
+- **The CRT overlay is ONE static sprite.** The only thing that ever animates on
+  it is the one-shot 240ms flicker at deal end.
+- **Layout runs on size changes only** — never per frame.
+- `SKView.ignoresSiblingOrder` is on, so **every node states its own
+  zPosition**; equal zPositions draw in arbitrary order.
+
+Measured on the iPhone 17 simulator (iOS 26.4), scripted 12-pile / 52-card deal:
+
+| | frames | mean | worst | fps | over 16.7ms |
+| --- | --- | --- | --- | --- | --- |
+| 12 piles, seed 909 | 679 | 16.68ms | 23.08ms | 60.0 | 1 |
+| 12 piles, seed 31337 | 628 | 16.68ms | 27.39ms | 59.9 | 1 |
+| 9 piles, seed 4242 | 603 | 16.68ms | 22.60ms | 60.0 | 1 |
+
+The single over-budget frame each run is the first deal-out frame, where the
+card textures bake. Everything after is flat 60.
+
+---
+
+## Running on a real iPhone
+
+Simulator builds are unsigned; a device needs YOUR Apple ID. One-time setup:
+
+1. **Xcode ▸ Settings ▸ Accounts ▸ + ▸ Apple ID** — sign in. A free account
+   works; apps just expire after 7 days.
+2. Find your Team ID: same panel, **Manage Certificates**, or
+   developer.apple.com/account ▸ Membership details.
+3. Write it into an untracked local override:
+
+   ```sh
+   echo 'DEVELOPMENT_TEAM = ABCDE12345' > ios/Local.xcconfig
+   ```
+
+4. Plug the phone in, unlock it, tap **Trust This Computer**.
+5. `cd ios && make device-run`
+
+First run only: the phone will refuse to open the app until you approve the
+certificate at **Settings ▸ General ▸ VPN & Device Management ▸ Developer App ▸
+Trust**.
+
+### Or entirely in Xcode
+
+```sh
+cd ios && xcodegen generate --spec project.yml && open ShouldaSaidSame.xcodeproj
+```
+
+Select the **ShouldaSaidSame** scheme, pick your iPhone in the device menu, and
+press ▶. If it complains about signing, open the target's **Signing &
+Capabilities** tab and choose your team there — that writes the same setting
+`Local.xcconfig` holds.
+
+> `PRODUCT_BUNDLE_IDENTIFIER` is `com.ninelives.shouldasaidsame`. A free Apple
+> account can't reuse an identifier another account has registered — if
+> provisioning fails, change it to something of your own
+> (`com.<you>.shouldasaidsame`) in `project.yml` and regenerate.
