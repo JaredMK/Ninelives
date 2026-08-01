@@ -26,7 +26,16 @@ public final class DealScene: SKScene {
     private var sameButton: PixelButton!
     private var lowerButton: PixelButton!
     private var reshuffleButton: PixelButton!
-    private var buttons: [PixelButton] { [fanButton, higherButton, sameButton, lowerButton, reshuffleButton] }
+    private var menuButton: PixelButton!
+    private var buttons: [PixelButton] {
+        var b = [fanButton!, higherButton!, sameButton!, lowerButton!, reshuffleButton!]
+        if showsMenuButton { b.append(menuButton) }
+        return b
+    }
+
+    /// The corner pause-menu button (campaign/zen deals only).
+    public var showsMenuButton = false { didSet { menuButton?.isHidden = !showsMenuButton } }
+    public var onMenuTapped: (() -> Void)?
 
     /// The big centred direction word shown while swiping.
     private let swipeLabel = SKNode()
@@ -78,7 +87,9 @@ public final class DealScene: SKScene {
         sameButton = PixelButton(id: "same", title: "＝", size: CGSize(width: railW, height: 46), role: .ctaOutline, fontSize: 22)
         lowerButton = PixelButton(id: "lower", title: "▼", size: CGSize(width: railW, height: 46), role: .cta, fontSize: 22)
         reshuffleButton = PixelButton(id: "reshuffle", title: "RESHUFFLE", size: CGSize(width: 180, height: 34), role: .gold, fontSize: 16)
-        buttons.forEach { addChild($0) }
+        menuButton = PixelButton(id: "menu", title: "≡", size: CGSize(width: 34, height: 28), role: .plain, fontSize: 16)
+        menuButton.isHidden = !showsMenuButton
+        [fanButton, higherButton, sameButton, lowerButton, reshuffleButton, menuButton].forEach { addChild($0) }
 
         swipeLabel.zPosition = Layer.float
         addChild(swipeLabel)
@@ -151,9 +162,11 @@ public final class DealScene: SKScene {
         sameButton.position = CGPoint(x: railX, y: ry); ry -= sameButton.frameSize.height + 6
         lowerButton.position = CGPoint(x: railX, y: ry)
 
-        // Reshuffle sits at the very bottom, centred.
+        // Reshuffle sits at the very bottom, centred; the pause menu bottom-left.
         reshuffleButton.position = CGPoint(x: (size.width - reshuffleButton.frameSize.width) / 2,
                                            y: -(size.height - safeInsets.bottom - pad))
+        menuButton.position = CGPoint(x: pad,
+                                      y: -(size.height - safeInsets.bottom - pad - 3))
 
         // The board owns everything right of the rail.
         let boardX = railX + fanButton.frameSize.width + 10
@@ -664,6 +677,49 @@ public final class DealScene: SKScene {
                 completion()
             },
         ]), withKey: "cascade-done")
+    }
+
+    /// SUBSET REVEAL: the full deck fans out as face-down backs, the sitting-out
+    /// portion dims, over an "X of Y in play" count. Anonymity total — every
+    /// back is blank. ~1.2s, then removes itself.
+    public func playSubsetReveal(inPlay: Int, total: Int) {
+        guard total > 0, inPlay >= 0 else { return }
+        let holder = SKNode()
+        holder.zPosition = Layer.overlay
+        holder.position = CGPoint(x: size.width / 2, y: -size.height * 0.42)
+        addChild(holder)
+        let cap = 55
+        let drawN = min(total, cap)
+        let litN = Int((Double(drawN) * Double(inPlay) / Double(total)).rounded())
+        let spread = min(84.0, 10.0 + Double(drawN) * 1.4) * .pi / 180
+        for i in 0..<drawN {
+            let t = drawN > 1 ? Double(i) / Double(drawN - 1) : 0.5
+            let angle = (t - 0.5) * spread
+            let back = BoardFX.faceDownCard(scale: .half, deckId: deckId)
+            back.zRotation = CGFloat(-angle)
+            back.position = CGPoint(x: CGFloat(sin(angle)) * 90, y: CGFloat(cos(angle)) * 26)
+            back.alpha = 0
+            back.setScale(0.8)
+            holder.addChild(back)
+            let lit = i < litN
+            back.run(.sequence([
+                .wait(forDuration: Double(i) * 0.006),
+                .group([.fadeAlpha(to: 1, duration: 0.12), .scale(to: 1, duration: 0.12)]),
+                .wait(forDuration: 0.56),
+                .fadeAlpha(to: lit ? 1 : 0.28, duration: 0.2),
+            ]))
+        }
+        let label = PixelTexture.label("\(inPlay) of \(total) cards in play", size: 19,
+                                       color: CRT.phosphor, glow: true)
+        label.position = CGPoint(x: 0, y: -74)
+        label.zPosition = 1
+        holder.addChild(label)
+        let sub = PixelTexture.label("A random hand from your deck — the rest sit this one out",
+                                     size: 13, color: CRT.muted)
+        sub.position = CGPoint(x: 0, y: -94)
+        sub.zPosition = 1
+        holder.addChild(sub)
+        holder.run(.sequence([.wait(forDuration: 1.22), .fadeOut(withDuration: 0.22), .removeFromParent()]))
     }
 
     // MARK: - Death, saves, powers

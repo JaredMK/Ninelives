@@ -95,6 +95,46 @@ extension CampaignState {
         return copy
     }
 
+    /// SEED1: a player-seeded run plays normally but banks NO progression.
+    public func isExhibition() -> Bool { exhibition }
+
+    /// Drop the saved offer so the next store visit rolls fresh.
+    public func discardStoreOffer() { storeOffer = nil }
+
+    /// Compound: persist a card's lifetime correct-guess count on its identity.
+    public func setCompoundHits(_ id: Int, _ n: Int) {
+        guard let i = baseDeck.firstIndex(where: { $0.id == id }) else { return }
+        baseDeck[i].compoundHits = n
+    }
+
+    /// Snowball Bury: the same win-only write-back contract.
+    public func setSnowball(_ id: Int, _ n: Int) {
+        guard let i = baseDeck.firstIndex(where: { $0.id == id }) else { return }
+        baseDeck[i].snowball = n
+    }
+
+    /// Destroy `count` instances of one sticker type on a card (peels).
+    @discardableResult
+    public func removeStickerInstances(_ id: Int, _ typeId: String, _ count: Int) -> Int {
+        guard let i = baseDeck.firstIndex(where: { $0.id == id }) else { return 0 }
+        var removed = 0
+        for _ in 0..<count {
+            guard let at = baseDeck[i].stickers.firstIndex(where: { $0.type == typeId }) else { break }
+            baseDeck[i].stickers.remove(at: at)
+            removed += 1
+        }
+        return removed
+    }
+
+    /// Durable value change (Cast's setValue): write the new rank onto the
+    /// persistent card so it survives every redeal this run.
+    @discardableResult
+    public func randomizeCard(_ id: Int, to value: Int) -> Bool {
+        guard let i = baseDeck.firstIndex(where: { $0.id == id }) else { return false }
+        baseDeck[i].currentRank = max(minRank, min(maxRank, value))
+        return true
+    }
+
     // MARK: - Sell-and-destroy (the store's SELL1 rule)
 
     /// A sold item never returns to the player: these drop one inventory copy

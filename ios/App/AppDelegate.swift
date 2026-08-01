@@ -50,9 +50,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         let window = UIWindow(frame: UIScreen.main.bounds)
-        // Phase 2 boots straight into the debug launcher. The menu → deck
-        // select → map shell is Phase 3.
-        window.rootViewController = LauncherViewController()
+        // Phase 3: the campaign shell is the app. The Phase 2 debug launcher
+        // stays reachable for the perf/screenshot harness via `-launcher 1`
+        // (and every -autoDeal/-autoMap/-autoStore arg implies it).
+        let d = UserDefaults.standard
+        let wantsLauncher = d.bool(forKey: "launcher") || d.bool(forKey: "autoDeal")
+            || d.bool(forKey: "autoMap") || d.bool(forKey: "autoStore")
+        window.rootViewController = wantsLauncher ? LauncherViewController() : GameFlowController()
         window.makeKeyAndVisible()
         self.window = window
         return true

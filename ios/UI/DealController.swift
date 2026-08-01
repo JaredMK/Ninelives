@@ -2,6 +2,25 @@ import SpriteKit
 import UIKit
 import GameCore
 
+/// What a finished deal hands back to the campaign flow (the web's onRunEnd
+/// payload, flattened).
+public struct DealOutcome {
+    public var won: Bool
+    public var cardsDrawn: Int
+    public var correctGuesses: Int
+    public var totalGuesses: Int
+    public var aliveCount: Int
+    public var minAliveCards: Int
+    public var extraCoinUnits: Int
+    public var pillarPayout: PillarPayout
+    public var bonusCoins: Double
+    public var bonusEvents: [(label: String, amount: Double)]
+    public var sameCharge: Bool
+    public var compoundUpdates: [Int: Int]
+    public var snowballUpdates: [Int: Int]
+    public var stickerPeels: [Int: Int]
+}
+
 /// Wires GameCore to the scene. The engine owns every rule; this only listens
 /// to its events, plays the matching feedback, and pushes fresh state in.
 ///
@@ -13,6 +32,7 @@ import GameCore
 /// (priority 1) — regardless of the order the engine emitted them.
 public final class DealController {
 
+    /// Phase 2's debug-launcher parameters (kept: the perf harness runs on it).
     public struct Setup {
         public var deckId: String
         public var tier: String
@@ -22,11 +42,7 @@ public final class DealController {
         public var bases: [String?]
         public var samePower: String?
         public var sameCharge: Bool
-        /// How many cards the deal plays. A real campaign deck grows from 13 to
-        /// 40+ across a climb; the launcher lets that be dialled directly so the
-        /// board can be exercised at a realistic depth.
         public var cardCount: Int
-        /// Skip all motion (auto-play verification runs).
         public var reduceMotion: Bool
         public init(deckId: String = "pink", tier: String = "regular", seed: UInt32 = 12345,
                     pileCount: Int = 9, pillars: [String?] = [nil, nil, nil],
@@ -38,25 +54,38 @@ public final class DealController {
         }
     }
 
-    private let setup: Setup
+    public enum Mode {
+        case debug(Setup)
+        /// A real campaign deal on the SHARED campaign at its current node.
+        case campaign(DealPlan)
+        /// A Zen deal: fresh suit-limited deck, no items, ZenStats tallies.
+        case zen(DealPlan, diff: String)
+    }
+
+    private let mode: Mode
     private unowned let scene: DealScene
     private let campaign: CampaignState
+    private let runMap: RunMap?
     private var engine: GameEngine!
     private let economy = Economy()
     private let animQueue = AnimQueue()
 
-    /// Coins/score the deal has banked so far (the campaign owns the totals).
-    private var dealBase: Double = 0
+    private var plan: DealPlan?
     private var interactionLocked = true   // locked during the deal-out cascade
     public private(set) var isOver = false
-    /// A fatal guess defers the end-of-deal banner until its death has played.
     private var pendingFinish: (() -> Void)?
     private var awaitingDeathFinish = false
+    private var reduceMotion: Bool
+    private var redealCost: Double = DealPlanner.redealBaseCost
+    public private(set) var reshuffleIndex = 0
 
+    /// Debug-launcher entry (owns a throwaway campaign).
     public init(setup: Setup, scene: DealScene) {
-        self.setup = setup
+        self.mode = .debug(setup)
         self.scene = scene
+        self.reduceMotion = setup.reduceMotion
         self.campaign = CampaignState()
+        self.runMap = nil
         campaign.setDeck(setup.deckId)
         campaign.setTier(setup.tier)
         campaign.setSeedOverride(setup.seed)
@@ -65,12 +94,38 @@ public final class DealController {
         scene.reduceMotion = setup.reduceMotion
     }
 
+    /// Campaign/Zen entry on the SHARED campaign.
+    public init(mode: Mode, campaign: CampaignState, runMap: RunMap?, scene: DealScene,
+                reduceMotion: Bool = false) {
+        self.mode = mode
+        self.scene = scene
+        self.campaign = campaign
+        self.runMap = runMap
+        self.reduceMotion = reduceMotion
+        if case .campaign(let p) = mode { plan = p; redealCost = p.redealCost; reshuffleIndex = p.reshuffleIndex }
+        if case .zen(let p, _) = mode { plan = p }
+        scene.controller = self
+        scene.reduceMotion = reduceMotion
+    }
+
+    private var isZen: Bool { if case .zen = mode { return true }; return false }
+    private var isCampaign: Bool { if case .campaign = mode { return true }; return false }
+
     // MARK: - Boot
 
     public func sceneReady() {
+        switch mode {
+        case .debug(let setup):
+            bootDebug(setup)
+        case .campaign(let p), .zen(let p, _):
+            boot(plan: p)
+        }
+    }
+
+    private func bootDebug(_ setup: Setup) {
         let layout = CampaignLayout.layoutForPiles(setup.pileCount)
         engine = GameEngine(
-            deckSpecs: dealDeck(),
+            deckSpecs: debugDeck(setup),
             pileCount: setup.pileCount,
             runConfig: RunConfig(cols: layout.cols,
                                  sameCharge: setup.sameCharge,
@@ -79,14 +134,36 @@ public final class DealController {
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
-
-        // The flat reward this deal pays if cleared (stage 1, rating 2 — the
-        // debug launcher has no map node to read a real rating from).
-        dealBase = economy.dealFlat(stage: 1, rating: 2, isBoss: false)
-
         scene.buildBoard(pileCount: setup.pileCount)
         scene.setPillars(setup.pillars, bases: setup.bases)
         refreshAll()
+        startCascade()
+    }
+
+    private func boot(plan p: DealPlan) {
+        let layout = CampaignLayout.layoutForPiles(p.piles)
+        let pillars = isZen ? [String?](repeating: nil, count: layout.cols.count) : campaign.columnPillars
+        let bases = isZen ? [String?](repeating: nil, count: layout.cols.count) : campaign.columnBases
+        let samePower = isZen ? nil : campaign.getSamePower()
+        engine = GameEngine(
+            deckSpecs: p.deckForDeal,
+            pileCount: p.piles,
+            runConfig: RunConfig(cols: layout.cols,
+                                 sameCharge: isZen ? false : campaign.getSameCharge(),
+                                 samePower: samePower,
+                                 noStickers: campaign.rules().noStickers))
+        engine.on { [weak self] in self?.handle($0) }
+        engine.start(seedOverride: p.seed)
+        engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
+        scene.buildBoard(pileCount: p.piles)
+        scene.setPillars(pillars, bases: bases)
+        refreshAll()
+        onCheckpoint?(self)   // "run" durability point: a kill now resumes this deal
+        // SUBSET REVEAL: the anonymous "X of Y in play" flourish for fresh
+        // subset deals (never bosses or full-deck).
+        if p.subsetIds != nil && !reduceMotion {
+            scene.playSubsetReveal(inPlay: p.deckForDeal.count, total: p.fullDeckCount)
+        }
         startCascade()
     }
 
@@ -103,10 +180,9 @@ public final class DealController {
         }
     }
 
-    /// The specs this deal is dealt from. The campaign's own 13-card start is
-    /// used as-is when it is big enough; beyond that the deck is topped up from
-    /// the standard 52 in suit order, the same way a climb accumulates cards.
-    private func dealDeck() -> [CardSpec] {
+    /// The debug deal's deck: the campaign's 13-card start, topped up from the
+    /// standard 52 to the dialled depth.
+    private func debugDeck(_ setup: Setup) -> [CardSpec] {
         let owned = campaign.getRunDeck()
         guard setup.cardCount > owned.count else { return Array(owned.prefix(setup.cardCount)) }
         var out = owned
@@ -128,12 +204,9 @@ public final class DealController {
         case .pileKilled:
             // Stats only (web parity): the death VISUAL comes from the resolved
             // or base-fired handler that carries the context.
-            break
+            if isCampaign, !campaign.isExhibition() { campaign.stats.bump("pilesLost") }
 
         case .guarded(let index, _, _, let drawn):
-            // The drawn card flies in, taps the shielded pile, and bounces BACK
-            // to the deck — the pile keeps its top. Sequenced after the draw
-            // that triggered it (a guard IS the resolution, priority 0).
             animQueue.add(priority: 0) { [weak self] done in
                 guard let self else { done(); return }
                 self.scene.flyDraw(face: CardArt.Face(drawn), to: index) {
@@ -150,7 +223,6 @@ public final class DealController {
             }
 
         case .sameSaved(let index, _, _, let drawn, _):
-            // The charge is spent, the would-be-killer LANDS as the new top.
             scene.beginHold(index)
             animQueue.add(priority: 0) { [weak self] done in
                 guard let self else { done(); return }
@@ -174,8 +246,7 @@ public final class DealController {
             }
 
         case .buried(let index, let count, _):
-            // A consequence of the draw — animates AFTER it lands (priority 1):
-            // a face-down card travels deck → pile, then the tuck plays.
+            if isCampaign, !campaign.isExhibition() { campaign.stats.bump("cardsBuried", count) }
             animQueue.add(priority: 1) { [weak self] done in
                 guard let self else { done(); return }
                 self.scene.flyFaceDown(to: index) {
@@ -190,8 +261,6 @@ public final class DealController {
                 scene.floatCue(amount > 0 ? "+\(Int(amount))" : "−\(Int(abs(amount)))",
                                at: p, color: amount > 0 ? CRT.gold : CRT.suitRed)
             }
-            // Diamond Distribution: fly a face-down card along each net move,
-            // staggered, after the triggering ♦ lands.
             if effect == "diamondDistribution", !moves.isEmpty {
                 let capped = Array(moves.prefix(8))
                 animQueue.add(priority: 1) { [weak self] done in
@@ -209,8 +278,12 @@ public final class DealController {
                 }
             }
 
-        case .cardDuplicated:
-            if let sel = scene.currentSelection { scene.floatCue("DUPLICATED", at: sel, color: CRT.gold) }
+        case .cardDuplicated(let cardId, _):
+            // Copy the card into the campaign inventory (pack tray).
+            if isCampaign, campaign.duplicateCard(cardId) != nil {
+                if let sel = scene.currentSelection { scene.floatCue("DUPLICATED", at: sel, color: CRT.gold) }
+                onCheckpoint?(self)
+            }
 
         case .baseFired(let res):
             handleBaseFired(res)
@@ -234,7 +307,6 @@ public final class DealController {
 
         case .lost:
             if awaitingDeathFinish {
-                // The fatal guess's death presentation flushes this.
                 pendingFinish = { [weak self] in self?.finish(win: false) }
             } else {
                 finish(win: false)
@@ -249,13 +321,29 @@ public final class DealController {
                                 drawn: LiveCard, correct: Bool) {
         let fatal = !correct && engine.board.aliveCount() == 0
         awaitingDeathFinish = fatal
-        // A directional guess that survived a TIE can only be a Tie-Safe save.
         let tieSafeSave = correct && guess != .same && drawn.value == current.value
-        // A directional guess that DIED on a tie earns the nudge.
         let fatalTie = !correct && guess != .same && drawn.value == current.value
 
-        // Deck character reaction: HAPPY on a won Same, GLAD on any other
-        // correct guess, SAD when a pile is lost.
+        // First guess: the run counts as played (campaign), or the Zen game
+        // counts (its own store). Exhibition banks nothing.
+        if isZen {
+            onZenGuess?(correct)
+        } else if isCampaign, !campaign.isPlayedCounted() {
+            campaign.markPlayed()
+            if !campaign.isExhibition() {
+                var s = campaign.stats.get()
+                s.gamesPlayed += 1
+                campaign.stats.put(s)
+            }
+            onCheckpoint?(self)
+        }
+        if isCampaign, !campaign.isExhibition() {
+            var deltas: [String: Int] = [:]
+            if guess == .same { deltas["samesCalled"] = 1; if correct { deltas["correctSames"] = 1 } }
+            if drawn.joker || current.joker { deltas["jokersPlayed"] = 1 }
+            campaign.stats.bumpAll(deltas)
+        }
+
         if correct && guess == .same { scene.charReact(.happy) }
         else if correct { scene.charReact(.glad) }
         else { scene.charReact(.sad) }
@@ -264,6 +352,7 @@ public final class DealController {
             guard let self else { return }
             self.scene.endHold(index, suppressDead: !correct)
             self.scene.pileLandPop(index)
+            Haptics2.land(correct: correct)
             if correct {
                 if tieSafeSave {
                     self.scene.savedIndicator(at: index, label: "Tie-Safe")
@@ -278,8 +367,6 @@ public final class DealController {
                 self.scene.playDeathSequence(at: index) { [weak self] in
                     guard let self else { return }
                     if fatal {
-                        // Hold the recap a beat longer on a fatal tie so the
-                        // "Shoulda said same" line is read first.
                         let beat = fatalTie ? 1.1 : 0.36
                         self.scene.run(.sequence([.wait(forDuration: beat), .run {
                             self.flushPendingFinish()
@@ -289,13 +376,11 @@ public final class DealController {
             }
         }
 
-        if setup.reduceMotion {
+        if reduceMotion {
             land()
             if fatal { flushPendingFinish() }
             return
         }
-        // The pile's visible top stays for the whole flight; the drawn face is
-        // painted on landing. Priority 0 — the triggering draw.
         scene.beginHold(index)
         animQueue.add(priority: 0) { [weak self] done in
             guard let self else { done(); return }
@@ -318,8 +403,6 @@ public final class DealController {
         case "heartDemolish":
             for i in res.destroyedPiles ?? [] { scene.playImmediateDeath(at: i) }
         case "reviveBase":
-            // Phoenix: revive flourish, THEN the buried cards travel back to
-            // the deck (the killer stays as the fresh top).
             if let i = res.index {
                 scene.goodPulse(at: i)
                 let count = res.returnedCount ?? 0
@@ -336,8 +419,14 @@ public final class DealController {
                     }
                 }
             }
+        case "demolish":
+            // The Base destroyed a Pillar for good — clear the campaign binding.
+            if isCampaign, let dcol = res.demolishedCol {
+                campaign.setColumnPillar(col: dcol, typeId: nil)
+                if let old = res.demolishedPillar { _ = campaign.discardPillarFromInventory(old) }
+                scene.setPillars(campaign.columnPillars, bases: campaign.columnBases)
+            }
         case "shuffleColumn", "evenOut":
-            // The column reshuffled — pulse its alive piles.
             for i in pilesInColumn(res.col) where engine.board.isActive(i) {
                 scene.goodPulse(at: i)
             }
@@ -349,6 +438,14 @@ public final class DealController {
             }
         default:
             break
+        }
+        // Durable card modifications last the REST OF THE RUN — write the same
+        // change onto the persistent campaign card (web parity).
+        if isCampaign {
+            for v in res.valueApplied ?? [] { _ = campaign.randomizeCard(v.cardId, to: v.value) }
+            for s in res.suitApplied ?? [] { _ = campaign.setCardSuit(s.cardId, to: s.suit) }
+            if let s = res.stickerApplied { _ = campaign.applySticker(s.cardId, s.typeId) }
+            onCheckpoint?(self)
         }
         refreshBoard()
     }
@@ -374,20 +471,51 @@ public final class DealController {
         scene.crtFlicker()               // the ONE-SHOT flicker, deal end only
         scene.setSelected(nil)
         scene.charReact(win ? .celebrate : .sad)
+        Haptics2.dealEnd(won: win)
         refreshAll()
         let payout = win ? currentPayout() : 0
-        scene.showResultBanner(win ? "DEAL CLEARED · +\(Int(payout))" : "DEAL LOST", win: win)
-        writeDealReceipt(win: win, payout: payout)
+        if case .debug = mode {
+            scene.showResultBanner(win ? "DEAL CLEARED · +\(Int(payout))" : "DEAL LOST", win: win)
+            writeDealReceipt(win: win, payout: payout)
+        }
         onFinish?(win, Int(payout), currentScore())
+        onOutcome?(outcome(win: win))
     }
 
-    /// Called when the deal ends: (won, coins, score).
-    public var onFinish: ((Bool, Int, Int) -> Void)?
+    private func outcome(win: Bool) -> DealOutcome {
+        DealOutcome(
+            won: win,
+            cardsDrawn: engine.run.cardsDrawn,
+            correctGuesses: engine.run.correctGuesses,
+            totalGuesses: engine.run.totalGuesses,
+            aliveCount: engine.board.aliveCount(),
+            minAliveCards: engine.board.minAliveCards(),
+            extraCoinUnits: engine.board.extraCoinUnits(),
+            pillarPayout: engine.pillarPayout(),
+            bonusCoins: engine.run.bonusCoins,
+            bonusEvents: engine.run.bonusEvents.keys.map { ($0, engine.run.bonusEvents[$0]) },
+            sameCharge: engine.sameCharge,
+            compoundUpdates: engine.run.compoundUpdates,
+            snowballUpdates: engine.run.snowballUpdates,
+            stickerPeels: engine.run.stickerPeels)
+    }
 
-    /// Phase 2 has no summary screen yet, so the deal writes what it did — and
-    /// crucially its FRAME TIMINGS — to `Documents/deal-receipt.json`. That is
-    /// the measurement the perf claims are read from, on simulator or device.
+    /// Debug path result: (won, coins, score).
+    public var onFinish: ((Bool, Int, Int) -> Void)?
+    /// Campaign/Zen path: the full outcome for the run-end fold.
+    public var onOutcome: ((DealOutcome) -> Void)?
+    /// A Zen guess resolved (correct?) — ZenStats tallies live in the flow.
+    public var onZenGuess: ((Bool) -> Void)?
+    /// Durability points ("run" checkpoints) — the flow persists here.
+    public var onCheckpoint: ((DealController) -> Void)?
+
+    /// The persisted-deal identity for the save blob.
+    public var currentSeed: UInt32 { engine.run.seed }
+    public var currentPlan: DealPlan? { plan }
+    public var currentRedealCost: Double { redealCost }
+
     private func writeDealReceipt(win: Bool, payout: Double) {
+        guard case .debug(let setup) = mode else { return }
         let f = scene.frameStats
         let receipt: [String: Any] = [
             "won": win,
@@ -432,9 +560,9 @@ public final class DealController {
         guard let target = pile ?? scene.currentSelection else { return }
         guard engine.board.isActive(target), !engine.deck.isEmpty else { return }
         engine.guess(target, g)
-        // Drain any queued prompts. Phase 2 has no prompt UI yet, so the
-        // deterministic default is DECLINE — never silently spend the player's
-        // coins on an offer they were never shown.
+        // Drain any queued prompts. The prompt/offer UI arrives with Chunk E;
+        // until then the deterministic default is DECLINE — never silently
+        // spend the player's coins on an offer they were never shown.
         while !engine.run.pendingTributes.isEmpty { engine.answerTribute(false) }
         while !engine.run.pendingActions.isEmpty { engine.answerAction(false) }
         if !isOver { scene.setSelected(nil); scene.charReleaseLook() }
@@ -488,14 +616,20 @@ public final class DealController {
             dead: (0..<n).map { !engine.board.isActive($0) },
             anchored: (0..<n).map { engine.board.isAnchored($0) },
             pileCards: (0..<n).map { engine.board.piles[$0].cards },
-            deckId: setup.deckId)
+            deckId: campaign.deckId)
         scene.syncBoard(snap)
+    }
+
+    private func stageLabel() -> String {
+        if isZen { return "ZEN" }
+        if case .campaign(let p) = mode { return p.isAmbush ? "AMBUSH" : "STG \(max(1, p.stage))" }
+        return "STG 1"
     }
 
     private func refreshHUD() {
         guard let engine else { return }
-        scene.syncHUD(stageLabel: "STG 1",
-                      suitsInPlay: campaign.suitsInPlay(),
+        scene.syncHUD(stageLabel: stageLabel(),
+                      suitsInPlay: isZen ? [] : campaign.suitsInPlay(),
                       sameCharged: engine.sameCharge,
                       samePower: engine.equippedSamePower(),
                       coins: campaign.getCoins(),
@@ -505,19 +639,24 @@ public final class DealController {
                             suitCounts: engine.deck.remainingSuitCounts(),
                             total: engine.deck.remaining(),
                             remaining: engine.deck.remaining(),
-                            deckId: setup.deckId,
+                            deckId: campaign.deckId,
                             mood: mood())
-        // The peek chip: Scout / peek Pillars reveal the next upcoming draw.
         let peeking = engine.run.revealNextActive || engine.run.kamikazeRevealLeft > 0
         scene.syncDeckPeek(peeking ? engine.deck.peek(1).first.map(CardArt.Face.init) : nil)
-        scene.syncReward(base: dealBase, bonus: liveBonus(), score: currentScore())
+        scene.syncReward(base: plan?.flatReward ?? dealBaseDebug(), bonus: liveBonus(), score: currentScore())
+    }
+
+    private func dealBaseDebug() -> Double {
+        economy.dealFlat(stage: 1, rating: 2, isBoss: false)
     }
 
     private func refreshControls() {
         let canGuess = !interactionLocked && !isOver
             && scene.currentSelection != nil && !engine.deck.isEmpty
+        let canAffordReshuffle = !isCampaign || Double(campaign.getCoins()) >= redealCost
         scene.syncControls(canGuess: canGuess,
-                           showReshuffle: !isOver && engine.run.totalGuesses == 0 && !interactionLocked)
+                           showReshuffle: !isOver && engine.run.totalGuesses == 0
+                               && !interactionLocked && canAffordReshuffle)
     }
 
     private func mood() -> DeckCharacter.Mood {
@@ -537,9 +676,9 @@ public final class DealController {
     private func currentPayout() -> Double {
         var s = PayoutStats()
         s.won = true
-        s.flat = dealBase
-        s.stage = 1
-        s.rating = 2
+        s.flat = plan?.flatReward ?? dealBaseDebug()
+        s.stage = plan?.stage ?? 1
+        s.rating = plan?.rating ?? 2
         s.aliveCount = engine.board.aliveCount()
         s.minAliveCards = engine.board.minAliveCards()
         s.extraCoinUnits = engine.board.extraCoinUnits()
@@ -557,15 +696,61 @@ public final class DealController {
 
     // MARK: - Reshuffle
 
-    /// Re-deal the piles from the same deck (before the FIRST guess only).
+    /// Re-deal the piles (before the FIRST guess only). A campaign deal PAYS
+    /// the escalating redeal price and re-mints from the deal's keyed stream.
     public func reshuffle() {
         guard !isOver, engine.run.totalGuesses == 0 else { return }
-        interactionLocked = true
-        animQueue.clear()
-        engine.start(seedOverride: RNG.generateSeed())
-        engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
-        scene.setSelected(nil)
-        refreshAll()
-        startCascade()
+        switch mode {
+        case .debug(let setup):
+            interactionLocked = true
+            animQueue.clear()
+            engine.start(seedOverride: RNG.generateSeed())
+            engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
+            scene.setSelected(nil)
+            refreshAll()
+            startCascade()
+
+        case .zen:
+            interactionLocked = true
+            animQueue.clear()
+            let p = DealPlanner.zenPlan(diff: GameData.shared.difficulty.zen(zenDiffId ?? "easy"))
+            plan = p
+            boot(plan: p)
+
+        case .campaign:
+            guard let runMap, campaign.spendCoins(Int(redealCost)) else { return }
+            interactionLocked = true
+            animQueue.clear()
+            reshuffleIndex += 1
+            redealCost += DealPlanner.redealStep
+            let ambush: DealPlanner.AmbushSpec? = (plan?.isAmbush == true && plan?.ambushNodeId != nil)
+                ? DealPlanner.AmbushSpec(cards: 0, piles: plan!.piles,
+                                         bounty: plan!.ambushBounty, nodeId: plan!.ambushNodeId!)
+                : nil
+            var p = DealPlanner.plan(campaign: campaign, runMap: runMap,
+                                     reshuffleIndex: reshuffleIndex, redealCost: redealCost,
+                                     ambush: ambush)
+            // An ambush reshuffle keeps its fixed shape (cards+piles from spec).
+            if plan?.isAmbush == true { p.isAmbush = true; p.ambushBounty = plan!.ambushBounty; p.ambushNodeId = plan!.ambushNodeId }
+            plan = p
+            scene.setSelected(nil)
+            boot(plan: p)
+        }
+    }
+
+    private var zenDiffId: String? {
+        if case .zen(_, let d) = mode { return d }
+        return nil
+    }
+}
+
+/// Key-moment haptics (extended by the Chunk E sound pass).
+enum Haptics2 {
+    static func land(correct: Bool) {
+        if correct { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        else { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+    }
+    static func dealEnd(won: Bool) {
+        UINotificationFeedbackGenerator().notificationOccurred(won ? .success : .warning)
     }
 }

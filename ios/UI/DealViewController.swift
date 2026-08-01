@@ -19,8 +19,10 @@ public final class DealViewController: UIViewController {
 
     private var skView: SKView!
     private var scene: DealScene!
-    private var controller: DealController!
-    private let setup: DealController.Setup
+    public private(set) var controller: DealController!
+    private let mode: DealController.Mode
+    private let sharedCampaign: CampaignState?
+    private let runMap: RunMap?
 
     private var dragPile: Int?
     private var dragArmed: Guess?
@@ -30,9 +32,23 @@ public final class DealViewController: UIViewController {
 
     /// Set by the launcher so a finished deal can pop back with its result.
     public var onExit: ((Bool, Int, Int) -> Void)?
+    /// Campaign/Zen: the rich outcome, delivered after the end presentation.
+    public var onOutcome: ((DealOutcome) -> Void)?
+    public var onZenGuess: ((Bool) -> Void)?
+    /// The corner menu button (campaign/zen only).
+    public var onMenu: (() -> Void)?
 
     public init(setup: DealController.Setup) {
-        self.setup = setup
+        self.mode = .debug(setup)
+        self.sharedCampaign = nil
+        self.runMap = nil
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    public init(mode: DealController.Mode, campaign: CampaignState, runMap: RunMap?) {
+        self.mode = mode
+        self.sharedCampaign = campaign
+        self.runMap = runMap
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -75,13 +91,34 @@ public final class DealViewController: UIViewController {
         if scene == nil {
             scene = DealScene(size: view.bounds.size)
             scene.safeInsets = view.safeAreaInsets
-            controller = DealController(setup: setup, scene: scene)
-            controller.onFinish = { [weak self] win, coins, score in
-                guard let self else { return }
-                // Let the banner play, then hand back to the launcher.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
-                    self.onExit?(win, coins, score)
+            switch mode {
+            case .debug(let setup):
+                controller = DealController(setup: setup, scene: scene)
+                controller.onFinish = { [weak self] win, coins, score in
+                    guard let self else { return }
+                    // Let the banner play, then hand back to the launcher.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+                        self.onExit?(win, coins, score)
+                    }
                 }
+            case .campaign, .zen:
+                controller = DealController(mode: mode, campaign: sharedCampaign!,
+                                            runMap: runMap, scene: scene,
+                                            reduceMotion: UserDefaults.standard.bool(forKey: "autoPlay"))
+                controller.onOutcome = { [weak self] outcome in
+                    guard let self else { return }
+                    // Let the end presentation read, then hand the fold up.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + (outcome.won ? 1.4 : 1.2)) {
+                        self.onOutcome?(outcome)
+                    }
+                }
+                controller.onZenGuess = { [weak self] correct in self?.onZenGuess?(correct) }
+                controller.onCheckpoint = { [weak self] _ in
+                    guard let self, let c = self.sharedCampaign else { return }
+                    PersistenceHolder.shared?.checkpoint(c)
+                }
+                scene.showsMenuButton = true
+                scene.onMenuTapped = { [weak self] in self?.onMenu?() }
             }
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
@@ -178,6 +215,7 @@ public final class DealViewController: UIViewController {
         case "same":      controller.guess(.same)
         case "lower":     controller.guess(.lower)
         case "reshuffle": controller.reshuffle()
+        case "menu":      scene.onMenuTapped?()
         default: break
         }
     }
