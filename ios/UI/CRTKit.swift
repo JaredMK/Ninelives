@@ -48,6 +48,13 @@ public enum CRTKit {
     }
 }
 
+/// Bounds-safe indexing for the UI layer (GameCore keeps its own internal twin).
+extension Array {
+    subscript(safe i: Int) -> Element? {
+        indices.contains(i) ? self[i] : nil
+    }
+}
+
 /// The pixel panel as a UIView: flat face, ink border, hard ↘ shadow — all
 /// drawn by sublayers (zero images, resizes for free, still zero live effects).
 public final class PixelPanelView: UIView {

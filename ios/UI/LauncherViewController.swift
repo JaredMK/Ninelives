@@ -1,6 +1,13 @@
 import UIKit
 import GameCore
 
+/// The Chunk C demo flow: closing the store just dismisses it.
+final class StoreDemoDelegate: StoreScreenDelegate {
+    func storeDone(_ store: StoreViewController) {
+        store.dismiss(animated: false)
+    }
+}
+
 /// The Chunk B demo flow: resolves what the map hands it, with the real
 /// campaign mutations for pickups/packs and a cleared-mark for everything else.
 final class MapDemoDelegate: MapScreenDelegate {
@@ -105,6 +112,8 @@ public final class LauncherViewController: UIViewController {
 
         let mapDemo = makeButton(#selector(openMapDemo))
         mapDemo.setTitle("MAP (PHASE 3 DEMO)", for: .normal)
+        let storeDemo = makeButton(#selector(openStoreDemo))
+        storeDemo.setTitle("STORE (PHASE 3 DEMO)", for: .normal)
 
         resultLabel.font = CRT.Font.of(17)
         resultLabel.textColor = CRT.gold
@@ -115,7 +124,7 @@ public final class LauncherViewController: UIViewController {
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         [title, sub, deckButton, tierButton, pilesButton, cardsButton, itemsButton,
-         labelled("SEED", seedField), play, mapDemo, resultLabel].forEach { stack.addArrangedSubview($0) }
+         labelled("SEED", seedField), play, mapDemo, storeDemo, resultLabel].forEach { stack.addArrangedSubview($0) }
         view.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -149,6 +158,9 @@ public final class LauncherViewController: UIViewController {
         }
         if d.bool(forKey: "autoMap") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.openMapDemo() }
+        }
+        if d.bool(forKey: "autoStore") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.openStoreDemo() }
         }
     }
 
@@ -226,6 +238,25 @@ public final class LauncherViewController: UIViewController {
         if hops > 0 { demo.startAutoTravel(on: vc, hops: hops) }
     }
     private static var demoKey: UInt8 = 0
+
+    /// Phase 3 Chunk C demo: a store visit on a fresh campaign with demo coins.
+    @objc private func openStoreDemo() {
+        view.endEditing(true)
+        let campaign = CampaignState()
+        campaign.setDeck(decks[deckIndex])
+        campaign.setTier(tiers[tierIndex])
+        if let s = UInt32(seedText) { campaign.setSeedOverride(s) }
+        campaign.startNewRun()
+        _ = campaign.addCoins(UserDefaults.standard.object(forKey: "coins") != nil
+                              ? UserDefaults.standard.integer(forKey: "coins") : 30)
+        campaign.setRemovalSlot(true)
+        let vc = StoreViewController(campaign: campaign)
+        vc.modalPresentationStyle = .fullScreen
+        let demo = StoreDemoDelegate()
+        vc.delegate = demo
+        objc_setAssociatedObject(vc, &Self.demoKey, demo, .OBJC_ASSOCIATION_RETAIN)
+        present(vc, animated: false)
+    }
 
     @objc private func startDeal() {
         view.endEditing(true)
