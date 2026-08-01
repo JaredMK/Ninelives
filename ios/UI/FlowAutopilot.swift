@@ -78,6 +78,7 @@ final class FlowAutopilot {
             _ = menu
             guard campaignsPlayed < attempts, !won else { finish(); return }
             campaignsPlayed += 1
+            note("starting climb #\(campaignsPlayed)")
             let seed = UserDefaults.standard.object(forKey: "seed") != nil
                 ? UInt32(truncatingIfNeeded: UserDefaults.standard.integer(forKey: "seed") + campaignsPlayed - 1)
                 : nil
@@ -124,12 +125,17 @@ final class FlowAutopilot {
             "clearedNodes": flow.campaign.clearedNodes.count,
             "seconds": Int(Date().timeIntervalSince(startedAt)),
         ]
-        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let data = try? JSONSerialization.data(withJSONObject: receipt,
-                                                     options: [.sortedKeys, .prettyPrinted])
-        else { return }
-        try? data.write(to: dir.appendingPathComponent("campaign-receipt.json"))
-        NSLog("[Autopilot] receipt written: won=%d campaigns=%d deals=%d", won ? 1 : 0, campaignsPlayed, dealsPlayed)
+        NSLog("[Autopilot] finishing: won=%d campaigns=%d deals=%d stores=%d",
+              won ? 1 : 0, campaignsPlayed, dealsPlayed, storeVisits)
+        do {
+            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let data = try JSONSerialization.data(withJSONObject: receipt,
+                                                  options: [.sortedKeys, .prettyPrinted])
+            try data.write(to: dir.appendingPathComponent("campaign-receipt.json"))
+            NSLog("[Autopilot] receipt written to %@", dir.path)
+        } catch {
+            NSLog("[Autopilot] RECEIPT WRITE FAILED: %@", String(describing: error))
+        }
     }
 }
 

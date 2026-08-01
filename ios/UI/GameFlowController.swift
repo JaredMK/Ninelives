@@ -93,6 +93,10 @@ public final class GameFlowController: UIViewController {
     // MARK: - Screen swapping
 
     func setScreen(_ vc: UIViewController) {
+        // A screen change ends any phase overlay's moment — without this the
+        // old overlay view lingers invisibly UNDER the new screen (and keeps
+        // eating the autopilot's taps).
+        dismissOverlay()
         let old = current
         addChild(vc)
         vc.view.frame = view.bounds
@@ -546,6 +550,7 @@ public final class GameFlowController: UIViewController {
             onEndless: { [weak self] in self?.enterEndless() },
             onMenu: { [weak self] in
                 guard let self else { return }
+                self.dismissOverlay()
                 self.clearSave()
                 self.campaign.reset()
                 self.runUnlockPops { self.showMenu() }
