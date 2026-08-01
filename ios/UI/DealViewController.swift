@@ -86,6 +86,9 @@ public final class DealViewController: UIViewController {
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
             if UserDefaults.standard.bool(forKey: "autoPlay") { startAutoPlay() }
+            // The slow variant keeps ANIMATIONS ON — the screenshot pass for
+            // the travel/pulse/death motion (real autoPlay renders instantly).
+            if UserDefaults.standard.bool(forKey: "autoPlaySlow") { startAutoPlay(interval: 1.1) }
             // `-demoOverlay fan|help` opens an overlay for a screenshot pass,
             // since simctl cannot deliver a real touch.
             if let demo = UserDefaults.standard.string(forKey: "demoOverlay") {
@@ -117,8 +120,8 @@ public final class DealViewController: UIViewController {
     /// top, with every 5th call a SAME. Used to exercise the whole loop
     /// (guess → resolve → death → deal end) without a human thumb.
     private var autoStep = 0
-    private func startAutoPlay() {
-        Timer.scheduledTimer(withTimeInterval: 0.42, repeats: true) { [weak self] t in
+    private func startAutoPlay(interval: TimeInterval = 0.42) {
+        Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] t in
             guard let self, let c = self.controller else { t.invalidate(); return }
             if c.isOver { t.invalidate(); return }
             let alive = c.alivePiles()
@@ -192,11 +195,13 @@ public final class DealViewController: UIViewController {
             if let dp = dragPile { controller.select(pile: dp) }
 
         case .changed:
-            guard dragPile != nil else { return }
+            guard let dp = dragPile else { return }
             let t = g.translation(in: view)
             // The web's dy is UP-positive; UIKit's is DOWN-positive.
             let dx = t.x, dy = -t.y
             if max(abs(dx), abs(dy)) > Self.tapSlop { dragMoved = true }
+            // Press feedback tracks the finger: the card nudges toward the drag.
+            scene.dragNudge(pile: dp, dx: dx, dy: dy)
             let armed = Self.direction(dx: dx, dy: dy)
             if armed != dragArmed {
                 dragArmed = armed
@@ -204,13 +209,13 @@ public final class DealViewController: UIViewController {
             }
 
         case .ended:
-            defer { dragPile = nil; dragArmed = nil; scene.clearSwipeDirection() }
+            defer { dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge() }
             guard let pile = dragPile else { return }
             // Release inside the dead-zone cancels: no guess, the pile stays selected.
             if let armed = dragArmed { controller.guess(armed, pile: pile) }
 
         case .cancelled, .failed:
-            dragPile = nil; dragArmed = nil; scene.clearSwipeDirection()
+            dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge()
 
         default: break
         }

@@ -108,6 +108,10 @@ public final class HUDBar: SKNode {
     public private(set) var scoreRect: CGRect = .zero
     public private(set) var coinRect: CGRect = .zero
 
+    /// Last values, so a change POPS its chip (the number pop).
+    private var lastCoins = Int.min
+    private var lastScore = Int.min
+
     public init(width: CGFloat) {
         self.width = width
         super.init()
@@ -163,16 +167,29 @@ public final class HUDBar: SKNode {
         } else {
             samePowerRect = .zero
         }
-        coinRect = put(PixelTexture.label("◉ \(coins)", size: 17, color: CRT.gold))
+        let coinLabel = PixelTexture.label("◉ \(coins)", size: 17, color: CRT.gold)
+        coinRect = put(coinLabel)
         _ = put(PixelTexture.label("DECK \(deckCount)", size: 16, color: CRT.muted))
 
         // Score is the single phosphor element, right-aligned.
-        let score = PixelTexture.label("SCORE \(score)", size: 17, color: CRT.phosphor, glow: true)
-        score.anchorPoint = CGPoint(x: 1, y: 0.5)
-        score.position = CGPoint(x: width - 8, y: midY)
-        content.addChild(score)
-        scoreRect = CGRect(x: width - 8 - score.size.width, y: midY - score.size.height / 2,
-                           width: score.size.width, height: score.size.height)
+        let scoreLabel = PixelTexture.label("SCORE \(score)", size: 17, color: CRT.phosphor, glow: true)
+        scoreLabel.anchorPoint = CGPoint(x: 1, y: 0.5)
+        scoreLabel.position = CGPoint(x: width - 8, y: midY)
+        content.addChild(scoreLabel)
+        scoreRect = CGRect(x: width - 8 - scoreLabel.size.width, y: midY - scoreLabel.size.height / 2,
+                           width: scoreLabel.size.width, height: scoreLabel.size.height)
+
+        // Number pops: a changed coin/score chip marks its change with a beat.
+        if lastCoins != Int.min && coins != lastCoins {
+            coinLabel.setScale(1.25)
+            coinLabel.run(.scale(to: 1.0, duration: 0.16))
+        }
+        if lastScore != Int.min && score != lastScore {
+            scoreLabel.setScale(1.25)
+            scoreLabel.run(.scale(to: 1.0, duration: 0.16))
+        }
+        lastCoins = coins
+        lastScore = score
     }
 }
 

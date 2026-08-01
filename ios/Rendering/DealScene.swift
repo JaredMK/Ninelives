@@ -107,9 +107,15 @@ public final class DealScene: SKScene {
         controller?.refreshAll()
     }
 
-    /// Safe-area insets pushed in by the hosting view controller.
+    /// Safe-area insets pushed in by the hosting view controller. The equality
+    /// guard matters: viewDidLayoutSubviews re-pushes these on EVERY layout
+    /// pass, and an unconditional relayout here cancelled the deal-out cascade
+    /// the moment it started (the Phase 2 "board never moves" bug).
     public var safeInsets: UIEdgeInsets = .zero {
-        didSet { if layoutDone { layoutChrome(); controller?.refreshAll() } }
+        didSet {
+            guard safeInsets != oldValue else { return }
+            if layoutDone { layoutChrome(); controller?.refreshAll() }
+        }
     }
 
     // MARK: - Layout (runs on size/rotation only, never per frame)
@@ -232,10 +238,6 @@ public final class DealScene: SKScene {
             for r in 0..<colCount {
                 guard pileIndex < piles.count else { break }
                 let y = CRT.snap(startY - CGFloat(r) * (box.height + gapY))
-                // A relayout wins over any in-flight deal-in tween — otherwise
-                // a stale `.move(to:)` lands afterwards and stomps the layout.
-                piles[pileIndex].removeAction(forKey: "dealin")
-                piles[pileIndex].alpha = 1
                 piles[pileIndex].position = CGPoint(x: colX, y: y)
                 pileCenters[pileIndex] = CGPoint(x: colX + box.width / 2, y: y - box.height / 2)
                 pileIndex += 1
@@ -271,12 +273,24 @@ public final class DealScene: SKScene {
                    deckId: snap.deckId, weighted: snap.weighted[i], anchored: snap.anchored[i])
             if fanHintOn && !snap.dead[i] { p.showFan(snap.pileCards[i], full: false) } else { p.hideFan() }
         }
+        deckId = snap.deckId
+        // The drawn web follows the VISIBLE state (a dying pile stays wired
+        // until its dissolve severs it); the ENGINE adjacency follows the truth.
+        refreshWeb()
         let alive = Set((0..<piles.count).filter { !snap.dead[$0] })
-        // The blocking radius: a little under half a card box, as on the web
-        // (the card is the obstacle, its centre the node).
-        let rad = cardScale.size.width * 0.46
-        webLayer.rebuild(centers: pileCenters, alive: alive, rad: rad)
-        controller?.pushLinks(WebLayer.adjacency(centers: pileCenters, alive: alive, rad: rad))
+        controller?.pushLinks(WebLayer.adjacency(centers: pileCenters, alive: alive, rad: blockRadius))
+    }
+
+    private var deckId = "pink"
+    private var blockRadius: CGFloat { cardScale.size.width * 0.46 }
+
+    /// Rebuild the drawn connection web from what the PLAYER currently sees —
+    /// called when a death dissolve completes, a revive repaints, or the board
+    /// syncs. The blocking radius: a little under half a card box, as on the
+    /// web (the card is the obstacle, its centre the node).
+    public func refreshWeb() {
+        let visibleAlive = Set((0..<piles.count).filter { !piles[$0].isDead })
+        webLayer.rebuild(centers: pileCenters, alive: visibleAlive, rad: blockRadius)
     }
 
     public func syncHUD(stageLabel: String, suitsInPlay: [String], sameCharged: Bool, samePower: String?,
@@ -291,6 +305,9 @@ public final class DealScene: SKScene {
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
                        deckRemaining: remaining, deckId: deckId, mood: mood)
     }
+
+    /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
+    public func syncDeckPeek(_ face: CardArt.Face?) { deckPanel.syncPeek(face) }
 
     public func syncReward(base: Double, bonus: Double, score: Int) {
         rewardLine.sync(base: base, bonus: bonus, score: score, width: size.width)
@@ -483,15 +500,30 @@ public final class DealScene: SKScene {
 
     // MARK: - Effect feedback
 
-    /// THE shared +N / −N / SAVED floating cue over a pile.
+    /// Motion is skipped entirely under auto-play (the scripted verification
+    /// runs render instantly, the web's `prefersReduce` behaviour).
+    public var reduceMotion = false
+
+    /// THE shared +N / −N / SAVED floating cue over a pile — the web's
+    /// `.pillar-float` chip: rise and fade, with a small entry pop.
     public func floatCue(_ text: String, at pile: Int, color: UIColor) {
         guard let c = pileCenters[pile] else { return }
+        floatCue(text, atPoint: c, color: color)
+    }
+
+    public func floatCue(_ text: String, atPoint c: CGPoint, color: UIColor) {
         let n = PixelTexture.label(text, size: 18, color: color, glow: color == CRT.phosphor)
         n.position = c
         n.zPosition = Layer.float
         floatLayer.addChild(n)
+        if reduceMotion {
+            n.run(.sequence([.wait(forDuration: 0.6), .removeFromParent()]))
+            return
+        }
+        n.setScale(0.8)
         n.run(.sequence([
-            .group([.moveBy(x: 0, y: 26, duration: 0.55), .fadeOut(withDuration: 0.55)]),
+            .scale(to: 1.0, duration: 0.10),
+            .group([.moveBy(x: 0, y: 30, duration: 0.9), .fadeOut(withDuration: 0.9)]),
             .removeFromParent(),
         ]))
     }
@@ -505,22 +537,278 @@ public final class DealScene: SKScene {
 
     public func pileWince(_ index: Int) { guard index < piles.count else { return }; piles[index].wince() }
     public func pileLandPop(_ index: Int) { guard index < piles.count else { return }; piles[index].landPop() }
+    public func goodPulse(at index: Int) { guard index < piles.count else { return }; piles[index].goodPulse() }
 
-    /// The deal-out cascade: each pile's first card flies in from the deck.
-    public func dealOutAnimation(from: CGPoint, completion: @escaping () -> Void) {
-        let step = 0.045
-        for (i, p) in piles.enumerated() {
-            let target = p.position
-            p.position = from
-            p.alpha = 0
-            p.run(.sequence([
-                .wait(forDuration: Double(i) * step),
-                .group([.fadeIn(withDuration: 0.08),
-                        .move(to: target, duration: 0.16)]),
-            ]), withKey: "dealin")
-        }
-        run(.sequence([.wait(forDuration: Double(piles.count) * step + 0.2), .run(completion)]))
+    // MARK: - Traveling cards
+
+    /// The deck character's centre in scene space — where every deck flight
+    /// starts and every return lands.
+    public func deckSourcePoint() -> CGPoint {
+        let c = deckPanel.characterCenter
+        return CGPoint(x: deckPanel.position.x + c.x, y: deckPanel.position.y + c.y)
     }
+
+    public func pileCardCenter(_ i: Int) -> CGPoint { pileCenters[i] ?? .zero }
+
+    /// Begin/end a visual hold on one pile (the traveling card owns its face).
+    public func beginHold(_ i: Int) { guard i < piles.count else { return }; piles[i].beginHold() }
+    public func endHold(_ i: Int, suppressDead: Bool = false) {
+        guard i < piles.count else { return }
+        piles[i].endHold(suppressDead: suppressDead)
+    }
+
+    /// Fly a face-up card from the deck to a pile. The drawn card is visible
+    /// the whole way — the pile's existing top stays under it until landing.
+    public func flyDraw(face: CardArt.Face, to pile: Int, onArrive: @escaping () -> Void) {
+        guard !reduceMotion, let to = pileCenters[pile] else { onArrive(); return }
+        let clone = BoardFX.faceUpCard(face, scale: cardScale)
+        floatLayer.addChild(clone)
+        BoardFX.fly(clone, from: deckSourcePoint(), to: to,
+                    duration: Double(BoardFX.drawFlightMS) / 1000, onArrive: onArrive)
+    }
+
+    /// Fly a face-down card deck → pile (a bury arriving).
+    public func flyFaceDown(to pile: Int, onArrive: @escaping () -> Void) {
+        guard !reduceMotion, let to = pileCenters[pile] else { onArrive(); return }
+        let clone = BoardFX.faceDownCard(scale: cardScale, deckId: deckId)
+        floatLayer.addChild(clone)
+        BoardFX.fly(clone, from: deckSourcePoint(), to: to,
+                    duration: Double(BoardFX.buryFlightMS) / 1000, onArrive: onArrive)
+    }
+
+    /// Fly a face-up card from a pile BACK to the deck (a guard bouncing the
+    /// drawn card away, Phoenix returning its buried cards).
+    public func flyToDeck(face: CardArt.Face?, from pile: Int, delay: TimeInterval = 0,
+                          onArrive: (() -> Void)? = nil) {
+        guard !reduceMotion, let from = pileCenters[pile] else { onArrive?(); return }
+        let clone = face.map { BoardFX.faceUpCard($0, scale: cardScale) }
+            ?? BoardFX.faceDownCard(scale: cardScale, deckId: deckId)
+        clone.alpha = 0
+        floatLayer.addChild(clone)
+        clone.run(.sequence([.wait(forDuration: delay), .fadeIn(withDuration: 0.05), .run { [weak self] in
+            guard let self else { return }
+            BoardFX.fly(clone, from: from, to: self.deckSourcePoint(),
+                        duration: Double(BoardFX.returnFlightMS) / 1000) { onArrive?() }
+        }]))
+    }
+
+    /// Fly a face-down card pile → pile (Diamond Distribution's net moves,
+    /// Donate). No identity is ever revealed.
+    public func flyPileToPile(from: Int, to: Int, onArrive: @escaping () -> Void) {
+        guard !reduceMotion, let a = pileCenters[from], let b = pileCenters[to] else { onArrive(); return }
+        let clone = BoardFX.faceDownCard(scale: cardScale, deckId: deckId)
+        floatLayer.addChild(clone)
+        BoardFX.fly(clone, from: a, to: b, duration: 0.26, onArrive: onArrive)
+    }
+
+    /// The bury tuck: ghost card slivers slide down behind the pile's top,
+    /// staggered — the web's `.bury-tuck` flourish (capped at 3 ghosts).
+    public func buryTuck(at pile: Int, count: Int) {
+        guard pile < piles.count else { return }
+        if count >= 2 { floatCue("⤵\(count)", at: pile, color: CRT.muted) }
+        guard !reduceMotion, let c = pileCenters[pile] else { return }
+        let n = max(1, min(count, 3))
+        for k in 0..<n {
+            let ghost = BoardFX.faceDownCard(scale: cardScale, deckId: deckId)
+            ghost.zPosition = Layer.card - 5   // behind the pile's card
+            ghost.alpha = 0
+            ghost.setScale(0.92)
+            ghost.position = CGPoint(x: c.x, y: c.y + cardScale.size.height * 0.66)
+            boardLayer.addChild(ghost)
+            ghost.run(.sequence([
+                .wait(forDuration: Double(k) * 0.15),
+                .group([
+                    .fadeAlpha(to: 0.9, duration: 0.17),
+                    .move(to: CGPoint(x: c.x, y: c.y - cardScale.size.height * 0.32), duration: 0.6),
+                    .scale(to: 0.66, duration: 0.6),
+                ]),
+                .fadeOut(withDuration: 0.05),
+                .removeFromParent(),
+            ]))
+        }
+    }
+
+    // MARK: - The deal-out cascade
+
+    /// When a deal begins the board reads BLANK for a beat, then a card flies
+    /// out of the deck character to each pile ONE BY ONE, revealing each pile's
+    /// real card as its clone lands. Ported timings: 150ms blank, 80ms step,
+    /// 230ms per flight.
+    public func dealCascade(tops: [CardArt.Face?], completion: @escaping () -> Void) {
+        guard !reduceMotion, !piles.isEmpty else { completion(); return }
+        for p in piles { p.setContentHidden(true) }
+        let blank = Double(BoardFX.cascadeBlankMS) / 1000
+        let step = Double(BoardFX.cascadeStepMS) / 1000
+        let dur = Double(BoardFX.cascadeDurMS) / 1000
+        let from = deckSourcePoint()
+        for (i, p) in piles.enumerated() {
+            guard i < tops.count, let face = tops[i], let to = pileCenters[i] else {
+                p.setContentHidden(false); continue
+            }
+            run(.sequence([.wait(forDuration: blank + Double(i) * step), .run { [weak self] in
+                guard let self else { return }
+                let clone = BoardFX.faceUpCard(face, scale: self.cardScale)
+                self.floatLayer.addChild(clone)
+                BoardFX.fly(clone, from: from, to: to, duration: dur) {
+                    p.setContentHidden(false)
+                    p.landPop()
+                }
+            }]), withKey: "cascade-\(i)")
+        }
+        // Safety net: every card revealed + control handed back even if a
+        // flight is lost to a relayout.
+        run(.sequence([
+            .wait(forDuration: blank + Double(piles.count) * step + dur + 0.25),
+            .run { [weak self] in
+                self?.piles.forEach { $0.setContentHidden(false) }
+                completion()
+            },
+        ]), withKey: "cascade-done")
+    }
+
+    // MARK: - Death, saves, powers
+
+    /// The guess-death presentation: (land) → beat → red flash → dissolve →
+    /// the web severs. `onDissolved` fires after the dissolve completes.
+    public func playDeathSequence(at pile: Int, onDissolved: (() -> Void)? = nil) {
+        guard pile < piles.count else { onDissolved?(); return }
+        if reduceMotion {
+            piles[pile].dissolveToDead()
+            refreshWeb()
+            onDissolved?()
+            return
+        }
+        let p = piles[pile]
+        let flashDelay = Double(BoardFX.deathFlashDelayMS) / 1000
+        let dissolveAfter = Double(BoardFX.deathDissolveAfterMS) / 1000
+        run(.sequence([
+            .wait(forDuration: flashDelay),
+            .run { p.deathFlash() },
+            .wait(forDuration: dissolveAfter),
+            .run { [weak self] in
+                p.dissolveToDead()
+                self?.refreshWeb()
+            },
+            .wait(forDuration: 0.25),
+            .run { onDissolved?() },
+        ]))
+    }
+
+    /// Instant-kill presentation (Kamikaze, Heart Demolish): flash now, dissolve
+    /// at 300ms — no landing beat.
+    public func playImmediateDeath(at pile: Int) {
+        guard pile < piles.count else { return }
+        if reduceMotion {
+            piles[pile].dissolveToDead()
+            refreshWeb()
+            return
+        }
+        let p = piles[pile]
+        p.deathFlash()
+        run(.sequence([
+            .wait(forDuration: Double(BoardFX.deathDissolveAfterMS) / 1000),
+            .run { [weak self] in p.dissolveToDead(); self?.refreshWeb() },
+        ]))
+    }
+
+    /// THE shared pile-SAVED indicator — a protective phosphor ring sweep + a
+    /// floating "SAVED · source" badge, distinct from a plain correct pulse.
+    public func savedIndicator(at pile: Int, label: String?) {
+        guard let c = pileCenters[pile] else { return }
+        floatCue("SAVED" + (label.map { " · \($0)" } ?? ""), at: pile, color: CRT.phosphor)
+        guard !reduceMotion else { return }
+        let box = CGSize(width: cardScale.size.width + 6, height: cardScale.size.height + 6)
+        let ring = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.phosphor, weight: 3))
+        ring.position = c
+        ring.zPosition = Layer.float
+        ring.setScale(0.9)
+        floatLayer.addChild(ring)
+        ring.run(.sequence([
+            .group([.scale(to: 1.22, duration: 0.75), .fadeOut(withDuration: 0.75)]),
+            .removeFromParent(),
+        ]))
+    }
+
+    /// The Same-Power firing flourish: a gold pulse on the hub + each linked
+    /// target, and the power's name floated on the hub.
+    public func powerFeedback(hub: Int?, targets: [Int], label: String?) {
+        func pulse(_ idx: Int, isHub: Bool) {
+            guard let c = pileCenters[idx] else { return }
+            let box = CGSize(width: cardScale.size.width + 4, height: cardScale.size.height + 4)
+            let ring = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.gold, weight: isHub ? 4 : 2))
+            ring.position = c
+            ring.zPosition = Layer.float
+            ring.setScale(0.94)
+            floatLayer.addChild(ring)
+            ring.run(.sequence([
+                .group([.scale(to: isHub ? 1.28 : 1.16, duration: 0.72), .fadeOut(withDuration: 0.72)]),
+                .removeFromParent(),
+            ]))
+        }
+        if !reduceMotion {
+            if let hub { pulse(hub, isHub: true) }
+            for t in targets where t != hub { pulse(t, isHub: false) }
+        }
+        if let hub, let label { floatCue(label, at: hub, color: CRT.gold) }
+    }
+
+    /// The synapse pulse: signal dots ride the web out of the landed pile.
+    public func synapsePulse(from pile: Int) {
+        guard !reduceMotion else { return }
+        webLayer.pulse(from: pile)
+    }
+
+    /// "Shoulda said same" — the teasing pill over a pile that died on a tie.
+    public func shouldaNudge(at pile: Int) {
+        guard let c = pileCenters[pile] else { return }
+        let label = PixelTexture.label("Shoulda said same", size: 13, color: CRT.cardFace)
+        let pad: CGFloat = 8
+        let box = CGSize(width: label.size.width + pad * 2, height: label.size.height + 8)
+        let holder = SKNode()
+        holder.position = CGPoint(x: c.x - box.width / 2, y: c.y + box.height / 2)
+        holder.zPosition = Layer.float + 1
+        let bg = PixelTexture.panelNode(size: box, face: CRT.feltMid, border: CRT.ink, shadowOffset: 2)
+        holder.addChild(bg)
+        label.position = CGPoint(x: box.width / 2, y: -box.height / 2)
+        label.zPosition = 1
+        holder.addChild(label)
+        holder.alpha = 0
+        floatLayer.addChild(holder)
+        if reduceMotion {
+            holder.run(.sequence([.fadeIn(withDuration: 0.1), .wait(forDuration: 0.9),
+                                  .fadeOut(withDuration: 0.2), .removeFromParent()]))
+            return
+        }
+        holder.setScale(0.9)
+        holder.run(.sequence([
+            .wait(forDuration: Double(BoardFX.deathFlashDelayMS) / 1000),
+            .group([.fadeIn(withDuration: 0.16), .scale(to: 1.0, duration: 0.16),
+                    .moveBy(x: 0, y: 9, duration: 0.16)]),
+            .wait(forDuration: 0.68),
+            .group([.fadeOut(withDuration: 0.42), .moveBy(x: 0, y: 13, duration: 0.42)]),
+            .removeFromParent(),
+        ]))
+    }
+
+    // MARK: - Deck character hooks
+
+    /// Look toward a selected pile (quantized gaze), release, react, reset.
+    public func charLookAt(pile: Int) {
+        guard let c = pileCenters[pile] else { return }
+        let src = deckSourcePoint()
+        deckPanel.character.lookToward(dx: c.x - src.x, dy: c.y - src.y)
+    }
+    public func charReleaseLook() { deckPanel.character.releaseLook() }
+    public func charReact(_ m: DeckCharacter.Mood) { deckPanel.character.react(m) }
+    public func charReset() { deckPanel.character.reset() }
+
+    // MARK: - Drag nudge
+
+    public func dragNudge(pile: Int, dx: CGFloat, dy: CGFloat) {
+        guard pile < piles.count else { return }
+        piles[pile].setDragNudge(dx: dx, dy: dy)
+    }
+    public func clearDragNudge() { piles.forEach { $0.clearDragNudge() } }
 
     /// One-shot CRT flicker — deal won/lost only.
     public func crtFlicker() { crt.flicker() }

@@ -183,7 +183,10 @@ public final class LauncherViewController: UIViewController {
             bases: bases,
             samePower: withItems ? data.samePowerTypes.ids.first : nil,
             sameCharge: false,
-            cardCount: cardCount)
+            cardCount: cardCount,
+            // Auto-play renders instantly (the web's reduced-motion rule) so
+            // the scripted verification runs are never slowed by flights.
+            reduceMotion: UserDefaults.standard.bool(forKey: "autoPlay"))
 
         let vc = DealViewController(setup: setup)
         vc.modalPresentationStyle = .fullScreen

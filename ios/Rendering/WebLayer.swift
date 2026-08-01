@@ -14,6 +14,8 @@ import GameCore
 public final class WebLayer: SKNode {
 
     private var edgeNodes: [SKSpriteNode] = []
+    /// The drawn edges, retained so the synapse pulse can ride them.
+    public private(set) var drawnEdges: [(a: Int, b: Int, pa: CGPoint, pb: CGPoint)] = []
     private static var texCache: [Key: SKTexture] = [:]
     private struct Key: Hashable { let len: Int; let lit: Bool; let weight: Int }
 
@@ -75,6 +77,7 @@ public final class WebLayer: SKNode {
     public func rebuild(centers: [Int: CGPoint], alive: Set<Int>, rad: CGFloat, litHub: Int? = nil) {
         edgeNodes.forEach { $0.removeFromParent() }
         edgeNodes.removeAll(keepingCapacity: true)
+        drawnEdges.removeAll(keepingCapacity: true)
 
         let aliveNodes = centers.filter { alive.contains($0.key) }.sorted { $0.key < $1.key }
         for i in 0..<aliveNodes.count {
@@ -87,7 +90,35 @@ public final class WebLayer: SKNode {
                 if blocked { continue }
                 let lit = litHub == a.key || litHub == b.key
                 addEdge(from: a.value, to: b.value, lit: lit)
+                drawnEdges.append((a: a.key, b: b.key, pa: a.value, pb: b.value))
             }
+        }
+    }
+
+    /// The synapse pulse: a phosphor signal dot rides every edge OUT of `hub`
+    /// (the pile a correct guess just landed on) to its linked neighbours —
+    /// 520ms, brighten in, fade over the last third. Transform/alpha only.
+    public func pulse(from hub: Int) {
+        let dur = Double(BoardFX.synapsePulseMS) / 1000
+        for e in drawnEdges where e.a == hub || e.b == hub {
+            let from = e.a == hub ? e.pa : e.pb
+            let to = e.a == hub ? e.pb : e.pa
+            let dot = SKSpriteNode(color: CRT.phosphor, size: CGSize(width: 5, height: 5))
+            dot.position = from
+            dot.alpha = 0
+            // Above the cards: the iOS board packs piles tighter than the web,
+            // so a web-layer dot would vanish under the card sprites.
+            dot.zPosition = Layer.card + 6
+            addChild(dot)
+            let move = SKAction.move(to: to, duration: dur)
+            move.timingMode = .easeInEaseOut
+            dot.run(.group([
+                move,
+                .sequence([.fadeAlpha(to: 1, duration: dur * 0.15),
+                           .wait(forDuration: dur * 0.51),
+                           .fadeAlpha(to: 0, duration: dur * 0.34)]),
+            ]))
+            dot.run(.sequence([.wait(forDuration: dur), .removeFromParent()]))
         }
     }
 
