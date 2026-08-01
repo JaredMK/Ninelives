@@ -318,6 +318,7 @@ final class DeckSelectViewController: MenuScreenBase {
         sprite.layer.magnificationFilter = .nearest
         sprite.alpha = unlocked ? 1 : 0.22
         sprite.frame = CGRect(x: (view.bounds.width - 128) / 2, y: 0, width: 128, height: 128)
+        sprite.tag = 777            // cycleDeck finds the sprite for the perk animation
         row.addSubview(sprite)
         if !unlocked {
             let q = CRTKit.label("?", size: 40, color: CRT.muted, display: true)
@@ -410,6 +411,7 @@ final class DeckSelectViewController: MenuScreenBase {
             dot.layer.borderWidth = 1
             dot.layer.borderColor = CRT.ink.cgColor
             dot.layer.cornerRadius = 4   // the sanctioned pager-dot circle
+            if i == deckIndex { dot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25) }  // web: active dot scale 1.25
             dots.addSubview(dot)
         }
         addView(dots, height: 14)
@@ -452,7 +454,41 @@ final class DeckSelectViewController: MenuScreenBase {
     private func cycleDeck(_ dir: Int) {
         deckIndex = (deckIndex + dir + GameFlowController.decks.count) % GameFlowController.decks.count
         tierIndex = 0
+        // Carousel slide (web: the deck carousel translates on swipe) —
+        // snapshot the old page, slide it out as the fresh build slides in.
+        let shift = view.bounds.width * 0.6 * CGFloat(dir > 0 ? 1 : -1)
+        let ghost = content.snapshotView(afterScreenUpdates: false)
+        if let ghost {
+            ghost.frame = content.frame
+            scroll.addSubview(ghost)
+        }
         build()
+        view.layoutIfNeeded()
+        content.transform = CGAffineTransform(translationX: shift, y: 0)
+        content.alpha = 0.6
+        let slide = UIViewPropertyAnimator(duration: 0.28, curve: .easeOut) {
+            self.content.transform = .identity
+            self.content.alpha = 1
+            ghost?.transform = CGAffineTransform(translationX: -shift, y: 0)
+            ghost?.alpha = 0
+        }
+        slide.addCompletion { _ in ghost?.removeFromSuperview() }
+        slide.startAnimation()
+        // Character perk (web dcPerk: squash-and-stretch) — unlocked decks only.
+        let d = GameFlowController.decks[deckIndex]
+        if deckUnlocked(d), let sprite = content.viewWithTag(777) {
+            UIView.animateKeyframes(withDuration: 0.45, delay: 0) {
+                UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.38) {
+                    sprite.transform = CGAffineTransform(translationX: 0, y: -3).scaledBy(x: 0.96, y: 1.06)
+                }
+                UIView.addKeyframe(withRelativeStartTime: 0.38, relativeDuration: 0.34) {
+                    sprite.transform = CGAffineTransform(scaleX: 1.03, y: 0.96)
+                }
+                UIView.addKeyframe(withRelativeStartTime: 0.72, relativeDuration: 0.28) {
+                    sprite.transform = .identity
+                }
+            }
+        }
     }
 }
 

@@ -139,6 +139,40 @@ public final class BoardState {
         return minNonAnchored == Int.max ? minAll : minNonAnchored
     }
 
+    /// How a pile's count chip highlights relative to the score-dictating
+    /// minimum (the web's `.pile-count` / `.min` / `.min-anchored`).
+    public enum MinState: String {
+        case none
+        /// Score-dictating smallest (solid gold chip). Ties all highlight.
+        case min
+        /// True lowest but ANCHORED, so excluded from the payout (gold-lined).
+        case minAnchored
+    }
+
+    /// Per-pile min highlight states, same rule as `minAliveCards()`: the
+    /// payout minimum is the smallest NON-anchored alive pile (anchored piles
+    /// can't drag the product down) — unless EVERY alive pile is anchored,
+    /// when the true smallest counts (and highlights `.min`, never lined).
+    public func minPileStates() -> [MinState] {
+        var minNonAnchored = Int.max, minAll = Int.max
+        for i in 0..<piles.count {
+            let p = piles[i]
+            if p.dead { continue }
+            let len = sizeOf(p)
+            minAll = Swift.min(minAll, len)
+            if !isAnchored(i) { minNonAnchored = Swift.min(minNonAnchored, len) }
+        }
+        let allAnchored = minNonAnchored == Int.max
+        return (0..<piles.count).map { i in
+            let p = piles[i]
+            if p.dead || minAll == Int.max { return .none }
+            let len = sizeOf(p)
+            if allAnchored { return len == minAll ? .min : .none }
+            if !isAnchored(i) { return len == minNonAnchored ? .min : .none }
+            return (len == minAll && minAll < minNonAnchored) ? .minAnchored : .none
+        }
+    }
+
     /// Extra Coin payout UNITS: for each alive top card carrying Extra Coin,
     /// (number of Extra Coin stickers on it) × (cards in that pile). Only alive
     /// top cards count.

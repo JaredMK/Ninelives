@@ -291,17 +291,21 @@ public final class DealScene: SKScene {
         public var anchored: [Bool]
         public var pileCards: [[LiveCard]]
         public var deckId: String
+        public var minStates: [BoardState.MinState]
         public init(tops: [LiveCard?], counts: [Int], weighted: [Int], dead: [Bool],
-                    anchored: [Bool], pileCards: [[LiveCard]], deckId: String) {
+                    anchored: [Bool], pileCards: [[LiveCard]], deckId: String,
+                    minStates: [BoardState.MinState]) {
             self.tops = tops; self.counts = counts; self.weighted = weighted
-            self.dead = dead; self.anchored = anchored; self.pileCards = pileCards; self.deckId = deckId
+            self.dead = dead; self.anchored = anchored; self.pileCards = pileCards
+            self.deckId = deckId; self.minStates = minStates
         }
     }
 
     public func syncBoard(_ snap: BoardSnapshot) {
         for (i, p) in piles.enumerated() where i < snap.tops.count {
             p.sync(top: snap.tops[i], count: snap.counts[i], dead: snap.dead[i],
-                   deckId: snap.deckId, weighted: snap.weighted[i], anchored: snap.anchored[i])
+                   deckId: snap.deckId, weighted: snap.weighted[i], anchored: snap.anchored[i],
+                   minState: snap.minStates[i])
             if fanHintOn && !snap.dead[i] { p.showFan(snap.pileCards[i], full: false) } else { p.hideFan() }
         }
         deckId = snap.deckId

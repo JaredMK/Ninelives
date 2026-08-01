@@ -335,21 +335,105 @@ public final class CardPickerViewController: UIViewController {
         default: Sound.shared.purchase()
         }
         PersistenceHolder.shared?.checkpoint(campaign)
-        // The chosen card flashes (dissolves for removal/swap), then close.
-        let flash = cardViews[id]
-        UIView.animate(withDuration: 0.3, animations: {
-            switch self.mode {
-            case .removal, .swap, .strip:
-                flash?.alpha = 0
-                flash?.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
-            default:
-                flash?.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
+        // The chosen card plays its web animation, then the picker closes.
+        let cardBtn = cardViews[id]
+        switch mode {
+        case .applySticker, .buySticker:
+            flyStickerThenPop(onto: cardBtn, cardId: id)
+        case .removal, .swap, .strip:
+            crumpleThenClose(cardBtn, cardId: id)
+        }
+    }
+
+    /// Web `flyStickerToCard` + `saFlash`/`saSpark`: the banner's sticker chip
+    /// flies to the chosen card (0.45s, straight line, shrink to 0.55), the
+    /// card repaints with its new badge and pops (1 → 1.22 → 1.08 → 1 over
+    /// 0.85s) with a rising ✨, and the picker closes 0.4s after landing.
+    private func flyStickerThenPop(onto btn: UIButton?, cardId id: Int) {
+        guard let btn else { close(after: 0.4, cardId: id); return }
+        let start = bannerIcon.convert(bannerIcon.bounds, to: view)
+        let ghost = UIImageView(image: bannerIcon.image)
+        ghost.frame = start
+        ghost.contentMode = .scaleAspectFit
+        ghost.layer.magnificationFilter = .nearest
+        view.addSubview(ghost)
+        let target = btn.convert(btn.bounds, to: view)
+        let fly = UIViewPropertyAnimator(duration: 0.45,
+                                         controlPoint1: CGPoint(x: 0.3, y: 0.7),
+                                         controlPoint2: CGPoint(x: 0.3, y: 1)) {
+            ghost.center = CGPoint(x: target.midX, y: target.midY)
+            ghost.transform = CGAffineTransform(scaleX: 0.55, y: 0.55)
+            ghost.alpha = 0.85
+        }
+        fly.addCompletion { [weak self] _ in
+            guard let self else { return }
+            ghost.removeFromSuperview()
+            self.repaintCard(id)
+            self.popCard(btn)
+            self.close(after: 0.4, cardId: id)
+        }
+        fly.startAnimation()
+    }
+
+    /// Re-show the card with its just-applied sticker (fresh face + pips) so
+    /// the player SEES the sticker land before the picker drops.
+    private func repaintCard(_ id: Int) {
+        guard let btn = cardViews[id],
+              let fresh = campaign.getRunDeck().first(where: { $0.id == id }) else { return }
+        btn.setImage(CardArt.image(CardArt.Face(fresh), scale: .half), for: .normal)
+        btn.subviews.filter { $0 is UILabel }.forEach { $0.removeFromSuperview() }
+        if !fresh.stickers.isEmpty {
+            let pip = CRTKit.label(String(repeating: "▪", count: min(4, fresh.stickers.count)),
+                                   size: 12, color: CRT.gold)
+            pip.frame = CGRect(x: 0, y: 68, width: 50, height: 12)
+            pip.textAlignment = .center
+            btn.addSubview(pip)
+        }
+    }
+
+    /// `saFlash` + `saSpark`: the landing pop and a drifting sparkle.
+    private func popCard(_ btn: UIButton) {
+        UIView.animateKeyframes(withDuration: 0.85, delay: 0, options: [.calculationModeCubic]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.22) {
+                btn.transform = CGAffineTransform(scaleX: 1.22, y: 1.22)
             }
-        }) { _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                self.dismiss(animated: false)
-                self.completion(id)
+            UIView.addKeyframe(withRelativeStartTime: 0.22, relativeDuration: 0.33) {
+                btn.transform = CGAffineTransform(scaleX: 1.08, y: 1.08)
             }
+            UIView.addKeyframe(withRelativeStartTime: 0.55, relativeDuration: 0.45) {
+                btn.transform = .identity
+            }
+        }
+        let spark = CRTKit.label("✨", size: 18, color: CRT.gold)
+        spark.frame = CGRect(x: btn.bounds.width - 18, y: -6, width: 24, height: 24)
+        btn.addSubview(spark)
+        UIView.animate(withDuration: 0.85, delay: 0, options: [.curveEaseOut]) {
+            spark.transform = CGAffineTransform(translationX: 4, y: -20)
+            spark.alpha = 0
+        } completion: { _ in spark.removeFromSuperview() }
+    }
+
+    /// Web `saRemove`: a brief grow+tilt, then the crumple — scale 0.2,
+    /// rotate −10°, fade — over 0.72s, then close.
+    private func crumpleThenClose(_ btn: UIButton?, cardId id: Int) {
+        UIView.animateKeyframes(withDuration: 0.72, delay: 0, options: [.calculationModeCubic]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.28) {
+                btn?.transform = CGAffineTransform(scaleX: 1.12, y: 1.12).rotated(by: .pi / 60)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.28, relativeDuration: 0.72) {
+                btn?.transform = CGAffineTransform(scaleX: 0.2, y: 0.2).rotated(by: -.pi / 18)
+                btn?.alpha = 0
+            }
+        } completion: { [weak self] _ in
+            self?.close(after: 0, cardId: id)
+        }
+    }
+
+    private func close(after delay: TimeInterval, cardId id: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.dismiss(animated: false)
+            self.completion(id)
         }
     }
 

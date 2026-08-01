@@ -24,7 +24,7 @@ public final class PileNode: SKNode {
     private let plaque = SKNode()
     private var plaqueBg: SKSpriteNode?
     private var plaqueLabel: SKSpriteNode?
-    private var plaqueText = ""
+    private var plaqueKey = ""
     private let badgeRow = SKNode()
     private var deadMark: SKSpriteNode?
     private var selectRing: SKSpriteNode?
@@ -84,7 +84,7 @@ public final class PileNode: SKNode {
     /// swaps the visible card only when the traveling card lands. Counts,
     /// slivers and the plaque always apply now.
     public func sync(top: LiveCard?, count: Int, dead: Bool, deckId: String,
-                     weighted: Int, anchored: Bool) {
+                     weighted: Int, anchored: Bool, minState: BoardState.MinState) {
         cardCount = count
         // Depth slivers: one per buried card, capped at 3.
         let buried = max(0, count - 1)
@@ -96,7 +96,7 @@ public final class PileNode: SKNode {
                 s.position = CGPoint(x: off, y: off)
             }
         }
-        syncPlaque(weighted: weighted, anchored: anchored)
+        syncPlaque(weighted: weighted, anchored: anchored, minState: minState)
         if held {
             pending = PendingFace(top: top, dead: dead)
             return
@@ -180,28 +180,44 @@ public final class PileNode: SKNode {
 
     /// The pile-count chip: a GOLD-framed cream chip riding the card's
     /// bottom-LEFT corner (the web's on-card plaque). Shows the WEIGHTED size
-    /// — the same number every payout factor reads. A change POPS.
-    private func syncPlaque(weighted: Int, anchored: Bool) {
+    /// — the same number every payout factor reads. The score-dictating
+    /// smallest pile(s) wear SOLID gold (the web's `.min`); an anchored pile
+    /// that is the true lowest but excluded from the payout wears ink with a
+    /// gold frame (`.min-anchored`). A change POPS.
+    private func syncPlaque(weighted: Int, anchored: Bool, minState: BoardState.MinState) {
         let text = anchored ? "\(weighted)⚓" : "\(weighted)"
-        let changed = text != plaqueText && !plaqueText.isEmpty
-        plaqueText = text
+        let key = "\(text)|\(minState.rawValue)"
+        let changed = key != plaqueKey && !plaqueKey.isEmpty
+        plaqueKey = key
         plaqueBg?.removeFromParent()
         plaqueLabel?.removeFromParent()
         let ns = text as NSString
         let font = CRT.Font.of(14)
         let tsz = ns.size(withAttributes: [.font: font])
         let w = max(20, tsz.width + 8), h: CGFloat = 18
+        // Web palette: .min = gold chip, ink text+frame; .min-anchored = ink
+        // chip, gold text+frame; otherwise cream chip, gold frame (phosphor
+        // frame while anchored).
+        let fill: UIColor, frame: UIColor, ink: UIColor
+        switch minState {
+        case .min:
+            fill = CRT.gold; frame = CRT.ink; ink = CRT.ink
+        case .minAnchored:
+            fill = CRT.ink; frame = CRT.gold; ink = CRT.gold
+        case .none:
+            fill = CRT.cardFace; frame = anchored ? CRT.phosphor : CRT.gold; ink = CRT.ink
+        }
         let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
             cg.setFillColor(CRT.shadow.cgColor)
             cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
-            cg.setFillColor(CRT.cardFace.cgColor)
+            cg.setFillColor(fill.cgColor)
             cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
-            cg.setFillColor((anchored ? CRT.phosphor : CRT.gold).cgColor)
+            cg.setFillColor(frame.cgColor)
             for r in [CGRect(x: 0, y: 0, width: w, height: 2), CGRect(x: 0, y: h - 2, width: w, height: 2),
                       CGRect(x: 0, y: 0, width: 2, height: h), CGRect(x: w - 2, y: 0, width: 2, height: h)] { cg.fill(r) }
             UIGraphicsPushContext(cg)
             ns.draw(at: CGPoint(x: (w - tsz.width) / 2, y: (h - tsz.height) / 2),
-                    withAttributes: [.font: font, .foregroundColor: CRT.ink])
+                    withAttributes: [.font: font, .foregroundColor: ink])
             UIGraphicsPopContext()
         }
         let chip = SKSpriteNode(texture: PixelTexture.texture(from: img))

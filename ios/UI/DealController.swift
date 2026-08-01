@@ -791,7 +791,8 @@ public final class DealController {
             dead: (0..<n).map { !engine.board.isActive($0) },
             anchored: (0..<n).map { engine.board.isAnchored($0) },
             pileCards: (0..<n).map { engine.board.piles[$0].cards },
-            deckId: campaign.deckId)
+            deckId: campaign.deckId,
+            minStates: engine.board.minPileStates())
         scene.syncBoard(snap)
     }
 
@@ -895,6 +896,7 @@ public final class DealController {
             startCascade()
 
         case .zen:
+            Sound.shared.shuffle()
             interactionLocked = true
             animQueue.clear()
             let p = DealPlanner.zenPlan(diff: GameData.shared.difficulty.zen(zenDiffId ?? "easy"))
@@ -903,6 +905,7 @@ public final class DealController {
 
         case .campaign:
             guard let runMap, campaign.spendCoins(Int(redealCost)) else { return }
+            Sound.shared.shuffle()
             interactionLocked = true
             animQueue.clear()
             reshuffleIndex += 1

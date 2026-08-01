@@ -125,6 +125,49 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(board.minAliveCards(), 0)
     }
 
+    // MARK: - Min-pile highlight states (the score-dictating pile's gold chip)
+
+    func testMinPileStatesHighlightEveryTiedSmallest() {
+        let board = BoardState(size: 4, data: data)
+        board.push(0, DeckManager.cardForValue(5))                        // 1
+        board.push(1, DeckManager.cardForValue(6))                        // 1 (tie)
+        board.push(2, DeckManager.cardForValue(7)); board.push(2, DeckManager.cardForValue(8))
+        board.push(3, DeckManager.cardForValue(9)); board.push(3, DeckManager.cardForValue(10))
+        board.push(3, DeckManager.cardForValue(11))                       // 3
+        XCTAssertEqual(board.minPileStates(), [.min, .min, .none, .none],
+                       "every pile at the payout minimum highlights, ties included")
+    }
+
+    func testMinPileStatesLinesAnAnchoredTrueLowest() {
+        let board = BoardState(size: 3, data: data)
+        board.push(0, DeckManager.cardForValue(5))                        // 1, anchored
+        board.push(1, DeckManager.cardForValue(6)); board.push(1, DeckManager.cardForValue(7))
+        board.push(2, DeckManager.cardForValue(8)); board.push(2, DeckManager.cardForValue(9))
+        board.top(0)?.stickers.append(StickerRecord(type: "anchor"))
+        XCTAssertEqual(board.minPileStates(), [.minAnchored, .min, .min],
+                       "the anchored 1-card pile is the true lowest but can't set the score")
+    }
+
+    func testMinPileStatesAllAnchoredFallsBackToSolidMin() {
+        let board = BoardState(size: 2, data: data)
+        board.push(0, DeckManager.cardForValue(5))
+        board.push(1, DeckManager.cardForValue(6)); board.push(1, DeckManager.cardForValue(7))
+        board.top(0)?.stickers.append(StickerRecord(type: "anchor"))
+        board.top(1)?.stickers.append(StickerRecord(type: "anchor"))
+        XCTAssertEqual(board.minPileStates(), [.min, .none],
+                       "when every alive pile is anchored the smallest COUNTS — gold, never lined")
+    }
+
+    func testMinPileStatesIgnoresDeadPiles() {
+        let board = BoardState(size: 3, data: data)
+        board.push(0, DeckManager.cardForValue(5))
+        board.push(1, DeckManager.cardForValue(6)); board.push(1, DeckManager.cardForValue(7))
+        board.push(2, DeckManager.cardForValue(8))
+        board.kill(2)
+        XCTAssertEqual(board.minPileStates(), [.min, .none, .none],
+                       "a dead pile never highlights, even at the minimum")
+    }
+
     func testExtraCoinUnitsCountOnlyAliveTops() {
         let board = BoardState(size: 2, data: data)
         for i in 0..<2 {
