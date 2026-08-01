@@ -49,6 +49,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             fatalError("Bundled game data failed validation: \(error)")
         }
 
+        // Pre-arm the audio session off-main so the first cue never hitches a frame.
+        Sound.shared.warmUp()
+
         let window = UIWindow(frame: UIScreen.main.bounds)
         // Phase 3: the campaign shell is the app. The Phase 2 debug launcher
         // stays reachable for the perf/screenshot harness via `-launcher 1`

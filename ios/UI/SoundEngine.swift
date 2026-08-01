@@ -19,16 +19,26 @@ public final class Sound {
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     private var cache: [String: AVAudioPCMBuffer] = [:]
     private var started = false
+    /// EVERY audio touch (session activation, buffer synthesis, scheduling)
+    /// rides this serial queue — the render thread never blocks a frame.
+    private let queue = DispatchQueue(label: "ninelives.sound", qos: .userInitiated)
+    private var enabledCache: Bool = UserDefaults.standard.string(forKey: "ninelives.pref.sound") != "0"
 
     public var enabled: Bool {
-        get { UserDefaults.standard.string(forKey: "ninelives.pref.sound") != "0" }
+        get { enabledCache }
         set {
+            enabledCache = newValue
             UserDefaults.standard.set(newValue ? "1" : "0", forKey: "ninelives.pref.sound")
             if newValue { play("on", [Voice(freq: 660, dur: 0.09, gain: 0.05, glideTo: 880)]) }
         }
     }
 
     private init() {}
+
+    /// Pre-arm the session + engine off-main (called at app boot).
+    public func warmUp() {
+        queue.async { self.startIfNeeded() }
+    }
 
     private func startIfNeeded() {
         guard !started else { return }
@@ -122,21 +132,23 @@ public final class Sound {
     }
 
     private func play(_ key: String, _ voices: [Voice]) {
-        guard enabled else { return }
-        startIfNeeded()
-        guard !players.isEmpty else { return }
-        let buf: AVAudioPCMBuffer
-        if let c = cache[key] {
-            buf = c
-        } else {
-            guard let rendered = render(voices) else { return }
-            cache[key] = rendered
-            buf = rendered
+        guard enabledCache else { return }
+        queue.async { [self] in
+            startIfNeeded()
+            guard !players.isEmpty else { return }
+            let buf: AVAudioPCMBuffer
+            if let c = cache[key] {
+                buf = c
+            } else {
+                guard let rendered = render(voices) else { return }
+                cache[key] = rendered
+                buf = rendered
+            }
+            let p = players[nextPlayer]
+            nextPlayer = (nextPlayer + 1) % players.count
+            p.scheduleBuffer(buf, at: nil)
+            p.play()
         }
-        let p = players[nextPlayer]
-        nextPlayer = (nextPlayer + 1) % players.count
-        p.scheduleBuffer(buf, at: nil)
-        p.play()
     }
 
     /// The web's `seq(notes)`: [freq, dur, offset, type, gain, glideTo].

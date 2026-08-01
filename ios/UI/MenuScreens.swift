@@ -138,6 +138,7 @@ final class MainMenuViewController: MenuScreenBase {
             addGap(4)
         }
         addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
+        addButton("HOW TO PLAY") { [weak self] in self?.showManual() }
         addButton("STATS") { [weak self] in self?.flow.showStats() }
         addButton("SOUND · \(Sound.shared.enabled ? "ON" : "OFF")") { [weak self] in
             Sound.shared.enabled.toggle()
@@ -152,6 +153,10 @@ final class MainMenuViewController: MenuScreenBase {
     private func resumeSave() {
         // Re-enter through the boot path so the phase routing is shared.
         flow.resumeFromMenu()
+    }
+
+    private func showManual() {
+        flow.setScreen(ManualViewController(flow: flow))
     }
 
     /// Double confirm — only the sound pref survives.
@@ -443,6 +448,38 @@ final class CollectionViewController: MenuScreenBase {
                 .init("OK", role: .plain) { [weak self] in self?.flow.prompt.hide() },
             ]) { [weak self] in self?.flow.prompt.hide() }
         }
+    }
+}
+
+// MARK: - How to Play
+
+final class ManualViewController: MenuScreenBase {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        build()
+    }
+
+    private func build() {
+        resetLayout()
+        addGap(14)
+        addButton("← BACK", role: .plain, height: 38) { [weak self] in self?.flow.showMenu() }
+        addTitle("HOW TO PLAY", size: 14)
+        let sections: [(String, String)] = [
+            ("THE GOAL", "Get Pinky home. A climb is three stages of deals; lose a single deal and the whole climb resets. Survive every card in the deck before every pile dies to clear a deal."),
+            ("GUESSING", "Pick a pile, then swipe: up = HIGHER, down = LOWER, sideways = SAME. The next card is drawn onto that pile. Right — the pile grows. Wrong — the pile dies. Ace is high; suits never matter."),
+            ("TIES KILL", "A tie kills on Higher or Lower. Call SAME when you expect an equal card — a correct Same banks a shield that saves your next miss. It never stacks — spend it."),
+            ("JOKERS", "★ Jokers are never wrong. Calling Same with a Joker involved counts as a true Same: it banks the shield AND fires your Same-Power."),
+            ("THE MAP", "Travel node to node: deals, card pickups, packs, shops, mysteries. The boss at each stage's top deals your WHOLE deck. Beat the ♠ boss and home is one step away."),
+            ("COINS + SCORE", "A cleared deal pays a flat reward — harder deals pay more (the chip on the node). Score is alive piles × your smallest pile. Anchored piles don't drag the score down."),
+            ("THE STORE", "Spend coins on stickers (stick to one card), pillars (watch a column from above), bases (charge under a column — tap to fire), Same-Powers, packs, and Removals. Rerolls climb in price per visit."),
+            ("KEEP IT LEAN", "The deck grows every stage. Bosses deal all of it — a lean deck is a survivable deck."),
+        ]
+        for (head, body) in sections {
+            addText(head, size: 14, color: CRT.gold, align: .left)
+            addText(body, size: 14, color: CRT.cardFace, align: .left)
+            addGap(8)
+        }
+        view.setNeedsLayout()
     }
 }
 

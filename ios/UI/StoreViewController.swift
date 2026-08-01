@@ -94,6 +94,13 @@ public final class StoreViewController: UIViewController {
 
         setMessage("Buy from the offer, refresh, then head for the map.")
         render()
+        // Autopilot: browse a beat, then GO TO MAP (buys are exercised by the
+        // picker flows the mystery outcomes drive).
+        if UserDefaults.standard.integer(forKey: "autoCampaign") > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                self?.goTapped()
+            }
+        }
     }
 
     public override func viewDidLayoutSubviews() {

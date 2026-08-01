@@ -9,6 +9,15 @@ public protocol MapScreenDelegate: AnyObject {
     func mapArrived(at node: MapNode, on map: MapViewController)
     /// The corner menu button.
     func mapWantsMenu(_ map: MapViewController)
+    /// The bottom-left STORE return (standing on a store node).
+    func mapWantsStoreReturn(_ map: MapViewController)
+    /// The deck chip — open the deck inspection.
+    func mapWantsDeckInspect(_ map: MapViewController)
+}
+
+public extension MapScreenDelegate {
+    func mapWantsStoreReturn(_ map: MapViewController) {}
+    func mapWantsDeckInspect(_ map: MapViewController) {}
 }
 
 /// The progression map — the climb. Ported surface-for-surface from the web:
@@ -46,6 +55,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private var deckChip = UILabel()
     private let keyButton = PixelButtonView("?", role: .plain, fontSize: 16)
     private let menuButton = PixelButtonView("≡", role: .plain, fontSize: 16)
+    private let storeButton = PixelButtonView("STORE", role: .gold, fontSize: 14)
     private var keyPanel: UIView?
     private let headerBar = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
 
@@ -120,11 +130,24 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         }
         view.addSubview(keyButton)
         view.addSubview(menuButton)
+        storeButton.isHidden = true
+        storeButton.onTap = { [weak self] in
+            guard let self else { return }
+            self.delegate?.mapWantsStoreReturn(self)
+        }
+        view.addSubview(storeButton)
+        // Tap the deck chip → the full deck inspection.
+        deckChip.isUserInteractionEnabled = true
+        deckChip.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(deckTapped)))
 
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
 
         render()
+    }
+
+    @objc private func deckTapped() {
+        delegate?.mapWantsDeckInspect(self)
     }
 
     private var didInitialCenter = false
@@ -139,6 +162,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         deckChip.frame = CGRect(x: b.width - 118, y: top, width: 104, height: 24)
         menuButton.frame = CGRect(x: 10, y: top + 38, width: 40, height: 34)
         keyButton.frame = CGRect(x: b.width - 50, y: top + 38, width: 40, height: 34)
+        storeButton.frame = CGRect(x: 10, y: b.height - view.safeAreaInsets.bottom - 46,
+                                   width: 86, height: 38)
         layoutContent()
         if !didInitialCenter, campaign.runMap != nil {
             didInitialCenter = true
@@ -345,7 +370,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             track.addSubview(veilView)
         }
 
-        // ---- header + egg ----
+        // ---- header + egg + the store-return button ----
+        storeButton.isHidden = campaign.currentNode()?.type != "store"
         phaseLabel.attributedText = CRTKit.attributed(headerText(), size: 17, color: CRT.cardFace)
         deckChip.attributedText = CRTKit.attributed("DECK \(campaign.deckSize())", size: 15, color: CRT.muted)
         eggLabel.text = MapViewController.eggLines[

@@ -9,6 +9,8 @@ public final class PhaseOverlayView: UIView {
 
     private let content = UIView()
     private var y: CGFloat = 0
+    /// Autopilot marker: this overlay is the victory screen.
+    var victoryTag = false
 
     private init(dim: CGFloat = 0.92) {
         super.init(frame: .zero)
@@ -158,6 +160,7 @@ public final class PhaseOverlayView: UIView {
                           onEndless: @escaping () -> Void,
                           onMenu: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView()
+        v.victoryTag = true
         v.addGap(8)
         v.addSprite(DeckCharacter.image(deckId: "pink", mood: .win, scale: 5),
                     size: CGSize(width: 96, height: 96))

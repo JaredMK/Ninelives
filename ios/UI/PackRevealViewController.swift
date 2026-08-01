@@ -216,6 +216,15 @@ public final class PackRevealViewController: UIViewController {
         completion(chosen)
     }
 
+    /// Autopilot: pick the first `keep` items and confirm (Continue in .show).
+    func autopilotConfirm() {
+        if case .pick(let keep) = mode, chosen.count < keep {
+            chosen = Array(0..<min(keep, count))
+            refreshChrome()
+        }
+        confirmTapped()
+    }
+
     private func skipTapped() {
         dismiss(animated: false)
         completion([])

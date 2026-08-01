@@ -6,9 +6,21 @@ implementation and stays untouched.
 
 - **Phase 1 — engine + data.** `GameCore/` + `Data/`, verified against the real
   web engine by committed fixtures.
-- **Phase 2 — the DEAL BOARD.** `Rendering/` + `UI/`: a SpriteKit board you can
-  actually play, reached through a temporary debug launcher.
-- **Phase 3 — menus, map, store.** Not built.
+- **Phase 2 — the DEAL BOARD.** `Rendering/` + `UI/`: a SpriteKit board with
+  the full ported motion language (cascade, traveling cards, synapse pulses,
+  death sequences, the living deck character).
+- **Phase 3 — THE GAME.** The campaign shell: main menu → deck select (locks +
+  tiers + seed entry) → the progression map (travel, gating, spotlight, egg) ⇄
+  the store (shelf, place-then-confirm, pickers, packs) ⇄ campaign deals →
+  boss → "Pinky is home" → endless. Zen mode + the zen-first tutorial,
+  collection, stats, pause, unlock celebrations, mystery nodes (all ten
+  outcomes incl. the store detour and ambush deals), in-deal offers on the
+  shared prompt bar, base tap-to-fire, the synthesized sound port + haptics,
+  and full run persistence (kill the app mid-anything and resume).
+
+The app boots into the shell (`GameFlowController`). The Phase 2 debug
+launcher survives for the harness: `-launcher 1` (implied by `-autoDeal` /
+`-autoMap` / `-autoStore`).
 
 The visual contract is `../styleguide.html` (CRT CASINO). If a surface here
 disagrees with that page, this surface is wrong.
@@ -151,14 +163,9 @@ files, so a retune in `items.js` never breaks the suite — only a rule change d
 
 ---
 
-## Phase 2 — the deal board
+## Harness launch arguments
 
-### Running it
-
-The app opens a **debug launcher** (deck / tier / piles / cards / items / seed →
-START DEAL). It is scaffolding for Phase 2 only and gets deleted in Phase 3.
-
-Every option is also a launch argument, so a deal can be started without taps:
+Everything is drivable without taps:
 
 ```sh
 xcrun simctl launch <UDID> com.ninelives.shouldasaidsame \
@@ -167,12 +174,19 @@ xcrun simctl launch <UDID> com.ninelives.shouldasaidsame \
 
 | Argument | Meaning |
 | --- | --- |
-| `-autoDeal 1` | start a deal immediately |
-| `-autoPlay 1` | play it with the deterministic script the engine traces use |
-| `-piles N` | 1–12 |
-| `-cards N` | 13–52 — a real climb's deck grows, so dial the depth you want |
+| *(none)* | the real game: menu → deck select → climb |
+| `-skipGate 1` | open the campaign without the zen-first gate |
+| `-autoClimb 1` | boot straight into a fresh climb (`-deck/-tier/-seed`) |
+| `-autoCampaign N` | FULL END-TO-END AUTOPILOT: plays whole campaigns (map travel, card-counted deals, stores, mysteries, summaries) for up to N attempts, then writes `Documents/campaign-receipt.json` |
+| `-launcher 1` | the Phase 2 debug launcher |
+| `-autoDeal 1` | (launcher) start a deal immediately |
+| `-autoPlay 1` | (launcher) instant scripted play — the perf harness |
+| `-autoPlaySlow 1` | (launcher) scripted play with the animations ON |
+| `-autoMap 1` / `-autoTravel N` | (launcher) map demo + auto-hops |
+| `-autoStore 1` / `-coins N` | (launcher) store demo |
+| `-piles N` / `-cards N` | (launcher) board shape, 1–12 / 13–52 |
 | `-deck / -tier` | `pink\|mamma\|smith\|lammy`, `regular\|master\|legendary` |
-| `-items 1` | bind a Pillar per column, a Base, and a Same-Power |
+| `-items 1` | (launcher) bind a Pillar per column, a Base, a Same-Power |
 | `-fps 1` | draw the live frame-time readout |
 | `-demoOverlay fan\|help\|swipe` | open an overlay for a screenshot |
 
@@ -212,16 +226,20 @@ strict and mechanical:
 - `SKView.ignoresSiblingOrder` is on, so **every node states its own
   zPosition**; equal zPositions draw in arbitrary order.
 
-Measured on the iPhone 17 simulator (iOS 26.4), scripted 12-pile / 52-card deal:
+Measured on the iPhone 16 Pro simulator (iOS 18.5), scripted 12-pile / 52-card
+deal with items bound, Phase 3 build (full motion language + sound engine):
 
 | | frames | mean | worst | fps | over 16.7ms |
 | --- | --- | --- | --- | --- | --- |
-| 12 piles, seed 909 | 679 | 16.68ms | 23.08ms | 60.0 | 1 |
-| 12 piles, seed 31337 | 628 | 16.68ms | 27.39ms | 59.9 | 1 |
-| 9 piles, seed 4242 | 603 | 16.68ms | 22.60ms | 60.0 | 1 |
+| 12 piles, seed 909 | 475 | 16.67ms | 16.67ms | 60.0 | 0 |
+| 12 piles, seed 31337 | 803 | 16.67ms | 18.71ms | 60.0 | 1 |
+| 9 piles, seed 4242 | 524 | 16.75ms | 34.56ms | 59.7 | 3 |
 
-The single over-budget frame each run is the first deal-out frame, where the
-card textures bake. Everything after is flat 60.
+(Phase 2 measured worst frames of 23–27ms; the Phase 3 numbers are equal or
+better — texture baking warms earlier and audio renders off-main.) Frames over
+budget are the first deal-out frame where card textures bake. The receipt's
+`hitches` array names any frame over 50ms with the engine event that preceded
+it; the runs above recorded none.
 
 ---
 

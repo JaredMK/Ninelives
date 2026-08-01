@@ -59,6 +59,7 @@ public final class GameFlowController: UIViewController {
     private var current: UIViewController?
     private let crt = CRTOverlayUIView()
     let prompt = PromptBar()
+    private var autopilot: FlowAutopilot?
 
     public init() {
         self.campaign = CampaignState(store: store)
@@ -111,6 +112,13 @@ public final class GameFlowController: UIViewController {
         if UserDefaults.standard.bool(forKey: "skipGate") {
             campaign.saveStore.setPref("tutorial2", "1")
             campaign.saveStore.setPref("campaignUnlocked", "1")
+        }
+        let auto = UserDefaults.standard.integer(forKey: "autoCampaign")
+        if auto > 0, autopilot == nil {
+            campaign.saveStore.setPref("tutorial2", "1")
+            campaign.saveStore.setPref("campaignUnlocked", "1")
+            clearSave()
+            autopilot = FlowAutopilot(flow: self, attempts: auto)
         }
         if campaign.saveStore.hasSave {
             resumeSavedGame()
@@ -442,10 +450,28 @@ public final class GameFlowController: UIViewController {
             }
         }
 
+        // STATIC volatility: every self-destruct Pillar rolls at deal end —
+        // the roll rides the ACTION stream so a refresh replays the outcome.
+        var staticLines: [(String, Int)] = []
+        for c in 0..<campaign.columnPillars.count {
+            guard let id = campaign.columnPillars[c],
+                  let t = GameData.shared.pillarTypes.get(id) else { continue }
+            let chance = t.num("selfDestruct", 0)
+            guard chance > 0 else { continue }
+            let destroyed = campaign.actionRng().next() < chance
+            if destroyed {
+                campaign.setColumnPillar(col: c, typeId: nil)
+                _ = campaign.discardPillarFromInventory(id)
+                staticLines.append(("⚡ \(t.label) blew up", 0))
+            } else {
+                staticLines.append(("⚡ \(t.label) held", 0))
+            }
+        }
+
         persist(phase: wasAmbush ? "run" : "map")
         let summary = SummaryInfo(earned: Int(payout.total),
                                   balance: campaign.getCoins(),
-                                  lines: summaryLines(payout, flat: s.flat),
+                                  lines: summaryLines(payout, flat: s.flat) + staticLines,
                                   product: Int(payout.product),
                                   aliveCount: o.aliveCount,
                                   minAlive: o.minAliveCards,
@@ -609,6 +635,7 @@ public final class GameFlowController: UIViewController {
         overlay?.removeFromSuperview()
         overlay = nil
     }
+    func currentOverlayView() -> PhaseOverlayView? { overlay as? PhaseOverlayView }
 
     // MARK: - Pause menu
 
@@ -763,9 +790,13 @@ extension GameFlowController: MapScreenDelegate {
             }
             present(vc, animated: false)
         case "store":
-            showStore(fresh: campaign.getStoreOffer() == nil, nodeId: node.id)
+            // ARRIVAL always rolls fresh (keyed to THIS node); only a resume
+            // or the standing re-entry keeps the saved offer.
+            autopilot?.noteStore()
+            showStore(fresh: true, nodeId: node.id)
         case "deal", "boss":
             currentAmbush = nil
+            autopilot?.noteDeal()
             startDeal()
         case "home":
             showPinkyHome()
@@ -780,10 +811,22 @@ extension GameFlowController: MapScreenDelegate {
         showPauseMenu()
     }
 
+    /// Standing on a store node: the bottom-left STORE button re-opens the
+    /// SAME visit (fresh=false — a re-entry can never hand out a free reroll).
+    public func mapWantsStoreReturn(_ map: MapViewController) {
+        guard let node = campaign.currentNode(), node.type == "store" else { return }
+        showStore(fresh: false, nodeId: node.id)
+    }
+
+    public func mapWantsDeckInspect(_ map: MapViewController) {
+        present(DeckInspectViewController(campaign: campaign), animated: false)
+    }
+
     // MARK: Mystery events (rolled + applied here; Chunk E adds the full modal)
 
     private func runMysteryEvent(node: MapNode, on map: MapViewController) {
         let key = campaign.rollMysteryEvent(node.id)
+        autopilot?.noteMystery(key)
         guard let outcome = campaign.applyMysteryEvent(key, nodeId: node.id) else {
             _ = campaign.markNodeCleared(node.id)
             persist(phase: "map")

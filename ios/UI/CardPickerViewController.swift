@@ -309,12 +309,13 @@ public final class CardPickerViewController: UIViewController {
         var ok = false
         switch mode {
         case .applySticker(let t):
-            ok = campaign.useStickerFromInventory(t) && campaign.applySticker(id, t)
-            if !ok { _ = campaign.addStickerToInventory(t) }   // roll back the take
+            // applySticker consumes the inventory copy itself.
+            ok = campaign.applySticker(id, t)
         case .buySticker(let slot, let t):
-            // Place-then-confirm-THEN-pay: charge only now.
+            // Place-then-confirm-THEN-pay: buyOfferedSticker charges + banks
+            // one to inventory; applySticker consumes that one.
             if campaign.buyOfferedSticker(slot) {
-                ok = campaign.useStickerFromInventory(t) && campaign.applySticker(id, t)
+                ok = campaign.applySticker(id, t)
             }
         case .removal(let price):
             ok = price > 0 ? campaign.buyRemoval(id) : campaign.removeDeckCard(id)
@@ -351,6 +352,19 @@ public final class CardPickerViewController: UIViewController {
         guard !busy else { return }
         dismiss(animated: false)
         completion(nil)
+    }
+
+    /// Autopilot: select the first eligible card and confirm straight through.
+    func autopilotConfirm() {
+        guard !busy else { return }
+        guard let card = deck.first(where: { eligible($0) }) else {
+            dismiss(animated: false)
+            completion(nil)
+            return
+        }
+        selectedId = card.id
+        prompt.hide()
+        confirm()
     }
 
     private func skipTapped() {

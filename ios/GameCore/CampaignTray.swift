@@ -98,6 +98,10 @@ extension CampaignState {
     /// SEED1: a player-seeded run plays normally but banks NO progression.
     public func isExhibition() -> Bool { exhibition }
 
+    /// The ACTION stream (persisted counter): player-choice randomness replays
+    /// per action sequence — a refresh can never fish for a different roll.
+    public func actionRng() -> RNG { actRng() }
+
     /// Drop the saved offer so the next store visit rolls fresh.
     public func discardStoreOffer() { storeOffer = nil }
 

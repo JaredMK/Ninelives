@@ -198,6 +198,7 @@ public final class DealController {
     // MARK: - Engine events → feedback
 
     private func handle(_ event: EngineEvent) {
+        scene.breadcrumb = String(describing: event).prefix(60).description
         switch event {
         case .resolved(let index, let guess, let current, let drawn, let correct):
             handleResolved(index: index, guess: guess, current: current, drawn: drawn, correct: correct)
@@ -565,6 +566,7 @@ public final class DealController {
             "worstMS": (f.worstMS * 100).rounded() / 100,
             "fps": (f.fps * 10).rounded() / 10,
             "framesOver60HzBudget": f.over60,
+            "hitches": scene.hitchLog,
             "device": UIDevice.current.model + " / iOS " + UIDevice.current.systemVersion,
         ]
         guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
@@ -731,6 +733,10 @@ public final class DealController {
         (0..<engine.board.size).filter { engine.board.isActive($0) }
     }
     public func topValue(_ index: Int) -> Int? { engine.board.top(index)?.value }
+    /// Remaining rank counts — the odds-scripted player counts cards with this.
+    public func deckCounts() -> [Int: Int] { engine.deck.remainingCounts() }
+    public var deckIsEmpty: Bool { engine.deck.isEmpty }
+    public var promptIsUp: Bool { promptActive }
 
     public func pileCards(_ index: Int) -> [LiveCard] {
         guard index < engine.board.piles.count else { return [] }

@@ -912,6 +912,10 @@ public final class DealScene: SKScene {
     /// measurement, no allocation — so it can stay on in release builds.
     public private(set) var frameStats = FrameStats()
     private var lastFrameTime: TimeInterval = 0
+    /// Perf forensics: the controller stamps what just happened; a hitch frame
+    /// records the stamp so the receipt can NAME its cause.
+    public var breadcrumb = ""
+    public private(set) var hitchLog: [String] = []
     /// Draw the live readout (enabled with the `-fps` launch argument).
     public var showsFrameHUD = false
     private var fpsLabel: SKSpriteNode?
@@ -941,6 +945,9 @@ public final class DealScene: SKScene {
         if lastFrameTime > 0 {
             let dt = currentTime - lastFrameTime
             frameStats.add(dt)
+            if dt > 0.05, dt < 1, hitchLog.count < 24 {
+                hitchLog.append(String(format: "%.0fms after [%@]", dt * 1000, breadcrumb))
+            }
             if showsFrameHUD {
                 fpsAccum += dt
                 if fpsAccum > 0.5 {

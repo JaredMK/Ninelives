@@ -131,6 +131,12 @@ public final class DealViewController: UIViewController {
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
             if UserDefaults.standard.bool(forKey: "autoPlay") { startAutoPlay() }
+            // The campaign autopilot plays every deal with card-counted odds
+            // (the web autopilot's strategy: best survival move over all piles).
+            if UserDefaults.standard.integer(forKey: "autoCampaign") > 0,
+               sharedCampaign != nil {
+                startOddsPlayer()
+            }
             // The slow variant keeps ANIMATIONS ON — the screenshot pass for
             // the travel/pulse/death motion (real autoPlay renders instantly).
             if UserDefaults.standard.bool(forKey: "autoPlaySlow") { startAutoPlay(interval: 1.1) }
@@ -260,6 +266,41 @@ public final class DealViewController: UIViewController {
         }
     }
 
+    /// Card-counted best-move player: for every alive pile compute P(higher),
+    /// P(lower), P(same) from the remaining rank counts; play the global max.
+    private func startOddsPlayer() {
+        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] t in
+            guard let self, let c = self.controller else { t.invalidate(); return }
+            if c.isOver { t.invalidate(); return }
+            guard !c.promptIsUp, !c.deckIsEmpty else { return }
+            let counts = c.deckCounts()
+            let total = max(1, counts.values.reduce(0, +))
+            var best: (pile: Int, call: Guess, p: Double)?
+            for pile in c.alivePiles() {
+                guard let v = c.topValue(pile) else { continue }
+                var higher = 0, lower = 0, same = 0
+                for (rank, n) in counts {
+                    if rank > v { higher += n }
+                    else if rank < v { lower += n }
+                    else { same += n }
+                }
+                // Ties kill directional guesses; jokers (value 0 slot) are free wins
+                // either way, so the split above is the survival odds directly.
+                let options: [(Guess, Double)] = [
+                    (.higher, Double(higher) / Double(total)),
+                    (.lower, Double(lower) / Double(total)),
+                    (.same, Double(same) / Double(total)),
+                ]
+                for (g, p) in options where best == nil || p > best!.p {
+                    best = (pile, g, p)
+                }
+            }
+            guard let move = best else { t.invalidate(); return }
+            self.scene.setSelected(move.pile)
+            c.guess(move.call, pile: move.pile)
+        }
+    }
+
     // MARK: - Coordinate conversion
 
     /// UIKit points → scene space (scene anchor is top-left, y negative down).
@@ -300,6 +341,11 @@ public final class DealViewController: UIViewController {
             } else {
                 controller.select(pile: pile)
             }
+            return
+        }
+        // Tap the deck stack → the full deck inspection (campaign/zen).
+        if scene.isDeckPanel(p), sharedCampaign != nil {
+            present(DeckInspectViewController(campaign: sharedCampaign!), animated: false)
             return
         }
         // A tap on empty felt clears the selection.
