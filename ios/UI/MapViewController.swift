@@ -532,6 +532,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private func nodeTapped(_ id: Int) {
         guard !traveling else { return }
         guard campaign.legalNextNodes().contains(where: { $0.id == id }) else { return }
+        Sound.shared.tap()
         travel(to: id)
     }
 
@@ -662,6 +663,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         var shown = max(0, total - cards.count)
         avatar.setCount(shown)
         avatar.collectBounce()
+        if !cards.isEmpty { Sound.shared.mapAdd() }
         let toPt = avatar.center
         for (i, card) in cards.prefix(5).enumerated() {
             let img = UIImageView(image: CardArt.image(CardArt.Face(card), scale: .half))
@@ -856,6 +858,7 @@ final class MapAvatarView: UIView {
     private let sprite = UIImageView()
     private let badge = UILabel()
     private var deckId = "pink"
+    private var tier = "regular"
     private var worried = false
     private var blinkTimer: Timer?
 
@@ -888,6 +891,7 @@ final class MapAvatarView: UIView {
 
     func configure(deckId: String, tier: String) {
         self.deckId = deckId
+        self.tier = tier
         refresh()
     }
 
@@ -900,11 +904,11 @@ final class MapAvatarView: UIView {
     }
 
     private func refresh() {
-        sprite.image = DeckCharacter.image(deckId: deckId, mood: worried ? .sad : .idle, scale: 2)
+        sprite.image = DeckCharacter.image(deckId: deckId, mood: worried ? .sad : .idle, scale: 2, tier: tier)
     }
 
     private func blink() {
-        sprite.image = DeckCharacter.image(deckId: deckId, mood: .blink, scale: 2)
+        sprite.image = DeckCharacter.image(deckId: deckId, mood: .blink, scale: 2, tier: tier)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.refresh() }
     }
 
@@ -914,7 +918,7 @@ final class MapAvatarView: UIView {
     }
 
     func collectBounce() {
-        sprite.image = DeckCharacter.image(deckId: deckId, mood: .happy, scale: 2)
+        sprite.image = DeckCharacter.image(deckId: deckId, mood: .happy, scale: 2, tier: tier)
         transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
         UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.5,
                        initialSpringVelocity: 0.4) { self.transform = .identity }

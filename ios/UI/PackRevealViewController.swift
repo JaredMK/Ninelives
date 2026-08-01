@@ -84,6 +84,7 @@ public final class PackRevealViewController: UIViewController {
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
 
+        Sound.shared.pack()
         buildItems()
         refreshChrome()
     }

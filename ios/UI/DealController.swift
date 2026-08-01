@@ -172,6 +172,7 @@ public final class DealController {
     private func startCascade() {
         interactionLocked = true
         scene.charReset()
+        if !reduceMotion { Sound.shared.deal() }
         let n = engine.board.size
         let tops: [CardArt.Face?] = (0..<n).map { engine.board.top($0).map(CardArt.Face.init) }
         scene.dealCascade(tops: tops) { [weak self] in
@@ -241,6 +242,12 @@ public final class DealController {
             if amount != 0 {
                 scene.floatCue(amount > 0 ? "+\(Int(amount))" : "−\(Int(abs(amount)))",
                                at: index, color: amount > 0 ? CRT.gold : CRT.suitRed)
+                // The audible coin ring, a beat after the resolution blip
+                // (throttling lives in the engine's own emit cadence).
+                let gain = amount > 0
+                scene.run(.sequence([.wait(forDuration: 0.11), .run {
+                    if gain { Sound.shared.coinBonus() } else { Sound.shared.coinLoss() }
+                }]))
             } else {
                 scene.floatCue("+0", at: index, color: CRT.muted)
             }
@@ -289,13 +296,19 @@ public final class DealController {
             handleBaseFired(res)
 
         case .samePower(let res):
+            Sound.shared.samePower()
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.powerFeedback(hub: res.hub, targets: res.targets, label: res.label)
                 done()
             }
 
+        case .reviveOffer(let col, _):
+            // Surfaced after the triggering guess settles (drainPrompts).
+            pendingReviveCol = col
+
         case .revived(_, let index):
             scene.floatCue("REVIVED", at: index, color: CRT.phosphor)
+            Sound.shared.good()
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.goodPulse(at: index)
                 self?.scene.refreshWeb()
@@ -356,14 +369,20 @@ public final class DealController {
             if correct {
                 if tieSafeSave {
                     self.scene.savedIndicator(at: index, label: "Tie-Safe")
+                    Sound.shared.save()
                 } else {
                     self.scene.goodPulse(at: index)
+                    Sound.shared.good()
                 }
                 self.scene.refreshWeb()
                 self.scene.synapsePulse(from: index)
                 if drawn.joker { self.scene.floatCue("★", at: index, color: CRT.gold) }
             } else {
-                if fatalTie { self.scene.shouldaNudge(at: index) }
+                Sound.shared.death()
+                if fatalTie {
+                    self.scene.shouldaNudge(at: index)
+                    self.scene.run(.sequence([.wait(forDuration: 0.34), .run { Sound.shared.sameMiss() }]))
+                }
                 self.scene.playDeathSequence(at: index) { [weak self] in
                     guard let self else { return }
                     if fatal {
@@ -472,6 +491,17 @@ public final class DealController {
         scene.setSelected(nil)
         scene.charReact(win ? .celebrate : .sad)
         Haptics2.dealEnd(won: win)
+        // WIN MUSIC timed to the dance; a run clear gets the grand tune.
+        if !reduceMotion {
+            if win {
+                let isRunBossWin = isCampaign && campaign.currentNode().map {
+                    $0.type == "boss" && campaign.isRunBoss($0.id)
+                } == true
+                if isRunBossWin { Sound.shared.runClear() } else { Sound.shared.dealWon() }
+            } else {
+                Sound.shared.dealLost()
+            }
+        }
         refreshAll()
         let payout = win ? currentPayout() : 0
         if case .debug = mode {
@@ -556,17 +586,144 @@ public final class DealController {
     }
 
     public func guess(_ g: Guess, pile: Int? = nil) {
-        guard !interactionLocked, !isOver else { return }
+        guard !interactionLocked, !isOver, !promptActive else { return }
         guard let target = pile ?? scene.currentSelection else { return }
         guard engine.board.isActive(target), !engine.deck.isEmpty else { return }
         engine.guess(target, g)
-        // Drain any queued prompts. The prompt/offer UI arrives with Chunk E;
-        // until then the deterministic default is DECLINE — never silently
-        // spend the player's coins on an offer they were never shown.
-        while !engine.run.pendingTributes.isEmpty { engine.answerTribute(false) }
-        while !engine.run.pendingActions.isEmpty { engine.answerAction(false) }
+        drainPrompts()
         if !isOver { scene.setSelected(nil); scene.charReleaseLook() }
         refreshAll()
+    }
+
+    // MARK: - In-deal offers (the paid-bury / shuffle / donate prompts)
+
+    /// Ask the player a tribute question: (offer, answer-callback).
+    public var onTributeOffer: ((TributeOffer, @escaping (Bool) -> Void) -> Void)?
+    /// Ask about an optional post-landing action (shuffle / donate).
+    public var onActionOffer: ((PendingAction, @escaping (Bool) -> Void) -> Void)?
+    /// Revive targeting: (dead piles, fire(target?) — nil = skip).
+    public var onReviveOffer: (([Int], @escaping (Int?) -> Void) -> Void)?
+    private var promptActive = false
+    private var pendingReviveCol: Int?
+
+    /// Surface queued offers ONE at a time; with no UI handler installed
+    /// (debug/auto-play) the deterministic default is DECLINE — never silently
+    /// spend the player's coins on an offer they were never shown.
+    private func drainPrompts() {
+        guard !isOver else {
+            while !engine.run.pendingTributes.isEmpty { engine.answerTribute(false) }
+            while !engine.run.pendingActions.isEmpty { engine.answerAction(false) }
+            return
+        }
+        if let t = engine.run.pendingTributes.first {
+            guard let handler = onTributeOffer, !reduceMotion else {
+                engine.answerTribute(false)
+                drainPrompts()
+                return
+            }
+            promptActive = true
+            handler(t) { [weak self] accept in
+                guard let self else { return }
+                self.promptActive = false
+                self.engine.answerTribute(accept)
+                if accept { Sound.shared.coinLoss() }
+                self.drainPrompts()
+                self.refreshAll()
+            }
+            return
+        }
+        if let a = engine.run.pendingActions.first {
+            guard let handler = onActionOffer, !reduceMotion else {
+                engine.answerAction(false)
+                drainPrompts()
+                return
+            }
+            promptActive = true
+            handler(a) { [weak self] accept in
+                guard let self else { return }
+                self.promptActive = false
+                self.engine.answerAction(accept)
+                if accept, a.kind == "shuffle" { Sound.shared.shuffle() }
+                self.drainPrompts()
+                self.refreshAll()
+            }
+            return
+        }
+        if let col = pendingReviveCol {
+            pendingReviveCol = nil
+            let dead = (0..<engine.board.size).filter { !engine.board.isActive($0) }
+            guard let handler = onReviveOffer, !reduceMotion, !dead.isEmpty else { return }
+            promptActive = true
+            handler(dead) { [weak self] target in
+                guard let self else { return }
+                self.promptActive = false
+                if let target {
+                    _ = self.engine.reviveDeadPile(col: col, targetIndex: target)
+                }
+                self.refreshAll()
+            }
+        }
+    }
+
+    /// The revive-offer piles for tap routing while targeting.
+    public func deadPiles() -> [Int] {
+        (0..<engine.board.size).filter { !engine.board.isActive($0) }
+    }
+
+    // MARK: - Base activation (tap-to-fire)
+
+    /// Confirm + fire a charged Base: (label, description, needsTarget?, fire).
+    public var onBasePrompt: ((String, String, @escaping () -> Void) -> Void)?
+    /// Phoenix-style target pick: (dead piles, fire(target)).
+    public var onBaseTarget: (([Int], @escaping (Int?) -> Void) -> Void)?
+
+    public func basePlaqueTapped(col: Int) {
+        guard !interactionLocked, !isOver, !promptActive else { return }
+        guard engine.baseCanActivate(col) else { return }
+        guard let id = (isCampaign || isZen) ? campaign.columnBase(col) : currentBaseId(col),
+              let def = GameData.shared.baseTypes.get(id) else { return }
+        if def.effect == "reviveBase" {
+            let dead = deadPiles()
+            guard !dead.isEmpty, let handler = onBaseTarget else { return }
+            promptActive = true
+            handler(dead) { [weak self] target in
+                guard let self else { return }
+                self.promptActive = false
+                if let target {
+                    _ = self.engine.baseActivate(col: col, targetIndex: target)
+                    Sound.shared.samePower()
+                }
+                self.refreshAll()
+            }
+            return
+        }
+        guard let handler = onBasePrompt else {
+            _ = engine.baseActivate(col: col)
+            refreshAll()
+            return
+        }
+        promptActive = true
+        handler(def.label, def.description) { [weak self] in
+            guard let self else { return }
+            self.promptActive = false
+            _ = self.engine.baseActivate(col: col)
+            self.refreshAll()
+        }
+    }
+
+    /// Notify the VC a prompt was dismissed without an answer path (cancel).
+    public func promptDismissed() { promptActive = false }
+
+    private func currentBaseId(_ col: Int) -> String? {
+        if case .debug(let setup) = mode { return setup.bases[safe: col] ?? nil }
+        return campaign.columnBase(col)
+    }
+
+    /// Which columns' bases can fire RIGHT NOW (drives the plaque pulse).
+    public func activatableBaseColumns() -> [Int] {
+        guard engine != nil, !isOver else { return [] }
+        let cols = engine.run.cols?.count ?? 0
+        return (0..<cols).filter { engine.baseCanActivate($0) }
     }
 
     /// Board reads the auto-play harness needs.
@@ -640,7 +797,8 @@ public final class DealController {
                             total: engine.deck.remaining(),
                             remaining: engine.deck.remaining(),
                             deckId: campaign.deckId,
-                            mood: mood())
+                            mood: mood(),
+                            tier: isZen ? "regular" : campaign.difficultyTier)
         let peeking = engine.run.revealNextActive || engine.run.kamikazeRevealLeft > 0
         scene.syncDeckPeek(peeking ? engine.deck.peek(1).first.map(CardArt.Face.init) : nil)
         scene.syncReward(base: plan?.flatReward ?? dealBaseDebug(), bonus: liveBonus(), score: currentScore())
@@ -657,6 +815,7 @@ public final class DealController {
         scene.syncControls(canGuess: canGuess,
                            showReshuffle: !isOver && engine.run.totalGuesses == 0
                                && !interactionLocked && canAffordReshuffle)
+        scene.syncActivatableBases(activatableBaseColumns())
     }
 
     private func mood() -> DeckCharacter.Mood {

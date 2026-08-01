@@ -314,9 +314,10 @@ public final class DealScene: SKScene {
     }
 
     public func syncDeckPanel(counts: [Int: Int], suitCounts: [String: Int], total: Int,
-                              remaining: Int, deckId: String, mood: DeckCharacter.Mood) {
+                              remaining: Int, deckId: String, mood: DeckCharacter.Mood,
+                              tier: String = "regular") {
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
-                       deckRemaining: remaining, deckId: deckId, mood: mood)
+                       deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier)
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
@@ -344,6 +345,42 @@ public final class DealScene: SKScene {
             guard c < bases.count, let id = bases[c], let def = GameData.shared.baseTypes.get(id) else { continue }
             node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor))
         }
+        baseIds = bases
+    }
+    private var baseIds: [String?] = []
+
+    /// Light the tappable (activatable) Base plaques — a slow compositor-only
+    /// pulse, the web's `.activatable` cue.
+    public func syncActivatableBases(_ cols: [Int]) {
+        for (c, node) in basePlaques.enumerated() {
+            let on = cols.contains(c)
+            if on, node.action(forKey: "act") == nil {
+                node.run(.repeatForever(.sequence([
+                    .fadeAlpha(to: 0.55, duration: 0.7),
+                    .fadeAlpha(to: 1.0, duration: 0.7),
+                ])), withKey: "act")
+            } else if !on {
+                node.removeAction(forKey: "act")
+                node.alpha = (baseIds[safe: c] ?? nil) != nil ? 1 : 1
+                node.alpha = 1
+            }
+        }
+    }
+
+    /// The Base plaque column at a scene point (tap-to-fire routing).
+    public func baseCol(at p: CGPoint) -> Int? {
+        let w = cardScale.size.width
+        for (c, node) in basePlaques.enumerated() {
+            guard (baseIds[safe: c] ?? nil) != nil else { continue }
+            let r = CGRect(x: node.position.x - 4, y: node.position.y - 22, width: w + 8, height: 28)
+            if r.contains(p) { return c }
+        }
+        return nil
+    }
+
+    /// Outline a set of piles as tap TARGETS (revive / Phoenix pick).
+    public func setActionTargets(_ targets: [Int]) {
+        for (i, p) in piles.enumerated() { p.setSelected(targets.contains(i)) }
     }
 
     private func plaque(text: String, tint: UIColor) -> SKNode {

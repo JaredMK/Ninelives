@@ -51,7 +51,7 @@ public final class PhaseOverlayView: UIView {
     private func addButton(_ title: String, role: PixelButtonView.Role = .cta,
                            handler: @escaping () -> Void) -> PixelButtonView {
         let b = PixelButtonView(title, role: role, fontSize: 17)
-        b.onTap = handler
+        b.onTap = { Sound.shared.continueTap(); handler() }
         b.frame = CGRect(x: 55, y: y, width: 250, height: 48)
         content.addSubview(b)
         y += 58
@@ -75,9 +75,10 @@ public final class PhaseOverlayView: UIView {
         v.addTitle("DEAL CLEARED")
         v.addBody(info.progress, color: CRT.muted, size: 14)
         v.addGap(6)
-        // The reward lines appear ONE BY ONE, building to the total.
+        // The reward lines appear ONE BY ONE, each with its RISING coin ping,
+        // building to the total — the deal-won payoff moment.
         var delay = 0.35
-        for (label, amount) in info.lines {
+        for (i, (label, amount)) in info.lines.enumerated() {
             let row = UILabel()
             row.attributedText = CRTKit.attributed("\(label)  +\(amount)", size: 16, color: CRT.gold)
             row.textAlignment = .center
@@ -85,7 +86,11 @@ public final class PhaseOverlayView: UIView {
             row.alpha = 0
             v.content.addSubview(row)
             v.y += 22
+            let lineIndex = i
             UIView.animate(withDuration: 0.22, delay: delay) { row.alpha = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Sound.shared.coinTallyLine(lineIndex)
+            }
             delay += 0.28
         }
         v.addGap(6)
@@ -194,7 +199,8 @@ public final class PhaseOverlayView: UIView {
         v.addBody("A new character joins the roster.", color: CRT.cardFace)
         v.addGap(12)
         v.addButton("CONTINUE") { onContinue() }
-        // The color floods in with a bounce.
+        // The color floods in with a bounce, to the sparkly ta-daa.
+        Sound.shared.deckUnlock()
         v.content.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
         UIView.animate(withDuration: 0.5, delay: 0.05, usingSpringWithDamping: 0.55,
                        initialSpringVelocity: 0.4) {

@@ -23,10 +23,84 @@ public enum ItemArt {
         }
     }
 
+    /// PALETTE PURITY: item icons are drawn 12×12 pixel glyphs mapped from the
+    /// item's behavior/effect family — never the items.js emoji (which would
+    /// leak full-color glyphs onto the CRT). Suit characters render as text
+    /// (they're monochrome); everything else gets a matrix or the label's
+    /// first letter in VT323.
+    private static let iconMatrices: [String: [String]] = [
+        // . transparent, K ink, R red, G gold, P phosphor, C cream
+        "bury":    ["....KKKK....", "....K..K....", ".KK.K..K.KK.", ".K..K..K..K.", ".K.KKKKKK.K.", ".K...KK...K.",
+                    ".K...KK...K.", ".K...KK...K.", ".K..KKKK..K.", ".K...KK...K.", ".KKKKKKKKKK.", "............"],
+        "coin":    ["...KKKKKK...", "..KGGGGGGK..", ".KGGKKKKGGK.", ".KGKGGGGKGK.", ".KGKGKKGKGK.", ".KGKGKKGKGK.",
+                    ".KGKGKKGKGK.", ".KGKGGGGKGK.", ".KGGKKKKGGK.", "..KGGGGGGK..", "...KKKKKK...", "............"],
+        "shield":  ["..KKKKKKKK..", ".KCCCCCCCCK.", ".KCCCRRCCCK.", ".KCCRRRRCCK.", ".KCCRRRRCCK.", ".KCCCRRCCCK.",
+                    "..KCCCCCCK..", "..KCCCCCCK..", "...KCCCCK...", "....KCCK....", ".....KK.....", "............"],
+        "peek":    ["............", "............", "...KKKKKK...", "..KCCCCCCK..", ".KCCKKKKCCK.", "KCCKKPPKKCCK",
+                    "KCCKKPPKKCCK", ".KCCKKKKCCK.", "..KCCCCCCK..", "...KKKKKK...", "............", "............"],
+        "shuffle": ["............", ".KKKK...KKK.", ".K..K...K.K.", ".K..KKKKK.K.", ".K........K.", ".KKKKKKKKKK.",
+                    ".K........K.", ".K.KKKKK..K.", ".K.K...K..K.", ".KKK...KKKK.", "............", "............"],
+        "star":    [".....KK.....", "....KGGK....", "....KGGK....", ".KKKKGGKKKK.", ".KGGGGGGGGK.", "..KGGGGGGK..",
+                    "...KGGGGK...", "...KGGGGK...", "..KGGKKGGK..", "..KGK..KGK..", "..KK....KK..", "............"],
+        "skull":   ["...KKKKKK...", "..KCCCCCCK..", ".KCCCCCCCCK.", ".KCKKCCKKCK.", ".KCKKCCKKCK.", ".KCCCCCCCCK.",
+                    "..KCCKKCCK..", "..KKCCCCKK..", "...KCKKCK...", "...KKKKKK...", "............", "............"],
+        "bolt":    ["......KKK...", ".....KPPK...", "....KPPK....", "...KPPK.....", "..KPPPKKKK..", ".KPPPPPPPK..",
+                    "...KKKPPK...", ".....KPPK...", "....KPPK....", "...KPK......", "..KK........", "............"],
+        "anchor":  ["....KKKK....", "....K..K....", "....KKKK....", ".....KK.....", ".....KK.....", ".KK..KK..KK.",
+                    ".K.K.KK.K.K.", ".K.K.KK.K.K.", "..K.KKKK.K..", "...KKKKKK...", "............", "............"],
+        "heart":   ["............", "..KK....KK..", ".KRRK..KRRK.", "KRRRRKKRRRRK", "KRRRRRRRRRRK", "KRRRRRRRRRRK",
+                    ".KRRRRRRRRK.", "..KRRRRRRK..", "...KRRRRK...", "....KRRK....", ".....KK.....", "............"],
+    ]
+
+    static func iconKey(for def: ItemDef) -> String? {
+        let b = (def.behavior ?? def.effect ?? "").lowercased()
+        let id = def.id.lowercased()
+        if b.contains("bury") || id.contains("bury") || b.contains("tribute") { return "bury" }
+        if b.contains("coin") || b.contains("payout") || b.contains("dividend") || id.contains("coin") { return "coin" }
+        if b.contains("guard") || b.contains("shield") || b.contains("save") || b.contains("safe") { return "shield" }
+        if b.contains("reveal") || b.contains("peek") || b.contains("scout") { return "peek" }
+        if b.contains("shuffle") || b.contains("distribution") || b.contains("evenout") { return "shuffle" }
+        if b.contains("joker") || b.contains("wild") { return "star" }
+        if b.contains("kill") || b.contains("kamikaze") || b.contains("demolish") || b.contains("death") { return "skull" }
+        if b.contains("revive") || b.contains("wind") || b.contains("phoenix") { return "bolt" }
+        if b.contains("anchor") || b.contains("heavy") { return "anchor" }
+        if b.contains("heart") || b.contains("leech") { return "heart" }
+        return nil
+    }
+
     private static func drawIcon(_ cg: CGContext, _ def: ItemDef, at rect: CGRect,
                                  color: UIColor, size: CGFloat) {
+        // A suit glyph in the icon field renders as text (monochrome), a known
+        // family gets its pixel matrix, anything else the label's first letter.
+        let suitGlyphs = ["♠", "♥", "♦", "♣", "★", "=", "∅", "◉"]
+        if let icon = def.icon, suitGlyphs.contains(icon) {
+            UIGraphicsPushContext(cg)
+            let text = icon as NSString
+            let font = CRT.Font.of(size)
+            let sz = text.size(withAttributes: [.font: font])
+            let tint = (icon == "♥" || icon == "♦") ? CRT.suitRed : color
+            text.draw(at: CGPoint(x: rect.midX - sz.width / 2, y: rect.midY - sz.height / 2),
+                      withAttributes: [.font: font, .foregroundColor: tint])
+            UIGraphicsPopContext()
+            return
+        }
+        if let key = iconKey(for: def), let rows = iconMatrices[key] {
+            let cell = min(rect.width, rect.height) / 12
+            let ox = rect.midX - cell * 6, oy = rect.midY - cell * 6
+            let pal: [Character: UIColor] = ["K": CRT.ink, "R": CRT.suitRed, "G": CRT.gold,
+                                             "P": CRT.phosphor, "C": CRT.cardFace]
+            for (yy, row) in rows.enumerated() {
+                for (xx, ch) in row.enumerated() {
+                    guard let c = pal[ch] else { continue }
+                    cg.setFillColor(c.cgColor)
+                    cg.fill(CGRect(x: ox + CGFloat(xx) * cell, y: oy + CGFloat(yy) * cell,
+                                   width: cell + 0.4, height: cell + 0.4))
+                }
+            }
+            return
+        }
         UIGraphicsPushContext(cg)
-        let text = (def.icon?.isEmpty == false ? def.icon! : String(def.label.prefix(1))) as NSString
+        let text = String(def.label.prefix(1)).uppercased() as NSString
         let font = CRT.Font.of(size)
         let sz = text.size(withAttributes: [.font: font])
         text.draw(at: CGPoint(x: rect.midX - sz.width / 2, y: rect.midY - sz.height / 2),

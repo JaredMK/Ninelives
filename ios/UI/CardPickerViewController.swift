@@ -324,6 +324,10 @@ public final class CardPickerViewController: UIViewController {
             ok = campaign.replaceDeckCard(id, trayIndex: trayIndex) != nil
         }
         guard ok else { busy = false; return }
+        switch mode {
+        case .applySticker, .buySticker: Sound.shared.sticker()
+        default: Sound.shared.purchase()
+        }
         PersistenceHolder.shared?.checkpoint(campaign)
         // The chosen card flashes (dissolves for removal/swap), then close.
         let flash = cardViews[id]

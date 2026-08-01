@@ -533,7 +533,8 @@ public final class StoreViewController: UIViewController {
                 guard let self else { return }
                 self.prompt.hide()
                 if self.campaign.rerollStore() {
-                    Haptics.purchase()
+                    Sound.shared.refresh()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     self.render()
                 }
             },
@@ -658,10 +659,10 @@ final class StoreTileView: UIControl {
     }
 }
 
-/// Placeholder haptics hook — the real engine arrives with Chunk E's sound
-/// pass; buys already feel right once it lands.
+/// Purchase feedback: the warm cha-ching + a medium haptic thump together.
 enum Haptics {
     static func purchase() {
+        Sound.shared.purchase()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }

@@ -29,6 +29,10 @@ public final class DealViewController: UIViewController {
     private var dragMoved = false
     private var pressedButton: PixelButton?
     private var holdShown = false
+    /// The shared bottom prompt bar (offers, base confirms) over the SKView.
+    private let promptBar = PromptBar()
+    /// Piles armed as tap TARGETS (revive / Phoenix), with the answer callback.
+    private var targetPick: (piles: [Int], answer: (Int?) -> Void)?
 
     /// Set by the launcher so a finished deal can pop back with its result.
     public var onExit: ((Bool, Int, Int) -> Void)?
@@ -119,7 +123,11 @@ public final class DealViewController: UIViewController {
                 }
                 scene.showsMenuButton = true
                 scene.onMenuTapped = { [weak self] in self?.onMenu?() }
+                wireOffers()
             }
+            view.addSubview(promptBar)
+            promptBar.frame = view.bounds
+            promptBar.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
             if UserDefaults.standard.bool(forKey: "autoPlay") { startAutoPlay() }
@@ -149,6 +157,86 @@ public final class DealViewController: UIViewController {
 
     public override var prefersStatusBarHidden: Bool { true }
     public override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+
+    // MARK: - In-deal offers (PROMPT1: everything rides the shared bottom bar)
+
+    private func wireOffers() {
+        controller.onTributeOffer = { [weak self] offer, answer in
+            guard let self else { answer(false); return }
+            self.scene.setActionTargets([offer.index])
+            self.promptBar.show(
+                "\(offer.label) — bury \(offer.count) card\(offer.count == 1 ? "" : "s") under pile \(offer.index + 1)?",
+                help: "Costs ◉\(Int(offer.cost)). Decline and nothing happens.",
+                actions: [
+                    .init("Decline", role: .plain) { [weak self] in
+                        self?.promptBar.hide(); self?.clearTargets(); answer(false)
+                    },
+                    .init("Pay ◉\(Int(offer.cost))", role: .gold) { [weak self] in
+                        self?.promptBar.hide(); self?.clearTargets(); answer(true)
+                    },
+                ]) { [weak self] in self?.clearTargets(); answer(false) }
+        }
+        controller.onActionOffer = { [weak self] action, answer in
+            guard let self else { answer(false); return }
+            var targets = [action.index]
+            if let t = action.target { targets.append(t) }
+            self.scene.setActionTargets(targets)
+            let text = action.kind == "donate"
+                ? "Donate pile \(action.index + 1)'s bottom card to pile \((action.target ?? 0) + 1)?"
+                : "Shuffle pile \(action.index + 1)'s cards?"
+            self.promptBar.show(text, help: "Optional — Decline keeps things as they are.", actions: [
+                .init("Decline", role: .plain) { [weak self] in
+                    self?.promptBar.hide(); self?.clearTargets(); answer(false)
+                },
+                .init(action.kind == "donate" ? "Donate" : "Shuffle", role: .cta) { [weak self] in
+                    self?.promptBar.hide(); self?.clearTargets(); answer(true)
+                },
+            ]) { [weak self] in self?.clearTargets(); answer(false) }
+        }
+        controller.onReviveOffer = { [weak self] dead, fire in
+            guard let self else { fire(nil); return }
+            self.armTargetPick(dead, prompt: "Revive — tap a dead pile to bring it back.", fire: fire)
+        }
+        controller.onBaseTarget = { [weak self] dead, fire in
+            guard let self else { fire(nil); return }
+            self.armTargetPick(dead, prompt: "Phoenix — tap a dead pile to revive it.", fire: fire)
+        }
+        controller.onBasePrompt = { [weak self] label, desc, fire in
+            guard let self else { return }
+            self.promptBar.show("Activate \(label)?", help: desc, actions: [
+                .init("Not yet", role: .plain) { [weak self] in
+                    self?.promptBar.hide(); self?.controller.promptDismissed()
+                },
+                .init("Fire", role: .cta) { [weak self] in
+                    self?.promptBar.hide(); fire()
+                },
+            ]) { [weak self] in self?.controller.promptDismissed() }
+        }
+    }
+
+    private func armTargetPick(_ piles: [Int], prompt: String, fire: @escaping (Int?) -> Void) {
+        targetPick = (piles, fire)
+        scene.setActionTargets(piles)
+        promptBar.show(prompt, help: nil, actions: [
+            .init("Skip", role: .plain) { [weak self] in
+                self?.promptBar.hide()
+                self?.finishTargetPick(nil)
+            },
+        ]) { [weak self] in self?.finishTargetPick(nil) }
+    }
+
+    private func finishTargetPick(_ target: Int?) {
+        guard let tp = targetPick else { return }
+        targetPick = nil
+        promptBar.hide()
+        clearTargets()
+        tp.answer(target)
+    }
+
+    private func clearTargets() {
+        scene.setActionTargets([])
+        scene.setSelected(nil)
+    }
 
     // MARK: - Auto-play (verification only)
 
@@ -187,8 +275,22 @@ public final class DealViewController: UIViewController {
         if scene.isPileFanOpen { scene.closePileFan(); return }
         if scene.isHelpVisible { scene.hideHelp(); return }
 
+        // Target-pick mode (revive / Phoenix): a tap on an armed pile fires.
+        if let tp = targetPick {
+            if let pile = scene.pileIndex(at: p), tp.piles.contains(pile) {
+                finishTargetPick(pile)
+            }
+            return
+        }
+
         if let b = scene.button(at: p) {
             fire(button: b)
+            return
+        }
+        // A charged Base plaque fires on tap.
+        if let col = scene.baseCol(at: p) {
+            Sound.shared.tap()
+            controller.basePlaqueTapped(col: col)
             return
         }
         if let pile = scene.pileIndex(at: p) {

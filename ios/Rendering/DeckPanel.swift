@@ -82,7 +82,8 @@ public final class DeckPanel: SKNode {
 
     /// `counts` is rank value → remaining, `suitCounts` is suit → remaining.
     public func sync(counts: [Int: Int], suitCounts: [String: Int], total: Int,
-                     deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood) {
+                     deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood,
+                     tier: String = "regular") {
         histLayer.removeAllChildren()
         suitLayer.removeAllChildren()
         deckLayer.removeAllChildren()
@@ -125,7 +126,7 @@ public final class DeckPanel: SKNode {
         // ---- deck stack + character (right) ----
         let charX = size.width - deckW - pad
         character.position = CGPoint(x: charX + 8, y: -pad - 4)
-        character.configure(deckId: deckId)
+        character.configure(deckId: deckId, tier: tier)
         character.setBaseMood(mood)
         let count = PixelTexture.label("\(deckRemaining)", size: 20, color: CRT.cardFace)
         count.anchorPoint = CGPoint(x: 0, y: 1)
@@ -156,6 +157,7 @@ public final class DeckCharNode: SKNode {
 
     private let sprite = SKSpriteNode()
     private var deckId = "pink"
+    private var tier = "regular"
     /// The resting mood pushed by the controller (idle-family or sad-family).
     private var baseMood: DeckCharacter.Mood = .idle
     /// The transient reaction currently overriding the base, if any.
@@ -174,9 +176,10 @@ public final class DeckCharNode: SKNode {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not supported") }
 
-    public func configure(deckId id: String) {
-        guard id != deckId else { refresh(); return }
+    public func configure(deckId id: String, tier t: String = "regular") {
+        guard id != deckId || t != tier else { refresh(); return }
         deckId = id
+        tier = t
         refresh()
     }
 
@@ -251,7 +254,7 @@ public final class DeckCharNode: SKNode {
 
     private func refresh() {
         let tex = DeckCharacter.texture(deckId: deckId, mood: mood, scale: 2,
-                                        gaze: looking ? gaze : (0, 0))
+                                        gaze: looking ? gaze : (0, 0), tier: tier)
         sprite.texture = tex
         sprite.size = tex.size()
     }
@@ -270,16 +273,16 @@ public final class DeckCharNode: SKNode {
 
     private func blinkOnce() {
         guard reaction == nil else { return }
-        let closed = DeckCharacter.texture(deckId: deckId, mood: .blink, scale: 2, gaze: (0, 0))
+        let closed = DeckCharacter.texture(deckId: deckId, mood: .blink, scale: 2, gaze: (0, 0), tier: tier)
         let open = DeckCharacter.texture(deckId: deckId, mood: mood, scale: 2,
-                                         gaze: looking ? gaze : (0, 0))
+                                         gaze: looking ? gaze : (0, 0), tier: tier)
         sprite.run(.sequence([
             .setTexture(closed), .wait(forDuration: 0.14), .setTexture(open),
         ]))
         // An occasional idle glance rides the same tick (web: 50% of blinks).
         if !looking, baseMood == .idle, Bool.random() {
             let g = (Int.random(in: -1...1), Int.random(in: -1...1))
-            let glanced = DeckCharacter.texture(deckId: deckId, mood: .idle, scale: 2, gaze: g)
+            let glanced = DeckCharacter.texture(deckId: deckId, mood: .idle, scale: 2, gaze: g, tier: tier)
             sprite.run(.sequence([
                 .wait(forDuration: 0.3),
                 .setTexture(glanced),
@@ -301,21 +304,28 @@ public final class DeckCharNode: SKNode {
 }
 
 /// §6 Sprites — 16×16 base grid, 1px ink outline, palette colors + dither mixes
-/// only. The deck character, drawn procedurally on that grid and baked.
+/// only. The four deck characters drawn procedurally on that grid and baked:
+/// Pinky (cat ears, red⊕cream "pink"), Mamma (bow, red⊕gold rose), Mr. Smith
+/// (top hat + monocle, steel felt), Lammy (droopy wool ears, slate fleece).
+/// Tier accessories overlay the same sheet: Master's gold belt, Legendary's
+/// gold crown.
 public enum DeckCharacter {
 
     public enum Mood: String { case idle, looking, happy, glad, sad, celebrate, win, blink }
 
-    private struct Key: Hashable { let deckId: String; let mood: Mood; let scale: Int; let gx: Int; let gy: Int }
+    private struct Key: Hashable {
+        let deckId: String; let mood: Mood; let scale: Int
+        let gx: Int; let gy: Int; let tier: String
+    }
     private static var cache: [Key: SKTexture] = [:]
 
-    /// Body colors per deck — Pinky's "pink" is the red⊕cream dither (§1).
+    /// Body dithers per deck (§1 optical mixes).
     private static func body(_ deckId: String) -> (UIColor, UIColor) {
         switch deckId {
-        case "pink":  return (CRT.suitRed, CRT.cardFace)
-        case "mamma": return (CRT.gold, CRT.cardFace)
-        case "smith": return (CRT.feltMid, CRT.cardFace)
-        case "lammy": return (CRT.cardFace, CRT.feltMid)
+        case "pink":  return (CRT.suitRed, CRT.cardFace)   // pink
+        case "mamma": return (CRT.suitRed, CRT.gold)       // warm rose
+        case "smith": return (CRT.feltMid, CRT.cardFace)   // steel
+        case "lammy": return (CRT.cardFace, CRT.feltMid)   // slate fleece
         default:      return (CRT.suitRed, CRT.cardFace)
         }
     }
@@ -329,10 +339,11 @@ public enum DeckCharacter {
     }
 
     public static func texture(deckId: String, mood: Mood, scale: Int,
-                               gaze: (dx: Int, dy: Int) = (0, 0)) -> SKTexture {
-        let key = Key(deckId: deckId, mood: mood, scale: scale, gx: gaze.dx, gy: gaze.dy)
+                               gaze: (dx: Int, dy: Int) = (0, 0), tier: String = "regular") -> SKTexture {
+        let key = Key(deckId: deckId, mood: mood, scale: scale, gx: gaze.dx, gy: gaze.dy, tier: tier)
         if let c = cache[key] { return c }
-        let tex = PixelTexture.texture(from: image(deckId: deckId, mood: mood, scale: scale, gaze: gaze))
+        let tex = PixelTexture.texture(from: image(deckId: deckId, mood: mood, scale: scale,
+                                                   gaze: gaze, tier: tier))
         cache[key] = tex
         return tex
     }
@@ -340,7 +351,7 @@ public enum DeckCharacter {
     /// The same sprite as a UIImage — the map avatar and the UIKit screens
     /// (deck select, victory) draw the character with this.
     public static func image(deckId: String, mood: Mood, scale: Int,
-                             gaze: (dx: Int, dy: Int) = (0, 0)) -> UIImage {
+                             gaze: (dx: Int, dy: Int) = (0, 0), tier: String = "regular") -> UIImage {
         let g = 16
         let img = PixelTexture.image(size: CGSize(width: g * scale, height: g * scale)) { cg in
             let (a, b) = body(deckId)
@@ -355,8 +366,27 @@ public enum DeckCharacter {
                     px(x, y, edge ? CRT.ink : ((x + y) % 2 == 0 ? a : b))
                 }
             }
-            // Ears.
-            px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
+            // Per-character silhouette features.
+            switch deckId {
+            case "smith":
+                // Top hat: brim + crown in ink.
+                for x in 3...12 { px(x, 2, CRT.ink) }
+                for x in 5...10 { px(x, 1, CRT.ink); px(x, 0, CRT.ink) }
+            case "lammy":
+                // Droopy wool ears + fleece lumps along the crown.
+                px(3, 4, CRT.ink); px(2, 5, CRT.ink); px(2, 6, CRT.ink)
+                px(12, 4, CRT.ink); px(13, 5, CRT.ink); px(13, 6, CRT.ink)
+                px(5, 2, CRT.cardFace); px(7, 2, CRT.cardFace); px(9, 2, CRT.cardFace); px(11, 2, CRT.cardFace)
+            case "mamma":
+                // Cat ears + the bow at the top-right corner.
+                px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
+                px(11, 1, CRT.suitRed); px(13, 1, CRT.suitRed)
+                px(12, 2, CRT.suitRed)
+                px(11, 2, CRT.suitRed); px(13, 2, CRT.suitRed)
+            default:
+                // Pinky's cat ears.
+                px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
+            }
             // Eyes + mouth per mood. `gaze` shifts the pupils on the grid.
             let eyeY = (mood == .sad ? 7 : 6) + max(-1, min(1, gaze.dy == 0 ? 0 : -gaze.dy))
             let ex = max(-1, min(1, gaze.dx))
@@ -376,6 +406,12 @@ public enum DeckCharacter {
             default:
                 px(6 + ex, eyeY, CRT.ink); px(10 + ex, eyeY, CRT.ink)
             }
+            // Mr. Smith's monocle: a gold ring around the right eye.
+            if deckId == "smith", mood != .blink {
+                px(9, 5, CRT.gold); px(11, 5, CRT.gold)
+                px(9, 7, CRT.gold); px(11, 7, CRT.gold)
+                px(11, 8, CRT.gold)   // the chain drop
+            }
             switch mood {
             case .sad:
                 px(7, 9, CRT.ink); px(8, 10, CRT.ink); px(9, 9, CRT.ink)
@@ -388,6 +424,15 @@ public enum DeckCharacter {
                 px(7, 9, CRT.ink); px(8, 10, CRT.ink); px(9, 9, CRT.ink)
             default:
                 px(7, 9, CRT.ink); px(8, 9, CRT.ink); px(9, 9, CRT.ink)
+            }
+            // TIER ACCESSORIES: Master's gold belt, Legendary's gold crown.
+            if tier == "master" {
+                for x in 4...11 { px(x, 12, CRT.gold) }
+                px(7, 12, CRT.ink); px(8, 12, CRT.ink)   // the buckle
+            } else if tier == "legendary" {
+                let top = deckId == "smith" ? 0 : 1
+                for x in 5...10 { px(x, top + 1, CRT.gold) }
+                px(5, top, CRT.gold); px(7, top, CRT.gold); px(10, top, CRT.gold)
             }
             // A win gets phosphor sparks — the only glow color.
             if mood == .win || mood == .celebrate { px(13, 2, CRT.phosphor); px(2, 4, CRT.phosphor) }

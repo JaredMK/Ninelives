@@ -139,6 +139,10 @@ final class MainMenuViewController: MenuScreenBase {
         }
         addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
         addButton("STATS") { [weak self] in self?.flow.showStats() }
+        addButton("SOUND · \(Sound.shared.enabled ? "ON" : "OFF")") { [weak self] in
+            Sound.shared.enabled.toggle()
+            self?.build()
+        }
         addButton("RESET PROGRESS", role: .plain) { [weak self] in self?.confirmReset() }
         addGap(16)
         addText("build ios-phase3 · CRT CASINO", size: 12)
@@ -215,7 +219,8 @@ final class DeckSelectViewController: MenuScreenBase {
         right.onTap = { [weak self] in self?.cycleDeck(1) }
         right.frame = CGRect(x: view.bounds.width - 66, y: 40, width: 44, height: 60)
         row.addSubview(right)
-        let sprite = UIImageView(image: DeckCharacter.image(deckId: d.id, mood: unlocked ? .happy : .idle, scale: 6))
+        let sprite = UIImageView(image: DeckCharacter.image(deckId: d.id, mood: unlocked ? .happy : .idle,
+                                                            scale: 6, tier: tiers[tierIndex]))
         sprite.contentMode = .scaleAspectFit
         sprite.layer.magnificationFilter = .nearest
         sprite.alpha = unlocked ? 1 : 0.25
