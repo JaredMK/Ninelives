@@ -471,4 +471,14 @@ extension DealViewController: UIGestureRecognizerDelegate {
         // guess, and the hold's own `dragMoved` check suppresses the help.
         true
     }
+
+    public func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // THE TUTORIAL-STUCK BUG: these recognizers live on the whole SKView,
+        // and a recognized tap CANCELS touch delivery to any UIKit subview
+        // (cancelsTouchesInView) — so the tutorial's NEXT button and the
+        // prompt bar's Decline/Pay could never fire. The scene's own touches
+        // hit the bare SKView; anything else is a UIKit overlay (tutorial
+        // bubble, prompt bar, deck-inspect) and the recognizers must stay out.
+        touch.view === view
+    }
 }

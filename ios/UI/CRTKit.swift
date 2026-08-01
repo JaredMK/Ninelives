@@ -113,6 +113,9 @@ public final class PixelButtonView: UIControl {
         addSubview(titleLabel)
         setTitle(title)
         applyRole()
+        // Real buttons to assistive tech AND the UI test runner.
+        isAccessibilityElement = true
+        accessibilityTraits = .button
         addTarget(self, action: #selector(touchDown), for: [.touchDown, .touchDragEnter])
         addTarget(self, action: #selector(touchUp), for: [.touchUpInside])
         addTarget(self, action: #selector(touchCancel), for: [.touchUpOutside, .touchCancel, .touchDragExit])
@@ -124,6 +127,7 @@ public final class PixelButtonView: UIControl {
     public func setTitle(_ t: String) {
         let (_, text, _, glow) = colors()
         titleLabel.attributedText = CRTKit.attributed(t.uppercased(), size: fontSize, color: text, glow: glow)
+        accessibilityLabel = t.uppercased()
     }
     public var title: String { titleLabel.attributedText?.string ?? "" }
 

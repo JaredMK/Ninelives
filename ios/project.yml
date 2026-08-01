@@ -93,6 +93,21 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         TARGETED_DEVICE_FAMILY: "1,2"
 
+  # ── UI tests ──────────────────────────────────────────────────────────────
+  # Real-touch flows (the tutorial walk). Run via the ShouldaSaidSame scheme:
+  #   xcodebuild test -scheme ShouldaSaidSame -only-testing:ShouldaSaidSameUITests
+  ShouldaSaidSameUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: ShouldaSaidSame
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: ShouldaSaidSame
+
   # ── Tests ─────────────────────────────────────────────────────────────────
   # Logic-only bundle (no host app) so `xcodebuild test` runs fast.
   GameCoreTests:
@@ -123,7 +138,8 @@ schemes:
       targets:
         ShouldaSaidSame: all
         GameCoreTests: [test]
+        ShouldaSaidSameUITests: [test]
     run:
       config: Debug
     test:
-      targets: [GameCoreTests]
+      targets: [GameCoreTests, ShouldaSaidSameUITests]

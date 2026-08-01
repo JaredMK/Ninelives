@@ -111,6 +111,13 @@ public final class GameFlowController: UIViewController {
     // MARK: - Boot + persistence
 
     private func boot() {
+        // Harness override: `-resetAll 1` = a factory-fresh install (the UI
+        // tests use it so the zen-first tutorial arms).
+        if UserDefaults.standard.bool(forKey: "resetAll") {
+            for key in store.ninelivesKeys() { store.remove(forKey: key) }
+            campaign = CampaignState(store: store)
+            campaign.itemUnlocks.primeKnown()
+        }
         // Harness override: `-skipGate 1` opens the campaign without the
         // zen-first gate (simulator verification runs).
         if UserDefaults.standard.bool(forKey: "skipGate") {
