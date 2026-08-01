@@ -129,6 +129,20 @@ public final class PixelButtonView: UIControl {
         titleLabel.attributedText = CRTKit.attributed(t.uppercased(), size: fontSize, color: text, glow: glow)
         accessibilityLabel = t.uppercased()
     }
+
+    /// A small leading pixel icon beside the label (the web menu buttons).
+    private var iconView: UIImageView?
+    public func setIcon(_ image: UIImage?) {
+        iconView?.removeFromSuperview()
+        iconView = nil
+        guard let image else { return }
+        let iv = UIImageView(image: image)
+        iv.layer.magnificationFilter = .nearest
+        iv.contentMode = .scaleAspectFit
+        addSubview(iv)
+        iconView = iv
+        setNeedsLayout()
+    }
     public var title: String { titleLabel.attributedText?.string ?? "" }
 
     public func setRole(_ r: Role) { role = r; applyRole() }
@@ -172,6 +186,21 @@ public final class PixelButtonView: UIControl {
         shadowLayer.frame = bounds.offsetBy(dx: shadow, dy: shadow)
         CATransaction.commit()
         titleLabel.frame = bounds.offsetBy(dx: sink, dy: sink)
+        if let iv = iconView {
+            // Centre the icon+label pair together, like the web buttons.
+            let textW = titleLabel.attributedText.map { ceil($0.size().width) } ?? 0
+            let iw = iv.image?.size.width ?? 0
+            let pair = iw + 7 + textW
+            iv.frame = CGRect(x: (bounds.width - pair) / 2 + sink,
+                              y: (bounds.height - (iv.image?.size.height ?? 0)) / 2 + sink,
+                              width: iw, height: iv.image?.size.height ?? 0)
+            titleLabel.textAlignment = .left
+            titleLabel.frame = CGRect(x: iv.frame.maxX + 7, y: sink,
+                                      width: bounds.width - iv.frame.maxX - 7,
+                                      height: bounds.height)
+        } else {
+            titleLabel.textAlignment = .center
+        }
     }
     public var shadowOffset: CGFloat = CRT.shadowOffset
 }

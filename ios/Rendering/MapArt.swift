@@ -205,10 +205,26 @@ public enum MapArt {
 
     // MARK: - Mystery "?"
 
-    /// 38×48 ink card, gold frame + gold "?", 2px shadow. `open` lights the
-    /// frame phosphor while the gamble resolves.
+    /// The web's exact mystery card face (ink card, PHOSPHOR "?"), gold-framed;
+    /// `open` lights the frame phosphor while the gamble resolves.
     public static func mysteryCard(open: Bool) -> UIImage {
-        baked("myst-\(open)") {
+        if let art = ArtBundle.image("pxi-mystery") {
+            return baked("mystx-\(open)") {
+                let k: CGFloat = 4
+                let w = art.size.width * k, h = art.size.height * k
+                return PixelTexture.image(size: CGSize(width: w + 6, height: h + 6)) { cg in
+                    cg.setFillColor(CRT.shadow.cgColor)
+                    cg.fill(CGRect(x: 4, y: 4, width: w + 2, height: h + 2))
+                    UIGraphicsPushContext(cg)
+                    art.draw(in: CGRect(x: 1, y: 1, width: w, height: h))
+                    UIGraphicsPopContext()
+                    cg.setStrokeColor((open ? CRT.phosphor : CRT.gold).cgColor)
+                    cg.setLineWidth(2)
+                    cg.stroke(CGRect(x: 1, y: 1, width: w, height: h))
+                }
+            }
+        }
+        return baked("myst-\(open)") {
             let w: CGFloat = 38, h: CGFloat = 48
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
@@ -332,6 +348,77 @@ public enum MapArt {
                 for _ in 0..<10 {
                     let x = (rnd() * 94).rounded(), y = (rnd() * 94).rounded()
                     cg.fill(CGRect(x: x, y: y, width: 2, height: 2))
+                }
+            }
+        }
+    }
+
+    /// The menu logo: the gold "=" synapse mark — two rounded gold bars with
+    /// ink outlines and the phosphor node dots, from the web's icons/logo.svg.
+    public static func menuLogo(width: CGFloat = 96) -> UIImage {
+        baked("logo-\(Int(width))") {
+            let h = width * 0.62
+            return PixelTexture.image(size: CGSize(width: width, height: h)) { cg in
+                let barH = h * 0.30
+                func bar(_ y: CGFloat, dotX: CGFloat) {
+                    let r = CGRect(x: 2, y: y, width: width - 4, height: barH)
+                    // Rounded-end gold bar: body + end caps stepped on the grid.
+                    cg.setFillColor(CRT.ink.cgColor)
+                    cg.fill(r.insetBy(dx: -2, dy: -2))
+                    cg.setFillColor(CRT.gold.cgColor)
+                    cg.fill(r)
+                    cg.setFillColor(CRT.ink.cgColor)
+                    // Nick the corners for the rounded pixel read.
+                    for (cx, cy) in [(r.minX - 2, r.minY - 2), (r.maxX, r.minY - 2),
+                                     (r.minX - 2, r.maxY), (r.maxX, r.maxY)] {
+                        cg.fill(CGRect(x: cx, y: cy, width: 4, height: 4))
+                    }
+                    cg.setFillColor(CRT.gold.cgColor)
+                    for (cx, cy) in [(r.minX, r.minY - 1), (r.maxX - 4, r.minY - 1),
+                                     (r.minX, r.maxY - 3), (r.maxX - 4, r.maxY - 3)] {
+                        cg.fill(CGRect(x: cx, y: cy, width: 4, height: 4))
+                    }
+                    cg.setFillColor(CRT.phosphor.cgColor)
+                    cg.fill(CGRect(x: dotX, y: y + barH / 2 - 2, width: 5, height: 5))
+                }
+                bar(h * 0.10, dotX: width * 0.44)
+                bar(h * 0.55, dotX: width * 0.30)
+            }
+        }
+    }
+
+    /// Tiny 9×9 pixel glyphs for the menu buttons (the web's inline icons).
+    public static func menuIcon(_ key: String) -> UIImage {
+        baked("mi-\(key)") {
+            PixelTexture.image(size: CGSize(width: 9, height: 9)) { cg in
+                func px(_ x: Int, _ y: Int, _ c: UIColor = CRT.cardFace) {
+                    cg.setFillColor(c.cgColor)
+                    cg.fill(CGRect(x: x, y: y, width: 1, height: 1))
+                }
+                switch key {
+                case "spark":       // ✦ climb
+                    for (x, y) in [(4,0),(4,1),(4,2),(4,6),(4,7),(4,8),(0,4),(1,4),(2,4),(6,4),(7,4),(8,4),(3,3),(5,3),(3,5),(5,5),(4,4)] { px(x,y) }
+                case "sun":         // continue
+                    for (x, y) in [(4,0),(4,8),(0,4),(8,4),(1,1),(7,1),(1,7),(7,7)] { px(x,y) }
+                    for x in 3...5 { for y in 3...5 { px(x,y) } }
+                case "zen":         // ◎
+                    for (x, y) in [(3,0),(4,0),(5,0),(1,1),(7,1),(0,3),(0,4),(0,5),(8,3),(8,4),(8,5),(1,7),(7,7),(3,8),(4,8),(5,8)] { px(x,y) }
+                    px(4,4)
+                case "search":      // magnifier
+                    for (x, y) in [(2,0),(3,0),(4,0),(1,1),(5,1),(0,2),(6,2),(0,3),(6,3),(1,4),(5,4),(2,5),(3,5),(4,5),(6,6),(7,7),(8,8)] { px(x,y) }
+                case "bars":        // stats
+                    for y in 5...8 { px(1,y) }
+                    for y in 3...8 { px(4,y) }
+                    for y in 1...8 { px(7,y) }
+                case "box":         // collection
+                    for x in 0...8 { px(x,0); px(x,8) }
+                    for y in 0...8 { px(0,y); px(8,y) }
+                    px(4,4)
+                case "gear":        // settings ↻
+                    for (x, y) in [(2,1),(3,0),(4,0),(5,0),(6,1),(7,2),(7,3),(8,4),(6,4),(7,5),(1,5),(1,6),(0,4),(2,7),(3,8),(4,8),(5,8),(6,7)] { px(x,y) }
+                case "quit":        // ⃠
+                    for (x, y) in [(3,0),(4,0),(5,0),(1,1),(7,1),(0,3),(0,4),(0,5),(8,3),(8,4),(8,5),(1,7),(7,7),(3,8),(4,8),(5,8),(2,6),(3,5),(4,4),(5,3),(6,2)] { px(x, y, CRT.cardFace) }
+                default: break
                 }
             }
         }

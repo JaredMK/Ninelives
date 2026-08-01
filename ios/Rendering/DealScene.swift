@@ -81,12 +81,14 @@ public final class DealScene: SKScene {
         hud = HUDBar(width: size.width)
         addChild(hud)
 
-        let railW: CGFloat = 58
-        fanButton = PixelButton(id: "fan", title: "FAN", size: CGSize(width: railW, height: 34), role: .plain, fontSize: 15)
-        higherButton = PixelButton(id: "higher", title: "▲", size: CGSize(width: railW, height: 46), role: .cta, fontSize: 22)
-        sameButton = PixelButton(id: "same", title: "＝", size: CGSize(width: railW, height: 46), role: .ctaOutline, fontSize: 22)
-        lowerButton = PixelButton(id: "lower", title: "▼", size: CGSize(width: railW, height: 46), role: .cta, fontSize: 22)
-        reshuffleButton = PixelButton(id: "reshuffle", title: "RESHUFFLE", size: CGSize(width: 180, height: 34), role: .gold, fontSize: 16)
+        // The guess rail: TALL slab buttons filling the board's left column,
+        // matching the web's guess-side layout proportions.
+        let railW: CGFloat = 52
+        fanButton = PixelButton(id: "fan", title: "FAN", size: CGSize(width: railW, height: 52), role: .plain, fontSize: 14)
+        higherButton = PixelButton(id: "higher", title: "▲", size: CGSize(width: railW, height: 118), role: .plain, fontSize: 22)
+        sameButton = PixelButton(id: "same", title: "＝", size: CGSize(width: railW, height: 118), role: .ctaOutline, fontSize: 22)
+        lowerButton = PixelButton(id: "lower", title: "▼", size: CGSize(width: railW, height: 118), role: .plain, fontSize: 22)
+        reshuffleButton = PixelButton(id: "reshuffle", title: "↺ RESHUFFLE", size: CGSize(width: 210, height: 38), role: .plain, fontSize: 16)
         menuButton = PixelButton(id: "menu", title: "≡", size: CGSize(width: 34, height: 28), role: .plain, fontSize: 16)
         menuButton.isHidden = !showsMenuButton
         [fanButton, higherButton, sameButton, lowerButton, reshuffleButton, menuButton].forEach { addChild($0) }
@@ -150,16 +152,20 @@ public final class DealScene: SKScene {
         rewardLine.position = CGPoint(x: 0, y: y - 10)
         y -= 26
 
-        // Left rail: FAN on top, then ▲ ＝ ▼ (the web's dedicated guess strip).
+        // Left rail: FAN on top, then ▲ ＝ ▼ as TALL slabs (the web's dedicated
+        // guess strip fills the board column's height).
         railX = pad
         railTop = y
-        let bottomLimit = -(size.height - safeInsets.bottom - pad - 40)
-        let railH = fanButton.frameSize.height + 6 + higherButton.frameSize.height * 3 + 12
-        let railStart = max(y - 4, bottomLimit + railH)
-        var ry = railStart
+        let bottomLimit = -(size.height - safeInsets.bottom - pad - 52)
+        let railSpan = (y - 6) - bottomLimit
+        let slabH = max(88, (railSpan - fanButton.frameSize.height - 26) / 3)
+        higherButton.resize(CGSize(width: fanButton.frameSize.width, height: slabH))
+        sameButton.resize(CGSize(width: fanButton.frameSize.width, height: slabH))
+        lowerButton.resize(CGSize(width: fanButton.frameSize.width, height: slabH))
+        var ry = y - 6
         fanButton.position = CGPoint(x: railX, y: ry); ry -= fanButton.frameSize.height + 8
-        higherButton.position = CGPoint(x: railX, y: ry); ry -= higherButton.frameSize.height + 6
-        sameButton.position = CGPoint(x: railX, y: ry); ry -= sameButton.frameSize.height + 6
+        higherButton.position = CGPoint(x: railX, y: ry); ry -= slabH + 6
+        sameButton.position = CGPoint(x: railX, y: ry); ry -= slabH + 6
         lowerButton.position = CGPoint(x: railX, y: ry)
 
         // Reshuffle sits at the very bottom, centred; the pause menu bottom-left.
@@ -315,17 +321,20 @@ public final class DealScene: SKScene {
 
     public func syncDeckPanel(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                               remaining: Int, deckId: String, mood: DeckCharacter.Mood,
-                              tier: String = "regular") {
+                              tier: String = "regular", suitTotals: [String: Int] = [:]) {
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
-                       deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier)
+                       deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier,
+                       suitTotals: suitTotals)
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
     public func syncDeckPeek(_ face: CardArt.Face?) { deckPanel.syncPeek(face) }
 
-    public func syncReward(base: Double, bonus: Double, score: Int) {
-        rewardLine.sync(base: base, bonus: bonus, score: score, width: size.width)
+    public func syncReward(base: Double, bonus: Double, alive: Int, minAlive: Int) {
+        rewardLine.sync(base: base, bonus: bonus, alive: alive, minAlive: minAlive, width: size.width)
     }
+
+    public func setReshuffleTitle(_ t: String) { reshuffleButton.setTitle(t) }
 
     public func syncControls(canGuess: Bool, showReshuffle: Bool) {
         higherButton.setEnabled(canGuess)
@@ -337,15 +346,39 @@ public final class DealScene: SKScene {
     public func setPillars(_ ids: [String?], bases: [String?]) {
         for (c, node) in pillarPlaques.enumerated() {
             node.removeAllChildren()
-            guard c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) else { continue }
-            node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.gold))
+            if c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) {
+                node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.gold))
+            } else {
+                node.addChild(emptySlot())   // the web draws EMPTY slots dashed
+            }
         }
         for (c, node) in basePlaques.enumerated() {
             node.removeAllChildren()
-            guard c < bases.count, let id = bases[c], let def = GameData.shared.baseTypes.get(id) else { continue }
-            node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor))
+            if c < bases.count, let id = bases[c], let def = GameData.shared.baseTypes.get(id) {
+                node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor))
+            } else {
+                node.addChild(emptySlot())
+            }
         }
         baseIds = bases
+    }
+
+    /// An empty artifact slot: a low-contrast dashed outline, like the web's
+    /// empty pillar/base cells.
+    private func emptySlot() -> SKNode {
+        let n = SKNode()
+        let w = cardScale.size.width, h: CGFloat = 16
+        let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+            cg.setStrokeColor(CRT.cardFace.withAlphaComponent(0.16).cgColor)
+            cg.setLineWidth(1)
+            cg.setLineDash(phase: 0, lengths: [4, 4])
+            cg.stroke(CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1))
+        }
+        let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        s.anchorPoint = CGPoint(x: 0, y: 1)
+        s.zPosition = 0
+        n.addChild(s)
+        return n
     }
     private var baseIds: [String?] = []
 

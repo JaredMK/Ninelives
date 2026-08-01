@@ -81,6 +81,38 @@ public final class GameFlowController: UIViewController {
         view.addSubview(crt)
         view.addSubview(prompt)
         boot()
+        // Screenshot harness: `-showOverlay cleared|dead|victory|mystery`
+        // renders that overlay with sample data (debug evidence stills only).
+        if let which = UserDefaults.standard.string(forKey: "showOverlay") {
+            showDebugOverlay(which)
+        }
+    }
+
+    private func showDebugOverlay(_ which: String) {
+        switch which {
+        case "cleared":
+            let info = SummaryInfo(earned: 9, balance: 21,
+                                   lines: [("Deal reward", 7), ("Pillar bonus", 2)],
+                                   product: 12, aliveCount: 4, minAlive: 3,
+                                   progress: "STAGE 1 · DEAL 2")
+            presentOverlay(PhaseOverlayView.dealCleared(info: info) { [weak self] in self?.dismissOverlay() })
+        case "dead":
+            let info = FailedInfo(correct: 11, wrong: 1, cardsFlipped: 12, coinsEarned: 6, wasEndless: false)
+            presentOverlay(PhaseOverlayView.gameOver(
+                info: info, seed: "PINK-REGULAR-ABC2345",
+                nearest: campaign.itemUnlocks.nearestLocked(2)) { [weak self] in self?.dismissOverlay() })
+        case "victory":
+            presentOverlay(PhaseOverlayView.pinkyHome(
+                deckName: "Pinky", score: 44, coins: 31, cards: 19, bestScore: 51,
+                onEndless: { [weak self] in self?.dismissOverlay() },
+                onMenu: { [weak self] in self?.dismissOverlay() }))
+        case "mystery":
+            if let o = campaign.applyMysteryEvent("coinBonus", nodeId: 7) {
+                presentOverlay(PhaseOverlayView.mystery(outcome: o) { [weak self] in self?.dismissOverlay() })
+            }
+        default:
+            break
+        }
     }
 
     public override func viewDidLayoutSubviews() {
@@ -248,8 +280,23 @@ public final class GameFlowController: UIViewController {
         setScreen(CollectionViewController(flow: self))
     }
 
+    /// Lifetime stats ride a bottom sheet over whatever's showing (web parity).
     func showStats() {
-        setScreen(StatsViewController(flow: self))
+        let sheet = StatsSheetView(campaign: campaign)
+        sheet.onReset = { [weak self, weak sheet] in
+            guard let self else { return }
+            // The confirm bar must clear the sheet it was summoned from.
+            self.view.insertSubview(self.prompt, belowSubview: self.crt)
+            self.prompt.show("Reset lifetime stats?", help: "Unlock progress derives from stats.", actions: [
+                .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+                .init("Reset", role: .danger) { [weak self] in
+                    self?.prompt.hide()
+                    self?.campaign.stats.reset()
+                    sheet?.refresh()
+                },
+            ]) { [weak self] in self?.prompt.hide() }
+        }
+        sheet.present(in: view, below: crt)
     }
 
     /// Campaign appears on the menu only after the tutorial + a first Zen
@@ -651,47 +698,77 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Pause menu
 
+    /// The web `#gameMenu` bottom sheet: seed row (tap-to-copy) over Resume /
+    /// How to Play (or Restart in Zen) / Sound / New Climb / Quit to Menu.
     func showPauseMenu() {
         let isZenGame = zenDiff != nil
-        var actions: [PromptBar.Action] = [
-            .init("Resume", role: .cta) { [weak self] in self?.prompt.hide() },
-        ]
-        if isZenGame {
-            actions.append(.init("Quit to menu", role: .plain) { [weak self] in
+        let sheet = PauseSheetView(seed: isZenGame ? nil : SeedCode.encode(campaign.runSeed),
+                                   exhibition: !isZenGame && campaign.isExhibition(),
+                                   items: [])
+        func makeItems() -> [PauseSheetView.Item] {
+            var items: [PauseSheetView.Item] = [
+                .init("RESUME", icon: MapArt.menuIcon("sun"), role: .cta) {},
+            ]
+            if isZenGame {
+                items.append(.init("RESTART", icon: MapArt.menuIcon("zen")) { [weak self] in
+                    guard let self, let d = self.zenDiff else { return }
+                    self.startZen(diff: d)
+                })
+            } else {
+                items.append(.init("HOW TO PLAY", icon: MapArt.menuIcon("search"), keepOpen: true) { [weak self, weak sheet] in
+                    sheet?.removeFromSuperview()
+                    self?.showManualSheet()
+                })
+            }
+            items.append(.init("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")",
+                               icon: MapArt.menuIcon("spark"), keepOpen: true) { [weak sheet] in
+                Sound.shared.enabled.toggle()
+                sheet?.setItems(makeItems())
+            })
+            if !isZenGame {
+                items.append(.init("NEW CLIMB", icon: MapArt.menuIcon("spark")) { [weak self] in
+                    self?.confirmNewClimb()
+                })
+            }
+            items.append(.init("QUIT TO MENU", icon: MapArt.menuIcon("quit"), role: .danger) { [weak self] in
                 guard let self else { return }
-                self.prompt.hide()
-                self.zenTeardown()
+                if isZenGame {
+                    self.zenTeardown()
+                } else {
+                    // Navigational only — the climb persists; Continue resumes it.
+                    self.persist(phase: self.currentPhase)
+                }
                 self.showMenu()
             })
-        } else {
-            actions.append(.init("Abandon climb", role: .danger) { [weak self] in
-                guard let self else { return }
-                self.prompt.hide()
-                self.confirmAbandon()
-            })
-            actions.append(.init("Menu", role: .plain) { [weak self] in
-                guard let self else { return }
-                // The climb persists — Continue resumes it.
-                self.prompt.hide()
-                self.persist(phase: self.currentPhase)
-                self.showMenu()
-            })
+            return items
         }
-        let seed = isZenGame ? nil : seedShareString()
-        prompt.show(seed.map { "SEED · \($0)" } ?? "Paused",
-                    help: seed != nil ? "Share the seed to race the same climb." : nil,
-                    actions: actions) { [weak self] in self?.prompt.hide() }
+        sheet.setItems(makeItems())
+        sheet.present(in: view, below: crt)
     }
 
-    private func confirmAbandon() {
-        prompt.show("Abandon this climb?", help: "The climb is lost for good.", actions: [
-            .init("Keep playing", role: .plain) { [weak self] in self?.prompt.hide() },
-            .init("Abandon", role: .danger) { [weak self] in
+    /// The paged How-to-Play sheet (web `showManual`) over whatever's showing.
+    func showManualSheet() {
+        let sheet = ManualSheetView(deckId: campaign.deckId)
+        sheet.onReplayTutorial = { [weak self] in
+            guard let self else { return }
+            self.tutorialReplayArmed = true
+            if let first = DifficultyData.zenIds.first {
+                self.startZen(diff: first)
+            }
+        }
+        sheet.present(in: view, below: crt)
+    }
+
+    private func confirmNewClimb() {
+        prompt.show("Abandon this campaign and start a fresh one?",
+                    help: "The current climb, coins and items are wiped — this can't be undone.", actions: [
+            .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+            .init("New Climb", role: .danger) { [weak self] in
                 guard let self else { return }
                 self.prompt.hide()
                 self.clearSave()
                 self.campaign.reset()
-                self.showMenu()
+                self.showDeckSelect()
             },
         ]) { [weak self] in self?.prompt.hide() }
     }

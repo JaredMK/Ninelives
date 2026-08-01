@@ -78,6 +78,8 @@ public final class DealController {
     private var reduceMotion: Bool
     private var redealCost: Double = DealPlanner.redealBaseCost
     public private(set) var reshuffleIndex = 0
+    /// The deal's initial per-suit composition (the deck band's "8/13").
+    private var dealSuitTotals: [String: Int] = [:]
 
     /// Debug-launcher entry (owns a throwaway campaign).
     public init(setup: Setup, scene: DealScene) {
@@ -122,10 +124,18 @@ public final class DealController {
         }
     }
 
+    private func suitTotals(_ specs: [CardSpec]) -> [String: Int] {
+        var t: [String: Int] = [:]
+        for c in specs where !c.joker && !c.blank { t[c.suit, default: 0] += 1 }
+        return t
+    }
+
     private func bootDebug(_ setup: Setup) {
         let layout = CampaignLayout.layoutForPiles(setup.pileCount)
+        let specs = debugDeck(setup)
+        dealSuitTotals = suitTotals(specs)
         engine = GameEngine(
-            deckSpecs: debugDeck(setup),
+            deckSpecs: specs,
             pileCount: setup.pileCount,
             runConfig: RunConfig(cols: layout.cols,
                                  sameCharge: setup.sameCharge,
@@ -134,6 +144,7 @@ public final class DealController {
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
+        _ = specs
         scene.buildBoard(pileCount: setup.pileCount)
         scene.setPillars(setup.pillars, bases: setup.bases)
         refreshAll()
@@ -141,6 +152,7 @@ public final class DealController {
     }
 
     private func boot(plan p: DealPlan) {
+        dealSuitTotals = suitTotals(p.deckForDeal)
         let layout = CampaignLayout.layoutForPiles(p.piles)
         let pillars = isZen ? [String?](repeating: nil, count: layout.cols.count) : campaign.columnPillars
         let bases = isZen ? [String?](repeating: nil, count: layout.cols.count) : campaign.columnBases
@@ -804,10 +816,12 @@ public final class DealController {
                             remaining: engine.deck.remaining(),
                             deckId: campaign.deckId,
                             mood: mood(),
-                            tier: isZen ? "regular" : campaign.difficultyTier)
+                            tier: isZen ? "regular" : campaign.difficultyTier,
+                            suitTotals: dealSuitTotals)
         let peeking = engine.run.revealNextActive || engine.run.kamikazeRevealLeft > 0
         scene.syncDeckPeek(peeking ? engine.deck.peek(1).first.map(CardArt.Face.init) : nil)
-        scene.syncReward(base: plan?.flatReward ?? dealBaseDebug(), bonus: liveBonus(), score: currentScore())
+        scene.syncReward(base: plan?.flatReward ?? dealBaseDebug(), bonus: liveBonus(),
+                         alive: engine.board.aliveCount(), minAlive: engine.board.minAliveCards())
     }
 
     private func dealBaseDebug() -> Double {
@@ -818,6 +832,8 @@ public final class DealController {
         let canGuess = !interactionLocked && !isOver
             && scene.currentSelection != nil && !engine.deck.isEmpty
         let canAffordReshuffle = !isCampaign || Double(campaign.getCoins()) >= redealCost
+        // The web names the price on the button: `↺ RESHUFFLE · ◉ 10`.
+        scene.setReshuffleTitle(isCampaign ? "↺ RESHUFFLE · ◉\(Int(redealCost))" : "↺ RESHUFFLE")
         scene.syncControls(canGuess: canGuess,
                            showReshuffle: !isOver && engine.run.totalGuesses == 0
                                && !interactionLocked && canAffordReshuffle)

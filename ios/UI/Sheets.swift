@@ -1,0 +1,784 @@
+import UIKit
+import GameCore
+
+// MARK: - Sheet chrome
+
+/// Web `.sheet-overlay`/`.sheet-panel`: an ink scrim with a felt-mid pixel
+/// panel rising from the bottom edge; display-marquee head + the ✕ square.
+class SheetView: UIView, UIGestureRecognizerDelegate {
+    let panel = UIView()
+    private let headLabel = UILabel()
+    private let closeButton = UIButton(type: .custom)
+    let body = UIView()
+    var onClose: (() -> Void)?
+    private var bodyH: CGFloat = 300
+
+    init(title: String) {
+        super.init(frame: .zero)
+        backgroundColor = CRT.ink.withAlphaComponent(0.72)
+        // Scrim-only dismissal: the recognizer must never receive (and so
+        // never cancel) touches on the panel's controls — the tutorial's
+        // cancelsTouchesInView lesson.
+        let tap = UITapGestureRecognizer(target: self, action: #selector(scrimTapped(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = self
+        addGestureRecognizer(tap)
+
+        panel.backgroundColor = CRT.feltMid
+        panel.layer.borderWidth = CRT.px
+        panel.layer.borderColor = CRT.ink.cgColor
+        addSubview(panel)
+
+        headLabel.attributedText = CRTKit.attributed(title.uppercased(), size: 13,
+                                                     color: CRT.phosphor, display: true, glow: true)
+        panel.addSubview(headLabel)
+
+        closeButton.setAttributedTitle(CRTKit.attributed("×", size: 18, color: CRT.cardFace), for: .normal)
+        closeButton.backgroundColor = CRT.feltDeep
+        closeButton.layer.borderWidth = CRT.px
+        closeButton.layer.borderColor = CRT.ink.cgColor
+        closeButton.addAction(UIAction { [weak self] _ in self?.dismiss() }, for: .touchUpInside)
+        panel.addSubview(closeButton)
+        panel.addSubview(body)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    func setBodyHeight(_ h: CGFloat) {
+        bodyH = h
+        setNeedsLayout()
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        touch.view === self
+    }
+
+    @objc private func scrimTapped(_ g: UITapGestureRecognizer) {
+        if !panel.frame.contains(g.location(in: self)) { dismiss() }
+    }
+
+    func dismiss() {
+        let target = panel.frame.height
+        UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseIn]) {
+            self.panel.transform = CGAffineTransform(translationX: 0, y: target)
+            self.alpha = 0
+        } completion: { _ in
+            self.removeFromSuperview()
+            self.onClose?()
+        }
+    }
+
+    /// Present over `host` with the rise-from-the-bottom slide.
+    func present(in host: UIView, below topmost: UIView? = nil) {
+        frame = host.bounds
+        autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        if let topmost { host.insertSubview(self, belowSubview: topmost) }
+        else { host.addSubview(self) }
+        layoutIfNeeded()
+        panel.transform = CGAffineTransform(translationX: 0, y: panel.frame.height)
+        alpha = 0.4
+        UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+            self.panel.transform = .identity
+            self.alpha = 1
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let w = min(bounds.width, 460)
+        let safeBottom = safeAreaInsets.bottom
+        let panelH = min(bounds.height * 0.86, 14 + 30 + 12 + bodyH + 16 + safeBottom)
+        // +px: the bottom border rides off-screen (border-bottom: none).
+        panel.frame = CGRect(x: (bounds.width - w) / 2, y: bounds.height - panelH,
+                             width: w, height: panelH + CRT.px)
+        headLabel.frame = CGRect(x: 16, y: 14, width: w - 70, height: 30)
+        closeButton.frame = CGRect(x: w - 46, y: 12, width: 30, height: 30)
+        body.frame = CGRect(x: 16, y: 56, width: w - 32, height: panelH - 56 - 16 - safeBottom)
+    }
+}
+
+// MARK: - Pause menu sheet
+
+/// The in-game pause menu, web `#gameMenu`: the dashed-gold seed row
+/// (tap-to-copy) above the stacked menu buttons.
+final class PauseSheetView: SheetView {
+    struct Item {
+        let label: String
+        let icon: UIImage?
+        let role: PixelButtonView.Role
+        let keepOpen: Bool
+        let action: () -> Void
+        init(_ label: String, icon: UIImage?, role: PixelButtonView.Role = .plain,
+             keepOpen: Bool = false, action: @escaping () -> Void) {
+            self.label = label; self.icon = icon; self.role = role
+            self.keepOpen = keepOpen; self.action = action
+        }
+    }
+
+    private let seed: String?
+    private let exhibition: Bool
+    private var items: [Item]
+    private var seedRow: UIControl?
+    private var seedLabel = UILabel()
+    private var dash: CAShapeLayer?
+
+    init(seed: String?, exhibition: Bool, items: [Item]) {
+        self.seed = seed
+        self.exhibition = exhibition
+        self.items = items
+        super.init(title: "Menu")
+        build()
+    }
+
+    private func build() {
+        body.subviews.forEach { $0.removeFromSuperview() }
+        let colW: CGFloat = 300
+        var y: CGFloat = 0
+        if let seed {
+            let row = UIControl()
+            let dash = CAShapeLayer()
+            dash.fillColor = nil
+            dash.strokeColor = CRT.gold.cgColor
+            dash.lineWidth = CRT.px
+            dash.lineDashPattern = [6, 4]
+            row.layer.addSublayer(dash)
+            self.dash = dash
+            let text = NSMutableAttributedString(
+                string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace, .kern: 1])
+            if exhibition {
+                text.append(NSAttributedString(string: "  EXHIBITION",
+                                               attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.gold]))
+            }
+            text.append(NSAttributedString(string: "  tap to copy",
+                                           attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted]))
+            seedLabel.attributedText = text
+            seedLabel.textAlignment = .center
+            seedLabel.isUserInteractionEnabled = false
+            row.addSubview(seedLabel)
+            row.addAction(UIAction { [weak self] _ in self?.copySeed() }, for: .touchUpInside)
+            row.tag = 71
+            body.addSubview(row)
+            seedRow = row
+            y += 36 + 10
+        }
+        for item in items {
+            let b = PixelButtonView(item.label, role: item.role, fontSize: item.role == .cta ? 16 : 15)
+            b.setIcon(item.icon)
+            b.tag = 72
+            b.onTap = { [weak self] in
+                guard let self else { return }
+                if item.keepOpen { item.action() } else {
+                    // Close silently, then act (dismiss() would also fire onClose).
+                    self.removeFromSuperview()
+                    item.action()
+                }
+            }
+            body.addSubview(b)
+            y += (item.role == .cta ? 50 : 46) + 9
+        }
+        setBodyHeight(y)
+        _ = colW
+    }
+
+    /// Sound toggles relabel in place.
+    func setItems(_ items: [Item]) {
+        self.items = items
+        build()
+        setNeedsLayout()
+    }
+
+    private func copySeed() {
+        guard let seed else { return }
+        UIPasteboard.general.string = seed
+        // The copy flash: the dashed frame solidifies, the hint turns gold.
+        dash?.lineDashPattern = nil
+        let text = NSMutableAttributedString(
+            string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace, .kern: 1])
+        text.append(NSAttributedString(string: "  copied",
+                                       attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.gold]))
+        seedLabel.attributedText = text
+        Sound.shared.tap()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let colW: CGFloat = min(300, body.bounds.width)
+        let x = (body.bounds.width - colW) / 2
+        var y: CGFloat = 0
+        for v in body.subviews {
+            if v.tag == 71 {
+                v.frame = CGRect(x: x, y: y, width: colW, height: 36)
+                seedLabel.frame = v.bounds
+                if let dash {
+                    dash.frame = v.bounds
+                    dash.path = UIBezierPath(rect: v.bounds.insetBy(dx: 1, dy: 1)).cgPath
+                }
+                y += 46
+            } else if let b = v as? PixelButtonView {
+                let h: CGFloat = b.title.contains("RESUME") ? 50 : 46
+                b.frame = CGRect(x: x, y: y, width: colW, height: h)
+                y += h + 9
+            }
+        }
+    }
+}
+
+// MARK: - How-to-play sheet (the paged manual)
+
+/// Web `showManual`: 8 mock-art slides with Skip · pager dots · Back/Next and
+/// the Replay-tutorial secondary action.
+final class ManualSheetView: SheetView {
+    private struct Slide {
+        let art: () -> UIView
+        let lead: String
+        let body: [(String, Bool)]   // (text, accent)
+    }
+
+    private var slides: [Slide] = []
+    private var index = 0
+    private let stage = UIView()
+    private let artHolder = UIView()
+    private let capLabel = UILabel()
+    private let skipButton = UIButton(type: .custom)
+    private let backButton = UIButton(type: .custom)
+    private let nextButton = UIButton(type: .custom)
+    private let dotsView = UIView()
+    private let replayButton = UIButton(type: .custom)
+    var onReplayTutorial: (() -> Void)?
+
+    init(deckId: String) {
+        super.init(title: "How to Play")
+        slides = ManualSheetView.buildSlides(deckId: deckId)
+
+        stage.backgroundColor = CRT.feltDeep
+        stage.layer.borderWidth = CRT.px
+        stage.layer.borderColor = CRT.ink.cgColor
+        stage.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(stageTapped)))
+        body.addSubview(stage)
+        stage.addSubview(artHolder)
+        capLabel.numberOfLines = 0
+        capLabel.textAlignment = .center
+        stage.addSubview(capLabel)
+
+        styleNav(skipButton, "Skip", ghost: true)
+        skipButton.addAction(UIAction { [weak self] _ in self?.dismiss() }, for: .touchUpInside)
+        styleNav(backButton, "Back", ghost: false)
+        backButton.addAction(UIAction { [weak self] _ in self?.go(-1) }, for: .touchUpInside)
+        styleNav(nextButton, "Next", ghost: false, primary: true)
+        nextButton.addAction(UIAction { [weak self] _ in self?.go(1) }, for: .touchUpInside)
+        body.addSubview(skipButton)
+        body.addSubview(backButton)
+        body.addSubview(nextButton)
+        body.addSubview(dotsView)
+
+        replayButton.setAttributedTitle(CRTKit.attributed("↻ Replay tutorial", size: 13, color: CRT.cardFace), for: .normal)
+        replayButton.backgroundColor = CRT.feltDeep
+        replayButton.layer.borderWidth = 1
+        replayButton.layer.borderColor = CRT.ink.cgColor
+        replayButton.addAction(UIAction { [weak self] _ in
+            self?.removeFromSuperview()
+            self?.onReplayTutorial?()
+        }, for: .touchUpInside)
+        body.addSubview(replayButton)
+
+        setBodyHeight(452)
+        render()
+    }
+
+    private func styleNav(_ b: UIButton, _ title: String, ghost: Bool, primary: Bool = false) {
+        let color: UIColor = primary ? CRT.ink : (ghost ? CRT.muted : CRT.cardFace)
+        b.setAttributedTitle(CRTKit.attributed(title.uppercased(), size: 12, color: color), for: .normal)
+        if primary {
+            b.backgroundColor = CRT.phosphor
+            b.layer.borderWidth = CRT.px
+            b.layer.borderColor = CRT.ink.cgColor
+            b.layer.shadowColor = CRT.phosphor.cgColor
+            b.layer.shadowRadius = 6
+            b.layer.shadowOpacity = 0.5
+            b.layer.shadowOffset = .zero
+        } else if !ghost {
+            b.backgroundColor = CRT.feltDeep
+            b.layer.borderWidth = CRT.px
+            b.layer.borderColor = CRT.ink.cgColor
+        }
+    }
+
+    @objc private func stageTapped() { go(1) }
+
+    private func go(_ step: Int) {
+        let ni = index + step
+        if ni < 0 { return }
+        if ni >= slides.count { dismiss(); return }
+        index = ni
+        render()
+    }
+
+    private func render() {
+        let s = slides[index]
+        artHolder.subviews.forEach { $0.removeFromSuperview() }
+        let art = s.art()
+        artHolder.addSubview(art)
+        let cap = NSMutableAttributedString(
+            string: s.lead + "\n", attributes: [.font: CRT.Font.of(12, display: true),
+                                                .foregroundColor: CRT.phosphor])
+        for (text, accent) in s.body {
+            cap.append(NSAttributedString(string: text, attributes: [
+                .font: CRT.Font.of(13),
+                .foregroundColor: accent ? CRT.phosphor : CRT.cardFace,
+            ]))
+        }
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        para.lineSpacing = 3
+        para.paragraphSpacing = 6
+        cap.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: cap.length))
+        capLabel.attributedText = cap
+
+        // Dots.
+        dotsView.subviews.forEach { $0.removeFromSuperview() }
+        for (i, _) in slides.enumerated() {
+            let d = UIView(frame: CGRect(x: CGFloat(i) * 13, y: 0, width: 7, height: 7))
+            d.layer.cornerRadius = 3.5   // the sanctioned pager-dot circle
+            d.backgroundColor = i == index ? CRT.phosphor : CRT.cardFace.withAlphaComponent(0.35)
+            dotsView.addSubview(d)
+        }
+        let last = index == slides.count - 1
+        nextButton.setAttributedTitle(CRTKit.attributed(last ? "GOT IT" : "NEXT", size: 12, color: CRT.ink), for: .normal)
+        backButton.isHidden = index == 0
+        skipButton.isHidden = last
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let w = body.bounds.width
+        stage.frame = CGRect(x: 0, y: 0, width: w, height: 330)
+        artHolder.frame = CGRect(x: 10, y: 12, width: w - 20, height: 150)
+        if let art = artHolder.subviews.first {
+            art.center = CGPoint(x: artHolder.bounds.midX, y: artHolder.bounds.midY)
+        }
+        capLabel.frame = CGRect(x: 16, y: 168, width: w - 32, height: 154)
+        skipButton.frame = CGRect(x: 0, y: 342, width: 60, height: 32)
+        let dotsW = CGFloat(slides.count) * 13 - 6
+        dotsView.frame = CGRect(x: (w - dotsW) / 2, y: 355, width: dotsW, height: 7)
+        nextButton.frame = CGRect(x: w - 74, y: 342, width: 74, height: 32)
+        backButton.frame = CGRect(x: w - 74 - 8 - 64, y: 342, width: 64, height: 32)
+        replayButton.frame = CGRect(x: (w - 170) / 2, y: 392, width: 170, height: 30)
+    }
+
+    // MARK: Slide art (mock components, matching the web tour)
+
+    private static func card(_ label: String, _ suit: String, w: CGFloat = 48) -> UIImageView {
+        let kind: CardArt.Face.Kind = label == "★" ? .joker : .normal
+        let iv = UIImageView(image: CardArt.image(CardArt.Face(label: label, suit: suit, kind: kind), scale: .half))
+        iv.layer.magnificationFilter = .nearest
+        iv.frame = CGRect(x: 0, y: 0, width: w, height: w * 67 / 48)
+        return iv
+    }
+
+    private static func tag(_ text: String, good: Bool) -> UILabel {
+        let l = CRTKit.label(text, size: 12, color: CRT.ink)
+        l.backgroundColor = good ? CRT.phosphor : CRT.suitRed
+        l.textColor = good ? CRT.ink : CRT.cardFace
+        l.textAlignment = .center
+        l.layer.borderWidth = 1
+        l.layer.borderColor = CRT.ink.cgColor
+        l.frame = CGRect(x: 0, y: 0, width: 84, height: 20)
+        return l
+    }
+
+    private static func buildSlides(deckId: String) -> [Slide] {
+        [
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 176, height: 142))
+                let faces: [(String, String)] = [("7", "♠"), ("K", "♥"), ("4", "♣"),
+                                                 ("A", "♦"), ("9", "♠"), ("Q", "♥")]
+                for (i, f) in faces.enumerated() {
+                    let c = card(f.0, f.1, w: 48)
+                    c.frame.origin = CGPoint(x: CGFloat(i % 3) * 62, y: CGFloat(i / 3) * 74)
+                    v.addSubview(c)
+                }
+                return v
+            }, lead: "This is your board", body: [
+                ("A grid of ", false), ("piles", true), (", each showing one ", false),
+                ("card", true), (" on top. Keep as many piles alive as you can.", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 220, height: 140))
+                // The face-down deck stack + count.
+                for k in 0..<3 {
+                    let off = CGFloat(2 - k) * 3
+                    let b = UIImageView(image: CardArt.image(CardArt.Face(label: "", suit: "", kind: .back(deckId: deckId)), scale: .half))
+                    b.layer.magnificationFilter = .nearest
+                    b.frame = CGRect(x: off, y: 30 + off, width: 50, height: 68)
+                    v.addSubview(b)
+                }
+                let ct = CRTKit.label("52", size: 12, color: CRT.ink)
+                ct.backgroundColor = CRT.phosphor
+                ct.textAlignment = .center
+                ct.layer.borderWidth = 1
+                ct.layer.borderColor = CRT.ink.cgColor
+                ct.frame = CGRect(x: 40, y: 92, width: 26, height: 17)
+                v.addSubview(ct)
+                let arrow = CRTKit.label("→", size: 22, color: CRT.cardFace)
+                arrow.frame = CGRect(x: 78, y: 55, width: 28, height: 26)
+                v.addSubview(arrow)
+                let faces: [(String, String)] = [("7", "♠"), ("K", "♥"), ("A", "♦"), ("9", "♠")]
+                for (i, f) in faces.enumerated() {
+                    let c = card(f.0, f.1, w: 34)
+                    c.frame.origin = CGPoint(x: 116 + CGFloat(i % 2) * 44, y: 18 + CGFloat(i / 2) * 54)
+                    v.addSubview(c)
+                }
+                return v
+            }, lead: "Work through the deck", body: [
+                ("You climb with a ", false), ("deck", true), (" of cards. Each turn the ", false),
+                ("next card", true), (" is drawn and placed on a pile you pick. Clear the ", false),
+                ("whole deck", true), (" to win the deal.", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 160, height: 150))
+                let c = card("7", "♥", w: 44)
+                c.frame.origin = CGPoint(x: 58, y: 0)
+                v.addSubview(c)
+                let names = [("HIGHER", CRT.cardFace), ("SAME", CRT.phosphor), ("LOWER", CRT.cardFace)]
+                for (i, n) in names.enumerated() {
+                    let b = CRTKit.label(n.0, size: 12, color: n.1)
+                    b.textAlignment = .center
+                    b.backgroundColor = CRT.feltMid
+                    b.layer.borderWidth = 2
+                    b.layer.borderColor = CRT.ink.cgColor
+                    b.frame = CGRect(x: 8 + CGFloat(i) * 50, y: 74, width: 44, height: 24)
+                    v.addSubview(b)
+                }
+                return v
+            }, lead: "Make a guess", body: [
+                ("Will the next card be ", false), ("Higher", true), (", ", false), ("Same", true),
+                (", or ", false), ("Lower", true), (" than that pile's ", false), ("top card", true),
+                ("? ", false), ("Swipe a pile", true),
+                (" to guess — up = Higher, down = Lower, sideways = Same — or tap it and use the buttons. ", false),
+                ("Hold", true), (" a pile for card info. (Aces are high.)", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 210, height: 150))
+                let good = tag("Correct", good: true)
+                good.frame.origin = CGPoint(x: 8, y: 0)
+                v.addSubview(good)
+                for (i, f) in [("2", "♣"), ("5", "♦"), ("7", "♥")].enumerated() {
+                    let c = card(f.0, f.1, w: 44)
+                    c.frame.origin = CGPoint(x: 20, y: 28 + CGFloat(2 - i) * 11)
+                    v.addSubview(c)
+                }
+                let grow = CRTKit.label("+1", size: 13, color: CRT.phosphor)
+                grow.frame = CGRect(x: 74, y: 34, width: 30, height: 18)
+                v.addSubview(grow)
+                let bad = tag("Wrong", good: false)
+                bad.frame.origin = CGPoint(x: 118, y: 0)
+                v.addSubview(bad)
+                let dead = card("7", "♥", w: 44)
+                dead.alpha = 0.5
+                dead.frame.origin = CGPoint(x: 130, y: 28)
+                v.addSubview(dead)
+                let x = CRTKit.label("✕", size: 30, color: CRT.suitRed)
+                x.frame = CGRect(x: 142, y: 42, width: 30, height: 34)
+                v.addSubview(x)
+                return v
+            }, lead: "Grow it or lose it", body: [
+                ("Guess ", false), ("right", true),
+                (" and the card joins the pile, so it grows taller. Guess ", false), ("wrong", true),
+                (" and the whole pile ", false), ("dies", true), (". A tie counts as ", false),
+                ("Same", true), (", so a tie ", false), ("kills", true),
+                (" a Higher or Lower guess — \u{201C}close\u{201D} is never good enough.", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 250, height: 90))
+                let reward = CRTKit.label("◉ \(Int(Economy().dealFlat(stage: 2, rating: 2, isBoss: false)))",
+                                          size: 22, color: CRT.gold)
+                reward.textAlignment = .center
+                reward.frame = CGRect(x: 0, y: 10, width: 110, height: 26)
+                v.addSubview(reward)
+                let rl = CRTKit.label("stage-2 coin reward", size: 11, color: CRT.muted)
+                rl.textAlignment = .center
+                rl.frame = CGRect(x: 0, y: 40, width: 110, height: 14)
+                v.addSubview(rl)
+                let dot = CRTKit.label("·", size: 16, color: CRT.muted)
+                dot.frame = CGRect(x: 118, y: 16, width: 10, height: 20)
+                v.addSubview(dot)
+                let score = CRTKit.label("4 × 3 = 12", size: 22, color: CRT.cardFace)
+                score.textAlignment = .center
+                score.frame = CGRect(x: 136, y: 10, width: 110, height: 26)
+                v.addSubview(score)
+                let sl = CRTKit.label("score", size: 11, color: CRT.muted)
+                sl.textAlignment = .center
+                sl.frame = CGRect(x: 136, y: 40, width: 110, height: 14)
+                v.addSubview(sl)
+                return v
+            }, lead: "Clear the deck, earn coins", body: [
+                ("Survive the whole ", false), ("deck", true), (" to win the deal. The coin ", false),
+                ("reward", true), (" is a flat amount set by the ", false), ("stage", true),
+                (" and the deal's ", false), ("difficulty", true),
+                (" — harder deals pay more. ", false),
+                ("Surviving piles × the cards in your smallest pile", true), (" is your ", false),
+                ("score", true), (" — chased for personal bests, not coins.", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 170, height: 150))
+                let rows: [(String, UIColor)] = [("⌂ Mama's home", CRT.gold), ("Deal", CRT.cardFace),
+                                                 ("+ Card", CRT.phosphor), ("Store", CRT.cardFace),
+                                                 ("Start", CRT.muted)]
+                var y: CGFloat = 0
+                for (i, r) in rows.enumerated() {
+                    let n = CRTKit.label(r.0, size: 13, color: r.1)
+                    n.textAlignment = .center
+                    n.backgroundColor = CRT.feltMid
+                    n.layer.borderWidth = 1
+                    n.layer.borderColor = CRT.ink.cgColor
+                    n.frame = CGRect(x: 25, y: y, width: 120, height: 22)
+                    v.addSubview(n)
+                    y += 22
+                    if i < rows.count - 1 {
+                        let l = CRTKit.label("┆", size: 11, color: CRT.muted)
+                        l.textAlignment = .center
+                        l.frame = CGRect(x: 25, y: y - 2, width: 120, height: 12)
+                        v.addSubview(l)
+                        y += 9
+                    }
+                }
+                return v
+            }, lead: "Climb the map home", body: [
+                ("A climb takes you up a ", false), ("map", true),
+                (" of nodes — deals, stores and card pickups — to ", false), ("Mama's home", true),
+                (" at the top. ", false), ("Card & pack nodes grow your deck", true),
+                (", so later deals run longer and harder. Lose a single deal and the ", false),
+                ("climb ends", true), (".", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 280, height: 140))
+                let lines: [(String, String)] = [
+                    ("Sticker", "attaches to one card, rides the climb"),
+                    ("Pillar", "powers a whole column from the top"),
+                    ("Base", "a once-per-deal tap power"),
+                    ("Card", "a single card to swap in"),
+                    ("Pack", "sealed; keep 1–2 of several"),
+                    ("Same-Power", "fires on a correct Same"),
+                    ("Removal", "strips a card from your deck"),
+                ]
+                for (i, l) in lines.enumerated() {
+                    let text = NSMutableAttributedString(
+                        string: l.0, attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.phosphor])
+                    text.append(NSAttributedString(
+                        string: " — \(l.1)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace]))
+                    let lab = UILabel()
+                    lab.attributedText = text
+                    lab.frame = CGRect(x: 0, y: CGFloat(i) * 19, width: 280, height: 17)
+                    v.addSubview(lab)
+                }
+                return v
+            }, lead: "Spend coins in the store", body: [
+                ("Stores on the map sell upgrades in seven classes. Buy with coins, then place them — a sticker on a ", false),
+                ("card", true), (", a pillar on a ", false), ("column", true),
+                (" top, a base at its foot.", false),
+            ]),
+            Slide(art: {
+                let v = UIView(frame: CGRect(x: 0, y: 0, width: 170, height: 90))
+                let c = card("★", "★", w: 56)
+                c.frame.origin = CGPoint(x: 8, y: 4)
+                v.addSubview(c)
+                let t = tag("always safe", good: true)
+                t.frame = CGRect(x: 78, y: 34, width: 88, height: 20)
+                v.addSubview(t)
+                return v
+            }, lead: "Good to know", body: [
+                ("★ Jokers", true), (" never miss — any guess on a Joker is safe. ", false),
+                ("Difficulty tiers", true), (" (Regular, Master, Legendary) raise the stakes as you win. And ", false),
+                ("Zen", true), (" mode, from the menu, is free practice — no coins, no map, no consequences.", false),
+            ]),
+        ]
+    }
+}
+
+// MARK: - Lifetime stats sheet
+
+/// Web `#statsSheet`: the CLIMBS stat-tile grid (big phosphor number over a
+/// muted label), the ZEN panel (scope filter · summary · twin histograms),
+/// and the full-width RESET STATS danger action.
+final class StatsSheetView: SheetView {
+    private let campaign: CampaignState
+    private let scroll = UIScrollView()
+    private var zenScope = "all"
+    var onReset: (() -> Void)?
+
+    init(campaign: CampaignState) {
+        self.campaign = campaign
+        super.init(title: "Lifetime Stats")
+        scroll.showsVerticalScrollIndicator = false
+        body.addSubview(scroll)
+        setBodyHeight(560)
+        build()
+    }
+
+    private func statTile(value: String, pct: String?, label: String, width: CGFloat) -> UIView {
+        let v = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
+        v.frame = CGRect(x: 0, y: 0, width: width, height: 60)
+        let num = NSMutableAttributedString(
+            string: value, attributes: [.font: CRT.Font.of(16, display: true), .foregroundColor: CRT.phosphor])
+        if let pct {
+            num.append(NSAttributedString(
+                string: "  \(pct)", attributes: [.font: CRT.Font.of(11), .foregroundColor: CRT.muted]))
+        }
+        let nl = UILabel()
+        nl.attributedText = num
+        nl.textAlignment = .center
+        nl.layer.shadowColor = CRT.phosphor.cgColor
+        nl.layer.shadowRadius = 5
+        nl.layer.shadowOpacity = 0.5
+        nl.layer.shadowOffset = .zero
+        nl.frame = CGRect(x: 4, y: 10, width: width - 8, height: 20)
+        v.addSubview(nl)
+        let ll = CRTKit.label(label.uppercased(), size: 11, color: CRT.muted)
+        ll.textAlignment = .center
+        ll.frame = CGRect(x: 4, y: 34, width: width - 8, height: 14)
+        v.addSubview(ll)
+        return v
+    }
+
+    private func build() {
+        scroll.subviews.forEach { $0.removeFromSuperview() }
+        let w = body.bounds.width > 0 ? body.bounds.width : 350
+        var y: CGFloat = 0
+
+        let climbs = CRTKit.label("CLIMBS", size: 12, color: CRT.gold, display: true)
+        climbs.frame = CGRect(x: 2, y: y, width: 200, height: 16)
+        scroll.addSubview(climbs)
+        y += 24
+
+        let s = campaign.stats.get()
+        func pct(_ a: Int, _ b: Int) -> String { b > 0 ? "\(Int((Double(a) / Double(b) * 100).rounded()))%" : "0%" }
+        let tiles: [(String, String?, String)] = [
+            ("\(s.gamesPlayed)", nil, "Climbs played"),
+            ("\(s.campaignsWon)", pct(s.campaignsWon, s.gamesPlayed), "Climbs won"),
+            ("\(s.lifetimeCardsDrawn)", nil, "Cards drawn"),
+            ("\(s.lifetimeCorrectGuesses)", pct(s.lifetimeCorrectGuesses, s.lifetimeGuesses), "Correct draws"),
+            ("\(s.lifetimeDopamine)", nil, "Lifetime coins"),
+            ("\(s.bestCampaignDopamine)", nil, "Most coins in a climb"),
+            ("\(s.bestCampaignScore)", nil, "Best campaign score"),
+            ("\(s.bestEndlessScore)", nil, "Best endless score"),
+            ("\(s.bestEndless)", nil, "Deepest endless stage"),
+        ]
+        let tw = (w - 10) / 2
+        for (i, t) in tiles.enumerated() {
+            let tile = statTile(value: t.0, pct: t.1, label: t.2, width: tw)
+            tile.frame.origin = CGPoint(x: CGFloat(i % 2) * (tw + 10), y: y + CGFloat(i / 2) * 68)
+            scroll.addSubview(tile)
+        }
+        y += CGFloat((tiles.count + 1) / 2) * 68 + 6
+
+        // ---- ZEN panel ----
+        let zen = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
+        let zenHead = CRTKit.label("ZEN", size: 12, color: CRT.gold, display: true)
+        zenHead.frame = CGRect(x: 10, y: 10, width: 100, height: 16)
+        zen.addSubview(zenHead)
+
+        // Scope chips: All + each difficulty.
+        var scopes: [(String, String)] = [("all", "All")]
+        for id in DifficultyData.zenIds {
+            scopes.append((id, GameData.shared.difficulty.zen(id).label))
+        }
+        let chipW = (w - 20 - CGFloat(scopes.count - 1) * 8) / CGFloat(scopes.count)
+        for (i, sc) in scopes.enumerated() {
+            let active = sc.0 == zenScope
+            let chip = UIButton(type: .custom)
+            chip.setAttributedTitle(CRTKit.attributed(sc.1, size: 13, color: active ? CRT.ink : CRT.cardFace), for: .normal)
+            chip.backgroundColor = active ? CRT.phosphor : CRT.feltDeep
+            chip.layer.borderWidth = CRT.px
+            chip.layer.borderColor = CRT.ink.cgColor
+            chip.frame = CGRect(x: 10 + CGFloat(i) * (chipW + 8), y: 32, width: chipW, height: 28)
+            chip.addAction(UIAction { [weak self] _ in
+                self?.zenScope = sc.0
+                self?.build()
+            }, for: .touchUpInside)
+            zen.addSubview(chip)
+        }
+
+        // Aggregate the scoped entries.
+        let ids = zenScope == "all" ? DifficultyData.zenIds : [zenScope]
+        var games = 0, wins = 0, cards = 0, correct = 0
+        var winPiles: [Int: Int] = [:], lossCards: [Int: Int] = [:]
+        for id in ids {
+            let e = campaign.zenStats.get(id)
+            games += e.games; wins += e.wins
+            cards += e.cardsFlipped; correct += e.correctGuesses
+            for (k, v) in e.winPiles { winPiles[k, default: 0] += v }
+            for (k, v) in e.lossCards { lossCards[k, default: 0] += v }
+        }
+        let sum = NSMutableAttributedString()
+        func seg(_ n: Int, _ label: String, last: Bool = false) {
+            sum.append(NSAttributedString(string: "\(n)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.phosphor]))
+            sum.append(NSAttributedString(string: " \(label)\(last ? "" : " · ")",
+                                          attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.muted]))
+        }
+        seg(games, "played"); seg(wins, "won"); seg(cards, "cards"); seg(correct, "correct", last: true)
+        let sumLabel = UILabel()
+        sumLabel.attributedText = sum
+        sumLabel.frame = CGRect(x: 10, y: 66, width: w - 20, height: 18)
+        zen.addSubview(sumLabel)
+
+        // Twin histograms over their baseline rules.
+        let histTop: CGFloat = 90
+        let histH: CGFloat = 72
+        let half = (w - 40) / 2
+        func drawHist(_ dist: [Int: Int], x0: CGFloat, color: UIColor) {
+            guard !dist.isEmpty else { return }
+            let keys = dist.keys.sorted()
+            let maxV = max(1, dist.values.max() ?? 1)
+            let bw = min(14, (half - 4) / CGFloat(keys.count))
+            let total = bw * CGFloat(keys.count)
+            for (i, k) in keys.enumerated() {
+                let h = max(3, histH * CGFloat(dist[k] ?? 0) / CGFloat(maxV))
+                let bar = UIView(frame: CGRect(x: x0 + (half - total) / 2 + CGFloat(i) * bw,
+                                               y: histTop + histH - h, width: bw - 2, height: h))
+                bar.backgroundColor = color
+                zen.addSubview(bar)
+            }
+        }
+        drawHist(winPiles, x0: 10, color: CRT.phosphor)
+        drawHist(lossCards, x0: 20 + half, color: CRT.suitRed)
+        let winRule = UIView(frame: CGRect(x: 10, y: histTop + histH + 2, width: half, height: 2))
+        winRule.backgroundColor = CRT.phosphor
+        zen.addSubview(winRule)
+        let lossRule = UIView(frame: CGRect(x: 20 + half, y: histTop + histH + 2, width: half, height: 2))
+        lossRule.backgroundColor = CRT.suitRed
+        zen.addSubview(lossRule)
+        let winLab = CRTKit.label("Wins", size: 12, color: CRT.muted)
+        winLab.textAlignment = .center
+        winLab.frame = CGRect(x: 10, y: histTop + histH + 8, width: half, height: 14)
+        zen.addSubview(winLab)
+        let lossLab = CRTKit.label("Losses", size: 12, color: CRT.muted)
+        lossLab.textAlignment = .center
+        lossLab.frame = CGRect(x: 20 + half, y: histTop + histH + 8, width: half, height: 14)
+        zen.addSubview(lossLab)
+
+        let zenH = histTop + histH + 30
+        zen.frame = CGRect(x: 0, y: y, width: w, height: zenH)
+        scroll.addSubview(zen)
+        y += zenH + 14
+
+        let reset = PixelButtonView("RESET STATS", role: .danger, fontSize: 13)
+        reset.onTap = { [weak self] in self?.onReset?() }
+        reset.frame = CGRect(x: 0, y: y, width: w, height: 38)
+        scroll.addSubview(reset)
+        y += 50
+
+        scroll.contentSize = CGSize(width: w, height: y)
+    }
+
+    /// Re-render after an outside change (e.g. the reset confirm).
+    func refresh() { build() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        scroll.frame = body.bounds
+        if abs(scroll.contentSize.width - body.bounds.width) > 1 { build() }
+    }
+}

@@ -51,13 +51,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private let avatar = MapAvatarView()
     private let crt = CRTOverlayUIView()
     private var nodeViews: [Int: MapNodeView] = [:]
-    private var phaseLabel = UILabel()
-    private var deckChip = UILabel()
     private let keyButton = PixelButtonView("?", role: .plain, fontSize: 16)
-    private let menuButton = PixelButtonView("≡", role: .plain, fontSize: 16)
     private let storeButton = PixelButtonView("STORE", role: .gold, fontSize: 14)
     private var keyPanel: UIView?
-    private let headerBar = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
+    private let shell = TopShellView()
 
     private var scrollLock: CGFloat = 0
     private var traveling = false
@@ -114,31 +111,21 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         eggLabel.textAlignment = .center
         scroll.addSubview(eggLabel)
 
-        // Header chrome: a felt strip with phase label left, deck chip right,
-        // key + menu buttons below its corners.
-        headerBar.face = CRT.feltMid
-        view.addSubview(headerBar)
-        phaseLabel.numberOfLines = 1
-        view.addSubview(phaseLabel)
-        deckChip.numberOfLines = 1
-        deckChip.textAlignment = .right
-        view.addSubview(deckChip)
-        keyButton.onTap = { [weak self] in self?.toggleKey() }
-        menuButton.onTap = { [weak self] in
+        // The persistent top shell: HUD line + deck/histogram band.
+        shell.onMenu = { [weak self] in
             guard let self else { return }
             self.delegate?.mapWantsMenu(self)
         }
+        shell.onDeckTap = { [weak self] in self?.deckTapped() }
+        view.addSubview(shell)
+        keyButton.onTap = { [weak self] in self?.toggleKey() }
         view.addSubview(keyButton)
-        view.addSubview(menuButton)
         storeButton.isHidden = true
         storeButton.onTap = { [weak self] in
             guard let self else { return }
             self.delegate?.mapWantsStoreReturn(self)
         }
         view.addSubview(storeButton)
-        // Tap the deck chip → the full deck inspection.
-        deckChip.isUserInteractionEnabled = true
-        deckChip.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(deckTapped)))
 
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
@@ -154,14 +141,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let b = view.bounds
-        scroll.frame = b
+        let shellH = TopShellView.height(safeTop: view.safeAreaInsets.top)
+        shell.frame = CGRect(x: 0, y: 0, width: b.width, height: shellH)
+        scroll.frame = CGRect(x: 0, y: shellH, width: b.width, height: b.height - shellH)
         crt.frame = b
-        let top = view.safeAreaInsets.top + 4
-        headerBar.frame = CGRect(x: 0, y: 0, width: b.width, height: top + 30)
-        phaseLabel.frame = CGRect(x: 14, y: top, width: b.width - 130, height: 24)
-        deckChip.frame = CGRect(x: b.width - 118, y: top, width: 104, height: 24)
-        menuButton.frame = CGRect(x: 10, y: top + 38, width: 40, height: 34)
-        keyButton.frame = CGRect(x: b.width - 50, y: top + 38, width: 40, height: 34)
+        keyButton.frame = CGRect(x: b.width - 48, y: shellH + 8, width: 40, height: 34)
         storeButton.frame = CGRect(x: 10, y: b.height - view.safeAreaInsets.bottom - 46,
                                    width: 86, height: 38)
         layoutContent()
@@ -270,13 +254,16 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             let band = UIView(frame: CGRect(x: 0, y: top, width: MapViewController.mapW, height: h))
             band.tag = 901
             band.isUserInteractionEnabled = false
-            band.backgroundColor = MapViewController.suitTint(ph.suit).withAlphaComponent(0.05)
+            // Flat felt-mid lifts, alpha stepping up the climb (♦ .14 → ♣ .24 → ♠ .34).
+            band.backgroundColor = CRT.feltMid.withAlphaComponent(MapViewController.bandFillAlpha(ph.suit))
             track.insertSubview(band, at: 0)
-            let label = CRTKit.label(MapViewController.bandLabel(campaign: campaign, ph: ph), size: 14, color: CRT.muted)
+            // The hand-off label: LEFT-pinned, uppercase, in the phase's suit colour.
+            let label = CRTKit.label(MapViewController.bandLabel(campaign: campaign, ph: ph).uppercased(),
+                                     size: 13, color: MapViewController.bandLabelColor(ph.suit))
             label.tag = 901
+            label.alpha = 0.8
             label.sizeToFit()
-            label.frame.origin = CGPoint(x: (MapViewController.mapW - label.frame.width) / 2,
-                                         y: min(height, yBot) - 24)
+            label.frame.origin = CGPoint(x: 10, y: min(height, yBot) - 24)
             track.addSubview(label)
         }
 
@@ -370,10 +357,9 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             track.addSubview(veilView)
         }
 
-        // ---- header + egg + the store-return button ----
+        // ---- shell + egg + the store-return button ----
         storeButton.isHidden = campaign.currentNode()?.type != "store"
-        phaseLabel.attributedText = CRTKit.attributed(headerText(), size: 17, color: CRT.cardFace)
-        deckChip.attributedText = CRTKit.attributed("DECK \(campaign.deckSize())", size: 15, color: CRT.muted)
+        shell.sync(campaign: campaign)
         eggLabel.text = MapViewController.eggLines[
             (MapViewController.eggSalt + campaign.runsCompleted) % MapViewController.eggLines.count]
 
@@ -381,17 +367,6 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         if scroll.contentOffset.y < scrollLock {
             scroll.contentOffset.y = scrollLock
         }
-    }
-
-    private func headerText() -> String {
-        let pIdx = campaign.phaseIndex
-        let total = campaign.phasesTotal()
-        let alt = campaign.rules().altSuits
-        if pIdx >= total { return "ENDLESS ★ · STAGE \(pIdx - total + 1)" }
-        if alt { return "STAGE \(pIdx + 1) / \(total)" }
-        let suit = campaign.phaseSuit()
-        let name = MapViewController.suitName(suit)
-        return "\(name) \(suit) · PHASE \(pIdx + 1)/\(total)"
     }
 
     static func bandLabel(campaign: CampaignState, ph: PhaseMeta) -> String {
@@ -414,6 +389,23 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         case "♣": return CRT.phosphor
         case "♠": return CRT.cardFace
         default: return CRT.gold
+        }
+    }
+    /// Web `.pm-band` fills: felt-mid at .14/.24/.34, stepping up the climb.
+    static func bandFillAlpha(_ s: String) -> CGFloat {
+        switch s {
+        case "♣": return 0.24
+        case "♠": return 0.34
+        default: return 0.14
+        }
+    }
+    /// Web `.pm-band-label` colours: ♦ suit-red · ♣ card-face · ♠ gold.
+    static func bandLabelColor(_ s: String) -> UIColor {
+        switch s {
+        case "♣": return CRT.cardFace
+        case "♠": return CRT.gold
+        case "♥": return CRT.cardFace
+        default: return CRT.suitRed
         }
     }
 
@@ -736,7 +728,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             panel.addSubview(subL)
             y += 46
         }
-        panel.frame = CGRect(x: (view.bounds.width - 300) / 2, y: view.safeAreaInsets.top + 70,
+        panel.frame = CGRect(x: (view.bounds.width - 300) / 2,
+                             y: TopShellView.height(safeTop: view.safeAreaInsets.top) + 46,
                              width: 300, height: y + 8)
         view.insertSubview(panel, belowSubview: crt)
         keyPanel = panel

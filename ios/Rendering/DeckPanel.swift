@@ -80,21 +80,24 @@ public final class DeckPanel: SKNode {
         CGPoint(x: character.position.x + 16, y: character.position.y - 16)
     }
 
-    /// `counts` is rank value → remaining, `suitCounts` is suit → remaining.
+    /// `counts` is rank value → remaining, `suitCounts` is suit → remaining,
+    /// `suitTotals` the deal's initial per-suit composition (the web's "8/13").
     public func sync(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                      deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood,
-                     tier: String = "regular") {
+                     tier: String = "regular", suitTotals: [String: Int] = [:]) {
         histLayer.removeAllChildren()
         suitLayer.removeAllChildren()
         deckLayer.removeAllChildren()
 
         let pad: CGFloat = 8
-        // ---- suit counts (left) ----
+        // ---- suit counts (left, remaining/total like the web) ----
         var sy: CGFloat = -pad - 6
         for s in ["♥", "♦", "♣", "♠"] {
             let n = suitCounts[s] ?? 0
+            let t = suitTotals[s] ?? n
             let c = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
-            let label = PixelTexture.label("\(s) \(n)", size: 14, color: n == 0 ? CRT.muted : c)
+            let text = t > 0 ? "\(s) \(n)/\(t)" : "\(s) \(n)/\(t)"
+            let label = PixelTexture.label(text, size: 13, color: n == 0 && t == 0 ? CRT.muted : c)
             label.anchorPoint = CGPoint(x: 0, y: 0.5)
             label.position = CGPoint(x: pad, y: sy)
             suitLayer.addChild(label)
@@ -123,20 +126,38 @@ public final class DeckPanel: SKNode {
             histLayer.addChild(tick)
         }
 
-        // ---- deck stack + character (right) ----
+        // ---- the deck IS the character (right): the jar sprite standing as
+        // the card stack, with the gold-framed count plaque at its feet ----
         let charX = size.width - deckW - pad
-        character.position = CGPoint(x: charX + 8, y: -pad - 4)
+        character.position = CGPoint(x: charX - 2, y: -pad + 2)
         character.configure(deckId: deckId, tier: tier)
         character.setBaseMood(mood)
-        let count = PixelTexture.label("\(deckRemaining)", size: 20, color: CRT.cardFace)
+
+        // The gold count plaque, overlapping the sprite's bottom-right corner.
+        let countText = "\(deckRemaining)" as NSString
+        let font = CRT.Font.of(18)
+        let tsz = countText.size(withAttributes: [.font: font])
+        let pw = max(26, tsz.width + 10), ph: CGFloat = 22
+        let plaqueImg = PixelTexture.image(size: CGSize(width: pw + 2, height: ph + 2)) { cg in
+            cg.setFillColor(CRT.shadow.cgColor)
+            cg.fill(CGRect(x: 2, y: 2, width: pw, height: ph))
+            cg.setFillColor(CRT.cardFace.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: pw, height: ph))
+            cg.setFillColor(CRT.gold.cgColor)
+            for r in [CGRect(x: 0, y: 0, width: pw, height: 2), CGRect(x: 0, y: ph - 2, width: pw, height: 2),
+                      CGRect(x: 0, y: 0, width: 2, height: ph), CGRect(x: pw - 2, y: 0, width: 2, height: ph)] { cg.fill(r) }
+            UIGraphicsPushContext(cg)
+            countText.draw(at: CGPoint(x: (pw - tsz.width) / 2, y: (ph - tsz.height) / 2),
+                           withAttributes: [.font: font, .foregroundColor: CRT.ink])
+            UIGraphicsPopContext()
+        }
+        let count = SKSpriteNode(texture: PixelTexture.texture(from: plaqueImg))
+        count.size = plaqueImg.size
         count.anchorPoint = CGPoint(x: 0, y: 1)
-        count.position = CGPoint(x: charX + 8 + 34, y: -pad - 8)
+        count.position = CGPoint(x: charX + 34, y: -size.height + pad + ph + 4)
+        count.zPosition = 3
         deckLayer.addChild(count)
         countLabel = count
-        let lbl = PixelTexture.label("left", size: 12, color: CRT.muted)
-        lbl.anchorPoint = CGPoint(x: 0, y: 1)
-        lbl.position = CGPoint(x: charX + 8 + 34, y: -pad - 8 - count.size.height)
-        deckLayer.addChild(lbl)
 
         // Deck-count pop on change (the draw is felt in the number).
         if lastRemaining >= 0 && deckRemaining != lastRemaining {
@@ -145,7 +166,7 @@ public final class DeckPanel: SKNode {
         }
         lastRemaining = deckRemaining
 
-        deckRect = CGRect(x: charX, y: -size.height + pad, width: deckW, height: size.height - pad * 2)
+        deckRect = CGRect(x: charX - 4, y: -size.height + pad, width: deckW + 4, height: size.height - pad * 2)
     }
 }
 
@@ -350,8 +371,24 @@ public enum DeckCharacter {
 
     /// The same sprite as a UIImage — the map avatar and the UIKit screens
     /// (deck select, victory) draw the character with this.
+    ///
+    /// FIDELITY: the EXACT web sprites (32×32 jar characters + tier overlay
+    /// sheets, extracted from the web build's baked data-URIs) are the primary
+    /// source; the procedural 16×16 fallback below survives only for a missing
+    /// asset. `gaze` is ignored on the sheet path — the web's `look` state is
+    /// one fixed frame, not per-direction pupils.
     public static func image(deckId: String, mood: Mood, scale: Int,
                              gaze: (dx: Int, dy: Int) = (0, 0), tier: String = "regular") -> UIImage {
+        if let sheet = ArtBundle.character(deckId: deckId, mood: mood, tier: tier) {
+            let px = CGFloat(scale)
+            let size = CGSize(width: sheet.size.width * px, height: sheet.size.height * px)
+            let fmt = UIGraphicsImageRendererFormat()
+            fmt.scale = 1
+            return UIGraphicsImageRenderer(size: size, format: fmt).image { ctx in
+                ctx.cgContext.interpolationQuality = .none
+                sheet.draw(in: CGRect(origin: .zero, size: size))
+            }
+        }
         let g = 16
         let img = PixelTexture.image(size: CGSize(width: g * scale, height: g * scale)) { cg in
             let (a, b) = body(deckId)

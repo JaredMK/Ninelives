@@ -237,33 +237,106 @@ public final class PhaseOverlayView: UIView {
 
     // MARK: - Mystery reveal
 
+    /// The web MYSTERY EVENT modal (MYST1): a centred felt panel whose top rim
+    /// reads the polarity (phosphor good / red bad), the GOLD display title, a
+    /// cream art well centring what the outcome granted, the muted caption,
+    /// and the phosphor CONTINUE.
     static func mystery(outcome: MysteryOutcome,
                         onContinue: @escaping () -> Void) -> PhaseOverlayView {
-        let v = PhaseOverlayView()
-        v.addGap(6)
-        // The "?" card art, rim-tinted by the outcome family.
-        v.addSprite(MapArt.mysteryCard(open: true), size: CGSize(width: 60, height: 76))
-        v.addTitle(outcome.title, color: outcome.good ? CRT.phosphor : CRT.suitRed, size: 15)
-        v.addBody(outcome.desc, size: 15)
+        let v = PhaseOverlayView(dim: 0.72)
+        let panelW: CGFloat = 320
+        let px = (360 - panelW) / 2
+
+        let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 4)
+        v.content.addSubview(panel)
+        let rim = UIView()
+        rim.backgroundColor = outcome.good ? CRT.phosphor : CRT.suitRed
+        var py: CGFloat = 18
+
+        let title = CRTKit.label(outcome.title.uppercased(), size: 12, color: CRT.gold, display: true)
+        title.textAlignment = .center
+        title.frame = CGRect(x: 10, y: py, width: panelW - 20, height: 18)
+        panel.addSubview(title)
+        py += 30
+
+        // The cream art well.
+        let art = UIView()
+        art.backgroundColor = CRT.cardFace
+        art.layer.borderWidth = CRT.px
+        art.layer.borderColor = CRT.ink.cgColor
+        var artH: CGFloat = 96
         if !outcome.cards.isEmpty {
-            v.addGap(4)
-            let row = UIView()
-            let n = min(outcome.cards.count, 5)
-            let w: CGFloat = 44
-            for (i, c) in outcome.cards.prefix(5).enumerated() {
+            let n = min(outcome.cards.count, 4)
+            let w: CGFloat = 58
+            let rowW = CGFloat(n) * (w + 8) - 8
+            artH = 100
+            for (i, c) in outcome.cards.prefix(4).enumerated() {
                 let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
                 iv.contentMode = .scaleAspectFit
                 iv.layer.magnificationFilter = .nearest
-                iv.frame = CGRect(x: CGFloat(i) * (w + 8), y: 0, width: w, height: 61)
-                row.addSubview(iv)
+                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(i) * (w + 8), y: 10, width: w, height: 80)
+                art.addSubview(iv)
             }
-            let rowW = CGFloat(n) * (w + 8) - 8
-            row.frame = CGRect(x: (360 - rowW) / 2, y: v.y, width: rowW, height: 61)
-            v.content.addSubview(row)
-            v.y += 70
+        } else if let sid = outcome.stickerId, let def = GameData.shared.stickerTypes.get(sid) {
+            let iv = UIImageView(image: ItemArt.sticker(def, size: 64))
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 16, width: 64, height: 64)
+            art.addSubview(iv)
+        } else if outcome.key == "store" {
+            let iv = UIImageView(image: MapArt.shopStall())
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 20, width: 64, height: 56)
+            art.addSubview(iv)
+        } else if let amount = outcome.amount {
+            let sign = outcome.good ? "+" : "−"
+            let coins = UILabel()
+            let text = NSMutableAttributedString()
+            if let coin = ArtBundle.image("pxi-coin") {
+                let att = NSTextAttachment()
+                att.image = coin
+                att.bounds = CGRect(x: 0, y: -3, width: 28, height: 28)
+                text.append(NSAttributedString(attachment: att))
+                text.append(NSAttributedString(string: " "))
+            }
+            text.append(NSAttributedString(string: "\(sign)\(abs(amount))",
+                                           attributes: [.font: CRT.Font.of(34), .foregroundColor: CRT.gold]))
+            coins.attributedText = text
+            coins.textAlignment = .center
+            coins.frame = CGRect(x: 0, y: 28, width: panelW - 36, height: 40)
+            art.addSubview(coins)
+        } else {
+            let glyph = CRTKit.label(outcome.good ? "★" : "☠", size: 44,
+                                     color: outcome.good ? CRT.gold : CRT.suitRed)
+            glyph.textAlignment = .center
+            glyph.frame = CGRect(x: 0, y: 24, width: panelW - 36, height: 50)
+            art.addSubview(glyph)
         }
-        v.addGap(12)
-        v.addButton("CONTINUE") { onContinue() }
+        art.frame = CGRect(x: 18, y: py, width: panelW - 36, height: artH)
+        panel.addSubview(art)
+        py += artH + 12
+
+        let sub = CRTKit.label(outcome.desc, size: 13, color: CRT.muted)
+        sub.textAlignment = .center
+        sub.numberOfLines = 0
+        let subH = ceil(sub.attributedText!.boundingRect(with: CGSize(width: panelW - 36, height: 200),
+                                                         options: .usesLineFragmentOrigin, context: nil).height)
+        sub.frame = CGRect(x: 18, y: py, width: panelW - 36, height: subH)
+        panel.addSubview(sub)
+        py += subH + 14
+
+        let go = PixelButtonView("CONTINUE", role: .cta, fontSize: 15)
+        go.onTap = { Sound.shared.continueTap(); onContinue() }
+        go.frame = CGRect(x: (panelW - 170) / 2, y: py, width: 170, height: 44)
+        panel.addSubview(go)
+        py += 44 + 20
+
+        panel.frame = CGRect(x: px, y: 0, width: panelW, height: py)
+        // The polarity rim, a 4px band under the panel's top border.
+        rim.frame = CGRect(x: px + CRT.px, y: CRT.px, width: panelW - CRT.px * 2, height: 4)
+        v.content.addSubview(rim)
+        v.y = py
         return v
     }
 }

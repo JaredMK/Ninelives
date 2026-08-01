@@ -23,12 +23,16 @@ final class TutorialUITests: XCTestCase {
         app.launchArguments = ["-resetAll", "1"]
         app.launch()
 
-        // Fresh install: the campaign is gated — ZEN MODE is the way in.
-        let zen = app.buttons["ZEN MODE"]
-        XCTAssertTrue(zen.waitForExistence(timeout: 10), "menu should offer ZEN MODE")
+        // Fresh install: the campaign is gated — ZEN is the way in.
+        let zen = app.buttons["ZEN"]
+        XCTAssertTrue(zen.waitForExistence(timeout: 10), "menu should offer ZEN")
         shot(app, "step0-menu")
         zen.tap()
 
+        // Pick the first difficulty row (START arms only once one is picked).
+        let easy = app.buttons["EASY"]
+        XCTAssertTrue(easy.waitForExistence(timeout: 6), "zen select should list Easy")
+        easy.tap()
         let start = app.buttons["START"]
         XCTAssertTrue(start.waitForExistence(timeout: 6), "zen select should offer START")
         shot(app, "step0b-zen-select")

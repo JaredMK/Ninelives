@@ -178,30 +178,38 @@ public final class PileNode: SKNode {
         }
     }
 
-    /// The pile-count plaque. Shows the WEIGHTED size (Heavy stickers count
-    /// extra) — the same number every payout factor reads. A change POPS.
+    /// The pile-count chip: a GOLD-framed cream chip riding the card's
+    /// bottom-LEFT corner (the web's on-card plaque). Shows the WEIGHTED size
+    /// — the same number every payout factor reads. A change POPS.
     private func syncPlaque(weighted: Int, anchored: Bool) {
         let text = anchored ? "\(weighted)⚓" : "\(weighted)"
         let changed = text != plaqueText && !plaqueText.isEmpty
         plaqueText = text
-        let label = PixelTexture.label(text, size: 14, color: anchored ? CRT.gold : CRT.cardFace)
-        if plaqueBg == nil {
-            let bg = SKSpriteNode(color: CRT.feltMid, size: .zero)
-            bg.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            bg.zPosition = 0
-            plaque.addChild(bg)
-            plaqueBg = bg
-        }
+        plaqueBg?.removeFromParent()
         plaqueLabel?.removeFromParent()
-        label.zPosition = 1
-        plaque.addChild(label)
-        plaqueLabel = label
-        let w = max(18, label.size.width + 8)
-        plaqueBg?.size = CGSize(width: w, height: 16)
-        // Bottom-centre of the card box.
-        let p = CGPoint(x: cardScale.size.width / 2, y: -cardScale.size.height + 9)
-        plaqueBg?.position = p
-        label.position = p
+        let ns = text as NSString
+        let font = CRT.Font.of(14)
+        let tsz = ns.size(withAttributes: [.font: font])
+        let w = max(20, tsz.width + 8), h: CGFloat = 18
+        let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
+            cg.setFillColor(CRT.shadow.cgColor)
+            cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
+            cg.setFillColor(CRT.cardFace.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            cg.setFillColor((anchored ? CRT.phosphor : CRT.gold).cgColor)
+            for r in [CGRect(x: 0, y: 0, width: w, height: 2), CGRect(x: 0, y: h - 2, width: w, height: 2),
+                      CGRect(x: 0, y: 0, width: 2, height: h), CGRect(x: w - 2, y: 0, width: 2, height: h)] { cg.fill(r) }
+            UIGraphicsPushContext(cg)
+            ns.draw(at: CGPoint(x: (w - tsz.width) / 2, y: (h - tsz.height) / 2),
+                    withAttributes: [.font: font, .foregroundColor: CRT.ink])
+            UIGraphicsPopContext()
+        }
+        let chip = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        chip.size = img.size
+        chip.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        chip.position = CGPoint(x: 6 + w / 2, y: -cardScale.size.height + 4)
+        plaque.addChild(chip)
+        plaqueBg = chip
         plaque.isHidden = cardCount == 0
         if changed {
             // The number pop — a quick scale beat marks the change.

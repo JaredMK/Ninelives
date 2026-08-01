@@ -15,14 +15,14 @@ public final class StoreViewController: UIViewController {
     private let campaign: CampaignState
     public weak var delegate: StoreScreenDelegate?
 
-    private let headerBar = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
-    private let coinsLabel = UILabel()
-    private let stageLabel = UILabel()
+    private let shell = TopShellView()
+    private let titleLabel = UILabel()
+    private let balanceLabel = UILabel()
     private let helpButton = PixelButtonView("?", role: .plain, fontSize: 16)
     private let msgLabel = UILabel()
     private let shelf = UIView()
     private var tiles: [StoreTileView] = []
-    private let rerollButton = PixelButtonView("REFRESH", role: .gold, fontSize: 16)
+    private let rerollButton = PixelButtonView("REFRESH", role: .gold, fontSize: 13)
     private let loadoutPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let loadoutTitle = UILabel()
     private var loadoutChips: [UIView] = []
@@ -31,7 +31,6 @@ public final class StoreViewController: UIViewController {
     private let crt = CRTOverlayUIView()
     private var detail: StoreDetailView?
     private var keyPanel: UIView?
-    private var character = UIImageView()
 
     /// A mystery "store" detour keys the offer to the mystery node.
     public var offerNodeId: Int?
@@ -63,18 +62,22 @@ public final class StoreViewController: UIViewController {
             }
         }
 
-        view.addSubview(headerBar)
-        view.addSubview(coinsLabel)
-        stageLabel.textAlignment = .right
-        view.addSubview(stageLabel)
+        // The persistent top shell (HUD line + deck band), same as the map.
+        shell.showsDeckStack = true
+        shell.onDeckTap = { [weak self] in
+            guard let self else { return }
+            self.present(DeckInspectViewController(campaign: self.campaign), animated: false)
+        }
+        view.addSubview(shell)
+
+        // "Shop" + the balance beneath; Refresh + ? clustered on the right.
+        titleLabel.attributedText = CRTKit.attributed("Shop", size: 22, color: CRT.cardFace, display: true)
+        view.addSubview(titleLabel)
+        view.addSubview(balanceLabel)
         helpButton.onTap = { [weak self] in self?.toggleKey() }
         view.addSubview(helpButton)
 
-        character.contentMode = .scaleAspectFit
-        character.layer.magnificationFilter = .nearest
-        view.addSubview(character)
-
-        msgLabel.numberOfLines = 2
+        msgLabel.isHidden = true
         view.addSubview(msgLabel)
         view.addSubview(shelf)
 
@@ -82,7 +85,7 @@ public final class StoreViewController: UIViewController {
         view.addSubview(rerollButton)
 
         view.addSubview(loadoutPanel)
-        loadoutTitle.attributedText = CRTKit.attributed("EQUIPPED", size: 13, color: CRT.muted)
+        loadoutTitle.attributedText = CRTKit.attributed("EQUIPPED", size: 12, color: CRT.muted, display: true)
         loadoutPanel.addSubview(loadoutTitle)
 
         goButton.onTap = { [weak self] in self?.goTapped() }
@@ -106,33 +109,33 @@ public final class StoreViewController: UIViewController {
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let b = view.bounds
-        let top = view.safeAreaInsets.top + 4
-        headerBar.frame = CGRect(x: 0, y: 0, width: b.width, height: top + 30)
-        coinsLabel.frame = CGRect(x: 14, y: top, width: 160, height: 24)
-        stageLabel.frame = CGRect(x: b.width - 174, y: top, width: 160, height: 24)
-        helpButton.frame = CGRect(x: b.width - 48, y: headerBar.frame.maxY + 8, width: 38, height: 32)
-        character.frame = CGRect(x: 12, y: headerBar.frame.maxY + 6, width: 36, height: 36)
-        msgLabel.frame = CGRect(x: 58, y: headerBar.frame.maxY + 8, width: b.width - 116, height: 34)
+        let shellH = TopShellView.height(safeTop: view.safeAreaInsets.top)
+        shell.frame = CGRect(x: 0, y: 0, width: b.width, height: shellH)
 
-        // Shelf: 3×2 grid.
-        let shelfTop = msgLabel.frame.maxY + 8
-        let tw = (b.width - 16 * 2 - 12 * 2) / 3
-        let th: CGFloat = 116
-        shelf.frame = CGRect(x: 16, y: shelfTop, width: b.width - 32, height: th * 2 + 12)
+        // Title row: Shop + balance left; Refresh + ? right.
+        titleLabel.frame = CGRect(x: 12, y: shellH + 8, width: 160, height: 26)
+        balanceLabel.frame = CGRect(x: 12, y: shellH + 36, width: 200, height: 18)
+        helpButton.frame = CGRect(x: b.width - 42, y: shellH + 16, width: 32, height: 32)
+        rerollButton.frame = CGRect(x: b.width - 42 - 8 - 130, y: shellH + 14, width: 130, height: 36)
+
+        // The shelf GROWS to fill everything between the title row and the
+        // equipped panel — tall tiles, the merchandise breathes (web parity).
+        let goH: CGFloat = 46
+        let loH: CGFloat = 96
+        let goTop = b.height - view.safeAreaInsets.bottom - goH - 10
+        let loTop = goTop - loH - 8
+        let shelfTop = shellH + 60
+        let tw = (b.width - 12 * 2 - 11 * 2) / 3
+        let th = (loTop - 8 - shelfTop - 11) / 2
+        shelf.frame = CGRect(x: 12, y: shelfTop, width: b.width - 24, height: th * 2 + 11)
         for (i, t) in tiles.enumerated() {
             let r = i / 3, c = i % 3
-            t.frame = CGRect(x: CGFloat(c) * (tw + 12), y: CGFloat(r) * (th + 12), width: tw, height: th)
+            t.frame = CGRect(x: CGFloat(c) * (tw + 11), y: CGFloat(r) * (th + 11), width: tw, height: th)
         }
-        rerollButton.frame = CGRect(x: (b.width - 210) / 2, y: shelf.frame.maxY + 10, width: 210, height: 40)
-
-        let loTop = rerollButton.frame.maxY + 12
-        let goH: CGFloat = 52
-        let loBottom = b.height - view.safeAreaInsets.bottom - goH - 22
-        loadoutPanel.frame = CGRect(x: 12, y: loTop, width: b.width - 24, height: max(90, loBottom - loTop))
+        loadoutPanel.frame = CGRect(x: 12, y: loTop, width: b.width - 24, height: loH)
         loadoutTitle.frame = CGRect(x: 10, y: 6, width: 200, height: 16)
         layoutLoadout()
-        goButton.frame = CGRect(x: (b.width - 230) / 2, y: b.height - view.safeAreaInsets.bottom - goH - 12,
-                                width: 230, height: goH)
+        goButton.frame = CGRect(x: 12, y: goTop, width: b.width - 24, height: goH)
         crt.frame = b
         prompt.frame = b
         detail?.frame = b
@@ -145,11 +148,12 @@ public final class StoreViewController: UIViewController {
     // MARK: - Render
 
     public func render() {
-        coinsLabel.attributedText = CRTKit.attributed("◉ \(campaign.getCoins()) to spend", size: 17, color: CRT.gold)
-        let pIdx = campaign.phaseIndex
-        stageLabel.attributedText = CRTKit.attributed("STG \(min(pIdx + 1, campaign.phasesTotal())) · DECK \(campaign.deckSize())",
-                                                      size: 15, color: CRT.muted)
-        character.image = DeckCharacter.image(deckId: campaign.deckId, mood: .idle, scale: 2)
+        shell.sync(campaign: campaign)
+        let bal = NSMutableAttributedString(
+            string: "\(campaign.getCoins()) ", attributes: [.font: CRT.Font.of(17), .foregroundColor: CRT.gold])
+        bal.append(NSAttributedString(
+            string: "◉ to spend", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.muted]))
+        balanceLabel.attributedText = bal
 
         // Shelf tiles.
         tiles.forEach { $0.removeFromSuperview() }
@@ -175,7 +179,7 @@ public final class StoreViewController: UIViewController {
             tiles.append(tile)
         }
         let cost = Int(campaign.storeRerollCost())
-        rerollButton.setTitle("REFRESH · ◉\(cost)")
+        rerollButton.setTitle("↻ REFRESH · ◉\(cost)")
         rerollButton.isEnabled = campaign.canReroll()
 
         renderLoadout()
@@ -220,17 +224,23 @@ public final class StoreViewController: UIViewController {
 
     private func makeLoadoutColumn(title: String, rows: [(ItemDef?, String, Int?)]) -> UIView {
         let v = UIView()
-        let t = CRTKit.label(title, size: 12, color: CRT.muted)
-        t.frame = CGRect(x: 0, y: 0, width: 80, height: 14)
+        let t = CRTKit.label(title, size: 11, color: CRT.muted)
+        t.alpha = 0.7
+        t.textAlignment = .center
+        t.frame = CGRect(x: 0, y: 0, width: 82, height: 14)
         v.addSubview(t)
-        var y: CGFloat = 16
+        var y: CGFloat = 17
         for (def, kind, col) in rows {
+            // Web `.lo-chip`: a recessed deep-felt slab, ink border; class
+            // identity by TEXT colour — pillar gold · base cream · Same phosphor.
+            let tint: UIColor = kind == "pillar" ? CRT.gold
+                : kind == "samepower" ? CRT.phosphor : CRT.cardFace
             if let def {
                 let b = UIButton(type: .custom)
-                b.setAttributedTitle(CRTKit.attributed(String(def.label.prefix(9)), size: 13, color: CRT.cardFace), for: .normal)
+                b.setAttributedTitle(CRTKit.attributed(String(def.label.prefix(9)), size: 12, color: tint), for: .normal)
                 b.backgroundColor = CRT.feltDeep
                 b.layer.borderWidth = 1
-                b.layer.borderColor = ItemArt.tierColor(def.tier).cgColor
+                b.layer.borderColor = CRT.ink.cgColor
                 b.frame = CGRect(x: 0, y: y, width: 82, height: 24)
                 b.addAction(UIAction { [weak self] _ in
                     self?.openEquippedDetail(kind: kind, id: def.id, col: col)
@@ -239,7 +249,11 @@ public final class StoreViewController: UIViewController {
                 v.addSubview(b)
             } else {
                 let e = CRTKit.label("empty", size: 12, color: CRT.disabledText)
-                e.frame = CGRect(x: 0, y: y + 4, width: 82, height: 16)
+                e.textAlignment = .center
+                e.backgroundColor = CRT.feltDeep
+                e.layer.borderWidth = 1
+                e.layer.borderColor = CRT.ink.cgColor
+                e.frame = CGRect(x: 0, y: y, width: 82, height: 24)
                 v.addSubview(e)
             }
             y += 28
@@ -592,7 +606,8 @@ public final class StoreViewController: UIViewController {
             panel.addSubview(subL)
             y += 50
         }
-        panel.frame = CGRect(x: (view.bounds.width - 310) / 2, y: view.safeAreaInsets.top + 60,
+        panel.frame = CGRect(x: (view.bounds.width - 310) / 2,
+                             y: TopShellView.height(safeTop: view.safeAreaInsets.top) + 52,
                              width: 310, height: y + 8)
         view.insertSubview(panel, belowSubview: crt)
         keyPanel = panel
@@ -607,27 +622,36 @@ public final class StoreViewController: UIViewController {
 
 // MARK: - Shelf tile
 
-/// One shelf tile: the object itself (slight per-slot tilt — merchandise laid
-/// on a surface) + a price chip. Disabled grey when unaffordable; Lammy's
-/// sticker items render locked.
+/// One shelf tile, web `.store-tile`: a pixel plaque (felt-mid face, ink
+/// border, hard shadow) with a 4px rarity strip under the top edge
+/// (common = quiet cream · uncommon = gold · rare = phosphor), the object
+/// centred on the shelf, and the gold-on-ink price chip. No name text — the
+/// detail popup carries it. Unaffordable dims but stays tappable.
 final class StoreTileView: UIControl {
     private let art = UIImageView()
     private let priceLabel = UILabel()
-    private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 2)
+    private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 4)
+    private let tierStrip = UIView()
     var onTap: (() -> Void)?
     var onHold: (() -> Void)?
-    private static let tilts: [CGFloat] = [-4, 3, -2.5, 2.5, -3, 4]
 
     init(slot: Int) {
         super.init(frame: .zero)
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        accessibilityLabel = "shelf-\(slot)"
         panel.isUserInteractionEnabled = false
         addSubview(panel)
+        tierStrip.isUserInteractionEnabled = false
+        panel.addSubview(tierStrip)
         art.contentMode = .scaleAspectFit
         art.layer.magnificationFilter = .nearest
-        art.transform = CGAffineTransform(rotationAngle: Self.tilts[slot % Self.tilts.count] * .pi / 180)
         art.isUserInteractionEnabled = false
         addSubview(art)
         priceLabel.textAlignment = .center
+        priceLabel.backgroundColor = CRT.ink
+        priceLabel.layer.borderWidth = 1
+        priceLabel.layer.borderColor = CRT.gold.withAlphaComponent(0.4).cgColor
         addSubview(priceLabel)
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
         let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
@@ -645,15 +669,23 @@ final class StoreTileView: UIControl {
 
     func configure(art image: UIImage, price: Int, affordable: Bool, tier: String, locked: Bool) {
         art.image = image
-        priceLabel.attributedText = CRTKit.attributed("◉\(price)", size: 15,
+        switch tier {
+        case "uncommon": tierStrip.backgroundColor = CRT.gold
+        case "rare": tierStrip.backgroundColor = CRT.phosphor
+        default: tierStrip.backgroundColor = CRT.cardFace.withAlphaComponent(0.30)
+        }
+        tierStrip.isHidden = false
+        priceLabel.attributedText = CRTKit.attributed("◉ \(price)", size: 13,
                                                       color: affordable ? CRT.gold : CRT.disabledText)
-        alpha = locked ? 0.35 : (affordable ? 1 : 0.55)
+        priceLabel.isHidden = false
+        alpha = locked ? 0.32 : (affordable ? 1 : 0.5)
         isEnabled = !locked
     }
 
     func configureSold() {
         art.image = nil
-        priceLabel.attributedText = CRTKit.attributed("—", size: 17, color: CRT.disabledText)
+        tierStrip.isHidden = true
+        priceLabel.isHidden = true
         alpha = 0.4
         isEnabled = false
     }
@@ -661,8 +693,10 @@ final class StoreTileView: UIControl {
     override func layoutSubviews() {
         super.layoutSubviews()
         panel.frame = bounds
-        art.frame = CGRect(x: 6, y: 4, width: bounds.width - 12, height: bounds.height - 32)
-        priceLabel.frame = CGRect(x: 0, y: bounds.height - 24, width: bounds.width, height: 20)
+        tierStrip.frame = CGRect(x: CRT.px, y: CRT.px, width: bounds.width - CRT.px * 2, height: 4)
+        art.frame = CGRect(x: 6, y: 10, width: bounds.width - 12, height: bounds.height - 52)
+        let pw: CGFloat = 54
+        priceLabel.frame = CGRect(x: (bounds.width - pw) / 2, y: bounds.height - 32, width: pw, height: 20)
     }
 }
 

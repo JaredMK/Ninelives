@@ -140,16 +140,19 @@ public enum ItemArt {
                 cg.setStrokeColor((def.cursed ? UIColor(hex: 0x46306e) : tierColor(def.tier)).cgColor)
                 cg.setLineWidth(3)
                 cg.strokePath()
-                drawIcon(cg, def, at: CGRect(x: 0, y: -4, width: size, height: size),
-                         color: def.cursed ? CRT.cardFace : CRT.ink, size: size * 0.4)
-                // The label along the chip's foot.
-                UIGraphicsPushContext(cg)
-                let name = String(def.label.prefix(9)) as NSString
-                let f = CRT.Font.of(12)
-                let sz = name.size(withAttributes: [.font: f])
-                name.draw(at: CGPoint(x: (size - sz.width) / 2, y: size - sz.height - 5),
-                          withAttributes: [.font: f, .foregroundColor: def.cursed ? CRT.cardFace : CRT.ink])
-                UIGraphicsPopContext()
+                // The face: the sticker's OWN hand-authored pixel icon from the
+                // web sheet (pxi-stk-<id> / the cursed faces), nearest-scaled.
+                if let icon = ArtBundle.stickerIcon(def) {
+                    let cell = (size * 0.62) / max(icon.size.width, icon.size.height)
+                    let k = max(1, cell.rounded(.down))
+                    let w = icon.size.width * k, h = icon.size.height * k
+                    UIGraphicsPushContext(cg)
+                    icon.draw(in: CGRect(x: (size - w) / 2, y: (size - h) / 2 - 2, width: w, height: h))
+                    UIGraphicsPopContext()
+                } else {
+                    drawIcon(cg, def, at: CGRect(x: 0, y: -4, width: size, height: size),
+                             color: def.cursed ? CRT.cardFace : CRT.ink, size: size * 0.4)
+                }
             }
         }
     }
@@ -223,10 +226,21 @@ public enum ItemArt {
         }
     }
 
-    /// A pack: a foil packet — card packs wear the deck dither, sticker packs
-    /// a phosphor-flecked foil; the size pips ride the foot.
+    /// A pack: the EXACT web packet art (sprocket-edged pxi pack faces),
+    /// nearest-scaled to the slot; the drawn foil survives as fallback only.
     public static func pack(_ def: ItemDef, deckId: String, width: CGFloat = 46, height: CGFloat = 60) -> UIImage {
-        baked("pak-\(def.id)-\(deckId)") {
+        if let art = ArtBundle.packArt(def) {
+            return baked("pakx-\(def.id)-\(Int(width))") {
+                let k = max(1, (min(width / art.size.width, height / art.size.height)).rounded(.down))
+                let w = art.size.width * k, h = art.size.height * k
+                return PixelTexture.image(size: CGSize(width: width, height: height)) { cg in
+                    UIGraphicsPushContext(cg)
+                    art.draw(in: CGRect(x: (width - w) / 2, y: (height - h) / 2, width: w, height: h))
+                    UIGraphicsPopContext()
+                }
+            }
+        }
+        return baked("pak-\(def.id)-\(deckId)") {
             PixelTexture.image(size: CGSize(width: width + 3, height: height + 3)) { cg in
                 let r = CGRect(x: 0, y: 4, width: width, height: height - 4)
                 cg.setFillColor(CRT.shadow.cgColor)
@@ -274,18 +288,21 @@ public enum ItemArt {
         }
     }
 
-    /// A Same-Power: the phosphor "=" class mark over the name plate.
+    /// A Same-Power: the web's exact class mark (the phosphor diamond "=")
+    /// over the power's name plate.
     public static func samePower(_ def: ItemDef, width: CGFloat = 56, height: CGFloat = 58) -> UIImage {
         baked("sp-\(def.id)") {
             PixelTexture.image(size: CGSize(width: width, height: height)) { cg in
-                // The = mark: two phosphor bars with node dots at the ends.
-                cg.setFillColor(CRT.phosphor.cgColor)
-                cg.fill(CGRect(x: 12, y: 12, width: width - 24, height: 5))
-                cg.fill(CGRect(x: 12, y: 23, width: width - 24, height: 5))
-                for (x, y) in [(8, 11), (Int(width) - 12, 11), (8, 22), (Int(width) - 12, 22)] {
-                    cg.fillEllipse(in: CGRect(x: CGFloat(x) - 2, y: CGFloat(y), width: 7, height: 7))
-                }
                 UIGraphicsPushContext(cg)
+                if let mark = ArtBundle.image("pxi-samePower") {
+                    let k = max(1, ((height - 18) / mark.size.height).rounded(.down))
+                    let w = mark.size.width * k, h = mark.size.height * k
+                    mark.draw(in: CGRect(x: (width - w) / 2, y: (height - 16 - h) / 2, width: w, height: h))
+                } else {
+                    cg.setFillColor(CRT.phosphor.cgColor)
+                    cg.fill(CGRect(x: 12, y: 12, width: width - 24, height: 5))
+                    cg.fill(CGRect(x: 12, y: 23, width: width - 24, height: 5))
+                }
                 let name = String(def.label.prefix(10)) as NSString
                 let f = CRT.Font.of(13)
                 let sz = name.size(withAttributes: [.font: f])
@@ -296,9 +313,20 @@ public enum ItemArt {
         }
     }
 
-    /// The Removal slot object: the stitched-grey ∅ card.
+    /// The Removal slot object: the web's exact torn-strip art.
     public static func removal(width: CGFloat = 44, height: CGFloat = 58) -> UIImage {
-        baked("removal") {
+        if let art = ArtBundle.image("pxi-removal") {
+            return baked("removalx-\(Int(width))") {
+                let k = max(1, (min(width / art.size.width, height / art.size.height)).rounded(.down))
+                let w = art.size.width * k, h = art.size.height * k
+                return PixelTexture.image(size: CGSize(width: width, height: height)) { cg in
+                    UIGraphicsPushContext(cg)
+                    art.draw(in: CGRect(x: (width - w) / 2, y: (height - h) / 2, width: w, height: h))
+                    UIGraphicsPopContext()
+                }
+            }
+        }
+        return baked("removal") {
             PixelTexture.image(size: CGSize(width: width + 3, height: height + 3)) { cg in
                 let r = CGRect(x: 0, y: 0, width: width, height: height)
                 cg.setFillColor(CRT.shadow.cgColor)
@@ -331,13 +359,33 @@ public enum ItemArt {
     }
 
     /// Shelf art for any store slot kind.
+    /// The shelf's removal object: the split card with the web's "REMOVAL"
+    /// caption hanging under the art.
+    public static func removalWithLabel() -> UIImage {
+        baked("removal-labelled") {
+            let art = removal(width: 52, height: 66)
+            let label = NSAttributedString(
+                string: "REMOVAL",
+                attributes: [.font: CRT.Font.of(13),
+                             .foregroundColor: CRT.cardFace.withAlphaComponent(0.6)])
+            let ls = label.size()
+            let w = max(art.size.width, ceil(ls.width) + 4)
+            return PixelTexture.image(size: CGSize(width: w, height: 66 + 18)) { cg in
+                UIGraphicsPushContext(cg)
+                art.draw(at: CGPoint(x: (w - art.size.width) / 2, y: 0))
+                label.draw(at: CGPoint(x: (w - ls.width) / 2, y: 68))
+                UIGraphicsPopContext()
+            }
+        }
+    }
+
     public static func forSlot(kind: String, id: String, card: CardSpec?, deckId: String) -> UIImage {
         let data = GameData.shared
         switch kind {
         case "card":
             if let card { return CardArt.image(CardArt.Face(card), scale: .half) }
             return removal()
-        case "removal": return removal()
+        case "removal": return removalWithLabel()
         case "pillar": if let d = data.pillarTypes.get(id) { return pillar(d) }
         case "base": if let d = data.baseTypes.get(id) { return base(d) }
         case "pack": if let d = data.packTypes.get(id) { return pack(d, deckId: deckId) }

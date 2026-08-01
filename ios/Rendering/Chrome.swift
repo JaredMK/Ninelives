@@ -45,6 +45,7 @@ public final class PixelButton: SKNode {
     public func setRole(_ r: Role) { guard r != role else { return }; role = r; redraw() }
     public func setTitle(_ t: String) { guard t != title else { return }; title = t; redraw() }
     public func setEnabled(_ on: Bool) { guard on != isEnabled else { return }; isEnabled = on; redraw() }
+    public func resize(_ s: CGSize) { guard s != boxSize else { return }; boxSize = s; redraw() }
 
     public func setPressed(_ on: Bool) {
         guard on != isPressed, isEnabled else { return }
@@ -193,27 +194,28 @@ public final class HUDBar: SKNode {
     }
 }
 
-/// The deal-status glance row: this deal's coin REWARD (base + live bonus) and
-/// the live SCORE factors.
+/// The deal-status glance row, matching the web exactly:
+/// `REWARD +N · SCORE A×B` — the reward's +N in PHOSPHOR, the score PRODUCT
+/// (alive piles × smallest pile) in GOLD with the × form.
 public final class RewardLine: SKNode {
     private var content = SKNode()
     public override init() { super.init(); addChild(content); zPosition = Layer.chrome }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("not supported") }
 
-    public func sync(base: Double, bonus: Double, score: Int, width: CGFloat) {
+    public func sync(base: Double, bonus: Double, alive: Int, minAlive: Int, width: CGFloat) {
         content.removeAllChildren()
-        let bonusText = bonus == 0 ? "" : (bonus > 0 ? " +\(Int(bonus))" : " \(Int(bonus))")
-        let parts: [(String, UIColor, Bool)] = [
+        let reward = Int(base + max(0, bonus))
+        var parts: [(String, UIColor, Bool)] = [
             ("REWARD ", CRT.muted, false),
-            ("\(Int(base))", CRT.gold, false),
-            (bonusText, bonus < 0 ? CRT.suitRed : CRT.gold, false),
-            ("  ·  SCORE ", CRT.muted, false),
-            ("\(score)", CRT.phosphor, true),
+            ("+\(reward)", CRT.phosphor, true),
         ]
+        if bonus < 0 { parts.append((" \(Int(bonus))", CRT.suitRed, false)) }
+        parts.append(("  ·  SCORE ", CRT.muted, false))
+        parts.append(("\(alive)×\(minAlive)", CRT.gold, false))
         var total: CGFloat = 0
         var nodes: [SKSpriteNode] = []
         for (t, c, glow) in parts where !t.isEmpty {
-            let n = PixelTexture.label(t, size: 16, color: c, glow: glow)
+            let n = PixelTexture.label(t, size: t.contains("×") ? 18 : 15, color: c, glow: glow)
             n.anchorPoint = CGPoint(x: 0, y: 0.5)
             nodes.append(n); total += n.size.width
         }
