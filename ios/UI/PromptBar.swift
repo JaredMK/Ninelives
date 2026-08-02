@@ -11,6 +11,7 @@ public final class PromptBar: UIView {
     private let textLabel = UILabel()
     private let helpLabel = UILabel()
     private var buttons: [PixelButtonView] = []
+    private var buttonWidths: [CGFloat] = []
     private var onDismiss: (() -> Void)?
     /// A full-screen dim behind the bar; tapping it dismisses (cancel).
     private let scrim = UIControl()
@@ -31,11 +32,13 @@ public final class PromptBar: UIView {
         scrim.addTarget(self, action: #selector(scrimTapped), for: .touchUpInside)
         addSubview(scrim)
         addSubview(panel)
+        // Web .ap-text: LEFT-aligned title (.ap-q, phosphor) over the muted
+        // multi-line body (.ap-desc); buttons ride the right side.
         textLabel.numberOfLines = 0
-        textLabel.textAlignment = .center
+        textLabel.textAlignment = .left
         panel.addSubview(textLabel)
         helpLabel.numberOfLines = 0
-        helpLabel.textAlignment = .center
+        helpLabel.textAlignment = .left
         panel.addSubview(helpLabel)
     }
 
@@ -45,12 +48,16 @@ public final class PromptBar: UIView {
     /// Show the bar. `dismiss` fires on an outside tap (cancel semantics).
     public func show(_ text: String, help: String? = nil, actions: [Action],
                      dismiss: (() -> Void)? = nil) {
-        textLabel.attributedText = CRTKit.attributed(text, size: 17, color: CRT.cardFace)
-        helpLabel.attributedText = help.map { CRTKit.attributed($0, size: 13, color: CRT.muted) }
+        textLabel.attributedText = CRTKit.attributed(text, size: 13, color: CRT.phosphor)
+        helpLabel.attributedText = help.map { helpAttributed($0) }
         helpLabel.isHidden = help == nil
         buttons.forEach { $0.removeFromSuperview() }
+        buttonWidths = actions.map {
+            ceil(CRTKit.attributed($0.label.uppercased(), size: 13, color: CRT.cardFace)
+                .size().width) + 30   // web .ap-btn padding 15px per side
+        }
         buttons = actions.map { a in
-            let b = PixelButtonView(a.label, role: a.role, fontSize: 16)
+            let b = PixelButtonView(a.label, role: a.role, fontSize: 13)
             b.onTap = { a.handler() }
             panel.addSubview(b)
             return b
@@ -67,6 +74,16 @@ public final class PromptBar: UIView {
             self.panel.transform = .identity
             self.scrim.alpha = 1
         }
+    }
+
+    /// Web .ap-desc: 12.5px lh 1.4, muted, pre-line.
+    private func helpAttributed(_ help: String) -> NSAttributedString {
+        let para = NSMutableParagraphStyle()
+        para.lineSpacing = 5
+        let s = NSMutableAttributedString(
+            string: help, attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted])
+        s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: s.length))
+        return s
     }
 
     public func hide() {
@@ -86,24 +103,28 @@ public final class PromptBar: UIView {
         super.layoutSubviews()
         scrim.frame = bounds
         let w = bounds.width - 16
+        // Web .action-prompt: one flex row — the left-aligned text block takes
+        // the slack, the hug-content buttons sit right, vertically centred.
+        let btnH: CGFloat = buttons.isEmpty ? 0 : 38
+        let btnsW = buttonWidths.reduce(0, +) + CGFloat(max(0, buttons.count - 1)) * 8
+        let textW = w - 24 - (btnsW > 0 ? btnsW + 10 : 0)
         let textH = textLabel.attributedText?.boundingRect(
-            with: CGSize(width: w - 24, height: 300), options: .usesLineFragmentOrigin, context: nil
+            with: CGSize(width: textW, height: 300), options: .usesLineFragmentOrigin, context: nil
         ).height ?? 20
         let helpH: CGFloat = helpLabel.isHidden ? 0 : (helpLabel.attributedText?.boundingRect(
-            with: CGSize(width: w - 24, height: 200), options: .usesLineFragmentOrigin, context: nil
-        ).height ?? 0) + 6
-        let btnH: CGFloat = buttons.isEmpty ? 0 : 44
+            with: CGSize(width: textW, height: 200), options: .usesLineFragmentOrigin, context: nil
+        ).height ?? 0) + 1
+        let textBlockH = ceil(textH) + helpH
+        let contentH = max(textBlockH, btnH)
         let safeB = superview?.safeAreaInsets.bottom ?? 0
-        let panelH = 12 + ceil(textH) + helpH + (btnH > 0 ? btnH + 12 : 0) + 12
+        let panelH = 8 + contentH + 8
         panel.frame = CGRect(x: 8, y: bounds.height - safeB - panelH - 8, width: w, height: panelH)
-        textLabel.frame = CGRect(x: 12, y: 10, width: w - 24, height: ceil(textH))
-        helpLabel.frame = CGRect(x: 12, y: textLabel.frame.maxY + 4, width: w - 24, height: max(0, helpH - 6))
-        let bw = min(150, (w - 24 - CGFloat(max(0, buttons.count - 1)) * 10) / CGFloat(max(1, buttons.count)))
-        let total = bw * CGFloat(buttons.count) + CGFloat(max(0, buttons.count - 1)) * 10
-        var x = (w - total) / 2
-        for b in buttons {
-            b.frame = CGRect(x: x, y: panelH - btnH - 10, width: bw, height: btnH)
-            x += bw + 10
+        textLabel.frame = CGRect(x: 12, y: 8, width: textW, height: ceil(textH))
+        helpLabel.frame = CGRect(x: 12, y: textLabel.frame.maxY + 1, width: textW, height: max(0, helpH - 1))
+        var x = w - 12 - btnsW
+        for (i, b) in buttons.enumerated() {
+            b.frame = CGRect(x: x, y: 8 + (contentH - btnH) / 2, width: buttonWidths[i], height: btnH)
+            x += buttonWidths[i] + 8
         }
     }
 

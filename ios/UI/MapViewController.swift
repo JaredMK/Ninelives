@@ -495,6 +495,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         PixelTexture.image(size: CGSize(width: MapViewController.mapW, height: height)) { cg in
             func draw(_ a: CGPoint, _ b: CGPoint, active: Bool, done: Bool, fromId: Int?, toId: Int?) {
                 let Q = routeControl(a, b, fromId: fromId, toId: toId)
+                // Web .map-edge: base cream 0.3 < active cream 0.55 < done
+                // phosphor 1; the signal dot (.map-dot) runs 0.3 / 0.7 / 1.
                 let color = done ? CRT.phosphor
                     : CRT.cardFace.withAlphaComponent(active ? 0.55 : 0.3)
                 cg.setStrokeColor(color.cgColor)
@@ -505,7 +507,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                 cg.strokePath()
                 // The small square signal dot at the curve's midpoint.
                 cg.setLineDash(phase: 0, lengths: [])
-                cg.setFillColor(color.cgColor)
+                cg.setFillColor((done ? CRT.phosphor
+                    : CRT.cardFace.withAlphaComponent(active ? 0.7 : 0.3)).cgColor)
                 let dx = 0.25 * a.x + 0.5 * Q.x + 0.25 * b.x
                 let dy = 0.25 * a.y + 0.5 * Q.y + 0.25 * b.y
                 cg.fill(CGRect(x: dx - 2, y: dy - 2, width: 4, height: 4))

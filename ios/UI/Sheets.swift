@@ -267,10 +267,12 @@ final class ManualSheetView: SheetView {
         backButton.addAction(UIAction { [weak self] _ in self?.go(-1) }, for: .touchUpInside)
         styleNav(nextButton, "Next", ghost: false, primary: true)
         nextButton.addAction(UIAction { [weak self] _ in self?.go(1) }, for: .touchUpInside)
-        body.addSubview(skipButton)
-        body.addSubview(backButton)
-        body.addSubview(nextButton)
-        body.addSubview(dotsView)
+        // Footer row + Replay ride the PANEL (not body): the web sheet stacks
+        // them to the panel's bottom edge, below the shared body reservation.
+        panel.addSubview(skipButton)
+        panel.addSubview(backButton)
+        panel.addSubview(nextButton)
+        panel.addSubview(dotsView)
 
         replayButton.setAttributedTitle(CRTKit.attributed("↻ Replay tutorial", size: 13, color: CRT.cardFace), for: .normal)
         replayButton.backgroundColor = CRT.feltDeep
@@ -280,9 +282,9 @@ final class ManualSheetView: SheetView {
             self?.removeFromSuperview()
             self?.onReplayTutorial?()
         }, for: .touchUpInside)
-        body.addSubview(replayButton)
+        panel.addSubview(replayButton)
 
-        setBodyHeight(452)
+        setBodyHeight(325)
         render()
     }
 
@@ -354,18 +356,28 @@ final class ManualSheetView: SheetView {
     override func layoutSubviews() {
         super.layoutSubviews()
         let w = body.bounds.width
-        stage.frame = CGRect(x: 0, y: 0, width: w, height: 330)
-        artHolder.frame = CGRect(x: 10, y: 12, width: w - 20, height: 150)
+        let pw = panel.bounds.width
+        let ph = panel.bounds.height
+        // Web showManual sheet (~49% of screen): stage · footer row
+        // (SKIP · dots · BACK/NEXT) · Replay tutorial, the footer and replay
+        // stacked to the panel's bottom edge (body top is 56 in panel coords).
+        let replayH: CGFloat = 27
+        let replayY = ph - 23 - replayH
+        let footerH: CGFloat = 33
+        let footerY = replayY - 10 - footerH
+        let stageH = footerY - 16 - 56
+        stage.frame = CGRect(x: 0, y: 0, width: w, height: stageH)
+        artHolder.frame = CGRect(x: 10, y: 14, width: w - 20, height: 152)
         if let art = artHolder.subviews.first {
             art.center = CGPoint(x: artHolder.bounds.midX, y: artHolder.bounds.midY)
         }
-        capLabel.frame = CGRect(x: 16, y: 168, width: w - 32, height: 154)
-        skipButton.frame = CGRect(x: 0, y: 342, width: 60, height: 32)
+        capLabel.frame = CGRect(x: 16, y: 172, width: w - 32, height: stageH - 178)
+        skipButton.frame = CGRect(x: 20, y: footerY, width: 60, height: footerH)
         let dotsW = CGFloat(slides.count) * 13 - 6
-        dotsView.frame = CGRect(x: (w - dotsW) / 2, y: 355, width: dotsW, height: 7)
-        nextButton.frame = CGRect(x: w - 74, y: 342, width: 74, height: 32)
-        backButton.frame = CGRect(x: w - 74 - 8 - 64, y: 342, width: 64, height: 32)
-        replayButton.frame = CGRect(x: (w - 170) / 2, y: 392, width: 170, height: 30)
+        dotsView.frame = CGRect(x: (pw - dotsW) / 2, y: footerY + (footerH - 7) / 2, width: dotsW, height: 7)
+        nextButton.frame = CGRect(x: pw - 17 - 54, y: footerY, width: 54, height: footerH)
+        backButton.frame = CGRect(x: pw - 17 - 54 - 7 - 56, y: footerY, width: 56, height: footerH)
+        replayButton.frame = CGRect(x: (pw - 130) / 2, y: replayY, width: 130, height: replayH)
     }
 
     // MARK: Slide art (mock components, matching the web tour)
@@ -614,7 +626,9 @@ final class StatsSheetView: SheetView {
         super.init(title: "Lifetime Stats")
         scroll.showsVerticalScrollIndicator = false
         body.addSubview(scroll)
-        setBodyHeight(560)
+        // Web #statsSheet fills ~83% of the screen so the full content —
+        // through the RESET STATS button — is visible without scrolling.
+        setBodyHeight(619)
         build()
     }
 

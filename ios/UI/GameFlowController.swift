@@ -98,12 +98,12 @@ public final class GameFlowController: UIViewController {
             let info = SummaryInfo(earned: 9, balance: 21,
                                    lines: [("Deal reward", 7), ("Pillar bonus", 2)],
                                    product: 12, aliveCount: 4, minAlive: 3,
-                                   progress: "STAGE 1 · DEAL 2")
+                                   progress: "♦ phase 1/3 · Deck 13")
             presentOverlay(PhaseOverlayView.dealCleared(info: info) { [weak self] in self?.dismissOverlay() })
         case "dead":
             let info = FailedInfo(correct: 11, wrong: 1, cardsFlipped: 12, coinsEarned: 6, wasEndless: false)
             presentOverlay(PhaseOverlayView.gameOver(
-                info: info, seed: "PINK-REGULAR-ABC2345",
+                info: info, seed: "PINKY-REGULAR-ABC2345",
                 nearest: campaign.itemUnlocks.nearestLocked(2)) { [weak self] in self?.dismissOverlay() })
         case "victory":
             presentOverlay(PhaseOverlayView.pinkyHome(
@@ -315,14 +315,17 @@ public final class GameFlowController: UIViewController {
     // MARK: - Campaign lifecycle
 
     /// START CLIMB from deck select. A player-entered seed flags EXHIBITION.
+    /// NOTE: reset() ends in its own (discarded) startNewRun(), and the seed
+    /// override is one-shot — so the override must be (re)set AFTER reset(),
+    /// or the real run rolls a random non-exhibition seed instead.
     func startCampaign(deckId: String, tier: String, seedU32: UInt32?) {
         clearSave()
         campaign.setDeck(deckId)
         campaign.setTier(tier)
-        campaign.setSeedOverride(seedU32)
         campaign.reset()
         campaign.setDeck(deckId)
         campaign.setTier(tier)
+        campaign.setSeedOverride(seedU32)
         campaign.startNewRun()
         runMap.setDifficultyTier(tier)
         reshuffleIndex = 0

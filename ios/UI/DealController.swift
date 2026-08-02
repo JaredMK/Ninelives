@@ -145,6 +145,7 @@ public final class DealController {
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
         _ = specs
+        scene.slotsVisible = true   // debug deals are campaign-shaped
         scene.buildBoard(pileCount: setup.pileCount)
         scene.setPillars(setup.pillars, bases: setup.bases)
         refreshAll()
@@ -167,6 +168,7 @@ public final class DealController {
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: p.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
+        scene.slotsVisible = !isZen   // Zen collapses the artifact slot rows
         scene.buildBoard(pileCount: p.piles)
         scene.setPillars(pillars, bases: bases)
         refreshAll()
@@ -755,19 +757,31 @@ public final class DealController {
         return engine.board.piles[index].cards
     }
 
+    /// The web's hold-peek (`cardPeekHtml`): the card id on line 1, then the
+    /// sticker/effect state — never pile trivia or swipe instructions.
     public func helpText(forPile index: Int) -> (String, String)? {
         guard let top = engine.board.top(index) else { return nil }
-        let name = top.joker ? "★ Joker" : "\(top.label)\(top.suit)"
-        var body = "Pile \(index + 1) · \(engine.board.piles[index].cards.count) cards"
-        if engine.board.isAnchored(index) { body += " · anchored" }
-        let stickers = top.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
-        if !stickers.isEmpty {
-            body += ". " + stickers.map(\.label).joined(separator: ", ") + "."
-            if let first = stickers.first { body += " " + first.description }
-        } else {
-            body += ". Swipe up for Higher, down for Lower, sideways for Same."
+        // JOKER: its own one-line help (it can't carry stickers).
+        if top.joker { return ("★ Joker", "Always safe on any guess") }
+        let title = "Card \(top.label)\(top.suit)"
+        guard !top.stickers.isEmpty else { return (title, "No stickers on this card.") }
+        var counts: [String: Int] = [:]
+        for s in top.stickers { counts[s.type, default: 0] += 1 }
+        var rows: [String] = []
+        for t in GameData.shared.stickerTypes.all() {
+            guard let n = counts[t.id] else { continue }
+            var row = t.label + (n > 1 ? " ×\(n)" : "") + " — " + t.description
+            // The live state line, when the sticker type carries one.
+            if t.behavior == "suitImmunity", let suit = t.suit {
+                row += "\nAlways safe when a \(suit) is involved"
+            } else if t.id == "compound" {
+                row += "\nBanked: +\(max(0, top.compoundHits - 1)) coins"
+            } else if t.id == "snowball" {
+                row += "\nBuries next: \(top.snowball) card\(top.snowball == 1 ? "" : "s")"
+            }
+            rows.append(row)
         }
-        return (name, body)
+        return (title, rows.joined(separator: "\n"))
     }
 
     public func pushLinks(_ adj: [Int: [Int]]) { engine?.setLinks(adj) }
@@ -796,23 +810,15 @@ public final class DealController {
         scene.syncBoard(snap)
     }
 
-    private func stageLabel() -> String {
-        if isZen { return "ZEN" }
-        if case .campaign(let p) = mode { return p.isAmbush ? "AMBUSH" : "STG \(max(1, p.stage))" }
-        return "STG 1"
-    }
-
     private func refreshHUD() {
         guard let engine else { return }
-        scene.syncHUD(stageLabel: stageLabel(),
-                      phaseIndex: campaign.phaseIndex,
+        scene.syncHUD(phaseIndex: campaign.phaseIndex,
                       altSuits: campaign.rules().altSuits,
                       phasesTotal: campaign.phasesTotal(),
                       showTrack: !isZen,   // web hides the suit track in zen
                       sameCharged: engine.sameCharge,
                       samePower: engine.equippedSamePower(),
                       coins: campaign.getCoins(),
-                      deckCount: engine.deck.remaining(),
                       score: currentScore())
         scene.syncDeckPanel(counts: engine.deck.remainingCounts(),
                             suitCounts: engine.deck.remainingSuitCounts(),
@@ -836,8 +842,9 @@ public final class DealController {
         let canGuess = !interactionLocked && !isOver
             && scene.currentSelection != nil && !engine.deck.isEmpty
         let canAffordReshuffle = !isCampaign || Double(campaign.getCoins()) >= redealCost
-        // The web names the price on the button: `↺ RESHUFFLE · ◉ 10`.
-        scene.setReshuffleTitle(isCampaign ? "↺ RESHUFFLE · ◉\(Int(redealCost))" : "↺ RESHUFFLE")
+        // The web names the price on the button: `↺ RESHUFFLE · ◉ 10`
+        // (campaign only — Zen reshuffles are free, debug deals too).
+        scene.setReshuffleTitle(isCampaign ? "↺ RESHUFFLE · ◉ \(Int(redealCost))" : "↺ RESHUFFLE")
         scene.syncControls(canGuess: canGuess,
                            showReshuffle: !isOver && engine.run.totalGuesses == 0
                                && !interactionLocked && canAffordReshuffle)

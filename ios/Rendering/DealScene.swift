@@ -13,11 +13,14 @@ import GameCore
 public final class DealScene: SKScene {
 
     // MARK: Chrome
-    private var hud: HUDBar!
+    private var hud: DealTopBar!
     private let deckPanel = DeckPanel()
     private let rewardLine = RewardLine()
     private let boardLayer = SKNode()
     private let webLayer = WebLayer()
+    /// The web's `.board.fan-hint` under-cards: two rotated cream layers
+    /// peeking behind every alive pile's top card while the fan toggle is on.
+    private let fanPeekLayer = SKNode()
     private let floatLayer = SKNode()
     private var crt: CRTOverlay!
     private var tissue: SKSpriteNode!
@@ -28,6 +31,18 @@ public final class DealScene: SKScene {
     private var lowerButton: PixelButton!
     private var reshuffleButton: PixelButton!
     private var menuButton: PixelButton!
+    /// The FAN chip's own face/icon/label covers (the web's quiet recessed
+    /// well + fan glyph + "FAN" label; phosphor with ink art while ON). They
+    /// sit above the PixelButton's own bg/label so the chip reads like the
+    /// web's, not like a boxed button.
+    private var fanCoverOff: SKSpriteNode?
+    private var fanCoverOn: SKSpriteNode?
+    private var fanIcon: SKSpriteNode?
+    private var fanCaption: SKSpriteNode?
+    /// The global build footer (the web's `footer` line, visible on the deal
+    /// screen): two tiny muted centred lines at the bottom safe area.
+    private var footerLine1: SKSpriteNode?
+    private var footerLine2: SKSpriteNode?
     private var buttons: [PixelButton] {
         var b = [fanButton!, higherButton!, sameButton!, lowerButton!, reshuffleButton!]
         if showsMenuButton { b.append(menuButton) }
@@ -42,8 +57,6 @@ public final class DealScene: SKScene {
     private let swipeLabel = SKNode()
     /// The hold-for-help panel; takes over the deck band's room, like the web.
     private let helpPanel = SKNode()
-    /// The full-screen pile fan-out viewer.
-    private let fanOverlay = SKNode()
 
     // MARK: Board
     private var piles: [PileNode] = []
@@ -52,6 +65,9 @@ public final class DealScene: SKScene {
     private var cardScale: CardArt.Scale = .three
     private var pillarPlaques: [SKNode] = []
     private var basePlaques: [SKNode] = []
+    /// Campaign/debug deals show the artifact slot rows (the web's `show-slots`
+    /// stays on through play); Zen collapses them for bigger cards.
+    public var slotsVisible = true
     /// Pile centres in scene space — the web layer and hit-testing read these.
     private var pileCenters: [Int: CGPoint] = [:]
     private var boardRect: CGRect = .zero
@@ -82,34 +98,38 @@ public final class DealScene: SKScene {
 
         addChild(boardLayer)
         boardLayer.addChild(webLayer)
+        // The fan peek layers sit BEHIND the piles' top cards (and behind the
+        // web — the pile cards render at z 0 in this layer, the web at 10).
+        fanPeekLayer.zPosition = -5
+        boardLayer.addChild(fanPeekLayer)
         addChild(floatLayer)
         floatLayer.zPosition = Layer.float
         addChild(deckPanel)
         addChild(rewardLine)
 
-        hud = HUDBar(width: size.width)
+        hud = DealTopBar(width: size.width)
         addChild(hud)
 
         // The guess rail: TALL slab buttons filling the board's left column,
         // matching the web's guess-side layout proportions.
         let railW: CGFloat = 52
-        fanButton = PixelButton(id: "fan", title: "FAN", size: CGSize(width: railW, height: 52), role: .plain, fontSize: 14)
+        fanButton = PixelButton(id: "fan", title: "FAN", size: CGSize(width: railW, height: 46), role: .plain, fontSize: 14)
         higherButton = PixelButton(id: "higher", title: "▲", size: CGSize(width: railW, height: 118), role: .plain, fontSize: 22)
         sameButton = PixelButton(id: "same", title: "＝", size: CGSize(width: railW, height: 118), role: .ctaOutline, fontSize: 22)
         lowerButton = PixelButton(id: "lower", title: "▼", size: CGSize(width: railW, height: 118), role: .plain, fontSize: 22)
         reshuffleButton = PixelButton(id: "reshuffle", title: "↺ RESHUFFLE", size: CGSize(width: 210, height: 38), role: .plain, fontSize: 16)
         menuButton = PixelButton(id: "menu", title: "≡", size: CGSize(width: 34, height: 28), role: .plain, fontSize: 16)
         menuButton.isHidden = !showsMenuButton
+        menuButton.zPosition = Layer.chrome + 1   // above the baked top-bar content
         [fanButton, higherButton, sameButton, lowerButton, reshuffleButton, menuButton].forEach { addChild($0) }
+        buildFanChip()
+        buildFooter()
 
         swipeLabel.zPosition = Layer.float
         addChild(swipeLabel)
         helpPanel.zPosition = Layer.overlay
         helpPanel.isHidden = true
         addChild(helpPanel)
-        fanOverlay.zPosition = Layer.overlay
-        fanOverlay.isHidden = true
-        addChild(fanOverlay)
 
         crt = CRTOverlay(size: size)
         crt.position = CGPoint(x: size.width / 2, y: -size.height / 2)
@@ -164,11 +184,29 @@ public final class DealScene: SKScene {
         rewardLine.position = CGPoint(x: 0, y: y - 10)
         y -= 26
 
+        // The build footer claims the bottom safe area (the web's global
+        // `footer`, visible on the deal screen); RESHUFFLE rides just above it.
+        let footerZone: CGFloat = 34
+        let reshuffleY = -(size.height - safeInsets.bottom - 4 - footerZone)
+        reshuffleButton.position = CGPoint(x: (size.width - reshuffleButton.frameSize.width) / 2,
+                                           y: reshuffleY)
+        let boardBottom = reshuffleY - reshuffleButton.frameSize.height - 6
+
+        // The ≡ pause button lives IN the top bar, like the web's global
+        // top-left menu button (it used to sit bottom-left).
+        menuButton.position = CGPoint(x: 4, y: -(top + 6))
+
+        // The footer: two tiny muted centred lines at the bottom safe area.
+        footerLine1?.position = CGPoint(x: size.width / 2,
+                                        y: -(size.height - safeInsets.bottom - 4 - 20))
+        footerLine2?.position = CGPoint(x: size.width / 2,
+                                        y: -(size.height - safeInsets.bottom - 4 - 7))
+
         // Left rail: FAN on top, then ▲ ＝ ▼ as TALL slabs (the web's dedicated
         // guess strip fills the board column's height).
         railX = pad
         railTop = y
-        let bottomLimit = -(size.height - safeInsets.bottom - pad - 52)
+        let bottomLimit = boardBottom - 8
         let railSpan = (y - 6) - bottomLimit
         let slabH = max(88, (railSpan - fanButton.frameSize.height - 26) / 3)
         higherButton.resize(CGSize(width: fanButton.frameSize.width, height: slabH))
@@ -180,20 +218,110 @@ public final class DealScene: SKScene {
         sameButton.position = CGPoint(x: railX, y: ry); ry -= slabH + 6
         lowerButton.position = CGPoint(x: railX, y: ry)
 
-        // Reshuffle sits at the very bottom, centred; the pause menu bottom-left.
-        reshuffleButton.position = CGPoint(x: (size.width - reshuffleButton.frameSize.width) / 2,
-                                           y: -(size.height - safeInsets.bottom - pad))
-        menuButton.position = CGPoint(x: pad,
-                                      y: -(size.height - safeInsets.bottom - pad - 3))
-
         // The board owns everything right of the rail.
         let boardX = railX + fanButton.frameSize.width + 10
         let boardW = size.width - boardX - pad
-        let boardBottom = -(size.height - safeInsets.bottom - pad - 44)
         boardRect = CGRect(x: boardX, y: boardBottom, width: boardW, height: y - boardBottom)
 
         swipeLabel.position = CGPoint(x: boardRect.midX, y: boardRect.midY)
         rebuildBoardLayout()
+    }
+
+    // MARK: - Fan chip + build footer
+
+    /// The web's `.fan-all-btn`: a quiet recessed deep-felt well riding the top
+    /// of the left rail — the three-card fan glyph over a tiny "FAN" caption,
+    /// phosphor with ink art while the hint is ON. The covers sit above the
+    /// PixelButton's own bg/label (z 0/1), so the underlying button keeps the
+    /// hit/press plumbing while the chip reads like the web's.
+    private func buildFanChip() {
+        let box = fanButton.frameSize
+        let coverOff = PixelTexture.panelNode(size: box, face: CRT.feltDeep,
+                                              border: CRT.ink, shadowOffset: CRT.pressSink)
+        coverOff.zPosition = 1.5
+        fanButton.addChild(coverOff)
+        fanCoverOff = coverOff
+        let coverOn = PixelTexture.panelNode(size: box, face: CRT.phosphor,
+                                             border: CRT.ink, shadowOffset: CRT.pressSink)
+        coverOn.zPosition = 1.5
+        coverOn.isHidden = true
+        fanButton.addChild(coverOn)
+        fanCoverOn = coverOn
+        let icon = SKSpriteNode(texture: DealScene.fanIconTexture())
+        icon.size = icon.texture!.size()
+        icon.position = CGPoint(x: box.width / 2, y: -16)
+        icon.zPosition = 2
+        icon.color = CRT.cardFace
+        icon.colorBlendFactor = 1
+        icon.alpha = 0.72
+        fanButton.addChild(icon)
+        fanIcon = icon
+        let cap = PixelTexture.label("FAN", size: 12, color: CRT.cardFace.withAlphaComponent(0.72))
+        cap.position = CGPoint(x: box.width / 2, y: -34)
+        cap.zPosition = 2
+        fanButton.addChild(cap)
+        fanCaption = cap
+    }
+
+    /// Sync the chip's ON/OFF look with the hint state.
+    private func updateFanChip() {
+        fanCoverOff?.isHidden = fanHintOn
+        fanCoverOn?.isHidden = !fanHintOn
+        fanIcon?.color = fanHintOn ? CRT.ink : CRT.cardFace
+        fanIcon?.colorBlendFactor = 1
+        fanIcon?.alpha = fanHintOn ? 1 : 0.72
+        fanCaption?.removeFromParent()
+        let cap = PixelTexture.label("FAN", size: 12,
+                                     color: fanHintOn ? CRT.ink : CRT.cardFace.withAlphaComponent(0.72))
+        cap.position = CGPoint(x: fanButton.frameSize.width / 2, y: -34)
+        cap.zPosition = 2
+        fanButton.addChild(cap)
+        fanCaption = cap
+    }
+
+    /// The fan glyph: three card outlines — one straight, the outer two
+    /// rotated ±14° — the web's inline `#fanAllBtn` SVG, redrawn at 22pt.
+    private static func fanIconTexture() -> SKTexture {
+        let s: CGFloat = 22.0 / 14.0   // the web's 14×14 viewBox at 22pt
+        let img = PixelTexture.image(size: CGSize(width: 22, height: 22)) { cg in
+            cg.setStrokeColor(UIColor.white.cgColor)   // tinted via colorBlend
+            cg.setLineWidth(1.3 * s)
+            func card(_ x: CGFloat, _ y: CGFloat, deg: CGFloat, aboutX: CGFloat, aboutY: CGFloat) {
+                cg.saveGState()
+                cg.translateBy(x: aboutX * s, y: aboutY * s)
+                cg.rotate(by: deg * .pi / 180)
+                cg.translateBy(x: -aboutX * s, y: -aboutY * s)
+                let p = UIBezierPath(roundedRect: CGRect(x: x * s, y: y * s, width: 5.4 * s, height: 8 * s),
+                                     cornerRadius: 1.1 * s)
+                cg.addPath(p.cgPath)
+                cg.strokePath()
+                cg.restoreGState()
+            }
+            card(1.4, 3.6, deg: -14, aboutX: 4.1, aboutY: 7.6)
+            card(4.3, 2.8, deg: 0, aboutX: 0, aboutY: 0)
+            card(7.2, 3.6, deg: 14, aboutX: 9.9, aboutY: 7.6)
+        }
+        return PixelTexture.texture(from: img)
+    }
+
+    /// The web's global build footer, shown on the deal screen:
+    /// "Ace high · suits don't matter · build vX.YZ · note" — two tiny muted
+    /// centred lines (12px floor, the web wraps at exactly this point).
+    private func buildFooter() {
+        let l1 = PixelTexture.label(
+            "Ace high · suits don't matter · build v5.74 · dead Pillar effect paths deleted;",
+            size: 12, color: CRT.muted)
+        l1.alpha = 0.8
+        l1.zPosition = Layer.chrome
+        addChild(l1)
+        footerLine1 = l1
+        let l2 = PixelTexture.label(
+            "Pinky Regular earns both Jokers (no gifted start Joker)",
+            size: 12, color: CRT.muted)
+        l2.alpha = 0.8
+        l2.zPosition = Layer.chrome
+        addChild(l2)
+        footerLine2 = l2
     }
 
     // MARK: - Board construction
@@ -210,7 +338,8 @@ public final class DealScene: SKScene {
         pillarPlaques.forEach { $0.removeFromParent() }; pillarPlaques.removeAll()
         basePlaques.forEach { $0.removeFromParent() }; basePlaques.removeAll()
 
-        cardScale = DealScene.pickScale(cols: columnSizes, in: boardRect)
+        cardScale = DealScene.pickScale(cols: columnSizes, in: boardRect,
+                                        bands: pillarBand + baseBand)
         for i in 0..<pileCount {
             let p = PileNode(index: i, scale: cardScale)
             boardLayer.addChild(p)
@@ -224,58 +353,73 @@ public final class DealScene: SKScene {
         rebuildBoardLayout()
     }
 
+    /// The web's slot rows: the Pillar row above the grid (--pillar-row-h 48px)
+    /// and the Base row below it (--base-row-h 32px + margin), each with one
+    /// flex gap. Shown on campaign/debug deals (the web's `show-slots` stays on
+    /// through play); Zen collapses them and deals bigger cards.
+    private static let pillarRowH: CGFloat = 48
+    private static let baseRowH: CGFloat = 34
+    private var pillarBand: CGFloat { slotsVisible ? DealScene.pillarRowH + 6 : 0 }
+    private var baseBand: CGFloat { slotsVisible ? DealScene.baseRowH + 6 : 0 }
+
     /// Choose the biggest card size that fits the board box.
-    private static func pickScale(cols: [Int], in rect: CGRect) -> CardArt.Scale {
+    private static func pickScale(cols: [Int], in rect: CGRect, bands: CGFloat) -> CardArt.Scale {
         guard !cols.isEmpty, rect.width > 0 else { return .half }
         let rows = cols.max() ?? 3
         for scale in [CardArt.Scale.full, .three, .half] {
-            let w = CGFloat(cols.count) * scale.size.width + CGFloat(cols.count - 1) * 10
-            let h = CGFloat(rows) * (scale.size.height + 10) + 44   // + plaque rows
-            if w <= rect.width && h <= rect.height { return scale }
+            let w = CGFloat(cols.count) * scale.size.width + CGFloat(cols.count - 1) * 8
+            let h = CGFloat(rows) * scale.size.height + CGFloat(rows - 1) * 8
+            if w <= rect.width && h <= rect.height - bands { return scale }
         }
         return .half
     }
 
+    /// Column/pile placement mirrors the web's fitBoard + column grid:
+    /// columns spread EDGE TO EDGE (`justify-content: space-between`), a light
+    /// deal's freed height becomes inter-card gap so the tallest column fills
+    /// the grid (vGap, capped at 1.3× the card), and shorter columns centre
+    /// vertically against it — that centring is the web's row stagger.
     private func rebuildBoardLayout() {
         guard !piles.isEmpty, boardRect.width > 0 else { return }
-        cardScale = DealScene.pickScale(cols: columnSizes, in: boardRect)
+        let bands = pillarBand + baseBand
+        cardScale = DealScene.pickScale(cols: columnSizes, in: boardRect, bands: bands)
         let box = cardScale.size
-        let gapX: CGFloat = max(6, (boardRect.width - CGFloat(columnSizes.count) * box.width) / CGFloat(max(1, columnSizes.count + 1)))
-        let gapY: CGFloat = 8
-        let plaqueH: CGFloat = 18
+        let cols = columnSizes.count
+        let baseGap: CGFloat = 8
+
+        let gridTop = boardRect.maxY - pillarBand
+        let gridH = max(box.height, gridTop - boardRect.minY - baseBand)
+        let rows = CGFloat(columnSizes.max() ?? 1)
+        // fitBoard's vGap: spread the tallest column to fill the grid.
+        let vGap: CGFloat = rows > 1
+            ? max(baseGap, min((gridH - rows * box.height) / (rows - 1), 1.3 * box.height))
+            : 0
 
         pileCenters.removeAll(keepingCapacity: true)
-        // Centre the WHOLE block (pillar plaques + the tallest column + base
-        // plaques) in the board box, so the plaques hug their columns instead
-        // of floating at the far edges.
-        let tallest: CGFloat = CGFloat(columnSizes.max() ?? 1)
-        let tallestH: CGFloat = tallest * box.height + (tallest - 1) * gapY
-        let plaqueBand: CGFloat = plaqueH * 2 + 12
-        let blockH: CGFloat = tallestH + plaqueBand
-        let slack: CGFloat = max(0, (boardRect.height - blockH) / 2)
-        let blockTop: CGFloat = CRT.snap(boardRect.maxY - slack)
         var pileIndex = 0
         for (c, colCount) in columnSizes.enumerated() {
-            let colX = CRT.snap(boardRect.minX + gapX + CGFloat(c) * (box.width + gapX))
-            let colH = CGFloat(colCount) * box.height + CGFloat(colCount - 1) * gapY
-            // Shorter columns centre against the tallest one.
-            let colSlack: CGFloat = (tallestH - colH) / 2
-            let startY: CGFloat = CRT.snap(blockTop - plaqueH - 6 - colSlack)
+            // space-between: first column flush left, last flush right.
+            let colX: CGFloat = cols == 1
+                ? CRT.snap(boardRect.midX - box.width / 2)
+                : CRT.snap(boardRect.minX + CGFloat(c) * (boardRect.width - box.width) / CGFloat(cols - 1))
+            let colH = CGFloat(colCount) * box.height + CGFloat(colCount - 1) * vGap
+            // Shorter columns centre against the grid (the stagger).
+            let startY = CRT.snap(gridTop - (gridH - colH) / 2)
 
-            // Pillar plaque directly above this column's first card.
+            // The Pillar row: ONE level row above the grid (web .board-pillars).
             if c < pillarPlaques.count {
-                pillarPlaques[c].position = CGPoint(x: colX, y: startY + 6 + plaqueH)
+                pillarPlaques[c].position = CGPoint(x: colX, y: boardRect.maxY)
             }
             for r in 0..<colCount {
                 guard pileIndex < piles.count else { break }
-                let y = CRT.snap(startY - CGFloat(r) * (box.height + gapY))
+                let y = CRT.snap(startY - CGFloat(r) * (box.height + vGap))
                 piles[pileIndex].position = CGPoint(x: colX, y: y)
                 pileCenters[pileIndex] = CGPoint(x: colX + box.width / 2, y: y - box.height / 2)
                 pileIndex += 1
             }
-            // Base plaque below the column.
+            // The Base row: ONE level row below the grid (web .board-bases).
             if c < basePlaques.count {
-                basePlaques[c].position = CGPoint(x: colX, y: startY - colH - 6)
+                basePlaques[c].position = CGPoint(x: colX, y: boardRect.minY + baseBand - 6)
             }
         }
         swipeLabel.position = CGPoint(x: boardRect.midX, y: boardRect.midY)
@@ -306,9 +450,12 @@ public final class DealScene: SKScene {
             p.sync(top: snap.tops[i], count: snap.counts[i], dead: snap.dead[i],
                    deckId: snap.deckId, weighted: snap.weighted[i], anchored: snap.anchored[i],
                    minState: snap.minStates[i])
-            if fanHintOn && !snap.dead[i] { p.showFan(snap.pileCards[i], full: false) } else { p.hideFan() }
         }
         deckId = snap.deckId
+        // The fan hint's peek layers track life/death (web: `.pile:not(.dead)`).
+        if fanHintOn { buildFanPeek(animate: false) } else if !fanPeekLayer.children.isEmpty {
+            fanPeekLayer.removeAllChildren()
+        }
         // The drawn web follows the VISIBLE state (a dying pile stays wired
         // until its dissolve severs it); the ENGINE adjacency follows the truth.
         refreshWeb()
@@ -328,12 +475,13 @@ public final class DealScene: SKScene {
         webLayer.rebuild(centers: pileCenters, alive: visibleAlive, rad: blockRadius)
     }
 
-    public func syncHUD(stageLabel: String, phaseIndex: Int, altSuits: Bool,
+    public func syncHUD(phaseIndex: Int, altSuits: Bool,
                         phasesTotal: Int, showTrack: Bool, sameCharged: Bool, samePower: String?,
-                        coins: Int, deckCount: Int, score: Int) {
-        hud.sync(stageLabel: stageLabel, phaseIndex: phaseIndex, altSuits: altSuits,
+                        coins: Int, score: Int) {
+        hud.sync(phaseIndex: phaseIndex, altSuits: altSuits,
                  phasesTotal: phasesTotal, showTrack: showTrack, sameCharged: sameCharged,
-                 samePower: samePower, coins: coins, deckCount: deckCount, score: score)
+                 samePower: samePower, coins: coins, score: score,
+                 menuShown: showsMenuButton)
         sameButton.setRole(sameCharged ? .charged : .ctaOutline)
     }
 
@@ -365,36 +513,60 @@ public final class DealScene: SKScene {
         for (c, node) in pillarPlaques.enumerated() {
             node.removeAllChildren()
             if c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) {
-                node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.gold))
-            } else {
-                node.addChild(emptySlot())   // the web draws EMPTY slots dashed
+                let p = plaque(text: String(def.label.prefix(10)), tint: CRT.gold)
+                p.position = CGPoint(x: 0, y: -4)
+                node.addChild(p)
+            } else if slotsVisible {
+                node.addChild(emptyPillarSlot())   // the web's dashed empty slot
             }
         }
         for (c, node) in basePlaques.enumerated() {
             node.removeAllChildren()
             if c < bases.count, let id = bases[c], let def = GameData.shared.baseTypes.get(id) {
-                node.addChild(plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor))
-            } else {
-                node.addChild(emptySlot())
+                let p = plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor)
+                p.position = CGPoint(x: 0, y: -9)
+                node.addChild(p)
+            } else if slotsVisible {
+                node.addChild(emptyBaseSlot())
             }
         }
         baseIds = bases
     }
 
-    /// An empty artifact slot: a low-contrast dashed outline, like the web's
-    /// empty pillar/base cells.
-    private func emptySlot() -> SKNode {
-        let n = SKNode()
-        let w = cardScale.size.width, h: CGFloat = 16
+    /// An empty Pillar slot: the web's `.cph-banner.empty` — a small dashed
+    /// gold box (72% of the column, max 74pt × 30pt) centred in the slot row.
+    private func emptyPillarSlot() -> SKNode {
+        let w = min(cardScale.size.width * 0.72, 74), h: CGFloat = 30
         let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
-            cg.setStrokeColor(CRT.cardFace.withAlphaComponent(0.16).cgColor)
+            cg.setStrokeColor(CRT.gold.withAlphaComponent(0.35).cgColor)
             cg.setLineWidth(1)
             cg.setLineDash(phase: 0, lengths: [4, 4])
             cg.stroke(CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1))
         }
         let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
         s.anchorPoint = CGPoint(x: 0, y: 1)
-        s.zPosition = 0
+        s.position = CGPoint(x: (cardScale.size.width - w) / 2,
+                             y: -(DealScene.pillarRowH - h) / 2)
+        let n = SKNode()
+        n.addChild(s)
+        return n
+    }
+
+    /// An empty Base slot: the web's `.base-banner.empty` — a thin dashed gold
+    /// line (80% of the column, max 96pt) centred in the base row.
+    private func emptyBaseSlot() -> SKNode {
+        let w = min(cardScale.size.width * 0.8, 96), h: CGFloat = 3
+        let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+            cg.setStrokeColor(CRT.gold.withAlphaComponent(0.35).cgColor)
+            cg.setLineWidth(1)
+            cg.setLineDash(phase: 0, lengths: [4, 4])
+            cg.stroke(CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1))
+        }
+        let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        s.anchorPoint = CGPoint(x: 0, y: 1)
+        s.position = CGPoint(x: (cardScale.size.width - w) / 2,
+                             y: -(DealScene.baseRowH - h) / 2)
+        let n = SKNode()
         n.addChild(s)
         return n
     }
@@ -423,7 +595,8 @@ public final class DealScene: SKScene {
         let w = cardScale.size.width
         for (c, node) in basePlaques.enumerated() {
             guard (baseIds[safe: c] ?? nil) != nil else { continue }
-            let r = CGRect(x: node.position.x - 4, y: node.position.y - 22, width: w + 8, height: 28)
+            let r = CGRect(x: node.position.x - 4, y: node.position.y - DealScene.baseRowH,
+                           width: w + 8, height: DealScene.baseRowH)
             if r.contains(p) { return c }
         }
         return nil
@@ -517,45 +690,61 @@ public final class DealScene: SKScene {
 
     public var isFanHintOn: Bool { fanHintOn }
 
+    /// The global slight-fan hint (the web's `.board.fan-hint`): while ON,
+    /// every ALIVE pile shows two cream under-card layers peeking out rotated
+    /// behind its top card. NON-BLOCKING — guessing stays fully live, and a
+    /// pile tap still just selects (the web opens a centred popup there; the
+    /// in-place peek is the reference behavior here).
     public func toggleFanHint() {
         fanHintOn.toggle()
-        fanButton.setRole(fanHintOn ? .cta : .plain)
-        controller?.refreshBoard()
+        updateFanChip()
+        buildFanPeek(animate: fanHintOn)
     }
 
-    /// The full face-up fan of one pile — the memory aid.
-    public func showPileFan(_ cards: [LiveCard], pile: Int) {
-        fanOverlay.removeAllChildren()
-        fanOverlay.isHidden = false
-        let scrim = SKSpriteNode(color: CRT.feltDeep.withAlphaComponent(0.88), size: size)
-        scrim.anchorPoint = CGPoint(x: 0, y: 1)
-        scrim.zPosition = 0
-        fanOverlay.addChild(scrim)
-        let title = PixelTexture.label("PILE \(pile + 1) · \(cards.count) CARDS", size: 18, color: CRT.phosphor, glow: true)
-        title.zPosition = 2
-        title.position = CGPoint(x: size.width / 2, y: -safeInsets.top - 40)
-        fanOverlay.addChild(title)
-        // Bottom-of-pile first, left→right, wrapping.
-        let s = CardArt.Scale.half
-        let perRow = max(1, Int((size.width - 32) / (s.size.width + 8)))
-        for (i, c) in cards.enumerated() {
-            let n = CardNode(face: CardArt.Face(c), scale: s)
-            let row = i / perRow, col = i % perRow
-            let rowCount = min(perRow, cards.count - row * perRow)
-            let rowW = CGFloat(rowCount) * (s.size.width + 8) - 8
-            n.position = CGPoint(x: (size.width - rowW) / 2 + CGFloat(col) * (s.size.width + 8),
-                                 y: -safeInsets.top - 70 - CGFloat(row) * (s.size.height + 10))
-            n.zPosition = 1
-            fanOverlay.addChild(n)
+    private var fanPeekTexture: SKTexture?
+    private var fanPeekScale: CardArt.Scale?
+
+    /// Two rotated cream layers per alive pile — the web's fan-hint pseudos
+    /// (::before −7° left, ::after +6° right, 84% of the card, ±7.5% offset).
+    private func buildFanPeek(animate: Bool) {
+        fanPeekLayer.removeAllChildren()
+        guard fanHintOn else { return }
+        let box = cardScale.size
+        if fanPeekTexture == nil || fanPeekScale != cardScale {
+            let size = CGSize(width: box.width * 0.84, height: box.height * 0.84)
+            let img = PixelTexture.image(size: CGSize(width: size.width + 2, height: size.height + 2)) { cg in
+                cg.setFillColor(CRT.shadow.cgColor)
+                cg.fill(CGRect(x: 2, y: 2, width: size.width, height: size.height))
+                cg.setFillColor(CRT.cardFace.cgColor)
+                cg.fill(CGRect(origin: .zero, size: size))
+                cg.setStrokeColor(CRT.ink.cgColor)
+                cg.setLineWidth(1)
+                cg.stroke(CGRect(x: 0.5, y: 0.5, width: size.width - 1, height: size.height - 1))
+            }
+            fanPeekTexture = PixelTexture.texture(from: img)
+            fanPeekScale = cardScale
         }
-        let hint = PixelTexture.label("TAP ANYWHERE TO CLOSE", size: 14, color: CRT.muted)
-        hint.zPosition = 2
-        hint.position = CGPoint(x: size.width / 2, y: -(size.height - safeInsets.bottom - 24))
-        fanOverlay.addChild(hint)
+        guard let tex = fanPeekTexture else { return }
+        let off = min(box.width, box.height) * 0.075
+        for (i, p) in piles.enumerated() where !p.isDead {
+            guard let c = pileCenters[i] else { continue }
+            for (deg, dx) in [(CGFloat(-7), -off), (CGFloat(6), off)] {
+                let s = SKSpriteNode(texture: tex)
+                s.position = CGPoint(x: c.x + dx, y: c.y)
+                let rot = deg * .pi / 180
+                if animate && !reduceMotion {
+                    // The web's fanPeek keyframe: fade + un-rotate in 0.24s.
+                    s.alpha = 0
+                    s.zRotation = 0
+                    s.run(.group([.fadeIn(withDuration: 0.24),
+                                  .rotate(toAngle: rot, duration: 0.24)]))
+                } else {
+                    s.zRotation = rot
+                }
+                fanPeekLayer.addChild(s)
+            }
+        }
     }
-
-    public var isPileFanOpen: Bool { !fanOverlay.isHidden }
-    public func closePileFan() { fanOverlay.isHidden = true; fanOverlay.removeAllChildren() }
 
     // MARK: - Hold-for-help
 
@@ -575,7 +764,16 @@ public final class DealScene: SKScene {
         t.position = CGPoint(x: 8, y: -6)
         helpPanel.addChild(t)
         // Wrap the body by hand — one baked texture per line, no layout engine.
-        for (i, line) in DealScene.wrap(body, width: Int((w - 16) / 7.2), maxLines: 3).enumerated() {
+        // Paragraphs (sticker rows) wrap independently, capped at 3 lines total.
+        var lines: [String] = []
+        for para in body.split(separator: "\n", omittingEmptySubsequences: true) {
+            for line in DealScene.wrap(String(para), width: Int((w - 16) / 7.2), maxLines: 3) {
+                lines.append(line)
+                if lines.count == 3 { break }
+            }
+            if lines.count == 3 { break }
+        }
+        for (i, line) in lines.enumerated() {
             let l = PixelTexture.label(line, size: 14, color: CRT.cardFace)
             l.anchorPoint = CGPoint(x: 0, y: 1)
             l.zPosition = 1
@@ -1053,5 +1251,164 @@ public enum GameEngineColumns {
             while k < colSizes[c] && p < count { out[p] = c; p += 1; k += 1 }
         }
         return out
+    }
+}
+
+/// §7 The deal top bar — the web's slim `.hud` line over the play screen:
+/// [≡ menu] [♥ ♦ ♣ ♠ phase track] [= synapse mark] [SCORE n] … [◎ coins].
+/// The ≡ button itself is a separate tappable node (DealScene.menuButton);
+/// this bar leaves room for it. Unlike the old bar there is NO STG/ZEN label
+/// and NO DECK count — the web shows neither on the deal screen (the deck
+/// count lives in the tracker band's deck chip).
+final class DealTopBar: SKNode {
+    private let bg = SKSpriteNode()
+    private let content = SKNode()
+    private var width: CGFloat
+    public private(set) var height: CGFloat = 40
+
+    /// Last values, so a change POPS its chip (the number pop).
+    private var lastCoins = Int.min
+    private var lastScore = Int.min
+
+    init(width: CGFloat) {
+        self.width = width
+        super.init()
+        bg.anchorPoint = CGPoint(x: 0, y: 1)
+        bg.zPosition = 0
+        addChild(bg)
+        content.zPosition = 1
+        addChild(content)
+        zPosition = Layer.chrome
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    func resize(width w: CGFloat) { width = w }
+
+    func sync(phaseIndex: Int, altSuits: Bool, phasesTotal: Int, showTrack: Bool,
+              sameCharged: Bool, samePower: String?, coins: Int, score: Int,
+              menuShown: Bool) {
+        let tex = PixelTexture.panel(size: CGSize(width: width, height: height))
+        bg.texture = tex; bg.size = tex.size()
+
+        content.removeAllChildren()
+        var x: CGFloat = menuShown ? 46 : 12
+        let midY = -height / 2
+
+        func put(_ node: SKSpriteNode, gap: CGFloat = 8) {
+            node.anchorPoint = CGPoint(x: 0, y: 0.5)
+            node.position = CGPoint(x: x, y: midY)
+            content.addChild(node)
+            x += node.size.width + gap
+        }
+
+        // The suit track mirrors the web's `.suit-track` (see TopShellView):
+        // ♥ pre-held, each phase suit DONE once cleared, ACTIVE (baked ×1.28)
+        // while in it, TODO at 26%. Alt decks show numbered stage chips. Zen
+        // hides the track entirely.
+        if showTrack {
+            if altSuits {
+                for p in 0..<max(1, phasesTotal) {
+                    let state: ChipState = phaseIndex > p ? .done : (phaseIndex == p ? .active : .todo)
+                    put(stageChip(p + 1, state: state), gap: 4)
+                }
+            } else {
+                let order = ["♥", "♦", "♣", "♠"]
+                let phaseOf = ["♥": -1, "♦": 0, "♣": 1, "♠": 2]
+                for s in order {
+                    let ph = phaseOf[s]!
+                    let done = ph < 0 || phaseIndex > ph
+                    let active = !done && phaseIndex == ph
+                    let base: UIColor = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
+                    let color = (done || active) ? base : CRT.cardFace.withAlphaComponent(0.26)
+                    put(PixelTexture.label(s, size: active ? 22 : 17, color: color), gap: 3)
+                }
+            }
+        }
+
+        // The Same mark: the equals-synapse logo (the menu-logo art), dim
+        // until a charge is banked. Sits at the bar's centre-left like the web.
+        let mark = SKSpriteNode(texture: PixelTexture.texture(from: MapArt.menuLogo(width: 24)))
+        mark.size = mark.texture!.size()
+        mark.alpha = sameCharged ? 1 : 0.45
+        mark.anchorPoint = CGPoint(x: 0, y: 0.5)
+        mark.position = CGPoint(x: width / 2 - 30, y: midY)
+        content.addChild(mark)
+        var scoreX = width / 2 - 2
+        if let samePower, let def = GameData.shared.samePowerTypes.get(samePower) {
+            let p = PixelTexture.label(String(def.label.prefix(1)).uppercased(),
+                                       size: 14, color: CRT.gold)
+            p.anchorPoint = CGPoint(x: 0, y: 0.5)
+            p.position = CGPoint(x: scoreX, y: midY)
+            content.addChild(p)
+        }
+        scoreX += 26
+
+        // SCORE: the one phosphor element in the bar (glow baked), muted label.
+        let lab = PixelTexture.label("SCORE ", size: 12, color: CRT.muted)
+        lab.anchorPoint = CGPoint(x: 0, y: 0.5)
+        lab.position = CGPoint(x: scoreX, y: midY)
+        content.addChild(lab)
+        let val = PixelTexture.label("\(score)", size: 19, color: CRT.phosphor, glow: true)
+        val.anchorPoint = CGPoint(x: 0, y: 0.5)
+        val.position = CGPoint(x: scoreX + lab.size.width, y: midY)
+        content.addChild(val)
+
+        // Coins, far right.
+        let num = PixelTexture.label("\(coins)", size: 19, color: CRT.gold)
+        var coinW = num.size.width
+        var coinIcon: SKSpriteNode?
+        if let img = ArtBundle.image("pxi-coin") {
+            let t = PixelTexture.texture(from: img)
+            let s = SKSpriteNode(texture: t)
+            let ch: CGFloat = 15
+            s.size = CGSize(width: ch * t.size().width / max(1, t.size().height), height: ch)
+            coinIcon = s
+            coinW += s.size.width + 4
+        }
+        var cx = width - 10 - coinW
+        if let coinIcon {
+            coinIcon.anchorPoint = CGPoint(x: 0, y: 0.5)
+            coinIcon.position = CGPoint(x: cx, y: midY)
+            content.addChild(coinIcon)
+            cx += coinIcon.size.width + 4
+        }
+        num.anchorPoint = CGPoint(x: 0, y: 0.5)
+        num.position = CGPoint(x: cx, y: midY)
+        content.addChild(num)
+
+        // Number pops: a changed coin/score chip marks its change with a beat.
+        if lastCoins != Int.min && coins != lastCoins {
+            num.setScale(1.25)
+            num.run(.scale(to: 1.0, duration: 0.16))
+        }
+        if lastScore != Int.min && score != lastScore {
+            val.setScale(1.25)
+            val.run(.scale(to: 1.0, duration: 0.16))
+        }
+        lastCoins = coins
+        lastScore = score
+    }
+
+    /// Web `.st-suit.st-stage`: a 23×23 bordered chip (active ×1.15 → 26),
+    /// border + number in cream; TODO at 26%.
+    private enum ChipState { case done, active, todo }
+
+    private func stageChip(_ n: Int, state: ChipState) -> SKSpriteNode {
+        let box: CGFloat = state == .active ? 26 : 23
+        let alpha: CGFloat = state == .todo ? 0.26 : 1
+        let img = PixelTexture.image(size: CGSize(width: box, height: box)) { cg in
+            cg.setStrokeColor(CRT.cardFace.withAlphaComponent(alpha).cgColor)
+            cg.setLineWidth(2)
+            cg.stroke(CGRect(x: 1, y: 1, width: box - 2, height: box - 2))
+        }
+        let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        node.size = CGSize(width: box, height: box)
+        let num = PixelTexture.label("\(n)", size: state == .active ? 16 : 14,
+                                     color: CRT.cardFace.withAlphaComponent(alpha))
+        num.position = CGPoint(x: box / 2, y: 0)
+        node.addChild(num)
+        return node
     }
 }

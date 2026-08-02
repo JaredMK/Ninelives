@@ -353,36 +353,33 @@ public enum MapArt {
         }
     }
 
-    /// The menu logo: the gold "=" synapse mark — two rounded gold bars with
-    /// ink outlines and the phosphor node dots, from the web's icons/logo.svg.
+    /// The menu logo: the gold "=" synapse mark, verbatim from icons/logo.svg
+    /// (viewBox 100): two gold bars at y=40/y=60 (stroke-width 9, round caps,
+    /// no outline) with r=8 circles on each end — the bone shape — and an r=3
+    /// phosphor dot centred on each bar at (52,40) / (48,60). The mark spans
+    /// x 22…78, y 31…69 in viewBox units.
     public static func menuLogo(width: CGFloat = 96) -> UIImage {
         baked("logo-\(Int(width))") {
-            let h = width * 0.62
+            let s = min(width / 56, width * 0.62 / 38)
+            let h = 38 * s
             return PixelTexture.image(size: CGSize(width: width, height: h)) { cg in
-                let barH = h * 0.30
-                func bar(_ y: CGFloat, dotX: CGFloat) {
-                    let r = CGRect(x: 2, y: y, width: width - 4, height: barH)
-                    // Rounded-end gold bar: body + end caps stepped on the grid.
-                    cg.setFillColor(CRT.ink.cgColor)
-                    cg.fill(r.insetBy(dx: -2, dy: -2))
-                    cg.setFillColor(CRT.gold.cgColor)
-                    cg.fill(r)
-                    cg.setFillColor(CRT.ink.cgColor)
-                    // Nick the corners for the rounded pixel read.
-                    for (cx, cy) in [(r.minX - 2, r.minY - 2), (r.maxX, r.minY - 2),
-                                     (r.minX - 2, r.maxY), (r.maxX, r.maxY)] {
-                        cg.fill(CGRect(x: cx, y: cy, width: 4, height: 4))
+                let ox = (width - 56 * s) / 2 - 22 * s
+                func X(_ u: CGFloat) -> CGFloat { ox + u * s }
+                func Y(_ v: CGFloat) -> CGFloat { (v - 31) * s }
+                cg.setFillColor(CRT.gold.cgColor)
+                for v in [40.0, 60.0] as [CGFloat] {
+                    // The round-cap stroke body + the r8 end circles.
+                    cg.fill(CGRect(x: X(30), y: Y(v - 4.5), width: 40 * s, height: 9 * s))
+                    for u in [30.0, 70.0] as [CGFloat] {
+                        cg.fillEllipse(in: CGRect(x: X(u) - 8 * s, y: Y(v) - 8 * s,
+                                                  width: 16 * s, height: 16 * s))
                     }
-                    cg.setFillColor(CRT.gold.cgColor)
-                    for (cx, cy) in [(r.minX, r.minY - 1), (r.maxX - 4, r.minY - 1),
-                                     (r.minX, r.maxY - 3), (r.maxX - 4, r.maxY - 3)] {
-                        cg.fill(CGRect(x: cx, y: cy, width: 4, height: 4))
-                    }
-                    cg.setFillColor(CRT.phosphor.cgColor)
-                    cg.fill(CGRect(x: dotX, y: y + barH / 2 - 2, width: 5, height: 5))
                 }
-                bar(h * 0.10, dotX: width * 0.44)
-                bar(h * 0.55, dotX: width * 0.30)
+                cg.setFillColor(CRT.phosphor.cgColor)
+                for (u, v) in [(52.0, 40.0), (48.0, 60.0)] as [(CGFloat, CGFloat)] {
+                    cg.fillEllipse(in: CGRect(x: X(u) - 3 * s, y: Y(v) - 3 * s,
+                                              width: 6 * s, height: 6 * s))
+                }
             }
         }
     }
@@ -396,13 +393,16 @@ public enum MapArt {
                     cg.fill(CGRect(x: x, y: y, width: 1, height: 1))
                 }
                 switch key {
-                case "spark":       // ✦ climb
-                    for (x, y) in [(4,0),(4,1),(4,2),(4,6),(4,7),(4,8),(0,4),(1,4),(2,4),(6,4),(7,4),(8,4),(3,3),(5,3),(3,5),(5,5),(4,4)] { px(x,y) }
-                case "sun":         // continue
+                case "spark":       // ✦ climb (web `spark`: 4-point star)
+                    for (x, y) in [(4,0),(4,1),(4,2),(4,3),(4,5),(4,6),(4,7),(4,8),
+                                   (0,4),(1,4),(2,4),(3,4),(5,4),(6,4),(7,4),(8,4),
+                                   (3,3),(5,3),(3,5),(5,5),(4,4)] { px(x,y) }
+                case "sun":         // continue (web `win`: disc + 8 rays)
                     for (x, y) in [(4,0),(4,8),(0,4),(8,4),(1,1),(7,1),(1,7),(7,7)] { px(x,y) }
                     for x in 3...5 { for y in 3...5 { px(x,y) } }
-                case "zen":         // ◎
-                    for (x, y) in [(3,0),(4,0),(5,0),(1,1),(7,1),(0,3),(0,4),(0,5),(8,3),(8,4),(8,5),(1,7),(7,7),(3,8),(4,8),(5,8)] { px(x,y) }
+                case "zen":         // ◎ circle-dot (web `swirl`)
+                    for (x, y) in [(3,0),(4,0),(5,0),(2,1),(6,1),(1,2),(7,2),(0,3),(8,3),(0,4),(8,4),
+                                   (0,5),(8,5),(1,6),(7,6),(2,7),(6,7),(3,8),(4,8),(5,8)] { px(x,y) }
                     px(4,4)
                 case "search":      // magnifier
                     for (x, y) in [(2,0),(3,0),(4,0),(1,1),(5,1),(0,2),(6,2),(0,3),(6,3),(1,4),(5,4),(2,5),(3,5),(4,5),(6,6),(7,7),(8,8)] { px(x,y) }
@@ -410,12 +410,18 @@ public enum MapArt {
                     for y in 5...8 { px(1,y) }
                     for y in 3...8 { px(4,y) }
                     for y in 1...8 { px(7,y) }
-                case "box":         // collection
-                    for x in 0...8 { px(x,0); px(x,8) }
-                    for y in 0...8 { px(0,y); px(8,y) }
-                    px(4,4)
-                case "gear":        // settings ↻
-                    for (x, y) in [(2,1),(3,0),(4,0),(5,0),(6,1),(7,2),(7,3),(8,4),(6,4),(7,5),(1,5),(1,6),(0,4),(2,7),(3,8),(4,8),(5,8),(6,7)] { px(x,y) }
+                case "box":         // collection (web `die`: rounded square, 3 pips)
+                    for x in 2...6 { px(x,0); px(x,8) }
+                    for y in 2...6 { px(0,y); px(8,y) }
+                    for (x, y) in [(1,1),(7,1),(1,7),(7,7)] { px(x,y) }
+                    for (x, y) in [(2,2),(4,4),(6,6)] { px(x,y) }
+                case "gear":        // settings (web `reroll`: circular arrow)
+                    for (x, y) in [(2,1),(1,2),(0,3),(0,4),(0,5),(1,6),(2,7),(3,8),(4,8),(5,8),
+                                   (6,7),(7,6),(8,5),(8,4),(8,3),(7,2)] { px(x,y) }
+                    for (x, y) in [(6,0),(6,1),(6,2),(5,2),(4,2)] { px(x,y) }
+                case "back":        // ← (web `back`)
+                    for x in 2...8 { px(x,4) }
+                    for (x, y) in [(4,1),(3,2),(2,3),(1,4),(2,5),(3,6),(4,7)] { px(x,y) }
                 case "quit":        // ⃠
                     for (x, y) in [(3,0),(4,0),(5,0),(1,1),(7,1),(0,3),(0,4),(0,5),(8,3),(8,4),(8,5),(1,7),(7,7),(3,8),(4,8),(5,8),(2,6),(3,5),(4,4),(5,3),(6,2)] { px(x, y, CRT.cardFace) }
                 default: break

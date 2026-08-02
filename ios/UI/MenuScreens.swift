@@ -27,17 +27,34 @@ class MenuScreenBase: UIViewController {
         tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(tissue)          // #tissue atmosphere under everything
         scroll.alwaysBounceVertical = true
+        // The content frame already clears the safe area — without this the
+        // automatic adjusted inset doubles the top offset and the whole block
+        // sags ~60pt below the web's positions.
+        scroll.contentInsetAdjustmentBehavior = .never
         view.addSubview(scroll)
         scroll.addSubview(content)
     }
+
+    /// The web menu-family column is vertically CENTRED on the screen; opt in
+    /// per screen (menu / settings / zen-select). Top-down screens (deck
+    /// select, collection) keep the safe-area top anchor.
+    var centersContentVertically: Bool { false }
+
+    /// Top anchor for top-down screens. The web collection header rides at the
+    /// very top of the screen (title at ~24pt, above the safe area), so the
+    /// collection opts out of the safe-area anchor here.
+    var contentTopInset: CGFloat { view.safeAreaInsets.top }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         tissue.frame = view.bounds
         scroll.frame = view.bounds
-        content.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: view.bounds.width, height: y)
+        let top = centersContentVertically
+            ? max(view.safeAreaInsets.top, (view.bounds.height - y) / 2)
+            : contentTopInset
+        content.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: y)
         scroll.contentSize = CGSize(width: view.bounds.width,
-                                    height: y + view.safeAreaInsets.top + view.safeAreaInsets.bottom + 24)
+                                    height: y + top + view.safeAreaInsets.bottom + 24)
     }
 
     // Layout helpers — every menu screen builds top-down through these.
@@ -100,16 +117,20 @@ final class MainMenuViewController: MenuScreenBase {
         build()
     }
 
+    override var centersContentVertically: Bool { true }
+
     private func build() {
         resetLayout()
         // The web menu, top to bottom: tagline · the gold "=" mark · the
-        // two-line mixed-case wordmark · iconed buttons · footer bottom-LEFT.
-        addGap(74)
+        // two-line mixed-case wordmark · iconed buttons · the build footer.
+        // The whole block is vertically centred (centersContentVertically);
+        // the gaps below are the web's INTERNAL rhythm (measured on the
+        // captures: tagline→logo 82pt, logo→wordmark 82pt, buttons 57pt).
         addText("HIGHER OR LOWER?", size: 12, color: CRT.cardFace)
         let tag = content.subviews.last as? UILabel
         tag?.attributedText = CRTKit.attributed("HIGHER OR LOWER?", size: 11, color: CRT.cardFace, display: true)
         tag?.textAlignment = .center
-        addGap(28)
+        addGap(46)
         let logo = UIImageView(image: MapArt.menuLogo(width: 64))
         logo.layer.magnificationFilter = .nearest
         logo.contentMode = .scaleAspectFit
@@ -117,14 +138,14 @@ final class MainMenuViewController: MenuScreenBase {
         logo.frame = CGRect(x: (view.bounds.width - 64) / 2, y: 0, width: 64, height: 40)
         holder.addSubview(logo)
         addView(holder, height: 46)
-        addGap(24)
+        addGap(39)
         let line1 = CRTKit.label("Shoulda said", size: 24, color: CRT.cardFace, display: true)
         line1.textAlignment = .center
         addView(wrapCentered(line1), height: 30)
         let line2 = CRTKit.label("same", size: 24, color: CRT.phosphor, display: true, glow: true)
         line2.textAlignment = .center
         addView(wrapCentered(line2), height: 30)
-        addGap(22)
+        addGap(27)
 
         let campaignOpen = flow.campaignUnlocked()
         if canContinue {
@@ -152,10 +173,6 @@ final class MainMenuViewController: MenuScreenBase {
         addButton("ZEN", role: campaignOpen ? .plain : .cta, icon: MapArt.menuIcon("zen")) { [weak self] in
             self?.flow.showZenSelect()
         }
-        if !campaignOpen {
-            addText("The CLIMB opens after your first Zen session.", size: 13)
-            addGap(4)
-        }
         addButton("HOW TO PLAY", icon: MapArt.menuIcon("search")) { [weak self] in self?.showManual() }
         addButton("STATS", icon: MapArt.menuIcon("bars")) { [weak self] in self?.flow.showStats() }
         addButton("COLLECTION", icon: MapArt.menuIcon("box")) { [weak self] in self?.flow.showCollection() }
@@ -163,12 +180,17 @@ final class MainMenuViewController: MenuScreenBase {
             guard let self else { return }
             self.flow.setScreen(SettingsViewController(flow: self.flow))
         }
-        addGap(12)
-        // Footer: small, bottom-LEFT like the web build line.
-        let foot = CRTKit.label("build ios-phase3 · CRT CASINO · web v5.74 parity", size: 12, color: CRT.muted)
-        foot.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 16)
+        addGap(20)
+        // Footer: the web's exact build line ("build " + APP_VERSION) — small,
+        // muted, centred, wrapping to two lines right under the last button.
+        let foot = CRTKit.label("build v5.74 · dead Pillar effect paths deleted; Pinky Regular earns both Jokers (no gifted start Joker)",
+                                size: 12, color: CRT.muted)
+        foot.textAlignment = .center
+        foot.numberOfLines = 2
+        foot.alpha = 0.6              // web .menu-foot opacity
+        foot.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 30)
         content.addSubview(foot)
-        addGap(22)
+        addGap(38)
         view.setNeedsLayout()
     }
 
@@ -198,11 +220,13 @@ final class SettingsViewController: MenuScreenBase {
         build()
     }
 
+    override var centersContentVertically: Bool { true }
+
     private func build() {
         resetLayout()
-        addGap(150)
+        // Same centred header block and internal rhythm as the main menu.
         addText("HIGHER OR LOWER?", size: 11, color: CRT.cardFace)
-        addGap(20)
+        addGap(46)
         let logo = UIImageView(image: MapArt.menuLogo(width: 64))
         logo.layer.magnificationFilter = .nearest
         logo.contentMode = .scaleAspectFit
@@ -210,7 +234,7 @@ final class SettingsViewController: MenuScreenBase {
         logo.frame = CGRect(x: (view.bounds.width - 64) / 2, y: 0, width: 64, height: 40)
         holder.addSubview(logo)
         addView(holder, height: 46)
-        addGap(18)
+        addGap(39)
         let line1 = CRTKit.label("Shoulda said", size: 24, color: CRT.cardFace, display: true)
         line1.textAlignment = .center
         line1.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 30)
@@ -221,7 +245,7 @@ final class SettingsViewController: MenuScreenBase {
         line2.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 30)
         let w2 = UIView(); w2.addSubview(line2)
         addView(w2, height: 30)
-        addGap(26)
+        addGap(27)
         addButton("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")", icon: MapArt.menuIcon("spark")) { [weak self] in
             Sound.shared.enabled.toggle()
             self?.build()
@@ -229,28 +253,41 @@ final class SettingsViewController: MenuScreenBase {
         addButton("RESET PROGRESS", role: .danger, icon: MapArt.menuIcon("quit")) { [weak self] in
             self?.confirmReset()
         }
-        addButton("BACK") { [weak self] in self?.flow.showMenu() }
-        addGap(12)
-        let foot = CRTKit.label("build ios-phase3 · CRT CASINO", size: 12, color: CRT.muted)
-        foot.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 16)
+        addButton("BACK", icon: MapArt.menuIcon("back")) { [weak self] in self?.flow.showMenu() }
+        addGap(20)
+        // The web's exact build line (same stamp as the main menu footer).
+        let foot = CRTKit.label("build v5.74 · dead Pillar effect paths deleted; Pinky Regular earns both Jokers (no gifted start Joker)",
+                                size: 12, color: CRT.muted)
+        foot.textAlignment = .center
+        foot.numberOfLines = 2
+        foot.alpha = 0.6
+        foot.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 30)
         content.addSubview(foot)
-        addGap(22)
+        addGap(38)
         view.setNeedsLayout()
     }
 
-    /// Double confirm — nothing but the sound pref survives.
+    /// Double-confirmed through the shared bar — the web's destructive idiom
+    /// (index.html:31645-31653 chains two showMenuConfirms, both commits
+    /// phosphor .primary). Nothing but the sound pref survives.
     private func confirmReset() {
-        flow.prompt.show("Reset ALL progress?", help: "Unlocks, stats and the saved climb are wiped.", actions: [
+        flow.prompt.show("Reset ALL progress?",
+                         help: "Campaign, decks, unlocks, stats and the tutorial are wiped — only the sound setting survives.",
+                         actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.flow.prompt.hide() },
-            .init("Reset", role: .danger) { [weak self] in
+            .init("Reset", role: .cta) { [weak self] in self?.confirmResetFinal() },
+        ]) { [weak self] in self?.flow.prompt.hide() }
+    }
+
+    private func confirmResetFinal() {
+        flow.prompt.show("Really erase everything?",
+                         help: "The campaign, decks, unlocks, stats and tutorial all reset — this can't be undone.",
+                         actions: [
+            .init("Cancel", role: .plain) { [weak self] in self?.flow.prompt.hide() },
+            .init("Erase everything", role: .cta) { [weak self] in
                 guard let self else { return }
-                self.flow.prompt.show("Really reset everything?", help: "There is no undo.", actions: [
-                    .init("Keep my progress", role: .plain) { self.flow.prompt.hide() },
-                    .init("Wipe it all", role: .danger) {
-                        self.flow.prompt.hide()
-                        self.flow.resetAllProgress()
-                    },
-                ]) { self.flow.prompt.hide() }
+                self.flow.prompt.hide()
+                self.flow.resetAllProgress()
             },
         ]) { [weak self] in self?.flow.prompt.hide() }
     }
@@ -327,7 +364,7 @@ final class DeckSelectViewController: MenuScreenBase {
             row.addSubview(q)
         }
         addView(row, height: 132)
-        addGap(4)
+        addGap(20)
         let name = CRTKit.label(unlocked ? d.name : "???", size: 21,
                                 color: unlocked ? CRT.cardFace : CRT.muted, display: true)
         name.textAlignment = .center
@@ -335,7 +372,7 @@ final class DeckSelectViewController: MenuScreenBase {
         let nw = UIView(); nw.addSubview(name)
         addView(nw, height: 28)
         addText(unlocked ? d.sub : (d.unlockNote ?? "Locked"), size: 13)
-        addGap(14)
+        addGap(35)
 
         // Tier chips: selected = phosphor outline; locked = dim with the
         // 'Beat X' sub-line.
@@ -373,9 +410,9 @@ final class DeckSelectViewController: MenuScreenBase {
             }
         }
         addView(tierRow, height: 48)
-        addGap(16)
+        addGap(8)
 
-        addGap(6)
+        addGap(3)
         let start = PixelButtonView("START CLIMB", role: .cta, fontSize: 18)
         start.isEnabled = unlocked && tierUnlocked(tiers[tierIndex], deck: d)
         start.onTap = { [weak self] in self?.startClimb() }
@@ -401,9 +438,13 @@ final class DeckSelectViewController: MenuScreenBase {
             addGap(48)
             addText("A seeded climb is an EXHIBITION — nothing banks.", size: 12)
         }
-        addGap(46)
 
-        // Pager dots.
+        // Pager dots + 'Have a seed?' — the web bottom-ANCHORS these (~92% /
+        // ~96% of the screen), so they live on the view, not in the content
+        // flow; positionPager() pins them on every layout.
+        dotsRow?.removeFromSuperview()
+        seedLink?.removeFromSuperview()
+        seedLink = nil
         let dots = UIView()
         for (i, _) in GameFlowController.decks.enumerated() {
             let dot = UIView(frame: CGRect(x: view.bounds.width / 2 - 30 + CGFloat(i) * 16, y: 0, width: 8, height: 8))
@@ -414,8 +455,8 @@ final class DeckSelectViewController: MenuScreenBase {
             if i == deckIndex { dot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25) }  // web: active dot scale 1.25
             dots.addSubview(dot)
         }
-        addView(dots, height: 14)
-        addGap(10)
+        view.addSubview(dots)
+        dotsRow = dots
         if !seedOpen {
             let link = UIButton(type: .custom)
             link.setAttributedTitle(NSAttributedString(
@@ -426,11 +467,26 @@ final class DeckSelectViewController: MenuScreenBase {
                 self?.seedOpen = true
                 self?.build()
             }, for: .touchUpInside)
-            link.frame = CGRect(x: 0, y: layoutY, width: view.bounds.width, height: 22)
-            content.addSubview(link)
-            addGap(30)
+            view.addSubview(link)
+            seedLink = link
         }
+        positionPager()
         view.setNeedsLayout()
+    }
+
+    private var dotsRow: UIView?
+    private var seedLink: UIButton?
+
+    private func positionPager() {
+        let w = view.bounds.width, h = view.bounds.height
+        guard w > 0, h > 0 else { return }
+        dotsRow?.frame = CGRect(x: 0, y: h * 0.92 - 4, width: w, height: 8)
+        seedLink?.frame = CGRect(x: 0, y: h * 0.96 - 11, width: w, height: 22)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        positionPager()
     }
 
     private func startClimb() {
@@ -510,14 +566,13 @@ final class ZenSelectViewController: MenuScreenBase {
         view.addSubview(back)
     }
 
+    override var centersContentVertically: Bool { true }
+
     private func build() {
         resetLayout()
-        // The web zen select: title mid-page, three ROWS (display-font name,
-        // "N cards · M piles", wins line), locked rows dimmed with the ladder
-        // note, START enabled only once a row is picked.
-        addGap(224)
+        // The web zen select: the block (title mid-page, three ROWS, START)
+        // is vertically centred; rows pitch 79pt, a wider gap before START.
         addTitle("ZEN", size: 15)
-        addGap(6)
         let deckCards = [26, 39, 52]
         for (i, id) in GameData.shared.difficulty.zenIds.enumerated() {
             let z = GameData.shared.difficulty.zen(id)
@@ -557,9 +612,9 @@ final class ZenSelectViewController: MenuScreenBase {
             line3.frame = CGRect(x: 0, y: 48, width: row.bounds.width, height: 16)
             line3.isUserInteractionEnabled = false
             row.addSubview(line3)
-            addGap(84)
+            addGap(79)
         }
-        addGap(18)
+        addGap(39)
         addButton("START", role: picked == nil ? .plain : .cta, height: 46,
                   enabled: picked != nil) { [weak self] in
             guard let self, let d = self.picked else { return }
@@ -572,6 +627,10 @@ final class ZenSelectViewController: MenuScreenBase {
 // MARK: - Collection
 
 final class CollectionViewController: MenuScreenBase {
+    /// Web #collectionScreen: the header rides at the very top — title glyphs
+    /// at ~24pt, STICKERS head at ~55pt, first tile row at ~77pt.
+    override var contentTopInset: CGFloat { 12 }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         // Web `#collectionScreen`: corner ← back, display title, gold class
@@ -586,23 +645,15 @@ final class CollectionViewController: MenuScreenBase {
 
     private func build() {
         resetLayout()
-        addGap(10)
+        addGap(6)
         addTitle("COLLECTION", size: 15)
         addGap(2)
-        let data = GameData.shared
-        let groups: [(String, [ItemDef], String)] = [
-            ("STICKERS", data.items.stickers.filter { !$0.cursed }, "sticker"),
-            ("PILLARS", data.items.pillars, "pillar"),
-            ("BASES", data.items.bases, "base"),
-            ("SAME-POWERS", data.items.samePowers, "samepower"),
-            ("PACKS", data.items.packs, "pack"),
-        ]
         let unlocks = flow.campaign.itemUnlocks
-        for (title, defs, kind) in groups {
+        for (title, defs, kind) in CollectionViewController.groups() {
             let head = CRTKit.label(title, size: 12, color: CRT.gold, display: true)
             head.frame = CGRect(x: 14, y: layoutY, width: 300, height: 18)
             content.addSubview(head)
-            addGap(26)
+            addGap(22)
             let grid = UIView()
             let cols = 3
             let cw = (view.bounds.width - 28 - CGFloat(cols - 1) * 10) / CGFloat(cols)
@@ -675,6 +726,20 @@ final class CollectionViewController: MenuScreenBase {
         view.setNeedsLayout()
     }
 
+    /// Web COLLECTION_GROUPS × items.js array order (stickers cursed-filtered,
+    /// as the web's grant pools are). The grid AND the detail pager both read
+    /// this so they can never disagree about the flat item list.
+    static func groups() -> [(String, [ItemDef], String)] {
+        let data = GameData.shared
+        return [
+            ("STICKERS", data.items.stickers.filter { !$0.cursed }, "sticker"),
+            ("PILLARS", data.items.pillars, "pillar"),
+            ("BASES", data.items.bases, "base"),
+            ("SAME-POWERS", data.items.samePowers, "samepower"),
+            ("PACKS", data.items.packs, "pack"),
+        ]
+    }
+
     /// Web `.silhouette` (brightness 0): the art flattened to an ink shape.
     static func silhouette(_ img: UIImage) -> UIImage {
         let fmt = UIGraphicsImageRendererFormat()
@@ -688,9 +753,181 @@ final class CollectionViewController: MenuScreenBase {
     }
 
     private func showDetail(def: ItemDef) {
-        flow.prompt.show("\(def.label) · \(def.tier.uppercased())", help: def.description, actions: [
-            .init("OK", role: .plain) { [weak self] in self?.flow.prompt.hide() },
-        ]) { [weak self] in self?.flow.prompt.hide() }
+        let detail = CollectionDetailView(unlocks: flow.campaign.itemUnlocks,
+                                          deckId: flow.campaign.deckId, focus: def)
+        detail.present(in: view)
+    }
+}
+
+// MARK: - Collection detail panel
+
+/// Web `#cardInfo.cid-mode`: the centered, FIXED-SHELL detail panel — big item
+/// art top-center, name (left) + rarity (right), the sticker scope line, the
+/// registry description, and a ◀ N/total ▶ pager pinned to the bottom. The
+/// shell never changes size while paging; only the content swaps. A scrim tap
+/// closes (the web shows no ✕).
+final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
+    private static let panelW: CGFloat = 360
+    private static let panelH: CGFloat = 300
+
+    private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
+    private let artView = UIImageView()
+    private let nameLabel = UILabel()
+    private let tierLabel = UILabel()
+    private let scopeLabel = UILabel()
+    private let descClip = UIView()
+    private let descLabel = UILabel()
+    private let divider = UIView()
+    private let prevButton = UIButton(type: .custom)
+    private let nextButton = UIButton(type: .custom)
+    private let countLabel = UILabel()
+
+    private let deckId: String
+    private let list: [(kind: String, def: ItemDef)]
+    private var index = 0
+
+    init(unlocks: ItemUnlocks, deckId: String, focus: ItemDef) {
+        self.deckId = deckId
+        // Web collectionPageList(): the flattened UNLOCKED set in grid order,
+        // rebuilt per open so a mid-session unlock pages correctly.
+        var flat: [(kind: String, def: ItemDef)] = []
+        for (_, defs, kind) in CollectionViewController.groups() {
+            for def in defs where unlocks.isUnlocked(def) { flat.append((kind, def)) }
+        }
+        self.list = flat
+        self.index = max(0, flat.firstIndex(where: { $0.def == focus }) ?? 0)
+        super.init(frame: .zero)
+
+        backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(scrimTapped(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = self
+        addGestureRecognizer(tap)
+
+        addSubview(panel)
+        artView.contentMode = .scaleAspectFit
+        artView.layer.magnificationFilter = .nearest
+        panel.addSubview(artView)
+        nameLabel.textAlignment = .left
+        panel.addSubview(nameLabel)
+        tierLabel.textAlignment = .right
+        panel.addSubview(tierLabel)
+        scopeLabel.textAlignment = .left
+        panel.addSubview(scopeLabel)
+        descClip.clipsToBounds = true   // the web scrolls overlong text; we clip
+        descLabel.numberOfLines = 0
+        descLabel.textAlignment = .left
+        descClip.addSubview(descLabel)
+        panel.addSubview(descClip)
+
+        divider.backgroundColor = CRT.cardFace.withAlphaComponent(0.14)
+        panel.addSubview(divider)
+        for b in [prevButton, nextButton] {
+            b.backgroundColor = CRT.feltDeep
+            b.layer.borderWidth = CRT.px
+            b.layer.borderColor = CRT.ink.cgColor
+            panel.addSubview(b)
+        }
+        prevButton.accessibilityLabel = "Previous item"
+        nextButton.accessibilityLabel = "Next item"
+        prevButton.addAction(UIAction { [weak self] _ in self?.page(-1) }, for: .touchUpInside)
+        nextButton.addAction(UIAction { [weak self] _ in self?.page(1) }, for: .touchUpInside)
+        countLabel.textAlignment = .center
+        panel.addSubview(countLabel)
+        render()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    func present(in host: UIView) {
+        frame = host.bounds
+        autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.addSubview(self)
+    }
+
+    private func dismiss() { removeFromSuperview() }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        touch.view === self   // panel taps (pager) never reach the scrim recognizer
+    }
+
+    @objc private func scrimTapped(_ g: UITapGestureRecognizer) {
+        if !panel.frame.contains(g.location(in: self)) { dismiss() }
+    }
+
+    private func page(_ step: Int) {
+        let ni = index + step
+        guard ni >= 0, ni < list.count else { return }   // clamped, no wrap
+        index = ni
+        render()
+    }
+
+    /// Web `stickerSuitLine`: stickers only — the restriction read LIVE off
+    /// the def's `suits` ("Add to any card" / "Add to any ♠, ♥ or ♦ card").
+    private func scopeLine(kind: String, def: ItemDef) -> String? {
+        guard kind == "sticker" else { return nil }
+        guard let suits = def.suits, !suits.isEmpty else { return "Add to any card" }
+        let list = suits.count == 1 ? suits[0]
+            : suits.dropLast().joined(separator: ", ") + " or " + suits[suits.count - 1]
+        return "Add to any \(list) card"
+    }
+
+    private func render() {
+        let (kind, def) = list[index]
+        artView.image = ItemArt.forSlot(kind: kind, id: def.id, card: nil, deckId: deckId)
+        nameLabel.attributedText = CRTKit.attributed(def.label, size: 15, color: CRT.cardFace)
+        tierLabel.attributedText = CRTKit.attributed(def.tier.uppercased(), size: 12,
+                                                     color: CRT.cardFace.withAlphaComponent(0.7))
+        scopeLabel.attributedText = scopeLine(kind: kind, def: def).map {
+            CRTKit.attributed($0, size: 12, color: CRT.cardFace.withAlphaComponent(0.82))
+        }
+        let desc = NSMutableAttributedString(
+            string: def.description, attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace])
+        let para = NSMutableParagraphStyle()
+        para.lineSpacing = 4   // web line-height 1.34
+        desc.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: desc.length))
+        descLabel.attributedText = desc
+        countLabel.attributedText = CRTKit.attributed(
+            "\(index + 1) / \(list.count)", size: 12, color: CRT.cardFace.withAlphaComponent(0.65))
+        styleArrow(prevButton, glyph: "◀", enabled: index > 0)
+        styleArrow(nextButton, glyph: "▶", enabled: index < list.count - 1)
+        setNeedsLayout()
+    }
+
+    private func styleArrow(_ b: UIButton, glyph: String, enabled: Bool) {
+        b.isEnabled = enabled
+        b.setAttributedTitle(CRTKit.attributed(
+            glyph, size: 16, color: enabled ? CRT.phosphor : CRT.cardFace.withAlphaComponent(0.35)),
+            for: .normal)
+        // Enabled arrows carry the §4 hard 2px ↘ shadow; disabled lose it.
+        b.layer.shadowColor = CRT.shadow.cgColor
+        b.layer.shadowOffset = CGSize(width: 2, height: 2)
+        b.layer.shadowRadius = 0
+        b.layer.shadowOpacity = enabled ? 1 : 0
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let w = min(CollectionDetailView.panelW, bounds.width * 0.92)
+        let h = CollectionDetailView.panelH
+        panel.frame = CGRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h)
+        // Padding 13 top/bottom, 14 sides; art 72 tall, name row, scope, desc,
+        // then the pager pinned to the bottom with its hairline divider.
+        let iw = min(w - 28, 72 * max(0.5, artView.image.map { $0.size.width / max(1, $0.size.height) } ?? 1))
+        artView.frame = CGRect(x: (w - iw) / 2, y: 15, width: iw, height: 72)
+        nameLabel.frame = CGRect(x: 14, y: 97, width: w - 28 - 90, height: 20)
+        tierLabel.frame = CGRect(x: w - 14 - 88, y: 100, width: 88, height: 16)
+        let hasScope = scopeLabel.attributedText != nil
+        scopeLabel.frame = CGRect(x: 14, y: 119, width: w - 28, height: 16)
+        let descY: CGFloat = hasScope ? 139 : 121
+        let pagerTop = h - 13 - 40 - 8   // arrows 40 + padding-top 8
+        divider.frame = CGRect(x: 14, y: pagerTop, width: w - 28, height: 1)
+        descClip.frame = CGRect(x: 14, y: descY, width: w - 28, height: pagerTop - descY - 6)
+        descLabel.frame = CGRect(x: 0, y: 0, width: descClip.bounds.width, height: descClip.bounds.height)
+        prevButton.frame = CGRect(x: 14, y: pagerTop + 8, width: 44, height: 40)
+        nextButton.frame = CGRect(x: w - 14 - 44, y: pagerTop + 8, width: 44, height: 40)
+        countLabel.frame = CGRect(x: 14, y: pagerTop + 8, width: w - 28, height: 40)
     }
 }
 

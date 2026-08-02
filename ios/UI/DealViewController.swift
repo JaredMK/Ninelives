@@ -146,7 +146,7 @@ public final class DealViewController: UIViewController {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self else { return }
                     if demo == "fan" {
-                        self.scene.showPileFan(self.controller.pileCards(0), pile: 0)
+                        if !self.scene.isFanHintOn { self.scene.toggleFanHint() }
                     } else if demo == "help", let (t, b) = self.controller.helpText(forPile: 0) {
                         self.scene.showHelp(title: t, body: b)
                     } else if demo == "swipe" {
@@ -313,7 +313,6 @@ public final class DealViewController: UIViewController {
     @objc private func onTap(_ g: UITapGestureRecognizer) {
         let p = scenePoint(g.location(in: view))
 
-        if scene.isPileFanOpen { scene.closePileFan(); return }
         if scene.isHelpVisible { scene.hideHelp(); return }
 
         // Target-pick mode (revive / Phoenix): a tap on an armed pile fires.
@@ -335,12 +334,8 @@ public final class DealViewController: UIViewController {
             return
         }
         if let pile = scene.pileIndex(at: p) {
-            // With the fan hint on, tapping a pile opens its FULL face-up fan.
-            if scene.isFanHintOn {
-                scene.showPileFan(controller.pileCards(pile), pile: pile)
-            } else {
-                controller.select(pile: pile)
-            }
+            // The fan hint is non-blocking: a tap still just selects the pile.
+            controller.select(pile: pile)
             return
         }
         // Tap the deck stack → the full deck inspection (campaign/zen).
@@ -374,7 +369,7 @@ public final class DealViewController: UIViewController {
         let p = scenePoint(g.location(in: view))
         switch g.state {
         case .began:
-            if scene.isPileFanOpen || scene.isHelpVisible { return }
+            if scene.isHelpVisible { return }
             dragPile = scene.pileIndex(at: p)
             dragArmed = nil
             dragMoved = false
@@ -454,7 +449,7 @@ public final class DealViewController: UIViewController {
 
     private func helpBody(_ id: String) -> String {
         switch id {
-        case "fan":    return "Fan the piles out for a look at what is buried. Tap a pile while fanned to see all of its cards."
+        case "fan":    return "Fan — spreads every living pile so the cards underneath peek out, a reminder of what each pile is holding. Tap again to collapse. Pure memory aid: it changes nothing about the deal, and guessing stays live."
         case "higher": return "The next card is higher in rank. Ace is high; suits never matter."
         case "same":   return "The next card matches this rank. A correct Same banks a charge that saves your next miss."
         case "lower":  return "The next card is lower in rank. A tie kills on Higher or Lower."

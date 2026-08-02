@@ -13,7 +13,8 @@ public final class TutorialView: UIView {
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.phosphor)
     private let textLabel = UILabel()
     private let nextButton = PixelButtonView("NEXT", role: .cta, fontSize: 15)
-    private let skipButton = PixelButtonView("SKIP TIPS", role: .plain, fontSize: 13)
+    /// The web's `.tut-skip`: an underlined TEXT LINK, not a boxed button.
+    private let skipLink = UIButton(type: .custom)
     private let onDone: (_ completed: Bool) -> Void
 
     public init(steps: [TutorialStep], onDone: @escaping (_ completed: Bool) -> Void) {
@@ -26,8 +27,13 @@ public final class TutorialView: UIView {
         panel.addSubview(textLabel)
         nextButton.onTap = { [weak self] in self?.advance() }
         panel.addSubview(nextButton)
-        skipButton.onTap = { [weak self] in self?.finish(completed: false) }
-        panel.addSubview(skipButton)
+        skipLink.setAttributedTitle(NSAttributedString(
+            string: "Skip tips",
+            attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted,
+                         .underlineStyle: NSUnderlineStyle.single.rawValue]), for: .normal)
+        skipLink.accessibilityLabel = "SKIP TIPS"
+        skipLink.addTarget(self, action: #selector(skipTapped), for: .touchUpInside)
+        panel.addSubview(skipLink)
         show()
     }
 
@@ -65,6 +71,8 @@ public final class TutorialView: UIView {
         setNeedsLayout()
     }
 
+    @objc private func skipTapped() { finish(completed: false) }
+
     private func advance() {
         index += 1
         if index >= steps.count { finish(completed: true) } else { show() }
@@ -79,17 +87,18 @@ public final class TutorialView: UIView {
 
     public override func layoutSubviews() {
         super.layoutSubviews()
-        let w = min(340, bounds.width - 28)
+        let w = min(300, bounds.width - 28)   // the web's .tut-bubble max-width
         let textH = ceil(textLabel.attributedText?.boundingRect(
             with: CGSize(width: w - 24, height: 400),
             options: .usesLineFragmentOrigin, context: nil).height ?? 20)
         let h = textH + 20 + 44 + 12
-        // The bubble sits above the control row, clear of the board's centre.
+        // The bubble anchors at the TOP, just below the tracker band (the web's
+        // tutorial-01 placement) — NOT above the bottom control row.
         panel.frame = CGRect(x: (bounds.width - w) / 2,
-                             y: bounds.height - safeAreaInsets.bottom - h - 96,
+                             y: safeAreaInsets.top + 8 + 40 + 6 + 78 + 8,
                              width: w, height: h)
         textLabel.frame = CGRect(x: 12, y: 10, width: w - 24, height: textH)
         nextButton.frame = CGRect(x: w - 120, y: h - 50, width: 108, height: 40)
-        skipButton.frame = CGRect(x: 12, y: h - 46, width: 100, height: 34)
+        skipLink.frame = CGRect(x: 12, y: h - 46, width: 100, height: 34)
     }
 }

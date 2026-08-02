@@ -3,7 +3,7 @@
 ## Chunk 1 — Deal board + guess rail (19)
 | Surface | Status |
 |---|---|
-| Slim HUD line (suit track, Same charge, Same-Power chip, score, coins) | ✅ HUDBar |
+| Slim HUD line (suit track, Same charge, Same-Power chip, score, coins) | ✅ DealTopBar (DealScene.swift; HUDBar deleted in the parity pass) |
 | Stage·Run floating badge | ◐ folded into the HUD stage label + per-screen headers |
 | Deal-status row (Reward + live Score) | ✅ RewardLine |
 | Left rail: histogram + deck stack + character | ✅ DeckPanel (top band, the web's active thumb layout) |

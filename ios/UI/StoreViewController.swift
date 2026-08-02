@@ -170,7 +170,18 @@ public final class StoreViewController: UIViewController {
                 let locked = campaign.stickersLocked
                     && (s.kind == "sticker" || (s.kind == "pack" && GameData.shared.packTypes.get(s.id)?.kind == "sticker"))
                 let price = Int(campaign.priceOfMixed(i))
-                tile.configure(art: ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId),
+                // Web `.ti-obj.obj-removal`: the shelf removal object is the
+                // bare torn card — its "REMOVAL" caption (.ro-lab) is LIVE text
+                // under the art (the tile caption below), never baked in.
+                let art = s.kind == "removal"
+                    ? ItemArt.removal(width: 52, height: 66)
+                    : ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId)
+                // Only packs (.pf-name) and Removal (.ro-lab) carry a NAME on
+                // the web shelf — pillar/base/sticker tiles are art + price
+                // only. The label always comes from the registry.
+                let caption = s.kind == "pack" ? GameData.shared.packTypes.get(s.id)?.label
+                    : s.kind == "removal" ? GameData.shared.items.store.removal.label : nil
+                tile.configure(art: art, kind: s.kind, caption: caption,
                                price: price,
                                affordable: campaign.getCoins() >= price,
                                tier: tierOf(s),
@@ -630,13 +641,19 @@ public final class StoreViewController: UIViewController {
 /// One shelf tile, web `.store-tile`: a pixel plaque (felt-mid face, ink
 /// border, hard shadow) with a 4px rarity strip under the top edge
 /// (common = quiet cream · uncommon = gold · rare = phosphor), the object
-/// centred on the shelf, and the gold-on-ink price chip. No name text — the
-/// detail popup carries it. Unaffordable dims but stays tappable.
+/// SMALL and centred on the shelf (web caps it per kind — sticker ≤68px,
+/// base ≤46px, pack ≈100px, …), an optional name caption (packs + Removal
+/// ONLY, web `.pf-name` / `.ro-lab`), and the gold-on-ink price chip — the
+/// art/caption/price stack centres as one group. Unaffordable dims but stays
+/// tappable.
 final class StoreTileView: UIControl {
     private let art = UIImageView()
+    private let captionLabel = UILabel()
     private let priceLabel = UILabel()
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 4)
     private let tierStrip = UIView()
+    /// Web `.ti-obj` per-kind height caps (the object never fills the tile).
+    private var artCap: CGFloat = 90
     var onTap: (() -> Void)?
     var onHold: (() -> Void)?
 
@@ -653,6 +670,10 @@ final class StoreTileView: UIControl {
         art.layer.magnificationFilter = .nearest
         art.isUserInteractionEnabled = false
         addSubview(art)
+        captionLabel.textAlignment = .center
+        captionLabel.isUserInteractionEnabled = false
+        captionLabel.isHidden = true
+        addSubview(captionLabel)
         priceLabel.textAlignment = .center
         priceLabel.backgroundColor = CRT.ink
         priceLabel.layer.borderWidth = 1
@@ -672,8 +693,30 @@ final class StoreTileView: UIControl {
         if g.state == .began { onHold?() }
     }
 
-    func configure(art image: UIImage, price: Int, affordable: Bool, tier: String, locked: Bool) {
+    func configure(art image: UIImage, kind: String, caption: String?, price: Int,
+                   affordable: Bool, tier: String, locked: Bool) {
         art.image = image
+        switch kind {
+        case "sticker": artCap = 68
+        case "base": artCap = 46
+        case "pack": artCap = 100
+        case "pillar": artCap = 100
+        case "removal": artCap = 66
+        case "card": artCap = 68
+        case "samepower": artCap = 84
+        default: artCap = 90
+        }
+        if let caption {
+            // Web `.pf-name` is bright cream; `.ro-lab` hangs dimmer.
+            let dim = kind == "removal"
+            captionLabel.attributedText = CRTKit.attributed(
+                caption.uppercased(), size: 12,
+                color: CRT.cardFace.withAlphaComponent(dim ? 0.6 : 1))
+            captionLabel.isHidden = false
+        } else {
+            captionLabel.attributedText = nil
+            captionLabel.isHidden = true
+        }
         switch tier {
         case "uncommon": tierStrip.backgroundColor = CRT.gold
         case "rare": tierStrip.backgroundColor = CRT.phosphor
@@ -689,6 +732,8 @@ final class StoreTileView: UIControl {
 
     func configureSold() {
         art.image = nil
+        captionLabel.attributedText = nil
+        captionLabel.isHidden = true
         tierStrip.isHidden = true
         priceLabel.isHidden = true
         alpha = 0.4
@@ -699,9 +744,24 @@ final class StoreTileView: UIControl {
         super.layoutSubviews()
         panel.frame = bounds
         tierStrip.frame = CGRect(x: CRT.px, y: CRT.px, width: bounds.width - CRT.px * 2, height: 4)
-        art.frame = CGRect(x: 6, y: 10, width: bounds.width - 12, height: bounds.height - 52)
+        // The web tile is a centred flex column: object (capped), optional name
+        // caption, price chip — the STACK centres as a group inside the plaque.
+        let capH: CGFloat = captionLabel.isHidden ? 0 : 14
+        let priceH: CGFloat = 20
+        let gap: CGFloat = 6
+        var stack = capH > 0 ? capH + gap : 0
+        let availArt = bounds.height - 16 - priceH - gap - stack
+        let artH = max(24, min(artCap, availArt))
+        stack += artH + gap + priceH
+        var y = (bounds.height - stack) / 2
+        art.frame = CGRect(x: 6, y: y, width: bounds.width - 12, height: artH)
+        y += artH + gap
+        if capH > 0 {
+            captionLabel.frame = CGRect(x: 2, y: y, width: bounds.width - 4, height: capH)
+            y += capH + gap
+        }
         let pw: CGFloat = 54
-        priceLabel.frame = CGRect(x: (bounds.width - pw) / 2, y: bounds.height - 32, width: pw, height: 20)
+        priceLabel.frame = CGRect(x: (bounds.width - pw) / 2, y: y, width: pw, height: priceH)
     }
 }
 
