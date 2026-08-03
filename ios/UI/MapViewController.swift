@@ -182,10 +182,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         eggLabel.frame = CGRect(x: 0, y: height + 16, width: view.bounds.width, height: 22)
         // One-stage-at-a-time: the minimum offset is the lock line, and the
         // native rubber band operates AT it (fog shows above during the pull).
-        // Bottom: a real gap below the home row — never clamp content against
-        // the screen edge (the safe-area inset is 0 on some devices).
+        // Bottom: a generous gap below the home row — the avatar must start
+        // well clear of the home-indicator zone, never clamped against the
+        // screen edge (the safe-area inset is 0 on some devices).
         scroll.contentInset = UIEdgeInsets(top: -scrollLock, left: 0,
-                                           bottom: max(view.safeAreaInsets.bottom, 20) + 16,
+                                           bottom: max(view.safeAreaInsets.bottom, 20) + 84,
                                            right: 0)
     }
 
@@ -563,7 +564,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
     public func centerOnAvatar(animated: Bool) {
         let y = avatar.center.y - scroll.bounds.height / 2
-        let maxY = max(scrollLock, scroll.contentSize.height - scroll.bounds.height)
+        // The clamp includes the bottom inset, so at the home row the avatar
+        // floats above the screen's bottom edge instead of pinning to it.
+        let maxY = max(scrollLock,
+                       scroll.contentSize.height + scroll.contentInset.bottom - scroll.bounds.height)
         scroll.setContentOffset(CGPoint(x: 0, y: min(maxY, max(scrollLock, y))), animated: animated)
     }
 

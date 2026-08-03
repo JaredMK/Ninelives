@@ -41,6 +41,7 @@ public final class PixelButton: SKNode {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     public var frameSize: CGSize { boxSize }
+    public var currentRole: Role { role }
 
     public func setRole(_ r: Role) { guard r != role else { return }; role = r; redraw() }
     public func setTitle(_ t: String) { guard t != title else { return }; title = t; redraw() }

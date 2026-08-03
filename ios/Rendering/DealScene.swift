@@ -191,9 +191,10 @@ public final class DealScene: SKScene {
 
         // Bottom reservation: never hug the screen edge — a real gap for
         // the home-indicator zone and down-swipes even where the safe-area
-        // bottom inset is 0. RESHUFFLE rides just above the footer; Zen
-        // has no reshuffle (climb deals only).
-        let bottomGap = max(safeInsets.bottom, 20)
+        // bottom inset is 0, PLUS a fixed lift so the lowest cards stay
+        // comfortably thumb-reachable. RESHUFFLE rides just above the
+        // footer; Zen has no reshuffle (climb deals only).
+        let bottomGap = max(safeInsets.bottom, 20) + 12
         let footerZone: CGFloat = 34
         let reshuffleY = -(size.height - bottomGap - 4 - footerZone)
         reshuffleButton.isHidden = isZen
@@ -861,6 +862,11 @@ public final class DealScene: SKScene {
     }
     public var currentSelection: Int? { selectedPile }
 
+    /// Roles captured when a swipe arms a rail button, restored on clear —
+    /// the armed button "colors in" (the web's rail keys lighting up with the
+    /// swipe) without clobbering Same's charged state.
+    private var railSwipeRoles: [ObjectIdentifier: PixelButton.Role]?
+
     /// The big faded direction word, CENTRED on the board and fixed for the
     /// whole swipe (it never follows the finger) — the web's style A.
     public func showSwipeDirection(_ dir: Guess?) {
@@ -880,9 +886,21 @@ public final class DealScene: SKScene {
         w.position = CGPoint(x: 0, y: -26)
         swipeLabel.addChild(g); swipeLabel.addChild(w)
         swipeLabel.alpha = 0.72
-        // Mirror the armed direction on the rail: armed pops, the others dim.
-        for (b, d) in [(higherButton!, Guess.higher), (sameButton!, .same), (lowerButton!, .lower)] {
+        // Mirror the armed direction on the rail: the armed button pops AND
+        // colors in to the direction's fill, the others dim back to normal.
+        let armed: [(PixelButton, Guess, PixelButton.Role)] = [
+            (higherButton!, .higher, .cta),
+            (sameButton!, .same, .gold),
+            (lowerButton!, .lower, .danger),
+        ]
+        if railSwipeRoles == nil {
+            railSwipeRoles = Dictionary(uniqueKeysWithValues: armed.map {
+                (ObjectIdentifier($0.0), $0.0.currentRole)
+            })
+        }
+        for (b, d, lit) in armed {
             b.alpha = d == dir ? 1.0 : 0.45
+            b.setRole(d == dir ? lit : (railSwipeRoles?[ObjectIdentifier(b)] ?? b.currentRole))
         }
     }
 
@@ -890,6 +908,12 @@ public final class DealScene: SKScene {
         swipeLabel.removeAllChildren()
         swipeLabel.isHidden = true
         buttons.forEach { $0.alpha = 1 }
+        if let saved = railSwipeRoles {
+            for b in [higherButton!, sameButton!, lowerButton!] {
+                if let r = saved[ObjectIdentifier(b)] { b.setRole(r) }
+            }
+            railSwipeRoles = nil
+        }
     }
 
     // MARK: - Hit testing

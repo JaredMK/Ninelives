@@ -65,6 +65,15 @@ public final class GameFlowController: UIViewController {
     let prompt = PromptBar()
     private var autopilot: FlowAutopilot?
 
+    /// The debug panel entry point on EVERY screen while debug access is on
+    /// (the menu's own DEBUG row only exists on the menu). Bottom-right —
+    /// clear of the map's bottom-left store chip and the deal's rail.
+    private lazy var debugFloatButton: PixelButtonView = {
+        let b = PixelButtonView("🐞", role: .charged, fontSize: 15)
+        b.onTap = { [weak self] in self?.showDebugPanel() }
+        return b
+    }()
+
     public init() {
         self.campaign = CampaignState(store: store)
         self.runMap = RunMap(data: GameData.shared)
@@ -87,6 +96,8 @@ public final class GameFlowController: UIViewController {
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
         view.addSubview(prompt)
+        debugFloatButton.isHidden = !debugAccess
+        view.addSubview(debugFloatButton)   // topmost; rides over every screen
         boot()
         // A debug autopilot left on last session re-arms at boot.
         if debugAutopilotOn() { setDebugAutopilot(true) }
@@ -129,6 +140,10 @@ public final class GameFlowController: UIViewController {
         crt.frame = view.bounds
         prompt.frame = view.bounds
         current?.view.frame = view.bounds
+        let inset = max(view.safeAreaInsets.bottom, 12)
+        debugFloatButton.frame = CGRect(x: view.bounds.width - 54,
+                                        y: view.bounds.height - inset - 44,
+                                        width: 44, height: 36)
     }
 
     // MARK: - Screen swapping
@@ -172,9 +187,10 @@ public final class GameFlowController: UIViewController {
             clearSave()
             autopilot = FlowAutopilot(flow: self, attempts: auto)
         }
-        if campaign.saveStore.hasSave {
-            resumeSavedGame()
-        } else if UserDefaults.standard.bool(forKey: "autoClimb") {
+        // Boot always lands on the MAIN MENU — an in-progress climb is
+        // offered as the menu's CONTINUE button, never auto-resumed into
+        // (the web boots to the menu the same way).
+        if UserDefaults.standard.bool(forKey: "autoClimb") {
             // Harness: straight into a fresh climb (simulator verification).
             let deck = UserDefaults.standard.string(forKey: "deck") ?? "pink"
             let tier = UserDefaults.standard.string(forKey: "tier") ?? "regular"
@@ -268,7 +284,7 @@ public final class GameFlowController: UIViewController {
         campaign = CampaignState(store: store)
         campaign.itemUnlocks.primeKnown()
         runMap = RunMap(data: GameData.shared)
-        boot()
+        resumeSavedGame()
     }
 
     /// The double-confirmed full wipe — only preferences survive by design
@@ -776,6 +792,7 @@ public final class GameFlowController: UIViewController {
     func setDebugAccess(_ on: Bool) {
         debugAccess = on
         UserDefaults.standard.set(on, forKey: "debugAccess")
+        debugFloatButton.isHidden = !on
         if !on { dismissDebugPanel() }
     }
 

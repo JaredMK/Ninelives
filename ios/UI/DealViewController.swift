@@ -355,15 +355,11 @@ public final class DealViewController: UIViewController {
         }
         if let pile = scene.pileIndex(at: p) {
             // Fan hint ARMED: a pile tap opens that pile's full face-up fan
-            // instead of selecting (the web's openPileFan); tapping the same
-            // pile again collapses it. The sliver peek stays as the armed
-            // indicator. Hint off: a tap still just selects the pile.
+            // OVERLAY (the web's openPileFan) instead of selecting. The sliver
+            // peek stays as the armed indicator. Hint off: a tap still just
+            // selects the pile.
             if scene.isFanHintOn {
-                if scene.fannedPileIndex == pile {
-                    scene.hidePileFan()
-                } else {
-                    scene.showPileFan(pile, cards: controller.pileCards(pile))
-                }
+                showPileFanOverlay(pile)
                 return
             }
             controller.select(pile: pile)
@@ -374,10 +370,30 @@ public final class DealViewController: UIViewController {
             present(DeckInspectViewController(campaign: sharedCampaign!), animated: false)
             return
         }
-        // A tap on empty felt clears the selection (and any open pile fan).
-        scene.hidePileFan()
+        // A tap on empty felt clears the selection.
         scene.setSelected(nil)
         controller.refreshAll()
+    }
+
+    // MARK: - Pile fan overlay (the web's openPileFan)
+
+    private var pileFan: PileFanOverlayView?
+
+    /// The armed-hint pile tap: the pile's full contents face-up in a centered
+    /// overlay — top card first, horizontally scrollable when the pile
+    /// outgrows the panel. Dismiss = tap outside (the scrim eats every touch,
+    /// so a tap meant for ANOTHER pile just closes; the player retaps) or the
+    /// ✕. This replaces the old in-place `DealScene.showPileFan` splay, which
+    /// is now uncalled (dead code by design — DealScene is untouched).
+    private func showPileFanOverlay(_ pile: Int) {
+        let cards = controller.pileCards(pile)
+        guard !cards.isEmpty else { return }
+        pileFan?.close()
+        let fan = PileFanOverlayView(pileIndex: pile, stackOrder: cards)
+        fan.onDismiss = { [weak self] in self?.pileFan = nil }
+        fan.show(in: view)
+        pileFan = fan
+        Sound.shared.tap()
     }
 
     private func fire(button b: PixelButton) {
