@@ -15,6 +15,9 @@ final class StoreDetailView: UIView {
     private let campaign: CampaignState
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let objView = UIImageView()
+    /// The suit-restriction row, parked ABOVE the chip (ItemArt.suitCaption
+    /// contract) — only ever present for a restricted sticker.
+    private var restrictionIcon: UIImageView?
     private let captionLabel = UILabel()
     private let tierLabel = UILabel()
     private let nameLabel = UILabel()
@@ -192,6 +195,9 @@ final class StoreDetailView: UIView {
         default:
             guard let d = def() else { return }
             objView.image = ItemArt.forSlot(kind: kind, id: itemId, card: nil, deckId: campaign.deckId)
+            if restrictionIcon?.superview != nil { restrictionIcon?.removeFromSuperview() }
+            restrictionIcon = kind == "sticker" ? ItemArt.suitCaptionView(d, width: 46) : nil
+            if let restrictionIcon { panel.addSubview(restrictionIcon) }
             captionLabel.attributedText = kind == "pack"
                 ? CRTKit.attributed(d.label.uppercased(), size: 12, color: CRT.cardFace)
                 : nil
@@ -331,6 +337,13 @@ final class StoreDetailView: UIView {
         let m: CGFloat = 12
         let cw = w - m * 2
         var y: CGFloat = 14
+        if let cap = restrictionIcon {
+            // The restriction row sits ABOVE the chip; the chip keeps its
+            // full 96pt object frame underneath it.
+            cap.frame = CGRect(x: (w - cap.frame.width) / 2, y: y,
+                               width: cap.frame.width, height: cap.frame.height)
+            y += cap.frame.height + 2
+        }
         objView.frame = CGRect(x: (w - 150) / 2, y: y, width: 150, height: 96)
         closeButton.frame = CGRect(x: w - 44, y: 8, width: 36, height: 30)
         y += 98
@@ -390,7 +403,13 @@ final class StoreDetailView: UIView {
             y += 50
         }
         let h = y + 8
-        panel.frame = CGRect(x: x, y: max(40, (bounds.height - h) / 2), width: w, height: h)
+        // Centred, but never under the notch/Dynamic Island or into the
+        // home-indicator zone when the content runs tall.
+        let topMin = max(40, safeAreaInsets.top + 12)
+        var py = max(topMin, (bounds.height - h) / 2)
+        let bottomMax = bounds.height - max(safeAreaInsets.bottom, 12) - 8 - h
+        if bottomMax >= 8 { py = min(py, max(topMin, bottomMax)) }
+        panel.frame = CGRect(x: x, y: py, width: w, height: h)
     }
 
     private func heightOf(_ l: UILabel, width: CGFloat) -> CGFloat {

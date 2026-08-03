@@ -168,6 +168,13 @@ public final class PackRevealViewController: UIViewController {
                     iv.isUserInteractionEnabled = false
                     iv.tag = 101
                     b.addSubview(iv)
+                    // The suit restriction rides ABOVE the chip (ItemArt
+                    // placement contract), never baked into it (v5.81).
+                    if let cap = ItemArt.suitCaptionView(def, width: 40) {
+                        cap.isUserInteractionEnabled = false
+                        cap.tag = 103
+                        b.addSubview(cap)
+                    }
                     let name = UILabel()
                     name.attributedText = CRTKit.attributed(def.label, size: 12, color: CRT.cardFace)
                     name.textAlignment = .center
@@ -208,7 +215,7 @@ public final class PackRevealViewController: UIViewController {
 
         let titleH = max(18, measure(titleLabel, width: cw))
         titleLabel.frame = CGRect(x: m, y: y, width: cw, height: titleH)
-        y += titleH + 10
+        y += titleH + 12
 
         // `.pack-items`: one no-wrap row, 6px gaps, each item centred in its cell.
         let n = max(1, count)
@@ -223,10 +230,14 @@ public final class PackRevealViewController: UIViewController {
                 btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: y + (max(67, rowH) - h) / 2, width: w, height: h)
                 rowH = max(rowH, h)
             case .stickers:
-                let w = min(64, cellW), h: CGFloat = 90
+                let w = min(64, cellW), h: CGFloat = 96
                 btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: y, width: w, height: h)
-                if let iv = btn.viewWithTag(101) { iv.frame = CGRect(x: (w - 46) / 2, y: 8, width: 46, height: 46) }
-                if let nl = btn.viewWithTag(102) { nl.frame = CGRect(x: 2, y: 56, width: w - 4, height: 28) }
+                if let iv = btn.viewWithTag(101) { iv.frame = CGRect(x: (w - 46) / 2, y: 18, width: 46, height: 46) }
+                if let nl = btn.viewWithTag(102) { nl.frame = CGRect(x: 2, y: 66, width: w - 4, height: 26) }
+                if let cap = btn.viewWithTag(103) {
+                    // Bottom edge 2pt over the chip's drawn top (ItemArt contract).
+                    cap.center = CGPoint(x: w / 2, y: 18 - 2 - cap.bounds.height / 2)
+                }
                 rowH = max(rowH, h)
             }
         }
@@ -235,11 +246,13 @@ public final class PackRevealViewController: UIViewController {
             for btn in itemButtons { btn.frame.origin.y = y + (rowH - btn.frame.height) / 2 }
         }
         itemsRow.frame = CGRect(x: m, y: y, width: cw, height: rowH)
-        y += rowH + 10
+        // The row breathes on BOTH sides — the cards read centred between the
+        // title and the confirm button, never crowding it (v5.81).
+        y += rowH + 18
 
         // `.pack-msg` keeps its min-height even when empty — the panel never moves.
         msgLabel.frame = CGRect(x: m, y: y, width: cw, height: max(14, measure(msgLabel, width: cw)))
-        y += msgLabel.frame.height + 12
+        y += msgLabel.frame.height + 14
 
         if !deckButton.isHidden {
             deckButton.frame = CGRect(x: m, y: y, width: cw, height: 34)

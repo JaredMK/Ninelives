@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v5.80"
-    static let note = "ios: app icon matches the in-game gold same-mark, deal board lifted, purge shows the removal torn card"
+    static let version = "v5.81"
+    static let note = "ios: safe-area sweep, sticker suit captions above chips, new pillar/base/power emblems, map quip easter egg, autopilot pause/speed, zen drill animation, collection cost, pack spacing, pixel app icon + JarHead launch wordmark"
     static let line = "build \(version) · \(note)"
 }
 
@@ -561,7 +561,10 @@ final class DeckSelectViewController: MenuScreenBase {
         let w = view.bounds.width, h = view.bounds.height
         guard w > 0, h > 0 else { return }
         dotsRow?.frame = CGRect(x: 0, y: h * 0.92 - 4, width: w, height: 8)
-        seedLink?.frame = CGRect(x: 0, y: h * 0.96 - 11, width: w, height: 22)
+        // Never let the seed link's tap target graze the home-indicator zone
+        // (on 932pt screens 0.96h lands ~8pt inside it).
+        seedLink?.frame = CGRect(x: 0, y: min(h * 0.96 - 11, h - max(view.safeAreaInsets.bottom, 12) - 26),
+                                 width: w, height: 22)
     }
 
     override func viewDidLayoutSubviews() {
@@ -746,8 +749,9 @@ final class ZenSelectViewController: MenuScreenBase {
 
 final class CollectionViewController: MenuScreenBase {
     /// Web #collectionScreen: the header rides at the very top — title glyphs
-    /// at ~24pt, STICKERS head at ~55pt, first tile row at ~77pt.
-    override var contentTopInset: CGFloat { 12 }
+    /// at ~24pt, STICKERS head at ~55pt, first tile row at ~77pt. On notched
+    /// phones the header must still start BELOW the Dynamic Island.
+    override var contentTopInset: CGFloat { max(12, view.safeAreaInsets.top) }
 
     private let backButton = PixelButtonView("←", role: .plain, fontSize: 16)
 
@@ -801,9 +805,19 @@ final class CollectionViewController: MenuScreenBase {
                 art.alpha = unlocked ? 1 : 0.72
                 // Web tiles wear a SMALL pixel icon (~40px) — not a tile-
                 // filling blowup. 44pt keeps nearest-neighbour steps even.
-                art.frame = CGRect(x: (cw - 44) / 2, y: 14, width: 44, height: 44)
+                // Suited stickers drop 12pt to make room for the suit
+                // caption above the chip (never baked INTO it).
+                let cap = (kind == "sticker" && unlocked)
+                    ? ItemArt.suitCaptionView(def, width: 36) : nil
+                let artY: CGFloat = cap != nil ? 26 : 14
+                art.frame = CGRect(x: (cw - 44) / 2, y: artY, width: 44, height: 44)
                 art.isUserInteractionEnabled = false
                 tile.addSubview(art)
+                if let cap {
+                    cap.center = CGPoint(x: cw / 2, y: artY - 2 - cap.bounds.height / 2)
+                    cap.isUserInteractionEnabled = false
+                    tile.addSubview(cap)
+                }
                 if unlocked {
                     let name = CRTKit.label(def.label, size: 12, color: CRT.cardFace)
                     name.textAlignment = .center
@@ -919,10 +933,10 @@ final class CollectionViewController: MenuScreenBase {
 // MARK: - Collection detail panel
 
 /// Web `#cardInfo.cid-mode`: the centered, FIXED-SHELL detail panel — big item
-/// art top-center, name (left) + rarity (right), the sticker scope line, the
-/// registry description, and a ◀ N/total ▶ pager pinned to the bottom. The
-/// shell never changes size while paging; only the content swaps. A scrim tap
-/// closes (the web shows no ✕).
+/// art top-center, name (left) + rarity (right), the meta line (sticker scope
+/// left, gold ◉ cost right), the registry description, and a ◀ N/total ▶
+/// pager pinned to the bottom. The shell never changes size while paging; only
+/// the content swaps. A scrim tap closes (the web shows no ✕).
 final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
     private static let panelW: CGFloat = 360
     private static let panelH: CGFloat = 300
@@ -932,6 +946,7 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
     private let nameLabel = UILabel()
     private let tierLabel = UILabel()
     private let scopeLabel = UILabel()
+    private let costLabel = UILabel()
     private let descScroll = UIScrollView()
     private let descLabel = UILabel()
     private let divider = UIView()
@@ -971,6 +986,10 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
         panel.addSubview(tierLabel)
         scopeLabel.textAlignment = .left
         panel.addSubview(scopeLabel)
+        // The deep-dive also shows the store cost (v5.81) — the gold "◉ N"
+        // chip text from the store tile, pinned right on the meta line.
+        costLabel.textAlignment = .right
+        panel.addSubview(costLabel)
         // Fixed shell, scrolling content (the web scrolls overlong text
         // INSIDE the detail band — the shell and pager never move).
         descScroll.showsVerticalScrollIndicator = false
@@ -1041,6 +1060,7 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
         scopeLabel.attributedText = scopeLine(kind: kind, def: def).map {
             CRTKit.attributed($0, size: 12, color: CRT.cardFace.withAlphaComponent(0.82))
         }
+        costLabel.attributedText = CRTKit.attributed("◉ \(Int(def.price))", size: 12, color: CRT.gold)
         let desc = NSMutableAttributedString(
             string: def.description, attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace])
         let para = NSMutableParagraphStyle()
@@ -1078,9 +1098,11 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
         artView.frame = CGRect(x: (w - iw) / 2, y: 15, width: iw, height: 72)
         nameLabel.frame = CGRect(x: 14, y: 97, width: w - 28 - 90, height: 20)
         tierLabel.frame = CGRect(x: w - 14 - 88, y: 100, width: 88, height: 16)
-        let hasScope = scopeLabel.attributedText != nil
-        scopeLabel.frame = CGRect(x: 14, y: 119, width: w - 28, height: 16)
-        let descY: CGFloat = hasScope ? 139 : 121
+        // The meta line always renders — stickers carry the scope text on the
+        // left, and every item carries its cost on the right (v5.81).
+        scopeLabel.frame = CGRect(x: 14, y: 119, width: w - 28 - 76, height: 16)
+        costLabel.frame = CGRect(x: w - 14 - 74, y: 119, width: 74, height: 16)
+        let descY: CGFloat = 139
         let pagerTop = h - 13 - 40 - 8   // arrows 40 + padding-top 8
         divider.frame = CGRect(x: 14, y: pagerTop, width: w - 28, height: 1)
         descScroll.frame = CGRect(x: 14, y: descY, width: w - 28, height: pagerTop - descY - 6)

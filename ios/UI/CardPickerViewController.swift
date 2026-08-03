@@ -41,6 +41,9 @@ public final class CardPickerViewController: UIViewController {
     private let skipButton = PixelButtonView("SKIP", role: .plain, fontSize: 14)
     // Item row.
     private let bannerIcon = UIImageView()
+    /// The suit-restriction row, parked ABOVE the banner chip
+    /// (ItemArt.suitCaption contract) — sticker modes only.
+    private var bannerRestriction: UIImageView?
     private let bannerName = UILabel()
     private let bannerDesc = UILabel()
     // Composition strip.
@@ -167,7 +170,10 @@ public final class CardPickerViewController: UIViewController {
         // Fixed content above the scrollable grid (bars 64 + ticks 16 = 80).
         let fixedH: CGFloat = 112 + descH + 8 + 80 + 5 + 18 + 8 + 22 + 8 + 16 + 8
         let gridH = min(gridContentHeight(width: innerW), b.height * 0.5)   // web: .sa-cards max-height 50vh
-        var sheetH = fixedH + gridH + 2
+        // safeB: the sheet runs to the screen's bottom edge, so reserve the
+        // home-indicator zone INSIDE it — the grid viewport ends above it.
+        let safeB = view.safeAreaInsets.bottom
+        var sheetH = fixedH + gridH + 2 + safeB
         sheetH = min(sheetH, b.height * 0.8)   // web: .deck-modal-panel max-height 80vh
 
         // The sheet runs 4pt past the bottom edge so its bottom border/shadow
@@ -180,6 +186,18 @@ public final class CardPickerViewController: UIViewController {
         skipButton.frame = CGRect(x: sheetW - pad - 32 - 8 - 64, y: 12, width: 64, height: 30)
 
         bannerIcon.frame = CGRect(x: pad, y: 50, width: 44, height: 56)
+        // The chip aspect-fits SQUARE inside its frame; the restriction row
+        // rides 2pt above the chip's drawn top, centred on it.
+        if let cap = bannerRestriction, let img = bannerIcon.image {
+            let fit = min(bannerIcon.frame.width / img.size.width,
+                          bannerIcon.frame.height / img.size.height)
+            let dw = img.size.width * fit, dh = img.size.height * fit
+            let chipTop = bannerIcon.frame.minY + (bannerIcon.frame.height - dh) / 2
+            cap.frame = CGRect(x: bannerIcon.frame.minX + (bannerIcon.frame.width - dw) / 2
+                                   + (dw - cap.frame.width) / 2,
+                               y: chipTop - 2 - cap.frame.height,
+                               width: cap.frame.width, height: cap.frame.height)
+        }
         bannerName.frame = CGRect(x: pad + 54, y: 50, width: innerW - 54, height: 56)
         bannerDesc.frame = CGRect(x: pad, y: 112, width: innerW, height: descH)
 
@@ -192,7 +210,7 @@ public final class CardPickerViewController: UIViewController {
         y += 22 + 8
         hintLabel.frame = CGRect(x: pad, y: y, width: innerW, height: 16)
         y += 16 + 8
-        scroll.frame = CGRect(x: pad, y: y, width: innerW, height: sheetH - y)
+        scroll.frame = CGRect(x: pad, y: y, width: innerW, height: sheetH - y - safeB)
 
         crt.frame = b
         prompt.frame = b
@@ -238,6 +256,10 @@ public final class CardPickerViewController: UIViewController {
         case .applySticker(let t), .buySticker(_, let t):
             if let def = GameData.shared.stickerTypes.get(t) {
                 bannerIcon.image = ItemArt.sticker(def)
+                if let cap = ItemArt.suitCaptionView(def, width: 40) {
+                    sheet.addSubview(cap)
+                    bannerRestriction = cap
+                }
                 setBanner(name: def.label, desc: def.description)
             }
         case .removal(let price):

@@ -168,7 +168,9 @@ public final class PileFanOverlayView: UIView {
         let titleH: CGFloat = 16, orderH: CGFloat = 15, noteH: CGFloat = 15
         let contentH = padTop + titleH + 3 + orderH + 8 + rowHeight + 8 + noteH + padBottom
         let panelW = min(bounds.width - 28, 400)
-        let panelH = min(contentH, bounds.height - 60)
+        // Safe-area capped: a giant pile's panel still clears notch + indicator.
+        let panelH = min(contentH, bounds.height - safeAreaInsets.top
+                         - max(safeAreaInsets.bottom, 12) - 24)
         panel.frame = CGRect(x: (bounds.width - panelW) / 2,
                              y: (bounds.height - panelH) / 2,
                              width: panelW, height: panelH)

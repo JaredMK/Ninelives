@@ -362,7 +362,9 @@ final class ManualSheetView: SheetView {
         // (SKIP · dots · BACK/NEXT) · Replay tutorial, the footer and replay
         // stacked to the panel's bottom edge (body top is 56 in panel coords).
         let replayH: CGFloat = 27
-        let replayY = ph - 23 - replayH
+        // 23pt above the panel's bottom edge on no-inset phones (web parity);
+        // on home-indicator phones the replay row lifts clear of the zone.
+        let replayY = ph - max(23, safeAreaInsets.bottom + 8) - replayH
         let footerH: CGFloat = 33
         let footerY = replayY - 10 - footerH
         let stageH = footerY - 16 - 56
@@ -622,6 +624,7 @@ final class StatsSheetView: SheetView {
     /// The Zen histogram's ephemeral drill state (web zenView.drill): nil =
     /// the two tappable totals, "wins"/"losses" = the per-bucket breakdown.
     private var zenDrill: String?
+    private static let zenPanelTag = 6101
     var onReset: (() -> Void)?
 
     init(campaign: CampaignState) {
@@ -693,6 +696,7 @@ final class StatsSheetView: SheetView {
 
         // ---- ZEN panel ----
         let zen = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
+        zen.tag = StatsSheetView.zenPanelTag
         let zenHead = CRTKit.label("ZEN", size: 12, color: CRT.gold, display: true)
         zenHead.frame = CGRect(x: 10, y: 10, width: 100, height: 16)
         zen.addSubview(zenHead)
@@ -741,10 +745,12 @@ final class StatsSheetView: SheetView {
         sumLabel.frame = CGRect(x: 10, y: 66, width: w - 20, height: 18)
         zen.addSubview(sumLabel)
 
-        // Zen drill (web zenSectionInner/zenSetDrill): tapping the Wins or
-        // Losses total expands that outcome's per-bucket distribution with
-        // bucket labels, an axis caption and a Back chip. Wins break down by
-        // piles remaining, Losses by cards left in the deck (bucketed like
+        // Zen drill (web zenSectionInner/zenSetDrill): tapping ANYWHERE on the
+        // Wins or Losses column expands that outcome's per-bucket distribution
+        // with bucket labels, an axis caption and a Back chip — the other
+        // outcome collapses to a single lead bar. The swap is ANIMATED (the
+        // panel grows and the new region slides in, v5.81). Wins break down
+        // by piles remaining, Losses by cards left in the deck (bucketed like
         // zenLossBuckets). Bars ride a felt-deep track, so empty buckets
         // still read as structure.
         let tW = winPiles.values.reduce(0, +), tL = lossCards.values.reduce(0, +)
@@ -778,6 +784,48 @@ final class StatsSheetView: SheetView {
         y += 50
 
         scroll.contentSize = CGSize(width: w, height: y)
+    }
+
+    /// Drill in/out with a smooth transition (v5.81): the old region
+    /// cross-fades into the rebuilt one, and everything BELOW the zen panel
+    /// (the reset button) slides with the panel's height change instead of
+    /// jumping. build() is layout-pure, so the animation rides on a snapshot.
+    private func setZenDrillAnimated(_ drill: String?) {
+        guard let oldZen = scroll.viewWithTag(StatsSheetView.zenPanelTag) else {
+            zenDrill = drill
+            build()
+            return
+        }
+        let oldH = oldZen.frame.height
+        let snap = oldZen.snapshotView(afterScreenUpdates: false)
+        snap?.frame = oldZen.frame
+        zenDrill = drill
+        build()
+        guard let newZen = scroll.viewWithTag(StatsSheetView.zenPanelTag) else { return }
+        // Rebuild laid out the final state; rewind below-panel siblings to
+        // their pre-drill offsets, then animate them to the new ones.
+        let dy = newZen.frame.height - oldH
+        var sliders: [(UIView, CGRect)] = []
+        for v in scroll.subviews where v != newZen && v.frame.minY >= newZen.frame.maxY - 1 {
+            let final = v.frame
+            v.frame = final.offsetBy(dx: 0, dy: -dy)
+            sliders.append((v, final))
+        }
+        newZen.clipsToBounds = true
+        let finalZen = newZen.frame
+        newZen.frame = CGRect(x: finalZen.minX, y: finalZen.minY,
+                              width: finalZen.width, height: oldH)
+        newZen.alpha = 0
+        if let snap { scroll.addSubview(snap) }
+        UIView.animate(withDuration: 0.32, delay: 0,
+                       options: [.curveEaseInOut, .allowUserInteraction]) {
+            newZen.frame = finalZen
+            newZen.alpha = 1
+            snap?.alpha = 0
+            for (v, final) in sliders { v.frame = final }
+        } completion: { _ in
+            snap?.removeFromSuperview()
+        }
     }
 
     /// Loss-histogram buckets (web zenLossBuckets): singletons 1..5, then
@@ -823,20 +871,22 @@ final class StatsSheetView: SheetView {
                                wins: Int, losses: Int) -> CGFloat {
         let maxV = max(1, max(wins, losses))
         let barsH: CGFloat = 64
-        let colW = (width - 24) / 2
+        // The tap target is the WHOLE half-row, not just the column content —
+        // a tap anywhere on the wins/losses side drills in (v5.81).
+        let colW = width / 2
         let specs: [(label: String, count: Int, color: UIColor, drill: String)] = [
             ("WINS", wins, CRT.phosphor, "wins"),
             ("LOSSES", losses, CRT.suitRed, "losses"),
         ]
         for (i, spec) in specs.enumerated() {
             let col = UIControl()
-            col.frame = CGRect(x: x0 + CGFloat(i) * (colW + 24), y: y0,
+            col.frame = CGRect(x: x0 + CGFloat(i) * colW, y: y0,
                                width: colW, height: 14 + 2 + barsH + 8 + 15)
             let drill = spec.drill
             col.addAction(UIAction { [weak self] _ in
-                self?.zenDrill = drill
-                self?.build()
+                self?.setZenDrillAnimated(drill)
             }, for: .touchUpInside)
+            let innerW = colW - 24
             let cnt = CRTKit.label("\(spec.count)", size: 13, color: spec.color)
             cnt.textAlignment = .center
             cnt.frame = CGRect(x: 0, y: 0, width: colW, height: 14)
@@ -851,7 +901,7 @@ final class StatsSheetView: SheetView {
                 bar.backgroundColor = spec.color
                 col.addSubview(bar)
             }
-            let rule = UIView(frame: CGRect(x: 0, y: 16 + barsH + 2, width: colW, height: 2))
+            let rule = UIView(frame: CGRect(x: (colW - innerW) / 2, y: 16 + barsH + 2, width: innerW, height: 2))
             rule.backgroundColor = spec.color
             col.addSubview(rule)
             let lab = CRTKit.label(spec.label, size: 12, color: CRT.muted)
@@ -879,8 +929,7 @@ final class StatsSheetView: SheetView {
         back.layer.borderColor = CRT.ink.cgColor
         back.frame = CGRect(x: x0, y: y0, width: 64, height: 24)
         back.addAction(UIAction { [weak self] _ in
-            self?.zenDrill = nil
-            self?.build()
+            self?.setZenDrillAnimated(nil)
         }, for: .touchUpInside)
         zen.addSubview(back)
 

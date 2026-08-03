@@ -116,7 +116,9 @@ public final class PromptBar: UIView {
         ).height ?? 0) + 1
         let textBlockH = ceil(textH) + helpH
         let contentH = max(textBlockH, btnH)
-        let safeB = superview?.safeAreaInsets.bottom ?? 0
+        // The bar always fills its host's bounds, so its own insets are the
+        // host's — read them directly (a re-parenting can never stale them).
+        let safeB = max(safeAreaInsets.bottom, 0)
         let panelH = 8 + contentH + 8
         panel.frame = CGRect(x: 8, y: bounds.height - safeB - panelH - 8, width: w, height: panelH)
         textLabel.frame = CGRect(x: 12, y: 8, width: textW, height: ceil(textH))

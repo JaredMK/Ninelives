@@ -182,6 +182,10 @@ public final class StoreViewController: UIViewController {
                 let caption = s.kind == "pack" ? GameData.shared.packTypes.get(s.id)?.label
                     : s.kind == "removal" ? GameData.shared.items.store.removal.label : nil
                 tile.configure(art: art, kind: s.kind, caption: caption,
+                               restriction: s.kind == "sticker"
+                                   ? GameData.shared.stickerTypes.get(s.id)
+                                       .flatMap { ItemArt.suitCaption($0, width: 40) }
+                                   : nil,
                                price: price,
                                affordable: campaign.getCoins() >= price,
                                tier: tierOf(s),
@@ -667,6 +671,9 @@ public final class StoreViewController: UIViewController {
 /// tappable.
 final class StoreTileView: UIControl {
     private let art = UIImageView()
+    /// The suit-restriction row — a SEPARATE little view parked ABOVE the
+    /// chip (ItemArt.suitCaption contract); the chip's frame never changes.
+    private let restrictionIcon = UIImageView()
     private let captionLabel = UILabel()
     private let priceLabel = UILabel()
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 4)
@@ -689,6 +696,11 @@ final class StoreTileView: UIControl {
         art.layer.magnificationFilter = .nearest
         art.isUserInteractionEnabled = false
         addSubview(art)
+        restrictionIcon.contentMode = .scaleAspectFit
+        restrictionIcon.layer.magnificationFilter = .nearest
+        restrictionIcon.isUserInteractionEnabled = false
+        restrictionIcon.isHidden = true
+        addSubview(restrictionIcon)
         captionLabel.textAlignment = .center
         captionLabel.isUserInteractionEnabled = false
         captionLabel.isHidden = true
@@ -712,10 +724,13 @@ final class StoreTileView: UIControl {
         if g.state == .began { onHold?() }
     }
 
-    func configure(art image: UIImage, kind: String, caption: String?, price: Int,
+    func configure(art image: UIImage, kind: String, caption: String?,
+                   restriction: UIImage? = nil, price: Int,
                    affordable: Bool, tier: String, locked: Bool) {
         isHidden = false
         art.image = image
+        restrictionIcon.image = restriction
+        restrictionIcon.isHidden = restriction == nil
         switch kind {
         case "sticker": artCap = 68
         case "base": artCap = 46
@@ -754,6 +769,8 @@ final class StoreTileView: UIControl {
         // Web `.store-tile.empty` (index.html:3251): a sold-out slot VANISHES
         // (visibility:hidden — the grid slot keeps its space), never dims.
         art.image = nil
+        restrictionIcon.image = nil
+        restrictionIcon.isHidden = true
         captionLabel.attributedText = nil
         captionLabel.isHidden = true
         tierStrip.isHidden = true
@@ -784,6 +801,18 @@ final class StoreTileView: UIControl {
         }
         let pw: CGFloat = 54
         priceLabel.frame = CGRect(x: (bounds.width - pw) / 2, y: y, width: pw, height: priceH)
+        // The restriction row rides 2pt ABOVE the chip's aspect-fit rect —
+        // the chip frame itself is untouched.
+        if !restrictionIcon.isHidden, let img = restrictionIcon.image, let artImg = art.image {
+            let fit = min(art.frame.width / artImg.size.width,
+                          art.frame.height / artImg.size.height)
+            let dw = artImg.size.width * fit, dh = artImg.size.height * fit
+            let chipX = art.frame.minX + (art.frame.width - dw) / 2
+            let chipTop = art.frame.minY + (art.frame.height - dh) / 2
+            restrictionIcon.frame = CGRect(x: chipX + (dw - img.size.width) / 2,
+                                           y: chipTop - 2 - img.size.height,
+                                           width: img.size.width, height: img.size.height)
+        }
     }
 }
 

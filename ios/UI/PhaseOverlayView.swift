@@ -55,7 +55,14 @@ public final class PhaseOverlayView: UIView {
         // screen edge (a CSS inset box-shadow), not centred on it.
         bezel.frame = bounds.insetBy(dx: CRT.px, dy: CRT.px)
         content.frame = CGRect(x: 0, y: 0, width: min(360, bounds.width - 24), height: y)
-        content.center = CGPoint(x: bounds.midX, y: max(y / 2 + 40, bounds.midY - 20))
+        // Centre-ish, but a tall overlay never reaches under the notch/Dynamic
+        // Island or the home indicator — it clamps INTO the safe area.
+        let topPad = max(safeAreaInsets.top + 8, 40)
+        let botPad = max(safeAreaInsets.bottom, 12) + 8
+        var cy = max(y / 2 + topPad, bounds.midY - 20)
+        let maxCy = bounds.height - botPad - y / 2
+        if maxCy >= y / 2 + topPad { cy = min(cy, maxCy) }
+        content.center = CGPoint(x: bounds.midX, y: cy)
     }
 
     // MARK: - Hold-to-peek (deal-cleared)

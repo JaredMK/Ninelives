@@ -120,6 +120,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         eggLabel.font = CRT.Font.of(15)
         eggLabel.textColor = CRT.muted
         eggLabel.textAlignment = .center
+        eggLabel.alpha = 0   // easter egg: fades in only on bottom overscroll
         scroll.addSubview(eggLabel)
 
         // The persistent top shell: HUD line + deck/histogram band.
@@ -577,6 +578,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     public func scrollViewDidScroll(_ s: UIScrollView) {
         // One-speed parallax: the dot field trails the scroll.
         bgView.transform = CGAffineTransform(translationX: 0, y: s.contentOffset.y * 0.35)
+        // The bottom quip is an EASTER EGG: invisible at the resting bottom,
+        // fading in only as the player rubber-bands PAST it (v5.81).
+        let restMax = s.contentSize.height + s.contentInset.bottom - s.bounds.height
+        let over = s.contentOffset.y - max(0, restMax)
+        eggLabel.alpha = min(1, max(0, over / 36))
     }
 
     // MARK: - Node interaction

@@ -67,6 +67,14 @@ public final class DeckInspectViewController: UIViewController {
         super.viewDidLayoutSubviews()
         scroll.frame = view.bounds
         crt.frame = view.bounds
+        // build() runs at viewDidLoad (insets still 0) with a fixed 56pt title
+        // top — on notched phones that's INSIDE the Dynamic Island zone. Lift
+        // the whole content via the scroll inset so the title clears it.
+        scroll.contentInset = UIEdgeInsets(
+            top: max(0, view.safeAreaInsets.top + 8 - 56),
+            left: 0,
+            bottom: max(view.safeAreaInsets.bottom, 12),
+            right: 0)
         // Web .nav-btn: always just BELOW the safe-area inset (insets are 0
         // at viewDidLoad, so the floating ✕ lands here).
         closeButton.frame = CGRect(x: view.bounds.width - 50, y: view.safeAreaInsets.top + 4,

@@ -74,6 +74,22 @@ public final class GameFlowController: UIViewController {
         return b
     }()
 
+    /// Debug-autopilot transport (v5.81): while the odds guesser is on, a
+    /// pause + speed pair rides the bottom-LEFT (the debug float owns the
+    /// right). Pause holds the guess timer; speed cycles 1×→2×→4×.
+    private var debugPilotPaused = false
+    private var debugPilotSpeed = 1
+    private lazy var pilotPauseButton: PixelButtonView = {
+        let b = PixelButtonView("❚❚", role: .plain, fontSize: 13)
+        b.onTap = { [weak self] in self?.togglePilotPause() }
+        return b
+    }()
+    private lazy var pilotSpeedButton: PixelButtonView = {
+        let b = PixelButtonView("1×", role: .plain, fontSize: 13)
+        b.onTap = { [weak self] in self?.cyclePilotSpeed() }
+        return b
+    }()
+
     public init() {
         self.campaign = CampaignState(store: store)
         self.runMap = RunMap(data: GameData.shared)
@@ -98,6 +114,10 @@ public final class GameFlowController: UIViewController {
         view.addSubview(prompt)
         debugFloatButton.isHidden = !debugAccess
         view.addSubview(debugFloatButton)   // topmost; rides over every screen
+        pilotPauseButton.isHidden = true
+        pilotSpeedButton.isHidden = true
+        view.addSubview(pilotPauseButton)
+        view.addSubview(pilotSpeedButton)
         boot()
         // A debug autopilot left on last session re-arms at boot.
         if debugAutopilotOn() { setDebugAutopilot(true) }
@@ -144,6 +164,11 @@ public final class GameFlowController: UIViewController {
         debugFloatButton.frame = CGRect(x: view.bounds.width - 54,
                                         y: view.bounds.height - inset - 44,
                                         width: 44, height: 36)
+        // The autopilot transport mirrors the float on the bottom-left.
+        pilotPauseButton.frame = CGRect(x: 10, y: view.bounds.height - inset - 44,
+                                        width: 52, height: 36)
+        pilotSpeedButton.frame = CGRect(x: 70, y: view.bounds.height - inset - 44,
+                                        width: 52, height: 36)
     }
 
     // MARK: - Screen swapping
@@ -890,15 +915,39 @@ public final class GameFlowController: UIViewController {
         UserDefaults.standard.set(on, forKey: "debugAutopilot")
         debugPilotTimer?.invalidate()
         debugPilotTimer = nil
+        debugPilotPaused = false
+        debugPilotSpeed = 1
+        pilotPauseButton.isHidden = !on
+        pilotSpeedButton.isHidden = !on
+        pilotPauseButton.setTitle("❚❚")
+        pilotSpeedButton.setTitle("1×")
         guard on else { return }
-        debugPilotTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
+        armDebugPilotTimer()
+    }
+
+    private func armDebugPilotTimer() {
+        debugPilotTimer?.invalidate()
+        debugPilotTimer = Timer.scheduledTimer(withTimeInterval: 0.45 / Double(debugPilotSpeed),
+                                               repeats: true) { [weak self] _ in
             self?.debugPilotTick()
         }
+    }
+
+    private func togglePilotPause() {
+        debugPilotPaused.toggle()
+        pilotPauseButton.setTitle(debugPilotPaused ? "▶" : "❚❚")
+    }
+
+    private func cyclePilotSpeed() {
+        debugPilotSpeed = debugPilotSpeed == 1 ? 2 : (debugPilotSpeed == 2 ? 4 : 1)
+        pilotSpeedButton.setTitle("\(debugPilotSpeed)×")
+        armDebugPilotTimer()
     }
     /// One move per tick, the same card-counted best-move strategy as
     /// DealViewController.startOddsPlayer: for every alive pile compute
     /// P(higher/lower/same) from the remaining rank counts; play the global max.
     private func debugPilotTick() {
+        guard !debugPilotPaused else { return }
         guard let dealVC = current as? DealViewController, let c = dealVC.controller,
               !c.isOver, !c.promptIsUp, !c.deckIsEmpty else { return }
         let counts = c.deckCounts()

@@ -195,11 +195,11 @@ public final class TutorialView: UIView {
             ring.frame = a.insetBy(dx: -7, dy: -7)
             let x = min(max(a.midX - w / 2, 10), bounds.width - w - 10)
             let py: CGFloat
-            if a.maxY + 16 + h < bounds.height - 10 {
+            if a.maxY + 16 + h < bounds.height - 10 - safeAreaInsets.bottom {
                 py = a.maxY + 16
                 arrowOnTop = true
             } else {
-                py = max(10, a.minY - h - 16)
+                py = max(safeAreaInsets.top + 10, a.minY - h - 16)
                 arrowOnTop = false
             }
             arrowX = min(max(a.midX, x + 18), x + w - 18)
