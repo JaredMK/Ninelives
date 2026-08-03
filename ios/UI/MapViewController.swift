@@ -33,7 +33,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     static let pad: CGFloat = 46
     static let mapW: CGFloat = 348
     static let minGap: CGFloat = 60
-    static let homeGap: CGFloat = 40
+    /// Clearance below node row 0 down to the home plaque: ~rowH, so the
+    /// home's phosphor here-ring never collides with the first row's gold
+    /// legal rings (was 40 → ~61pt centres, rings ~79pt wide → overlap).
+    static let homeGap: CGFloat = 88
 
     public let campaign: CampaignState
     public weak var delegate: MapScreenDelegate?
@@ -926,8 +929,8 @@ final class MapNodeView: UIView {
         }
         transform = state == .here ? CGAffineTransform(scaleX: 1.1, y: 1.1) : .identity
 
-        // Rings.
-        let inset: CGFloat = state == .here ? -8 : -7
+        // Rings — kept snug to the plaque so neighbours' rings keep clear air.
+        let inset: CGFloat = state == .here ? -6 : -5
         let color = state == .here ? CRT.phosphor : CRT.gold
         ringDim.frame = bounds.insetBy(dx: inset, dy: inset)
         ringBright.frame = bounds.insetBy(dx: inset, dy: inset)

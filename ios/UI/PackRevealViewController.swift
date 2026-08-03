@@ -282,16 +282,12 @@ public final class PackRevealViewController: UIViewController {
             // "Add to deck" always enabled, no Skip, no deck aid, phosphor rim.
             showRim.isHidden = false
             let m = count
-            let nBlank: Int
-            if case .cards(let cards) = content { nBlank = cards.filter { $0.blank }.count } else { nBlank = 0 }
             titleLabel.attributedText = CRTKit.attributed(
                 "\(m) card\(m > 1 ? "s" : "") added", size: 13,
                 color: CRT.phosphor, display: true, glow: true)
-            msgLabel.attributedText = CRTKit.attributed(
-                nBlank > 0
-                    ? "These join your deck — each ∅ Removal instead removes a card of your choice."
-                    : "These join your deck.",
-                size: 12, color: CRT.muted)
+            // No subline — it overlapped the revealed cards and duplicated
+            // what "Add to deck" already says.
+            msgLabel.attributedText = nil
             deckButton.isHidden = true
             confirmButton.setTitle("Add to deck")
             confirmButton.accessibilityLabel = "CONTINUE"   // legacy a11y (UI tests)

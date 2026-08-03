@@ -4,20 +4,9 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v5.77"
-    static let note = "ios: boot to menu, app icon + JarHead launch, swipe rail lights, deeper bottom gaps, debug on all screens, fan overlay"
+    static let version = "v5.78"
+    static let note = "ios: locked decks show outline, map ring spacing, sticker/pillar art redesign + suit captions below, cards-added popup trimmed, deal footer removed"
     static let line = "build \(version) · \(note)"
-    /// Deal-screen footer: just the build stamp, word-wrapped (~44 cols).
-    static var dealLines: [String] {
-        var lines: [String] = []
-        var cur = ""
-        for w in line.split(separator: " ") {
-            if !cur.isEmpty, cur.count + 1 + w.count > 44 { lines.append(cur); cur = "" }
-            cur += (cur.isEmpty ? "" : " ") + w
-        }
-        if !cur.isEmpty { lines.append(cur) }
-        return lines
-    }
 }
 
 /// A shared base for the shell's menu-family screens: felt background, a
@@ -415,11 +404,14 @@ final class DeckSelectViewController: MenuScreenBase {
 
         addGap(160)
         let row = UIView()
-        let sprite = UIImageView(image: DeckCharacter.image(deckId: d.id, mood: .idle,
-                                                            scale: 4, tier: tiers[tierIndex]))
+        let art = DeckCharacter.image(deckId: d.id, mood: .idle,
+                                      scale: 4, tier: tiers[tierIndex])
+        // Locked decks show the character's OUTLINE only (the web's
+        // brightness(0) silhouette), never the greyed-out full art.
+        let sprite = UIImageView(image: unlocked ? art : CollectionViewController.silhouette(art))
         sprite.contentMode = .scaleAspectFit
         sprite.layer.magnificationFilter = .nearest
-        sprite.alpha = unlocked ? 1 : 0.22
+        sprite.alpha = unlocked ? 1 : 0.72
         sprite.frame = CGRect(x: (view.bounds.width - 128) / 2, y: 0, width: 128, height: 128)
         sprite.tag = 777            // cycleDeck finds the sprite for the perk animation
         row.addSubview(sprite)

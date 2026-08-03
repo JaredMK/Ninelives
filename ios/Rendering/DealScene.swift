@@ -39,9 +39,6 @@ public final class DealScene: SKScene {
     private var fanCoverOn: SKSpriteNode?
     private var fanIcon: SKSpriteNode?
     private var fanCaption: SKSpriteNode?
-    /// The global build footer (the web's `footer` line, visible on the deal
-    /// screen): two tiny muted centred lines at the bottom safe area.
-    private var footerLines: [SKSpriteNode] = []
     private var buttons: [PixelButton] {
         var b = [fanButton!, higherButton!, sameButton!, lowerButton!, reshuffleButton!]
         if showsMenuButton { b.append(menuButton) }
@@ -125,7 +122,6 @@ public final class DealScene: SKScene {
         menuButton.zPosition = Layer.chrome + 1   // above the baked top-bar content
         [fanButton, higherButton, sameButton, lowerButton, reshuffleButton, menuButton].forEach { addChild($0) }
         buildFanChip()
-        buildFooter()
 
         swipeLabel.zPosition = Layer.float
         addChild(swipeLabel)
@@ -193,7 +189,7 @@ public final class DealScene: SKScene {
         // the home-indicator zone and down-swipes even where the safe-area
         // bottom inset is 0, PLUS a fixed lift so the lowest cards stay
         // comfortably thumb-reachable. RESHUFFLE rides just above the
-        // footer; Zen has no reshuffle (climb deals only).
+        // reserved strip; Zen has no reshuffle (climb deals only).
         let bottomGap = max(safeInsets.bottom, 20) + 12
         let footerZone: CGFloat = 34
         let reshuffleY = -(size.height - bottomGap - 4 - footerZone)
@@ -206,14 +202,6 @@ public final class DealScene: SKScene {
         // The ≡ pause button lives IN the top bar, like the web's global
         // top-left menu button (it used to sit bottom-left).
         menuButton.position = CGPoint(x: 4, y: -(top + 6))
-
-        // The footer: tiny muted centred lines stacked upward from the
-        // bottom gap (bottom line pinned, any count stays on screen).
-        let footerBase = size.height - bottomGap - 4
-        for (i, l) in footerLines.enumerated() {
-            let up = 7 + 13 * (footerLines.count - 1 - i)
-            l.position = CGPoint(x: size.width / 2, y: -(footerBase - CGFloat(up)))
-        }
 
         // Left rail: FAN on top, then ▲ ＝ ▼ as TALL slabs (the web's dedicated
         // guess strip fills the board column's height).
@@ -402,19 +390,6 @@ public final class DealScene: SKScene {
             card(7.2, 3.6, deg: 14, aboutX: 9.9, aboutY: 7.6)
         }
         return PixelTexture.texture(from: img)
-    }
-
-    /// The web's global build footer, shown on the deal screen — the same
-    /// BuildStamp as every other footer, wrapped (12px floor).
-    private func buildFooter() {
-        footerLines.forEach { $0.removeFromParent() }
-        footerLines = BuildStamp.dealLines.map { text in
-            let l = PixelTexture.label(text, size: 12, color: CRT.muted)
-            l.alpha = 0.8
-            l.zPosition = Layer.chrome
-            addChild(l)
-            return l
-        }
     }
 
     // MARK: - Board construction

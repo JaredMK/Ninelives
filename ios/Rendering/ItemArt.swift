@@ -20,15 +20,20 @@ import GameCore
 ///                (STICKER_ICONS) contain-fit in the central 58% box; cursed
 ///                (leech/leech2) = the `stickerCursed`/`stickerCursed2`
 ///                corruption matrices with NO inner face; a `suits`
-///                restriction rides the bottom rim as 8×8 pixel badges.
-///   pillar     = the `pillar` pennant matrix + the item's glyph inked gold
-///                over an ink halo on the emblem spot (web .pb-emblem).
+///                restriction hangs BELOW the chip as a small italic suit
+///                caption on a 16×20 canvas (the chip keeps its silhouette).
+///   pillar     = the `pillar` pennant matrix + the item's own glyph
+///                (pillarGlyphs) inked gold over an ink halo on the emblem
+///                spot (web .pb-emblem).
 ///   base       = the `base` plaque matrix (trimmed like the web) + the
-///                item's symbol in its FAMILY colour (dig phosphor · destroy
-///                red · coins gold · peek/util cream).
-///   samePower  = the `samePower` phosphor-diamond class mark + the name.
-///   pack       = the `packCard`/`packSticker`/`packLarge` foil matrices
-///                (large = registry `keep` ≥ 2, the web rule) + the name.
+///                item's own symbol (baseGlyphs) in its FAMILY colour (dig
+///                phosphor · destroy red · coins gold · peek/util cream).
+///   samePower  = the `samePower` phosphor-diamond class mark + the power's
+///                own ink mark (samePowerMarks) in place of the generic "=",
+///                over the name.
+///   pack       = the `packCard`/`packSticker` foil matrices (large = registry
+///                `keep` ≥ 2, the web rule: `packLarge` brass star for cards,
+///                `packLargeSticker` brass chip for stickers) + the name.
 ///   removal    = the `removal` torn-card matrix (trimmed).
 public enum ItemArt {
 
@@ -269,6 +274,23 @@ public enum ItemArt {
             "..KCKCKCKCKCKK..",
             "..KKKKKKKKKKKK..",
             "................"],
+        "packLargeSticker": [
+            "................",
+            "..KKKKKKKKKKKK..",
+            "..KCKCKCKCKCKK..",
+            "..KKKKKKKKKKKK..",
+            "..KbbbbbbbbbbK..",
+            "..KbbbKKKKbbbK..",
+            "..KbbKCCCCKbbK..",
+            "..KbKCRRRCKbbK..",
+            "..KbKCRRRCKbbK..",
+            "..KbbKCCCCKbbK..",
+            "..KbbbKKKKbbbK..",
+            "..KbbbbbbbbbbK..",
+            "..KKKKKKKKKKKK..",
+            "..KCKCKCKCKCKK..",
+            "..KKKKKKKKKKKK..",
+            "................"],
         // a card TORN IN HALF (offset halves, interlocking jagged tear, a
         // broken red pip split across the gap) — "removal" reads as
         // destruction, not an abstract circle-slash scribble.
@@ -334,55 +356,55 @@ public enum ItemArt {
             "..KKKKKKKKKKKK..",
             "................"],
         "rankUp2": [
-            "......KKKK......",
-            ".....KCCCCK.....",
-            "....KCCKKCCK....",
-            "...KCCCKKCCCK...",
+            "................",
+            "..KKKKKKKKKKKK..",
             "..KCCCCCCCCCCK..",
             "..KCCCCKKCCCCK..",
             "..KCCCKKKKCCCK..",
             "..KCCKKKKKKCCK..",
+            "..KCCCCKKCCCCK..",
             "..KCCCCCCCCCCK..",
             "..KCCCCKKCCCCK..",
             "..KCCCKKKKCCCK..",
             "..KCCKKKKKKCCK..",
-            "..KCCCCCCCCCCK..",
+            "..KCCCCKKCCCCK..",
             "..KCCCCCCCCCCK..",
             "..KKKKKKKKKKKK..",
+            "................",
             "................"],
         "rankDown2": [
-            "......KKKK......",
-            ".....KCCCCK.....",
-            "....KCCKKCCK....",
-            "...KCCCKKCCCK...",
+            "................",
+            "..KKKKKKKKKKKK..",
             "..KCCCCCCCCCCK..",
+            "..KCCCCKKCCCCK..",
             "..KCCKKKKKKCCK..",
             "..KCCCKKKKCCCK..",
             "..KCCCCKKCCCCK..",
             "..KCCCCCCCCCCK..",
+            "..KCCCCKKCCCCK..",
             "..KCCKKKKKKCCK..",
             "..KCCCKKKKCCCK..",
             "..KCCCCKKCCCCK..",
-            "..KCCCCCCCCCCK..",
             "..KCCCCCCCCCCK..",
             "..KKKKKKKKKKKK..",
+            "................",
             "................"],
         "randomFixedValue": [
-            "......KKKK......",
-            ".....KCCCCK.....",
-            "....KCCKKCCK....",
-            "...KCCCKKCCCK...",
-            "..KCCCCCCCCCCK..",
-            "..KCCCKKKKCCCK..",
-            "..KCCKKCCKKCCK..",
-            "..KCCCCCCKKCCK..",
-            "..KCCCCKKKCCCK..",
-            "..KCCCCKKCCCCK..",
-            "..KCCCCCCCCCCK..",
-            "..KCCCCKKCCCCK..",
-            "..KCCCCKKCCCCK..",
-            "..KCCCCCCCCCCK..",
+            "................",
+            "................",
             "..KKKKKKKKKKKK..",
+            "..KKKKKKKKKKKK..",
+            "..KKCCKKKKCCKK..",
+            "..KKCCKKKKCCKK..",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKCCKKKKK..",
+            "..KKKKKCCKKKKK..",
+            "..KKKKKKKKKKKK..",
+            "..KKCCKKKKCCKK..",
+            "..KKCCKKKKCCKK..",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKKKKKKKK..",
+            "................",
             "................"],
         "changeSuitSpade": [
             "................",
@@ -455,14 +477,14 @@ public enum ItemArt {
         "changeSuitRandom": [
             "................",
             "..KKKKKKKKKKKK..",
-            "..KCCCKKKKCCCK..",
-            "..KCCKKCCKKCCK..",
-            "..KCCCCCCKKCCK..",
-            "..KCCCCKKKCCCK..",
-            "..KCCCCKKCCCCK..",
             "..KCCCCCCCCCCK..",
-            "..KCCCCKKCCCCK..",
-            "..KCCCCKKCCCCK..",
+            "..KC.K.CR.RCCK..",
+            "..KCKKKCRRRCCK..",
+            "..KCKKKC.R.CCK..",
+            "..KCCCCCCCCCCK..",
+            "..KC.R.C.K.CCK..",
+            "..KCRRRCKKKCCK..",
+            "..KC.R.C.K.CCK..",
             "...KCCCCCCCCK...",
             "....KCCCCCCK....",
             ".....KCCCCK.....",
@@ -575,17 +597,17 @@ public enum ItemArt {
             "................",
             "................",
             ".....KKKKKK.....",
-            "...KKGGGGGGKK...",
-            "..KGGGKKKKGGGK..",
-            "..KGGGKKKKGGGK..",
-            ".KGGGGGGGGGGGGK.",
-            ".KGGGKKKKKKGGGK.",
-            ".KGGGKKKKKKGGGK.",
-            ".KGGGGGGGGGGGGK.",
-            "..KGKKKKKKKKGK..",
-            "..KGKKKKKKKKGK..",
-            "...KKGGGGGGKK...",
-            ".....KKKKKK.....",
+            "....KGGGGGGK....",
+            "....KGGGGGGK....",
+            "...KKKKKKKKKK...",
+            "..KGGGGGGGGGGK..",
+            "..KGGGGGGGGGGK..",
+            ".KKKKKKKKKKKKKK.",
+            "KGGGGGGGGGGGGGGK",
+            "KGGGGGGGGGGGGGGK",
+            ".KKKKKKKKKKKKKK.",
+            "................",
+            "................",
             "................",
             "................"],
         "gainCoin": [
@@ -625,19 +647,19 @@ public enum ItemArt {
         "looseChange": [
             "................",
             "................",
-            ".....KKKKKK.....",
-            "...KKGGGGGGKK...",
-            "..KGKKGGGGKKGK..",
-            "..KGKKGGGGKKGK..",
-            ".KGGGGGGGGGGGGK.",
-            ".KGGGGGKKGGGGGK.",
-            ".KGGGGGKKGGGGGK.",
-            ".KGGGGGGGGGGGGK.",
-            "..KGKKGGGGKKGK..",
-            "..KGKKGGGGKKGK..",
-            "...KKGGGGGGKK...",
-            ".....KKKKKK.....",
-            "................",
+            "..KKK...........",
+            ".KGGGK..........",
+            ".KGGGK..........",
+            ".KGGGK...KKK....",
+            "..KKK...KGGGK...",
+            "........KGGGK...",
+            "........KGGGK...",
+            ".........KKK....",
+            "...KKK..........",
+            "..KGGGK.........",
+            "..KGGGK.........",
+            "..KGGGK.........",
+            "...KKK..........",
             "................"],
         "deepPockets": [
             "................",
@@ -964,36 +986,36 @@ public enum ItemArt {
             "................"],
         "heavy": [
             "................",
-            ".....KKKKKK.....",
-            "....KK....KK....",
-            "....KK....KK....",
-            "..KKKKKKKKKKKK..",
-            "..KKKKKKKKKKKK..",
-            "..KKKKKCCKKKKK..",
-            "..KKKKCCCKKKKK..",
-            "..KKKKKCCKKKKK..",
-            "..KKKKKCCKKKKK..",
-            "..KKKKKCCKKKKK..",
-            "..KKKKKCCKKKKK..",
-            "..KKKCCCCCCKKK..",
-            "..KKKKKKKKKKKK..",
+            "....KKKKKKK.....",
+            "...KK.....KK....",
+            "...KK.....KK....",
+            "....KKKKKKK.....",
+            "..KKKKKKKKKKK...",
+            ".KKKKKKKKKKKKK..",
+            ".KKCKKKKKKKKKK..",
+            ".KKCKKKKKKKKKK..",
+            ".KKKKKKKKKKKKK..",
+            ".KKKKKKKKKKKKK..",
+            ".KKKKKKKKKKKKK..",
+            "..KKKKKKKKKKK...",
+            "...KKKKKKKKK....",
             "................",
             "................"],
         "massive": [
-            ".....KKKKKK.....",
-            "....KK....KK....",
-            "....KK....KK....",
+            "................",
+            "................",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKKKKKKKK..",
             ".KKKKKKKKKKKKKK.",
             ".KKKKKKKKKKKKKK.",
-            ".KKKKKCCCCKKKKK.",
-            ".KKKKCCKKCCKKKK.",
-            ".KKKKKKKKCCKKKK.",
-            ".KKKKKKKCCKKKKK.",
-            ".KKKKKKCCKKKKKK.",
-            ".KKKKKCCKKKKKKK.",
-            ".KKKKCCKKKKKKKK.",
-            ".KKKKCCCCCCKKKK.",
-            ".KKKKKKKKKKKKKK.",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKKKKKKKK..",
+            "...KKKKKKKKKK...",
+            "....KKKKKKKK....",
+            "................",
+            "................",
+            "................",
             "................",
             "................"],
         "anchor": [
@@ -1100,15 +1122,19 @@ public enum ItemArt {
             "................"],
     ]
 
-    // MARK: - SUIT BADGES (the web's `SUIT_BADGES`)
+    // MARK: - SUIT CAPTION (the restriction mark under the chip)
 
-    /// 8×8 suit-restriction badges — full-bleed suit on a cream chip,
-    /// composited on the sticker chip's BOTTOM rim from the def's `suits`.
-    private static let suitBadges: [String: [String]] = [
-        "♠": ["CCCCCCCC", "CCCKKCCC", "CCKKKKCC", "CKKKKKKC", "CKKKKKKC", "CCCKKCCC", "CCKKKKCC", "CCCCCCCC"],
-        "♥": ["CCCCCCCC", "CCCCCCCC", "CRRCCRRC", "CRRRRRRC", "CRRRRRRC", "CCRRRRCC", "CCCRRCCC", "CCCCCCCC"],
-        "♦": ["CCCCCCCC", "CCCRRCCC", "CCRRRRCC", "CRRRRRRC", "CRRRRRRC", "CCRRRRCC", "CCCRRCCC", "CCCCCCCC"],
-        "♣": ["CCCCCCCC", "CCCKKCCC", "CCCKKCCC", "CKKCCKKC", "CKKKKKKC", "CCCKKCCC", "CCKKKKCC", "CCCCCCCC"],
+    /// 5×5 suit marks for the restriction caption BELOW the chip (Task: the
+    /// old 8×8 badges rode the bottom rim and deformed the chip outline).
+    /// Drawn upright here; the composer leans each row for the italic read.
+    /// ♠/♣ cream, ♥/♦ red over a small felt-deep plate, so the caption reads
+    /// on dark felt AND on cream card faces while staying quieter than the
+    /// chip above it.
+    private static let suitCaptionMarks: [String: [String]] = [
+        "♠": ["..C..", ".CCC.", "CCCCC", ".CCC.", ".C.C."],
+        "♥": [".R.R.", "RRRRR", "RRRRR", ".RRR.", "..R.."],
+        "♦": ["..R..", ".RRR.", "RRRRR", ".RRR.", "..R.."],
+        "♣": [".C.C.", "CCCCC", ".CCC.", "..C..", "..C.."],
     ]
 
     // MARK: - Legacy glyph fallback (no-matrix items + emblem/symbol overlays)
@@ -1141,6 +1167,683 @@ public enum ItemArt {
                     ".KRRRRRRRRK.", "..KRRRRRRK..", "...KRRRRK...", "....KRRK....", ".....KK.....", "............"],
     ]
 
+    // MARK: - PER-ID GLYPHS (pillar emblems + base symbols)
+
+    /// 12×12 glyphs keyed by item id — every pillar and base gets its OWN
+    /// emblem (the web's ELEM_GLYPH/BASE_SYM contract: the generic fallbacks
+    /// below are for items with no authored art, never the norm). "X" paints
+    /// in the caller's accent colour (gold on the pillar's ink halo, the
+    /// family colour on the base's felt plate); the palette letters paint
+    /// fixed colours for suit/effect accents.
+    private static let pillarGlyphs: [String: [String]] = [
+        // Heart Bonus: ♥ lands → +1 coin (heart + coin drop).
+        "heartBounty": [
+            "............",
+            "..RR..RR....",
+            ".RRRR.RRRR..",
+            ".RRRRRRRR...",
+            ".RRRRRRRR...",
+            "..RRRRRR....",
+            "...RRRR..X..",
+            "....RR..XXX.",
+            "........XXX.",
+            ".........X..",
+            "............",
+            "............"],
+        // Column Tie-Safe: every pile survives a tie (shield + "=").
+        "columnTieSafe": [
+            "..XXXXXXXX..",
+            ".XXXXXXXXXX.",
+            ".XX......XX.",
+            ".XX.XXXX.XX.",
+            ".XX......XX.",
+            ".XX.XXXX.XX.",
+            ".XX......XX.",
+            "..XX....XX..",
+            "...XX..XX...",
+            "....XXXX....",
+            ".....XX.....",
+            "............"],
+        // Guardian: all piles survive → +7 (crenellated tower).
+        "columnGuardian": [
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            ".XXXXXXXXXX.",
+            "..XXXXXXXX..",
+            "..XXXXXXXX..",
+            "..XXX..XXX..",
+            "..XXX..XXX..",
+            "..XXX..XXX..",
+            "..XXX..XXX..",
+            "..XXXXXXXX..",
+            "............",
+            "............"],
+        // 8 Bury: sticker-free ♣ → bury 1 (club + arrow into ground).
+        "clubTribute": [
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "...X..X.....",
+            "....XX......",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // All Hearts: every pile ♥-top → +8 (a big heart over two small).
+        "allHeartsCoin": [
+            "............",
+            "..RRR.RRR...",
+            "..RRRRRRR...",
+            "...RRRRR....",
+            "....RRR.....",
+            "............",
+            ".R.R....R.R.",
+            ".RRR....RRR.",
+            "..R......R..",
+            "............",
+            "............",
+            "............"],
+        // Envy: +4 per ♥-topped pile (two hearts + coin).
+        "envy": [
+            "............",
+            ".R..RR..R...",
+            ".RRRRRRRR...",
+            ".RRRRRRRR...",
+            "..RR..RR.XX.",
+            "...R...RXXXX",
+            "........XX..",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Streak Size: in-column streak → +1 pile size (rising bars).
+        "streakBank": [
+            "............",
+            ".........XX.",
+            ".........XX.",
+            ".....XX..XX.",
+            ".....XX..XX.",
+            "..XX.XX..XX.",
+            "..XX.XX..XX.",
+            "..XX.XX..XX.",
+            "..XX.XX..XX.",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // Streak Bury: streak → bury per guess (bars + arrow into ground).
+        "streakTribute": [
+            "............",
+            ".........XX.",
+            ".....XX..XX.",
+            "..XX.XX..XX.",
+            "..XX.XX..XX.",
+            "..XX.XX..XX.",
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Second Wind: first death saved, buried return (return arrow).
+        "secondWind": [
+            "............",
+            ".....XX.....",
+            "....XXXX....",
+            "...XX.XX....",
+            "..XX..XX....",
+            "..X...XX....",
+            "..X...XX....",
+            "..X...XX....",
+            "..XXXXX.....",
+            "............",
+            "............",
+            "............"],
+        // Greedy: all survive + lone pillar → +20 (star in a coin).
+        "greedy": [
+            "............",
+            "....XXXX....",
+            "..XX....XX..",
+            ".X...XX...X.",
+            ".X...XX...X.",
+            "X..XXXXXX..X",
+            "X...XXXX...X",
+            ".X..X..X..X.",
+            "..XX....XX..",
+            "....XXXX....",
+            "............",
+            "............"],
+        // Fibonacci: A/2/3/5/8 → +1 (golden spiral).
+        "fibonacci": [
+            ".XXXXXXXXXX.",
+            ".X........X.",
+            ".X.XXXXXX.X.",
+            ".X.X....X.X.",
+            ".X.X.XX.X.X.",
+            ".X.X..X.X.X.",
+            ".X.X..XXX.X.",
+            ".X.X......X.",
+            ".X.XXXXXXXX.",
+            ".X..........",
+            "............",
+            "............"],
+        // Highest Heart: coins = highest ♥ top (heart + up arrow).
+        "highestEven": [
+            "..RR..RR....",
+            ".RRRRRRRR...",
+            ".RRRRRRRR...",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "....XX......",
+            "....XX......",
+            "............"],
+        // Dense Bury: ♣ with 2+ stickers → bury (club + stickers + ground).
+        "denseBury": [
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "...X..X.....",
+            "....XX......",
+            "............",
+            "..XX...XX...",
+            "..XX...XX...",
+            "............",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Revive: pile hits 10 → revive a dead pile (circular arrow).
+        "revive": [
+            "...XXXX.....",
+            ".XXX....X...",
+            "XX......X...",
+            "X.......X...",
+            "X......X....",
+            ".X....X.....",
+            "..X..X......",
+            "...XXXX.....",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Insurance: lone surviving pile here → +20 (life ring).
+        "insurance": [
+            "....XXXX....",
+            "..XXXXXXXX..",
+            "..XX....XX..",
+            ".XX..XX..XX.",
+            ".X...XX...X.",
+            ".X...XX...X.",
+            ".XX..XX..XX.",
+            "..XX....XX..",
+            "..XXXXXXXX..",
+            "....XXXX....",
+            "............",
+            "............"],
+        // Ditto: mirrors the center pillar (ditto marks).
+        "ditto": [
+            "............",
+            "...X...X....",
+            "...X...X....",
+            "...X...X....",
+            "....X...X...",
+            "....X...X...",
+            ".....X...X..",
+            ".....X...X..",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Massive Diamond: ♦ counts +2 pile size (tag with ♦ core).
+        "stickerCount": [
+            ".....XX.....",
+            "....XXXX....",
+            "...XXXXXX...",
+            "..XXXXXXXX..",
+            "..X.RRRR.X..",
+            "..X.RRRR.X..",
+            "..XXXXXXXX..",
+            "...XXXXXX...",
+            "....XXXX....",
+            ".....XX.....",
+            "............",
+            "............"],
+        // Prime: prime rank → +1 (hash mark).
+        "prime": [
+            "...X...X....",
+            "...X...X....",
+            ".XXXXXXXXX..",
+            "..X...X.....",
+            "..X...X.....",
+            "XXXXXXXXXX..",
+            ".X...X......",
+            ".X...X......",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Queen's Eye: royal ♠ → peek (crown + eye).
+        "queensEye": [
+            "..X.X.X.X...",
+            "..X.X.X.X...",
+            "..XXXXXXX...",
+            "...XXXXX....",
+            "............",
+            "....XXXX....",
+            "..XX....XX..",
+            "..X..PP..X..",
+            "..XX....XX..",
+            "....XXXX....",
+            "............",
+            "............"],
+        // Shuffler: ♦ lands → shuffle others (crown).
+        "royalCourt": [
+            "............",
+            "..X..X..X...",
+            "..X..X..X...",
+            "..XX.X.XX...",
+            "..XXXXXXX...",
+            "..XXXXXXX...",
+            "..XXXXXXX...",
+            "..XXXXXXX...",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Excavator: +2 per buried card in the ♥ pile (pickaxe).
+        "excavator": [
+            "............",
+            "..XXXXXXXX..",
+            ".X...XX...X.",
+            "X....XX....X",
+            ".....XX.....",
+            ".....XX.....",
+            "....XX......",
+            "....XX......",
+            "...XX.......",
+            "...XX.......",
+            "............",
+            "............"],
+        // Gambler: 50/50 +10 (die showing five).
+        "gambler": [
+            "..XXXXXXXX..",
+            ".XXXXXXXXXX.",
+            ".X..XXXX..X.",
+            ".X..XXXX..X.",
+            ".XXXX..XXXX.",
+            ".XXXX..XXXX.",
+            ".X..XXXX..X.",
+            ".X..XXXX..X.",
+            ".XXXXXXXXXX.",
+            "..XXXXXXXX..",
+            "............",
+            "............"],
+        // Last Rites: pile dies → peek (lit candle).
+        "lastRites": [
+            ".....XX.....",
+            "....X..X....",
+            ".....XX.....",
+            ".....XX.....",
+            "....XXXX....",
+            "....XXXX....",
+            "....XXXX....",
+            "....XXXX....",
+            "....XXXX....",
+            "..XXXXXXXX..",
+            "............",
+            "............"],
+        // Static: ♠ lands → 50% peek (bolt in a ring).
+        "static": [
+            "...XXXXXX...",
+            "..X......X..",
+            ".X...PP...X.",
+            ".X..PP....X.",
+            "X...PPPP...X",
+            "X....PP....X",
+            ".X..PP....X.",
+            ".X.PP.....X.",
+            "..X......X..",
+            "...XXXXXX...",
+            "............",
+            "............"],
+        // Wild Aces: aces flex high/low (card between chevrons).
+        "wildAces": [
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "............",
+            "...XXXXX....",
+            "...X...X....",
+            "...X...X....",
+            "...XXXXX....",
+            "............",
+            "..XXXXXX....",
+            "...XXXX.....",
+            "....XX......"],
+        // Diamond Anchor: ♦ pile excluded from score (anchor, ♦ head).
+        "diamondAnchor": [
+            "....RR......",
+            "...RRRR.....",
+            "....RR......",
+            "....XX......",
+            "....XX......",
+            ".X..XXXX..X.",
+            ".XX..XX..XX.",
+            "..X..XX..X..",
+            "..XX.XX.XX..",
+            "...XXXXX....",
+            "............",
+            "............"],
+        // Diamond Distribution: ♦ → equalize piles (♦ + equal bars).
+        "diamondDistribution": [
+            "....RR......",
+            "...RRRR.....",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "............",
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            "............",
+            "............",
+            "............"],
+    ]
+
+    /// The bases' own 12×12 symbols (same "X" = accent convention).
+    private static let baseGlyphs: [String: [String]] = [
+        // Kamikaze: kill a ♠ pile, peek 3 (explosion burst).
+        "kamikaze": [
+            ".....X......",
+            "..X..X..X...",
+            "...XXXXX....",
+            "X.XXXXXXX.X.",
+            "..XXXXXXX...",
+            "X.XXXXXXX.X.",
+            "...XXXXX....",
+            "..X..X..X...",
+            ".....X......",
+            "............",
+            "............",
+            "............"],
+        // Spade Peeker: peek X = ♠-topped piles (spade + eye).
+        "spadePeek": [
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "...XXXX.....",
+            "....XX......",
+            "...XXXX.....",
+            "............",
+            "...XXXXXX...",
+            "..X..PP..X..",
+            "...XXXXXX...",
+            "............"],
+        // Upheaval: shuffle every pile (crossing arrows).
+        "shuffleColumn": [
+            "..X......X..",
+            "..XX....XX..",
+            "..X.X..X.X..",
+            "..X..XX..X..",
+            "..X...X..X..",
+            "..X..X.X.X..",
+            "..X.X..X.X..",
+            "..XX....XX..",
+            "..X......X..",
+            "............",
+            "............",
+            "............"],
+        // Phoenix: revive a dead pile (flame).
+        "revive": [
+            ".....X......",
+            "....XXX.....",
+            "....XXXX....",
+            "...XX.XX....",
+            "...X...X....",
+            "..XX...XX...",
+            "..X.....X...",
+            "..XX...XX...",
+            "...XXXXX....",
+            "....XXX.....",
+            "............",
+            "............"],
+        // Wild Sticker: random sticker to a random top (chip + sparkles).
+        "randomSticker": [
+            "...XXXXXX...",
+            "..X......X..",
+            "..X..XX..X..",
+            "..X.XXXX.X..",
+            "..X..XX..X..",
+            "..X......X..",
+            "...XXXXXX...",
+            "............",
+            ".X.......X..",
+            "....X..X....",
+            "............",
+            "............"],
+        // Ballast: equalize all piles (beam + equal bars).
+        "evenOut": [
+            "............",
+            "XXXXXXXXXXXX",
+            ".....XX.....",
+            ".....XX.....",
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            ".XX..XX..XX.",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Cast: set top ranks to the bottom rank (card + arrow + bar).
+        "setValue": [
+            "..XXXXX.....",
+            "..X...X.....",
+            "..X...X.....",
+            "..XXXXX.....",
+            "....XX......",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "............",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // Suit Setter: set top suits to the bottom suit (♦ + arrow + bar).
+        "setSuit": [
+            "....RR......",
+            "...RRRR.....",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "............",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // Sticker Harvest: bury per sticker, peel them (chip + ground).
+        "stickerHarvest": [
+            "...XXXXXX...",
+            "..X......X..",
+            "..X.XXXX.X..",
+            "..X......X..",
+            "...XXXXXX...",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "...XXXX.....",
+            "............",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Reactor: recharge the other bases (chasing arrows).
+        "refreshBases": [
+            "....XXXXX...",
+            "..XX....XX..",
+            ".XXX....X...",
+            "..X.....X...",
+            "..X.....X...",
+            "..X.....X...",
+            "..X....XXX..",
+            "..XX....XX..",
+            "...XXXXX....",
+            "............",
+            "............",
+            "............"],
+        // Club Dig: bury under each ♣ pile (club + arrow + ground).
+        "clubDig": [
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "...X..X.....",
+            "....XX......",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "............",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // Demolish: destroy a pillar, peek 2 (hammer).
+        "demolish": [
+            "..XXXXXX....",
+            ".XXXXXXXX...",
+            "..XXXXXX....",
+            "....XX......",
+            "....XX......",
+            "....XX......",
+            "....XX......",
+            "....XX......",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Heart Demolish: destroy ♥ piles, +7 each (broken heart).
+        "heartDemolish": [
+            "..RR..RR....",
+            ".RRRR.RRRR..",
+            ".RRRR..RRR..",
+            ".RRRRR.RRR..",
+            "..RRR..RRR..",
+            "..RRRR.RR...",
+            "...R..RRR...",
+            "....RR.R....",
+            ".....R......",
+            "............",
+            "............",
+            "............"],
+        // Heart Tax: +1 per ♥ card (heart + coin).
+        "tax": [
+            "..RR..RR....",
+            ".RRRR.RRRR..",
+            ".RRRRRRRR...",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR..XX..",
+            ".....R.X..X.",
+            ".......X..X.",
+            "........XX..",
+            "............",
+            "............",
+            "............"],
+        // Recharge Cell: bank a Same Charge (battery + charge bars).
+        "rechargeSame": [
+            "............",
+            ".XXXXXXXXX..",
+            ".X.PP.PP.XXX",
+            ".X.PP.PP.XXX",
+            ".X.PP.PP.XXX",
+            ".XXXXXXXXX..",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Power Surge: fire the Same-Power ("=" + bolt).
+        "activateSame": [
+            "..XXXX......",
+            "..XXXX......",
+            "............",
+            "..XXXX......",
+            "..XXXX......",
+            "............",
+            "......PPP...",
+            ".....PP.....",
+            "....PPP.....",
+            "....PP......",
+            "...PPP......",
+            "............"],
+    ]
+
+    /// 8×8 marks composited onto the Same-Power diamond's centre (in ink over
+    /// the cleared "="), so the six powers no longer share one identical mark.
+    /// Pixels must stay inside matrix rows 5–10 / cols 4–11 of the diamond.
+    private static let samePowerMarks: [String: [String]] = [
+        "linkBury": [    // Burrow — bury under every alive pile
+            "........",
+            "...KK...",
+            "...KK...",
+            ".KKKKKK.",
+            "..KKKK..",
+            "........",
+            "KKKKKKKK",
+            "........"],
+        "linkRevive": [  // Rekindle — revive the largest dead pile
+            "........",
+            "..K..K..",
+            ".KK..KK.",
+            "..KKKK..",
+            "...KK...",
+            "...KK...",
+            "...KK...",
+            "........"],
+        "linkCoins": [   // Dividend — coin per alive pile
+            "........",
+            "..KKKK..",
+            ".KK..KK.",
+            ".K.KK.K.",
+            ".K.KK.K.",
+            ".KK..KK.",
+            "..KKKK..",
+            "........"],
+        "linkShuffle": [ // Link Shuffler — shuffle every alive pile
+            "........",
+            ".K....K.",
+            ".KK..KK.",
+            "..K.KK..",
+            "..KK.K..",
+            ".KK..KK.",
+            ".K....K.",
+            "........"],
+        "samePeek": [    // Same Peeker — peek the next card
+            "........",
+            "..KKKK..",
+            ".KK..KK.",
+            ".K.KK.K.",
+            ".K.KK.K.",
+            ".KK..KK.",
+            "..KKKK..",
+            "........"],
+        "linkHeavy": [   // Same Heavy — +size to every pile
+            "........",
+            "...KK...",
+            "...KK...",
+            "..KKKK..",
+            ".KKKKKK.",
+            ".KKKKKK.",
+            "..KKKK..",
+            "........"],
+    ]
+
     static func iconKey(for def: ItemDef) -> String? {
         let b = (def.behavior ?? def.effect ?? "").lowercased()
         let id = def.id.lowercased()
@@ -1158,7 +1861,33 @@ public enum ItemArt {
     }
 
     private static func drawIcon(_ cg: CGContext, _ def: ItemDef, at rect: CGRect,
-                                 color: UIColor, size: CGFloat) {
+                                 color: UIColor, size: CGFloat,
+                                 perId: [String: [String]]? = nil) {
+        // Per-id authored glyphs beat every fallback. "X" = the accent colour,
+        // palette letters paint fixed (suit reds, phosphor charge, ink).
+        if let rows = perId?[def.id] {
+            let cell = min(rect.width, rect.height) / 12
+            let ox = rect.midX - cell * 6, oy = rect.midY - cell * 6
+            for (yy, row) in rows.enumerated() {
+                for (xx, ch) in row.enumerated() {
+                    let c: UIColor?
+                    switch ch {
+                    case "X": c = color
+                    case "K": c = CRT.ink
+                    case "R": c = CRT.suitRed
+                    case "G": c = CRT.gold
+                    case "P": c = CRT.phosphor
+                    case "C": c = CRT.cardFace
+                    default: c = nil
+                    }
+                    guard let c else { continue }
+                    cg.setFillColor(c.cgColor)
+                    cg.fill(CGRect(x: ox + CGFloat(xx) * cell, y: oy + CGFloat(yy) * cell,
+                                   width: cell + 0.4, height: cell + 0.4))
+                }
+            }
+            return
+        }
         // A suit glyph in the icon field renders as text (monochrome), a known
         // family gets its pixel matrix, anything else the label's first letter.
         let suitGlyphs = ["♠", "♥", "♦", "♣", "★", "=", "∅", "◉"]
@@ -1234,9 +1963,11 @@ public enum ItemArt {
     // MARK: - The objects
 
     /// A sticker: the web's pixel die-cut chip (the `sticker` matrix) with
-    /// the sticker's own 16×16 face contain-fit in the centre, and its
-    /// suit-restriction badges riding the bottom rim. Cursed stickers are
-    /// the `stickerCursed`/`stickerCursed2` corruption art with no face.
+    /// the sticker's own 16×16 face contain-fit in the centre. A `suits`
+    /// restriction rides BELOW the chip as a small italic suit caption
+    /// (transparent-ground, so the chip keeps its clean silhouette); no
+    /// restriction → no caption. Cursed stickers are the
+    /// `stickerCursed`/`stickerCursed2` corruption art with no face.
     public static func sticker(_ def: ItemDef, size: CGFloat = 56) -> UIImage {
         baked("stk-\(def.id)-\(Int(size))") {
             let k = max(4, Int((size / 16).rounded(.up)))
@@ -1251,30 +1982,47 @@ public enum ItemArt {
             // legacy octagon (empty set by the web's fail-loud contract).
             let face = def.cursed ? nil : stickerFaces[def.id]
             if !def.cursed && face == nil { return legacyStickerChip(def, size: size) }
-            // Suit-restriction badges (the web's .dcs-suits): 8×8 chips
-            // straddling the bottom rim, 1px apart.
-            let suits = (def.suits ?? []).compactMap { suitBadges[$0] }
-            let badgeScale = max(1, Int((Double(k) * 0.68).rounded()))
-            let badgeSide = 8 * badgeScale
-            let badgeGap = max(1, k / 2)
-            let badgesW = suits.isEmpty ? 0 : suits.count * badgeSide + (suits.count - 1) * badgeGap
-            let hang = suits.isEmpty ? 0 : badgeSide / 2
-            let canvasW = max(side, badgesW), canvasH = side + hang
-            return PixelTexture.image(size: CGSize(width: canvasW, height: canvasH)) { cg in
-                let chipOx = CGFloat(canvasW - side) / 2
-                drawMatrix(cg, chip, ox: chipOx, oy: 0, cell: cell)
+            // Suit caption: 5×5 marks leaning italic, on rows 15–19 of a
+            // 16×20 matrix canvas — the strip is 25% of the total height, so
+            // aspect-fit callers keep the chip dominant with no layout change.
+            let suits = (def.suits ?? []).compactMap { suitCaptionMarks[$0] }
+            let captionH = suits.isEmpty ? 0 : 5 * k
+            return PixelTexture.image(size: CGSize(width: side, height: side + captionH)) { cg in
+                drawMatrix(cg, chip, ox: 0, oy: 0, cell: cell)
                 if let face {
                     // The web's .dcs-ic: a centred 58% box, contain-fit.
                     let fk = max(1, Int((Double(k) * 0.58).rounded()))
                     let fs = 16 * fk
-                    drawMatrix(cg, face, ox: CGFloat(canvasW - fs) / 2,
+                    drawMatrix(cg, face, ox: CGFloat(side - fs) / 2,
                                oy: CGFloat(side - fs) / 2, cell: CGFloat(fk))
                 }
-                var bx = CGFloat(canvasW - badgesW) / 2
-                let by = CGFloat(side) - CGFloat(badgeSide) / 2
-                for badge in suits {
-                    drawMatrix(cg, badge, ox: bx, oy: by, cell: CGFloat(badgeScale))
-                    bx += CGFloat(badgeSide + badgeGap)
+                if !suits.isEmpty {
+                    let advance = 7 * k   // 5px glyph + 2px air
+                    let totalW = suits.count * advance - 2 * k
+                    var gx = CGFloat(side - totalW) / 2
+                    let gy = CGFloat(15 * k)
+                    // The quiet plate the caption sits on: dark on dark it
+                    // all but vanishes (the marks carry it); on a cream card
+                    // face it gives the cream ♠/♣ their ground.
+                    cg.setFillColor(CRT.feltDeep.cgColor)
+                    cg.fill(CGRect(x: CGFloat(side - totalW) / 2 - cell,
+                                   y: CGFloat(14 * k),
+                                   width: CGFloat(totalW + 2 * k),
+                                   height: CGFloat(6 * k)))
+                    for mark in suits {
+                        for (y, row) in mark.enumerated() {
+                            // The italic lean: top rows shift right, bottom left.
+                            let lean = (2 - y) / 2
+                            for (x, ch) in row.enumerated() where ch != "." {
+                                guard let c = pxColor(ch, x: x, y: y) else { continue }
+                                cg.setFillColor(c.cgColor)
+                                cg.fill(CGRect(x: gx + CGFloat(x + lean) * cell,
+                                               y: gy + CGFloat(y) * cell,
+                                               width: cell, height: cell))
+                            }
+                        }
+                        gx += CGFloat(advance)
+                    }
                 }
             }
         }
@@ -1299,7 +2047,7 @@ public enum ItemArt {
                 let inset = halo * 0.14
                 drawIcon(cg, def, at: CGRect(x: hx + inset, y: hy + inset,
                                              width: halo - inset * 2, height: halo - inset * 2),
-                         color: CRT.gold, size: halo * 0.6)
+                         color: CRT.gold, size: halo * 0.6, perId: pillarGlyphs)
             }
         }
     }
@@ -1334,17 +2082,19 @@ public enum ItemArt {
                 let sh = CGFloat(h) * 0.55
                 drawIcon(cg, def, at: CGRect(x: 0, y: (CGFloat(h) - sh) / 2,
                                              width: CGFloat(w), height: sh),
-                         color: baseSymbolColor(def), size: sh * 0.8)
+                         color: baseSymbolColor(def), size: sh * 0.8, perId: baseGlyphs)
             }
         }
     }
 
     /// A pack: the web's sealed pixel foil — `packSticker` for sticker
-    /// packs, `packLarge` (brass star) when the registry's `keep` ≥ 2, else
-    /// `packCard` — trimmed like the web, name plate under the art.
+    /// packs, the brass large foils (`packLarge` star / `packLargeSticker`
+    /// chip) when the registry's `keep` ≥ 2, else `packCard` — trimmed like
+    /// the web, name plate under the art.
     public static func pack(_ def: ItemDef, deckId: String, width: CGFloat = 46, height: CGFloat = 60) -> UIImage {
         baked("pak-\(def.id)-\(Int(width))x\(Int(height))") {
-            let key = def.int("keep", 1) >= 2 ? "packLarge"
+            let key = def.int("keep", 1) >= 2
+                ? (def.kind == "sticker" ? "packLargeSticker" : "packLarge")
                 : (def.kind == "sticker" ? "packSticker" : "packCard")
             let rows = trimmed(classArt[key] ?? [])
             let name = def.label.uppercased() as NSString
@@ -1365,8 +2115,9 @@ public enum ItemArt {
         }
     }
 
-    /// A Same-Power: the web's class mark (the `samePower` phosphor diamond
-    /// with the ink "=") over the power's name plate.
+    /// A Same-Power: the web's class mark (the `samePower` phosphor diamond)
+    /// with the power's own ink mark (samePowerMarks) replacing the generic
+    /// "=" at its centre, over the power's name plate.
     public static func samePower(_ def: ItemDef, width: CGFloat = 56, height: CGFloat = 58) -> UIImage {
         baked("sp-\(def.id)-\(Int(width))x\(Int(height))") {
             let name = String(def.label.prefix(10)) as NSString
@@ -1377,8 +2128,19 @@ public enum ItemArt {
             let mark = CGFloat(16 * k)
             let canvasW = max(mark, ceil(nameSize.width) + 4)
             return PixelTexture.image(size: CGSize(width: canvasW, height: mark + nameH)) { cg in
+                let cell = CGFloat(k)
+                let artX = (canvasW - mark) / 2
                 if let art = classArt["samePower"] {
-                    drawMatrix(cg, art, ox: (canvasW - mark) / 2, oy: 0, cell: CGFloat(k))
+                    drawMatrix(cg, art, ox: artX, oy: 0, cell: cell)
+                }
+                // The power's own mark replaces the generic "=" at the
+                // diamond's centre: clear the "=" back to phosphor, then ink
+                // the 8×8 mark (pixels stay inside rows 5–10, cols 4–11).
+                if let rows = samePowerMarks[def.id] {
+                    cg.setFillColor(CRT.phosphor.cgColor)
+                    cg.fill(CGRect(x: artX + 4 * cell, y: 6 * cell,
+                                   width: 8 * cell, height: 4 * cell))
+                    drawMatrix(cg, rows, ox: artX + 4 * cell, oy: 4 * cell, cell: cell)
                 }
                 UIGraphicsPushContext(cg)
                 name.draw(at: CGPoint(x: (canvasW - nameSize.width) / 2, y: mark + 1),
