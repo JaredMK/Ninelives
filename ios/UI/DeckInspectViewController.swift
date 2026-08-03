@@ -7,13 +7,26 @@ import GameCore
 public final class DeckInspectViewController: UIViewController {
 
     private let campaign: CampaignState
+    /// Live-deal context (nil off-deal): which cards are still in the draw
+    /// pile, so the histogram shows remaining-vs-full and dealt-away cards
+    /// render shadowed.
+    private let remainingIds: Set<Int>?
+    private let remainingRanks: [Int: Int]?
     private let scroll = UIScrollView()
     private let content = UIView()
     private let crt = CRTOverlayUIView()
     private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
+    /// Hold-for-help: bottom panel naming the card + everything on it.
+    private let helpPanel = PixelPanelView()
+    private let helpTitle = UILabel()
+    private let helpBody = UILabel()
 
-    public init(campaign: CampaignState) {
+    public init(campaign: CampaignState,
+                remainingIds: Set<Int>? = nil,
+                remainingRanks: [Int: Int]? = nil) {
         self.campaign = campaign
+        self.remainingIds = remainingIds
+        self.remainingRanks = remainingRanks
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .fullScreen
     }
@@ -39,6 +52,15 @@ public final class DeckInspectViewController: UIViewController {
         closeButton.onTap = { [weak self] in self?.dismiss(animated: false) }
         closeButton.frame = CGRect(x: view.bounds.width - 50, y: 54, width: 38, height: 32)  // real y: viewDidLayoutSubviews
         view.addSubview(closeButton)
+
+        // Hold-for-help panel (hidden until a card is held).
+        helpPanel.isHidden = true
+        helpTitle.textAlignment = .center
+        helpBody.textAlignment = .center
+        helpBody.numberOfLines = 0
+        helpPanel.addSubview(helpTitle)
+        helpPanel.addSubview(helpBody)
+        view.addSubview(helpPanel)
     }
 
     public override func viewDidLayoutSubviews() {
@@ -49,7 +71,53 @@ public final class DeckInspectViewController: UIViewController {
         // at viewDidLoad, so the floating ✕ lands here).
         closeButton.frame = CGRect(x: view.bounds.width - 50, y: view.safeAreaInsets.top + 4,
                                    width: 38, height: 32)
+        let hp = helpPanel
+        if !hp.isHidden {
+            let w = min(view.bounds.width - 28, 400)
+            let bodyH = helpBody.sizeThatFits(CGSize(width: w - 24, height: 400)).height
+            let h = bodyH + 46
+            hp.frame = CGRect(x: (view.bounds.width - w) / 2,
+                              y: view.bounds.height - max(view.safeAreaInsets.bottom, 12) - 12 - h,
+                              width: w, height: h)
+            helpTitle.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
+            helpBody.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
+        }
     }
+
+    // MARK: - Hold-for-help
+
+    @objc private func cardHeld(_ g: UILongPressGestureRecognizer) {
+        switch g.state {
+        case .began:
+            guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
+            let name: String
+            if c.joker { name = "★ Joker" }
+            else if c.blank { name = "∅ Removal" }
+            else {
+                name = (DeckManager.ranks.first { $0.value == c.currentRank }?.label
+                        ?? "\(c.currentRank)") + c.suit
+            }
+            helpTitle.attributedText = CRTKit.attributed(name, size: 14,
+                                                         color: CRT.phosphor, display: true, glow: true)
+            var lines: [String] = []
+            for rec in c.stickers {
+                if let def = GameData.shared.stickerTypes.get(rec.type) {
+                    lines.append("\(def.label) — \(def.description)")
+                }
+            }
+            if lines.isEmpty { lines.append("No stickers on this card.") }
+            helpBody.attributedText = CRTKit.attributed(lines.joined(separator: "\n"),
+                                                        size: 12, color: CRT.cardFace)
+            helpPanel.isHidden = false
+            view.setNeedsLayout()
+        case .ended, .cancelled, .failed:
+            helpPanel.isHidden = true
+        default: break
+        }
+    }
+
+    /// Card lookup for the hold recognizers (views don't carry models).
+    private var helpCards: [ObjectIdentifier: CardSpec] = [:]
 
     private func build() {
         let deck = campaign.getRunDeck().sorted { a, b in
@@ -80,20 +148,21 @@ public final class DeckInspectViewController: UIViewController {
         let maxCount = max(1, counts.values.max() ?? 1)
         for (i, r) in DeckManager.ranks.enumerated() {
             let n = counts[r.value] ?? 0
+            let rem = remainingRanks?[r.value] ?? n   // off-deal: remaining == full
             let h = n == 0 ? 2 : max(4, CGFloat(n) / CGFloat(maxCount) * histH)
             let bx = 20 + CGFloat(i) * (barW + 3)
             // Web renderHistogram: the track reads felt-mid; the recessed
             // felt-deep ghost is the FULL-deck count and the cream bar the
-            // remaining. DeckInspect has no deal context, so remaining ==
-            // full and the cream bar simply covers the ghost (web off-deal).
+            // REMAINING count (inside a live deal; off-deal they coincide).
             let track = UIView(frame: CGRect(x: bx, y: y, width: barW, height: histH))
             track.backgroundColor = CRT.feltMid
             content.addSubview(track)
             let ghost = UIView(frame: CGRect(x: bx, y: y + histH - h, width: barW, height: h))
             ghost.backgroundColor = CRT.feltDeep
             content.addSubview(ghost)
-            if n > 0 {
-                let bar = UIView(frame: ghost.frame)
+            if rem > 0 {
+                let rh = max(4, CGFloat(rem) / CGFloat(maxCount) * histH)
+                let bar = UIView(frame: CGRect(x: bx, y: y + histH - rh, width: barW, height: rh))
                 bar.backgroundColor = CRT.cardFace
                 content.addSubview(bar)
             }
@@ -113,20 +182,18 @@ public final class DeckInspectViewController: UIViewController {
         content.addSubview(suitLabel)
         y += 30
 
-        // The cards — each carrying its sticker ICON chips below (web
-        // renderFull: "Stickers/Imprints show on each card"), so the player
-        // sees WHICH stickers a card carries, not just how many. One chip per
-        // sticker instance (a stack of two of the same type = two chips),
-        // laid out in centered rows of 3 under the card, capped at 2 rows.
+        // The cards — sticker chips ride ON the card face (bottom edge, like
+        // the board's badges), one chip per sticker instance. Cards no longer
+        // in the draw pile (live deal only) render shadowed. Hold a card for
+        // its help: the card name + every sticker's registry description.
         let cw: CGFloat = 50, ch: CGFloat = 74
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
-        let stkSize: CGFloat = 12, stkGap: CGFloat = 2
+        let stkSize: CGFloat = 12, stkGap: CGFloat = 1
         let stkPerRow = 3, stkMax = 6
-        let maxStk = min(stkMax, deck.map { $0.stickers.count }.max() ?? 0)
-        let stkRows = maxStk > 0 ? (maxStk + stkPerRow - 1) / stkPerRow : 0
-        let pitch = (ch - 7) + 2 + CGFloat(stkRows) * (stkSize + stkGap) + 8
+        let pitch = (ch - 7) + 8
+        helpCards.removeAll()
         for (i, c) in deck.enumerated() {
             let row = i / cols, col = i % cols
             let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
@@ -134,7 +201,16 @@ public final class DeckInspectViewController: UIViewController {
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: x0 + CGFloat(col) * (cw + 8), y: y + CGFloat(row) * pitch,
                               width: cw, height: ch - 7)
+            // Dealt-away cards shadow out (only with live-deal context).
+            if let ids = remainingIds, !ids.contains(c.id) { iv.alpha = 0.28 }
             content.addSubview(iv)
+            // Hold-for-help on every card.
+            iv.isUserInteractionEnabled = true
+            helpCards[ObjectIdentifier(iv)] = c
+            let hold = UILongPressGestureRecognizer(target: self, action: #selector(cardHeld(_:)))
+            hold.minimumPressDuration = 0.4
+            iv.addGestureRecognizer(hold)
+            // Sticker chips ON the card, stacked up from its bottom edge.
             let stickers = Array(c.stickers.prefix(stkMax))
             for (s, rec) in stickers.enumerated() {
                 guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
@@ -145,7 +221,7 @@ public final class DeckInspectViewController: UIViewController {
                 chip.contentMode = .scaleAspectFit
                 chip.layer.magnificationFilter = .nearest
                 chip.frame = CGRect(x: iv.frame.minX + (cw - lineW) / 2 + CGFloat(sCol) * (stkSize + stkGap),
-                                    y: iv.frame.maxY + 2 + CGFloat(sRow) * (stkSize + stkGap),
+                                    y: iv.frame.maxY - 3 - CGFloat(sRow + 1) * (stkSize + stkGap) + stkGap,
                                     width: stkSize, height: stkSize)
                 content.addSubview(chip)
             }

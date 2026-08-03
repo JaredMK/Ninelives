@@ -367,7 +367,16 @@ public final class DealViewController: UIViewController {
         }
         // Tap the deck stack → the full deck inspection (campaign/zen).
         if scene.isDeckPanel(p), sharedCampaign != nil {
-            present(DeckInspectViewController(campaign: sharedCampaign!), animated: false)
+            if case .campaign = mode {
+                // Live deal: pass what's still in the draw pile so the page
+                // shows remaining-vs-full and shadows the dealt-away cards.
+                present(DeckInspectViewController(campaign: sharedCampaign!,
+                                                  remainingIds: controller.remainingCardIds(),
+                                                  remainingRanks: controller.deckCounts()),
+                        animated: false)
+            } else {
+                present(DeckInspectViewController(campaign: sharedCampaign!), animated: false)
+            }
             return
         }
         // A tap on empty felt clears the selection.
@@ -454,8 +463,15 @@ public final class DealViewController: UIViewController {
             if scrubbing { scrubbing = false; scene.hideScrub() }
             defer { dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge() }
             guard let pile = dragPile else { return }
-            // Release inside the dead-zone cancels: no guess, the pile stays selected.
-            if let armed = dragArmed { controller.guess(armed, pile: pile) }
+            if let armed = dragArmed {
+                controller.guess(armed, pile: pile)
+            } else if dragMoved {
+                // Swiped but released in the dead-zone: cancel AND deselect —
+                // the card must not stay armed after an aborted swipe.
+                scene.setSelected(nil)
+                controller.refreshAll()
+            }
+            // else: a plain tap — the tap recognizer owns selection.
 
         case .cancelled, .failed:
             if scrubbing { scrubbing = false; scene.hideScrub() }

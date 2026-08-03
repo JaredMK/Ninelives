@@ -319,6 +319,20 @@ final class DeckBoardAndZenTests: XCTestCase {
         }
     }
 
+    func testABigPackNeverGrantsTheSameCardTwice() {
+        // The web reserves each slot IN THE LOOP (ownedIds.push per grant);
+        // a port gap collected ids first and reserved after, so one pack
+        // could grant the same unowned card N times (identical +N packs).
+        let c = CampaignState()
+        c.setSeedOverride(4711); c.reset()
+        for n in c.runMap!.nodes.filter({ $0.type == "pack" && $0.addOf >= 3 }).prefix(5) {
+            let granted = c.resolvePack(n)
+            let ids = granted.filter { !$0.blank }.map(\.id)
+            XCTAssertEqual(Set(ids).count, ids.count,
+                           "a +\(n.addOf) pack must grant distinct cards (mints get fresh ids)")
+        }
+    }
+
     // MARK: - Store
 
     func testTheStoreShelfRespectsTheSlotCountAndTypeCap() {

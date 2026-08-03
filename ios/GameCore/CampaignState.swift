@@ -713,7 +713,12 @@ public final class CampaignState {
             for _ in 0..<count {
                 let suit = endlessNode ? allSuits[rng.index(allSuits.count)]
                     : ((node.suit != nil && node.suit != "★") ? node.suit! : suitForNode(node))
-                granted.append(pickSuitDraftId(suit, rng: rng))
+                let id = pickSuitDraftId(suit, rng: rng)
+                granted.append(id)
+                // Reserve IN THE LOOP (the web pushes ownedIds per slot) —
+                // without this the next slot's pickSuitDraftId re-rolls the
+                // same unowned card and a +N pack grants N identical cards.
+                if !ownedIds.contains(id) { ownedIds.append(id) }
             }
         }
         var out: [CardSpec] = []

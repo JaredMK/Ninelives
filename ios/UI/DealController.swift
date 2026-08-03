@@ -780,6 +780,8 @@ public final class DealController {
     public func topValue(_ index: Int) -> Int? { engine.board.top(index)?.value }
     /// Remaining rank counts — the odds-scripted player counts cards with this.
     public func deckCounts() -> [Int: Int] { engine.deck.remainingCounts() }
+    /// Ids still in the draw pile — DeckInspect's remaining-vs-full shadow.
+    public func remainingCardIds() -> Set<Int> { Set(engine.deck.peekAll().map(\.id)) }
     public var deckIsEmpty: Bool { engine.deck.isEmpty }
     public var promptIsUp: Bool { promptActive }
 

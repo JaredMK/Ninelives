@@ -49,8 +49,6 @@ public final class DealScene: SKScene {
     public var showsMenuButton = false { didSet { menuButton?.isHidden = !showsMenuButton } }
     public var onMenuTapped: (() -> Void)?
 
-    /// The big centred direction word shown while swiping.
-    private let swipeLabel = SKNode()
     /// The hold-for-help panel; takes over the deck band's room, like the web.
     private let helpPanel = SKNode()
 
@@ -123,8 +121,6 @@ public final class DealScene: SKScene {
         [fanButton, higherButton, sameButton, lowerButton, reshuffleButton, menuButton].forEach { addChild($0) }
         buildFanChip()
 
-        swipeLabel.zPosition = Layer.float
-        addChild(swipeLabel)
         helpPanel.zPosition = Layer.overlay
         helpPanel.isHidden = true
         addChild(helpPanel)
@@ -224,7 +220,6 @@ public final class DealScene: SKScene {
         let boardW = size.width - boardX - pad
         boardRect = CGRect(x: boardX, y: boardBottom, width: boardW, height: y - boardBottom)
 
-        swipeLabel.position = CGPoint(x: boardRect.midX, y: boardRect.midY)
         rebuildBoardLayout()
     }
 
@@ -497,7 +492,6 @@ public final class DealScene: SKScene {
                 basePlaques[c].position = CGPoint(x: colX, y: boardRect.minY + baseBand - 6)
             }
         }
-        swipeLabel.position = CGPoint(x: boardRect.midX, y: boardRect.midY)
     }
 
     // MARK: - Sync from the engine
@@ -838,31 +832,14 @@ public final class DealScene: SKScene {
     public var currentSelection: Int? { selectedPile }
 
     /// Roles captured when a swipe arms a rail button, restored on clear —
-    /// the armed button "colors in" (the web's rail keys lighting up with the
-    /// swipe) without clobbering Same's charged state.
+    /// the armed button "colors in" without clobbering Same's charged state.
     private var railSwipeRoles: [ObjectIdentifier: PixelButton.Role]?
 
-    /// The big faded direction word, CENTRED on the board and fixed for the
-    /// whole swipe (it never follows the finger) — the web's style A.
+    /// The swipe indicator is the RAIL ONLY (no centre popup): the armed
+    /// button pops AND colors in to the direction's fill, the others dim.
+    /// nil (finger back in the dead-zone) clears the rail completely.
     public func showSwipeDirection(_ dir: Guess?) {
-        swipeLabel.removeAllChildren()
-        guard let dir else { swipeLabel.isHidden = true; return }
-        swipeLabel.isHidden = false
-        let (glyph, word, color): (String, String, UIColor) = {
-            switch dir {
-            case .higher: return ("▲", "HIGHER", CRT.phosphor)
-            case .lower:  return ("▼", "LOWER", CRT.suitRed)
-            case .same:   return ("＝", "SAME", CRT.gold)
-            }
-        }()
-        let g = PixelTexture.label(glyph, size: 62, color: color)
-        let w = PixelTexture.label(word, size: 27, color: color)
-        g.position = CGPoint(x: 0, y: 16)
-        w.position = CGPoint(x: 0, y: -26)
-        swipeLabel.addChild(g); swipeLabel.addChild(w)
-        swipeLabel.alpha = 0.72
-        // Mirror the armed direction on the rail: the armed button pops AND
-        // colors in to the direction's fill, the others dim back to normal.
+        guard let dir else { clearSwipeDirection(); return }
         let armed: [(PixelButton, Guess, PixelButton.Role)] = [
             (higherButton!, .higher, .cta),
             (sameButton!, .same, .gold),
@@ -880,8 +857,6 @@ public final class DealScene: SKScene {
     }
 
     public func clearSwipeDirection() {
-        swipeLabel.removeAllChildren()
-        swipeLabel.isHidden = true
         buttons.forEach { $0.alpha = 1 }
         if let saved = railSwipeRoles {
             for b in [higherButton!, sameButton!, lowerButton!] {
