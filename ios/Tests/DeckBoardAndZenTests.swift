@@ -284,7 +284,11 @@ final class DeckBoardAndZenTests: XCTestCase {
             XCTAssertEqual(faces.count, 2, "a revealed +2 pack shows both cards")
             let granted = c.resolvePack(n)
             let realFaces = faces.filter { !$0.blank }
-            XCTAssertEqual(granted.count, realFaces.count, "it grants exactly what it showed")
+            XCTAssertEqual(granted.count, faces.count, "Blanks stay in the grant list (one removal picker each)")
+            XCTAssertEqual(granted.filter { !$0.blank }.count, realFaces.count,
+                           "it grants exactly the real cards it showed")
+            XCTAssertFalse(granted.contains { $0.blank && c.ownedIds.contains($0.id) },
+                           "a Blank never joins the deck")
         }
     }
 

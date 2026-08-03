@@ -20,12 +20,11 @@ public final class PhaseOverlayView: UIView {
     private var peekEnabled = false
 
     /// The guess that would have SURVIVED the fatal draw ("higher" / "lower" /
-    /// "same") — the web's `survivingGuessWord(lastResolvedDraw)`, which reads
-    /// the engine's last resolved draw. The native engine doesn't record that
-    /// draw yet, so a deal flow may stamp this before showing a loss; nil
-    /// falls back to "lower" (the web's own null-default is "same", but its
-    /// fatal draws are never null in practice and the reference capture shows
-    /// "lower").
+    /// "same") — the web's `survivingGuessWord(lastResolvedDraw)`. DealController
+    /// stamps this the moment a resolution proves fatal; the loss overlays read
+    /// it (GameFlowController stays out of the loop). nil falls back to "lower"
+    /// (the web's own null-default is "same", but its fatal draws are never
+    /// null in practice and the reference capture shows "lower").
     public static var survivingGuessWord: String?
 
     /// The bezel idiom: phosphor for wins, suit-red for losses (web
@@ -286,14 +285,32 @@ public final class PhaseOverlayView: UIView {
             delay += 0.28
         }
 
-        // The rewards PANEL (the web's .overlay-coins): "Deal reward" leads,
-        // "Sticker rewards" totals every bonus line with each as an italic
-        // sub-bullet ("None" when empty). No balance line — the web capture
-        // shows none.
-        let flat = info.lines.first(where: { $0.0 == "Deal reward" })?.1 ?? 0
-        let bullets = info.lines.filter { $0.0 != "Deal reward" }
-        let stickerTotal = bullets.reduce(0) { $0 + $1.1 }
+        // The rewards PANEL (the web's .overlay-coins / coinBreakdownHtml):
+        // "Deal reward" leads (an ambush has no flat base — its sub-row says
+        // so), then "Sticker rewards" and "Pillar rewards" as their OWN main
+        // rows with each bonus line as an italic sub-bullet ("None" when
+        // empty), then the deal's "Total" and the "Coins held" balance AFTER
+        // these earnings.
+        let flatLine = info.lines.first(where: { $0.0 == "Deal reward" })
+        let flat = flatLine?.1 ?? 0
+        // summaryLines omits the flat row when it's 0 — only ambush/subset
+        // deals have no flat base (Economy.dealFlat guards stage > 0).
+        let ambush = flatLine == nil
+        let extras = info.lines.filter { $0.0 != "Deal reward" }
+        // Web partition (coinBreakdownHtml): an event line whose label names
+        // a Pillar counts as a PILLAR reward; the "⚡ …" self-destruct statics
+        // ride the pillar row too. Everything else is a sticker/event reward.
+        let pillarLabels = Set(GameData.shared.pillarTypes.all().map(\.label))
+        let isPillar: (String) -> Bool = { pillarLabels.contains($0) || $0.hasPrefix("⚡") }
+        let pillarBullets = extras.filter { isPillar($0.0) }
+        let stickerBullets = extras.filter { !isPillar($0.0) }
+        let stickerTotal = stickerBullets.reduce(0) { $0 + $1.1 }
+        let pillarTotal = pillarBullets.reduce(0) { $0 + $1.1 }
         let sign: (Int) -> String = { ($0 >= 0 ? "+" : "−") + String(abs($0)) }
+        // The flat "Extra Coin" line prints the sticker's registry label
+        // (web: StickerTypes.get("extraCoin").label) — never a hardcoded name.
+        let payoutLabel = GameData.shared.stickerTypes.get("extraCoin")?.label ?? "Extra Coin"
+        let bulletLabel: (String) -> String = { $0 == "Extra Coin" ? payoutLabel : $0 }
 
         let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
         let px: CGFloat = 16
@@ -340,16 +357,37 @@ public final class PhaseOverlayView: UIView {
             return row
         }
 
-        rows.append(mainRow("Deal reward", flat))
+        /// Sound per row kind: main rows ping in sequence, the Total lands
+        /// HIGH (web coinTallyLine(6)), the balance gets a soft tick
+        /// (web Sound.coin()), sub-bullets stay silent.
+        enum RowKind { case main, sub, total, balance }
+        var kinds: [RowKind] = []
+
+        rows.append(mainRow("Deal reward", flat)); kinds.append(.main)
+        if ambush { rows.append(subRow("Ambush", "no flat reward")); kinds.append(.sub) }
         py += 12
-        rows.append(mainRow("Sticker rewards", stickerTotal))
+        rows.append(mainRow("Sticker rewards", stickerTotal)); kinds.append(.main)
         py += 3
-        if bullets.isEmpty {
-            rows.append(subRow("None", nil))
+        if stickerBullets.isEmpty {
+            rows.append(subRow("None", nil)); kinds.append(.sub)
         } else {
-            for (label, amount) in bullets { rows.append(subRow(label, sign(amount))) }
+            for (label, amount) in stickerBullets {
+                rows.append(subRow(bulletLabel(label), sign(amount))); kinds.append(.sub)
+            }
         }
         py += 12
+        rows.append(mainRow("Pillar rewards", pillarTotal)); kinds.append(.main)
+        py += 3
+        if pillarBullets.isEmpty {
+            rows.append(subRow("None", nil)); kinds.append(.sub)
+        } else {
+            for (label, amount) in pillarBullets {
+                rows.append(subRow(bulletLabel(label), sign(amount))); kinds.append(.sub)
+            }
+        }
+        py += 12
+        rows.append(mainRow("Total", info.earned)); kinds.append(.total)
+        rows.append(mainRow("Coins held", info.balance)); kinds.append(.balance)
 
         // Fixed shell (the capture's panel is one stable height; it only grows
         // when the bullet list genuinely needs more).
@@ -360,15 +398,23 @@ public final class PhaseOverlayView: UIView {
             row.alpha = 0
             panel.addSubview(row)
         }
-        // Reveal line by line, coin ping per MAIN row.
+        // Reveal line by line, with the web's per-kind tally sounds.
         for (i, row) in rows.enumerated() {
-            let mainLine = i == 0 || rows[i].frame.minX == px
             UIView.animate(withDuration: 0.22, delay: delay) { row.alpha = 1 }
-            if mainLine {
+            let at = delay
+            switch kinds[i] {
+            case .sub: break
+            case .main:
                 let lineIndex = i
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) {
                     Sound.shared.coinTallyLine(lineIndex)
                 }
+                delay += 0.28
+            case .total:
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) { Sound.shared.coinTallyLine(6) }
+                delay += 0.28
+            case .balance:
+                DispatchQueue.main.asyncAfter(deadline: .now() + at) { Sound.shared.coin() }
                 delay += 0.28
             }
         }
@@ -535,13 +581,45 @@ public final class PhaseOverlayView: UIView {
     // MARK: - Zen end
 
     static func zenEnd(won: Bool, flips: Int, correct: Int,
+                       outcomeCount: Int? = nil, unlockLabel: String? = nil,
                        onAgain: @escaping () -> Void,
                        onMenu: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView()
-        v.addTitle(won ? "DECK CLEARED" : "THE PILES FELL", color: won ? CRT.phosphor : CRT.suitRed)
+        if won {
+            v.addTitle("DECK CLEARED", color: CRT.phosphor)
+        } else {
+            // The web's onZenEnd loss header: the same "Shoulda said <word>"
+            // treatment as the campaign death screen (gameOverTitleHtml).
+            v.addCentered(PhaseOverlayView.tracked("GAME OVER", size: 12, color: CRT.suitRed,
+                                                   display: true, kern: 2), spacingAfter: 4)
+            v.addCentered(PhaseOverlayView.tracked("Shoulda said", size: 20, color: CRT.cardFace,
+                                                   display: true, kern: 0, hardShadow: true),
+                          spacingAfter: 2)
+            v.addCentered(PhaseOverlayView.tracked(PhaseOverlayView.survivingGuessWord ?? "lower",
+                                                   size: 20, color: CRT.phosphor, display: true,
+                                                   kern: 0, glow: true), spacingAfter: 8)
+        }
+        // A first win's ladder beat rides the progress line (web opts.progress:
+        // "<Next> unlocked!", the label resolved live from DifficultyData).
+        if let unlockLabel {
+            v.addProgress("\(unlockLabel) unlocked!", spacingAfter: 10)
+        }
+        // The per-game tiles (web zenStatsHtml): THIS game only — cards
+        // guessed / correct / wrong / accuracy, then the outcome-specific
+        // count (piles standing on a win, cards left in the deck on a loss).
+        // Wrong and accuracy derive locally; outcomeCount stays "—" until the
+        // caller wires the live board count.
+        let wrong = max(0, flips - correct)
         let pct = flips > 0 ? Int((Double(correct) / Double(flips) * 100).rounded()) : 0
-        v.addCentered(CRTKit.attributed("\(flips) cards flipped  ·  \(correct) correct  ·  \(pct)%",
-                                        size: 16, color: CRT.cardFace), spacingAfter: 14)
+        v.addTileRow([
+            StatTileView(value: tileValue("\(flips)", size: 14), name: "Cards guessed"),
+            StatTileView(value: tileValue("\(correct)", size: 14), name: "Correct"),
+            StatTileView(value: tileValue("\(wrong)", size: 14), name: "Wrong"),
+            StatTileView(value: tileValue("\(pct)%", size: 14), name: "Accuracy"),
+            StatTileView(value: tileValue(outcomeCount.map { "\($0)" } ?? "—", size: 14),
+                         name: won ? "Piles remaining" : "Cards left in deck"),
+        ], height: 64, gap: 6, width: 340)
+        v.addGap(6)
         v.addButton("PLAY AGAIN", role: .cta) { onAgain() }
         v.addButton("MENU", role: .plain) { onMenu() }
         return v
@@ -549,36 +627,189 @@ public final class PhaseOverlayView: UIView {
 
     // MARK: - Unlock pops
 
-    static func deckUnlock(name: String, deckId: String,
+    static func deckUnlock(name: String, deckId: String, prevName: String? = nil,
                            onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView()
         v.addGap(10)
+        // The web's maybeShowUnlockCelebration: eyebrow over the character,
+        // the name hidden behind "???" for an 800ms breath, then the reveal.
+        v.addCentered(PhaseOverlayView.tracked("NEW DECK UNLOCKED", size: 12,
+                                               color: CRT.gold, display: true, kern: 2),
+                      spacingAfter: 10)
         v.addSprite(DeckCharacter.image(deckId: deckId, mood: .happy, scale: 5),
                     size: CGSize(width: 96, height: 96))
-        v.addTitle("\(name.uppercased()) UNLOCKED", color: CRT.gold, size: 15)
-        v.addCentered(CRTKit.attributed("A new character joins the roster.",
+        let nameLabel = UILabel()
+        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 15, color: CRT.gold,
+                                                            display: true, kern: 1, glow: false)
+        nameLabel.textAlignment = .center
+        nameLabel.frame = CGRect(x: 0, y: v.y, width: 360, height: 22)
+        v.content.addSubview(nameLabel)
+        v.y += 28
+        // The previous deck hands off: "<Prev> made it home — say hello to
+        // <Name>!" (web duc-copy; a nil prev reads "You", like the web).
+        v.addCentered(CRTKit.attributed("\(prevName ?? "You") made it home — say hello to \(name)!",
                                         size: 15, color: CRT.cardFace), spacingAfter: 12)
         v.addButton("CONTINUE") { onContinue() }
-        // The color floods in with a bounce, to the sparkly ta-daa.
-        Sound.shared.deckUnlock()
+        // The entrance bounce first (color floods in), then the name reveal
+        // lands the sparkly ta-daa — one-shot, transform/opacity only.
         v.content.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
         UIView.animate(withDuration: 0.5, delay: 0.05, usingSpringWithDamping: 0.55,
                        initialSpringVelocity: 0.4) {
             v.content.transform = .identity
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            nameLabel.attributedText = PhaseOverlayView.tracked(name.uppercased(), size: 15,
+                                                                color: CRT.gold, display: true,
+                                                                kern: 1, glow: false)
+            Sound.shared.deckUnlock()
+        }
         return v
     }
 
+    /// The web's itemKindOf + KIND_LABEL: registry lookup → class noun.
+    static func itemKindLabel(_ id: String) -> String {
+        let d = GameData.shared
+        if d.stickerTypes.get(id) != nil { return "Sticker" }
+        if d.pillarTypes.get(id) != nil { return "Pillar" }
+        if d.baseTypes.get(id) != nil { return "Base" }
+        if d.samePowerTypes.get(id) != nil { return "Same-Power" }
+        return "Pack"
+    }
+
+    /// The web itemKindOf key (ItemArt.forSlot's kind strings).
+    private static func itemKindKey(_ id: String) -> String {
+        let d = GameData.shared
+        if d.stickerTypes.get(id) != nil { return "sticker" }
+        if d.pillarTypes.get(id) != nil { return "pillar" }
+        if d.baseTypes.get(id) != nil { return "base" }
+        if d.samePowerTypes.get(id) != nil { return "samepower" }
+        return "pack"
+    }
+
+    /// The item's own tile art at unlock-pop size (web unlockObjectHtml, the
+    /// store's class renderers via ItemArt.forSlot).
+    private static func unlockArt(_ id: String) -> UIImage {
+        ItemArt.forSlot(kind: itemKindKey(id), id: id, card: nil,
+                        deckId: campaign?.deckId ?? "pink")
+    }
+
     static func itemUnlock(title: String, body: String,
+                           itemId: String? = nil, hint: String? = nil,
                            onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView()
-        v.addTitle(title, color: CRT.gold, size: 13)
-        v.addCentered(CRTKit.attributed(body, size: 14, color: CRT.cardFace), spacingAfter: 12)
+        guard let itemId, let def = itemDef(itemId) else {
+            // No item context (the 4+ summary pop): the plain pop stays.
+            v.addTitle(title, color: CRT.gold, size: 13)
+            v.addCentered(CRTKit.attributed(body, size: 14, color: CRT.cardFace), spacingAfter: 12)
+            v.addButton("CONTINUE") { onContinue() }
+            v.content.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+            UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.6,
+                           initialSpringVelocity: 0.3) {
+                v.content.transform = .identity
+            }
+            return v
+        }
+        // The web's showItemUnlockPop ceremony: kind eyebrow over the item's
+        // own art as a SILHOUETTE under a padlock; after an 800ms breath the
+        // reveal floods the colour in, "???" becomes the label, the copy
+        // swaps from the earn hint to the registry description, and the hint
+        // stays as the small "Earned:" footnote.
+        v.addGap(6)
+        v.addCentered(PhaseOverlayView.tracked("New \(itemKindLabel(itemId)) unlocked",
+                                               size: 12, color: CRT.gold, display: true, kern: 2),
+                      spacingAfter: 10)
+
+        let art = unlockArt(itemId)
+        let artH: CGFloat = 110
+        let artW = art.size.height > 0 ? artH * art.size.width / art.size.height : artH
+        let artView = UIImageView(image: art.withRenderingMode(.alwaysTemplate))
+        artView.tintColor = CRT.ink   // the silhouette: a flat ink cutout
+        artView.contentMode = .scaleAspectFit
+        artView.layer.magnificationFilter = .nearest
+        artView.frame = CGRect(x: (360 - artW) / 2, y: v.y, width: artW, height: artH)
+        v.content.addSubview(artView)
+        // The padlock + reveal sparkles ride over the art (web duc-lock /
+        // duc-spark; emoji glyphs exactly as the web renders them).
+        let lock = CRTKit.label("🔒", size: 22, color: CRT.cardFace)
+        lock.textAlignment = .center
+        lock.frame = CGRect(x: artView.frame.midX - 16, y: artView.frame.midY - 16,
+                            width: 32, height: 32)
+        v.content.addSubview(lock)
+        var sparks: [UILabel] = []
+        for (dx, dy) in [(-30.0, -8.0), (30.0, -14.0), (-26.0, 26.0), (28.0, 22.0)] as [(CGFloat, CGFloat)] {
+            let s = CRTKit.label("✦", size: 16, color: CRT.gold)
+            s.textAlignment = .center
+            s.frame = CGRect(x: artView.frame.midX + dx - 10, y: artView.frame.midY + dy - 10,
+                             width: 20, height: 20)
+            s.alpha = 0
+            v.content.addSubview(s)
+            sparks.append(s)
+        }
+        v.y += artH + 12
+
+        let nameLabel = UILabel()
+        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 15, color: CRT.gold,
+                                                            display: true, kern: 1)
+        nameLabel.textAlignment = .center
+        nameLabel.frame = CGRect(x: 0, y: v.y, width: 360, height: 22)
+        v.content.addSubview(nameLabel)
+        v.y += 28
+
+        let copyLabel = UILabel()
+        copyLabel.attributedText = CRTKit.attributed(hint ?? body, size: 14, color: CRT.cardFace)
+        copyLabel.textAlignment = .center
+        copyLabel.numberOfLines = 0
+        let copyH = ceil(copyLabel.attributedText!.boundingRect(
+            with: CGSize(width: 320, height: 200),
+            options: .usesLineFragmentOrigin, context: nil).height)
+        copyLabel.frame = CGRect(x: 20, y: v.y, width: 320, height: copyH)
+        v.content.addSubview(copyLabel)
+        v.y += copyH + 6
+
+        // "Earned: <hint>" — the footnote that keeps the earn condition
+        // visible after the copy swaps to the description.
+        let earnedLabel = UILabel()
+        let earnedH: CGFloat = 16
+        earnedLabel.frame = CGRect(x: 20, y: v.y, width: 320, height: earnedH)
+        earnedLabel.textAlignment = .center
+        earnedLabel.alpha = 0
+        v.content.addSubview(earnedLabel)
+        v.y += earnedH + 12
+
         v.addButton("CONTINUE") { onContinue() }
-        v.content.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
-        UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.6,
-                       initialSpringVelocity: 0.3) {
-            v.content.transform = .identity
+
+        // The reveal: 800ms of silhouette tease, then colour + name +
+        // description + footnote + the ta-daa (one-shot, opacity/transform
+        // only — never an always-on animation).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            artView.image = art.withRenderingMode(.alwaysOriginal)
+            artView.transform = CGAffineTransform(scaleX: 0.6, y: 0.6)
+            UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.55,
+                           initialSpringVelocity: 0.3) {
+                artView.transform = .identity
+            }
+            UIView.animate(withDuration: 0.2) { lock.alpha = 0 }
+            for (i, s) in sparks.enumerated() {
+                s.transform = CGAffineTransform(scaleX: 0.4, y: 0.4)
+                UIView.animate(withDuration: 0.3, delay: Double(i) * 0.05) {
+                    s.alpha = 1
+                    s.transform = .identity
+                }
+            }
+            nameLabel.attributedText = PhaseOverlayView.tracked(def.label.uppercased(), size: 15,
+                                                                color: CRT.gold, display: true,
+                                                                kern: 1)
+            let desc = def.description
+            if !desc.isEmpty {
+                copyLabel.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.cardFace)
+                if let hint {
+                    earnedLabel.attributedText = PhaseOverlayView.tracked("Earned: \(hint)",
+                                                                          size: 12, color: CRT.muted,
+                                                                          kern: 0.5)
+                    UIView.animate(withDuration: 0.2, delay: 0.15) { earnedLabel.alpha = 1 }
+                }
+            }
+            Sound.shared.deckUnlock()
         }
         return v
     }
@@ -736,6 +967,21 @@ public final class PhaseOverlayView: UIView {
         rim.frame = CGRect(x: px + CRT.px, y: CRT.px, width: panelW - CRT.px * 2, height: 4)
         v.content.addSubview(rim)
         v.y = py
+        // The modal announces itself with the outcome's own sound at open
+        // (web MYSTERY_SOUND, fired as the panel unhides; Sound self-gates
+        // on the enabled pref).
+        switch outcome.key {
+        case "coinBonus": Sound.shared.coin()
+        case "coinLoss": Sound.shared.coinLoss()
+        case "cards": Sound.shared.mapAdd()
+        case "joker": Sound.shared.deckUnlock()
+        case "store": Sound.shared.refresh()
+        case "stickerPack", "stickerStrip": Sound.shared.sticker()
+        case "freeRemoval": Sound.shared.pack()
+        case "cursedSticker": Sound.shared.bad()
+        case "ambush": Sound.shared.deal()
+        default: break
+        }
         return v
     }
 }

@@ -214,8 +214,8 @@ public final class CardPickerViewController: UIViewController {
         case .buySticker(_, let t):
             // Store buy (place-then-pay): "Place <label>".
             return "Place " + (GameData.shared.stickerTypes.get(t)?.label ?? "Sticker")
-        case .removal: return "Removal — remove a card"
-        case .strip: return "Cleanse — strip a sticker"
+        case .removal: return "Removal"
+        case .strip: return "Cleanse"
         case .swap(let trayIndex, let step):
             let tray = campaign.getPackTray()
             let name = trayIndex < tray.count ? trayCardName(tray[trayIndex]) : ""
@@ -244,8 +244,8 @@ public final class CardPickerViewController: UIViewController {
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "∅ Removal",
                       desc: price > 0
-                        ? "Pick a card to permanently remove (◉ \(price)). Your deck shrinks by one; the slot stays."
-                        : "Pick a card to permanently remove from your deck. Your deck shrinks by one card.")
+                        ? "Pick a card to permanently remove (◉ \(price)). The slot stays."
+                        : "Pick a card to permanently remove from your deck.")
         case .strip:
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "Cleanse",
@@ -257,7 +257,7 @@ public final class CardPickerViewController: UIViewController {
                 bannerIcon.image = CardArt.image(CardArt.Face(c), scale: .half)
                 if c.blank {
                     setBanner(name: "∅ Removal",
-                              desc: "Pick a card to permanently remove from your deck. Your deck shrinks by one card.")
+                              desc: "Pick a card to permanently remove from your deck.")
                 } else {
                     setBanner(name: trayCardName(c),
                               desc: "Pick a card to replace with this one (the old card is removed; deck stays 52).")
@@ -471,7 +471,7 @@ public final class CardPickerViewController: UIViewController {
                 .init(applyLabel, role: .cta) { [weak self] in self?.confirm() },
             ]) { [weak self] in self?.cancelChoice() }
         case .removal(let price):
-            var text = "Permanently REMOVE \(name) from your deck? Your deck shrinks by one card."
+            var text = "Permanently REMOVE \(name) from your deck?"
             if price > 0 { text += " (◉ \(price))" }
             text += stickerWarn
             prompt.show(text, actions: [
@@ -489,8 +489,7 @@ public final class CardPickerViewController: UIViewController {
             guard trayIndex < tray.count else { return }
             let tc = tray[trayIndex]
             if tc.blank {
-                prompt.show("Permanently REMOVE \(name) from your deck? Your deck shrinks by one card.\(stickerWarn)",
-                            actions: [
+                prompt.show("Permanently REMOVE \(name) from your deck?\(stickerWarn)", actions: [
                     .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
                     .init("Remove", role: .danger) { [weak self] in self?.confirm() },
                 ]) { [weak self] in self?.cancelChoice() }
@@ -672,7 +671,19 @@ public final class CardPickerViewController: UIViewController {
     }
 
     private func skipTapped() {
+        guard !busy, !prompt.isShowing else { return }
+        // Use-or-confirmed-skip: declining a held card is destructive (no
+        // refund), so it rides the shared bottom prompt bar like every other
+        // confirmation — never a one-tap dismiss.
+        prompt.show("Skip this card?", actions: [
+            .init("Back", role: .plain) { [weak self] in self?.prompt.hide() },
+            .init("Skip", role: .danger) { [weak self] in self?.confirmSkip() },
+        ]) { [weak self] in self?.prompt.hide() }
+    }
+
+    private func confirmSkip() {
         guard !busy else { return }
+        prompt.hide()
         // Pack-keep walk decline: drop the tray card (no refund) and advance.
         if case .swap(let trayIndex, _) = mode { _ = campaign.discardPackCard(trayIndex) }
         dismiss(animated: false)

@@ -56,6 +56,9 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private let storeButton = PixelButtonView("STORE", role: .gold, fontSize: 14)
     private var keyPanel: UIView?
     private let shell = TopShellView()
+    /// The shared bottom prompt bar — node hold-for-help rides it (Convention
+    /// 3: help/confirmations never get a one-off dialog idiom).
+    private let prompt = PromptBar()
 
     private var scrollLock: CGFloat = 0
     private var traveling = false
@@ -134,6 +137,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
+        view.addSubview(prompt)
 
         render()
     }
@@ -150,6 +154,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         shell.frame = CGRect(x: 0, y: 0, width: b.width, height: shellH)
         scroll.frame = CGRect(x: 0, y: shellH, width: b.width, height: b.height - shellH)
         crt.frame = b
+        prompt.frame = b
         keyButton.frame = CGRect(x: b.width - 48, y: shellH + 8, width: 40, height: 34)
         storeButton.frame = CGRect(x: 10, y: b.height - view.safeAreaInsets.bottom - 46,
                                    width: 86, height: 38)
@@ -157,6 +162,13 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         if !didInitialCenter, campaign.runMap != nil {
             didInitialCenter = true
             centerOnAvatar(animated: false)
+            // FIRST-EVER climb: open the map key by default so the node shapes
+            // are explained up front — once only, pref-stamped even if closed
+            // instantly (web index.html:28090-28095).
+            if campaign.saveStore.pref("mapKeySeen") != "1" {
+                campaign.saveStore.setPref("mapKeySeen", "1")
+                toggleKey()
+            }
         }
     }
 
@@ -292,9 +304,12 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                 return v
             }()
             v.center = p
+            // Every node is interactive: taps self-gate to legal moves
+            // (nodeTapped), and HOLD-FOR-HELP works on any node (the web's
+            // hold handler never checked state either).
             v.configure(art: artFor(node: n, state: state), state: state,
                         hidden: campaign.nodeHidden(n.id),
-                        interactive: state == .legal || debugJumpEnabled)
+                        interactive: true)
             if arrivedAt == n.id { v.playArrive() }
         }
         // The HOME/origin node.
@@ -563,12 +578,70 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     }
 
     private func nodeLongPressed(_ id: Int) {
-        guard debugJumpEnabled, !traveling else { return }
-        // Debug jump: teleport the run to the node (no travel, no resolution).
-        _ = campaign.moveToNode(id)
-        campaign.revealNode(id)
-        render()
-        centerOnAvatar(animated: true)
+        guard !traveling else { return }
+        // The DEBUG JUMP yields to help: it only fires with the debug flag on;
+        // otherwise a hold shows the node's help (the web's 350ms hold →
+        // mapNodeLabel, index.html:22513-22544).
+        if debugJumpEnabled {
+            _ = campaign.moveToNode(id)
+            campaign.revealNode(id)
+            render()
+            centerOnAvatar(animated: true)
+            return
+        }
+        showNodeHelp(id)
+    }
+
+    /// Hold-for-help on a node: the label from the same source the key rows
+    /// use (the web's mapNodeLabel, index.html:27434-27455); a concealed
+    /// mystery stays ???.
+    private func showNodeHelp(_ id: Int) {
+        guard let n = campaign.getNode(id) else { return }
+        let title = n.type == "mystery" ? "Mystery" : "Map node"
+        let body = campaign.nodeHidden(n.id)
+            ? "??? — a gamble, good or bad, revealed when you arrive"
+            : nodeLabel(n)
+        prompt.show(title, help: body, actions: [
+            .init("OK", role: .plain) { [weak self] in self?.prompt.hide() },
+        ]) { [weak self] in self?.prompt.hide() }
+    }
+
+    /// The node's one-line label, ported verbatim from the web's mapNodeLabel.
+    private func nodeLabel(_ n: MapNode) -> String {
+        switch n.type {
+        case "pass": return "The trail passes through"
+        case "mystery": return "Mystery — a gamble, good or bad…"
+        case "boss":
+            let reward = Int(economy.dealFlat(stage: (n.phase ?? 0) + 1, rating: 3, isBoss: true))
+            return "BOSS — full deck · reward \(reward) coins"
+        case "deal":
+            let rating = runMap.difficultyScore(targetD: n.targetD ?? 0, phaseIndex: n.phase, isBoss: false)
+            let reward = Int(economy.dealFlat(stage: (n.phase ?? 0) + 1, rating: rating, isBoss: false))
+            return "Deal — reward \(reward) coins (difficulty \(rating)/3 — harder pays more)"
+        case "store": return "Shop"
+        case "home": return "Home — mama ♥ is waiting"
+        case "pack":
+            // A revealed +2 pack names its two exact cards (a Blank slot is a
+            // Removal); sealed packs keep the hidden count.
+            let pair = campaign.packNodeCards(n)
+            if pair.count == 2 {
+                return "2 cards — \(nodeCardName(pair[0])) + \(nodeCardName(pair[1]))"
+            }
+            return "Pack — \(n.packCount ?? 3) cards (hidden)"
+        default:
+            if let card = campaign.nodeCard(n) ?? campaign.previewPickupCard(n) {
+                if card.joker { return "★ Joker — never a wrong guess" }
+                if card.blank { return "∅ Removal — remove a card from your deck" }
+            }
+            return "A single card"
+        }
+    }
+
+    private func nodeCardName(_ c: CardSpec) -> String {
+        if c.blank { return "∅ Removal" }
+        if c.joker { return "★ Joker" }
+        let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "\(c.currentRank)"
+        return "\(rank)\(c.suit)"
     }
 
     /// Tap a legal node → glide over any pass points, ride each routed edge,
@@ -712,14 +785,33 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private func toggleKey() {
         if let k = keyPanel { k.removeFromSuperview(); keyPanel = nil; return }
         let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
+        // LIVE rows (web renderMapKey, index.html:27467-27493): real nodes from
+        // this run's map where it has them — the deal/boss art then carries the
+        // true reward chip and the pack its real count. Stand-ins only when a
+        // type is absent from this run.
+        let nodes = campaign.runMap?.nodes ?? []
+        let dealNode = nodes.first { $0.type == "deal" }
+        let bossNode = nodes.first { $0.type == "boss" }
+        // The Pack row teaches SEALED packs — a genuine 3+ (a live 2-pack
+        // renders two faces, not the stack art).
+        let packNode = nodes.first { $0.type == "pack" && ($0.packCount ?? 3) >= 3 }
+        let cardNode = nodes.first {
+            $0.type == "pickup" && (campaign.nodeCard($0).map { !$0.joker && !$0.blank } ?? false)
+        }
+        let packCount = packNode?.packCount ?? 3
         let rows: [(UIImage, String, String)] = [
-            (MapArt.synapseCluster(big: false), "Deal", "Survive the piles · reward on the chip"),
-            (MapArt.synapseCluster(big: true), "Boss", "Full deck · clears the stage"),
-            (MapArt.shopStall(), "Shop", "Spend coins between deals"),
-            (MapArt.packStack(deckId: campaign.deckId), "Pack", "Pick from hidden cards"),
-            (CardArt.image(CardArt.Face(label: "7", suit: "♦", kind: .normal), scale: .half), "Card", "Joins your deck"),
-            (MapArt.mysteryCard(open: false), "Mystery", "A gamble — good or bad"),
-            (MapArt.homeHut(mama: true), "Home", "Mama ♥ is waiting"),
+            (dealNode.map { composeDeal($0, big: false) } ?? MapArt.synapseCluster(big: false),
+             "Deal", "Play a hand; the chip shows its coin reward — harder deals pay more"),
+            (bossNode.map { composeDeal($0, big: true) } ?? MapArt.synapseCluster(big: true),
+             "Boss", "Full-deck deal; biggest reward; guards the stage exit"),
+            (MapArt.shopStall(), "Shop", "Spend coins"),
+            (packNode.map { composePackStack($0) } ?? MapArt.packStack(deckId: campaign.deckId),
+             "Pack", "+\(packCount) hidden cards (packs of 3+; 2-card stops show their faces)"),
+            (cardNode.flatMap { campaign.nodeCard($0) }.map { CardArt.image(CardArt.Face($0), scale: .half) }
+                ?? CardArt.image(CardArt.Face(label: "7", suit: "♦", kind: .normal), scale: .half),
+             "Card", "Joins your deck when you pass"),
+            (MapArt.mysteryCard(open: false), "Mystery", "A gamble, good or bad, revealed when you arrive"),
+            (MapArt.homeHut(mama: true), "Home", "Mama; the finish at the top"),
         ]
         var y: CGFloat = 12
         for (img, name, sub) in rows {
@@ -729,12 +821,13 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             iv.frame = CGRect(x: 12, y: y, width: 44, height: 40)
             panel.addSubview(iv)
             let nameL = CRTKit.label(name, size: 16, color: CRT.cardFace)
-            nameL.frame = CGRect(x: 66, y: y + 2, width: 200, height: 18)
+            nameL.frame = CGRect(x: 66, y: y + 2, width: 220, height: 18)
             panel.addSubview(nameL)
-            let subL = CRTKit.label(sub, size: 13, color: CRT.muted)
-            subL.frame = CGRect(x: 66, y: y + 20, width: 210, height: 16)
+            let subL = CRTKit.label(sub, size: 12, color: CRT.muted)
+            subL.numberOfLines = 2
+            subL.frame = CGRect(x: 66, y: y + 20, width: 224, height: 26)
             panel.addSubview(subL)
-            y += 46
+            y += 50
         }
         panel.frame = CGRect(x: (view.bounds.width - 300) / 2,
                              y: TopShellView.height(safeTop: view.safeAreaInsets.top) + 46,

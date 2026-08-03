@@ -44,7 +44,13 @@ public final class PackRevealViewController: UIViewController {
     private let infoTitle = UILabel()
     private let infoBody = UILabel()
     private let crt = CRTOverlayUIView()
+    /// The shared bottom prompt bar — the skip confirmation rides it
+    /// (Convention 3: every confirmation, never a one-off dialog).
+    private let prompt = PromptBar()
     private var itemButtons: [UIButton] = []
+    /// Picked indices (.pick mode only). In .show mode this stays EMPTY: the
+    /// web's reveal cards are tap-for-info, NOT selectable — `packItemButton(
+    /// …, false)` never paints the keep-outline (index.html:29430-29445).
     private var chosen: [Int] = []
 
     public init(campaign: CampaignState, title: String, content: Content, mode: Mode,
@@ -134,6 +140,7 @@ public final class PackRevealViewController: UIViewController {
 
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
+        view.addSubview(prompt)
 
         Sound.shared.pack()
         buildItems()
@@ -185,9 +192,9 @@ public final class PackRevealViewController: UIViewController {
                 b.transform = .identity
             }
         }
-        if case .show = mode {
-            chosen = Array(0..<count)
-        }
+        // .show mode leaves `chosen` empty — granted cards render unbordered.
+        // The completion contract ("all indices in .show") is restored at
+        // confirm time in confirmTapped().
     }
 
     public override func viewDidLayoutSubviews() {
@@ -259,6 +266,7 @@ public final class PackRevealViewController: UIViewController {
         infoTitle.frame = CGRect(x: 14, y: 12, width: iw - 28, height: 16)
         infoBody.frame = CGRect(x: 14, y: 33, width: iw - 28, height: 162 - 33 - 10)
         crt.frame = b
+        prompt.frame = b
     }
 
     private func measure(_ l: UILabel, width: CGFloat) -> CGFloat {
@@ -351,10 +359,15 @@ public final class PackRevealViewController: UIViewController {
             let c = cards[i]
             if c.joker {
                 title = "★ Joker"
+                // items.js has NO joker entry (the joker isn't a sellable
+                // item) — the web itself hardcodes this copy
+                // (index.html:29565), so the native mirrors it verbatim.
                 body = "A wild card. Any guess it's part of is SAFE — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power."
             } else if c.blank {
                 title = "∅ Removal"
-                body = "A removal tool. Swap it in over a card of your choice and it removes that card — the deck permanently shrinks by one. A way to thin your deck."
+                // The registry description (items.js store.removal) is the
+                // source of truth — never a hand-typed duplicate.
+                body = GameData.shared.items.store.removal.description
             } else {
                 let r = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "?"
                 title = "\(r) \(c.suit)"
@@ -381,8 +394,12 @@ public final class PackRevealViewController: UIViewController {
     private func confirmTapped() {
         guard confirmButton.isEnabled else { return }
         dismiss(animated: false)
-        completion(chosen)
+        // .show keeps `chosen` empty for display; the completion contract
+        // still reports every granted index.
+        completion(chosen.isEmpty && isShow ? Array(0..<count) : chosen)
     }
+
+    private var isShow: Bool { if case .show = mode { return true }; return false }
 
     /// Autopilot: pick the first `keep` items and confirm (Continue in .show).
     func autopilotConfirm() {
@@ -394,6 +411,17 @@ public final class PackRevealViewController: UIViewController {
     }
 
     @objc private func skipTapped() {
+        // Use-or-confirmed-skip: "take nothing" forfeits the pack, so it
+        // confirms through the shared bottom prompt bar like every other
+        // destructive choice — never a one-tap dismiss.
+        prompt.show("Skip this pack?", actions: [
+            .init("Back", role: .plain) { [weak self] in self?.prompt.hide() },
+            .init("Skip", role: .danger) { [weak self] in self?.confirmSkip() },
+        ]) { [weak self] in self?.prompt.hide() }
+    }
+
+    private func confirmSkip() {
+        prompt.hide()
         dismiss(animated: false)
         completion([])
     }

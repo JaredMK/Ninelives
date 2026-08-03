@@ -30,6 +30,10 @@ public final class PileNode: SKNode {
     private var selectRing: SKSpriteNode?
     /// The fan-out hint: every card in the pile, splayed. Built on demand.
     private var fanNodes: [CardNode] = []
+    /// The Tell / Spade Whispers hint chip: a directional ▲/▼/＝ badge at the
+    /// card's TOP-CENTRE predicting the next draw here (the web's `.pile-hint`).
+    private var hintChip: SKSpriteNode?
+    private var lastHintDir: Guess?
     /// One-shot pulse overlays (good pulse / death flash) sized to the card box.
     private let pulseOverlay: SKSpriteNode
     /// The finger-tracking drag nudge rides on the card only.
@@ -114,6 +118,43 @@ public final class PileNode: SKNode {
         }
         setDead(dead, animated: animateDeath)
         syncStickerBadges(top)
+    }
+
+    /// Show/clear the directional Tell hint (▲ higher / ▼ lower / ＝ same) —
+    /// the engine's display-only `pileHint(i)`, repainted every board refresh
+    /// so it tracks the real deck top. Web `.pile-hint`: a flat ink chip with
+    /// a hard shadow at the pile's top-centre; dead piles never show it.
+    public func syncHint(_ dir: Guess?) {
+        guard dir != lastHintDir else { return }   // repaints only on change
+        lastHintDir = dir
+        hintChip?.removeFromParent()
+        hintChip = nil
+        guard let dir, !isDead, cardCount > 0 else { return }
+        let glyph = dir == .higher ? "▲" : (dir == .lower ? "▼" : "＝")
+        let text = glyph as NSString
+        let font = CRT.Font.of(15)
+        let tsz = text.size(withAttributes: [.font: font])
+        let w = max(20, ceil(tsz.width) + 10), h: CGFloat = 18
+        let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
+            cg.setFillColor(CRT.shadow.cgColor)
+            cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
+            cg.setFillColor(CRT.ink.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            cg.setStrokeColor(CRT.cardFace.cgColor)
+            cg.setLineWidth(CRT.px)
+            cg.stroke(CGRect(x: 1, y: 1, width: w - 2, height: h - 2))
+            UIGraphicsPushContext(cg)
+            text.draw(at: CGPoint(x: (w - tsz.width) / 2, y: (h - tsz.height) / 2),
+                      withAttributes: [.font: font, .foregroundColor: CRT.phosphor])
+            UIGraphicsPopContext()
+        }
+        let n = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        n.size = img.size
+        n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        n.position = CGPoint(x: cardScale.size.width / 2, y: 4)
+        n.zPosition = Layer.card + 5
+        addChild(n)
+        hintChip = n
     }
 
     /// Begin deferring face changes — a traveling card owns this pile now.
@@ -236,28 +277,46 @@ public final class PileNode: SKNode {
         }
     }
 
-    /// Sticker badges on the top card — a small chip row along the card's top
-    /// edge, one per sticker instance (capped so a heavily-stickered card still
-    /// reads as a card).
+    /// Sticker badges on the top card — the web's `renderStickerBadges`: one
+    /// die-cut vinyl per sticker TYPE (registry order) riding the card's
+    /// TOP-RIGHT corner, fanning leftward with a slight lean (−11° + idx·8°,
+    /// clamped ±15°), a ×count when a type stacks (Snowball/Compound carry
+    /// their live per-card counter instead). The art is `ItemArt.sticker` —
+    /// the same pixel chip the store/help surfaces show, cursed included.
     private func syncStickerBadges(_ top: LiveCard?) {
         badgeRow.removeAllChildren()
         guard let top, !top.stickers.isEmpty else { return }
-        let chip: CGFloat = 8
-        let shown = min(top.stickers.count, 5)
-        for i in 0..<shown {
-            let s = top.stickers[i]
-            let def = GameData.shared.stickerTypes.get(s.type)
-            // Cursed stickers wear suit-red; everything else gold on ink.
-            let tint = (def?.cursed ?? false) ? CRT.suitRed : CRT.gold
-            let n = SKSpriteNode(color: tint, size: CGSize(width: chip, height: chip))
-            n.anchorPoint = CGPoint(x: 0, y: 1)
-            n.position = CGPoint(x: 3 + CGFloat(i) * (chip + 2), y: -3)
-            let outline = SKSpriteNode(color: CRT.ink, size: CGSize(width: chip + 2, height: chip + 2))
-            outline.anchorPoint = CGPoint(x: 0, y: 1)
-            outline.position = CGPoint(x: n.position.x - 1, y: n.position.y + 1)
-            outline.zPosition = -1
-            badgeRow.addChild(outline)
-            badgeRow.addChild(n)
+        var counts: [String: Int] = [:]
+        for s in top.stickers { counts[s.type, default: 0] += 1 }
+        let chip: CGFloat = 15
+        let box = cardScale.size
+        var idx = 0
+        for def in GameData.shared.stickerTypes.all() {
+            guard let n = counts[def.id], n > 0 else { continue }
+            let img = ItemArt.sticker(def, size: chip)
+            let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
+            node.size = CGSize(width: chip, height: chip)
+            node.anchorPoint = CGPoint(x: 0, y: 1)
+            node.position = CGPoint(x: box.width + 3 - chip - CGFloat(idx) * (chip * 0.72), y: 2)
+            let deg = max(-15, min(15, -11 + idx * 8))
+            node.zRotation = -CGFloat(deg) * .pi / 180
+            node.zPosition = -CGFloat(idx)   // first sticker outermost/on top
+            badgeRow.addChild(node)
+            // The counter: live value for Snowball/Compound, ×stack otherwise.
+            let shown: Int? = def.id == "snowball" ? top.snowball
+                : def.id == "compound" ? max(0, top.compoundHits - 1)
+                : (n > 1 ? n : nil)
+            if let shown {
+                let c = PixelTexture.label("×\(shown)", size: 12,
+                                           color: def.cursed ? CRT.suitRed : CRT.gold)
+                c.anchorPoint = CGPoint(x: 1, y: 1)
+                c.position = CGPoint(x: node.position.x + chip + 1,
+                                     y: node.position.y - chip + 4)
+                c.zPosition = -CGFloat(idx) + 0.5
+                badgeRow.addChild(c)
+            }
+            idx += 1
+            if idx >= 5 { break }   // a heavily-stickered card still reads as a card
         }
     }
 
@@ -269,6 +328,7 @@ public final class PileNode: SKNode {
         card.isHidden = hidden || cardCount == 0
         plaque.isHidden = hidden || cardCount == 0
         badgeRow.isHidden = hidden
+        hintChip?.isHidden = hidden
         for s in depthSlivers where hidden { s.isHidden = true }
         if !hidden {
             // Re-show slivers per the current count.

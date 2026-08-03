@@ -10,6 +10,7 @@ public final class DeckInspectViewController: UIViewController {
     private let scroll = UIScrollView()
     private let content = UIView()
     private let crt = CRTOverlayUIView()
+    private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
 
     public init(campaign: CampaignState) {
         self.campaign = campaign
@@ -35,17 +36,19 @@ public final class DeckInspectViewController: UIViewController {
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
         build()
-        let tapClose = PixelButtonView("✕", role: .plain, fontSize: 16)
-        tapClose.onTap = { [weak self] in self?.dismiss(animated: false) }
-        tapClose.frame = CGRect(x: view.bounds.width - 50, y: 54, width: 38, height: 32)
-        tapClose.autoresizingMask = [.flexibleLeftMargin]
-        view.addSubview(tapClose)
+        closeButton.onTap = { [weak self] in self?.dismiss(animated: false) }
+        closeButton.frame = CGRect(x: view.bounds.width - 50, y: 54, width: 38, height: 32)  // real y: viewDidLayoutSubviews
+        view.addSubview(closeButton)
     }
 
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         scroll.frame = view.bounds
         crt.frame = view.bounds
+        // Web .nav-btn: always just BELOW the safe-area inset (insets are 0
+        // at viewDidLoad, so the floating ✕ lands here).
+        closeButton.frame = CGRect(x: view.bounds.width - 50, y: view.safeAreaInsets.top + 4,
+                                   width: 38, height: 32)
     }
 
     private func build() {
@@ -78,13 +81,25 @@ public final class DeckInspectViewController: UIViewController {
         for (i, r) in DeckManager.ranks.enumerated() {
             let n = counts[r.value] ?? 0
             let h = n == 0 ? 2 : max(4, CGFloat(n) / CGFloat(maxCount) * histH)
-            let bar = UIView(frame: CGRect(x: 20 + CGFloat(i) * (barW + 3), y: y + histH - h,
-                                           width: barW, height: h))
-            bar.backgroundColor = n == 0 ? CRT.feltMid : CRT.cardFace
-            content.addSubview(bar)
+            let bx = 20 + CGFloat(i) * (barW + 3)
+            // Web renderHistogram: the track reads felt-mid; the recessed
+            // felt-deep ghost is the FULL-deck count and the cream bar the
+            // remaining. DeckInspect has no deal context, so remaining ==
+            // full and the cream bar simply covers the ghost (web off-deal).
+            let track = UIView(frame: CGRect(x: bx, y: y, width: barW, height: histH))
+            track.backgroundColor = CRT.feltMid
+            content.addSubview(track)
+            let ghost = UIView(frame: CGRect(x: bx, y: y + histH - h, width: barW, height: h))
+            ghost.backgroundColor = CRT.feltDeep
+            content.addSubview(ghost)
+            if n > 0 {
+                let bar = UIView(frame: ghost.frame)
+                bar.backgroundColor = CRT.cardFace
+                content.addSubview(bar)
+            }
             let tick = CRTKit.label(r.label, size: 12, color: CRT.muted)
             tick.textAlignment = .center
-            tick.frame = CGRect(x: 20 + CGFloat(i) * (barW + 3), y: y + histH + 2, width: barW, height: 14)
+            tick.frame = CGRect(x: bx, y: y + histH + 2, width: barW, height: 14)
             content.addSubview(tick)
         }
         y += histH + 22
@@ -98,29 +113,45 @@ public final class DeckInspectViewController: UIViewController {
         content.addSubview(suitLabel)
         y += 30
 
-        // The cards.
+        // The cards — each carrying its sticker ICON chips below (web
+        // renderFull: "Stickers/Imprints show on each card"), so the player
+        // sees WHICH stickers a card carries, not just how many. One chip per
+        // sticker instance (a stack of two of the same type = two chips),
+        // laid out in centered rows of 3 under the card, capped at 2 rows.
         let cw: CGFloat = 50, ch: CGFloat = 74
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
+        let stkSize: CGFloat = 12, stkGap: CGFloat = 2
+        let stkPerRow = 3, stkMax = 6
+        let maxStk = min(stkMax, deck.map { $0.stickers.count }.max() ?? 0)
+        let stkRows = maxStk > 0 ? (maxStk + stkPerRow - 1) / stkPerRow : 0
+        let pitch = (ch - 7) + 2 + CGFloat(stkRows) * (stkSize + stkGap) + 8
         for (i, c) in deck.enumerated() {
             let row = i / cols, col = i % cols
             let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: x0 + CGFloat(col) * (cw + 8), y: y + CGFloat(row) * (ch + 8),
+            iv.frame = CGRect(x: x0 + CGFloat(col) * (cw + 8), y: y + CGFloat(row) * pitch,
                               width: cw, height: ch - 7)
             content.addSubview(iv)
-            if !c.stickers.isEmpty {
-                let pip = CRTKit.label(String(repeating: "▪", count: min(4, c.stickers.count)),
-                                       size: 11, color: CRT.gold)
-                pip.textAlignment = .center
-                pip.frame = CGRect(x: iv.frame.minX, y: iv.frame.maxY - 2, width: cw, height: 10)
-                content.addSubview(pip)
+            let stickers = Array(c.stickers.prefix(stkMax))
+            for (s, rec) in stickers.enumerated() {
+                guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
+                let sRow = s / stkPerRow, sCol = s % stkPerRow
+                let inRow = min(stkPerRow, stickers.count - sRow * stkPerRow)
+                let lineW = CGFloat(inRow) * stkSize + CGFloat(inRow - 1) * stkGap
+                let chip = UIImageView(image: ItemArt.sticker(def, size: stkSize))
+                chip.contentMode = .scaleAspectFit
+                chip.layer.magnificationFilter = .nearest
+                chip.frame = CGRect(x: iv.frame.minX + (cw - lineW) / 2 + CGFloat(sCol) * (stkSize + stkGap),
+                                    y: iv.frame.maxY + 2 + CGFloat(sRow) * (stkSize + stkGap),
+                                    width: stkSize, height: stkSize)
+                content.addSubview(chip)
             }
         }
         let rows = (deck.count + cols - 1) / cols
-        y += CGFloat(rows) * (ch + 8) + 40
+        y += CGFloat(rows) * pitch + 40
         content.frame = CGRect(x: 0, y: 0, width: w, height: y)
         scroll.contentSize = CGSize(width: w, height: y)
     }

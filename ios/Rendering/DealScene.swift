@@ -41,8 +41,7 @@ public final class DealScene: SKScene {
     private var fanCaption: SKSpriteNode?
     /// The global build footer (the web's `footer` line, visible on the deal
     /// screen): two tiny muted centred lines at the bottom safe area.
-    private var footerLine1: SKSpriteNode?
-    private var footerLine2: SKSpriteNode?
+    private var footerLines: [SKSpriteNode] = []
     private var buttons: [PixelButton] {
         var b = [fanButton!, higherButton!, sameButton!, lowerButton!, reshuffleButton!]
         if showsMenuButton { b.append(menuButton) }
@@ -68,6 +67,9 @@ public final class DealScene: SKScene {
     /// Campaign/debug deals show the artifact slot rows (the web's `show-slots`
     /// stays on through play); Zen collapses them for bigger cards.
     public var slotsVisible = true
+    /// Zen deals run the slim chrome (the web hides `#dealStatus`, the coins
+    /// and the SCORE chip in Zen): no reward band, a compacted centred board.
+    public var isZen = false
     /// Pile centres in scene space — the web layer and hit-testing read these.
     private var pileCenters: [Int: CGPoint] = [:]
     private var boardRect: CGRect = .zero
@@ -106,6 +108,8 @@ public final class DealScene: SKScene {
         floatLayer.zPosition = Layer.float
         addChild(deckPanel)
         addChild(rewardLine)
+        buildHintStrip()
+        addChild(hintStrip)
 
         hud = DealTopBar(width: size.width)
         addChild(hud)
@@ -181,8 +185,17 @@ public final class DealScene: SKScene {
         deckPanel.position = CGPoint(x: pad, y: y)
         y -= bandH + 6
 
-        rewardLine.position = CGPoint(x: 0, y: y - 10)
-        y -= 26
+        // The first-turn how-to strip (web #ctlHelp): its band is reserved in
+        // BOTH modes so the strip appearing/vanishing never shifts the board.
+        let hintH: CGFloat = 30
+        hintStrip.position = CGPoint(x: size.width / 2, y: y - hintH / 2 + 6)
+        y -= hintH
+
+        rewardLine.isHidden = isZen   // Zen hides #dealStatus — no reward band
+        if !isZen {
+            rewardLine.position = CGPoint(x: 0, y: y - 10)
+            y -= 26
+        }
 
         // The build footer claims the bottom safe area (the web's global
         // `footer`, visible on the deal screen); RESHUFFLE rides just above it.
@@ -196,11 +209,13 @@ public final class DealScene: SKScene {
         // top-left menu button (it used to sit bottom-left).
         menuButton.position = CGPoint(x: 4, y: -(top + 6))
 
-        // The footer: two tiny muted centred lines at the bottom safe area.
-        footerLine1?.position = CGPoint(x: size.width / 2,
-                                        y: -(size.height - safeInsets.bottom - 4 - 20))
-        footerLine2?.position = CGPoint(x: size.width / 2,
-                                        y: -(size.height - safeInsets.bottom - 4 - 7))
+        // The footer: tiny muted centred lines stacked upward from the
+        // bottom safe area (bottom line pinned, any count stays on screen).
+        let footerBase = size.height - safeInsets.bottom - 4
+        for (i, l) in footerLines.enumerated() {
+            let up = 7 + 13 * (footerLines.count - 1 - i)
+            l.position = CGPoint(x: size.width / 2, y: -(footerBase - CGFloat(up)))
+        }
 
         // Left rail: FAN on top, then ▲ ＝ ▼ as TALL slabs (the web's dedicated
         // guess strip fills the board column's height).
@@ -279,6 +294,93 @@ public final class DealScene: SKScene {
         fanCaption = cap
     }
 
+    /// The Same-Power chip's icon: a small unique gold pixel mark per power
+    /// (the web gives every power its own monoline logo — GLYPHS). 8×8
+    /// matrices, baked once; unknown powers fall back to the class diamond.
+    private static var samePowerIconCache: [String: SKTexture] = [:]
+    static func samePowerIcon(effect: String) -> SKTexture {
+        if let c = samePowerIconCache[effect] { return c }
+        let matrices: [String: [String]] = [
+            "linkBury": [   // arrow down onto a stack
+                "...GG...",
+                "...GG...",
+                "...GG...",
+                ".GGGGGG.",
+                "..GGGG..",
+                "...GG...",
+                ".GGGGGG.",
+                "........"],
+            "linkRevive": [ // a sprout rising
+                ".G....G.",
+                ".GG..GG.",
+                ".GGG.GG.",
+                "..GGGG..",
+                "...GG...",
+                "...GG...",
+                "..GGGG..",
+                "........"],
+            "linkCoins": [  // a coin
+                "..GGGG..",
+                ".GGGGGG.",
+                "GGGGGGGG",
+                "GGGGGGGG",
+                "GGGGGGGG",
+                "GGGGGGGG",
+                ".GGGGGG.",
+                "..GGGG.."],
+            "linkShuffle": [// the swap hourglass
+                ".G....G.",
+                ".GG..GG.",
+                "..GGGG..",
+                "...GG...",
+                "...GG...",
+                "..GGGG..",
+                ".GG..GG.",
+                ".G....G."],
+            "samePeek": [   // an eye
+                "..GGGG..",
+                ".G....G.",
+                "G..GG..G",
+                "G..GG..G",
+                "G..GG..G",
+                "G..GG..G",
+                ".G....G.",
+                "..GGGG.."],
+            "linkHeavy": [  // an anchor
+                "...GG...",
+                "..G..G..",
+                "...GG...",
+                "...G....",
+                "GGGGGGGG",
+                "G..GG..G",
+                ".GG..GG.",
+                "..GGGG.."],
+        ]
+        let rows = matrices[effect] ?? [
+            "...GG...",
+            "..G..G..",
+            ".G.GG.G.",
+            "G.G..G.G",
+            "G.G..G.G",
+            ".G.GG.G.",
+            "..G..G..",
+            "...GG..."]
+        let cell: CGFloat = 2.5
+        let side = CGFloat(8) * cell
+        let img = PixelTexture.image(size: CGSize(width: side, height: side)) { cg in
+            for (y, row) in rows.enumerated() {
+                for (x, ch) in row.enumerated() where ch == "G" {
+                    cg.setFillColor(CRT.gold.cgColor)
+                    cg.fill(CGRect(x: CGFloat(x) * cell, y: CGFloat(y) * cell,
+                                   width: cell, height: cell))
+                }
+            }
+        }
+        let tex = PixelTexture.texture(from: img)
+        samePowerIconCache[effect] = tex
+        return tex
+    }
+
     /// The fan glyph: three card outlines — one straight, the outer two
     /// rotated ±14° — the web's inline `#fanAllBtn` SVG, redrawn at 22pt.
     private static func fanIconTexture() -> SKTexture {
@@ -304,24 +406,17 @@ public final class DealScene: SKScene {
         return PixelTexture.texture(from: img)
     }
 
-    /// The web's global build footer, shown on the deal screen:
-    /// "Ace high · suits don't matter · build vX.YZ · note" — two tiny muted
-    /// centred lines (12px floor, the web wraps at exactly this point).
+    /// The web's global build footer, shown on the deal screen — the same
+    /// BuildStamp as every other footer, wrapped (12px floor).
     private func buildFooter() {
-        let l1 = PixelTexture.label(
-            "Ace high · suits don't matter · build v5.74 · dead Pillar effect paths deleted;",
-            size: 12, color: CRT.muted)
-        l1.alpha = 0.8
-        l1.zPosition = Layer.chrome
-        addChild(l1)
-        footerLine1 = l1
-        let l2 = PixelTexture.label(
-            "Pinky Regular earns both Jokers (no gifted start Joker)",
-            size: 12, color: CRT.muted)
-        l2.alpha = 0.8
-        l2.zPosition = Layer.chrome
-        addChild(l2)
-        footerLine2 = l2
+        footerLines.forEach { $0.removeFromParent() }
+        footerLines = BuildStamp.dealLines.map { text in
+            let l = PixelTexture.label(text, size: 12, color: CRT.muted)
+            l.alpha = 0.8
+            l.zPosition = Layer.chrome
+            addChild(l)
+            return l
+        }
     }
 
     // MARK: - Board construction
@@ -390,10 +485,15 @@ public final class DealScene: SKScene {
         let gridTop = boardRect.maxY - pillarBand
         let gridH = max(box.height, gridTop - boardRect.minY - baseBand)
         let rows = CGFloat(columnSizes.max() ?? 1)
-        // fitBoard's vGap: spread the tallest column to fill the grid.
+        // fitBoard's vGap: spread the tallest column to fill the grid. Zen caps
+        // the spread tighter (1.1×) and CENTRES the whole pile block vertically
+        // instead — the piles sit in the thumb zone, not edge-to-edge.
         let vGap: CGFloat = rows > 1
-            ? max(baseGap, min((gridH - rows * box.height) / (rows - 1), 1.3 * box.height))
+            ? max(baseGap, min((gridH - rows * box.height) / (rows - 1),
+                               (isZen ? 1.1 : 1.3) * box.height))
             : 0
+        let blockH = rows * box.height + max(0, rows - 1) * vGap
+        let blockTop = isZen ? CRT.snap(gridTop - (gridH - blockH) / 2) : gridTop
 
         pileCenters.removeAll(keepingCapacity: true)
         var pileIndex = 0
@@ -403,8 +503,10 @@ public final class DealScene: SKScene {
                 ? CRT.snap(boardRect.midX - box.width / 2)
                 : CRT.snap(boardRect.minX + CGFloat(c) * (boardRect.width - box.width) / CGFloat(cols - 1))
             let colH = CGFloat(colCount) * box.height + CGFloat(colCount - 1) * vGap
-            // Shorter columns centre against the grid (the stagger).
-            let startY = CRT.snap(gridTop - (gridH - colH) / 2)
+            // Shorter columns centre against the block (the stagger).
+            let startY = isZen
+                ? CRT.snap(blockTop - (blockH - colH) / 2)
+                : CRT.snap(gridTop - (gridH - colH) / 2)
 
             // The Pillar row: ONE level row above the grid (web .board-pillars).
             if c < pillarPlaques.count {
@@ -446,6 +548,8 @@ public final class DealScene: SKScene {
     }
 
     public func syncBoard(_ snap: BoardSnapshot) {
+        // A board change invalidates any open pile fan (stale card faces).
+        hidePileFan()
         for (i, p) in piles.enumerated() where i < snap.tops.count {
             p.sync(top: snap.tops[i], count: snap.counts[i], dead: snap.dead[i],
                    deckId: snap.deckId, weighted: snap.weighted[i], anchored: snap.anchored[i],
@@ -466,6 +570,40 @@ public final class DealScene: SKScene {
     private var deckId = "pink"
     private var blockRadius: CGFloat { cardScale.size.width * 0.46 }
 
+    /// The Tell / Spade Whispers directional hints, one per pile (nil = none).
+    /// Pushed every board refresh so a hint tracks the real deck top and dies
+    /// with its pile (web `renderPileHints`).
+    public func syncPileHints(_ dirs: [Guess?]) {
+        for (i, p) in piles.enumerated() { p.syncHint(i < dirs.count ? dirs[i] : nil) }
+    }
+
+    // MARK: - Histogram scrub (the deck band's drag-odds readout)
+
+    /// The histogram rank under a scene point, if the point is over the deck
+    /// band's rank histogram (the web's `stripBarAt`).
+    public func histogramRank(at scenePoint: CGPoint) -> (value: Int, label: String)? {
+        let local = CGPoint(x: scenePoint.x - deckPanel.position.x,
+                            y: scenePoint.y - deckPanel.position.y)
+        return deckPanel.rankValue(atLocal: local)
+    }
+
+    public func showScrub(value: Int, label: String) { deckPanel.showScrub(value: value, label: label) }
+    public func hideScrub() { deckPanel.hideScrub() }
+
+    // MARK: - HUD chip hit-testing (hold-for-help)
+
+    /// The HUD chip id under a scene point (sameCharge / samePower / stageRun /
+    /// dealStatus / score / coins), or nil. Drives the top-bar hold-for-help.
+    public func hudChip(at scenePoint: CGPoint) -> String? {
+        let local = CGPoint(x: scenePoint.x - hud.position.x, y: scenePoint.y - hud.position.y)
+        if let id = hud.chipId(at: local) { return id }
+        if !rewardLine.isHidden {
+            let r = CGRect(x: 0, y: rewardLine.position.y - 13, width: size.width, height: 26)
+            if r.contains(scenePoint) { return "dealStatus" }
+        }
+        return nil
+    }
+
     /// Rebuild the drawn connection web from what the PLAYER currently sees —
     /// called when a death dissolve completes, a revive repaints, or the board
     /// syncs. The blocking radius: a little under half a card box, as on the
@@ -477,20 +615,21 @@ public final class DealScene: SKScene {
 
     public func syncHUD(phaseIndex: Int, altSuits: Bool,
                         phasesTotal: Int, showTrack: Bool, sameCharged: Bool, samePower: String?,
-                        coins: Int, score: Int) {
+                        coins: Int, score: Int, zen: Bool) {
         hud.sync(phaseIndex: phaseIndex, altSuits: altSuits,
                  phasesTotal: phasesTotal, showTrack: showTrack, sameCharged: sameCharged,
                  samePower: samePower, coins: coins, score: score,
-                 menuShown: showsMenuButton)
+                 menuShown: showsMenuButton, zen: zen)
         sameButton.setRole(sameCharged ? .charged : .ctaOutline)
     }
 
     public func syncDeckPanel(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                               remaining: Int, deckId: String, mood: DeckCharacter.Mood,
-                              tier: String = "regular", suitTotals: [String: Int] = [:]) {
+                              tier: String = "regular", suitTotals: [String: Int] = [:],
+                              rankTotals: [Int: Int] = [:]) {
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
                        deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier,
-                       suitTotals: suitTotals)
+                       suitTotals: suitTotals, rankTotals: rankTotals)
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
@@ -502,14 +641,39 @@ public final class DealScene: SKScene {
 
     public func setReshuffleTitle(_ t: String) { reshuffleButton.setTitle(t) }
 
-    public func syncControls(canGuess: Bool, showReshuffle: Bool) {
+    public func syncControls(canGuess: Bool, showReshuffle: Bool, reshuffleEnabled: Bool = true) {
         higherButton.setEnabled(canGuess)
         sameButton.setEnabled(canGuess)
         lowerButton.setEnabled(canGuess)
+        // Web parity (renderReshuffleBtn): an unaffordable reshuffle stays
+        // VISIBLE with its price, disabled — it never hides for poverty.
         reshuffleButton.isHidden = !showReshuffle
+        reshuffleButton.setEnabled(reshuffleEnabled)
+    }
+
+    // MARK: - Idle hint strip (the web's #ctlHelp first-turn how-to)
+
+    private let hintStrip = SKNode()
+
+    /// Shown from deal start until the first pile selection/guess (the web's
+    /// `#ctlHelp` in the guess row). Its band is reserved in the layout ALWAYS
+    /// so showing/hiding never shifts the board.
+    public func setIdleHintVisible(_ on: Bool) { hintStrip.isHidden = !on }
+
+    private func buildHintStrip() {
+        hintStrip.zPosition = Layer.chrome
+        let l1 = PixelTexture.label("Swipe a pile to guess — up = Higher, down = Lower, sideways = Same.",
+                                    size: 12, color: CRT.muted)
+        let l2 = PixelTexture.label("Hold a pile for card info.", size: 12, color: CRT.muted)
+        for (i, l) in [l1, l2].enumerated() {
+            l.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            l.position = CGPoint(x: 0, y: CGFloat(-i) * 14)
+            hintStrip.addChild(l)
+        }
     }
 
     public func setPillars(_ ids: [String?], bases: [String?]) {
+        pillarBadges.removeAll()   // the rebuild below drops the badge nodes too
         for (c, node) in pillarPlaques.enumerated() {
             node.removeAllChildren()
             if c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) {
@@ -572,11 +736,104 @@ public final class DealScene: SKScene {
     }
     private var baseIds: [String?] = []
 
+    // MARK: - Pillar live badges (streak pill / count pill / Second Wind pip)
+
+    /// The live badge a Pillar plaque carries (the web's `.cph-streak`,
+    /// `.cph-count` and `.cph-sw`), driven by engine state every refresh.
+    public enum PillarBadge {
+        /// Consecutive-correct streak on the column; `hot` once past threshold.
+        case streak(Int, hot: Bool)
+        /// The live would-be payout of an accumulating scoring Pillar.
+        case count(Int)
+        /// Second Wind: charged pip, or the spent (dimmed) pip once fired.
+        case secondWind(spent: Bool)
+    }
+
+    private var pillarBadges: [Int: SKNode] = [:]
+
+    public func syncPillarBadges(_ badges: [Int: PillarBadge]) {
+        for (_, old) in pillarBadges { old.removeFromParent() }
+        pillarBadges.removeAll()
+        for (c, badge) in badges where c < pillarPlaques.count {
+            let node = DealScene.badgeNode(badge)
+            node.position = CGPoint(x: cardScale.size.width - node.frame.width - 1, y: -5)
+            node.zPosition = 2
+            pillarPlaques[c].addChild(node)
+            pillarBadges[c] = node
+        }
+    }
+
+    /// One baked badge chip. Web styles: streak/count = ink chip, cream 12px
+    /// digits (dim at zero, gold-on-ink when the streak crosses its threshold);
+    /// Second Wind = a phosphor ↻ pip, felt-deep and struck once spent.
+    private static func badgeNode(_ badge: PillarBadge) -> SKSpriteNode {
+        let text: String
+        let fill: UIColor
+        var ink = CRT.cardFace
+        var struck = false
+        var alpha: CGFloat = 1
+        switch badge {
+        case .streak(let n, let hot):
+            text = "\(n)"
+            fill = hot ? CRT.gold : CRT.ink
+            ink = hot ? CRT.ink : CRT.cardFace
+            if n == 0 { alpha = 0.5 }
+        case .count(let n):
+            text = "\(n)"
+            fill = CRT.ink
+            if n == 0 { alpha = 0.5 }
+        case .secondWind(let spent):
+            text = "↻"
+            fill = spent ? CRT.feltDeep : CRT.phosphor
+            ink = spent ? CRT.muted : CRT.ink
+            struck = spent
+        }
+        let ns = text as NSString
+        let font = CRT.Font.of(13)
+        let tsz = ns.size(withAttributes: [.font: font])
+        let w = max(16, ceil(tsz.width) + 7), h: CGFloat = 15
+        let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+            cg.setFillColor(fill.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            cg.setStrokeColor(CRT.cardFace.withAlphaComponent(0.4).cgColor)
+            cg.setLineWidth(1)
+            cg.stroke(CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1))
+            UIGraphicsPushContext(cg)
+            ns.draw(at: CGPoint(x: (w - tsz.width) / 2, y: (h - tsz.height) / 2),
+                    withAttributes: [.font: font, .foregroundColor: ink])
+            UIGraphicsPopContext()
+            if struck {
+                cg.setStrokeColor(ink.cgColor)
+                cg.setLineWidth(1.5)
+                cg.move(to: CGPoint(x: 2, y: h / 2))
+                cg.addLine(to: CGPoint(x: w - 2, y: h / 2))
+                cg.strokePath()
+            }
+        }
+        let n = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        n.size = img.size
+        n.anchorPoint = CGPoint(x: 0, y: 1)
+        n.alpha = alpha
+        return n
+    }
+
+    // MARK: - Base spent state
+
+    /// Columns whose Base has fired its once-per-deal charge (the web's
+    /// `.base-banner.spent` — dimmed so "used" reads at a glance).
+    private var spentBaseCols = Set<Int>()
+
+    public func syncSpentBases(_ cols: [Int]) {
+        spentBaseCols = Set(cols)
+    }
+
     /// Light the tappable (activatable) Base plaques — a slow compositor-only
-    /// pulse, the web's `.activatable` cue.
+    /// pulse, the web's `.activatable` cue. Spent plaques never pulse and sit
+    /// dimmed (the web's `.spent` greying).
     public func syncActivatableBases(_ cols: [Int]) {
         for (c, node) in basePlaques.enumerated() {
-            let on = cols.contains(c)
+            let spent = spentBaseCols.contains(c)
+            let on = !spent && cols.contains(c)
             if on, node.action(forKey: "act") == nil {
                 node.run(.repeatForever(.sequence([
                     .fadeAlpha(to: 0.55, duration: 0.7),
@@ -584,8 +841,7 @@ public final class DealScene: SKScene {
                 ])), withKey: "act")
             } else if !on {
                 node.removeAction(forKey: "act")
-                node.alpha = (baseIds[safe: c] ?? nil) != nil ? 1 : 1
-                node.alpha = 1
+                node.alpha = spent ? 0.6 : 1
             }
         }
     }
@@ -692,13 +948,33 @@ public final class DealScene: SKScene {
 
     /// The global slight-fan hint (the web's `.board.fan-hint`): while ON,
     /// every ALIVE pile shows two cream under-card layers peeking out rotated
-    /// behind its top card. NON-BLOCKING — guessing stays fully live, and a
-    /// pile tap still just selects (the web opens a centred popup there; the
-    /// in-place peek is the reference behavior here).
+    /// behind its top card. The hint is an ARMED MODE — guessing stays fully
+    /// live, and a pile tap while armed opens that pile's full face-up fan
+    /// (`showPileFan`, the web's openPileFan) instead of selecting.
     public func toggleFanHint() {
         fanHintOn.toggle()
         updateFanChip()
         buildFanPeek(animate: fanHintOn)
+        if !fanHintOn { hidePileFan() }
+    }
+
+    /// The pile currently showing its full fan (hint armed + pile tap).
+    private var fannedPile: Int?
+    public var fannedPileIndex: Int? { fannedPile }
+
+    /// The armed-mode pile tap: splay that pile's cards face-up in place (the
+    /// web's `openPileFan`). Tapping the pile again, tapping empty felt, or
+    /// any board change collapses it.
+    public func showPileFan(_ index: Int, cards: [LiveCard]) {
+        hidePileFan()
+        guard index < piles.count, cards.count > 1 else { return }
+        fannedPile = index
+        piles[index].showFan(cards, full: true)
+    }
+
+    public func hidePileFan() {
+        if let i = fannedPile, i < piles.count { piles[i].hideFan() }
+        fannedPile = nil
     }
 
     private var fanPeekTexture: SKTexture?
@@ -1286,13 +1562,38 @@ final class DealTopBar: SKNode {
 
     func resize(width w: CGFloat) { width = w }
 
+    /// Hit regions for the top bar's hold-for-help, in content-local space:
+    /// (chip id, frame). Rebuilt every sync; DealScene maps them to scene
+    /// space. Zen registers ONLY the Same-Charge chip (the one chip it keeps).
+    var chips: [(id: String, frame: CGRect)] = []
+
+    func chipId(at p: CGPoint) -> String? {
+        for c in chips where c.frame.insetBy(dx: -4, dy: -4).contains(p) { return c.id }
+        return nil
+    }
+
     func sync(phaseIndex: Int, altSuits: Bool, phasesTotal: Int, showTrack: Bool,
               sameCharged: Bool, samePower: String?, coins: Int, score: Int,
-              menuShown: Bool) {
+              menuShown: Bool, zen: Bool = false) {
         let tex = PixelTexture.panel(size: CGSize(width: width, height: height))
         bg.texture = tex; bg.size = tex.size()
 
         content.removeAllChildren()
+        chips.removeAll()
+        // Zen strips the campaign chrome (score / coins / Same-Power / track)
+        // but KEEPS the Same-Charge mark, hugged centred like the web's
+        // `body.zen-mode .hud` (index.html:537-546).
+        if zen {
+            let mark = SKSpriteNode(texture: PixelTexture.texture(from: MapArt.menuLogo(width: 24)))
+            mark.size = mark.texture!.size()
+            mark.alpha = sameCharged ? 1 : 0.45
+            mark.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            mark.position = CGPoint(x: width / 2, y: -height / 2)
+            content.addChild(mark)
+            chips.append(("sameCharge", CGRect(x: width / 2 - 16, y: -height + 4,
+                                               width: 32, height: height - 8)))
+            return
+        }
         var x: CGFloat = menuShown ? 46 : 12
         let midY = -height / 2
 
@@ -1308,6 +1609,7 @@ final class DealTopBar: SKNode {
         // while in it, TODO at 26%. Alt decks show numbered stage chips. Zen
         // hides the track entirely.
         if showTrack {
+            let trackStart = x
             if altSuits {
                 for p in 0..<max(1, phasesTotal) {
                     let state: ChipState = phaseIndex > p ? .done : (phaseIndex == p ? .active : .todo)
@@ -1325,6 +1627,8 @@ final class DealTopBar: SKNode {
                     put(PixelTexture.label(s, size: active ? 22 : 17, color: color), gap: 3)
                 }
             }
+            chips.append(("stageRun", CGRect(x: trackStart - 4, y: -height + 4,
+                                             width: max(20, x - trackStart + 4), height: height - 8)))
         }
 
         // The Same mark: the equals-synapse logo (the menu-logo art), dim
@@ -1335,13 +1639,19 @@ final class DealTopBar: SKNode {
         mark.anchorPoint = CGPoint(x: 0, y: 0.5)
         mark.position = CGPoint(x: width / 2 - 30, y: midY)
         content.addChild(mark)
+        chips.append(("sameCharge", CGRect(x: width / 2 - 34, y: -height + 4,
+                                           width: 32, height: height - 8)))
         var scoreX = width / 2 - 2
         if let samePower, let def = GameData.shared.samePowerTypes.get(samePower) {
-            let p = PixelTexture.label(String(def.label.prefix(1)).uppercased(),
-                                       size: 14, color: CRT.gold)
-            p.anchorPoint = CGPoint(x: 0, y: 0.5)
-            p.position = CGPoint(x: scoreX, y: midY)
-            content.addChild(p)
+            // The power's own pixel mark (web parity: the chip shows the
+            // power's icon, never its initial).
+            let icon = SKSpriteNode(texture: DealScene.samePowerIcon(effect: def.effect ?? def.id))
+            icon.size = icon.texture!.size()
+            icon.anchorPoint = CGPoint(x: 0, y: 0.5)
+            icon.position = CGPoint(x: scoreX, y: midY)
+            content.addChild(icon)
+            chips.append(("samePower", CGRect(x: scoreX - 4, y: -height + 4,
+                                              width: icon.size.width + 8, height: height - 8)))
         }
         scoreX += 26
 
@@ -1354,6 +1664,8 @@ final class DealTopBar: SKNode {
         val.anchorPoint = CGPoint(x: 0, y: 0.5)
         val.position = CGPoint(x: scoreX + lab.size.width, y: midY)
         content.addChild(val)
+        chips.append(("score", CGRect(x: scoreX - 4, y: -height + 4,
+                                      width: lab.size.width + val.size.width + 8, height: height - 8)))
 
         // Coins, far right.
         let num = PixelTexture.label("\(coins)", size: 19, color: CRT.gold)
@@ -1377,6 +1689,8 @@ final class DealTopBar: SKNode {
         num.anchorPoint = CGPoint(x: 0, y: 0.5)
         num.position = CGPoint(x: cx, y: midY)
         content.addChild(num)
+        chips.append(("coins", CGRect(x: width - 10 - coinW - 4, y: -height + 4,
+                                      width: coinW + 14, height: height - 8)))
 
         // Number pops: a changed coin/score chip marks its change with a beat.
         if lastCoins != Int.min && coins != lastCoins {

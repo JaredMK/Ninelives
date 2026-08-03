@@ -771,6 +771,14 @@ public final class GameEngine {
         @discardableResult
         public func drainDeck() -> Int { e.deck?.drain() ?? 0 }
         public func evaluate() { e.evaluateEnd() }
+        /// Jump straight to a loss: kill every pile, then re-evaluate (the web's
+        /// `debug.loseNow`, index.html:14406-14411). The same board/evaluate
+        /// path a real death runs — no special-cased state writes.
+        public func loseNow() {
+            guard let board = e.board, e.status == "playing" else { return }
+            for i in 0..<board.size { board.kill(i) }
+            e.evaluateEnd()
+        }
     }
     public var debug: Debug { Debug(e: self) }
 }

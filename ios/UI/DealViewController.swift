@@ -27,6 +27,8 @@ public final class DealViewController: UIViewController {
     private var dragPile: Int?
     private var dragArmed: Guess?
     private var dragMoved = false
+    /// The histogram drag-scrub (odds readout) is active.
+    private var scrubbing = false
     private var pressedButton: PixelButton?
     private var holdShown = false
     /// The shared bottom prompt bar (offers, base confirms) over the SKView.
@@ -163,6 +165,18 @@ public final class DealViewController: UIViewController {
 
     public override var prefersStatusBarHidden: Bool { true }
     public override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+
+    // MARK: - Keep-awake (web: KeepAwake while a deal runs)
+
+    public override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+
+    public override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
 
     // MARK: - In-deal offers (PROMPT1: everything rides the shared bottom bar)
 
@@ -334,7 +348,18 @@ public final class DealViewController: UIViewController {
             return
         }
         if let pile = scene.pileIndex(at: p) {
-            // The fan hint is non-blocking: a tap still just selects the pile.
+            // Fan hint ARMED: a pile tap opens that pile's full face-up fan
+            // instead of selecting (the web's openPileFan); tapping the same
+            // pile again collapses it. The sliver peek stays as the armed
+            // indicator. Hint off: a tap still just selects the pile.
+            if scene.isFanHintOn {
+                if scene.fannedPileIndex == pile {
+                    scene.hidePileFan()
+                } else {
+                    scene.showPileFan(pile, cards: controller.pileCards(pile))
+                }
+                return
+            }
             controller.select(pile: pile)
             return
         }
@@ -343,7 +368,8 @@ public final class DealViewController: UIViewController {
             present(DeckInspectViewController(campaign: sharedCampaign!), animated: false)
             return
         }
-        // A tap on empty felt clears the selection.
+        // A tap on empty felt clears the selection (and any open pile fan).
+        scene.hidePileFan()
         scene.setSelected(nil)
         controller.refreshAll()
     }
@@ -373,9 +399,22 @@ public final class DealViewController: UIViewController {
             dragPile = scene.pileIndex(at: p)
             dragArmed = nil
             dragMoved = false
-            if let dp = dragPile { controller.select(pile: dp) }
+            if let dp = dragPile {
+                controller.select(pile: dp)
+            } else if let r = scene.histogramRank(at: p) {
+                // The histogram drag-scrub: show the odds line for the rank
+                // under the finger (the web's deckStrip scrubber).
+                scrubbing = true
+                scene.showScrub(value: r.value, label: r.label)
+            }
 
         case .changed:
+            if scrubbing {
+                if let r = scene.histogramRank(at: p) {
+                    scene.showScrub(value: r.value, label: r.label)
+                }
+                return
+            }
             guard let dp = dragPile else { return }
             let t = g.translation(in: view)
             // The web's dy is UP-positive; UIKit's is DOWN-positive.
@@ -390,12 +429,14 @@ public final class DealViewController: UIViewController {
             }
 
         case .ended:
+            if scrubbing { scrubbing = false; scene.hideScrub() }
             defer { dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge() }
             guard let pile = dragPile else { return }
             // Release inside the dead-zone cancels: no guess, the pile stays selected.
             if let armed = dragArmed { controller.guess(armed, pile: pile) }
 
         case .cancelled, .failed:
+            if scrubbing { scrubbing = false; scene.hideScrub() }
             dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge()
 
         default: break
@@ -420,7 +461,13 @@ public final class DealViewController: UIViewController {
         case .began:
             // A hold that turned into a drag is a guess, not a help request.
             guard !dragMoved else { return }
-            if let pile = scene.pileIndex(at: p), let (title, body) = controller.helpText(forPile: pile) {
+            // The top-bar chips take hold-help too (Same Charge, Same-Power,
+            // the stage track, the reward/score line, score, coins).
+            if let chip = scene.hudChip(at: p),
+               let (title, body) = controller.helpText(forHUDChip: chip) {
+                holdShown = true
+                scene.showHelp(title: title, body: body)
+            } else if let pile = scene.pileIndex(at: p), let (title, body) = controller.helpText(forPile: pile) {
                 holdShown = true
                 scene.showHelp(title: title, body: body)
             } else if let b = scene.button(at: p) {

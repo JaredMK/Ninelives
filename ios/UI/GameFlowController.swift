@@ -53,6 +53,9 @@ public final class GameFlowController: UIViewController {
     private var zenCounted = false
     private var zenFlips = 0
     private var zenCorrect = 0
+    /// Cards the Zen deck holds AFTER the initial deal (fullDeckCount − piles)
+    /// — the loss screen's "cards left in deck" derives from it.
+    private var zenDeckPlayable = 0
     var tutorialReplayArmed = false
     private var tutorialRanThisSession = false
 
@@ -85,6 +88,8 @@ public final class GameFlowController: UIViewController {
         view.addSubview(crt)
         view.addSubview(prompt)
         boot()
+        // A debug autopilot left on last session re-arms at boot.
+        if debugAutopilotOn() { setDebugAutopilot(true) }
         // Screenshot harness: `-showOverlay cleared|dead|victory|mystery`
         // renders that overlay with sample data (debug evidence stills only).
         if let which = UserDefaults.standard.string(forKey: "showOverlay") {
@@ -295,7 +300,10 @@ public final class GameFlowController: UIViewController {
                 .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
                 .init("Reset", role: .danger) { [weak self] in
                     self?.prompt.hide()
+                    // Web index.html:32342-32345: the reset wipes ZenStats too
+                    // (ZenUnlocks stays — a stats reset never re-locks).
                     self?.campaign.stats.reset()
+                    self?.campaign.zenStats.reset()
                     sheet?.refresh()
                 },
             ]) { [weak self] in self?.prompt.hide() }
@@ -495,6 +503,11 @@ public final class GameFlowController: UIViewController {
             st.lifetimeCardsFlipped += campaign.totalCardsFlipped
             st.bestCampaignDopamine = max(st.bestCampaignDopamine, campaign.totalCoinsEarned)
             st.bestCampaignScore = max(st.bestCampaignScore, campaign.getCampaignScore())
+            // Per-character/tier best (native-only deck-select carousel line).
+            // Tier chips don't distinguish endless, so only the campaign score
+            // folds — endless bests are NOT tracked per deck/tier.
+            let dtKey = "\(campaign.deckId).\(campaign.difficultyTier)"
+            st.deckTierBest[dtKey] = max(st.deckTierBest[dtKey] ?? 0, campaign.getCampaignScore())
             st.furthestStage = max(st.furthestStage, campaign.phasesTotal())
             st.deckTierWins["\(campaign.deckId).\(campaign.difficultyTier)"] = true
             campaign.stats.put(st)
@@ -541,14 +554,52 @@ public final class GameFlowController: UIViewController {
                                   aliveCount: o.aliveCount,
                                   minAlive: o.minAliveCards,
                                   progress: stageRunShort())
-        showRunComplete(summary)
+        // POST-DEAL SPOILS (web showPostDealPlacement, index.html:30574-30599,
+        // invoked after every won deal): anything GAINED mid-deal — a
+        // Duplicated card waiting in the pack tray, a copied sticker in the
+        // hold — is still unplaced. Walk the player through placing it before
+        // the summary returns to the map.
+        showPostDealWalk { [weak self] in self?.showRunComplete(summary) }
+    }
+
+    /// The spoils walk: held tray cards get the store's swap picker, held
+    /// stickers the apply picker, back to back, until both drain. A pure
+    /// cancel (nothing placed/discarded) ENDS the walk — stragglers wait for
+    /// the next store's gate instead of trapping the player in a loop.
+    private func showPostDealWalk(_ done: @escaping () -> Void) {
+        if campaign.packTrayCount() > 0 {
+            let before = campaign.packTrayCount()
+            let picker = CardPickerViewController(campaign: campaign,
+                                                  mode: .swap(trayIndex: 0, step: nil)) { [weak self] _ in
+                guard let self else { return }
+                guard self.campaign.packTrayCount() < before else { done(); return }
+                self.showPostDealWalk(done)
+            }
+            picker.showsSkip = true
+            present(picker, animated: false)
+            return
+        }
+        if let typeId = campaign.stickerInventory.first(where: { $0.value > 0 })?.key {
+            let picker = CardPickerViewController(campaign: campaign,
+                                                  mode: .applySticker(typeId: typeId)) { [weak self] picked in
+                guard let self else { return }
+                guard picked != nil else { done(); return }   // cancelled out of the walk
+                self.showPostDealWalk(done)
+            }
+            present(picker, animated: false)
+            return
+        }
+        done()
     }
 
     private func summaryLines(_ p: PayoutBreakdown, flat: Double) -> [(String, Int)] {
         var lines: [(String, Int)] = []
         if flat > 0 { lines.append(("Deal reward", Int(flat))) }
         for l in p.eventLines where l.amount != 0 { lines.append((l.label, Int(l.amount))) }
-        for l in p.pillarLines where l.amount != 0 { lines.append((l.label, Int(l.amount))) }
+        // Pillar bullets name their column (web index.html:24245-24246).
+        for l in p.pillarLines where l.amount != 0 {
+            lines.append((l.col.map { "\(l.label) (col \($0 + 1))" } ?? l.label, Int(l.amount)))
+        }
         if p.extraCoinBonus > 0 { lines.append(("Extra Coin", Int(p.extraCoinBonus))) }
         return lines
     }
@@ -593,7 +644,11 @@ public final class GameFlowController: UIViewController {
                                                nearest: campaign.itemUnlocks.nearestLocked(2)) { [weak self] in
             guard let self else { return }
             self.campaign.reset()
-            self.showMenu()
+            // MAIN MENU ends the climb → the TERMINATION checkpoint re-checks
+            // item unlocks (web maybeShowUnlockCelebration, index.html:24835-
+            // 24843): gates crossed by run-end stat folds land after the
+            // deal-end drain. Stamps the known-set; [] → straight through.
+            self.runUnlockPops { self.showMenu() }
         }
         presentOverlay(overlay)
         crt.flicker()
@@ -650,7 +705,11 @@ public final class GameFlowController: UIViewController {
             self.showItemUnlockPops(items, done: done)
         }
         if let deckPop {
-            let overlay = PhaseOverlayView.deckUnlock(name: deckPop.name, deckId: deckPop.id) { [weak self] in
+            // "<Prev> made it home" — prev = the ladder deck before the new one
+            // (web DECKS.find(requires)); robust even after campaign.reset().
+            let prevName = Self.decks.firstIndex(where: { $0.id == deckPop.id })
+                .flatMap { $0 > 0 ? Self.decks[$0 - 1].name : nil }
+            let overlay = PhaseOverlayView.deckUnlock(name: deckPop.name, deckId: deckPop.id, prevName: prevName) { [weak self] in
                 self?.dismissOverlay()
                 itemPops()
             }
@@ -679,7 +738,8 @@ public final class GameFlowController: UIViewController {
             let u = queue.removeFirst()
             let overlay = PhaseOverlayView.itemUnlock(
                 title: "\(PhaseOverlayView.itemLabel(u.id)) UNLOCKED",
-                body: PhaseOverlayView.itemDef(u.id)?.description ?? u.hint) { [weak self] in
+                body: PhaseOverlayView.itemDef(u.id)?.description ?? u.hint,
+                itemId: u.id, hint: u.hint) { [weak self] in
                 self?.dismissOverlay()
                 next()
             }
@@ -703,13 +763,170 @@ public final class GameFlowController: UIViewController {
     }
     func currentOverlayView() -> PhaseOverlayView? { overlay as? PhaseOverlayView }
 
+    // MARK: - Debug panel
+
+    /// Debug access (7 footer taps; the web's `body.debug-access`). Persisted so
+    /// a playtester keeps it across relaunches; cleared from the panel.
+    private(set) var debugAccess = UserDefaults.standard.bool(forKey: "debugAccess")
+    func debugAccessEnabled() -> Bool { debugAccess }
+    func setDebugAccess(_ on: Bool) {
+        debugAccess = on
+        UserDefaults.standard.set(on, forKey: "debugAccess")
+        if !on { dismissDebugPanel() }
+    }
+
+    private var debugTapCount = 0
+    private var debugTapStart = Date.distantPast
+    /// The web's `wireVersionTapDebug`: 7 footer taps within ~2s toggle debug
+    /// access (and open the panel on activation, like the web's setDebug(true)).
+    /// Returns true when the toggle FIRED on this tap, so the caller can flash
+    /// the footer and rebuild the menu (the DEBUG button appears/disappears).
+    @discardableResult
+    func noteFooterTap() -> Bool {
+        let now = Date()
+        if now.timeIntervalSince(debugTapStart) > 2.0 { debugTapCount = 0 }
+        if debugTapCount == 0 { debugTapStart = now }
+        debugTapCount += 1
+        guard debugTapCount >= 7 else { return false }
+        debugTapCount = 0
+        setDebugAccess(!debugAccess)
+        if debugAccess { showDebugPanel() }
+        return true
+    }
+
+    private var debugPanel: DebugPanelViewController?
+    /// The panel rides as a child VC over whatever screen is up (menu, map,
+    /// store, deal) — like the sheets, below the CRT layer.
+    func showDebugPanel() {
+        guard debugAccess, debugPanel == nil else { return }
+        let vc = DebugPanelViewController(flow: self)
+        addChild(vc)
+        vc.view.frame = view.bounds
+        vc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.insertSubview(vc.view, belowSubview: crt)
+        vc.didMove(toParent: self)
+        debugPanel = vc
+    }
+    func dismissDebugPanel() {
+        guard let vc = debugPanel else { return }
+        debugPanel = nil
+        vc.willMove(toParent: nil)
+        vc.view.removeFromSuperview()
+        vc.removeFromParent()
+    }
+
+    /// The live deal's controller (nil when no deal is on screen or it's over).
+    func debugLiveDeal() -> DealController? {
+        guard let dealVC = current as? DealViewController, let c = dealVC.controller, !c.isOver else { return nil }
+        return c
+    }
+
+    /// Persist after a debug mutation — only while a climb is live (a menu-phase
+    /// save blob would be bogus).
+    func debugPersist() {
+        if campaign.runMap != nil { persist(phase: currentPhase) }
+    }
+
+    /// MAP JUMP: teleport via CampaignState.debugJumpToNode, then re-show the
+    /// map at the jumped position. Refused mid-deal (an orphaned deal would
+    /// leave a dead "run" checkpoint).
+    @discardableResult
+    func debugMapJump(to id: Int) -> Bool {
+        guard !(current is DealViewController) else { return false }
+        guard campaign.debugJumpToNode(id) else { return false }
+        dismissDebugPanel()
+        showMap()
+        return true
+    }
+
+    /// RESET ALL PROGRESS from the panel: the shared double-confirm bar, raised
+    /// above the panel (the StatsSheetView pattern), then the full wipe.
+    func debugConfirmResetAll() {
+        view.insertSubview(prompt, belowSubview: crt)   // the bar must clear the panel
+        prompt.show("Reset ALL progress?",
+                    help: "Campaign, decks, unlocks, stats and the tutorial are wiped — this can't be undone.",
+                    actions: [
+            .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+            .init("Erase everything", role: .danger) { [weak self] in
+                guard let self else { return }
+                self.prompt.hide()
+                self.dismissDebugPanel()
+                self.resetAllProgress()
+            },
+        ]) { [weak self] in self?.prompt.hide() }
+    }
+
+    // MARK: - Debug autopilot + fps
+
+    /// The panel's autopilot: an odds-based guesser ticking against the live
+    /// deal (the web's "autopilot (odds-based guesser)" checkbox). Runtime-
+    /// settable, unlike the `-autoPlay` launch flag — DealViewController reads
+    /// that flag only at scene creation, and its scripted player is a private
+    /// verification harness, so the panel drives its own timer instead.
+    private var debugPilotTimer: Timer?
+    func debugAutopilotOn() -> Bool { UserDefaults.standard.bool(forKey: "debugAutopilot") }
+    func setDebugAutopilot(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "debugAutopilot")
+        debugPilotTimer?.invalidate()
+        debugPilotTimer = nil
+        guard on else { return }
+        debugPilotTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
+            self?.debugPilotTick()
+        }
+    }
+    /// One move per tick, the same card-counted best-move strategy as
+    /// DealViewController.startOddsPlayer: for every alive pile compute
+    /// P(higher/lower/same) from the remaining rank counts; play the global max.
+    private func debugPilotTick() {
+        guard let dealVC = current as? DealViewController, let c = dealVC.controller,
+              !c.isOver, !c.promptIsUp, !c.deckIsEmpty else { return }
+        let counts = c.deckCounts()
+        let total = max(1, counts.values.reduce(0, +))
+        var best: (pile: Int, call: Guess, p: Double)?
+        for pile in c.alivePiles() {
+            guard let v = c.topValue(pile) else { continue }
+            var higher = 0, lower = 0, same = 0
+            for (rank, n) in counts {
+                if rank > v { higher += n }
+                else if rank < v { lower += n }
+                else { same += n }
+            }
+            let options: [(Guess, Double)] = [
+                (.higher, Double(higher) / Double(total)),
+                (.lower, Double(lower) / Double(total)),
+                (.same, Double(same) / Double(total)),
+            ]
+            for (g, p) in options where best == nil || p > best!.p {
+                best = (pile, g, p)
+            }
+        }
+        guard let move = best else { return }
+        c.guess(move.call, pile: move.pile)
+    }
+
+    func debugFPSOn() -> Bool { UserDefaults.standard.bool(forKey: "fps") }
+    /// Toggle the deal scene's frame readout (the `-fps` launch-flag path).
+    /// DealViewController reads the flag only at scene creation; the scene's
+    /// update loop reads `showsFrameHUD` per frame, so flip the live scene too.
+    /// Its `scene` property is private — reflection rather than widening the
+    /// production API for a debug toggle.
+    func setDebugFPS(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "fps")
+        guard let dealVC = current as? DealViewController,
+              let scene = Mirror(reflecting: dealVC).children
+                .first(where: { $0.label == "scene" })?.value as? DealScene else { return }
+        scene.showsFrameHUD = on
+    }
+
     // MARK: - Pause menu
 
     /// The web `#gameMenu` bottom sheet: seed row (tap-to-copy) over Resume /
     /// How to Play (or Restart in Zen) / Sound / New Climb / Quit to Menu.
     func showPauseMenu() {
         let isZenGame = zenDiff != nil
-        let sheet = PauseSheetView(seed: isZenGame ? nil : SeedCode.encode(campaign.runSeed),
+        // The FULL share string (web showGameMenu's copy payload, index.html:
+        // 31694-31702) — the death/victory chips already pass seedShareString().
+        let sheet = PauseSheetView(seed: isZenGame ? nil : seedShareString(),
                                    exhibition: !isZenGame && campaign.isExhibition(),
                                    items: [])
         func makeItems() -> [PauseSheetView.Item] {
@@ -792,9 +1009,11 @@ public final class GameFlowController: UIViewController {
         zenFlips = 0
         zenCorrect = 0
         let plan = DealPlanner.zenPlan(diff: GameData.shared.difficulty.zen(diff))
+        zenDeckPlayable = plan.fullDeckCount - plan.piles
         let vc = DealViewController(mode: .zen(plan, diff: diff), campaign: campaign, runMap: runMap)
         // FIRST-RUN TOUR: the guided first Zen deal teaches the core mechanics.
         // Completing OR skipping stamps the pref; a replay re-arms one-shot.
+        var tourRef: TutorialView? = nil
         if campaign.saveStore.pref("tutorial2") != "1" || tutorialReplayArmed {
             tutorialReplayArmed = false
             tutorialRanThisSession = true
@@ -804,10 +1023,15 @@ public final class GameFlowController: UIViewController {
             vc.view.addSubview(tour)
             tour.frame = vc.view.bounds
             tour.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            tourRef = tour
         }
         vc.onOutcome = { [weak self] o in self?.onZenEnd(o) }
         vc.onZenGuess = { [weak self] correct in
             guard let self, let d = self.zenDiff else { return }
+            // First resolved guess steps the tour aside UNSTAMPED — it
+            // re-offers next deal (web Tutorial.onGuessResolved).
+            tourRef?.stepAside()
+            tourRef = nil
             if !self.zenCounted {
                 self.zenCounted = true
                 var e = self.campaign.zenStats.get(d)
@@ -828,10 +1052,27 @@ public final class GameFlowController: UIViewController {
     private func onZenEnd(_ o: DealOutcome) {
         guard let d = zenDiff else { return }
         var e = campaign.zenStats.get(d)
+        var unlockLabel: String? = nil
+        // Draw pile left at the death (loss) — the killing draw already
+        // resolved, so this is the true remaining count (web index.html:
+        // 31478-31480: payload.deck.remaining()). cardsDrawn excludes the
+        // initial deal, so the playable pool is fullDeckCount − piles.
+        let cardsLeft = max(0, zenDeckPlayable - o.cardsDrawn)
         if o.won {
             e.wins += 1
             e.winPiles[o.aliveCount, default: 0] += 1
-            _ = campaign.zenUnlocks.recordWin(d)
+            // THE LADDER'S GRANT: the first win at a difficulty permanently
+            // opens the next one (ZenUnlocks — its own store, so a stats reset
+            // never re-locks). Only that NEW grant carries the overlay line.
+            let firstWin = campaign.zenUnlocks.recordWin(d)
+            let ids = DifficultyData.zenIds
+            if firstWin, let i = ids.firstIndex(of: d), i + 1 < ids.count {
+                unlockLabel = GameData.shared.difficulty.zen(ids[i + 1]).label
+            }
+        } else {
+            // A loss folds cards-left into the lossCards distribution (bucketed
+            // by the Stats histogram at render — forward-only).
+            e.lossCards[cardsLeft, default: 0] += 1
         }
         campaign.zenStats.put(d, e)
         // The one passive zenEnd bubble, the first time only: names the unlock.
@@ -839,20 +1080,28 @@ public final class GameFlowController: UIViewController {
             tutorialRanThisSession = false
             _ = campaignUnlocked()   // stamps the pref once both halves are done
         }
-        let overlay = PhaseOverlayView.zenEnd(won: o.won, flips: zenFlips, correct: zenCorrect,
-                                              onAgain: { [weak self] in
-            guard let self, let d = self.zenDiff else { return }
-            self.dismissOverlay()
-            self.startZen(diff: d)
-        }, onMenu: { [weak self] in
+        // UNLOCK2: Zen results move the zen* gate stats, so the Zen end is an
+        // item-unlock checkpoint too — the pop queue drains BEFORE the overlay
+        // (web index.html:31523; [] → no UI, straight through).
+        runUnlockPops { [weak self] in
             guard let self else { return }
-            self.dismissOverlay()
-            self.zenTeardown()
-            // First Zen session done → the campaign may have just appeared.
-            self.showMenu()
-        })
-        presentOverlay(overlay)
-        crt.flicker()
+            let overlay = PhaseOverlayView.zenEnd(won: o.won, flips: self.zenFlips, correct: self.zenCorrect,
+                                                  outcomeCount: o.won ? o.aliveCount : cardsLeft,
+                                                  unlockLabel: unlockLabel,
+                                                  onAgain: { [weak self] in
+                guard let self, let d = self.zenDiff else { return }
+                self.dismissOverlay()
+                self.startZen(diff: d)
+            }, onMenu: { [weak self] in
+                guard let self else { return }
+                self.dismissOverlay()
+                self.zenTeardown()
+                // First Zen session done → the campaign may have just appeared.
+                self.showMenu()
+            })
+            self.presentOverlay(overlay)
+            self.crt.flicker()
+        }
     }
 
     private func zenTeardown() {
@@ -874,15 +1123,29 @@ extension GameFlowController: MapScreenDelegate {
         case "card", "pickup":
             let card = campaign.resolvePickup(node)
             persist(phase: "map")
+            // BLANK pickup: nothing was added — it grants a REMOVAL. Open the
+            // choose-a-card-to-remove flow (web index.html:28430-28434); the
+            // Blank never flies into the deck.
+            if let card, card.blank {
+                map.render()
+                openMapBlankRemovals(1)
+                return
+            }
             map.collectCards(card.map { [$0] } ?? []) { map.render() }
         case "pack":
             let cards = campaign.resolvePack(node)
             persist(phase: "map")
+            // Any BLANK revealed in the pack grants a removal instead of a
+            // card — its choose flow runs after the reveal closes, one picker
+            // per Blank (web index.html:28449-28470).
+            let gained = cards.filter { !$0.blank }
+            let blanks = cards.count - gained.count
             let vc = PackRevealViewController(campaign: campaign, title: "Pack",
                                               content: .cards(cards), mode: .show) { [weak self, weak map] _ in
                 guard let map else { return }
-                map.collectCards(cards) { map.render() }
+                map.collectCards(gained) { map.render() }
                 self?.persist(phase: "map")
+                if blanks > 0 { self?.openMapBlankRemovals(blanks) }
             }
             present(vc, animated: false)
         case "store":
@@ -945,6 +1208,19 @@ extension GameFlowController: MapScreenDelegate {
         else { showMap() }
     }
 
+    /// A Blank (∅ Removal) grant: one FREE removal picker per Blank, chained
+    /// (the web's openMapBlankRemove). Declining is allowed — the picker keeps
+    /// its ✕; the grant is simply passed up. Checkpointed per confirm by the
+    /// picker's own PersistenceHolder hook.
+    private func openMapBlankRemovals(_ count: Int) {
+        guard count > 0 else { return }
+        let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] _ in
+            self?.openMapBlankRemovals(count - 1)
+        }
+        picker.forced = false
+        present(picker, animated: false)
+    }
+
     private func continueMystery(_ o: MysteryOutcome, node: MapNode, map: MapViewController?) {
         switch o.key {
         case "cards", "joker":
@@ -974,8 +1250,11 @@ extension GameFlowController: MapScreenDelegate {
             } else { completeMystery(node.id) }
         case "store":
             // The store opens on the spot; the mystery completes on Done.
+            // fresh=false (web index.html:28351-28369) — a saved offer is never
+            // clobbered (no free reroll off a refresh); the detour offer keys
+            // to the MYSTERY node's id.
             mysteryStoreContinue = { [weak self] in self?.completeMystery(node.id) }
-            showStore(fresh: true, nodeId: node.id)
+            showStore(fresh: false, nodeId: node.id)
         case "ambush":
             currentAmbush = DealPlanner.AmbushSpec(cards: o.ambushCards ?? 15,
                                                    piles: o.ambushPiles ?? 4,

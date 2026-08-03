@@ -291,7 +291,9 @@ public final class StoreViewController: UIViewController {
 
     private func addHold(to v: UIView, _ show: @escaping () -> Void) {
         let g = UILongPressGestureRecognizer(target: self, action: #selector(holdFired(_:)))
-        g.minimumPressDuration = 0.45
+        // Web attachStoreHoldHelp: 500ms — 350/450 was short enough that an
+        // ordinary mobile tap could trip it and swallow the buy tap.
+        g.minimumPressDuration = 0.5
         v.addGestureRecognizer(g)
         holdActions[ObjectIdentifier(v)] = show
     }
@@ -513,10 +515,10 @@ public final class StoreViewController: UIViewController {
                 guard !chosen.isEmpty else { self.render(); return }
                 for i in chosen { _ = self.campaign.addStickerToInventory(result.stickers[i]) }
                 self.render()
-                // Straight into the apply flow for the first pick.
-                if let first = chosen.first {
-                    self.applyOwnedSticker(result.stickers[first])
-                }
+                // Only the JUST-PICKED stickers auto-walk (web index.html:
+                // 30528-30537): stickers held from EARLIER visits stay for the
+                // explicit GO TO MAP gate.
+                self.walkNewStickers(chosen.map { result.stickers[$0] })
             }
             present(vc, animated: false)
         }
@@ -526,17 +528,25 @@ public final class StoreViewController: UIViewController {
         let picker = CardPickerViewController(campaign: campaign,
                                               mode: .applySticker(typeId: typeId)) { [weak self] _ in
             self?.render()
-            self?.continuePendingStickers()
         }
         present(picker, animated: false)
     }
 
-    /// Any sticker still in inventory (a pack pick) gets its apply picker,
-    /// back to back, until the inventory drains.
-    private func continuePendingStickers() {
-        if let (typeId, n) = campaign.stickerInventory.first(where: { $0.value > 0 }), n > 0 {
-            applyOwnedSticker(typeId)
+    /// Apply pickers for a pack's just-granted stickers, back to back. A cancel
+    /// (nil) ENDS the walk — the rest wait for the explicit gate.
+    private func walkNewStickers(_ ids: [String]) {
+        guard let typeId = ids.first else { return }
+        guard campaign.inventoryCount(typeId) > 0 else {
+            walkNewStickers(Array(ids.dropFirst()))
+            return
         }
+        let picker = CardPickerViewController(campaign: campaign,
+                                              mode: .applySticker(typeId: typeId)) { [weak self] picked in
+            guard let self else { return }
+            self.render()
+            if picked != nil { self.walkNewStickers(Array(ids.dropFirst())) }
+        }
+        present(picker, animated: false)
     }
 
     /// The PACK-KEEP walk: every held tray card gets a swap picker, back to
@@ -585,13 +595,22 @@ public final class StoreViewController: UIViewController {
             startPackKeepWalk(from: 0)
             return
         }
-        if let (typeId, n) = campaign.stickerInventory.first(where: { $0.value > 0 }), n > 0 {
+        // The gate keys off stickers that can actually BE placed (the web's
+        // pendingBlockCount, index.html:30507-30520): a sticker with no legal
+        // target (e.g. +1 Rank when every card is an Ace) must never bar exit.
+        if let typeId = campaign.stickerInventory.first(where: { $0.value > 0 && stickerHasTarget($0.key) })?.key {
             setMessage("Apply your stickers first.")
             applyOwnedSticker(typeId)
             return
         }
         PersistenceHolder.shared?.checkpoint(campaign)
         delegate?.storeDone(self)
+    }
+
+    /// Read-only eligibility scan (the picker's `eligible` rule): does any deck
+    /// card accept this sticker right now?
+    private func stickerHasTarget(_ typeId: String) -> Bool {
+        campaign.getRunDeck().contains { campaign.canApplySticker($0, typeId) }
     }
 
     // MARK: - Store key legend
@@ -681,7 +700,7 @@ final class StoreTileView: UIControl {
         addSubview(priceLabel)
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
         let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
-        hold.minimumPressDuration = 0.45
+        hold.minimumPressDuration = 0.5   // the web's 500ms hold (index.html:28850)
         addGestureRecognizer(hold)
     }
 
@@ -695,6 +714,7 @@ final class StoreTileView: UIControl {
 
     func configure(art image: UIImage, kind: String, caption: String?, price: Int,
                    affordable: Bool, tier: String, locked: Bool) {
+        isHidden = false
         art.image = image
         switch kind {
         case "sticker": artCap = 68
@@ -731,13 +751,15 @@ final class StoreTileView: UIControl {
     }
 
     func configureSold() {
+        // Web `.store-tile.empty` (index.html:3251): a sold-out slot VANISHES
+        // (visibility:hidden — the grid slot keeps its space), never dims.
         art.image = nil
         captionLabel.attributedText = nil
         captionLabel.isHidden = true
         tierStrip.isHidden = true
         priceLabel.isHidden = true
-        alpha = 0.4
         isEnabled = false
+        isHidden = true
     }
 
     override func layoutSubviews() {

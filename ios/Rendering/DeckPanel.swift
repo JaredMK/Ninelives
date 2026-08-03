@@ -24,6 +24,15 @@ public final class DeckPanel: SKNode {
     /// The peek chip: the revealed upcoming draw (Scout / peek Pillars).
     private let peekLayer = SKNode()
     private var peekShown: CardArt.Face?
+    /// The drag-scrub odds readout (the web's `.ds-scrub`): an overlay line
+    /// over the histogram while a finger scrubs the bars.
+    private let scrubLayer = SKNode()
+    /// The last synced rank → remaining counts (the scrubber sums these).
+    private var lastCounts: [Int: Int] = [:]
+    /// Per-rank bar geometry from the last sync, for scrub hit-testing.
+    private var barFrames: [(value: Int, label: String, x: CGFloat, w: CGFloat)] = []
+    private var histMinX: CGFloat = 0
+    private var histMaxX: CGFloat = 0
 
     /// The deck stack's hit box (tap = inspect, hold = quick peek).
     public private(set) var deckRect: CGRect = .zero
@@ -41,6 +50,8 @@ public final class DeckPanel: SKNode {
         addChild(character)
         peekLayer.zPosition = 3
         addChild(peekLayer)
+        scrubLayer.zPosition = 4
+        addChild(scrubLayer)
         zPosition = Layer.chrome
     }
 
@@ -81,13 +92,19 @@ public final class DeckPanel: SKNode {
     }
 
     /// `counts` is rank value → remaining, `suitCounts` is suit → remaining,
-    /// `suitTotals` the deal's initial per-suit composition (the web's "8/13").
+    /// `suitTotals` the deal's initial per-suit composition (the web's "8/13"),
+    /// `rankTotals` the deal's initial per-rank composition (the web's
+    /// renderHistogram grey "total this stage" ghost behind each bright bar).
     public func sync(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                      deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood,
-                     tier: String = "regular", suitTotals: [String: Int] = [:]) {
+                     tier: String = "regular", suitTotals: [String: Int] = [:],
+                     rankTotals: [Int: Int] = [:]) {
         histLayer.removeAllChildren()
         suitLayer.removeAllChildren()
         deckLayer.removeAllChildren()
+        scrubLayer.removeAllChildren()
+        lastCounts = counts
+        barFrames.removeAll()
 
         let pad: CGFloat = 8
         // ---- suit counts (left, remaining/total like the web) ----
@@ -109,20 +126,43 @@ public final class DeckPanel: SKNode {
         let deckW: CGFloat = 62
         let histW = size.width - histX - deckW - pad * 2
         let barW = max(3, (histW - CGFloat(DeckManager.ranks.count - 1) * 2) / CGFloat(DeckManager.ranks.count))
-        let maxCount = max(1, counts.values.max() ?? 1)
+        // Web parity (renderHistogram): the scale reads the FULL stage counts.
+        let scaleMax = max(1, rankTotals.values.max() ?? counts.values.max() ?? 1)
         let histH = size.height - pad * 2 - 12
+        histMinX = histX
+        histMaxX = histX + CGFloat(DeckManager.ranks.count) * (barW + 2)
         for (i, r) in DeckManager.ranks.enumerated() {
             let n = counts[r.value] ?? 0
-            let h = n == 0 ? 2 : max(3, CGFloat(n) / CGFloat(maxCount) * histH)
-            let bar = SKSpriteNode(color: n == 0 ? CRT.feltDeep : CRT.cardFace,
-                                   size: CGSize(width: barW, height: h))
-            bar.anchorPoint = CGPoint(x: 0, y: 0)
-            bar.position = CGPoint(x: histX + CGFloat(i) * (barW + 2), y: -size.height + pad + 12)
-            histLayer.addChild(bar)
+            let full = rankTotals[r.value] ?? 0
+            let barX = histX + CGFloat(i) * (barW + 2)
+            let barY = -size.height + pad + 12
+            barFrames.append((value: r.value, label: r.label, x: barX, w: barW))
+            if full > 0 {
+                // The grey ghost: the full count of this rank at deal start.
+                let gh = max(3, CGFloat(full) / CGFloat(scaleMax) * histH)
+                let ghost = SKSpriteNode(color: CRT.feltDeep, size: CGSize(width: barW, height: gh))
+                ghost.anchorPoint = CGPoint(x: 0, y: 0)
+                ghost.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(ghost)
+            }
+            if n > 0 {
+                // The bright overlay: how many of this rank are still drawable.
+                let h = max(3, CGFloat(n) / CGFloat(scaleMax) * histH)
+                let bar = SKSpriteNode(color: CRT.cardFace, size: CGSize(width: barW, height: h))
+                bar.anchorPoint = CGPoint(x: 0, y: 0)
+                bar.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(bar)
+            } else if full == 0 {
+                // No such rank this stage at all: the old 2px felt stub.
+                let stub = SKSpriteNode(color: CRT.feltDeep, size: CGSize(width: barW, height: 2))
+                stub.anchorPoint = CGPoint(x: 0, y: 0)
+                stub.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(stub)
+            }
             // Rank tick under the bar (12px floor).
             let tick = PixelTexture.label(r.label, size: 12, color: CRT.muted)
             tick.anchorPoint = CGPoint(x: 0.5, y: 1)
-            tick.position = CGPoint(x: bar.position.x + barW / 2, y: -size.height + pad + 11)
+            tick.position = CGPoint(x: barX + barW / 2, y: -size.height + pad + 11)
             histLayer.addChild(tick)
         }
 
@@ -168,6 +208,92 @@ public final class DeckPanel: SKNode {
 
         deckRect = CGRect(x: charX - 4, y: -size.height + pad, width: deckW + 4, height: size.height - pad * 2)
     }
+
+    // MARK: - Drag-scrub odds readout (the web's deckStrip scrubber)
+
+    /// The histogram rank under a panel-local point (inside a bar's span, else
+    /// the nearest bar — the web's `stripBarAt` fallback for the gaps).
+    public func rankValue(atLocal p: CGPoint) -> (value: Int, label: String)? {
+        guard !barFrames.isEmpty, size.height > 0 else { return nil }
+        guard p.x >= histMinX - 4, p.x <= histMaxX + 4,
+              p.y <= 0, p.y >= -size.height else { return nil }
+        if let f = barFrames.first(where: { p.x >= $0.x - 1 && p.x <= $0.x + $0.w + 1 }) {
+            return (f.value, f.label)
+        }
+        guard let best = barFrames.min(by: {
+            abs($0.x + $0.w / 2 - p.x) < abs($1.x + $1.w / 2 - p.x)
+        }) else { return nil }
+        return (best.value, best.label)
+    }
+
+    /// Show the odds line for a scrubbed rank: "R · ↑N higher · =N same · ↓N
+    /// lower" (jokers append "· ★N safe" — safe on any call, so they sit
+    /// outside the split, matching the web's ★ column note). The touched bar
+    /// gets the web's `.ds-active` gold frame.
+    public func showScrub(value: Int, label: String) {
+        scrubLayer.removeAllChildren()
+        var above = 0, same = 0, below = 0
+        for (v, n) in lastCounts where v != 0 {
+            if v > value { above += n }
+            else if v < value { below += n }
+            else { same += n }
+        }
+        let jokers = lastCounts[0] ?? 0
+        var parts: [(String, UIColor)] = [
+            ("\(label) · ", CRT.cardFace),
+            ("↑\(above) higher", CRT.phosphor),
+            (" · ", CRT.muted),
+            ("=\(same) same", CRT.cardFace),
+            (" · ", CRT.muted),
+            ("↓\(below) lower", CRT.suitRed),
+        ]
+        if jokers > 0 {
+            parts.append((" · ", CRT.muted))
+            parts.append(("★\(jokers) safe", CRT.gold))
+        }
+        var nodes: [SKSpriteNode] = []
+        var total: CGFloat = 0
+        for (t, c) in parts {
+            let n = PixelTexture.label(t, size: 13, color: c)
+            n.anchorPoint = CGPoint(x: 0, y: 0.5)
+            nodes.append(n)
+            total += n.size.width
+        }
+        let boxW = total + 12, boxH: CGFloat = 20
+        let holder = SKNode()
+        let bg = PixelTexture.panelNode(size: CGSize(width: boxW, height: boxH),
+                                        face: CRT.feltMid, border: CRT.ink, shadowOffset: 2)
+        holder.addChild(bg)
+        var tx: CGFloat = 6
+        for n in nodes {
+            n.position = CGPoint(x: tx, y: -boxH / 2)
+            n.zPosition = 1
+            holder.addChild(n)
+            tx += n.size.width
+        }
+        // Anchored over the histogram's top (the web overlays the readout on
+        // the strip), clamped so it never spills off the band.
+        let histMid = (histMinX + histMaxX) / 2
+        let ox = max(2, min(size.width - boxW - 2, histMid - boxW / 2))
+        holder.position = CGPoint(x: ox, y: -2)
+        scrubLayer.addChild(holder)
+        // The .ds-active marker: a gold frame around the touched bar's column.
+        if let f = barFrames.first(where: { $0.value == value }) {
+            let frame = SKSpriteNode()
+            let img = PixelTexture.image(size: CGSize(width: f.w + 4, height: size.height - 12)) { cg in
+                cg.setStrokeColor(CRT.gold.cgColor)
+                cg.setLineWidth(CRT.px)
+                cg.stroke(CGRect(x: 1, y: 1, width: f.w + 2, height: size.height - 14))
+            }
+            frame.texture = PixelTexture.texture(from: img)
+            frame.size = img.size
+            frame.anchorPoint = CGPoint(x: 0, y: 1)
+            frame.position = CGPoint(x: f.x - 2, y: -6)
+            scrubLayer.addChild(frame)
+        }
+    }
+
+    public func hideScrub() { scrubLayer.removeAllChildren() }
 }
 
 /// The living deck character. Wraps the baked `DeckCharacter` textures in the

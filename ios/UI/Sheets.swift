@@ -510,9 +510,9 @@ final class ManualSheetView: SheetView {
                 reward.textAlignment = .center
                 reward.frame = CGRect(x: 0, y: 10, width: 110, height: 26)
                 v.addSubview(reward)
-                let rl = CRTKit.label("stage-2 coin reward", size: 11, color: CRT.muted)
+                let rl = CRTKit.label("stage-2 coin reward", size: 12, color: CRT.muted)
                 rl.textAlignment = .center
-                rl.frame = CGRect(x: 0, y: 40, width: 110, height: 14)
+                rl.frame = CGRect(x: -8, y: 40, width: 126, height: 15)
                 v.addSubview(rl)
                 let dot = CRTKit.label("·", size: 16, color: CRT.muted)
                 dot.frame = CGRect(x: 118, y: 16, width: 10, height: 20)
@@ -521,9 +521,9 @@ final class ManualSheetView: SheetView {
                 score.textAlignment = .center
                 score.frame = CGRect(x: 136, y: 10, width: 110, height: 26)
                 v.addSubview(score)
-                let sl = CRTKit.label("score", size: 11, color: CRT.muted)
+                let sl = CRTKit.label("score", size: 12, color: CRT.muted)
                 sl.textAlignment = .center
-                sl.frame = CGRect(x: 136, y: 40, width: 110, height: 14)
+                sl.frame = CGRect(x: 128, y: 40, width: 126, height: 15)
                 v.addSubview(sl)
                 return v
             }, lead: "Clear the deck, earn coins", body: [
@@ -550,7 +550,7 @@ final class ManualSheetView: SheetView {
                     v.addSubview(n)
                     y += 22
                     if i < rows.count - 1 {
-                        let l = CRTKit.label("┆", size: 11, color: CRT.muted)
+                        let l = CRTKit.label("┆", size: 12, color: CRT.muted)
                         l.textAlignment = .center
                         l.frame = CGRect(x: 25, y: y - 2, width: 120, height: 12)
                         v.addSubview(l)
@@ -619,6 +619,9 @@ final class StatsSheetView: SheetView {
     private let campaign: CampaignState
     private let scroll = UIScrollView()
     private var zenScope = "all"
+    /// The Zen histogram's ephemeral drill state (web zenView.drill): nil =
+    /// the two tappable totals, "wins"/"losses" = the per-bucket breakdown.
+    private var zenDrill: String?
     var onReset: (() -> Void)?
 
     init(campaign: CampaignState) {
@@ -639,7 +642,7 @@ final class StatsSheetView: SheetView {
             string: value, attributes: [.font: CRT.Font.of(16, display: true), .foregroundColor: CRT.phosphor])
         if let pct {
             num.append(NSAttributedString(
-                string: "  \(pct)", attributes: [.font: CRT.Font.of(11), .foregroundColor: CRT.muted]))
+                string: "  \(pct)", attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted]))
         }
         let nl = UILabel()
         nl.attributedText = num
@@ -650,9 +653,9 @@ final class StatsSheetView: SheetView {
         nl.layer.shadowOffset = .zero
         nl.frame = CGRect(x: 4, y: 10, width: width - 8, height: 20)
         v.addSubview(nl)
-        let ll = CRTKit.label(label.uppercased(), size: 11, color: CRT.muted)
+        let ll = CRTKit.label(label.uppercased(), size: 12, color: CRT.muted)
         ll.textAlignment = .center
-        ll.frame = CGRect(x: 4, y: 34, width: width - 8, height: 14)
+        ll.frame = CGRect(x: 2, y: 34, width: width - 4, height: 15)
         v.addSubview(ll)
         return v
     }
@@ -738,42 +741,32 @@ final class StatsSheetView: SheetView {
         sumLabel.frame = CGRect(x: 10, y: 66, width: w - 20, height: 18)
         zen.addSubview(sumLabel)
 
-        // Twin histograms over their baseline rules.
-        let histTop: CGFloat = 90
-        let histH: CGFloat = 72
-        let half = (w - 40) / 2
-        func drawHist(_ dist: [Int: Int], x0: CGFloat, color: UIColor) {
-            guard !dist.isEmpty else { return }
-            let keys = dist.keys.sorted()
-            let maxV = max(1, dist.values.max() ?? 1)
-            let bw = min(14, (half - 4) / CGFloat(keys.count))
-            let total = bw * CGFloat(keys.count)
-            for (i, k) in keys.enumerated() {
-                let h = max(3, histH * CGFloat(dist[k] ?? 0) / CGFloat(maxV))
-                let bar = UIView(frame: CGRect(x: x0 + (half - total) / 2 + CGFloat(i) * bw,
-                                               y: histTop + histH - h, width: bw - 2, height: h))
-                bar.backgroundColor = color
-                zen.addSubview(bar)
-            }
+        // Zen drill (web zenSectionInner/zenSetDrill): tapping the Wins or
+        // Losses total expands that outcome's per-bucket distribution with
+        // bucket labels, an axis caption and a Back chip. Wins break down by
+        // piles remaining, Losses by cards left in the deck (bucketed like
+        // zenLossBuckets). Bars ride a felt-deep track, so empty buckets
+        // still read as structure.
+        let tW = winPiles.values.reduce(0, +), tL = lossCards.values.reduce(0, +)
+        // Axis extents for the scope (web zenScope): a single difficulty reads
+        // its own config; "All" spans the widest ladder rung.
+        var pilesMax = 0, deckMax = 0
+        for id in ids {
+            let z = GameData.shared.difficulty.zen(id)
+            pilesMax = max(pilesMax, z.piles)
+            deckMax = max(deckMax, z.suitCount * 13)
         }
-        drawHist(winPiles, x0: 10, color: CRT.phosphor)
-        drawHist(lossCards, x0: 20 + half, color: CRT.suitRed)
-        let winRule = UIView(frame: CGRect(x: 10, y: histTop + histH + 2, width: half, height: 2))
-        winRule.backgroundColor = CRT.phosphor
-        zen.addSubview(winRule)
-        let lossRule = UIView(frame: CGRect(x: 20 + half, y: histTop + histH + 2, width: half, height: 2))
-        lossRule.backgroundColor = CRT.suitRed
-        zen.addSubview(lossRule)
-        let winLab = CRTKit.label("Wins", size: 12, color: CRT.muted)
-        winLab.textAlignment = .center
-        winLab.frame = CGRect(x: 10, y: histTop + histH + 8, width: half, height: 14)
-        zen.addSubview(winLab)
-        let lossLab = CRTKit.label("Losses", size: 12, color: CRT.muted)
-        lossLab.textAlignment = .center
-        lossLab.frame = CGRect(x: 20 + half, y: histTop + histH + 8, width: half, height: 14)
-        zen.addSubview(lossLab)
-
-        let zenH = histTop + histH + 30
+        let histTop: CGFloat = 92
+        let regionH: CGFloat
+        if let drill = zenDrill {
+            regionH = drawZenDrill(in: zen, x0: 10, y0: histTop, width: w - 20, drill: drill,
+                                   wins: tW, losses: tL, winPiles: winPiles, lossCards: lossCards,
+                                   pilesMax: pilesMax, deckMax: deckMax)
+        } else {
+            regionH = drawZenTotals(in: zen, x0: 10, y0: histTop, width: w - 20,
+                                    wins: tW, losses: tL)
+        }
+        let zenH = histTop + regionH + 10
         zen.frame = CGRect(x: 0, y: y, width: w, height: zenH)
         scroll.addSubview(zen)
         y += zenH + 14
@@ -785,6 +778,165 @@ final class StatsSheetView: SheetView {
         y += 50
 
         scroll.contentSize = CGSize(width: w, height: y)
+    }
+
+    /// Loss-histogram buckets (web zenLossBuckets): singletons 1..5, then
+    /// decades 6-10, 11-20, … — the bucket containing deckSize ends there, and
+    /// a trailing sliver smaller than a singleton run (< 5 cards) folds into
+    /// the previous decade instead of standing alone.
+    static func zenLossBuckets(_ deckSize: Int) -> [(lo: Int, hi: Int)] {
+        var out: [(lo: Int, hi: Int)] = []
+        var n = 1
+        while n <= 5 && n <= deckSize { out.append((n, n)); n += 1 }
+        var lo = 6
+        while lo <= deckSize {
+            let decadeEnd = Int(ceil(Double(lo) / 10.0)) * 10   // 6→10, 11→20, 41→50
+            if decadeEnd >= deckSize || deckSize - decadeEnd < 5 {
+                out.append((lo, deckSize))
+                break
+            }
+            out.append((lo, decadeEnd))
+            lo = decadeEnd + 1
+        }
+        return out
+    }
+
+    /// Fold a lossCards distribution into per-bucket totals (web
+    /// zenBucketCounts): every loss lands in exactly ONE bucket, its
+    /// cards-left clamped into [1, deckSize].
+    static func zenBucketCounts(_ lossCards: [Int: Int], buckets: [(lo: Int, hi: Int)],
+                                deckSize: Int) -> [Int] {
+        var totals = [Int](repeating: 0, count: buckets.count)
+        for (k, v) in lossCards {
+            let val = max(1, min(deckSize, k))
+            for (i, b) in buckets.enumerated() where val >= b.lo && val <= b.hi {
+                totals[i] += v
+                break
+            }
+        }
+        return totals
+    }
+
+    /// The collapsed view: the two tappable totals (web zc-agg columns), one
+    /// bar per outcome scaled to their shared max over a baseline rule.
+    private func drawZenTotals(in zen: UIView, x0: CGFloat, y0: CGFloat, width: CGFloat,
+                               wins: Int, losses: Int) -> CGFloat {
+        let maxV = max(1, max(wins, losses))
+        let barsH: CGFloat = 64
+        let colW = (width - 24) / 2
+        let specs: [(label: String, count: Int, color: UIColor, drill: String)] = [
+            ("WINS", wins, CRT.phosphor, "wins"),
+            ("LOSSES", losses, CRT.suitRed, "losses"),
+        ]
+        for (i, spec) in specs.enumerated() {
+            let col = UIControl()
+            col.frame = CGRect(x: x0 + CGFloat(i) * (colW + 24), y: y0,
+                               width: colW, height: 14 + 2 + barsH + 8 + 15)
+            let drill = spec.drill
+            col.addAction(UIAction { [weak self] _ in
+                self?.zenDrill = drill
+                self?.build()
+            }, for: .touchUpInside)
+            let cnt = CRTKit.label("\(spec.count)", size: 13, color: spec.color)
+            cnt.textAlignment = .center
+            cnt.frame = CGRect(x: 0, y: 0, width: colW, height: 14)
+            col.addSubview(cnt)
+            let track = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16, width: 44, height: barsH))
+            track.backgroundColor = CRT.feltDeep
+            col.addSubview(track)
+            if spec.count > 0 {
+                let h = max(3, barsH * CGFloat(spec.count) / CGFloat(maxV))
+                let bar = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16 + barsH - h,
+                                               width: 44, height: h))
+                bar.backgroundColor = spec.color
+                col.addSubview(bar)
+            }
+            let rule = UIView(frame: CGRect(x: 0, y: 16 + barsH + 2, width: colW, height: 2))
+            rule.backgroundColor = spec.color
+            col.addSubview(rule)
+            let lab = CRTKit.label(spec.label, size: 12, color: CRT.muted)
+            lab.textAlignment = .center
+            lab.frame = CGRect(x: 0, y: 16 + barsH + 8, width: colW, height: 15)
+            col.addSubview(lab)
+            zen.addSubview(col)
+        }
+        return 16 + barsH + 8 + 15
+    }
+
+    /// The drilled view: a Back chip, the OTHER outcome's total leading at
+    /// full height (a win = 0 cards left, a loss = 0 piles left — each total
+    /// is the "0" slot of the other axis), then the breakdown columns scaled
+    /// to their own max, bucket labels under every bar, and the axis caption.
+    private func drawZenDrill(in zen: UIView, x0: CGFloat, y0: CGFloat, width: CGFloat,
+                              drill: String, wins: Int, losses: Int,
+                              winPiles: [Int: Int], lossCards: [Int: Int],
+                              pilesMax: Int, deckMax: Int) -> CGFloat {
+        let back = UIButton(type: .custom)
+        back.setAttributedTitle(CRTKit.attributed("‹ BACK", size: 12, color: CRT.cardFace),
+                                for: .normal)
+        back.backgroundColor = CRT.feltDeep
+        back.layer.borderWidth = CRT.px
+        back.layer.borderColor = CRT.ink.cgColor
+        back.frame = CGRect(x: x0, y: y0, width: 64, height: 24)
+        back.addAction(UIAction { [weak self] _ in
+            self?.zenDrill = nil
+            self?.build()
+        }, for: .touchUpInside)
+        zen.addSubview(back)
+
+        struct Col { let label: String; let count: Int; let color: UIColor; let lead: Bool }
+        var cols: [Col] = []
+        let distColor: UIColor = drill == "wins" ? CRT.phosphor : CRT.suitRed
+        if drill == "wins" {
+            cols.append(Col(label: "LOSSES", count: losses, color: CRT.suitRed, lead: true))
+            for p in 1...max(1, pilesMax) {
+                cols.append(Col(label: "\(p)", count: winPiles[p] ?? 0, color: distColor, lead: false))
+            }
+        } else {
+            cols.append(Col(label: "WINS", count: wins, color: CRT.phosphor, lead: true))
+            let buckets = StatsSheetView.zenLossBuckets(deckMax)
+            let totals = StatsSheetView.zenBucketCounts(lossCards, buckets: buckets, deckSize: deckMax)
+            for (i, b) in buckets.enumerated() {
+                cols.append(Col(label: b.lo == b.hi ? "\(b.lo)" : "\(b.lo)-\(b.hi)",
+                                count: totals[i], color: distColor, lead: false))
+            }
+        }
+        let distMax = max(1, cols.filter { !$0.lead }.map(\.count).max() ?? 1)
+        let top = y0 + 24 + 8
+        let barsH: CGFloat = 60
+        let colW = min(30, width / CGFloat(max(1, cols.count)))
+        let start = x0 + (width - colW * CGFloat(cols.count)) / 2
+        for (i, c) in cols.enumerated() {
+            let cx = start + CGFloat(i) * colW
+            let cnt = CRTKit.label("\(c.count)", size: 12, color: c.color)
+            cnt.textAlignment = .center
+            cnt.frame = CGRect(x: cx - 7, y: top, width: colW + 14, height: 14)
+            zen.addSubview(cnt)
+            let bw = colW - 8
+            let track = UIView(frame: CGRect(x: cx + 4, y: top + 16, width: bw, height: barsH))
+            track.backgroundColor = CRT.feltDeep
+            zen.addSubview(track)
+            let h: CGFloat = c.lead ? barsH
+                : (c.count > 0 ? max(3, barsH * CGFloat(c.count) / CGFloat(distMax)) : 0)
+            if h > 0 {
+                let bar = UIView(frame: CGRect(x: cx + 4, y: top + 16 + barsH - h,
+                                               width: bw, height: h))
+                bar.backgroundColor = c.color
+                zen.addSubview(bar)
+            }
+            let lab = CRTKit.label(c.label, size: 12, color: CRT.muted)
+            lab.textAlignment = .center
+            lab.frame = CGRect(x: cx - 9, y: top + 16 + barsH + 4, width: colW + 18, height: 14)
+            zen.addSubview(lab)
+        }
+        // The axis caption names what the drilled bars MEASURE (web .zh-axis).
+        let axis = CRTKit.label(drill == "wins" ? "piles remaining at the win"
+                                                : "cards remaining at the loss",
+                                size: 12, color: CRT.muted)
+        axis.textAlignment = .center
+        axis.frame = CGRect(x: x0, y: top + 16 + barsH + 22, width: width, height: 15)
+        zen.addSubview(axis)
+        return 24 + 8 + 16 + barsH + 22 + 15 + 4
     }
 
     /// Re-render after an outside change (e.g. the reset confirm).

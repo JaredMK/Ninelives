@@ -84,6 +84,10 @@ public struct StatsRecord: Sendable, Equatable {
     public var pilesLost = 0
     /// LIFETIME per-deck/tier win log: `["lammy.master": true, …]`.
     public var deckTierWins: [String: Bool] = [:]
+    /// LIFETIME per-deck/tier best CAMPAIGN score: `["pink.regular": 128, …]`
+    /// (native-only — the web has no per-character score; the deck-select
+    /// carousel shows it under each tier chip).
+    public var deckTierBest: [String: Int] = [:]
 
     public init() {}
 
@@ -146,6 +150,7 @@ public struct StatsRecord: Sendable, Equatable {
         s.bestEndlessScore = i("bestEndlessScore") ?? 0
         for k in unlockCounters { s[k] = i(k) ?? 0 }
         for (k, v) in o["deckTierWins"]?.asObject ?? [:] where v.asBool == true { s.deckTierWins[k] = true }
+        for (k, v) in o["deckTierBest"]?.asObject ?? [:] { if let n = v.asNumber { s.deckTierBest[k] = Int(n) } }
         return s
     }
 
@@ -169,6 +174,7 @@ public struct StatsRecord: Sendable, Equatable {
         ]
         for k in Self.unlockCounters { o[k] = .number(Double(self[k])) }
         o["deckTierWins"] = .object(deckTierWins.mapValues { .bool($0) })
+        o["deckTierBest"] = .object(deckTierBest.mapValues { .number(Double($0)) })
         return o
     }
 }

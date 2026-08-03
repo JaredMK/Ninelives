@@ -624,6 +624,15 @@ public final class CampaignState {
     public func markNodeCleared(_ id: Int) -> Bool {
         guard !clearedNodes.contains(id) else { return false }
         clearedNodes.append(id)
+        // ENDLESS: the TOP endless stage's boss falling generates the next
+        // stage — lazily, from the REAL deck size at that moment (the web's
+        // grow-as-you-go rule above home, index.html:15861-15867). Without
+        // this the climb dead-ends after the first endless stage.
+        if endless, let m = runMap, m.phases.count > phaseSuits.count,
+           let top = m.phases.last, top.phase >= phaseSuits.count,
+           (top.bossIds.isEmpty ? [top.bossId] : top.bossIds).contains(id) {
+            extendEndless()
+        }
         return true
     }
     public func nodeCleared(_ id: Int) -> Bool { clearedNodes.contains(id) }
@@ -632,6 +641,25 @@ public final class CampaignState {
         return n.mystery && !revealedNodes.contains(id) && !clearedNodes.contains(id)
     }
     public func revealNode(_ id: Int) { if !revealedNodes.contains(id) { revealedNodes.append(id) } }
+
+    /// DEBUG ONLY (the panel's MAP JUMP) — teleport so node `id` becomes the
+    /// next PLAYABLE node: every node on a lower global row is marked cleared,
+    /// the position sits on a direct predecessor (nil for an opening-row node),
+    /// and the phase syncs to the target. Simplification vs the web's
+    /// `debugJumpToNode` (index.html:15894): NO catch-up draft cards are
+    /// granted for skipped rows — the deck stays as-is. Fine for playtesting
+    /// map/item states; the jumped-to stage may be harder than a real route's.
+    @discardableResult
+    public func debugJumpToNode(_ id: Int) -> Bool {
+        guard let m = runMap, let target = m.byId[id] else { return false }
+        for n in m.nodes where n.row < target.row {
+            if !clearedNodes.contains(n.id) { clearedNodes.append(n.id) }
+        }
+        nodePos = m.nodes.first { $0.next.contains(id) }?.id
+        phaseIndex = target.phase ?? phaseIndex
+        revealNode(id)
+        return true
+    }
 
     public func isRunBoss(_ id: Int) -> Bool {
         guard let m = runMap else { return false }
@@ -690,7 +718,10 @@ public final class CampaignState {
         }
         var out: [CardSpec] = []
         for id in granted {
-            if id == Self.specialBlank { continue }        // a Blank grants a removal, not a card
+            // A Blank grants a removal, not a card (web index.html:28450): it
+            // stays in the returned list so the flow can show it and open one
+            // removal picker per Blank — it NEVER joins the deck.
+            if id == Self.specialBlank { out.append(CardSpec.blank(id: Self.specialBlank)); continue }
             let realId = id == Self.specialJoker ? mintJokerId() : id
             if !ownedIds.contains(realId) { ownedIds.append(realId) }
             if let c = findById(realId) { out.append(c) }
@@ -817,9 +848,15 @@ public final class CampaignState {
     public func isPlayedCounted() -> Bool { playedCounted }
 
     public func isEndless() -> Bool { endless }
-    /// Enter endless mode: stages stack above Pinky's home.
+    /// Enter endless mode: home is cleared, and the FIRST endless stage
+    /// generates right now from the REAL deck size. Every later stage
+    /// generates as its predecessor's boss falls (markNodeCleared).
     public func startEndless() {
+        guard !endless else { return }
         endless = true
+        if let homeId = runMap?.homeId, !clearedNodes.contains(homeId) {
+            clearedNodes.append(homeId)
+        }
         extendEndless()
     }
     public func endlessStagesReached() -> Int { max(0, stageEntryDecks.count - phaseSuits.count) }
@@ -865,6 +902,20 @@ public final class CampaignState {
     public func debugGrantSticker(_ typeId: String) {
         guard data.stickerTypes.get(typeId) != nil else { return }
         stickerInventory[typeId, default: 0] += 1
+    }
+    /// DEBUG panel grants: a free inventory copy (no cost, no placement — the
+    /// player places it from the tray/HUD like a bought one).
+    public func debugGrantPillar(_ typeId: String) {
+        guard data.pillarTypes.get(typeId) != nil else { return }
+        pillarInventory[typeId, default: 0] += 1
+    }
+    public func debugGrantBase(_ typeId: String) {
+        guard data.baseTypes.get(typeId) != nil else { return }
+        baseInventory[typeId, default: 0] += 1
+    }
+    public func debugGrantSamePower(_ typeId: String) {
+        guard data.samePowerTypes.get(typeId) != nil else { return }
+        samePowerInventory[typeId, default: 0] += 1
     }
 
     public func columnPillar(_ col: Int) -> String? { columnPillars[safe: col] ?? nil }
