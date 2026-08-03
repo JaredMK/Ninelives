@@ -186,7 +186,7 @@ public final class DealScene: SKScene {
         // bottom inset is 0, PLUS a fixed lift so the lowest cards stay
         // comfortably thumb-reachable. RESHUFFLE rides just above the
         // reserved strip; Zen has no reshuffle (climb deals only).
-        let bottomGap = max(safeInsets.bottom, 20) + 12
+        let bottomGap = max(safeInsets.bottom, 20) + 26
         let footerZone: CGFloat = 34
         let reshuffleY = -(size.height - bottomGap - 4 - footerZone)
         reshuffleButton.isHidden = isZen

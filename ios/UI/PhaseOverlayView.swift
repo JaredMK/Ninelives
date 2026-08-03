@@ -919,6 +919,13 @@ public final class PhaseOverlayView: UIView {
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 20, width: 64, height: 56)
             art.addSubview(iv)
+        } else if outcome.key == "freeRemoval" || outcome.key == "stickerStrip" {
+            // Purge/Cleanse: the torn-card REMOVAL art, never the generic ★.
+            let iv = UIImageView(image: ItemArt.removal(width: 56, height: 72))
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            iv.frame = CGRect(x: (panelW - 36 - 56) / 2, y: 12, width: 56, height: 72)
+            art.addSubview(iv)
         } else if let amount = outcome.amount {
             let sign = outcome.good ? "+" : "−"
             let coins = UILabel()
