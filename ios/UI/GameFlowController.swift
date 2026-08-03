@@ -189,6 +189,10 @@ public final class GameFlowController: UIViewController {
     /// The save blob: phase + the campaign serialization + the live deal
     /// identity, so a kill resumes exactly where the player was.
     func persist(phase: String) {
+        // No climb in progress → no save (defense-in-depth: a save must only
+        // ever exist while a climb is active, or the menu offers a phantom
+        // CONTINUE). Zen checkpoints are already detached at the source.
+        guard campaign.runMap != nil else { return }
         currentPhase = phase
         var blob = campaign.serialize()
         blob["phase"] = .string(phase)

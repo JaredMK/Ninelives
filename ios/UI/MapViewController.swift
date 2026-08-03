@@ -156,7 +156,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         crt.frame = b
         prompt.frame = b
         keyButton.frame = CGRect(x: b.width - 48, y: shellH + 8, width: 40, height: 34)
-        storeButton.frame = CGRect(x: 10, y: b.height - view.safeAreaInsets.bottom - 46,
+        storeButton.frame = CGRect(x: 10, y: b.height - max(view.safeAreaInsets.bottom, 12) - 46,
                                    width: 86, height: 38)
         layoutContent()
         if !didInitialCenter, campaign.runMap != nil {
@@ -182,7 +182,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         eggLabel.frame = CGRect(x: 0, y: height + 16, width: view.bounds.width, height: 22)
         // One-stage-at-a-time: the minimum offset is the lock line, and the
         // native rubber band operates AT it (fog shows above during the pull).
-        scroll.contentInset = UIEdgeInsets(top: -scrollLock, left: 0, bottom: 0, right: 0)
+        // Bottom: a real gap below the home row — never clamp content against
+        // the screen edge (the safe-area inset is 0 on some devices).
+        scroll.contentInset = UIEdgeInsets(top: -scrollLock, left: 0,
+                                           bottom: max(view.safeAreaInsets.bottom, 20) + 16,
+                                           right: 0)
     }
 
     // MARK: - Layout math (ported verbatim)

@@ -4,15 +4,14 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v5.75"
-    static let note = "ios parity + debug panel — zen, fan, stickers, histogram, spoils, endless"
+    static let version = "v5.76"
+    static let note = "ios: bottom gaps on map/deal, help-text footer removed, no zen reshuffle, zen save leak fixed"
     static let line = "build \(version) · \(note)"
-    /// Deal-screen footer: prefix + version on line 1, the note word-wrapped
-    /// (~44 cols) onto the following lines (the web wraps the same stamp).
+    /// Deal-screen footer: just the build stamp, word-wrapped (~44 cols).
     static var dealLines: [String] {
-        var lines = ["Ace high · suits don't matter · build \(version) ·"]
+        var lines: [String] = []
         var cur = ""
-        for w in note.split(separator: " ") {
+        for w in line.split(separator: " ") {
             if !cur.isEmpty, cur.count + 1 + w.count > 44 { lines.append(cur); cur = "" }
             cur += (cur.isEmpty ? "" : " ") + w
         }

@@ -119,9 +119,15 @@ public final class DealViewController: UIViewController {
                     }
                 }
                 controller.onZenGuess = { [weak self] correct in self?.onZenGuess?(correct) }
-                controller.onCheckpoint = { [weak self] _ in
-                    guard let self, let c = self.sharedCampaign else { return }
-                    PersistenceHolder.shared?.checkpoint(c)
+                // "run" checkpoints are a CLIMB durability mechanism — a Zen
+                // deal must never write the campaign save (a Zen session would
+                // otherwise mint a bogus save and the menu would offer
+                // CONTINUE with no climb in progress).
+                if case .campaign = mode {
+                    controller.onCheckpoint = { [weak self] _ in
+                        guard let self, let c = self.sharedCampaign else { return }
+                        PersistenceHolder.shared?.checkpoint(c)
+                    }
                 }
                 scene.showsMenuButton = true
                 scene.onMenuTapped = { [weak self] in self?.onMenu?() }

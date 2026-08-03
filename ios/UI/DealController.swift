@@ -983,21 +983,17 @@ public final class DealController {
             && scene.currentSelection != nil && !engine.deck.isEmpty
         let canAffordReshuffle = !isCampaign || Double(campaign.getCoins()) >= redealCost
         // The web names the price on the button: `↺ RESHUFFLE · ◉ 10`
-        // (campaign only — Zen reshuffles are free, debug deals too).
+        // (campaign only — Zen has no reshuffle; debug deals are free).
         scene.setReshuffleTitle(isCampaign ? "↺ RESHUFFLE · ◉ \(Int(redealCost))" : "↺ RESHUFFLE")
         // Web parity (renderReshuffleBtn): the offer hides only once the first
         // guess is made; an UNAFFORDABLE price shows the button disabled, not
         // hidden.
         scene.syncControls(canGuess: canGuess,
-                           showReshuffle: !isOver && engine.run.totalGuesses == 0
+                           showReshuffle: !isZen && !isOver && engine.run.totalGuesses == 0
                                && !interactionLocked,
                            reshuffleEnabled: canAffordReshuffle)
         scene.syncSpentBases(spentBaseColumns())
         scene.syncActivatableBases(activatableBaseColumns())
-        // The first-turn how-to strip (web #ctlHelp): up until the first pile
-        // selection or guess.
-        scene.setIdleHintVisible(!isOver && engine.run.totalGuesses == 0
-                                 && scene.currentSelection == nil)
     }
 
     private func mood() -> DeckCharacter.Mood {
@@ -1039,8 +1035,10 @@ public final class DealController {
 
     /// Re-deal the piles (before the FIRST guess only). A campaign deal PAYS
     /// the escalating redeal price and re-mints from the deal's keyed stream.
+    /// Zen has NO reshuffle (climb deals only — user call, overrides the web's
+    /// free zen reshuffle).
     public func reshuffle() {
-        guard !isOver, engine.run.totalGuesses == 0 else { return }
+        guard !isZen, !isOver, engine.run.totalGuesses == 0 else { return }
         switch mode {
         case .debug(let setup):
             interactionLocked = true

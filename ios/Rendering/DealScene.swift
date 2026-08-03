@@ -108,8 +108,6 @@ public final class DealScene: SKScene {
         floatLayer.zPosition = Layer.float
         addChild(deckPanel)
         addChild(rewardLine)
-        buildHintStrip()
-        addChild(hintStrip)
 
         hud = DealTopBar(width: size.width)
         addChild(hud)
@@ -185,33 +183,32 @@ public final class DealScene: SKScene {
         deckPanel.position = CGPoint(x: pad, y: y)
         y -= bandH + 6
 
-        // The first-turn how-to strip (web #ctlHelp): its band is reserved in
-        // BOTH modes so the strip appearing/vanishing never shifts the board.
-        let hintH: CGFloat = 30
-        hintStrip.position = CGPoint(x: size.width / 2, y: y - hintH / 2 + 6)
-        y -= hintH
-
         rewardLine.isHidden = isZen   // Zen hides #dealStatus — no reward band
         if !isZen {
             rewardLine.position = CGPoint(x: 0, y: y - 10)
             y -= 26
         }
 
-        // The build footer claims the bottom safe area (the web's global
-        // `footer`, visible on the deal screen); RESHUFFLE rides just above it.
+        // Bottom reservation: never hug the screen edge — a real gap for
+        // the home-indicator zone and down-swipes even where the safe-area
+        // bottom inset is 0. RESHUFFLE rides just above the footer; Zen
+        // has no reshuffle (climb deals only).
+        let bottomGap = max(safeInsets.bottom, 20)
         let footerZone: CGFloat = 34
-        let reshuffleY = -(size.height - safeInsets.bottom - 4 - footerZone)
+        let reshuffleY = -(size.height - bottomGap - 4 - footerZone)
+        reshuffleButton.isHidden = isZen
         reshuffleButton.position = CGPoint(x: (size.width - reshuffleButton.frameSize.width) / 2,
                                            y: reshuffleY)
-        let boardBottom = reshuffleY - reshuffleButton.frameSize.height - 6
+        let boardBottom = isZen ? reshuffleY - 6
+                                : reshuffleY - reshuffleButton.frameSize.height - 6
 
         // The ≡ pause button lives IN the top bar, like the web's global
         // top-left menu button (it used to sit bottom-left).
         menuButton.position = CGPoint(x: 4, y: -(top + 6))
 
         // The footer: tiny muted centred lines stacked upward from the
-        // bottom safe area (bottom line pinned, any count stays on screen).
-        let footerBase = size.height - safeInsets.bottom - 4
+        // bottom gap (bottom line pinned, any count stays on screen).
+        let footerBase = size.height - bottomGap - 4
         for (i, l) in footerLines.enumerated() {
             let up = 7 + 13 * (footerLines.count - 1 - i)
             l.position = CGPoint(x: size.width / 2, y: -(footerBase - CGFloat(up)))
@@ -649,27 +646,6 @@ public final class DealScene: SKScene {
         // VISIBLE with its price, disabled — it never hides for poverty.
         reshuffleButton.isHidden = !showReshuffle
         reshuffleButton.setEnabled(reshuffleEnabled)
-    }
-
-    // MARK: - Idle hint strip (the web's #ctlHelp first-turn how-to)
-
-    private let hintStrip = SKNode()
-
-    /// Shown from deal start until the first pile selection/guess (the web's
-    /// `#ctlHelp` in the guess row). Its band is reserved in the layout ALWAYS
-    /// so showing/hiding never shifts the board.
-    public func setIdleHintVisible(_ on: Bool) { hintStrip.isHidden = !on }
-
-    private func buildHintStrip() {
-        hintStrip.zPosition = Layer.chrome
-        let l1 = PixelTexture.label("Swipe a pile to guess — up = Higher, down = Lower, sideways = Same.",
-                                    size: 12, color: CRT.muted)
-        let l2 = PixelTexture.label("Hold a pile for card info.", size: 12, color: CRT.muted)
-        for (i, l) in [l1, l2].enumerated() {
-            l.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            l.position = CGPoint(x: 0, y: CGFloat(-i) * 14)
-            hintStrip.addChild(l)
-        }
     }
 
     public func setPillars(_ ids: [String?], bases: [String?]) {
