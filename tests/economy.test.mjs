@@ -234,14 +234,14 @@ export function run() {
     r.eq(bd2.total, 5 + 4 * EXTRA_COIN_VALUE, "e2e: total = flat + Extra Coin (product excluded)");
   }
 
-  // ── AMBUSH: coins only, never scores (v5.63) ───────────────────────────
+  // ── AMBUSH: no flat base, but it SCORES like any battle (v5.82) ────────
   {
     const stats = { won: true, flat: 0, aliveCount: 4, minAliveCards: 3,
       extraCoinUnits: 0, eventBonus: 25 };
     const normal = Economy.breakdown(stats);
     r.eq(normal.product, 12, "a normal clear scores piles x smallest (4x3)");
     const amb = Economy.breakdown({ ...stats, ambush: true });
-    r.eq(amb.product, 0, "an AMBUSH scores 0 — the bounty is the whole reward");
+    r.eq(amb.product, 12, "an AMBUSH scores the same 4x3 — every battle counts");
     r.eq(amb.total, normal.total, "…while its COINS are unchanged (bounty still paid)");
     r.eq(amb.alivePiles, normal.alivePiles, "…the factors still report (UI reads them)");
     r.eq(amb.minPileCards, normal.minPileCards, "…both of them");

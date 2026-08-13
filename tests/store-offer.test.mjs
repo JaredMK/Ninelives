@@ -284,11 +284,15 @@ export function run() {
       "zero-stat store never offers a gated sticker (" + gatedStickers.length + " gated)");
     // …and satisfying a gate opens the roll: seed the guards' stats and the
     // (previously absent) guards can appear.
-    ["dealsSurvived", "cardsBuried", "pilesLost"].forEach(s => Stats.bump(s, 999));
+    ["dealsSurvived", "cardsBuried", "pilesLost", "stickersApplied",
+     "correctSames", "samesCalled"].forEach(s => Stats.bump(s, 999));
     Stats.bump("coinsEarnedLifetime", 9999);
     const s2 = sample(CampaignState.create(), 2000);
-    r.ok(s2.has("clubGuard") || s2.has("heartGuard") || s2.has("diamondGuard") || s2.has("suitImmunity"),
-      "…and once the stats are met, guards roll again");
+    // The four Guards now gate on the NATIVE-only suit counters, which have no
+    // reader here — so they can never roll in this build. Exemplars have to be
+    // stickers whose gate this build can actually satisfy.
+    r.ok(s2.has("collector") || s2.has("massive") || s2.has("quickBury") || s2.has("twoTribute"),
+      "…and once the stats are met, gated stickers roll again");
     Stats.reset();
   }
 
@@ -324,9 +328,12 @@ export function run() {
     const gatedBases = ItemData.bases.filter(d => d.unlock).map(d => d.id);
     r.ok(gatedBases.every(id => !b1.has(id)),
       "zero-stat store never offers a gated base (" + gatedBases.length + " gated)");
+    // Club Dig now gates on the native-only clubsPlayed counter, which has no
+    // reader here — Reactor carries the any-stage rule instead.
     Stats.bump("cardsBuried", 999);
+    Stats.bump("basesPlaced", 999);
     const b2 = sampleBases(CampaignState.create(), 3000);
-    r.ok(b2.has("clubDig"), "Stage 1 CAN offer Club Dig once its bury gate is met (any-stage rule holds)");
+    r.ok(b2.has("refreshBases"), "Stage 1 CAN offer Reactor once its gate is met (any-stage rule holds)");
     Stats.reset();
   }
 

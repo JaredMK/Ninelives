@@ -88,9 +88,16 @@ const NINELIVES_DIFFICULTY = {
   subset: { threshold: 35, min: 15, max: 35 },
 
   tiers: {
-    // The baseline — the game's original band values.
+    // TWO tiers, and they play IDENTICALLY. Every band, every cap, every
+    // scheme below is the same on both — the ONE difference is Jokers:
+    // Normal has them, Legendary has none at all. (The old three-tier ladder
+    // with escalating danger bands is retired; escalating bands made the
+    // higher tiers a different game rather than the same game without a
+    // safety net.)
     regular: {
-      label: "Regular",
+      // Player-facing name "Jokers": THIS is the tier that has them.
+      // The id stays "regular" — saves, records and seeds key off it.
+      label: "Jokers",
       stageBands: [[1.5, 3.0], [2.0, 4.0], [3.0, 5.0]],
       bossBands:  [[2.3, 3.25], [3.75, 4.25], [4.75, 5.5]],
       jokerCap: 4,
@@ -101,24 +108,19 @@ const NINELIVES_DIFFICULTY = {
       // Joker source turns off. Pinky-only; the other decks keep the
       // roaming rule.
       fixedJokers: { pink: [0, 1] },
-      // No startJokers here: Pinky opens a Regular run on the standard 13
+      // No startJokers here: Pinky opens a Normal run on the standard 13
       // cards. Its two Jokers are EARNED at the fixed post-boss corridor
       // nodes above, never gifted at the start.
     },
-    // Unlocks after beating the deck's Regular.
-    master: {
-      label: "Master",
-      stageBands: [[1.5, 4.0], [3.5, 5.5], [5.0, 6.5]],
-      bossBands:  [[3.3, 4.0], [4.75, 5.5], [6.5, 7.0]],
-      jokerCap: 1,
-      guaranteedMapJoker: false,
-    },
-    // Unlocks after beating the deck's Master. Boss bands derived by applying
-    // the Regular→Master increment (+1.0 to both edges of every stage) again.
+    // Unlocks after beating the deck's Normal. Same bands, same everything —
+    // jokerCap 0 and no guarantee, so there is no Joker anywhere in the run
+    // and no fixedJokers scheme to fall back on.
     legendary: {
-      label: "Legendary",
-      stageBands: [[1.5, 4.5], [4.0, 6.0], [5.5, 7.5]],
-      bossBands:  [[4.3, 5.0], [5.75, 6.5], [7.5, 8.0]],
+      // Player-facing name "Straight": a joker-free, straight deck.
+      // The id stays "legendary" for the same save-key reason.
+      label: "Straight",
+      stageBands: [[1.5, 3.0], [2.0, 4.0], [3.0, 5.0]],
+      bossBands:  [[2.3, 3.25], [3.75, 4.25], [4.75, 5.5]],
       jokerCap: 0,
       guaranteedMapJoker: false,
     },

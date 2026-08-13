@@ -50,7 +50,10 @@ final class CampaignFixtureTests: XCTestCase {
             XCTAssertEqual(c.exhibition, f["exhibition"]?.asBool, "\(label): exhibition")
             XCTAssertEqual(c.getRunDeck().map(\.id), f["ownedIds"]?.intArray ?? [], "\(label): run deck ids")
             XCTAssertEqual(c.deckSize(), f["deckSize"]?.asInt, "\(label): deckSize")
-            XCTAssertEqual(c.baseDeck.count, f["baseDeckSize"]?.asInt, "\(label): baseDeck size")
+            // baseDeck also holds the MAP's pre-minted cards (node locks, pack
+            // pairs) — map-shaped, so no web pin; it must simply cover the
+            // owned deck and regenerate identically (checked below).
+            XCTAssertGreaterThanOrEqual(c.baseDeck.count, c.deckSize(), "\(label): baseDeck covers the deck")
             XCTAssertEqual(c.columnPillars, f["columnPillars"]?.asArray?.map { $0.asString } ?? [],
                            "\(label): columnPillars")
             XCTAssertEqual(c.columnBases, f["columnBases"]?.asArray?.map { $0.asString } ?? [],
@@ -72,22 +75,16 @@ final class CampaignFixtureTests: XCTestCase {
                                "\(label) card[\(i)]: stickers")
             }
 
-            // Every +1 node's locked card (shown == granted) and every revealed
-            // +2 pack's committed pair.
-            let wantNodes = f["nodeCards"]?.asObject ?? [:]
-            for (k, want) in wantNodes {
-                guard let nodeId = Int(k) else { continue }
-                let got = c.nodeCards[nodeId].map(sentinel(forCardId:))
-                XCTAssertEqual(got, sentinel(want), "\(label): node \(nodeId) locked card")
-            }
-            XCTAssertEqual(c.nodeCards.count, wantNodes.count, "\(label): locked node count")
-
-            let wantPacks = f["packCards"]?.asObject ?? [:]
-            for (k, want) in wantPacks {
-                guard let nodeId = Int(k) else { continue }
-                let got = (c.packCards[nodeId] ?? []).map(sentinel(forCardId:))
-                XCTAssertEqual(got, want.asArray?.compactMap(sentinel) ?? [], "\(label): pack \(nodeId) pair")
-            }
+            // The +1 node locks and the pack pairs ride the MAP, which has
+            // deliberately grown native rules (per-node deal danger, the +4
+            // pack) — web captures no longer compare. The surviving promise
+            // is DETERMINISM: the same seed locks the same cards every time.
+            let c2 = campaign(deck: deck, tier: tier, seed: seed)
+            XCTAssertEqual(c.nodeCards, c2.nodeCards, "\(label): node-card determinism")
+            XCTAssertEqual(c.packCards, c2.packCards, "\(label): pack-pair determinism")
+            XCTAssertFalse(c.nodeCards.isEmpty, "\(label): the map must lock SOME node cards")
+            XCTAssertEqual(c.baseDeck.count, c2.baseDeck.count, "\(label): baseDeck determinism")
+            XCTAssertEqual(c.nextCardId, c2.nextCardId, "\(label): nextCardId determinism")
 
             if let jb = f["jokerBudget"] {
                 XCTAssertEqual(c.jokerCapFor(), jb["cap"]?.asInt, "\(label): joker cap")
@@ -101,113 +98,218 @@ final class CampaignFixtureTests: XCTestCase {
 
     // MARK: - Store
 
-    func testStoreOffersMatchWeb() {
+    /// THE STORE ROLL. This used to replay offers captured from the WEB engine
+    /// slot-for-slot. iOS is the only build now, and it has deliberately grown
+    /// store rules the web never had — most recently "an item you already have
+    /// equipped is not offered" — so a web-captured shelf is no longer ground
+    /// truth for what iOS should roll. Pinning to it blocked exactly the
+    /// changes we want to make.
+    ///
+    /// The fixtures are still used, as a SEED CORPUS: every recorded (deck,
+    /// seed, node) is replayed and the shelf is checked against the rules iOS
+    /// actually promises. That keeps the coverage — determinism, the class cap,
+    /// unlock gating, the equipped exclusion, the Purge slot — without pinning
+    /// it to an engine we no longer ship.
+    func testStoreOffersFollowTheRules() {
+        let cap = GameData.shared.items.store.typeCap
+        let slots = GameData.shared.items.store.slots
         var checked = 0
         for f in Self.list("stores") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
             let label = "store seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
-            let opens = c.legalNextNodes()
-            if let first = opens.first { c.moveToNode(first.id) }
+            if let first = c.legalNextNodes().first { c.moveToNode(first.id) }
             XCTAssertEqual(c.nodePos, f["nodePos"]?.asInt, "\(label): nodePos")
             c.addCoins(10000)
 
-            let visits = f["visits"]?.asArray ?? []
-            var offer = c.openStore()
-            for (v, want) in visits.enumerated() {
-                if v > 0 {
-                    XCTAssertTrue(c.rerollStore(), "\(label): reroll \(v) should succeed")
-                    offer = c.getStoreOffer()!
-                }
-                XCTAssertEqual(offer.rerollCost, want["rerollCost"]?.asNumber, "\(label) visit \(v): rerollCost")
-                let wantSlots = want["slots"]?.asArray ?? []
-                XCTAssertEqual(offer.slots.count, wantSlots.count, "\(label) visit \(v): slot count")
-                for (i, ws) in wantSlots.enumerated() where i < offer.slots.count {
-                    let gs = offer.slots[i]
-                    if ws.isNull { XCTAssertNil(gs, "\(label) visit \(v) slot \(i): expected empty"); continue }
-                    XCTAssertEqual(gs?.kind, ws["kind"]?.asString, "\(label) visit \(v) slot \(i): kind")
-                    XCTAssertEqual(gs?.id, ws["id"]?.asString, "\(label) visit \(v) slot \(i): id")
-                    if let wc = ws["card"], !wc.isNull {
-                        XCTAssertEqual(gs?.card?.suit, wc["suit"]?.asString, "\(label) v\(v) s\(i): card suit")
-                        XCTAssertEqual(gs?.card?.currentRank, wc["currentRank"]?.asInt, "\(label) v\(v) s\(i): card rank")
-                        XCTAssertEqual(gs?.card?.joker, wc["joker"]?.asBool, "\(label) v\(v) s\(i): card joker")
-                        XCTAssertEqual(gs?.card?.stickers.map(\.type), wc["stickers"]?.stringArray ?? [],
-                                       "\(label) v\(v) s\(i): card stickers")
-                    } else {
-                        XCTAssertNil(gs?.card, "\(label) v\(v) s\(i): unexpected card")
+            // DETERMINISM: the same campaign at the same node rolls the same
+            // shelf every time. This is the property the fixture replay was
+            // really protecting, and it survives any rule change.
+            let a = c.openStore()
+            let b = campaign(deck: deck, tier: "regular", seed: seed)
+            if let first = b.legalNextNodes().first { b.moveToNode(first.id) }
+            b.addCoins(10000)
+            let a2 = b.openStore()
+            XCTAssertEqual(a.slots.map { $0?.kind }, a2.slots.map { $0?.kind },
+                           "\(label): the same seed must roll the same shelf")
+            XCTAssertEqual(a.slots.map { $0?.id }, a2.slots.map { $0?.id }, "\(label): …same ids")
+            XCTAssertEqual(a.rerollCost, a2.rerollCost, "\(label): …same reroll cost")
+
+            // …and every shelf, fresh or rerolled, obeys the shop's own rules.
+            var offer = a
+            for visit in 0..<3 {
+                XCTAssertEqual(offer.slots.count, slots, "\(label) visit \(visit): slot count")
+                var perKind: [String: Int] = [:]
+                for slot in offer.slots.compactMap({ $0 }) {
+                    perKind[slot.kind, default: 0] += 1
+                    // LOCKED items never reach the shelf…
+                    if let def = Self.defFor(slot) {
+                        XCTAssertTrue(c.itemUnlocks.isUnlocked(def),
+                                      "\(label) visit \(visit): offered locked '\(slot.id)'")
                     }
+                    // …and neither does something already equipped.
+                    XCTAssertFalse(c.isEquipped(kind: slot.kind, id: slot.id),
+                                   "\(label) visit \(visit): offered equipped '\(slot.id)'")
                 }
+                for (kind, n) in perKind where kind != "removal" {
+                    XCTAssertLessThanOrEqual(n, cap, "\(label) visit \(visit): \(kind) exceeds the class cap")
+                }
+                // No shelf repeats an ITEM (cards exempt: each is minted fresh).
+                let itemIds = offer.slots.compactMap { $0 }.filter { $0.kind != "card" && $0.kind != "removal" }
+                    .map { "\($0.kind).\($0.id)" }
+                XCTAssertEqual(itemIds.count, Set(itemIds).count,
+                               "\(label) visit \(visit): the shelf offered the same item twice")
+                XCTAssertEqual(offer.slots.contains { $0?.kind == "removal" }, c.removalSlotOn(),
+                               "\(label) visit \(visit): the Purge slot follows its toggle")
+                guard visit < 2 else { break }
+                XCTAssertTrue(c.rerollStore(), "\(label): reroll \(visit + 1) should succeed")
+                offer = c.getStoreOffer()!
             }
-            XCTAssertEqual(c.coins, f["coinsAfter"]?.asInt, "\(label): coins after rerolls")
-            XCTAssertEqual(c.nextCardId, f["nextCardId"]?.asInt, "\(label): nextCardId after minting")
             checked += 1
         }
         XCTAssertGreaterThan(checked, 0, "no store fixtures were exercised")
     }
 
+    /// The registry def behind a shelf slot, when the slot names one.
+    private static func defFor(_ slot: StoreSlot) -> ItemDef? {
+        let d = GameData.shared
+        switch slot.kind {
+        case "sticker":   return d.stickerTypes.get(slot.id)
+        case "pillar":    return d.pillarTypes.get(slot.id)
+        case "base":      return d.baseTypes.get(slot.id)
+        case "pack":      return d.packTypes.get(slot.id)
+        case "samepower": return d.samePowerTypes.get(slot.id)
+        default:          return nil          // card / removal carry no def
+        }
+    }
+
     // MARK: - Mystery
 
-    func testMysteryRollsMatchWeb() {
+    /// THE MYSTERY ROLL. Same story as the shelf: it used to replay the web's
+    /// rolls key-for-key, but the native build has grown outcome keys the web
+    /// never rolled (the Queen's gifts, the Two's tricks), so a web-captured
+    /// sequence is no longer ground truth. The fixtures stay as a SEED CORPUS;
+    /// the assertions are the roll's own promises: the runSeed derivation is
+    /// still web-exact, every rolled key is registered, and the same run+node
+    /// rolls the same key every time.
+    func testMysteryRollsFollowTheRules() {
         for f in Self.list("mystery") {
             let seed = f["seed"]?.asInt ?? 0
             let c = campaign(deck: "pink", tier: "regular", seed: seed)
             XCTAssertEqual(Int(c.runSeed), f["runSeed"]?.asInt, "mystery seed \(seed): runSeed")
-            let want = f["rolls"]?.stringArray ?? []
-            var got: [String] = []
-            for nodeId in 0..<40 { got.append(c.rollMysteryEvent(nodeId)) }
-            for nodeId in [1000, 2003, 800000, 900000] { got.append(c.rollMysteryEvent(nodeId)) }
-            XCTAssertEqual(got, want, "mystery outcome keys for seed \(seed)")
+            let c2 = campaign(deck: "pink", tier: "regular", seed: seed)
+            let nodes = Array(0..<40) + [1000, 2003, 800000, 900000]
+            for nodeId in nodes {
+                let key = c.rollMysteryEvent(nodeId)
+                XCTAssertTrue(MysteryConfig.outcomeKeys.contains(key),
+                              "seed \(seed) node \(nodeId): unregistered key '\(key)'")
+                XCTAssertEqual(key, c2.rollMysteryEvent(nodeId),
+                               "seed \(seed) node \(nodeId): the same run+node must roll the same key")
+            }
         }
     }
 
     // MARK: - Packs + store cards
 
-    func testPackRevealsMatchWeb() {
+    /// PACK REVEALS. This used to replay web-captured reveals item-for-item,
+    /// but the sticker roll's weights are a live tuning surface (the
+    /// changeSuit family was de-weighted in v6.36), so the captured ids are
+    /// no longer ground truth. The fixtures stay a SEED CORPUS; the
+    /// assertions are the reveal's own promises: same seed → same reveal,
+    /// the item count matches the capture, every rolled id is a real
+    /// registered item, every card obeys the sticker rules (including
+    /// no-duplicates), and the mint delta is unchanged.
+    func testPackRevealsFollowTheRules() {
+        let data = GameData.shared
         for f in Self.list("packs") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
             let packId = f["packId"]?.asString ?? ""
             let label = "pack \(packId) seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
-            XCTAssertEqual(c.nextCardId, f["nextCardIdBefore"]?.asInt, "\(label): nextCardId before")
+            let c2 = campaign(deck: deck, tier: "regular", seed: seed)
+            let idBefore = c.nextCardId
             let rng = RNG(seed: UInt32(truncatingIfNeeded: seed) ^ 0xabcdef)
+            let rng2 = RNG(seed: UInt32(truncatingIfNeeded: seed) ^ 0xabcdef)
             let out = c.revealPack(packId, rng: rng)
+            let again = c2.revealPack(packId, rng: rng2)
             let wantItems = f["items"]?.asArray ?? []
             if f["kind"]?.asString == "card" {
                 XCTAssertEqual(out.cards.count, wantItems.count, "\(label): card count")
-                for (i, w) in wantItems.enumerated() where i < out.cards.count {
-                    XCTAssertEqual(out.cards[i].suit, w["suit"]?.asString, "\(label) [\(i)]: suit")
-                    XCTAssertEqual(out.cards[i].currentRank, w["currentRank"]?.asInt, "\(label) [\(i)]: rank")
-                    XCTAssertEqual(out.cards[i].joker, w["joker"]?.asBool, "\(label) [\(i)]: joker")
-                    XCTAssertEqual(out.cards[i].blank, w["blank"]?.asBool, "\(label) [\(i)]: blank")
-                    XCTAssertEqual(out.cards[i].stickers.map(\.type), w["stickers"]?.stringArray ?? [],
-                                   "\(label) [\(i)]: stickers")
+                XCTAssertEqual(out.cards.map(\.suit), again.cards.map(\.suit), "\(label): determinism (suits)")
+                XCTAssertEqual(out.cards.map(\.currentRank), again.cards.map(\.currentRank),
+                               "\(label): determinism (ranks)")
+                XCTAssertEqual(out.cards.map { $0.stickers.map(\.type) },
+                               again.cards.map { $0.stickers.map(\.type) },
+                               "\(label): determinism (stickers)")
+                for card in out.cards where !card.joker && !card.blank {
+                    let ids = card.stickers.map(\.type)
+                    XCTAssertEqual(ids.count, Set(ids).count, "\(label): a card rolled the same sticker twice")
+                    XCTAssertLessThanOrEqual(ids.count, data.items.maxStickersPerCard, "\(label): over the cap")
+                    for sid in ids {
+                        XCTAssertNotNil(data.stickerTypes.get(sid), "\(label): unregistered sticker '\(sid)'")
+                    }
                 }
             } else {
-                XCTAssertEqual(out.stickers, wantItems.compactMap(\.asString), "\(label): sticker ids")
+                XCTAssertEqual(out.stickers.count, wantItems.count, "\(label): sticker count")
+                XCTAssertEqual(out.stickers, again.stickers, "\(label): determinism (sticker ids)")
+                for sid in out.stickers {
+                    XCTAssertNotNil(data.stickerTypes.get(sid), "\(label): unregistered sticker '\(sid)'")
+                }
             }
-            XCTAssertEqual(c.nextCardId, f["nextCardIdAfter"]?.asInt, "\(label): nextCardId after")
+            let wantDelta = (f["nextCardIdAfter"]?.asInt ?? 0) - (f["nextCardIdBefore"]?.asInt ?? 0)
+            XCTAssertEqual(c.nextCardId - idBefore, wantDelta, "\(label): cards minted by the reveal")
         }
     }
 
-    func testStoreCardMintsMatchWeb() {
+    /// THE STORE CARD SLOT. Same story as the shelf above: these used to
+    /// replay web-captured mints byte-for-byte, but the card slot now rolls
+    /// its OWN sticker table (`store.card.stickerOdds`) and prices the card
+    /// by what it carries — rules the web never had. The fixtures stay as a
+    /// SEED CORPUS; the assertions are iOS's own promises: determinism, the
+    /// odds table's ceiling, per-deck rules, and sticker-stepped pricing.
+    func testStoreCardMintsFollowTheRules() {
+        let cardCfg = GameData.shared.items.store.card
+        let maxStickers = Int(cardCfg.stickerOdds.map { $0[1] }.max() ?? 0)
+        var stickeredMints = 0
         for f in Self.list("storeCards") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
             let label = "storeCard seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
+            let c2 = campaign(deck: deck, tier: "regular", seed: seed)
             let rng = RNG(seed: UInt32(truncatingIfNeeded: seed) ^ 0x51ca5d)
-            let want = f["cards"]?.asArray ?? []
-            for (i, w) in want.enumerated() {
-                guard let got = c.genStoreCard(rng) else { XCTFail("\(label)[\(i)]: nil card"); continue }
-                XCTAssertEqual(got.id, w["id"]?.asInt, "\(label)[\(i)]: id")
-                XCTAssertEqual(got.suit, w["suit"]?.asString, "\(label)[\(i)]: suit")
-                XCTAssertEqual(got.currentRank, w["currentRank"]?.asInt, "\(label)[\(i)]: rank")
-                XCTAssertEqual(got.joker, w["joker"]?.asBool, "\(label)[\(i)]: joker")
-                XCTAssertEqual(got.stickers.map(\.type), w["stickers"]?.stringArray ?? [], "\(label)[\(i)]: stickers")
+            let rng2 = RNG(seed: UInt32(truncatingIfNeeded: seed) ^ 0x51ca5d)
+            for i in 0..<12 {
+                guard let got = c.genStoreCard(rng), let again = c2.genStoreCard(rng2) else {
+                    XCTFail("\(label)[\(i)]: nil card"); continue
+                }
+                // DETERMINISM: the same seed mints the same card.
+                XCTAssertEqual(got.suit, again.suit, "\(label)[\(i)]: suit")
+                XCTAssertEqual(got.currentRank, again.currentRank, "\(label)[\(i)]: rank")
+                XCTAssertEqual(got.joker, again.joker, "\(label)[\(i)]: joker")
+                XCTAssertEqual(got.stickers.map(\.type), again.stickers.map(\.type),
+                               "\(label)[\(i)]: stickers")
+                // The card slot's own odds table bounds the sticker count…
+                XCTAssertLessThanOrEqual(got.stickers.count, maxStickers,
+                                         "\(label)[\(i)]: more stickers than the table allows")
+                // …and Lammy's no-sticker rule still holds at the mint.
+                if c.rules().noStickers {
+                    XCTAssertEqual(got.stickers.count, 0, "\(label)[\(i)]: Lammy mints take no stickers")
+                }
+                if got.stickers.count > 0 { stickeredMints += 1 }
+                // PRICING: base + stickerStep per sticker; Jokers keep their
+                // own flat price. Quoted through the one shelf chokepoint.
+                c.storeOffer = StoreOffer(slots: [StoreSlot(kind: "card", id: "card", card: got)],
+                                          rerollCost: 5)
+                let raw = got.joker ? cardCfg.jokerPrice
+                    : cardCfg.price + Double(got.stickers.count) * cardCfg.stickerStep
+                XCTAssertEqual(c.priceOfMixed(0), c.shopPrice(raw), "\(label)[\(i)]: price")
             }
         }
+        XCTAssertGreaterThan(stickeredMints, 0,
+                             "across the whole corpus SOME mint must carry a sticker")
     }
 
     // MARK: - Serialize / restore
@@ -222,9 +324,29 @@ final class CampaignFixtureTests: XCTestCase {
             c.addCoins(250)
             c.addRunScore(37)
             let blob = c.serialize()
-            // The save shape must match the web's key set exactly, or a save
-            // written on one platform loses fields on the other.
-            XCTAssertEqual(blob.keys.sorted(), f["blobKeys"]?.stringArray ?? [], "\(label): save key set")
+            // The save shape must still carry every key the web writes — losing
+            // one would silently drop player state. NATIVE-ONLY additions are
+            // allowed, but must be declared here so they are a deliberate act
+            // rather than an accident.
+            let webKeys = Set(f["blobKeys"]?.stringArray ?? [])
+            let nativeOnly: Set<String> = [
+                "jokerDebt",            // THE OLD JOKER's outstanding marker (iOS-only feature)
+                "freeShopPending",      // …his comp on the next shop
+                "jokerThirstPending",   // …and the drink he is coming back about
+                "jokerThirstCoins",
+                "purgeDiscount",        // …and his purge bargain
+                "purgeStepBonus",
+                "freeRerollPending",    // THE BEHEADED QUEEN's Restock (next shop's first refresh free)
+                "freeRedealPending",    // …her Mulligan (next deal's first reshuffle free)
+                "storePriceModPending", // the cast's next-shop price twist, armed…
+                "storePriceModActive",  // …and live for the current shop
+                "pillarRankVariants",   // Underdog/Crowd Favorite's climb-locked ranks
+            ]
+            let mine = Set(blob.keys)
+            XCTAssertTrue(webKeys.isSubset(of: mine),
+                          "\(label): the save dropped web keys \(webKeys.subtracting(mine).sorted())")
+            XCTAssertEqual(mine.subtracting(webKeys), nativeOnly.intersection(mine.subtracting(webKeys)),
+                           "\(label): undeclared native-only save keys \(mine.subtracting(webKeys).subtracting(nativeOnly).sorted())")
 
             let c2 = CampaignState()
             XCTAssertEqual(c2.restore(blob), f["ok"]?.asBool, "\(label): restore ok")
@@ -237,8 +359,12 @@ final class CampaignFixtureTests: XCTestCase {
             XCTAssertEqual(c2.runScore, after["runScore"]?.asInt, "\(label): runScore")
             XCTAssertEqual(c2.getRunDeck().map(\.id), after["ownedIds"]?.intArray ?? [], "\(label): run deck ids")
             XCTAssertEqual(c2.deckSize(), after["deckSize"]?.asInt, "\(label): deckSize")
-            XCTAssertEqual(c2.runMap?.nodes.count, after["mapNodeCount"]?.asInt, "\(label): regenerated map node count")
-            XCTAssertEqual(c2.runMap?.totalRows, after["mapTotalRows"]?.asInt, "\(label): regenerated map rows")
+            // The map is native-shaped now; the round-trip's promise is that
+            // the restore REGENERATES the same map the save was made on.
+            XCTAssertEqual(c2.runMap?.nodes.count, c.runMap?.nodes.count,
+                           "\(label): restore regenerates the same map")
+            XCTAssertEqual(c2.runMap?.totalRows, c.runMap?.totalRows,
+                           "\(label): …same rows")
         }
     }
 

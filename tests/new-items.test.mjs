@@ -19,13 +19,13 @@ export function run() {
   {
     r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
     r.eq(PillarTypes.get("fibonacci").tier, "rare", "Fibonacci is Rare");
-    r.eq(PillarTypes.get("fibonacci").price, 8, "Fibonacci costs 8");
+    r.eq(PillarTypes.get("fibonacci").price, 4, "Fibonacci costs 4");
     r.ok(!PillarTypes.get("highestOdd"), "Highest Odd is deleted from the registry");
     r.eq(PillarTypes.get("highestEven").effect, "highestHeart", "the highestEven id now runs the Highest Heart effect");
     r.eq(PillarTypes.get("highestEven").label, "Highest Heart", "…and reads Highest Heart");
-    r.eq(PillarTypes.get("denseBury").price, 20, "Dense Bury costs 20");
+    r.eq(PillarTypes.get("denseBury").price, 10, "Dense Bury costs 10");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
-    r.eq(PillarTypes.get("revive").price, 25, "Revive costs 25");
+    r.eq(PillarTypes.get("revive").price, 13, "Revive costs 13");
     r.eq(PillarTypes.get("revive").tier, "rare", "Revive is Rare");
     r.ok(!PillarTypes.get("kamikaze"), "Kamikaze is no longer a Pillar (moved to Bases)");
     r.ok(!!StickerTypes.get("shuffle"), "Shuffle sticker registered");

@@ -40,7 +40,13 @@ public struct SubsetConfig: Sendable {
 /// endless lift from here, plus the generator-wide `firstDealBand` and the
 /// subset-deal knobs.
 public struct DifficultyData: Sendable {
-    public static let tierIds = ["regular", "master", "legendary"]
+    /// TWO tiers. The ids are STABLE SAVE KEYS, so "regular" keeps its id and
+    /// only its label changed (to "Normal"); "master" is retired — a save
+    /// holding it falls back to regular on restore, and its deck-unlock key is
+    /// migrated forward (see DeckUnlocks).
+    public static let tierIds = ["regular", "legendary"]
+    /// Retired tier ids, kept only so old saves can be recognised and migrated.
+    public static let retiredTierIds = ["master"]
     public static let zenIds = ["easy", "medium", "hard"]
 
     public let endlessBandStep: Double

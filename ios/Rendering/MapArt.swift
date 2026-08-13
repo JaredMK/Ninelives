@@ -16,7 +16,10 @@ public enum MapArt {
         case "boss":    return (40, 35)
         case "store":   return (26, 26)
         case "home":    return (30, 30)
-        case "mystery": return (19, 24)
+        // The live "?" art is the 10×13 pxi sprite at k=4 in a +2 canvas =
+        // 42×54. It used to be measured against the 38×48 procedural FALLBACK,
+        // so dashed route edges were routed straight through the card.
+        case "mystery": return (21, 27)
         default:        return (25, 29)
         }
     }
@@ -87,9 +90,11 @@ public enum MapArt {
     public static func rewardChip(_ amount: Int) -> UIImage {
         baked("chip-\(amount)") {
             let text = "◉\(amount)" as NSString
-            let font = CRT.Font.of(14)
+            // The approaching-deal coin counter: sized to actually be read at
+            // a glance on the map, not a decorative tick.
+            let font = CRT.Font.of(18)
             let sz = text.size(withAttributes: [.font: font])
-            let w = ceil(sz.width) + 12, h: CGFloat = 18
+            let w = ceil(sz.width) + 14, h: CGFloat = 22
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
@@ -117,14 +122,20 @@ public enum MapArt {
                 cg.setStrokeColor(CRT.ink.cgColor)
                 cg.setLineWidth(2)
                 cg.stroke(CGRect(x: 7, y: 15, width: 30, height: 21))
-                // Door.
+                // Door — centred on the BODY (x 7…37, centre 22). It used to sit
+                // at 18.5…27.5 (centre 23), one pixel right of the awning apex,
+                // which is what read as "the roof is offset".
                 cg.setFillColor(CRT.ink.cgColor)
-                cg.fill(CGRect(x: 18.5, y: 23, width: 9, height: 13))
-                // Awning stripes (alternating red/cream triangles from the apex).
+                cg.fill(CGRect(x: 17.5, y: 23, width: 9, height: 13))
+                // Awning stripes from the apex. The colours MIRROR about the
+                // centre (red · cream · cream · red) — plain `i % 2` alternation
+                // put red on the left edge and cream on the right, so the dark
+                // mass sat left of centre even though the outline was centred.
                 let apex = CGPoint(x: 22, y: 3)
                 let stops: [CGFloat] = [4, 13, 22, 31, 40]
                 for i in 0..<4 {
-                    cg.setFillColor((i % 2 == 0 ? CRT.suitRed : CRT.cardFace).cgColor)
+                    let mirrored = min(i, 3 - i)   // 0,1,1,0
+                    cg.setFillColor((mirrored % 2 == 0 ? CRT.suitRed : CRT.cardFace).cgColor)
                     cg.move(to: apex)
                     cg.addLine(to: CGPoint(x: stops[i], y: 16))
                     cg.addLine(to: CGPoint(x: stops[i + 1], y: 16))
@@ -185,9 +196,9 @@ public enum MapArt {
     public static func lootBadge(_ text: String) -> UIImage {
         baked("loot-\(text)") {
             let ns = text as NSString
-            let font = CRT.Font.of(13)
+            let font = CRT.Font.of(16)
             let sz = ns.size(withAttributes: [.font: font])
-            let w = ceil(sz.width) + 12, h: CGFloat = 17
+            let w = ceil(sz.width) + 14, h: CGFloat = 21
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
@@ -212,15 +223,23 @@ public enum MapArt {
             return baked("mystx-\(open)") {
                 let k: CGFloat = 4
                 let w = art.size.width * k, h = art.size.height * k
-                return PixelTexture.image(size: CGSize(width: w + 6, height: h + 6)) { cg in
+                // A `+2` canvas with the card at (1,1), like every sibling art
+                // (rewardChip, lootBadge). The old `+6` canvas left margins of
+                // 1 and 5, so the card sat 2pt up-and-left of the node point
+                // while MapNodeView centred the CANVAS — which is why the
+                // state ring looked off-register around the "?".
+                return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                     cg.setFillColor(CRT.shadow.cgColor)
-                    cg.fill(CGRect(x: 4, y: 4, width: w + 2, height: h + 2))
+                    cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
                     UIGraphicsPushContext(cg)
-                    art.draw(in: CGRect(x: 1, y: 1, width: w, height: h))
+                    art.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
                     UIGraphicsPopContext()
+                    // Inset by half the line width so the 2pt frame lands INSIDE
+                    // the card instead of straddling its edge and eating a pixel
+                    // of artwork on every side.
                     cg.setStrokeColor((open ? CRT.phosphor : CRT.gold).cgColor)
                     cg.setLineWidth(2)
-                    cg.stroke(CGRect(x: 1, y: 1, width: w, height: h))
+                    cg.stroke(CGRect(x: 1, y: 1, width: w - 2, height: h - 2))
                 }
             }
         }
@@ -271,9 +290,13 @@ public enum MapArt {
                 let oy: CGFloat = 7
                 let roofS: CGFloat = mama ? 32 : 26
                 let bodyW: CGFloat = mama ? 44 : 36, bodyH: CGFloat = mama ? 30 : 26
+                // Centre on the CANVAS, not on `w`: the bitmap is `w + 6` wide,
+                // so centring on `w / 2` put the whole hut 3pt left of centre
+                // while MapNodeView centres the canvas on the node point.
+                let cx = (w + 6) / 2
                 // Roof: rotated square.
                 cg.saveGState()
-                cg.translateBy(x: w / 2, y: oy + roofS * 0.72)
+                cg.translateBy(x: cx, y: oy + roofS * 0.72)
                 cg.rotate(by: .pi / 4)
                 let rr = CGRect(x: -roofS / 2, y: -roofS / 2, width: roofS, height: roofS)
                 cg.setFillColor(CRT.suitRed.cgColor)
@@ -283,7 +306,7 @@ public enum MapArt {
                 cg.stroke(rr)
                 cg.restoreGState()
                 // Body.
-                let br = CGRect(x: (w - bodyW) / 2, y: oy + h - bodyH, width: bodyW, height: bodyH)
+                let br = CGRect(x: cx - bodyW / 2, y: oy + h - bodyH, width: bodyW, height: bodyH)
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(br.offsetBy(dx: 2, dy: 2))
                 cg.setFillColor(CRT.cardFace.cgColor)
@@ -294,7 +317,7 @@ public enum MapArt {
                 let heart = "♥" as NSString
                 let font = CRT.Font.of(mama ? 15 : 13)
                 let sz = heart.size(withAttributes: [.font: font])
-                heart.draw(at: CGPoint(x: (w - sz.width) / 2, y: br.maxY - sz.height - 2),
+                heart.draw(at: CGPoint(x: cx - sz.width / 2, y: br.maxY - sz.height - 2),
                            withAttributes: [.font: font, .foregroundColor: CRT.suitRed])
                 if mama {
                     heart.draw(at: CGPoint(x: w - sz.width, y: 0),

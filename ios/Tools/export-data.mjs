@@ -67,8 +67,14 @@ mkdirSync(OUT, { recursive: true });
 const items = loadDataFile("items.js", "NINELIVES_ITEMS");
 const difficulty = loadDataFile("difficulty.js", "NINELIVES_DIFFICULTY");
 const tutorial = loadDataFile("tutorial.js", "NINELIVES_TUTORIAL");
+/* NATIVE-ONLY UNLOCK STATS — counters the Swift port tracks that the web
+   build never bumps (the same pattern as NATIVE_ONLY_* in export-traces.mjs).
+   Appended to the lifted list so items.js may key unlocks off them without
+   touching index.html. */
+const NATIVE_ONLY_UNLOCK_STATS = ["ambushesWon", "earlyLosses"];
+
 const meta = {
-  itemUnlockStats: liftFromIndex("ITEM_UNLOCK_STATS"),
+  itemUnlockStats: [...liftFromIndex("ITEM_UNLOCK_STATS"), ...NATIVE_ONLY_UNLOCK_STATS],
   deckRules: liftFromIndex("DECK_RULES"),
 };
 

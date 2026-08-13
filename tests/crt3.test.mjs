@@ -74,23 +74,34 @@ export function run() {
       ".store-tile is a pixel plaque (felt-mid face, ink border, hard shadow)");
     r.ok(cssRule(html, ".store-tile:active").includes("translate(2px, 2px)"),
       "pressing a tile sinks it one pixel step (§4)");
-    // Rarity strip: palette-mapped tier accents, stamped from the LIVE def.
-    r.ok(cssRule(html, ".store-tile.srt-common::before").includes("var(--card-face)"),
-      "common strip = quiet cream");
-    r.ok(cssRule(html, ".store-tile.srt-uncommon::before").includes("var(--gold)"),
-      "uncommon strip = gold");
-    r.ok(cssRule(html, ".store-tile.srt-rare::before").includes("var(--phosphor)"),
-      "rare strip = phosphor");
+    // Rarity fills the WHOLE plaque (the 4px top strip is retired — it read as
+    // an affordability light, not as rarity): palette-mapped tier accents on
+    // the border + a wash of the same hue on the face, stamped from the LIVE
+    // def. The native port mirrors it (StoreTileView blends at 0.22).
+    r.ok(!/\.store-tile(\.srt-\w+)?::before\s*\{/.test(html),
+      "the 4px rarity strip pseudo is gone — rarity colours the whole window");
+    const uncommon = cssRule(html, ".store-tile.srt-uncommon");
+    r.ok(uncommon.includes("border-color: var(--gold)"), "uncommon border = gold");
+    r.ok(uncommon.includes("color-mix") && uncommon.includes("var(--gold)")
+      && uncommon.includes("var(--felt-mid)"),
+      "uncommon face is a gold wash over the felt (no retyped hex)");
+    const rare = cssRule(html, ".store-tile.srt-rare");
+    r.ok(rare.includes("border-color: var(--phosphor)"), "rare border = phosphor");
+    r.ok(rare.includes("color-mix") && rare.includes("var(--phosphor)")
+      && rare.includes("var(--felt-mid)"),
+      "rare face is a phosphor wash over the felt (no retyped hex)");
+    r.ok(cssRule(html, ".store-tile.srt-common").includes("var(--ink)"),
+      "common stays the quiet ink-bordered plaque");
     const ot = fnBody(src, "offerTile");
     r.ok(ot.includes('srt-" + t.tier'), "offerTile stamps srt-<tier> from the live registry def (no hardcoded tiers)");
-    // Every registry tier value has a strip rule (registry-driven, not pinned).
+    // Every registry tier value has a plaque rule (registry-driven, not pinned).
     const tiers = new Set();
     for (const reg of [g.StickerTypes, g.PillarTypes, g.BaseTypes, g.PackTypes, g.SamePowerTypes])
       for (const t of reg.all()) if (t.tier) tiers.add(t.tier);
     r.ok(tiers.size >= 2, "registries carry at least two live tier values");
     for (const tier of tiers)
-      r.ok(html.includes(".store-tile.srt-" + tier + "::before"),
-        "live tier '" + tier + "' has a shelf strip rule");
+      r.ok(html.includes(".store-tile.srt-" + tier + " "),
+        "live tier '" + tier + "' has a shelf plaque rule");
     // Price reads gold-on-ink; the soft radial contact shadow is gone.
     const price = cssRule(html, ".store-tile .ti-price");
     r.ok(price.includes("var(--gold)") && price.includes("var(--ink)") && price.includes("border-radius: 0"),

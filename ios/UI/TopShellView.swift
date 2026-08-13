@@ -33,8 +33,11 @@ public final class TopShellView: UIView {
         hudBar.addSubview(menuButton)
         trackView.contentMode = .center
         hudBar.addSubview(trackView)
-        // The Same mark: the equals-synapse logo, dim on the shell (the charge
-        // is a per-deal resource — the web shows the empty state here).
+        // The Same mark: the equals-synapse logo. It is LIT when a shield is
+        // banked and dim when it isn't — `sync` drives it, matching the deal
+        // HUD's own mark. It used to be pinned dim here, so a shield banked
+        // outside a deal (the Old Joker's Insurance) read as "still empty"
+        // until a deal opened and the HUD drew the truth.
         sameView.image = MapArt.menuLogo(width: 24)
         sameView.contentMode = .scaleAspectFit
         sameView.alpha = 0.4
@@ -66,6 +69,43 @@ public final class TopShellView: UIView {
 
     @objc private func bandTapped() { onDeckTap?() }
 
+    // MARK: - Hold-for-help band takeover
+
+    /// Help TAKES OVER the band, exactly like the deal board's (DealScene
+    /// .showHelp): the baked band art hides and a phosphor-bordered panel fills
+    /// the same rect, so nothing on screen moves. The map used to answer a hold
+    /// with the bottom prompt bar, which read as a different idiom entirely.
+    private let bandHelp = PixelPanelView(face: CRT.feltMid, border: CRT.phosphor)
+    private let bandHelpTitle = UILabel()
+    private let bandHelpBody = UILabel()
+
+    public var isHelpVisible: Bool { !bandHelp.isHidden }
+
+    public func showHelp(title: String, body: String) {
+        if bandHelp.superview == nil {
+            bandHelp.isUserInteractionEnabled = false
+            // Help must WRAP, not clip — a long node or item description was
+            // being cut at three lines with no way to see the rest.
+            bandHelpTitle.numberOfLines = 2
+            bandHelpBody.numberOfLines = 0
+            bandHelp.addSubview(bandHelpTitle)
+            bandHelp.addSubview(bandHelpBody)
+            band.addSubview(bandHelp)
+        }
+        bandHelpTitle.attributedText = CRTKit.attributed(title, size: 18, color: CRT.phosphor, glow: true)
+        bandHelpBody.attributedText = CRTKit.attributed(body, size: 16, color: CRT.cardFace)
+        bandArt.isHidden = true
+        bandHelp.isHidden = false
+        band.bringSubviewToFront(bandHelp)
+        setNeedsLayout()
+    }
+
+    public func hideHelp() {
+        guard !bandHelp.isHidden else { return }
+        bandHelp.isHidden = true
+        bandArt.isHidden = false
+    }
+
     /// Total height below the given safe-area top.
     public static func height(safeTop: CGFloat) -> CGFloat {
         safeTop + 2 + hudH + 6 + bandH + 4
@@ -79,23 +119,49 @@ public final class TopShellView: UIView {
         band.frame = CGRect(x: 8, y: top + TopShellView.hudH + 6, width: w - 16, height: TopShellView.bandH)
         let hw = hudBar.bounds.width
         menuButton.frame = CGRect(x: 4, y: 5, width: 34, height: 30)
-        trackView.frame = CGRect(x: 44, y: 0, width: 110, height: TopShellView.hudH)
-        sameView.frame = CGRect(x: hw / 2 - 26, y: 8, width: 24, height: 24)
-        scoreLabel.frame = CGRect(x: hw / 2 + 6, y: 8, width: hw / 2 - 100, height: 24)
-        coinLabel.frame = CGRect(x: hw - 96, y: 8, width: 86, height: 24)
+        // The score block carries SCORE **and** HI now, so the bar is packed
+        // left-to-right instead of hanging the score off the centre: the suit
+        // track and the coin chip each give up some slack so the two numbers
+        // fit side by side on a 390pt phone.
+        trackView.frame = CGRect(x: 44, y: 0, width: 92, height: TopShellView.hudH)
+        sameView.frame = CGRect(x: 142, y: 8, width: 24, height: 24)
+        coinLabel.frame = CGRect(x: hw - 74, y: 8, width: 64, height: 24)
+        scoreLabel.frame = CGRect(x: 172, y: 8, width: max(60, hw - 74 - 8 - 172), height: 24)
         bandArt.frame = band.bounds
+        bandHelp.frame = band.bounds
+        // The title got bigger, so it needs the height to match — 18pt in an
+        // 18pt box clipped its descenders.
+        let titleH: CGFloat = 24
+        bandHelpTitle.frame = CGRect(x: 10, y: 5, width: band.bounds.width - 20, height: titleH)
+        bandHelpBody.frame = CGRect(x: 10, y: 5 + titleH + 2, width: band.bounds.width - 20,
+                                    height: max(18, band.bounds.height - titleH - 12))
         if abs(bounds.width - 16 - lastBakeWidth) > 1 { bakeBand() }
     }
 
     public func sync(campaign: CampaignState) {
         trackView.image = TopShellView.trackerImage(campaign: campaign)
+        // The banked Same shield, live everywhere the shell is up.
+        sameView.alpha = campaign.getSameCharge() ? 1 : 0.4
+        // ONE continuous score (v6.47): the chip keeps its ENDLESS label as a
+        // phase marker after the bank, but the number never resets or splits.
         let banked = campaign.runWonBanked
         let lab = banked ? "ENDLESS " : "SCORE "
-        let val = banked ? campaign.getRunScore() : campaign.getCampaignScore()
+        let val = campaign.getRunScore()
         let score = NSMutableAttributedString(
-            string: lab, attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted])
+            string: lab, attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted])
         score.append(NSAttributedString(
-            string: "\(val)", attributes: [.font: CRT.Font.of(19), .foregroundColor: CRT.phosphor]))
+            string: "\(val)", attributes: [.font: CRT.Font.of(18), .foregroundColor: CRT.phosphor]))
+        // …and the lifetime best beside it, so the record is visible at every
+        // point of a climb, not just inside a deal. Gold and un-glowing — the
+        // phosphor glow stays reserved for the ONE live value.
+        let best = campaign.stats.get()
+            .deckTierBest["\(campaign.deckId).\(campaign.difficultyTier)"] ?? 0
+        if best > 0 {
+            score.append(NSAttributedString(
+                string: "  HI ", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
+            score.append(NSAttributedString(
+                string: "\(best)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace]))
+        }
         scoreLabel.attributedText = score
         let coins = NSMutableAttributedString()
         if let coin = ArtBundle.image("pxi-coin") {
@@ -106,7 +172,7 @@ public final class TopShellView: UIView {
             coins.append(NSAttributedString(string: " "))
         }
         coins.append(NSAttributedString(
-            string: "\(campaign.coins)", attributes: [.font: CRT.Font.of(19), .foregroundColor: CRT.gold]))
+            string: "\(campaign.coins)", attributes: [.font: CRT.Font.of(20), .foregroundColor: CRT.gold]))
         coinLabel.attributedText = coins
         lastCampaign = campaign
         bakeBand()
@@ -194,7 +260,9 @@ public final class TopShellView: UIView {
         return UIGraphicsImageRenderer(size: CGSize(width: width, height: H), format: fmt).image { ctx in
             let cg = ctx.cgContext
             // Suit-count chart, top-left: ♥ ♦ / ♣ ♠ / ★ as "n/t".
-            let cells: [(String, UIColor)] = [("♥", CRT.suitRed), ("♦", CRT.suitRed),
+            // All four suit glyphs read CREAM (v6.36): red-on-felt was the
+            // hardest text in the bar. Only the ★ keeps its gold.
+            let cells: [(String, UIColor)] = [("♥", CRT.cardFace), ("♦", CRT.cardFace),
                                               ("♣", CRT.cardFace), ("♠", CRT.cardFace),
                                               ("★", CRT.gold)]
             for (i, cell) in cells.enumerated() {
@@ -203,12 +271,12 @@ public final class TopShellView: UIView {
                 let y = 8 + CGFloat(row) * 19
                 let n = cell.0 == "★" ? jokers : (suits[cell.0] ?? 0)
                 let glyph = NSAttributedString(string: cell.0,
-                                               attributes: [.font: CRT.Font.of(14), .foregroundColor: cell.1])
+                                               attributes: [.font: CRT.Font.of(16), .foregroundColor: cell.1])
                 glyph.draw(at: CGPoint(x: x, y: y))
                 let num = NSMutableAttributedString(
-                    string: "\(n)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace])
+                    string: "\(n)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.cardFace])
                 num.append(NSAttributedString(
-                    string: "/\(n)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.muted]))
+                    string: "/\(n)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.muted]))
                 num.draw(at: CGPoint(x: x + 16, y: y + 1))
             }
             // Store variant: the deck-stack chip at the right edge — the deck
@@ -218,7 +286,11 @@ public final class TopShellView: UIView {
                 right = 66
                 let char = DeckCharacter.image(deckId: campaign.deckId, mood: .idle,
                                                scale: 2, tier: campaign.difficultyTier)
-                let cx = width - 10 - 50 + (50 - char.size.width) / 2
+                // Centre the 44pt DRAW RECT in its 50pt slot — this centred the
+                // 64px SOURCE image instead, pushing the mascot 7pt left and a
+                // pixel past the histogram's reserve.
+                let cx = width - 10 - 50 + (50 - 44) / 2
+                cg.interpolationQuality = .none   // pixel art is never smoothed
                 char.draw(in: CGRect(x: cx, y: 3, width: 44, height: 44))
                 let plaque = CGRect(x: width - 10 - 44, y: H - 24, width: 40, height: 18)
                 cg.setFillColor(CRT.cardFace.cgColor)
@@ -228,7 +300,7 @@ public final class TopShellView: UIView {
                 cg.stroke(plaque.insetBy(dx: 1, dy: 1))
                 let count = NSAttributedString(
                     string: "\(campaign.deckSize())",
-                    attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.ink])
+                    attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.ink])
                 let cs = count.size()
                 count.draw(at: CGPoint(x: plaque.midX - cs.width / 2, y: plaque.midY - cs.height / 2))
             }
@@ -255,7 +327,7 @@ public final class TopShellView: UIView {
                 }
                 let lab = NSAttributedString(
                     string: col.0,
-                    attributes: [.font: CRT.Font.of(11),
+                    attributes: [.font: CRT.Font.of(14),
                                  .foregroundColor: col.0 == "★" ? CRT.gold : CRT.muted])
                 let size = lab.size()
                 lab.draw(at: CGPoint(x: x + (colW - size.width) / 2, y: baseY + 4))

@@ -124,12 +124,18 @@ export function run() {
         "the CLEARED pack still displays its granted pair after restore");
 
       // R3: no other grant source can hand out a still-displayed card.
-      const c3 = CampaignState.create();
-      c3._setMapSpecialRoll(() => null);
-      c3.reset();
-      const w3 = c3.serialize();
-      const reserved = new Set();
-      for (const k in w3.packCards) w3.packCards[k].forEach((id) => { if (typeof id === "number") reserved.add(id); });
+      // A fresh map may roll ZERO pack nodes, which would leave nothing to
+      // protect and fail spuriously — sweep until one has some, the same way
+      // the +2-pack block above does.
+      let c3 = null, reserved = new Set();
+      for (let i = 0; i < 8 && reserved.size === 0; i++) {
+        c3 = CampaignState.create();
+        c3._setMapSpecialRoll(() => null);
+        c3.reset();
+        const w3 = c3.serialize();
+        reserved = new Set();
+        for (const k in w3.packCards) w3.packCards[k].forEach((id) => { if (typeof id === "number") reserved.add(id); });
+      }
       r.ok(reserved.size > 0, "reservation sweep has committed pack cards to protect (" + reserved.size + ")");
       let leaks = 0;
       const suits = ["♦", "♣", "♠", "♥"];

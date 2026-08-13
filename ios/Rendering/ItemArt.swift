@@ -92,6 +92,28 @@ public enum ItemArt {
         }
     }
 
+    /// Widen a symmetric frame matrix to `targetCols` by repeating its CENTRE
+    /// column. Both plaque plates are frames with a plain repeating interior,
+    /// so this stretches the plate without touching its border, its corner
+    /// details or its symmetry — the plaque reaches the card's width at a whole
+    /// pixel scale, instead of being letterboxed narrower than the pile it
+    /// belongs to. (Scaling to fit instead would put the plate on fractional
+    /// pixels, which §10 forbids; growing the cell size would need a taller
+    /// band, and `pickScale` pays for taller bands with smaller cards.)
+    private static func widened(_ rows: [String], to targetCols: Int) -> [String] {
+        guard let first = rows.first else { return rows }
+        let cols = first.count
+        let extra = targetCols - cols
+        guard extra > 0, cols > 0 else { return rows }
+        let mid = cols / 2
+        return rows.map { row -> String in
+            guard row.count == cols else { return row }
+            let chars = Array(row)
+            let fill = String(repeating: String(chars[mid]), count: extra)
+            return String(chars[0..<mid]) + fill + String(chars[mid...])
+        }
+    }
+
     /// Crop fully-transparent border rows/cols — the web's `trimmed()`, used
     /// for the icons that FILL a shaped box (plaque / pack / card faces).
     private static func trimmed(_ rows: [String]) -> [String] {
@@ -119,18 +141,148 @@ public enum ItemArt {
 
     // MARK: - ITEM-CLASS ICONS (the web's `ICONS`, §7)
 
+    /// THE OLD JOKER — the DEAL's Joker card, aged. 14×20.
+    ///
+    /// He must read as the same card the player already knows from the board,
+    /// only older: CardNode draws a Joker as a deep-felt face inside a GOLD
+    /// border with a gold ★ and a gold JOKER caption, so this is that card —
+    /// deep-felt face (D), gold frame (G), a gold ★ filling the middle, and a
+    /// gold caption bar standing in for the word at a size too small to letter.
+    ///
+    /// The AGE is damage to that card, never a different design: the gold
+    /// frame is broken in three places where it has rubbed through to grime
+    /// (F = felt-mid), the top-left and bottom-right corners are scuffed off
+    /// entirely, and a brass-dither crease (b) runs under the star where the
+    /// card has been folded and reopened. Palette-pure: nothing outside the
+    /// locked eight.
+    static let oldJokerArt: [String] = [
+        "...FGGGGGGGF..",
+        "..GDDDDDDDDDG.",
+        ".FDDDDDDDDDDDG",
+        ".GDDDDDGDDDDDF",
+        ".GDDDDGGGDDDDG",
+        ".FDDGGGGGGGDDG",
+        ".GDDDGGGGGDDDG",
+        ".GDDDDGGGDDDDG",
+        ".GDDDGGGGGDDDG",
+        ".GDDGGGDGGGDDF",
+        ".GDDGGDDDGGDDG",
+        ".GDDDDDDDDDDDG",
+        ".FDbbDDDDDbbDG",
+        ".GDDDbbDbbDDDG",
+        ".GDDDDDbbDDDDG",
+        ".GDDDDDDDDDDDG",
+        ".GDDGGGGGGGDDG",
+        ".FDDDDDDDDDDDF",
+        "..GGGGGGGGGF..",
+        "...FFFFFFF....",
+    ]
+
+    /// The Old Joker card at `k`× the pixel grid. Nearest-filtered and baked
+    /// once per size — no per-frame work.
+    public static func oldJoker(scale k: Int = 6) -> UIImage {
+        baked("oldjoker-\(k)") { characterCard(oldJokerArt, scale: k) }
+    }
+
+    /// THE BEHEADED QUEEN — a MIRRORED court card with the top half RIPPED
+    /// OFF. 14×20: real queens are two half-figures meeting at the waist, so
+    /// what survives the tear is the LOWER twin, upside down — her red gown
+    /// meeting the torn mirror line, then her inverted face (mouth above the
+    /// closed eyes — that's how you know she hangs head-down), gold hair
+    /// framing it, and her crown pointing DOWN at the card's foot. The upper
+    /// twin — the right-way-up queen — is exactly what was torn away.
+    static let beheadedQueenArt: [String] = [
+        "..KK....K..K..",
+        ".KCCK.KKCKKCK.",
+        "KCCCCKCCCCCCCK",
+        "KCRRRRRRRRRRCK",
+        "KCRRRGGGGRRRCK",
+        "KCCRRRGGRRRCCK",
+        "KCCRRRGGRRRCCK",
+        "KCCCRRRRRRCCCK",
+        "KCCCCRRRRCCCCK",
+        "KCCCCCKKCCCCCK",
+        "KCCCKKKKKKCCCK",
+        "KCGKCCCCCCKGCK",
+        "KCGKCCRRCCKGCK",
+        "KCGKCCCCCCKGCK",
+        "KCGKCKCCKCKGCK",
+        "KCCGKKKKKKGCCK",
+        "KCCGGGGGGGGCCK",
+        "KCRGGCGGCGGCCK",
+        "KCCCCCCCCCCCCK",
+        ".KKKKKKKKKKKK.",
+    ]
+
+    /// JUST A TWO — the deck's lowest card, and it knows it. 14×20: a plain
+    /// two of spades wearing the only face it has ever been given — V-brows,
+    /// a flat grimace — with its bottom-right corner clipped off from years
+    /// of mistreatment. Nothing torn, nothing gilded: it's just a two.
+    static let justATwoArt: [String] = [
+        ".KKKKKKKKKKKK.",
+        "KCCCCCCCCCCCCK",
+        "KCKKKCCCCCCCCK",
+        "KCCCKCCCCCCCCK",
+        "KCCKKCCCCCCCCK",
+        "KCKCCCCCCCCCCK",
+        "KCKKKKCCCCCCCK",
+        "KCCCCCCCCCCCCK",
+        "KCCCKCCCCKCCCK",
+        "KCCCCKCCKCCCCK",
+        "KCCCKKCCKKCCCK",
+        "KCCCCCCCCCCCCK",
+        "KCCCCKKKKCCCCK",
+        "KCCCKCCCCKCCCK",
+        "KCCCCCCCCCCCCK",
+        "KCCCCCKKCCCCCK",
+        "KCCCKKKKKKCCCK",
+        "KCCCKKKKKKCKK.",
+        "KCCCCCKKCCCK..",
+        ".KKKKKKKKKKK..",
+    ]
+
+    /// The Beheaded Queen at `k`× the pixel grid, baked like the Old Joker.
+    public static func beheadedQueen(scale k: Int = 6) -> UIImage {
+        baked("beheadedqueen-\(k)") { characterCard(beheadedQueenArt, scale: k) }
+    }
+
+    /// Just a Two at `k`× the pixel grid, baked like the Old Joker.
+    public static func justATwo(scale k: Int = 6) -> UIImage {
+        baked("justatwo-\(k)") { characterCard(justATwoArt, scale: k) }
+    }
+
+    /// The shared character-card treatment: the matrix over its own drop
+    /// shadow. The shadow follows the SILHOUETTE, not the bounding rect — a
+    /// rect showed as a dark slab through the Beheaded Queen's torn-open top.
+    private static func characterCard(_ rows: [String], scale k: Int) -> UIImage {
+        let w = rows[0].count * k, h = rows.count * k
+        return PixelTexture.image(size: CGSize(width: w + 3, height: h + 3)) { cg in
+            cg.setFillColor(CRT.shadow.cgColor)
+            for (y, row) in rows.enumerated() {
+                for (x, ch) in row.enumerated() where ch != "." {
+                    cg.fill(CGRect(x: CGFloat(x * k + 3), y: CGFloat(y * k + 3),
+                                   width: CGFloat(k), height: CGFloat(k)))
+                }
+            }
+            drawMatrix(cg, rows, ox: 0, oy: 0, cell: CGFloat(k))
+        }
+    }
+
     private static let classArt: [String: [String]] = [
+        // A BLANK die-cut chip: cream face, ink rim, the shaded lower-right
+        // curl. The red diamond that used to sit dead centre showed through
+        // behind every sticker's own glyph as a red blob.
         "sticker": [
             "................",
             ".....KKKKKK.....",
             "...KKCCCCCCKK...",
             "..KCCCCCCCCCCK..",
             "..KCCCCCCCCCCK..",
-            ".KCCCCCRRCCCCCK.",
-            ".KCCCCRRRRCCCCK.",
-            ".KCCCRRRRRRCCCK.",
-            ".KCCCCRRRRCCCsK.",
-            ".KCCCCCRRCCCssK.",
+            ".KCCCCCCCCCCCCK.",
+            ".KCCCCCCCCCCCCK.",
+            ".KCCCCCCCCCCCCK.",
+            ".KCCCCCCCCCCCsK.",
+            ".KCCCCCCCCCCssK.",
             "..KCCCCCCCCssK..",
             "..KCCCCCCCsssK..",
             "...KKCCCCssKK...",
@@ -156,6 +308,25 @@ public enum ItemArt {
             ".....KK.KKK.....",
             "................",
             "................"],
+        // TRAPDOOR's corruption — the same torn chip family, but the middle
+        // has simply GIVEN WAY: an ink-rimmed hole into felt-deep dark.
+        "stickerCursedTrapdoor": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCCCCCCCK..",
+            "..KCCCKKKKCCCK..",
+            ".KCCCKKDDKKCCCK.",
+            ".KCCKDDDDDDKCCK.",
+            "....KDDDDDDKCCK.",
+            ".KCCKDDDDDDKCsK.",
+            ".KCCCKDDDDKCssK.",
+            "..KCCCKKKKCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
         // Leech SWARM's own corruption — same torn chip family, but a SCATTER
         // of small leeches instead of Leech's single big one.
         "stickerCursed2": [
@@ -175,35 +346,246 @@ public enum ItemArt {
             ".....KK.KKK.....",
             "................",
             "................"],
+        // v6.48 CURSE FAMILY — every curse keeps the torn-chip silhouette
+        // (ink rim, cream face, ripped right edge into smoke) with its OWN
+        // centre motif, so a cursed card reads "curse" at a glance and WHICH
+        // curse on the second look.
+        // SHRINK: a chip inside the chip — the thing is smaller than it was.
+        "stickerCursedShrink": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCCCCCCCK..",
+            "..KCCKKKKKKCCK..",
+            ".KCCCKCCCCKCCCK.",
+            ".KCCCKCKKCKCCCK.",
+            "....KCCKKCKCCCK",
+            ".KCCCKCCCCKCCsK.",
+            ".KCCCKKKKKKCssK.",
+            "..KCCCCCCCCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // MUTE: the Same sign, struck through red.
+        "stickerCursedMute": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCCCCCRCK..",
+            "..KCCCCCCCRRCK..",
+            ".KCCKKKKKRRCCCK.",
+            ".KCCCCCCRRCCCCK.",
+            "....KCCRRCCCCCK",
+            ".KCCKKRRKKKCCsK.",
+            ".KCCCRRCCCCCssK.",
+            "..KCRRCCCCCCsK..",
+            "..KRRCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // SPOILER: the coin gone rotten — gold ring, red rot inside.
+        "stickerCursedSpoiler": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCGGGGCCCK..",
+            "..KCCGGGGGGCCK..",
+            ".KCCGGRCCRGGCCK.",
+            ".KCCGGCRRCGGCCK.",
+            "....KGCRRCGCCCK",
+            ".KCCGGRCCRGGCsK.",
+            ".KCCGGGGGGGCssK.",
+            "..KCCGGGGGCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // SHIELD DRAIN: the shield tipped over, phosphor spilling out.
+        "stickerCursedDrainShield": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCKKKKKKCCK..",
+            "..KCCKPPPPKCCK..",
+            ".KCCCKPPPPKCCCK.",
+            ".KCCCKKDDKKCCCK.",
+            "....KCKDDKCCCCK",
+            ".KCCCCKKKKCCCsK.",
+            ".KCCCCCPCCCCssK.",
+            "..KCCCPPCCCCsK..",
+            "..KCCPCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // FLATLINE: the monitor line went flat, one last blip.
+        "stickerCursedFlatline": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCCCCCCCK..",
+            "..KCCCCRCCCCCK..",
+            ".KCCCCCRRCCCCCK.",
+            ".KCCCCRCRCCCCCK.",
+            "....KCRCRCCCCCK",
+            ".KRRRRCCCRRRRsK.",
+            ".KCCCCCCCCCCssK.",
+            "..KCCCCCCCCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // MAGNET: the red horseshoe. No card escapes it.
+        "stickerCursedMagnet": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCRRCCRRCCK..",
+            "..KCCRRCCRRCCK..",
+            ".KCCCRRCCRRCCCK.",
+            ".KCCCRRCCRRCCCK.",
+            "....KRRCCRRCCCK",
+            ".KCCCRRRRRRCCsK.",
+            ".KCCCCRRRRCCssK.",
+            "..KCCCCCCCCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // JAMMER: the pillar's cloth, barred shut.
+        "stickerCursedJammer": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCKKKKKKCCK..",
+            "..KCCCKPPKCCCK..",
+            ".KCKKKKKKKKKKCK.",
+            ".KCCCCKPPKCCCCK.",
+            "....KCKPPKCCCCK",
+            ".KCKKKKKKKKKKsK.",
+            ".KCCCCKPPKCCssK.",
+            "..KCCCKKKKCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // PEELER: the chip's own corner lifting away from the felt.
+        "stickerCursedPeeler": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCDDKK...",
+            "..KCCCCCDDDDK...",
+            "..KCCCCDDDDCK...",
+            ".KCCCCCKDDCCCK..",
+            ".KCCCCKCCCCCCCK.",
+            "....KCCCCCCCCCK",
+            ".KCCCCCCCCCCCsK.",
+            ".KCCCCCCCCCCssK.",
+            "..KCCCCCCCCCsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // BASE DRAIN: an empty battery, one red sliver left.
+        "stickerCursedDrainBase": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCKKKKCCCK..",
+            "..KCKKKDDKKKCK..",
+            ".KCCKDDDDDDKCCK.",
+            ".KCCKDDDDDDKCCK.",
+            "....KDDDDDDKCCK",
+            ".KCCKDDDDDDKCsK.",
+            ".KCCKRRDDDDKssK.",
+            "..KCKKKKKKKKsK..",
+            "..KCCCCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // MALFUNCTION: bit-rot — a phosphor glitch fracture, one row shoved
+        // sideways (the styleguide's corrupted-icon recipe).
+        "stickerCursedMalfunction": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCPCCCCCK..",
+            "..KCCCPPCCCPCK..",
+            ".KCCCPPCCCCCCCK.",
+            "..KCCCPPPCCCCK..",
+            ".KCPCCCPPCCCCCK.",
+            "....KCCPCCCCCsK",
+            ".KCCCCPPCCPCssK.",
+            "..KCCPPCCCCCsK..",
+            "..KCCPCCCCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // SABOTEUR: the round bomb, fuse lit.
+        "stickerCursedSaboteur": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKCCCCCCKK...",
+            "..KCCCCCCRPCCK..",
+            "..KCCCCCKKCCCK..",
+            ".KCCCKKKKKKCCCK.",
+            ".KCCKKKKKKKKCCK.",
+            "....KKKKKKKKCCK",
+            ".KCCKKKCCKKKCsK.",
+            ".KCCKKKKKKKKssK.",
+            "..KCCKKKKKKCsK..",
+            "..KCCCKKKCsssK..",
+            "...KKCCCCssKK...",
+            ".....KK.KKK.....",
+            "................",
+            "................"],
+        // The cloth hangs the FULL width of the crossbeam it is strung from —
+        // it used to be half the beam's width, which read as a narrow pennant
+        // on an oversized pole (v5.86).
         "pillar": [
             "................",
             ".KKKKKKKKKKKKKK.",
             ".KGGGGGGGGGGGGK.",
             ".KKKKKKKKKKKKKK.",
-            "....KRRRRRRK....",
-            "....KRRRRRRK....",
-            "....KRCCCCRK....",
-            "....KRCGGCRK....",
-            "....KRCCCCRK....",
-            "....KRRRRRRK....",
-            "....KRRRRRRK....",
-            "....KRRRRRRK....",
-            "....KRRKKRRK....",
-            "....KRK..KRK....",
-            "....KK....KK....",
+            ".KRRRRRRRRRRRRK.",
+            ".KRRRRRRRRRRRRK.",
+            ".KRCCCCCCCCCCRK.",
+            ".KRCCCCGGCCCCRK.",
+            ".KRCCCCCCCCCCRK.",
+            ".KRRRRRRRRRRRRK.",
+            ".KRRRRRRRRRRRRK.",
+            ".KRRRRRRRRRRRRK.",
+            ".KRRRRRKKRRRRRK.",
+            ".KRRK......KRRK.",
+            "..KK........KK..",
             "................"],
+        // A PLAIN plate: ink frame, deep face, nothing else. The cream corner
+        // screws, the smoke etch and the two baked phosphor pixels all read as
+        // stray dots behind the item's own symbol — and the etch and LED got
+        // LONGER when the plaque was widened, since widening repeats the
+        // centre column. The real charge LED is its own node on top.
         "base": [
             "................",
             "................",
             "................",
             ".KKKKKKKKKKKKKK.",
-            ".KCDDDDDDDDDDCK.",
             ".KDDDDDDDDDDDDK.",
-            ".KDDssssssssDDK.",
             ".KDDDDDDDDDDDDK.",
-            ".KDDDDDPPDDDDDK.",
             ".KDDDDDDDDDDDDK.",
-            ".KCDDDDDDDDDDCK.",
+            ".KDDDDDDDDDDDDK.",
+            ".KDDDDDDDDDDDDK.",
+            ".KDDDDDDDDDDDDK.",
+            ".KDDDDDDDDDDDDK.",
             ".KKKKKKKKKKKKKK.",
             "................",
             "................",
@@ -1898,7 +2280,10 @@ public enum ItemArt {
         // matrix into mush at emblem size.
         if let rows = perId?[def.id] {
             let cell = max(1, (min(rect.width, rect.height) / 12).rounded())
-            let ox = rect.midX - cell * 6, oy = rect.midY - cell * 6
+            // Centre the CONTENT, not the grid: an authored glyph rarely
+            // fills its matrix symmetrically, and the empty margin read as
+            // an off-centre icon on every base plate (v6.36).
+            let (ox, oy) = contentCentred(rows, painted: "XKRGPC", in: rect, cell: cell)
             for (yy, row) in rows.enumerated() {
                 for (xx, ch) in row.enumerated() {
                     let c: UIColor?
@@ -1935,7 +2320,7 @@ public enum ItemArt {
         }
         if let key = iconKey(for: def), let rows = iconMatrices[key] {
             let cell = min(rect.width, rect.height) / 12
-            let ox = rect.midX - cell * 6, oy = rect.midY - cell * 6
+            let (ox, oy) = contentCentred(rows, painted: "KRGPC", in: rect, cell: cell)
             let pal: [Character: UIColor] = ["K": CRT.ink, "R": CRT.suitRed, "G": CRT.gold,
                                              "P": CRT.phosphor, "C": CRT.cardFace]
             for (yy, row) in rows.enumerated() {
@@ -1955,6 +2340,24 @@ public enum ItemArt {
         text.draw(at: CGPoint(x: rect.midX - sz.width / 2, y: rect.midY - sz.height / 2),
                   withAttributes: [.font: font, .foregroundColor: color])
         UIGraphicsPopContext()
+    }
+
+    /// The origin that centres a matrix's PAINTED pixels (not its grid) in
+    /// `rect`. Falls back to grid-centring when nothing is painted.
+    private static func contentCentred(_ rows: [String], painted: String,
+                                       in rect: CGRect, cell: CGFloat) -> (CGFloat, CGFloat) {
+        var minX = Int.max, maxX = Int.min, minY = Int.max, maxY = Int.min
+        for (yy, row) in rows.enumerated() {
+            for (xx, ch) in row.enumerated() where painted.contains(ch) {
+                minX = min(minX, xx); maxX = max(maxX, xx)
+                minY = min(minY, yy); maxY = max(maxY, yy)
+            }
+        }
+        guard minX <= maxX else {
+            return (rect.midX - cell * 6, rect.midY - cell * 6)
+        }
+        let cx = CGFloat(minX + maxX + 1) / 2, cy = CGFloat(minY + maxY + 1) / 2
+        return (rect.midX - cell * cx, rect.midY - cell * cy)
     }
 
     /// The pre-port octagon chip, kept ONLY for a non-cursed sticker with no
@@ -1999,13 +2402,34 @@ public enum ItemArt {
     /// (it made suited chips aspect-fit ~20% smaller); callers that want it
     /// park `suitCaption` ABOVE the chip as its own view. Cursed stickers
     /// are the `stickerCursed`/`stickerCursed2` corruption art with no face.
+    /// Curse id → its corruption matrix. Leech keeps the original torn chip
+    /// (the big worm IS its motif); everything else is v6.48 family art.
+    static let cursedChipKeys: [String: String] = [
+        "leech": "stickerCursed",
+        "leech2": "stickerCursed2",
+        "trapdoor": "stickerCursedTrapdoor",
+        "shrink": "stickerCursedShrink",
+        "mute": "stickerCursedMute",
+        "spoiler": "stickerCursedSpoiler",
+        "drainShield": "stickerCursedDrainShield",
+        "flatline": "stickerCursedFlatline",
+        "magnet": "stickerCursedMagnet",
+        "jammer": "stickerCursedJammer",
+        "peeler": "stickerCursedPeeler",
+        "drainBase": "stickerCursedDrainBase",
+        "malfunction": "stickerCursedMalfunction",
+        "saboteur": "stickerCursedSaboteur",
+    ]
+
     public static func sticker(_ def: ItemDef, size: CGFloat = 56) -> UIImage {
         baked("stk-\(def.id)-\(Int(size))") {
             let k = max(4, Int((size / 16).rounded(.up)))
             let side = 16 * k
-            // The chip art: cursed = the corruption matrix (per-id, like the
-            // web's dcs-c-leech2), everything else the standard chip.
-            let chipKey = def.cursed ? (def.id == "leech2" ? "stickerCursed2" : "stickerCursed") : "sticker"
+            // The chip art: cursed = the curse's OWN corruption matrix (v6.48:
+            // every curse has one), everything else the standard chip.
+            let chipKey = def.cursed
+                ? (ItemArt.cursedChipKeys[def.id] ?? "stickerCursed")
+                : "sticker"
             guard let chip = classArt[chipKey] else { return legacyStickerChip(def, size: size) }
             // The face: cursed chips carry no inner icon (the corruption IS
             // the face); a non-cursed sticker without a matrix keeps the
@@ -2068,16 +2492,21 @@ public enum ItemArt {
     /// with the item's glyph inked gold over an ink halo on the emblem spot —
     /// the web's .pb-emblem at centre ≈46% of the square, 46% wide.
     public static func pillar(_ def: ItemDef, width: CGFloat = 52, height: CGFloat = 68) -> UIImage {
-        baked("pil-\(def.id)-\(Int(width))") {
-            let k = max(4, Int((min(width, height) / 16).rounded(.up)))
-            let side = 16 * k
-            return PixelTexture.image(size: CGSize(width: side, height: side)) { cg in
-                if let art = classArt["pillar"] {
-                    drawMatrix(cg, art, ox: 0, oy: 0, cell: CGFloat(k))
-                }
-                let halo = (CGFloat(side) * 0.46).rounded()
-                let hx = (CGFloat(side) - halo) / 2
-                let hy = (CGFloat(side) * 0.46 - halo / 2).rounded()
+        baked("pil-\(def.id)-\(Int(width))x\(Int(height))") {
+            // HEIGHT picks the pixel scale (the band is the hard limit); WIDTH
+            // is then met by repeating the plate's centre column, so the plaque
+            // spans its pile instead of floating narrow inside the column.
+            let k = max(3, Int(min(width / 16, height / 16).rounded()))
+            let cols = max(16, Int((width / CGFloat(k)).rounded()))
+            let art = widened(classArt["pillar"] ?? [], to: cols)
+            let w = CGFloat(cols * k), h = CGFloat(16 * k)
+            return PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+                drawMatrix(cg, art, ox: 0, oy: 0, cell: CGFloat(k))
+                // The emblem stays a SQUARE keyed to the plate's height and
+                // centred on the (now wider) plate.
+                let halo = (h * 0.46).rounded()
+                let hx = (w - halo) / 2
+                let hy = (h * 0.46 - halo / 2).rounded()
                 cg.setFillColor(CRT.ink.cgColor)
                 cg.fill(CGRect(x: hx, y: hy, width: halo, height: halo))
                 let inset = halo * 0.10
@@ -2103,16 +2532,20 @@ public enum ItemArt {
     /// screws, smoke etch, baked phosphor LED — trimmed to its content like
     /// the web's TRIM_ICONS) with the item's symbol in its family colour.
     public static func base(_ def: ItemDef, width: CGFloat = 58, height: CGFloat = 40) -> UIImage {
-        baked("bas-\(def.id)-\(Int(width))") {
+        baked("bas-\(def.id)-\(Int(width))x\(Int(height))") {
             let rows = trimmed(classArt["base"] ?? [])
             guard !rows.isEmpty else {
                 return PixelTexture.image(size: CGSize(width: width, height: height)) { _ in }
             }
-            let cols = rows[0].count
-            let k = max(4, Int(min(width / CGFloat(cols), height / CGFloat(rows.count)).rounded(.up)))
+            // Same rule as the pillar: the band height picks the pixel scale,
+            // then the plate is widened by whole columns to span the card.
+            let k = max(3, Int(min(width / CGFloat(rows[0].count),
+                                   height / CGFloat(rows.count)).rounded()))
+            let cols = max(rows[0].count, Int((width / CGFloat(k)).rounded()))
+            let plate = widened(rows, to: cols)
             let w = cols * k, h = rows.count * k
             return PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
-                drawMatrix(cg, rows, ox: 0, oy: 0, cell: CGFloat(k))
+                drawMatrix(cg, plate, ox: 0, oy: 0, cell: CGFloat(k))
                 // The web's .base-sym: a bold symbol filling most of the
                 // plate's height, centred, in the family accent.
                 let sh = CGFloat(h) * 0.55
@@ -2182,8 +2615,8 @@ public enum ItemArt {
         baked("removal-labelled") {
             let art = removal(width: 52, height: 66)
             let label = NSAttributedString(
-                string: "REMOVAL",
-                attributes: [.font: CRT.Font.of(13),
+                string: "PURGE",
+                attributes: [.font: CRT.Font.of(14),
                              .foregroundColor: CRT.cardFace.withAlphaComponent(0.6)])
             let ls = label.size()
             let w = max(art.size.width, ceil(ls.width) + 4)

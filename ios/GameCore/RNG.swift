@@ -23,6 +23,13 @@ import Foundation
 public final class RNG {
     private var a: UInt32
 
+    /// The generator's ENTIRE state — one word. Read to snapshot a mid-deal
+    /// save, write to resume the stream at the exact position it stopped.
+    public var state: UInt32 {
+        get { a }
+        set { a = newValue }
+    }
+
     public init(seed: UInt32) { self.a = seed }
     /// Convenience for the many call sites that hold a seed as `Int`/`Double`.
     public convenience init(seed: Int) { self.init(seed: UInt32(truncatingIfNeeded: seed)) }

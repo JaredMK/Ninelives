@@ -30,7 +30,9 @@ public struct MapConfig: Sendable {
     /// Node-type roll weights (genV ≥ 3 adds MYSTERY at mysteryTypeWeight).
     public var typeWeights: [(String, Double)] = [("deal", 26), ("pack", 32), ("card", 42)]
     /// The +N pack-size distribution: [value, weight] pairs.
-    public var packWeights: [(Int, Double)] = [(2, 4), (3, 2)]
+    /// +4 joined the table (weight 1) so two same-row packs stop tying on
+    /// +2 by default — three values, 4/2/1.
+    public var packWeights: [(Int, Double)] = [(2, 4), (3, 2), (4, 1)]
 
     /// Hard cap validated on every route (excl. boss).
     public var dealsPerRouteMax = 5

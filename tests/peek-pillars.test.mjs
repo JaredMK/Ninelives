@@ -25,8 +25,8 @@ export function run() {
     r.ok(!PillarTypes.get("unearth"), "Unearth was removed from the registry");
     r.ok(l && s, "Last Rites + Static registered");
     r.ok([l, s].every(t => t.tier === "rare"), "both are Rare");
-    r.eq(l.price, 25, "Last Rites costs 25");
-    r.eq(s.price, 6, "Static costs 6");
+    r.eq(l.price, 13, "Last Rites costs 13");
+    r.eq(s.price, 3, "Static costs 3");
     r.eq(l.effect, "lastRites", "Last Rites effect id");
     r.eq(s.effect, "static", "Static effect id");
     r.ok([l, s].every(t => t.description && t.icon), "each has a description + icon");

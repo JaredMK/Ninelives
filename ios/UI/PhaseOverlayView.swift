@@ -19,6 +19,46 @@ public final class PhaseOverlayView: UIView {
     /// rests anywhere on it, restore on release — the web's `.overlay.peek`.
     private var peekEnabled = false
 
+    /// SHOW MAP (mystery reveals over the map): an EXPLICIT button fades the
+    /// panel so the whole map can be scrolled, and a floating ◀ BACK is the
+    /// only live control until it's tapped. Outside taps never dismiss.
+    private var mapPeekBack: PixelButtonView?
+    private var mapPeeking = false
+    private var mapPeekChanged: ((Bool) -> Void)?
+    private var dimColor: UIColor = .clear
+
+    private func beginMapPeek() {
+        mapPeeking = true
+        mapPeekChanged?(true)
+        mapPeekBack?.isHidden = false
+        UIView.animate(withDuration: 0.18, delay: 0, options: [.beginFromCurrentState]) {
+            self.content.alpha = 0
+            self.bezel.alpha = 0
+            self.backgroundColor = .clear
+        }
+    }
+
+    private func endMapPeek() {
+        mapPeeking = false
+        mapPeekChanged?(false)
+        mapPeekBack?.isHidden = true
+        UIView.animate(withDuration: 0.18, delay: 0, options: [.beginFromCurrentState]) {
+            self.content.alpha = 1
+            self.bezel.alpha = 1
+            self.backgroundColor = self.dimColor
+        }
+    }
+
+    /// While map-peeking, every touch except ◀ BACK falls through to the map
+    /// so it can actually scroll; travel stays blocked via mapPeekChanged.
+    public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard mapPeeking else { return super.hitTest(point, with: event) }
+        if let b = mapPeekBack, !b.isHidden, b.frame.contains(point) {
+            return b.hitTest(convert(point, to: b), with: event) ?? b
+        }
+        return nil
+    }
+
     /// The guess that would have SURVIVED the fatal draw ("higher" / "lower" /
     /// "same") — the web's `survivingGuessWord(lastResolvedDraw)`. DealController
     /// stamps this the moment a resolution proves fatal; the loss overlays read
@@ -34,7 +74,8 @@ public final class PhaseOverlayView: UIView {
     private init(dim: CGFloat = 0.93, frame: FrameStyle = .none) {
         super.init(frame: .zero)
         // The web scrim is INK (rgba(16,16,14,·)), never a felt wash.
-        backgroundColor = CRT.ink.withAlphaComponent(dim)
+        dimColor = CRT.ink.withAlphaComponent(dim)
+        backgroundColor = dimColor
         bezel.isUserInteractionEnabled = false
         bezel.layer.borderWidth = CRT.px * 2
         switch frame {
@@ -51,17 +92,31 @@ public final class PhaseOverlayView: UIView {
 
     public override func layoutSubviews() {
         super.layoutSubviews()
+        // The map-peek's way back rides the bottom, clear of the map chrome.
+        mapPeekBack?.frame = CGRect(x: (bounds.width - 300) / 2,
+                                    y: bounds.height - max(safeAreaInsets.bottom, 12) - 56,
+                                    width: 300, height: 48)
         // Inset by half the border width so the 4px bezel lands INSIDE the
         // screen edge (a CSS inset box-shadow), not centred on it.
         bezel.frame = bounds.insetBy(dx: CRT.px, dy: CRT.px)
+        content.transform = .identity
         content.frame = CGRect(x: 0, y: 0, width: min(360, bounds.width - 24), height: y)
         // Centre-ish, but a tall overlay never reaches under the notch/Dynamic
         // Island or the home indicator — it clamps INTO the safe area.
         let topPad = max(safeAreaInsets.top + 8, 40)
         let botPad = max(safeAreaInsets.bottom, 12) + 8
-        var cy = max(y / 2 + topPad, bounds.midY - 20)
-        let maxCy = bounds.height - botPad - y / 2
-        if maxCy >= y / 2 + topPad { cy = min(cy, maxCy) }
+        // There is no scroll view here, so a breakdown with many bonus lines
+        // (or a short screen) has to be scaled to fit rather than run off both
+        // ends. Uniform, so the pixel grid stays square.
+        let available = bounds.height - topPad - botPad
+        var shown = y
+        if y > available, available > 0 {
+            content.transform = CGAffineTransform(scaleX: available / y, y: available / y)
+            shown = available
+        }
+        var cy = max(shown / 2 + topPad, bounds.midY - 20)
+        let maxCy = bounds.height - botPad - shown / 2
+        if maxCy >= shown / 2 + topPad { cy = min(cy, maxCy) }
         content.center = CGPoint(x: bounds.midX, y: cy)
     }
 
@@ -153,7 +208,7 @@ public final class PhaseOverlayView: UIView {
 
     /// The .run-progress line: bold tracked VT323 12, phosphor, uppercase.
     private func addProgress(_ text: String, spacingAfter: CGFloat = 8) {
-        addCentered(PhaseOverlayView.tracked(text.uppercased(), size: 12,
+        addCentered(PhaseOverlayView.tracked(text.uppercased(), size: 14,
                                              color: CRT.phosphor, kern: 1.5),
                     spacingAfter: spacingAfter)
     }
@@ -163,9 +218,10 @@ public final class PhaseOverlayView: UIView {
     @discardableResult
     private func addButton(_ title: String, role: PixelButtonView.Role = .cta,
                            width: CGFloat = 250, height: CGFloat = 48,
-                           fontSize: CGFloat = 17,
+                           fontSize: CGFloat = CRT.Font.bodySize,
                            handler: @escaping () -> Void) -> PixelButtonView {
         let b = PixelButtonView(title, role: role, fontSize: fontSize)
+        b.playsClick = false          // it owns the louder CTA confirm instead
         b.onTap = { Sound.shared.continueTap(); handler() }
         b.frame = CGRect(x: (360 - width) / 2, y: y, width: width, height: height)
         content.addSubview(b)
@@ -227,26 +283,22 @@ public final class PhaseOverlayView: UIView {
     private static func seedShareStr(_ c: CampaignState) -> String {
         let squash: (String) -> String = { $0.uppercased().filter { $0.isLetter || $0.isNumber } }
         let name = GameFlowController.decks.first(where: { $0.id == c.deckId })?.name ?? c.deckId
-        return "\(squash(name))-\(squash(c.difficultyTier))-\(SeedCode.encode(c.runSeed))"
+        let tierLabel = GameData.shared.difficulty.tier(c.difficultyTier).label
+        return "\(squash(name))-\(squash(tierLabel))-\(SeedCode.encode(c.runSeed))"
     }
 
-    /// The score/best (+endless) tile set, the web's endScoreTilesHtml: bests
-    /// never claim a record on exhibition runs.
+    /// The score/best tile pair: ONE continuous run score (endless keeps
+    /// accruing into it, v6.47) and its one record. Bests never claim a
+    /// record on exhibition runs.
     private static func scoreTiles(_ c: CampaignState) -> [StatTileView] {
         let s = c.stats.get()
         let exhibition = c.isExhibition()
-        var tiles = [
-            StatTileView(value: tileValue("\(c.getCampaignScore())", size: 17), name: "Score"),
-            StatTileView(value: tileValue(exhibition ? "—" : "\(s.bestCampaignScore)", size: 17),
+        let dtKey = "\(c.deckId).\(c.difficultyTier)"
+        return [
+            StatTileView(value: tileValue("\(c.getRunScore())", size: 18), name: "Score"),
+            StatTileView(value: tileValue(exhibition ? "—" : "\(s.deckTierBest[dtKey] ?? 0)", size: 18),
                          name: exhibition ? "Best · not recorded" : "Best"),
         ]
-        if c.runWonBanked {
-            tiles.append(StatTileView(value: tileValue("\(c.getEndlessScore())", size: 17),
-                                      name: "Endless"))
-            tiles.append(StatTileView(value: tileValue(exhibition ? "—" : "\(s.bestEndlessScore)", size: 17),
-                                      name: exhibition ? "Best · not recorded" : "Endless best"))
-        }
-        return tiles
     }
 
     static func tileValue(_ text: String, size: CGFloat) -> NSAttributedString {
@@ -258,7 +310,7 @@ public final class PhaseOverlayView: UIView {
     static func dealCleared(info: GameFlowController.SummaryInfo,
                             onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView(frame: .win)
-        v.addTitle("DEAL CLEARED")
+        v.addTitle("DEAL CLEARED", size: 22)
         v.addProgress(info.progress, spacingAfter: 14)
 
         // The reveal cadence: the plaque, then each reward line ONE BY ONE,
@@ -270,24 +322,33 @@ public final class PhaseOverlayView: UIView {
         // means an ambush (coins only) and no plaque.
         if info.product > 0 {
             let plaque = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
-            plaque.frame = CGRect(x: 20, y: v.y, width: 320, height: 56)
+            let plaqueH: CGFloat = 94
+            plaque.frame = CGRect(x: 20, y: v.y, width: 320, height: plaqueH)
             let val = UILabel()
-            val.attributedText = PhaseOverlayView.tracked("SCORE +\(info.product)", size: 17,
+            val.attributedText = PhaseOverlayView.tracked("SCORE +\(info.product)", size: 24,
                                                           color: CRT.phosphor, display: true,
                                                           kern: 0.5, glow: true)
             val.textAlignment = .center
-            val.frame = CGRect(x: 0, y: 8, width: 320, height: 22)
+            val.frame = CGRect(x: 0, y: 10, width: 320, height: 32)
             plaque.addSubview(val)
             let sub = UILabel()
             sub.attributedText = PhaseOverlayView.tracked(
                 "\(info.aliveCount) piles × \(info.minAlive) smallest".uppercased(),
-                size: 12, color: CRT.muted, kern: 1)
+                size: 14, color: CRT.muted, kern: 1)
             sub.textAlignment = .center
-            sub.frame = CGRect(x: 0, y: 32, width: 320, height: 16)
+            sub.frame = CGRect(x: 0, y: 44, width: 320, height: 20)
             plaque.addSubview(sub)
+            // The RUNNING total sits under the deal's own score, exactly the
+            // way the purse sits under the coin total below.
+            let tot = UILabel()
+            tot.attributedText = PhaseOverlayView.tracked("TOTAL SCORE \(info.totalScore)",
+                                                          size: 16, color: CRT.phosphor, kern: 1)
+            tot.textAlignment = .center
+            tot.frame = CGRect(x: 0, y: 66, width: 320, height: 20)
+            plaque.addSubview(tot)
             plaque.alpha = 0
             v.content.addSubview(plaque)
-            v.y += 56 + 10
+            v.y += plaqueH + 10
             UIView.animate(withDuration: 0.25, delay: delay) { plaque.alpha = 1 }
             delay += 0.28
         }
@@ -298,21 +359,34 @@ public final class PhaseOverlayView: UIView {
         // rows with each bonus line as an italic sub-bullet ("None" when
         // empty), then the deal's "Total" and the "Coins held" balance AFTER
         // these earnings.
-        let flatLine = info.lines.first(where: { $0.0 == "Deal reward" })
-        let flat = flatLine?.1 ?? 0
+        let flatLine = info.lines.first(where: { $0.source == .flat })
         // summaryLines omits the flat row when it's 0 — only ambush/subset
         // deals have no flat base (Economy.dealFlat guards stage > 0).
         let ambush = flatLine == nil
-        let extras = info.lines.filter { $0.0 != "Deal reward" }
-        // Web partition (coinBreakdownHtml): an event line whose label names
-        // a Pillar counts as a PILLAR reward; the "⚡ …" self-destruct statics
-        // ride the pillar row too. Everything else is a sticker/event reward.
-        let pillarLabels = Set(GameData.shared.pillarTypes.all().map(\.label))
-        let isPillar: (String) -> Bool = { pillarLabels.contains($0) || $0.hasPrefix("⚡") }
-        let pillarBullets = extras.filter { isPillar($0.0) }
-        let stickerBullets = extras.filter { !isPillar($0.0) }
+        var extras = info.lines.filter { $0.source != .flat }
+        // An AMBUSH's bounty IS its deal reward — it was being paid as a plain
+        // bonus event, so it landed in the sticker bucket while the reward row
+        // said "no flat reward". Lift it onto the reward row where the player
+        // looks for it (v5.83).
+        var flat = flatLine?.amount ?? 0
+        var ambushBounty = 0
+        if ambush, let i = extras.firstIndex(where: { $0.label == "Ambush" }) {
+            ambushBounty = extras[i].amount
+            flat = ambushBounty
+            extras.remove(at: i)
+        }
+        // Each line already knows where it came from — no label matching.
+        func bullets(_ src: GameFlowController.RewardSource) -> [(String, Int)] {
+            extras.filter { $0.source == src }.map { ($0.label, $0.amount) }
+        }
+        let stickerBullets = bullets(.sticker)
+        let pillarBullets = bullets(.pillar)
+        let baseBullets = bullets(.base)
+        let sameBullets = bullets(.same)
         let stickerTotal = stickerBullets.reduce(0) { $0 + $1.1 }
         let pillarTotal = pillarBullets.reduce(0) { $0 + $1.1 }
+        let baseTotal = baseBullets.reduce(0) { $0 + $1.1 }
+        let sameTotal = sameBullets.reduce(0) { $0 + $1.1 }
         let sign: (Int) -> String = { ($0 >= 0 ? "+" : "−") + String(abs($0)) }
         // The flat "Extra Coin" line prints the sticker's registry label
         // (web: StickerTypes.get("extraCoin").label) — never a hardcoded name.
@@ -326,30 +400,73 @@ public final class PhaseOverlayView: UIView {
         var rows: [UIView] = []
 
         func mainRow(_ label: String, _ value: Int) -> UIView {
-            let row = UIView(frame: CGRect(x: px, y: py, width: pw - px * 2, height: 20))
+            let rowH: CGFloat = 26
+            let row = UIView(frame: CGRect(x: px, y: py, width: pw - px * 2, height: rowH))
             let lab = UILabel()
-            lab.attributedText = CRTKit.attributed(label, size: 15, color: CRT.cardFace)
-            lab.frame = CGRect(x: 0, y: 0, width: 200, height: 20)
+            lab.attributedText = CRTKit.attributed(label, size: 18, color: CRT.cardFace)
+            lab.frame = CGRect(x: 0, y: 0, width: 190, height: rowH)
             row.addSubview(lab)
             let val = UILabel()
-            val.attributedText = PhaseOverlayView.coinAttr("\(value)", size: 15, color: CRT.gold)
+            val.attributedText = PhaseOverlayView.coinAttr("\(value)", size: 18, color: CRT.gold)
             val.textAlignment = .right
-            val.frame = CGRect(x: pw - px * 2 - 120, y: 0, width: 120, height: 20)
+            val.frame = CGRect(x: pw - px * 2 - 130, y: 0, width: 130, height: rowH)
             row.addSubview(val)
-            py += 20
+            py += rowH
+            return row
+        }
+
+        /// A hairline that closes the earnings list — everything above it adds
+        /// up to the row below it.
+        func ruleRow() -> UIView {
+            let row = UIView(frame: CGRect(x: px, y: py, width: pw - px * 2, height: 9))
+            let line = UIView(frame: CGRect(x: 0, y: 4, width: pw - px * 2, height: CRT.px))
+            line.backgroundColor = CRT.cardFace.withAlphaComponent(0.35)
+            row.addSubview(line)
+            py += 9
+            return row
+        }
+
+        /// The two closing rows: bigger than a reward line, and coloured for
+        /// what they mean — phosphor for what this deal paid, gold for what
+        /// you now hold.
+        func summaryRow(_ label: String, _ value: Int,
+                        color: UIColor, size: CGFloat, glow: Bool) -> UIView {
+            let rowH: CGFloat = size + 10
+            let rowW = pw - px * 2
+            let row = UIView(frame: CGRect(x: px, y: py, width: rowW, height: rowH))
+            // The value box takes what the number needs; the label gets the
+            // rest. A fixed 220/150 split clipped "Total earned" to "Total ea…"
+            // at display weight.
+            let valAttr = PhaseOverlayView.coinAttr("\(value)", size: size,
+                                                    color: color, display: true, glow: glow)
+            let valW = min(rowW * 0.45,
+                           max(70, ceil(valAttr.boundingRect(
+                               with: CGSize(width: rowW, height: rowH),
+                               options: .usesLineFragmentOrigin, context: nil).width) + 10))
+            let lab = CRTKit.label(label, size: size, color: color, display: true, glow: glow)
+            lab.adjustsFontSizeToFitWidth = false
+            lab.frame = CGRect(x: 0, y: 0, width: rowW - valW - 8, height: rowH)
+            row.addSubview(lab)
+            let val = UILabel()
+            val.attributedText = valAttr
+            val.textAlignment = .right
+            val.frame = CGRect(x: rowW - valW, y: 0, width: valW, height: rowH)
+            row.addSubview(val)
+            py += rowH
             return row
         }
 
         func subRow(_ label: String, _ value: String?) -> UIView {
-            let row = UIView(frame: CGRect(x: px + 14, y: py, width: pw - px * 2 - 14, height: 15))
+            let subH: CGFloat = 20
+            let row = UIView(frame: CGRect(x: px + 14, y: py, width: pw - px * 2 - 14, height: subH))
             let lab = UILabel()
             var attrs: [NSAttributedString.Key: Any] = [
-                .font: CRT.Font.of(12),
+                .font: CRT.Font.of(14),
                 .foregroundColor: CRT.muted,
                 .obliqueness: 0.18,   // VT323 has no italic cut — the web's .dc-sub slant
             ]
             lab.attributedText = NSAttributedString(string: label, attributes: attrs)
-            lab.frame = CGRect(x: 0, y: 0, width: 220, height: 15)
+            lab.frame = CGRect(x: 0, y: 0, width: 200, height: subH)
             row.addSubview(lab)
             if let value {
                 attrs[.obliqueness] = 0
@@ -357,10 +474,10 @@ public final class PhaseOverlayView: UIView {
                 let val = UILabel()
                 val.attributedText = NSAttributedString(string: value, attributes: attrs)
                 val.textAlignment = .right
-                val.frame = CGRect(x: pw - px * 2 - 14 - 90, y: 0, width: 90, height: 15)
+                val.frame = CGRect(x: pw - px * 2 - 14 - 100, y: 0, width: 100, height: subH)
                 row.addSubview(val)
             }
-            py += 15
+            py += subH
             return row
         }
 
@@ -371,34 +488,55 @@ public final class PhaseOverlayView: UIView {
         var kinds: [RowKind] = []
 
         rows.append(mainRow("Deal reward", flat)); kinds.append(.main)
-        if ambush { rows.append(subRow("Ambush", "no flat reward")); kinds.append(.sub) }
-        py += 12
-        rows.append(mainRow("Sticker rewards", stickerTotal)); kinds.append(.main)
-        py += 3
-        if stickerBullets.isEmpty {
-            rows.append(subRow("None", nil)); kinds.append(.sub)
-        } else {
-            for (label, amount) in stickerBullets {
-                rows.append(subRow(bulletLabel(label), sign(amount))); kinds.append(.sub)
+        if ambush {
+            rows.append(subRow(ambushBounty > 0 ? "Ambush bounty" : "Ambush",
+                               ambushBounty > 0 ? sign(ambushBounty) : "no flat reward"))
+            kinds.append(.sub)
+        }
+        // One section per SOURCE, so a Base or Same-Power payout is credited to
+        // the thing that earned it instead of being filed under stickers.
+        // Sections with nothing to report are omitted rather than printing
+        // "None" — five empty rows made the panel unreadable.
+        func section(_ title: String, _ total: Int, _ bullets: [(String, Int)], showEmpty: Bool = false) {
+            guard !bullets.isEmpty || showEmpty else { return }
+            py += 12
+            rows.append(mainRow(title, total)); kinds.append(.main)
+            py += 3
+            if bullets.isEmpty {
+                rows.append(subRow("None", nil)); kinds.append(.sub)
+            } else {
+                for (label, amount) in bullets {
+                    rows.append(subRow(bulletLabel(label), sign(amount))); kinds.append(.sub)
+                }
             }
         }
-        py += 12
-        rows.append(mainRow("Pillar rewards", pillarTotal)); kinds.append(.main)
-        py += 3
-        if pillarBullets.isEmpty {
-            rows.append(subRow("None", nil)); kinds.append(.sub)
-        } else {
-            for (label, amount) in pillarBullets {
-                rows.append(subRow(bulletLabel(label), sign(amount))); kinds.append(.sub)
-            }
-        }
-        py += 12
-        rows.append(mainRow("Total", info.earned)); kinds.append(.total)
-        rows.append(mainRow("Coins held", info.balance)); kinds.append(.balance)
+        // Stickers and Pillars always show (they are the staple earners, and a
+        // zero there is information); Bases and Same-Powers only when they paid.
+        section("Sticker rewards", stickerTotal, stickerBullets, showEmpty: true)
+        section("Pillar rewards", pillarTotal, pillarBullets, showEmpty: true)
+        section("Base rewards", baseTotal, baseBullets)
+        section("Same rewards", sameTotal, sameBullets)
+        // THE TWO SUMMARY ROWS READ DIFFERENTLY FROM THE EARNINGS ABOVE THEM.
+        // Both used the same `mainRow` as every reward line, so the row that
+        // SUMS the list and the row that reports your new purse looked like
+        // two more rewards. A rule closes the tally, "Total earned" is the
+        // brightest thing in the panel, and the purse sits apart in gold with
+        // its own wording.
+        py += 10
+        rows.append(ruleRow()); kinds.append(.sub)
+        // Short labels: the display face is wide, and "Total earned" clipped
+        // at this size. The rule above already says these sum the list.
+        // GOLD, not phosphor (router batch): this number is COINS — green is
+        // the score's colour and was claiming the wrong family.
+        rows.append(summaryRow("Total", info.earned,
+                               color: CRT.gold, size: 22, glow: true)); kinds.append(.total)
+        py += 6
+        rows.append(summaryRow("Purse", info.balance,
+                               color: CRT.gold, size: 20, glow: false)); kinds.append(.balance)
 
-        // Fixed shell (the capture's panel is one stable height; it only grows
-        // when the bullet list genuinely needs more).
-        let panelH = max(224, py + 2)
+        // Size to the rows themselves — the old 224pt floor padded short
+        // breakdowns with dead space that the bigger type now needs.
+        let panelH = py + 10
         panel.frame = CGRect(x: 10, y: v.y, width: pw, height: panelH)
         v.content.addSubview(panel)
         for row in rows {
@@ -435,15 +573,21 @@ public final class PhaseOverlayView: UIView {
         eye.image = PhaseOverlayView.glyphEye(size: 14, color: CRT.muted)
         eye.bounds = CGRect(x: 0, y: -2, width: 14, height: 14)
         hint.append(NSAttributedString(attachment: eye))
-        hint.append(PhaseOverlayView.tracked("  Hold anywhere to peek the board",
-                                             size: 12, color: CRT.muted, kern: 0))
+        hint.append(PhaseOverlayView.tracked("  Hold to peek board",
+                                             size: 14, color: CRT.muted, kern: 0))
         let hintLabel = UILabel()
         hintLabel.attributedText = hint
         hintLabel.textAlignment = .center
         hintLabel.alpha = 0.8
-        hintLabel.frame = CGRect(x: 10, y: v.y, width: 340, height: 16)
+        // Wraps rather than truncating — it no longer fits one line at 14pt on
+        // a narrow phone.
+        hintLabel.numberOfLines = 0
+        let hintH = max(18, ceil(hint.boundingRect(with: CGSize(width: 340, height: 200),
+                                                   options: .usesLineFragmentOrigin,
+                                                   context: nil).height))
+        hintLabel.frame = CGRect(x: 10, y: v.y, width: 340, height: hintH)
         v.content.addSubview(hintLabel)
-        v.y += 16
+        v.y += hintH
         v.enablePeek()
         return v
     }
@@ -463,7 +607,7 @@ public final class PhaseOverlayView: UIView {
         v.addGap(6)
         // The header: a small red "GAME OVER" eyebrow over the menu's title
         // treatment, whose last word is the guess that would have survived.
-        v.addCentered(PhaseOverlayView.tracked("GAME OVER", size: 12, color: CRT.suitRed,
+        v.addCentered(PhaseOverlayView.tracked("GAME OVER", size: 14, color: CRT.suitRed,
                                                display: true, kern: 2), spacingAfter: 4)
         v.addCentered(PhaseOverlayView.tracked("Shoulda said", size: 20, color: CRT.cardFace,
                                                display: true, kern: 0, hardShadow: true),
@@ -471,54 +615,51 @@ public final class PhaseOverlayView: UIView {
         v.addCentered(PhaseOverlayView.tracked(PhaseOverlayView.survivingGuessWord ?? "lower",
                                                size: 20, color: CRT.phosphor, display: true,
                                                kern: 0, glow: true), spacingAfter: 8)
-        if let c {
-            v.addProgress("Reached " + PhaseOverlayView.stageRunShort(c), spacingAfter: 8)
-        }
-
-        v.addSeedBox(seed)
+        // THE SCORE IS THE SCREEN. It used to be one 17pt tile among eight,
+        // with the stage/deck progress line and the seed box above it — so the
+        // number the run is judged on was the least prominent thing here.
+        // Everything else is now secondary and the seed sits at the very
+        // bottom, where it's available to share without competing.
+        let score = c?.getRunScore() ?? 0
         v.addGap(4)
-
-        // Stat tiles: SCORE / BEST (+ ENDLESS / ENDLESS BEST once banked),
-        // then CARDS PLAYED / COINS, then the guess recap.
-        if let c {
-            v.addTileRow(PhaseOverlayView.scoreTiles(c), height: 64)
-            v.addTileRow([
-                StatTileView(value: tileValue("\(c.totalCardsFlipped)", size: 17), name: "Cards Played"),
-                StatTileView(value: PhaseOverlayView.coinAttr("\(c.totalCoinsEarned)", size: 17,
-                                                              color: CRT.phosphor,
-                                                              display: true, glow: true),
-                             name: "Coins"),
-            ], height: 64)
-            let correct = c.allGuessesCorrect
-            let total = c.allGuessesTotal
-            let wrong = max(0, total - correct)
-            let pct = total > 0 ? Int((Double(correct) / Double(total) * 100).rounded()) : 0
-            v.addTileRow([
-                StatTileView(value: tileValue("\(correct)", size: 17), name: "Correct"),
-                StatTileView(value: tileValue("\(wrong)", size: 17), name: "Wrong"),
-                StatTileView(value: tileValue("\(pct)%", size: 17), name: "Accuracy"),
-            ], height: 64)
+        v.addCentered(PhaseOverlayView.tracked("SCORE", size: 14, color: CRT.muted,
+                                               display: true, kern: 3), spacingAfter: 2)
+        v.addCentered(PhaseOverlayView.tracked("\(score)", size: 52, color: CRT.phosphor,
+                                               display: true, kern: 0, glow: true), spacingAfter: 2)
+        if let c, !c.isExhibition() {
+            let best = c.stats.get().deckTierBest["\(c.deckId).\(c.difficultyTier)"] ?? 0
+            let beat = score >= best && score > 0
+            v.addCentered(PhaseOverlayView.tracked(beat ? "NEW BEST" : "BEST \(best)",
+                                                   size: 14,
+                                                   color: beat ? CRT.gold : CRT.muted,
+                                                   display: true, kern: 2), spacingAfter: 10)
         } else {
-            // No campaign reachable (shouldn't happen in-app): the deal's own
-            // numbers still give a coherent screen.
-            let total = info.correct + info.wrong
-            let pct = total > 0 ? Int((Double(info.correct) / Double(total) * 100).rounded()) : 0
-            v.addTileRow([
-                StatTileView(value: tileValue("\(info.cardsFlipped)", size: 17), name: "Cards Played"),
-                StatTileView(value: PhaseOverlayView.coinAttr("\(info.coinsEarned)", size: 17,
-                                                              color: CRT.phosphor,
-                                                              display: true, glow: true),
-                             name: "Coins"),
-            ], height: 64)
-            v.addTileRow([
-                StatTileView(value: tileValue("\(info.correct)", size: 17), name: "Correct"),
-                StatTileView(value: tileValue("\(info.wrong)", size: 17), name: "Wrong"),
-                StatTileView(value: tileValue("\(pct)%", size: 17), name: "Accuracy"),
-            ], height: 64)
+            v.addGap(10)
         }
 
-        v.addGap(8)
+        // The three secondary numbers, and nothing else.
+        let cards = c?.totalCardsFlipped ?? info.cardsFlipped
+        let coins = c?.totalCoinsEarned ?? info.coinsEarned
+        let correct = c?.allGuessesCorrect ?? info.correct
+        let total = c.map { $0.allGuessesTotal } ?? (info.correct + info.wrong)
+        let pct = total > 0 ? Int((Double(correct) / Double(total) * 100).rounded()) : 0
+        v.addTileRow([
+            StatTileView(value: tileValue("\(cards)", size: 18), name: "Cards Played"),
+            StatTileView(value: tileValue("\(pct)%", size: 18), name: "Correct"),
+            // GOLD, never phosphor (router batch 2): a green glowing number
+            // directly under the score read as the score printed twice.
+            StatTileView(value: PhaseOverlayView.coinAttr("\(coins)", size: 18,
+                                                          color: CRT.gold,
+                                                          display: true, glow: false),
+                         name: "Coins Earned"),
+        ], height: 64)
+
+        v.addGap(10)
         v.addButton("MAIN MENU") { onNewClimb() }
+        // The seed goes LAST — there to copy if you want it, out of the way
+        // of the result if you don't.
+        v.addGap(6)
+        v.addSeedBox(seed)
         return v
     }
 
@@ -543,23 +684,18 @@ public final class PhaseOverlayView: UIView {
         if let c {
             v.addSeedBox(PhaseOverlayView.seedShareStr(c))
             v.addGap(2)
-            // The victory screen is post-boss (banked), so the endless pair
-            // always shows — SCORE / BEST / ENDLESS / ENDLESS BEST.
-            let s = c.stats.get()
+            // No standing "best" section (router batch): the score simply
+            // announces NEW HIGH SCORE when it is one. The endless tiles are
+            // gone too — endless is a choice below, not a stat here.
             let exhibition = c.isExhibition()
+            let newBest = !exhibition && score > 0 && score >= bestScore
             v.addTileRow([
-                StatTileView(value: tileValue("\(score)", size: 14), name: "Score"),
-                StatTileView(value: tileValue(exhibition ? "—" : "\(bestScore)", size: 14),
-                             name: exhibition ? "Best · not recorded" : "Best"),
-                StatTileView(value: tileValue("\(c.getEndlessScore())", size: 14), name: "Endless"),
-                StatTileView(value: tileValue(exhibition ? "—" : "\(s.bestEndlessScore)", size: 14),
-                             name: exhibition ? "Best · not recorded" : "Endless best"),
-            ], height: 56)
-            v.addTileRow([
+                StatTileView(value: tileValue("\(score)", size: 14),
+                             name: newBest ? "Score · NEW HIGH SCORE!" : "Score"),
                 StatTileView(value: tileValue("\(cards)", size: 14), name: "Cards Played"),
                 StatTileView(value: PhaseOverlayView.coinAttr("\(coins)", size: 14,
-                                                              color: CRT.phosphor,
-                                                              display: true, glow: true),
+                                                              color: CRT.gold,
+                                                              display: true, glow: false),
                              name: "Coins"),
             ], height: 56)
             let correct = c.allGuessesCorrect
@@ -573,15 +709,15 @@ public final class PhaseOverlayView: UIView {
             ], height: 56)
         }
         v.addGap(8)
-        let primary = v.addButton("CONTINUE — ENDLESS MODE", role: .cta,
-                                  width: 300, height: 64, fontSize: 15) { onEndless() }
+        let primary = v.addButton("CONTINUE · ENDLESS MODE", role: .cta,
+                                  width: 300, height: 64, fontSize: 16) { onEndless() }
         // The web's primary wraps to two lines; PixelButtonView's label is
         // single-line by default.
         if let label = primary.subviews.compactMap({ $0 as? UILabel }).first {
             label.numberOfLines = 0
             label.lineBreakMode = .byWordWrapping
         }
-        v.addButton("GO TO MAIN MENU", role: .plain, fontSize: 15) { onMenu() }
+        v.addButton("GO TO MAIN MENU", role: .plain, fontSize: 16) { onMenu() }
         return v
     }
 
@@ -597,7 +733,7 @@ public final class PhaseOverlayView: UIView {
         } else {
             // The web's onZenEnd loss header: the same "Shoulda said <word>"
             // treatment as the campaign death screen (gameOverTitleHtml).
-            v.addCentered(PhaseOverlayView.tracked("GAME OVER", size: 12, color: CRT.suitRed,
+            v.addCentered(PhaseOverlayView.tracked("GAME OVER", size: 14, color: CRT.suitRed,
                                                    display: true, kern: 2), spacingAfter: 4)
             v.addCentered(PhaseOverlayView.tracked("Shoulda said", size: 20, color: CRT.cardFace,
                                                    display: true, kern: 0, hardShadow: true),
@@ -611,21 +747,17 @@ public final class PhaseOverlayView: UIView {
         if let unlockLabel {
             v.addProgress("\(unlockLabel) unlocked!", spacingAfter: 10)
         }
-        // The per-game tiles (web zenStatsHtml): THIS game only — cards
-        // guessed / correct / wrong / accuracy, then the outcome-specific
-        // count (piles standing on a win, cards left in the deck on a loss).
-        // Wrong and accuracy derive locally; outcomeCount stays "—" until the
-        // caller wires the live board count.
-        let wrong = max(0, flips - correct)
+        // The per-game tiles: THIS game only — cards guessed, accuracy, and
+        // the outcome-specific count (piles standing on a win, cards left in
+        // the deck on a loss). Correct/wrong counts came off in v6.35: the
+        // accuracy percentage already tells that story in one number.
         let pct = flips > 0 ? Int((Double(correct) / Double(flips) * 100).rounded()) : 0
         v.addTileRow([
             StatTileView(value: tileValue("\(flips)", size: 14), name: "Cards guessed"),
-            StatTileView(value: tileValue("\(correct)", size: 14), name: "Correct"),
-            StatTileView(value: tileValue("\(wrong)", size: 14), name: "Wrong"),
             StatTileView(value: tileValue("\(pct)%", size: 14), name: "Accuracy"),
             StatTileView(value: tileValue(outcomeCount.map { "\($0)" } ?? "—", size: 14),
                          name: won ? "Piles remaining" : "Cards left in deck"),
-        ], height: 64, gap: 6, width: 340)
+        ], height: 64, gap: 6, width: 260)
         v.addGap(6)
         v.addButton("PLAY AGAIN", role: .cta) { onAgain() }
         v.addButton("MENU", role: .plain) { onMenu() }
@@ -640,13 +772,13 @@ public final class PhaseOverlayView: UIView {
         v.addGap(10)
         // The web's maybeShowUnlockCelebration: eyebrow over the character,
         // the name hidden behind "???" for an 800ms breath, then the reveal.
-        v.addCentered(PhaseOverlayView.tracked("NEW DECK UNLOCKED", size: 12,
+        v.addCentered(PhaseOverlayView.tracked("NEW DECK UNLOCKED", size: 14,
                                                color: CRT.gold, display: true, kern: 2),
                       spacingAfter: 10)
         v.addSprite(DeckCharacter.image(deckId: deckId, mood: .happy, scale: 5),
                     size: CGSize(width: 96, height: 96))
         let nameLabel = UILabel()
-        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 15, color: CRT.gold,
+        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 16, color: CRT.gold,
                                                             display: true, kern: 1, glow: false)
         nameLabel.textAlignment = .center
         nameLabel.frame = CGRect(x: 0, y: v.y, width: 360, height: 22)
@@ -654,8 +786,8 @@ public final class PhaseOverlayView: UIView {
         v.y += 28
         // The previous deck hands off: "<Prev> made it home — say hello to
         // <Name>!" (web duc-copy; a nil prev reads "You", like the web).
-        v.addCentered(CRTKit.attributed("\(prevName ?? "You") made it home — say hello to \(name)!",
-                                        size: 15, color: CRT.cardFace), spacingAfter: 12)
+        v.addCentered(CRTKit.attributed("\(prevName ?? "You") made it home. Say hello to \(name)!",
+                                        size: 16, color: CRT.cardFace), spacingAfter: 12)
         v.addButton("CONTINUE") { onContinue() }
         // The entrance bounce first (color floods in), then the name reveal
         // lands the sparkly ta-daa — one-shot, transform/opacity only.
@@ -665,7 +797,7 @@ public final class PhaseOverlayView: UIView {
             v.content.transform = .identity
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            nameLabel.attributedText = PhaseOverlayView.tracked(name.uppercased(), size: 15,
+            nameLabel.attributedText = PhaseOverlayView.tracked(name.uppercased(), size: 16,
                                                                 color: CRT.gold, display: true,
                                                                 kern: 1, glow: false)
             Sound.shared.deckUnlock()
@@ -700,15 +832,21 @@ public final class PhaseOverlayView: UIView {
                         deckId: campaign?.deckId ?? "pink")
     }
 
+    /// `onSkipAll`, when given, adds a quiet SKIP ALL beside CONTINUE — a
+    /// long unlock walk after a good climb is a wall of taps otherwise.
     static func itemUnlock(title: String, body: String,
                            itemId: String? = nil, hint: String? = nil,
+                           onSkipAll: (() -> Void)? = nil,
                            onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView()
         guard let itemId, let def = itemDef(itemId) else {
             // No item context (the 4+ summary pop): the plain pop stays.
-            v.addTitle(title, color: CRT.gold, size: 13)
-            v.addCentered(CRTKit.attributed(body, size: 14, color: CRT.cardFace), spacingAfter: 12)
+            v.addTitle(title, color: CRT.gold, size: 16)
+            v.addCentered(CRTKit.attributed(body, size: 16, color: CRT.cardFace), spacingAfter: 12)
             v.addButton("CONTINUE") { onContinue() }
+            if let onSkipAll {
+                v.addButton("SKIP ALL", role: .plain, fontSize: 14) { onSkipAll() }
+            }
             v.content.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
             UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.6,
                            initialSpringVelocity: 0.3) {
@@ -723,7 +861,7 @@ public final class PhaseOverlayView: UIView {
         // stays as the small "Earned:" footnote.
         v.addGap(6)
         v.addCentered(PhaseOverlayView.tracked("New \(itemKindLabel(itemId)) unlocked",
-                                               size: 12, color: CRT.gold, display: true, kern: 2),
+                                               size: 14, color: CRT.gold, display: true, kern: 2),
                       spacingAfter: 10)
 
         let art = unlockArt(itemId)
@@ -755,35 +893,44 @@ public final class PhaseOverlayView: UIView {
         v.y += artH + 12
 
         let nameLabel = UILabel()
-        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 15, color: CRT.gold,
+        nameLabel.attributedText = PhaseOverlayView.tracked("???", size: 16, color: CRT.gold,
                                                             display: true, kern: 1)
         nameLabel.textAlignment = .center
         nameLabel.frame = CGRect(x: 0, y: v.y, width: 360, height: 22)
         v.content.addSubview(nameLabel)
         v.y += 28
 
+        // This label shows the earn HINT first, then swaps to the item's full
+        // description on reveal. Its box has to be sized for the LONGER of the
+        // two up front: sizing it for the hint alone clipped every description
+        // that ran longer (the layout cursor `v.y` is fixed at build time, so
+        // it can't be re-measured after the swap without shoving the rest of
+        // the screen down mid-animation).
+        let copyW: CGFloat = 320
+        func measure(_ text: String, size: CGFloat) -> CGFloat {
+            guard !text.isEmpty else { return 0 }
+            return ceil(CRTKit.attributed(text, size: size, color: CRT.cardFace).boundingRect(
+                with: CGSize(width: copyW, height: 600),
+                options: .usesLineFragmentOrigin, context: nil).height)
+        }
         let copyLabel = UILabel()
         copyLabel.attributedText = CRTKit.attributed(hint ?? body, size: 14, color: CRT.cardFace)
         copyLabel.textAlignment = .center
         copyLabel.numberOfLines = 0
-        let copyH = ceil(copyLabel.attributedText!.boundingRect(
-            with: CGSize(width: 320, height: 200),
-            options: .usesLineFragmentOrigin, context: nil).height)
-        copyLabel.frame = CGRect(x: 20, y: v.y, width: 320, height: copyH)
+        let copyH = max(measure(hint ?? body, size: 14), measure(def.description, size: 14))
+        copyLabel.frame = CGRect(x: 20, y: v.y, width: copyW, height: max(18, copyH))
         v.content.addSubview(copyLabel)
-        v.y += copyH + 6
+        v.y += max(18, copyH) + 6
 
-        // "Earned: <hint>" — the footnote that keeps the earn condition
-        // visible after the copy swaps to the description.
-        let earnedLabel = UILabel()
-        let earnedH: CGFloat = 16
-        earnedLabel.frame = CGRect(x: 20, y: v.y, width: 320, height: earnedH)
-        earnedLabel.textAlignment = .center
-        earnedLabel.alpha = 0
-        v.content.addSubview(earnedLabel)
-        v.y += earnedH + 12
+        // (The "Earned: <hint>" footnote is gone — the reveal keeps just the
+        // name and the registry description. The earn condition still shows
+        // during the pre-reveal tease, then the description takes over.)
+        v.y += 12
 
         v.addButton("CONTINUE") { onContinue() }
+        if let onSkipAll {
+            v.addButton("SKIP ALL", role: .plain, fontSize: 14) { onSkipAll() }
+        }
 
         // The reveal: 800ms of silhouette tease, then colour + name +
         // description + footnote + the ta-daa (one-shot, opacity/transform
@@ -803,20 +950,16 @@ public final class PhaseOverlayView: UIView {
                     s.transform = .identity
                 }
             }
-            nameLabel.attributedText = PhaseOverlayView.tracked(def.label.uppercased(), size: 15,
+            nameLabel.attributedText = PhaseOverlayView.tracked(def.label.uppercased(), size: 16,
                                                                 color: CRT.gold, display: true,
                                                                 kern: 1)
             let desc = def.description
             if !desc.isEmpty {
                 copyLabel.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.cardFace)
-                if let hint {
-                    earnedLabel.attributedText = PhaseOverlayView.tracked("Earned: \(hint)",
-                                                                          size: 12, color: CRT.muted,
-                                                                          kern: 0.5)
-                    UIView.animate(withDuration: 0.2, delay: 0.15) { earnedLabel.alpha = 1 }
-                }
             }
-            Sound.shared.deckUnlock()
+            // An ITEM unlock — the deck ta-daa's shorter cousin, so the two
+            // never get confused with each other.
+            Sound.shared.itemUnlock()
         }
         return v
     }
@@ -877,6 +1020,11 @@ public final class PhaseOverlayView: UIView {
     /// cream art well centring what the outcome granted, the muted caption,
     /// and the phosphor CONTINUE.
     static func mystery(outcome: MysteryOutcome,
+                        presenter: MysteryCast.Presenter? = nil,
+                        deckId: String = "pink",
+                        mapPeek: Bool = false,
+                        onPeekChanged: ((Bool) -> Void)? = nil,
+                        onDeck: (() -> Void)? = nil,
                         onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView(dim: 0.6)
         let panelW: CGFloat = 320
@@ -888,24 +1036,80 @@ public final class PhaseOverlayView: UIView {
         rim.backgroundColor = outcome.good ? CRT.phosphor : CRT.suitRed
         var py: CGFloat = 18
 
+        // WHO is delivering the news — the Old Joker's header grammar (card
+        // on the left, gold name and a spoken line beside it), above the
+        // outcome panel proper. Absent for outcomes nobody delivers.
+        if let p = presenter {
+            let art = UIImageView(image: p.art)
+            art.contentMode = .scaleAspectFit
+            art.layer.magnificationFilter = .nearest
+            art.frame = CGRect(x: 18, y: py, width: 56, height: 80)
+            panel.addSubview(art)
+            let textX: CGFloat = 18 + 56 + 12
+            // The corner MAP chip claims the top-right when present.
+            let textW = panelW - textX - 18 - (mapPeek ? 58 : 0)
+            let name = CRTKit.label(p.name.uppercased(), size: 14, color: CRT.gold, display: true)
+            // "THE BEHEADED QUEEN" is the longest name the slot must seat —
+            // it shrinks to fit rather than truncating to "QU…".
+            name.adjustsFontSizeToFitWidth = true
+            name.minimumScaleFactor = 0.65
+            name.frame = CGRect(x: textX, y: py, width: textW, height: 18)
+            panel.addSubview(name)
+            let speech = UILabel()
+            speech.numberOfLines = 0
+            speech.lineBreakMode = .byWordWrapping
+            speech.attributedText = CRTKit.attributed("\u{201C}\(p.line)\u{201D}", size: 14,
+                                                      color: CRT.cardFace)
+            let sh = ceil(speech.sizeThatFits(CGSize(width: textW, height: 300)).height)
+            speech.frame = CGRect(x: textX, y: py + 21, width: textW, height: sh)
+            panel.addSubview(speech)
+            py += max(80, 21 + sh) + 12
+        }
+
         // The web renders the event name AS AUTHORED ("Cache") — no uppercase
         // transform on .fd-title.
-        let title = CRTKit.label(outcome.title, size: 12, color: CRT.gold, display: true)
+        let title = CRTKit.label(outcome.title, size: 14, color: CRT.gold, display: true)
         title.textAlignment = .center
         title.frame = CGRect(x: 10, y: py, width: panelW - 20, height: 18)
         panel.addSubview(title)
         py += 30
 
-        // The cream art well.
+        // The cream art well — only when there is something REAL to show in
+        // it. The flag-arming outcomes (Fire Sale, Markup, Restock, Mulligan,
+        // the shield turns) used to draw a big empty well with a lone glyph;
+        // now they simply skip it and the panel tightens up.
         let art = UIView()
         art.backgroundColor = CRT.cardFace
         art.layer.borderWidth = CRT.px
         art.layer.borderColor = CRT.ink.cgColor
         var artH: CGFloat = 96
-        if !outcome.cards.isEmpty {
-            let n = min(outcome.cards.count, 4)
+        var hasArt = true
+        if outcome.key == "ambush" {
+            // The ambush, depicted: the piles you'll face, face down — never
+            // the off-palette ☠ glyph.
+            let n = max(1, min(outcome.ambushPiles ?? 4, 4))
             let w: CGFloat = 58
             let rowW = CGFloat(n) * (w + 8) - 8
+            artH = 100
+            let backFace = CardArt.Face(label: "", suit: "", kind: .back(deckId: deckId))
+            for i in 0..<n {
+                let iv = UIImageView(image: CardArt.image(backFace, scale: .half))
+                iv.contentMode = .scaleAspectFit
+                iv.layer.magnificationFilter = .nearest
+                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
+                                  width: w, height: 80)
+                art.addSubview(iv)
+            }
+        } else if !outcome.cards.isEmpty {
+            // The card row — plus, when the outcome TORE stickers off (the
+            // Two's Peeled), the torn chips right beside it, so what left is
+            // seen and not just named (router batch).
+            let tornDefs = outcome.stickerIds.compactMap { GameData.shared.stickerTypes.get($0) }
+            let n = min(outcome.cards.count, 4)
+            let w: CGFloat = 58
+            let chipS: CGFloat = 34
+            let chipsW = tornDefs.isEmpty ? 0 : CGFloat(min(tornDefs.count, 3)) * (chipS + 4) + 8
+            let rowW = CGFloat(n) * (w + 8) - 8 + chipsW
             artH = 100
             for (i, c) in outcome.cards.prefix(4).enumerated() {
                 let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
@@ -914,8 +1118,24 @@ public final class PhaseOverlayView: UIView {
                 iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(i) * (w + 8), y: 10, width: w, height: 80)
                 art.addSubview(iv)
             }
+            for (i, def) in tornDefs.prefix(3).enumerated() {
+                let iv = UIImageView(image: ItemArt.sticker(def, size: chipS))
+                iv.contentMode = .scaleAspectFit
+                iv.layer.magnificationFilter = .nearest
+                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(n) * (w + 8) + 8
+                                     + CGFloat(i) * (chipS + 4),
+                                  y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
+                art.addSubview(iv)
+            }
         } else if let sid = outcome.stickerId, let def = GameData.shared.stickerTypes.get(sid) {
             let iv = UIImageView(image: ItemArt.sticker(def, size: 64))
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 16, width: 64, height: 64)
+            art.addSubview(iv)
+        } else if let ik = outcome.itemKind, let iid = outcome.itemId {
+            // itemTheft: the repossessed Pillar/Base, so the loss is SEEN.
+            let iv = UIImageView(image: ItemArt.forSlot(kind: ik, id: iid, card: nil, deckId: ""))
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 16, width: 64, height: 64)
@@ -951,30 +1171,58 @@ public final class PhaseOverlayView: UIView {
             coins.frame = CGRect(x: 0, y: 28, width: panelW - 36, height: 40)
             art.addSubview(coins)
         } else {
-            let glyph = CRTKit.label(outcome.good ? "★" : "☠", size: 44,
-                                     color: outcome.good ? CRT.gold : CRT.suitRed)
-            glyph.textAlignment = .center
-            glyph.frame = CGRect(x: 0, y: 24, width: panelW - 36, height: 50)
-            art.addSubview(glyph)
+            // Nothing worth a picture — no well at all.
+            hasArt = false
         }
-        art.frame = CGRect(x: 18, y: py, width: panelW - 36, height: artH)
-        panel.addSubview(art)
-        py += artH + 12
+        if hasArt {
+            art.frame = CGRect(x: 18, y: py, width: panelW - 36, height: artH)
+            panel.addSubview(art)
+            py += artH + 12
+        }
 
-        let sub = CRTKit.label(outcome.desc, size: 13, color: CRT.muted)
+        // 16pt, brighter (router batch): "Leech torn off your 7♥" was the
+        // smallest line on the panel while being the entire news.
+        let sub = CRTKit.label(outcome.desc, size: 16, color: CRT.cardFace.withAlphaComponent(0.9))
         sub.textAlignment = .center
         sub.numberOfLines = 0
-        let subH = ceil(sub.attributedText!.boundingRect(with: CGSize(width: panelW - 36, height: 200),
-                                                         options: .usesLineFragmentOrigin, context: nil).height)
+        sub.lineBreakMode = .byWordWrapping
+        // sizeThatFits, NOT boundingRect: the pixel font's real line height
+        // runs taller than its measured fragments, so a boundingRect-sized
+        // frame rendered "…until you…" instead of wrapping (v6.20).
+        let subH = ceil(sub.sizeThatFits(CGSize(width: panelW - 36, height: 300)).height)
         sub.frame = CGRect(x: 18, y: py, width: panelW - 36, height: subH)
         panel.addSubview(sub)
         py += subH + 14
 
-        let go = PixelButtonView("CONTINUE", role: .cta, fontSize: 15)
+        let go = PixelButtonView("CONTINUE", role: .cta, fontSize: 16)
+        go.playsClick = false         // it owns the louder CTA confirm instead
         go.onTap = { Sound.shared.continueTap(); onContinue() }
         go.frame = CGRect(x: (panelW - 170) / 2, y: py, width: 170, height: 44)
         panel.addSubview(go)
         py += 44 + 20
+
+        // MAP: a small corner chip (a pause-button cousin, never one of the
+        // choices) — the explicit look-around with an explicit way back.
+        // Travel stays blocked while peeking; outside taps never dismiss.
+        if mapPeek {
+            v.mapPeekChanged = onPeekChanged
+            let peek = PixelButtonView("MAP", role: .plain, fontSize: 14)
+            peek.onTap = { [weak v] in v?.beginMapPeek() }
+            peek.frame = CGRect(x: panelW - 60, y: 8, width: 52, height: 26)
+            panel.addSubview(peek)
+            if let onDeck {
+                // DECK under MAP (router batch 2): the shop's deck inspector.
+                let deck = PixelButtonView("DECK", role: .plain, fontSize: 14)
+                deck.onTap = { onDeck() }
+                deck.frame = CGRect(x: panelW - 60, y: 38, width: 52, height: 26)
+                panel.addSubview(deck)
+            }
+            let back = PixelButtonView("◀ BACK", role: .gold, fontSize: 16)
+            back.onTap = { [weak v] in v?.endMapPeek() }
+            back.isHidden = true
+            v.addSubview(back)
+            v.mapPeekBack = back
+        }
 
         panel.frame = CGRect(x: px, y: 0, width: panelW, height: py)
         // The polarity rim, a 4px band under the panel's top border.
@@ -987,13 +1235,17 @@ public final class PhaseOverlayView: UIView {
         switch outcome.key {
         case "coinBonus": Sound.shared.coin()
         case "coinLoss": Sound.shared.coinLoss()
-        case "cards": Sound.shared.mapAdd()
-        case "joker": Sound.shared.deckUnlock()
-        case "store": Sound.shared.refresh()
-        case "stickerPack", "stickerStrip": Sound.shared.sticker()
-        case "freeRemoval": Sound.shared.pack()
+        case "cards": Sound.shared.mysteryCards()
+        case "joker": Sound.shared.jokerReward()
+        case "store": Sound.shared.mysteryStore()
+        case "stickerPack", "stickerStrip", "stickerTheft": Sound.shared.sticker()
+        case "freeRemoval": Sound.shared.freeRemoval()
         case "cursedSticker": Sound.shared.bad()
-        case "ambush": Sound.shared.deal()
+        case "ambush": Sound.shared.ambush()
+        case "itemTheft", "shieldDrain", "priceDouble": Sound.shared.bad()
+        case "coinDouble": Sound.shared.coin()
+        case "giftCard": Sound.shared.mysteryCards()
+        case "priceOne", "freeRefresh", "freeRedeal", "shieldCharge": Sound.shared.mysteryStore()
         default: break
         }
         return v
@@ -1013,7 +1265,7 @@ private final class StatTileView: UIView {
         valueLabel.attributedText = value
         valueLabel.textAlignment = .center
         addSubview(valueLabel)
-        nameLabel.attributedText = PhaseOverlayView.tracked(name.uppercased(), size: 12,
+        nameLabel.attributedText = PhaseOverlayView.tracked(name.uppercased(), size: 14,
                                                             color: CRT.muted, kern: 1)
         nameLabel.textAlignment = .center
         nameLabel.numberOfLines = 2
@@ -1051,9 +1303,9 @@ private final class SeedChip: UIControl {
 
     init(seed: String) {
         self.seed = seed
-        let labelAttr = PhaseOverlayView.tracked("SEED · \(seed)", size: 12,
+        let labelAttr = PhaseOverlayView.tracked("SEED · \(seed)", size: 14,
                                                  color: CRT.cardFace, kern: 1.1)
-        let hintAttr = PhaseOverlayView.tracked("tap to copy", size: 12,
+        let hintAttr = PhaseOverlayView.tracked("tap to copy", size: 14,
                                                 color: CRT.muted, kern: 1.1)
         let pad: CGFloat = 14, gap: CGFloat = 8
         idealWidth = min(340, pad * 2 + ceil(labelAttr.size().width)
@@ -1091,13 +1343,13 @@ private final class SeedChip: UIControl {
     @objc private func copySeed() {
         UIPasteboard.general.string = seed
         border.lineDashPattern = nil
-        hint.attributedText = PhaseOverlayView.tracked("copied ✓", size: 12,
+        hint.attributedText = PhaseOverlayView.tracked("copied ✓", size: 14,
                                                        color: CRT.gold, kern: 1.1)
         setNeedsLayout()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             guard let self else { return }
             self.border.lineDashPattern = [6, 4]
-            self.hint.attributedText = PhaseOverlayView.tracked("tap to copy", size: 12,
+            self.hint.attributedText = PhaseOverlayView.tracked("tap to copy", size: 14,
                                                                 color: CRT.muted, kern: 1.1)
             self.setNeedsLayout()
         }

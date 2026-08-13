@@ -71,9 +71,11 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(b.total, 0, "the product no longer feeds the coin total")
     }
 
-    func testAmbushForcesTheProductToZero() {
+    func testAmbushScoresLikeEveryOtherBattle() {
         let b = eco.breakdown(stats { $0.won = true; $0.aliveCount = 8; $0.minAliveCards = 5; $0.ambush = true })
-        XCTAssertEqual(b.product, 0, "an ambush pays coins only — its bounty IS the reward")
+        XCTAssertEqual(b.product, 40, "every battle scores — an ambush is no exception (v5.82)")
+        let plain = eco.breakdown(stats { $0.won = true; $0.aliveCount = 8; $0.minAliveCards = 5 })
+        XCTAssertEqual(b.product, plain.product, "the ambush flag no longer touches the product")
     }
 
     func testProductIsZeroWithNoAlivePiles() {
@@ -202,28 +204,27 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(board.piles[0].cards.count, 1, "the physical count is unchanged")
     }
 
-    // MARK: - Campaign / endless score split
+    // MARK: - One continuous score (v6.47)
 
-    func testCampaignScoreIsLiveUntilTheBossBanksIt() {
+    func testScoreIsOneContinuousTotalAcrossTheBank() {
         let c = CampaignState()
         c.addRunScore(40)
-        XCTAssertEqual(c.getCampaignScore(), 40)
-        XCTAssertEqual(c.getEndlessScore(), 0)
+        XCTAssertEqual(c.getRunScore(), 40)
         c.markRunWon()
         c.addRunScore(25)
-        XCTAssertEqual(c.getCampaignScore(), 40, "the banked campaign score is frozen at the ♠ boss")
-        XCTAssertEqual(c.getEndlessScore(), 25, "everything after the bank is endless score")
+        XCTAssertEqual(c.getRunScore(), 65,
+                       "endless continues the climb's total — one score, never a reset")
     }
 
-    func testEndlessDeathCannotUndoTheBank() {
+    func testTheBankStillFreezesTheBookkeepingSlice() {
+        // The bank survives for phase logic and cards-flipped accounting —
+        // scoreBanked must not move once the ♠ boss falls.
         let c = CampaignState()
         c.addRunScore(100)
         c.markRunWon()
-        XCTAssertEqual(c.getCampaignScore(), 100)
-        // An endless stage adds and then the climb ends — the bank stands.
         c.addRunScore(10)
-        XCTAssertEqual(c.getCampaignScore(), 100)
-        XCTAssertEqual(c.getEndlessScore(), 10)
+        XCTAssertEqual(c.getRunScore(), 110)
+        XCTAssertTrue(c.runWonBanked)
     }
 
     func testAddRunScoreClampsNegatives() {

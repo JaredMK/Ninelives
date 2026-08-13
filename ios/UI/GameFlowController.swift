@@ -14,6 +14,10 @@ public final class GameFlowController: UIViewController {
     // MARK: - The persistent world
 
     let store = UserDefaultsStore()
+    /// Game Center: the GameKit half + the testable policy half. The game
+    /// never gates on either — see GameCenterService's header.
+    let gameCenter = GameCenterService()
+    lazy var leaderboards = Leaderboards(store: store, submitter: gameCenter)
     private(set) var campaign: CampaignState
     private(set) var runMap: RunMap
     private let economy = Economy()
@@ -68,8 +72,11 @@ public final class GameFlowController: UIViewController {
     /// The debug panel entry point on EVERY screen while debug access is on
     /// (the menu's own DEBUG row only exists on the menu). Bottom-right —
     /// clear of the map's bottom-left store chip and the deal's rail.
+    /// THE OLD JOKER's modal while it is on screen.
+    private var oldJokerView: OldJokerView?
+
     private lazy var debugFloatButton: PixelButtonView = {
-        let b = PixelButtonView("🐞", role: .charged, fontSize: 15)
+        let b = PixelButtonView("🐞", role: .charged, fontSize: 16)
         b.onTap = { [weak self] in self?.showDebugPanel() }
         return b
     }()
@@ -80,12 +87,12 @@ public final class GameFlowController: UIViewController {
     private var debugPilotPaused = false
     private var debugPilotSpeed = 1
     private lazy var pilotPauseButton: PixelButtonView = {
-        let b = PixelButtonView("❚❚", role: .plain, fontSize: 13)
+        let b = PixelButtonView("❚❚", role: .plain, fontSize: 14)
         b.onTap = { [weak self] in self?.togglePilotPause() }
         return b
     }()
     private lazy var pilotSpeedButton: PixelButtonView = {
-        let b = PixelButtonView("1×", role: .plain, fontSize: 13)
+        let b = PixelButtonView("1×", role: .plain, fontSize: 14)
         b.onTap = { [weak self] in self?.cyclePilotSpeed() }
         return b
     }()
@@ -96,6 +103,7 @@ public final class GameFlowController: UIViewController {
         super.init(nibName: nil, bundle: nil)
         PersistenceHolder.shared = self
         campaign.itemUnlocks.primeKnown()   // first-session unlocks must not be swallowed
+        gameCenter.onAuthenticated = { [weak self] in self?.leaderboards.flush() }
     }
 
     @available(*, unavailable)
@@ -119,22 +127,117 @@ public final class GameFlowController: UIViewController {
         view.addSubview(pilotPauseButton)
         view.addSubview(pilotSpeedButton)
         boot()
+        // Game Center: silent launch authentication (GameKit may present ONE
+        // system sign-in sheet; declining is remembered — we never re-ask).
+        gameCenter.authenticate(presenting: self)
         // A debug autopilot left on last session re-arms at boot.
         if debugAutopilotOn() { setDebugAutopilot(true) }
-        // Screenshot harness: `-showOverlay cleared|dead|victory|mystery`
+        // Screenshot harness: `-typeRamp 1` overlays the type-scale specimen
+        // (the styleguide §3b readability ramp) for the floor-picking test.
+        if UserDefaults.standard.bool(forKey: "typeRamp") {
+            showTypeRamp()
+        }
+        // Screenshot harness: `-curseSheet 1` overlays every cursed sticker's
+        // chip art + label + help text (per-curse art evidence).
+        if UserDefaults.standard.bool(forKey: "curseSheet") {
+            showCurseSheet()
+        }
+        // Screenshot harness: `-showJoker <offerKey>` forces one of THE OLD
+        // JOKER's offers with sample state, for per-event evidence stills.
+        if let which = UserDefaults.standard.string(forKey: "showJoker") {
+            showDebugJoker(which)
+        }
+        // Screenshot harness: `-showOverlay cleared|dead|victory|mystery|unlock`
         // renders that overlay with sample data (debug evidence stills only).
         if let which = UserDefaults.standard.string(forKey: "showOverlay") {
             showDebugOverlay(which)
         }
     }
 
+    /// Force one Old Joker offer on screen with plausible sample state.
+    private func showDebugJoker(_ key: String) {
+        let data = GameData.shared
+        // Give him something to point at.
+        for (i, p) in data.items.pillars.prefix(CampaignLayout.columnSlots).enumerated() {
+            campaign.setColumnPillar(col: i, typeId: p.id)
+        }
+        for (i, b) in data.items.bases.prefix(CampaignLayout.columnSlots).enumerated() {
+            campaign.setColumnBase(col: i, typeId: b.id)
+        }
+        campaign.addCoins(60)
+        campaign.setSameCharge(false)
+        if let opening = campaign.legalNextNodes().first { campaign.moveToNode(opening.id) }
+        let holdings = campaign.equippedHoldings()
+        let commons = holdings.filter { campaign.holdingDef($0)?.tier == "common" }
+        let pillars = data.items.pillars
+        let offer: OldJoker.Offer?
+        switch key {
+        case "buyout":
+            offer = holdings.count >= 2 ? .buyout(cheap: holdings[0], cheapCoins: 3,
+                                                  rich: holdings[1], richCoins: 14) : nil
+        case "swap":
+            offer = holdings.first.map { .swap(taken: $0, given: pillars.last?.id ?? $0.id) }
+        case "purge":
+            // Debug forced offer: a fixed roll so the picker is exercisable —
+            // one mild, one medium, one mild (the shared pool's own ids).
+            offer = .purge(removeCount: 3, curses: ["leech", "jammer", "shrink"])
+        case "ride":
+            let fare = GameData.shared.items.oldJoker.int("ride", "cost", 5)
+            offer = campaign.nextStoreBeforeBoss()
+                .map { .ride(storeNodeId: $0.id, skipped: $0.skipped, cost: fare) }
+                ?? .ride(storeNodeId: 0, skipped: 2, cost: fare)
+        case "cut":    offer = .cut(chooseCost: 4)
+        case "marker": offer = .marker(coins: 16, repay: 24)
+        case "blindSwap":
+            offer = (commons.first ?? holdings.first).map {
+                .blindSwap(from: $0, to: pillars.first(where: { $0.tier == "rare" })?.id ?? "greedy")
+            }
+        case "twoDoors": offer = .twoDoors(goodKey: "coinBonus", badKey: "coinLoss", goodIsLeft: true)
+        case "insurance": offer = .insurance(cost: 2)
+        case "refund":
+            let two = Array(holdings.prefix(2))
+            offer = two.isEmpty ? nil
+                : .refund(options: two,
+                          values: two.map { Int(((campaign.holdingDef($0)?.price ?? 1) * 2.5).rounded()) })
+        case "collect":
+            campaign.setJokerDebt(24)
+            offer = .collect(owed: 24)
+        // UNLOCK-era offers. Sample state above already equips a Pillar and a
+        // Base in every slot and hands over 60 coins, so each of these has
+        // something real to point at.
+        case "freeShop":
+            let slotted = holdings.filter { $0.kind != .sticker }
+            offer = slotted.first.map {
+                .freeShop(taken: $0, currentPrice: Int(campaign.holdingDef($0)?.price ?? 1))
+            }
+        case "purgeReset":
+            offer = .purgeReset(from: 9, to: 5, cost: 0)
+        case "eights":
+            offer = .eights(from: campaign.eightsFromRanks(), to: 8,
+                            affected: max(1, campaign.eightsAffectedCount()))
+        case "thirsty":
+            offer = .thirsty(purse: campaign.getCoins())
+        case "thirstReturn":
+            offer = .thirstReturn(paid: 3, reward: 6)
+        case "thirstAmbush":
+            offer = .thirstReturn(paid: 0, reward: 0)
+        case "duplicate":
+            offer = .duplicate(sticker: GameData.shared.items.oldJoker
+                                 .string("duplicate", "sticker", "leech"))
+        default: offer = nil
+        }
+        guard let offer else { return }
+        presentOldJoker(offer, nodeId: campaign.nodePos ?? 1, map: nil)
+    }
+
     private func showDebugOverlay(_ which: String) {
         switch which {
         case "cleared":
             let info = SummaryInfo(earned: 9, balance: 21,
-                                   lines: [("Deal reward", 7), ("Pillar bonus", 2)],
+                                   lines: [RewardLine(label: "Deal reward", amount: 7, source: .flat),
+                                           RewardLine(label: "Envy (col 2)", amount: 2, source: .pillar)],
                                    product: 12, aliveCount: 4, minAlive: 3,
-                                   progress: "♦ phase 1/3 · Deck 13")
+                                   progress: "♦ phase 1/3 · Deck 13", totalScore: 47)
             presentOverlay(PhaseOverlayView.dealCleared(info: info) { [weak self] in self?.dismissOverlay() })
         case "dead":
             let info = FailedInfo(correct: 11, wrong: 1, cardsFlipped: 12, coinsEarned: 6, wasEndless: false)
@@ -146,9 +249,35 @@ public final class GameFlowController: UIViewController {
                 deckName: "Pinky", score: 44, coins: 31, cards: 19, bestScore: 51,
                 onEndless: { [weak self] in self?.dismissOverlay() },
                 onMenu: { [weak self] in self?.dismissOverlay() }))
-        case "mystery":
-            if let o = campaign.applyMysteryEvent("coinBonus", nodeId: 7) {
-                presentOverlay(PhaseOverlayView.mystery(outcome: o) { [weak self] in self?.dismissOverlay() })
+        case let s where s.hasPrefix("mystery"):
+            // "-showOverlay mystery[:key]" — any outcome's reveal with enough
+            // sample state to actually apply ("mysteryBad" = mystery:coinLoss).
+            let key = s.contains(":") ? String(s.split(separator: ":").last!)
+                : (s == "mysteryBad" ? "coinLoss" : "coinBonus")
+            campaign.addCoins(12)
+            if key == "stickerTheft", let id = campaign.getRunDeck().first?.id {
+                _ = campaign.applyStickerDirect(id, "rankUp")
+                _ = campaign.applyStickerDirect(id, "extraCoin")
+            }
+            if key == "itemTheft" {
+                campaign.setColumnPillar(col: 0, typeId: GameData.shared.items.pillars[0].id)
+            }
+            if let o = campaign.applyMysteryEvent(key, nodeId: 7) {
+                presentOverlay(PhaseOverlayView.mystery(outcome: o,
+                                                        presenter: MysteryCast.presenter(for: o),
+                                                        deckId: campaign.deckId) { [weak self] in self?.dismissOverlay() })
+            }
+        case "unlock":
+            // The item-unlock pop, using the LONGEST-described gated item —
+            // the case that used to clip its description.
+            let gated = (GameData.shared.items.stickers + GameData.shared.items.pillars
+                         + GameData.shared.items.bases)
+                .filter { $0.unlock != nil }
+                .max { $0.description.count < $1.description.count }
+            if let def = gated {
+                presentOverlay(PhaseOverlayView.itemUnlock(
+                    title: "Unlocked", body: def.description, itemId: def.id,
+                    hint: campaign.itemUnlocks.hint(for: def)) { [weak self] in self?.dismissOverlay() })
             }
         default:
             break
@@ -259,6 +388,64 @@ public final class GameFlowController: UIViewController {
 
     func clearSave() {
         campaign.saveStore.clear()
+        clearMidDeal()
+    }
+
+    // MARK: - Mid-deal persistence (anti-savescum)
+
+    /// The mid-deal snapshot's own key — deliberately SEPARATE from the
+    /// campaign blob: the per-action write stays a few KB of engine state
+    /// instead of re-serializing the whole campaign every tap.
+    static let midDealKey = "ninelives.midDeal.v1"
+    /// STKPERF1: synchronous per-tap storage writes caused the sticker lag,
+    /// so the mid-deal save NEVER touches storage on the main thread. The
+    /// capture is a cheap value copy handed here; this serial queue does the
+    /// JSON encode + write, and `midDealPending` is latest-wins — a burst of
+    /// fast actions collapses to however many writes the queue can retire,
+    /// each one a complete consistent snapshot.
+    private let midDealQueue = DispatchQueue(label: "ninelives.middeal", qos: .utility)
+    private let midDealLock = NSLock()
+    private var midDealPending: [String: JSONValue]?
+    private var midDealDraining = false
+
+    func saveMidDeal(_ blob: [String: JSONValue]) {
+        midDealLock.lock()
+        midDealPending = blob
+        let startDrain = !midDealDraining
+        if startDrain { midDealDraining = true }
+        midDealLock.unlock()
+        guard startDrain else { return }
+        midDealQueue.async { [weak self] in
+            guard let self else { return }
+            while true {
+                self.midDealLock.lock()
+                guard let next = self.midDealPending else {
+                    self.midDealDraining = false
+                    self.midDealLock.unlock()
+                    return
+                }
+                self.midDealPending = nil
+                self.midDealLock.unlock()
+                // UserDefaults hands the value to cfprefsd on set — a crash
+                // right after this line loses nothing.
+                JSONStore.write(self.store, Self.midDealKey, next)
+            }
+        }
+    }
+
+    func loadMidDeal() -> [String: JSONValue]? {
+        JSONStore.read(store, Self.midDealKey)
+    }
+
+    /// Drop the blob THROUGH the writer queue, so a clear can never lose the
+    /// race against an in-flight write and resurrect a finished deal.
+    func clearMidDeal() {
+        midDealLock.lock()
+        midDealPending = nil
+        midDealLock.unlock()
+        midDealQueue.async { [weak self] in
+            self?.store.remove(forKey: Self.midDealKey)
+        }
     }
 
     private func resumeSavedGame() {
@@ -287,7 +474,8 @@ public final class GameFlowController: UIViewController {
                                                     ?? campaign.nodePos ?? 0)
             }
             currentAmbush = ambush
-            startDeal(resumeSeed: seed, resumeSubsetIds: subsetIds, resumePiles: subsetPiles)
+            startDeal(resumeSeed: seed, resumeSubsetIds: subsetIds, resumePiles: subsetPiles,
+                      midDeal: loadMidDeal())
         case "store":
             showStore(fresh: false)
         default:
@@ -297,10 +485,29 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Menu
 
+    /// The title sequence plays for the FIRST menu of a launch only — coming
+    /// back from a climb should not replay it.
+    private var titleSequencePlayed = false
+
     func showMenu() {
         currentPhase = "menu"
         let menu = MainMenuViewController(flow: self, canContinue: campaign.saveStore.hasSave)
+        menu.playsIntro = !titleSequencePlayed
+        titleSequencePlayed = true
         setScreen(menu)
+        // THE ONE-TIME NUDGE (router batch 2): the tutorial is done, the
+        // player is back on the menu — point them at the Climb, exactly once.
+        if campaign.saveStore.pref("tutorial2") == "1",
+           campaign.saveStore.pref("tutorialNudgeShown") != "1",
+           campaign.stats.get().gamesPlayed == 0,   // veterans skip it
+           !UserDefaults.standard.bool(forKey: "skipGate") {
+            campaign.saveStore.setPref("tutorialNudgeShown", "1")
+            presentOverlay(PhaseOverlayView.itemUnlock(
+                title: "You're ready",
+                body: "Now that you understand how to play, try a Climb.") { [weak self] in
+                self?.dismissOverlay()
+            })
+        }
     }
 
     /// CONTINUE CLIMB from the menu: restore + route by the saved phase.
@@ -337,6 +544,16 @@ public final class GameFlowController: UIViewController {
     /// Lifetime stats ride a bottom sheet over whatever's showing (web parity).
     func showStats() {
         let sheet = StatsSheetView(campaign: campaign)
+        // Game Center: the entry point ALWAYS shows (Apple's sheet handles
+        // its own signed-out state); the rank line only when a read succeeds.
+        let boardID = LeaderboardID.identifier(deck: "pink", tier: "legendary")!
+        sheet.onLeaderboards = { [weak self] in
+            guard let self else { return }
+            self.gameCenter.presentLeaderboard(boardID, from: self)
+        }
+        gameCenter.loadLocalEntry(leaderboardID: boardID) { [weak sheet] entry in
+            if let entry { sheet?.gcLocalEntry = entry }
+        }
         sheet.onReset = { [weak self, weak sheet] in
             guard let self else { return }
             // The confirm bar must clear the sheet it was summoned from.
@@ -392,6 +609,26 @@ public final class GameFlowController: UIViewController {
     func showMap() {
         currentPhase = "map"
         mysteryStoreContinue = nil   // a detour never survives leaving the store
+        // A STAGED GIFT SHELF outranks the map. It is persisted state, so it
+        // survived a relaunch and appeared on Continue — but on the turn it
+        // was staged, something navigated here instead and the player reached
+        // the map with items they were never shown. Whatever routed us here,
+        // the coat is still owed: open it.
+        if campaign.isGiftShelf, campaign.getStoreOffer()?.slots.isEmpty == false {
+            let nodeId = campaign.nodePos
+            // …and it gets an exit, since the line above just cleared the one
+            // the original hand-over installed.
+            mysteryStoreContinue = { [weak self] in
+                guard let self else { return }
+                self.campaign.discardStoreOffer()
+                self.campaign.endFreeShop()
+                if let nodeId { _ = self.campaign.markNodeCleared(nodeId) }
+                self.persist(phase: "map")
+            }
+            showStore(fresh: false, nodeId: nodeId)
+            return
+        }
+        defer { resumeUnresolvedMystery() }
         // Pinky home with nowhere further to go → the victory screen IS this state.
         if let cur = campaign.currentNode(), cur.type == "home",
            campaign.legalNextNodes().isEmpty {
@@ -406,6 +643,23 @@ public final class GameFlowController: UIViewController {
     }
 
     func showStore(fresh: Bool, nodeId: Int? = nil) {
+        // A shop someone has TAMPERED WITH announces its tamperer first: the
+        // character who twisted the prices restates the twist at the door,
+        // then the shelf opens. Fresh visits only — a re-entry skips it.
+        if fresh, let (presenter, outcome) = storeTwistAnnouncement() {
+            presentOverlay(PhaseOverlayView.mystery(outcome: outcome,
+                                                    presenter: presenter,
+                                                    deckId: campaign.deckId) { [weak self] in
+                self?.dismissOverlay()
+                self?.reallyShowStore(fresh: fresh, nodeId: nodeId)
+            })
+            Sound.shared.mysteryStore()
+            return
+        }
+        reallyShowStore(fresh: fresh, nodeId: nodeId)
+    }
+
+    private func reallyShowStore(fresh: Bool, nodeId: Int?) {
         currentPhase = "store"
         if fresh { campaign.discardStoreOffer() }
         let sv = StoreViewController(campaign: campaign)
@@ -415,10 +669,48 @@ public final class GameFlowController: UIViewController {
         persist(phase: "store")
     }
 
+    /// The doorway announcement for a twisted shop, if one is owed. Keys
+    /// reuse the mystery family so the rim tint follows good/bad for free.
+    private func storeTwistAnnouncement() -> (MysteryCast.Presenter, MysteryOutcome)? {
+        if campaign.freeShopPending {
+            return (MysteryCast.Presenter(name: OldJokerCopy.name,
+                                          art: ItemArt.oldJoker(scale: 4),
+                                          line: "Told you. Tonight the shelf forgets how to charge."),
+                    MysteryOutcome(key: "store", title: "On the House",
+                                   desc: "Everything here costs nothing"))
+        }
+        switch campaign.storePriceModPending {
+        case "double":
+            return (MysteryCast.Presenter(name: "Just a Two",
+                                          art: ItemArt.justATwo(scale: 4),
+                                          line: "Remember me? I had a word with the shop. Enjoy the prices."),
+                    MysteryOutcome(key: "priceDouble", title: "Markup",
+                                   desc: "Every item here costs DOUBLE"))
+        case "one":
+            return (MysteryCast.Presenter(name: "The Beheaded Queen",
+                                          art: ItemArt.beheadedQueen(scale: 4),
+                                          line: "I told the shopkeep you'd come. Everything is a coin."),
+                    MysteryOutcome(key: "priceOne", title: "Fire Sale",
+                                   desc: "Every item here costs 1 coin"))
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Deals
 
-    func startDeal(resumeSeed: UInt32? = nil, resumeSubsetIds: [Int]? = nil, resumePiles: Int? = nil) {
-        if resumeSeed == nil { reshuffleIndex = 0; redealCost = DealPlanner.redealBaseCost }
+    func startDeal(resumeSeed: UInt32? = nil, resumeSubsetIds: [Int]? = nil, resumePiles: Int? = nil,
+                   midDeal: [String: JSONValue]? = nil) {
+        if resumeSeed == nil {
+            // A FRESH deal invalidates any older mid-deal snapshot — a killed
+            // deal must resume, never be re-entered as new with a stale blob
+            // waiting to bite the node after it.
+            clearMidDeal()
+            reshuffleIndex = 0
+            // The Queen's Mulligan: the deal that claims it opens with a free
+            // first RESHUFFLE (the ladder resumes at base once it's spent).
+            redealCost = campaign.consumeFreeRedeal() ? 0 : DealPlanner.redealBaseCost
+        }
         let plan = DealPlanner.plan(campaign: campaign, runMap: runMap,
                                     reshuffleIndex: reshuffleIndex, redealCost: redealCost,
                                     ambush: currentAmbush,
@@ -426,6 +718,8 @@ public final class GameFlowController: UIViewController {
                                     resumePiles: resumePiles)
         currentPhase = "run"
         let vc = DealViewController(mode: .campaign(plan), campaign: campaign, runMap: runMap)
+        vc.resumeMidDeal = midDeal
+        vc.onMidDealSnapshot = { [weak self] blob in self?.saveMidDeal(blob) }
         vc.onOutcome = { [weak self] outcome in self?.onRunEnd(outcome) }
         vc.onMenu = { [weak self] in self?.showPauseMenu() }
         setScreen(vc)
@@ -433,7 +727,26 @@ public final class GameFlowController: UIViewController {
     }
 
     /// The web's onRunEnd — every fold, ported.
+    /// Fold this climb's score into the lifetime bests — the global one and the
+    /// per-character/tier one behind the deck-select carousel's BEST line.
+    /// Called on BOTH endings: a score you reached counts whether or not you
+    /// went on to beat the ♠ boss. Callers gate on `!isExhibition()`.
+    ///
+    /// Records are DECK+TIER scoped (router batch 2): a Straight climb must
+    /// never show a Jokers best. The global fields stay updated for the
+    /// unlock gates; every display reads the per-combo entries.
+    private func foldBestScore(into s: inout StatsRecord) {
+        // ONE SCORE (v6.47): the run's continuous total — endless keeps
+        // accruing into the same number, so there is exactly one best.
+        let score = campaign.getRunScore()
+        s.bestCampaignScore = max(s.bestCampaignScore, score)
+        let dtKey = "\(campaign.deckId).\(campaign.difficultyTier)"
+        s.deckTierBest[dtKey] = max(s.deckTierBest[dtKey] ?? 0, score)
+    }
+
     private func onRunEnd(_ o: DealOutcome) {
+        // The deal is OVER — its mid-deal snapshot must never resume it again.
+        clearMidDeal()
         let wasAmbush = currentAmbush != nil
         let ambushBounty = currentAmbush?.bounty ?? 0
         let ambushNodeId = currentAmbush?.nodeId
@@ -446,6 +759,24 @@ public final class GameFlowController: UIViewController {
             s.lifetimeCardsDrawn += o.cardsDrawn
             s.lifetimeCorrectGuesses += o.correctGuesses
             s.lifetimeGuesses += o.totalGuesses
+            // UNLOCK2 — the suits actually LANDED this deal, so suit-gated
+            // items follow how the player really plays.
+            s.heartsPlayed += o.suitsLanded["♥"] ?? 0
+            s.diamondsPlayed += o.suitsLanded["♦"] ?? 0
+            s.clubsPlayed += o.suitsLanded["♣"] ?? 0
+            s.spadesPlayed += o.suitsLanded["♠"] ?? 0
+            // A cleared deal with no wrong guess at all. Ambushes count —
+            // they are the hardest place to manage it.
+            if o.won, o.totalGuesses > 0, o.correctGuesses == o.totalGuesses {
+                s.perfectDeals += 1
+            }
+            // …and which difficulty it was cleared on.
+            if o.won {
+                switch campaign.difficultyTier {
+                case "legendary": s.dealsWonLegendary += 1
+                default:          s.dealsWonRegular += 1
+                }
+            }
             campaign.stats.put(s)
         }
 
@@ -457,14 +788,27 @@ public final class GameFlowController: UIViewController {
                 s.lifetimeDopamine += max(0, Int(o.bonusCoins))
                 if campaign.runWonBanked {
                     s.lifetimeCardsFlipped += campaign.unbankedCardsFlipped()
-                    s.bestEndlessScore = max(s.bestEndlessScore, campaign.getEndlessScore())
                     s.bestEndless = max(s.bestEndless, campaign.endlessStagesReached())
                 } else {
                     s.lifetimeCardsFlipped += campaign.totalCardsFlipped
                     s.furthestStage = max(s.furthestStage, campaign.phaseIndex + 1)
+                    // Still on stage 1 when the climb died: the stage-1 boss
+                    // was never beaten (beating it advances the phase).
+                    if campaign.phaseIndex == 0 { s.earlyLosses += 1 }
                 }
+                // A climb you DIED on still set a score — bank the best of it
+                // (v5.82). Previously only a full ♠-boss win folded these, so a
+                // deep-but-fatal Pinky climb recorded nothing. Post-boss the
+                // campaign half is already banked, so this is a no-op max.
+                foldBestScore(into: &s)
                 campaign.stats.put(s)
             }
+            // Leaderboards: a death ends the run — submit the final
+            // continuous total. A banked run already sent its running total
+            // at the boss; this send can only raise it (GC keeps the best).
+            leaderboards.reportRunEnd(deck: campaign.deckId, tier: campaign.difficultyTier,
+                                      exhibition: exhibition,
+                                      score: campaign.getRunScore())
             clearSave()   // a loss wipes the campaign — no resume of a dead run
             let failed = FailedInfo(correct: o.correctGuesses,
                                     wrong: o.totalGuesses - o.correctGuesses,
@@ -515,11 +859,15 @@ public final class GameFlowController: UIViewController {
         if !exhibition {
             var st = campaign.stats.get()
             st.runsCleared += 1
+            if wasAmbush { st.ambushesWon += 1 }
             st.lifetimeDopamine += Int(payout.total)
+            // The best single CLIMB's earnings — a high-water mark like the
+            // score bests, so spending it doesn't undo the record.
+            st.bestCoinsInClimb = max(st.bestCoinsInClimb, campaign.coinsEarnedThisClimb())
             st.bestRunDopamine = max(st.bestRunDopamine, Int(payout.total))
-            if campaign.runWonBanked {
-                st.bestEndlessScore = max(st.bestEndlessScore, campaign.getEndlessScore())
-            }
+            // Every cleared deal advances the run's one continuous score —
+            // fold it live so an endless run killed mid-map keeps its record.
+            foldBestScore(into: &st)
             campaign.stats.put(st)
         }
 
@@ -542,17 +890,18 @@ public final class GameFlowController: UIViewController {
         }
 
         if runWon, !exhibition {
+            // Submit the RUNNING total at the bank: if endless never
+            // concludes, this send protects the record; the death send can
+            // only raise it (Game Center keeps the best).
+            leaderboards.reportRunEnd(deck: campaign.deckId, tier: campaign.difficultyTier,
+                                      exhibition: exhibition,
+                                      score: campaign.getRunScore())
             campaign.markRunWon()
             var st = campaign.stats.get()
             st.campaignsWon += 1
             st.lifetimeCardsFlipped += campaign.totalCardsFlipped
             st.bestCampaignDopamine = max(st.bestCampaignDopamine, campaign.totalCoinsEarned)
-            st.bestCampaignScore = max(st.bestCampaignScore, campaign.getCampaignScore())
-            // Per-character/tier best (native-only deck-select carousel line).
-            // Tier chips don't distinguish endless, so only the campaign score
-            // folds — endless bests are NOT tracked per deck/tier.
-            let dtKey = "\(campaign.deckId).\(campaign.difficultyTier)"
-            st.deckTierBest[dtKey] = max(st.deckTierBest[dtKey] ?? 0, campaign.getCampaignScore())
+            foldBestScore(into: &st)
             st.furthestStage = max(st.furthestStage, campaign.phasesTotal())
             st.deckTierWins["\(campaign.deckId).\(campaign.difficultyTier)"] = true
             campaign.stats.put(st)
@@ -563,7 +912,8 @@ public final class GameFlowController: UIViewController {
                     pendingUnlockCelebration = Self.decks[idx + 1]
                 }
             }
-            if wonTier == "legendary" { _ = campaign.deckUnlocks.recordWin(deckId: campaign.deckId, tier: "master") }
+            // (The retired Master rung is no longer granted — the chain is
+            // Normal → Legendary.)
             if wonTier != "regular",
                campaign.deckUnlocks.recordWin(deckId: campaign.deckId, tier: "regular"),
                pendingUnlockCelebration == nil,
@@ -575,7 +925,7 @@ public final class GameFlowController: UIViewController {
 
         // STATIC volatility: every self-destruct Pillar rolls at deal end —
         // the roll rides the ACTION stream so a refresh replays the outcome.
-        var staticLines: [(String, Int)] = []
+        var staticLines: [RewardLine] = []
         for c in 0..<campaign.columnPillars.count {
             guard let id = campaign.columnPillars[c],
                   let t = GameData.shared.pillarTypes.get(id) else { continue }
@@ -585,9 +935,9 @@ public final class GameFlowController: UIViewController {
             if destroyed {
                 campaign.setColumnPillar(col: c, typeId: nil)
                 _ = campaign.discardPillarFromInventory(id)
-                staticLines.append(("⚡ \(t.label) blew up", 0))
+                staticLines.append(RewardLine(label: "⚡ \(t.label) blew up", amount: 0, source: .pillar))
             } else {
-                staticLines.append(("⚡ \(t.label) held", 0))
+                staticLines.append(RewardLine(label: "⚡ \(t.label) held", amount: 0, source: .pillar))
             }
         }
 
@@ -598,7 +948,8 @@ public final class GameFlowController: UIViewController {
                                   product: Int(payout.product),
                                   aliveCount: o.aliveCount,
                                   minAlive: o.minAliveCards,
-                                  progress: stageRunShort())
+                                  progress: stageRunShort(),
+                                  totalScore: campaign.getRunScore())
         // POST-DEAL SPOILS (web showPostDealPlacement, index.html:30574-30599,
         // invoked after every won deal): anything GAINED mid-deal — a
         // Duplicated card waiting in the pack tray, a copied sticker in the
@@ -624,7 +975,11 @@ public final class GameFlowController: UIViewController {
             present(picker, animated: false)
             return
         }
-        if let typeId = campaign.stickerInventory.first(where: { $0.value > 0 })?.key {
+        // Only walk stickers that can actually be placed — an unplaceable one
+        // would open a fully greyed grid (the store gate has always filtered
+        // this; the post-deal walk never did).
+        if let typeId = campaign.stickerInventory
+            .first(where: { $0.value > 0 && campaign.stickerHasTarget($0.key) })?.key {
             let picker = CardPickerViewController(campaign: campaign,
                                                   mode: .applySticker(typeId: typeId)) { [weak self] picked in
                 guard let self else { return }
@@ -637,15 +992,32 @@ public final class GameFlowController: UIViewController {
         done()
     }
 
-    private func summaryLines(_ p: PayoutBreakdown, flat: Double) -> [(String, Int)] {
-        var lines: [(String, Int)] = []
-        if flat > 0 { lines.append(("Deal reward", Int(flat))) }
-        for l in p.eventLines where l.amount != 0 { lines.append((l.label, Int(l.amount))) }
-        // Pillar bullets name their column (web index.html:24245-24246).
-        for l in p.pillarLines where l.amount != 0 {
-            lines.append((l.col.map { "\(l.label) (col \($0 + 1))" } ?? l.label, Int(l.amount)))
+    private func summaryLines(_ p: PayoutBreakdown, flat: Double) -> [RewardLine] {
+        var lines: [RewardLine] = []
+        if flat > 0 { lines.append(RewardLine(label: "Deal reward", amount: Int(flat), source: .flat)) }
+        // Bonus EVENTS carry a bare item label, so the registry the label came
+        // from is what identifies them. ("⚡ …" is a self-destruct static — a
+        // Pillar effect.)
+        let baseLabels = Set(GameData.shared.baseTypes.all().map(\.label))
+        let sameLabels = Set(GameData.shared.samePowerTypes.all().map(\.label))
+        let pillarLabels = Set(GameData.shared.pillarTypes.all().map(\.label))
+        for l in p.eventLines where l.amount != 0 {
+            let src: RewardSource
+            if l.label.hasPrefix("⚡") || pillarLabels.contains(l.label) { src = .pillar }
+            else if baseLabels.contains(l.label) { src = .base }
+            else if sameLabels.contains(l.label) { src = .same }
+            else { src = .sticker }
+            lines.append(RewardLine(label: l.label, amount: Int(l.amount), source: src))
         }
-        if p.extraCoinBonus > 0 { lines.append(("Extra Coin", Int(p.extraCoinBonus))) }
+        // Pillar payouts are Pillars BY CONSTRUCTION — never re-derived from the
+        // printed label, which carries a column suffix.
+        for l in p.pillarLines where l.amount != 0 {
+            lines.append(RewardLine(label: l.col.map { "\(l.label) (col \($0 + 1))" } ?? l.label,
+                                    amount: Int(l.amount), source: .pillar))
+        }
+        if p.extraCoinBonus > 0 {
+            lines.append(RewardLine(label: "Extra Coin", amount: Int(p.extraCoinBonus), source: .sticker))
+        }
         return lines
     }
 
@@ -658,14 +1030,29 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Summary + end screens
 
+    /// Where a reward line came from. Tagged at the point the line is BUILT —
+    /// the summary used to re-derive this by matching the printed label against
+    /// the registries, which quietly misfiled every Pillar the moment its label
+    /// gained a " (col N)" suffix (Envy showed up under Sticker rewards).
+    enum RewardSource { case flat, sticker, pillar, base, same }
+
+    struct RewardLine {
+        var label: String
+        var amount: Int
+        var source: RewardSource
+    }
+
     struct SummaryInfo {
         var earned: Int
         var balance: Int
-        var lines: [(String, Int)]
+        var lines: [RewardLine]
         var product: Int
         var aliveCount: Int
         var minAlive: Int
         var progress: String
+        /// The climb's RUNNING score after this deal — printed under the
+        /// deal's own score, the way the purse sits under the coin total.
+        var totalScore: Int = 0
     }
 
     struct FailedInfo {
@@ -704,10 +1091,10 @@ public final class GameFlowController: UIViewController {
         let s = campaign.stats.get()
         let overlay = PhaseOverlayView.pinkyHome(
             deckName: Self.decks.first { $0.id == campaign.deckId }?.name ?? "Pinky",
-            score: campaign.getCampaignScore(),
+            score: campaign.getRunScore(),
             coins: campaign.totalCoinsEarned,
             cards: campaign.totalCardsFlipped,
-            bestScore: s.bestCampaignScore,
+            bestScore: s.deckTierBest["\(campaign.deckId).\(campaign.difficultyTier)"] ?? 0,
             onEndless: { [weak self] in self?.enterEndless() },
             onMenu: { [weak self] in
                 guard let self else { return }
@@ -768,23 +1155,21 @@ public final class GameFlowController: UIViewController {
         var queue = items
         func next() {
             guard !queue.isEmpty else { done(); return }
-            // 4+ unlocks collapse into one summary pop (the web's MAX_SOLO_POPS).
-            if queue.count > 3 {
-                let names = queue.map { PhaseOverlayView.itemLabel($0.id) }.joined(separator: ", ")
-                queue.removeAll()
-                let overlay = PhaseOverlayView.itemUnlock(title: "NEW ITEMS UNLOCKED",
-                                                          body: names) { [weak self] in
-                    self?.dismissOverlay()
-                    next()
-                }
-                presentOverlay(overlay)
-                return
-            }
+            // Every unlock gets its OWN celebration screen, chained one by
+            // one (v5.82 — the 4+ summary collapse is gone).
             let u = queue.removeFirst()
+            // SKIP ALL only appears while there is actually a queue behind
+            // this one — on the last pop it would just be a second CONTINUE.
+            let skipAll: (() -> Void)? = queue.isEmpty ? nil : { [weak self] in
+                queue.removeAll()
+                self?.dismissOverlay()
+                done()
+            }
             let overlay = PhaseOverlayView.itemUnlock(
                 title: "\(PhaseOverlayView.itemLabel(u.id)) UNLOCKED",
                 body: PhaseOverlayView.itemDef(u.id)?.description ?? u.hint,
-                itemId: u.id, hint: u.hint) { [weak self] in
+                itemId: u.id, hint: u.hint,
+                onSkipAll: skipAll) { [weak self] in
                 self?.dismissOverlay()
                 next()
             }
@@ -873,6 +1258,20 @@ public final class GameFlowController: UIViewController {
         if campaign.runMap != nil { persist(phase: currentPhase) }
     }
 
+    /// DEBUG: turn a REACHABLE node into a mystery, so an armed Old Joker
+    /// offer has somewhere to fire without walking the map hunting for a "?".
+    /// Returns false when there is nothing legal to convert (at the boss, or
+    /// no map yet).
+    @discardableResult
+    func debugMakeNextNodeMystery() -> Bool {
+        guard let target = campaign.legalNextNodes().first(where: { $0.type != "boss" })
+        else { return false }
+        guard campaign.debugSetNodeMystery(target.id) else { return false }
+        debugPersist()
+        if let map = current as? MapViewController { map.render() }
+        return true
+    }
+
     /// MAP JUMP: teleport via CampaignState.debugJumpToNode, then re-show the
     /// map at the jumped position. Refused mid-deal (an orphaned deal would
     /// leave a dead "run" checkpoint).
@@ -890,7 +1289,7 @@ public final class GameFlowController: UIViewController {
     func debugConfirmResetAll() {
         view.insertSubview(prompt, belowSubview: crt)   // the bar must clear the panel
         prompt.show("Reset ALL progress?",
-                    help: "Campaign, decks, unlocks, stats and the tutorial are wiped — this can't be undone.",
+                    help: "Campaign, decks, unlocks, stats and the tutorial are wiped. This can't be undone.",
                     actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
             .init("Erase everything", role: .danger) { [weak self] in
@@ -943,35 +1342,19 @@ public final class GameFlowController: UIViewController {
         pilotSpeedButton.setTitle("\(debugPilotSpeed)×")
         armDebugPilotTimer()
     }
-    /// One move per tick, the same card-counted best-move strategy as
-    /// DealViewController.startOddsPlayer: for every alive pile compute
-    /// P(higher/lower/same) from the remaining rank counts; play the global max.
+    /// One move per tick, decided by AutoPilotBrain: survival first, then
+    /// banking a Same shield, then coins, then score.
     private func debugPilotTick() {
         guard !debugPilotPaused else { return }
         guard let dealVC = current as? DealViewController, let c = dealVC.controller,
-              !c.isOver, !c.promptIsUp, !c.deckIsEmpty else { return }
-        let counts = c.deckCounts()
-        let total = max(1, counts.values.reduce(0, +))
-        var best: (pile: Int, call: Guess, p: Double)?
-        for pile in c.alivePiles() {
-            guard let v = c.topValue(pile) else { continue }
-            var higher = 0, lower = 0, same = 0
-            for (rank, n) in counts {
-                if rank > v { higher += n }
-                else if rank < v { lower += n }
-                else { same += n }
-            }
-            let options: [(Guess, Double)] = [
-                (.higher, Double(higher) / Double(total)),
-                (.lower, Double(lower) / Double(total)),
-                (.same, Double(same) / Double(total)),
-            ]
-            for (g, p) in options where best == nil || p > best!.p {
-                best = (pile, g, p)
-            }
+              c.canAcceptGuess else { return }
+        guard let pick = AutoPilotBrain.choose(c) else { return }
+        // A bad deal-out is worth re-rolling before the first card is played.
+        if AutoPilotBrain.shouldReshuffle(c, bestRaw: pick.bestRaw, coins: campaign.getCoins()) {
+            c.reshuffle()
+            return
         }
-        guard let move = best else { return }
-        c.guess(move.call, pile: move.pile)
+        c.guess(pick.move.call, pile: pick.move.pile)
     }
 
     func debugFPSOn() -> Bool { UserDefaults.standard.bool(forKey: "fps") }
@@ -1001,30 +1384,30 @@ public final class GameFlowController: UIViewController {
                                    items: [])
         func makeItems() -> [PauseSheetView.Item] {
             var items: [PauseSheetView.Item] = [
-                .init("RESUME", icon: MapArt.menuIcon("sun"), role: .cta) {},
+                .init("RESUME", role: .cta) {},
             ]
             if isZenGame {
-                items.append(.init("RESTART", icon: MapArt.menuIcon("zen")) { [weak self] in
+                items.append(.init("RESTART") { [weak self] in
                     guard let self, let d = self.zenDiff else { return }
                     self.startZen(diff: d)
                 })
             } else {
-                items.append(.init("HOW TO PLAY", icon: MapArt.menuIcon("search"), keepOpen: true) { [weak self, weak sheet] in
+                items.append(.init("HOW TO PLAY", keepOpen: true) { [weak self, weak sheet] in
                     sheet?.removeFromSuperview()
                     self?.showManualSheet()
                 })
             }
             items.append(.init("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")",
-                               icon: MapArt.menuIcon("spark"), keepOpen: true) { [weak sheet] in
+                               keepOpen: true) { [weak sheet] in
                 Sound.shared.enabled.toggle()
                 sheet?.setItems(makeItems())
             })
             if !isZenGame {
-                items.append(.init("NEW CLIMB", icon: MapArt.menuIcon("spark")) { [weak self] in
+                items.append(.init("NEW CLIMB") { [weak self] in
                     self?.confirmNewClimb()
                 })
             }
-            items.append(.init("QUIT TO MENU", icon: MapArt.menuIcon("quit"), role: .danger) { [weak self] in
+            items.append(.init("QUIT TO MENU", role: .danger) { [weak self] in
                 guard let self else { return }
                 if isZenGame {
                     self.zenTeardown()
@@ -1055,7 +1438,7 @@ public final class GameFlowController: UIViewController {
 
     private func confirmNewClimb() {
         prompt.show("Abandon this campaign and start a fresh one?",
-                    help: "The current climb, coins and items are wiped — this can't be undone.", actions: [
+                    help: "The current climb, coins and items are wiped. This can't be undone.", actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
             .init("New Climb", role: .danger) { [weak self] in
                 guard let self else { return }
@@ -1081,8 +1464,11 @@ public final class GameFlowController: UIViewController {
         let plan = DealPlanner.zenPlan(diff: GameData.shared.difficulty.zen(diff))
         zenDeckPlayable = plan.fullDeckCount - plan.piles
         let vc = DealViewController(mode: .zen(plan, diff: diff), campaign: campaign, runMap: runMap)
-        // FIRST-RUN TOUR: the guided first Zen deal teaches the core mechanics.
-        // Completing OR skipping stamps the pref; a replay re-arms one-shot.
+        // FIRST-RUN TOUR: the guided first Zen deal teaches the core
+        // mechanics INTERACTIVELY — a scripted opening (a 3 on pile 1, an
+        // Ace on the deck), event-gated steps, milestone tips between free
+        // play. Completing OR skipping stamps the pref; a replay re-arms
+        // one-shot; quitting mid-tour leaves it unstamped to re-offer.
         var tourRef: TutorialView? = nil
         if campaign.saveStore.pref("tutorial2") != "1" || tutorialReplayArmed {
             tutorialReplayArmed = false
@@ -1090,18 +1476,25 @@ public final class GameFlowController: UIViewController {
             let tour = TutorialView(steps: GameData.shared.tutorial.steps("deal")) { [weak self] _ in
                 self?.campaign.saveStore.setPref("tutorial2", "1")
             }
+            vc.tutorialGuided = true
+            tour.anchorProvider = { [weak vc] key in vc?.tutorialAnchorRect(key) }
+            vc.onTutorialEvent = { [weak tour] e in tour?.handle(e) }
             vc.view.addSubview(tour)
             tour.frame = vc.view.bounds
             tour.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             tourRef = tour
         }
-        vc.onOutcome = { [weak self] o in self?.onZenEnd(o) }
+        vc.onOutcome = { [weak self] o in
+            // A deal that ends mid-tour takes the tour with it (unstamped).
+            tourRef?.abort()
+            tourRef = nil
+            self?.onZenEnd(o)
+        }
         vc.onZenGuess = { [weak self] correct in
             guard let self, let d = self.zenDiff else { return }
-            // First resolved guess steps the tour aside UNSTAMPED — it
-            // re-offers next deal (web Tutorial.onGuessResolved).
-            tourRef?.stepAside()
-            tourRef = nil
+            // The tour counts every resolved guess (milestone waits, the
+            // wrong-guess lesson, the "pick another pile" gate).
+            tourRef?.handle(.guessResolved(correct: correct))
             if !self.zenCounted {
                 self.zenCounted = true
                 var e = self.campaign.zenStats.get(d)
@@ -1182,6 +1575,20 @@ public final class GameFlowController: UIViewController {
 // MARK: - Map delegate
 
 extension GameFlowController: MapScreenDelegate {
+    /// RECOVERY: standing ON an unresolved mystery with no flow in progress
+    /// means its offer was lost — the modal was dismissed, or a screen swap
+    /// took it away — and the node can never be re-entered, so the run was
+    /// stuck. Re-running the node's event is safe: every mystery, THE OLD
+    /// JOKER included, is seeded from (runSeed, nodeId), so it replays the
+    /// identical offer rather than re-rolling a new one.
+    private func resumeUnresolvedMystery() {
+        guard oldJokerView == nil, overlay == nil, presentedViewController == nil,
+              let node = campaign.currentNode(), node.type == "mystery",
+              !campaign.isNodeCleared(node.id),
+              let map = current as? MapViewController else { return }
+        runMysteryEvent(node: node, on: map)
+    }
+
     public func mapArrived(at node: MapNode, on map: MapViewController) {
         let hidden = campaign.nodeHidden(node.id)   // already revealed by travel; type check instead
         _ = hidden
@@ -1240,6 +1647,10 @@ extension GameFlowController: MapScreenDelegate {
         showPauseMenu()
     }
 
+    public func storeWantsMenu(_ store: StoreViewController) {
+        showPauseMenu()
+    }
+
     /// Standing on a store node: the bottom-left STORE button re-opens the
     /// SAME visit (fresh=false — a re-entry can never hand out a free reroll).
     public func mapWantsStoreReturn(_ map: MapViewController) {
@@ -1254,7 +1665,61 @@ extension GameFlowController: MapScreenDelegate {
     // MARK: Mystery events (rolled + applied here; Chunk E adds the full modal)
 
     private func runMysteryEvent(node: MapNode, on map: MapViewController) {
-        let key = campaign.rollMysteryEvent(node.id)
+        // THE OLD JOKER gets first refusal on a mystery node. His roll runs on
+        // its own seeded substream, so this never shifts the ordinary outcome.
+        // (An armed debug mystery key skips him — the point of arming one is
+        // reaching a specific Queen/Two outcome, not losing it to his roll.)
+        if campaign.debugForcedMysteryKey == nil,
+           let offer = campaign.rollOldJoker(node.id) {
+            presentOldJoker(offer, nodeId: node.id, map: map)
+            return
+        }
+        // DEBUG: an armed offer that could NOT be built here. Say so — this
+        // used to look identical to the arming being ignored, because the node
+        // just ran an ordinary mystery instead. The key stays armed, so fixing
+        // the state and walking onto the next ? works.
+        if campaign.debugForcedJokerBlocked, let key = campaign.debugForcedJokerKey {
+            campaign.debugForcedJokerBlocked = false
+            presentOverlay(PhaseOverlayView.itemUnlock(
+                title: "\(key.uppercased()) CAN'T BUILD HERE",
+                body: "That offer needs state this run doesn't have: a shop ahead for a ride, "
+                    + "an item to point at for a trade. It stays armed for the next ? node.") {
+                [weak self] in
+                self?.dismissOverlay()
+                self?.completeMystery(node.id)
+            })
+            return
+        }
+        let key: String
+        let wasForced = campaign.debugForcedMysteryKey != nil
+        if let forced = campaign.debugForcedMysteryKey {
+            campaign.debugForceMystery(nil)          // one-shot, like the joker's
+            key = forced
+        } else {
+            key = campaign.rollMysteryEvent(node.id)
+        }
+        // BOUNCER (router batch 2): an equipped ward can turn the Two away —
+        // he shows up, takes nothing, leaves. Debug-forced keys bypass it so
+        // the picker still reaches every outcome.
+        if MysteryConfig.twoKeys.contains(key), !wasForced,
+           campaign.twoWardNegates(node.id) {
+            let out = MysteryOutcome(key: "twoWarded", title: "Turned Away",
+                                     desc: "Your pillar saved you.")
+            presentOverlay(PhaseOverlayView.mystery(
+                outcome: out,
+                presenter: MysteryCast.Presenter(name: "Just a Two",
+                                                 art: ItemArt.justATwo(scale: 4),
+                                                 line: "Ah, nothing for you today."),
+                deckId: campaign.deckId,
+                mapPeek: true,
+                onPeekChanged: { [weak map] p in map?.travelBlocked = p },
+                onDeck: { [weak self] in self?.presentDeckInspect() }) { [weak self] in
+                self?.dismissOverlay()
+                self?.completeMystery(node.id)
+            })
+            Sound.shared.mysteryStore()
+            return
+        }
         autopilot?.noteMystery(key)
         guard let outcome = campaign.applyMysteryEvent(key, nodeId: node.id) else {
             _ = campaign.markNodeCleared(node.id)
@@ -1263,12 +1728,429 @@ extension GameFlowController: MapScreenDelegate {
             return
         }
         persist(phase: "map")
-        let overlay = PhaseOverlayView.mystery(outcome: outcome) { [weak self, weak map] in
+        // THE CON is a conversation, not a reveal — the Two makes its one
+        // offer in person (and it is lying).
+        if outcome.key == "mammaLie" {
+            presentMammaCon(outcome, node: node, map: map)
+            return
+        }
+        // THE TWO'S GAME is also a conversation: it wants a call, not a reveal.
+        if outcome.key == "twoGame" {
+            presentTwoGame(outcome, node: node, map: map)
+            return
+        }
+        // The news arrives in person: the Beheaded Queen hands over anything
+        // good, Just a Two delivers anything bad. (The Old Joker's own
+        // chained reveals stay his — see runChainedMystery.)
+        let overlay = PhaseOverlayView.mystery(outcome: outcome,
+                                               presenter: MysteryCast.presenter(for: outcome),
+                                               deckId: campaign.deckId,
+                                               mapPeek: true,
+                                               onPeekChanged: { [weak map] p in map?.travelBlocked = p },
+                                               onDeck: { [weak self] in self?.presentDeckInspect() }) { [weak self, weak map] in
             guard let self else { return }
             self.dismissOverlay()
             self.continueMystery(outcome, node: node, map: map)
         }
         presentOverlay(overlay)
+    }
+
+    /// JUST A TWO'S CON — its first spoken offer, run through the Old
+    /// Joker's conversation modal with the Two's own card. It claims it can
+    /// take you to Mamma for every coin or a ★ Joker. It cannot. Whatever
+    /// you hand over is simply gone; walking away costs nothing, which is
+    /// the only honest number on the table.
+    private func presentMammaCon(_ o: MysteryOutcome, node: MapNode, map: MapViewController?) {
+        let purse = o.amount ?? 0
+        let options: [OldJokerView.Option] = [
+            .init(label: "GIVE ALL YOUR COINS", detail: "−\(purse) coins",
+                  role: .danger, choice: .pick(0), enabled: purse > 0),
+            .init(label: "GIVE A ★ JOKER", detail: "one leaves your deck",
+                  role: .danger, choice: .pick(1)),
+            .init(label: "WALK AWAY", detail: nil, role: .plain, choice: .decline),
+        ]
+        let view = OldJokerView(
+            title: "Just a Two",
+            line: "I know Mamma. Personally. I can take you to her. For every coin you've got, or one of them stars.",
+            offer: "Pay what it asks, and Just a Two says it will bring you to Mamma. It seems very sure of itself.",
+            options: options,
+            art: ItemArt.justATwo(scale: 5),
+            backLabel: "◀ BACK TO THE TWO") { [weak self, weak map] choice in
+            guard let self else { return }
+            self.oldJokerView?.dismiss { [weak self] in
+                guard let self else { return }
+                self.oldJokerView = nil
+                guard case .pick(let i) = choice else {
+                    self.completeMystery(node.id)
+                    return
+                }
+                let r = self.campaign.resolveMammaLie(givingCoins: i == 0)
+                self.persist(phase: "map")
+                map?.render()
+                Sound.shared.bad()
+                let paid = r.jokerTaken ? "Your ★ Joker"
+                    : "\(r.coinsTaken) coin\(r.coinsTaken == 1 ? "" : "s")"
+                let after = MysteryOutcome(
+                    key: "mammaLie", title: "The Long Walk",
+                    desc: "\(paid), gone. It walked you in one big circle and wandered off. Mamma never came.")
+                self.presentOverlay(PhaseOverlayView.mystery(
+                    outcome: after,
+                    presenter: MysteryCast.presenter(for: after),
+                    deckId: self.campaign.deckId,
+                    mapPeek: true,
+                    onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
+                    self?.dismissOverlay()
+                    self?.completeMystery(node.id)
+                })
+            }
+        }
+        view.onPeekChanged = { [weak map] peeking in map?.travelBlocked = peeking }
+        view.onDeck = { [weak self] in self?.presentDeckInspect() }
+        oldJokerView?.removeFromSuperview()
+        oldJokerView = view
+        view.present(in: view.superview ?? self.view)
+        Sound.shared.mysteryStore()
+    }
+
+    /// THE TWO'S GAME — one higher/lower/same call against its hidden card
+    /// and the pivot rank. It only turns up when the Same shield is charged,
+    /// because that is the stake: winning pays NOTHING, losing drains the
+    /// shield. There is no walking away from a two with a grudge.
+    private func presentTwoGame(_ o: MysteryOutcome, node: MapNode, map: MapViewController?) {
+        let pivot = Int(GameData.shared.items.mystery.raw["twoGame"]?.asObject?["pivot"]?.asNumber ?? 8)
+        let calls = ["higher", "lower", "same"]
+        let options: [OldJokerView.Option] = [
+            .init(label: "HIGHER", detail: nil, role: .plain, choice: .pick(0)),
+            .init(label: "LOWER", detail: nil, role: .plain, choice: .pick(1)),
+            .init(label: "SAME", detail: nil, role: .plain, choice: .pick(2)),
+        ]
+        let view = OldJokerView(
+            title: "Just a Two",
+            line: "I'm thinking of a card. Higher or lower than an \(pivot)? Twos always know. Let's see if you do.",
+            offer: "One call against its hidden card. Win and you get nothing. Lose and your Same shield is drained.",
+            options: options,
+            art: ItemArt.justATwo(scale: 5),
+            backLabel: "◀ BACK TO THE TWO") { [weak self, weak map] choice in
+            guard let self else { return }
+            self.oldJokerView?.dismiss { [weak self] in
+                guard let self else { return }
+                self.oldJokerView = nil
+                guard case .pick(let i) = choice else {
+                    self.completeMystery(node.id)
+                    return
+                }
+                let rank = o.amount ?? 0
+                let won = self.campaign.resolveTwoGame(rank: rank, guess: calls[i])
+                self.persist(phase: "map")
+                map?.render()
+                if won { Sound.shared.good() } else { Sound.shared.bad() }
+                let after = MysteryOutcome(
+                    key: "twoGame",
+                    title: won ? "Nothing" : "Punctured",
+                    desc: won ? "You called it. You win nothing. It seems pleased anyway."
+                              : "Wrong. Your Same shield is drained.",
+                    cards: o.cards)
+                self.presentOverlay(PhaseOverlayView.mystery(
+                    outcome: after,
+                    presenter: MysteryCast.presenter(for: after),
+                    deckId: self.campaign.deckId,
+                    mapPeek: true,
+                    onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
+                    self?.dismissOverlay()
+                    self?.completeMystery(node.id)
+                })
+            }
+        }
+        view.onPeekChanged = { [weak map] peeking in map?.travelBlocked = peeking }
+        view.onDeck = { [weak self] in self?.presentDeckInspect() }
+        oldJokerView?.removeFromSuperview()
+        oldJokerView = view
+        view.present(in: view.superview ?? self.view)
+        Sound.shared.mysteryStore()
+    }
+
+    // MARK: - The Old Joker
+
+    private func presentOldJoker(_ offer: OldJoker.Offer, nodeId: Int, map: MapViewController?) {
+        persist(phase: "map")
+        // Item decisions draw the trade (the store's EQUIPPED→NEW block);
+        // the itemKey text stands in only when there is nothing to draw.
+        let compares = OldJokerCopy.compareRows(for: offer, in: campaign)
+        let view = OldJokerView(title: OldJokerCopy.name,
+                                line: OldJokerCopy.line(for: offer),
+                                offer: OldJokerCopy.offerText(for: offer, in: campaign),
+                                items: compares.isEmpty
+                                    ? OldJokerCopy.itemKey(for: offer, in: campaign) : [],
+                                compares: compares,
+                                options: OldJokerCopy.options(for: offer, in: campaign),
+                                // The Ride spends stops the player hasn't seen —
+                                // they get to look at the map first.
+                                // SHOW MAP on EVERY offer now (it used to be
+                                // the Ride's alone) — the hold-peek is gone.
+                                // THIRSTY names its own amount on a stepper.
+                                givePurse: { if case .thirsty(let p) = offer { return p }; return nil }()
+                               ) { [weak self] choice in
+            self?.resolveOldJoker(offer, choice: choice, nodeId: nodeId, map: map)
+        }
+        // A peek looks at the map; it never moves you along it.
+        view.onPeekChanged = { [weak map] peeking in map?.travelBlocked = peeking }
+        view.onDeck = { [weak self] in self?.presentDeckInspect() }
+        oldJokerView?.removeFromSuperview()
+        oldJokerView = view
+        view.present(in: view.superview ?? self.view)
+        Sound.shared.mysteryStore()
+    }
+
+    private func resolveOldJoker(_ offer: OldJoker.Offer, choice: OldJoker.Choice,
+                                 nodeId: Int, map: MapViewController?) {
+        // `.accept` on a collection means "pay up" — the engine treats it the
+        // same as any other resolution, and never lets it go below zero.
+        let result = campaign.resolveOldJoker(offer, choice: choice, nodeId: nodeId)
+        persist(phase: "map")
+        // Repaint the shell NOW, while his modal is still dismissing: coins and
+        // the Same shield both move on his offers, and the bar behind him
+        // should already read true by the time it is uncovered.
+        map?.render()
+        oldJokerView?.dismiss { [weak self] in
+            guard let self, let result else { self?.completeMystery(nodeId); return }
+            self.oldJokerView = nil
+            self.afterOldJoker(result, nodeId: nodeId, map: map)
+        }
+    }
+
+    /// The follow-through: pickers, teleports and chained outcomes all happen
+    /// AFTER his modal is gone, so nothing is presented under a dismissal.
+    private func afterOldJoker(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
+        if r.coins != 0 { Sound.shared.coinBonus() }
+
+        // PURGE / paid CUT — the player now picks the cards that leave.
+        if r.removeCount > 0 {
+            var left = r.removeCount
+            var lastRemoved: String?
+            func pickNext() {
+                guard left > 0 else {
+                    // The paid Cut's closing modal NAMES the card that left —
+                    // "Choose the one that leaves." after the choice was made
+                    // read as a stale instruction.
+                    var done = r
+                    if r.key == "cut", let name = lastRemoved {
+                        done.detail = "\(name) purged."
+                    }
+                    finishJokerRemovals(done, nodeId: nodeId, map: map)
+                    return
+                }
+                left -= 1
+                let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] removedId in
+                    guard let self else { return }
+                    if let id = removedId, let c = self.campaign.findById(id) {
+                        let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label
+                            ?? "\(c.currentRank)"
+                        lastRemoved = c.joker ? "★ Joker" : "\(rank)\(c.suit)"
+                    }
+                    self.persist(phase: "map")
+                    pickNext()
+                }
+                picker.forced = true   // he does not take "never mind" here
+                present(picker, animated: false)
+            }
+            pickNext()
+            return
+        }
+        // THE DUPLICATE — two picks: the card he copies, then the card the
+        // copy replaces. Nothing is committed until both are made, so backing
+        // out of either leaves the deck exactly as it was.
+        if r.key == "duplicate", let sticker = r.leechSticker {
+            let copyPicker = CardPickerViewController(
+                campaign: campaign,
+                mode: .choose(title: "Copy a card", verb: "Copy",
+                              prompt: "Pick the card he copies, stickers and all.",
+                              allowJokers: false)) { [weak self] sourceId in
+                guard let self, let sourceId else { self?.showJokerResult(r, nodeId: nodeId, map: map); return }
+                // NAME THE COPY. The second pick decides what the duplicate
+                // replaces, and you can't weigh that against a card you can no
+                // longer see — the banner used to show only his own mark.
+                let copied = self.campaign.getRunDeck().first { $0.id == sourceId }
+                let mark = GameData.shared.items.oldJoker.string("duplicate", "sticker", "leech")
+                let markName = GameData.shared.stickerTypes.get(mark)?.label ?? mark
+                let copyName = copied.map { c -> String in
+                    let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label
+                        ?? "\(c.currentRank)"
+                    let extra = c.stickers.count > 1
+                        ? " + \(c.stickers.count - 1) sticker\(c.stickers.count == 2 ? "" : "s")" : ""
+                    return "\(rank)\(c.suit)\(extra)"
+                } ?? "the copy"
+                let replacePicker = CardPickerViewController(
+                    campaign: self.campaign,
+                    mode: .choose(title: "Replace with \(copyName)", verb: "Replace",
+                                  prompt: "The copy of \(copyName) carries a \(markName). Pick the card it takes the place of.",
+                                  allowJokers: true,
+                                  subjectCardId: sourceId,
+                                  subjectExtraSticker: sticker)) { [weak self] replaceId in
+                    guard let self else { return }
+                    if let replaceId, replaceId != sourceId {
+                        _ = self.campaign.applyJokerDuplicate(sourceId: sourceId,
+                                                              replaceId: replaceId,
+                                                              sticker: sticker)
+                        Sound.shared.swapCard()
+                        self.persist(phase: "map")
+                    }
+                    self.showJokerResult(r, nodeId: nodeId, map: map)
+                }
+                replacePicker.forced = true    // the copy has to go somewhere
+                self.present(replacePicker, animated: false)
+            }
+            present(copyPicker, animated: false)
+            return
+        }
+        // THE DRINK, RETURNED — he pays in things, or he collects in blood.
+        if r.key == "thirstReturn" {
+            deliverThirstReturn(r, nodeId: nodeId, map: map)
+            return
+        }
+        // TWO DOORS / anything that hands off to an ordinary mystery outcome.
+        if let chained = r.chainedMysteryKey {
+            runChainedMystery(chained, nodeId: nodeId, map: map)
+            return
+        }
+        // THE RIDE.
+        if let dest = r.travelTo, let map {
+            _ = campaign.markNodeCleared(nodeId)
+            persist(phase: "map")
+            map.render()
+            // He drives: the character is led up the map, he peels off, and the
+            // shop opens behind him.
+            map.travel(to: dest, escortedByOldJoker: true)
+            return
+        }
+        showJokerResult(r, nodeId: nodeId, map: map)
+    }
+
+    private func finishJokerRemovals(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
+        guard let curses = r.curseStickers, !curses.isEmpty else {
+            showJokerResult(r, nodeId: nodeId, map: map); return
+        }
+        let hit = campaign.applyJokerCurses(curses, nodeId: nodeId)
+        persist(phase: "map")
+        // The other half of the bargain has to be SEEN. The cards were being
+        // marked silently, so the deal read as "remove three, free" — the
+        // player only met the curses later, mid-deal, with no idea why.
+        guard !hit.isEmpty else { showJokerResult(r, nodeId: nodeId, map: map); return }
+        // The reveal names the curses that landed (they can differ per card
+        // now); the card strip shows each afflicted card with its new chip.
+        let labels = hit.map { GameData.shared.stickerTypes.get($0.curse)?.label ?? $0.curse }
+        let uniqueLabels = labels.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let hitIds = hit.map(\.cardId)
+        let marked = campaign.getRunDeck().filter { hitIds.contains($0.id) }
+        let outcome = MysteryOutcome(
+            key: "cursedSticker",
+            title: uniqueLabels.count == 1 ? (uniqueLabels[0]) : "His marks",
+            desc: uniqueLabels.count == 1
+                ? "\(hit.count) card\(hit.count == 1 ? "" : "s") took his mark."
+                : "His due: " + uniqueLabels.joined(separator: ", "),
+            stickerId: hit[0].curse, stickerLabel: uniqueLabels.joined(separator: ", "),
+            cards: marked)
+        presentOverlay(PhaseOverlayView.mystery(outcome: outcome, deckId: campaign.deckId,
+                                                mapPeek: true,
+                                                onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
+            self?.dismissOverlay()
+            self?.showJokerResult(r, nodeId: nodeId, map: map)
+        })
+        Sound.shared.sticker()
+    }
+
+    /// THE DRINK, RETURNED. Paid: he empties his coat one item at a time and
+    /// each must be PLACED or DISCARDED before the next appears — no silent
+    /// inventory dump. Stiffed: he sets about you instead.
+    private func deliverThirstReturn(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
+        guard r.good else {
+            // He wants it out of your hide: a short, ugly deal.
+            let cfg = GameData.shared.items.oldJoker
+            _ = campaign.markNodeCleared(nodeId)
+            persist(phase: "map")
+            currentAmbush = DealPlanner.AmbushSpec(cards: cfg.int("thirsty", "ambushCards", 18),
+                                                   piles: cfg.int("thirsty", "ambushPiles", 4),
+                                                   bounty: Double(cfg.int("thirsty", "ambushBounty", 1)),
+                                                   nodeId: nodeId)
+            startDeal()
+            return
+        }
+        // HIS COAT, LAID OUT. One modal per item made a six-item payout a
+        // six-tap walk with no way to compare them; the shop already knows how
+        // to show a shelf, price it, explain each tile on hold and place a
+        // Pillar or Base on a column — so the gifts go through that instead,
+        // at zero cost, and the player takes what they want.
+        let gifts = campaign.rollThirstGifts(budget: r.giftBudget, nodeId: nodeId)
+        guard !gifts.isEmpty else { showJokerResult(r, nodeId: nodeId, map: map); return }
+        campaign.openGiftShelf(gifts)
+        persist(phase: "map")
+        mysteryStoreContinue = { [weak self] in
+            guard let self else { return }
+            // The coat closes with the visit — a leftover free shelf must not
+            // follow the player into the next real shop.
+            self.campaign.discardStoreOffer()
+            self.campaign.endFreeShop()
+            self.showJokerResult(r, nodeId: nodeId, map: map)
+        }
+        showStore(fresh: false, nodeId: nodeId)
+    }
+
+    private func runChainedMystery(_ key: String, nodeId: Int, map: MapViewController?) {
+        // A chained outcome is THE OLD JOKER's doing (Two Doors' bad door) —
+        // its cursedSticker draws from the "doors" pool, not the mystery one.
+        guard let outcome = campaign.applyMysteryEvent(key, nodeId: nodeId, cursePath: "doors"),
+              let node = campaign.getNode(nodeId) else {
+            completeMystery(nodeId); return
+        }
+        persist(phase: "map")
+        presentOverlay(PhaseOverlayView.mystery(outcome: outcome, deckId: campaign.deckId,
+                                                mapPeek: true,
+                                                onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self, weak map] in
+            guard let self else { return }
+            self.dismissOverlay()
+            self.continueMystery(outcome, node: node, map: map)
+        })
+    }
+
+    private func showJokerResult(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
+        // His ONE closing statement, then the plain fact of what changed —
+        // never a second quip saying the same thing in different words.
+        // A settled BLIND SWAP finally shows its two faces: both items, drawn
+        // with a two-way arrow between them (router batch) — the reveal the
+        // whole offer was building to.
+        var compares: [OldJokerView.CompareRow] = []
+        if r.key == "blindSwap", let lost = r.lost, let gained = r.gained {
+            func side(_ kind: OldJoker.Holding.Kind, _ id: String, tag: String) -> OldJokerView.CompareSide {
+                let def = campaign.holdingDef(OldJoker.Holding(kind: kind, id: id))
+                return .init(tag: tag,
+                             art: ItemArt.forSlot(kind: kind.rawValue, id: id,
+                                                  card: nil, deckId: campaign.deckId),
+                             name: def?.label ?? id,
+                             desc: def?.description ?? "")
+            }
+            compares = [.init(old: side(lost.kind, lost.id, tag: "GAVE"),
+                              new: side(lost.kind, gained, tag: "GOT"),
+                              twoWay: true)]
+        }
+        let view = OldJokerView(title: OldJokerCopy.name,
+                                line: OldJokerCopy.closingLine(for: r),
+                                offer: r.detail,
+                                compares: compares,
+                                options: [.init(label: "GO ON", detail: nil, role: .cta, choice: .decline)]) { [weak self] _ in
+            self?.oldJokerView?.dismiss { [weak self] in
+                self?.oldJokerView = nil
+                self?.completeMystery(nodeId)
+            }
+        }
+        view.onPeekChanged = { [weak map] peeking in map?.travelBlocked = peeking }
+        view.onDeck = { [weak self] in self?.presentDeckInspect() }
+        oldJokerView = view
+        view.present(in: self.view)
+        map?.render()
+    }
+
+    /// The shop's deck inspector, opened from a mystery popup's DECK chip.
+    private func presentDeckInspect() {
+        present(DeckInspectViewController(campaign: campaign), animated: false)
     }
 
     private func completeMystery(_ nodeId: Int) {
@@ -1296,19 +2178,40 @@ extension GameFlowController: MapScreenDelegate {
         case "cards", "joker":
             if let map { map.collectCards(o.cards) { [weak self] in self?.completeMystery(node.id) } }
             else { completeMystery(node.id) }
+        case "giftCard":
+            // Her keepsake swaps in through the tray picker — SKIP is legal
+            // (the card waits in the tray for the next store gate).
+            if let cid = o.cardId,
+               let idx = campaign.getPackTray().firstIndex(where: { $0.id == cid }) {
+                let picker = CardPickerViewController(campaign: campaign,
+                                                      mode: .swap(trayIndex: idx, step: nil)) { [weak self] _ in
+                    self?.completeMystery(node.id)
+                }
+                picker.showsSkip = true
+                present(picker, animated: false)
+            } else { completeMystery(node.id) }
         case "stickerPack":
             if let sid = o.stickerId {
                 let picker = CardPickerViewController(campaign: campaign,
                                                       mode: .applySticker(typeId: sid)) { [weak self] _ in
                     self?.completeMystery(node.id)
                 }
+                // The gift may be DECLINED (router batch): Skip discards the
+                // sticker after the shared confirm. No forcing — a player who
+                // doesn't want the mark on any card shouldn't have to place it.
+                picker.showsSkip = true
                 present(picker, animated: false)
             } else { completeMystery(node.id) }
         case "freeRemoval":
             let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] _ in
                 self?.completeMystery(node.id)
             }
-            picker.forced = false
+            // A Purge must LAND. It used to be dismissable, so the outcome
+            // could be taken and then walked away from — the node was spent and
+            // the deck was untouched. Same rule the granted sticker follows.
+            // Guarded on there being more than one card: forcing a pick on a
+            // one-card deck would demand the player delete their whole deck.
+            picker.forced = campaign.deckSize() > 1
             present(picker, animated: false)
         case "stickerStrip":
             let hasStickered = campaign.getRunDeck().contains { !$0.stickers.isEmpty }
@@ -1341,6 +2244,9 @@ extension GameFlowController: MapScreenDelegate {
 
 extension GameFlowController: StoreScreenDelegate, CampaignCheckpointing {
     public func storeDone(_ storeVC: StoreViewController) {
+        // His comp was for THIS visit. Walking out ends it whether or not you
+        // spent it — otherwise a declined shop would bank a free one forever.
+        campaign.endFreeShop()
         // A map store node clears once visited; a mystery detour completes.
         if let cont = mysteryStoreContinue {
             mysteryStoreContinue = nil
@@ -1357,5 +2263,64 @@ extension GameFlowController: StoreScreenDelegate, CampaignCheckpointing {
 
     public func checkpoint(_ campaign: CampaignState) {
         persist(phase: currentPhase)
+    }
+
+    /// The curse specimen (debug, `-curseSheet 1`): every cursed sticker's
+    /// chip + label + description, two columns — the per-curse art and help
+    /// text on one evidence still.
+    private func showCurseSheet() {
+        let panel = UIScrollView()
+        panel.backgroundColor = CRT.feltDeep
+        panel.frame = view.bounds
+        panel.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let curses = GameData.shared.stickerTypes.all().filter(\.cursed)
+        let colW = view.bounds.width / 2
+        var y: CGFloat = 70
+        for (i, def) in curses.enumerated() {
+            let x = CGFloat(i % 2) * colW
+            let chip = UIImageView(image: ItemArt.sticker(def, size: 56))
+            chip.layer.magnificationFilter = .nearest
+            chip.contentMode = .scaleAspectFit
+            chip.frame = CGRect(x: x + 14, y: y, width: 56, height: 56)
+            panel.addSubview(chip)
+            let name = CRTKit.label(def.label, size: 16, color: CRT.gold)
+            name.frame = CGRect(x: x + 80, y: y, width: colW - 92, height: 20)
+            panel.addSubview(name)
+            let desc = CRTKit.label(def.description.replacingOccurrences(of: "Cursed. ", with: ""),
+                                    size: 14, color: CRT.muted)
+            desc.frame = CGRect(x: x + 80, y: y + 20, width: colW - 92, height: 96)
+            panel.addSubview(desc)
+            if i % 2 == 1 { y += 126 }
+        }
+        panel.contentSize = CGSize(width: view.bounds.width, height: y + 120)
+        view.insertSubview(panel, belowSubview: crt)
+    }
+
+    /// The type-scale specimen (debug, `-typeRamp 1`): every candidate size as
+    /// a real caption in the real fonts on the real felt, for the on-device
+    /// floor-picking test. Text renders through the SAME clamp the game uses,
+    /// so the raw UIFont path here is deliberate — the ramp must show sizes
+    /// BELOW the floor to prove where readability dies.
+    private func showTypeRamp() {
+        let panel = UIView()
+        panel.backgroundColor = CRT.feltDeep
+        panel.frame = view.bounds
+        panel.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        var y: CGFloat = 70
+        func row(_ size: CGFloat) {
+            let sample = "Costs ◉5. Decline and nothing happens. K♠ 10♦ +3"
+            for (dx, color) in [(12, CRT.cardFace), (12, CRT.muted)] as [(CGFloat, UIColor)] {
+                let l = UILabel()
+                l.attributedText = NSAttributedString(string: (color == CRT.muted ? "muted · " : "\(Int(size))pt · ") + sample,
+                                                      attributes: [.font: UIFont(name: CRT.Font.body, size: size)!,
+                                                                   .foregroundColor: color])
+                l.frame = CGRect(x: dx, y: y, width: 380, height: size + 8)
+                panel.addSubview(l)
+                y += size + 8
+            }
+            y += 10
+        }
+        for s in [11, 12, 13, 14, 15, 16, 17, 18] as [CGFloat] { row(s) }
+        view.insertSubview(panel, belowSubview: crt)
     }
 }

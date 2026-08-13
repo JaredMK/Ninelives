@@ -132,6 +132,14 @@ public final class Deck {
     public func drawn() -> Int { drawnCount }
     public var isEmpty: Bool { cards.isEmpty }
 
+    /// Mid-deal snapshot support: the remaining cards, top first.
+    func snapshotCards() -> [LiveCard] { cards }
+    /// …and the exact-resume restore of both the order and the counter.
+    func restoreSnapshot(cards: [LiveCard], drawn: Int) {
+        self.cards = cards
+        self.drawnCount = drawn
+    }
+
     /// Count of remaining cards per rank value (order-free, no leak).
     public func remainingCounts() -> [Int: Int] {
         var counts: [Int: Int] = [:]
@@ -157,6 +165,16 @@ public final class Deck {
         let i = rng.index(cards.count + 1)
         cards.insert(card, at: i)
     }
+
+    /// TUTORIAL arrangement: pull the first card matching `match` out of the
+    /// deck (nil if none). Order is otherwise untouched.
+    public func takeFirst(where match: (LiveCard) -> Bool) -> LiveCard? {
+        guard let i = cards.firstIndex(where: match) else { return nil }
+        return cards.remove(at: i)
+    }
+
+    /// TUTORIAL arrangement: make `card` the NEXT draw.
+    public func putNext(_ card: LiveCard) { cards.insert(card, at: 0) }
 
     // MARK: Deck-modification hooks
 
@@ -194,6 +212,15 @@ public final class Deck {
     public func trim(to n: Int) -> Int {
         if cards.count > n { cards.removeLast(cards.count - max(0, n)) }
         return cards.count
+    }
+
+    /// Remove ONE random card from what is still to be drawn, and report it.
+    /// Never touches the board — only the future. Used by the Long Odds
+    /// Same-Power; the RNG is passed in so the removal stays seeded.
+    @discardableResult
+    public func removeRandomRemaining(_ rng: RNG) -> LiveCard? {
+        guard !cards.isEmpty else { return nil }
+        return cards.remove(at: rng.index(cards.count))
     }
 
     @discardableResult

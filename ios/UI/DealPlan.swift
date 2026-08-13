@@ -27,7 +27,7 @@ public struct DealPlan {
 
 public enum DealPlanner {
 
-    public static let redealBaseCost = 10.0
+    public static let redealBaseCost = 5.0
     public static let redealStep = 1.0
 
     public struct AmbushSpec {

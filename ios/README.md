@@ -76,7 +76,7 @@ simulator. Add a team in Xcode when you want to run on a device.
 | `App/` | The host app. Validates the data at boot, then shows the launcher. |
 | `Tests/` | XCTest suite. |
 | `Fixtures/` | Ground truth captured from the **real web engine** (committed). |
-| `Tools/` | The Node exporters that produce `Resources/` and `Fixtures/`. |
+| `Tools/` | The Node exporters that produce `Resources/` and `Fixtures/`, plus `render_icon.py` (the app icon). |
 
 ### Modules
 
@@ -98,6 +98,28 @@ simulator. Add a team in Xcode when you want to run on a device.
 build-and-validate attempts per stage, and the suite generates hundreds of maps.
 Unoptimized the suite takes ~9 minutes; optimized it takes ~1. Testability stays
 on, so `@testable import GameCore` still works.
+
+## The app icon
+
+`App/Assets.xcassets/AppIcon.appiconset/` — 13 PNGs (every iPhone and iPad
+size plus the 1024 marketing icon) and a `Contents.json`. The catalog rides
+the `App` source path in `project.yml`, so `xcodegen` preserves the wiring
+with no extra entry; `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` names it.
+
+**Don't hand-edit the PNGs.** `Tools/render_icon.py` owns the artwork: the
+geometry constants at the top of the file (bar extents, cap radius, bar
+height, the two bar Y positions, dot radius and offsets) plus the three
+palette colours drive every size, and the scanline texture scales with the
+canvas and fades out on the small slots. Tweak a constant and re-render the
+whole set in place:
+
+```bash
+python3 ios/Tools/render_icon.py    # writes all 13 PNGs into the appiconset
+```
+
+It needs Pillow (`pip install pillow`) and nothing else. The 1024 comes out
+as RGB with **no alpha channel**, which the App Store requires — if you ever
+swap the renderer, keep that true or the upload is rejected.
 
 ## Editing the data files (the workflow)
 
@@ -242,6 +264,77 @@ budget are the first deal-out frame where card textures bake. The receipt's
 it; the runs above recorded none.
 
 ---
+
+## Game Center leaderboards
+
+**The identifier scheme (v6.47 — ONE board per deck+tier).** The score is one
+continuous run total (endless is a continuation of the climb), so there is
+one board per combination. Board IDs derive programmatically from
+`(deck, tier)` in `GameCore/Leaderboards.swift`:
+
+```
+sss.<deckToken>.<tierToken>
+```
+
+- deck tokens: `pink→pinky`, `mamma→mamma`, `smith→smith`, `lammy→lammy`
+- tier tokens: `regular→jokers`, `legendary→straight`
+
+The tokens are **frozen at creation** — they deliberately do NOT track the
+player-facing labels (which have been renamed before), because leaderboard
+IDs are immutable in App Store Connect. The full scheme names 8 boards
+(4 decks × 2 tiers); `LeaderboardID.allIdentifiers` lists them.
+
+The pre-v6.47 4-segment ids (`sss.<deck>.<tier>.campaign` / `.endless`) are
+**abandoned, never reused**: ASC ids are immutable, and a board whose name
+promises a split number must not receive the continuous one. If those boards
+were already created in ASC, delete them (or leave them — an unreferenced
+board is inert); do NOT try to rename them into the new scheme.
+
+**What's live now.** Only Pinky on Straight: `sss.pinky.straight`. Enabling
+the other 7 later is configuration, not code: add the IDs to
+`Leaderboards.enabledBoards` and create the matching boards in App Store
+Connect. Nothing else changes.
+
+**What to create by hand in App Store Connect** (My Apps → the app →
+Services → Game Center → Leaderboards → "+", Classic leaderboard), once per
+board:
+
+| Setting | Value |
+|---|---|
+| Leaderboard ID | `sss.pinky.straight` |
+| Reference name | "Pinky · Straight" (any human name) |
+| Score format type | Integer |
+| Sort order | **High to Low** |
+| Score range | 1 – 1000000 (optional; scores are small positive integers) |
+| Localization | one entry, e.g. English: "Pinky · Straight" + "points" |
+
+Prerequisites: a **paid Apple Developer account**, the app record existing in
+App Store Connect with Game Center enabled under its Capabilities, and the
+boards created **before** submissions can land — scores sent to a
+nonexistent board are rejected (they stay in the retry queue until the board
+exists).
+
+**Submission rules** (`GameCore/Leaderboards.swift`, fully unit-tested):
+seeded/exhibition runs never submit; the RUNNING total submits when the ♠
+boss falls (protecting the record if endless never concludes) and the final
+total at the run's true end — both to the one board, and Game Center keeps
+the best, so the early send can never lower a record; the score submitted is
+the run's own number, no recomputation. Failed/offline submissions queue
+durably under `ninelives.gc.queue.v1` and retry on launch, on authentication
+and at the next run end; a confirmed send dequeues by token.
+
+**The no-Game-Center path.** Authentication runs silently at launch; GameKit
+may present its one system sign-in sheet. A player who declines, is signed
+out, or is offline plays everything normally — no nags, no errors, no
+gating; submissions just wait in the queue. The entitlement lives in
+`App/ShouldaSaidSame.entitlements`, wired through `project.yml`
+(`CODE_SIGN_ENTITLEMENTS`), so `xcodegen generate` preserves it. The
+simulator skips code signing entirely, so simulator builds are unaffected.
+
+**UI.** Lifetime Stats sheet → the gold 🏆 LEADERBOARDS button opens Apple's
+stock `GKGameCenterViewController` (never a custom screen); when
+authenticated, the sheet also shows your rank + best for Pinky · Straight,
+read back cheaply on open.
 
 ## Running on a real iPhone
 

@@ -19,6 +19,29 @@ extension GameEngine {
         case "prime" where v == 2 || v == 3 || v == 5 || v == 7:
             payPillar(col, "prime", pillar.label, pillar.num("value", 1) == 0 ? 1 : pillar.value)
 
+        case "flypaper" where rng.next() < pillar.num("chance", 0.05):
+            // Flypaper: the landed card picks up a random sticker, permanent.
+            let pool = wildStickerPoolFor(drawn)
+            if let typeId = pick(pool.map(\.id)) {
+                projectStickerOntoCard(drawn, typeId)
+                firePillar(col, "flypaper", pillar.label, 0)
+                emit(.pillarSticker(col: col, pileIndex: index, cardId: drawn.id, typeId: typeId))
+                recT("pillar", pillar.id, pillar.label, ["applied": 1])
+                logLine("\(pillar.label): \(stickerTypes.get(typeId)?.label ?? typeId) stuck to \(cardName(drawn))")
+            }
+
+        case "rankCoin" where v == run.pillarRankVariants[pillar.id]:
+            // Crowd Favorite: the climb-locked rank landed → flat coins.
+            payPillar(col, "rankCoin", pillar.label, pillar.num("value", 2) == 0 ? 2 : pillar.value)
+
+        case "rankBury" where v == run.pillarRankVariants[pillar.id]:
+            // Underdog: the climb-locked rank landed → bury under the pile.
+            let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)
+            if nb > 0 {
+                firePillar(col, "rankBury", pillar.label, 0)
+                recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+            }
+
         case "shuffler" where isDiamond:
             // A ♦ landed → shuffle every OTHER alive pile in this column.
             var n = 0
@@ -236,11 +259,17 @@ extension GameEngine {
             recT("sticker", "heartSnob", "Heart Snob", ["coins": amt])
         }
         if cn("diamondSnob") > 0 && landsOn("♦") {
+            // ♦ PILES ONLY. Shuffling the whole board made this the single
+            // most disruptive sticker in the game and gave the player no way
+            // to plan around it; scoped to its own suit it's a ♦ effect that
+            // rewards a ♦-topped board.
             var sh = 0
-            for i in 0..<board.size where board.isActive(i) { board.shufflePile(i, rng); sh += 1 }
+            for i in 0..<board.size where board.isActive(i) && matchesSuit(board.top(i), "♦") {
+                board.shufflePile(i, rng); sh += 1
+            }
             if sh > 0 {
                 firePillar(col, "shuffler", "Diamond Snob", 0)
-                logLine("Diamond Snob: shuffled all \(sh) piles")
+                logLine("Diamond Snob: shuffled \(sh) ♦-topped pile(s)")
                 recT("sticker", "diamondSnob", "Diamond Snob", ["shuffled": Double(sh)])
             }
         }
@@ -267,15 +296,19 @@ extension GameEngine {
             if amt > 0 { payCoins("Heart Choir", amt); recT("sticker", "heartChoir", "Heart Choir", ["coins": amt]) }
         }
         if n("diamondRipple") > 0 {
-            var sh = 0
+            var targets: [Int] = []
             for i in 0..<board.size {
                 if i == index || !board.isActive(i) { continue }
-                if matchesSuit(board.top(i), "♦") { board.shufflePile(i, rng); sh += 1 }
+                if matchesSuit(board.top(i), "♦") { targets.append(i) }
             }
-            if sh > 0 {
-                firePillar(col, "shuffler", "Diamond Ripple", 0)
-                logLine("Diamond Ripple: shuffled \(sh) ♦-topped pile\(sh == 1 ? "" : "s")")
-                recT("sticker", "diamondRipple", "Diamond Ripple", ["shuffled": Double(sh)])
+            if !targets.isEmpty {
+                if run.rippleNeedsConsent {
+                    // Consent mode (iOS): hold the shuffle until the player
+                    // answers — the UI prompts, `answerRipple` applies/discards.
+                    run.pendingRipple = (piles: targets, col: col)
+                } else {
+                    shuffleRipple(targets, col: col)
+                }
             }
         }
         // Club Roots — bury under EACH OTHER alive ♣-topped pile. The landing
@@ -296,6 +329,10 @@ extension GameEngine {
             let x = swn * otherTops("♠")
             if x > 0 {
                 run.tellDrawsLeft += x
+                // The whisper belongs to THIS card's pile. It used to light
+                // every pile on the board for the duration, which read as a
+                // board-wide oracle rather than one card's hint.
+                run.whisperPiles.insert(index)
                 recT("sticker", "spadeWhispers", "Spade Whispers", ["hints": Double(x)])
             }
         }
@@ -458,6 +495,17 @@ extension GameEngine {
                     lines.append(PayoutLine(label: t.label, detail: "Column \(col + 1) survived", amount: t.value, col: col))
                 }
 
+            case "columnNoneAlive":
+                // LAST LICKS: the mirror of Guardian — +value if the column is
+                // WIPED OUT at deal end. A consolation you build around, not a
+                // reward for winning, so an empty column is never checked for
+                // survivors (an empty layout column can't "die").
+                let idxs = colIdxs(col)
+                if !idxs.isEmpty && idxs.allSatisfy({ !board.isActive($0) }) {
+                    bonus += t.value
+                    lines.append(PayoutLine(label: t.label, detail: "Column \(col + 1) wiped out", amount: t.value, col: col))
+                }
+
             case "allSuitTop":
                 // +value if EVERY surviving pile in THIS column shows the
                 // matching suit on top (and the column has ≥1 survivor).
@@ -526,7 +574,7 @@ extension GameEngine {
                 // ♥-topped pile. Always emit a line so the outcome shows.
                 let hasHeart = colIdxs(col).contains { board.isActive($0) && matchesSuit(board.top($0), "♥") }
                 if !hasHeart {
-                    lines.append(PayoutLine(label: t.label, detail: "no ♥ top in column — no flip",
+                    lines.append(PayoutLine(label: t.label, detail: "no ♥ top in column, no flip",
                                             amount: 0, col: col, effect: "gambler"))
                 } else {
                     let won = rng.next() < t.num("chance", 0.5)
@@ -546,5 +594,28 @@ extension GameEngine {
             if let d = resolvePillarDef(lines[i].col) { lines[i].id = d.id }
         }
         return PillarPayout(bonus: bonus, lines: lines)
+    }
+
+    // MARK: - Diamond Ripple consent (iOS opt-in seam)
+
+    /// The actual Diamond Ripple shuffle + its fired pulse/log/telemetry —
+    /// shared by the auto path (default, web parity) and a consented accept.
+    func shuffleRipple(_ piles: [Int], col: Int?) {
+        var sh = 0
+        for i in piles where board.isActive(i) { board.shufflePile(i, rng); sh += 1 }
+        if sh > 0 {
+            firePillar(col, "shuffler", "Diamond Ripple", 0)
+            logLine("Diamond Ripple: shuffled \(sh) ♦-topped pile\(sh == 1 ? "" : "s")")
+            recT("sticker", "diamondRipple", "Diamond Ripple", ["shuffled": Double(sh)])
+        }
+    }
+
+    /// Resolve a consent-mode Diamond Ripple: accept shuffles the piles captured
+    /// at the landing; decline discards the pending decision. A no-op with
+    /// nothing pending.
+    public func answerRipple(_ accept: Bool) {
+        guard let run, let pending = run.pendingRipple else { return }
+        run.pendingRipple = nil
+        if accept { shuffleRipple(pending.piles, col: pending.col) }
     }
 }

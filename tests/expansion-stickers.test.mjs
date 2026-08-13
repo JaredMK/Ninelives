@@ -72,14 +72,15 @@ export function run() {
     }
   }
 
-  // ---- Loose Change: emits a sticker-coins payout (0..3) every correct land ----
+  // ---- Loose Change: emits a sticker-coins payout (0..max) every correct land ----
   {
     const e = game();
     let coinEvents = 0, maxAmt = -1, minAmt = 99;
     e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === "Loose Change") { coinEvents++; maxAmt = Math.max(maxAmt, p.amount); minAmt = Math.min(minAmt, p.amount); } });
     for (let k = 0; k < 8; k++) land(e, 0, ["looseChange"]);
     r.eq(coinEvents, 8, "Loose Change fires a payout event on every correct land (incl. +0)");
-    r.ok(minAmt >= 0 && maxAmt <= 3, "Loose Change payout stays within 0..3");
+    const lcMax = Number(StickerTypes.get("looseChange").max);
+    r.ok(minAmt >= 0 && maxAmt <= lcMax, "Loose Change payout stays within 0.." + lcMax);
   }
 
   // ---- Deep Pockets: +1 coin per 10 cards left in the deck -------------

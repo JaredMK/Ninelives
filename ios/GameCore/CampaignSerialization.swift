@@ -52,6 +52,18 @@ extension CampaignState {
             "scoreBanked": .number(Double(scoreBanked)),
             "endless": .bool(endless),
             "sameCharge": .bool(sameCharge),
+            "removalsBought": .number(Double(removalsBought)),
+            "pillarRankVariants": .object(pillarRankVariants.reduce(into: [:]) { $0[$1.key] = .number(Double($1.value)) }),
+            "purgeDiscount": .number(Double(purgeDiscount)),
+            "purgeStepBonus": .number(Double(purgeStepBonus)),
+            "jokerDebt": .number(Double(jokerDebt)),
+            "freeShopPending": .bool(freeShopPending),
+            "jokerThirstPending": .bool(jokerThirstPending),
+            "jokerThirstCoins": .number(Double(jokerThirstCoins)),
+            "freeRerollPending": .bool(freeRerollPending),
+            "freeRedealPending": .bool(freeRedealPending),
+            "storePriceModPending": storePriceModPending.map { .string($0) } ?? .null,
+            "storePriceModActive": storePriceModActive.map { .string($0) } ?? .null,
             "stickerInventory": counts(stickerInventory),
             "pillarInventory": counts(pillarInventory),
             "baseInventory": counts(baseInventory),
@@ -108,6 +120,7 @@ extension CampaignState {
     static func encodeOffer(_ o: StoreOffer) -> JSONValue {
         .object([
             "rerollCost": .number(o.rerollCost),
+            "freeSlot": o.freeSlot.map { .number(Double($0)) } ?? .null,
             "slots": .array(o.slots.map { s in
                 guard let s else { return .null }
                 var d: [String: JSONValue] = ["kind": .string(s.kind), "id": .string(s.id)]
@@ -124,7 +137,8 @@ extension CampaignState {
                 guard let d = s.asObject, let kind = d["kind"]?.asString, let id = d["id"]?.asString else { return nil }
                 return StoreSlot(kind: kind, id: id, card: d["card"].flatMap(decodeCard))
             },
-            rerollCost: o["rerollCost"]?.asNumber ?? 0)
+            rerollCost: o["rerollCost"]?.asNumber ?? 0,
+            freeSlot: o["freeSlot"]?.asNumber.map(Int.init))
     }
 
     /// Restore from a `serialize()` snapshot. Returns true on success; false
@@ -133,8 +147,12 @@ extension CampaignState {
     @discardableResult
     public func restore(_ s: [String: JSONValue]?) -> Bool {
         guard let s, Int(s["schema"]?.asNumber ?? 0) == Self.saveSchema else { return false }
-        // ≥52: the deck GROWS as packs mint duplicate cards.
-        guard let deckArr = s["baseDeck"]?.asArray, deckArr.count >= 52 else { return false }
+        // The universe GROWS with pack mints and SHRINKS with removals
+        // (v6.49: a removed card leaves baseDeck so it can never be drafted
+        // again) — so a fixed ≥52 floor now rejects honest saves. The real
+        // corruption tripwire is below: every OWNED id must exist in the
+        // decoded universe.
+        guard let deckArr = s["baseDeck"]?.asArray, !deckArr.isEmpty else { return false }
 
         deckId = data.meta.deckRules[s["deckId"]?.asString ?? ""] != nil ? s["deckId"]!.asString! : "pink"
         let tier = s["difficultyTier"]?.asString ?? ""
@@ -158,6 +176,10 @@ extension CampaignState {
         stageEntryDecks = (s["stageEntryDecks"]?.asArray ?? []).map { $0.isNull ? nil : $0.asNumber.map(Int.init) }
         if stageEntryDecks.isEmpty { stageEntryDecks = [map.config.startDeckSize, nil, nil] }
         ownedIds = s["ownedIds"]?.asArray?.compactMap { $0.asNumber.map(Int.init) } ?? []
+        // Integrity: a run deck referencing a card the universe doesn't hold
+        // is a corrupt save — exactly what the old ≥52 floor tried to catch.
+        let universe = Set(baseDeck.map(\.id))
+        guard !ownedIds.isEmpty, ownedIds.allSatisfy({ universe.contains($0) }) else { return false }
         clearedNodes = s["clearedNodes"]?.asArray?.compactMap { $0.asNumber.map(Int.init) } ?? []
         revealedNodes = s["revealedNodes"]?.asArray?.compactMap { $0.asNumber.map(Int.init) } ?? []
         mystMigrated = s["mystMigrated"]?.asBool ?? false
@@ -185,6 +207,21 @@ extension CampaignState {
         scoreBanked = Int(s["scoreBanked"]?.asNumber ?? 0)
         endless = s["endless"]?.asBool ?? false
         sameCharge = s["sameCharge"]?.asBool ?? false
+        // Absent in pre-v5.82 saves — an old climb simply restarts the ladder.
+        removalsBought = Int(s["removalsBought"]?.asNumber ?? 0)
+        pillarRankVariants = (s["pillarRankVariants"]?.asObject ?? [:])
+            .compactMapValues { $0.asNumber.map(Int.init) }
+        purgeDiscount = Int(s["purgeDiscount"]?.asNumber ?? 0)
+        purgeStepBonus = Int(s["purgeStepBonus"]?.asNumber ?? 0)
+        // Absent in pre-Old-Joker saves — an old climb simply owes nothing.
+        jokerDebt = Int(s["jokerDebt"]?.asNumber ?? 0)
+        freeShopPending = s["freeShopPending"]?.asBool ?? false
+        jokerThirstPending = s["jokerThirstPending"]?.asBool ?? false
+        jokerThirstCoins = Int(s["jokerThirstCoins"]?.asNumber ?? 0)
+        freeRerollPending = s["freeRerollPending"]?.asBool ?? false
+        freeRedealPending = s["freeRedealPending"]?.asBool ?? false
+        storePriceModPending = s["storePriceModPending"]?.asString
+        storePriceModActive = s["storePriceModActive"]?.asString
 
         func counts(_ v: JSONValue?) -> [String: Int] {
             var out: [String: Int] = [:]

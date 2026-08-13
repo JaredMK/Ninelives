@@ -52,6 +52,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private let veilView = UIView()       // fog over not-yet-unlocked stages
     private let eggLabel = UILabel()      // the bottom-overscroll Easter egg
     private let avatar = MapAvatarView()
+    /// THE OLD JOKER riding shotgun. Only on screen while he is driving you
+    /// somewhere (his Ride offer); he leads the character up the map, then
+    /// carries on out of frame while the shop opens behind him.
+    private let escort = UIImageView()
+    private var escorted = false
     private let crt = CRTOverlayUIView()
     private let tissue = TissueView()     // #tissue, visible at the scroll's bounce edges
     private var nodeViews: [Int: MapNodeView] = [:]
@@ -67,7 +72,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private var traveling = false
     private var layoutX: [Int: CGFloat] = [:]   // buildMapLayout cache
     /// One egg phrase per deal: session salt + deals completed.
-    private static let eggSalt = Int.random(in: 0..<MapViewController.eggLines.count)
+    private static let eggSalt = Int.random(in: 0..<max(1, GameData.shared.tutorial.mapHints.count))
     /// Debug: long-press any node to jump straight to it.
     public var debugJumpEnabled = false
 
@@ -117,9 +122,13 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         veilView.backgroundColor = CRT.feltDeep.withAlphaComponent(0.94)
         veilView.isUserInteractionEnabled = false
 
-        eggLabel.font = CRT.Font.of(15)
+        eggLabel.font = CRT.Font.of(16)
         eggLabel.textColor = CRT.muted
         eggLabel.textAlignment = .center
+        // The egg lines are full sentences — they wrap (web `.map-egg`:
+        // max-width 92vw, white-space: normal), never tail-truncate.
+        eggLabel.numberOfLines = 0
+        eggLabel.lineBreakMode = .byWordWrapping
         eggLabel.alpha = 0   // easter egg: fades in only on bottom overscroll
         scroll.addSubview(eggLabel)
 
@@ -129,6 +138,9 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             self.delegate?.mapWantsMenu(self)
         }
         shell.onDeckTap = { [weak self] in self?.deckTapped() }
+        // The deck character rides the band here too, exactly as it does in a
+        // deal and in the store — the map was the one screen without it.
+        shell.showsDeckStack = true
         view.addSubview(shell)
         keyButton.onTap = { [weak self] in self?.toggleKey() }
         view.addSubview(keyButton)
@@ -183,7 +195,14 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         track.frame = CGRect(x: x, y: 0, width: MapViewController.mapW, height: height)
         scroll.contentSize = CGSize(width: view.bounds.width, height: height)
         bgView.frame = CGRect(x: 0, y: -480, width: view.bounds.width, height: height + 960)
-        eggLabel.frame = CGRect(x: 0, y: height + 16, width: view.bounds.width, height: 22)
+        // 92% of the width (web `.map-egg`), height measured so long lines wrap
+        // instead of truncating. It sits BELOW contentSize and is revealed by
+        // the rubber band, so growing it needs no contentSize change.
+        let eggW = (view.bounds.width * 0.92).rounded(.down)
+        let eggH = max(22, ceil(eggLabel.sizeThatFits(CGSize(width: eggW,
+                                                            height: .greatestFiniteMagnitude)).height))
+        eggLabel.frame = CGRect(x: ((view.bounds.width - eggW) / 2).rounded(),
+                                y: height + 16, width: eggW, height: eggH)
         // One-stage-at-a-time: the minimum offset is the lock line, and the
         // native rubber band operates AT it (fog shows above during the pull).
         // Bottom: a generous gap below the home row — the avatar must start
@@ -285,7 +304,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             track.insertSubview(band, at: 0)
             // The hand-off label: LEFT-pinned, uppercase, in the phase's suit colour.
             let label = CRTKit.label(MapViewController.bandLabel(campaign: campaign, ph: ph).uppercased(),
-                                     size: 13, color: MapViewController.bandLabelColor(ph.suit))
+                                     size: 14, color: MapViewController.bandLabelColor(ph.suit))
             label.tag = 901
             label.alpha = 0.8
             label.sizeToFit()
@@ -308,6 +327,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                 let v = MapNodeView(id: n.id)
                 v.onTap = { [weak self] id in self?.nodeTapped(id) }
                 v.onLongPress = { [weak self] id in self?.nodeLongPressed(id) }
+                v.onLongPressEnded = { [weak self] in self?.shell.hideHelp() }
                 nodeViews[n.id] = v
                 track.addSubview(v)
                 return v
@@ -346,7 +366,12 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         spotView.image = MapArt.spotlight(diameter: spotD)
         spotView.bounds = CGRect(x: 0, y: 0, width: spotD, height: spotD)
         track.addSubview(spotView)
-        avatar.configure(deckId: campaign.deckId, tier: campaign.difficultyTier)
+        // Pinky walks the map SAD until he has met Mamma (a climb won with
+        // him — the same win that unlocks her deck). The other characters
+        // never carry this; their stories aren't about finding her.
+        avatar.configure(deckId: campaign.deckId, tier: campaign.difficultyTier,
+                         melancholy: campaign.deckId == "pink"
+                             && !campaign.deckUnlocks.wonWithTier("pink", campaign.difficultyTier))
         avatar.setCount(campaign.deckSize())
         avatar.setWorried(reachIsThreatening())
         track.addSubview(avatar)
@@ -389,8 +414,9 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         // ---- shell + egg + the store-return button ----
         storeButton.isHidden = campaign.currentNode()?.type != "store"
         shell.sync(campaign: campaign)
-        eggLabel.text = MapViewController.eggLines[
-            (MapViewController.eggSalt + campaign.runsCompleted) % MapViewController.eggLines.count]
+        let hints = GameData.shared.tutorial.mapHints
+        eggLabel.text = hints.isEmpty ? "" : hints[
+            (MapViewController.eggSalt + campaign.runsCompleted) % hints.count]
 
         layoutContent()
         if scroll.contentOffset.y < scrollLock {
@@ -575,6 +601,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         scroll.setContentOffset(CGPoint(x: 0, y: min(maxY, max(scrollLock, y))), animated: animated)
     }
 
+    /// One Pinky-tip credit per climb (see scrollViewDidScroll). The map view
+    /// is rebuilt per run, so this resets exactly when a new climb starts.
+    private var tipCountedThisRun = false
+
     public func scrollViewDidScroll(_ s: UIScrollView) {
         // One-speed parallax: the dot field trails the scroll.
         bgView.transform = CGAffineTransform(translationX: 0, y: s.contentOffset.y * 0.35)
@@ -583,14 +613,25 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         let restMax = s.contentSize.height + s.contentInset.bottom - s.bounds.height
         let over = s.contentOffset.y - max(0, restMax)
         eggLabel.alpha = min(1, max(0, over / 36))
+        // UNLOCK2: finding the tip counts — but ONCE per climb, so the gate
+        // rewards looking again on a new run rather than one long rubber-band.
+        if eggLabel.alpha >= 1, !tipCountedThisRun {
+            tipCountedThisRun = true
+            if !campaign.isExhibition() { campaign.stats.bump("pinkyTipsSeen") }
+        }
     }
 
     // MARK: - Node interaction
 
+    /// LOOK, DON'T MOVE. Set while an offer is peeking the map behind itself:
+    /// the map still scrolls (its touches pass through), but a node tap must
+    /// not commit a move with a decision still open.
+    public var travelBlocked = false
+
     private func nodeTapped(_ id: Int) {
-        guard !traveling else { return }
+        guard !traveling, !travelBlocked else { return }
         guard campaign.legalNextNodes().contains(where: { $0.id == id }) else { return }
-        Sound.shared.tap()
+        Sound.shared.mapSelect()
         travel(to: id)
     }
 
@@ -614,48 +655,61 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     /// mystery stays ???.
     private func showNodeHelp(_ id: Int) {
         guard let n = campaign.getNode(id) else { return }
-        let title = n.type == "mystery" ? "Mystery" : "Map node"
-        let body = campaign.nodeHidden(n.id)
-            ? "??? — a gamble, good or bad, revealed when you arrive"
+        // The title NAMES the node — "Map node" said nothing you couldn't see
+        // by looking at it, on every node type.
+        let title: String
+        switch n.type {
+        case "mystery": title = "Mystery"
+        case "boss":    title = "Boss"
+        case "store":   title = "Shop"
+        case "deal":    title = "Deal"
+        case "pack":    title = "Pack"
+        case "home":    title = "Home"
+        case "pass":    title = "Trail"
+        default:        title = "Card"
+        }
+        // A mystery says ONE thing, revealed or not: you don't know.
+        let body = n.type == "mystery" || campaign.nodeHidden(n.id)
+            ? "Anything could be waiting"
             : nodeLabel(n)
-        prompt.show(title, help: body, actions: [
-            .init("OK", role: .plain) { [weak self] in self?.prompt.hide() },
-        ]) { [weak self] in self?.prompt.hide() }
+        // Takes over the histogram band and holds while the finger is down —
+        // the same idiom as a hold on the deal board.
+        shell.showHelp(title: title, body: body)
     }
 
     /// The node's one-line label, ported verbatim from the web's mapNodeLabel.
     private func nodeLabel(_ n: MapNode) -> String {
         switch n.type {
         case "pass": return "The trail passes through"
-        case "mystery": return "Mystery — a gamble, good or bad…"
+        case "mystery": return "Anything could be waiting"
         case "boss":
             let reward = Int(economy.dealFlat(stage: (n.phase ?? 0) + 1, rating: 3, isBoss: true))
-            return "BOSS — full deck · reward \(reward) coins"
+            return "BOSS · full deck · reward \(reward) coins"
         case "deal":
             let rating = runMap.difficultyScore(targetD: n.targetD ?? 0, phaseIndex: n.phase, isBoss: false)
             let reward = Int(economy.dealFlat(stage: (n.phase ?? 0) + 1, rating: rating, isBoss: false))
-            return "Deal — reward \(reward) coins (difficulty \(rating)/3 — harder pays more)"
+            return "Deal · reward \(reward) coins"
         case "store": return "Shop"
-        case "home": return "Home — mama ♥ is waiting"
+        case "home": return "Home · mama ♥ is waiting"
         case "pack":
             // A revealed +2 pack names its two exact cards (a Blank slot is a
             // Removal); sealed packs keep the hidden count.
             let pair = campaign.packNodeCards(n)
             if pair.count == 2 {
-                return "2 cards — \(nodeCardName(pair[0])) + \(nodeCardName(pair[1]))"
+                return "2 cards: \(nodeCardName(pair[0])) + \(nodeCardName(pair[1]))"
             }
-            return "Pack — \(n.packCount ?? 3) cards (hidden)"
+            return "Pack · \(n.packCount ?? 3) cards (hidden)"
         default:
             if let card = campaign.nodeCard(n) ?? campaign.previewPickupCard(n) {
-                if card.joker { return "★ Joker — never a wrong guess" }
-                if card.blank { return "∅ Removal — remove a card from your deck" }
+                if card.joker { return "★ Joker. Never a wrong guess" }
+                if card.blank { return "∅ Purge. Purge a card from your deck" }
             }
             return "A single card"
         }
     }
 
     private func nodeCardName(_ c: CardSpec) -> String {
-        if c.blank { return "∅ Removal" }
+        if c.blank { return "∅ Purge" }
         if c.joker { return "★ Joker" }
         let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "\(c.currentRank)"
         return "\(rank)\(c.suit)"
@@ -663,13 +717,18 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
     /// Tap a legal node → glide over any pass points, ride each routed edge,
     /// then reveal (mystery) and hand arrival to the delegate.
-    public func travel(to id: Int) {
+    public func travel(to id: Int, escortedByOldJoker: Bool = false) {
         guard let map = campaign.runMap, let node = campaign.getNode(id) else { return }
+        if escortedByOldJoker { beginEscort() }
         let fromId = campaign.nodePos
         let fromXY = avatarXY()
         let glide = passPath(to: id, from: fromId)
         let wasHidden = campaign.nodeHidden(id)
-        guard campaign.moveToNode(id) else { return }
+        // An escorted RIDE jumps several stops; every other move is a step.
+        guard campaign.moveToNode(id, teleport: escortedByOldJoker) else {
+            if escortedByOldJoker { endEscort {} }
+            return
+        }
         if wasHidden { campaign.revealNode(id) }
         for pid in glide { _ = campaign.markNodeCleared(pid) }
         let R = map.totalRows
@@ -685,6 +744,15 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         func next() {
             if idx >= legs.count {
                 traveling = false
+                if self.escorted {
+                    // He drops you at the door and keeps going.
+                    self.endEscort { [weak self] in
+                        guard let self else { return }
+                        self.render(arrivedAt: id)
+                        self.delegate?.mapArrived(at: node, on: self)
+                    }
+                    return
+                }
                 if wasHidden {
                     playMysteryReveal(id) { [weak self] in
                         guard let self else { return }
@@ -702,6 +770,50 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             animateTravel(from: pXY, to: leg.xy, fromId: pId, toId: leg.id, completion: next)
         }
         next()
+    }
+
+    // MARK: - The Old Joker's ride
+
+    /// He pulls up beside the character and leads from a step ahead.
+    private func beginEscort() {
+        escorted = true
+        escort.image = ItemArt.oldJoker(scale: 3)
+        escort.layer.magnificationFilter = .nearest
+        escort.layer.minificationFilter = .nearest
+        escort.sizeToFit()
+        escort.bounds = CGRect(x: 0, y: 0, width: 42, height: 60)
+        escort.center = CGPoint(x: avatar.center.x - 26, y: avatar.center.y - 10)
+        escort.alpha = 0
+        escort.transform = CGAffineTransform(translationX: -20, y: 0)
+        avatar.superview?.insertSubview(escort, belowSubview: avatar)
+        UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut]) {
+            self.escort.alpha = 1
+            self.escort.transform = .identity
+        }
+        Sound.shared.mapHop()
+    }
+
+    /// Journey's end: he carries on off the top of the map, the character stays.
+    private func endEscort(_ done: @escaping () -> Void) {
+        escorted = false
+        UIView.animate(withDuration: 0.42, delay: 0.10, options: [.curveEaseIn]) {
+            self.escort.center = CGPoint(x: self.escort.center.x - 90,
+                                         y: self.escort.center.y - 140)
+            self.escort.alpha = 0
+        } completion: { _ in
+            self.escort.removeFromSuperview()
+            self.escort.transform = .identity
+            done()
+        }
+    }
+
+    /// Ride the escort along with the character, one leg at a time.
+    private func animateEscort(to point: CGPoint, over duration: TimeInterval) {
+        guard escorted, escort.superview != nil else { return }
+        UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut]) {
+            // A step ahead and a little above — he is leading, not following.
+            self.escort.center = CGPoint(x: point.x - 26, y: point.y - 10)
+        }
     }
 
     private func passPath(to targetId: Int, from fromId: Int?) -> [Int] {
@@ -735,6 +847,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             glidePts.append(CGPoint(x: px, y: py))
         }
         avatar.walkBounce(on: true)
+        Sound.shared.mapHop()   // one small footstep per leg
         let anim = CAKeyframeAnimation(keyPath: "position")
         anim.values = hopPts.map { NSValue(cgPoint: $0) }
         anim.duration = 0.42
@@ -747,15 +860,27 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         spotView.layer.add(spotAnim, forKey: "travel")
         avatar.center = to
         spotView.center = to
+        animateEscort(to: to, over: 0.42)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.44) { [weak self] in
             self?.avatar.walkBounce(on: false)
             completion()
         }
-        // Keep the camera with the character.
-        let targetY = to.y - scroll.bounds.height / 2
-        let maxY = max(scrollLock, scroll.contentSize.height - scroll.bounds.height)
-        let clamped = min(maxY, max(scrollLock, targetY))
-        if abs(clamped - scroll.contentOffset.y) > 40 {
+        // Keep the camera with the character ONLY when it climbs near the top
+        // of the viewport — mid-screen hops leave the scroll where it is, so
+        // the map doesn't lurch under the player's finger every step (v5.82).
+        let margin = scroll.bounds.height * 0.42
+        let screenY = to.y - scroll.contentOffset.y
+        if screenY < margin {
+            let targetY = to.y - margin
+            let maxY = max(scrollLock, scroll.contentSize.height - scroll.bounds.height)
+            let clamped = min(maxY, max(scrollLock, targetY))
+            scroll.setContentOffset(CGPoint(x: 0, y: clamped), animated: true)
+        } else if screenY > scroll.bounds.height - 60 {
+            // Fell out of view at the bottom (can happen on a restore) —
+            // bring it back just inside.
+            let targetY = to.y - scroll.bounds.height + 60
+            let clamped = min(max(scrollLock, scroll.contentSize.height - scroll.bounds.height),
+                              max(scrollLock, targetY))
             scroll.setContentOffset(CGPoint(x: 0, y: clamped), animated: true)
         }
     }
@@ -779,7 +904,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         var shown = max(0, total - cards.count)
         avatar.setCount(shown)
         avatar.collectBounce()
-        if !cards.isEmpty { Sound.shared.mapAdd() }
+        if !cards.isEmpty { Sound.shared.mapCollect() }
         let toPt = avatar.center
         for (i, card) in cards.prefix(5).enumerated() {
             let img = UIImageView(image: CardArt.image(CardArt.Face(card), scale: .half))
@@ -815,40 +940,40 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         let cardNode = nodes.first {
             $0.type == "pickup" && (campaign.nodeCard($0).map { !$0.joker && !$0.blank } ?? false)
         }
-        let packCount = packNode?.packCount ?? 3
-        let rows: [(UIImage, String, String)] = [
-            (dealNode.map { composeDeal($0, big: false) } ?? MapArt.synapseCluster(big: false),
-             "Deal", "Play a hand; the chip shows its coin reward — harder deals pay more"),
-            (bossNode.map { composeDeal($0, big: true) } ?? MapArt.synapseCluster(big: true),
-             "Boss", "Full-deck deal; biggest reward; guards the stage exit"),
-            (MapArt.shopStall(), "Shop", "Spend coins"),
-            (packNode.map { composePackStack($0) } ?? MapArt.packStack(deckId: campaign.deckId),
-             "Pack", "+\(packCount) hidden cards (packs of 3+; 2-card stops show their faces)"),
+        // COMPACT: icon + name only, hugging the RIGHT edge under the ?
+        // button — the old centred 300pt panel with two-line blurbs sat on
+        // top of the map it was meant to explain.
+        let rows: [(UIImage, String)] = [
+            (dealNode.map { composeDeal($0, big: false) } ?? MapArt.synapseCluster(big: false), "Deal"),
+            (bossNode.map { composeDeal($0, big: true) } ?? MapArt.synapseCluster(big: true), "Boss"),
+            (MapArt.shopStall(), "Shop"),
+            (packNode.map { composePackStack($0) } ?? MapArt.packStack(deckId: campaign.deckId), "Pack"),
             (cardNode.flatMap { campaign.nodeCard($0) }.map { CardArt.image(CardArt.Face($0), scale: .half) }
                 ?? CardArt.image(CardArt.Face(label: "7", suit: "♦", kind: .normal), scale: .half),
-             "Card", "Joins your deck when you pass"),
-            (MapArt.mysteryCard(open: false), "Mystery", "A gamble, good or bad, revealed when you arrive"),
-            (MapArt.homeHut(mama: true), "Home", "Mama; the finish at the top"),
+             "Card"),
+            (MapArt.mysteryCard(open: false), "Mystery"),
+            (MapArt.homeHut(mama: true), "Home"),
         ]
-        var y: CGFloat = 12
-        for (img, name, sub) in rows {
+        let panelW: CGFloat = 128
+        var y: CGFloat = 10
+        for (img, name) in rows {
             let iv = UIImageView(image: img)
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: 12, y: y, width: 44, height: 40)
+            // The key rows are SHRUNK into a fixed box, so it is the
+            // MINification filter that matters here — the default trilinear
+            // blurred the "?" glyph and every other node icon in the legend.
+            iv.layer.minificationFilter = .nearest
+            iv.frame = CGRect(x: 10, y: y, width: 34, height: 32)
             panel.addSubview(iv)
             let nameL = CRTKit.label(name, size: 16, color: CRT.cardFace)
-            nameL.frame = CGRect(x: 66, y: y + 2, width: 220, height: 18)
+            nameL.frame = CGRect(x: 52, y: y + 7, width: panelW - 58, height: 18)
             panel.addSubview(nameL)
-            let subL = CRTKit.label(sub, size: 12, color: CRT.muted)
-            subL.numberOfLines = 2
-            subL.frame = CGRect(x: 66, y: y + 20, width: 224, height: 26)
-            panel.addSubview(subL)
-            y += 50
+            y += 38
         }
-        panel.frame = CGRect(x: (view.bounds.width - 300) / 2,
+        panel.frame = CGRect(x: view.bounds.width - panelW - 8,
                              y: TopShellView.height(safeTop: view.safeAreaInsets.top) + 46,
-                             width: 300, height: y + 8)
+                             width: panelW, height: y + 6)
         view.insertSubview(panel, belowSubview: crt)
         keyPanel = panel
         let tap = UITapGestureRecognizer(target: self, action: #selector(closeKey))
@@ -862,18 +987,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
     // MARK: - Egg lines (verbatim)
 
-    static let eggLines = [
-        "Up is home.",
-        "Calling Same on a Joker always lands — it banks the Same shield AND fires your Same-Power.",
-        "Mama's waiting at the top.",
-        "A correct Same banks a shield that saves a pile from death. It never stacks — spend it.",
-        "Nothing down here but felt.",
-        "Ties kill on Higher or Lower — call Same, or carry a Same-Safe.",
-        "Anchor a tiny pile and it stops dragging your payout down.",
-        "Pinky believes in you.",
-        "Rerolls climb in price within a shop visit — next store, fresh price.",
-        "Bosses always deal your whole deck. Keep it lean.",
-    ]
+    // The hint lines moved to tutorial.js `mapHints` (v6.40) — edit them there.
 }
 
 // MARK: - Node view
@@ -890,6 +1004,7 @@ final class MapNodeView: UIView {
     private var check: UILabel?
     var onTap: ((Int) -> Void)?
     var onLongPress: ((Int) -> Void)?
+    var onLongPressEnded: (() -> Void)?
     private var state: State = .far
 
     init(id: Int) {
@@ -916,7 +1031,11 @@ final class MapNodeView: UIView {
 
     @objc private func tapped() { onTap?(id) }
     @objc private func pressed(_ g: UILongPressGestureRecognizer) {
-        if g.state == .began { onLongPress?(id) }
+        switch g.state {
+        case .began: onLongPress?(id)
+        case .ended, .cancelled, .failed: onLongPressEnded?()
+        default: break
+        }
     }
 
     func configure(art image: UIImage, state: State, hidden: Bool, interactive: Bool) {
@@ -962,7 +1081,7 @@ final class MapNodeView: UIView {
         // Done ✓ chip.
         if state == .done {
             if check == nil {
-                let c = CRTKit.label("✓", size: 14, color: CRT.phosphor)
+                let c = CRTKit.label("✓", size: 16, color: CRT.phosphor)
                 c.backgroundColor = CRT.ink
                 c.textAlignment = .center
                 addSubview(c)
@@ -977,6 +1096,7 @@ final class MapNodeView: UIView {
 
     /// The arrival pop: the marker "lands" on the node it just travelled to.
     func playArrive() {
+        Sound.shared.mapArrive()
         transform = CGAffineTransform(translationX: 0, y: 22).scaledBy(x: 0.7, y: 0.7)
         alpha = 0.6
         UIView.animate(withDuration: 0.42, delay: 0, usingSpringWithDamping: 0.55,
@@ -997,6 +1117,9 @@ final class MapAvatarView: UIView {
     private var deckId = "pink"
     private var tier = "regular"
     private var worried = false
+    /// Pinky BEFORE his first won climb: he hasn't found Mamma yet, and it
+    /// shows. Sad replaces idle on the walk until a climb is won with him.
+    private var melancholy = false
     private var blinkTimer: Timer?
 
     init() {
@@ -1005,7 +1128,7 @@ final class MapAvatarView: UIView {
         sprite.layer.magnificationFilter = .nearest
         sprite.frame = CGRect(x: 6, y: 0, width: 32, height: 32)
         addSubview(sprite)
-        badge.font = CRT.Font.of(13)
+        badge.font = CRT.Font.of(16)
         badge.textColor = CRT.ink
         badge.backgroundColor = CRT.gold
         badge.textAlignment = .center
@@ -1026,9 +1149,10 @@ final class MapAvatarView: UIView {
 
     deinit { blinkTimer?.invalidate() }
 
-    func configure(deckId: String, tier: String) {
+    func configure(deckId: String, tier: String, melancholy: Bool = false) {
         self.deckId = deckId
         self.tier = tier
+        self.melancholy = melancholy
         refresh()
     }
 
@@ -1041,7 +1165,9 @@ final class MapAvatarView: UIView {
     }
 
     private func refresh() {
-        sprite.image = DeckCharacter.image(deckId: deckId, mood: worried ? .sad : .idle, scale: 2, tier: tier)
+        sprite.image = DeckCharacter.image(deckId: deckId,
+                                           mood: (worried || melancholy) ? .sad : .idle,
+                                           scale: 2, tier: tier)
     }
 
     private func blink() {

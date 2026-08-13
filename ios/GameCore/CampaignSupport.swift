@@ -22,6 +22,37 @@ public enum CampaignLayout {
         return BoardLayout(cols: cols, piles: cols.reduce(0, +), rows: cols.max() ?? 0)
     }
 
+    /// The board layout with the equipped Pillars applied. A `columnPiles`
+    /// Pillar (Fourth Seat) adds ONE seat to its column, capped at `value` —
+    /// so a 1-pile column opens with 2 and a column already at the cap is left
+    /// alone. It only ever adds; the balanced split runs first.
+    ///
+    /// DITTO is resolved here too. It mirrors the centre column's Pillar, and
+    /// mirroring a Fourth Seat has to widen the mirroring column as well —
+    /// the engine resolved Ditto for every OTHER effect but the layout didn't,
+    /// so a Ditto beside a Fourth Seat silently got no extra pile.
+    public static func layoutForPiles(_ n0: Int, pillars: [String?],
+                                      data: GameData = .shared) -> BoardLayout {
+        var cols = layoutForPiles(n0).cols
+        guard !cols.isEmpty else { return layoutForPiles(n0) }
+        let center = pillars.count / 2
+        func effectiveDef(_ c: Int) -> ItemDef? {
+            guard let id = pillars[safe: c] ?? nil, let def = data.pillarTypes.get(id) else { return nil }
+            guard def.effect == "ditto" else { return def }
+            // Ditto at/in the centre mirrors nothing, and never another Ditto.
+            guard c != center, let cid = pillars[safe: center] ?? nil,
+                  let cdef = data.pillarTypes.get(cid), cdef.effect != "ditto" else { return nil }
+            return cdef
+        }
+        for c in 0..<cols.count {
+            guard let def = effectiveDef(c), def.effect == "columnPiles" else { continue }
+            let cap = max(1, Int(def.value))
+            // NEVER shrink: a column already past the cap keeps its seats.
+            cols[c] = max(cols[c], min(cap, cols[c] + 1))
+        }
+        return BoardLayout(cols: cols, piles: cols.reduce(0, +), rows: cols.max() ?? 0)
+    }
+
     /// Derive a board layout for an ARBITRARY pile count (a map node sets the
     /// pile count). Splits n into up to 3 balanced columns.
     public static func layoutForPiles(_ n0: Int) -> BoardLayout {
@@ -64,6 +95,9 @@ public struct StoreSlot: Sendable, Equatable {
 public struct StoreOffer: Sendable, Equatable {
     public var slots: [StoreSlot?]
     public var rerollCost: Double
+    /// FREEBIE's gift: the one rolled slot this visit that costs 0 (nil
+    /// without the pillar). Persisted with the offer.
+    public var freeSlot: Int? = nil
 }
 
 /// The store roll + shared item helpers. Kept beside CampaignState so both the
@@ -104,7 +138,13 @@ public enum StoreRoll {
     /// The PACK-CARD sticker distribution — how many stickers one freshly
     /// granted card carries. The odds table lives in items.js.
     public static func packStickerCount(_ roll: Double, data: GameData) -> Int {
-        for pair in data.items.packStickerOdds where roll < pair[0] { return Int(pair[1]) }
+        stickerCount(roll, odds: data.items.packStickerOdds)
+    }
+
+    /// One roll against a [maxRoll, count] odds table (packStickerOdds and
+    /// store.card.stickerOdds share the shape).
+    public static func stickerCount(_ roll: Double, odds: [[Double]]) -> Int {
+        for pair in odds where roll < pair[0] { return Int(pair[1]) }
         return 0
     }
 
@@ -113,13 +153,20 @@ public enum StoreRoll {
     /// A draw that would put a class past the type cap is rejected and redrawn.
     /// A class whose unlocked pool is EMPTY drops to weight 0, so the total
     /// renormalizes over the remaining classes instead of rolling dead slots.
+    /// `isEquipped(classKey, id)` removes what the player is ALREADY wearing
+    /// from the shelf — a second Guardian you can't hold is a wasted slot.
+    /// It takes the class key because ids are only unique within a class
+    /// (the Pillar "revive" and the Base "revive" are different items).
     public static func rollUnifiedSlots(_ rng: RNG, count: Int, data: GameData,
                                         isUnlocked: (ItemDef) -> Bool,
+                                        isEquipped: ((String, String) -> Bool)? = nil,
+                                        tierWeights: [String: Double]? = nil,
                                         genCard: ((RNG) -> CardSpec?)?) -> [StoreSlot?] {
+        let effectiveTierWeights = tierWeights ?? data.items.store.tierWeights
         let CW = data.items.store.classWeights
         let cap = data.items.store.typeCap
         func cls(_ key: String, _ w: Double, _ types: [ItemDef]) -> (key: String, w: Double, types: [ItemDef]) {
-            let pool = types.filter(isUnlocked)
+            let pool = types.filter { isUnlocked($0) && !(isEquipped?(key, $0.id) ?? false) }
             return (key, pool.isEmpty ? 0 : w, pool)
         }
         let classes: [(key: String, w: Double, types: [ItemDef])] = [
@@ -134,6 +181,10 @@ public enum StoreRoll {
         let cwTotal = cwTotalRaw == 0 ? 1 : cwTotalRaw
         var slots: [StoreSlot?] = []
         var perType: [String: Int] = [:]
+        // One shelf never repeats an ITEM: a duplicate draw is rejected and
+        // redrawn, exactly like a class over its cap. Cards are exempt (each
+        // minted card is its own thing).
+        var seenIds = Set<String>()
         for _ in 0..<count {
             var pick: StoreSlot? = nil
             // Reject-and-redraw over the class cap; 80 tries is a paranoid ceiling.
@@ -151,8 +202,9 @@ public enum StoreRoll {
                     guard let card = genCard?(rng) else { continue }
                     pick = StoreSlot(kind: "card", id: "card", card: card)
                 } else {
-                    guard let id = rollIds(chosen.types, 1, rng, tierWeights: data.items.store.tierWeights).first
+                    guard let id = rollIds(chosen.types, 1, rng, tierWeights: effectiveTierWeights).first
                     else { continue }
+                    if seenIds.contains("\(chosen.key).\(id)") { continue }
                     if (perType[slotTypeKey(chosen.key, id, data: data)] ?? 0) >= cap { continue }
                     pick = StoreSlot(kind: chosen.key, id: id)
                 }
@@ -160,6 +212,7 @@ public enum StoreRoll {
             guard let p = pick else { slots.append(nil); continue }   // unreachable in practice
             let key = p.kind == "card" ? "card" : slotTypeKey(p.kind, p.id, data: data)
             perType[key, default: 0] += 1
+            if p.kind != "card" { seenIds.insert("\(p.kind).\(p.id)") }
             slots.append(p)
         }
         return slots
@@ -169,9 +222,13 @@ public enum StoreRoll {
     /// When the Removal slot is on it permanently occupies the LAST slot.
     public static func freshOffer(_ rng: RNG, data: GameData, removalOn: Bool,
                                   isUnlocked: (ItemDef) -> Bool,
+                                  isEquipped: ((String, String) -> Bool)? = nil,
+                                  tierWeights: [String: Double]? = nil,
                                   genCard: ((RNG) -> CardSpec?)?) -> StoreOffer {
         let rolled = removalOn ? data.items.store.slots - 1 : data.items.store.slots
-        var slots = rollUnifiedSlots(rng, count: rolled, data: data, isUnlocked: isUnlocked, genCard: genCard)
+        var slots = rollUnifiedSlots(rng, count: rolled, data: data, isUnlocked: isUnlocked,
+                                     isEquipped: isEquipped, tierWeights: tierWeights,
+                                     genCard: genCard)
         if removalOn { slots.append(StoreSlot(kind: "removal", id: "removal")) }
         return StoreOffer(slots: slots, rerollCost: data.items.store.reroll.baseCost)
     }
@@ -233,5 +290,17 @@ public func mysterySeed(seed: UInt32, nodeId: Int, salt: UInt32) -> UInt32 {
 public let mysteryKeySalt: UInt32 = 0x4d455654
 /// "MAMT" — amounts / sticker / card picks.
 public let mysteryDetailSalt: UInt32 = 0x4d414d54
+/// "OJKR" — THE OLD JOKER's appearance + offer roll. A SEPARATE stream from
+/// the mystery outcome roll on purpose: he can be retuned, or removed, without
+/// shifting a single byte of the ordinary mystery stream.
+public let oldJokerSalt: UInt32 = 0x4f4a4b52
+/// BOUNCER's ward roll (turning Just a Two away) — its own substream, so
+/// equipping the pillar never shifts any other node roll.
+public let twoWardSalt: UInt32 = 0x424f554e
+/// "OJRS" — details the player's CHOICE needs (which card he cuts).
+public let oldJokerResolveSalt: UInt32 = 0x4f4a5253
+/// "OJLC" — the Purge's leech targets.
+public let oldJokerLeechSalt: UInt32 = 0x4f4a4c43
+
 /// "JOKR" — the guaranteed-map-Joker placement roll.
 public let jokerPlacementSalt: UInt32 = 0x4a4f4b52

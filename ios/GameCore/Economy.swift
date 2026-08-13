@@ -34,8 +34,9 @@ public struct PayoutStats: Sendable {
     /// It CAN be negative.
     public var eventBonus: Double = 0
     public var eventLines: [PayoutLine] = []
-    /// An AMBUSH pays coins only — its bounty IS the reward, and it never counts
-    /// toward the run SCORE.
+    /// An AMBUSH pays no flat stage base — its bounty IS the reward. It DOES
+    /// score like any other battle (v5.82); the caller zeroes `flat`, not the
+    /// product.
     public var ambush = false
     /// Only read by `liveBonus`.
     public var liveBonusCoins: Double = 0
@@ -106,9 +107,10 @@ public struct Economy: Sendable {
         let pillarLines = won ? stats.pillarLines : []
         let eventBonus = won ? stats.eventBonus : 0
         let eventLines = won ? stats.eventLines : []
-        // The guard keeps the product 0 (never NaN) when no piles are alive; an
-        // ambush forces it to 0 so the whole chain follows from one place.
-        let product = stats.ambush ? 0 : (alivePiles > 0 ? alivePiles * minPileCards : 0)
+        // The guard keeps the product 0 (never NaN) when no piles are alive.
+        // EVERY battle scores, ambushes included (v5.82) — an ambush still pays
+        // no flat base (`stats.flat` is 0 for one), but its piles count.
+        let product = alivePiles > 0 ? alivePiles * minPileCards : 0
         let extraCoinBonus = Double(extraCoinUnits) * extraCoinValue
         return PayoutBreakdown(
             won: won, flat: flat, stage: stage, rating: rating,

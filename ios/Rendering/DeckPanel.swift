@@ -67,13 +67,26 @@ public final class DeckPanel: SKNode {
         card.setScale(0.62)
         card.position = CGPoint(x: character.position.x - 38, y: character.position.y + 2)
         peekLayer.addChild(card)
-        let tag = PixelTexture.label("NEXT", size: 12, color: CRT.phosphor, glow: true)
+        let tag = PixelTexture.label("NEXT", size: 14, color: CRT.phosphor, glow: true)
         tag.anchorPoint = CGPoint(x: 0.5, y: 1)
         tag.position = CGPoint(x: card.position.x + 15, y: card.position.y - 44)
         peekLayer.addChild(tag)
         card.alpha = 0
         card.run(.group([.fadeIn(withDuration: 0.15),
                          .sequence([.scale(to: 0.7, duration: 0.1), .scale(to: 0.62, duration: 0.1)])]))
+        // The peeked card GLOWS (a slow alpha-breathe — the eye catches the
+        // motion) and the character does a quick two-hop to point you at it
+        // (router batch). Both transform/alpha-only.
+        card.run(.repeatForever(.sequence([
+            .fadeAlpha(to: 0.72, duration: 0.55),
+            .fadeAlpha(to: 1.0, duration: 0.55),
+        ])), withKey: "peekGlow")
+        if character.action(forKey: "peekHop") == nil {
+            character.run(.sequence([
+                .moveBy(x: 0, y: 6, duration: 0.1), .moveBy(x: 0, y: -6, duration: 0.1),
+                .moveBy(x: 0, y: 4, duration: 0.09), .moveBy(x: 0, y: -4, duration: 0.09),
+            ]), withKey: "peekHop")
+        }
     }
 
     @available(*, unavailable)
@@ -98,7 +111,7 @@ public final class DeckPanel: SKNode {
     public func sync(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                      deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood,
                      tier: String = "regular", suitTotals: [String: Int] = [:],
-                     rankTotals: [Int: Int] = [:]) {
+                     rankTotals: [Int: Int] = [:], showJoker: Bool = true) {
         histLayer.removeAllChildren()
         suitLayer.removeAllChildren()
         deckLayer.removeAllChildren()
@@ -112,9 +125,10 @@ public final class DeckPanel: SKNode {
         for s in ["♥", "♦", "♣", "♠"] {
             let n = suitCounts[s] ?? 0
             let t = suitTotals[s] ?? n
-            let c = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
-            let text = t > 0 ? "\(s) \(n)/\(t)" : "\(s) \(n)/\(t)"
-            let label = PixelTexture.label(text, size: 13, color: n == 0 && t == 0 ? CRT.muted : c)
+            // All four tallies read CREAM (v6.36): red-on-felt was the
+            // hardest text on the board, and the glyph already carries the suit.
+            let text = "\(s) \(n)/\(t)"
+            let label = PixelTexture.label(text, size: 16, color: n == 0 && t == 0 ? CRT.muted : CRT.cardFace)
             label.anchorPoint = CGPoint(x: 0, y: 0.5)
             label.position = CGPoint(x: pad, y: sy)
             suitLayer.addChild(label)
@@ -125,12 +139,16 @@ public final class DeckPanel: SKNode {
         let histX = pad + 46
         let deckW: CGFloat = 62
         let histW = size.width - histX - deckW - pad * 2
-        let barW = max(3, (histW - CGFloat(DeckManager.ranks.count - 1) * 2) / CGFloat(DeckManager.ranks.count))
+        // +1 column for ★ (jokers), which sit at rank 0 and are therefore
+        // outside DeckManager.ranks entirely. Zen never mints one, so the
+        // column drops there and the ranks breathe wider.
+        let columns = DeckManager.ranks.count + (showJoker ? 1 : 0)
+        let barW = max(3, (histW - CGFloat(columns - 1) * 2) / CGFloat(columns))
         // Web parity (renderHistogram): the scale reads the FULL stage counts.
         let scaleMax = max(1, rankTotals.values.max() ?? counts.values.max() ?? 1)
         let histH = size.height - pad * 2 - 12
         histMinX = histX
-        histMaxX = histX + CGFloat(DeckManager.ranks.count) * (barW + 2)
+        histMaxX = histX + CGFloat(columns) * (barW + 2)
         for (i, r) in DeckManager.ranks.enumerated() {
             let n = counts[r.value] ?? 0
             let full = rankTotals[r.value] ?? 0
@@ -160,7 +178,44 @@ public final class DeckPanel: SKNode {
                 histLayer.addChild(stub)
             }
             // Rank tick under the bar (12px floor).
-            let tick = PixelTexture.label(r.label, size: 12, color: CRT.muted)
+            let tick = PixelTexture.label(r.label, size: 14, color: CRT.muted)
+            tick.anchorPoint = CGPoint(x: 0.5, y: 1)
+            tick.position = CGPoint(x: barX + barW / 2, y: -size.height + pad + 11)
+            histLayer.addChild(tick)
+        }
+
+        // ---- ★ JOKERS, the last column. They are rank 0, so the rank loop
+        // above can never reach them; without this a deck holding nothing but
+        // a Joker drew an entirely empty histogram.
+        if showJoker {
+            let jokers = counts[0] ?? 0
+            let fullJokers = rankTotals[0] ?? 0
+            let barX = histX + CGFloat(DeckManager.ranks.count) * (barW + 2)
+            let barY = -size.height + pad + 12
+            barFrames.append((value: 0, label: "★", x: barX, w: barW))
+            if fullJokers > 0 {
+                let gh = max(3, CGFloat(fullJokers) / CGFloat(scaleMax) * histH)
+                let ghost = SKSpriteNode(color: CRT.feltDeep, size: CGSize(width: barW, height: gh))
+                ghost.anchorPoint = CGPoint(x: 0, y: 0)
+                ghost.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(ghost)
+            }
+            if jokers > 0 {
+                // GOLD, like the shell band's ★ column — a Joker is not an
+                // ordinary rank and must never read as one.
+                let h = max(3, CGFloat(jokers) / CGFloat(scaleMax) * histH)
+                let bar = SKSpriteNode(color: CRT.gold, size: CGSize(width: barW, height: h))
+                bar.anchorPoint = CGPoint(x: 0, y: 0)
+                bar.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(bar)
+            } else if fullJokers == 0 {
+                let stub = SKSpriteNode(color: CRT.feltDeep, size: CGSize(width: barW, height: 2))
+                stub.anchorPoint = CGPoint(x: 0, y: 0)
+                stub.position = CGPoint(x: barX, y: barY)
+                histLayer.addChild(stub)
+            }
+            let tick = PixelTexture.label("★", size: 14,
+                                          color: jokers > 0 ? CRT.gold : CRT.muted)
             tick.anchorPoint = CGPoint(x: 0.5, y: 1)
             tick.position = CGPoint(x: barX + barW / 2, y: -size.height + pad + 11)
             histLayer.addChild(tick)
@@ -175,15 +230,18 @@ public final class DeckPanel: SKNode {
 
         // The gold count plaque, overlapping the sprite's bottom-right corner.
         let countText = "\(deckRemaining)" as NSString
-        let font = CRT.Font.of(18)
+        let font = CRT.Font.of(20)
         let tsz = countText.size(withAttributes: [.font: font])
-        let pw = max(26, tsz.width + 10), ph: CGFloat = 22
+        let pw = max(28, tsz.width + 10), ph: CGFloat = 25
+        // THE LAST CARD is an event (router batch): the plaque goes full
+        // gold and the character dances — excited or nervous, who can say.
+        let lastCard = deckRemaining == 1
         let plaqueImg = PixelTexture.image(size: CGSize(width: pw + 2, height: ph + 2)) { cg in
             cg.setFillColor(CRT.shadow.cgColor)
             cg.fill(CGRect(x: 2, y: 2, width: pw, height: ph))
-            cg.setFillColor(CRT.cardFace.cgColor)
+            cg.setFillColor((lastCard ? CRT.gold : CRT.cardFace).cgColor)
             cg.fill(CGRect(x: 0, y: 0, width: pw, height: ph))
-            cg.setFillColor(CRT.gold.cgColor)
+            cg.setFillColor((lastCard ? CRT.ink : CRT.gold).cgColor)
             for r in [CGRect(x: 0, y: 0, width: pw, height: 2), CGRect(x: 0, y: ph - 2, width: pw, height: 2),
                       CGRect(x: 0, y: 0, width: 2, height: ph), CGRect(x: pw - 2, y: 0, width: 2, height: ph)] { cg.fill(r) }
             UIGraphicsPushContext(cg)
@@ -196,6 +254,29 @@ public final class DeckPanel: SKNode {
         count.anchorPoint = CGPoint(x: 0, y: 1)
         count.position = CGPoint(x: charX + 34, y: -size.height + pad + ph + 4)
         count.zPosition = 3
+        // The dance: a tight hop + wag loop, transform-only, keyed so sync
+        // never stacks a second copy. Stops the moment a card returns.
+        if lastCard {
+            if character.action(forKey: "lastCardDance") == nil {
+                let hop = SKAction.sequence([
+                    SKAction.moveBy(x: 0, y: 5, duration: 0.12),
+                    SKAction.moveBy(x: 0, y: -5, duration: 0.12),
+                ])
+                let wag = SKAction.sequence([
+                    SKAction.rotate(toAngle: 0.08, duration: 0.1),
+                    SKAction.rotate(toAngle: -0.08, duration: 0.2),
+                    SKAction.rotate(toAngle: 0, duration: 0.1),
+                    SKAction.wait(forDuration: 0.45),
+                ])
+                character.run(SKAction.repeatForever(SKAction.group([
+                    SKAction.sequence([hop, SKAction.wait(forDuration: 0.61)]),
+                    wag,
+                ])), withKey: "lastCardDance")
+            }
+        } else {
+            character.removeAction(forKey: "lastCardDance")
+            character.zRotation = 0
+        }
         deckLayer.addChild(count)
         countLabel = count
 
@@ -239,43 +320,63 @@ public final class DeckPanel: SKNode {
             else { same += n }
         }
         let jokers = lastCounts[0] ?? 0
-        var parts: [(String, UIColor)] = [
-            ("\(label) · ", CRT.cardFace),
-            ("↑\(above) higher", CRT.phosphor),
-            (" · ", CRT.muted),
-            ("=\(same) same", CRT.cardFace),
-            (" · ", CRT.muted),
-            ("↓\(below) lower", CRT.suitRed),
+        // The NUMBER is always bright cream — it's the answer, and a red
+        // count sank into the felt. The arrow + word keep the semantic tint.
+        var segments: [[(String, UIColor)]] = [
+            [("↑", CRT.phosphor), ("\(above)", CRT.cardFace), (" higher", CRT.phosphor)],
+            [("=", CRT.cardFace), ("\(same)", CRT.cardFace), (" same", CRT.cardFace)],
+            [("↓", CRT.suitRed), ("\(below)", CRT.cardFace), (" lower", CRT.suitRed)],
         ]
         if jokers > 0 {
-            parts.append((" · ", CRT.muted))
-            parts.append(("★\(jokers) safe", CRT.gold))
+            segments.append([("★", CRT.gold), ("\(jokers)", CRT.cardFace), (" safe", CRT.gold)])
         }
-        var nodes: [SKSpriteNode] = []
-        var total: CGFloat = 0
-        for (t, c) in parts {
-            let n = PixelTexture.label(t, size: 13, color: c)
-            n.anchorPoint = CGPoint(x: 0, y: 0.5)
-            nodes.append(n)
-            total += n.size.width
-        }
-        let boxW = total + 12, boxH: CGFloat = 20
+        // The readout sits in its OWN full-width panel BELOW the band, not
+        // squeezed inside the histogram — the numbers are the whole point of
+        // the gesture, so they get their own room. v6.24: the counts grew to
+        // 20pt on a DEEP-felt face (the red "lower" was unreadable on
+        // felt-mid at 16pt), the dim " · " separators became real gaps, and
+        // the panel got taller to seat the larger line.
+        let boxW = size.width
+        let boxH: CGFloat = 56
         let holder = SKNode()
         let bg = PixelTexture.panelNode(size: CGSize(width: boxW, height: boxH),
-                                        face: CRT.feltMid, border: CRT.ink, shadowOffset: 2)
+                                        face: CRT.feltDeep, border: CRT.phosphor, shadowOffset: 3)
         holder.addChild(bg)
-        var tx: CGFloat = 6
-        for n in nodes {
-            n.position = CGPoint(x: tx, y: -boxH / 2)
-            n.zPosition = 1
-            holder.addChild(n)
-            tx += n.size.width
+        // Line 1: which rank the finger is on.
+        let head = PixelTexture.label(label, size: 18, color: CRT.gold)
+        head.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        head.position = CGPoint(x: boxW / 2, y: -15)
+        head.zPosition = 1
+        holder.addChild(head)
+        // Line 2: the counts, spread evenly across the full width — each
+        // segment is a run of adjacent labels (arrow · number · word).
+        var clusters: [[SKSpriteNode]] = []
+        var total: CGFloat = 0
+        for seg in segments {
+            var run: [SKSpriteNode] = []
+            for (t, c) in seg {
+                let n = PixelTexture.label(t, size: 20, color: c)
+                n.anchorPoint = CGPoint(x: 0, y: 0.5)
+                run.append(n)
+                total += n.size.width
+            }
+            clusters.append(run)
         }
-        // Anchored over the histogram's top (the web overlays the readout on
-        // the strip), clamped so it never spills off the band.
-        let histMid = (histMinX + histMaxX) / 2
-        let ox = max(2, min(size.width - boxW - 2, histMid - boxW / 2))
-        holder.position = CGPoint(x: ox, y: -2)
+        let gap = clusters.count > 1
+            ? max(8, min(26, (boxW - 12 - total) / CGFloat(clusters.count - 1))) : 0
+        var tx = max(6, (boxW - total - gap * CGFloat(clusters.count - 1)) / 2)
+        for run in clusters {
+            for n in run {
+                n.position = CGPoint(x: tx, y: -38)
+                n.zPosition = 1
+                holder.addChild(n)
+                tx += n.size.width
+            }
+            tx += gap
+        }
+        // Hangs just under the band, over the top of the board.
+        holder.position = CGPoint(x: 0, y: -size.height - 4)
+        holder.zPosition = 40
         scrubLayer.addChild(holder)
         // The .ds-active marker: a gold frame around the touched bar's column.
         if let f = barFrames.first(where: { $0.value == value }) {
@@ -294,6 +395,22 @@ public final class DeckPanel: SKNode {
     }
 
     public func hideScrub() { scrubLayer.removeAllChildren() }
+
+    /// The scrub fallback for a finger that has WANDERED off the band mid-drag:
+    /// the horizontal position still picks the rank (clamped into the
+    /// histogram's span) and the vertical position is ignored — once the scrub
+    /// activates it tracks the drag until the finger lifts, wherever it roams.
+    public func rankValue(nearLocalX x: CGFloat) -> (value: Int, label: String)? {
+        guard !barFrames.isEmpty, size.height > 0 else { return nil }
+        let cx = max(histMinX, min(histMaxX, x))
+        if let f = barFrames.first(where: { cx >= $0.x - 1 && cx <= $0.x + $0.w + 1 }) {
+            return (f.value, f.label)
+        }
+        guard let best = barFrames.min(by: {
+            abs($0.x + $0.w / 2 - cx) < abs($1.x + $1.w / 2 - cx)
+        }) else { return nil }
+        return (best.value, best.label)
+    }
 }
 
 /// The living deck character. Wraps the baked `DeckCharacter` textures in the
@@ -368,13 +485,21 @@ public final class DeckCharNode: SKNode {
         reaction = m
         refresh()
         removeAction(forKey: "revert")
-        if m == .celebrate || m == .win { dance() }
+        // THE DANCE IS FOR A CLEARED DEAL. A correct guess gets a small bob
+        // and a loss a small droop — dancing on every guess spent the
+        // celebration dozens of times a deal and left nothing for the win.
+        switch m {
+        case .celebrate, .win: dance(m)
+        case .happy, .glad, .sad: smallEmote(m)
+        default: break
+        }
         if hold > 0 {
             run(.sequence([.wait(forDuration: hold), .run { [weak self] in
                 self?.reaction = nil
                 self?.sprite.removeAction(forKey: "dance")
                 self?.sprite.position = .zero
                 self?.sprite.zRotation = 0
+                self?.sprite.yScale = 1
                 self?.refresh()
             }]), withKey: "revert")
         }
@@ -389,6 +514,7 @@ public final class DeckCharNode: SKNode {
         sprite.removeAction(forKey: "dance")
         sprite.position = .zero
         sprite.zRotation = 0
+        sprite.yScale = 1
         refresh()
     }
 
@@ -440,13 +566,113 @@ public final class DeckCharNode: SKNode {
     }
 
     /// The win dance: a bouncing sway while celebrating.
-    private func dance() {
+    /// EACH CHARACTER MOVES LIKE ITSELF. They shared one hop, so four
+    /// distinct sprites read as one animation with different hats. The
+    /// choreography below is per deck AND per reaction — a win is a different
+    /// motion from a loss, and Pinky's win is different from Lammy's.
+    ///
+    /// All of it is compositor-only (move/rotate/scale on the existing
+    /// sprite), repeats forever, and is torn down by `react`'s revert.
+    private func dance(_ m: DeckCharacter.Mood) {
         sprite.removeAction(forKey: "dance")
-        let hop = SKAction.sequence([
-            .group([.moveBy(x: 0, y: 5, duration: 0.12), .rotate(toAngle: 0.08, duration: 0.12)]),
-            .group([.moveBy(x: 0, y: -5, duration: 0.12), .rotate(toAngle: -0.08, duration: 0.12)]),
-        ])
-        sprite.run(.repeatForever(hop), withKey: "dance")
+        let happy = (m == .celebrate || m == .win || m == .happy || m == .glad)
+        sprite.run(.repeatForever(happy ? winMove() : lossMove()), withKey: "dance")
+    }
+
+    /// A SMALL reaction: one beat, not a routine. Still per-character in
+    /// feel — a bob for good news, a dip for bad — but over in ~0.3s and
+    /// never repeating, so the win dance stays special.
+    private func smallEmote(_ m: DeckCharacter.Mood) {
+        let up = (m != .sad)
+        let dy: CGFloat = up ? 4 : -3
+        let tilt: CGFloat = up ? 0.06 : -0.05
+        sprite.run(.sequence([
+            .group([.moveBy(x: 0, y: dy, duration: 0.10),
+                    .rotate(toAngle: tilt, duration: 0.10)]),
+            .group([.moveBy(x: 0, y: -dy, duration: 0.14),
+                    .rotate(toAngle: 0, duration: 0.14)]),
+        ]), withKey: "dance")
+    }
+
+    /// The GOOD-NEWS move, per character.
+    private func winMove() -> SKAction {
+        switch deckId {
+        case "pink":
+            // PINKY bounces — quick, light, full of itself.
+            return .sequence([
+                .group([.moveBy(x: 0, y: 7, duration: 0.10), .rotate(toAngle: 0.10, duration: 0.10)]),
+                .group([.moveBy(x: 0, y: -7, duration: 0.10), .rotate(toAngle: -0.10, duration: 0.10)]),
+                .wait(forDuration: 0.05),
+            ])
+        case "mamma":
+            // MAMMA sways — a slow, pleased hip-swing, barely leaves the floor.
+            return .sequence([
+                .group([.moveBy(x: 4, y: 2, duration: 0.26), .rotate(toAngle: -0.12, duration: 0.26)]),
+                .group([.moveBy(x: -8, y: 0, duration: 0.34), .rotate(toAngle: 0.12, duration: 0.34)]),
+                .group([.moveBy(x: 4, y: -2, duration: 0.26), .rotate(toAngle: 0, duration: 0.26)]),
+            ])
+        case "smith":
+            // MR. SMITH does not dance. He straightens, gives one crisp bow,
+            // and returns to attention.
+            return .sequence([
+                .wait(forDuration: 0.35),
+                .group([.moveBy(x: 0, y: -4, duration: 0.14), .scaleY(to: 0.90, duration: 0.14)]),
+                .group([.moveBy(x: 0, y: 4, duration: 0.18), .scaleY(to: 1.0, duration: 0.18)]),
+                .wait(forDuration: 0.45),
+            ])
+        case "lammy":
+            // LAMMY wobbles — a woolly, off-balance shimmy that never quite
+            // settles.
+            return .sequence([
+                .rotate(toAngle: 0.16, duration: 0.18),
+                .rotate(toAngle: -0.16, duration: 0.22),
+                .group([.moveBy(x: 0, y: 4, duration: 0.12), .rotate(toAngle: 0.05, duration: 0.12)]),
+                .group([.moveBy(x: 0, y: -4, duration: 0.12), .rotate(toAngle: 0, duration: 0.12)]),
+            ])
+        default:
+            return .sequence([
+                .group([.moveBy(x: 0, y: 5, duration: 0.12), .rotate(toAngle: 0.08, duration: 0.12)]),
+                .group([.moveBy(x: 0, y: -5, duration: 0.12), .rotate(toAngle: -0.08, duration: 0.12)]),
+            ])
+        }
+    }
+
+    /// The BAD-NEWS move — every character deflates in its own way.
+    private func lossMove() -> SKAction {
+        switch deckId {
+        case "pink":
+            // PINKY flinches and shivers: the bounce, punctured.
+            return .sequence([
+                .moveBy(x: -2, y: 0, duration: 0.05),
+                .moveBy(x: 4, y: 0, duration: 0.05),
+                .moveBy(x: -2, y: 0, duration: 0.05),
+                .wait(forDuration: 0.55),
+            ])
+        case "mamma":
+            // MAMMA sighs — one long sag and a slow recovery.
+            return .sequence([
+                .group([.moveBy(x: 0, y: -3, duration: 0.45), .scaleY(to: 0.94, duration: 0.45)]),
+                .group([.moveBy(x: 0, y: 3, duration: 0.55), .scaleY(to: 1.0, duration: 0.55)]),
+            ])
+        case "smith":
+            // MR. SMITH is merely disappointed. A single slow head-tilt.
+            return .sequence([
+                .rotate(toAngle: -0.07, duration: 0.5),
+                .wait(forDuration: 0.3),
+                .rotate(toAngle: 0, duration: 0.5),
+            ])
+        case "lammy":
+            // LAMMY droops, ears and all, then bobs weakly back.
+            return .sequence([
+                .group([.moveBy(x: 0, y: -5, duration: 0.6), .rotate(toAngle: 0.12, duration: 0.6)]),
+                .group([.moveBy(x: 0, y: 5, duration: 0.7), .rotate(toAngle: 0, duration: 0.7)]),
+            ])
+        default:
+            return .sequence([
+                .moveBy(x: 0, y: -3, duration: 0.4),
+                .moveBy(x: 0, y: 3, duration: 0.5),
+            ])
+        }
     }
 }
 

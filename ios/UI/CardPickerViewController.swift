@@ -21,6 +21,12 @@ public final class CardPickerViewController: UIViewController {
         case removal(price: Int)
         case strip
         case swap(trayIndex: Int, step: String?)
+        /// PICK ONLY — the picker reports the chosen card and changes NOTHING.
+        /// The caller applies whatever the pick meant. Used by the Old Joker's
+        /// Duplicate, which needs two picks (copy this / replace that) before
+        /// anything can happen at all.
+        case choose(title: String, verb: String, prompt: String, allowJokers: Bool,
+                    subjectCardId: Int? = nil, subjectExtraSticker: String? = nil)
     }
 
     private let campaign: CampaignState
@@ -55,6 +61,9 @@ public final class CardPickerViewController: UIViewController {
     private let scroll = UIScrollView()
     private let grid = UIView()
     private let prompt = PromptBar()
+    private var holdHelp = PixelPanelView()
+    /// The composition strip in VIEW coords — prompts and help take it over.
+    private var stripRect: CGRect = .zero
     private let crt = CRTOverlayUIView()
     private var cardViews: [Int: UIButton] = [:]
     private var selectedId: Int?
@@ -97,7 +106,7 @@ public final class CardPickerViewController: UIViewController {
         view.addSubview(sheetShadow)
         view.addSubview(sheet)
 
-        headerLabel.attributedText = CRTKit.attributed(headerText(), size: 15, color: CRT.cardFace)
+        headerLabel.attributedText = CRTKit.attributed(headerText(), size: 16, color: CRT.cardFace)
         sheet.addSubview(headerLabel)
 
         closeButton.onTap = { [weak self] in self?.closeTapped() }
@@ -121,7 +130,7 @@ public final class CardPickerViewController: UIViewController {
         sheet.addSubview(suitRow)
 
         hintLabel.numberOfLines = 0
-        hintLabel.attributedText = CRTKit.attributed(hintText(), size: 12, color: CRT.muted)
+        hintLabel.attributedText = CRTKit.attributed(hintText(), size: 14, color: CRT.muted)
         sheet.addSubview(hintLabel)
 
         scroll.alwaysBounceVertical = true
@@ -152,7 +161,10 @@ public final class CardPickerViewController: UIViewController {
 
     private func descHeight(width w: CGFloat) -> CGFloat {
         guard let s = bannerDesc.attributedText else { return 16 }
-        return ceil(s.boundingRect(with: CGSize(width: w, height: 120),
+        // Measure the FULL text — a 120pt ceiling clipped long sticker
+        // descriptions mid-sentence (v5.82); the 80vh sheet cap below
+        // already bounds the extreme.
+        return ceil(s.boundingRect(with: CGSize(width: w, height: 800),
                                    options: .usesLineFragmentOrigin, context: nil).height)
     }
 
@@ -210,6 +222,14 @@ public final class CardPickerViewController: UIViewController {
         y += 22 + 8
         hintLabel.frame = CGRect(x: pad, y: y, width: innerW, height: 16)
         y += 16 + 8
+        // The prompt and the hold-help panel both TAKE OVER the composition
+        // strip — the histogram/legend/suit block — rather than floating at the
+        // screen's top, which on this sheet is above the sheet itself.
+        stripRect = sheet.convert(CGRect(x: pad, y: histBars.frame.minY,
+                                         width: innerW,
+                                         height: suitRow.frame.maxY - histBars.frame.minY),
+                                  to: view)
+        prompt.anchorRect = stripRect
         scroll.frame = CGRect(x: pad, y: y, width: innerW, height: sheetH - y - safeB)
 
         crt.frame = b
@@ -226,13 +246,12 @@ public final class CardPickerViewController: UIViewController {
 
     private func headerText() -> String {
         switch mode {
-        case .applySticker(let t):
-            // Owned sticker (post-deal gain): "Apply <label>".
-            return "Apply " + (GameData.shared.stickerTypes.get(t)?.label ?? "Sticker")
-        case .buySticker(_, let t):
-            // Store buy (place-then-pay): "Place <label>".
-            return "Place " + (GameData.shared.stickerTypes.get(t)?.label ?? "Sticker")
-        case .removal: return "Removal"
+        case .applySticker, .buySticker:
+            // No header: the banner right below already carries the sticker's
+            // chip, name and description — naming it here said it twice.
+            return ""
+        case .removal: return GameData.shared.items.store.removal.label
+        case .choose(let title, _, _, _, _, _): return title
         case .strip: return "Cleanse"
         case .swap(let trayIndex, let step):
             let tray = campaign.getPackTray()
@@ -242,13 +261,59 @@ public final class CardPickerViewController: UIViewController {
     }
 
     private func trayCardName(_ c: CardSpec) -> String {
-        c.joker ? "★ Joker" : (c.blank ? "∅ Removal" : "\(rankLabel(c)) \(c.suit)")
+        c.joker ? "★ Joker" : (c.blank ? "∅ Purge" : "\(rankLabel(c)) \(c.suit)")
     }
 
+    /// Hold-for-help on a card in the picker. The game's convention is that a
+    /// long press ALWAYS explains what is under your finger — this screen was
+    /// the one place it did nothing, which read as the hold being broken.
+    @objc private func cardHeld(_ g: UILongPressGestureRecognizer) {
+        guard let id = g.view?.tag else { return }
+        switch g.state {
+        case .began:
+            guard let card = campaign.getRunDeck().first(where: { $0.id == id }) else { return }
+            let info = CardInfoText.make(DeckManager.toCard(card))
+            showHoldHelp(title: info.title, body: info.body)
+            Sound.shared.button()
+        case .ended, .cancelled, .failed:
+            hideHoldHelp()
+        default: break
+        }
+    }
+
+    /// Hold-help floats in its OWN panel at the top, over the composition
+    /// strip — the standard everywhere else. Overwriting the banner meant the
+    /// held card's info replaced the instruction telling you what to pick.
+    private func showHoldHelp(title: String, body: String) {
+        holdHelp.removeFromSuperview()
+        holdHelp = PixelPanelView(face: CRT.feltDeep, border: CRT.phosphor)
+        let t = CRTKit.label(title, size: 18, color: CRT.phosphor, display: true, glow: true)
+        let b = CRTKit.label(body, size: 16, color: CRT.cardFace)
+        t.textAlignment = .center
+        b.textAlignment = .center
+        b.numberOfLines = 0
+        let region = stripRect.isEmpty
+            ? CGRect(x: 14, y: view.safeAreaInsets.top + 8, width: view.bounds.width - 28, height: 0)
+            : stripRect
+        let w = min(region.width, 400)
+        let bodyH = b.sizeThatFits(CGSize(width: w - 24, height: 500)).height
+        let h = bodyH + 46
+        holdHelp.frame = CGRect(x: region.minX + (region.width - w) / 2,
+                                y: region.minY + max(0, (region.height - h) / 2),
+                                width: w, height: h)
+        t.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
+        b.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
+        holdHelp.addSubview(t)
+        holdHelp.addSubview(b)
+        view.addSubview(holdHelp)
+    }
+
+    private func hideHoldHelp() { holdHelp.removeFromSuperview() }
+
     private func setBanner(name: String, desc: String) {
-        bannerName.attributedText = CRTKit.attributed(name, size: 15, color: CRT.phosphor,
+        bannerName.attributedText = CRTKit.attributed(name, size: 16, color: CRT.phosphor,
                                                       display: true, glow: true)
-        bannerDesc.attributedText = CRTKit.attributed(desc, size: 12, color: CRT.muted)
+        bannerDesc.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.muted)
     }
 
     private func configureBanner() {
@@ -264,38 +329,64 @@ public final class CardPickerViewController: UIViewController {
             }
         case .removal(let price):
             bannerIcon.image = ItemArt.removal()
-            setBanner(name: "∅ Removal",
+            setBanner(name: "∅ Purge",
                       desc: price > 0
-                        ? "Pick a card to permanently remove (◉ \(price)). The slot stays."
-                        : "Pick a card to permanently remove from your deck.")
+                        ? "Pick a card to permanently purge (◉ \(price)). The slot stays."
+                        : "Pick a card to permanently purge from your deck.")
+        case .choose(let title, _, let prompt, _, let subject, let extraSticker):
+            // When the pick is ABOUT a specific card (the Old Joker's copy),
+            // show that card in the banner — his own mark says nothing about
+            // what you're actually holding. The card is drawn WITH its sticker
+            // chips, plus `extraSticker` (the mark the copy will carry), so
+            // the banner shows the exact card about to enter the deck.
+            if let subject, let c = campaign.getRunDeck().first(where: { $0.id == subject }) {
+                bannerIcon.image = Self.cardWithStickers(c, extra: extraSticker)
+            } else {
+                bannerIcon.image = ItemArt.oldJoker(scale: 2)
+            }
+            setBanner(name: title, desc: prompt)
         case .strip:
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "Cleanse",
-                      desc: "Pick a card — one random sticker is stripped from it, free. The stripped sticker is destroyed.")
+                      desc: "Pick a card. One random sticker is stripped from it. The stripped sticker is destroyed.")
         case .swap(let trayIndex, _):
             let tray = campaign.getPackTray()
             if trayIndex < tray.count {
                 let c = tray[trayIndex]
                 bannerIcon.image = CardArt.image(CardArt.Face(c), scale: .half)
                 if c.blank {
-                    setBanner(name: "∅ Removal",
-                              desc: "Pick a card to permanently remove from your deck.")
+                    setBanner(name: "∅ Purge",
+                              desc: "Pick a card to permanently purge from your deck.")
                 } else {
                     setBanner(name: trayCardName(c),
-                              desc: "Pick a card to replace with this one (the old card is removed; deck stays 52).")
+                              desc: "Pick a card to replace with this one (the old card is purged; deck stays 52).")
                 }
             }
         }
     }
 
     private func hintText() -> String {
+        // A grid where every card is greyed out reads as a broken screen unless
+        // the hint says why. Never tell the player to tap what can't be tapped.
+        // Reads the campaign deck, not `deck` — the hint is built before
+        // `renderGrid()` fills that.
+        if !campaign.getRunDeck().contains(where: { eligible($0) }) {
+            switch mode {
+            case .applySticker(let t), .buySticker(_, let t):
+                let label = GameData.shared.stickerTypes.get(t)?.label ?? "This sticker"
+                return "No card in your deck can take \(label) right now. Close to keep it."
+            case .strip: return "No card is carrying a sticker to strip."
+            default: break
+            }
+        }
         switch mode {
         case .applySticker(let t), .buySticker(_, let t):
             let label = GameData.shared.stickerTypes.get(t)?.label ?? "this sticker"
             return "Tap a card to apply \(label) to it."
-        case .removal: return "Tap the card to remove."
-        case .strip: return "Tap a stickered card — you must strip one to continue."
-        case .swap: return showsSkip ? "Tap the card to replace — or Skip to decline this card." : "Tap the card to replace."
+        case .removal: return "Tap the card to purge."
+        case .choose(_, let verb, _, _, _, _): return "Tap the card to \(verb.lowercased())." 
+        case .strip: return "Tap a stickered card. You must strip one to continue."
+        case .swap: return showsSkip ? "Tap the card to replace, or Skip to decline this card." : "Tap the card to replace."
         }
     }
 
@@ -309,6 +400,9 @@ public final class CardPickerViewController: UIViewController {
         case .removal: return true
         case .strip: return !c.stickers.isEmpty
         case .swap: return true
+        // PICK-ONLY: every card is a legal answer except a Joker when the
+        // caller has excluded one (the Old Joker will not copy himself).
+        case .choose(_, _, _, let allowJokers, _, _): return allowJokers || !c.joker
         }
     }
 
@@ -348,15 +442,15 @@ public final class CardPickerViewController: UIViewController {
                 fill.backgroundColor = CRT.cardFace
                 track.addSubview(fill)
             }
-            let tick = CRTKit.label(r.label, size: 12, color: CRT.muted)
+            let tick = CRTKit.label(r.label, size: 14, color: CRT.muted)
             tick.textAlignment = .center
             tick.frame = CGRect(x: x, y: barH + 2, width: barW, height: 14)
             histBars.addSubview(tick)
         }
 
         // Legend: cream swatch "remaining", deep swatch "total this stage".
-        let remText = CRTKit.attributed("remaining", size: 12, color: CRT.muted)
-        let allText = CRTKit.attributed("total this stage", size: 12, color: CRT.muted)
+        let remText = CRTKit.attributed("remaining", size: 14, color: CRT.muted)
+        let allText = CRTKit.attributed("total this stage", size: 14, color: CRT.muted)
         let remW = ceil(remText.size().width), allW = ceil(allText.size().width)
         let totalW = 9 + 5 + remW + 8 + 9 + 5 + allW
         var lx = (legendRow.bounds.width - totalW) / 2
@@ -376,7 +470,7 @@ public final class CardPickerViewController: UIViewController {
 
         // BY SUIT: feltDeep chips, suit-entry order (♦ ♥ ♣ ♠), red suits red.
         // remaining == total here, so each chip reads N/N.
-        let bySuitText = CRTKit.attributed("BY SUIT", size: 12, color: CRT.muted)
+        let bySuitText = CRTKit.attributed("BY SUIT", size: 14, color: CRT.muted)
         let bySuitW = ceil(bySuitText.size().width)
         var chips: [(label: UILabel, w: CGFloat)] = []
         for s in DeckManager.suits {
@@ -384,8 +478,8 @@ public final class CardPickerViewController: UIViewController {
             let str = NSMutableAttributedString()
             str.append(CRTKit.attributed(s.symbol, size: 14,
                                          color: s.red ? CRT.suitRed : CRT.cardFace))
-            str.append(CRTKit.attributed(" \(n)", size: 13, color: CRT.cardFace))
-            str.append(CRTKit.attributed("/\(n)", size: 12, color: CRT.muted))
+            str.append(CRTKit.attributed(" \(n)", size: 14, color: CRT.cardFace))
+            str.append(CRTKit.attributed("/\(n)", size: 14, color: CRT.muted))
             let l = UILabel()
             l.attributedText = str
             chips.append((l, ceil(str.size().width) + 18))   // 9px padding each side
@@ -426,21 +520,80 @@ public final class CardPickerViewController: UIViewController {
             b.adjustsImageWhenHighlighted = false
             b.tag = c.id
             b.addTarget(self, action: #selector(cardTapped(_:)), for: .touchUpInside)
+            // HOLD-FOR-HELP, same 500ms as every other screen: the banner
+            // takes over with this card's own info while the finger is down.
+            let hold = UILongPressGestureRecognizer(target: self, action: #selector(cardHeld(_:)))
+            hold.minimumPressDuration = 0.5
+            b.addGestureRecognizer(hold)
             let ok = eligible(c)
             b.alpha = ok ? 1 : 0.35
             b.isEnabled = ok
-            // Sticker count pips under the card.
-            if !c.stickers.isEmpty {
-                let pip = CRTKit.label(String(repeating: "▪", count: min(4, c.stickers.count)),
-                                       size: 12, color: CRT.gold)
-                pip.frame = CGRect(x: 0, y: 68, width: 50, height: 12)
-                pip.textAlignment = .center
-                b.addSubview(pip)
+            // The card's real stickers, along its bottom edge.
+            if let row = stickerRow(for: c, cellW: 50) {
+                row.frame.origin.y = 62
+                row.tag = 909
+                b.addSubview(row)
             }
             grid.addSubview(b)
             cardViews[c.id] = b
         }
         layoutGrid()
+    }
+
+    /// The subject card COMPOSITED with its sticker chips (plus `extra`, a
+    /// mark it is about to gain) — the banner's one image, drawn the same way
+    /// the grid draws chips: along the bottom edge, overlapping as they grow.
+    /// Shared by the pack reveal too: a card face is never shown WITHOUT the
+    /// chips it carries (a card that "has stickers" but shows none reads as a
+    /// bug, and did).
+    static func cardWithStickers(_ c: CardSpec, extra: String?) -> UIImage {
+        let face = CardArt.image(CardArt.Face(c), scale: .half)
+        var defs = c.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
+        if let extra, let d = GameData.shared.stickerTypes.get(extra) { defs.append(d) }
+        guard !defs.isEmpty else { return face }
+        let side: CGFloat = 25
+        let n = CGFloat(defs.count)
+        let step = n > 1 ? min(side + 1, (face.size.width - side) / (n - 1)) : 0
+        let rowW = side + step * (n - 1)
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = UIScreen.main.scale
+        return UIGraphicsImageRenderer(size: face.size, format: fmt).image { _ in
+            face.draw(at: .zero)
+            for (i, d) in defs.enumerated() {
+                ItemArt.sticker(d, size: side).draw(
+                    in: CGRect(x: (face.size.width - rowW) / 2 + step * CGFloat(i),
+                               y: face.size.height - side - 1, width: side, height: side))
+            }
+        }
+    }
+
+    /// The card's ACTUAL stickers, not an anonymous count of pips — you cannot
+    /// choose which card to replace without knowing what is on it. Icons sit
+    /// along the card's bottom edge and OVERLAP as the count grows, so five
+    /// still fit inside the cell instead of running off it.
+    private func stickerRow(for card: CardSpec, cellW: CGFloat) -> UIView? {
+        guard !card.stickers.isEmpty else { return nil }
+        let defs = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
+        guard !defs.isEmpty else { return nil }
+        let side: CGFloat = 20
+        let n = CGFloat(defs.count)
+        // Even spacing that collapses into an overlap once the row would exceed
+        // the cell; never wider than the card.
+        let step = n > 1 ? min(side + 1, (cellW - 2 - side) / (n - 1)) : 0
+        let rowW = side + step * (n - 1)
+        let row = UIView(frame: CGRect(x: (cellW - rowW) / 2, y: 0, width: rowW, height: side))
+        row.isUserInteractionEnabled = false
+        for (i, def) in defs.enumerated() {
+            let iv = UIImageView(image: ItemArt.sticker(def))
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            iv.layer.minificationFilter = .nearest
+            iv.frame = CGRect(x: step * CGFloat(i), y: 0, width: side, height: side)
+            // Later stickers sit on top, like a real stack.
+            iv.layer.zPosition = CGFloat(i)
+            row.addSubview(iv)
+        }
+        return row
     }
 
     private func layoutGrid() {
@@ -483,9 +636,11 @@ public final class CardPickerViewController: UIViewController {
             let label = GameData.shared.stickerTypes.get(t)?.label ?? t
             var text = "Add \(label) to \(name)?"
             var applyLabel = "Apply"
-            if case .buySticker = mode {
-                // When buying, the confirm is also the PURCHASE — name it so.
-                text += " (◉ \(Int(campaign.priceOf(t))))"
+            if case .buySticker(let slot, _) = mode {
+                // When buying, the confirm is also the PURCHASE — name it so,
+                // at the SLOT's resolved price (Freebie/comp included), the
+                // same number the shelf displayed.
+                text += " (◉ \(Int(campaign.priceOfMixed(slot))))"
                 applyLabel = "Buy & Apply"
             }
             prompt.show(text, actions: [
@@ -493,15 +648,20 @@ public final class CardPickerViewController: UIViewController {
                 .init(applyLabel, role: .cta) { [weak self] in self?.confirm() },
             ]) { [weak self] in self?.cancelChoice() }
         case .removal(let price):
-            var text = "Permanently REMOVE \(name) from your deck?"
+            var text = "Permanently PURGE \(name) from your deck?"
             if price > 0 { text += " (◉ \(price))" }
             text += stickerWarn
             prompt.show(text, actions: [
                 .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
-                .init("Remove", role: .danger) { [weak self] in self?.confirm() },
+                .init("Purge", role: .danger) { [weak self] in self?.confirm() },
+            ]) { [weak self] in self?.cancelChoice() }
+        case .choose(_, let verb, _, _, _, _):
+            prompt.show("\(verb) \(name)?", actions: [
+                .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
+                .init(verb, role: .cta) { [weak self] in self?.confirm() },
             ]) { [weak self] in self?.cancelChoice() }
         case .strip:
-            prompt.show("Strip ONE random sticker from \(name)? It carries \(card.stickers.count) — the stripped one is destroyed.",
+            prompt.show("Strip ONE random sticker from \(name)? It carries \(card.stickers.count). The stripped one is destroyed.",
                         actions: [
                 .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
                 .init("Strip", role: .cta) { [weak self] in self?.confirm() },
@@ -511,9 +671,9 @@ public final class CardPickerViewController: UIViewController {
             guard trayIndex < tray.count else { return }
             let tc = tray[trayIndex]
             if tc.blank {
-                prompt.show("Permanently REMOVE \(name) from your deck?\(stickerWarn)", actions: [
+                prompt.show("Permanently PURGE \(name) from your deck?\(stickerWarn)", actions: [
                     .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
-                    .init("Remove", role: .danger) { [weak self] in self?.confirm() },
+                    .init("Purge", role: .danger) { [weak self] in self?.confirm() },
                 ]) { [weak self] in self?.cancelChoice() }
             } else {
                 prompt.show("Replace \(name) with \(cardName(tc))?", actions: [
@@ -558,11 +718,18 @@ public final class CardPickerViewController: UIViewController {
             ok = campaign.removeRandomStickerFrom(id) != nil
         case .swap(let trayIndex, _):
             ok = campaign.replaceDeckCard(id, trayIndex: trayIndex) != nil
+        case .choose:
+            ok = true      // reporting a choice, not making a change
         }
         guard ok else { busy = false; return }
+        // Each outcome gets its OWN cue — a card leaving the deck for good must
+        // never sound like a shop purchase.
         switch mode {
         case .applySticker, .buySticker: Sound.shared.sticker()
-        default: Sound.shared.purchase()
+        case .removal: Sound.shared.removeCard()
+        case .strip: Sound.shared.stripSticker()
+        case .swap: Sound.shared.swapCard()
+        case .choose: Sound.shared.continueTap()
         }
         PersistenceHolder.shared?.checkpoint(campaign)
         // The chosen card plays its web animation, then the picker closes.
@@ -570,8 +737,18 @@ public final class CardPickerViewController: UIViewController {
         switch mode {
         case .applySticker, .buySticker:
             flyStickerThenPop(onto: cardBtn, cardId: id)
-        case .removal, .swap, .strip:
+        case .removal, .swap:
             crumpleThenClose(cardBtn, cardId: id)
+        case .strip:
+            // The CARD stays; a sticker is torn off it. Crumpling the whole
+            // card said "removed", which is the Purge animation and the exact
+            // wrong story for a Cleanse.
+            peelStickerThenClose(cardBtn, cardId: id)
+        case .choose:
+            // Nothing happened TO the card — it was named, not changed. The
+            // crumple would read as "this card is gone", which is the exact
+            // opposite of what a Duplicate source pick means.
+            close(after: 0.12, cardId: id)
         }
     }
 
@@ -605,19 +782,17 @@ public final class CardPickerViewController: UIViewController {
         fly.startAnimation()
     }
 
-    /// Re-show the card with its just-applied sticker (fresh face + pips) so
+    /// Re-show the card with its just-applied sticker (fresh face + icons) so
     /// the player SEES the sticker land before the picker drops.
     private func repaintCard(_ id: Int) {
         guard let btn = cardViews[id],
               let fresh = campaign.getRunDeck().first(where: { $0.id == id }) else { return }
         btn.setImage(CardArt.image(CardArt.Face(fresh), scale: .half), for: .normal)
-        btn.subviews.filter { $0 is UILabel }.forEach { $0.removeFromSuperview() }
-        if !fresh.stickers.isEmpty {
-            let pip = CRTKit.label(String(repeating: "▪", count: min(4, fresh.stickers.count)),
-                                   size: 12, color: CRT.gold)
-            pip.frame = CGRect(x: 0, y: 68, width: 50, height: 12)
-            pip.textAlignment = .center
-            btn.addSubview(pip)
+        btn.subviews.filter { $0 is UILabel || $0.tag == 909 }.forEach { $0.removeFromSuperview() }
+        if let row = stickerRow(for: fresh, cellW: 50) {
+            row.frame.origin.y = 62
+            row.tag = 909
+            btn.addSubview(row)
         }
     }
 
@@ -645,6 +820,38 @@ public final class CardPickerViewController: UIViewController {
 
     /// Web `saRemove`: a brief grow+tilt, then the crumple — scale 0.2,
     /// rotate −10°, fade — over 0.72s, then close.
+    /// CLEANSE: the sticker peels OFF and flutters away while the card gives
+    /// one relieved shake and stays exactly where it is. The opposite reading
+    /// of the crumple — nothing is lost but the mark.
+    private func peelStickerThenClose(_ btn: UIButton?, cardId id: Int) {
+        guard let btn else { close(after: 0.4, cardId: id); return }
+        // A scrap torn off the card's face, flicked away and spun off.
+        let scrap = UIView(frame: CGRect(x: 0, y: 0, width: 18, height: 18))
+        scrap.center = CGPoint(x: btn.frame.midX, y: btn.frame.midY - btn.frame.height * 0.18)
+        scrap.backgroundColor = CRT.cardFace
+        scrap.layer.borderWidth = 1
+        scrap.layer.borderColor = CRT.ink.cgColor
+        view.addSubview(scrap)
+        UIView.animate(withDuration: 0.42, delay: 0, options: [.curveEaseIn]) {
+            scrap.center = CGPoint(x: scrap.center.x + 34, y: scrap.center.y - 54)
+            scrap.transform = CGAffineTransform(rotationAngle: .pi / 3).scaledBy(x: 0.5, y: 0.5)
+            scrap.alpha = 0
+        } completion: { _ in scrap.removeFromSuperview() }
+        // …and the card itself shakes off what was stuck to it.
+        UIView.animateKeyframes(withDuration: 0.44, delay: 0, options: [.calculationModeCubic]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.34) {
+                btn.transform = CGAffineTransform(rotationAngle: -.pi / 90).scaledBy(x: 1.06, y: 1.06)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.34, relativeDuration: 0.33) {
+                btn.transform = CGAffineTransform(rotationAngle: .pi / 90)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.67, relativeDuration: 0.33) {
+                btn.transform = .identity
+            }
+        }
+        close(after: 0.6, cardId: id)
+    }
+
     private func crumpleThenClose(_ btn: UIButton?, cardId id: Int) {
         UIView.animateKeyframes(withDuration: 0.72, delay: 0, options: [.calculationModeCubic]) {
             UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.28) {
@@ -662,15 +869,18 @@ public final class CardPickerViewController: UIViewController {
     private func close(after delay: TimeInterval, cardId id: Int) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
-            self.dismiss(animated: false)
-            self.completion(id)
+            // Report only once this modal is GONE — the completion often
+            // presents the next picker in a walk, and UIKit silently drops a
+            // present() issued while a dismissal is still in flight.
+            let done = self.completion
+            self.dismiss(animated: false) { done(id) }
         }
     }
 
     private func closeTapped() {
         guard !busy else { return }
-        dismiss(animated: false)
-        completion(nil)
+        let done = completion
+        dismiss(animated: false) { done(nil) }
     }
 
     /// Backdrop tap = cancel, exactly like ✕ (never when forced).
@@ -683,8 +893,8 @@ public final class CardPickerViewController: UIViewController {
     func autopilotConfirm() {
         guard !busy else { return }
         guard let card = deck.first(where: { eligible($0) }) else {
-            dismiss(animated: false)
-            completion(nil)
+            let done = completion
+            dismiss(animated: false) { done(nil) }
             return
         }
         selectedId = card.id
@@ -697,9 +907,11 @@ public final class CardPickerViewController: UIViewController {
         // Use-or-confirmed-skip: declining a held card is destructive (no
         // refund), so it rides the shared bottom prompt bar like every other
         // confirmation — never a one-tap dismiss.
-        prompt.show("Skip this card?", actions: [
+        let what: String
+        if case .applySticker = mode { what = "Discard this sticker?" } else { what = "Skip this card?" }
+        prompt.show(what, actions: [
             .init("Back", role: .plain) { [weak self] in self?.prompt.hide() },
-            .init("Skip", role: .danger) { [weak self] in self?.confirmSkip() },
+            .init(what.hasPrefix("Discard") ? "Discard" : "Skip", role: .danger) { [weak self] in self?.confirmSkip() },
         ]) { [weak self] in self?.prompt.hide() }
     }
 

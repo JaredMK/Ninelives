@@ -6,6 +6,10 @@ final class StoreDemoDelegate: StoreScreenDelegate {
     func storeDone(_ store: StoreViewController) {
         store.dismiss(animated: false)
     }
+    /// The demo flow has no pause menu — closing IS the only way out.
+    func storeWantsMenu(_ store: StoreViewController) {
+        store.dismiss(animated: false)
+    }
 }
 
 /// The Chunk B demo flow: resolves what the map hands it, with the real
@@ -115,7 +119,7 @@ public final class LauncherViewController: UIViewController {
         let storeDemo = makeButton(#selector(openStoreDemo))
         storeDemo.setTitle("STORE (PHASE 3 DEMO)", for: .normal)
 
-        resultLabel.font = CRT.Font.of(17)
+        resultLabel.font = CRT.Font.of(18)
         resultLabel.textColor = CRT.gold
         resultLabel.textAlignment = .center
         resultLabel.numberOfLines = 2
@@ -182,7 +186,7 @@ public final class LauncherViewController: UIViewController {
 
     private func makeButton(_ action: Selector, role: PixelButton.Role = .plain) -> UIButton {
         let b = UIButton(type: .system)
-        b.titleLabel?.font = CRT.Font.of(19)
+        b.titleLabel?.font = CRT.Font.of(20)
         b.backgroundColor = role == .cta ? CRT.phosphor : CRT.feltMid
         b.setTitleColor(role == .cta ? CRT.ink : CRT.cardFace, for: .normal)
         b.layer.borderWidth = CRT.px
@@ -264,7 +268,9 @@ public final class LauncherViewController: UIViewController {
         // With items on, bind one of each class so the board's item visuals and
         // their live effects are all exercised.
         let pillars: [String?] = withItems
-            ? [data.items.pillars.first(where: { $0.effect == "fibonacci" })?.id ?? data.pillarTypes.ids.first,
+            // Column 0 carries Fourth Seat so the debug board shows the widened
+            // column its `columnPiles` effect produces.
+            ? [data.items.pillars.first(where: { $0.effect == "columnPiles" })?.id ?? data.pillarTypes.ids.first,
                data.items.pillars.first(where: { $0.effect == "columnAllAlive" })?.id,
                data.items.pillars.first(where: { $0.effect == "clubTribute" })?.id]
             : [nil, nil, nil]

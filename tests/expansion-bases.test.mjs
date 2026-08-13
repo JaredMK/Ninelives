@@ -25,7 +25,7 @@ export function run() {
     r.eq(BaseTypes.get("clubDig").tier, "rare", "Club Dig is Rare");
     r.ok(!BaseTypes.get("buryAll"), "Landslide (buryAll) was removed from the roster");
     r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish is a Pillar-target Base");
-    r.eq(BaseTypes.get("demolish").price, 25, "Demolish costs 25");
+    r.eq(BaseTypes.get("demolish").price, 13, "Demolish costs 13");
     r.eq(BaseTypes.get("tax").suit, "♥", "Heart Tax is ♥-gated");
     r.ok(["spadePeek", "setSuit", "heartDemolish"].every(id => { const t = BaseTypes.get(id); return t && t.description && t.icon; }),
       "the newest bases each have a description + icon");
@@ -109,10 +109,14 @@ export function run() {
     const sample = (c, n) => { const seen = new Set(); for (let i = 0; i < n; i++) c.openStore().slots.forEach(s => { if (s && s.kind === "base") seen.add(s.id); }); return seen; };
     Stats.bumpAll({ cardsBuried: 999, pillarsPlaced: 999, pilesLost: 999, stickersApplied: 999, correctSames: 999, samesCalled: 999, basesPlaced: 999, bossesBeaten: 999 });
     const s1 = sample(CampaignState.create(), 3000);         // Stage 1 = ♦ ♥
-    r.ok(s1.has("clubDig"), "Stage 1 CAN offer Club Dig once unlocked (any-stage rule holds)");
+    // Exemplars must be bases whose gate this build can READ: Club Dig and
+    // Heart Demolish now gate on native-only suit counters (clubsPlayed /
+    // heartsPlayed), which have no reader here, so they stay locked on the web
+    // by design and can't demonstrate the any-stage rule.
+    r.ok(s1.has("refreshBases"), "Stage 1 CAN offer Reactor once unlocked (any-stage rule holds)");
     r.ok(s1.has("tax"), "Heart Tax (♥) offers from Stage 1");
     r.ok(s1.has("demolish"), "suit-free Base (Demolish) offers from Stage 1 once unlocked");
-    r.ok(s1.has("heartDemolish"), "the suit-free bases offer from Stage 1 once unlocked");
+    r.ok(s1.has("stickerHarvest"), "the suit-free bases offer from Stage 1 once unlocked");
     Stats.reset();
   }
 

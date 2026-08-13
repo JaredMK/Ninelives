@@ -31,8 +31,8 @@ final class StoreDetailView: UIView {
     private let cmpArrow = UILabel()
     private let questionLabel = UILabel()
     private let buyButton = PixelButtonView("BUY", role: .gold, fontSize: 14)
-    private let sellButton = PixelButtonView("SELL", role: .danger, fontSize: 15)
-    private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 15)
+    private let sellButton = PixelButtonView("SELL", role: .danger, fontSize: 16)
+    private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
 
     var onClose: (() -> Void)?
     /// Buy confirmed; the chosen column (nil for kinds without placement).
@@ -55,6 +55,9 @@ final class StoreDetailView: UIView {
         self.isEquippedView = false
         super.init(frame: .zero)
         price = Int(campaign.priceOfMixed(slot))
+        // There is only ONE Same slot, so asking which one to use was a step
+        // with a single answer. It defaults to picked; the current → new
+        // comparison shows straight away and the player just confirms.
         if kind == "samepower" { placeCol = 0 }
         common()
         refresh()
@@ -146,11 +149,11 @@ final class StoreDetailView: UIView {
     private func tierText(_ tier: String) -> NSAttributedString {
         switch tier {
         case "uncommon":
-            return CRTKit.attributed(tier.uppercased(), size: 12, color: CRT.gold)
+            return CRTKit.attributed(tier.uppercased(), size: 14, color: CRT.gold)
         case "rare":
-            return CRTKit.attributed(tier.uppercased(), size: 12, color: CRT.phosphor, glow: true)
+            return CRTKit.attributed(tier.uppercased(), size: 14, color: CRT.phosphor, glow: true)
         default:
-            return CRTKit.attributed(tier.uppercased(), size: 12,
+            return CRTKit.attributed(tier.uppercased(), size: 14,
                                      color: CRT.cardFace.withAlphaComponent(0.55))
         }
     }
@@ -173,24 +176,24 @@ final class StoreDetailView: UIView {
             captionLabel.attributedText = nil
             tierLabel.attributedText = nil
             var desc = card?.joker == true
-                ? "A Joker — always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
+                ? "A Joker. Always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
                 : data.items.store.card.description
             if let stks = card?.stickers, !stks.isEmpty {
                 let names = stks.compactMap { data.stickerTypes.get($0.type)?.label }.joined(separator: ", ")
                 desc += " Comes with \(names)."
             }
-            descLabel.attributedText = CRTKit.attributed(desc, size: 13,
+            descLabel.attributedText = CRTKit.attributed(desc, size: 14,
                                                          color: CRT.cardFace.withAlphaComponent(0.86))
         case "removal":
             objView.image = ItemArt.removal(width: 60, height: 84)
-            captionLabel.attributedText = CRTKit.attributed(
-                data.items.store.removal.label.uppercased(), size: 12,
-                color: CRT.cardFace.withAlphaComponent(0.6))
+            // No caption: the name prints once, below (v6.35 — every detail
+            // sheet says its name exactly once).
+            captionLabel.attributedText = nil
             tierLabel.attributedText = nil
             nameLabel.attributedText = CRTKit.attributed(
                 data.items.store.removal.label, size: 14, color: CRT.cardFace, display: true)
             descLabel.attributedText = CRTKit.attributed(
-                data.items.store.removal.description, size: 13,
+                data.items.store.removal.description, size: 14,
                 color: CRT.cardFace.withAlphaComponent(0.86))
         default:
             guard let d = def() else { return }
@@ -198,13 +201,11 @@ final class StoreDetailView: UIView {
             if restrictionIcon?.superview != nil { restrictionIcon?.removeFromSuperview() }
             restrictionIcon = kind == "sticker" ? ItemArt.suitCaptionView(d, width: 46) : nil
             if let restrictionIcon { panel.addSubview(restrictionIcon) }
-            captionLabel.attributedText = kind == "pack"
-                ? CRTKit.attributed(d.label.uppercased(), size: 12, color: CRT.cardFace)
-                : nil
+            captionLabel.attributedText = nil   // the name prints ONCE, below the tier
             tierLabel.attributedText = tierText(d.tier)
             nameLabel.attributedText = CRTKit.attributed(d.label, size: 14, color: CRT.cardFace, display: true)
             // Same-Power descriptions carry "Trigger: …\nEffect: …" — pre-line.
-            descLabel.attributedText = CRTKit.attributed(d.description, size: 13,
+            descLabel.attributedText = CRTKit.attributed(campaign.itemDescription(d), size: 14,
                                                          color: CRT.cardFace.withAlphaComponent(0.86))
         }
 
@@ -212,24 +213,18 @@ final class StoreDetailView: UIView {
         colButtons.forEach { $0.removeFromSuperview() }
         colButtons.removeAll()
         let placement = !isEquippedView && (kind == "pillar" || kind == "base" || kind == "samepower")
-        placeHeader.isHidden = !placement
+        // No header copy at all (v6.36): the pulsing slots ARE the ask — a
+        // "choose a column first" line was help text for a step the highlight
+        // already teaches.
+        placeHeader.isHidden = true
         placeDivider.isHidden = !placement
         if placement {
             if kind == "samepower" {
-                placeHeader.attributedText = CRTKit.attributed(
-                    "EQUIP TO THE SAME (=) BUTTON", size: 12,
-                    color: CRT.cardFace.withAlphaComponent(0.74))
-                let cur = campaign.getSamePower().flatMap { GameData.shared.samePowerTypes.get($0)?.label }
-                // The single Same slot is always the picked one (web
-                // `.sd-col-sel` from the start).
-                let b = ColButton(name: "SAME", occupant: cur, selected: true,
-                                  a11y: "SAME · \(cur ?? "empty")".uppercased())
-                b.onTap = { [weak self] in self?.pick(col: 0) }
-                panel.addSubview(b)
-                colButtons.append(b)
+                // No slot-picker row at all — the swap comparison below is the
+                // whole story, and there was never a second slot to choose.
+                placeDivider.isHidden = true
             } else {
-                placeHeader.attributedText = CRTKit.attributed(
-                    "CHOOSE A COLUMN", size: 12, color: CRT.cardFace.withAlphaComponent(0.74))
+                let awaiting = placeCol == nil
                 let occ = kind == "pillar" ? campaign.columnPillars : campaign.columnBases
                 let reg = kind == "pillar" ? GameData.shared.pillarTypes : GameData.shared.baseTypes
                 for c in 0..<occ.count {
@@ -237,6 +232,7 @@ final class StoreDetailView: UIView {
                     let b = ColButton(name: "COL \(c + 1)", occupant: cur, selected: placeCol == c,
                                       a11y: "C\(c + 1)·\(cur.map { String($0.prefix(6)) } ?? "empty")".uppercased())
                     b.onTap = { [weak self] in self?.pick(col: c) }
+                    b.setAwaiting(awaiting)
                     panel.addSubview(b)
                     colButtons.append(b)
                 }
@@ -281,19 +277,19 @@ final class StoreDetailView: UIView {
         let old = replacingOldId().flatMap { reg.get($0) }
         if let old {
             cmpOld.show(art: ItemArt.forSlot(kind: kind, id: old.id, card: nil, deckId: campaign.deckId),
-                        name: old.label, desc: old.description)
+                        name: old.label, desc: campaign.itemDescription(old))
         } else {
             cmpOld.showEmpty(name: "None equipped",
                              desc: kind == "samepower" ? "No Same-Power equipped yet." : "This slot is empty.")
         }
         cmpNew.show(art: ItemArt.forSlot(kind: kind, id: nt.id, card: nil, deckId: campaign.deckId),
-                    name: nt.label, desc: nt.description)
+                    name: nt.label, desc: campaign.itemDescription(nt))
         comparePanel.isHidden = false
 
         // `.sd-replace-q` — the names read gold, the rest dim cream.
         let cream = CRT.cardFace.withAlphaComponent(0.9)
         let q = NSMutableAttributedString()
-        func part(_ s: String, _ c: UIColor) { q.append(CRTKit.attributed(s, size: 13, color: c)) }
+        func part(_ s: String, _ c: UIColor) { q.append(CRTKit.attributed(s, size: 14, color: c)) }
         if let old {
             part("Replace ", cream); part(old.label, CRT.gold); part(" with ", cream)
             part(nt.label, CRT.gold)
@@ -318,7 +314,7 @@ final class StoreDetailView: UIView {
         else if replacingOldId() != nil { label = "BUY & REPLACE · ◉ \(price)" }
         else if kind == "samepower" { label = "BUY & EQUIP · ◉ \(price)" }
         else if kind == "pillar" || kind == "base" { label = "BUY & PLACE · ◉ \(price)" }
-        else if kind == "removal" { label = "REMOVE A CARD · ◉ \(price)" }
+        else if kind == "removal" { label = "PURGE A CARD · ◉ \(price)" }
         else if kind == "card" { label = "BUY & SWAP IN · ◉ \(price)" }
         else if kind == "sticker" { label = "PLACE STICKER · ◉ \(price)" }
         else { label = "BUY · ◉ \(price)" }
@@ -361,11 +357,9 @@ final class StoreDetailView: UIView {
         let descH = heightOf(descLabel, width: cw)
         descLabel.frame = CGRect(x: m, y: y, width: cw, height: descH)
         y += descH + 8
-        if !placeHeader.isHidden {
+        if !colButtons.isEmpty {
             placeDivider.frame = CGRect(x: m, y: y, width: cw, height: 1)
             y += 11
-            placeHeader.frame = CGRect(x: m, y: y, width: cw, height: 14)
-            y += 20
             if colButtons.count == 1 {
                 // The lone Same slot centres at the web's 130px max width.
                 let bw: CGFloat = 130
@@ -426,15 +420,29 @@ final class StoreDetailView: UIView {
 private final class ColButton: UIControl {
     private let nameL = UILabel()
     private let occL = UILabel()
+    /// The "pick me" ring shown while NO column is chosen yet — the same
+    /// phosphor pulse the tutorial ring and the map's current node use, so the
+    /// column step reads as the live affordance the way a sticker's PLACE bar
+    /// or a pack's BUY bar does.
+    private let ring = UIView()
     var onTap: (() -> Void)?
 
     init(name: String, occupant: String?, selected: Bool, a11y: String) {
         super.init(frame: .zero)
         layer.borderWidth = CRT.px
-        nameL.attributedText = CRTKit.attributed(name, size: 12,
+        ring.isUserInteractionEnabled = false
+        ring.layer.borderWidth = 2
+        ring.layer.borderColor = CRT.phosphor.cgColor
+        ring.layer.shadowColor = CRT.phosphor.cgColor
+        ring.layer.shadowRadius = CRT.glowRadius
+        ring.layer.shadowOpacity = 0.8
+        ring.layer.shadowOffset = .zero
+        ring.isHidden = true
+        addSubview(ring)
+        nameL.attributedText = CRTKit.attributed(name, size: 14,
                                                  color: CRT.cardFace.withAlphaComponent(0.85))
         nameL.textAlignment = .center
-        occL.attributedText = CRTKit.attributed(occupant ?? "empty", size: 12,
+        occL.attributedText = CRTKit.attributed(occupant ?? "empty", size: 14,
                                                 color: occupant == nil
                                                     ? CRT.cardFace.withAlphaComponent(0.6) : CRT.cardFace)
         occL.textAlignment = .center
@@ -456,97 +464,34 @@ private final class ColButton: UIControl {
         backgroundColor = sel ? CRT.phosphor.withAlphaComponent(0.16) : CRT.feltDeep
     }
 
+    /// Pulse while the placement is still waiting on a column. Compositor-only
+    /// (one opacity animation), stopped the moment a column is picked.
+    func setAwaiting(_ on: Bool) {
+        guard on != !ring.isHidden else { return }
+        ring.isHidden = !on
+        if on {
+            let pulse = CABasicAnimation(keyPath: "opacity")
+            pulse.fromValue = 0.35
+            pulse.toValue = 1.0
+            pulse.duration = 0.75
+            pulse.autoreverses = true
+            pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            ring.layer.add(pulse, forKey: "pickPulse")
+        } else {
+            ring.layer.removeAnimation(forKey: "pickPulse")
+        }
+    }
+
     @objc private func tapped() { onTap?() }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        ring.frame = bounds
         nameL.frame = CGRect(x: 2, y: 6, width: bounds.width - 4, height: 14)
         occL.frame = CGRect(x: 2, y: 21, width: bounds.width - 4, height: 27)
     }
 }
 
-/// One side of the EQUIPPED→NEW comparison (web `.sdc-side`): the tag, the
-/// object — or the dashed empty silhouette when the slot is free — the name,
-/// and the description. The NEW side reads phosphor (the sanctioned accent).
-private final class CompareSideView: UIView {
-    private let tagL = UILabel()
-    private let objView = UIImageView()
-    private let emptyBox = UIView()
-    private let dash = CAShapeLayer()
-    private let nameL = UILabel()
-    private let descL = UILabel()
-    private let emptySize: CGSize
-
-    init(tag: String, isNew: Bool, emptySize: CGSize) {
-        self.emptySize = emptySize
-        super.init(frame: .zero)
-        backgroundColor = CRT.feltDeep
-        layer.borderWidth = isNew ? CRT.px : 1
-        layer.borderColor = (isNew ? CRT.phosphor : CRT.ink).cgColor
-        tagL.attributedText = CRTKit.attributed(tag, size: 12, color: CRT.muted)
-        tagL.textAlignment = .center
-        addSubview(tagL)
-        objView.contentMode = .scaleAspectFit
-        objView.layer.magnificationFilter = .nearest
-        addSubview(objView)
-        dash.fillColor = nil
-        dash.strokeColor = CRT.cardFace.withAlphaComponent(0.35).cgColor
-        dash.lineWidth = 2
-        dash.lineDashPattern = [4, 3]
-        emptyBox.layer.addSublayer(dash)
-        addSubview(emptyBox)
-        nameL.textAlignment = .center
-        nameL.numberOfLines = 2
-        descL.textAlignment = .center
-        descL.numberOfLines = 0
-        addSubview(nameL)
-        addSubview(descL)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("not supported") }
-
-    func show(art: UIImage, name: String, desc: String) {
-        objView.image = art
-        objView.isHidden = false
-        emptyBox.isHidden = true
-        nameL.attributedText = CRTKit.attributed(name, size: 12, color: CRT.cardFace)
-        descL.attributedText = CRTKit.attributed(desc, size: 12, color: CRT.muted)
-    }
-
-    func showEmpty(name: String, desc: String) {
-        objView.image = nil
-        objView.isHidden = true
-        emptyBox.isHidden = false
-        // `.sdc-none`: the "None equipped" line recedes to muted (italic in the
-        // web — the pixel faces have no italic cut, muted carries it).
-        nameL.attributedText = CRTKit.attributed(name, size: 12, color: CRT.muted)
-        descL.attributedText = CRTKit.attributed(desc, size: 12, color: CRT.muted)
-    }
-
-    /// Lays the side out inside a fixed width; returns the height it needs.
-    @discardableResult
-    func layout(width w: CGFloat) -> CGFloat {
-        var y: CGFloat = 7
-        tagL.frame = CGRect(x: 4, y: y, width: w - 8, height: 14)
-        y += 17
-        objView.frame = CGRect(x: 6, y: y, width: w - 12, height: 58)
-        emptyBox.frame = CGRect(x: (w - emptySize.width) / 2, y: y + (58 - emptySize.height) / 2,
-                                width: emptySize.width, height: emptySize.height)
-        dash.path = UIBezierPath(rect: CGRect(origin: .zero, size: emptySize).insetBy(dx: 1, dy: 1)).cgPath
-        y += 61
-        let nameH = min(30, max(14, Self.measure(nameL, width: w - 8)))
-        nameL.frame = CGRect(x: 4, y: y, width: w - 8, height: nameH)
-        y += nameH + 3
-        let descH = min(62, Self.measure(descL, width: w - 8))
-        descL.frame = CGRect(x: 4, y: y, width: w - 8, height: descH)
-        y += descH + 8
-        return y
-    }
-
-    private static func measure(_ l: UILabel, width: CGFloat) -> CGFloat {
-        guard let t = l.attributedText, t.length > 0 else { return 0 }
-        return ceil(t.boundingRect(with: CGSize(width: width, height: 200),
-                                   options: .usesLineFragmentOrigin, context: nil).height)
-    }
-}
+// CompareSideView moved to CompareViews.swift — the Old Joker's trade modal
+// shares it now, so "what you have → what you'd get" is one component.

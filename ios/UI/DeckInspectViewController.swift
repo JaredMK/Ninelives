@@ -36,6 +36,13 @@ public final class DeckInspectViewController: UIViewController {
 
     public override var prefersStatusBarHidden: Bool { true }
 
+    @objc private func backEdgePanned(_ g: UIScreenEdgePanGestureRecognizer) {
+        guard g.state == .ended else { return }
+        let t = g.translation(in: view), v = g.velocity(in: view)
+        guard t.x > 40 || v.x > 320 else { return }
+        dismiss(animated: false)
+    }
+
     public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = CRT.feltDeep
@@ -52,6 +59,11 @@ public final class DeckInspectViewController: UIViewController {
         closeButton.onTap = { [weak self] in self?.dismiss(animated: false) }
         closeButton.frame = CGRect(x: view.bounds.width - 50, y: 54, width: 38, height: 32)  // real y: viewDidLayoutSubviews
         view.addSubview(closeButton)
+        // Left-edge swipe closes, same as ✕ (this is a full-screen modal, so
+        // there is no system pop gesture to inherit).
+        let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(backEdgePanned))
+        edge.edges = .left
+        view.addGestureRecognizer(edge)
 
         // Hold-for-help panel (hidden until a card is held).
         helpPanel.isHidden = true
@@ -84,8 +96,11 @@ public final class DeckInspectViewController: UIViewController {
             let w = min(view.bounds.width - 28, 400)
             let bodyH = helpBody.sizeThatFits(CGSize(width: w - 24, height: 400)).height
             let h = bodyH + 46
+            // TOP, over the histogram — the same place every other screen puts
+            // hold-help. It used to sit at the bottom, so the one gesture that
+            // works everywhere answered in a different place here.
             hp.frame = CGRect(x: (view.bounds.width - w) / 2,
-                              y: view.bounds.height - max(view.safeAreaInsets.bottom, 12) - 12 - h,
+                              y: view.safeAreaInsets.top + 8,
                               width: w, height: h)
             helpTitle.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
             helpBody.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
@@ -100,7 +115,7 @@ public final class DeckInspectViewController: UIViewController {
             guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
             let name: String
             if c.joker { name = "★ Joker" }
-            else if c.blank { name = "∅ Removal" }
+            else if c.blank { name = "∅ Purge" }
             else {
                 name = (DeckManager.ranks.first { $0.value == c.currentRank }?.label
                         ?? "\(c.currentRank)") + c.suit
@@ -110,12 +125,12 @@ public final class DeckInspectViewController: UIViewController {
             var lines: [String] = []
             for rec in c.stickers {
                 if let def = GameData.shared.stickerTypes.get(rec.type) {
-                    lines.append("\(def.label) — \(def.description)")
+                    lines.append("\(def.label) · \(def.description)")
                 }
             }
             if lines.isEmpty { lines.append("No stickers on this card.") }
             helpBody.attributedText = CRTKit.attributed(lines.joined(separator: "\n"),
-                                                        size: 12, color: CRT.cardFace)
+                                                        size: 14, color: CRT.cardFace)
             helpPanel.isHidden = false
             view.setNeedsLayout()
         case .ended, .cancelled, .failed:
@@ -174,7 +189,7 @@ public final class DeckInspectViewController: UIViewController {
                 bar.backgroundColor = CRT.cardFace
                 content.addSubview(bar)
             }
-            let tick = CRTKit.label(r.label, size: 12, color: CRT.muted)
+            let tick = CRTKit.label(r.label, size: 14, color: CRT.muted)
             tick.textAlignment = .center
             tick.frame = CGRect(x: bx, y: y + histH + 2, width: barW, height: 14)
             content.addSubview(tick)
@@ -198,7 +213,7 @@ public final class DeckInspectViewController: UIViewController {
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
-        let stkSize: CGFloat = 12, stkGap: CGFloat = 1
+        let stkSize: CGFloat = 15, stkGap: CGFloat = 1
         let stkPerRow = 3, stkMax = 6
         let pitch = (ch - 7) + 8
         helpCards.removeAll()
@@ -235,7 +250,81 @@ public final class DeckInspectViewController: UIViewController {
             }
         }
         let rows = (deck.count + cols - 1) / cols
-        y += CGFloat(rows) * pitch + 40
+        y += CGFloat(rows) * pitch + 28
+
+        // EQUIPPED — the loadout, one labelled row per FAMILY (v6.39):
+        // PILLARS (banner shapes), BASES (plate shapes), then SAME POWER on
+        // its own row below. Each item draws in its own silhouette; an empty
+        // slot shows the family shape as a dashed outline.
+        let eqTitle = CRTKit.label("EQUIPPED", size: 14, color: CRT.phosphor,
+                                   display: true, glow: true)
+        eqTitle.frame = CGRect(x: 16, y: y, width: w - 32, height: 20)
+        content.addSubview(eqTitle)
+        y += 26
+        let eqGap: CGFloat = 10
+        let eqW = (w - 32 - eqGap * 2) / 3
+        func rowCaption(_ text: String) {
+            let cap = CRTKit.label(text, size: 14, color: CRT.muted)
+            cap.frame = CGRect(x: 16, y: y, width: w - 32, height: 15)
+            content.addSubview(cap)
+            y += 18
+        }
+        /// One family-shaped cell: the item's own art (its silhouette IS the
+        /// shape) or a dashed outline of the family size when the slot is empty.
+        func shapeCell(kind: String, id: String?, x: CGFloat, artSize: CGSize, rowH: CGFloat) {
+            let ax = x + (eqW - artSize.width) / 2
+            if let id, let def = (kind == "pillar" ? GameData.shared.pillarTypes.get(id)
+                                  : kind == "base" ? GameData.shared.baseTypes.get(id)
+                                  : GameData.shared.samePowerTypes.get(id)) {
+                let art = UIImageView(image: ItemArt.forSlot(kind: kind, id: id,
+                                                             card: nil, deckId: campaign.deckId))
+                art.contentMode = .scaleAspectFit
+                art.layer.magnificationFilter = .nearest
+                art.frame = CGRect(x: ax, y: y, width: artSize.width, height: artSize.height)
+                content.addSubview(art)
+                let name = CRTKit.label(def.label, size: 14, color: CRT.cardFace)
+                name.textAlignment = .center
+                name.adjustsFontSizeToFitWidth = true
+                name.minimumScaleFactor = 0.7
+                name.frame = CGRect(x: x + 1, y: y + artSize.height + 2, width: eqW - 2, height: 14)
+                content.addSubview(name)
+            } else {
+                let box = UIView(frame: CGRect(x: ax, y: y, width: artSize.width,
+                                               height: artSize.height))
+                let dash = CAShapeLayer()
+                dash.strokeColor = CRT.cardFace.withAlphaComponent(0.3).cgColor
+                dash.fillColor = nil
+                dash.lineWidth = 2
+                dash.lineDashPattern = [4, 3]
+                dash.path = UIBezierPath(rect: box.bounds.insetBy(dx: 1, dy: 1)).cgPath
+                box.layer.addSublayer(dash)
+                content.addSubview(box)
+                let e = CRTKit.label("empty", size: 14, color: CRT.disabledText)
+                e.textAlignment = .center
+                e.frame = CGRect(x: x, y: y + artSize.height + 2, width: eqW, height: 14)
+                content.addSubview(e)
+            }
+            _ = rowH
+        }
+        rowCaption("PILLARS")
+        for c in 0..<3 {
+            shapeCell(kind: "pillar", id: campaign.columnPillar(c),
+                      x: 16 + CGFloat(c) * (eqW + eqGap),
+                      artSize: CGSize(width: 42, height: 52), rowH: 70)
+        }
+        y += 52 + 18 + 8
+        rowCaption("BASES")
+        for c in 0..<3 {
+            shapeCell(kind: "base", id: campaign.columnBase(c),
+                      x: 16 + CGFloat(c) * (eqW + eqGap),
+                      artSize: CGSize(width: 64, height: 34), rowH: 52)
+        }
+        y += 34 + 18 + 8
+        rowCaption("SAME POWER")
+        shapeCell(kind: "samepower", id: campaign.getSamePower(), x: 16,
+                  artSize: CGSize(width: 44, height: 44), rowH: 62)
+        y += 44 + 18 + 32
+
         content.frame = CGRect(x: 0, y: 0, width: w, height: y)
         scroll.contentSize = CGSize(width: w, height: y)
     }

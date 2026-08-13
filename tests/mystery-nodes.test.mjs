@@ -55,13 +55,17 @@ export function run() {
     r.ok(mysteries > 0, "the type roll actually fires (" + mysteries + " first-class mysteries)");
     // The observed share is the POST-REPAIR one: tryBuildStage's card-floor /
     // heavy-route / deal-count repairs churn the deal|pack|card types (a
-    // mystery adds 0 cards, so the repairs never pick one), which nudges the
-    // ratio a point or so off the raw table share — and it moves whenever the
-    // card budget moves (e.g. an entry-deck retune). The band is wide enough to
-    // absorb that while still catching a mis-set mysteryTypeWeight: at ±0.05 the
-    // weight would have to drift ~25 → 19 or 32 to escape.
-    r.ok(Math.abs(rate - TARGET) < 0.05,
-      "~" + Math.round(TARGET * 100) + "% of type-rolled nodes roll mystery (observed " + (rate * 100).toFixed(1) + "%)");
+    // mystery adds 0 cards, so the repairs never pick one), nudging the ratio a
+    // point or so off the raw table share.
+    // v5.83 adds a SECOND source: a pack merged into its parent leaves a stop
+    // that grants nothing, so mergeForcedPackChains turns it into a mystery
+    // rather than an empty "pass" point. The final share therefore sits at or
+    // above the roll rate — the band runs from just under the roll target to
+    // comfortably above it, still tight enough to catch a mis-set
+    // mysteryTypeWeight.
+    r.ok(rate > TARGET - 0.05 && rate < TARGET + 0.12,
+      "mystery share = type roll + merged corridors (observed " + (rate * 100).toFixed(1)
+      + "%, roll target " + Math.round(TARGET * 100) + "%)");
     r.eq(badFields, 0, "a mystery node carries no add / packCount / piles / suit (it grants ONLY its event)");
     r.eq(badExempt, 0, "the stage-0 opening row and joker corridors NEVER roll mystery");
     // Structural exclusions: stores / bosses / home / pass are never mystery.

@@ -107,18 +107,27 @@ public final class RewardLine: SKNode {
 
     public func sync(base: Double, bonus: Double, alive: Int, minAlive: Int, width: CGFloat) {
         content.removeAllChildren()
-        let reward = Int(base + max(0, bonus))
+        // BASE + BONUS, shown apart. Summed into one number, the line couldn't
+        // show a sticker or Pillar PAYING you — it just ticked up with no
+        // visible cause. Split, the deal opens "4 + 0" and the second figure
+        // is visibly what your build is earning you.
         var parts: [(String, UIColor, Bool)] = [
             ("REWARD ", CRT.muted, false),
-            ("+\(reward)", CRT.phosphor, true),
+            ("\(Int(base))", CRT.phosphor, true),
+            (" + ", CRT.muted, false),
+            ("\(Int(max(0, bonus)))", bonus > 0 ? CRT.gold : CRT.muted, bonus > 0),
         ]
+        // A NEGATIVE bonus (a leech taking coins) is its own red term — it is
+        // not a smaller bonus, it is money going the other way.
         if bonus < 0 { parts.append((" \(Int(bonus))", CRT.suitRed, false)) }
         parts.append(("  ·  SCORE ", CRT.muted, false))
         parts.append(("\(alive)×\(minAlive)", CRT.gold, false))
         var total: CGFloat = 0
         var nodes: [SKSpriteNode] = []
         for (t, c, glow) in parts where !t.isEmpty {
-            let n = PixelTexture.label(t, size: t.contains("×") ? 18 : 15, color: c, glow: glow)
+            // 15/18 → 18/22 (router batch 2): the two numbers the player
+            // plays FOR were the smallest text over the board.
+            let n = PixelTexture.label(t, size: t.contains("×") ? 22 : 18, color: c, glow: glow)
             n.anchorPoint = CGPoint(x: 0, y: 0.5)
             nodes.append(n); total += n.size.width
         }

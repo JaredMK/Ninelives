@@ -17,7 +17,7 @@
 
        node ios/Tools/export-fixtures.mjs         # → ios/Fixtures/seed-fixtures.json
 ============================================================================ */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGame } from "../../tests/_harness.mjs";
@@ -29,7 +29,12 @@ mkdirSync(OUT, { recursive: true });
 // Silence the generator's console.warn/log chatter (best-effort maps, seed
 // ladder hits) — it is diagnostic, not part of the fixture.
 const quiet = { log() {}, warn() {}, error: console.error };
-const G = loadGame({ console: quiet });
+// Native-only unlock stats swap for a web-legal placeholder (see
+// export-traces.mjs) — the fixtures never exercise unlock gates.
+const itemsSource = readFileSync(join(HERE, "..", "..", "items.js"), "utf8")
+  .replaceAll('"ambushesWon"', '"pilesLost"')
+  .replaceAll('"earlyLosses"', '"pilesLost"');
+const G = loadGame({ console: quiet, itemsSource });
 const { RunMap, DeckManager, Economy, SeedCode, DifficultyData, ItemData } = G;
 
 /* The generator version and Joker scheme the live campaign uses (index.html,

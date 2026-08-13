@@ -22,7 +22,7 @@ export function run() {
     // Registry + description (column-scoped wording). Pillars now use the arrow
     // form ("At deal end → …"); bases keep Trigger/Effect. Accept either shape.
     r.eq(PillarTypes.get("envy").effect, "heartPiles", "Envy fires the per-♥-top-pile scoring effect");
-    r.eq(PillarTypes.get("envy").value, 4, "Envy pays 4 per ♥-top pile");
+    r.eq(PillarTypes.get("envy").value, 2, "Envy pays 2 per ♥-top pile");
     r.ok(/Trigger:[\s\S]*Effect:/.test(PillarTypes.get("envy").description) || /→/.test(PillarTypes.get("envy").description), "Envy uses the Trigger/Effect or arrow description");
     r.ok(/this column/.test(PillarTypes.get("envy").description), "Envy's description scopes to this column");
     const e = GameEngine.create(deck(), 10, { cols: COLS });
@@ -35,7 +35,7 @@ export function run() {
     b.top(0).suit = "♥"; b.top(1).suit = "♥";   // col 0 — counted
     b.top(3).suit = "♥"; b.top(7).suit = "♥";   // cols 1 & 2 — ignored
     e.debug.winNow();   // end of deal
-    r.eq(won().pillarPayout.bonus, 8, "Envy pays +4 per ♥-top pile IN ITS COLUMN at deal end (2 × 4 = 8)");
+    r.eq(won().pillarPayout.bonus, 4, "Envy pays +2 per ♥-top pile IN ITS COLUMN at deal end (2 × 2 = 4)");
   }
   {
     // Dead piles don't count — a ♥ top on a dead pile (in the column) is ignored.
@@ -46,7 +46,7 @@ export function run() {
     for (let i = 0; i < b.size; i++) b.top(i).suit = "♠";
     b.top(0).suit = "♥"; b.top(2).suit = "♥"; b.kill(2);   // pile 2 (col 0) is ♥ but dead
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 4, "Envy counts only ALIVE ♥-top piles in its column (1 × 4)");
+    r.eq(won().pillarPayout.bonus, 2, "Envy counts only ALIVE ♥-top piles in its column (1 × 2)");
   }
 
   // (Symmetry was removed in the rebalance — its tests are gone.)
@@ -130,7 +130,7 @@ export function run() {
     const won = onWon(e);
     e.start(); e.startRun(["greedy", null, null]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 20, "Greedy: sole Pillar + column all-alive → +20");
+    r.eq(won().pillarPayout.bonus, 10, "Greedy: sole Pillar + column all-alive → +10");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
@@ -165,7 +165,7 @@ export function run() {
     const d = e.debug.setNextCard(2); d.stickers = [{ type: "deathBounty" }];   // drawn carries it
     e.guess(0, "higher");   // 2 < 5 → wrong → kills the pile
     r.ok(!e.getBoard().isActive(0), "pile died");
-    r.eq(e.getRun().bonusCoins, 5, "Death Bounty (Last Coin): the killing drawn card pays +5");
+    r.eq(e.getRun().bonusCoins, 3, "Death Bounty (Last Coin): the killing drawn card pays +3");
   }
   {
     const e = GameEngine.create(deck(), 9);

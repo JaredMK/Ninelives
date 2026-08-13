@@ -620,7 +620,16 @@ public final class RunMap {
                         }
                         if p == nil { setType(n, "card"); converted = true; break }
                     }
-                    used.insert(p!); n.piles = p!; n.targetD = targetD
+                    used.insert(p!)
+                    n.piles = p!
+                    // The node's OWN danger, not the row's shared target: the
+                    // reward chip, the deal's 1–3 rating and the subset solve
+                    // all derive from targetD, and two same-row deals with
+                    // different pile counts are genuinely different deals —
+                    // the 4-pile one should pay more than its 6-pile
+                    // neighbour. (The row target still steers pT above, so
+                    // difficulty still ascends through the stage.)
+                    n.targetD = (Double(e.min) + Double(e.max)) / 2 / Double(p!) - 1
                 }
             }
             if !converted { break }                                  // all deals piled cleanly
@@ -655,7 +664,7 @@ public final class RunMap {
     /// B becomes a PASS-THROUGH point, kept in the graph with its edges intact.
     /// Deterministic (no rng), so a resume's regeneration merges identically.
     @discardableResult
-    public func mergeForcedPackChains(_ ph: PhaseMap) -> PhaseMap {
+    public func mergeForcedPackChains(_ ph: PhaseMap, genV: Int = 1) -> PhaseMap {
         var parents: [Int: [Int]] = [:]
         for n in ph.nodes { for id in n.next { parents[id, default: []].append(n.id) } }
         for a in ph.nodes {
@@ -665,11 +674,38 @@ public final class RunMap {
                 guard let b = ph.byId[cur.next[0]] else { break }
                 if b.type == "pass" { cur = b; continue }   // glide over already-freed links
                 if b.type != "pack" || (parents[b.id]?.count ?? 0) != 1 { break }
-                a.packCount = ((a.packCount ?? 0) != 0 ? a.packCount! : 2) + ((b.packCount ?? 0) != 0 ? b.packCount! : 2)
+                let aCount = (a.packCount ?? 0) != 0 ? a.packCount! : 2
+                let bCount = (b.packCount ?? 0) != 0 ? b.packCount! : 2
+                // genV ≥ 4: a merge may never build a MEGA-PACK. Past packMax
+                // the chain simply stops absorbing — B stays its own pack, so
+                // the cards spread across nodes instead of piling into one
+                // 10-card drop. Gated on genV: an old save's map must
+                // regenerate byte-identically.
+                if genV >= 4, aCount + bCount > config.packMax { break }
+                a.packCount = aCount + bCount
                 a.add = a.packCount
                 b.type = "pass"
                 b.packCount = nil; b.add = nil; b.mixed = nil
                 cur = b
+            }
+        }
+        // No node may be EMPTY. A merged-away pack leaves a stop that grants
+        // nothing, so at genV ≥ 3 it becomes a MYSTERY — the trail still has a
+        // reason to stop there. Done AFTER the merge so the loop above keeps
+        // gliding on "pass"; gated on genV so a resumed pre-mystery map still
+        // regenerates byte-identically (the save-compat contract).
+        //
+        // Safe against the validator and the generator: mystery has addOf 0 and
+        // is neither deal nor store, so it is transparent to the route sums and
+        // the store-gap walk exactly as pass was — and store placement has
+        // already run by this point, so the "a mystery may never become a
+        // store" rule cannot be violated.
+        if genV >= 3 {
+            for n in ph.nodes where n.type == "pass" {
+                n.type = "mystery"
+                // The mystery contract (see `setType`): its event IS its whole
+                // content, so it carries no add / packCount / suit / mixed.
+                n.add = nil; n.packCount = nil; n.suit = nil; n.mixed = nil
             }
         }
         return ph
@@ -698,7 +734,7 @@ public final class RunMap {
                 out.hist["build-null", default: 0] += 1
                 continue
             }
-            mergeForcedPackChains(ph)   // forced pack corridors collapse BEFORE validation
+            mergeForcedPackChains(ph, genV: opts.genVersion)   // corridors collapse BEFORE validation
             let bandX = Double(relax) * C.relaxBandStep
             let v = validateStage(ph, entryDeck: entryDeck,
                                   opts: ValidateOptions(phaseIndex: phaseIndex, bandHiExtra: bandX))

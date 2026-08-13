@@ -100,7 +100,7 @@ export function run() {
     for (let i = 1; i < b.size; i++) b.kill(i);   // leave only pile 0 (col 0) alive
     const pp = winPayout(e);
     const ins = pp.lines.find(l => l.label === "Insurance");
-    r.ok(ins && ins.amount === 20, "Insurance pays +20 when its column holds the only survivor");
+    r.ok(ins && ins.amount === 10, "Insurance pays +10 when its column holds the only survivor");
     // If the survivor is in another column, nothing.
     const e2 = game(["insurance", null, null]);
     const b2 = e2.getBoard();
@@ -124,7 +124,7 @@ export function run() {
     r.eq(b.pileSize(3), 2, "a ♦ in another column is NOT boosted");
   }
 
-  // ---- Excavator: +2 per buried card in the largest ♥-top alive pile ----
+  // ---- Excavator: +1 per buried card in the largest ♥-top alive pile ----
   {
     const e = game(["excavator", null, null]);
     const b = e.getBoard();
@@ -137,10 +137,10 @@ export function run() {
     b.pushBottom(1, { value: 5, suit: "♠", label: "5", stickers: [] });  // pile 1 → 3 buried, but not ♥-topped
     const pp = winPayout(e);
     const ex = pp.lines.find(l => l.label === "Excavator");
-    r.ok(ex && ex.amount === 4, "Excavator pays +2 per buried card in the largest ♥-topped pile (2 × 2 = 4)");
+    r.ok(ex && ex.amount === 2, "Excavator pays +1 per buried card in the largest ♥-topped pile (2 × 1 = 2)");
   }
 
-  // ---- Gambler: 50/50 +10 or +0 (only with a ♥ top in the column) -------
+  // ---- Gambler: 50/50 +5 or +0 (only with a ♥ top in the column) --------
   {
     let sawWin = false, sawLoss = false, alwaysLine = true;
     for (let seed = 1; seed <= 30; seed++) {
@@ -150,11 +150,11 @@ export function run() {
       const pp = winPayout(e);
       const g = pp.lines.find(l => l.label === "Gambler");
       if (!g) { alwaysLine = false; continue; }
-      if (g.amount === 10) sawWin = true;
+      if (g.amount === 5) sawWin = true;
       if (g.amount === 0) sawLoss = true;
     }
     r.ok(alwaysLine, "Gambler always emits a result line");
-    r.ok(sawWin && sawLoss, "Gambler produces both +10 and +0 outcomes across seeds");
+    r.ok(sawWin && sawLoss, "Gambler produces both +5 and +0 outcomes across seeds");
     // With NO ♥ top in the column, there is no flip (+0, no win possible).
     const e2 = GameEngine.create(baseDeck(), 10, { cols: COLS });
     e2.start(7); e2.startRun(["gambler", null, null], [null, null, null]);
@@ -173,7 +173,7 @@ export function run() {
     const e = game(["ditto", "columnGuardian", null]);
     const pp = winPayout(e);   // all piles alive (no kills) → col 0 fully alive
     const dittoLine = pp.lines.find(l => l.col === 0 && l.label === "Guardian");
-    r.ok(dittoLine && dittoLine.amount === 7, "Ditto mirrors the center Guardian onto its own column (+7)");
+    r.ok(dittoLine && dittoLine.amount === 4, "Ditto mirrors the center Guardian onto its own column (+4)");
     // Ditto IN the center column does nothing.
     const e2 = game(["columnGuardian", "ditto", null]);
     const pp2 = winPayout(e2);

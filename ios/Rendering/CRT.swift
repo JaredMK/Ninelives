@@ -55,15 +55,39 @@ public enum CRT {
         /// The game family. VT323 stays legible at 7–10px where Press Start 2P
         /// collapses into unreadable blocks (styleguide §3 verdict).
         public static let body = "VT323-Regular"
-        /// Display headers ONLY, ≥11px — screen titles, the wordmark.
+        /// Display headers ONLY — screen titles, the wordmark.
         public static let display = "PressStart2P-Regular"
 
-        /// The 12px floor (AGENTS.md convention 3: nothing renders below 12px).
-        public static let floor: CGFloat = 12
+        // THE TYPE SCALE (styleguide §3b) — every text node in the game sits
+        // on one of these steps. No off-scale sizes in new code; when copy
+        // stops fitting, give the CONTAINER room or cut words — never invent
+        // a smaller step.
+        /// Fine print: chip meta, footnotes, dim hints. THE HARD MINIMUM.
+        public static let caption: CGFloat = 14
+        /// Stat rows, list meta, HUD counters, secondary buttons.
+        public static let label: CGFloat = 16
+        /// Descriptions, help copy, prompt questions.
+        public static let bodySize: CGFloat = 18
+        /// Panel headers, item names, standard buttons.
+        public static let heading: CGFloat = 20
+        /// Screen titles (VT323 or Press Start 2P at title size).
+        public static let title: CGFloat = 22
+        /// Heroes: the wordmark, big numerals, overlay banners. Sized to the
+        /// container, never below `title`.
+        public static let displaySize: CGFloat = 28
+
+        /// The legibility floor = the `caption` step. v6.46 raised it from 13
+        /// after the on-device ramp test (`-typeRamp 1`): 13pt VT323 on felt
+        /// fails the arm's-length read, 14pt is the first comfortable step.
+        /// ENFORCED, not advisory — every font in the app comes through `of`,
+        /// so nothing can slip under it. When something stops fitting, give
+        /// the CONTAINER room; never pass a smaller size expecting it to be
+        /// honoured.
+        public static let floor: CGFloat = caption
 
         public static func of(_ size: CGFloat, display useDisplay: Bool = false) -> UIFont {
             let name = useDisplay ? display : body
-            return UIFont(name: name, size: size)
+            return UIFont(name: name, size: max(floor, size))
                 // A missing font would silently swap in Helvetica and quietly
                 // destroy the whole aesthetic — fail loud in debug instead.
                 ?? {
@@ -85,6 +109,19 @@ public enum CRT {
 }
 
 public extension UIColor {
+    /// Mix `amount` of `other` into this colour. Used for the store's rarity
+    /// wash — a tint of the hue over felt, never a new colour outside the
+    /// locked palette.
+    func blended(with other: UIColor, amount: CGFloat) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        let t = max(0, min(1, amount))
+        return UIColor(red: r1 + (r2 - r1) * t, green: g1 + (g2 - g1) * t,
+                       blue: b1 + (b2 - b1) * t, alpha: a1)
+    }
+
     convenience init(hex: UInt32) {
         self.init(red:   CGFloat((hex >> 16) & 0xff) / 255,
                   green: CGFloat((hex >> 8)  & 0xff) / 255,

@@ -206,6 +206,32 @@
 </div>
 <div class="verdict"><b>VERDICT: VT323</b> is the game family — at 7–10px (a quarter of all text) Press Start 2P collapses into unreadable blocks while VT323 stays legible; VT323 has lowercase for item descriptions; and its condensed width survives the 390px phone layouts. <b>Press Start 2P is reserved for display headers only</b> (screen titles, "SHOULDA SAID SAME", the version footer wordmark) at ≥11px — a two-tier system with ONE body family, matching 1985 cabinet practice (bitmap body + display marquee). Migration policy: text currently at 7px moves to 8px VT323 (pure visual change; VT323's condensed advance means no layout overflow).</div>
 
+<h2>§3b · iOS TYPE SCALE — named steps, hard floor (v6.46)</h2>
+<p>The native app sizes text in <b>points</b> on a six-step scale. Every text node in the game sits on a step —
+no off-scale sizes. The constants live in <code>CRT.Font</code> (ios/Rendering/CRT.swift) and every label in the
+app renders through <code>CRT.Font.of()</code>, which <b>clamps to the floor</b>: text below the minimum cannot
+render anywhere, by construction.</p>
+<div class="panel">
+  <table>
+    <tr><th>step</th><th>pt</th><th>constant</th><th>use</th></tr>
+    <tr><td><b>caption</b></td><td>14</td><td><code>CRT.Font.caption</code></td><td>fine print, chip meta, footnotes, dim hints — <b>THE HARD MINIMUM</b></td></tr>
+    <tr><td><b>label</b></td><td>16</td><td><code>CRT.Font.label</code></td><td>stat rows, list meta, HUD counters, secondary buttons</td></tr>
+    <tr><td><b>body</b></td><td>18</td><td><code>CRT.Font.bodySize</code></td><td>descriptions, help copy, prompt questions</td></tr>
+    <tr><td><b>heading</b></td><td>20</td><td><code>CRT.Font.heading</code></td><td>panel headers, item names, standard buttons (PixelButtonView default)</td></tr>
+    <tr><td><b>title</b></td><td>22</td><td><code>CRT.Font.title</code></td><td>screen titles; Press Start 2P renders title-weight at smaller pt (≈12–16)</td></tr>
+    <tr><td><b>display</b></td><td>28+</td><td><code>CRT.Font.displaySize</code></td><td>heroes: wordmark, big numerals, overlay banners — sized to container, never below title</td></tr>
+  </table>
+</div>
+<div class="rule"><b>The floor is 14pt</b>, picked on device (<code>-typeRamp 1</code> renders the specimen):
+13pt VT323 on felt fails the arm's-length read on an iPhone — the muted (0.62 alpha) variant doubly so —
+and 14pt is the first comfortable step. <code>CRT.Font.of()</code> enforces it: passing a smaller size renders 14.</div>
+<div class="rule no"><b>When copy stops fitting, the fix is the layout, never the size:</b> cut words, widen the
+container, or reflow. Passing a sub-floor size is a silent no-op by design, so a "sneaky shrink" is impossible.</div>
+<div class="rule"><b>Press Start 2P note:</b> the display face runs ~1.7× wider/heavier per point than VT323.
+Display-face text at ≥12pt reads at label weight or better; the 14pt floor applies to its <em>rendered</em>
+presence, and <code>Font.of</code> clamps it the same way. Numeric-only badges (pile counts, histogram digits)
+are text and obey the floor — no exceptions.</div>
+
 <h2>§4 · Buttons — every state</h2>
 <div class="panel"><div class="row">
   <button class="pbtn cta">HIGHER</button>

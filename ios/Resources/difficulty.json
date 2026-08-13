@@ -11,7 +11,7 @@
   },
   "tiers": {
     "regular": {
-      "label": "Regular",
+      "label": "Jokers",
       "stageBands": [
         [
           1.5,
@@ -49,67 +49,34 @@
         ]
       }
     },
-    "master": {
-      "label": "Master",
+    "legendary": {
+      "label": "Straight",
       "stageBands": [
         [
           1.5,
+          3
+        ],
+        [
+          2,
           4
         ],
         [
-          3.5,
-          5.5
-        ],
-        [
-          5,
-          6.5
+          3,
+          5
         ]
       ],
       "bossBands": [
         [
-          3.3,
-          4
+          2.3,
+          3.25
+        ],
+        [
+          3.75,
+          4.25
         ],
         [
           4.75,
           5.5
-        ],
-        [
-          6.5,
-          7
-        ]
-      ],
-      "jokerCap": 1,
-      "guaranteedMapJoker": false
-    },
-    "legendary": {
-      "label": "Legendary",
-      "stageBands": [
-        [
-          1.5,
-          4.5
-        ],
-        [
-          4,
-          6
-        ],
-        [
-          5.5,
-          7.5
-        ]
-      ],
-      "bossBands": [
-        [
-          4.3,
-          5
-        ],
-        [
-          5.75,
-          6.5
-        ],
-        [
-          7.5,
-          8
         ]
       ],
       "jokerCap": 0,

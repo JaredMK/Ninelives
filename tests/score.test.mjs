@@ -156,12 +156,12 @@ export function run() {
     r.ok(l && l.key === "coinLoss", "coinLoss returns its descriptor");
     r.eq(c.getCoins(), coins1 - l.amount, "coinLoss subtracts from the balance");
     r.eq(c.totalCoinsEarned, earned1, "coinLoss does NOT touch totalCoinsEarned");
-    // …and it floors at 0 on an empty purse.
+    // …and on an empty purse it FLIPS to a bonus (never a "−0" toll, v5.82).
     const broke = CampaignState.create();
     broke.reset();
     const l2 = broke.applyMysteryEvent("coinLoss", 13);
-    r.eq(broke.getCoins(), 0, "coinLoss on 0 coins floors at 0 (never negative)");
-    r.ok(l2.amount === 0, "…the floored loss reports amount 0");
+    r.ok(l2 && l2.key === "coinBonus", "coinLoss on 0 coins flips to coinBonus");
+    r.ok(l2.amount > 0 && broke.getCoins() === l2.amount, "…the flipped bonus pays out");
   }
 
   // --- Source-contract pins (the app-scope flow the harness can't drive) --
@@ -267,14 +267,15 @@ export function run() {
       "…with the piles × smallest factors as its sub line");
     r.ok(html.includes('id="overlayScore"') && src.includes("el.overlayScore.innerHTML = scorePlaqueHtml"),
       "…rendered into its own #overlayScore element, separate from #overlayCoins");
-    // v5.63: an AMBUSH pays coins only — no score fold, no plaque, no live
-    // projection. Sourced from Economy (product 0), so the chain follows.
+    // v5.82: an AMBUSH still pays no flat base, but it SCORES like every other
+    // battle — the product is no longer zeroed and nothing suppresses the
+    // live projection or the plaque.
     r.ok(src.includes("ambush: wasAmbush,"),
-      "the payout site tells Economy the deal was an ambush");
+      "the payout site still tells Economy the deal was an ambush (flat base)");
     r.ok(src.includes("const showScore = !!sb && sb.product > 0;"),
       "…the summary hides the Score plaque when the deal scored nothing");
-    r.ok(fnBody(src, "renderHud").includes("const scores = !ambushDeal;"),
-      "…and the above-board projection shows no score during an ambush");
+    r.ok(!fnBody(src, "renderHud").includes("const scores = !ambushDeal;"),
+      "…and the above-board projection no longer blanks the score on an ambush");
     r.ok(cbh.includes("no flat reward"), "…an ambush flags its missing flat base");
 
     // END SUMMARY: score + best tiles (endless split post-boss); an

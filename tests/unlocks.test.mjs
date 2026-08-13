@@ -116,11 +116,17 @@ export function run() {
       r.ok(perClimb[k] <= 5, "winning climb " + k + " crosses <=5 gates (got " + perClimb[k] + ")");
     for (const k of [1, 2, 3])
       r.ok((perClimb[k] || 0) >= 2, "early climb " + k + " still opens >=2 (got " + (perClimb[k] || 0) + ")");
-    // A first Zen session keeps its own small drip (session-paced, not climb).
+    // THE TUTORIAL IS A ZEN EASY GAME. Nothing may unlock off it: finishing
+    // the tour and being handed two items teaches that unlocks are free.
+    // Every Zen gate therefore starts at 2+, and the Zen drip begins on the
+    // player's own second session.
     const zenFirst = groups.flatMap(g => ItemData[g].filter(d => d.unlock
       && (d.unlock.stat === "zenGamesPlayed" || d.unlock.stat === "zenEasyWon") && d.unlock.count <= 1));
-    r.ok(zenFirst.length >= 1 && zenFirst.length <= 4,
-      "the first Zen win pops a small handful (" + zenFirst.length + ")");
+    r.eq(zenFirst.length, 0,
+      "nothing unlocks off the tutorial's Zen Easy win (" + zenFirst.map(d => d.id).join(",") + ")");
+    const zenAny = groups.flatMap(g => ItemData[g].filter(d => d.unlock
+      && d.unlock.stat.startsWith("zen")));
+    r.ok(zenAny.length >= 3, "Zen still carries its own drip beyond the tutorial (" + zenAny.length + ")");
     // The unlock filter at zero stats: grantable() === the ungated non-cursed
     // pool, in registry order.
     r.eq(JSON.stringify(StickerTypes.grantable().map(t => t.id)),
@@ -174,9 +180,15 @@ export function run() {
       "endlessStagesReached", "coinsEarnedLifetime", "cardsBuried", "samesCalled",
       "correctSames", "jokersPlayed", "stickersApplied", "pillarsPlaced",
       "basesPlaced", "removalsUsed", "pilesLost",
-      "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon"];
+      "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon",
+      // UNLOCK3: counters the NATIVE port tracks and this build does not. They
+      // are listed so the SHARED items.js validates on both sides; there is no
+      // reader for them here, so an item gated on one never unlocks on the web.
+      "heartsPlayed", "diamondsPlayed", "clubsPlayed", "spadesPlayed",
+      "perfectDeals", "dealsWonRegular", "dealsWonMaster", "dealsWonLegendary",
+      "pinkyTipsSeen", "bestCampaignScore", "bestCoinsInClimb"];
     r.eq(JSON.stringify(ItemUnlocks.STATS), JSON.stringify(EXPECTED),
-      "ItemUnlocks.STATS is exactly the documented 19-name list");
+      "ItemUnlocks.STATS is exactly the documented 30-name list");
     Stats.reset();
     r.ok(EXPECTED.every(n => typeof ItemUnlocks.statValue(n) === "number"
       && isFinite(ItemUnlocks.statValue(n)) && ItemUnlocks.statValue(n) >= 0),
@@ -191,10 +203,13 @@ export function run() {
       "coinsEarnedLifetime aliases lifetimeDopamine");
     // hintFor derives copy for every stat (never hand-written, never empty);
     // a starting item (no gate) has no hint.
-    r.ok(EXPECTED.every(n => {
+    // Only the stats THIS build reads carry hint copy; the native-only tail
+    // (see the UNLOCK3 note above) has no reader and no phrasing here.
+    const READABLE = EXPECTED.slice(0, 19);
+    r.ok(READABLE.every(n => {
       const h = ItemUnlocks.hintFor({ unlock: LOCK(n, 7) });
       return typeof h === "string" && h.length > 0 && h.indexOf("7") !== -1;
-    }), "hintFor derives non-empty copy carrying the count for all 15 stats");
+    }), "hintFor derives non-empty copy carrying the count for all 19 readable stats");
     r.eq(ItemUnlocks.hintFor({ id: "x" }), "", "…and \"\" for a starting item (no gate)");
     r.eq(ItemUnlocks.hintFor({ unlock: LOCK("cardsBuried", 15) }), "Bury 15 cards",
       "…the plan's example phrasing (\"Bury 15 cards\")");

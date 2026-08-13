@@ -416,6 +416,41 @@ final class DeckBoardAndZenTests: XCTestCase {
         XCTAssertTrue(c.buyRemoval(c.ownedIds[0]), "the Removal slot never depletes")
     }
 
+    func testRemovalPriceClimbsByItsStepEachPurchase() {
+        let cfg = GameData.shared.items.store.removal
+        let step = cfg.priceStep
+        XCTAssertGreaterThan(step, 0, "items.js ships a removal priceStep")
+        let c = CampaignState()
+        c.setSeedOverride(2468); c.reset()
+        c.addCoins(10_000)
+        let base = c.removalPrice()
+        for i in 0..<3 {
+            XCTAssertEqual(c.removalPrice(), base + step * Double(i),
+                           "removal \(i + 1) is quoted at base + \(i) steps")
+            // The shelf tile must quote exactly what the picker charges.
+            let before = c.coins
+            XCTAssertTrue(c.buyRemoval(c.ownedIds[0]))
+            XCTAssertEqual(Double(before - c.coins), base + step * Double(i),
+                           "…and that is what it charged")
+        }
+        // The ladder is per CLIMB: a new one starts back at the base price.
+        c.startNewRun()
+        XCTAssertEqual(c.removalPrice(), base, "a new climb resets the ladder")
+    }
+
+    func testRemovalLadderSurvivesASaveRoundTrip() {
+        let c = CampaignState()
+        c.setSeedOverride(2468); c.reset()
+        c.addCoins(10_000)
+        XCTAssertTrue(c.buyRemoval(c.ownedIds[0]))
+        XCTAssertTrue(c.buyRemoval(c.ownedIds[0]))
+        let expected = c.removalPrice()
+        let c2 = CampaignState()
+        XCTAssertTrue(c2.restore(c.serialize()))
+        XCTAssertEqual(c2.removalPrice(), expected,
+                       "the ladder rung is part of the save, not lost on resume")
+    }
+
     // MARK: - Inventories
 
     func testPillarPlacementRoundTripsThroughTheInventory() {
@@ -481,7 +516,6 @@ final class DeckBoardAndZenTests: XCTestCase {
         c.reset()
         XCTAssertEqual(c.getCoins(), 0)
         XCTAssertEqual(c.getRunScore(), 0)
-        XCTAssertEqual(c.getCampaignScore(), 0)
         XCTAssertFalse(c.runWonBanked)
         XCTAssertFalse(c.getSameCharge())
         XCTAssertTrue(c.pillarInventory.isEmpty)

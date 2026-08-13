@@ -66,6 +66,11 @@ public final class RunState {
     public var pillars: [String?]?
     /// The equipped Same-Power for this deal.
     public var samePower: String?
+    /// The power's climb-fixed variant, when it rolls one (Burrow's suit,
+    /// Second Sight's red/black). Nil for the fixed powers.
+    public var samePowerVariant: String?
+    /// The rank-variant pillars' locked ranks, by pillar id.
+    public var pillarRankVariants: [String: Int] = [:]
     /// Synapse-link adjacency the UI pushes in (pile → directly linked piles).
     public var links: [Int: [Int]] = [:]
 
@@ -87,6 +92,14 @@ public final class RunState {
     public var kamikazeRevealLeft = 0
     public var pendingActions: [PendingAction] = []
     public var pendingTributes: [TributeOffer] = []
+    /// Opt-in Diamond Ripple consent (iOS UI): when true, a landing that would
+    /// auto-shuffle every ♦-topped pile instead records `pendingRipple` and
+    /// waits for `answerRipple`. DEFAULT FALSE — the web's auto-shuffle, and
+    /// every fixture/trace runs with it unset.
+    public var rippleNeedsConsent = false
+    /// The ♦-top piles a consented Diamond Ripple would shuffle (captured at
+    /// the landing) + the landing pile's column (for the fired pulse).
+    public var pendingRipple: (piles: [Int], col: Int?)?
 
     /// Live bonus-coin tally + its itemization.
     public var bonusCoins: Double = 0
@@ -105,6 +118,10 @@ public final class RunState {
     public var revealNextActive = false
     /// Pile indices with an active directional hint (display only).
     public var tellPiles = Set<Int>()
+    /// Piles armed by SPADE WHISPERS. Kept apart from `tellPiles` because a
+    /// Tell hint is spent by the very next draw, while a whisper lasts for
+    /// `tellDrawsLeft` draws — on ITS OWN pile, never board-wide.
+    public var whisperPiles = Set<Int>()
     /// How many upcoming DRAWS still carry a whole-board Tell-style hint.
     public var tellDrawsLeft = 0
 
@@ -140,11 +157,26 @@ public struct RunConfig {
     public var sameCharge = false
     /// The equipped Same-Power id.
     public var samePower: String?
+    /// Its climb-fixed variant (Burrow's suit / Second Sight's colour).
+    public var samePowerVariant: String?
+    /// The rank-variant pillars' locked ranks, by pillar id.
+    public var pillarRankVariants: [String: Int] = [:]
     /// Lammy: stickers unusable — no effect may sticker a card.
     public var noStickers = false
-    public init(cols: [Int]? = nil, sameCharge: Bool = false, samePower: String? = nil, noStickers: Bool = false) {
+    /// This deal is an AMBUSH. The engine is otherwise blind to it (an ambush
+    /// is a flow-level shape), but a Base can now gate on it.
+    public var isAmbush = false
+    /// This deal is a BOSS. Last Resort seals itself during one.
+    public var isBoss = false
+    public init(cols: [Int]? = nil, sameCharge: Bool = false, samePower: String? = nil,
+                samePowerVariant: String? = nil, pillarRankVariants: [String: Int] = [:],
+                noStickers: Bool = false, isAmbush: Bool = false, isBoss: Bool = false) {
         self.cols = cols; self.sameCharge = sameCharge
-        self.samePower = samePower; self.noStickers = noStickers
+        self.samePower = samePower; self.samePowerVariant = samePowerVariant
+        self.pillarRankVariants = pillarRankVariants
+        self.noStickers = noStickers
+        self.isAmbush = isAmbush
+        self.isBoss = isBoss
     }
 }
 
@@ -170,6 +202,30 @@ public enum EngineEvent {
     case revived(col: Int, index: Int)
     case baseFired(BaseResult)
     case samePower(SamePowerResult)
+    /// Second Wind rolled on a dying pile in its column and did NOT save it.
+    case secondWindMiss(index: Int, col: Int)
+    /// Flypaper stuck a random sticker to the card that just landed.
+    case pillarSticker(col: Int, pileIndex: Int, cardId: Int, typeId: String)
+    /// A Tie-Safe STICKER turned a directional tie into a save (v6.50: it
+    /// used to land silently — the one save in the game with no cue).
+    case tieSafeSaved(index: Int)
+    /// Wild Aces played an Ace LOW to make this guess correct (v6.50: the
+    /// flip looked like a rules glitch without a cue).
+    case wildAceFlipped(index: Int, col: Int)
+    /// A landing-time curse fired (Shield Drain / Base Drain / Spoiler).
+    /// `detail` is the ready-made float text.
+    case curseFired(index: Int, curse: String, label: String, detail: String)
+    /// MALFUNCTION: a correct guess against the cursed top killed the pile.
+    case malfunction(index: Int, cardLabel: String)
+    /// JAMMER: the column's pillar would have mattered on this landing but a
+    /// jammer top is blocking it.
+    case pillarBlocked(col: Int)
+    /// PEELER tore every sticker off a touched card — the flow must remove
+    /// the same stickers from the campaign identity.
+    case cursePeeled(index: Int, cardId: Int, types: [String])
+    /// SABOTEUR destroyed a column item — the flow must remove it from the
+    /// campaign loadout (the engine already cleared its own copy).
+    case sabotaged(col: Int, kind: String, itemId: String)
     case won(pillarPayout: PillarPayout)
     case lost
 }
@@ -211,6 +267,9 @@ public struct BaseResult {
     public var suitApplied: [(cardId: Int, suit: String)]?
     public var sourceValue: Int?
     public var sourceSuit: String?
+    /// Club Oracle: the ♣ pile it read, and the next card's direction vs it.
+    public var tellPile: Int?
+    public var tellDirection: Guess?
     /// Net coins this Base moved (for the UI float).
     public var coins: Double = 0
 }
@@ -222,4 +281,16 @@ public struct SamePowerResult: Sendable, Equatable {
     public var effect: String
     public var targets: [Int] = []
     public var amount: Int = 0
+    /// Stickers this power put on BOARD cards, as (cardId, typeId). The
+    /// engine only ever marks the live card; the campaign copy is written by
+    /// the flow, exactly as a Base's `stickerApplied` is — without this the
+    /// stickers vanished the moment the deal ended.
+    public var stickersApplied: [(cardId: Int, typeId: String)] = []
+
+    public static func == (a: SamePowerResult, b: SamePowerResult) -> Bool {
+        a.power == b.power && a.label == b.label && a.hub == b.hub && a.effect == b.effect
+            && a.targets == b.targets && a.amount == b.amount
+            && a.stickersApplied.map(\.cardId) == b.stickersApplied.map(\.cardId)
+            && a.stickersApplied.map(\.typeId) == b.stickersApplied.map(\.typeId)
+    }
 }

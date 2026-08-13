@@ -28,6 +28,9 @@ final class ProgressionTests: XCTestCase {
         for k in StatsRecord.unlockCounters { s[k] = 11 }
         s.runsCleared = 12; s.gamesPlayed = 13; s.campaignsWon = 14
         s.bestEndless = 15; s.lifetimeDopamine = 16
+        // The two HIGH-WATER marks aren't additive counters, so `bump` can't
+        // reach them — they still need a live reader.
+        s.bestCampaignScore = 17; s.bestCoinsInClimb = 18
         stats.put(s)
         for name in data.meta.itemUnlockStats where !name.hasPrefix("zen") {
             XCTAssertGreaterThan(u.statValue(name), 0, "stat '\(name)' has no reader")
@@ -230,10 +233,73 @@ final class ProgressionTests: XCTestCase {
         XCTAssertEqual(stats.get().campaignsWon, 7, "bump must never touch the legacy tallies")
     }
 
+    /// The Collection's lifetime "BOUGHT ×N" tally.
+    func testItemsBoughtTallyAccumulatesAndPersists() {
+        let store = MemoryStore()
+        let stats = Stats(store: store)
+        stats.bumpItemBought("tieSafe")
+        stats.bumpItemBought("tieSafe")
+        stats.bumpItemBought("columnGuardian", 3)
+        stats.bumpItemBought("")            // no id → nothing banked
+        stats.bumpItemBought("ghost", 0)    // no-op count → no key minted
+        XCTAssertEqual(stats.get().itemsBought["tieSafe"], 2)
+        XCTAssertEqual(stats.get().itemsBought["columnGuardian"], 3)
+        XCTAssertNil(stats.get().itemsBought["ghost"], "a zero bump must not mint a key")
+        XCTAssertEqual(Stats(store: store).get().itemsBought, stats.get().itemsBought,
+                       "the tally survives a reload")
+    }
+
+    /// A BUY banks a tally; an exhibition buy banks nothing (same rule the
+    /// unlock counters follow), and a failed buy banks nothing either.
+    func testBuyingBanksTheCollectionTally() {
+        let store = MemoryStore()
+        let c = CampaignState(store: store)
+        c.reset()
+        c.addCoins(500)
+        let pillar = GameData.shared.items.pillars[0].id
+        XCTAssertTrue(c.buyPillarToInventory(pillar))
+        XCTAssertTrue(c.buyPillarToInventory(pillar))
+        XCTAssertEqual(c.stats.get().itemsBought[pillar], 2, "each buy banks one")
+
+        let broke = CampaignState(store: MemoryStore())
+        broke.reset()
+        XCTAssertFalse(broke.buyPillarToInventory(pillar), "no coins → no buy")
+        XCTAssertNil(broke.stats.get().itemsBought[pillar], "a failed buy banks nothing")
+    }
+
+    /// DEBUG deck grants: bulk-random and exact-pick both land real, unique,
+    /// serialisable cards in the deck.
+    func testDebugDeckGrants() {
+        let c = CampaignState(store: MemoryStore())
+        c.reset()
+        let before = c.deckSize()
+        let ids = c.debugAddRandomCards(5)
+        XCTAssertEqual(ids.count, 5)
+        XCTAssertEqual(Set(ids).count, 5, "every minted card gets its own id")
+        XCTAssertEqual(c.deckSize(), before + 5)
+        XCTAssertTrue(c.debugAddRandomCards(0).isEmpty, "a zero ask mints nothing")
+        XCTAssertTrue(c.debugAddRandomCards(-3).isEmpty, "a negative ask mints nothing")
+
+        guard let id = c.debugAddCard(suit: "♠", rank: 11) else {
+            XCTFail("an exact pick of J♠ should mint"); return
+        }
+        let minted = c.getRunDeck().first { $0.id == id }
+        XCTAssertEqual(minted?.suit, "♠")
+        XCTAssertEqual(minted?.currentRank, 11)
+        XCTAssertNil(c.debugAddCard(suit: "★", rank: 5), "an unknown suit is refused")
+        XCTAssertNil(c.debugAddCard(suit: "♠", rank: 99), "an out-of-range rank is refused")
+        XCTAssertNil(c.debugAddCard(suit: "♠", rank: 1), "below the rank floor is refused")
+
+        // The deck still round-trips through the save with the grants in it.
+        let c2 = CampaignState(store: MemoryStore())
+        XCTAssertTrue(c2.restore(c.serialize()))
+        XCTAssertEqual(c2.deckSize(), c.deckSize(), "debug-granted cards survive a save")
+    }
+
     func testStatsSurviveARoundTrip() {
         let store = MemoryStore()
         var s = StatsRecord()
-        s.gamesPlayed = 12; s.campaignsWon = 3; s.bestEndlessScore = 88
+        s.gamesPlayed = 12; s.campaignsWon = 3; s.bestCampaignScore = 88
         s.deckTierWins = ["lammy.master": true]
         for k in StatsRecord.unlockCounters { s[k] = 5 }
         Stats(store: store).put(s)
@@ -244,11 +310,13 @@ final class ProgressionTests: XCTestCase {
 
     func testTheFourDeckCharacters() {
         XCTAssertEqual(Set(data.meta.deckRules.keys), Set(GameMeta.deckOrder))
-        // Pinky is the baseline and carries NO modifiers.
+        // Pinky is the baseline: no price/sticker/pre-equip modifiers. Since
+        // v5.87 she uses the MIXED start (one of each rank, suits spread) —
+        // MAMMA is the suit-staged climb now.
         let pink = data.meta.rules("pink")
-        XCTAssertFalse(pink.altSuits); XCTAssertEqual(pink.priceMult, 1)
+        XCTAssertTrue(pink.altSuits); XCTAssertEqual(pink.priceMult, 1)
         XCTAssertFalse(pink.startStickers); XCTAssertFalse(pink.noStickers); XCTAssertFalse(pink.preEquip)
-        XCTAssertTrue(data.meta.rules("mamma").altSuits)
+        XCTAssertFalse(data.meta.rules("mamma").altSuits, "Mamma is the suit-staged deck")
         XCTAssertEqual(data.meta.rules("smith").priceMult, 2)
         XCTAssertTrue(data.meta.rules("smith").startStickers)
         XCTAssertTrue(data.meta.rules("lammy").noStickers)
@@ -257,22 +325,53 @@ final class ProgressionTests: XCTestCase {
         XCTAssertEqual(data.meta.rules("nope"), pink)
     }
 
-    /// v5.74: no deck is gifted a starting Joker any more. Pinky opens every
-    /// tier on the 13 hearts; its two Regular Jokers are EARNED at the fixed
-    /// post-boss corridor nodes.
-    func testPinkyStartsOnTheThirteenHeartsWithNoGiftedJoker() {
+    /// v5.74: no deck is gifted a starting Joker. v5.87: MAMMA is the deck that
+    /// opens on the 13 hearts and climbs a suit-staged map.
+    func testMammaStartsOnTheThirteenHearts() {
+        for tier in DifficultyData.tierIds {
+            let c = CampaignState()
+            c.setDeck("mamma"); c.setTier(tier); c.setSeedOverride(1234); c.reset()
+            let start = c.getRunDeck()
+            XCTAssertEqual(start.count, 13, "\(tier): the run opens on exactly the 13 hearts")
+            XCTAssertTrue(start.allSatisfy { $0.suit == "♥" }, "\(tier): every start card is a ♥")
+            XCTAssertEqual(Set(start.map(\.currentRank)).count, 13, "\(tier): one of each rank")
+            XCTAssertEqual(start.filter(\.joker).count, 0, "\(tier): no Joker is gifted")
+        }
+    }
+
+    /// Pinky now opens on a MIXED hand and is still gifted no Joker.
+    func testPinkyStartsMixedWithNoGiftedJoker() {
         for tier in DifficultyData.tierIds {
             let c = CampaignState()
             c.setDeck("pink"); c.setTier(tier); c.setSeedOverride(1234); c.reset()
             let start = c.getRunDeck()
             XCTAssertEqual(data.difficulty.startJokers(deckId: "pink", tierId: tier), 0,
                            "\(tier): difficulty.js ships no startJokers")
-            XCTAssertEqual(start.count, 13, "\(tier): the run opens on exactly the 13 hearts")
+            XCTAssertEqual(start.count, 13, "\(tier): 13 start cards")
             XCTAssertEqual(c.runStartSize("pink", tier), 13,
                            "\(tier): runStartSize must agree with the real deck")
-            XCTAssertTrue(start.allSatisfy { $0.suit == "♥" }, "\(tier): every start card is a ♥")
             XCTAssertEqual(Set(start.map(\.currentRank)).count, 13, "\(tier): one of each rank")
+            XCTAssertEqual(Set(start.map(\.suit)).count, 4, "\(tier): every suit is represented")
             XCTAssertEqual(start.filter(\.joker).count, 0, "\(tier): no Joker is gifted")
+        }
+    }
+
+    /// The mixed start spreads suits EVENLY — 13 over 4 is 4/3/3/3, never a
+    /// lopsided 6/3/2/2 the way a per-rank coin flip could produce.
+    func testTheMixedStartSpreadsSuitsEvenly() {
+        // Mr Smith is excluded on purpose: his start stickers roll suit-CHANGERS
+        // onto the dealt cards, so his final hand is deliberately uneven. The
+        // rule under test is how the hand is DEALT.
+        for deck in ["pink", "lammy"] {
+            for seed: UInt32 in [1, 555, 4242, 99999] {
+                let c = CampaignState()
+                c.setDeck(deck); c.setSeedOverride(seed); c.reset()
+                guard c.rules().altSuits, !c.rules().startStickers else { continue }
+                var per: [String: Int] = [:]
+                for card in c.getRunDeck() { per[card.suit, default: 0] += 1 }
+                XCTAssertEqual(per.values.sorted(), [3, 3, 3, 4],
+                               "\(deck) seed \(seed): 13 ranks spread 4/3/3/3 across the suits")
+            }
         }
     }
 
@@ -298,14 +397,14 @@ final class ProgressionTests: XCTestCase {
     }
 
     func testAltDecksStartWithOneOfEachRankAtRandomSuits() {
-        for deck in ["mamma", "smith", "lammy"] {
+        for deck in ["pink", "smith", "lammy"] {
             let c = CampaignState()
             c.setDeck(deck); c.setSeedOverride(555); c.reset()
             let start = c.getRunDeck()
             XCTAssertEqual(start.count, 13, "\(deck): 13 start cards")
             XCTAssertEqual(Set(start.map(\.originalRank)), Set(DeckManager.ranks.map(\.value)),
                            "\(deck): one card of EACH rank")
-            XCTAssertGreaterThan(Set(start.map(\.suit)).count, 1, "\(deck): suits are rolled, not fixed")
+            XCTAssertEqual(Set(start.map(\.suit)).count, 4, "\(deck): every suit is represented")
         }
     }
 
@@ -343,10 +442,10 @@ final class ProgressionTests: XCTestCase {
     }
 
     func testAltDecksAreNotSuitSegmented() {
-        let alt = CampaignState(); alt.setDeck("mamma")
-        XCTAssertEqual(Set(alt.suitsInPlay()).count, 4, "all four suits are in play from the start")
-        let pink = CampaignState(); pink.setDeck("pink")
-        XCTAssertEqual(pink.suitsInPlay(), ["♥", "♦"], "Pinky's stage 1 is ♥ + ♦")
+        let alt = CampaignState(); alt.setDeck("pink")
+        XCTAssertEqual(Set(alt.suitsInPlay()).count, 4, "Pinky plays all four suits from the start")
+        let staged = CampaignState(); staged.setDeck("mamma")
+        XCTAssertEqual(staged.suitsInPlay(), ["♥", "♦"], "Mamma's stage 1 is ♥ + ♦")
     }
 
     // MARK: - Card edits

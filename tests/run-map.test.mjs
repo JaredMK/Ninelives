@@ -18,6 +18,7 @@ export function run() {
   // ---- starting deck: 13 hearts + startJokers, ready to play immediately ---
   {
     const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();   // the pre-held-hearts deck since v5.87
     r.eq(c.deckSize(), START, "a fresh campaign holds startDeckSize + startJokers cards (" + START + ")");
     const deck = c.getRunDeck();
     r.eq(deck.length, START, "getRunDeck() deals the whole " + START + "-card draft");
@@ -32,6 +33,7 @@ export function run() {
   //  the Joker/Blank special contract has its own block below)
   {
     const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();   // suit-locked packs are the staged deck's rule
     c._setMapSpecialRoll(() => null);
     const before = c.deckSize();
     const card = c.resolvePickup({ type: "pickup", mixed: false });
@@ -53,6 +55,7 @@ export function run() {
   // ---- packs ALWAYS grant exactly N, minting once the unique pool is dry ----
   {
     const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();   // suit-locked pack minting is the staged deck's rule
     c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
     const before = c.deckSize();
     // 13 ♣ exist; ~7 are reserved by +1 club nodes. Open six +5 packs = 30 clubs
@@ -79,6 +82,9 @@ export function run() {
   {
     for (const suit of ["♦", "♣", "♠"]) {
       const c = CampaignState.create();
+      // The suit-gated pack rule belongs to the SUIT-STAGED deck (Mamma since
+      // v5.87); mixed-start decks deliberately roll all four.
+      c.setDeck("mamma"); c.reset();
       c._setMapSpecialRoll(() => null);   // normal-card contract (specials below)
       let all = [];
       // open several packs of `suit`; every granted card must be that suit.
@@ -106,6 +112,7 @@ export function run() {
   // ---- suits in play grow with the phase (drives item gating) -------------
   {
     const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();   // suits-grow-with-phase is the staged deck's rule
     const inPhase = () => c.suitsInPlay().slice().sort().join("");
     r.eq(inPhase(), ["♥", "♦"].sort().join(""), "phase ♦: hearts + diamonds in play");
     c.advancePhase();
@@ -389,6 +396,7 @@ export function run() {
     let suitHeld = a.suit === "♦";
     for (let t = 0; t < 5 && !suitHeld; t++) {
       const c2 = CampaignState.create();
+      c2.setDeck("mamma"); c2.reset();   // suit-locked +1 nodes are the staged deck's rule
       c2._setMapSpecialRoll(() => null);
       const p2 = c2.previewPickupCard({ id: 910050 + t, type: "pickup", suit: "♦", mixed: false });
       suitHeld = !!p2 && p2.suit === "♦";

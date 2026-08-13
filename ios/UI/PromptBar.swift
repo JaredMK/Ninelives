@@ -7,6 +7,12 @@ import GameCore
 /// alert, never a one-off dialog.
 public final class PromptBar: UIView {
 
+    /// The region this prompt should TAKE OVER, in the bar's own coordinates.
+    /// Screens with a histogram/composition strip set it to that strip, so the
+    /// question lands in the same container hold-help uses. Unset = the safe
+    /// top of the screen.
+    public var anchorRect: CGRect? { didSet { setNeedsLayout() } }
+
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let textLabel = UILabel()
     private let helpLabel = UILabel()
@@ -48,16 +54,16 @@ public final class PromptBar: UIView {
     /// Show the bar. `dismiss` fires on an outside tap (cancel semantics).
     public func show(_ text: String, help: String? = nil, actions: [Action],
                      dismiss: (() -> Void)? = nil) {
-        textLabel.attributedText = CRTKit.attributed(text, size: 13, color: CRT.phosphor)
+        textLabel.attributedText = CRTKit.attributed(text, size: 16, color: CRT.phosphor)
         helpLabel.attributedText = help.map { helpAttributed($0) }
         helpLabel.isHidden = help == nil
         buttons.forEach { $0.removeFromSuperview() }
         buttonWidths = actions.map {
-            ceil(CRTKit.attributed($0.label.uppercased(), size: 13, color: CRT.cardFace)
+            ceil(CRTKit.attributed($0.label.uppercased(), size: 16, color: CRT.cardFace)
                 .size().width) + 30   // web .ap-btn padding 15px per side
         }
         buttons = actions.map { a in
-            let b = PixelButtonView(a.label, role: a.role, fontSize: 13)
+            let b = PixelButtonView(a.label, role: a.role, fontSize: 16)
             b.onTap = { a.handler() }
             panel.addSubview(b)
             return b
@@ -67,8 +73,8 @@ public final class PromptBar: UIView {
         superview?.bringSubviewToFront(self)
         setNeedsLayout()
         layoutIfNeeded()
-        // Slide up from the bottom edge.
-        panel.transform = CGAffineTransform(translationX: 0, y: 40)
+        // Drops DOWN from the top edge, matching where it now lives.
+        panel.transform = CGAffineTransform(translationX: 0, y: -40)
         scrim.alpha = 0
         UIView.animate(withDuration: 0.18) {
             self.panel.transform = .identity
@@ -81,7 +87,7 @@ public final class PromptBar: UIView {
         let para = NSMutableParagraphStyle()
         para.lineSpacing = 5
         let s = NSMutableAttributedString(
-            string: help, attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted])
+            string: help, attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted])
         s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: s.length))
         return s
     }
@@ -94,9 +100,11 @@ public final class PromptBar: UIView {
     public var isShowing: Bool { !isHidden }
 
     @objc private func scrimTapped() {
-        let d = onDismiss
+        // No dismiss handler = a MODAL question (the sticker action offers):
+        // an outside tap does nothing — the bar leaves only through a button.
+        guard let d = onDismiss else { return }
         hide()
-        d?()
+        d()
     }
 
     public override func layoutSubviews() {
@@ -118,9 +126,27 @@ public final class PromptBar: UIView {
         let contentH = max(textBlockH, btnH)
         // The bar always fills its host's bounds, so its own insets are the
         // host's — read them directly (a re-parenting can never stale them).
-        let safeB = max(safeAreaInsets.bottom, 0)
+        //
+        // IT RIDES AT THE TOP, over the histogram band. Every question the game
+        // asks — a Base confirm, a Pillar target, an offer, a shuffle — now
+        // appears in the same place as every hold-help panel, and that place is
+        // the one strip present on every screen. It used to sit at the bottom,
+        // so the answer to "where does the game talk to me?" depended on
+        // whether it was explaining something or asking something.
         let panelH = 8 + contentH + 8
-        panel.frame = CGRect(x: 8, y: bounds.height - safeB - panelH - 8, width: w, height: panelH)
+        if let anchor = anchorRect, !anchor.isEmpty {
+            // A host that HAS a histogram strip hands us its rect, and the
+            // prompt takes that space over — on a sheet with its own header the
+            // absolute screen top is somewhere else entirely, and the question
+            // floated above the sheet instead of inside it.
+            let aw = max(120, anchor.width)
+            panel.frame = CGRect(x: anchor.minX + (aw - min(w, aw)) / 2,
+                                 y: anchor.minY + max(0, (anchor.height - panelH) / 2),
+                                 width: min(w, aw), height: panelH)
+        } else {
+            let safeT = max(safeAreaInsets.top, 0)
+            panel.frame = CGRect(x: 8, y: safeT + 8, width: w, height: panelH)
+        }
         textLabel.frame = CGRect(x: 12, y: 8, width: textW, height: ceil(textH))
         helpLabel.frame = CGRect(x: 12, y: textLabel.frame.maxY + 1, width: textW, height: max(0, helpH - 1))
         var x = w - 12 - btnsW

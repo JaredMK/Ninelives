@@ -28,6 +28,8 @@ public final class PileNode: SKNode {
     private let badgeRow = SKNode()
     private var deadMark: SKSpriteNode?
     private var selectRing: SKSpriteNode?
+    private var roleTag: SKSpriteNode?
+    private var selectRole: TargetRole = .plain
     /// The fan-out hint: every card in the pile, splayed. Built on demand.
     private var fanNodes: [CardNode] = []
     /// The Tell / Spade Whispers hint chip: a directional ▲/▼/＝ badge at the
@@ -132,9 +134,9 @@ public final class PileNode: SKNode {
         guard let dir, !isDead, cardCount > 0 else { return }
         let glyph = dir == .higher ? "▲" : (dir == .lower ? "▼" : "＝")
         let text = glyph as NSString
-        let font = CRT.Font.of(15)
+        let font = CRT.Font.of(18)
         let tsz = text.size(withAttributes: [.font: font])
-        let w = max(20, ceil(tsz.width) + 10), h: CGFloat = 18
+        let w = max(22, ceil(tsz.width) + 10), h: CGFloat = 21
         let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
             cg.setFillColor(CRT.shadow.cgColor)
             cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
@@ -155,6 +157,48 @@ public final class PileNode: SKNode {
         n.zPosition = Layer.card + 5
         addChild(n)
         hintChip = n
+    }
+
+    /// A RIFFLE, not a wiggle. The pile squares itself, the top card lifts and
+    /// tilts off the stack twice, and the buried slivers splay out and snap
+    /// back — so a shuffle reads as cards actually moving rather than the whole
+    /// pile rocking. Compositor-only (moves/rotations/scales on existing
+    /// nodes), no new textures, and it self-terminates.
+    public func playShuffle() {
+        removeAction(forKey: "shuffleWiggle")
+        card.removeAction(forKey: "riffle")
+        let lift: CGFloat = max(5, cardScale.size.height * 0.09)
+        let home = card.position
+
+        func beat(_ dir: CGFloat, _ t: TimeInterval) -> SKAction {
+            let up = SKAction.group([
+                .moveBy(x: dir * 3, y: lift, duration: t),
+                .rotate(toAngle: dir * 0.13, duration: t, shortestUnitArc: true),
+                .scale(to: 1.04, duration: t),
+            ])
+            up.timingMode = .easeOut
+            let down = SKAction.group([
+                .move(to: home, duration: t * 1.15),
+                .rotate(toAngle: 0, duration: t * 1.15, shortestUnitArc: true),
+                .scale(to: 1.0, duration: t * 1.15),
+            ])
+            down.timingMode = .easeIn
+            return .sequence([up, down])
+        }
+        card.run(.sequence([beat(-1, 0.07), beat(1, 0.06)]), withKey: "riffle")
+
+        // The buried cards splay with it — the depth slivers are what sell
+        // "there is a stack here being shuffled".
+        for (i, sliver) in depthSlivers.enumerated() where !sliver.isHidden {
+            let home = sliver.position
+            let out = CGFloat(i + 1) * 2.5
+            sliver.removeAction(forKey: "riffle")
+            sliver.run(.sequence([
+                .wait(forDuration: 0.02 * Double(i)),
+                .moveBy(x: out, y: out * 0.6, duration: 0.07),
+                .move(to: home, duration: 0.11),
+            ]), withKey: "riffle")
+        }
     }
 
     /// Begin deferring face changes — a traveling card owns this pile now.
@@ -233,9 +277,14 @@ public final class PileNode: SKNode {
         plaqueBg?.removeFromParent()
         plaqueLabel?.removeFromParent()
         let ns = text as NSString
-        let font = CRT.Font.of(14)
+        // The pile count is the single most-read number on the board — the web
+        // sizes it off the pile (88 × 0.17 ≈ 15) rather than pinning it small.
+        // Scale with the card so it stays readable on a crowded 12-pile board,
+        // and give the chip the height that size needs.
+        let font = CRT.Font.of(max(17, (cardScale.size.width * 0.19).rounded()))
         let tsz = ns.size(withAttributes: [.font: font])
-        let w = max(20, tsz.width + 8), h: CGFloat = 18
+        let h = max(21, (tsz.height + 4).rounded())
+        let w = max(h + 4, tsz.width + 10)
         // Web palette: .min = gold chip, ink text+frame; .min-anchored = ink
         // chip, gold text+frame; otherwise cream chip, gold frame (phosphor
         // frame while anchored).
@@ -288,7 +337,10 @@ public final class PileNode: SKNode {
         guard let top, !top.stickers.isEmpty else { return }
         var counts: [String: Int] = [:]
         for s in top.stickers { counts[s.type, default: 0] += 1 }
-        let chip: CGFloat = 15
+        // 20 → 26 (router batch): the chips are the card's whole story mid-
+        // deal and still read small on a phone. The overlap factor keeps a
+        // full row inside the card's width.
+        let chip: CGFloat = 26
         let box = cardScale.size
         var idx = 0
         for def in GameData.shared.stickerTypes.all() {
@@ -297,7 +349,7 @@ public final class PileNode: SKNode {
             let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
             node.size = CGSize(width: chip, height: chip)
             node.anchorPoint = CGPoint(x: 0, y: 1)
-            node.position = CGPoint(x: box.width + 3 - chip - CGFloat(idx) * (chip * 0.72), y: 2)
+            node.position = CGPoint(x: box.width + 3 - chip - CGFloat(idx) * (chip * 0.62), y: 2)
             let deg = max(-15, min(15, -11 + idx * 8))
             node.zRotation = -CGFloat(deg) * .pi / 180
             node.zPosition = -CGFloat(idx)   // first sticker outermost/on top
@@ -307,7 +359,7 @@ public final class PileNode: SKNode {
                 : def.id == "compound" ? max(0, top.compoundHits - 1)
                 : (n > 1 ? n : nil)
             if let shown {
-                let c = PixelTexture.label("×\(shown)", size: 12,
+                let c = PixelTexture.label("×\(shown)", size: 14,
                                            color: def.cursed ? CRT.suitRed : CRT.gold)
                 c.anchorPoint = CGPoint(x: 1, y: 1)
                 c.position = CGPoint(x: node.position.x + chip + 1,
@@ -316,7 +368,9 @@ public final class PileNode: SKNode {
                 badgeRow.addChild(c)
             }
             idx += 1
-            if idx >= 5 { break }   // a heavily-stickered card still reads as a card
+            // A card can hold at most `maxStickersPerCard` (items.js), so the
+            // row never needs to draw more than that.
+            if idx >= GameData.shared.items.maxStickersPerCard { break }
         }
     }
 
@@ -339,25 +393,79 @@ public final class PileNode: SKNode {
 
     // MARK: - Selection
 
-    public func setSelected(_ on: Bool) {
-        guard on != isSelected else { return }
+    /// What a highlighted pile is being asked to BE in the current offer. An
+    /// offer that names two piles (Donate: this one's card goes to that one)
+    /// can't be read from a ring alone, so those two wear a FROM / TO tag and
+    /// the prompt stops quoting pile numbers the player can't map to the board.
+    public enum TargetRole { case plain, from, to }
+
+    public func setSelected(_ on: Bool, role: TargetRole = .plain) {
+        guard on != isSelected || role != selectRole else { return }
         isSelected = on
-        if on {
-            if selectRing == nil {
-                let s = cardScale.size
-                let pad: CGFloat = 3
-                let box = CGSize(width: s.width + pad * 2, height: s.height + pad * 2)
-                let n = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.phosphor, weight: CRT.px))
-                n.anchorPoint = CGPoint(x: 0, y: 1)
-                n.position = CGPoint(x: -pad, y: pad)
-                n.zPosition = Layer.card + 4
-                addChild(n)
-                selectRing = n
-            }
-            selectRing?.isHidden = false
-        } else {
+        selectRole = role
+        roleTag?.removeFromParent()
+        roleTag = nil
+        guard on else {
+            selectRing?.removeAction(forKey: "sel")
             selectRing?.isHidden = true
+            return
         }
+        if selectRing == nil {
+            let s = cardScale.size
+            let pad: CGFloat = 3
+            let box = CGSize(width: s.width + pad * 2, height: s.height + pad * 2)
+            // 2px, not a hairline: at 1px the ring was easy to miss entirely,
+            // which is what sent players hunting for "pile 5" in the prompt.
+            let n = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.phosphor,
+                                                              weight: CRT.px * 2))
+            n.anchorPoint = CGPoint(x: 0, y: 1)
+            n.position = CGPoint(x: -pad, y: pad)
+            n.zPosition = Layer.card + 4
+            addChild(n)
+            selectRing = n
+        }
+        selectRing?.isHidden = false
+        // The ring BREATHES. A static outline sits still among a board full of
+        // other static outlines; the motion is what says "this one, right now".
+        if selectRing?.action(forKey: "sel") == nil {
+            selectRing?.run(.repeatForever(.sequence([
+                .fadeAlpha(to: 0.3, duration: 0.5),
+                .fadeAlpha(to: 1.0, duration: 0.5),
+            ])), withKey: "sel")
+        }
+        guard role != .plain else { return }
+        let tag = PileNode.roleTagNode(role == .from ? "FROM" : "TO",
+                                       color: role == .from ? CRT.phosphor : CRT.gold)
+        // Bottom-centre: the top-centre is the Tell hint chip's seat.
+        tag.position = CGPoint(x: cardScale.size.width / 2, y: -cardScale.size.height - 2)
+        tag.zPosition = Layer.card + 6
+        addChild(tag)
+        roleTag = tag
+    }
+
+    /// The FROM / TO tag — the hint chip's plate at a smaller size.
+    private static func roleTagNode(_ text: String, color: UIColor) -> SKSpriteNode {
+        let s = text as NSString
+        let font = CRT.Font.of(14)
+        let tsz = s.size(withAttributes: [.font: font])
+        let w = max(30, ceil(tsz.width) + 10), h: CGFloat = 16
+        let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
+            cg.setFillColor(CRT.shadow.cgColor)
+            cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
+            cg.setFillColor(CRT.ink.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            cg.setStrokeColor(color.cgColor)
+            cg.setLineWidth(CRT.px)
+            cg.stroke(CGRect(x: 1, y: 1, width: w - 2, height: h - 2))
+            UIGraphicsPushContext(cg)
+            s.draw(at: CGPoint(x: (w - tsz.width) / 2, y: (h - tsz.height) / 2),
+                   withAttributes: [.font: font, .foregroundColor: color])
+            UIGraphicsPopContext()
+        }
+        let n = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        n.size = img.size
+        n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        return n
     }
 
     // MARK: - Drag nudge (press feedback tracks the finger)

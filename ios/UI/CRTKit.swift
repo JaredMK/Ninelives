@@ -100,8 +100,12 @@ public final class PixelButtonView: UIControl {
     private var role: Role
     private var fontSize: CGFloat
     public var onTap: (() -> Void)?
+    /// Every pixel button clicks on press (the shared UI-family click). Set
+    /// false on buttons that own a louder cue of their own (CTA confirms), so
+    /// the two don't stack into mush.
+    public var playsClick = true
 
-    public init(_ title: String, role: Role = .plain, fontSize: CGFloat = 19) {
+    public init(_ title: String, role: Role = .plain, fontSize: CGFloat = CRT.Font.heading) {
         self.role = role
         self.fontSize = fontSize
         super.init(frame: .zero)
@@ -172,7 +176,11 @@ public final class PixelButtonView: UIControl {
     }
 
     private var pressed = false
-    @objc private func touchDown() { pressed = true; setNeedsLayout(); layoutIfNeeded() }
+    @objc private func touchDown() {
+        pressed = true
+        if isEnabled, playsClick { Sound.shared.button() }
+        setNeedsLayout(); layoutIfNeeded()
+    }
     @objc private func touchUp() { pressed = false; setNeedsLayout(); onTap?(); sendActions(for: .primaryActionTriggered) }
     @objc private func touchCancel() { pressed = false; setNeedsLayout() }
 

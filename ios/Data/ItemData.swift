@@ -19,11 +19,19 @@ public struct RerollConfig: Sendable { public let baseCost: Double; public let s
 public struct StoreCardConfig: Sendable {
     public let label: String, icon: String, description: String
     public let price: Double, jokerPrice: Double
+    /// Added to `price` for EACH sticker the minted card carries.
+    public let stickerStep: Double
+    /// The card slot's own sticker distribution ([maxRoll, count] pairs, same
+    /// shape as packStickerOdds) — store singles roll stickers on these odds,
+    /// not the pack table.
+    public let stickerOdds: [[Double]]
 }
 
 public struct StoreRemovalConfig: Sendable {
     public let id: String, label: String, icon: String, description: String
     public let price: Double
+    /// Added to the price for each removal already bought this climb (0 = flat).
+    public let priceStep: Double
 }
 
 public struct StoreConfig: Sendable {
@@ -42,8 +50,43 @@ public struct StoreConfig: Sendable {
 
 public struct AmbushConfig: Sendable { public let cards: Double, piles: Double, bounty: Double }
 
+/// THE OLD JOKER — every knob for the recurring "?"-node character. Nothing
+/// about him is hardcoded in logic; this is the whole tuning surface.
+public struct OldJokerConfig: Sendable {
+    /// Relative odds per offer; only ELIGIBLE offers are rolled.
+    /// (His SHARE of ? nodes lives in `mystery.characterWeights`.)
+    public let weights: [String: Double]
+    /// The whole decoded section — per-event knobs are read via `num`/`ints`.
+    public let raw: [String: JSONValue]
+
+    /// The offer keys, in the fixed order the weighted roll walks them.
+    public static let offerKeys = [
+        "buyout", "swap", "purge", "ride", "cut",
+        "marker", "blindSwap", "twoDoors", "insurance", "refund",
+        "freeShop", "purgeReset", "eights", "thirsty", "duplicate",
+        "jokerForPillars",
+    ]
+
+    /// A numeric knob inside one offer's block, e.g. `num("marker", "repayMult", 1.5)`.
+    public func num(_ event: String, _ key: String, _ fallback: Double) -> Double {
+        raw[event]?.asObject?[key]?.asNumber ?? fallback
+    }
+    public func int(_ event: String, _ key: String, _ fallback: Int) -> Int {
+        Int(num(event, key, Double(fallback)))
+    }
+    public func string(_ event: String, _ key: String, _ fallback: String) -> String {
+        raw[event]?.asObject?[key]?.asString ?? fallback
+    }
+    public func strings(_ event: String, _ key: String) -> [String] {
+        raw[event]?.asObject?[key]?.asArray?.compactMap(\.asString) ?? []
+    }
+}
+
 public struct MysteryConfig: Sendable {
     public let weights: [String: Double]
+    /// WHO takes a ? node — the character rolls FIRST (oldJoker / queen /
+    /// two), then the winner's own pool rolls by `weights`.
+    public let characterWeights: [String: Double]
     /// [min,max] coin bonus per stage index.
     public let coinRangeByStage: [[Double]]
     /// [min,max] integer card grant.
@@ -55,6 +98,24 @@ public struct MysteryConfig: Sendable {
     public static let outcomeKeys = [
         "coinBonus", "cards", "stickerPack", "freeRemoval", "stickerStrip",
         "joker", "store", "cursedSticker", "coinLoss", "ambush",
+        "stickerTheft", "itemTheft", "priceDouble", "shieldDrain",
+        "priceOne", "freeRefresh", "freeRedeal", "shieldCharge",
+        "coinDouble", "giftCard", "mammaLie", "twoGame",
+    ]
+    /// The characterWeights keys, in the fixed order the character roll
+    /// walks them.
+    public static let characterKeys = ["oldJoker", "queen", "two"]
+    /// THE BEHEADED QUEEN's pool — every boon except the Windfall.
+    public static let queenKeys = [
+        "coinBonus", "stickerPack", "freeRemoval", "stickerStrip",
+        "joker", "store", "priceOne", "freeRefresh", "freeRedeal",
+        "shieldCharge", "coinDouble", "giftCard",
+    ]
+    /// JUST A TWO's pool — every bane, plus the Windfall (deck bloat is
+    /// exactly the gift a two would give).
+    public static let twoKeys = [
+        "cards", "cursedSticker", "coinLoss", "ambush", "stickerTheft",
+        "itemTheft", "priceDouble", "shieldDrain", "mammaLie", "twoGame",
     ]
 }
 
@@ -81,7 +142,11 @@ public struct ItemData: Sendable {
     /// roll; maxRoll strictly ascends.
     public let packStickerOdds: [[Double]]
     public let mystery: MysteryConfig
+    public let oldJoker: OldJokerConfig
     public let economy: EconomyConfig
+    /// The hard ceiling on stickers per card (items.js `maxStickersPerCard`).
+    /// Every grant path checks it; the pickers grey out a full card.
+    public let maxStickersPerCard: Int
 
     public static let tiers = ["common", "uncommon", "rare"]
     static let suitSymbols = ["♠", "♥", "♦", "♣"]
@@ -173,12 +238,38 @@ public struct ItemData: Sendable {
         let samePowers = checkGroup("samePowers", root["samePowers"], required: ["effect"])
         let packs = checkGroup("packs", root["packs"], required: ["kind"])
 
+        // A [maxRoll, stickerCount] odds table — shared shape between
+        // packStickerOdds and store.card.stickerOdds.
+        func parseOddsTable(_ v: JSONValue?, _ label: String) -> [[Double]] {
+            var out: [[Double]] = []
+            guard let rows = v?.asArray, !rows.isEmpty else {
+                problems.append("[items.js] \(label): must be a non-empty array of [maxRoll, stickerCount] pairs")
+                return out
+            }
+            var prevCap = -Double.infinity
+            for (i, pair) in rows.enumerated() {
+                func bad(_ msg: String) { problems.append("[items.js] \(label)[\(i)]: \(msg)") }
+                guard let p = pair.asArray, p.count == 2,
+                      let maxRoll = p[0].asNumber, maxRoll > 0, maxRoll <= 1,
+                      let count = p[1].asNumber, count >= 0, count.rounded(.down) == count
+                else {
+                    bad("must be a [maxRoll, stickerCount] pair — maxRoll in (0,1], stickerCount an integer ≥ 0")
+                    continue
+                }
+                if maxRoll <= prevCap { bad("maxRoll must strictly ascend through the table") }
+                prevCap = maxRoll
+                out.append([maxRoll, count])
+            }
+            return out
+        }
+
         // ── store ────────────────────────────────────────────────────────────
         var store = StoreConfig(
             slots: 0, typeCap: 0, reroll: RerollConfig(baseCost: 0, step: 0),
             classWeights: [:], tierWeights: [:],
-            card: StoreCardConfig(label: "", icon: "", description: "", price: 0, jokerPrice: 0),
-            removal: StoreRemovalConfig(id: "", label: "", icon: "", description: "", price: 0),
+            card: StoreCardConfig(label: "", icon: "", description: "", price: 0, jokerPrice: 0,
+                                  stickerStep: 0, stickerOdds: []),
+            removal: StoreRemovalConfig(id: "", label: "", icon: "", description: "", price: 0, priceStep: 0),
             raw: [:]
         )
         if let s = root["store"]?.asObject {
@@ -209,6 +300,10 @@ public struct ItemData: Sendable {
             if cd == nil || !((cd?["price"]?.asNumber ?? -1) >= 0) || !((cd?["jokerPrice"]?.asNumber ?? -1) >= 0) {
                 problems.append("[items.js] store.card: needs numeric `price` and `jokerPrice`")
             }
+            if !((cd?["stickerStep"]?.asNumber ?? -1) >= 0) {
+                problems.append("[items.js] store.card: needs numeric `stickerStep` (≥ 0, added to price per sticker)")
+            }
+            let cardOdds = parseOddsTable(cd?["stickerOdds"], "store.card.stickerOdds")
             store = StoreConfig(
                 slots: Int(s["slots"]?.asNumber ?? 0),
                 typeCap: Int(s["typeCap"]?.asNumber ?? 0),
@@ -218,11 +313,13 @@ public struct ItemData: Sendable {
                 card: StoreCardConfig(
                     label: cd?["label"]?.asString ?? "Card", icon: cd?["icon"]?.asString ?? "",
                     description: cd?["description"]?.asString ?? "",
-                    price: cd?["price"]?.asNumber ?? 0, jokerPrice: cd?["jokerPrice"]?.asNumber ?? 0),
+                    price: cd?["price"]?.asNumber ?? 0, jokerPrice: cd?["jokerPrice"]?.asNumber ?? 0,
+                    stickerStep: cd?["stickerStep"]?.asNumber ?? 0, stickerOdds: cardOdds),
                 removal: StoreRemovalConfig(
                     id: rm?["id"]?.asString ?? "removal", label: rm?["label"]?.asString ?? "Removal",
                     icon: rm?["icon"]?.asString ?? "", description: rm?["description"]?.asString ?? "",
-                    price: rm?["price"]?.asNumber ?? 0),
+                    price: rm?["price"]?.asNumber ?? 0,
+                    priceStep: rm?["priceStep"]?.asNumber ?? 0),
                 raw: s
             )
         } else {
@@ -230,33 +327,29 @@ public struct ItemData: Sendable {
         }
 
         // ── packStickerOdds ──────────────────────────────────────────────────
-        var packStickerOdds: [[Double]] = []
-        if let pso = root["packStickerOdds"]?.asArray, !pso.isEmpty {
-            var prevCap = -Double.infinity
-            for (i, pair) in pso.enumerated() {
-                func bad(_ msg: String) { problems.append("[items.js] packStickerOdds[\(i)]: \(msg)") }
-                guard let p = pair.asArray, p.count == 2,
-                      let maxRoll = p[0].asNumber, maxRoll > 0, maxRoll <= 1,
-                      let count = p[1].asNumber, count >= 0, count.rounded(.down) == count
-                else {
-                    bad("must be a [maxRoll, stickerCount] pair — maxRoll in (0,1], stickerCount an integer ≥ 0")
-                    continue
-                }
-                if maxRoll <= prevCap { bad("maxRoll must strictly ascend through the table") }
-                prevCap = maxRoll
-                packStickerOdds.append([maxRoll, count])
-            }
-        } else {
-            problems.append("[items.js] packStickerOdds: must be a non-empty array of [maxRoll, stickerCount] pairs")
-        }
+        let packStickerOdds = parseOddsTable(root["packStickerOdds"], "packStickerOdds")
 
         // ── mystery ──────────────────────────────────────────────────────────
-        var mystery = MysteryConfig(weights: [:], coinRangeByStage: [], cardGrantRange: [1, 1],
+        var mystery = MysteryConfig(weights: [:], characterWeights: [:],
+                                    coinRangeByStage: [], cardGrantRange: [1, 1],
                                     ambush: AmbushConfig(cards: 0, piles: 0, bounty: 0), raw: [:])
         if let my = root["mystery"]?.asObject {
             let mw = my["weights"]?.asObject ?? [:]
             for k in MysteryConfig.outcomeKeys where !((mw[k]?.asNumber ?? 0) > 0) {
                 problems.append("[items.js] mystery.weights.\(k): must be a positive number")
+            }
+            let cw = my["characterWeights"]?.asObject ?? [:]
+            for k in MysteryConfig.characterKeys where !((cw[k]?.asNumber ?? 0) > 0) {
+                problems.append("[items.js] mystery.characterWeights.\(k): must be a positive number")
+            }
+            // The two character pools must partition outcomeKeys exactly — a
+            // key in neither pool would be unrollable, a key in both double-
+            // counted. Checked here so a future outcome can't be added to
+            // outcomeKeys without being assigned a deliverer.
+            let pooled = Set(MysteryConfig.queenKeys + MysteryConfig.twoKeys)
+            if pooled.count != MysteryConfig.queenKeys.count + MysteryConfig.twoKeys.count
+                || pooled != Set(MysteryConfig.outcomeKeys) {
+                problems.append("[ItemData] mystery pools: queenKeys + twoKeys must partition outcomeKeys exactly")
             }
             var coinRange: [[Double]] = []
             if let cr = my["coinRangeByStage"]?.asArray, !cr.isEmpty {
@@ -284,12 +377,30 @@ public struct ItemData: Sendable {
             for k in ["cards", "piles", "bounty"] where !((am[k]?.asNumber ?? 0) > 0) {
                 problems.append("[items.js] mystery.ambush.\(k): must be a positive number")
             }
-            // The cursedSticker outcome rolls from the stickers flagged `cursed: true`.
+            // The shared curse roll draws from the stickers flagged `cursed:
+            // true`. Fail loud on a malformed pool: every curse needs a
+            // positive hand-tuned weight, exclusions must name real pathways,
+            // and every pathway must have at least one curse left to roll.
             if !stickers.contains(where: { $0.cursed }) {
-                problems.append("[items.js] stickers: at least one entry must carry `cursed: true` (the mystery cursedSticker outcome's pool)")
+                problems.append("[items.js] stickers: at least one entry must carry `cursed: true` (the curse roll's pool)")
+            }
+            let cursePaths = ["mystery", "purge", "duplicate", "doors"]
+            for s in stickers where s.cursed {
+                if !(s.curseWeight > 0) {
+                    problems.append("[items.js] stickers.\(s.id): cursed entries need `curseWeight` > 0")
+                }
+                for p in s.curseExclude where !cursePaths.contains(p) {
+                    problems.append("[items.js] stickers.\(s.id): curseExclude '\(p)' is not a pathway (\(cursePaths.joined(separator: "/")))")
+                }
+            }
+            for p in cursePaths where !stickers.contains(where: {
+                $0.cursed && $0.curseWeight > 0 && !$0.curseExclude.contains(p)
+            }) {
+                problems.append("[items.js] stickers: the curse pool for pathway '\(p)' is empty")
             }
             mystery = MysteryConfig(
                 weights: mw.compactMapValues(\.asNumber),
+                characterWeights: cw.compactMapValues(\.asNumber),
                 coinRangeByStage: coinRange, cardGrantRange: cardGrant,
                 ambush: AmbushConfig(cards: am["cards"]?.asNumber ?? 0,
                                      piles: am["piles"]?.asNumber ?? 0,
@@ -297,6 +408,39 @@ public struct ItemData: Sendable {
                 raw: my)
         } else {
             problems.append("[items.js] mystery: missing config object")
+        }
+
+        // ── oldJoker ─────────────────────────────────────────────────────────
+        var oldJoker = OldJokerConfig(weights: [:], raw: [:])
+        if let oj = root["oldJoker"]?.asObject {
+            let ow = oj["weights"]?.asObject ?? [:]
+            for k in OldJokerConfig.offerKeys where !((ow[k]?.asNumber ?? 0) > 0) {
+                problems.append("[items.js] oldJoker.weights.\(k): must be a positive number")
+            }
+            // Every offer needs its own knob block — a missing one would
+            // silently fall back to a hardcoded default, which is exactly what
+            // the data-file convention forbids.
+            for k in OldJokerConfig.offerKeys where !["swap", "ride"].contains(k) {
+                if oj[k]?.asObject == nil {
+                    problems.append("[items.js] oldJoker.\(k): missing its knob block")
+                }
+            }
+            if let sid = oj["purge"]?.asObject?["leechSticker"]?.asString,
+               !stickers.contains(where: { $0.id == sid }) {
+                problems.append("[items.js] oldJoker.purge.leechSticker: no sticker with id `\(sid)`")
+            }
+            for side in ["good", "bad"] {
+                let keys = oj["twoDoors"]?.asObject?[side]?.asArray?.compactMap(\.asString) ?? []
+                if keys.isEmpty {
+                    problems.append("[items.js] oldJoker.twoDoors.\(side): must be a non-empty array of mystery outcome keys")
+                }
+                for k in keys where !MysteryConfig.outcomeKeys.contains(k) {
+                    problems.append("[items.js] oldJoker.twoDoors.\(side): `\(k)` is not a mystery outcome key")
+                }
+            }
+            oldJoker = OldJokerConfig(weights: ow.compactMapValues(\.asNumber), raw: oj)
+        } else {
+            problems.append("[items.js] oldJoker: missing config object")
         }
 
         // ── economy ──────────────────────────────────────────────────────────
@@ -314,6 +458,8 @@ public struct ItemData: Sendable {
         if !problems.isEmpty { throw DataValidationError(file: "items.js", problems: problems) }
         return ItemData(stickers: stickers, pillars: pillars, bases: bases,
                         samePowers: samePowers, packs: packs, store: store,
-                        packStickerOdds: packStickerOdds, mystery: mystery, economy: economy)
+                        packStickerOdds: packStickerOdds, mystery: mystery,
+                        oldJoker: oldJoker, economy: economy,
+                        maxStickersPerCard: Int(root["maxStickersPerCard"]?.asNumber ?? 4))
     }
 }

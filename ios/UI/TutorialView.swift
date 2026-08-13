@@ -16,11 +16,20 @@ import GameCore
 /// an anchor-less step centres at 40% height with no arrow.
 public final class TutorialView: UIView {
 
+    /// What the player just did — the deal screen feeds these in so the
+    /// event-gated steps can advance and the milestone waits can count.
+    public enum Event {
+        case pileTapped(Int)
+        case higherTapped
+        case guessResolved(correct: Bool)
+        case swipeGuess
+    }
+
     private let steps: [TutorialStep]
     private var index = 0
     private let panel = PixelPanelView(face: CRT.feltMid, border: CRT.phosphor)
     private let textLabel = UILabel()
-    private let nextButton = PixelButtonView("NEXT", role: .cta, fontSize: 15)
+    private let nextButton = PixelButtonView("NEXT", role: .cta, fontSize: 16)
     /// The web's `.tut-skip`: an underlined TEXT LINK, not a boxed button.
     private let skipLink = UIButton(type: .custom)
     private let onDone: (_ completed: Bool) -> Void
@@ -32,6 +41,14 @@ public final class TutorialView: UIView {
     private var arrowOnTop = true
     private var arrowX: CGFloat = 0
     private var finished = false
+    /// LIVE anchor rects from the deal screen (pile 1, the ▲ rail button) —
+    /// the internal `anchorRect` approximations stand in when nil.
+    public var anchorProvider: ((String) -> CGRect?)?
+    /// Milestone bookkeeping: guesses still owed before the current step may
+    /// show, and whether a wrong guess releases it early.
+    private var waitLeft = 0
+    private var waitBreaksOnWrong = false
+    private var waiting = false
 
     public init(steps: [TutorialStep], onDone: @escaping (_ completed: Bool) -> Void) {
         self.steps = steps
@@ -70,21 +87,97 @@ public final class TutorialView: UIView {
         panel.addSubview(nextButton)
         skipLink.setAttributedTitle(NSAttributedString(
             string: "Skip tips",
-            attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted,
+            attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted,
                          .underlineStyle: NSUnderlineStyle.single.rawValue]), for: .normal)
         skipLink.accessibilityLabel = "SKIP TIPS"
         skipLink.addTarget(self, action: #selector(skipTapped), for: .touchUpInside)
         panel.addSubview(skipLink)
+        // Swipe the BUBBLE to page through the tips: left = next, right = back.
+        // They ride the panel, never this view — the deal board underneath owns
+        // a pan for swipe-guessing, and a recognizer on the container would
+        // both steal from it and cancel the panel's own button touches.
+        // `cancelsTouchesInView = false` keeps NEXT / Skip tips tappable.
+        for (dir, sel) in [(UISwipeGestureRecognizer.Direction.left, #selector(swipedLeft)),
+                           (.right, #selector(swipedRight))] {
+            let g = UISwipeGestureRecognizer(target: self, action: sel)
+            g.direction = dir
+            g.cancelsTouchesInView = false
+            panel.addGestureRecognizer(g)
+        }
         show()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not supported") }
 
-    /// Only the bubble is interactive; everything else passes through to the deal.
+    /// Only the bubble is interactive; everything else passes through to the
+    /// deal — EXCEPT during the scripted walk, where the board is locked to
+    /// the step's own demand: a "next" step admits ONLY the bubble, a
+    /// "tapPile"/"higher" step only its ringed anchor. The pause menu
+    /// (top-left) always stays live — quitting is never gated — and the
+    /// milestone bubbles (wait > 0) never lock play.
     public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
-        return v === self ? nil : v
+        if v === self {
+            guard !finished, !waiting, index < steps.count else { return nil }
+            let step = steps[index]
+            // The ≡ pause button rides the top-left; it is always reachable.
+            if point.x < 64, point.y < safeAreaInsets.top + 56 { return nil }
+            switch step.advance {
+            case "tapPile", "higher":
+                let allowed = (step.anchor.flatMap { resolvedAnchor($0) })?.insetBy(dx: -14, dy: -14)
+                return (allowed?.contains(point) ?? true) ? nil : self
+            case "next" where step.wait == 0:
+                return self   // the scripted walk: read it, then NEXT (or Skip)
+            default:
+                return nil
+            }
+        }
+        return v
+    }
+
+    /// The live rect when the deal screen supplies one; the approximation
+    /// otherwise.
+    private func resolvedAnchor(_ key: String) -> CGRect? {
+        anchorProvider?(key) ?? anchorRect(key)
+    }
+
+    /// The deal screen's event feed. Event-gated steps advance on their
+    /// event; milestone waits count resolved guesses (a wrong one releases
+    /// an `orWrong` wait early).
+    public func handle(_ e: Event) {
+        guard !finished else { return }
+        if waiting {
+            if case .guessResolved(let correct) = e {
+                waitLeft -= 1
+                if waitLeft <= 0 || (waitBreaksOnWrong && !correct) { endWait() }
+            }
+            return
+        }
+        guard index < steps.count else { return }
+        switch (steps[index].advance, e) {
+        case ("tapPile", .pileTapped(0)),
+             ("higher", .higherTapped),
+             ("guess", .guessResolved),
+             ("swipe", .swipeGuess):
+            advance()
+        default:
+            break
+        }
+    }
+
+    private func beginWait(_ step: TutorialStep) {
+        waiting = true
+        waitLeft = step.wait
+        waitBreaksOnWrong = step.orWrong
+        ring.isHidden = true
+        arrow.isHidden = true
+        UIView.animate(withDuration: 0.18) { self.panel.alpha = 0 }
+    }
+
+    private func endWait() {
+        waiting = false
+        present()
     }
 
     /// tutorial.js writer markup: *bold* segments render gold.
@@ -92,7 +185,7 @@ public final class TutorialView: UIView {
         let out = NSMutableAttributedString()
         var bold = false
         for part in text.components(separatedBy: "*") {
-            out.append(CRTKit.attributed(part, size: 15, color: bold ? CRT.gold : CRT.cardFace))
+            out.append(CRTKit.attributed(part, size: 16, color: bold ? CRT.gold : CRT.cardFace))
             bold.toggle()
         }
         return out
@@ -116,10 +209,20 @@ public final class TutorialView: UIView {
             let bottom = h - safe.bottom - 4 - 34 - 46 - 12
             return CGRect(x: railW, y: y0, width: w - railW - 8,
                           height: max(80, bottom - y0))
-        case "dealPile":
-            // A living pile: the board's top-centre card.
+        case "dealPile", "dealPileFirst":
+            // A living pile: the board's top-centre card. (dealPileFirst is
+            // normally served precisely by anchorProvider; this stands in.)
             guard let b = anchorRect("dealBoard") else { return nil }
             return CGRect(x: b.midX - 36, y: b.minY + 8, width: 72, height: 100)
+        case "dealRailUp":
+            // The ▲ slab on the left rail: under FAN, first of the three.
+            guard let b = anchorRect("dealBoard") else { return nil }
+            return CGRect(x: 8, y: b.minY + 56, width: 52, height: 118)
+        case "pileCount":
+            // Pile 1's card-count badge (bottom-left corner of the pile) —
+            // normally served precisely by anchorProvider; this stands in.
+            guard let p = anchorRect("dealPileFirst") else { return nil }
+            return CGRect(x: p.minX - 8, y: p.maxY - 26, width: 44, height: 40)
         case "dealDeckChar":
             // The deck character stands at the band's right end.
             return CGRect(x: w - 8 - 84, y: bandY, width: 84, height: bandH)
@@ -137,8 +240,16 @@ public final class TutorialView: UIView {
 
     private func show() {
         guard index < steps.count else { finish(completed: true); return }
+        // Milestone steps hold back behind free play first.
+        if steps[index].wait > 0 { beginWait(steps[index]) } else { present() }
+    }
+
+    private func present() {
+        guard index < steps.count else { finish(completed: true); return }
         let step = steps[index]
         textLabel.attributedText = TutorialView.attributed(step.text)
+        // Event-gated steps have no button — the ringed action IS the next.
+        nextButton.isHidden = step.advance != "next"
         nextButton.setTitle((step.button ?? (index == steps.count - 1 ? "GO" : "NEXT")).uppercased())
         panel.alpha = 0
         panel.transform = CGAffineTransform(translationX: 0, y: 12)
@@ -152,7 +263,24 @@ public final class TutorialView: UIView {
 
     @objc private func skipTapped() { finish(completed: false) }
 
+    /// Bubble paging only rides the button steps — a swipe can never skip a
+    /// gated action or barge into a milestone wait.
+    @objc private func swipedLeft() {
+        guard !finished, !waiting, index < steps.count,
+              steps[index].advance == "next" else { return }
+        advance()
+    }
+
+    @objc private func swipedRight() {
+        guard !finished, !waiting, index > 0,
+              steps[index].advance == "next", steps[index - 1].advance == "next",
+              steps[index - 1].wait == 0 else { return }
+        index -= 1
+        show()
+    }
+
     private func advance() {
+        Sound.shared.tutorialAdvance()
         index += 1
         if index >= steps.count { finish(completed: true) } else { show() }
     }
@@ -166,37 +294,43 @@ public final class TutorialView: UIView {
         }
     }
 
-    /// The web's Tutorial.onGuessResolved: a resolved guess mid-tour means
-    /// the player is playing — the bubble steps aside UNSTAMPED (onDone never
-    /// fires, so the pref stays unset and the tour offers itself again on the
-    /// next deal). Wire from the first resolved guess of the guided deal.
-    public func stepAside() {
+    /// The deal ENDED under the tour (all piles dead, or the deck ran dry
+    /// faster than the milestones): dismiss cleanly and UNSTAMPED, so the
+    /// outcome presentation owns the screen and the tour offers itself again
+    /// on the next first Zen deal.
+    public func abort() {
         guard !finished else { return }
         finished = true
-        UIView.animate(withDuration: 0.18, animations: { self.alpha = 0 }) { _ in
+        UIView.animate(withDuration: 0.15, animations: { self.alpha = 0 }) { _ in
             self.removeFromSuperview()
         }
     }
 
     public override func layoutSubviews() {
         super.layoutSubviews()
+        guard !waiting else { return }   // hidden between milestones
         let w = min(300, bounds.width - 28)   // the web's .tut-bubble max-width
         let textH = ceil(textLabel.attributedText?.boundingRect(
             with: CGSize(width: w - 24, height: 400),
             options: .usesLineFragmentOrigin, context: nil).height ?? 20)
-        let h = textH + 20 + 44 + 12
+        // Gated steps carry no button — the skip link alone rides the foot.
+        let h = textH + 20 + (nextButton.isHidden ? 34 : 44) + 12
 
         // The web's place(): prefer BELOW the anchor (arrow up); above when
         // it doesn't fit (arrow down); anchor-less steps centre at 40% with
         // no ring and no arrow.
-        let anchor = index < steps.count ? steps[index].anchor.flatMap(anchorRect) : nil
+        let key = index < steps.count ? steps[index].anchor : nil
+        let anchor = key.flatMap(resolvedAnchor)
         if let a = anchor {
             ring.isHidden = false
             ring.frame = a.insetBy(dx: -7, dy: -7)
             let x = min(max(a.midX - w / 2, 10), bounds.width - w - 10)
+            // The histogram's HOLD tooltip renders just under the band — that
+            // step's bubble drops well clear of it, into the pile area.
+            let belowGap: CGFloat = key == "dealHistogram" ? 120 : 16
             let py: CGFloat
-            if a.maxY + 16 + h < bounds.height - 10 - safeAreaInsets.bottom {
-                py = a.maxY + 16
+            if a.maxY + belowGap + h < bounds.height - 10 - safeAreaInsets.bottom {
+                py = a.maxY + belowGap
                 arrowOnTop = true
             } else {
                 py = max(safeAreaInsets.top + 10, a.minY - h - 16)
@@ -211,8 +345,10 @@ public final class TutorialView: UIView {
         } else {
             ring.isHidden = true
             arrow.isHidden = true
-            panel.frame = CGRect(x: (bounds.width - w) / 2, y: bounds.height * 0.40,
-                                 width: w, height: h)
+            // Anchorless bubbles ride the TOP, over the histogram band —
+            // mid-screen sat right on the piles.
+            let topY = anchorRect("dealHistogram")?.minY ?? bounds.height * 0.14
+            panel.frame = CGRect(x: (bounds.width - w) / 2, y: topY, width: w, height: h)
         }
         textLabel.frame = CGRect(x: 12, y: 10, width: w - 24, height: textH)
         nextButton.frame = CGRect(x: w - 120, y: h - 50, width: 108, height: 40)

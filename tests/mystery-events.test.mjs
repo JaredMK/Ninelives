@@ -202,10 +202,10 @@ export function run() {
     r.ok(d && d.key === "coinLoss" && loss === d.amount, "coinLoss deducts exactly the descriptor amount");
     r.ok(d.amount >= range[0] && d.amount <= range[1],
       "the loss amount lies inside the stage-0 range (got " + d.amount + ")");
-    const broke = CampaignState.create();   // 0 coins → floored, never negative
+    const broke = CampaignState.create();   // 0 coins → flips to coinBonus (v5.82)
     const d0 = broke.applyMysteryEvent("coinLoss", 12);
-    r.eq(broke.getCoins(), 0, "coinLoss floors at 0 (never a negative balance)");
-    r.eq(d0.amount, 0, "…and the descriptor reports the floored amount");
+    r.ok(d0 && d0.key === "coinBonus", "coinLoss at 0 coins flips to coinBonus");
+    r.ok(broke.getCoins() > 0, "…and pays out instead of showing a −0 toll");
   }
 
   // ── applyMysteryEvent: stickerPack / cards ────────────────────────────────
@@ -219,8 +219,10 @@ export function run() {
   }
   {
     // cards: N grants, N inside cardGrantRange, suit-gated to the current
-    // stage's suit (Pinky phase 0 → ♦), all owned, deck grows by exactly N.
+    // stage's suit (the SUIT-STAGED deck, Mamma, phase 0 → ♦), all owned,
+    // deck grows by exactly N.
     const c = CampaignState.create();
+    c.setDeck("mamma"); c.reset();
     const sizeBefore = c.deckSize();
     const d = c.applyMysteryEvent("cards", 14);
     r.ok(d && d.key === "cards" && Array.isArray(d.cards), "cards returns the granted cards array");
@@ -238,9 +240,9 @@ export function run() {
       "the grant count is deterministic per (seed, node)");
   }
   {
-    // Alt decks roll ALL suits per slot (the map-pack rule).
+    // Mixed-start decks roll ALL suits per slot (the map-pack rule).
     const c = CampaignState.create();
-    c.setDeck("mamma"); c.reset();
+    c.setDeck("pink"); c.reset();
     const suits = new Set();
     for (let id = 200; id < 240 && suits.size < 2; id++)
       (c.applyMysteryEvent("cards", id).cards || []).forEach(x => suits.add(x.suit));
@@ -299,13 +301,33 @@ export function run() {
   }
 
   // ── applyMysteryEvent: descriptor-only outcomes mutate nothing ────────────
-  for (const key of ["freeRemoval", "stickerStrip", "ambush", "store"]) {
+  for (const key of ["freeRemoval", "ambush", "store"]) {
     const c = CampaignState.create();
     const coins0 = c.getCoins(), size0 = c.deckSize();
     const d = c.applyMysteryEvent(key, 15);
     r.ok(d && d.key === key && typeof d.title === "string" && typeof d.desc === "string",
       key + " returns a titled descriptor");
     r.ok(c.getCoins() === coins0 && c.deckSize() === size0, key + " mutates no campaign state (descriptor only)");
+  }
+  {
+    // stickerStrip is descriptor-only when the deck HAS stickered cards; with
+    // none it folds deterministically to coinBonus (v5.82) so the outcome can
+    // never present an unfulfillable picker.
+    const c = CampaignState.create();
+    const card = c.getRunDeck().find(x => !x.joker && !x.blank);
+    r.ok(c.applySticker(card.id, "tieSafe"), "fixture: a card carries a sticker");
+    const coins0 = c.getCoins(), size0 = c.deckSize();
+    const d = c.applyMysteryEvent("stickerStrip", 15);
+    r.ok(d && d.key === "stickerStrip" && typeof d.title === "string" && typeof d.desc === "string",
+      "stickerStrip returns a titled descriptor");
+    r.ok(!/free/i.test(d.desc), "…and the desc never promises 'free'");
+    r.ok(c.getCoins() === coins0 && c.deckSize() === size0,
+      "stickerStrip mutates no campaign state (descriptor only)");
+    const bare = CampaignState.create();   // no stickered cards → fold
+    const coinsB = bare.getCoins();
+    const folded = bare.applyMysteryEvent("stickerStrip", 15);
+    r.ok(folded && folded.key === "coinBonus", "with no stickered cards the strip folds to coinBonus");
+    r.ok(bare.getCoins() > coinsB, "…paying the coin amount");
   }
   {
     // The store outcome's descriptor is the marker Stage B dispatches on:
@@ -359,7 +381,9 @@ export function run() {
   // ── removeRandomStickerFrom ───────────────────────────────────────────────
   {
     const c = CampaignState.create();
-    const cardId = c.getRunDeck()[0].id;   // a ♥ start card
+    // Pick a ♥ explicitly — gainCoin is ♥-restricted, and since v5.87 Pinky's
+    // start hand is mixed rather than all hearts.
+    const cardId = c.getRunDeck().find(x => x.suit === "♥").id;
     c.addStickerToInventory("gainCoin");
     c.addStickerToInventory("wildSuit");
     c.applySticker(cardId, "gainCoin");
@@ -369,7 +393,7 @@ export function run() {
     r.ok(removed === "gainCoin" || removed === "wildSuit", "removeRandomStickerFrom returns the removed type id");
     r.eq(c.getCardById(cardId).stickers.length, 1, "…and removes EXACTLY one instance");
     r.ok(c.getCardById(cardId).stickers[0].type !== removed, "…leaving the other sticker intact");
-    const cleanId = c.getRunDeck()[1].id;
+    const cleanId = c.getRunDeck().find(x => x.id !== cardId).id;
     r.eq(c.removeRandomStickerFrom(cleanId, mulberry(32)), null, "null (no mutation) on a stickerless card");
   }
 

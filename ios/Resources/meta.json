@@ -18,18 +18,31 @@
     "zenGamesPlayed",
     "zenEasyWon",
     "zenMediumWon",
-    "zenHardWon"
+    "zenHardWon",
+    "heartsPlayed",
+    "diamondsPlayed",
+    "clubsPlayed",
+    "spadesPlayed",
+    "perfectDeals",
+    "dealsWonRegular",
+    "dealsWonMaster",
+    "dealsWonLegendary",
+    "pinkyTipsSeen",
+    "bestCampaignScore",
+    "bestCoinsInClimb",
+    "ambushesWon",
+    "earlyLosses"
   ],
   "deckRules": {
     "pink": {
-      "altSuits": false,
+      "altSuits": true,
       "priceMult": 1,
       "startStickers": false,
       "noStickers": false,
       "preEquip": false
     },
     "mamma": {
-      "altSuits": true,
+      "altSuits": false,
       "priceMult": 1,
       "startStickers": false,
       "noStickers": false,

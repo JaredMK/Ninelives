@@ -203,6 +203,89 @@ final class GuessRuleTests: XCTestCase {
         }
     }
 
+    // MARK: - Second Wind (native behaviour: a saveChance roll on EVERY death)
+
+    /// Second Wind rolls `saveChance` on each pile death in its column — no
+    /// once-per-run gate in either direction: it can save twice, and it can
+    /// let the very first death through. (The web engine's guaranteed
+    /// first-death save is retired; this pillar is native-only in the traces.)
+    func testSecondWindRollsEveryDeathInTheColumn() {
+        let e = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 3,
+                           runConfig: RunConfig(cols: [3]))
+        e.start(seedOverride: 4242)
+        e.startRun(pillars: ["secondWind"], bases: [nil], samePower: .some(nil))
+        var saves = 0, deaths = 0
+        while e.status == "playing", e.deck.remaining() > 3, saves + deaths < 40 {
+            e.board.piles[0].dead = false
+            e.board.piles[0].cards = [DeckManager.cardForValue(5)]
+            e.debug.setNextCard(9)
+            e.guess(0, .lower)                                // 5 → 9 is wrong
+            if e.board.isActive(0) {
+                saves += 1
+                XCTAssertEqual(e.board.piles[0].cards.count, 1,
+                               "a saved pile is dealt ONE fresh top; the rest went back to the deck")
+            } else {
+                deaths += 1
+            }
+        }
+        XCTAssertGreaterThan(saves, 1, "the old behaviour saved at most once per column")
+        XCTAssertGreaterThan(deaths, 0, "…and the new one is a chance, not a guarantee")
+    }
+
+    // MARK: - Trapdoor (native cursed sticker)
+
+    /// Trapdoor: when the carrying card LANDS, the pile's BOTTOM card returns
+    /// to the deck (hidden). The pile always keeps its top, and a 1-card pile
+    /// has no bottom to lose.
+    func testTrapdoorDropsThePilesBottomCardBackIntoTheDeck() {
+        var specs = DeckManager.buildStandardDeck()
+        let carrier = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 9 }!
+        specs[carrier].stickers.append(StickerRecord(type: "trapdoor"))
+        let e = GameEngine(deckSpecs: specs, pileCount: 3)
+        e.start(seedOverride: 777)
+        e.startRun()
+        e.board.piles[0].cards = [DeckManager.cardForValue(3), DeckManager.cardForValue(5)]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[carrier]))
+        let before = e.deck.remaining()
+        e.guess(0, .higher)                                   // 5 → 9 is correct
+        XCTAssertTrue(e.board.isActive(0))
+        XCTAssertEqual(e.board.piles[0].cards.count, 2, "landed to 3 cards, then the bottom fell out")
+        XCTAssertEqual(e.board.piles[0].cards.first?.value, 5, "the OLD bottom (the 3) is what fell")
+        XCTAssertEqual(e.board.top(0)?.value, 9, "the landed card stays the top")
+        XCTAssertEqual(e.deck.remaining(), before, "one drawn out, one dropped back in")
+
+        // Landing on a single-card pile: the old top IS the bottom, and it
+        // falls — the pile is left holding just the cursed card.
+        e.board.piles[1].cards = [DeckManager.cardForValue(4)]
+        let carrier2 = specs.firstIndex { $0.suit == "♣" && $0.currentRank == 9 }!
+        var c2 = specs[carrier2]
+        c2.stickers.append(StickerRecord(type: "trapdoor"))
+        e.debug.setNextCardObj(DeckManager.toCard(c2))
+        e.guess(1, .higher)                                   // 4 → 9 is correct
+        XCTAssertEqual(e.board.piles[1].cards.count, 1, "the old top fell through as the bottom")
+        XCTAssertEqual(e.board.top(1)?.value, 9, "only the cursed card remains")
+    }
+
+    // MARK: - The guided first deal's scripted opening
+
+    /// Every seed must produce the tutorial's opening — a 3 on pile 1, an
+    /// Ace as the first draw — by pure REARRANGEMENT: same cards, same
+    /// counts, nothing invented.
+    func testTutorialOpeningArrangement() {
+        for seed: UInt32 in [1, 7, 42, 999, 123_456] {
+            // Zen-easy-shaped: two suits (26 cards), 7 piles.
+            let specs = DeckManager.buildStandardDeck().filter { ["♥", "♠"].contains($0.suit) }
+            let e = GameEngine(deckSpecs: specs, pileCount: 7)
+            e.start(seedOverride: seed)
+            e.startRun()
+            e.arrangeTutorialOpening()
+            XCTAssertEqual(e.board.top(0)?.value, 3, "seed \(seed): pile 1 opens on a 3")
+            XCTAssertEqual(e.deck.peek(1).first?.value, 14, "seed \(seed): an Ace rides the deck")
+            let total = e.deck.remaining() + e.board.piles.reduce(0) { $0 + $1.cards.count }
+            XCTAssertEqual(total, 26, "seed \(seed): rearranged, never restocked")
+        }
+    }
+
     // MARK: - Win / loss
 
     func testEmptyingTheDeckWins() {

@@ -27,14 +27,27 @@ public struct ItemDef: Equatable, Sendable {
     public let tier: String
     public let price: Double
     public let description: String
+    /// The description OUTSIDE a climb (the Collection), where a variant
+    /// template ({suit} / {color}) has no run to resolve against: it reads
+    /// generically instead of leaking the placeholder.
+    public var genericDescription: String {
+        description
+            .replacingOccurrences(of: "{suit}", with: "rolled suit")
+            .replacingOccurrences(of: "{color}", with: "rolled red-or-black")
+    }
     /// Optional store-offer weight override (replaces the tier weight).
     public let weight: Double?
     /// The single suit an effect is keyed to (Suit Guard, Suit Bounty, …).
     public let suit: String?
     /// Optional sticker application restriction — printed suits it may attach to.
     public let suits: [String]?
-    /// Cursed stickers never enter a grant pool (mystery applies them directly).
+    /// Cursed stickers never enter a grant pool (curses are inflicted).
     public let cursed: Bool
+    /// The shared curse roll's weight (cursed stickers only; > 0 required).
+    public let curseWeight: Double
+    /// Pathways this curse may NOT come from ("mystery" / "purge" /
+    /// "duplicate" / "doors").
+    public let curseExclude: [String]
     /// "pile" when a Base needs the player to pick a pile in its column.
     public let target: String?
     public let unlock: UnlockGate?
@@ -73,6 +86,8 @@ public struct ItemDef: Equatable, Sendable {
         self.suit = raw["suit"]?.asString
         self.suits = raw["suits"]?.asArray?.compactMap(\.asString)
         self.cursed = raw["cursed"]?.asBool ?? false
+        self.curseWeight = raw["curseWeight"]?.asNumber ?? 0
+        self.curseExclude = raw["curseExclude"]?.asArray?.compactMap(\.asString) ?? []
         self.target = raw["target"]?.asString
         if let u = raw["unlock"]?.asObject {
             self.unlock = UnlockGate(
@@ -120,4 +135,27 @@ public struct ItemRegistry: Sendable {
     /// applies one directly). Item-unlock gating is layered on by the caller,
     /// which reads the LIVE unlock record — see `CampaignEnvironment.grantable`.
     public func grantableBase() -> [ItemDef] { ordered.filter { !$0.cursed } }
+
+    /// THE shared curse pool for one inflicting pathway — every cursed
+    /// sticker whose `curseExclude` doesn't name it, with its hand-tuned
+    /// weight. All four cursing pathways (mystery, purge, duplicate, doors)
+    /// pick from this via `rollCurse`.
+    public func cursePool(path: String) -> [ItemDef] {
+        ordered.filter { $0.cursed && $0.curseWeight > 0 && !$0.curseExclude.contains(path) }
+    }
+
+    /// One weighted pick from `cursePool(path:)`. `roll` is a uniform [0,1)
+    /// draw from the CALLER's rng — the registry stays deterministic and
+    /// side-effect free, so offer pre-rolls replay exactly.
+    public func rollCurse(path: String, roll: Double) -> ItemDef? {
+        let pool = cursePool(path: path)
+        guard !pool.isEmpty else { return nil }
+        let total = pool.reduce(0) { $0 + $1.curseWeight }
+        var t = roll * total
+        for def in pool {
+            t -= def.curseWeight
+            if t < 0 { return def }
+        }
+        return pool.last
+    }
 }

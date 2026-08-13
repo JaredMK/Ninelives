@@ -12,6 +12,9 @@ import GameCore
 ///              deck → 1, WIN NOW / LOSE NOW, autopilot + fps toggles
 ///              (greyed out when no deal is live)
 ///   ECONOMY  — +10 / +50 / +100 coins
+///   DECK     — +1 / +5 / +10 random cards, or one exact suit+rank pick
+///   OLD JOKER— arm any one of his visits on the next ? node (and convert a
+///              reachable node into a ? so there is one to walk onto)
 ///   GRANTS   — +Sticker / +Pillar / +Base (to inventory) / equip Same-Power
 ///   META     — unlock everything, map jump, reset all progress, debug off,
 ///              build version
@@ -30,6 +33,11 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
 
     /// Grant-selector state (survives rebuilds).
     private var grantIdx = ["sticker": 0, "pillar": 0, "base": 0, "samepower": 0]
+    /// Deck-grant card picker state (suit + rank index), also rebuild-proof.
+    private var cardIdx = ["suit": 0, "rank": 0]
+    /// Old Joker offer-picker index (survives rebuilds).
+    private var jokerIdx = 0
+    private var mysteryIdx = 0
 
     init(flow: GameFlowController) {
         self.flow = flow
@@ -56,7 +64,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         panel.layer.borderColor = CRT.ink.cgColor
         view.addSubview(panel)
 
-        headLabel.attributedText = CRTKit.attributed("🐞 DEBUG", size: 13, color: CRT.phosphor,
+        headLabel.attributedText = CRTKit.attributed("🐞 DEBUG", size: 14, color: CRT.phosphor,
                                                      display: true, glow: true)
         panel.addSubview(headLabel)
 
@@ -73,7 +81,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         scroll.alwaysBounceVertical = true
         panel.addSubview(scroll)
         scroll.addSubview(content)
-        note("ride the buttons — everything persists through the normal save")
+        note("ride the buttons; everything persists through the normal save")
     }
 
     override func didMove(toParent parent: UIViewController?) {
@@ -140,7 +148,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
 
     /// Feedback line (the web's #debugPeekOut).
     private func note(_ text: String) {
-        readoutLabel.attributedText = CRTKit.attributed(text, size: 13, color: CRT.gold)
+        readoutLabel.attributedText = CRTKit.attributed(text, size: 14, color: CRT.gold)
     }
 
     // MARK: - Layout helpers
@@ -159,7 +167,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
     }
 
     private func header(_ text: String) {
-        let l = CRTKit.label(text.uppercased(), size: 12, color: CRT.gold, display: true)
+        let l = CRTKit.label(text.uppercased(), size: 14, color: CRT.gold, display: true)
         l.frame = CGRect(x: 0, y: y, width: contentWidth, height: 18)
         content.addSubview(l)
         y += 26
@@ -169,7 +177,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         let gap: CGFloat = 8
         let bw = (contentWidth - gap * CGFloat(btns.count - 1)) / CGFloat(btns.count)
         for (i, spec) in btns.enumerated() {
-            let b = PixelButtonView(spec.title, role: spec.role, fontSize: 13)
+            let b = PixelButtonView(spec.title, role: spec.role, fontSize: 14)
             b.isEnabled = spec.enabled
             b.onTap = spec.action
             b.frame = CGRect(x: CGFloat(i) * (bw + gap), y: y, width: bw, height: height)
@@ -179,7 +187,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
     }
 
     private func textLine(_ text: String, color: UIColor = CRT.muted) {
-        let l = CRTKit.label(text, size: 13, color: color)
+        let l = CRTKit.label(text, size: 14, color: color)
         l.frame = CGRect(x: 0, y: y, width: contentWidth, height: 18)
         content.addSubview(l)
         y += 22
@@ -192,6 +200,8 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         y = 0
         buildDealSection()
         buildEconomySection()
+        buildDeckSection()
+        buildJokerSection()
         buildGrantsSection()
         buildMetaSection()
         content.frame = CGRect(x: 0, y: 0, width: contentWidth, height: y)
@@ -207,7 +217,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
             textLine("SEED \(flow.seedShareString()) · NEXT \(next)",
                      color: CRT.cardFace)
         } else {
-            textLine("no live deal — deal actions greyed out", color: CRT.disabledText)
+            textLine("no live deal; deal actions greyed out", color: CRT.disabledText)
         }
         // Force next card: the web's rank row (debugRanks), values 2..14.
         let ranks1 = [(2, "2"), (3, "3"), (4, "4"), (5, "5"), (6, "6"), (7, "7"), (8, "8")]
@@ -231,7 +241,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
                 role: flow.debugAutopilotOn() ? .charged : .plain) { [weak self] in
                 guard let self else { return }
                 self.flow.setDebugAutopilot(!self.flow.debugAutopilotOn())
-                self.note("autopilot \(self.flow.debugAutopilotOn() ? "on — plays every live deal" : "off")")
+                self.note("autopilot \(self.flow.debugAutopilotOn() ? "on; plays every live deal" : "off")")
                 self.build()
             },
             Btn("fps hud: \(flow.debugFPSOn() ? "on" : "off")",
@@ -252,10 +262,210 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
                 guard let self else { return }
                 self.flow.campaign.addCoins(n)
                 self.flow.debugPersist()
-                self.note("+\(n) ◉ — balance \(self.flow.campaign.getCoins())")
+                self.note("+\(n) ◉, balance \(self.flow.campaign.getCoins())")
             }
         }, height: 34)
         textLine("balance ◉ \(flow.campaign.getCoins())")
+        y += 6
+    }
+
+    /// Cards straight into the deck — the bulk roll for "what does a fat deck
+    /// play like", and the exact pick for reproducing one specific card.
+    /// Both mint through the campaign's normal pack path, so the deck stays
+    /// serialisable and a save written after this still loads.
+    private func buildDeckSection() {
+        header("Deck")
+        textLine("deck: \(flow.campaign.deckSize()) cards", color: CRT.cardFace)
+        buttonRow([1, 5, 10].map { n in
+            Btn("+\(n) random", role: .gold) { [weak self] in
+                guard let self else { return }
+                let ids = self.flow.campaign.debugAddRandomCards(n)
+                self.flow.debugPersist()
+                self.note("+\(ids.count) random → deck \(self.flow.campaign.deckSize())")
+                self.build()   // the deck-size line above is now stale
+            }
+        }, height: 32)
+        cardPickRow()
+        y += 6
+    }
+
+    /// [◀][suit][▶] [◀][rank][▶] over a full-width add — the same stepper
+    /// idiom as the grant rows, because a phone has no room for two dropdowns.
+    private func cardPickRow() {
+        let suits = DeckManager.suits.map(\.symbol)
+        let ranks = DeckManager.ranks   // (label, value) — Ace high, 2…A
+        let w = contentWidth
+        let half = (w - 8) / 2
+        let rowY = y
+        let suitLabel = UILabel(), rankLabel = UILabel()
+        var steppers: [PixelButtonView] = []
+        func stepper(_ title: String, x: CGFloat, _ tap: @escaping () -> Void) {
+            let b = PixelButtonView(title, role: .plain, fontSize: 14)
+            b.frame = CGRect(x: x, y: rowY, width: 30, height: 34)
+            b.onTap = tap
+            steppers.append(b)
+            content.addSubview(b)
+        }
+        let refresh = { [weak self] in
+            guard let self else { return }
+            let s = suits[self.cardIdx["suit", default: 0] % suits.count]
+            let r = ranks[self.cardIdx["rank", default: 0] % ranks.count]
+            suitLabel.attributedText = CRTKit.attributed(s, size: 16, color: CRT.cardFace)
+            rankLabel.attributedText = CRTKit.attributed(r.label, size: 16, color: CRT.cardFace)
+        }
+        let step = { [weak self] (key: String, by: Int, count: Int) in
+            guard let self else { return }
+            self.cardIdx[key] = (self.cardIdx[key, default: 0] + by + count) % count
+            refresh()
+        }
+        stepper("◀", x: 0) { step("suit", -1, suits.count) }
+        stepper("▶", x: half - 30) { step("suit", 1, suits.count) }
+        stepper("◀", x: half + 8) { step("rank", -1, ranks.count) }
+        stepper("▶", x: w - 30) { step("rank", 1, ranks.count) }
+        suitLabel.frame = CGRect(x: 32, y: rowY, width: half - 64, height: 34)
+        rankLabel.frame = CGRect(x: half + 40, y: rowY, width: half - 72, height: 34)
+        for l in [suitLabel, rankLabel] { l.textAlignment = .center; content.addSubview(l) }
+        refresh()
+        y += 40
+        buttonRow([
+            Btn("+ card", role: .gold) { [weak self] in
+                guard let self else { return }
+                let s = suits[self.cardIdx["suit", default: 0] % suits.count]
+                let r = ranks[self.cardIdx["rank", default: 0] % ranks.count]
+                guard self.flow.campaign.debugAddCard(suit: s, rank: r.value) != nil else {
+                    self.note("\(r.label)\(s) rejected; not a suit this deck uses")
+                    return
+                }
+                self.flow.debugPersist()
+                self.note("\(r.label)\(s) → deck \(self.flow.campaign.deckSize())")
+                self.build()
+            },
+        ], height: 34)
+    }
+
+    /// THE OLD JOKER: arm any one of his visits on the next ? node. Reaching
+    /// them naturally means waiting on a 50% appearance roll AND satisfying
+    /// that offer's preconditions — which for Collect and the drink return
+    /// means running a whole marker or drink first.
+    private func buildJokerSection() {
+        header("Old Joker")
+        let keys = OldJokerConfig.offerKeys + ["collect", "thirstReturn", "thirstAmbush"]
+        let w = contentWidth
+        let rowY = y
+        let prev = PixelButtonView("◀", role: .plain, fontSize: 14)
+        let next = PixelButtonView("▶", role: .plain, fontSize: 14)
+        let armB = PixelButtonView("arm next ?", role: .gold, fontSize: 14)
+        let name = UILabel()
+        prev.frame = CGRect(x: 0, y: rowY, width: 30, height: 34)
+        next.frame = CGRect(x: w - 108 - 8 - 30, y: rowY, width: 30, height: 34)
+        armB.frame = CGRect(x: w - 108, y: rowY, width: 108, height: 34)
+        name.frame = CGRect(x: 38, y: rowY, width: w - 76 - 116, height: 34)
+        let refresh = { [weak self] in
+            guard let self else { return }
+            let i = self.jokerIdx % keys.count
+            name.attributedText = CRTKit.attributed(keys[i], size: 14, color: CRT.cardFace)
+        }
+        prev.onTap = { [weak self] in
+            guard let self else { return }
+            self.jokerIdx = (self.jokerIdx - 1 + keys.count) % keys.count
+            refresh()
+        }
+        next.onTap = { [weak self] in
+            guard let self else { return }
+            self.jokerIdx = (self.jokerIdx + 1) % keys.count
+            refresh()
+        }
+        armB.onTap = { [weak self] in
+            guard let self else { return }
+            let key = keys[self.jokerIdx % keys.count]
+            self.flow.campaign.debugForceJoker(key)
+            // Collect and the drink return read live state, so give them
+            // something to read — otherwise they arm and resolve to nothing.
+            if key == "collect", self.flow.campaign.jokerDebt == 0 {
+                self.flow.campaign.setJokerDebt(24)
+            }
+            self.flow.debugPersist()
+            self.note("\(key) armed; walk onto the next ? node")
+        }
+        refresh()
+        content.addSubview(prev)
+        content.addSubview(next)
+        content.addSubview(armB)
+        content.addSubview(name)
+        y += 42
+        buttonRow([
+            Btn("disarm") { [weak self] in
+                self?.flow.campaign.debugForceJoker(nil)
+                self?.note("the next ? rolls normally again")
+            },
+            Btn("+? node here", role: .plain) { [weak self] in
+                guard let self else { return }
+                self.note(self.flow.debugMakeNextNodeMystery()
+                          ? "a reachable node is now a ?"
+                          : "no reachable node to convert")
+            },
+        ], height: 32)
+        y += 6
+        buildMysterySection()
+    }
+
+    /// THE QUEEN + THE TWO: arm any plain mystery outcome on the next ? node.
+    /// Arming one skips the Old Joker's takeover roll, and the state each
+    /// outcome guards on is primed so it lands instead of folding to a Toll.
+    private func buildMysterySection() {
+        header("Beheaded Queen & Just a Two")
+        let keys = MysteryConfig.queenKeys.map { ("♛", $0) }
+                 + MysteryConfig.twoKeys.map { ("2", $0) }
+        let w = contentWidth
+        let rowY = y
+        let prev = PixelButtonView("◀", role: .plain, fontSize: 14)
+        let next = PixelButtonView("▶", role: .plain, fontSize: 14)
+        let armB = PixelButtonView("arm next ?", role: .gold, fontSize: 14)
+        let name = UILabel()
+        prev.frame = CGRect(x: 0, y: rowY, width: 30, height: 34)
+        next.frame = CGRect(x: w - 108 - 8 - 30, y: rowY, width: 30, height: 34)
+        armB.frame = CGRect(x: w - 108, y: rowY, width: 108, height: 34)
+        name.frame = CGRect(x: 38, y: rowY, width: w - 76 - 116, height: 34)
+        let refresh = { [weak self] in
+            guard let self else { return }
+            let (who, key) = keys[self.mysteryIdx % keys.count]
+            name.attributedText = CRTKit.attributed("\(who) \(key)", size: 14, color: CRT.cardFace)
+        }
+        prev.onTap = { [weak self] in
+            guard let self else { return }
+            self.mysteryIdx = (self.mysteryIdx - 1 + keys.count) % keys.count
+            refresh()
+        }
+        next.onTap = { [weak self] in
+            guard let self else { return }
+            self.mysteryIdx = (self.mysteryIdx + 1) % keys.count
+            refresh()
+        }
+        armB.onTap = { [weak self] in
+            guard let self else { return }
+            let (_, key) = keys[self.mysteryIdx % keys.count]
+            self.flow.campaign.debugForceMystery(key)
+            self.flow.debugPersist()
+            self.note("\(key) armed; walk onto the next ? node")
+        }
+        refresh()
+        content.addSubview(prev)
+        content.addSubview(next)
+        content.addSubview(armB)
+        content.addSubview(name)
+        y += 42
+        buttonRow([
+            Btn("disarm") { [weak self] in
+                self?.flow.campaign.debugForceMystery(nil)
+                self?.note("the next ? rolls normally again")
+            },
+            Btn("+? node here", role: .plain) { [weak self] in
+                guard let self else { return }
+                self.note(self.flow.debugMakeNextNodeMystery()
+                          ? "a reachable node is now a ?"
+                          : "no reachable node to convert")
+            },
+        ], height: 32)
         y += 6
     }
 
@@ -306,9 +516,9 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         guard !items.isEmpty else { return }
         let w = contentWidth
         let rowY = y
-        let prev = PixelButtonView("◀", role: .plain, fontSize: 13)
-        let next = PixelButtonView("▶", role: .plain, fontSize: 13)
-        let grantB = PixelButtonView(buttonTitle, role: .gold, fontSize: 13)
+        let prev = PixelButtonView("◀", role: .plain, fontSize: 14)
+        let next = PixelButtonView("▶", role: .plain, fontSize: 14)
+        let grantB = PixelButtonView(buttonTitle, role: .gold, fontSize: 14)
         let name = UILabel()
         prev.frame = CGRect(x: 0, y: rowY, width: 30, height: 34)
         next.frame = CGRect(x: w - 96 - 8 - 30, y: rowY, width: 30, height: 34)
@@ -317,7 +527,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         let refresh = { [weak self] in
             guard let self else { return }
             let i = self.grantIdx[kind, default: 0] % items.count
-            name.attributedText = CRTKit.attributed(items[i].label, size: 13, color: CRT.cardFace)
+            name.attributedText = CRTKit.attributed(items[i].label, size: 14, color: CRT.cardFace)
         }
         prev.onTap = { [weak self] in
             guard let self else { return }
@@ -381,7 +591,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
                 Btn(title, role: n.id == pos ? .charged : .plain) { [weak self] in
                     guard let self else { return }
                     if !self.flow.debugMapJump(to: id) {
-                        self.note("map jump refused mid-deal — finish the deal first")
+                        self.note("map jump refused mid-deal; finish the deal first")
                     }
                 },
             ], height: 28)
@@ -396,7 +606,7 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         if let card = engine.debug.setNextCard(value) {
             note("next draw forced → \(card.label)")
         } else {
-            note("force failed — no live deal")
+            note("force failed; no live deal")
         }
     }
 

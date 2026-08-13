@@ -38,12 +38,12 @@ public final class UserDefaultsStore: KeyValueStore {
 
 // MARK: - JSON helpers
 
-enum JSONStore {
-    static func read(_ store: KeyValueStore, _ key: String) -> [String: JSONValue]? {
+public enum JSONStore {
+    public static func read(_ store: KeyValueStore, _ key: String) -> [String: JSONValue]? {
         guard let s = store.string(forKey: key), let d = s.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode([String: JSONValue].self, from: d)
     }
-    static func write(_ store: KeyValueStore, _ key: String, _ value: [String: JSONValue]) {
+    public static func write(_ store: KeyValueStore, _ key: String, _ value: [String: JSONValue]) {
         guard let d = try? JSONEncoder().encode(value), let s = String(data: d, encoding: .utf8) else { return }
         store.set(s, forKey: key)
     }
@@ -69,8 +69,10 @@ public struct StatsRecord: Sendable, Equatable {
     public var furthestRun = 0
     /// Deepest ENDLESS stage ever entered (0 = never went endless).
     public var bestEndless = 0
+    /// Best CONTINUOUS run score, any deck (v6.47: endless is a continuation
+    /// of the climb, so there is ONE score per run and one best; the retired
+    /// separate endless best folded in at decode, keeping the higher).
     public var bestCampaignScore = 0
-    public var bestEndlessScore = 0
     // UNLOCK1 item-unlock counters — all additive.
     public var bossesBeaten = 0
     public var cardsBuried = 0
@@ -82,12 +84,46 @@ public struct StatsRecord: Sendable, Equatable {
     public var basesPlaced = 0
     public var removalsUsed = 0
     public var pilesLost = 0
+    // UNLOCK2 — the wider gate vocabulary. Cards LANDED by suit, so a player
+    // who leans on one colour earns that colour's items.
+    public var heartsPlayed = 0
+    public var diamondsPlayed = 0
+    public var clubsPlayed = 0
+    public var spadesPlayed = 0
+    /// Deals cleared without a single wrong guess.
+    public var perfectDeals = 0
+    /// Deals cleared per CAMPAIGN tier — "beat one on Legendary" is a
+    /// different ask from "clear 40 deals", and gates the top-end items.
+    public var dealsWonRegular = 0
+    public var dealsWonMaster = 0
+    public var dealsWonLegendary = 0
+    /// Runs in which the player found the map's bottom quip (the Pinky tip
+    /// easter egg). Counted once per run, so it rewards curiosity repeated
+    /// across climbs rather than one long rubber-band.
+    public var pinkyTipsSeen = 0
+    /// Ambush deals CLEARED (Escape Hatch's instant win counts — it runs the
+    /// same end check a real clear does).
+    public var ambushesWon = 0
+    /// Climbs LOST before the stage-1 boss fell. A "welcome to the game"
+    /// gate: it can only tick early, so its item finds the player who needs it.
+    public var earlyLosses = 0
+    /// The most coins ever EARNED inside a single climb (not the purse — the
+    /// purse gets spent). A high-water mark, like the score bests.
+    public var bestCoinsInClimb = 0
     /// LIFETIME per-deck/tier win log: `["lammy.master": true, …]`.
     public var deckTierWins: [String: Bool] = [:]
-    /// LIFETIME per-deck/tier best CAMPAIGN score: `["pink.regular": 128, …]`
-    /// (native-only — the web has no per-character score; the deck-select
-    /// carousel shows it under each tier chip).
+    /// LIFETIME per-deck/tier best CONTINUOUS run score:
+    /// `["pink.regular": 128, …]` (native-only — the web has no per-character
+    /// score). ONE record per combo: endless continues the climb's total, so
+    /// there is no separate endless best (v6.47; the old endless-best key is
+    /// folded in at decode, keeping the higher).
     public var deckTierBest: [String: Int] = [:]
+    /// LIFETIME times each shop item has been BOUGHT, keyed by item id
+    /// (native-only, like `deckTierBest` — the web keeps no such tally). The
+    /// Collection prints it under an unlocked tile, so the screen says what
+    /// you actually reach for and not just what you've seen once. Exhibition
+    /// buys are excluded, exactly as they are for the unlock counters.
+    public var itemsBought: [String: Int] = [:]
 
     public init() {}
 
@@ -95,6 +131,9 @@ public struct StatsRecord: Sendable, Equatable {
     public static let unlockCounters = [
         "bossesBeaten", "cardsBuried", "samesCalled", "correctSames", "jokersPlayed",
         "stickersApplied", "pillarsPlaced", "basesPlaced", "removalsUsed", "pilesLost",
+        "heartsPlayed", "diamondsPlayed", "clubsPlayed", "spadesPlayed",
+        "perfectDeals", "dealsWonRegular", "dealsWonMaster", "dealsWonLegendary",
+        "pinkyTipsSeen", "ambushesWon", "earlyLosses",
     ]
 
     public subscript(counter: String) -> Int {
@@ -110,6 +149,17 @@ public struct StatsRecord: Sendable, Equatable {
             case "basesPlaced": return basesPlaced
             case "removalsUsed": return removalsUsed
             case "pilesLost": return pilesLost
+            case "heartsPlayed": return heartsPlayed
+            case "diamondsPlayed": return diamondsPlayed
+            case "clubsPlayed": return clubsPlayed
+            case "spadesPlayed": return spadesPlayed
+            case "perfectDeals": return perfectDeals
+            case "dealsWonRegular": return dealsWonRegular
+            case "dealsWonMaster": return dealsWonMaster
+            case "dealsWonLegendary": return dealsWonLegendary
+            case "pinkyTipsSeen": return pinkyTipsSeen
+            case "ambushesWon": return ambushesWon
+            case "earlyLosses": return earlyLosses
             default: return 0
             }
         }
@@ -125,6 +175,17 @@ public struct StatsRecord: Sendable, Equatable {
             case "basesPlaced": basesPlaced = newValue
             case "removalsUsed": removalsUsed = newValue
             case "pilesLost": pilesLost = newValue
+            case "heartsPlayed": heartsPlayed = newValue
+            case "diamondsPlayed": diamondsPlayed = newValue
+            case "clubsPlayed": clubsPlayed = newValue
+            case "spadesPlayed": spadesPlayed = newValue
+            case "perfectDeals": perfectDeals = newValue
+            case "dealsWonRegular": dealsWonRegular = newValue
+            case "dealsWonMaster": dealsWonMaster = newValue
+            case "dealsWonLegendary": dealsWonLegendary = newValue
+            case "pinkyTipsSeen": pinkyTipsSeen = newValue
+            case "ambushesWon": ambushesWon = newValue
+            case "earlyLosses": earlyLosses = newValue
             default: break
             }
         }
@@ -146,11 +207,19 @@ public struct StatsRecord: Sendable, Equatable {
         s.furthestStage = i("furthestStage") ?? 0
         s.furthestRun = i("furthestRun") ?? 0
         s.bestEndless = i("bestEndless") ?? 0
-        s.bestCampaignScore = i("bestCampaignScore") ?? 0
-        s.bestEndlessScore = i("bestEndlessScore") ?? 0
+        // ONE-SCORE MIGRATION (v6.47): the retired separate endless bests
+        // fold into the continuous best, keeping the higher — a device that
+        // recorded either kind of record keeps it. Old builds reading a new
+        // blob simply see no endless keys (their decode tolerates that).
+        s.bestCampaignScore = max(i("bestCampaignScore") ?? 0, i("bestEndlessScore") ?? 0)
+        s.bestCoinsInClimb = i("bestCoinsInClimb") ?? 0
         for k in unlockCounters { s[k] = i(k) ?? 0 }
         for (k, v) in o["deckTierWins"]?.asObject ?? [:] where v.asBool == true { s.deckTierWins[k] = true }
         for (k, v) in o["deckTierBest"]?.asObject ?? [:] { if let n = v.asNumber { s.deckTierBest[k] = Int(n) } }
+        for (k, v) in o["deckTierBestEndless"]?.asObject ?? [:] {
+            if let n = v.asNumber { s.deckTierBest[k] = max(s.deckTierBest[k] ?? 0, Int(n)) }
+        }
+        for (k, v) in o["itemsBought"]?.asObject ?? [:] { if let n = v.asNumber, n > 0 { s.itemsBought[k] = Int(n) } }
         return s
     }
 
@@ -170,11 +239,12 @@ public struct StatsRecord: Sendable, Equatable {
             "furthestRun": .number(Double(furthestRun)),
             "bestEndless": .number(Double(bestEndless)),
             "bestCampaignScore": .number(Double(bestCampaignScore)),
-            "bestEndlessScore": .number(Double(bestEndlessScore)),
+            "bestCoinsInClimb": .number(Double(bestCoinsInClimb)),
         ]
         for k in Self.unlockCounters { o[k] = .number(Double(self[k])) }
         o["deckTierWins"] = .object(deckTierWins.mapValues { .bool($0) })
         o["deckTierBest"] = .object(deckTierBest.mapValues { .number(Double($0)) })
+        o["itemsBought"] = .object(itemsBought.mapValues { .number(Double($0)) })
         return o
     }
 }
@@ -202,6 +272,15 @@ public final class Stats {
         guard StatsRecord.unlockCounters.contains(counter), n != 0 else { return }
         var s = get()
         s[counter] = s[counter] + n
+        put(s)
+    }
+    /// Record one BUY of shop item `id` (the Collection's lifetime tally).
+    /// Keyed by the registry id, which is stable across renames by contract,
+    /// so the count survives an item being relabelled.
+    public func bumpItemBought(_ id: String, _ n: Int = 1) {
+        guard !id.isEmpty, n > 0 else { return }
+        var s = get()
+        s.itemsBought[id, default: 0] += n
         put(s)
     }
     public func bumpAll(_ counters: [String: Int]) {

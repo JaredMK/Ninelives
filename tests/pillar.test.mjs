@@ -15,8 +15,8 @@ export function run() {
     r.ok(!!g, "registry has columnGuardian");
     r.eq(g.kind, "scoring", "columnGuardian is a scoring Pillar");
     r.eq(g.effect, "columnAllAlive", "columnGuardian effect key");
-    r.eq(g.value, 7, "columnGuardian pays 7");
-    r.eq(g.price, 7, "columnGuardian fixed price 7");
+    r.eq(g.value, 4, "columnGuardian pays 4");
+    r.eq(g.price, 4, "columnGuardian fixed price 4");
     r.eq(PillarTypes.get("nope"), null, "unknown Pillar id → null");
     r.ok(PillarTypes.all().length === PillarTypes.ids.length, "all() matches ids");
   }
@@ -49,21 +49,21 @@ export function run() {
   {
     const c = CampaignState.create();
     c.addCoins(100);
-    r.eq(c.priceOfPillar("columnGuardian"), 7, "fixed Pillar price (Column Guardian = 7)");
+    r.eq(c.priceOfPillar("columnGuardian"), 4, "fixed Pillar price (Column Guardian = 4)");
     r.ok(c.buyPillar("columnGuardian", 0), "buy onto column 0");
     r.eq(c.columnPillar(0), "columnGuardian", "purchase placed it on the column");
-    r.eq(c.priceOfPillar("columnGuardian"), 7, "price does NOT escalate after a buy");
-    r.eq(c.getCoins(), 93, "spent the fixed price (7)");
+    r.eq(c.priceOfPillar("columnGuardian"), 4, "price does NOT escalate after a buy");
+    r.eq(c.getCoins(), 96, "spent the fixed price (4)");
 
     // Buying onto an occupied column overwrites it (the replace path).
     r.ok(c.buyPillar("columnGuardian", 0), "buy again onto the same column");
     r.eq(c.pillarCount(), 1, "replace keeps the slot count at one");
-    r.eq(c.getCoins(), 86, "second buy also cost the fixed 7 (no escalation)");
+    r.eq(c.getCoins(), 92, "second buy also cost the fixed 4 (no escalation)");
 
     // Per-type fixed prices.
-    r.eq(c.priceOfPillar("heartBounty"), 9, "Heart Bonus = 9");
-    r.eq(c.priceOfPillar("columnTieSafe"), 12, "Column Tie-Safe = 12");
-    r.eq(c.priceOfPillar("clubTribute"), 25, "8 Bury (clubTribute) = 25");
+    r.eq(c.priceOfPillar("heartBounty"), 5, "Heart Bonus = 5");
+    r.eq(c.priceOfPillar("columnTieSafe"), 6, "Column Tie-Safe = 6");
+    r.eq(c.priceOfPillar("clubTribute"), 13, "8 Bury (clubTribute) = 13");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");
@@ -92,7 +92,7 @@ export function run() {
     c.buyPillar("columnGuardian", 2);
     c.reset();
     r.eq(c.pillarCount(), 0, "reset clears the column binding");
-    r.eq(c.priceOfPillar("columnGuardian"), 7, "Pillar price is fixed at 7");
+    r.eq(c.priceOfPillar("columnGuardian"), 4, "Pillar price is fixed at 4");
   }
 
   // --- Engine pile→column mapping (fill DOWN each column) ----------------
@@ -117,7 +117,7 @@ export function run() {
     win.start();
     win.startRun(["columnGuardian", null, null]);
     win.debug.winNow();   // empty the deck → win, every pile still alive
-    r.eq(payload.pillarPayout.bonus, 7, "all-alive column pays +7");
+    r.eq(payload.pillarPayout.bonus, 4, "all-alive column pays +4");
     r.eq(payload.pillarPayout.lines.length, 1, "one itemized Pillar line");
 
     // Same setup but kill a pile in column 0 → no payout for that column.
@@ -349,6 +349,69 @@ export function run() {
     r.eq(c.getCoins(), 0, "grant spends no coins");
     r.eq(c.priceOf("tieSafe"), before, "grant doesn't escalate the price");
     r.ok(!c.debugGrantSticker("nope"), "unknown sticker id rejected");
+  }
+
+  // --- FOURTH SEAT: a Pillar that changes the SHAPE of the board ---------
+  // Its column always OPENS the deal with `value` piles. The balanced split
+  // runs first, so it only ever adds seats: never takes one off another
+  // column, never shrinks a column already past the floor.
+  {
+    const def = PillarTypes.get("fourthSeat");
+    r.ok(!!def, "registry has fourthSeat");
+    r.eq(def.effect, "columnPiles", "fourthSeat drives the columnPiles effect");
+    r.eq(def.tier, "rare", "fourthSeat is rare");
+    const want = def.value;
+    const seatOn = col => {
+      const p = [null, null, null];
+      p[col] = "fourthSeat";
+      return p;
+    };
+    // Every pile count a map node can deal (run-map: 4,5,6,7,9,10) plus the
+    // fixed run layouts' totals.
+    for (const piles of [4, 5, 6, 7, 9, 10, 12]) {
+      const plain = CampaignState.layoutForPiles(piles);
+      for (let col = 0; col < plain.cols.length; col++) {
+        const wide = CampaignState.layoutForPiles(piles, seatOn(col));
+        r.eq(wide.cols[col], Math.max(plain.cols[col], want),
+          piles + " piles, col " + col + ": the seated column opens at " + want);
+        for (let o = 0; o < wide.cols.length; o++)
+          if (o !== col) r.eq(wide.cols[o], plain.cols[o],
+            piles + " piles: col " + o + " is untouched");
+        r.eq(wide.piles, wide.cols.reduce((a, b) => a + b, 0),
+          piles + " piles: the total counts the real seats");
+        r.ok(wide.piles >= plain.piles, piles + " piles: it never removes a pile");
+      }
+    }
+    // 15 piles splits 5/5/5 — already past the floor, so it is left alone.
+    r.eq(JSON.stringify(CampaignState.layoutForPiles(15, seatOn(0)).cols),
+      JSON.stringify(CampaignState.layoutForPiles(15).cols),
+      "a column already wider than the floor is left alone");
+    // No pillars (and an all-empty binding) → the plain split, unchanged.
+    for (const piles of [1, 2, 3, 5, 9, 12])
+      r.eq(JSON.stringify(CampaignState.layoutForPiles(piles, [null, null, null]).cols),
+        JSON.stringify(CampaignState.layoutForPiles(piles).cols),
+        piles + " piles: an empty binding changes nothing");
+    // A non-shape Pillar never touches the split.
+    r.eq(JSON.stringify(CampaignState.layoutForPiles(9, ["columnGuardian", null, null]).cols),
+      JSON.stringify(CampaignState.layoutForPiles(9).cols),
+      "a non-columnPiles Pillar leaves the split alone");
+
+    // The board and the engine must agree on WHICH column got the extra pile.
+    // Re-deriving the split from the total is NOT equivalent once a Pillar can
+    // widen a column — 10 piles re-derives to [3,4,3] while the real layout is
+    // [4,3,3], which would draw the fourth pile in the wrong column and point
+    // the Pillar plaque at the wrong stack.
+    const wide = CampaignState.layoutForPiles(9, seatOn(0));
+    r.eq(JSON.stringify(wide.cols), JSON.stringify([4, 3, 3]), "9 piles + a seated col 0 → [4,3,3]");
+    r.eq(wide.piles, 10, "…and ten real seats");
+    r.ok(JSON.stringify(CampaignState.layoutForPiles(wide.piles).cols) !== JSON.stringify(wide.cols),
+      "if these ever match, this check has stopped proving anything");
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), wide.piles, { cols: wide.cols });
+    e.start();
+    const pc = e.getRun().pileColumns;
+    r.eq(pc.filter(x => x === 0).length, 4, "column 0 owns four piles");
+    r.eq(pc.filter(x => x === 1).length, 3, "column 1 keeps three");
+    r.eq(pc.filter(x => x === 2).length, 3, "column 2 keeps three");
   }
 
   // --- Store help text lives in the registry (single source) ------------

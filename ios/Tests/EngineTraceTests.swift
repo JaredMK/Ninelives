@@ -129,7 +129,11 @@ final class EngineTraceTests: XCTestCase {
                     XCTAssertEqual(got.lines.count, wantLines.count, "\(name): pillar payout line count")
                     for (i, wl) in wantLines.enumerated() where i < got.lines.count {
                         XCTAssertEqual(got.lines[i].label, wl["label"]?.asString, "\(name): payout line \(i) label")
-                        XCTAssertEqual(got.lines[i].detail, wl["detail"]?.asString, "\(name): payout line \(i) detail")
+                        // Prose is compared em-dash-blind: the native build
+                        // dropped "—" from ALL player copy (v6.30), while the
+                        // web traces still carry it. Mechanics stay verbatim.
+                        XCTAssertEqual(got.lines[i].detail, wl["detail"]?.asString?.replacingOccurrences(of: " — ", with: ", "),
+                                       "\(name): payout line \(i) detail")
                         XCTAssertEqual(got.lines[i].amount, wl["amount"]?.asNumber, "\(name): payout line \(i) amount")
                         XCTAssertEqual(got.lines[i].col, wl["col"]?.int, "\(name): payout line \(i) col")
                     }

@@ -15,5 +15,8 @@
     "StatusBar": {
       "style": "DARK"
     }
+  },
+  "server": {
+    "url": "https://jaredmk.github.io/Ninelives/neural/"
   }
 }

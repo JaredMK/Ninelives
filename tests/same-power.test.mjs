@@ -38,7 +38,7 @@ export function run() {
     r.ok(SamePowerTypes.all().every(t => /Trigger:.*\n.*Effect:/s.test(t.description)),
       "every Same-Power uses the Trigger/Effect description format");
     r.ok(SamePowerTypes.all().every(t => t.tier === "rare"), "every Same-Power is Rare");
-    r.ok(SamePowerTypes.all().every(t => t.price === 5), "every Same-Power costs 5");
+    r.ok(SamePowerTypes.all().every(t => t.price === 3), "every Same-Power costs 3");
   }
 
   // --- CampaignState: buy → equip → swap → unequip → persistence ---------

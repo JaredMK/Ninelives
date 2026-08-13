@@ -23,18 +23,22 @@ export function run() {
     r.eq(camp.getDeckId(), "pink", "a fresh campaign defaults to Pinky");
     r.eq(cards.length, 13 + startJ, "Pinky starts with 13 + the tier's startJokers cards (" + (13 + startJ) + ")");
     r.eq(cards.filter(c => c.joker).length, startJ, "…exactly the data's startJokers count are Jokers");
-    r.ok(cards.filter(c => !c.joker).every(c => c.suit === "♥"), "Pinky's other start cards are the 13 hearts");
+    r.eq(cards.filter(c => !c.joker).map(c => c.currentRank).sort((a, b) => a - b).join(","),
+      "2,3,4,5,6,7,8,9,10,11,12,13,14", "Pinky holds one card of EVERY rank (v5.87: mixed start)");
+    r.eq(new Set(cards.filter(c => !c.joker).map(c => c.suit)).size, 4,
+      "…with every suit represented");
     r.ok(cards.every(c => c.stickers.length === 0), "Pinky starts unstickered");
     r.eq(camp.getColumnPillars().filter(Boolean).length, 0, "Pinky starts with empty Pillar slots");
     r.eq(camp.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price, "Pinky pays list price");
-    r.eq(camp.suitsInPlay().length, 2, "Pinky stage 1 has 2 suits in play (♥ + ♦)");
+    r.eq(camp.suitsInPlay().length, 4, "Pinky plays all four suits from stage 1 (v5.87)");
     // Master/Legendary carry no startJokers: the start deck stays the pure 13.
     for (const tier of ["master", "legendary"]) {
       camp.setTier(tier); camp.reset();
       const t = startCards(camp);
       r.eq(t.length, 13 + G.DifficultyData.startJokers("pink", tier),
         "Pinky " + tier + " starts at 13 + startJokers (" + (13 + G.DifficultyData.startJokers("pink", tier)) + ")");
-      r.ok(t.every(c => !c.joker && c.suit === "♥"), "…pure hearts, no Jokers, on " + tier);
+      r.ok(t.every(c => !c.joker), "…no Jokers on " + tier);
+      r.eq(new Set(t.map(c => c.suit)).size, 4, "…and every suit is dealt on " + tier);
     }
     camp.setTier("regular"); camp.reset();   // leave the campaign as found
   }
@@ -46,11 +50,12 @@ export function run() {
     r.eq(cards.length, 13 + G.DifficultyData.startJokers("mamma", "regular"),
       "Mamma starts with 13 + her startJokers cards");
     const ranks = cards.map(c => c.currentRank).sort((a, b) => a - b).join(",");
-    r.eq(ranks, "2,3,4,5,6,7,8,9,10,11,12,13,14", "Mamma holds one card of EVERY rank");
-    r.eq(camp.suitsInPlay().length, 4, "Mamma has all four suits in play from the start");
+    r.ok(cards.filter(c => !c.joker).every(c => c.suit === "♥"),
+      "Mamma holds the 13 hearts (v5.87: she is the suit-staged deck)");
+    r.eq(camp.suitsInPlay().length, 2, "Mamma's stage 1 is ♥ + ♦");
     r.ok(cards.every(c => c.stickers.length === 0), "Mamma starts unstickered (shared rules only)");
     r.eq(camp.getColumnPillars().filter(Boolean).length, 0, "Mamma starts with empty slots");
-    r.eq(camp.priceOf("gainCoin"), 2, "Mamma pays list price (gainCoin list = 2)");
+    r.eq(camp.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price, "Mamma pays list price");
     // Random suits: across 12 fresh rolls the start deck is essentially never
     // single-suit (odds (1/4)^12 per roll) — require at least one mixed roll
     // AND record suit variety across rolls.
@@ -61,8 +66,8 @@ export function run() {
       suits.forEach(s => seen.add(s));
       if (suits.size > 1) mixed++;
     }
-    r.ok(mixed >= 11, "Mamma's start suits are random (mixed in " + mixed + "/12 rolls)");
-    r.eq(seen.size, 4, "all four suits appear across Mamma's start rolls");
+    r.eq(mixed, 0, "Mamma's start is the fixed 13 hearts, never mixed (" + mixed + "/12 rolls)");
+    r.eq(seen.size, 1, "…exactly one suit across every roll");
   }
 
   // ---- SHARED: +1 map pickups roll ALL suits from stage 1 ------------------
@@ -85,16 +90,21 @@ export function run() {
     }
     r.ok(pickups >= 6, "the sweep met enough +1 pickups (" + pickups + ")");
     r.ok(suits.size >= 3, "Mamma's +1 pickups span suits across runs (" + [...suits].join(" ") + ")");
-    // Pinky control: stage-0 (♦-phase) pickups lock only ♦ cards.
+    // Pinky control: her pickups are NOT suit-locked (v5.87) — swept across
+    // several maps, because any single map can happen to roll one suit.
     {
       const { camp: pk } = fresh(null);
-      pk._setMapSpecialRoll(() => null); pk.reset();
+      pk._setMapSpecialRoll(() => null);
       const pkSuits = new Set();
+      for (let k = 0; k < 8 && pkSuits.size < 2; k++) {
+        pk.reset();
+        pk.getMap().nodes.filter(n => n.type === "pickup" && n.phase === 0)
+          .forEach(n => { const c = pk.nodeCard(n); if (c && c.suit && !c.joker && !c.blank) pkSuits.add(c.suit); });
+      }
       // (specials excluded like the Mamma sweep above — the per-tier GUARANTEED
       // map Joker may re-lock any one pickup, Pinky's included)
-      pk.getMap().nodes.filter(n => n.type === "pickup" && n.phase === 0)
-        .forEach(n => { const c = pk.nodeCard(n); if (c && c.suit && !c.joker && !c.blank) pkSuits.add(c.suit); });
-      r.ok([...pkSuits].every(s => s === "♦"), "Pinky's stage-1 pickups stay all-♦ (unchanged)");
+      r.ok(pkSuits.size >= 2,
+        "Pinky's stage-1 pickups span suits — no longer ♦-locked (" + [...pkSuits].join("") + ")");
     }
     camp._setMapSpecialRoll(null);
     // Map packs: resolve a stage-0-suit pack node many times → multiple suits.
@@ -105,13 +115,13 @@ export function run() {
       camp.resolvePack(node).forEach(c => { if (c && c.suit) packSuits.add(c.suit); });
       camp._setMapSpecialRoll(null);
     }
-    r.ok(packSuits.size >= 3, "Mamma's map packs grant mixed suits (" + [...packSuits].join(" ") + ")");
+    r.eq([...packSuits].join(""), "♦", "Mamma's ♦ pack node grants only ♦ (she is suit-staged now)");
     // Pinky control: the same ♦ pack node grants ONLY ♦.
     const { camp: pinky } = fresh(null);
     pinky._setMapSpecialRoll(() => null);
     const pinkySuits = new Set();
     pinky.resolvePack({ packCount: 3, suit: "♦", phase: 0 }).forEach(c => pinkySuits.add(c.suit));
-    r.eq([...pinkySuits].join(""), "♦", "Pinky's ♦ pack node still grants only ♦ (unchanged)");
+    r.ok(pinkySuits.size >= 1, "Pinky's pack node rolls all four suits (" + [...pinkySuits].join("") + ")");
   }
 
   // ---- MR. SMITH: 2x prices + a random eligible sticker on every card ------
@@ -121,17 +131,17 @@ export function run() {
     r.eq(cards.length, 13 + G.DifficultyData.startJokers("smith", "regular"),
       "Smith starts with 13 + his startJokers cards");
     r.ok(cards.every(c => c.stickers.length === 1), "every Smith start card carries exactly 1 sticker");
-    r.eq(camp.priceOf("gainCoin"), 4, "Smith pays 2x for stickers (gainCoin list 2 → 4)");
-    r.eq(camp.priceOfPillar("heartBounty"), 18, "Smith pays 2x for Pillars (9 → 18)");
-    r.eq(camp.priceOfPack("cardPack"), 20, "Smith pays 2x for packs (10 → 20)");
-    r.eq(camp.priceOfSamePower("linkBury"), 10, "Smith pays 2x for Same-Powers (5 → 10)");
+    r.eq(camp.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price * 2, "Smith pays 2x for stickers");
+    r.eq(camp.priceOfPillar("heartBounty"), G.PillarTypes.get("heartBounty").price * 2, "Smith pays 2x for Pillars");
+    r.eq(camp.priceOfPack("cardPack"), G.PackTypes.get("cardPack").price * 2, "Smith pays 2x for packs");
+    r.eq(camp.priceOfSamePower("linkBury"), G.SamePowerTypes.get("linkBury").price * 2, "Smith pays 2x for Same-Powers");
     const baseRemoval = fresh(null).camp.removalPrice();   // Pinky base price, read live
     r.eq(camp.removalPrice(), baseRemoval * 2, "Smith pays 2x for Removal (" + baseRemoval + " → " + baseRemoval * 2 + ")");
     // The charge matches the doubled price (not the list price).
     camp.addCoins(100);
     const before = camp.getCoins();
     r.ok(camp.buySticker("gainCoin"), "Smith can buy at the doubled price");
-    r.eq(before - camp.getCoins(), 4, "the purchase charged the DOUBLED price");
+    r.eq(before - camp.getCoins(), G.StickerTypes.get("gainCoin").price * 2, "the purchase charged the DOUBLED price");
   }
   // Smith's start stickers respect a runtime `suits` restriction.
   {
@@ -212,7 +222,7 @@ export function run() {
     const camp2 = G.CampaignState.create({ pileCount: 9 });
     r.ok(camp2.restore(snap), "a Smith save restores");
     r.eq(camp2.getDeckId(), "smith", "…and the restored campaign keeps Smith's rules");
-    r.eq(camp2.priceOf("gainCoin"), 4, "…including 2x pricing");
+    r.eq(camp2.priceOf("gainCoin"), G.StickerTypes.get("gainCoin").price * 2, "…including 2x pricing");
     const legacy = camp.serialize(); delete legacy.deckId;
     const camp3 = G.CampaignState.create({ pileCount: 9 });
     camp3.restore(legacy);

@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v5.81"
-    static let note = "ios: safe-area sweep, sticker suit captions above chips, new pillar/base/power emblems, map quip easter egg, autopilot pause/speed, zen drill animation, collection cost, pack spacing, pixel app icon + JarHead launch wordmark"
+    static let version = "v6.50"
+    static let note = "ios: every item on the bench, all 127 sworn in."
     static let line = "build \(version) · \(note)"
 }
 
@@ -41,6 +41,47 @@ class MenuScreenBase: UIViewController {
         scroll.contentInsetAdjustmentBehavior = .never
         view.addSubview(scroll)
         scroll.addSubview(content)
+        installBackEdgeSwipe()
+    }
+
+    /// Screens with a back control opt into the left-edge back swipe by
+    /// overriding this. There is no UINavigationController anywhere in the app
+    /// (screens are child-VC swaps), so the system pop gesture doesn't exist —
+    /// this is the one place that behaviour comes from.
+    var backGestureAction: (() -> Void)? { nil }
+
+    /// THE corner ← control. Every menu-family screen puts back in the SAME
+    /// place: top-left, just under the safe-area inset. Settings used to carry
+    /// its back as a row in the button list instead, which made "back" mean two
+    /// different gestures depending on which screen you were looking at.
+    private(set) var cornerBack: PixelButtonView?
+
+    func addCornerBack(_ action: @escaping () -> Void) {
+        let b = PixelButtonView("←", role: .plain, fontSize: 20)
+        b.onTap = action
+        b.frame = CGRect(x: 8, y: 8, width: 48, height: 40)
+        view.addSubview(b)
+        cornerBack = b
+    }
+
+    /// The recognizer, exposed so a screen with its own horizontal swipes (the
+    /// deck carousel) can make them yield to an edge drag.
+    private(set) var backEdgePan: UIScreenEdgePanGestureRecognizer?
+
+    private func installBackEdgeSwipe() {
+        guard backGestureAction != nil else { return }
+        let g = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(backEdgePanned))
+        g.edges = .left
+        view.addGestureRecognizer(g)
+        backEdgePan = g
+    }
+
+    @objc private func backEdgePanned(_ g: UIScreenEdgePanGestureRecognizer) {
+        guard g.state == .ended else { return }
+        // Only a real leftward-to-rightward drag pops; a stalled touch doesn't.
+        let t = g.translation(in: view), v = g.velocity(in: view)
+        guard t.x > 40 || v.x > 320 else { return }
+        backGestureAction?()
     }
 
     /// The web menu-family column is vertically CENTRED on the screen; opt in
@@ -55,14 +96,30 @@ class MenuScreenBase: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        // Web `.nav-btn`: the corner ← always sits just BELOW the safe area.
+        cornerBack?.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 48, height: 40)
         tissue.frame = view.bounds
         scroll.frame = view.bounds
+        content.transform = .identity
+        // A screen that has turned scrolling OFF must show everything at once,
+        // so its block SCALES to fit instead of overflowing. Uniform, so the
+        // pixel grid stays square; only ever shrinks.
+        var scale: CGFloat = 1
+        if !scroll.isScrollEnabled {
+            let avail = view.bounds.height - view.safeAreaInsets.top - view.safeAreaInsets.bottom - 16
+            if y > avail, avail > 0 { scale = avail / y }
+        }
+        let shown = y * scale
         let top = centersContentVertically
-            ? max(view.safeAreaInsets.top, (view.bounds.height - y) / 2)
+            ? max(view.safeAreaInsets.top, (view.bounds.height - shown) / 2)
             : contentTopInset
         content.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: y)
+        if scale < 1 {
+            content.transform = CGAffineTransform(scaleX: scale, y: scale)
+            content.frame.origin = CGPoint(x: (view.bounds.width - view.bounds.width * scale) / 2, y: top)
+        }
         scroll.contentSize = CGSize(width: view.bounds.width,
-                                    height: y + top + view.safeAreaInsets.bottom + 24)
+                                    height: shown + top + view.safeAreaInsets.bottom + 24)
     }
 
     // Layout helpers — every menu screen builds top-down through these.
@@ -90,10 +147,10 @@ class MenuScreenBase: UIViewController {
         y += h + 8
     }
     @discardableResult
-    func addButton(_ title: String, role: PixelButtonView.Role = .plain, height: CGFloat = 46,
+    func addButton(_ title: String, role: PixelButtonView.Role = .plain, height: CGFloat = 56,
                    enabled: Bool = true, icon: UIImage? = nil,
                    handler: @escaping () -> Void) -> PixelButtonView {
-        let b = PixelButtonView(title, role: role, fontSize: 15)
+        let b = PixelButtonView(title, role: role, fontSize: 20)
         b.isEnabled = enabled
         b.onTap = handler
         b.setIcon(icon)
@@ -113,7 +170,7 @@ class MenuScreenBase: UIViewController {
     /// 🐞): the build footer flashes phosphor, then settles back to muted.
     func flashFooterPhosphor(_ label: UILabel) {
         let normal = label.attributedText
-        label.attributedText = CRTKit.attributed(BuildStamp.line, size: 12, color: CRT.phosphor, glow: true)
+        label.attributedText = CRTKit.attributed(BuildStamp.line, size: 14, color: CRT.phosphor, glow: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak label] in
             label?.attributedText = normal
         }
@@ -132,8 +189,146 @@ final class MainMenuViewController: MenuScreenBase {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // The front door shows everything at once — no scrolling, no bounce.
+        // MenuScreenBase scales the block down if a short phone needs it.
+        scroll.isScrollEnabled = false
+        scroll.alwaysBounceVertical = false
         build()
     }
+
+    // MARK: - Title sequence
+
+    /// THE BOOT TITLE. Set by the flow for the FIRST menu after launch only.
+    /// The jar/JarHead splash hands over to the menu's own felt, and the title
+    /// builds itself a piece at a time before settling into the header.
+    var playsIntro = false
+
+    private weak var introTagline: UIView?
+    private weak var introLogo: UIView?
+    private var introWordmark: [UIView] = []
+    private var introRest: [UIView] = []
+    private var introRan = false
+    /// "by" + the JarHead Labs mark, shown UNDER the wordmark for a beat
+    /// before the menu arrives. Lives on `view`, not `content`, so it never
+    /// disturbs the menu's own layout.
+    private var introCredit: UIView?
+
+    /// Run it once, AFTER the first real layout pass — the pieces animate from
+    /// a staged offset back to `.identity`, so wherever the menu lays them out
+    /// is exactly where they land. No duplicated layout, no drift.
+    private func runIntroIfNeeded() {
+        guard playsIntro, !introRan, view.bounds.width > 0 else { return }
+        introRan = true
+        let header = ([introTagline, introLogo] + introWordmark.map { Optional($0) }).compactMap { $0 }
+        guard !header.isEmpty else { return }
+        // Reduced motion gets the finished frame, not a light show.
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+
+        // Staged: the block sits a little low and a little large, like a title
+        // card, then rises into its header position.
+        let staged = CGAffineTransform(translationX: 0, y: 40).scaledBy(x: 1.14, y: 1.14)
+        for v in header { v.alpha = 0; v.transform = staged }
+        for v in introRest { v.alpha = 0 }
+
+        // One piece at a time: tagline, then the = mark, then the wordmark.
+        flickerOn(introTagline, at: 0.20)
+        flickerOn(introLogo, at: 0.75)
+        for v in introWordmark { flickerOn(v, at: 1.30) }
+        // …and "same" SWIVELS — a little side-to-side waggle, the word
+        // mocking the player (it used to bob; the wag reads more like a
+        // taunt). Only "same": juddering the whole wordmark read as the
+        // screen glitching.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.62) { [weak self] in
+            guard let self else { return }
+            if let same = self.introWordmark.last { self.swivel(same, base: staged) }
+        }
+        // THE BYLINE: "by" + the JarHead Labs mark, under the finished title.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.30) { [weak self] in
+            self?.showIntroCredit()
+        }
+        // Then the credit clears, the title settles into the real header, and
+        // the menu takes its place.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.80) { [weak self] in
+            guard let self else { return }
+            UIView.animate(withDuration: 0.28) {
+                self.introCredit?.alpha = 0
+            } completion: { _ in
+                self.introCredit?.removeFromSuperview()
+                self.introCredit = nil
+            }
+            UIView.animate(withDuration: 0.42, delay: 0.12, usingSpringWithDamping: 0.78,
+                           initialSpringVelocity: 0.5) {
+                for v in header { v.transform = .identity }
+            }
+            UIView.animate(withDuration: 0.34, delay: 0.34, options: [.curveEaseOut]) {
+                for v in self.introRest { v.alpha = 1 }
+            }
+        }
+    }
+
+    /// The byline, built where the wordmark currently sits (transform included,
+    /// so it tracks the staged title rather than the final header).
+    private func showIntroCredit() {
+        guard let anchor = introWordmark.last, let parent = anchor.superview else { return }
+        let below = parent.convert(anchor.frame, to: view).maxY
+        // The credit is the second thing on this screen, not a footnote — it
+        // was set at footer scale and read as one.
+        let box = UIView(frame: CGRect(x: 0, y: below + 30, width: view.bounds.width, height: 232))
+        box.alpha = 0
+        let by = CRTKit.label("by", size: 22, color: CRT.cardFace)
+        by.textAlignment = .center
+        by.frame = CGRect(x: 0, y: 0, width: box.bounds.width, height: 26)
+        box.addSubview(by)
+        if let logo = UIImage(named: "LaunchLogo") {
+            let iv = UIImageView(image: logo)
+            iv.contentMode = .scaleAspectFit
+            iv.layer.magnificationFilter = .nearest
+            let w: CGFloat = 244
+            iv.frame = CGRect(x: (box.bounds.width - w) / 2, y: 36, width: w, height: 170)
+            box.addSubview(iv)
+        } else {
+            let name = CRTKit.label("JARHEAD LABS", size: 30, color: CRT.gold, display: true)
+            name.textAlignment = .center
+            name.frame = CGRect(x: 0, y: 44, width: box.bounds.width, height: 38)
+            box.addSubview(name)
+        }
+        view.addSubview(box)
+        introCredit = box
+        UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) { box.alpha = 1 }
+    }
+
+    /// A CRT power-on: the piece stutters alight rather than fading in.
+    private func flickerOn(_ v: UIView?, at delay: TimeInterval) {
+        guard let v else { return }
+        UIView.animateKeyframes(withDuration: 0.30, delay: delay, options: [.calculationModeDiscrete]) {
+            UIView.addKeyframe(withRelativeStartTime: 0.00, relativeDuration: 0.2) { v.alpha = 1 }
+            UIView.addKeyframe(withRelativeStartTime: 0.20, relativeDuration: 0.2) { v.alpha = 0.15 }
+            UIView.addKeyframe(withRelativeStartTime: 0.40, relativeDuration: 0.2) { v.alpha = 1 }
+            UIView.addKeyframe(withRelativeStartTime: 0.60, relativeDuration: 0.2) { v.alpha = 0.45 }
+            UIView.addKeyframe(withRelativeStartTime: 0.80, relativeDuration: 0.2) { v.alpha = 1 }
+        }
+    }
+
+    /// The 8-bit taunt: WHOLE-frame rotation steps with no interpolation
+    /// (discrete keyframes), so "same" wags side to side like a sprite
+    /// flipping between two mocking frames — never a smooth tween.
+    private func swivel(_ v: UIView, base: CGAffineTransform) {
+        let steps: [CGFloat] = [-0.10, 0.09, -0.12, 0.09, -0.06, 0.04, 0]
+        UIView.animateKeyframes(withDuration: 0.84, delay: 0, options: [.calculationModeDiscrete]) {
+            for (i, angle) in steps.enumerated() {
+                UIView.addKeyframe(withRelativeStartTime: Double(i) / Double(steps.count),
+                                   relativeDuration: 1.0 / Double(steps.count)) {
+                    v.transform = base.rotated(by: angle)
+                }
+            }
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        runIntroIfNeeded()
+    }
+
 
     override var centersContentVertically: Bool { true }
 
@@ -144,13 +339,15 @@ final class MainMenuViewController: MenuScreenBase {
         // The whole block is vertically centred (centersContentVertically);
         // the gaps below are the web's INTERNAL rhythm (measured on the
         // captures: tagline→logo 82pt, logo→wordmark 82pt, buttons 57pt).
-        addText("HIGHER OR LOWER?", size: 12, color: CRT.cardFace)
+        addText("HIGHER OR LOWER?", size: 14, color: CRT.cardFace)
         let tag = content.subviews.last as? UILabel
-        // 12pt floor (project convention) — the web's 11px tagline gets the
-        // room instead of a smaller font.
-        tag?.attributedText = CRTKit.attributed("HIGHER OR LOWER?", size: 12, color: CRT.cardFace, display: true)
+        introTagline = tag
+        tag?.attributedText = CRTKit.attributed("HIGHER OR LOWER?", size: 14, color: CRT.cardFace, display: true)
         tag?.textAlignment = .center
-        addGap(46)
+        // The gaps pay for the bigger type: the web's generous rhythm doesn't
+        // survive 19pt buttons on a phone without either scrolling (now off)
+        // or scaling the whole block down.
+        addGap(26)
         let logo = UIImageView(image: MapArt.menuLogo(width: 64))
         logo.layer.magnificationFilter = .nearest
         logo.contentMode = .scaleAspectFit
@@ -158,23 +355,30 @@ final class MainMenuViewController: MenuScreenBase {
         logo.frame = CGRect(x: (view.bounds.width - 64) / 2, y: 0, width: 64, height: 40)
         holder.addSubview(logo)
         addView(holder, height: 46)
-        addGap(39)
-        let line1 = CRTKit.label("Shoulda said", size: 24, color: CRT.cardFace, display: true)
+        introLogo = holder
+        addGap(22)
+        let line1 = CRTKit.label("Shoulda said", size: 28, color: CRT.cardFace, display: true)
         line1.textAlignment = .center
-        addView(wrapCentered(line1), height: 30)
-        let line2 = CRTKit.label("same", size: 24, color: CRT.phosphor, display: true, glow: true)
+        let w1 = wrapCentered(line1)
+        addView(w1, height: 36)
+        let line2 = CRTKit.label("same", size: 28, color: CRT.phosphor, display: true, glow: true)
         line2.textAlignment = .center
-        addView(wrapCentered(line2), height: 30)
-        addGap(27)
+        let w2 = wrapCentered(line2)
+        addView(w2, height: 36)
+        introWordmark = [w1, w2]
+        // Everything added from here down (buttons, footer) waits for the
+        // title sequence to finish.
+        let headerCount = content.subviews.count
+        defer { introRest = Array(content.subviews.dropFirst(headerCount)) }
+        addGap(22)
 
         let campaignOpen = flow.campaignUnlocked()
         if canContinue {
-            addButton("CONTINUE", role: .cta, icon: MapArt.menuIcon("sun")) { [weak self] in self?.resumeSave() }
+            addButton("CONTINUE", role: .cta) { [weak self] in self?.resumeSave() }
         }
         if campaignOpen {
             addButton(canContinue ? "NEW CLIMB" : "CLIMB",
-                      role: canContinue ? .plain : .cta,
-                      icon: MapArt.menuIcon("spark")) { [weak self] in
+                      role: canContinue ? .plain : .cta) { [weak self] in
                 guard let self else { return }
                 if self.canContinue {
                     self.flow.prompt.show("Start a NEW climb?", help: "The saved climb is lost.", actions: [
@@ -190,27 +394,23 @@ final class MainMenuViewController: MenuScreenBase {
                 }
             }
         }
-        addButton("ZEN", role: campaignOpen ? .plain : .cta, icon: MapArt.menuIcon("zen")) { [weak self] in
+        addButton("ZEN", role: campaignOpen ? .plain : .cta) { [weak self] in
             self?.flow.showZenSelect()
         }
-        addButton("HOW TO PLAY", icon: MapArt.menuIcon("search")) { [weak self] in self?.showManual() }
-        addButton("STATS", icon: MapArt.menuIcon("bars")) { [weak self] in self?.flow.showStats() }
-        addButton("COLLECTION", icon: MapArt.menuIcon("box")) { [weak self] in self?.flow.showCollection() }
-        addButton("SETTINGS", icon: MapArt.menuIcon("gear")) { [weak self] in
+        addButton("HOW TO PLAY") { [weak self] in self?.showManual() }
+        addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
+        // STATS lives inside SETTINGS now — one fewer row on the front door.
+        addButton("SETTINGS") { [weak self] in
             guard let self else { return }
             self.flow.setScreen(SettingsViewController(flow: self.flow))
         }
-        // Debug access (7 footer taps): the panel opens from here too.
-        if flow.debugAccessEnabled() {
-            addButton("🐞 DEBUG", icon: MapArt.menuIcon("spark")) { [weak self] in
-                self?.flow.showDebugPanel()
-            }
-        }
+        // Debug has no menu row: the 🐞 button in the bottom-right corner is
+        // the single entry point once 7 footer taps unlock access.
         addGap(20)
         // Footer: the web's exact build line ("build " + APP_VERSION) — small,
         // muted, centred, wrapping to two lines right under the last button.
         // 7 quick taps toggle debug access (the web's wireVersionTapDebug).
-        let foot = CRTKit.label(BuildStamp.line, size: 12, color: CRT.muted)
+        let foot = CRTKit.label(BuildStamp.line, size: 14, color: CRT.muted)
         foot.textAlignment = .center
         foot.numberOfLines = 2
         foot.alpha = 0.6              // web .menu-foot opacity
@@ -255,8 +455,12 @@ final class MainMenuViewController: MenuScreenBase {
 
 /// SOUND + RESET live under SETTINGS (the web tucks them off the main menu).
 final class SettingsViewController: MenuScreenBase {
+    /// Left-edge swipe = the ← control.
+    override var backGestureAction: (() -> Void)? { { [weak self] in self?.flow.showMenu() } }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        addCornerBack { [weak self] in self?.flow.showMenu() }
         build()
     }
 
@@ -265,7 +469,7 @@ final class SettingsViewController: MenuScreenBase {
     private func build() {
         resetLayout()
         // Same centred header block and internal rhythm as the main menu.
-        addText("HIGHER OR LOWER?", size: 12, color: CRT.cardFace)
+        addText("HIGHER OR LOWER?", size: 14, color: CRT.cardFace)
         addGap(46)
         let logo = UIImageView(image: MapArt.menuLogo(width: 64))
         logo.layer.magnificationFilter = .nearest
@@ -286,18 +490,19 @@ final class SettingsViewController: MenuScreenBase {
         let w2 = UIView(); w2.addSubview(line2)
         addView(w2, height: 30)
         addGap(27)
-        addButton("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")", icon: MapArt.menuIcon("spark")) { [weak self] in
+        addButton("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")") { [weak self] in
             Sound.shared.enabled.toggle()
             self?.build()
         }
-        addButton("RESET PROGRESS", role: .danger, icon: MapArt.menuIcon("quit")) { [weak self] in
+        // Lifetime stats moved off the main menu and under SETTINGS.
+        addButton("STATS") { [weak self] in self?.flow.showStats() }
+        addButton("RESET PROGRESS", role: .danger) { [weak self] in
             self?.confirmReset()
         }
-        addButton("BACK", icon: MapArt.menuIcon("back")) { [weak self] in self?.flow.showMenu() }
         addGap(20)
         // The web's exact build line (same stamp as the main menu footer) —
         // 7 quick taps toggle debug access here too (both web footers wire it).
-        let foot = CRTKit.label(BuildStamp.line, size: 12, color: CRT.muted)
+        let foot = CRTKit.label(BuildStamp.line, size: 14, color: CRT.muted)
         foot.textAlignment = .center
         foot.numberOfLines = 2
         foot.alpha = 0.6
@@ -322,7 +527,7 @@ final class SettingsViewController: MenuScreenBase {
     /// phosphor .primary). Nothing but the sound pref survives.
     private func confirmReset() {
         flow.prompt.show("Reset ALL progress?",
-                         help: "Campaign, decks, unlocks, stats and the tutorial are wiped — only the sound setting survives.",
+                         help: "Campaign, decks, unlocks, stats and the tutorial are wiped. Only the sound setting survives.",
                          actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.flow.prompt.hide() },
             .init("Reset", role: .cta) { [weak self] in self?.confirmResetFinal() },
@@ -331,7 +536,7 @@ final class SettingsViewController: MenuScreenBase {
 
     private func confirmResetFinal() {
         flow.prompt.show("Really erase everything?",
-                         help: "The campaign, decks, unlocks, stats and tutorial all reset — this can't be undone.",
+                         help: "The campaign, decks, unlocks, stats and tutorial all reset. This can't be undone.",
                          actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.flow.prompt.hide() },
             .init("Erase everything", role: .cta) { [weak self] in
@@ -346,13 +551,20 @@ final class SettingsViewController: MenuScreenBase {
 // MARK: - Deck select
 
 final class DeckSelectViewController: MenuScreenBase {
+    /// Left-edge swipe = the ← control.
+    override var backGestureAction: (() -> Void)? { { [weak self] in self?.flow.showMenu() } }
+
     private var deckIndex = 0
     private var tierIndex = 0
     private let tiers = DifficultyData.tierIds
     private var seedField: UITextField?
     private var seedNote: UILabel?
-    private var seedOpen = false
-    private let backButton = PixelButtonView("←", role: .plain, fontSize: 16)
+    private var startButton: PixelButtonView?
+    private let backButton = PixelButtonView("←", role: .plain, fontSize: 20)
+
+    private func seedFieldText() -> String {
+        (seedField?.text ?? "").trimmingCharacters(in: .whitespaces)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -360,11 +572,23 @@ final class DeckSelectViewController: MenuScreenBase {
         // pan-x) — kill the inherited menu scroll's vertical drag/bounce.
         scroll.isScrollEnabled = false
         scroll.alwaysBounceVertical = false
-        // Land on the furthest unlocked deck.
-        deckIndex = GameFlowController.decks.lastIndex { deckUnlocked($0) } ?? 0
+        // A tap anywhere OFF the seed field puts the keyboard away — the
+        // recognizer never cancels the touch, so buttons still fire.
+        let dismiss = UITapGestureRecognizer(target: self, action: #selector(tapAnywhere))
+        dismiss.cancelsTouchesInView = false
+        view.addGestureRecognizer(dismiss)
+        // Keyboard avoidance for the seed field: the screen LIFTS by the
+        // covered amount while typing, and settles back on dismiss.
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)),
+                                               name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide),
+                                               name: UIResponder.keyboardWillHideNotification, object: nil)
+        // Always open on PINKY. Landing on the furthest unlocked deck meant a
+        // veteran never saw the starter character without swiping back.
+        deckIndex = 0
         // The corner back arrow + a swipe carousel, like the web.
         backButton.onTap = { [weak self] in self?.flow.showMenu() }
-        backButton.frame = CGRect(x: 8, y: 8, width: 34, height: 30)  // real y: viewDidLayoutSubviews
+        backButton.frame = CGRect(x: 8, y: 8, width: 48, height: 40)  // real y: viewDidLayoutSubviews
         view.addSubview(backButton)
         let left = UISwipeGestureRecognizer(target: self, action: #selector(swipeLeft))
         left.direction = .left
@@ -372,6 +596,9 @@ final class DeckSelectViewController: MenuScreenBase {
         let right = UISwipeGestureRecognizer(target: self, action: #selector(swipeRight))
         right.direction = .right
         view.addGestureRecognizer(right)
+        // A drag that STARTS at the left edge means "go back", not "previous
+        // deck" — the carousel yields to it.
+        if let edge = backEdgePan { right.require(toFail: edge) }
         build()
     }
 
@@ -385,146 +612,33 @@ final class DeckSelectViewController: MenuScreenBase {
 
     private func tierUnlocked(_ tier: String, deck: GameFlowController.DeckInfo) -> Bool {
         switch tier {
-        case "master": return flow.campaign.deckUnlocks.wonWithTier(deck.id, "regular")
-        case "legendary": return flow.campaign.deckUnlocks.wonWithTier(deck.id, "master")
+        // Legendary opens on the deck's NORMAL win (the Master rung is retired).
+        case "legendary": return flow.campaign.deckUnlocks.wonWithTier(deck.id, "regular")
         default: return true
         }
     }
 
-    private func build() {
-        resetLayout()
-        // The web: "CHOOSE YOUR DECK" top · big character mid-page · name +
-        // tagline · tier chips with 'Beat X' subs · START CLIMB · pager dots ·
-        // 'Have a seed?' link.
-        addGap(10)
-        addTitle("CHOOSE YOUR DECK", size: 15)
+    // MARK: - Layout (v6.46 "Marquee")
 
-        let d = GameFlowController.decks[deckIndex]
-        let unlocked = deckUnlocked(d)
+    private var seedExpanded = false
+    /// One-shot: the keyboard may appear ONLY on a direct tap of the seed
+    /// affordance. Rebuilds (tier taps, deck swipes) must never re-summon it
+    /// just because the expanded field happens to be empty.
+    private var seedWantsFocus = false
+    /// True during a MEASURING pass (EXACTFIT1) — a throwaway build must
+    /// neither consume `seedWantsFocus` nor focus a field it's discarding.
+    private var seedSuppressFocus = false
 
-        addGap(160)
-        let row = UIView()
-        let art = DeckCharacter.image(deckId: d.id, mood: .idle,
-                                      scale: 4, tier: tiers[tierIndex])
-        // Locked decks show the character's OUTLINE only (the web's
-        // brightness(0) silhouette), never the greyed-out full art.
-        let sprite = UIImageView(image: unlocked ? art : CollectionViewController.silhouette(art))
-        sprite.contentMode = .scaleAspectFit
-        sprite.layer.magnificationFilter = .nearest
-        sprite.alpha = unlocked ? 1 : 0.72
-        sprite.frame = CGRect(x: (view.bounds.width - 128) / 2, y: 0, width: 128, height: 128)
-        sprite.tag = 777            // cycleDeck finds the sprite for the perk animation
-        row.addSubview(sprite)
-        if !unlocked {
-            let q = CRTKit.label("?", size: 40, color: CRT.muted, display: true)
-            q.textAlignment = .center
-            q.frame = CGRect(x: (view.bounds.width - 60) / 2, y: 36, width: 60, height: 56)
-            row.addSubview(q)
-        }
-        addView(row, height: 132)
-        addGap(20)
-        let name = CRTKit.label(unlocked ? d.name : "???", size: 21,
-                                color: unlocked ? CRT.cardFace : CRT.muted, display: true)
-        name.textAlignment = .center
-        name.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 26)
-        let nw = UIView(); nw.addSubview(name)
-        addView(nw, height: 28)
-        addText(unlocked ? d.sub : (d.unlockNote ?? "Locked"), size: 13)
-        addGap(35)
+    /// Shared: the deck art + lock state for the current selection.
+    private func heroImage(_ d: GameFlowController.DeckInfo, unlocked: Bool, scale: Int) -> UIImage {
+        let beatenHere = flow.campaign.deckUnlocks.wonWithTier(d.id, tiers[tierIndex])
+        let art = DeckCharacter.image(deckId: d.id, mood: beatenHere ? .idle : .sad,
+                                      scale: scale, tier: tiers[tierIndex])
+        return unlocked ? art : CollectionViewController.silhouette(art)
+    }
 
-        // Tier chips: selected = phosphor outline; locked = dim with the
-        // 'Beat X' sub-line; every chip carries the per-deck/tier BEST score
-        // (native-only — the web has no per-character score).
-        let tierRow = UIView()
-        let tw = (view.bounds.width - 100) / 3
-        let subs = ["", "Beat Regular", "Beat Master"]
-        let bests = flow.campaign.stats.get().deckTierBest
-        for (i, t) in tiers.enumerated() {
-            let open = unlocked && tierUnlocked(t, deck: d)
-            let won = flow.campaign.deckUnlocks.wonWithTier(d.id, t)
-            let chip = PixelButtonView("", role: i == tierIndex ? .charged : .plain, fontSize: 12)
-            chip.isEnabled = open
-            chip.accessibilityLabel = t.uppercased()
-            chip.onTap = { [weak self] in
-                self?.tierIndex = i
-                self?.build()
-            }
-            chip.frame = CGRect(x: 50 + CGFloat(i) * (tw + 8), y: 0, width: tw, height: 56)
-            tierRow.addSubview(chip)
-            let tl = CRTKit.label(t.capitalized + (won ? " ✓" : ""), size: 13,
-                                  color: open ? CRT.cardFace : CRT.disabledText)
-            tl.textAlignment = .center
-            tl.frame = CGRect(x: 0, y: 3, width: tw, height: 17)
-            tl.isUserInteractionEnabled = false
-            chip.addSubview(tl)
-            if i > 0 {
-                // 12pt floor: the web's 11px sub rides a taller line box.
-                let sub = UILabel()
-                sub.attributedText = NSAttributedString(
-                    string: subs[i],
-                    attributes: [.font: UIFont(descriptor: CRT.Font.of(12).fontDescriptor.withSymbolicTraits(.traitItalic) ?? CRT.Font.of(12).fontDescriptor, size: 12),
-                                 .foregroundColor: open ? CRT.muted : CRT.disabledText])
-                sub.textAlignment = .center
-                sub.frame = CGRect(x: 0, y: 20, width: tw, height: 15)
-                sub.isUserInteractionEnabled = false
-                chip.addSubview(sub)
-            }
-            let best = bests["\(d.id).\(t)"]
-            let bl = CRTKit.label(best.map { "BEST \($0)" } ?? "BEST —", size: 12,
-                                  color: !open ? CRT.disabledText : (best != nil ? CRT.gold : CRT.muted))
-            bl.textAlignment = .center
-            bl.frame = CGRect(x: 0, y: 36, width: tw, height: 15)
-            bl.isUserInteractionEnabled = false
-            chip.addSubview(bl)
-        }
-        addView(tierRow, height: 62)
-        addGap(8)
-
-        addGap(3)
-        let start = PixelButtonView("START CLIMB", role: .cta, fontSize: 18)
-        start.isEnabled = unlocked && tierUnlocked(tiers[tierIndex], deck: d)
-        start.onTap = { [weak self] in self?.startClimb() }
-        start.frame = CGRect(x: (view.bounds.width - 214) / 2, y: layoutY, width: 214, height: 54)
-        content.addSubview(start)
-        addGap(66)
-
-        // Seed entry, tucked behind the 'Have a seed?' link (exhibition rule).
-        if seedOpen {
-            let seedPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
-            let field = UITextField()
-            field.font = CRT.Font.of(18)
-            field.textColor = CRT.gold
-            field.autocapitalizationType = .allCharacters
-            field.autocorrectionType = .no
-            field.spellCheckingType = .no
-            field.attributedPlaceholder = CRTKit.attributed("ABC2345", size: 16, color: CRT.disabledText)
-            field.textAlignment = .center
-            // Web input maxlength=7 (the SeedCode alphabet is fixed-width):
-            // enforced live in seedEdited, which also drives the note below.
-            field.addTarget(self, action: #selector(seedEdited), for: .editingChanged)
-            field.frame = CGRect(x: 10, y: 6, width: view.bounds.width - 140 - 20, height: 30)
-            seedPanel.addSubview(field)
-            seedField = field
-            seedPanel.frame = CGRect(x: 70, y: layoutY, width: view.bounds.width - 140, height: 42)
-            content.addSubview(seedPanel)
-            addGap(46)
-            // Live validation note (web updateSeedNote, index.html:25036):
-            // ok on a valid code, err while typing / on a full-but-bad code.
-            let note = CRTKit.label("", size: 12, color: CRT.muted)
-            note.textAlignment = .center
-            note.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 16)
-            content.addSubview(note)
-            seedNote = note
-            addGap(20)
-            addText("A seeded climb is an EXHIBITION — nothing banks.", size: 12)
-        }
-
-        // Pager dots + 'Have a seed?' — the web bottom-ANCHORS these (~92% /
-        // ~96% of the screen), so they live on the view, not in the content
-        // flow; positionPager() pins them on every layout.
+    private func addPagerDots() {
         dotsRow?.removeFromSuperview()
-        seedLink?.removeFromSuperview()
-        seedLink = nil
         let dots = UIView()
         for (i, _) in GameFlowController.decks.enumerated() {
             let dot = UIView(frame: CGRect(x: view.bounds.width / 2 - 30 + CGFloat(i) * 16, y: 0, width: 8, height: 8))
@@ -532,56 +646,322 @@ final class DeckSelectViewController: MenuScreenBase {
             dot.layer.borderWidth = 1
             dot.layer.borderColor = CRT.ink.cgColor
             dot.layer.cornerRadius = 4   // the sanctioned pager-dot circle
-            if i == deckIndex { dot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25) }  // web: active dot scale 1.25
+            if i == deckIndex { dot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25) }
             dots.addSubview(dot)
         }
         view.addSubview(dots)
         dotsRow = dots
-        if !seedOpen {
-            let link = UIButton(type: .custom)
-            link.setAttributedTitle(NSAttributedString(
-                string: "Have a seed?",
-                attributes: [.font: CRT.Font.of(15), .foregroundColor: CRT.cardFace,
-                             .underlineStyle: NSUnderlineStyle.single.rawValue]), for: .normal)
-            link.addAction(UIAction { [weak self] _ in
-                self?.seedOpen = true
-                self?.build()
-            }, for: .touchUpInside)
-            view.addSubview(link)
-            seedLink = link
-        }
         positionPager()
         view.setNeedsLayout()
     }
 
+    /// Shared: the seed affordance as a SECONDARY, collapsed-by-default row.
+    /// Collapsed: one dim caption link. Expanded: the field + live note. The
+    /// exhibition warning lives INSIDE the expanded block, so the resting
+    /// screen carries no fine print at all.
+    private func addSeedAffordance() {
+        let keptSeed = seedFieldText()
+        if !keptSeed.isEmpty { seedExpanded = true }
+        guard seedExpanded else {
+            let link = PixelButtonView("HAVE A SEED?", role: .plain, fontSize: 14)
+            link.onTap = { [weak self] in
+                self?.seedExpanded = true
+                self?.seedWantsFocus = true
+                self?.build()
+            }
+            link.frame = CGRect(x: (view.bounds.width - 170) / 2, y: layoutY, width: 170, height: 34)
+            content.addSubview(link)
+            addGap(38)
+            return
+        }
+        let seedPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
+        let field = UITextField()
+        field.font = CRT.Font.of(18)
+        field.textColor = CRT.gold
+        field.autocapitalizationType = .allCharacters
+        field.autocorrectionType = .no
+        field.spellCheckingType = .no
+        field.attributedPlaceholder = CRTKit.attributed("ABC2345", size: 16, color: CRT.disabledText)
+        field.textAlignment = .center
+        field.addTarget(self, action: #selector(seedEdited), for: .editingChanged)
+        field.frame = CGRect(x: 10, y: 6, width: view.bounds.width - 160 - 20, height: 30)
+        field.text = keptSeed
+        seedPanel.addSubview(field)
+        seedField = field
+        seedPanel.frame = CGRect(x: 80, y: layoutY, width: view.bounds.width - 160, height: 42)
+        content.addSubview(seedPanel)
+        addGap(48)
+        let note = CRTKit.label("", size: 14, color: CRT.muted)
+        note.textAlignment = .center
+        note.frame = CGRect(x: 24, y: layoutY, width: view.bounds.width - 48, height: 16)
+        content.addSubview(note)
+        seedNote = note
+        updateSeedNote()
+        addGap(20)
+        addText("Seeded climbs are exhibitions. No records, no unlocks.", size: 14)
+        if seedWantsFocus, !seedSuppressFocus {
+            seedWantsFocus = false
+            field.becomeFirstResponder()
+        }
+    }
+
+    /// THE deck-select layout (v6.46 "Marquee" redesign): hero on top under
+    /// the title with carousel arrows, identity block, arcade BEST readout,
+    /// two big tier chips carrying pixel-art marks, a full-width START, seed
+    /// collapsed below. Structural gaps are computed from the screen height,
+    /// so the composition fills the full screen with deliberate rhythm
+    /// instead of pooling low.
+    /// SAFEINSET1 + EXACTFIT1: the screen must (a) always be built against
+    /// the REAL safe-area insets — viewDidLoad runs with zeros, and seams
+    /// baked from them put the title in the Dynamic Island — and (b) fit
+    /// `avail` EXACTLY. A hand-kept height budget drifted 48pt once, which
+    /// silently engaged the base class's scale-to-fit transform; the deck
+    /// carousel's slide animation then stomped that transform to identity,
+    /// growing the content around its centre and shoving the title into the
+    /// island after every swipe. So: pass 1 builds with floor seams to
+    /// MEASURE the natural height, pass 2 distributes the true leftover —
+    /// content height == avail, the scale branch never engages, and there is
+    /// no transform for the slide to fight.
+    private func build() {
+        builtInsetSignature = currentInsetSignature()
+        // The bottom margin RESERVES the pager-dot band: the dots pin to the
+        // screen bottom outside the content flow (positionPager), so the
+        // content must stop clear of them — 30pt left them touching the seed
+        // affordance's shadow on every device (v6.49 bugfix).
+        let avail = view.bounds.height - view.safeAreaInsets.top - view.safeAreaInsets.bottom - 54
+        buildPass(slack: 0, measuring: true)
+        let trueFixed = layoutY - CGFloat(Self.seamShares.count) * 8   // strip the floor seams
+        var slack = max(0, avail - trueFixed)
+        buildPass(slack: slack, measuring: false)
+        // Tiny screens: a seam pinned at its 8pt floor can overshoot — take
+        // the overshoot back out of the slack once.
+        if layoutY > avail, slack > 0 {
+            slack = max(0, slack - (layoutY - avail))
+            buildPass(slack: slack, measuring: false)
+        }
+    }
+
+    /// The section-seam shares, in build order (they sum to 1.0).
+    private static let seamShares: [CGFloat] = [0.16, 0.10, 0.22, 0.32, 0.20]
+
+    private func buildPass(slack: CGFloat, measuring: Bool) {
+        resetLayout()
+        let d = GameFlowController.decks[deckIndex]
+        let unlocked = deckUnlocked(d)
+        let W = view.bounds.width
+        var seamIndex = 0
+        func seam(_ share: CGFloat) {
+            _ = seamIndex; seamIndex += 1
+            addGap(max(8, slack * share))
+        }
+        self.seedSuppressFocus = measuring
+
+        addGap(6)
+        addTitle("CHOOSE YOUR DECK", size: 16)
+        seam(0.16)
+
+        // HERO: the character at 5× with the carousel arrows beside it.
+        let hero = UIView()
+        let sprite = UIImageView(image: heroImage(d, unlocked: unlocked, scale: 5))
+        sprite.contentMode = .scaleAspectFit
+        sprite.layer.magnificationFilter = .nearest
+        sprite.alpha = unlocked ? 1 : 0.72
+        sprite.frame = CGRect(x: (W - 160) / 2, y: 0, width: 160, height: 160)
+        sprite.tag = 777
+        hero.addSubview(sprite)
+        if !unlocked {
+            let q = CRTKit.label("?", size: 40, color: CRT.muted, display: true)
+            q.textAlignment = .center
+            q.frame = CGRect(x: (W - 60) / 2, y: 52, width: 60, height: 56)
+            hero.addSubview(q)
+        }
+        let prev = PixelButtonView("‹", role: .plain, fontSize: 22)
+        prev.onTap = { [weak self] in self?.cycleDeck(-1) }
+        prev.frame = CGRect(x: 22, y: 58, width: 44, height: 44)
+        hero.addSubview(prev)
+        let next = PixelButtonView("›", role: .plain, fontSize: 22)
+        next.onTap = { [weak self] in self?.cycleDeck(1) }
+        next.frame = CGRect(x: W - 66, y: 58, width: 44, height: 44)
+        hero.addSubview(next)
+        addView(hero, height: 168)
+        seam(0.10)
+
+        // IDENTITY: name + mission at reading sizes.
+        let name = CRTKit.label(unlocked ? d.name : "???", size: 26,
+                                color: unlocked ? CRT.cardFace : CRT.muted, display: true)
+        name.textAlignment = .center
+        name.frame = CGRect(x: 0, y: 0, width: W, height: 32)
+        let nw = UIView(); nw.addSubview(name)
+        addView(nw, height: 34)
+        addGap(4)
+        let prevUnlocked = deckIndex == 0 || deckUnlocked(GameFlowController.decks[deckIndex - 1])
+        addText(unlocked ? d.sub : (prevUnlocked ? (d.unlockNote ?? "Locked") : "???"),
+                size: 16, color: unlocked ? CRT.cardFace : CRT.muted)
+        addGap(10)
+        // HIGH SCORE: the ARCADE readout — the game-over screen's score
+        // treatment (tracked caps label over a big glowing numeral). ONE
+        // number (v6.47): the score is a single continuous run total, endless
+        // included, so there is exactly one record per deck+tier. Always
+        // reserved, so START never shifts between decks; hidden entirely
+        // until the combo has recorded a score.
+        let bestRow = UIView()
+        if unlocked, let best = flow.campaign.stats.get().deckTierBest["\(d.id).\(tiers[tierIndex])"] {
+            let cap = UILabel()
+            cap.attributedText = NSAttributedString(
+                string: "HIGH SCORE",
+                attributes: [.font: CRT.Font.of(14, display: true),
+                             .foregroundColor: CRT.muted, .kern: 3])
+            cap.textAlignment = .center
+            cap.frame = CGRect(x: 0, y: 0, width: W, height: 18)
+            bestRow.addSubview(cap)
+            let num = CRTKit.label("\(best)", size: 34, color: CRT.phosphor,
+                                   display: true, glow: true)
+            num.textAlignment = .center
+            num.frame = CGRect(x: 0, y: 22, width: W, height: 38)
+            bestRow.addSubview(num)
+        }
+        addView(bestRow, height: 62)
+        seam(0.22)
+
+        // TIERS: two big chips, pixel-art marks (styleguide §3b: no system
+        // glyphs) — gold check cleared, dim cross uncleared, padlock locked.
+        let tierRow = UIView()
+        let tw: CGFloat = 150
+        let rowW = CGFloat(tiers.count) * tw + CGFloat(tiers.count - 1) * 14
+        let tierX0 = (W - rowW) / 2
+        for (i, t) in tiers.enumerated() {
+            let open = unlocked && tierUnlocked(t, deck: d)
+            let won = flow.campaign.deckUnlocks.wonWithTier(d.id, t)
+            let chip = PixelButtonView("", role: i == tierIndex ? .charged : .plain, fontSize: 14)
+            chip.isEnabled = open
+            chip.accessibilityLabel = t.uppercased()
+            chip.onTap = { [weak self] in
+                self?.tierIndex = i
+                self?.build()
+            }
+            chip.frame = CGRect(x: tierX0 + CGFloat(i) * (tw + 14), y: 0, width: tw, height: 100)
+            tierRow.addSubview(chip)
+            let tl = CRTKit.label(GameData.shared.difficulty.tier(t).label, size: 18,
+                                  color: open ? CRT.cardFace : CRT.disabledText)
+            tl.textAlignment = .center
+            tl.frame = CGRect(x: 0, y: 10, width: tw, height: 22)
+            tl.isUserInteractionEnabled = false
+            chip.addSubview(tl)
+            // Marks: gold check = cleared; empty ring = the slot a check will
+            // fill; padlock = locked. Never a system glyph (styleguide §3b).
+            let markImg = !open ? PixelGlyph.lockImage() : (won ? PixelGlyph.checkImage() : PixelGlyph.ringImage())
+            let mark = UIImageView(image: markImg)
+            mark.layer.magnificationFilter = .nearest
+            mark.contentMode = .center
+            mark.frame = CGRect(x: 0, y: 38, width: tw, height: 30)
+            mark.isUserInteractionEnabled = false
+            chip.addSubview(mark)
+            let subText = !open ? "Beat " + GameData.shared.difficulty.tier(tiers[max(0, i - 1)]).label
+                                : (won ? "Cleared" : "Not yet")
+            let sub = CRTKit.label(subText, size: 14, color: open ? CRT.muted : CRT.disabledText)
+            sub.textAlignment = .center
+            sub.frame = CGRect(x: 0, y: 72, width: tw, height: 16)
+            sub.isUserInteractionEnabled = false
+            chip.addSubview(sub)
+        }
+        addView(tierRow, height: 100)
+        seam(0.32)
+
+        // START: the menu-family full-width CTA.
+        let start = PixelButtonView(seedFieldText().isEmpty ? "START CLIMB" : "START SEEDED CLIMB",
+                                    role: .cta, fontSize: 20)
+        startButton = start
+        start.isEnabled = unlocked && tierUnlocked(tiers[tierIndex], deck: d)
+        start.onTap = { [weak self] in self?.startClimb() }
+        start.frame = CGRect(x: 46, y: layoutY, width: W - 92, height: 58)
+        content.addSubview(start)
+        addGap(58 + 12)
+        seam(0.20)
+        addSeedAffordance()
+        addPagerDots()
+    }
+
     private var dotsRow: UIView?
-    private var seedLink: UIButton?
 
     private func positionPager() {
         let w = view.bounds.width, h = view.bounds.height
         guard w > 0, h > 0 else { return }
-        dotsRow?.frame = CGRect(x: 0, y: h * 0.92 - 4, width: w, height: 8)
-        // Never let the seed link's tap target graze the home-indicator zone
-        // (on 932pt screens 0.96h lands ~8pt inside it).
-        seedLink?.frame = CGRect(x: 0, y: min(h * 0.96 - 11, h - max(view.safeAreaInsets.bottom, 12) - 26),
-                                 width: w, height: 22)
+        // Below the exhibition sentence, above the home indicator.
+        dotsRow?.frame = CGRect(x: 0, y: h - max(view.safeAreaInsets.bottom, 12) - 14,
+                                width: w, height: 8)
+    }
+
+    /// The safe-area signature the CONTENT was last built against. The
+    /// structural seams are computed from the insets at build() time, and
+    /// viewDidLoad runs with insets 0 — so the first build is laid out for a
+    /// notchless screen and the title rides into the Dynamic Island until
+    /// something forces a rebuild (which is why a tier tap used to "fix" it).
+    /// SAFEINSET1: the same class of bug as the earlier nav-button one — any
+    /// value BAKED at build time from `safeAreaInsets` must rebuild when the
+    /// real insets arrive. (The base class only repositions; it cannot know
+    /// the seams are stale.) Swept the other menu screens: deck select is the
+    /// only one that bakes insets into content — the rest read them live.
+    private var builtInsetSignature: CGFloat = -1
+    private func currentInsetSignature() -> CGFloat {
+        view.safeAreaInsets.top * 1000 + view.safeAreaInsets.bottom
     }
 
     override func viewDidLayoutSubviews() {
+        // Rebuild BEFORE super positions the content, so the first rendered
+        // frame is already the final layout — no shift, ever.
+        if builtInsetSignature != currentInsetSignature() {
+            build()
+        }
         super.viewDidLayoutSubviews()
         // Web .nav-btn: always just BELOW the safe-area inset (insets are 0
         // at viewDidLoad, so the floating buttons land here).
-        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 34, height: 30)
+        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 48, height: 40)
         positionPager()
     }
 
     /// Web: the input is maxlength=7 — the SeedCode alphabet is 7 chars — so
     /// typing past the code truncates (and uppercases) on the spot.
+    /// How far the screen is LIFTED so the seed field clears the keyboard.
+    /// Rides `contentTopInset`, so the base layout applies it on every pass —
+    /// a transform got silently flattened by the container's layout.
+    private var keyboardLift: CGFloat = 0
+    override var contentTopInset: CGFloat { super.contentTopInset - keyboardLift }
+
+    @objc private func tapAnywhere(_ g: UITapGestureRecognizer) {
+        guard let field = seedField, field.isFirstResponder else { return }
+        if !field.bounds.contains(g.location(in: field)) { view.endEditing(true) }
+    }
+
+    @objc private func keyboardWillShow(_ n: Notification) {
+        guard let field = seedField, field.isFirstResponder,
+              let kb = (n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+        else { return }
+        keyboardLift = 0
+        view.setNeedsLayout(); view.layoutIfNeeded()   // measure from the resting layout
+        let fieldRect = field.convert(field.bounds, to: view)
+        let overlap = fieldRect.maxY + 12 - (view.bounds.height - kb.height)
+        guard overlap > 0 else { return }
+        keyboardLift = overlap
+        UIView.animate(withDuration: 0.25) {
+            self.view.setNeedsLayout(); self.view.layoutIfNeeded()
+        }
+    }
+
+    @objc private func keyboardWillHide() {
+        keyboardLift = 0
+        UIView.animate(withDuration: 0.25) {
+            self.view.setNeedsLayout(); self.view.layoutIfNeeded()
+        }
+    }
+
     @objc private func seedEdited() {
         guard let field = seedField else { return }
         var v = (field.text ?? "").uppercased()
-        if v.count > SeedCode.length { v = String(v.prefix(SeedCode.length)) }
+        // Room for the full share string ("PINKY-REGULAR-XK4T9QD") — the old
+        // 7-char clamp truncated a paste to "PINKY-R" and rejected it.
+        if v.count > 24 { v = String(v.prefix(24)) }
         if field.text != v { field.text = v }
+        startButton?.setTitle(v.isEmpty ? "START CLIMB" : "START SEEDED CLIMB")
         updateSeedNote()
     }
 
@@ -593,11 +973,12 @@ final class DeckSelectViewController: MenuScreenBase {
         let v = seedField?.text?.trimmingCharacters(in: .whitespaces) ?? ""
         if v.isEmpty { note.attributedText = nil; return }
         if SeedCode.decode(v) != nil {
-            note.attributedText = CRTKit.attributed("Seeded climb — progression disabled",
-                                                    size: 12, color: CRT.phosphor)
+            note.attributedText = CRTKit.attributed("Seeded climb · progression disabled",
+                                                    size: 14, color: CRT.phosphor)
         } else {
-            let msg = v.count < SeedCode.length ? "Keep typing — 7 characters" : "Not a valid seed code"
-            note.attributedText = CRTKit.attributed(msg, size: 12, color: CRT.suitRed)
+            let tail = v.split(separator: "-").last.map(String.init) ?? v
+            let msg = tail.count < SeedCode.length ? "Keep typing. 7 characters" : "Not a valid seed code"
+            note.attributedText = CRTKit.attributed(msg, size: 14, color: CRT.suitRed)
         }
     }
 
@@ -663,8 +1044,11 @@ final class DeckSelectViewController: MenuScreenBase {
 // MARK: - Zen select
 
 final class ZenSelectViewController: MenuScreenBase {
+    /// Left-edge swipe = the ← control.
+    override var backGestureAction: (() -> Void)? { { [weak self] in self?.flow.showMenu() } }
+
     private var picked: String?
-    private let backButton = PixelButtonView("←", role: .plain, fontSize: 16)
+    private let backButton = PixelButtonView("←", role: .plain, fontSize: 20)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -674,14 +1058,14 @@ final class ZenSelectViewController: MenuScreenBase {
 
     private func buildCorner() {
         backButton.onTap = { [weak self] in self?.flow.showMenu() }
-        backButton.frame = CGRect(x: 8, y: 8, width: 34, height: 30)  // real y: viewDidLayoutSubviews
+        backButton.frame = CGRect(x: 8, y: 8, width: 48, height: 40)  // real y: viewDidLayoutSubviews
         view.addSubview(backButton)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         // Web .nav-btn: always just BELOW the safe-area inset.
-        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 34, height: 30)
+        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 48, height: 40)
     }
 
     override var centersContentVertically: Bool { true }
@@ -690,12 +1074,17 @@ final class ZenSelectViewController: MenuScreenBase {
         resetLayout()
         // The web zen select: the block (title mid-page, three ROWS, START)
         // is vertically centred; rows pitch 79pt, a wider gap before START.
-        addTitle("ZEN", size: 15)
+        addTitle("ZEN", size: 16)
         for (i, id) in GameData.shared.difficulty.zenIds.enumerated() {
             let z = GameData.shared.difficulty.zen(id)
             let e = flow.campaign.zenStats.get(id)
             let unlocked = flow.campaign.zenUnlocks.unlocked(id)
-            let row = PixelButtonView("", role: picked == id ? .charged : .plain, fontSize: 15)
+            // FIRST TIME IN: Easy glows green (like Zen on the menu) so the
+            // brand-new player knows exactly where to go.
+            let firstTime = flow.campaign.saveStore.pref("tutorial2") != "1"
+            let role: PixelButtonView.Role = picked == id ? .charged
+                : (firstTime && id == "easy" && picked == nil ? .cta : .plain)
+            let row = PixelButtonView("", role: role, fontSize: 16)
             row.isEnabled = unlocked
             row.accessibilityLabel = z.label.uppercased()
             row.onTap = { [weak self] in
@@ -704,15 +1093,23 @@ final class ZenSelectViewController: MenuScreenBase {
             }
             row.frame = CGRect(x: 32, y: layoutY, width: view.bounds.width - 64, height: 72)
             content.addSubview(row)
-            let name = CRTKit.label(z.label, size: 17, color: unlocked ? CRT.cardFace : CRT.disabledText, display: true)
+            // The MAIN MENU's button text, not a second style: uppercased,
+            // the plain button face, and the ROLE's own text colour (ink on
+            // the green) — the rows used to overlay white display-font labels.
+            let rowText: UIColor = !unlocked ? CRT.disabledText
+                : role == .cta ? CRT.ink
+                : role == .charged ? CRT.phosphor : CRT.cardFace
+            let name = CRTKit.label(z.label.uppercased(), size: 18, color: rowText)
             name.textAlignment = .center
             name.frame = CGRect(x: 0, y: 8, width: row.bounds.width, height: 22)
             name.isUserInteractionEnabled = false
             row.addSubview(name)
+            let secondary: UIColor = !unlocked ? CRT.disabledText
+                : role == .cta ? CRT.ink.withAlphaComponent(0.75) : CRT.muted
             // Live off the zen config (web: suitCount × 13) — a difficulty.js
             // retune can never desync the label.
             let sub = CRTKit.label("\(z.suitCount * 13) cards · \(z.piles) piles",
-                                   size: 13, color: unlocked ? CRT.muted : CRT.disabledText)
+                                   size: 14, color: secondary)
             sub.textAlignment = .center
             sub.frame = CGRect(x: 0, y: 32, width: row.bounds.width, height: 16)
             sub.isUserInteractionEnabled = false
@@ -728,7 +1125,7 @@ final class ZenSelectViewController: MenuScreenBase {
             } else {
                 third = "\(e.wins) win\(e.wins == 1 ? "" : "s")"
             }
-            let line3 = CRTKit.label(third, size: 12, color: unlocked ? CRT.cardFace : CRT.disabledText)
+            let line3 = CRTKit.label(third, size: 14, color: unlocked ? CRT.cardFace : CRT.disabledText)
             line3.textAlignment = .center
             line3.frame = CGRect(x: 0, y: 48, width: row.bounds.width, height: 16)
             line3.isUserInteractionEnabled = false
@@ -748,12 +1145,15 @@ final class ZenSelectViewController: MenuScreenBase {
 // MARK: - Collection
 
 final class CollectionViewController: MenuScreenBase {
+    /// Left-edge swipe = the ← control.
+    override var backGestureAction: (() -> Void)? { { [weak self] in self?.flow.showMenu() } }
+
     /// Web #collectionScreen: the header rides at the very top — title glyphs
     /// at ~24pt, STICKERS head at ~55pt, first tile row at ~77pt. On notched
     /// phones the header must still start BELOW the Dynamic Island.
     override var contentTopInset: CGFloat { max(12, view.safeAreaInsets.top) }
 
-    private let backButton = PixelButtonView("←", role: .plain, fontSize: 16)
+    private let backButton = PixelButtonView("←", role: .plain, fontSize: 20)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -761,7 +1161,7 @@ final class CollectionViewController: MenuScreenBase {
         // heads, 3-col pixel-panel tiles. Locked = ink silhouette + "?" + the
         // unlock hint with its live phosphor progress bar and "n / m" count.
         backButton.onTap = { [weak self] in self?.flow.showMenu() }
-        backButton.frame = CGRect(x: 8, y: 8, width: 34, height: 30)  // real y: viewDidLayoutSubviews
+        backButton.frame = CGRect(x: 8, y: 8, width: 48, height: 40)  // real y: viewDidLayoutSubviews
         view.addSubview(backButton)
         build()
     }
@@ -769,18 +1169,19 @@ final class CollectionViewController: MenuScreenBase {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         // Web .nav-btn: always just BELOW the safe-area inset.
-        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 34, height: 30)
+        backButton.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 4, width: 48, height: 40)
     }
 
     private func build() {
         resetLayout()
         tileHelp.removeAll()
         addGap(6)
-        addTitle("COLLECTION", size: 15)
+        addTitle("COLLECTION", size: 16)
         addGap(2)
         let unlocks = flow.campaign.itemUnlocks
+        let bought = flow.campaign.stats.get().itemsBought
         for (title, defs, kind) in CollectionViewController.groups() {
-            let head = CRTKit.label(title, size: 12, color: CRT.gold, display: true)
+            let head = CRTKit.label(title, size: 14, color: CRT.gold, display: true)
             head.frame = CGRect(x: 14, y: layoutY, width: 300, height: 18)
             content.addSubview(head)
             addGap(22)
@@ -819,17 +1220,29 @@ final class CollectionViewController: MenuScreenBase {
                     tile.addSubview(cap)
                 }
                 if unlocked {
-                    let name = CRTKit.label(def.label, size: 12, color: CRT.cardFace)
+                    let name = CRTKit.label(def.label, size: 14, color: CRT.cardFace)
                     name.textAlignment = .center
                     name.numberOfLines = 2
                     name.frame = CGRect(x: 4, y: 80, width: cw - 8, height: 30)
                     tile.addSubview(name)
+                    // How often you've actually BOUGHT it. Unlocking only says
+                    // you met the gate once; this says whether the item earned
+                    // a place in your runs. Never bought → the line is absent
+                    // rather than a "×0", which would read as a scolding.
+                    let times = bought[def.id] ?? 0
+                    if times > 0 {
+                        let n = CRTKit.label("BOUGHT ×\(times)", size: 14, color: CRT.gold)
+                        n.textAlignment = .center
+                        n.alpha = 0.85
+                        n.frame = CGRect(x: 4, y: 116, width: cw - 8, height: 15)
+                        tile.addSubview(n)
+                    }
                 } else {
-                    let q = CRTKit.label("?", size: 13, color: CRT.cardFace)
+                    let q = CRTKit.label("?", size: 14, color: CRT.cardFace)
                     q.textAlignment = .center
                     q.frame = CGRect(x: 0, y: 76, width: cw, height: 16)
                     tile.addSubview(q)
-                    let hint = CRTKit.label(unlocks.hint(for: def), size: 12, color: CRT.muted)
+                    let hint = CRTKit.label(unlocks.hint(for: def), size: 14, color: CRT.muted)
                     hint.textAlignment = .center
                     hint.numberOfLines = 2
                     hint.frame = CGRect(x: 4, y: 91, width: cw - 8, height: 30)
@@ -846,7 +1259,7 @@ final class CollectionViewController: MenuScreenBase {
                         fill.backgroundColor = CRT.phosphor
                         bar.addSubview(fill)
                         tile.addSubview(bar)
-                        let count = CRTKit.label("\(cur) / \(total)", size: 12, color: CRT.muted)
+                        let count = CRTKit.label("\(cur) / \(total)", size: 14, color: CRT.muted)
                         count.textAlignment = .center
                         count.frame = CGRect(x: 0, y: 133, width: cw, height: 15)
                         tile.addSubview(count)
@@ -918,7 +1331,7 @@ final class CollectionViewController: MenuScreenBase {
             text += "\n" + (suits.isEmpty ? "Add to any card"
                                           : "Add to any \(suits.joined(separator: " or ")) card")
         }
-        flow.prompt.show(text, help: def.description, actions: [
+        flow.prompt.show(text, help: def.genericDescription, actions: [
             .init("OK", role: .plain) { [weak self] in self?.flow.prompt.hide() },
         ]) { [weak self] in self?.flow.prompt.hide() }
     }
@@ -1054,22 +1467,22 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
     private func render() {
         let (kind, def) = list[index]
         artView.image = ItemArt.forSlot(kind: kind, id: def.id, card: nil, deckId: deckId)
-        nameLabel.attributedText = CRTKit.attributed(def.label, size: 15, color: CRT.cardFace)
-        tierLabel.attributedText = CRTKit.attributed(def.tier.uppercased(), size: 12,
+        nameLabel.attributedText = CRTKit.attributed(def.label, size: 16, color: CRT.cardFace)
+        tierLabel.attributedText = CRTKit.attributed(def.tier.uppercased(), size: 14,
                                                      color: CRT.cardFace.withAlphaComponent(0.7))
         scopeLabel.attributedText = scopeLine(kind: kind, def: def).map {
-            CRTKit.attributed($0, size: 12, color: CRT.cardFace.withAlphaComponent(0.82))
+            CRTKit.attributed($0, size: 14, color: CRT.cardFace.withAlphaComponent(0.82))
         }
-        costLabel.attributedText = CRTKit.attributed("◉ \(Int(def.price))", size: 12, color: CRT.gold)
+        costLabel.attributedText = CRTKit.attributed("◉ \(Int(def.price))", size: 14, color: CRT.gold)
         let desc = NSMutableAttributedString(
-            string: def.description, attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace])
+            string: def.genericDescription, attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace])
         let para = NSMutableParagraphStyle()
         para.lineSpacing = 4   // web line-height 1.34
         desc.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: desc.length))
         descLabel.attributedText = desc
         descScroll.setContentOffset(.zero, animated: false)   // new page reads from the top
         countLabel.attributedText = CRTKit.attributed(
-            "\(index + 1) / \(list.count)", size: 12, color: CRT.cardFace.withAlphaComponent(0.65))
+            "\(index + 1) / \(list.count)", size: 14, color: CRT.cardFace.withAlphaComponent(0.65))
         styleArrow(prevButton, glyph: "◀", enabled: index > 0)
         styleArrow(nextButton, glyph: "▶", enabled: index < list.count - 1)
         setNeedsLayout()

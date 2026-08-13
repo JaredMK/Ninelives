@@ -38,7 +38,7 @@ public final class PackRevealViewController: UIViewController {
     private let msgLabel = UILabel()
     private let deckButton = UIButton(type: .custom)
     private let deckDot = UIView()
-    private let confirmButton = PixelButtonView("Confirm", role: .cta, fontSize: 13)
+    private let confirmButton = PixelButtonView("Confirm", role: .cta, fontSize: 14)
     private let skipButton = UIButton(type: .custom)
     private let infoPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let infoTitle = UILabel()
@@ -102,7 +102,7 @@ public final class PackRevealViewController: UIViewController {
         deckButton.backgroundColor = CRT.feltDeep
         deckButton.layer.borderWidth = CRT.px
         deckButton.layer.borderColor = CRT.ink.cgColor
-        deckButton.setAttributedTitle(CRTKit.attributed("View cards in play", size: 13, color: CRT.cardFace), for: .normal)
+        deckButton.setAttributedTitle(CRTKit.attributed("View cards in play", size: 14, color: CRT.cardFace), for: .normal)
         deckButton.accessibilityLabel = "VIEW CARDS IN PLAY"
         deckButton.addTarget(self, action: #selector(deckTapped), for: .touchUpInside)
         deckDot.backgroundColor = CRT.cardFace
@@ -118,7 +118,7 @@ public final class PackRevealViewController: UIViewController {
         skipButton.backgroundColor = CRT.feltDeep
         skipButton.layer.borderWidth = CRT.px
         skipButton.layer.borderColor = CRT.ink.cgColor
-        skipButton.setAttributedTitle(CRTKit.attributed("Skip (take nothing)", size: 12, color: CRT.muted), for: .normal)
+        skipButton.setAttributedTitle(CRTKit.attributed("Skip (take nothing)", size: 14, color: CRT.muted), for: .normal)
         skipButton.accessibilityLabel = "SKIP"   // legacy label the UI tests tap
         skipButton.addTarget(self, action: #selector(skipTapped), for: .touchUpInside)
         panel.addSubview(skipButton)
@@ -154,7 +154,9 @@ public final class PackRevealViewController: UIViewController {
             case .cards(let cards):
                 // Web `.mini-card` is 52px wide; the nearest native baked face
                 // is c50 (48×67) — baked crisp beats a shimmering upscale.
-                b.setImage(CardArt.image(CardArt.Face(cards[i]), scale: .half), for: .normal)
+                // Drawn WITH its sticker chips: a granted card's marks must be
+                // visible on the face, not only in the hold-help text.
+                b.setImage(CardPickerViewController.cardWithStickers(cards[i], extra: nil), for: .normal)
             case .stickers(let ids):
                 // Web `.pk-sticker`: a recessed felt well (64px, ink border)
                 // holding the 46px vinyl + the sticker's name.
@@ -176,7 +178,7 @@ public final class PackRevealViewController: UIViewController {
                         b.addSubview(cap)
                     }
                     let name = UILabel()
-                    name.attributedText = CRTKit.attributed(def.label, size: 12, color: CRT.cardFace)
+                    name.attributedText = CRTKit.attributed(def.label, size: 14, color: CRT.cardFace)
                     name.textAlignment = .center
                     name.numberOfLines = 2
                     name.isUserInteractionEnabled = false
@@ -223,15 +225,20 @@ public final class PackRevealViewController: UIViewController {
         let cellW = (cw - gap * CGFloat(n - 1)) / CGFloat(n)
         var rowH: CGFloat = 0
         for (i, btn) in itemButtons.enumerated() {
-            let cellX = m + CGFloat(i) * (cellW + gap)
+            // ROW-LOCAL coordinates: these buttons are children of `itemsRow`,
+            // which is itself placed at (m, y). Adding the panel margin here
+            // too shifted every card right by `m` (and down by `y`) — that was
+            // the right-skewed row. Cells tile the row exactly:
+            // n*cellW + (n-1)*gap == cw.
+            let cellX = CGFloat(i) * (cellW + gap)
             switch content {
             case .cards:
                 let w = min(48, cellW), h = w * 67 / 48
-                btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: y + (max(67, rowH) - h) / 2, width: w, height: h)
+                btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: (max(67, rowH) - h) / 2, width: w, height: h)
                 rowH = max(rowH, h)
             case .stickers:
                 let w = min(64, cellW), h: CGFloat = 96
-                btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: y, width: w, height: h)
+                btn.frame = CGRect(x: cellX + (cellW - w) / 2, y: 0, width: w, height: h)
                 if let iv = btn.viewWithTag(101) { iv.frame = CGRect(x: (w - 46) / 2, y: 18, width: 46, height: 46) }
                 if let nl = btn.viewWithTag(102) { nl.frame = CGRect(x: 2, y: 66, width: w - 4, height: 26) }
                 if let cap = btn.viewWithTag(103) {
@@ -243,7 +250,7 @@ public final class PackRevealViewController: UIViewController {
         }
         // Re-centre card buttons vertically once the final row height is known.
         if case .cards = content {
-            for btn in itemButtons { btn.frame.origin.y = y + (rowH - btn.frame.height) / 2 }
+            for btn in itemButtons { btn.frame.origin.y = (rowH - btn.frame.height) / 2 }
         }
         itemsRow.frame = CGRect(x: m, y: y, width: cw, height: rowH)
         // The row breathes on BOTH sides — the cards read centred between the
@@ -296,7 +303,7 @@ public final class PackRevealViewController: UIViewController {
             showRim.isHidden = false
             let m = count
             titleLabel.attributedText = CRTKit.attributed(
-                "\(m) card\(m > 1 ? "s" : "") added", size: 13,
+                "\(m) card\(m > 1 ? "s" : "") added", size: 14,
                 color: CRT.phosphor, display: true, glow: true)
             // No subline — it overlapped the revealed cards and duplicated
             // what "Add to deck" already says.
@@ -316,7 +323,7 @@ public final class PackRevealViewController: UIViewController {
             case .stickers: noun = "sticker"
             }
             titleLabel.attributedText = CRTKit.attributed(
-                "Pick \(keep) \(noun)\(keep > 1 ? "s" : "") to keep", size: 13,
+                "Pick \(keep) \(noun)\(keep > 1 ? "s" : "") to keep", size: 14,
                 color: CRT.phosphor, display: true, glow: true)
             msgLabel.attributedText = nil
             if case .cards = content { deckButton.isHidden = false } else { deckButton.isHidden = true }
@@ -371,9 +378,9 @@ public final class PackRevealViewController: UIViewController {
                 // items.js has NO joker entry (the joker isn't a sellable
                 // item) — the web itself hardcodes this copy
                 // (index.html:29565), so the native mirrors it verbatim.
-                body = "A wild card. Any guess it's part of is SAFE — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power."
+                body = "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power."
             } else if c.blank {
-                title = "∅ Removal"
+                title = "∅ Purge"
                 // The registry description (items.js store.removal) is the
                 // source of truth — never a hand-typed duplicate.
                 body = GameData.shared.items.store.removal.description
@@ -392,8 +399,8 @@ public final class PackRevealViewController: UIViewController {
             }
         }
         infoPanel.isHidden = false
-        infoTitle.attributedText = CRTKit.attributed(title, size: 13, color: CRT.phosphor)
-        infoBody.attributedText = CRTKit.attributed(body, size: 12.5, color: CRT.cardFace)
+        infoTitle.attributedText = CRTKit.attributed(title, size: 16, color: CRT.phosphor)
+        infoBody.attributedText = CRTKit.attributed(body, size: 14, color: CRT.cardFace)
     }
 
     @objc private func deckTapped() {
@@ -402,10 +409,16 @@ public final class PackRevealViewController: UIViewController {
 
     private func confirmTapped() {
         guard confirmButton.isEnabled else { return }
-        dismiss(animated: false)
         // .show keeps `chosen` empty for display; the completion contract
         // still reports every granted index.
-        completion(chosen.isEmpty && isShow ? Array(0..<count) : chosen)
+        let picked = chosen.isEmpty && isShow ? Array(0..<count) : chosen
+        // The completion runs AFTER this modal is fully gone. It typically
+        // presents the next one (the sticker's card picker / the pack-keep
+        // walk), and presenting on a controller whose dismissal is still in
+        // flight is silently dropped by UIKit — which is exactly how a picked
+        // sticker ended up with nowhere to go.
+        let done = completion
+        dismiss(animated: false) { done(picked) }
     }
 
     private var isShow: Bool { if case .show = mode { return true }; return false }

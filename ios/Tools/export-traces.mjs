@@ -16,7 +16,7 @@
 
        node ios/Tools/export-traces.mjs      # → ios/Fixtures/engine-traces.json
 ============================================================================ */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGame } from "../../tests/_harness.mjs";
@@ -26,7 +26,15 @@ const OUT = join(HERE, "..", "Fixtures");
 mkdirSync(OUT, { recursive: true });
 
 const quiet = { log() {}, warn() {}, error: console.error };
-const G = loadGame({ console: quiet });
+// NATIVE-ONLY UNLOCK STATS (ambushesWon / earlyLosses) — counters the Swift
+// port tracks that the web validator rejects. The traces exercise ITEM
+// BEHAVIOR with explicitly-equipped items, never unlock gates, so the
+// native stats swap for a web-legal placeholder before the engine loads
+// (the same pattern as NATIVE_ONLY_* below).
+const itemsSource = readFileSync(join(HERE, "..", "..", "items.js"), "utf8")
+  .replaceAll('"ambushesWon"', '"pilesLost"')
+  .replaceAll('"earlyLosses"', '"pilesLost"');
+const G = loadGame({ console: quiet, itemsSource });
 const { GameEngine, DeckManager, ItemData, StickerTypes, PillarTypes, BaseTypes, SamePowerTypes } = G;
 
 /** The deterministic script: which pile, which call, at each step.
@@ -171,16 +179,42 @@ scenarios.push({ name: "samecharge", seed: 777, piles: 6, steps: 200, sameCharge
 for (const seed of [11, 3003]) {
   scenarios.push({ name: `cols-${seed}`, seed, piles: 10, cols: [3, 4, 3], steps: 200 });
 }
+// Effects the NATIVE engine implements and this one does not. A trace for one
+// would pin the web's "does nothing" as ground truth and fail the Swift replay
+// forever, so they are captured by the Swift unit tests instead of by parity.
+// Adding an effect here is a DELIBERATE act: it means that pillar has no
+// cross-engine coverage at all.
+// secondWind: the native engine rolls a per-death `saveChance` instead of the
+// web's guaranteed first-death save — the rng streams diverge on the first
+// death in the column. Covered by GuessRuleTests.testSecondWind*.
+const NATIVE_ONLY_PILLAR_EFFECTS = new Set(["columnNoneAlive", "secondWind",
+  "rankBury", "rankCoin", "flypaper", "twoWard",
+  "purgeStepDiscount", "freebie", "rareHunter"]);
+// Stickers the native engine implements and this one does not (same contract
+// as the pillar set above): trapdoor drops a pile's bottom card back into the
+// deck on landing. Covered by the Swift unit tests, not by parity.
+const NATIVE_ONLY_STICKER_BEHAVIORS = new Set([
+  "trapdoor",
+  // v6.48 curse family — native-only board behaviors, no web ground truth.
+  "shrink", "mute", "spoiler", "drainShield", "flatline",
+  "magnet", "jammer", "peeler", "drainBase", "malfunction", "saboteur",
+]);
+const NATIVE_ONLY_BASE_EFFECTS = new Set(["ambushWin", "lonePeek", "clubTell",
+  "lastResort", "emptyPurse", "sameTell"]);
+
 // 4. EVERY Pillar, one per scenario, on the middle column (so Ditto has a
 //    neighbour and Echo has something to echo).
 for (const p of PillarTypes.all()) {
+  if (NATIVE_ONLY_PILLAR_EFFECTS.has(p.effect)) continue;
   scenarios.push({
     name: `pillar-${p.id}`, seed: 5150, piles: 9, cols: [3, 3, 3],
     pillars: [p.id, p.id === "ditto" ? "prime" : null, "echo"], steps: 160,
   });
 }
-// 5. EVERY Base, fired on step 12.
+// 5. EVERY Base, fired on step 12 (native-only bases skipped — the web
+// engine has no implementation to record).
 for (const b of BaseTypes.all()) {
+  if (NATIVE_ONLY_BASE_EFFECTS.has(b.effect)) continue;
   scenarios.push({
     name: `base-${b.id}`, seed: 6161, piles: 9, cols: [3, 3, 3],
     bases: [b.id, null, null], pillars: [null, "prime", null],
@@ -196,6 +230,7 @@ for (const sp of SamePowerTypes.all()) {
 //    goes onto 6 spread-out card ids so it lands within the trace window.
 const stickerCardIds = [0, 7, 14, 21, 28, 35, 42, 49];
 for (const s of ItemData.stickers) {
+  if (NATIVE_ONLY_STICKER_BEHAVIORS.has(s.behavior)) continue;
   scenarios.push({
     name: `sticker-${s.id}`, seed: 8383, piles: 9, cols: [3, 3, 3],
     stickers: stickerCardIds

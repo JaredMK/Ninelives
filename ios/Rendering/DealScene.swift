@@ -59,6 +59,8 @@ public final class DealScene: SKScene {
     private var cardScale: CardArt.Scale = .three
     private var pillarPlaques: [SKNode] = []
     private var basePlaques: [SKNode] = []
+    /// The charge LED per column, held directly. See syncBaseLights.
+    private var baseLEDs: [Int: SKSpriteNode] = [:]
     /// Campaign/debug deals show the artifact slot rows (the web's `show-slots`
     /// stays on through play); Zen collapses them for bigger cards.
     public var slotsVisible = true
@@ -170,7 +172,7 @@ public final class DealScene: SKScene {
         hud.position = CGPoint(x: 0, y: y)
         y -= hud.height + 6
 
-        let bandH: CGFloat = 78
+        let bandH = DealScene.deckBandH
         deckPanel.resize(to: CGSize(width: size.width - pad * 2, height: bandH))
         deckPanel.position = CGPoint(x: pad, y: y)
         y -= bandH + 6
@@ -192,8 +194,11 @@ public final class DealScene: SKScene {
         reshuffleButton.isHidden = isZen
         reshuffleButton.position = CGPoint(x: (size.width - reshuffleButton.frameSize.width) / 2,
                                            y: reshuffleY)
-        let boardBottom = isZen ? reshuffleY - 6
-                                : reshuffleY - reshuffleButton.frameSize.height - 6
+        // The board must CLEAR the reshuffle bar: the button hangs DOWN from
+        // reshuffleY (top-left anchor), so the board ends 6pt above its top
+        // edge — otherwise the bottom grid sliver and the whole Base slot row
+        // render behind the button (the old sign hid every centre-column Base).
+        let boardBottom = isZen ? reshuffleY - 6 : reshuffleY + 6
 
         // The ≡ pause button lives IN the top bar, like the web's global
         // top-left menu button (it used to sit bottom-left).
@@ -252,7 +257,7 @@ public final class DealScene: SKScene {
         icon.alpha = 0.72
         fanButton.addChild(icon)
         fanIcon = icon
-        let cap = PixelTexture.label("FAN", size: 12, color: CRT.cardFace.withAlphaComponent(0.72))
+        let cap = PixelTexture.label("FAN", size: 14, color: CRT.cardFace.withAlphaComponent(0.72))
         cap.position = CGPoint(x: box.width / 2, y: -34)
         cap.zPosition = 2
         fanButton.addChild(cap)
@@ -267,7 +272,7 @@ public final class DealScene: SKScene {
         fanIcon?.colorBlendFactor = 1
         fanIcon?.alpha = fanHintOn ? 1 : 0.72
         fanCaption?.removeFromParent()
-        let cap = PixelTexture.label("FAN", size: 12,
+        let cap = PixelTexture.label("FAN", size: 14,
                                      color: fanHintOn ? CRT.ink : CRT.cardFace.withAlphaComponent(0.72))
         cap.position = CGPoint(x: fanButton.frameSize.width / 2, y: -34)
         cap.zPosition = 2
@@ -389,17 +394,22 @@ public final class DealScene: SKScene {
 
     // MARK: - Board construction
 
-    /// Build the pile grid for `count` piles. Columns come from the same
-    /// `layoutForPiles` split the engine uses, so pile → column matches exactly.
-    public func buildBoard(pileCount: Int) {
-        let layout = CampaignLayout.layoutForPiles(pileCount)
-        columnSizes = layout.cols
-        pileColumns = GameEngineColumns.map(layout.cols, pileCount)
+    /// Build the pile grid. The caller passes the ENGINE's column split — the
+    /// scene must never re-derive it from the pile count. It used to, which was
+    /// fine while the split was a pure function of the count; a `columnPiles`
+    /// Pillar (Fourth Seat) breaks that assumption, and the board would then
+    /// draw the extra pile in a different column from the one the engine put it
+    /// in (10 piles: engine [4,3,3] vs a re-derived [3,4,3]).
+    public func buildBoard(pileCount: Int, cols: [Int]? = nil) {
+        let colSizes = (cols?.isEmpty == false) ? cols! : CampaignLayout.layoutForPiles(pileCount).cols
+        columnSizes = colSizes
+        pileColumns = GameEngineColumns.map(colSizes, pileCount)
 
         piles.forEach { $0.removeFromParent() }
         piles.removeAll()
         pillarPlaques.forEach { $0.removeFromParent() }; pillarPlaques.removeAll()
         basePlaques.forEach { $0.removeFromParent() }; basePlaques.removeAll()
+        pillarBadges.removeAll(); baseBadges.removeAll()   // died with their plaques
 
         cardScale = DealScene.pickScale(cols: columnSizes, in: boardRect,
                                         bands: pillarBand + baseBand)
@@ -420,8 +430,13 @@ public final class DealScene: SKScene {
     /// and the Base row below it (--base-row-h 32px + margin), each with one
     /// flex gap. Shown on campaign/debug deals (the web's `show-slots` stays on
     /// through play); Zen collapses them and deals bigger cards.
-    private static let pillarRowH: CGFloat = 48
-    private static let baseRowH: CGFloat = 34
+    // Pillars and Bases are equipment the player is meant to think about, so
+    // the plaques are sized to their COLUMN (a pile wide) rather than the
+    // pocket-sized chips they were. The bands grew to match — modestly, because
+    // `pickScale` subtracts them from the board before choosing a card size and
+    // a bigger plaque is not worth smaller cards.
+    private static let pillarRowH: CGFloat = 58
+    private static let baseRowH: CGFloat = 44
     private var pillarBand: CGFloat { slotsVisible ? DealScene.pillarRowH + 6 : 0 }
     private var baseBand: CGFloat { slotsVisible ? DealScene.baseRowH + 6 : 0 }
 
@@ -463,7 +478,7 @@ public final class DealScene: SKScene {
         let blockH = rows * box.height + max(0, rows - 1) * vGap
         let blockTop = isZen ? CRT.snap(gridTop - (gridH - blockH) / 2) : gridTop
 
-        pileCenters.removeAll(keepingCapacity: true)
+        pileBasePos.removeAll(keepingCapacity: true)
         var pileIndex = 0
         for (c, colCount) in columnSizes.enumerated() {
             // space-between: first column flush left, last flush right.
@@ -483,8 +498,7 @@ public final class DealScene: SKScene {
             for r in 0..<colCount {
                 guard pileIndex < piles.count else { break }
                 let y = CRT.snap(startY - CGFloat(r) * (box.height + vGap))
-                piles[pileIndex].position = CGPoint(x: colX, y: y)
-                pileCenters[pileIndex] = CGPoint(x: colX + box.width / 2, y: y - box.height / 2)
+                pileBasePos.append(CGPoint(x: colX, y: y))
                 pileIndex += 1
             }
             // The Base row: ONE level row below the grid (web .board-bases).
@@ -492,6 +506,40 @@ public final class DealScene: SKScene {
                 basePlaques[c].position = CGPoint(x: colX, y: boardRect.minY + baseBand - 6)
             }
         }
+        applyFanSpread(animated: false)
+    }
+
+    /// Pile positions from the layout pass, before the fan spread — the spread
+    /// offsets them away from the board's centre while the fan hint is armed.
+    private var pileBasePos: [CGPoint] = []
+
+    /// While the fan hint is ON the piles visibly SPREAD (the mode reads at a
+    /// glance): each pile slides a few pixel-snapped points away from the
+    /// board's centre. Reversible — fan off slides them back. Pile centres (hit
+    /// testing, the web, the peek layers) track the spread positions.
+    private func applyFanSpread(animated: Bool) {
+        guard !piles.isEmpty, boardRect.width > 0 else { return }
+        let f: CGFloat = fanHintOn ? 1 : 0
+        let bc = CGPoint(x: boardRect.midX, y: boardRect.midY)
+        let box = cardScale.size
+        pileCenters.removeAll(keepingCapacity: true)
+        for (i, p) in piles.enumerated() {
+            guard i < pileBasePos.count else { continue }
+            let base = pileBasePos[i]
+            let cc = CGPoint(x: base.x + box.width / 2, y: base.y - box.height / 2)
+            // Capped ±10 so the spread can never push a pile into the chrome.
+            let dx = max(-10, min(10, CRT.snap((cc.x - bc.x) * 0.055 * f)))
+            let dy = max(-10, min(10, CRT.snap((cc.y - bc.y) * 0.045 * f)))
+            let dest = CGPoint(x: base.x + dx, y: base.y + dy)
+            if animated && !reduceMotion {
+                p.run(.move(to: dest, duration: 0.18), withKey: "fanSpread")
+            } else {
+                p.removeAction(forKey: "fanSpread")
+                p.position = dest
+            }
+            pileCenters[i] = CGPoint(x: dest.x + box.width / 2, y: dest.y - box.height / 2)
+        }
+        refreshWeb()
     }
 
     // MARK: - Sync from the engine
@@ -554,6 +602,12 @@ public final class DealScene: SKScene {
         return deckPanel.rankValue(atLocal: local)
     }
 
+    /// The scrub rank for a drag that left the band vertically — once the
+    /// histogram hold activates, x alone keeps driving it until finger-up.
+    public func histogramRank(nearX x: CGFloat) -> (value: Int, label: String)? {
+        deckPanel.rankValue(nearLocalX: x - deckPanel.position.x)
+    }
+
     public func showScrub(value: Int, label: String) { deckPanel.showScrub(value: value, label: label) }
     public func hideScrub() { deckPanel.hideScrub() }
 
@@ -582,10 +636,10 @@ public final class DealScene: SKScene {
 
     public func syncHUD(phaseIndex: Int, altSuits: Bool,
                         phasesTotal: Int, showTrack: Bool, sameCharged: Bool, samePower: String?,
-                        coins: Int, score: Int, zen: Bool) {
+                        coins: Int, score: Int, best: Int, zen: Bool) {
         hud.sync(phaseIndex: phaseIndex, altSuits: altSuits,
                  phasesTotal: phasesTotal, showTrack: showTrack, sameCharged: sameCharged,
-                 samePower: samePower, coins: coins, score: score,
+                 samePower: samePower, coins: coins, score: score, best: best,
                  menuShown: showsMenuButton, zen: zen)
         sameButton.setRole(sameCharged ? .charged : .ctaOutline)
     }
@@ -593,10 +647,10 @@ public final class DealScene: SKScene {
     public func syncDeckPanel(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                               remaining: Int, deckId: String, mood: DeckCharacter.Mood,
                               tier: String = "regular", suitTotals: [String: Int] = [:],
-                              rankTotals: [Int: Int] = [:]) {
+                              rankTotals: [Int: Int] = [:], showJoker: Bool = true) {
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
                        deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier,
-                       suitTotals: suitTotals, rankTotals: rankTotals)
+                       suitTotals: suitTotals, rankTotals: rankTotals, showJoker: showJoker)
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
@@ -608,9 +662,13 @@ public final class DealScene: SKScene {
 
     public func setReshuffleTitle(_ t: String) { reshuffleButton.setTitle(t) }
 
-    public func syncControls(canGuess: Bool, showReshuffle: Bool, reshuffleEnabled: Bool = true) {
+    public func syncControls(canGuess: Bool, showReshuffle: Bool, reshuffleEnabled: Bool = true,
+                             sameBlocked: Bool = false) {
         higherButton.setEnabled(canGuess)
-        sameButton.setEnabled(canGuess)
+        // MUTE curse: the Same rail goes dark AND carries a red slash chip,
+        // so a dead button reads as "blocked here", not "can't guess".
+        sameButton.setEnabled(canGuess && !sameBlocked)
+        setSameBlockChip(sameBlocked)
         lowerButton.setEnabled(canGuess)
         // Web parity (renderReshuffleBtn): an unaffordable reshuffle stays
         // VISIBLE with its price, disabled — it never hides for poverty.
@@ -618,29 +676,153 @@ public final class DealScene: SKScene {
         reshuffleButton.setEnabled(reshuffleEnabled)
     }
 
+    private var sameBlockChip: SKNode?
+    private func setSameBlockChip(_ on: Bool) {
+        if !on { sameBlockChip?.removeFromParent(); sameBlockChip = nil; return }
+        guard sameBlockChip == nil else { return }
+        // A small suit-red ✕ plate pinned to the Same button's corner.
+        let chip = PixelTexture.label("✕", size: 16, color: CRT.suitRed)
+        let plate = SKSpriteNode(texture: PixelTexture.panel(
+            size: CGSize(width: chip.size.width + 8, height: chip.size.height + 4),
+            face: CRT.feltDeep, border: CRT.suitRed, shadowOffset: 2))
+        chip.position = .zero
+        plate.addChild(chip)
+        // A child of the button itself (its origin is its TOP-LEFT): pinned
+        // just over the top-right corner, riding every relayout for free.
+        plate.position = CGPoint(x: sameButton.frameSize.width - 6, y: 4)
+        plate.zPosition = Layer.float
+        sameButton.addChild(plate)
+        sameBlockChip = plate
+    }
+
     public func setPillars(_ ids: [String?], bases: [String?]) {
         pillarBadges.removeAll()   // the rebuild below drops the badge nodes too
+        baseBadges.removeAll()
         for (c, node) in pillarPlaques.enumerated() {
             node.removeAllChildren()
             if c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) {
-                let p = plaque(text: String(def.label.prefix(10)), tint: CRT.gold)
-                p.position = CGPoint(x: 0, y: -4)
-                node.addChild(p)
+                node.addChild(pillarArtNode(def))
             } else if slotsVisible {
                 node.addChild(emptyPillarSlot())   // the web's dashed empty slot
             }
         }
+        baseLEDs.removeAll()
         for (c, node) in basePlaques.enumerated() {
             node.removeAllChildren()
             if c < bases.count, let id = bases[c], let def = GameData.shared.baseTypes.get(id) {
-                let p = plaque(text: String(def.label.prefix(10)), tint: CRT.phosphor)
-                p.position = CGPoint(x: 0, y: -9)
-                node.addChild(p)
+                let art = baseArtNode(def)
+                node.addChild(art)
+                // Capture THIS column's LED as it is built — no name lookup.
+                baseLEDs[c] = art.children.compactMap { $0 as? SKSpriteNode }
+                    .first { $0.name == DealScene.chargeLEDName }
             } else if slotsVisible {
                 node.addChild(emptyBaseSlot())
             }
         }
         baseIds = bases
+        pillarIds = ids
+    }
+
+    /// An equipped Pillar on the board: the web's pennant ART (rod + swallowtail
+    /// cloth + the item's gold emblem), never text — a square filling the slot
+    /// row's height, centred in the column. Pixel-crisp (nearest filter).
+    private func pillarArtNode(_ def: ItemDef) -> SKNode {
+        // Full column width, capped by the band so it never spills into the
+        // first card row.
+        let img = ItemArt.pillar(def, width: cardScale.size.width,
+                                 height: DealScene.pillarRowH - 2)
+        let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        s.size = img.size
+        s.anchorPoint = CGPoint(x: 0.5, y: 1)
+        s.position = CGPoint(x: cardScale.size.width / 2, y: -2)
+        let n = SKNode()
+        n.addChild(s)
+        return n
+    }
+
+    /// An equipped Base on the board: the web's plaque ART (ink frame + family-
+    /// coloured symbol), centred in the base row. Pixel-crisp (nearest filter).
+    private func baseArtNode(_ def: ItemDef) -> SKNode {
+        let img = ItemArt.base(def, width: cardScale.size.width,
+                               height: DealScene.baseRowH - 2)
+        let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
+        s.size = img.size
+        s.anchorPoint = CGPoint(x: 0.5, y: 1)
+        s.position = CGPoint(x: cardScale.size.width / 2,
+                             y: -(DealScene.baseRowH - img.size.height) / 2)
+        let n = SKNode()
+        n.addChild(s)
+        // The web's `.base-charge`: a phosphor LED on the plaque's right edge
+        // saying "charged — activate once this deal", going dark when spent.
+        // The port had lost it — the plate's two phosphor pixels sit dead
+        // centre and the family symbol is drawn straight over them.
+        let led = SKSpriteNode(texture: PixelTexture.texture(from: DealScene.chargeLED(CRT.phosphor)))
+        led.size = CGSize(width: 7, height: 7)
+        led.anchorPoint = CGPoint(x: 1, y: 0.5)
+        led.position = CGPoint(x: s.position.x + img.size.width / 2 - 5,
+                               y: s.position.y - img.size.height / 2)
+        led.zPosition = 3
+        led.name = DealScene.chargeLEDName
+        n.addChild(led)
+        return n
+    }
+
+    static let chargeLEDName = "baseChargeLED"
+
+    /// The Base plaque's status light — the ONE place a player reads whether a
+    /// Base is usable: GREEN it can fire right now, AMBER charged but its
+    /// criteria aren't met, RED spent for this deal. (Pillars deliberately have
+    /// no light: they are passive, never player-fired, and only two of them can
+    /// even be spent — a dot there would be decoration posing as data.)
+    public enum BaseLight { case ready, idle, spent }
+
+    public func syncBaseLights(_ lights: [Int: BaseLight]) {
+        for (c, node) in basePlaques.enumerated() {
+            // "//" = search DESCENDANTS. The LED hangs off the plaque's art
+            // node, not off the plaque itself, so a plain name lookup found
+            // nothing and this whole method silently did nothing — every Base
+            // sat on the phosphor it was created with, spent or not.
+            guard let led = baseLEDs[c] else { continue }
+            _ = node
+            let state = lights[c] ?? .spent
+            let color: UIColor
+            switch state {
+            case .ready: color = CRT.phosphor
+            case .idle:  color = CRT.gold
+            case .spent: color = CRT.suitRed
+            }
+            led.texture = PixelTexture.texture(from: DealScene.chargeLED(color))
+            // READY BLINKS, the other two HOLD. Colour alone was carrying the
+            // whole distinction and green-vs-amber is a weak cue at 7px; the
+            // motion is what actually catches the eye and says "you can fire
+            // this now". Steady amber/red then read as "nothing to do here".
+            //
+            // The action is added ONCE and left alone — this runs on every
+            // board refresh, and re-issuing it would restart the blink from
+            // full every time, so a ready Base would sit permanently lit.
+            if state == .ready && !reduceMotion {
+                if led.action(forKey: "blink") == nil {
+                    led.run(.repeatForever(.sequence([
+                        .fadeAlpha(to: 0.25, duration: 0.42),
+                        .fadeAlpha(to: 1.0, duration: 0.42),
+                    ])), withKey: "blink")
+                }
+            } else {
+                led.removeAction(forKey: "blink")
+                led.alpha = 1
+            }
+        }
+    }
+
+    /// The 7px LED bitmap — a lit core inside its own soft ring. Baked once
+    /// per colour and cached, never per frame.
+    private static func chargeLED(_ color: UIColor) -> UIImage {
+        PixelTexture.image(size: CGSize(width: 7, height: 7)) { cg in
+            cg.setFillColor(color.withAlphaComponent(0.32).cgColor)
+            cg.fillEllipse(in: CGRect(x: 0, y: 0, width: 7, height: 7))
+            cg.setFillColor(color.cgColor)
+            cg.fillEllipse(in: CGRect(x: 1.5, y: 1.5, width: 4, height: 4))
+        }
     }
 
     /// An empty Pillar slot: the web's `.cph-banner.empty` — a small dashed
@@ -681,6 +863,7 @@ public final class DealScene: SKScene {
         return n
     }
     private var baseIds: [String?] = []
+    private var pillarIds: [String?] = []
 
     // MARK: - Pillar live badges (streak pill / count pill / Second Wind pip)
 
@@ -692,7 +875,7 @@ public final class DealScene: SKScene {
         /// The live would-be payout of an accumulating scoring Pillar.
         case count(Int)
         /// Second Wind: charged pip, or the spent (dimmed) pip once fired.
-        case secondWind(spent: Bool)
+        case secondWind
     }
 
     private var pillarBadges: [Int: SKNode] = [:]
@@ -700,12 +883,34 @@ public final class DealScene: SKScene {
     public func syncPillarBadges(_ badges: [Int: PillarBadge]) {
         for (_, old) in pillarBadges { old.removeFromParent() }
         pillarBadges.removeAll()
+        // Anchored to the pennant cloth (the web's .cph-streak: bottom 18%,
+        // right 12% of the art square), not the old text banner.
+        let side = CRT.snap(min(cardScale.size.width, DealScene.pillarRowH))
+        let clothRight = cardScale.size.width
         for (c, badge) in badges where c < pillarPlaques.count {
             let node = DealScene.badgeNode(badge)
-            node.position = CGPoint(x: cardScale.size.width - node.frame.width - 1, y: -5)
+            node.position = CGPoint(x: clothRight - side * 0.12 - node.frame.width,
+                                    y: -2 - side * 0.82 + node.frame.height)
             node.zPosition = 2
             pillarPlaques[c].addChild(node)
             pillarBadges[c] = node
+        }
+    }
+
+    private var baseBadges: [Int: SKNode] = [:]
+
+    /// The live "if activated now" figure on each charged Base plaque — the
+    /// web's `.base-count-badge` (left 3px / top 2px of the plaque).
+    public func syncBaseBadges(_ badges: [Int: Int]) {
+        for (_, old) in baseBadges { old.removeFromParent() }
+        baseBadges.removeAll()
+        let artLeft: CGFloat = 2
+        for (c, n) in badges where c < basePlaques.count {
+            let node = DealScene.badgeNode(.count(n))
+            node.position = CGPoint(x: artLeft + 2, y: -3)
+            node.zPosition = 2
+            basePlaques[c].addChild(node)
+            baseBadges[c] = node
         }
     }
 
@@ -728,16 +933,18 @@ public final class DealScene: SKScene {
             text = "\(n)"
             fill = CRT.ink
             if n == 0 { alpha = 0.5 }
-        case .secondWind(let spent):
+        case .secondWind:
+            // No spent state (router batch 2): the save is a flat 25% roll,
+            // unlimited times — the badge is a constant mark, never struck.
             text = "↻"
-            fill = spent ? CRT.feltDeep : CRT.phosphor
-            ink = spent ? CRT.muted : CRT.ink
-            struck = spent
+            fill = CRT.phosphor
+            ink = CRT.ink
         }
         let ns = text as NSString
-        let font = CRT.Font.of(13)
+        let font = CRT.Font.of(16)
         let tsz = ns.size(withAttributes: [.font: font])
-        let w = max(16, ceil(tsz.width) + 7), h: CGFloat = 15
+        let h = max(19, ceil(tsz.height) + 3)
+        let w = max(h + 2, ceil(tsz.width) + 9)
         let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
             cg.setFillColor(fill.cgColor)
             cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
@@ -769,26 +976,19 @@ public final class DealScene: SKScene {
     /// `.base-banner.spent` — dimmed so "used" reads at a glance).
     private var spentBaseCols = Set<Int>()
 
+    /// Dim the SPENT Base plaques (the web's `.spent` greying). The "you can
+    /// fire this" cue is the LED's blink (see syncBaseLights), not the plaque.
+    ///
+    /// The plaque used to pulse its whole alpha down to 0.55 when activatable,
+    /// which fought this dim of 0.6: a READY Base spent half its cycle looking
+    /// exactly as faded as a SPENT one, so the pulse was reading as "used up".
+    /// Ready is now the only thing on the plaque that MOVES, and alpha means
+    /// one thing again — dimmed is spent, full is not.
     public func syncSpentBases(_ cols: [Int]) {
         spentBaseCols = Set(cols)
-    }
-
-    /// Light the tappable (activatable) Base plaques — a slow compositor-only
-    /// pulse, the web's `.activatable` cue. Spent plaques never pulse and sit
-    /// dimmed (the web's `.spent` greying).
-    public func syncActivatableBases(_ cols: [Int]) {
         for (c, node) in basePlaques.enumerated() {
-            let spent = spentBaseCols.contains(c)
-            let on = !spent && cols.contains(c)
-            if on, node.action(forKey: "act") == nil {
-                node.run(.repeatForever(.sequence([
-                    .fadeAlpha(to: 0.55, duration: 0.7),
-                    .fadeAlpha(to: 1.0, duration: 0.7),
-                ])), withKey: "act")
-            } else if !on {
-                node.removeAction(forKey: "act")
-                node.alpha = spent ? 0.6 : 1
-            }
+            node.removeAction(forKey: "act")
+            node.alpha = spentBaseCols.contains(c) ? 0.6 : 1
         }
     }
 
@@ -804,23 +1004,73 @@ public final class DealScene: SKScene {
         return nil
     }
 
+    /// The Pillar plaque column at a scene point (hold-for-help routing).
+    public func pillarCol(at p: CGPoint) -> Int? {
+        for (c, node) in pillarPlaques.enumerated() {
+            guard (pillarIds[safe: c] ?? nil) != nil else { continue }
+            // Measure the ART, not a guessed box. The hand-built rect assumed
+            // the plaque was exactly `pillarRowH` tall starting at the node's
+            // own y — but the pennant hangs below that origin and is taller
+            // since the plaques were widened, so the bottom of every Pillar
+            // was dead to touch (Demolish could not be aimed at it).
+            var r = node.calculateAccumulatedFrame()
+            guard !r.isEmpty else { continue }
+            r = r.insetBy(dx: -6, dy: -6)          // a finger's worth of slack
+            if r.contains(p) { return c }
+        }
+        return nil
+    }
+
+    /// Outline the Pillars a Base may target (Demolish). Without this the
+    /// prompt said "tap one of your Pillars" and nothing on screen said which.
+    public func setPillarTargets(_ cols: [Int]) {
+        for (c, node) in pillarPlaques.enumerated() {
+            let on = cols.contains(c)
+            if on, node.action(forKey: "pt") == nil {
+                node.run(.repeatForever(.sequence([
+                    .fadeAlpha(to: 0.45, duration: 0.45),
+                    .fadeAlpha(to: 1.0, duration: 0.45),
+                ])), withKey: "pt")
+            } else if !on {
+                node.removeAction(forKey: "pt")
+                node.alpha = 1
+            }
+        }
+    }
+
     /// Outline a set of piles as tap TARGETS (revive / Phoenix pick).
     public func setActionTargets(_ targets: [Int]) {
         for (i, p) in piles.enumerated() { p.setSelected(targets.contains(i)) }
     }
 
-    private func plaque(text: String, tint: UIColor) -> SKNode {
-        let n = SKNode()
-        let w = cardScale.size.width
-        let bg = PixelTexture.panelNode(size: CGSize(width: w, height: 16), face: CRT.feltMid,
-                                        border: tint, shadowOffset: 2)
-        bg.zPosition = 0
-        n.addChild(bg)
-        let l = PixelTexture.label(text, size: 12, color: tint)
-        l.position = CGPoint(x: w / 2, y: -8)
-        l.zPosition = 1
-        n.addChild(l)
-        return n
+    /// MAGNET curse: a persistent suit-red ring on every magnet pile while
+    /// the pull is live — the "you must play HERE" face of the engine gate.
+    /// Static nodes, no animation (§10: no new continuous animations).
+    private var magnetRings: [Int: SKNode] = [:]
+    public func setMagnetTargets(_ targets: [Int]) {
+        let want = Set(targets)
+        for (i, node) in magnetRings where !want.contains(i) {
+            node.removeFromParent()
+            magnetRings[i] = nil
+        }
+        for i in want where magnetRings[i] == nil {
+            guard let c = pileCenters[i] else { continue }
+            let box = CGSize(width: cardScale.size.width + 8, height: cardScale.size.height + 8)
+            let ring = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.suitRed, weight: 2))
+            ring.position = c
+            ring.zPosition = Layer.card + 5
+            addChild(ring)
+            magnetRings[i] = ring
+        }
+    }
+
+    /// A two-pile offer (Donate): mark which pile GIVES and which RECEIVES, so
+    /// the prompt can say "the FROM pile" instead of a pile number that maps to
+    /// nothing the player can see.
+    public func setDonateTargets(from: Int, to: Int) {
+        for (i, p) in piles.enumerated() {
+            p.setSelected(i == from || i == to, role: i == from ? .from : (i == to ? .to : .plain))
+        }
     }
 
     // MARK: - Selection + swipe feedback
@@ -888,6 +1138,16 @@ public final class DealScene: SKScene {
         return r.contains(p)
     }
 
+    /// Anywhere on the deck band (suit counts + histogram, NOT the deck stack
+    /// — that has its own tap/hold). Drives the band's hold-for-help.
+    public func isDeckBand(_ p: CGPoint) -> Bool {
+        guard !isDeckPanel(p) else { return false }
+        let r = CGRect(x: deckPanel.position.x, y: deckPanel.position.y - DealScene.deckBandH,
+                       width: size.width - 16, height: DealScene.deckBandH)
+        return r.contains(p)
+    }
+    private static let deckBandH: CGFloat = 78
+
     public func press(_ button: PixelButton?, down: Bool) {
         buttons.forEach { $0.setPressed($0 === button && down) }
     }
@@ -904,6 +1164,7 @@ public final class DealScene: SKScene {
     public func toggleFanHint() {
         fanHintOn.toggle()
         updateFanChip()
+        applyFanSpread(animated: true)   // the piles visibly spread while armed
         buildFanPeek(animate: fanHintOn)
         if !fanHintOn { hidePileFan() }
     }
@@ -975,35 +1236,45 @@ public final class DealScene: SKScene {
     // MARK: - Hold-for-help
 
     /// Help takes over the deck band's room, exactly like the web's peek-band.
+    /// The ONE size the in-deal help body uses — wrapping measures with it,
+    /// so it can't drift from what actually draws.
+    private let helpBodySize: CGFloat = 18
+
     public func showHelp(title: String, body: String) {
         helpPanel.removeAllChildren()
         helpPanel.isHidden = false
         let w = size.width - 16
-        let h: CGFloat = 78
+        // Wrap the body by hand — one baked texture per line, no layout engine.
+        // Paragraphs (sticker rows) wrap independently. The panel then GROWS to
+        // fit: it used to be pinned at 78pt with a hard 3-line cap, so anything
+        // longer was silently cut mid-sentence — the help would state a cost or
+        // a condition and stop before saying what it applied to.
+        let maxLines = 12
+        var lines: [String] = []
+        for para in body.split(separator: "\n", omittingEmptySubsequences: true) {
+            for line in DealScene.wrap(String(para), maxWidth: w - 16, size: helpBodySize, maxLines: maxLines - lines.count) {
+                lines.append(line)
+            }
+            if lines.count >= maxLines { break }
+        }
+        // HELP READS AT ARM'S LENGTH. 14/16 was the smallest type in the game
+        // on the panel whose entire job is to be read.
+        let lineH: CGFloat = 22
+        let h = max(58, 34 + CGFloat(lines.count) * lineH + 10)
         let bg = PixelTexture.panelNode(size: CGSize(width: w, height: h), face: CRT.feltMid, border: CRT.phosphor)
         bg.zPosition = 0
         helpPanel.addChild(bg)
         helpPanel.position = deckPanel.position
-        let t = PixelTexture.label(title, size: 16, color: CRT.phosphor, glow: true)
+        let t = PixelTexture.label(title, size: 20, color: CRT.phosphor, glow: true)
         t.anchorPoint = CGPoint(x: 0, y: 1)
         t.zPosition = 1
         t.position = CGPoint(x: 8, y: -6)
         helpPanel.addChild(t)
-        // Wrap the body by hand — one baked texture per line, no layout engine.
-        // Paragraphs (sticker rows) wrap independently, capped at 3 lines total.
-        var lines: [String] = []
-        for para in body.split(separator: "\n", omittingEmptySubsequences: true) {
-            for line in DealScene.wrap(String(para), width: Int((w - 16) / 7.2), maxLines: 3) {
-                lines.append(line)
-                if lines.count == 3 { break }
-            }
-            if lines.count == 3 { break }
-        }
         for (i, line) in lines.enumerated() {
-            let l = PixelTexture.label(line, size: 14, color: CRT.cardFace)
+            let l = PixelTexture.label(line, size: helpBodySize, color: CRT.cardFace)
             l.anchorPoint = CGPoint(x: 0, y: 1)
             l.zPosition = 1
-            l.position = CGPoint(x: 8, y: -28 - CGFloat(i) * 16)
+            l.position = CGPoint(x: 8, y: -34 - CGFloat(i) * lineH)
             helpPanel.addChild(l)
         }
     }
@@ -1011,15 +1282,45 @@ public final class DealScene: SKScene {
     public func hideHelp() { helpPanel.isHidden = true; helpPanel.removeAllChildren() }
     public var isHelpVisible: Bool { !helpPanel.isHidden }
 
-    static func wrap(_ text: String, width: Int, maxLines: Int) -> [String] {
+    /// Word-wrap to a real PIXEL width, measured in the font that will actually
+    /// draw the line. The old version counted CHARACTERS against `width / 7.2`,
+    /// which is only right for an all-lowercase Latin line: "◉ 12" and "♠ J"
+    /// and any run of capitals measured far wider than the estimate, so lines
+    /// overflowed the panel while the wrapper believed they fit.
+    static func wrap(_ text: String, maxWidth: CGFloat, size: CGFloat, maxLines: Int) -> [String] {
+        guard maxLines > 0, maxWidth > 0 else { return [] }
+        let font = CRT.Font.of(size)
+        func width(_ s: String) -> CGFloat {
+            (s as NSString).size(withAttributes: [.font: font]).width
+        }
         var lines: [String] = []
         var current = ""
         for word in text.split(separator: " ") {
-            if current.isEmpty { current = String(word) }
-            else if current.count + 1 + word.count <= width { current += " " + word }
-            else { lines.append(current); current = String(word); if lines.count == maxLines { break } }
+            let candidate = current.isEmpty ? String(word) : current + " " + word
+            if width(candidate) <= maxWidth {
+                current = candidate
+                continue
+            }
+            if current.isEmpty {
+                // A single word too wide for the panel: hard-break it rather
+                // than emit one overflowing line.
+                var chunk = ""
+                for ch in word {
+                    if width(chunk + String(ch)) > maxWidth, !chunk.isEmpty {
+                        lines.append(chunk)
+                        if lines.count == maxLines { return lines }
+                        chunk = ""
+                    }
+                    chunk.append(ch)
+                }
+                current = chunk
+            } else {
+                lines.append(current)
+                if lines.count == maxLines { return lines }
+                current = String(word)
+            }
         }
-        if lines.count < maxLines && !current.isEmpty { lines.append(current) }
+        if lines.count < maxLines, !current.isEmpty { lines.append(current) }
         return lines
     }
 
@@ -1054,10 +1355,58 @@ public final class DealScene: SKScene {
     }
 
     /// Pulse a column's Pillar/Base plaque when its effect fires.
+    /// A small cue floated beside a column's PILLAR plaque — Second Wind's
+    /// saved-or-not verdict rides this (router batch 2).
+    public func floatCueAtPillar(_ text: String, col: Int, color: UIColor) {
+        guard col >= 0, col < pillarPlaques.count, let parent = pillarPlaques[col].parent else { return }
+        let f = pillarPlaques[col].calculateAccumulatedFrame()
+        let pt = parent.convert(CGPoint(x: f.midX + f.width / 2 + 14, y: f.midY), to: self)
+        floatCue(text, atPoint: pt, color: color)
+    }
+
     public func pulseColumn(_ col: Int, base: Bool) {
         let list = base ? basePlaques : pillarPlaques
         guard col >= 0, col < list.count else { return }
         list[col].run(.sequence([.scale(to: 1.12, duration: 0.08), .scale(to: 1.0, duration: 0.12)]))
+    }
+
+    /// TUTORIAL anchors: a node's accumulated frame in VIEW coordinates, so
+    /// the tour's phosphor ring can hug the REAL pile / rail button instead
+    /// of an approximation.
+    private func viewRect(of node: SKNode) -> CGRect? {
+        guard let v = view, let parent = node.parent else { return nil }
+        let f = node.calculateAccumulatedFrame()   // parent coords
+        let a = v.convert(parent.convert(CGPoint(x: f.minX, y: f.minY), to: self), from: self)
+        let b = v.convert(parent.convert(CGPoint(x: f.maxX, y: f.maxY), to: self), from: self)
+        return CGRect(x: min(a.x, b.x), y: min(a.y, b.y),
+                      width: abs(b.x - a.x), height: abs(b.y - a.y))
+    }
+
+    public func pileRectInView(_ i: Int) -> CGRect? {
+        guard i < piles.count else { return nil }
+        return viewRect(of: piles[i])
+    }
+
+    public func railUpRectInView() -> CGRect? {
+        higherButton.map { viewRect(of: $0) } ?? nil
+    }
+
+    /// A visible CHURN on a shuffled pile — quick rock + hop, one shot.
+    /// Upheaval used to fire invisibly whenever the shuffle happened to leave
+    /// the same card on top (and a 1-card pile always does).
+    public func shuffleChurn(at index: Int) {
+        guard index < piles.count else { return }
+        let rock = SKAction.sequence([
+            .rotate(byAngle: 0.09, duration: 0.06),
+            .rotate(byAngle: -0.18, duration: 0.10),
+            .rotate(byAngle: 0.14, duration: 0.08),
+            .rotate(byAngle: -0.05, duration: 0.06),
+        ])
+        let hop = SKAction.sequence([
+            .moveBy(x: 0, y: 6, duration: 0.12),
+            .moveBy(x: 0, y: -6, duration: 0.18),
+        ])
+        piles[index].run(.group([rock, hop]))
     }
 
     public func pileWince(_ index: Int) { guard index < piles.count else { return }; piles[index].wince() }
@@ -1155,12 +1504,59 @@ public final class DealScene: SKScene {
 
     // MARK: - The deal-out cascade
 
+    /// The reshuffle gather: before a re-deal, every visible pile card lifts
+    /// off its pile and flies back to the deck character, staggered — the
+    /// shuffle is SEEN, then the fresh deal cascades out. Self-terminating
+    /// tweens; reduceMotion completes instantly.
+    public func gatherToDeck(completion: @escaping () -> Void) {
+        guard !reduceMotion else { completion(); return }
+        let live = (0..<piles.count).filter { !piles[$0].isDead && pileCenters[$0] != nil }
+        guard !live.isEmpty else { completion(); return }
+        var landed = 0
+        var finished = false
+        let finish = {
+            if !finished { finished = true; completion() }
+        }
+        for (k, i) in live.enumerated() {
+            let from = pileCenters[i]!
+            run(.sequence([.wait(forDuration: Double(k) * 0.05), .run { [weak self] in
+                guard let self else { return }
+                self.piles[i].setContentHidden(true)   // the clone takes over
+                let clone = BoardFX.faceDownCard(scale: self.cardScale, deckId: self.deckId)
+                self.floatLayer.addChild(clone)
+                BoardFX.fly(clone, from: from, to: self.deckSourcePoint(), duration: 0.28) {
+                    landed += 1
+                    if landed == live.count { finish() }
+                }
+            }]), withKey: "gather-\(i)")
+        }
+        // Safety net: completion even if a flight is lost to a relayout.
+        run(.sequence([
+            .wait(forDuration: Double(live.count) * 0.05 + 0.28 + 0.3),
+            .run { finish() },
+        ]), withKey: "gather-done")
+    }
+
+    /// A pile's cards were shuffled in place (Shuffle action, Diamond Ripple,
+    /// Shuffler Pillar): a quick back-and-forth rattle the player can see.
+    public func shuffleWiggle(at index: Int) {
+        guard index < piles.count, !reduceMotion else { return }
+        piles[index].playShuffle()
+    }
+
     /// When a deal begins the board reads BLANK for a beat, then a card flies
     /// out of the deck character to each pile ONE BY ONE, revealing each pile's
     /// real card as its clone lands. Ported timings: 150ms blank, 80ms step,
     /// 230ms per flight.
     public func dealCascade(tops: [CardArt.Face?], completion: @escaping () -> Void) {
-        guard !reduceMotion, !piles.isEmpty else { completion(); return }
+        guard !reduceMotion, !piles.isEmpty else {
+            // No cascade to run — but the reveal may have emptied the board on
+            // its way in, so put the cards back before handing over. Skipping
+            // this left a permanently blank board under reduced motion.
+            for p in piles { p.setContentHidden(false) }
+            completion()
+            return
+        }
         for p in piles { p.setContentHidden(true) }
         let blank = Double(BoardFX.cascadeBlankMS) / 1000
         let step = Double(BoardFX.cascadeStepMS) / 1000
@@ -1175,6 +1571,8 @@ public final class DealScene: SKScene {
                 let clone = BoardFX.faceUpCard(face, scale: self.cardScale)
                 self.floatLayer.addChild(clone)
                 BoardFX.fly(clone, from: from, to: to, duration: dur) {
+                    // Every card that LANDS makes the paper-on-felt thwip.
+                    Sound.shared.place()
                     p.setContentHidden(false)
                     p.landPop()
                 }
@@ -1191,14 +1589,36 @@ public final class DealScene: SKScene {
         ]), withKey: "cascade-done")
     }
 
-    /// SUBSET REVEAL: the full deck fans out as face-down backs, the sitting-out
-    /// portion dims, over an "X of Y in play" count. Anonymity total — every
-    /// back is blank. ~1.2s, then removes itself.
-    public func playSubsetReveal(inPlay: Int, total: Int) {
-        guard total > 0, inPlay >= 0 else { return }
+    /// DEAL REVEAL: the full deck fans out as face-down backs, the sitting-out
+    /// portion dims, over the deal's composition count. Anonymity total —
+    /// every back is blank, so this conveys PROPORTION + COUNT and never which
+    /// cards are in play.
+    ///
+    /// It runs before EVERY deal, not only the subset ones. It used to fire
+    /// only once the deck had grown enough for subset deals to kick in (stage
+    /// 2-ish), which made it read as a rare warning rather than as the deal's
+    /// composition. A full-deck deal gets its own line — there is no "of Y"
+    /// to state when nothing sits out.
+    ///
+    /// It also used to play OVER the deal cascade, so the count and the piles
+    /// competed for the eye. The cascade now waits: `onDone` fires when the
+    /// reveal has cleared, and the caller deals into the empty board. Because
+    /// it gates every deal it is kept SHORT (~0.9s); reduced motion holds a
+    /// static frame instead of fanning.
+    public func playDealReveal(inPlay: Int, total: Int, onDone: (() -> Void)? = nil) {
+        guard total > 0, inPlay >= 0 else { onDone?(); return }
+        // Empty the board NOW. The caller has already painted the piles, so
+        // without this the reveal floated over a fully dealt board, the cards
+        // vanished when it cleared, and the cascade dealt them a second time.
+        for p in piles { p.setContentHidden(true) }
         let holder = SKNode()
         holder.zPosition = Layer.overlay
-        holder.position = CGPoint(x: size.width / 2, y: -size.height * 0.42)
+        // Centre it on the BOARD, not the screen. The guess rail owns the left
+        // edge, so screen-centre sits left of where the piles actually are and
+        // the count read as off-kilter against them.
+        holder.position = boardRect.isEmpty
+            ? CGPoint(x: size.width / 2, y: -size.height * 0.42)
+            : CGPoint(x: boardRect.midX, y: boardRect.midY)
         addChild(holder)
         let cap = 55
         let drawN = min(total, cap)
@@ -1210,28 +1630,44 @@ public final class DealScene: SKScene {
             let back = BoardFX.faceDownCard(scale: .half, deckId: deckId)
             back.zRotation = CGFloat(-angle)
             back.position = CGPoint(x: CGFloat(sin(angle)) * 90, y: CGFloat(cos(angle)) * 26)
-            back.alpha = 0
-            back.setScale(0.8)
             holder.addChild(back)
             let lit = i < litN
+            if reduceMotion {
+                back.alpha = lit ? 1 : 0.28       // the finished frame, no fan
+                continue
+            }
+            back.alpha = 0
+            back.setScale(0.8)
             back.run(.sequence([
-                .wait(forDuration: Double(i) * 0.006),
-                .group([.fadeAlpha(to: 1, duration: 0.12), .scale(to: 1, duration: 0.12)]),
-                .wait(forDuration: 0.56),
-                .fadeAlpha(to: lit ? 1 : 0.28, duration: 0.2),
+                .wait(forDuration: Double(i) * 0.003),
+                .group([.fadeAlpha(to: 1, duration: 0.10), .scale(to: 1, duration: 0.10)]),
+                .wait(forDuration: 0.25),
+                .fadeAlpha(to: lit ? 1 : 0.28, duration: 0.15),
             ]))
         }
-        let label = PixelTexture.label("\(inPlay) of \(total) cards in play", size: 19,
-                                       color: CRT.phosphor, glow: true)
+        // FULL DECK: nothing sits out, so "X of Y in play" would state a split
+        // that isn't there. It gets its own line and no explainer.
+        let whole = inPlay >= total
+        let label = PixelTexture.label(whole ? "Full deck · \(total) cards"
+                                             : "\(inPlay) of \(total) cards in play",
+                                       size: 20, color: CRT.phosphor, glow: true)
         label.position = CGPoint(x: 0, y: -74)
         label.zPosition = 1
         holder.addChild(label)
-        let sub = PixelTexture.label("A random hand from your deck — the rest sit this one out",
-                                     size: 13, color: CRT.muted)
-        sub.position = CGPoint(x: 0, y: -94)
-        sub.zPosition = 1
-        holder.addChild(sub)
-        holder.run(.sequence([.wait(forDuration: 1.22), .fadeOut(withDuration: 0.22), .removeFromParent()]))
+        if !whole {
+            let sub = PixelTexture.label("A random hand from your deck. The rest sit this one out",
+                                         size: 14, color: CRT.muted)
+            sub.position = CGPoint(x: 0, y: -94)
+            sub.zPosition = 1
+            holder.addChild(sub)
+        }
+        let hold = reduceMotion ? 0.50 : 0.68
+        let fade = reduceMotion ? 0.10 : 0.20
+        holder.run(.sequence([.wait(forDuration: hold), .fadeOut(withDuration: fade), .removeFromParent()]))
+        // The hand-off runs on the SCENE, not the holder: a node that has
+        // removed itself never reaches a trailing action, which would strand
+        // the deal with an empty board and no cascade.
+        run(.sequence([.wait(forDuration: hold + fade), .run { onDone?() }]), withKey: "deal-reveal")
     }
 
     // MARK: - Death, saves, powers
@@ -1297,6 +1733,26 @@ public final class DealScene: SKScene {
         ]))
     }
 
+    /// THE shared CURSE-FIRED indicator — savedIndicator's evil twin: a
+    /// suit-red ring sweep + the curse's verdict floated in red. One idiom
+    /// for every curse, so "red ring = a curse just did that" reads at a
+    /// glance.
+    public func curseIndicator(at pile: Int, label: String) {
+        guard let c = pileCenters[pile] else { return }
+        floatCue(label, at: pile, color: CRT.suitRed)
+        guard !reduceMotion else { return }
+        let box = CGSize(width: cardScale.size.width + 6, height: cardScale.size.height + 6)
+        let ring = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.suitRed, weight: 3))
+        ring.position = c
+        ring.zPosition = Layer.float
+        ring.setScale(0.9)
+        floatLayer.addChild(ring)
+        ring.run(.sequence([
+            .group([.scale(to: 1.22, duration: 0.75), .fadeOut(withDuration: 0.75)]),
+            .removeFromParent(),
+        ]))
+    }
+
     /// The Same-Power firing flourish: a gold pulse on the hub + each linked
     /// target, and the power's name floated on the hub.
     public func powerFeedback(hub: Int?, targets: [Int], label: String?) {
@@ -1326,16 +1782,19 @@ public final class DealScene: SKScene {
         webLayer.pulse(from: pile)
     }
 
-    /// "Shoulda said same" — the teasing pill over a pile that died on a tie.
+    /// "Shoulda said same" — the taunt over a pile that died on a tie. It is
+    /// meant to be OBNOXIOUS: a gold-rimmed pill that pops in oversized and
+    /// WAGS side to side (the wordmark's own mocking swivel) before it
+    /// saunters off. Bigger text, longer linger, zero sympathy.
     public func shouldaNudge(at pile: Int) {
         guard let c = pileCenters[pile] else { return }
-        let label = PixelTexture.label("Shoulda said same", size: 13, color: CRT.cardFace)
-        let pad: CGFloat = 8
-        let box = CGSize(width: label.size.width + pad * 2, height: label.size.height + 8)
+        let label = PixelTexture.label("Shoulda said same", size: 16, color: CRT.gold)
+        let pad: CGFloat = 10
+        let box = CGSize(width: label.size.width + pad * 2, height: label.size.height + 10)
         let holder = SKNode()
         holder.position = CGPoint(x: c.x - box.width / 2, y: c.y + box.height / 2)
         holder.zPosition = Layer.float + 1
-        let bg = PixelTexture.panelNode(size: box, face: CRT.feltMid, border: CRT.ink, shadowOffset: 2)
+        let bg = PixelTexture.panelNode(size: box, face: CRT.feltMid, border: CRT.gold, shadowOffset: 2)
         holder.addChild(bg)
         label.position = CGPoint(x: box.width / 2, y: -box.height / 2)
         label.zPosition = 1
@@ -1347,12 +1806,33 @@ public final class DealScene: SKScene {
                                   .fadeOut(withDuration: 0.2), .removeFromParent()]))
             return
         }
-        holder.setScale(0.9)
+        // The wag pivots around the pill's CENTRE (the holder's origin is its
+        // top-left corner, so the rotation rides a centred child instead).
+        let pivot = SKNode()
+        pivot.position = CGPoint(x: box.width / 2, y: -box.height / 2)
+        bg.removeFromParent(); label.removeFromParent()
+        bg.position = CGPoint(x: -box.width / 2, y: box.height / 2)
+        label.position = .zero
+        pivot.addChild(bg)
+        pivot.addChild(label)
+        holder.addChild(pivot)
+        let wag = SKAction.sequence([
+            .rotate(toAngle: -0.09, duration: 0.09),
+            .rotate(toAngle: 0.08, duration: 0.11),
+            .rotate(toAngle: -0.09, duration: 0.11),
+            .rotate(toAngle: 0.06, duration: 0.10),
+            .rotate(toAngle: -0.04, duration: 0.09),
+            .rotate(toAngle: 0, duration: 0.08),
+        ])
+        holder.setScale(0.7)
         holder.run(.sequence([
             .wait(forDuration: Double(BoardFX.deathFlashDelayMS) / 1000),
-            .group([.fadeIn(withDuration: 0.16), .scale(to: 1.0, duration: 0.16),
-                    .moveBy(x: 0, y: 9, duration: 0.16)]),
-            .wait(forDuration: 0.68),
+            // Pop in OVER size, settle, then wag like it's very pleased.
+            .group([.fadeIn(withDuration: 0.14), .scale(to: 1.18, duration: 0.14),
+                    .moveBy(x: 0, y: 9, duration: 0.14)]),
+            .scale(to: 1.0, duration: 0.10),
+            .run { pivot.run(wag) },
+            .wait(forDuration: 1.0),
             .group([.fadeOut(withDuration: 0.42), .moveBy(x: 0, y: 13, duration: 0.42)]),
             .removeFromParent(),
         ]))
@@ -1431,7 +1911,7 @@ public final class DealScene: SKScene {
                     let l = PixelTexture.label(
                         String(format: "%.1f fps · mean %.2fms · worst %.2fms · >16.7ms %d",
                                frameStats.fps, frameStats.meanMS, frameStats.worstMS, frameStats.over60),
-                        size: 12, color: CRT.phosphor)
+                        size: 14, color: CRT.phosphor)
                     l.anchorPoint = CGPoint(x: 0, y: 1)
                     l.position = CGPoint(x: 6, y: -(size.height - safeInsets.bottom - 6) + l.size.height)
                     l.zPosition = Layer.crt + 1
@@ -1524,7 +2004,7 @@ final class DealTopBar: SKNode {
 
     func sync(phaseIndex: Int, altSuits: Bool, phasesTotal: Int, showTrack: Bool,
               sameCharged: Bool, samePower: String?, coins: Int, score: Int,
-              menuShown: Bool, zen: Bool = false) {
+              best: Int, menuShown: Bool, zen: Bool = false) {
         let tex = PixelTexture.panel(size: CGSize(width: width, height: height))
         bg.texture = tex; bg.size = tex.size()
 
@@ -1605,30 +2085,58 @@ final class DealTopBar: SKNode {
         }
         scoreX += 26
 
+        // Measure the coin block FIRST — it owns the right edge, and the HI
+        // chip may only use what is left over.
+        let coinNum = PixelTexture.label("\(coins)", size: 20, color: CRT.gold)
+        var coinW = coinNum.size.width
+        var coinIcon: SKSpriteNode?
+        if let img = ArtBundle.image("pxi-coin") {
+            let t = PixelTexture.texture(from: img)
+            let sp = SKSpriteNode(texture: t)
+            let ch: CGFloat = 15
+            sp.size = CGSize(width: ch * t.size().width / max(1, t.size().height), height: ch)
+            coinIcon = sp
+            coinW += sp.size.width + 4
+        }
+
         // SCORE: the one phosphor element in the bar (glow baked), muted label.
-        let lab = PixelTexture.label("SCORE ", size: 12, color: CRT.muted)
+        let lab = PixelTexture.label("SCORE ", size: 14, color: CRT.muted)
         lab.anchorPoint = CGPoint(x: 0, y: 0.5)
         lab.position = CGPoint(x: scoreX, y: midY)
         content.addChild(lab)
-        let val = PixelTexture.label("\(score)", size: 19, color: CRT.phosphor, glow: true)
+        let val = PixelTexture.label("\(score)", size: 20, color: CRT.phosphor, glow: true)
         val.anchorPoint = CGPoint(x: 0, y: 0.5)
         val.position = CGPoint(x: scoreX + lab.size.width, y: midY)
         content.addChild(val)
         chips.append(("score", CGRect(x: scoreX - 4, y: -height + 4,
                                       width: lab.size.width + val.size.width + 8, height: height - 8)))
 
-        // Coins, far right.
-        let num = PixelTexture.label("\(coins)", size: 19, color: CRT.gold)
-        var coinW = num.size.width
-        var coinIcon: SKSpriteNode?
-        if let img = ArtBundle.image("pxi-coin") {
-            let t = PixelTexture.texture(from: img)
-            let s = SKSpriteNode(texture: t)
-            let ch: CGFloat = 15
-            s.size = CGSize(width: ch * t.size().width / max(1, t.size().height), height: ch)
-            coinIcon = s
-            coinW += s.size.width + 4
+        // HI: the lifetime best, right beside it, so the climb reads against
+        // the record. Gold (a record, not a live value) and never glowing —
+        // phosphor's glow stays reserved for the ONE live element.
+        if best > 0 {
+            let hiX = scoreX + lab.size.width + val.size.width + 10
+            // CREAM, not gold (v6.36): gold beside gold coins made the two
+            // numbers read as one family. The record now has its own colour.
+            let hiLab = PixelTexture.label("HI ", size: 14, color: CRT.muted)
+            let hiVal = PixelTexture.label("\(best)", size: 16, color: CRT.cardFace)
+            // Only when it clears the coins — a long climb score must never
+            // push HI under them. It simply drops out instead.
+            if hiX + hiLab.size.width + hiVal.size.width <= width - 14 - coinW {
+                hiLab.anchorPoint = CGPoint(x: 0, y: 0.5)
+                hiLab.position = CGPoint(x: hiX, y: midY)
+                content.addChild(hiLab)
+                hiVal.anchorPoint = CGPoint(x: 0, y: 0.5)
+                hiVal.position = CGPoint(x: hiX + hiLab.size.width, y: midY)
+                content.addChild(hiVal)
+                chips.append(("hiScore", CGRect(x: hiX - 4, y: -height + 4,
+                                                width: hiLab.size.width + hiVal.size.width + 8,
+                                                height: height - 8)))
+            }
         }
+
+        // Coins, far right (measured above).
+        let num = coinNum
         var cx = width - 10 - coinW
         if let coinIcon {
             coinIcon.anchorPoint = CGPoint(x: 0, y: 0.5)

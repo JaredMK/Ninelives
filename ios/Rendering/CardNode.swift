@@ -134,7 +134,7 @@ public enum CardArt {
             // Corner pips — decoration at 100% only, 12px, 0.8 alpha.
             if scale.showsPips, face.kind == .normal {
                 let pipAttrs: [NSAttributedString.Key: Any] = [
-                    .font: CRT.Font.of(12),
+                    .font: CRT.Font.of(14),
                     .foregroundColor: inkColor.withAlphaComponent(0.8),
                 ]
                 let s = face.suit as NSString

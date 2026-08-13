@@ -7,8 +7,11 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, StickerTypes, BaseTypes, Stats } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, StickerTypes, BaseTypes, Stats, ItemData } = loadGame();
   const r = makeRunner("same-items.test.mjs");
+  // Prices are tunables — pin registry-vs-data consistency, never the number.
+  const rawSticker = id => ItemData.stickers.find(s => s.id === id);
+  const rawBase = id => ItemData.bases.find(b => b.id === id);
 
   const deck = () => DeckManager.buildStandardDeck();
   const COLS = [3, 4, 3];   // col 0 = piles 0-2, col 1 = piles 3-6, col 2 = piles 7-9
@@ -45,10 +48,10 @@ export function run() {
     r.ok(all.every(t => typeof t.description === "string" && t.description.length > 0), "all four carry a description");
     r.ok(sIds.every(id => /→/.test(StickerTypes.get(id).description)), "the two same-* stickers use the arrow form");
     r.ok(all.every(t => t.icon), "all carry an icon/artwork");
-    r.eq(StickerTypes.get("rechargeSameShield").price, 15, "Recharge Shield sticker costs 15");
-    r.eq(StickerTypes.get("activateSamePower").price, 12, "Tap Power sticker costs 12");
-    r.eq(BaseTypes.get("rechargeSame").price, 25, "Recharge Cell base costs 25");
-    r.eq(BaseTypes.get("activateSame").price, 20, "Power Surge base costs 20");
+    r.eq(StickerTypes.get("rechargeSameShield").price, rawSticker("rechargeSameShield").price, "Recharge Shield sticker: registry price matches items.js");
+    r.eq(StickerTypes.get("activateSamePower").price, rawSticker("activateSamePower").price, "Tap Power sticker: registry price matches items.js");
+    r.eq(BaseTypes.get("rechargeSame").price, rawBase("rechargeSame").price, "Recharge Cell base: registry price matches items.js");
+    r.eq(BaseTypes.get("activateSame").price, rawBase("activateSame").price, "Power Surge base: registry price matches items.js");
     r.eq(BaseTypes.get("rechargeSame").kind, "active", "Recharge Cell is an activated base");
     r.eq(BaseTypes.get("activateSame").kind, "active", "Power Surge is an activated base");
     r.ok(!BaseTypes.get("rechargeSame").target && !BaseTypes.get("activateSame").target,

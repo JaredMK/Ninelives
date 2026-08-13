@@ -3232,12 +3232,19 @@ const NativeApp = (() => {
     transition: transform 0.12s ease;
   }
   .store-tile:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--shadow); }
-  /* Rarity strip: a 4px inner band under the plaque's top edge. */
-  .store-tile::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 4px;
-    pointer-events: none; }
-  .store-tile.srt-common::before { background: var(--card-face); opacity: 0.30; }
-  .store-tile.srt-uncommon::before { background: var(--gold); }
-  .store-tile.srt-rare::before { background: var(--phosphor); }
+  /* RARITY colours the WHOLE plaque, not a hairline across its top. The 4px
+     strip was too small to read as "this one is rare" and got taken for an
+     affordability light (the phosphor one especially — green reads as "you
+     can buy this"). Now the BORDER carries the tier hue at full strength and
+     the FACE takes a 22% wash of it, so the whole selection window reads as
+     uncommon/rare at a glance without drowning the art. Palette-mapped from
+     the live vars — no retyped hexes. (The native port mirrors this exactly:
+     StoreTileView blends felt-mid with the hue at 0.22.) */
+  .store-tile.srt-common { border-color: var(--ink); }   /* common stays the quiet plaque */
+  .store-tile.srt-uncommon { border-color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 22%, var(--felt-mid)); }
+  .store-tile.srt-rare { border-color: var(--phosphor);
+    background: color-mix(in srgb, var(--phosphor) 22%, var(--felt-mid)); }
   /* Pixel grid (§10): the old per-slot merchandise tilt is retired — rotated
      art shimmers off-grid inside the crisp plaque frames. offerTile still
      writes the inline rotate (kept: markup shape unchanged); this cancels it.
@@ -6982,7 +6989,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.74 · dead Pillar effect paths deleted; Pinky Regular earns both Jokers (no gifted start Joker)";
+const APP_VERSION = "v5.77 · Pinky deals one of each rank with suits spread evenly on an unstaged map; Mamma takes over the suit-staged hearts climb";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -9741,6 +9748,14 @@ const ITEM_UNLOCK_STATS = [
   // very first session (the tutorial lives there), so these are reachable
   // before any campaign progress.
   "zenGamesPlayed", "zenEasyWon", "zenMediumWon", "zenHardWon",
+  // UNLOCK3: counters the NATIVE port tracks and this build does not — suits
+  // landed, no-wrong-guess deals, per-tier deal clears, the map's bottom-tip
+  // easter egg, and two high-water marks. They are listed HERE only so the
+  // shared items.js stays valid on both sides; `statValue` below has no reader
+  // for them, so an item gated on one is simply never unlocked on the web.
+  "heartsPlayed", "diamondsPlayed", "clubsPlayed", "spadesPlayed",
+  "perfectDeals", "dealsWonRegular", "dealsWonMaster", "dealsWonLegendary",
+  "pinkyTipsSeen", "bestCampaignScore", "bestCoinsInClimb",
 ];
 
 /* ----------------------------------------------------------------
@@ -9955,7 +9970,11 @@ const DifficultyData = (() => {
     throw new Error("difficulty.js did not load — NINELIVES_DIFFICULTY is undefined (is the loader <script> present and the file next to index.html?)");
   const D = NINELIVES_DIFFICULTY;
   const problems = [];
-  const TIER_IDS = ["regular", "master", "legendary"];
+  // TWO tiers (v6.02): Normal and Legendary, identical but for Jokers. The
+  // ids are stable save keys, so "regular" kept its id and only its LABEL
+  // changed; "master" is retired. Listed here so the SHARED difficulty.js
+  // validates on both sides — the native build is the one that ships.
+  const TIER_IDS = ["regular", "legendary"];
   if (typeof D.endlessBandStep !== "number" || !(D.endlessBandStep > 0))
     problems.push("[difficulty.js] endlessBandStep: must be a positive number");
   // firstDealBand — the very first deal of the run (stage 0, row 0).
@@ -10138,12 +10157,13 @@ const TutorialData = (() => {
 
 /* ----------------------------------------------------------------
    DECK_RULES — per-deck gameplay modifiers (the deck characters).
-   Pinky is the baseline and carries NO modifiers (completely unchanged).
-     altSuits      shared alt-deck rules: 13-card start with one card of each
-                   rank at a RANDOM suit; stages are plain 1/2/3 (not
+   MAMMA is the suit-staged climb; every other deck uses the mixed start.
+     altSuits      13-card start with one card of each rank, suits spread
+                   EVENLY (4/3/3/3); stages are plain 1/2/3 (not
                    suit-segmented) — every pickup/pack rolls all four suits;
                    the top bar shows a stage indicator instead of the suit
                    tracker. Difficulty keeps the same per-stage band values.
+                   OFF (Mamma only) = the 13 hearts, then ♦ ♣ ♠ by stage.
      priceMult     shop price multiplier (every item price, incl. Removal)
      startStickers a random ELIGIBLE sticker on each of the 13 starting cards
      noStickers    stickers unusable: store sticker/sticker-pack slots roll
@@ -10153,8 +10173,8 @@ const TutorialData = (() => {
                    slots at run start
 ---------------------------------------------------------------- */
 const DECK_RULES = {
-  pink:  { altSuits: false, priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
-  mamma: { altSuits: true,  priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
+  pink:  { altSuits: true,  priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
+  mamma: { altSuits: false, priceMult: 1, startStickers: false, noStickers: false, preEquip: false },
   smith: { altSuits: true,  priceMult: 2, startStickers: true,  noStickers: false, preEquip: false },
   lammy: { altSuits: true,  priceMult: 1, startStickers: false, noStickers: true,  preEquip: true },
 };
@@ -10358,12 +10378,11 @@ const Economy = (() => {
     // Product of alive piles and the smallest alive pile's card count — the
     // deal SCORE (folded into the campaign score at the payout site), not
     // coins. The guard keeps it 0 (never NaN) when there are no alive piles.
-    // v5.63: an AMBUSH pays coins only — its bounty IS the reward, and it
-    // never counts toward the run SCORE. Forcing the product to 0 here makes
-    // the whole chain follow from one place (the per-clear fold, the summary
-    // plaque, and any future consumer).
-    const product = (stats && stats.ambush) ? 0
-      : (alivePiles > 0 ? alivePiles * minPileCards : 0);
+    // v5.82: EVERY battle scores, ambushes included. An ambush still pays no
+    // flat stage base (its bounty IS the coin reward — the caller passes
+    // flat 0), but its surviving piles count toward the run SCORE like any
+    // other cleared deal.
+    const product = alivePiles > 0 ? alivePiles * minPileCards : 0;
     const extraCoinBonus = extraCoinUnits * cfg.EXTRA_COIN_VALUE;
     return {
       won,
@@ -11696,7 +11715,7 @@ const RunMap = (() => {
      preserved exactly: every route through A necessarily crossed B, so its
      card total is unchanged — just granted in one stop. Deterministic (no
      rng), so a resume's regeneration merges identically. */
-  function mergeForcedPackChains(ph) {
+  function mergeForcedPackChains(ph, genV) {
     if (!ph || !ph.nodes || !ph.byId) return ph;
     const parents = {};
     ph.nodes.forEach(n => (n.next || []).forEach(id => { (parents[id] = parents[id] || []).push(n.id); }));
@@ -11713,6 +11732,20 @@ const RunMap = (() => {
         b.type = "pass";
         delete b.packCount; delete b.add; delete b.mixed;
         cur = b;
+      }
+    }
+    // No node may be EMPTY. A merged-away pack leaves a stop that grants
+    // nothing, so at genV >= 3 it becomes a MYSTERY — the trail still has a
+    // reason to stop there. Done AFTER the merge so the loop above keeps
+    // gliding on "pass"; gated on genV so a resumed pre-mystery map still
+    // regenerates byte-identically (the save-compat contract).
+    if ((genV || 1) >= 3) {
+      for (const n of ph.nodes) {
+        if (n.type !== "pass") continue;
+        n.type = "mystery";
+        // The mystery contract (see setType): its event IS its whole content,
+        // so it carries no add / packCount / suit / mixed.
+        delete n.add; delete n.packCount; delete n.suit; delete n.mixed;
       }
     }
     return ph;
@@ -11733,7 +11766,7 @@ const RunMap = (() => {
       const rng = makeRng((seed >>> 0) ^ ((phaseIndex + 1) * 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b));
       const ph = tryBuildStage(phaseIndex, rng, entryDeck, relax, opts);
       if (!ph) { hist["build-null"] = (hist["build-null"] || 0) + 1; continue; }
-      mergeForcedPackChains(ph);   // forced pack corridors collapse BEFORE validation
+      mergeForcedPackChains(ph, opts && opts.genVersion);   // corridors collapse BEFORE validation
       const bandX = relax * C.relaxBandStep;
       const v = validateStage(ph, entryDeck, { phaseIndex, bandHiExtra: bandX });
       ph._gen = { attempt, relax, entryDeck, report: v.report, warnings: v.warnings };
@@ -12096,7 +12129,7 @@ const RunMap = (() => {
   function buildPhase(phaseIndex, seed, entryDeck, opts) {
     if (AUTHORED[phaseIndex]) {
       const ph = definitionToPhase(AUTHORED[phaseIndex], phaseIndex);
-      mergeForcedPackChains(ph);   // authored maps get the same corridor collapse
+      mergeForcedPackChains(ph, opts && opts.genVersion);   // authored maps collapse the same way
       const v = validateStage(ph, entryDeck || GEN_CONFIG.startDeckSize, { phaseIndex });
       if (!v.ok) console.warn("[RunMap] authored stage " + phaseIndex + " violates the map spec: " + v.errors.join(" | "));
       return ph;
@@ -14621,8 +14654,18 @@ const CampaignState = (() => {
 
   /** Derive a board layout for an ARBITRARY pile count (a map node sets the pile
       count now, not a fixed RUN_LAYOUT). Splits n into up to 3 balanced columns,
-      tallest column ≤ ~3, so the fixed board sizing still holds. */
-  function layoutForPiles(n) {
+      tallest column ≤ ~3, so the fixed board sizing still holds.
+
+      `pillars` (optional, the equipped per-column ids) applies the column
+      modifiers that change the SHAPE of the board. Today that is `columnPiles`
+      (Fourth Seat): its column always opens the deal with at least `value`
+      piles. The balanced split runs FIRST and the pillar only ever raises its
+      own column to the floor — it never takes a seat off another column, and
+      never shrinks a column that is already wider. The total pile count grows
+      to match, so a widened layout is NOT recoverable from the pile count
+      alone (9 piles + a seated column 1 is [4,3,3], which re-derives to
+      [3,4,3]) — always pass `cols`, never re-split downstream. */
+  function layoutForPiles(n, pillars) {
     n = Math.max(1, Math.round(n));
     let cols;
     if (n <= 3) cols = new Array(n).fill(1);          // 1 per column (2 or 3 columns)
@@ -14632,6 +14675,13 @@ const CampaignState = (() => {
            : (rem === 2) ? [base + 1, base, base + 1]
            : [base, base, base];
       cols = cols.filter(x => x > 0);
+    }
+    if (pillars) {
+      for (let c = 0; c < cols.length; c++) {
+        const t = pillars[c] ? PillarTypes.get(pillars[c]) : null;
+        if (!t || t.effect !== "columnPiles") continue;
+        cols[c] = Math.max(cols[c], Math.max(1, Math.round(t.value)));
+      }
     }
     return { cols, piles: cols.reduce((a, b) => a + b, 0), rows: Math.max(...cols) };
   }
@@ -14657,6 +14707,9 @@ const CampaignState = (() => {
   // slots roll from the unified pool (cap applies across just those rolled
   // slots). When OFF, all STORE_SLOTS slots roll and Removal never appears here.
   const REMOVAL_PRICE = ItemData.store.removal.price;   // items.js knob
+  // Each removal bought in a climb lifts the next one's price by this much
+  // (items.js `store.removal.priceStep`; 0 = flat forever).
+  const REMOVAL_PRICE_STEP = itemNum(ItemData.store.removal, "priceStep", 0);
   const removalSlot = () => ({ kind: "removal", id: "removal" });
 
   // Store-offer rarity weights by tier: commons show up most, rares least.
@@ -14696,6 +14749,14 @@ const CampaignState = (() => {
      ignored. Pack-CARD suit generation is untouched — a pack still mints cards
      of the suits actually in play (deck composition pacing, not item gating). */
   function stickerPoolForSuits() { return StickerTypes.grantable(); }   // cursed stickers never roll (mystery events only)
+  /* v5.83: the grant pool narrowed to stickers the player could actually PLACE.
+     A sticker no card can take used to be handed over anyway and then parked in
+     an inventory with no UI, so it was simply lost. Callers fall back to the
+     plain pool when nothing is placeable (a no-stickers deck). */
+  function stickerPoolWithTarget(c) {
+    if (!c || (c.stickersLocked && c.stickersLocked())) return [];
+    return StickerTypes.grantable().filter(t => c.stickerHasTarget(t.id));
+  }
   function pillarPoolForSuits() { return PillarTypes.all(); }
   function basePoolForSuits() { return BaseTypes.all(); }
 
@@ -14942,6 +15003,9 @@ const CampaignState = (() => {
     // wiped on reset(). null until the first store opens.
     let storeOffer = null;
     let removalSlotEnabled = true;   // permanent Removal slot (debug-toggleable, default ON)
+    // Removals bought THIS CLIMB — the removal slot's price ladder. Resets with
+    // the climb (not per store visit, unlike the reroll ladder).
+    let removalsBought = 0;
     // Card Packs: pending CARD-pack picks (≤ PACK_TRAY_CAP), held until used to
     // replace a dealt card in the pre-run phase. Persists across runs; wiped on
     // loss. nextCardId mints unique ids for pack cards (base deck is ids 0..51).
@@ -15420,13 +15484,20 @@ const CampaignState = (() => {
         case "coinBonus":
           return coinBonus();
         case "coinLoss": {
+          // Never show a loss to a broke player — at 0 coins the toll flips
+          // to a bonus instead of reading "−0 coins" (v5.82).
+          if (coins <= 0) return coinBonus();
           const amount = Math.min(coins, coinAmount());   // floored at 0 — never negative
           coins -= amount;
           return { key, title: "Toll", amount, desc: "−" + amount + " coins" };
         }
         case "stickerPack": {
-          const sid = rollIds(StickerTypes.grantable(), 1, rng)[0];   // never a cursed sticker
-          if (!sid) return null;
+          // Only ever offer a sticker the player can PLACE; with nothing
+          // placeable the outcome folds to coins, like the joker cap (v5.83).
+          const pool = stickerPoolWithTarget(this);
+          if (!pool.length) return coinBonus();
+          const sid = rollIds(pool, 1, rng)[0];   // never a cursed sticker
+          if (!sid) return coinBonus();
           stickerInventory[sid] = (stickerInventory[sid] || 0) + 1;
           const t = StickerTypes.get(sid);
           return { key, title: "Imprint", stickerId: sid, stickerLabel: t ? t.label : sid,
@@ -15478,9 +15549,12 @@ const CampaignState = (() => {
           // the removal itself goes through removeDeckCard.
           return { key, title: "Purge", desc: "Remove a card from your deck — free" };
         case "stickerStrip":
+          // With nothing to strip the outcome can't appear (v5.82) — fold to
+          // coins at apply time (deterministic, like the joker-cap fold).
+          if (!ownedIds.map(findById).some(c => c && (c.stickers || []).length > 0)) return coinBonus();
           // Descriptor only — the UI opens the sticker picker; the strip goes
           // through removeRandomStickerFrom / removeStickerInstances.
-          return { key, title: "Cleanse", desc: "Strip a sticker from a card — free" };
+          return { key, title: "Cleanse", desc: "Strip a sticker from a card" };
         case "cursedSticker": {
           // UNGATED by design (UNLOCK1): the bane pool rolls from ALL cursed
           // stickers regardless of unlock gates — a curse is INFLICTED, never
@@ -15683,13 +15757,15 @@ const CampaignState = (() => {
       unveilJokerNodes();   // the guaranteed Joker node stays face-up on every regeneration
     }
     /** Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
-        Pinky pre-holds the 13 hearts; alt decks (Mamma/Smith/Lammy) hold one
-        card of EACH RANK at a random suit. Decks listed in the tier's
+        Mamma pre-holds the 13 hearts and climbs a suit-staged map; the
+        others (Pinky/Smith/Lammy) hold one card of EACH RANK with the suits
+        spread evenly. Decks listed in the tier's
         startJokers (difficulty.js) also begin holding that many Jokers. Mr.
         Smith's start cards each roll one random eligible sticker; Lammy's six
         column slots pre-fill with 3 random Pillars + 3 random Bases. */
     function startNewRun() {
       phaseIndex = 0;
+      removalsBought = 0;   // the removal price ladder is per climb
       // SEED1 — the run's seed is established FIRST, before ANY start roll:
       // a player-entered seed wins (marking the run EXHIBITION — no progression
       // credit); otherwise adopt the matching pregen's seed up front (so every
@@ -15714,9 +15790,27 @@ const CampaignState = (() => {
       // draw from the run's "start" substream — keyed to the FINAL seed above.
       const startRng = runRng("start");
       if (rules().altSuits) {
-        ownedIds = DeckManager.RANKS.map(r => {
+        // One card of EACH RANK, suits spread EVENLY: 13 ranks over 4 suits is
+        // 4/3/3/3, so the hand always shows every suit instead of whatever a
+        // per-rank coin flip happened to produce (which could deal 6 of one
+        // suit and 2 of another). The suit that gets the extra card, and the
+        // rank each suit lands on, are both seeded — same seed, same hand.
+        const bag = [];
+        const suits = DeckManager.SUITS.map(su => su.symbol);
+        const extra = Math.floor(startRng() * suits.length);
+        suits.forEach((su, i) => {
+          const n = 3 + (i === extra ? 1 : 0);
+          for (let k = 0; k < n; k++) bag.push(su);
+        });
+        for (let i = bag.length - 1; i > 0; i--) {   // seeded Fisher-Yates
+          const j = Math.floor(startRng() * (i + 1));
+          const t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+        }
+        ownedIds = DeckManager.RANKS.map((r, i) => {
           const four = baseDeck.filter(c => !c.joker && !c.blank && c.originalRank === r.value);
-          return four[Math.floor(startRng() * four.length)].id;
+          const want = four.filter(c => c.suit === bag[i]);
+          const pool = want.length ? want : four;   // defensive: never empty
+          return pool[Math.floor(startRng() * pool.length)].id;
         });
       } else {
         ownedIds = idsOfSuit(START_SUIT).slice();   // the 13 hearts
@@ -16678,7 +16772,7 @@ const CampaignState = (() => {
              : s.kind === "pillar"    ? this.priceOfPillar(s.id)
              : s.kind === "base"      ? this.priceOfBase(s.id)
              : s.kind === "samepower" ? this.priceOfSamePower(s.id)
-             : s.kind === "removal"   ? REMOVAL_PRICE
+             : s.kind === "removal"   ? this.removalPrice()
              // Individual-card slot: flat price from items.js store.card —
              // a Joker costs its own (much steeper) jokerPrice.
              : s.kind === "card"      ? shopPrice(s.card && s.card.joker ? ItemData.store.card.jokerPrice : ItemData.store.card.price)
@@ -16736,15 +16830,20 @@ const CampaignState = (() => {
           open or reroll (a live offer keeps its current slot layout until then). */
       setRemovalSlot(on) { removalSlotEnabled = !!on; },
       removalSlotOn() { return removalSlotEnabled; },
-      /** Fixed price of a Removal purchase. */
-      removalPrice() { return shopPrice(REMOVAL_PRICE); },
-      /** Buy a Removal: charge the fixed price and permanently remove card `id`.
-          The offer slot is NOT consumed (repeatable). Returns true on success. */
+      /** Price of the NEXT Removal: base + step per one already bought this
+          climb, then the deck price multiplier. */
+      removalPrice() {
+        return shopPrice(REMOVAL_PRICE + REMOVAL_PRICE_STEP * removalsBought);
+      },
+      /** Buy a Removal: charge the current rung and permanently remove card
+          `id`. The offer slot is NOT consumed (repeatable), but the ladder
+          climbs. Returns true on success. */
       buyRemoval(id) {
         const price = this.removalPrice();
         if (coins < price) return false;
         if (!this.removeDeckCard(id)) return false;
         coins -= price;
+        removalsBought++;
         return true;
       },
 
@@ -16755,6 +16854,10 @@ const CampaignState = (() => {
          card may hold any number of stickers, including duplicates. The only
          block is at a rank boundary: no +1 on an Ace, no -1 on a 2 (so stacked
          rank stickers clamp instead of being wasted). */
+      /** Does ANY card in the run deck accept this sticker right now? */
+      stickerHasTarget(typeId) {
+        return ownedIds.map(findById).some(c => this.canApplySticker(c, typeId));
+      },
       canApplySticker(card, typeId) {
         if (rules().noStickers) return false;   // Lammy: stickers unusable, full stop
         if (!stickerCardEligible(card, typeId)) return false;   // Joker/Removal + `suits` gate
@@ -16859,7 +16962,10 @@ const CampaignState = (() => {
           for (let i = 0; i < t.size; i++) out.push(this.genPackCard(rng));
           return out;
         }
-        return rollIds(stickerPoolForSuits(suitsInPlay()), t.size, rng);
+        // Prefer stickers with a legal target — an unplaceable pack pick is a
+        // wasted purchase. Fall back rather than hand over an empty pack.
+        const targeted = stickerPoolWithTarget(this);
+        return rollIds(targeted.length ? targeted : stickerPoolForSuits(suitsInPlay()), t.size, rng);
       },
 
       /* ---- pending pack tray (card-pack picks) ---- */
@@ -17090,6 +17196,7 @@ const CampaignState = (() => {
           runScore, scoreBanked,              // ECON1 score: running total + the ♠-boss banked split
           endless,                            // endless mode chosen (stages past ♠ in stageEntryDecks)
           sameCharge,
+          removalsBought,                     // the removal slot's per-climb price ladder
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
           baseInventory: { ...baseInventory },
@@ -17182,6 +17289,8 @@ const CampaignState = (() => {
         scoreBanked = s.scoreBanked || 0;
         endless = !!s.endless;               // default false for pre-endless saves
         sameCharge = !!s.sameCharge;
+        // Absent in pre-v5.82 saves — an old climb just restarts the ladder.
+        removalsBought = Number(s.removalsBought) || 0;
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
         baseInventory = { ...(s.baseInventory || {}) };       // default {} for pre-Bases saves
@@ -18798,7 +18907,7 @@ const UIRenderer = (() => {
   // (no free redeal). `appliedThisPhase` tracks whether a sticker/replacement
   // was applied since the last deal, to warn before a reshuffle re-deals on top
   // of those (Rule B: the applications stay; only the starting board changes).
-  const REDEAL_BASE_COST = 10;   // reshuffle price at the start of EVERY deal
+  const REDEAL_BASE_COST = 5;    // reshuffle price at the start of EVERY deal
   const REDEAL_STEP = 1;         // +1 per reshuffle within the same deal
   let redealCost = REDEAL_BASE_COST;
   /* SEED1 — deal-seed identity: a deal's seed mints from the campaign's
@@ -19179,10 +19288,9 @@ const UIRenderer = (() => {
     if (el.dealScore) {
       const alive = board.aliveCount();
       const smallest = alive > 0 ? board.minAliveCards() : 0;
-      // An ambush pays coins only and never scores (v5.63) — project nothing.
-      const scores = !ambushDeal;
-      el.dealScore.textContent = !scores ? "—" : (alive > 0 ? alive + "×" + smallest : "0");
-      el.dealScore.dataset.product = String(!scores ? 0 : (alive > 0 ? alive * smallest : 0));
+      // Every battle scores now (v5.82) — an ambush projects like any deal.
+      el.dealScore.textContent = alive > 0 ? alive + "×" + smallest : "0";
+      el.dealScore.dataset.product = String(alive > 0 ? alive * smallest : 0);
     }
     updateStageRun();   // coins live beside the Stage · Run pill now
     renderDeckStrip();  // keep the always-on composition strip in sync
@@ -22950,15 +23058,24 @@ const UIRenderer = (() => {
      out; this only animates their first appearance. Returns true if it ran (so the
      caller can skip the legacy all-at-once drop-in), false under reduced motion / no
      Web Animations support (board just shows normally). */
-  /* ── SUBSET REVEAL (presentation only) ──────────────────────────────────
-     A quick anonymous flourish shown before a SUBSET deal (see startRun): the
-     full deck (`total` cards) fans out as FACE-DOWN blank backs; the out-of-play
-     portion then greys/fades while the `inPlay` portion stays lit, over an
-     "X of Y in play" count. Conveys PROPORTION + COUNT only — every card is an
-     anonymous back, so which cards are in the subset is NEVER shown. Snappy
-     (~1.2s), then removes itself. Reduced motion → a brief static frame. */
-  function playSubsetReveal(inPlay, total) {
-    if (!total || total <= 0 || inPlay < 0) return;
+  /* ── DEAL REVEAL (presentation only) ────────────────────────────────────
+     The deal's composition, shown before EVERY deal (see startRun): the full
+     deck (`total` cards) fans out as FACE-DOWN blank backs; the out-of-play
+     portion then greys/fades while the `inPlay` portion stays lit, over the
+     count. Conveys PROPORTION + COUNT only — every card is an anonymous back,
+     so which cards are in play is NEVER shown.
+
+     It used to fire only for SUBSET deals, which meant it first appeared once
+     the deck had grown enough for subsets to kick in (stage 2-ish) and read as
+     a rare warning rather than as the deal's composition. A full-deck deal
+     gets its own line — there is no "of Y" to state when nothing sits out.
+
+     RETURNS the hold in ms: the caller gates the deal cascade on it, so the
+     count is read FIRST and the piles then land into a clear board (the two
+     used to play at once and competed for the eye). Because it now gates
+     every deal it is kept SHORT (~0.9s). Reduced motion → a static frame. */
+  function playDealReveal(inPlay, total) {
+    if (!total || total <= 0 || inPlay < 0) return 0;
     // Cap how many card backs we DRAW (deep endless decks can be large); the
     // label always shows the true counts, and the drawn lit/dim split stays
     // proportional. Anonymity is unaffected (all backs are blank).
@@ -22984,27 +23101,41 @@ const UIRenderer = (() => {
       c.style.animationDelay = (i * 6) + "ms";
       fan.appendChild(c);
     }
+    // FULL DECK: nothing sits out, so "X of Y in play" would state a split that
+    // isn't there. It gets its own line and no explainer.
+    const whole = inPlay >= total;
     const label = document.createElement("div");
     label.className = "sr-label";
-    label.innerHTML = "<b>" + inPlay + "</b> of <b>" + total + "</b> cards in play";
-    const sub = document.createElement("div");
-    sub.className = "sr-sub";
-    sub.textContent = "A random hand from your deck — the rest sit this one out";
-    wrap.appendChild(fan); wrap.appendChild(label); wrap.appendChild(sub);
+    label.innerHTML = whole
+      ? "Your whole deck — <b>" + total + "</b> cards"
+      : "<b>" + inPlay + "</b> of <b>" + total + "</b> cards in play";
+    wrap.appendChild(fan); wrap.appendChild(label);
+    if (!whole) {
+      const sub = document.createElement("div");
+      sub.className = "sr-sub";
+      sub.textContent = "A random hand from your deck — the rest sit this one out";
+      wrap.appendChild(sub);
+    }
     document.body.appendChild(wrap);
     try { Sound.shuffle(); } catch (e) {}
     requestAnimationFrame(() => wrap.classList.add("in"));
-    const fanDone = drawN * 6 + 340;
-    const t1 = setTimeout(() => wrap.classList.add("dimmed"), Math.min(560, fanDone));
+    const fanDone = drawN * 6 + 200;
+    const t1 = setTimeout(() => wrap.classList.add("dimmed"), Math.min(300, fanDone));
+    const hold = prefersReduce() ? 500 : 680;
     const t2 = setTimeout(() => {
       wrap.classList.add("out");
-      setTimeout(() => wrap.remove(), 220);
-    }, prefersReduce() ? 620 : 1220);
+      setTimeout(() => wrap.remove(), 200);
+    }, hold);
     void t1; void t2;
+    return hold + 200;
   }
 
   let dealCascadeToken = 0;
-  function playDealCascade(board) {
+  /* How long the cascade waits before its first card flies — set by the deal
+     reveal (see playDealReveal), consumed once by the "dealt" it precedes, so
+     a later deal that raises no reveal never inherits a stale hold. */
+  let dealRevealHold = 0;
+  function playDealCascade(board, holdMs = 0) {
     if (!board || !el.board || prefersReduce() || typeof el.board.animate !== "function") return false;
     const token = ++dealCascadeToken;   // a newer deal cancels a stale cascade's reveals
     const piles = [];
@@ -23036,11 +23167,11 @@ const UIRenderer = (() => {
         }
         if (!p.to || !p.to.width) { reveal(p); return; }         // not laid out (hidden) — just show it
         flyCard(flyRealCardEl(p.top, p.cardEl), from, p.to, { duration: DUR, onArrive: () => reveal(p) });
-      }, BLANK + k * STEP);
+      }, holdMs + BLANK + k * STEP);
     });
     // Safety net: guarantee every card is revealed even if a flight's finish is missed.
     setTimeout(() => { if (token === dealCascadeToken) piles.forEach(reveal); },
-      BLANK + piles.length * STEP + DUR + 250);
+      holdMs + BLANK + piles.length * STEP + DUR + 250);
     return true;
   }
 
@@ -23321,8 +23452,13 @@ const UIRenderer = (() => {
         // Deal-out cascade (presentation): hide the just-painted pile cards NOW
         // (before first paint) so the board reads blank, then fly them in from the
         // deck character one by one. No-op under reduced motion (cards just show).
-        playDealCascade(payload.board);
-        Sound.deal();   // pile cards dealt out for the fresh deal
+        // The reveal (if one is up) gates the fly-in: the cards are hidden
+        // NOW, so the board reads blank under the count, and only the flights
+        // wait. The hold is consumed here — one reveal gates one deal.
+        const revealHold = dealRevealHold; dealRevealHold = 0;
+        playDealCascade(payload.board, revealHold);
+        if (revealHold) setTimeout(() => Sound.deal(), revealHold);
+        else Sound.deal();   // pile cards dealt out for the fresh deal
         // Deck character: settle to idle for the fresh deal, wash to the phase
         // suit, and (re)start the gentle idle blink.
         DeckChar.reset();
@@ -24336,8 +24472,8 @@ const UIRenderer = (() => {
     el.overlayCoins.classList.toggle("hidden", !opts.coins);
     // Score plaque: only when this overlay carries a full deal breakdown (the
     // deal-cleared screen); loss/plain overlays have no product to show.
-    // A cleared deal always scores >= 1 (piles x smallest), so product 0 on a
-    // win means an AMBUSH (coins only, v5.63) — no plaque at all.
+    // A cleared deal always scores >= 1 (piles x smallest) — ambushes included
+    // since v5.82 — so product 0 only ever means "not a cleared deal".
     const sb = opts.coins && opts.coins.breakdown;
     const showScore = !!sb && sb.product > 0;
     if (el.overlayScore) {
@@ -25392,15 +25528,19 @@ const UIRenderer = (() => {
     } else {
       subsetInitialCounts = null; subsetInitialSuits = null; subsetInitialJokers = 0;
     }
+    // Pillars are read BEFORE the layout: a `columnPiles` Pillar (Fourth Seat)
+    // widens its own column, so the board's REAL pile count is the layout's,
+    // not the node's. Everything below (the dataset hook, the engine, the
+    // board) reads cfg, so all three agree on the same split.
+    const cfg = campaign.layoutForPiles(piles, campaign.getColumnPillars());
     // Observability hook (invisible data attributes — never rendered): the deal's
     // deck size, pile count, and whether it's a subset. Used by tests/debug; the
     // subset COMPOSITION is never surfaced, so the hidden-subset contract holds.
     if (document.body && document.body.dataset) {
       document.body.dataset.dealSubset = wantSubset ? "1" : "0";
       document.body.dataset.dealDeck = String(deckForDeal.length);
-      document.body.dataset.dealPiles = String(piles);
+      document.body.dataset.dealPiles = String(cfg.piles);
     }
-    const cfg = campaign.layoutForPiles(piles);
 
     // Scaling hook (inert for now) — wired into run start by design.
     applyRunScaling(campaign.currentRunIndex);
@@ -25419,6 +25559,14 @@ const UIRenderer = (() => {
     // is delegated on the board, so no per-pile handlers accumulate.
     buildBoard(cfg.cols);
 
+    // DEAL REVEAL: the composition count, shown before EVERY deal and BEFORE
+    // the cascade — it must go up before engine.start(), because the "dealt"
+    // event it raises is what fires the cascade. The hold it returns is handed
+    // to that cascade, which hides the pile cards immediately and delays only
+    // the fly-in, so the board reads blank under the count instead of dealing
+    // itself out behind it.
+    dealRevealHold = playDealReveal(deckForDeal.length, fullDeck.length);
+
     // SEED1: a fresh deal's seed is ONE draw from the deal's keyed substream
     // (after any subset rolls above) — the checkpoint below persists it via
     // engine.getSeed(), and a resume replays that persisted seed exactly (the
@@ -25431,12 +25579,6 @@ const UIRenderer = (() => {
     persistCampaign("run");
     flushCampaignSave();
     renderReshuffleBtn();   // fresh deal, zero guesses → the reshuffle offer shows
-    // SUBSET REVEAL: a quick anonymous "X of Y in play" flourish, ONLY for a
-    // subset deal entered fresh or reshuffled (a resume — seedOverride set —
-    // reproduces the deal silently; full-deck deals and bosses never subset).
-    if (subsetDealActive && seedOverride == null) {
-      playSubsetReveal(deckForDeal.length, fullDeck.length);
-    }
   }
 
   /* Largest single-column pile count across every run (4, from Run 1's middle
@@ -27124,7 +27266,7 @@ const UIRenderer = (() => {
       // A Master/Legendary win at any tier ALSO counts as beating the tiers
       // below it (a Legendary clear obviously clears Regular) — record them so
       // the tier ladder can never present an already-conquered lock.
-      if (wonTier === "legendary") DeckUnlocks.recordWin(selectedDeckId, "master");
+      // (The retired Master rung is no longer granted.)
       if (wonTier !== "regular" && DeckUnlocks.recordWin(selectedDeckId, "regular") ) {
         const wonIdx = DECKS.findIndex(d => d.id === selectedDeckId);
         pendingUnlockCelebration = pendingUnlockCelebration || DECKS[wonIdx + 1] || null;
@@ -28408,7 +28550,7 @@ const UIRenderer = (() => {
     if (el.saHead) el.saHead.textContent = "Cleanse — strip a sticker";
     if (el.saBanner) el.saBanner.innerHTML = '<span class="me-glyph">🫧</span>' +
       '<span class="sa-name">Cleanse</span>' +
-      '<span class="sa-desc">Pick a card — one random sticker is stripped from it, free. The stripped sticker is destroyed.</span>';
+      '<span class="sa-desc">Pick a card — one random sticker is stripped from it. The stripped sticker is destroyed.</span>';
     if (el.saHint) el.saHint.textContent = "Tap a stickered card — you must strip one to continue.";
     stickerApplyChrome();
     renderStickerApplyCards();
@@ -28732,7 +28874,7 @@ const UIRenderer = (() => {
   }
   function describeItem(kind, id) {
     if (kind === "removal") return { icon: ItemData.store.removal.icon || "∅", label: ItemData.store.removal.label || "Removal", tier: "",
-      desc: ItemData.store.removal.description + " (" + (campaign ? campaign.removalPrice() : ItemData.store.removal.price) + " coins each)." };
+      desc: ItemData.store.removal.description + " (next one: " + (campaign ? campaign.removalPrice() : ItemData.store.removal.price) + " coins)." };
     if (kind === "card") return { icon: ItemData.store.card.icon || "🂠", label: ItemData.store.card.label || "Card", tier: "",
       desc: ItemData.store.card.description };
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;

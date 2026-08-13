@@ -50,6 +50,20 @@ public final class ItemUnlocks {
         case "zenEasyWon":           return zenStats.get("easy").wins
         case "zenMediumWon":         return zenStats.get("medium").wins
         case "zenHardWon":           return zenStats.get("hard").wins
+        // UNLOCK2 — suits, precision, tier, curiosity, and the score bests.
+        case "heartsPlayed":         return s.heartsPlayed
+        case "diamondsPlayed":       return s.diamondsPlayed
+        case "clubsPlayed":          return s.clubsPlayed
+        case "spadesPlayed":         return s.spadesPlayed
+        case "perfectDeals":         return s.perfectDeals
+        case "dealsWonRegular":      return s.dealsWonRegular
+        case "dealsWonMaster":       return s.dealsWonMaster
+        case "dealsWonLegendary":    return s.dealsWonLegendary
+        case "pinkyTipsSeen":        return s.pinkyTipsSeen
+        case "ambushesWon":          return s.ambushesWon
+        case "earlyLosses":          return s.earlyLosses
+        case "bestCampaignScore":    return s.bestCampaignScore
+        case "bestCoinsInClimb":     return s.bestCoinsInClimb
         default:                     return 0
         }
     }
@@ -81,12 +95,32 @@ public final class ItemUnlocks {
         case "stickersApplied":      return "Apply " + pl("sticker")
         case "pillarsPlaced":        return "Place " + pl("Pillar")
         case "basesPlaced":          return "Place " + pl("Base")
-        case "removalsUsed":         return "Remove " + pl("card")
+        case "removalsUsed":         return "Purge " + pl("card")
         case "pilesLost":            return "Lose " + pl("pile")
         case "zenGamesPlayed":       return "Play " + pl("Zen game")
         case "zenEasyWon":           return n == 1 ? "Beat Zen on Easy" : "Beat Zen Easy \(n) times"
         case "zenMediumWon":         return n == 1 ? "Beat Zen on Medium" : "Beat Zen Medium \(n) times"
         case "zenHardWon":           return n == 1 ? "Beat Zen on Hard" : "Beat Zen Hard \(n) times"
+        case "heartsPlayed":         return "Land " + pl("♥ card")
+        case "diamondsPlayed":       return "Land " + pl("♦ card")
+        case "clubsPlayed":          return "Land " + pl("♣ card")
+        case "spadesPlayed":         return "Land " + pl("♠ card")
+        case "perfectDeals":         return n == 1 ? "Clear a deal with no wrong guesses"
+                                                   : "Clear \(n) deals with no wrong guesses"
+        case "dealsWonRegular":
+            let t = GameData.shared.difficulty.tier("regular").label
+            return n == 1 ? "Clear a deal on \(t)" : "Clear \(n) deals on \(t)"
+        case "dealsWonMaster":       return n == 1 ? "Clear a deal on Master" : "Clear \(n) deals on Master"
+        case "dealsWonLegendary":
+            let t = GameData.shared.difficulty.tier("legendary").label
+            return n == 1 ? "Clear a deal on \(t)" : "Clear \(n) deals on \(t)"
+        case "ambushesWon":          return n == 1 ? "Defeat an ambush" : "Defeat \(n) ambushes"
+        case "earlyLosses":          return n == 1 ? "Lose a climb before the stage 1 boss falls"
+                                                   : "Lose \(n) climbs before the stage 1 boss falls"
+        case "pinkyTipsSeen":        return n == 1 ? "Find the tip below the map"
+                                                   : "Find the tip below the map in \(n) different climbs"
+        case "bestCampaignScore":    return "Score \(n) in a climb"
+        case "bestCoinsInClimb":     return "Earn \(n) coins in one climb"
         default:                     return ""
         }
     }

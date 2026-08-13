@@ -1,8 +1,8 @@
 # AGENTS.md — Ninelives
 
 Mobile-first, single-file web card game. No frameworks, no build step, no
-dependencies — open `index.html` in a browser. iOS wrapper lives in `app/`
-(Capacitor).
+dependencies — open `index.html` in a browser. A Capacitor wrapper lives in
+`app/`; a full NATIVE Swift port lives in `ios/`.
 
 ## Layout
 
@@ -14,6 +14,24 @@ dependencies — open `index.html` in a browser. iOS wrapper lives in `app/`
 - `difficulty.js` — `NINELIVES_DIFFICULTY`: tier bands, joker caps, zen config.
 - `tutorial.js` — `NINELIVES_TUTORIAL`: all first-run tutorial copy.
 - `tests/` — Node test suite, no browser needed (see Testing).
+- `ios/` — the native port (SpriteKit + UIKit, no web view). `GameCore/` is a
+  pure Swift engine and must stay free of UIKit/SpriteKit imports;
+  `Rendering/` is the SpriteKit board, `UI/` the UIKit shell.
+  See `ios/README.md`; build/test with `make` in `ios/`.
+
+### The web is the source of truth for the native port
+
+- The three data files are shared: `ios/Tools/export-data.mjs` (`make data`)
+  regenerates `ios/Resources/*.json` from them. **Edit the `.js` files, never
+  the exported JSON**, then re-export.
+- `ios/Fixtures/*.json` is ground truth captured by running the REAL web
+  engine (`make fixtures`). The Swift tests replay it, so **an intentional
+  engine change must be made in `index.html` too, then the fixtures
+  re-exported** — otherwise the parity suites fail. The save blob's key set is
+  compared against the web's exactly, so a new persisted field must be added
+  on both sides.
+- `make test` in `ios/` must be green before any commit, same as
+  `node tests/all.mjs`.
 
 ## Convention 1: data files are the source of truth
 
@@ -177,568 +195,179 @@ That checklist replaces the retired reviewer agents.
   `Latest: vX.YZ (commit abc1234) — deployed to GitHub Pages` (or
   `requires Xcode rebuild`).
 
-## Handoff notes — structural changes the other agent should know
+## Standing rules — hard-won, still binding
 
-*(Newest first. Add an entry here when a change alters shared structure —
-generator, save format, caches — so the next session starts from reality.)*
+*(Distilled from the per-version handoff log. These are RULES, not history:
+every line is a constraint that still applies. When a change alters shared
+structure — generator, save format, caches, the visual law — update the rule
+here rather than appending a new changelog entry. `git log` is the history.)*
 
-- **v5.41 (Claude, UNLOCK2)** — the item-unlock progression is LIVE: 69 of
-  102 items.js entries now carry `unlock:` gates (33 simple starting items);
-  4 new Zen stats (`zenGamesPlayed`/`zenEasyWon`/`zenMediumWon`/`zenHardWon`)
-  read ZenStats directly (retroactive for veterans). Design intent: gates are
-  THEMATIC (bury items unlock by burying, Same items by Same play, the whole
-  peek/information family via Zen, death-themed pillars via pilesLost).
-  Rules to keep: `oneTribute` must stay UNGATED (the cardsBuried ladder's
-  only seed source — chicken-and-egg); every class keeps ≥2 starting items
-  (store class roll starves otherwise); unlock pops fire at RUN TERMINATION + Zen end ONLY (UNLOCK3
-  v5.47 removed the per-deal checkpoint — never re-add a mid-run
-  checkNewUnlocks call: it stamps the known-set and swallows the pops); `ItemUnlocks.primeKnown()` runs at boot (fixes
-  first-session unlocks being silently swallowed by the lazy known-set init —
-  do not remove). Tests are registry-driven (retune thresholds freely in
-  items.js; moving a gate to an unknown stat fails loudly).
+### Rendering & performance — the bans
 
-- **v5.36 (Kimi, CRTAUDIT)** — independent palette-purity audit of the CRT
-  restyle + the leftovers fixed; READ THIS BEFORE RE-ADDING VIOLET OR BLUR:
-  - Curse FX glows are PHOSPHOR now: `meaJokerIn` and `.me-slam::after`
-    (meaCurseFlash) flashed curse-violet — both are rgba(78,240,138,*) per
-    §7 (cursed = phosphor bit-rot, NOT violet; phosphor is the only glow).
-    The `CURSE_VIOLET #7a4fd0`/`CURSE_EDGE` constants, the `.pm-myst-out`
-    violet debug tag, and the STICKER_FACE/STICKER_EDGE legacy hexes are
-    KEPT on purpose: Claude pinned them (mystery-ui.test.mjs) as debug
-    chrome / dead underlay (`--dcs-face`/`--dcs-edge` are written inline
-    but NOTHING consumes them — the pxi art is the chip face). If §7 should
-    purge these too, that's a spec decision — update mystery-ui's pins.
-  - Boot-splash jar floaters/liquid re-inked to palette (suit-red /
-    phosphor / gold) in index.html AND icons/jarhead-logo.svg; boot2's
-    part-list pin updated. The jar's `#f6f3ec`/`#20313a` brand inks +
-    `rx=22` lid remain the test-pinned exception. `icons/logo.svg` now
-    matches the inlined gold+phosphor data-URIs (app-icon pipeline source).
-  - Debug panel palette-purified (ap-btn/debug-joker/armed ink-on-gold,
-    square corners, VT323 instead of ui-monospace) — it was the one
-    checklist surface with legacy hexes left.
-  - `cardDissolve` and `#tissue .veins` lost their blur() (blur is banned
-    game-wide; veins are now thin flat felt-mid strokes).
-  - Legacy font files pruned from app/assets/fonts (Baloo2/ChakraPetch/
-    JosefinSans were orphans; fonts.css already only had VT323+PS2P).
-    `app/www` is stale build output — `npm run build` in app/ refreshes.
-    The bundled AppIcon-512@2x.png still has the OLD accent colors —
-    regenerating it = Xcode rebuild territory.
-  - Palette audit re-runnable: hex/rgb/filter/blur/radius scan now shows
-    ZERO fixable violations (remainder = pinned exceptions above, one-shot
-    feedback pulses, the CRT overlay, sanctioned dither/mask gradients).
+These came from on-device Web Inspector timelines (the app webview, not
+Safari: iOS gives third-party webviews lower memory priority, so the shell
+purges and re-rasters where Safari never does). Every one is load-bearing.
 
-- **v5.30–v5.35 (Claude, CRT CASINO)** — the ENTIRE game is restyled to a
-  locked pixel-art aesthetic; `/styleguide.html` is the visual CONTRACT
-  (locked 8-color palette, optical-dither rule for intermediate hues, CRT
-  rules, button/card/sprite specs, the 66-surface inventory + final
-  exception tables). Read it before ANY visual change:
-  - Palette lives in :root tokens (--felt-deep/--felt-mid/--card-face/
-    --suit-red/--ink/--gold/--phosphor/--shadow). New UI uses tokens, never
-    hex. Only --phosphor may glow (static var(--glow)); shadows are hard
-    4px/2px offsets; corners square; texture = baked dither data-URI tiles,
-    never gradients/blur.
-  - Fonts: VT323 body + Press Start 2P display (≥11px), self-hosted in
-    app/assets/fonts/, loaded in BOTH the online link block and offline
-    fonts.css — build-www pattern-matches that head block; keep both paths.
-  - `#crtOverlay` = ONE static scanline+vignette layer (topmost,
-    pointer-inert); `.crt-flicker` one-shot fires only from showOverlay()
-    win/lose. Don't add layers/filters to it.
-  - `PixelArt` module (index.html, ~line 7458): 57 pixel matrices
-    (characters × states + tier overlays + item icons + suit badges),
-    fail-loud validated, rendered ONCE at boot to data-URIs on :root vars
-    (measured 15-26ms, window.__pixelArtBootMs). Character/icon changes =
-    edit matrices there; state classes are unchanged hooks. Tier
-    accessories composite as a second background-image.
-  - Suites crt2-crt5 (~420 checks) pin the aesthetic structurally
-    (registry-driven, no tunables); update them WITH deliberate visual
-    changes, never delete around them. The game's last backdrop-filter and
-    last feTurbulence are GONE — do not reintroduce (extends the THERMAL
-    ban below).
-  - Restyle is strictly aesthetic: all state machines/ids/PERFCAP wraps
-    unchanged. Perf ≤ v5.29 everywhere (map:show ~300ms vs 520-610;
-    store:show ~140-150 vs 227; all idles janky 0).
-  - Known follow-ups (NOT fixed, out of aesthetic scope): menu-confirm bar
-    z-1500 renders under sheet overlays z-1600 (Stats reset / pause New
-    Run confirms functional but invisible — pre-existing, probe
-    scratchpad/base-statsreset.png); endless death screen copy quirk
-    ("REACHED ♦ PHASE 1/3"); iOS safe-area fix for .overlay.map/.store
-    needs device QA; sound registry flagged cues for a future audio pass
-    (list in the v5.35 commit message).
+- **Always-on animations may animate `transform`/`opacity` ONLY.** Animating
+  `box-shadow` or `filter` repaints the element every frame — paint-level
+  power draw, device heat, then iOS throttling and multi-second stalls.
+  One-shot entrance tweens may still ease whatever they need.
+- **`backdrop-filter` is BANNED on any full-viewport element**, and `blur()`
+  is banned game-wide. Small-area blurs (chips, bars) are fine. A 72-card
+  picker behind a full-screen blur produced 2.9s and 15s main-thread freezes.
+- **The `body:has(.deck-modal:not(.hidden))` pause contract**: while any
+  deck-modal is open, background animators get `animation-play-state: paused`,
+  and the background flattens (`box-shadow`/`filter` killed outside the modal
+  subtree). ANY new always-on animation that can sit behind a deck-modal MUST
+  join that list. Keep the `:has()` selector — it self-syncs across every
+  open/close path; a JS hook would strand state.
+- **Picker FX are transform/opacity only** and picker tiles stay FLAT at any
+  size (`SA_XLITE_DECK` gates `sa-xlite`, dropping tile shadow/border and the
+  disabled-card grayscale filter). `content-visibility` windowing in the
+  picker grid stays BANNED — it caused the iOS blank-cards stall.
+- **Don't pre-promote layers.** No blanket `will-change` — it holds GPU
+  memory; opacity animations composite on demand. Standing layer footprint,
+  not raster cost, is what hits the backing-store cliff.
+- **Diagnosing the next stall**: Xcode-run the app → Safari → Develop →
+  iPhone → the app webview → Timelines. Composite-dominated long frames mean
+  layer pressure; long frames with ~zero recorded work mean the main thread is
+  waiting on the compositor; JS records mean actual code (never the case yet).
+  If pressure persists, layer COUNT is the next target (map node pulses,
+  character idle parts, board card faces).
 
-- **v5.29 (Kimi, THERMAL5)** — LAYER DIET after the v5.18 flatten proved
-  insufficient; READ THIS BEFORE ADDING will-change, OR FULL-SCREEN LAYERS,
-  OR ANY backdrop-filter:
-  - Evidence: a second Xcode-app Web Inspector timeline (89s, ~40-card deck,
-    v5.18 live): ~10 frames of 2.2-14.4s, each a single composite record
-    with the main thread 0.4-8% busy (<70ms recorded work), each OPENING
-    with a burst of ~110 paints, ~100 full-viewport, right after a tap.
-    Memory flat (JS 8MB, page ~145MB), 1 GC. Interpretation: the STANDING
-    layer texture footprint (not raster cost — v5.18 already flattened
-    that) exceeds the WKWebView backing-store budget; iOS discards layer
-    contents (the user's "icons turn transparent" symptom) and the next
-    invalidation re-rasters + re-uploads everything. Safari is clean at
-    the same state (higher memory priority) — only the app shows it.
-  - Fixes (all shipped, suite green): (A) `#tissue .blob` ×3 are no longer
-    blur(46px)+will-change layers — they're plain radial-gradient circles
-    painted INTO the one animated `#tissue .haze` layer (pause selectors
-    moved `.blob`→`.haze`). (B) `.map-parallax` is GONE — its dot field is
-    folded into `.map-bg` (tiles nudged 76/119→80/120 so everything
-    repeats inside the 480px wrap; one-speed parallax). (C)
-    `SA_XLITE_DECK` 40→28 (the ~40-card stall session sat under the gate).
-    (D) backdrop-filter is now BANNED ABSOLUTELY on full-viewport elements
-    — purged from `.card-info`, `.subset-reveal`, `.store-detail`,
-    `.confirm-overlay`, `.debug-overlay`, `.fossil-detail`, AND the base
-    `.overlay` (its 93%-opaque background made the blur near-invisible
-    anyway; the `.overlay.map` override was removed as redundant). Only
-    small-area blurs (`.store-coins` bar) remain.
-  - Standing texture saved: ~45MB (~17MB map plane, ~10MB haze layers,
-    ~15MB picker tiles at 28-40 cards) plus every overlay's full-screen
-    filtered pass.
-  - Deferred (NOT done): blanket `will-change: transform` on `.card`
-    (~3 layers × 9 piles + deck/discard). The JS drift writes transforms
-    every frame, so removing it trades texture for per-frame repaints —
-    only revisit if stalls persist after this diet. The `.card-info`
-    full-viewport blur was the last banned-pattern holdout; there are
-    none left.
-  - Next episode playbook: same as THERMAL4 (Xcode-run → Safari →
-    Develop → iPhone → Timelines). If purge-stalls persist, the layer
-    COUNT is the next target (map node pulses, character idle parts,
-    board card faces).
+### The Perf module
 
-- **v5.18 (Kimi, THERMAL4)** — the COMPOSITOR is convicted end-to-end; READ
-  THIS BEFORE ADDING SHADOWS/FILTERS OR TRUSTING A CLEAN JS PROFILE:
-  - Evidence: a Web Inspector timeline recorded from the Xcode app (debug
-    builds are inspectable via Safari → Develop → iPhone — the ONLY way to
-    see this; in-game capture can't). 104s session: 21.6s inside `composite`
-    records vs <4s combined for style+layout+paint; long frames were either
-    1-2.4s composite spikes or 550-800ms frames with ~zero recorded work
-    (main thread idle-waiting on the compositor); CPU never exceeded 80%;
-    memory flat ~85-89MB (no leak). Per-frame composite mean hit 50ms in the
-    worst 10s bucket = texture eviction/re-upload THRASH at the
-    backing-store cliff. Mobile Safari was clean in the same game state —
-    iOS gives third-party app webviews lower memory priority, so the shell
-    purges/re-rasters where Safari doesn't. All previous in-game dumps (UA
-    without the Safari token) were from the in-app webview.
-  - Fix: **background flattens under any open deck-modal** —
-    `body:has(.deck-modal:not(.hidden)) body > :not(.deck-modal)` (+ ` *`)
-    kills `box-shadow`/`filter` (!important) outside the modal subtree. The
-    0.7 scrim hides the flat look; freed raster = less eviction pressure,
-    and any forced re-raster is cheap. Same self-syncing :has() gate as the
-    pause contract; the action bar's chrome flattening over a modal is an
-    accepted cosmetic trade.
-  - `#tissue .blob` (blur(46px) + infinite hazeDrift) joined the modal-open
-    pause list. NOTE: `#tissue` blobs and `.map-bg` hold large always-on
-    layers (will-change: transform) — if thrash persists on-device, they
-    are the next raster-footprint candidates.
-  - Diagnostic playbook for the next episode: Xcode-run the app, Safari →
-    Develop → iPhone → the app webview → Timelines (CPU + Rendering Frames
-    + Memory) → record around the lag. Composite-dominated long frames =
-    layer pressure; empty long frames = compositor wait; JS records =
-    actual code (never the case so far).
+- Ring-CAPPED: never push to `entries` directly, go through `pushEntry`.
+- Capture is **memory-only — never route it through localStorage**; the
+  Capacitor shim posts a native message per `ninelives.*` setItem.
+- The frame-gap sampler self-terminates on the first frame the picker modal is
+  hidden (covers every close path — don't add per-close disarm calls). It is
+  measurement-only and dies with the modal; it is NOT a second animation clock.
+- `tests/stkrb1.test.mjs` re-evaluates picker internals with a no-op Perf stub
+  — new in-body `Perf.mark` calls must keep that stub shape working.
 
-- **v5.17 (Kimi, THERMAL3)** — the huge-deck picker failure is LAYER-MEMORY
-  exhaustion, not speed; READ THIS BEFORE TOUCHING PICKER TILE STYLING:
-  - User-observed mechanism (matches every dump): taps "land" seconds late
-    while scrolling stays alive, sounds fire but the UI doesn't repaint, and
-    afterwards icons/deck art turn TRANSPARENT = iOS discarding layer
-    contents under backing-store memory pressure. Ambient capture the same
-    session: 7841 frames, mean 16.7ms, janky 0 — throughput was never the
-    issue; the per-tile RASTER at 82-87-card pickers is.
-  - Fix: **XL-lite mode** — `SA_XLITE_DECK` (40, const by APPLY_FIRST_BATCH)
-    gates `sa-xlite` on `#saCards` (toggled in renderStickerApplyCards):
-    `.mini-card` loses the 18px-blur box-shadow + border, `.sa-disabled`
-    loses its per-card grayscale FILTER (opacity alone). Same layout, same
-    info, same gameplay — flat paint. Keep new picker tile styling flat at
-    any size; if you add a per-tile effect, it must be opacity/transform.
-  - journeyCtx/dump now carry `dom <N>` (document node count) so future
-    dumps can confirm the pressure correlation.
-  - NOTE: a full picker/gameplay rewrite was considered and rejected — the
-    dumps prove logic is fast (<50ms) and ambient is clean; the failure is
-    resource footprint, which rewrites don't address.
+### The visual law (CRT CASINO)
 
-- **v5.16 (Kimi, THERMAL2)** — last always-on filter loop killed + stall
-  attribution; READ THIS BEFORE TRUSTING A "CLEAN" DESKTOP PROFILE:
-  - The v5.15 on-device dump proved the game runs clean everywhere EXCEPT
-    picker sessions (ambient: 2946 frames, mean 16.9ms) — yet picker sessions
-    still hit 2.5-3.4s single-frame stalls and one 20s ~6fps session, with
-    ALL wrapped JS <50ms. Attribution is now baked into the capture:
-    journeyCtx stamps `kind` (sticker/removal/remove/swap/strip) + `under`
-    (map/store/board via body.on-map / storeOverlay.hidden), the dump prints
-    them per mark, and the ambient worst-5 entries carry `[screen]`.
-    `showActionBar` + `renderDeckStrip` (the two heavy unwrapped paths around
-    select/close) are now wrapped as `ui:actionBar` / `deck:renderStrip`.
-  - `deckPeekGlow` (an infinite drop-shadow FILTER animation on the HUD deck
-    chip, visible above bottom-sheet modals) is converted to the
-    opacity-crossfade pattern (`deckPeekFade` on `::after`, static base
-    glow). Filter OR box-shadow animation for always-on FX is banned
-    game-wide — no exceptions remain in the stylesheet.
-  - The `:has(.deck-modal:not(.hidden))` pause list gained
-    `.deck-stack.revealed`, `.map-avatar .av-body/.av-face`,
-    `.ds-deckchar .dc-face`.
+`/styleguide.html` is the visual CONTRACT — read it before ANY visual change.
 
-- **v5.15 (Kimi, THERMAL1)** — box-shadow animation is BANNED game-wide for
-  always-on FX; READ THIS BEFORE ADDING ANY ANIMATION:
-  - Animating `box-shadow` repaints the element EVERY FRAME (paint-level
-    power draw = device heat = the iOS throttling behind the on-device
-    multi-second stalls). The last two offenders are converted:
-    `sameChargePulse` → `sameChargeFade` (`.hud .hud-same.charged::after`
-    glow layer), `pillarActivatable` → `pillarActiveFade`
-    (`.cph-banner.activatable::before` ring) — both opacity crossfades, same
-    look/rhythm, compositor-only, following the map-pulse precedent (~5531).
-    New always-on animations must animate transform/opacity ONLY (one-shot
-    entrance tweens may still ease whatever they need).
-  - Blanket `will-change: opacity` removed from the pm-node pulse pseudos —
-    pre-promotion holds GPU memory; opacity animations composite on demand.
-  - The Perf module gained an AMBIENT gap sampler (`ambientGap`, beside
-    `frameGap`): armed by `setOn(true)`, paused by `pickerOpened`, resumed by
-    `pickerClosed`, stopped by `setOn(false)`; measures every screen into a
-    600-frame window + a worst-5 list; `dump()` prints an
-    `-- ambient (all screens) --` section. Same debug-only measurement
-    contract (no DOM, no storage, zero cost when off). `Perf.ambient` /
-    `Perf.ambientStats()` exposed for tests.
+- **Palette lives in `:root` tokens** (`--felt-deep`/`--felt-mid`/
+  `--card-face`/`--suit-red`/`--ink`/`--gold`/`--phosphor`/`--shadow`). New UI
+  uses tokens, never hex. Only `--phosphor` may glow. Shadows are hard 4px/2px
+  offsets, corners are square, texture is baked dither tiles — never
+  gradients, never blur.
+- **Fonts**: VT323 body + Press Start 2P display (≥11px), self-hosted in
+  `app/assets/fonts/`, loaded in BOTH the online link block and offline
+  `fonts.css` — build-www pattern-matches that head block; keep both paths.
+- `#crtOverlay` is ONE static scanline+vignette layer, topmost and
+  pointer-inert. Don't add layers or filters to it.
+- The `PixelArt` module renders its matrices ONCE at boot to data-URIs on
+  `:root` vars, fail-loud validated. Art changes = edit the matrices.
+- **Cursed reads as phosphor bit-rot, NOT violet.** The surviving
+  `CURSE_VIOLET`/`STICKER_FACE`/`STICKER_EDGE` constants are pinned on purpose
+  as debug chrome / dead underlay — changing that is a spec decision, so
+  update the pins with it.
+- Suites crt2–crt5 (~420 checks) pin the aesthetic structurally. Update them
+  WITH deliberate visual changes; never delete around them. `backdrop-filter`
+  and `feTurbulence` are gone game-wide — do not reintroduce either.
+- `app/www` is stale build output; `npm run build` in `app/` refreshes it.
 
-- **v5.14 (Kimi, PERFFIX2)** — full-viewport backdrop blur BANNED; READ THIS
-  BEFORE ADDING ANY backdrop-filter:
-  - The flat-A/B on-device capture convicted `.deck-modal`'s
-    `backdrop-filter: blur(4px)`: blur-ON produced 2.9s and 15s main-thread
-    freezes at a 72-card picker (taps queued and all fired at unfreeze — the
-    user's "clicked through all the buttons at once" symptom); blur-OFF was
-    clean at the same deck sizes. The blur is removed permanently; the scrim
-    (`rgba(48,36,32,0.7)`) stays. **Never put backdrop-filter on a
-    full-viewport element** — small-area blurs (chips, bars) elsewhere in the
-    stylesheet are fine and stay.
-  - The `perf-flat` debug toggle is RETIRED (markup, el ref, wiring, CSS, the
-    `flat` journeyCtx stamp — all gone). Its A/B did its job.
-  - The v5.13 `:has()` pause contract STAYS (background animators pause under
-    any open deck-modal) — still saves GPU/battery under modals and reduces
-    session heat; the saFlash/saRemove filter-free keyframes and
-    `.sa-lite .dcs-ic` flattening stay too.
-  - One unexplained outlier remains from the flat-ON capture: a single 8.2s
-    stall right after a pack reveal (`#packReveal` kept its blur even in flat
-    mode — same class of bug, now covered by the global removal). If a freeze
-    ever recurs on-device, look at the pack-reveal → picker handoff first.
+### Economy & score
 
-- **v5.13 (Kimi, PERFFIX)** — on-device-indicted render-cost fixes; READ THIS
-  BEFORE ADDING ALWAYS-ON ANIMATIONS OR PICKER FX:
-  - **The `body:has(.deck-modal:not(.hidden))` pause contract** (CSS block by
-    the picker styles): while ANY deck-modal is open, the background animators
-    (`.pm-node.s-legal/.s-here::after`, `.map-avatar`, `.hud .hud-same.charged`,
-    `.cph-banner.activatable`, `.ds-deckchar .dc-pupil`) get
-    `animation-play-state: paused`. Reason: the deck-modal's full-viewport
-    `backdrop-filter: blur` re-blurs whatever changes behind it — on-device
-    (iPhone 18.7, deck 32-46): 17-34ms mean frame gap + 300-600ms tap frames
-    while all picker JS was <50ms. ANY NEW always-on animation that can sit
-    behind a deck-modal MUST be added to this list. `:has()` keeps it
-    self-syncing across every open/close path — do not replace it with a JS
-    hook (stranded-state risk).
-  - **Filter keyframes are banned in picker FX**: `saFlash`/`saRemove` are
-    transform/opacity only (animating `filter` forced per-frame software
-    repaints of a blurred region — the 200-390ms apply frames). New card FX
-    must animate transform/opacity only.
-  - `.sa-lite .dcs-ic { filter: none }` — the picker grid is vinyl-flat; the
-    board keeps its shadows.
-  - `body.perf-flat` (debug A/B) now ONLY kills the deck-modal backdrop blur —
-    its icon-shadow/animation/map-pulse rules were deleted when they became
-    permanent. If an on-device re-capture (flat off) shows a clean baseline,
-    the blur is exonerated; if not, the blur goes next.
-  - `journeyCtx()` stamps `flat` into every picker mark; the dump header
-    hides ring slack (`Math.min(entries.length, PERF_CAP)`).
+- Deal coin reward is FLAT: `Economy.dealFlat(stage, rating, isBoss)` =
+  `dealBase + stage×(1+rating)` (boss: rating 3 + `bossBonus`), knobs in
+  items.js `economy`. Stage = node phase+1; endless keeps counting. Ambush
+  pays no flat base — its bounty IS the reward.
+- The piles×smallest PRODUCT is the **SCORE**, never coins. `runScore` folds
+  it per clear; `scoreBanked` stamps at the ♠ boss. Item-driven bonuses
+  (Payout stickers, pillar payouts, `run.bonusCoins`) pay coins on top.
+- Score bests are EXHIBITION-GATED, like `runCleared`.
+- The deal-cleared summary keeps Score in its OWN plaque — the coin list must
+  never re-grow a score line (pinned in `score.test.mjs`).
 
-- **v5.12 (Kimi, PERFCAP)** — on-device perf capture + flat-picker A/B; READ
-  THIS BEFORE TOUCHING THE Perf MODULE OR PICKER CSS:
-  - The `Perf` IIFE (end of the game script) is now ring-CAPPED
-    (`PERF_CAP 400` + `PERF_SLACK 64` batch splice, the `pushLog` pattern) —
-    never push to `entries` directly, go through `pushEntry`.
-  - Journey capture: `Perf.mark(stage, ctx)` / `markAfterPaint` (single
-    boolean check when off; `picker:*` stages auto-attach deck size, sticker
-    count, frame-gap stats). `Perf.dump()` builds the paste-friendly report;
-    the debug "📋 copy perf report" button dumps via `copySeed` (memory-only
-    — NEVER route capture through localStorage; the Capacitor shim posts a
-    native message per `ninelives.*` setItem).
-  - Frame-gap sampler (`frameGap` IIFE): armed by `Perf.pickerOpened(kind)`,
-    SELF-TERMINATES on the first frame `#stickerApplyModal` has `.hidden`
-    (covers every close path — do not add per-close disarm calls), cancelled
-    by `pickerClosed()`/`setOn(false)`. WKWebView never fires longtask, so
-    this sampler is the on-device jank/thermal proxy. It is measurement-only
-    and dies with the modal — NOT a second animation clock.
-  - Wrap block after the Perf module reassigns top-level function
-    DECLARATIONS only; `DeckInspector.renderCompositionInto` is a method —
-    wrapped by property reassignment instead. `tests/stkrb1.test.mjs`
-    re-evaluates picker internals with a no-op Perf stub — new in-body
-    `Perf.mark` calls must keep that stub shape working.
-  - `body.perf-flat` (debug "flat picker (A/B)" checkbox) strips the
-    suspected iOS-compositor-expensive CSS from `#stickerApplyModal` only:
-    backdrop-filter (both prefixes), `.dcs-ic` drop-shadows, saFlash/saRemove
-    filter animations (swapped to opacity-only saFlashFlat/saRemoveFlat
-    keyframes — base animations untouched), and the map-node pmPulseFade
-    pulses. All rules scoped to the class; absent = zero effect.
+### Item unlocks
 
-- **v5.11 (Kimi, ECON1)** — reward economy rework; READ THIS BEFORE
-  TOUCHING PAYOUTS, THE Economy MODULE, OR SAVE STATS:
-  - Deal coin reward is FLAT: `Economy.dealFlat(stage, rating, isBoss)` =
-    `dealBase + stage×(1+rating)` (boss: rating 3 + bossBonus), knobs in
-    items.js `economy { dealBase: 1, bossBonus: 1 }` — the dealBase 1 is
-    what makes stage-1 easy pay 3. Stage = node phase+1 (endless keeps
-    counting). The old piles×smallest PRODUCT no longer feeds coins;
-    item-driven bonuses (Payout stickers, pillar payouts, run.bonusCoins)
-    pay on top unchanged. Ambush pays NO flat base (bounty only).
-    Post-win reconciliation: `run.bonusCoins = total − flat`.
-  - `breakdown()` still returns product fields — they're the SCORE now:
-    `runScore` folds product per clear (win only); `scoreBanked` stamps at
-    the ♠ boss (mirrors cardsFlippedBanked); `getCampaignScore()`/
-    `getEndlessScore()` accessors. Stats bests `bestCampaignScore`/
-    `bestEndlessScore`, Math.max folds, EXHIBITION-GATED like runCleared.
-  - Mystery coinBonus now tallies totalCoinsEarned (was bypassed).
-  - UI: map deal/boss nodes show the REWARD chip (dealBadge, knob-derived,
-    pips gone); HUD `#hudScoreChip` (Score pre-boss / Endless after);
-    #dealStatus shows "Reward +BASE(+BONUS) · Score PILES×SMALLEST" as of
-    v5.37 (dealFlatReward module var captured in startRun mirrors onRunEnd's
-    derivation; the live bonus is Economy.liveBonus — events + pillar payout
-    + Extra Coin units, === total−flat by construction; the score product
-    rides #dealScore's data-product); endStats score tiles render
-    "— · not recorded" for exhibition. The deal-cleared summary splits
-    Score into its own #overlayScore plaque (scorePlaqueHtml) — the coin
-    list must never re-grow a score line (pinned in score.test).
-  - Economy sanity (measured on genV3 maps): route income ≈ 22/37/52 per
-    stage (~111/run vs ~130-200 before) — mildly starved early by design;
-    price retuning is Jared's call in items.js.
+- items.js entries may carry `unlock: {type:"milestone"|"behavior", stat,
+  count}`; validators fail loud on malformed shapes. `ItemUnlocks.isUnlocked`
+  derives LIVE from Stats (stats only grow, so derivation is stable); the
+  persisted known-set exists ONLY to detect NEW unlocks for toasts.
+- **`oneTribute` must stay UNGATED** — it is the cardsBuried ladder's only
+  seed source (chicken-and-egg). **Every class keeps ≥2 starting items** or
+  the store class roll starves.
+- **`checkNewUnlocks()` fires at run termination and Zen end ONLY.** It STAMPS
+  the known-set, so calling it without a screen to show the pops on silently
+  swallows them — never re-add a mid-run or per-deal call.
+- `ItemUnlocks.primeKnown()` runs at boot (otherwise first-session unlocks are
+  swallowed by the lazy known-set init) — do not remove.
+- Gating is **PRE-FILTER, never in-loop reroll**: `StickerTypes.grantable()`,
+  `rollUnifiedSlots`' per-class `w: 0` for an empty class, Lammy's preEquip
+  filter. Any NEW random-item path must draw from those or locks leak.
+  Deliberately ungated: the cursed-sticker bane pool and debug grants.
+- Every Stats increment gates on `!campaign.isExhibition()` at the call site.
 
-- **v5.10 (Kimi + concurrent, STKPERF1/STKRB1)** — sticker-apply perf pass;
-  READ THIS BEFORE TOUCHING THE SAVE PATH, Stats, OR THE PICKER GRID:
-  - **Fossil sidecar**: `runFossils` NO LONGER rides the campaign blob — it
-    persists in `ninelives.fossils.v1`, written only when a fossil changes
-    (`fossilsDirty` flag; the write rides the SAME two-stage
-    armSaveWrite/flushCampaignSave mechanism, no new timer). Restore adopts
-    inline fossils from old saves; clearSave clears the sidecar too. Blob
-    at a 50-card fixture: 45.0 KB → 7.2 KB per deferred write.
-  - **Stats writes are coalesced** (STKRB1): bump/bumpAll dirty-mark in
-    memory (get() reads the warm cache, never storage); the trailing write
-    + `Stats.flush()` fires from `flushCampaignSave` — the single
-    durability chokepoint (transitions/pagehide). Never add a synchronous
-    Stats write to a tap path.
-  - **Picker grid**: mount is rAF-CHUNKED per open (finish synchronously on
-    confirm); eligibility sync is O(N) classList-only; confirms do targeted
-    single-card updates; chip paint is flatter INSIDE the picker grid only.
-    content-visibility windowing remains banned (the iOS blank-cards stall,
-    comment ~4627).
-  - Step 0 profiling verdict (agent-37): picker/apply JS was already
-    sub-millisecond at 50 cards; remaining felt latency = designed
-    animation holds (850/720ms, contract-preserved) + device paint. If jank
-    persists on-device, get a Safari timeline before more surgery.
+### Seeds & determinism
 
-- **v5.09 (Kimi + concurrent, MYST3)** — mystery is a FIRST-CLASS node type;
-  READ THIS BEFORE TOUCHING THE GENERATOR, MAP ARRIVAL, OR nodeHidden:
-  - genV is now 3 (`RUN_GEN_VERSION`, ~13017). At genV≥3 `rollType(rng,
-    genV)` rolls `["mystery", GEN_CONFIG.mysteryTypeWeight]` (25/125 ≈ 20%)
-    INSIDE the type table — mysteries carve out of deals/packs/pickups
-    naturally, repairs see final types, and convergence IMPROVED (34.6 vs
-    50.3 avg attempts/stage). `setType` has a mystery branch (deletes
-    add/packCount/suit/mixed/piles). The genV<3 cosmetic mask roll in
-    makeRunStepper stays byte-exact for old saves.
-  - `nodeHidden` is TYPE-based (`n.type === "mystery"`) — the `mystery`
-    flag exists only on genV<3 regenerated maps. Any new code testing
-    hidden-ness must use nodeHidden, never `n.mystery`.
-  - Arrival: the seeded event IS the node's entire content (no underlying
-    dispatch). `completeMystery(id)` (markNodeCleared + persist +
-    showProgressionMap) is the SINGLE exit for every continuation —
-    passive, pickers, store hook, ambush aftermath, impossible outcome, and
-    finishResolveNode's explicit mystery branch (a REVEALED mystery re-tap
-    completes, never re-rolls — exactly-once rides on the persisted reveal
-    + applied-before-modal flush).
-  - Migration: two-phase restore conversion (persisted `mystMigrated`,
-    gated runGenVersion<3) — unvisited masked nodes convert to type mystery
-    in place (deal fields + nodeCards/packCards locks scrubbed); first
-    restore exempts revealed (visited) nodes, re-migration converts them.
-    NO genV<3 overlay arrival path remains. Edge case: an old run's ENDLESS
-    extension generates genV-2 stages whose mask flags are inert (nodes
-    render revealed, no events) — known, accepted.
-  - Rendering: `mapNodeInner` mystery case ("?", `.open` while revealed-
-    not-cleared); cleared = spent/faded state; debug peek (`pm-myst-out`)
-    unchanged; hold-help/label/key carry Mystery copy.
-  - NOTE: a second agent worked concurrently on this change in the same
-    tree (also committed 86aa8f3). The merged state was verified coherent
-    and suite-certified — review diffs before assuming sole authorship.
+- `SeedCode` is 7-char **base-31** (`ABCDEFGHJKMNPQRSTUVWXYZ23456789` — not
+  base-32; decode rejects overflow). Share string: `DECK-TIER-CODE`.
+- **`CampaignState.runRng(...keys)` is THE substream helper.** Every content
+  RNG derives from runSeed keyed by stable ids: start rolls, store offers,
+  rerolls, store packs, sealed packs, grant stickers, deal seeds,
+  player-choice randoms (`"act"`, actionCounter++). `Math.random` survives
+  ONLY as the default param for id-less QA/test paths — **never add a bare
+  `Math.random` to a campaign content path; key it.**
+- **Exhibition runs** (player-entered seed) checkpoint normally but bank
+  NOTHING: Stats, the whole win-bank block, deck unlocks, and purchase
+  telemetry all gate on it. `track()` analytics are deliberately ungated.
+- Deal-seed identity includes `reshuffleIndex`, persisted in the save blob;
+  resume replays the persisted deal seed.
 
-- **v5.08 (Kimi, UNLOCK1)** — item-unlock framework (ships with NOTHING
-  locked); READ THIS BEFORE ADDING unlock FIELDS OR TOUCHING ROLL POOLS:
-  - items.js items may carry `unlock: {type:"milestone"|"behavior", stat,
-    count}` (documented in the items.js header with the 15 stat names +
-    a commented example). Validators fail loud on malformed shapes.
-  - `ItemUnlocks` module (~15440, DOM-free): `statValue(name)` maps the 15
-    public stat names to Stats fields (10 NEW additive Stats.DEF fields:
-    bossesBeaten, cardsBuried, samesCalled, correctSames, jokersPlayed,
-    stickersApplied, pillarsPlaced, basesPlaced, removalsUsed, pilesLost;
-    the rest alias existing fields). `isUnlocked` derives LIVE from Stats —
-    stats only grow, so derivation is stable; the persisted
-    `ninelives.itemunlocks.v1` known-set exists ONLY to detect NEW unlocks
-    for toasts (first load initializes it silently = retroactive).
-  - EVERY new Stats increment gates on `!campaign.isExhibition()` at the
-    call site (SEED1 parity). New engine emit: `"pile-killed"` (BoardState
-    kill sites) — debug loseNow deliberately does NOT emit.
-  - Gating is PRE-FILTER, never in-loop reroll: `StickerTypes.grantable()`
-    filters locked (covers ~9 roll sites); `rollUnifiedSlots` pre-filters
-    each class pool with `w: 0` for an empty class (the `card` pattern);
-    Lammy preEquip filters + null-pads to COLUMN_SLOTS. UNGATED by design:
-    the cursed-sticker bane pool and debug grants. Any NEW random-item path
-    must draw from grantable()/the filtered pools or locks leak.
-  - Toasts: `ItemUnlocks.checkNewUnlocks()` is called ONLY at deal end and
-    run end (never mid-guess) — it STAMPS the known-set, so never call it
-    without a screen to show the pops on. The pop queue chains inside
-    `maybeShowUnlockCelebration`. Death/win screens render
-    `ItemUnlocks.nearestLocked(2)` progress bars via a showOverlay section.
-  - Collection screen: main-menu button, `.menu-screen` full page, boot-
-    attached delegated hold-help (500ms store idiom), cursed stickers route
-    through stickerChip (dcs-cursed).
-  - The ship-state pins in tests/unlocks.test.mjs are written to SURVIVE
-    the user adding real unlock fields (they read the registry
-    dynamically) — keep them that way.
+### Map generation & mystery nodes
 
-- **v5.07 (Kimi, SEED1)** — shareable run seeds + full-stream determinism;
-  READ THIS BEFORE TOUCHING ANY RNG CALL SITE OR THE SAVE FORMAT:
-  - `SeedCode` (~7219): 7-char base-31 codes (alphabet
-    `ABCDEFGHJKMNPQRSTUVWXYZ23456789` — 31 chars, NOT base-32; 31^7 > 2^32,
-    bijective, decode rejects overflow). Share string format:
-    `DECK-TIER-CODE` via `runSeedShareStr()`.
-  - `CampaignState.runRng(...keys)` is THE substream helper. Every content
-    RNG in a run derives from runSeed keyed by stable ids: start rolls
-    ("start"), store offer ("store", nodePos), reroll ("store", nodePos,
-    rerollIndex), store packs ("storepack", nodePos, slot), sealed packs
-    ("pack", nodeId), grant stickers ("grant", nodeId), deal seeds
-    ("deal"|"ambush", nodeId, reshuffleIndex), player-choice randoms
-    ("act", actionCounter++). `Math.random` survives ONLY as the default
-    param for id-less QA/test paths. NEVER add a bare Math.random to a
-    campaign content path — key it.
-  - Deal-seed identity: `reshuffleIndex` module var beside `redealCost`,
-    incremented by `doReshuffle`, persisted in the save blob
-    (`blob.reshuffleIndex`); resume still replays the persisted deal seed —
-    keying only replaces the Math.random MINT.
-  - `pregenerateRun(dId, tId, seedOverride)` / `runGenKey` thread seeds;
-    seeded pregen keys are distinct from seedless (neither can hijack the
-    other). `startCampaign(seedU32)` → `setSeedOverride` (one-shot).
-  - **Exhibition runs** (player-entered seed): `campaign.isExhibition()`,
-    persisted in the save. They checkpoint normally but bank NOTHING — gates
-    at Stats.runPlayed/addDeal/addCardsFlipped/campaignEnded/runCleared/
-    endlessReached, the whole win-bank block (markRunWon/recordDeckWin/
-    DeckUnlocks), and all Telem.purchase sites. `track()` analytics are
-    deliberately ungated.
-  - Save format gained `exhibition` + `actionCounter` (additive, defensive
-    reads; pre-v5.07 saves default false/0).
-  - Native share sheet intentionally absent — needs @capacitor/share +
-    Xcode rebuild; clipboard copy (`copySeed`) ships instead.
+- `RunMap.makeRunStepper` builds one stage per `step()`. Deck-select pregen
+  caches per `runGenKey`; **consumption DELETES the cache entry** — run maps
+  are mutated in play, so a consumed map must never be reused.
+- The save format carries `genV` (generator version) — this is the
+  save-compat gate. Never remove it, and thread the RUN's own
+  `runGenVersion` (not the global default) into every `generateRun` call site.
+- `tryBuildStage` repair loops maintain incremental per-route sums: ANY new
+  mutation of a node's `type`/`add`/`packCount` between index arming and the
+  final validation read MUST go through `noteChange`, or the sums desync. Do
+  not reintroduce full route re-walks in repairs.
+- If you change generator OUTPUT intentionally, bump the genV scheme and gate
+  it the same way.
+- **Mystery is a first-class node type** (genV≥3), rolled inside the type
+  table so mysteries carve out of deals/packs/pickups naturally.
+  **`nodeHidden` is TYPE-based** — any new hidden-ness test must use
+  `nodeHidden`, never `n.mystery` (that flag only exists on genV<3 maps).
+- Arrival: the seeded event IS the node's entire content. **`completeMystery(id)`
+  is the SINGLE exit** for every continuation — passive, pickers, store hook,
+  ambush aftermath, impossible outcome. A revealed mystery re-tap completes,
+  never re-rolls.
+- Cursed CARDS are retired (restore strips them). Cursed STICKERS remain and
+  must route through the shared chip path in any new chip-rendering code.
+- The joker mystery outcome gates on **held-vs-cap**, not `jokersAllowed()` —
+  the blanket-false would bar Pinky Regular, an authorized source. At cap the
+  roll folds deterministically to coinBonus.
 
-- **v5.06 (Kimi, MYST2)** — mystery-node refinement + Pinky Regular joker
-  economy; READ THIS BEFORE TOUCHING MYSTERY OUTCOMES, JOKER ECONOMY, OR RUN
-  START:
-  - items.js `mystery.weights` final table (boons 62 / banes 34): coinBonus
-    15 · cards 12 · stickerPack 10 · freeRemoval 8 · stickerStrip 7 · joker 5
-    · store 5 ‖ cursedSticker 14 · coinLoss 12 · ambush 8. `cardPack` and
-    `cursedCard` are GONE (knobs `cursedCardTribute`/`cursedCardRankRange`
-    deleted); `cardGrantRange: [1,3]` added. New outcome cases live in
-    `CampaignState.applyMysteryEvent`.
-  - **Cursed cards are retired.** `mintCursedCard`, the engine innate-curse
-    toll in `maybeStickerTribute` (the `tributeCoin` sticker branch STAYS —
-    leech/leech2 untouched), and all cursed-card UI are removed. `restore()`
-    strips `cursed: true` cards from baseDeck + ownedIds on load (no refund).
-    A stray `cursed` flag in a mid-deal checkpoint is inert.
-  - **Joker outcome gate is HELD-vs-CAP** (`jokersHeld() < jokerCapFor()`),
-    NOT `jokersAllowed()` — the fixed-scheme blanket-false would bar Pinky
-    Regular, an authorized source. At cap the roll deterministically folds to
-    coinBonus; Legendary (cap 0) can never roll it.
-  - **Store outcome** rides a one-shot `mysteryStoreContinue` hook: armed in
-    `continueMysteryEvent`, invoked from the store Done handler after
-    `persistCampaign("map")`, cleared on use and at the top of
-    `showProgressionMap`. Refresh during the detour = store skipped, node
-    dispatches on return.
-  - **difficulty.js gained `startJokers: { pink: 1 }`** on Regular (cap now
-    4). `DifficultyData.startJokers(deckId, tierId)` accessor; `startNewRun`
-    mints them BEFORE `genRunMap()`. **Pregen threading:** `runStartSize(dId,
-    tId)` (next to `runGenKey`) = GEN_CONFIG.startDeckSize + startJokers —
-    `pregenerateRun`'s entry ladder AND startNewRun both derive from it;
-    change one side without the other and every Start press cache-misses into
-    a multi-second synchronous build.
-  - Debug peek: hidden "?" nodes render `<span class="pm-myst-out">` from the
-    pure `rollMysteryEvent(n.id)`, hidden by CSS unless `body.debug-access`.
-  - Cursed stickers (leech/leech2) render with `dcs-cursed` + the violet
-    `#7a4fd0` face in `stickerChip` AND the board badge path (`faceOf`/
-    `clsOf`/`edgeOf`) — any new chip-rendering path must route cursed types
-    the same way.
-  - Outcome animations are pure CSS keyframes on `.me-art mea-<key>` +
-    `MYSTERY_SOUND` map at modal open; `prefers-reduced-motion` kills them.
+### The save path
 
-- **v5.05 (Kimi, MYST1)** — mystery "?" nodes are now real event gambles;
-  READ THIS BEFORE TOUCHING THE MAP ARRIVAL FLOW OR STICKER POOLS:
-  - The "?" mask is UNCHANGED (cosmetic `n.mystery` roll; no generator/genV
-    change). Arrival at a hidden node now runs `runMysteryEvent` (after
-    `playMysteryReveal`, before `finishResolveNode`'s type dispatch): a
-    seeded roll (`campaign.rollMysteryEvent(nodeId)` — deterministic per
-    (runSeed, nodeId), weights in `items.js` `mystery`) whose outcome
-    resolves ON TOP of the underlying node, which then still dispatches
-    normally. Exactly-once rides on the persisted `revealedNodes`; the
-    event flushes a "map" save before any picker/deal.
-  - `items.js` gained a `mystery` section (weights, coinRangeByStage,
-    ambush {cards,piles,bounty}, cursedCardTribute, cursedCardRankRange)
-    and CURSED stickers (`cursed: true`, e.g. leech/leech2, behavior
-    `tributeCoin`). Cursed entries are excluded from every grant pool via
-    `StickerTypes.grantable()` — any NEW random-sticker path must use it
-    (or filter `cursed`) or curses leak into stores/packs.
-  - Cards can now carry `cursed: true` (minted by `mintCursedCard`,
-    nextCardId++ like mintJokerId). Restore's spread-copy carries the flag
-    for free; the engine levies the innate toll in `maybeStickerTribute`
-    (the Bury 2 shape: negative addBonus + sticker-coins emit + Telem).
-    `duplicateCard` intentionally does NOT propagate `cursed` to copies.
-  - Save format: `dealSubset` gained optional `forced`/`cards`/`ambush`
-    fields (additive — old saves lack them, old readers ignore them).
-    Ambush deals ride the standard "run" checkpoint; post-ambush-win
-    deliberately skips the "map" checkpoint so a refresh replays the
-    ambush instead of stranding the un-dispatched node. Module vars:
-    `ambushDeal`, `pendingAmbushNodeId`, `placementSavePhase` (typeof-
-    guarded write-time phase override in campaignSaveBlob — STKLAG2's
-    function-extraction harness depends on the guard).
+- **Fossils ride their own sidecar** (`ninelives.fossils.v1`), written only
+  when a fossil changes — not the campaign blob. Restore adopts inline fossils
+  from old saves; clearSave clears the sidecar too.
+- **Stats writes are coalesced**: bump/bumpAll dirty-mark in memory and the
+  trailing write rides `flushCampaignSave`, the single durability chokepoint.
+  Never add a synchronous Stats write to a tap path.
+- The campaign save is TWO-STAGE: `persistCampaign` arms a 300ms trailing
+  timer that hands serialize+write to `requestIdleCallback`, so it never lands
+  inside a tap animation. `flushCampaignSave()` stays the synchronous write at
+  transitions/pagehide.
+- `getCardById(id)` and `getRunDeckLive()` return **LIVE objects — never
+  mutate them**; mutations go through the mutator methods.
 
-- **v5.03 (Kimi, STKLAG3/4)** — sticker-apply perf + save-write timing:
-  - The coalesced campaign save is now TWO-STAGE: `persistCampaign` arms
-    `armSaveWrite()` — a 300ms trailing setTimeout that hands the actual
-    serialize+write to `requestIdleCallback` (bounded 1500ms, setTimeout
-    fallback) so it never lands inside a tap animation. `flushCampaignSave()`
-    is still the synchronous durability write at transitions/pagehide.
-    `tests/stklag2.test.mjs` pins the mechanism (fake timers + fake rIC).
-  - New read-only CampaignState accessors: `getCardById(id)` (one live card,
-    replaces `getCards().find(...)`) and `getRunDeckLive()` (live owned-card
-    refs, replaces `getRunDeck()` in render-only paths). Both return LIVE
-    objects — never mutate them; mutations go through the mutator methods.
-  - `Telem.scheduleFlush()` debounces purchase-path telemetry writes;
-    `Telem.flush()` stays synchronous at transitions/pagehide.
+### Debug
 
-- **v5.02 (Claude, MAPGEN1)** — map generation reworked for speed; READ THIS
-  BEFORE TOUCHING RunMap OR THE PREGEN PATH:
-  - `RunMap.makeRunStepper(seed, entries, opts)` builds one stage per
-    `step()`; sync `generateRun` now just drains it (bit-identical output).
-    Deck-select pregen builds one stage per idle slice and caches per
-    `runGenKey` in a multi-slot Map (`pregenCache`) — consumption DELETES the
-    entry because run maps are mutated in play (never reuse a consumed map).
-  - The SAVE FORMAT gained `genV` (generator version). New runs stamp 2;
-    restores default absent→1 and regenerate through the EXACT legacy path —
-    this is the save-compat gate. Never remove it, and thread the RUN's own
-    `runGenVersion` (not the global default) into any new `generateRun` call
-    site (extendEndless/maybeExtendMap already do).
-  - genV≥2 only: a deterministic derived-seed ladder retries a stage that
-    exhausts all attempts (fixes rare broken Legendary maps).
-  - `tryBuildStage` repair loops now maintain incremental per-route sums via
-    `noteChange` — ANY new mutation of a node's `type`/`add`/`packCount`
-    between index arming and the final validation read MUST go through
-    `noteChange` or the sums desync (reviewed exhaustively at ship time;
-    keep it that way). Master/Legendary generation is ~10× faster; do not
-    reintroduce full route re-walks in repairs.
-  - Bit-compat vs v5.01 was verified on 678 seed×tier×entry tuples (zero
-    diffs, genV1 and genV2). If you change generator OUTPUT intentionally,
-    bump the genV scheme and gate it the same way.
-  - Debug entry (context for the debug panel): the 🐞 toggle is hidden
-    unless `body.debug-access` — enabled by `?debug` or 7 quick taps on the
-    build footer (the title triple-tap needs an element not on the play
-    screen). The debug event log is a capped ring buffer (`pushLog`,
-    `LOG_CAP`) rendering only the newest 50 — unbounded log rendering was a
-    measured store-lag cause (v4.94); don't regress it.
-
+- The 🐞 entry is hidden unless debug access is on (`?debug`, or 7 quick taps
+  on the build footer). The debug event log is a capped ring buffer rendering
+  only the newest 50 — unbounded log rendering was a measured store-lag cause.
 ## Also
 
 - Storage keys use the `ninelives.*` prefix only (the native bridge mirrors

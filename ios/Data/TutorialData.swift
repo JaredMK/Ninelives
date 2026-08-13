@@ -7,6 +7,21 @@ public struct TutorialStep: Sendable, Equatable {
     public let button: String?
     /// WHICH on-screen element the bubble points at; nil = centered, arrow-less.
     public let anchor: String?
+    /// HOW the step dismisses: "next" (button, the default), or a player
+    /// action — "tapPile" / "higher" / "guess" / "swipe".
+    public let advance: String
+    /// Hold the bubble back until this many further guesses resolve.
+    public let wait: Int
+    /// With `wait`: the first WRONG guess also releases the bubble.
+    public let orWrong: Bool
+
+    public init(text: String, button: String?, anchor: String?,
+                advance: String = "next", wait: Int = 0, orWrong: Bool = false) {
+        self.text = text; self.button = button; self.anchor = anchor
+        self.advance = advance; self.wait = wait; self.orWrong = orWrong
+    }
+
+    public static let advanceKeys = ["next", "tapPile", "higher", "guess", "swipe"]
 }
 
 /// The Swift twin of `TutorialData` — loads + VALIDATES tutorial.json.
@@ -19,12 +34,15 @@ public struct TutorialStep: Sendable, Equatable {
 public struct TutorialData: Sendable {
     /// The writer-owned groups and their EXACT step counts. The tour's
     /// choreography lives in code — tutorial.js may reword a bubble, never add
-    /// or remove one. (v5.60: the Ace-high bubble was cut.)
-    public static let stepCounts: [(key: String, count: Int)] = [("deal", 6), ("zenEnd", 1)]
+    /// or remove one. (v6.19: the guided-deal rework — 12 interactive steps.)
+    public static let stepCounts: [(key: String, count: Int)] = [("deal", 13), ("zenEnd", 1)]
     /// The Zen-first tour carries no live placeholders: any {token} is an error.
     public static let placeholders: [String] = []
 
     public let groups: [String: [TutorialStep]]
+    /// The map's bottom scroll-past lines (tutorial.js `mapHints`) — flavor
+    /// and tips mixed, one shown per climb.
+    public let mapHints: [String]
     public let problems: [String]
 
     public func steps(_ key: String) -> [TutorialStep] { groups[key] ?? [] }
@@ -72,7 +90,16 @@ public struct TutorialData: Sendable {
             if let a = d["anchor"], !a.isNull, (a.asString ?? "").isEmpty {
                 bad("`anchor` must be an anchor-key string when set")
             }
-            return TutorialStep(text: text ?? "", button: d["button"]?.asString, anchor: d["anchor"]?.asString)
+            let advance = d["advance"]?.asString ?? "next"
+            if !TutorialStep.advanceKeys.contains(advance) {
+                bad("unknown `advance` '\(advance)' (one of \(TutorialStep.advanceKeys.joined(separator: "/")))")
+            }
+            let wait = Int(d["wait"]?.asNumber ?? 0)
+            if wait < 0 { bad("`wait` must be ≥ 0") }
+            return TutorialStep(text: text ?? "", button: d["button"]?.asString,
+                                anchor: d["anchor"]?.asString,
+                                advance: advance, wait: max(0, wait),
+                                orWrong: d["orWrong"]?.asBool ?? false)
         }
 
         if let g = root["groups"]?.asObject {
@@ -87,6 +114,11 @@ public struct TutorialData: Sendable {
             problems.append("[tutorial.js] groups: missing object")
         }
 
-        return TutorialData(groups: groups, problems: problems)
+        let hints = root["mapHints"]?.asArray?.compactMap(\.asString) ?? []
+        if hints.isEmpty {
+            problems.append("[tutorial.js] mapHints: must be a non-empty array of strings")
+        }
+
+        return TutorialData(groups: groups, mapHints: hints, problems: problems)
     }
 }

@@ -65,7 +65,7 @@ export function run() {
     const b = e.getBoard();
     b.top(0).suit = "♥"; b.top(1).suit = "♥";
     b.top(2).suit = "♠"; b.top(2).wildSuit = true;   // a wild ♠ top
-    r.eq(e.pillarPayout().bonus, 8, "a Wild top counts as ♥ for All Hearts (+8)");
+    r.eq(e.pillarPayout().bonus, 4, "a Wild top counts as ♥ for All Hearts (+4)");
     b.top(2).wildSuit = false;
     r.eq(e.pillarPayout().bonus, 0, "without wild, the ♠ top breaks All Hearts (0)");
   }

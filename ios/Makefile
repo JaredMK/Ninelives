@@ -20,12 +20,22 @@ all: project build test
 project:
 	xcodegen generate --spec project.yml
 
+# BOTH schemes. The GameCore scheme compiles the engine and its tests only —
+# it does NOT compile UI/, so an app-target break (a call site left behind by
+# an engine signature change) can sit unnoticed through a green `make test`.
+# That happened once; `build` covers both now.
 build: project
 	xcodebuild build -project $(PROJECT) -scheme GameCore \
 	  -destination 'platform=iOS Simulator,name=$(SIM)'
+	xcodebuild build -project $(PROJECT) -scheme ShouldaSaidSame \
+	  -destination 'platform=iOS Simulator,name=$(SIM)'
 
+# The engine suite, and then the APP target's compile — green here means the
+# whole port builds, not just GameCore.
 test: project
 	xcodebuild test -project $(PROJECT) -scheme GameCore \
+	  -destination 'platform=iOS Simulator,name=$(SIM)'
+	xcodebuild build -project $(PROJECT) -scheme ShouldaSaidSame \
 	  -destination 'platform=iOS Simulator,name=$(SIM)'
 
 # The three JS data files stay the hand-editable source of truth. Re-run this

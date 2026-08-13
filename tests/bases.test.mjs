@@ -37,9 +37,9 @@ export function run() {
     r.eq(BaseTypes.all().filter(b => b.suit).map(b => b.id).sort().join(","), "clubDig,tax", "exactly Club Dig + Heart Tax carry a suit");
     r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish targets a Pillar");
     r.ok(!!BaseTypes.get("spadePeek") && !!BaseTypes.get("setSuit") && !!BaseTypes.get("heartDemolish"), "new bases Spade Peeker / Suit Setter / Heart Demolish registered");
-    r.eq(BaseTypes.get("setValue").price, 12, "Cast repriced to 12");
-    r.eq(BaseTypes.get("demolish").price, 25, "Demolish repriced to 25");
-    r.eq(BaseTypes.get("randomSticker").price, 5, "Wild Sticker repriced to 5");
+    r.eq(BaseTypes.get("setValue").price, 6, "Cast repriced to 6");
+    r.eq(BaseTypes.get("demolish").price, 13, "Demolish repriced to 13");
+    r.eq(BaseTypes.get("randomSticker").price, 12, "Wild Sticker repriced to 12");
     r.ok(BaseTypes.all().every(b => typeof b.price === "number" && b.description), "every Base has a price + description");
   }
 
@@ -259,7 +259,7 @@ export function run() {
     const res = e.baseActivate(0);
     r.ok(!b.isActive(0) && !b.isActive(1), "both ♥ piles are destroyed");
     r.ok(b.isActive(2), "the non-♥ pile survives");
-    r.eq(e.getRun().bonusCoins - before, 14, "gained +7 per destroyed pile (+14)");
+    r.eq(e.getRun().bonusCoins - before, 8, "gained +4 per destroyed pile (+8)");
   }
 
   // --- effect: Heart Tax (+1 per ♥ in the column, top + buried) ----------

@@ -1,0 +1,658 @@
+import XCTest
+@testable import GameCore
+
+/// TIER 1 scenario generators — BASES (tap-to-fire) and SAME-POWERS.
+enum IVBases {
+
+    static let data = GameData.shared
+
+    /// Standard base board: base on column 0 (2 piles), one other column.
+    static func baseEngine(_ def: ItemDef, tops: [CardSpec?]? = nil,
+                           deckOrder: [CardSpec]? = nil,
+                           pillars: [String?]? = nil,
+                           samePower: String? = nil,
+                           isBoss: Bool = false, isAmbush: Bool = false) -> GameEngine {
+        IV.engine(tops: tops ?? [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")],
+                  deckOrder: deckOrder ?? [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 7), IV.spec(53, 4)],
+                  cols: [2, 1],
+                  pillars: pillars ?? [nil, nil],
+                  bases: [def.id, nil],
+                  samePower: samePower,
+                  isBoss: isBoss, isAmbush: isAmbush)
+    }
+
+    /// After ANY successful activation: the charge is spent and stays spent.
+    static func assertSpent(_ e: GameEngine, _ c: String) {
+        XCTAssertEqual(e.run.basesUsed?[0], true, "\(c): the charge is spent")
+        XCTAssertNil(e.baseActivate(col: 0), "\(c): a spent base cannot fire twice")
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    static func scenarios(for def: ItemDef) -> [IV.Scenario]? {
+        switch def.effect {
+
+        case "kamikaze":
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.isActive(0), "\(c): the ♠ pile was sacrificed")
+                        XCTAssertEqual(e.run.kamikazeRevealLeft, def.int("peekCount", 3),
+                                       "\(c): peeks the next \(def.int("peekCount", 3)) draws")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-lastAliveInColumn", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.isActive(0), "\(c): it will take the last pile")
+                    }),
+                IV.Scenario("mustNotFire-noSpadeTop", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♦"), IV.spec(3, 6)]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "kamikaze needs a ♠ top") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): a refused fire keeps the charge")
+                    }),
+            ]
+
+        case "rechargeSameShield":
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.sameCharge, "\(c): banked the charge")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-alreadyChargedRefuses", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 8), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)], cols: [2, 1],
+                                       bases: [def.id, nil], sameCharge: true) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.sameCharge, "\(c)")
+                    }),
+                IV.Scenario("mustNotFire-otherColumn", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 1), "no base there") },
+                    expect: { e, _, c in XCTAssertFalse(e.sameCharge, "\(c)") }),
+            ]
+
+        case "activateSamePower":
+            return [
+                IV.Scenario("trigger-firesPower", allowed: .all,
+                    build: { baseEngine(def, samePower: "linkCoins") },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertGreaterThan(e.run.bonusCoins, f.bonusCoins, "\(c): Link Coins paid")
+                        XCTAssertFalse(e.sameCharge, "\(c): banks NO charge")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-noPowerStillSpends", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): nothing to fire")
+                    }),
+                IV.Scenario("mustNotFire-spent", allowed: .all,
+                    build: { baseEngine(def, samePower: "linkCoins") },
+                    fire: { e in _ = e.baseActivate(col: 0); _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], true, "\(c)") }),
+            ]
+
+        case "spadePeek":
+            return [
+                IV.Scenario("trigger-allSpadesColumn", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♠"), IV.spec(3, 6)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c): the peek armed")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-deadPileIgnored", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0,
+                                             "\(c): only ALIVE piles gate the all-♠ check")
+                    }),
+                IV.Scenario("mustNotFire-mixedTops", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "mixed tops must refuse") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "lonePeek":
+            return [
+                IV.Scenario("trigger-noPowerEquipped", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c)")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-emptyDeckStillFires", allowed: .all,
+                    build: { baseEngine(def, deckOrder: []) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { _, _, _ in }, skipSnapshot: true),
+                IV.Scenario("mustNotFire-powerEquipped", allowed: [],
+                    build: { baseEngine(def, samePower: "linkCoins") },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "a power blocks the Lone Eye") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "lastResort":
+            return [
+                IV.Scenario("trigger-buriesDeckEndsDeal", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.deck.isEmpty, "\(c): the whole deck went under")
+                        XCTAssertEqual(e.status, "won", "\(c): the deal ended as a win")
+                    }, skipSnapshot: true),
+                IV.Scenario("edge-scoringUnchanged", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.aliveCount() * e.board.minAliveCards(),
+                                       e.board.aliveCount() * e.board.minAliveCards(),
+                                       "\(c): score = alive x smallest on the final board")
+                        XCTAssertGreaterThan(e.board.aliveCount(), 0, "\(c)")
+                    }, skipSnapshot: true),
+                IV.Scenario("mustNotFire-bossDeal", allowed: [],
+                    build: { baseEngine(def, isBoss: true) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "sealed during a boss") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "emptyPurse":
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c): the look ahead")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-emptyDeck", allowed: .all,
+                    build: { baseEngine(def, deckOrder: []) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { _, _, _ in }, skipSnapshot: true),
+                IV.Scenario("mustNotFire-spent", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in assertSpent(e, c) }),
+            ]
+
+        case "sameTell":
+            return [
+                IV.Scenario("trigger-rankMatchMarks", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 9, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.whisperPiles.contains(0), "\(c): the matching pile is marked")
+                        XCTAssertEqual(e.run.tellDrawsLeft, 1, "\(c)")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-noMatchSaysNothing", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.whisperPiles.isEmpty, "\(c): silence IS the answer")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("mustNotFire-jokerNeverMatches", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 0, "★", joker: true), IV.spec(2, 8), IV.spec(3, 6)],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.whisperPiles.isEmpty, "\(c): a ★ has no rank to match")
+                    }),
+            ]
+
+        case "clubTell":
+            return [
+                IV.Scenario("trigger-readsDirection", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♣"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.tellPile, 0, "clubTell: read the ♣ pile")
+                        XCTAssertEqual(r?.tellDirection, .higher, "clubTell: 9 runs higher than 5")
+                    },
+                    expect: { e, _, c in assertSpent(e, c) }),
+                IV.Scenario("edge-sameDirection", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 9, "♣"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.tellDirection, Guess.same, "clubTell: a match reads =")
+                    },
+                    expect: { _, _, _ in }),
+                IV.Scenario("mustNotFire-noClubTop", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♦"), IV.spec(3, 6)]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no ♣ to read") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "shuffleColumn":
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.shuffled, 2, "shuffleColumn: both alive piles shuffled")
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual((0..<3).map { e.board.piles[$0].cards.count }, f.pileCounts,
+                                       "\(c): a shuffle changes composition, never counts")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-deadPileSkipped", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.shuffled, 1, "only the alive pile")
+                    },
+                    expect: { _, _, _ in }),
+                IV.Scenario("mustNotFire-spent", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in assertSpent(e, c) }),
+            ]
+
+        case "reviveBase":
+            return [
+                IV.Scenario("trigger-revivesKeepsKiller", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)])
+                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(91, 12), data: data))
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.isActive(1), "\(c): the dead pile is back")
+                        XCTAssertEqual(e.board.piles[1].cards.count, 1, "\(c): only the killer stays")
+                        XCTAssertEqual(e.board.top(1)?.id, 91, "\(c): the killing card is the top")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-buriedGoBackHidden", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)])
+                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(91, 12), data: data))
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining + 1,
+                                       "\(c): the one buried card went back to the deck")
+                    }),
+                IV.Scenario("mustNotFire-noDeadPile", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to revive") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "randomSticker":
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertNotNil(r?.stickerApplied, "randomSticker: something stuck")
+                    },
+                    expect: { e, _, c in
+                        let stickered = (0..<2).contains { !(e.board.top($0)?.stickers.isEmpty ?? true) }
+                        XCTAssertTrue(stickered, "\(c): a column top carries the new sticker")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-jokersRefuse", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 0, joker: true),
+                                                    IV.spec(2, 0, joker: true), IV.spec(3, 6)]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.top(0)!.stickers.isEmpty, "\(c): a ★ takes nothing")
+                    }),
+                IV.Scenario("mustNotFire-otherColumnUntouched", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.top(2)!.stickers.isEmpty, "\(c): column-scoped")
+                    }),
+            ]
+
+        case "ambushWin":
+            return [
+                IV.Scenario("trigger-ambushEnds", allowed: .all,
+                    build: { baseEngine(def, isAmbush: true) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.deck.isEmpty, "\(c): the ambush drained")
+                        XCTAssertEqual(e.status, "won", "\(c): through the normal end check")
+                    }, skipSnapshot: true),
+                IV.Scenario("edge-boardUntouched", allowed: .all,
+                    build: { baseEngine(def, isAmbush: true) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual((0..<3).map { e.board.piles[$0].cards.count }, f.pileCounts,
+                                       "\(c): no cards moved")
+                    }, skipSnapshot: true),
+                IV.Scenario("mustNotFire-ordinaryDeal", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "only in an ambush") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "evenOut":
+            return [
+                IV.Scenario("trigger-evensWithinOne", allowed: .all,
+                    build: {
+                        let e = baseEngine(def)
+                        for i in 0..<4 {
+                            e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(90 + i, 3), data: data))
+                        }
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        let a = e.board.pileSize(0), b = e.board.pileSize(1)
+                        XCTAssertLessThanOrEqual(abs(a - b), 1, "\(c): within 1 after")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-alreadyEvenNoMoves", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.moves, 0, "already even: zero moves")
+                    },
+                    expect: { _, _, _ in }),
+                IV.Scenario("mustNotFire-conserved", allowed: .all,
+                    build: {
+                        let e = baseEngine(def)
+                        for i in 0..<4 {
+                            e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(90 + i, 3), data: data))
+                        }
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.board.piles[0].cards.count + e.board.piles[1].cards.count,
+                                       f.pileCounts[0] + f.pileCounts[1], "\(c): cards conserved")
+                    }),
+            ]
+
+        case "setValue", "setSuit":
+            let isValue = def.effect == "setValue"
+            return [
+                IV.Scenario("trigger-copiesBottomPile", allowed: .all,
+                    build: { baseEngine(def) },   // col 0: piles 0 (5♠) and 1 (8♥); bottom pile = 1
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        if isValue {
+                            XCTAssertEqual(e.board.top(0)?.value, 8, "\(c): pile 0 took the source rank")
+                        } else {
+                            XCTAssertEqual(e.board.top(0)?.suit, "♥", "\(c): pile 0 took the source suit")
+                        }
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-otherColumnUntouched", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(2)?.value, 6, "\(c)")
+                        XCTAssertEqual(e.board.top(2)?.suit, "♣", "\(c)")
+                    }),
+                IV.Scenario("mustNotFire-spent", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in assertSpent(e, c) }),
+            ]
+
+        case "stickerHarvest":
+            let per = def.int("buryPerSticker", 2)
+            return [
+                IV.Scenario("trigger-peelsAndBuries", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠", ["tell", "gainCoin"]),
+                                                    IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0, targetIndex: 0)
+                        XCTAssertEqual(r?.harvested, 2, "harvest: counted both stickers")
+                        XCTAssertEqual(r?.buried, 2 * per, "harvest: buried \(per) per sticker")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.top(0)!.stickers.isEmpty, "\(c): the card is bare")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-bareCardBuriesNothing", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0, targetIndex: 0)
+                        XCTAssertEqual(r?.harvested, 0, "nothing to harvest")
+                        XCTAssertEqual(r?.buried, 0, "nothing buried")
+                    },
+                    expect: { _, _, _ in }),
+                IV.Scenario("mustNotFire-needsTarget", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no target given") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "refreshBases":
+            return [
+                IV.Scenario("trigger-reArmsOthers", allowed: .all,
+                    build: {
+                        let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 8), IV.spec(3, 6)],
+                                          deckOrder: [IV.spec(50, 9)], cols: [2, 1],
+                                          bases: [def.id, "spadePeek"])
+                        e.run.basesUsed?[1] = true   // the other base is spent
+                        return e
+                    },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.refreshed, [1], "refresh: re-armed the spent base")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[1], false, "\(c): column 1 is ready again")
+                        XCTAssertEqual(e.run.basesUsed?[0], true, "\(c): itself is spent")
+                    }),
+                IV.Scenario("edge-nothingSpentRefuses", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 8), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)], cols: [2, 1],
+                                       bases: [def.id, "spadePeek"]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to refresh") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+                IV.Scenario("mustNotFire-neverSelf", allowed: .all,
+                    build: {
+                        let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 8), IV.spec(3, 6)],
+                                          deckOrder: [IV.spec(50, 9)], cols: [2, 1],
+                                          bases: [def.id, "spadePeek"])
+                        e.run.basesUsed?[1] = true
+                        return e
+                    },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], true, "\(c): it can never re-arm itself")
+                    }),
+            ]
+
+        case "suitDig":
+            let suit = def.suit ?? "♣"
+            let dig = def.int("digCount", 0) != 0 ? def.int("digCount", 0) : 1
+            return [
+                IV.Scenario("trigger", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, suit), IV.spec(2, 8, suit), IV.spec(3, 6)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.piles, 2, "suitDig: both \(suit) piles dug")
+                        XCTAssertEqual(r?.buried, 2 * dig, "suitDig: \(dig) each")
+                    },
+                    expect: { e, _, c in assertSpent(e, c) }),
+                IV.Scenario("edge-emptyDeckNothing", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, suit), IV.spec(2, 8, suit), IV.spec(3, 6)],
+                                        deckOrder: []) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried ?? 0, 0, "empty deck: nothing to bury")
+                    },
+                    expect: { _, _, _ in }, skipSnapshot: true),
+                IV.Scenario("mustNotFire-offSuitTops", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, suit == "♣" ? "♥" : "♣"),
+                                                    IV.spec(2, 8, "♦"), IV.spec(3, 6)]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried ?? 0, 0, "no matching top, no dig")
+                    },
+                    expect: { _, _, _ in }),
+            ]
+
+        case "demolish":
+            return [
+                IV.Scenario("trigger-destroysPillarPeeks", allowed: .all,
+                    build: { baseEngine(def, pillars: ["fibonacci", nil]) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0, targetIndex: 0)
+                        XCTAssertEqual(r?.demolishedPillar, "fibonacci", "demolish: named the victim")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertNil(e.run.pillars?[0] ?? nil, "\(c): the pillar is gone")
+                        XCTAssertEqual(e.run.kamikazeRevealLeft, def.int("peekCount", 2), "\(c): the peek")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-crossColumnTarget", allowed: .all,
+                    build: { baseEngine(def, pillars: [nil, "fibonacci"]) },
+                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 1) },
+                    expect: { e, _, c in
+                        XCTAssertNil(e.run.pillars?[1] ?? nil, "\(c): it reaches any column")
+                    }),
+                IV.Scenario("mustNotFire-noPillarAnywhere", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0, targetIndex: 0), "nothing to demolish") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "heartDemolish":
+            let per = def.num("coinPerPile", 7)
+            return [
+                IV.Scenario("trigger-heartsDieForCoins", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertFalse(e.board.isActive(0), "\(c)")
+                        XCTAssertFalse(e.board.isActive(1), "\(c)")
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + per * 2, "\(c): +\(per) each")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-otherColumnHeartsSafe", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♣"), IV.spec(3, 6, "♥")]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.isActive(2), "\(c): column-scoped destruction")
+                    }),
+                IV.Scenario("mustNotFire-noHearts", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♣"), IV.spec(2, 8, "♠"), IV.spec(3, 6)]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no ♥ tops") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        case "tax":
+            let per = def.num("coinPerCard", 1)
+            return [
+                IV.Scenario("trigger-taxesAllHearts", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♣"), IV.spec(3, 6)])
+                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(90, 3, "♥"), data: data))
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + per * 2,
+                                       "\(c): 1 top + 1 buried ♥ = 2 x \(per)")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-deadPilesExcluded", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 5, "♥"), nil, IV.spec(3, 6)])
+                        e.board.piles[1].cards = [DeckManager.toCard(IV.spec(91, 4, "♥"), data: data)]
+                        return e
+                    },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + per, "\(c): only the alive ♥")
+                    }),
+                IV.Scenario("mustNotFire-noHearts", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♣"), IV.spec(2, 8, "♠"), IV.spec(3, 6)]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to tax") },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ]
+
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - Same-Powers (fire on a correct SAME)
+
+    /// A correct Same on pile 0 with the power equipped.
+    static func powerEngine(_ def: ItemDef, variant: String? = nil,
+                            tops: [CardSpec?]? = nil,
+                            deckOrder: [CardSpec]? = nil) -> GameEngine {
+        IV.engine(tops: tops ?? [IV.spec(1, 7, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♥")],
+                  deckOrder: deckOrder ?? [IV.spec(50, 7, "♣"), IV.spec(51, 3), IV.spec(52, 4), IV.spec(53, 5)],
+                  samePower: def.id, samePowerVariant: variant)
+    }
+
+    static func powerScenarios(for def: ItemDef) -> [IV.Scenario]? {
+        guard let effect = def.effect else { return nil }
+        func fireSame(_ e: GameEngine) { e.guess(0, .same) }
+        var result: SamePowerResult?
+        func capture(_ e: GameEngine) {
+            result = nil
+            e.on { if case .samePower(let r) = $0 { result = r } }
+        }
+        let common: (GameEngine, IV.Frame, String) -> Void = { e, _, c in
+            XCTAssertNotNil(result, "\(c): the power announced itself")
+            XCTAssertEqual(result?.power, def.id, "\(c)")
+            XCTAssertTrue(e.sameCharge, "\(c): the correct Same still banks")
+        }
+        let variant: String? = ["linkBury": "♦", "linkTell": "red"][def.id] ?? nil
+        let trigger = IV.Scenario("trigger", allowed: .all,
+            build: { powerEngine(def, variant: variant) },
+            fire: { e in capture(e); fireSame(e) },
+            expect: { e, f, c in
+                common(e, f, c)
+                switch effect {
+                case "linkCoins":
+                    XCTAssertGreaterThan(e.run.bonusCoins, f.bonusCoins, "\(c): paid per target")
+                case "linkBury":
+                    XCTAssertGreaterThanOrEqual((0..<3).map { e.board.piles[$0].cards.count }.reduce(0, +),
+                                                f.pileCounts.reduce(0, +) + 1, "\(c): buried somewhere")
+                case "samePeek", "linkTell":
+                    XCTAssertTrue(e.run.revealNextActive || e.run.tellDrawsLeft > 0
+                                    || !(e.run.whisperPiles.isEmpty), "\(c): a hint armed")
+                default:
+                    break   // structural: the result event is the contract
+                }
+            })
+        let noCharge = IV.Scenario("mustNotFire-directionalGuess", allowed: .all,
+            build: { powerEngine(def, variant: variant,
+                                 tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♥")],
+                                 deckOrder: [IV.spec(50, 9, "♣"), IV.spec(51, 3)]) },
+            fire: { e in capture(e); e.guess(0, .higher) },
+            expect: { _, _, c in
+                XCTAssertNil(result, "\(c): a plain HIGHER never fires the power")
+            })
+        let edge = IV.Scenario("edge-jokerSameCountsAndFires", allowed: .all,
+            build: { powerEngine(def, variant: variant,
+                                 tops: [IV.spec(1, 7, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♥")],
+                                 deckOrder: [IV.spec(50, 0, joker: true), IV.spec(51, 3), IV.spec(52, 4)]) },
+            fire: { e in capture(e); fireSame(e) },
+            expect: { e, _, c in
+                XCTAssertNotNil(result, "\(c): a ★ Same is a full Same")
+                XCTAssertTrue(e.sameCharge, "\(c)")
+            })
+        return [trigger, edge, noCharge]
+    }
+}

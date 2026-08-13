@@ -4,6 +4,8 @@ import GameCore
 public protocol StoreScreenDelegate: AnyObject {
     /// GO TO MAP — the visit is over.
     func storeDone(_ store: StoreViewController)
+    /// The shell's ☰ — the pause menu, same as from the map or a deal.
+    func storeWantsMenu(_ store: StoreViewController)
 }
 
 /// The store — ONE fixed screen (AGENTS UX): a unified 6-slot shelf (5 rolled
@@ -22,7 +24,7 @@ public final class StoreViewController: UIViewController {
     private let msgLabel = UILabel()
     private let shelf = UIView()
     private var tiles: [StoreTileView] = []
-    private let rerollButton = PixelButtonView("REFRESH", role: .gold, fontSize: 13)
+    private let rerollButton = PixelButtonView("REFRESH", role: .gold, fontSize: 16)
     private let loadoutPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let loadoutTitle = UILabel()
     private var loadoutChips: [UIView] = []
@@ -32,6 +34,7 @@ public final class StoreViewController: UIViewController {
     private let tissue = TissueView()
     private var detail: StoreDetailView?
     private var keyPanel: UIView?
+    private var holdHelp = PixelPanelView()
 
     /// A mystery "store" detour keys the offer to the mystery node.
     public var offerNodeId: Int?
@@ -49,6 +52,7 @@ public final class StoreViewController: UIViewController {
 
     public override func viewDidLoad() {
         super.viewDidLoad()
+        Sound.shared.storeOpen()   // the shop door-chime, once per visit
         view.backgroundColor = CRT.feltDeep
         tissue.frame = view.bounds
         tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -68,6 +72,12 @@ public final class StoreViewController: UIViewController {
 
         // The persistent top shell (HUD line + deck band), same as the map.
         shell.showsDeckStack = true
+        // The ☰ was never wired here, so it looked live and did nothing — the
+        // store was the one screen you couldn't pause from.
+        shell.onMenu = { [weak self] in
+            guard let self else { return }
+            self.delegate?.storeWantsMenu(self)
+        }
         shell.onDeckTap = { [weak self] in
             guard let self else { return }
             self.present(DeckInspectViewController(campaign: self.campaign), animated: false)
@@ -89,7 +99,7 @@ public final class StoreViewController: UIViewController {
         view.addSubview(rerollButton)
 
         view.addSubview(loadoutPanel)
-        loadoutTitle.attributedText = CRTKit.attributed("EQUIPPED", size: 12, color: CRT.muted, display: true)
+        loadoutTitle.attributedText = CRTKit.attributed("EQUIPPED", size: 14, color: CRT.muted, display: true)
         loadoutPanel.addSubview(loadoutTitle)
 
         goButton.onTap = { [weak self] in self?.goTapped() }
@@ -117,15 +127,22 @@ public final class StoreViewController: UIViewController {
         shell.frame = CGRect(x: 0, y: 0, width: b.width, height: shellH)
 
         // Title row: Shop + balance left; Refresh + ? right.
-        titleLabel.frame = CGRect(x: 12, y: shellH + 8, width: 160, height: 26)
-        balanceLabel.frame = CGRect(x: 12, y: shellH + 36, width: 200, height: 18)
+        // "Shop" and the purse sit on ONE line: the balance is the number every
+        // decision here is measured against, so it rides beside the title
+        // instead of under it, where the eye skipped it.
+        titleLabel.frame = CGRect(x: 12, y: shellH + 8, width: 92, height: 30)
+        balanceLabel.frame = CGRect(x: 108, y: shellH + 10, width: b.width - 108 - 190, height: 28)
         helpButton.frame = CGRect(x: b.width - 42, y: shellH + 16, width: 32, height: 32)
         rerollButton.frame = CGRect(x: b.width - 42 - 8 - 130, y: shellH + 14, width: 130, height: 36)
 
         // The shelf GROWS to fill everything between the title row and the
         // equipped panel — tall tiles, the merchandise breathes (web parity).
         let goH: CGFloat = 46
-        let loH: CGFloat = 96
+        // 96 was sized for single-line loadout chips. The chips WRAP to two
+        // lines now (so "Diamond Distribution" reads in full), which makes a
+        // column 85pt tall — at 96 the second row was clipped and ran into
+        // GO TO MAP. 118 = 24 top inset + 85 + 9 breathing room.
+        let loH: CGFloat = 118
         let goTop = b.height - view.safeAreaInsets.bottom - goH - 10
         let loTop = goTop - loH - 8
         let shelfTop = shellH + 60
@@ -147,7 +164,7 @@ public final class StoreViewController: UIViewController {
     }
 
     private func setMessage(_ s: String) {
-        msgLabel.attributedText = CRTKit.attributed(s, size: 13, color: CRT.muted)
+        msgLabel.attributedText = CRTKit.attributed(s, size: 14, color: CRT.muted)
     }
 
     // MARK: - Render
@@ -155,10 +172,12 @@ public final class StoreViewController: UIViewController {
     public func render() {
         shell.sync(campaign: campaign)
         let bal = NSMutableAttributedString(
-            string: "\(campaign.getCoins()) ", attributes: [.font: CRT.Font.of(17), .foregroundColor: CRT.gold])
+            string: "\(campaign.getCoins()) ", attributes: [.font: CRT.Font.of(26), .foregroundColor: CRT.gold])
         bal.append(NSAttributedString(
-            string: "◉ to spend", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.muted]))
-        balanceLabel.attributedText = bal
+            string: "◉ to spend", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
+        balanceLabel.attributedText = campaign.isGiftShelf
+            ? CRTKit.attributed("everything here is free", size: 16, color: CRT.muted)
+            : bal
 
         // Shelf tiles.
         tiles.forEach { $0.removeFromSuperview() }
@@ -192,15 +211,27 @@ public final class StoreViewController: UIViewController {
                                locked: locked)
                 tile.onTap = { [weak self] in self?.openDetail(slot: i) }
                 tile.onHold = { [weak self] in self?.showHelp(kind: s.kind, id: s.id, card: s.card) }
+                tile.onHoldEnded = { [weak self] in self?.hideHoldHelp() }
             } else {
                 tile.configureSold()
             }
             shelf.addSubview(tile)
             tiles.append(tile)
         }
-        let cost = Int(campaign.storeRerollCost())
-        rerollButton.setTitle("↻ REFRESH · ◉\(cost)")
-        rerollButton.isEnabled = campaign.canReroll()
+        // A GIFT SHELF is the Old Joker emptying his coat: no refresh, no
+        // prices, and the exit says you're done taking rather than shopping.
+        if campaign.isGiftShelf {
+            rerollButton.isHidden = true
+            titleLabel.attributedText = CRTKit.attributed("His coat", size: 22,
+                                                          color: CRT.gold, display: true)
+            goButton.setTitle("DONE")
+            setMessage("Take what you want. It's all paid for.")
+        } else {
+            rerollButton.isHidden = false
+            let cost = Int(campaign.storeRerollCost())
+            rerollButton.setTitle("↻ REFRESH · ◉\(cost)")
+            rerollButton.isEnabled = campaign.canReroll()
+        }
 
         renderLoadout()
         view.setNeedsLayout()
@@ -244,10 +275,10 @@ public final class StoreViewController: UIViewController {
 
     private func makeLoadoutColumn(title: String, rows: [(ItemDef?, String, Int?)]) -> UIView {
         let v = UIView()
-        let t = CRTKit.label(title, size: 11, color: CRT.muted)
-        t.alpha = 0.7
+        let t = CRTKit.label(title, size: 14, color: CRT.muted)
+        t.alpha = 0.9
         t.textAlignment = .center
-        t.frame = CGRect(x: 0, y: 0, width: 82, height: 14)
+        t.frame = CGRect(x: 0, y: 0, width: 82, height: 16)
         v.addSubview(t)
         var y: CGFloat = 17
         for (def, kind, col) in rows {
@@ -257,26 +288,32 @@ public final class StoreViewController: UIViewController {
                 : kind == "samepower" ? CRT.phosphor : CRT.cardFace
             if let def {
                 let b = UIButton(type: .custom)
-                b.setAttributedTitle(CRTKit.attributed(String(def.label.prefix(9)), size: 12, color: tint), for: .normal)
+                // The label WRAPS instead of being chopped at 9 characters —
+                // "Diamond Distribution" used to read "Diamond D", which names
+                // no item the player can find again in the shop.
+                b.setAttributedTitle(CRTKit.attributed(def.label, size: 14, color: tint), for: .normal)
+                b.titleLabel?.numberOfLines = 2
+                b.titleLabel?.textAlignment = .center
+                b.titleLabel?.lineBreakMode = .byWordWrapping
                 b.backgroundColor = CRT.feltDeep
                 b.layer.borderWidth = 1
                 b.layer.borderColor = CRT.ink.cgColor
-                b.frame = CGRect(x: 0, y: y, width: 82, height: 24)
+                b.frame = CGRect(x: 0, y: y, width: 82, height: 32)
                 b.addAction(UIAction { [weak self] _ in
                     self?.openEquippedDetail(kind: kind, id: def.id, col: col)
                 }, for: .touchUpInside)
                 addHold(to: b) { [weak self] in self?.showHelp(kind: kind, id: def.id, card: nil) }
                 v.addSubview(b)
             } else {
-                let e = CRTKit.label("empty", size: 12, color: CRT.disabledText)
+                let e = CRTKit.label("empty", size: 14, color: CRT.disabledText)
                 e.textAlignment = .center
                 e.backgroundColor = CRT.feltDeep
                 e.layer.borderWidth = 1
                 e.layer.borderColor = CRT.ink.cgColor
-                e.frame = CGRect(x: 0, y: y, width: 82, height: 24)
+                e.frame = CGRect(x: 0, y: y, width: 82, height: 32)
                 v.addSubview(e)
             }
-            y += 28
+            y += 36
         }
         return v
     }
@@ -303,9 +340,47 @@ public final class StoreViewController: UIViewController {
     }
     private var holdActions: [ObjectIdentifier: () -> Void] = [:]
     @objc private func holdFired(_ g: UILongPressGestureRecognizer) {
-        guard g.state == .began, let v = g.view else { return }
-        holdActions[ObjectIdentifier(v)]?()
+        guard let v = g.view else { return }
+        switch g.state {
+        case .began: holdActions[ObjectIdentifier(v)]?()
+        case .ended, .cancelled, .failed: hideHoldHelp()
+        default: break
+        }
     }
+
+    /// HOLD-HELP LIVES AT THE TOP, over the shell's deck band — the same place
+    /// the deal, the deck overview and the card pickers put it. The store used
+    /// the bottom prompt bar, so the one gesture that works everywhere answered
+    /// in a different corner here.
+    private func showHoldHelp(title: String, body: String) {
+        holdHelp.removeFromSuperview()
+        holdHelp = PixelPanelView(face: CRT.feltDeep, border: CRT.phosphor)
+        let t = CRTKit.label(title, size: 18, color: CRT.phosphor, display: true, glow: true)
+        let b = CRTKit.label(body, size: 16, color: CRT.cardFace)
+        t.textAlignment = .center
+        b.textAlignment = .center
+        t.numberOfLines = 0
+        b.numberOfLines = 0
+        let w = min(view.bounds.width - 24, 400)
+        let titleH = ceil(t.sizeThatFits(CGSize(width: w - 24, height: 200)).height)
+        let bodyH = ceil(b.sizeThatFits(CGSize(width: w - 24, height: 600)).height)
+        let h = titleH + bodyH + 26
+        // OVER the shell's deck band, not above it — the band IS the histogram
+        // container, and floating clear of it left the help in the gap between
+        // the notch and the HUD.
+        let band = shell.frame
+        holdHelp.frame = CGRect(x: (view.bounds.width - w) / 2,
+                                y: max(view.safeAreaInsets.top + 4,
+                                       band.maxY - h - 6),
+                                width: w, height: h)
+        t.frame = CGRect(x: 12, y: 8, width: w - 24, height: titleH)
+        b.frame = CGRect(x: 12, y: 12 + titleH, width: w - 24, height: bodyH)
+        holdHelp.addSubview(t)
+        holdHelp.addSubview(b)
+        view.insertSubview(holdHelp, belowSubview: crt)
+    }
+
+    private func hideHoldHelp() { holdHelp.removeFromSuperview() }
 
     private func showHelp(kind: String, id: String, card: CardSpec?) {
         let data = GameData.shared
@@ -324,7 +399,7 @@ public final class StoreViewController: UIViewController {
                 : kind == "samepower" ? data.samePowerTypes.get(id)
                 : data.stickerTypes.get(id)
             guard let def else { return }
-            title = def.label; tier = def.tier; desc = def.description
+            title = def.label; tier = def.tier; desc = campaign.itemDescription(def)
             if kind == "sticker" {
                 let suits = def.suits ?? []
                 suitLine = suits.isEmpty ? "Add to any card"
@@ -333,9 +408,7 @@ public final class StoreViewController: UIViewController {
         }
         var text = title + (tier.isEmpty ? "" : " · \(tier.uppercased())")
         if let s = suitLine { text += "\n\(s)" }
-        prompt.show(text, help: desc, actions: [
-            .init("OK", role: .plain) { [weak self] in self?.prompt.hide() },
-        ]) { [weak self] in self?.prompt.hide() }
+        showHoldHelp(title: text, body: desc)
     }
 
     // MARK: - Detail + buy
@@ -368,13 +441,10 @@ public final class StoreViewController: UIViewController {
         detail = nil
     }
 
-    private func sellValue(_ def: ItemDef?) -> Int {
-        switch def?.tier {
-        case "uncommon": return 2
-        case "rare": return 3
-        default: return 1
-        }
-    }
+    /// v6.50: the sell table lives in items.js (`store.sell`) — the UI reads
+    /// it through the campaign, never hardcodes it (the same bypass class as
+    /// the freebie price bug).
+    private func sellValue(_ def: ItemDef?) -> Int { campaign.sellValue(def) }
 
     private func sellEquipped(kind: String, id: String, col: Int?) {
         let data = GameData.shared
@@ -436,7 +506,7 @@ public final class StoreViewController: UIViewController {
                 guard let self else { return }
                 if picked != nil {
                     Haptics.purchase()
-                    self.setMessage("A card was removed — the deck is thinner.")
+                    self.setMessage("A card was purged. The deck is thinner.")
                 }
                 self.render()
             }
@@ -544,10 +614,24 @@ public final class StoreViewController: UIViewController {
             walkNewStickers(Array(ids.dropFirst()))
             return
         }
+        // Never open a picker with nothing to pick. A sticker no card can take
+        // (Lammy's no-stickers rule, a suit the deck no longer holds, +1 Rank
+        // with every card at Ace) used to show an all-greyed grid with no
+        // explanation — the "I picked a sticker and couldn't apply it" case.
+        // It stays in the inventory and the shelf keeps offering it.
+        guard stickerHasTarget(typeId) else {
+            let label = GameData.shared.stickerTypes.get(typeId)?.label ?? "That sticker"
+            setMessage("\(label) has no card it can go on, so it's kept in your stickers.")
+            walkNewStickers(Array(ids.dropFirst()))
+            return
+        }
         let picker = CardPickerViewController(campaign: campaign,
                                               mode: .applySticker(typeId: typeId)) { [weak self] picked in
             guard let self else { return }
             self.render()
+            // Backing out keeps the sticker: it stays in the inventory, the
+            // shelf shows it again, and GO TO MAP still gates on it — nothing
+            // is spent until it actually lands on a card.
             if picked != nil { self.walkNewStickers(Array(ids.dropFirst())) }
         }
         present(picker, animated: false)
@@ -629,7 +713,8 @@ public final class StoreViewController: UIViewController {
         if let d = data.items.bases.first { rows.append((ItemArt.base(d, width: 44, height: 30), "Base", "Charges under a column; tap to fire")) }
         if let d = data.items.packs.first { rows.append((ItemArt.pack(d, deckId: campaign.deckId, width: 34, height: 44), "Pack", "Buy, reveal, keep a pick")) }
         if let d = data.items.samePowers.first { rows.append((ItemArt.samePower(d, width: 40, height: 40), "Same-Power", "Fires on every correct Same")) }
-        rows.append((ItemArt.removal(width: 34, height: 44), "Removal", "Thin your deck — always in stock"))
+        rows.append((ItemArt.removal(width: 34, height: 44),
+                     data.items.store.removal.label, "Thin your deck. Always in stock"))
         var y: CGFloat = 12
         for (img, name, sub) in rows {
             let iv = UIImageView(image: img)
@@ -637,10 +722,10 @@ public final class StoreViewController: UIViewController {
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: 12, y: y, width: 44, height: 44)
             panel.addSubview(iv)
-            let nameL = CRTKit.label(name, size: 15, color: CRT.cardFace)
+            let nameL = CRTKit.label(name, size: 16, color: CRT.cardFace)
             nameL.frame = CGRect(x: 66, y: y + 4, width: 220, height: 18)
             panel.addSubview(nameL)
-            let subL = CRTKit.label(sub, size: 12, color: CRT.muted)
+            let subL = CRTKit.label(sub, size: 14, color: CRT.muted)
             subL.frame = CGRect(x: 66, y: y + 22, width: 224, height: 16)
             panel.addSubview(subL)
             y += 50
@@ -682,6 +767,7 @@ final class StoreTileView: UIControl {
     private var artCap: CGFloat = 90
     var onTap: (() -> Void)?
     var onHold: (() -> Void)?
+    var onHoldEnded: (() -> Void)?
 
     init(slot: Int) {
         super.init(frame: .zero)
@@ -721,7 +807,14 @@ final class StoreTileView: UIControl {
 
     @objc private func tapped() { if isEnabled { onTap?() } }
     @objc private func held(_ g: UILongPressGestureRecognizer) {
-        if g.state == .began { onHold?() }
+        // BOTH ends. The tile only ever reported `.began`, so store hold-help
+        // opened and then had nothing to close it — it sat on screen until
+        // something else redrew.
+        switch g.state {
+        case .began: onHold?()
+        case .ended, .cancelled, .failed: onHoldEnded?()
+        default: break
+        }
     }
 
     func configure(art image: UIImage, kind: String, caption: String?,
@@ -745,38 +838,70 @@ final class StoreTileView: UIControl {
             // Web `.pf-name` is bright cream; `.ro-lab` hangs dimmer.
             let dim = kind == "removal"
             captionLabel.attributedText = CRTKit.attributed(
-                caption.uppercased(), size: 12,
+                caption.uppercased(), size: 14,
                 color: CRT.cardFace.withAlphaComponent(dim ? 0.6 : 1))
             captionLabel.isHidden = false
         } else {
             captionLabel.attributedText = nil
             captionLabel.isHidden = true
         }
+        // GREEN MEANS YOU CAN BUY IT. That is the one question this screen is
+        // asked, so the whole window answers it: an affordable tile wears a
+        // phosphor wash and a phosphor border, an unaffordable one stays plain
+        // felt. Green used to encode RARITY here, which looked random —
+        // uncommon-and-broke lit up while common-and-affordable did not.
+        //
+        // RARITY keeps its own quiet channel: the border hue when you can't
+        // afford it, using the palette's rarity ramp (felt → cream → gold,
+        // the same one the shop's Base gem uses). Never green, so the two
+        // signals can't be confused again.
+        let rarityHue: UIColor
         switch tier {
-        case "uncommon": tierStrip.backgroundColor = CRT.gold
-        case "rare": tierStrip.backgroundColor = CRT.phosphor
-        default: tierStrip.backgroundColor = CRT.cardFace.withAlphaComponent(0.30)
+        case "rare":     rarityHue = CRT.gold
+        case "uncommon": rarityHue = CRT.cardFace.withAlphaComponent(0.75)
+        default:         rarityHue = CRT.ink
         }
-        tierStrip.isHidden = false
-        priceLabel.attributedText = CRTKit.attributed("◉ \(price)", size: 13,
-                                                      color: affordable ? CRT.gold : CRT.disabledText)
+        if affordable && !locked {
+            panel.border = CRT.phosphor
+            panel.face = CRT.feltMid.blended(with: CRT.phosphor, amount: 0.26)
+        } else {
+            panel.border = rarityHue
+            panel.face = CRT.feltMid
+        }
+        tierStrip.isHidden = true
+        isHidden = false
+        // A zero price is a GIFT (Freebie / the joker's comp) — say FREE in
+        // gold instead of quoting "◉ 0".
+        priceLabel.attributedText = price == 0
+            ? CRTKit.attributed("FREE", size: 18, color: CRT.gold, glow: true)
+            : CRTKit.attributed("◉ \(price)", size: 18,
+                                color: affordable ? CRT.gold : CRT.disabledText)
         priceLabel.isHidden = false
-        alpha = locked ? 0.32 : (affordable ? 1 : 0.5)
+        // An item you cannot yet afford is still THERE — only its price chip
+        // greys out. 0.5 on dark felt read as an empty slot; 0.75 reads as
+        // "present, too expensive", which is the actual state.
+        alpha = locked ? 0.4 : (affordable ? 1 : 0.75)
         isEnabled = !locked
     }
 
     func configureSold() {
-        // Web `.store-tile.empty` (index.html:3251): a sold-out slot VANISHES
-        // (visibility:hidden — the grid slot keeps its space), never dims.
+        // A bought slot keeps its PLACE and says so. It used to set
+        // `isHidden = true`, which punched a literal hole in the 3×2 shelf —
+        // and with unaffordable tiles dimmed alongside it, one purchase could
+        // read as several items "going missing". Now the plaque stays, empty
+        // and captioned SOLD, so the shelf is always countable.
         art.image = nil
         restrictionIcon.image = nil
         restrictionIcon.isHidden = true
-        captionLabel.attributedText = nil
-        captionLabel.isHidden = true
+        captionLabel.attributedText = CRTKit.attributed("SOLD", size: 16, color: CRT.disabledText)
+        captionLabel.isHidden = false
         tierStrip.isHidden = true
+        panel.border = CRT.ink
+        panel.face = CRT.feltMid
         priceLabel.isHidden = true
         isEnabled = false
-        isHidden = true
+        isHidden = false
+        alpha = 0.45
     }
 
     override func layoutSubviews() {
@@ -785,7 +910,7 @@ final class StoreTileView: UIControl {
         tierStrip.frame = CGRect(x: CRT.px, y: CRT.px, width: bounds.width - CRT.px * 2, height: 4)
         // The web tile is a centred flex column: object (capped), optional name
         // caption, price chip — the STACK centres as a group inside the plaque.
-        let capH: CGFloat = captionLabel.isHidden ? 0 : 14
+        let capH: CGFloat = captionLabel.isHidden ? 0 : 17
         let priceH: CGFloat = 20
         let gap: CGFloat = 6
         var stack = capH > 0 ? capH + gap : 0
@@ -799,7 +924,7 @@ final class StoreTileView: UIControl {
             captionLabel.frame = CGRect(x: 2, y: y, width: bounds.width - 4, height: capH)
             y += capH + gap
         }
-        let pw: CGFloat = 54
+        let pw: CGFloat = 72
         priceLabel.frame = CGRect(x: (bounds.width - pw) / 2, y: y, width: pw, height: priceH)
         // The restriction row rides 2pt ABOVE the chip's aspect-fit rect —
         // the chip frame itself is untouched.

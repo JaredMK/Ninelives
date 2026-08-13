@@ -34,15 +34,38 @@ public final class DealViewController: UIViewController {
     /// The shared bottom prompt bar (offers, base confirms) over the SKView.
     private let promptBar = PromptBar()
     /// Piles armed as tap TARGETS (revive / Phoenix), with the answer callback.
-    private var targetPick: (piles: [Int], answer: (Int?) -> Void)?
+    private var targetPick: (targets: [Int], kind: TargetKind, answer: (Int?) -> Void)?
 
     /// Set by the launcher so a finished deal can pop back with its result.
     public var onExit: ((Bool, Int, Int) -> Void)?
     /// Campaign/Zen: the rich outcome, delivered after the end presentation.
     public var onOutcome: ((DealOutcome) -> Void)?
     public var onZenGuess: ((Bool) -> Void)?
+    /// FIRST-RUN TUTORIAL: set before presenting to script the Zen opening.
+    public var tutorialGuided = false
+    /// …and the tour's event feed (pile taps, the ▲ press, swipe-guesses).
+    public var onTutorialEvent: ((TutorialView.Event) -> Void)?
+
+    /// LIVE anchor rects for the tour's ring — the REAL pile 1 and ▲ button,
+    /// in this view's coordinates (the SKView fills it).
+    public func tutorialAnchorRect(_ key: String) -> CGRect? {
+        switch key {
+        case "dealPileFirst": return scene?.pileRectInView(0)
+        case "dealRailUp": return scene?.railUpRectInView()
+        case "pileCount":
+            // The count badge rides the pile's bottom-left corner.
+            guard let p = scene?.pileRectInView(0) else { return nil }
+            return CGRect(x: p.minX - 8, y: p.maxY - 30, width: 46, height: 42)
+        default: return nil
+        }
+    }
     /// The corner menu button (campaign/zen only).
     public var onMenu: (() -> Void)?
+    /// MID-DEAL PERSISTENCE: the snapshot to resume from (set by the flow
+    /// before presentation) and the per-action snapshot sink (the flow's
+    /// background writer). Campaign mode only — Zen never persists.
+    public var resumeMidDeal: [String: JSONValue]?
+    public var onMidDealSnapshot: (([String: JSONValue]) -> Void)?
 
     public init(setup: DealController.Setup) {
         self.mode = .debug(setup)
@@ -79,6 +102,11 @@ public final class DealViewController: UIViewController {
         let tap = UITapGestureRecognizer(target: self, action: #selector(onTap))
         let hold = UILongPressGestureRecognizer(target: self, action: #selector(onHold))
         hold.minimumPressDuration = Self.holdSeconds
+        // A thumb resting on a card rolls well past UIKit's 10pt default before
+        // 0.35s is up, which failed the recognizer outright — and the pan then
+        // armed a swipe, so a sloppy hold could PLAY A MOVE instead of showing
+        // help. 24pt still leaves the swipe-guess its 26pt dead-zone.
+        hold.allowableMovement = 24
         // A pan must be able to start even after the hold recognizer engages,
         // and a tap must not wait on the pan.
         pan.delegate = self
@@ -119,6 +147,10 @@ public final class DealViewController: UIViewController {
                     }
                 }
                 controller.onZenGuess = { [weak self] correct in self?.onZenGuess?(correct) }
+                // FIRST-RUN TUTORIAL: the guided deal's scripted opening.
+                if tutorialGuided {
+                    controller.preDealArrange = { $0.arrangeTutorialOpening() }
+                }
                 // "run" checkpoints are a CLIMB durability mechanism — a Zen
                 // deal must never write the campaign save (a Zen session would
                 // otherwise mint a bogus save and the menu would offer
@@ -127,6 +159,14 @@ public final class DealViewController: UIViewController {
                     controller.onCheckpoint = { [weak self] _ in
                         guard let self, let c = self.sharedCampaign else { return }
                         PersistenceHolder.shared?.checkpoint(c)
+                    }
+                    // MID-DEAL PERSISTENCE (anti-savescum): every action's
+                    // exact-state snapshot rides up to the flow's background
+                    // writer; a resume's blob rides down into the boot.
+                    controller.resumeMidDeal = resumeMidDeal
+                    resumeMidDeal = nil
+                    controller.onActionSnapshot = { [weak self] blob in
+                        self?.onMidDealSnapshot?(blob)
                     }
                 }
                 scene.showsMenuButton = true
@@ -148,13 +188,37 @@ public final class DealViewController: UIViewController {
             // The slow variant keeps ANIMATIONS ON — the screenshot pass for
             // the travel/pulse/death motion (real autoPlay renders instantly).
             if UserDefaults.standard.bool(forKey: "autoPlaySlow") { startAutoPlay(interval: 1.1) }
-            // `-demoOverlay fan|help` opens an overlay for a screenshot pass,
-            // since simctl cannot deliver a real touch.
+            // `-demoCurseFX 1`: fire every curse feedback idiom with sample
+            // data on the live board (evidence stills — simctl can't set up
+            // each curse's real trigger cheaply).
+            if UserDefaults.standard.bool(forKey: "demoCurseFX") {
+                // AFTER the reveal + cascade settle — their completion
+                // refreshes controls, which would wipe the demo state.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { [weak self] in
+                    guard let self else { return }
+                    self.scene.curseIndicator(at: 0, label: "MALFUNCTION")
+                    self.scene.showHelp(title: "MALFUNCTION",
+                                        body: "K♠ malfunctioned. The correct guess killed the pile.")
+                    self.scene.floatCueAtPillar("BLOCKED", col: 1, color: CRT.suitRed)
+                    self.scene.curseIndicator(at: 2, label: "PEELED")
+                    self.scene.setMagnetTargets([3])
+                    self.scene.setSelected(4)
+                    self.scene.syncControls(canGuess: true, showReshuffle: false,
+                                            reshuffleEnabled: false, sameBlocked: true)
+                }
+            }
+            // `-demoOverlay fan|pilefan|pilefaninfo|help|swipe` opens an
+            // overlay for a screenshot pass, since simctl cannot deliver a
+            // real touch.
             if let demo = UserDefaults.standard.string(forKey: "demoOverlay") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self else { return }
                     if demo == "fan" {
                         if !self.scene.isFanHintOn { self.scene.toggleFanHint() }
+                    } else if demo == "pilefan" || demo == "pilefaninfo" {
+                        if !self.scene.isFanHintOn { self.scene.toggleFanHint() }
+                        self.showPileFanOverlay(0)
+                        if demo == "pilefaninfo" { self.pileFan?.demoShowInfo() }
                     } else if demo == "help", let (t, b) = self.controller.helpText(forPile: 0) {
                         self.scene.showHelp(title: t, body: b)
                     } else if demo == "swipe" {
@@ -191,7 +255,7 @@ public final class DealViewController: UIViewController {
             guard let self else { answer(false); return }
             self.scene.setActionTargets([offer.index])
             self.promptBar.show(
-                "\(offer.label) — bury \(offer.count) card\(offer.count == 1 ? "" : "s") under pile \(offer.index + 1)?",
+                "\(offer.label): bury \(offer.count) card\(offer.count == 1 ? "" : "s") under the highlighted pile?",
                 help: "Costs ◉\(Int(offer.cost)). Decline and nothing happens.",
                 actions: [
                     .init("Decline", role: .plain) { [weak self] in
@@ -204,28 +268,47 @@ public final class DealViewController: UIViewController {
         }
         controller.onActionOffer = { [weak self] action, answer in
             guard let self else { answer(false); return }
-            var targets = [action.index]
-            if let t = action.target { targets.append(t) }
-            self.scene.setActionTargets(targets)
-            let text = action.kind == "donate"
-                ? "Donate pile \(action.index + 1)'s bottom card to pile \((action.target ?? 0) + 1)?"
-                : "Shuffle pile \(action.index + 1)'s cards?"
-            self.promptBar.show(text, help: "Optional — Decline keeps things as they are.", actions: [
+            // The board says WHICH pile — a pile number was never something the
+            // player could point at. Donate names two, so those wear FROM / TO.
+            let text: String
+            if action.kind == "donate", let t = action.target {
+                self.scene.setDonateTargets(from: action.index, to: t)
+                text = "Donate the FROM pile's bottom card to the TO pile?"
+            } else {
+                self.scene.setActionTargets([action.index])
+                text = "Shuffle the highlighted pile's cards?"
+            }
+            // NO outside-tap dismiss: the offer leaves only through Decline
+            // or the action button — a stray board tap used to silently
+            // decline it (v6.25).
+            self.promptBar.show(text, help: "Optional. Decline keeps things as they are.", actions: [
                 .init("Decline", role: .plain) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(false)
                 },
                 .init(action.kind == "donate" ? "Donate" : "Shuffle", role: .cta) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(true)
                 },
-            ]) { [weak self] in self?.clearTargets(); answer(false) }
+            ])
         }
         controller.onReviveOffer = { [weak self] dead, fire in
             guard let self else { fire(nil); return }
-            self.armTargetPick(dead, prompt: "Revive — tap a dead pile to bring it back.", fire: fire)
+            self.armTargetPick(dead, prompt: "Revive: tap a dead pile to bring it back.", fire: fire)
         }
-        controller.onBaseTarget = { [weak self] dead, fire in
+        controller.onBaseTarget = { [weak self] piles, prompt, fire in
             guard let self else { fire(nil); return }
-            self.armTargetPick(dead, prompt: "Phoenix — tap a dead pile to revive it.", fire: fire)
+            self.armTargetPick(piles, prompt: prompt, fire: fire)
+        }
+        controller.onBasePillarTarget = { [weak self] cols, prompt, fire in
+            guard let self else { fire(nil); return }
+            self.armTargetPick(cols, prompt: prompt, kind: .pillar, fire: fire)
+        }
+        controller.onBaseNotice = { [weak self] title, help in
+            guard let self else { return }
+            self.promptBar.show(title, help: help, actions: [
+                .init("OK", role: .plain) { [weak self] in
+                    self?.promptBar.hide(); self?.controller.promptDismissed()
+                },
+            ]) { [weak self] in self?.controller.promptDismissed() }
         }
         controller.onBasePrompt = { [weak self] label, desc, fire in
             guard let self else { return }
@@ -238,11 +321,35 @@ public final class DealViewController: UIViewController {
                 },
             ]) { [weak self] in self?.controller.promptDismissed() }
         }
+        // Diamond Ripple: the sticker asks before shuffling every ♦-top pile.
+        controller.onRippleOffer = { [weak self] count, answer in
+            guard let self else { answer(true); return }
+            self.promptBar.show(
+                "Diamond Ripple: shuffle \(count) diamond-top pile\(count == 1 ? "" : "s")?",
+                help: "Optional. Keep leaves those piles exactly as they are.",
+                actions: [
+                    .init("Keep", role: .plain) { [weak self] in
+                        self?.promptBar.hide(); answer(false)
+                    },
+                    .init("Shuffle", role: .cta) { [weak self] in
+                        self?.promptBar.hide(); answer(true)
+                    },
+                ]) { answer(false) }
+        }
     }
 
-    private func armTargetPick(_ piles: [Int], prompt: String, fire: @escaping (Int?) -> Void) {
-        targetPick = (piles, fire)
-        scene.setActionTargets(piles)
+    /// What an armed target tap is picking: a pile on the board, or one of the
+    /// player's Pillars (by column).
+    enum TargetKind { case pile, pillar }
+
+    private func armTargetPick(_ piles: [Int], prompt: String, kind: TargetKind = .pile,
+                               fire: @escaping (Int?) -> Void) {
+        targetPick = (piles, kind, fire)
+        // Highlight whichever KIND is being asked for — piles for a pile pick,
+        // Pillar plaques for a Pillar pick. Marking neither left Demolish
+        // asking for a target with nothing on screen indicating one.
+        scene.setActionTargets(kind == .pile ? piles : [])
+        scene.setPillarTargets(kind == .pillar ? piles : [])
         promptBar.show(prompt, help: nil, actions: [
             .init("Skip", role: .plain) { [weak self] in
                 self?.promptBar.hide()
@@ -260,6 +367,7 @@ public final class DealViewController: UIViewController {
     }
 
     private func clearTargets() {
+        scene.setPillarTargets([])
         scene.setActionTargets([])
         scene.setSelected(nil)
     }
@@ -286,38 +394,19 @@ public final class DealViewController: UIViewController {
         }
     }
 
-    /// Card-counted best-move player: for every alive pile compute P(higher),
-    /// P(lower), P(same) from the remaining rank counts; play the global max.
+    /// The smart player used by `-autoCampaign`: AutoPilotBrain decides, this
+    /// only paces the moves. (The `-autoPlay` script above stays deliberately
+    /// dumb — ParityCaptureUITests depends on it losing deals.)
     private func startOddsPlayer() {
         Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] t in
             guard let self, let c = self.controller else { t.invalidate(); return }
             if c.isOver { t.invalidate(); return }
-            guard !c.promptIsUp, !c.deckIsEmpty else { return }
-            let counts = c.deckCounts()
-            let total = max(1, counts.values.reduce(0, +))
-            var best: (pile: Int, call: Guess, p: Double)?
-            for pile in c.alivePiles() {
-                guard let v = c.topValue(pile) else { continue }
-                var higher = 0, lower = 0, same = 0
-                for (rank, n) in counts {
-                    if rank > v { higher += n }
-                    else if rank < v { lower += n }
-                    else { same += n }
-                }
-                // Ties kill directional guesses; jokers (value 0 slot) are free wins
-                // either way, so the split above is the survival odds directly.
-                let options: [(Guess, Double)] = [
-                    (.higher, Double(higher) / Double(total)),
-                    (.lower, Double(lower) / Double(total)),
-                    (.same, Double(same) / Double(total)),
-                ]
-                for (g, p) in options where best == nil || p > best!.p {
-                    best = (pile, g, p)
-                }
-            }
-            guard let move = best else { t.invalidate(); return }
-            self.scene.setSelected(move.pile)
-            c.guess(move.call, pile: move.pile)
+            // Idle (don't invalidate) through the cascade, prompts and offers —
+            // a transient block is not the end of the deal.
+            guard c.canAcceptGuess else { return }
+            guard let pick = AutoPilotBrain.choose(c) else { return }
+            self.scene.setSelected(pick.move.pile)
+            c.guess(pick.move.call, pile: pick.move.pile)
         }
     }
 
@@ -337,8 +426,11 @@ public final class DealViewController: UIViewController {
 
         // Target-pick mode (revive / Phoenix): a tap on an armed pile fires.
         if let tp = targetPick {
-            if let pile = scene.pileIndex(at: p), tp.piles.contains(pile) {
-                finishTargetPick(pile)
+            switch tp.kind {
+            case .pile:
+                if let pile = scene.pileIndex(at: p), tp.targets.contains(pile) { finishTargetPick(pile) }
+            case .pillar:
+                if let col = scene.pillarCol(at: p), tp.targets.contains(col) { finishTargetPick(col) }
             }
             return
         }
@@ -349,7 +441,7 @@ public final class DealViewController: UIViewController {
         }
         // A charged Base plaque fires on tap.
         if let col = scene.baseCol(at: p) {
-            Sound.shared.tap()
+            Sound.shared.plaqueFire()
             controller.basePlaqueTapped(col: col)
             return
         }
@@ -363,6 +455,7 @@ public final class DealViewController: UIViewController {
                 return
             }
             controller.select(pile: pile)
+            onTutorialEvent?(.pileTapped(pile))
             return
         }
         // Tap the deck stack → the full deck inspection (campaign/zen).
@@ -402,16 +495,23 @@ public final class DealViewController: UIViewController {
         fan.onDismiss = { [weak self] in self?.pileFan = nil }
         fan.show(in: view)
         pileFan = fan
-        Sound.shared.tap()
+        Sound.shared.fanOpen()
     }
 
     private func fire(button b: PixelButton) {
         guard b.isEnabled else { return }
         scene.press(b, down: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { [weak self] in self?.scene.press(nil, down: false) }
+        // HIGHER / SAME / LOWER own directional cues, fired from
+        // `DealController.guess` so a SWIPE sounds identical to a button press.
+        // Everything else in the rail gets the shared UI click.
+        switch b.id {
+        case "higher", "same", "lower": break
+        default: Sound.shared.button()
+        }
         switch b.id {
         case "fan":       scene.toggleFanHint()
-        case "higher":    controller.guess(.higher)
+        case "higher":    onTutorialEvent?(.higherTapped); controller.guess(.higher)
         case "same":      controller.guess(.same)
         case "lower":     controller.guess(.lower)
         case "reshuffle": controller.reshuffle()
@@ -426,7 +526,12 @@ public final class DealViewController: UIViewController {
         let p = scenePoint(g.location(in: view))
         switch g.state {
         case .began:
-            if scene.isHelpVisible { return }
+            if scene.isHelpVisible {
+                // A drag that starts ON the histogram while its band help is
+                // up is a scrub, not a stuck screen: drop the help, track on.
+                if scene.histogramRank(at: p) != nil { scene.hideHelp(); holdShown = false }
+                else { return }
+            }
             dragPile = scene.pileIndex(at: p)
             dragArmed = nil
             dragMoved = false
@@ -441,7 +546,9 @@ public final class DealViewController: UIViewController {
 
         case .changed:
             if scrubbing {
-                if let r = scene.histogramRank(at: p) {
+                // Once armed, the scrub tracks x until finger-up — even when
+                // the finger wanders off the histogram (clamped fallback).
+                if let r = scene.histogramRank(at: p) ?? scene.histogramRank(nearX: p.x) {
                     scene.showScrub(value: r.value, label: r.label)
                 }
                 return
@@ -460,10 +567,17 @@ public final class DealViewController: UIViewController {
             }
 
         case .ended:
+            // Clear the moved latch HERE. It was only ever reset in `.began`,
+            // and a still hold never starts a pan — so after the player's first
+            // swipe-guess `dragMoved` stayed true for the rest of the deal and
+            // `onHold`'s `guard !dragMoved` silently ate every hold. That is the
+            // "help sometimes shows and sometimes doesn't" bug (v5.83).
+            defer { dragMoved = false }
             if scrubbing { scrubbing = false; scene.hideScrub() }
             defer { dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge() }
             guard let pile = dragPile else { return }
             if let armed = dragArmed {
+                onTutorialEvent?(.swipeGuess)
                 controller.guess(armed, pile: pile)
             } else if dragMoved {
                 // Swiped but released in the dead-zone: cancel AND deselect —
@@ -475,6 +589,7 @@ public final class DealViewController: UIViewController {
 
         case .cancelled, .failed:
             if scrubbing { scrubbing = false; scene.hideScrub() }
+            dragMoved = false
             dragPile = nil; dragArmed = nil; scene.clearSwipeDirection(); scene.clearDragNudge()
 
         default: break
@@ -497,8 +612,10 @@ public final class DealViewController: UIViewController {
         let p = scenePoint(g.location(in: view))
         switch g.state {
         case .began:
-            // A hold that turned into a drag is a guess, not a help request.
-            guard !dragMoved else { return }
+            // A hold that turned into a drag is a guess, not a help request —
+            // and a hold DURING a histogram scrub must not pop the band help
+            // over the bars the finger is reading.
+            guard !dragMoved, !scrubbing else { return }
             // The top-bar chips take hold-help too (Same Charge, Same-Power,
             // the stage track, the reward/score line, score, coins).
             if let chip = scene.hudChip(at: p),
@@ -508,12 +625,22 @@ public final class DealViewController: UIViewController {
             } else if let pile = scene.pileIndex(at: p), let (title, body) = controller.helpText(forPile: pile) {
                 holdShown = true
                 scene.showHelp(title: title, body: body)
+            } else if let col = scene.pillarCol(at: p), let (title, body) = controller.helpText(forPillar: col) {
+                holdShown = true
+                scene.showHelp(title: title, body: body)
+            } else if let col = scene.baseCol(at: p), let (title, body) = controller.helpText(forBase: col) {
+                holdShown = true
+                scene.showHelp(title: title, body: body)
             } else if let b = scene.button(at: p) {
                 holdShown = true
                 scene.showHelp(title: helpTitle(b.id), body: helpBody(b.id))
             } else if scene.isDeckPanel(p) {
                 holdShown = true
-                scene.showHelp(title: "Deck", body: "Cards left in the draw pile. Empty the deck before every pile dies to clear the deal.")
+                scene.showHelp(title: "Deck", body: "Cards left in the draw pile. Empty the deck before every pile dies to clear the deal. Tap for the full deck list.")
+            } else if scene.isDeckBand(p) {
+                holdShown = true
+                scene.showHelp(title: "Deck tracker",
+                               body: "What's left in the draw pile: the suit counts, and one bar per rank (grey = the deal's starting count, bright = still drawable). Hold and drag across the bars for the exact higher / same / lower odds of any rank.")
             }
         case .ended, .cancelled, .failed:
             if holdShown { scene.hideHelp(); holdShown = false }
@@ -528,17 +655,19 @@ public final class DealViewController: UIViewController {
         case "same": return "Same"
         case "lower": return "Lower"
         case "reshuffle": return "Reshuffle"
+        case "menu": return "Menu"
         default: return id
         }
     }
 
     private func helpBody(_ id: String) -> String {
         switch id {
-        case "fan":    return "Fan — spreads every living pile so the cards underneath peek out, a reminder of what each pile is holding. Tap again to collapse. Pure memory aid: it changes nothing about the deal, and guessing stays live."
+        case "fan":    return "Fan: spreads every living pile so the cards underneath peek out, a reminder of what each pile is holding. Tap again to collapse. Pure memory aid: it changes nothing about the deal, and guessing stays live."
         case "higher": return "The next card is higher in rank. Ace is high; suits never matter."
         case "same":   return "The next card matches this rank. A correct Same banks a charge that saves your next miss."
         case "lower":  return "The next card is lower in rank. A tie kills on Higher or Lower."
-        case "reshuffle": return "Re-deal the piles from the same deck. Only before your first guess."
+        case "reshuffle": return "Gather every pile back into the deck and re-deal. Only before your first guess. In a climb it costs coins, more each time."
+        case "menu":   return "Pause: leave the deal for the map or options. The deal waits exactly as you left it."
         default:       return ""
         }
     }

@@ -7,7 +7,7 @@ extension RunMap {
     func buildPhase(phaseIndex: Int, seed: UInt32, entryDeck: Int?, opts: GenOptions) -> PhaseMap? {
         if let def = authored[phaseIndex] {
             let ph = definitionToPhase(def, phaseIndex: phaseIndex)
-            mergeForcedPackChains(ph)   // authored maps get the same corridor collapse
+            mergeForcedPackChains(ph, genV: opts.genVersion)   // authored maps collapse the same way
             _ = validateStage(ph, entryDeck: entryDeck ?? config.startDeckSize,
                               opts: ValidateOptions(phaseIndex: phaseIndex))
             return ph

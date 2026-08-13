@@ -203,19 +203,31 @@ final class MapGenerationTests: XCTestCase {
     // MARK: - Pack merging
 
     func testForcedPackCorridorsMerge() {
+        // genV ≥ 3: a merged-away pack becomes a MYSTERY, never an empty stop.
+        let m = generator()
+        for seed in seeds {
+            let out = m.generateRun(seed: seed, entryDecks: [13, 26, 39], opts: RunMap.GenOptions(genVersion: 3))
+            XCTAssertFalse(out.nodes.contains { $0.type == "pass" },
+                           "no node may be left empty at genV 3 — merged corridors become mysteries")
+            // The merged-away node grants nothing itself but keeps its edges.
+            for n in out.nodes where n.type == "mystery" {
+                XCTAssertEqual(n.addOf, 0)
+                XCTAssertNil(n.packCount)
+                XCTAssertFalse(n.next.isEmpty, "a merged corridor stays wired into the graph")
+            }
+        }
+    }
+
+    func testLegacyMapsKeepTheirEmptyPassPoints() {
+        // The genV gate: a pre-mystery map must regenerate byte-identically, so
+        // its pass points survive untouched.
         let m = generator()
         var sawPass = false
         for seed in seeds {
-            let out = m.generateRun(seed: seed, entryDecks: [13, 26, 39], opts: RunMap.GenOptions(genVersion: 3))
+            let out = m.generateRun(seed: seed, entryDecks: [13, 26, 39], opts: RunMap.GenOptions(genVersion: 2))
             if out.nodes.contains(where: { $0.type == "pass" }) { sawPass = true }
-            // A pass point grants nothing but keeps its edges.
-            for n in out.nodes where n.type == "pass" {
-                XCTAssertEqual(n.addOf, 0)
-                XCTAssertNil(n.packCount)
-                XCTAssertFalse(n.next.isEmpty, "a pass point stays wired into the graph")
-            }
         }
-        XCTAssertTrue(sawPass, "forced pack corridors should collapse somewhere across 10 seeds")
+        XCTAssertTrue(sawPass, "genV 2 still collapses corridors into pass points")
     }
 
     func testMergePreservesRouteCardTotals() {
@@ -294,14 +306,28 @@ final class MapGenerationTests: XCTestCase {
         XCTAssertNotEqual(a.nodes.map { CanonicalNode($0) }, b.nodes.map { CanonicalNode($0) })
     }
 
-    func testATierChangeChangesTheBands() {
+    /// THE TWO TIERS PLAY THE SAME. Normal and Legendary share every band —
+    /// the only difference between them is Jokers — so this asserts the bands
+    /// MATCH, and that the difference lives in the Joker rules instead.
+    func testTheTwoTiersShareTheirBandsAndDifferOnlyOnJokers() {
         let m = RunMap()
         m.setDifficultyTier("regular")
         let reg = m.bandsFor(0)
         m.setDifficultyTier("legendary")
         let leg = m.bandsFor(0)
-        XCTAssertNotEqual(reg.stage, leg.stage, "tiers change the bands")
-        // An unknown tier falls back to regular.
+        XCTAssertEqual(reg.stage, leg.stage, "the tiers share their stage bands")
+        XCTAssertEqual(reg.boss, leg.boss, "…and their boss bands")
+
+        // The ONE difference: Legendary has no Jokers anywhere.
+        XCTAssertGreaterThan(GameData.shared.difficulty.tier("regular").jokerCap, 0, "Normal has Jokers")
+        XCTAssertEqual(GameData.shared.difficulty.tier("legendary").jokerCap, 0, "Legendary has none")
+        XCTAssertTrue(GameData.shared.difficulty.tier("regular").guaranteedMapJoker)
+        XCTAssertFalse(GameData.shared.difficulty.tier("legendary").guaranteedMapJoker)
+
+        // Two tiers, and the retired one falls back to Normal.
+        XCTAssertEqual(DifficultyData.tierIds, ["regular", "legendary"])
+        m.setDifficultyTier("master")
+        XCTAssertEqual(m.getDifficultyTier(), "regular", "a retired tier falls back")
         m.setDifficultyTier("nope")
         XCTAssertEqual(m.getDifficultyTier(), "regular")
     }

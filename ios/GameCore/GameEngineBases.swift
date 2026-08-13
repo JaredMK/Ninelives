@@ -34,7 +34,7 @@ extension GameEngine {
         // Kamikaze needs >1 pile alive board-wide AND a ♠-top alive pile in its
         // OWN column (it auto-picks a random ♠ target there).
         case "kamikaze":          return board.aliveCount() > 1 && alive.contains { topIsSuit($0, "♠") }
-        case "spadePeek":         return alive.contains { topIsSuit($0, "♠") }
+        case "spadePeek":         return !alive.isEmpty && alive.allSatisfy { topIsSuit($0, "♠") }
         case "shuffleColumn":     return !alive.isEmpty
         case "reviveBase":        return !colDeadPiles(col).isEmpty
         case "randomSticker":     return alive.contains { !wildStickerPoolFor(board.top($0)).isEmpty }
@@ -44,6 +44,14 @@ extension GameEngine {
         case "stickerHarvest":    return !alive.isEmpty
         case "refreshBases":      return !refreshableBaseColumns(col).isEmpty
         case "suitDig":           return !deck.isEmpty && alive.contains { topIsSuit($0, base.suit ?? "") }
+        case "lonePeek":          return run.samePower == nil && !deck.isEmpty
+        case "clubTell":          return !deck.isEmpty && alive.contains { topIsSuit($0, "♣") }
+        case "lastResort":        return !runConfig.isBoss && !deck.isEmpty && !alive.isEmpty
+        case "emptyPurse":        return !deck.isEmpty
+        case "sameTell":          return !deck.isEmpty && !alive.isEmpty
+        // ESCAPE HATCH: an ambush and nothing else. Outside one it is charged
+        // but unusable — which is what its red light says.
+        case "ambushWin":         return runConfig.isAmbush && status == "playing"
         case "demolish":          return run.pillars?.contains { $0 != nil } ?? false
         case "heartDemolish":     return alive.contains { topIsSuit($0, "♥") }
         case "tax":               return colHearts > 0
@@ -52,6 +60,40 @@ extension GameEngine {
         // Power Surge: needs a Same-Power equipped AND an alive pile to fire on.
         case "activateSamePower":  return run.samePower != nil && !alive.isEmpty
         default:                   return false
+        }
+    }
+
+    /// What column `col`'s Base would yield if it were fired RIGHT NOW — the
+    /// web's `baseLiveCounter` (index.html), which drives the `.base-count-badge`
+    /// chip on the plaque. nil for a Base with no countable "if activated now"
+    /// figure. Pure — no state change.
+    ///
+    /// This is the read-only twin of the branches in `baseActivate`, reading the
+    /// same registry knobs so a retune in items.js moves the badge and the real
+    /// payout together.
+    public func baseLiveCounter(_ col: Int?) -> Int? {
+        guard let base = baseForColumn(col) else { return nil }
+        let alive = colAlivePiles(col)
+        func topCount(_ s: String) -> Int { alive.filter { matchesSuit(board.top($0), s) }.count }
+        switch base.effect {
+        case "tax":
+            // Coins: +coinPerCard per ♥ card (top AND buried) in alive piles.
+            let hearts = alive.reduce(0) {
+                $0 + board.piles[$1].cards.filter { matchesSuit($0, "♥") }.count
+            }
+            return Int(Double(hearts) * base.num("coinPerCard", 1))
+        case "heartDemolish":
+            // Coins: +coinPerPile per alive ♥-topped pile in the column.
+            return Int(base.num("coinPerPile", 7) * Double(topCount("♥")))
+        case "spadePeek":
+            // Always exactly one peek (all-♠ column is the GATE, not a scale).
+            return 1
+        case "suitDig":
+            // Cards buried — only Club Dig ships in the roster.
+            guard base.suit == "♣" else { return nil }
+            return topCount("♣") * max(1, base.int("digCount", 1))
+        default:
+            return nil
         }
     }
 
@@ -104,6 +146,7 @@ extension GameEngine {
             board.kill(kill)
             emit(.pileKilled(index: kill))
             run.tellPiles.remove(kill)                 // dead pile drops any Tell hint
+            run.whisperPiles.remove(kill)              // …and any whisper
             run.kamikazeRevealLeft = pk                // peek the next `pk` draws
             // Last Rites on the SACRIFICED pile's column (any death counts).
             let kc = run.pileColumns?[kill]
@@ -125,12 +168,73 @@ extension GameEngine {
             logLine("fired the equipped Same-Power on pile \(hub != nil ? String(hub! + 1) : "—")")
 
         case "spadePeek":
-            // Peek the next X upcoming cards, X = alive ♠-topped piles here.
-            let n = colAlivePiles(col).filter { matchesSuit(board.top($0), "♠") }.count
-            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, n)
-            res.peekCount = n
-            res.cards = deck.peek(n)
-            logLine("peeking the next \(n) upcoming card\(n == 1 ? "" : "s") (\(n) ♠ pile\(n == 1 ? "" : "s"))")
+            // Reworked (router batch 2): fires only when EVERY alive pile in
+            // this column wears a ♠ top (the availability gate) — one peek.
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
+            res.peekCount = 1
+            res.cards = deck.peek(1)
+            logLine("all-♠ column: peeking the next upcoming card")
+
+        case "lonePeek":
+            // The Lone Eye: a plain single peek, gated (in availability) on
+            // the Same-Power slot being EMPTY.
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
+            res.peekCount = 1
+            res.cards = deck.peek(1)
+            logLine("\(base.label): peeking the next upcoming card (no Same-Power equipped)")
+
+        case "lastResort":
+            // LAST RESORT: the whole remaining deck goes UNDER one pile in
+            // this column, and the deal ends — through the engine's own end
+            // check, so the win, payout and score (alive × smallest, on the
+            // final board incl. the mega-pile) are exactly a normal win's.
+            guard let target = pick(colAlivePiles(col)) else { break }
+            let n = deck.remaining()
+            let buried = buryTribute(target, n, base.label)
+            res.index = target
+            res.buried = buried
+            logLine("\(base.label): buried the remaining \(buried) card\(buried == 1 ? "" : "s") under pile \(target + 1) — the deal is over")
+            evaluateEnd()
+
+        case "emptyPurse":
+            // EMPTY PURSE: the peek happens here; the PURSE lives with the
+            // campaign, so the flow drains it on this result (coins are not
+            // engine state). Fires regardless of the purse's size.
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
+            res.peekCount = 1
+            res.cards = deck.peek(1)
+            logLine("\(base.label): every coin spent for one look ahead")
+
+        case "sameTell":
+            // SAME TELL: one question, one answer. A rank match with a top
+            // card here gets the = mark on that pile for the next draw; no
+            // match says nothing at all (and the silence is the answer).
+            guard let next = deck.peek(1).first else { break }
+            if let match = colAlivePiles(col).first(where: {
+                guard let t = board.top($0) else { return false }
+                return !t.joker && t.value == next.value
+            }) {
+                run.tellDrawsLeft += 1
+                run.whisperPiles.insert(match)
+                res.tellPile = match
+                res.tellDirection = .same
+                logLine("\(base.label): the next card matches pile \(match + 1)'s top — marked =")
+            } else {
+                logLine("\(base.label): no match. It says nothing")
+            }
+
+        case "clubTell":
+            // The Club Oracle: read the NEXT card against a random ♣ top in
+            // this column — higher, lower or the same. Reveals a direction,
+            // never the card.
+            let clubs = colAlivePiles(col).filter { matchesSuit(board.top($0), "♣") }
+            guard let pileIdx = pick(clubs), let top = board.top(pileIdx),
+                  let next = deck.peek(1).first else { break }
+            let dir: Guess = next.value > top.value ? .higher
+                          : next.value < top.value ? .lower : .same
+            res.tellPile = pileIdx
+            res.tellDirection = dir
+            logLine("\(base.label): the next card runs \(dir.rawValue) than pile \(pileIdx + 1)'s \(cardName(top))")
 
         case "shuffleColumn":
             // Shuffle every alive pile in the column — FREE. Composition only.
@@ -164,6 +268,15 @@ extension GameEngine {
             res.index = target
             res.stickerApplied = (pileIndex: target, cardId: top.id, typeId: typeId)
             logLine("applied \(stickerTypes.get(typeId)?.label ?? typeId) to the pile card of pile \(target + 1)")
+
+        case "ambushWin":
+            // Empty the draw pile and run the engine's OWN end check — so the
+            // win, the payout, the stats and the end presentation all behave
+            // exactly as a real clear does. Nothing bespoke to keep in sync.
+            _ = deck.drain()
+            logLine("\(base.label): the ambush is over")
+            res.index = col
+            evaluateEnd()
 
         case "evenOut":
             // SUIT-AGNOSTIC: hand a buried card from the largest pile to the
@@ -276,6 +389,7 @@ extension GameEngine {
                 board.kill(i)
                 emit(.pileKilled(index: i))
                 run.tellPiles.remove(i)
+                run.whisperPiles.remove(i)
                 let dc = run.pileColumns?[i]
                 if let dd = resolvePillarDef(dc), dd.effect == "lastRites" { peekPillar(dc, dd) }
             }
@@ -342,13 +456,23 @@ extension GameEngine {
     /// A correct Same triggers the player's ONE equipped Same-Power — the only
     /// artifact a Same triggers. `hub` is the pile the Same was called on. No-op
     /// when nothing is equipped.
+    /// TEST HOOK: fire the equipped Same-Power on `hub` directly, without
+    /// staging a correct Same call first.
+    public func debugFireSamePower(_ hub: Int) { fireSamePower(hub) }
+
     func fireSamePower(_ hub: Int) {
         guard let run, let id = run.samePower, let def = samePowerTypes.get(id) else { return }
         var result = SamePowerResult(power: def.id, label: def.label, hub: hub, effect: def.effect ?? "")
         switch def.effect {
         case "linkBury":
-            // Bury `value` card(s) under EVERY alive pile.
-            let targets = powerPiles("alive")
+            // Bury `value` card(s) under every alive pile whose TOP wears the
+            // climb's rolled suit (v6.38; Wild Suit counts). No variant on an
+            // old save → every alive pile, the pre-roll behaviour.
+            let suit = run.samePowerVariant
+            let targets = powerPiles("alive").filter { j in
+                guard let s = suit else { return true }
+                return CardRules.matchesSuit(board.top(j), s, data: data)
+            }
             var buried = 0
             let n = def.int("value", 0) != 0 ? def.int("value", 0) : 1
             for j in targets { buried += buryTribute(j, n, def.label) }
@@ -390,6 +514,66 @@ extension GameEngine {
             // Peek the next upcoming card (deck-reveal treatment, like Scout).
             run.revealNextActive = true
             result.amount = 1
+
+        case "linkTell":
+            // A hint on the next card per ALIVE PILE — a wide board buys a
+            // long look ahead, a board down to one pile buys almost nothing.
+            // It rides the WHISPER window (its own pile set), so it never
+            // lights the whole board the way the old Spade Whispers did.
+            // X counts only the alive piles whose top wears the climb's
+            // rolled COLOUR (v6.38; Wild Suit counts as both). No variant on
+            // an old save → every alive pile, the pre-roll behaviour.
+            let colour = run.samePowerVariant
+            let alive = powerPiles("alive").filter { j in
+                guard let colour, let top = board.top(j) else { return colour == nil }
+                if CardRules.isWildSuit(top, data: data) { return true }
+                let red = top.suit == "♥" || top.suit == "♦"
+                return colour == "red" ? red : !red
+            }
+            if !alive.isEmpty {
+                run.tellDrawsLeft += alive.count
+                // The hint rides EVERY counted pile (router batch): each of
+                // the next X landed cards shows its arrow wherever it lands,
+                // not only on the pile the Same was called on.
+                for j in alive { run.whisperPiles.insert(j) }
+                recT("samePower", def.id, def.label, ["hints": Double(alive.count)])
+            }
+            result.targets = alive
+            result.amount = alive.count
+
+        case "linkSticker":
+            // A random sticker onto EVERY top card in the CALLED pile's column
+            // — a column-wide spray rather than a scatter across the board, so
+            // it rewards a built-up column the way the other column items do.
+            let col = run.pileColumns?[safe: hub] ?? nil
+            let inCol = col.map { c in powerPiles("alive").filter { run.pileColumns?[$0] == c } }
+                ?? powerPiles("alive")
+            var hit: [Int] = []
+            for j in inCol {
+                guard let top = board.top(j),
+                      let typeId = pick(wildStickerPoolFor(top).map(\.id)) else { continue }
+                projectStickerOntoCard(top, typeId)
+                hit.append(j)
+                // The DURABLE copy: the engine marks the live card, the flow
+                // writes it onto the campaign's card (same contract a Base's
+                // stickerApplied uses). Without this the spray lasted one deal.
+                result.stickersApplied.append((cardId: top.id, typeId: typeId))
+                logLine("\(def.label): \(stickerTypes.get(typeId)?.label ?? typeId) onto pile \(j + 1)")
+            }
+            result.targets = hit
+            result.amount = hit.count
+
+        case "linkPurge":
+            // A CHANCE to burn one card out of the rest of the deck. Nothing
+            // on the board is touched — this only shortens what is coming.
+            let odds = def.num("chance", 0.25)
+            if rng.next() < odds, let gone = deck.removeRandomRemaining(rng) {
+                result.amount = 1
+                logLine("\(def.label): purged \(cardName(gone)) from the deck")
+                recT("samePower", def.id, def.label, ["purged": 1])
+            } else {
+                logLine("\(def.label): the deck kept its card")
+            }
 
         case "linkHeavy":
             // +value pile size to EVERY alive pile, plus hubValue on top for the

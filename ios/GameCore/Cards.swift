@@ -126,14 +126,19 @@ public enum CardRules {
     }
 
     /// The GLOBAL sticker-application gate — may `card` receive sticker `typeId`?
-    /// Two rules, enforced at EVERY application path:
+    /// Three rules, enforced at EVERY application path:
     ///   1. Jokers and Removal cards NEVER take stickers, from any source.
     ///   2. A sticker with a `suits` restriction only attaches to cards of those
     ///      printed suits. EXCEPTION: a WILD SUIT card counts as every suit.
+    ///   3. A card never carries TWO of the same sticker (v6.36) — the pickers
+    ///      grey such cards out, and rolls skip them.
     /// Rank-boundary rules (no +1 on an Ace…) stay with the callers.
     public static func stickerEligible(_ card: LiveCard?, _ typeId: String, data: GameData = .shared) -> Bool {
         guard let card, !card.joker, !card.blank else { return false }
         guard let t = data.stickerTypes.get(typeId) else { return false }
+        // A FULL card takes nothing more, from any source.
+        guard card.stickers.count < data.items.maxStickersPerCard else { return false }
+        guard !card.stickers.contains(where: { $0.type == typeId }) else { return false }
         guard let suits = t.suits, !suits.isEmpty else { return true }  // unrestricted
         if isWildSuit(card, data: data) { return true }                 // wild = all suits
         return suits.contains(card.suit)
@@ -141,6 +146,8 @@ public enum CardRules {
     public static func stickerEligible(_ spec: CardSpec, _ typeId: String, data: GameData = .shared) -> Bool {
         guard !spec.joker, !spec.blank else { return false }
         guard let t = data.stickerTypes.get(typeId) else { return false }
+        guard spec.stickers.count < data.items.maxStickersPerCard else { return false }
+        guard !spec.stickers.contains(where: { $0.type == typeId }) else { return false }
         guard let suits = t.suits, !suits.isEmpty else { return true }
         if isWildSuit(spec, data: data) { return true }
         return suits.contains(spec.suit)

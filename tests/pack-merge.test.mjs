@@ -60,9 +60,11 @@ export function run() {
       const parents = {};
       m.nodes.forEach(n => (n.next || []).forEach(id => { (parents[id] = parents[id] || []).push(n.id); }));
       for (const n of m.nodes) {
-        if (n.type === "pass") {
-          passes++;
-          if (n.packCount != null || !(n.next || []).length) badPass++;
+        // v5.82: at genV >= 3 a merged-away pack becomes a MYSTERY, never an
+        // empty pass point — no node on the map is allowed to grant nothing.
+        if (n.type === "pass") passes++;
+        if (n.type === "mystery") {
+          if (n.packCount != null || n.add != null || n.suit != null || !(n.next || []).length) badPass++;
         }
         if (n.type !== "pack" || !n.next || n.next.length !== 1) continue;
         let cur = m.byId[n.next[0]];
@@ -71,35 +73,27 @@ export function run() {
       }
     }
     r.ok(maps >= 30, "generated " + maps + " runs to sweep");
-    r.ok(passes > 0, "the merge fires on real maps (" + passes + " pass points across the sweep)");
+    r.eq(passes, 0, "no empty pass point survives generation (" + passes + " found)");
     r.eq(corridorsLeft, 0, "no forced pack→pack corridor survives generation");
-    r.eq(badPass, 0, "every pass point is edge-connected and grants nothing");
+    r.eq(badPass, 0, "every mystery is edge-connected and carries no granted content");
   }
 
-  // --- legalNextNodes expands THROUGH pass points --------------------------
+  // --- no node on a generated map is EMPTY ---------------------------------
   {
-    let checked = false;
-    for (let s = 0; s < 40 && !checked; s++) {
+    let maps = 0, empties = 0;
+    for (let s = 0; s < 40; s++) {
       const c = CampaignState.create();
       c.reset();
       const m = c.getMap();
-      const pass = m.nodes.find(n => n.type === "pass");
-      if (!pass) continue;
-      // stand on the pass's parent (the merged pack) and read the legal nexts
-      const parent = m.nodes.find(n => (n.next || []).indexOf(pass.id) !== -1);
-      c.moveToNode(parent.id);
-      const legal = c.legalNextNodes();
-      r.ok(!legal.some(n => n.type === "pass"), "pass points are never legal destinations");
-      const beyond = (pass.next || [])[0];
-      // walk the chain end to find the true beyond set
-      let cur = pass;
-      while (cur && cur.type === "pass" && cur.next.length === 1 && m.byId[cur.next[0]].type === "pass") cur = m.byId[cur.next[0]];
-      const target = (cur.next || []).map(id => m.byId[id]).filter(n => n && n.type !== "pass");
-      r.ok(target.every(t => legal.some(l => l.id === t.id)),
-        "the node(s) beyond the corridor are offered instead");
-      checked = true;
+      maps++;
+      for (const n of m.nodes) {
+        // Every type either runs a deal, opens a shop, grants cards, fires a
+        // mystery event, or is home. "pass" was the one that did nothing.
+        if (n.type === "pass") empties++;
+      }
     }
-    r.ok(checked, "found a pass corridor to exercise within the sweep");
+    r.ok(maps >= 30, "generated " + maps + " campaigns to sweep");
+    r.eq(empties, 0, "every node on the map does something");
   }
 
   return r.summary();

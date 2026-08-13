@@ -37,13 +37,24 @@ public final class BoardState {
     private func cardWeight(_ c: LiveCard) -> Int {
         var w = 1
         for s in c.stickers {
-            if let t = data.stickerTypes.get(s.type), t.behavior == "heavy" { w += t.int("value", 1) }
+            guard let t = data.stickerTypes.get(s.type) else { continue }
+            if t.behavior == "heavy" { w += t.int("value", 1) }
+            // SHRINK curse: the card counts against its pile's size.
+            if t.behavior == "shrink" { w -= t.int("value", 1) }
         }
         return w
     }
 
     private func sizeOf(_ p: Pile) -> Int {
-        p.cards.reduce(0) { $0 + cardWeight($1) } + (pillarSize?(p.index) ?? 0) + p.sizeBonus
+        // FLATLINE curse: while it's the top card, the pile counts as 1 —
+        // covering it restores the true size.
+        if let top = p.cards.last,
+           top.stickers.contains(where: { data.stickerTypes.get($0.type)?.behavior == "flatline" }) {
+            return 1
+        }
+        let n = p.cards.reduce(0) { $0 + cardWeight($1) } + (pillarSize?(p.index) ?? 0) + p.sizeBonus
+        // Shrink can never drag a real pile below 1.
+        return p.cards.isEmpty ? n : Swift.max(1, n)
     }
 
     /// Add a persistent (this-deal) size bonus to a pile — Same Heavy.
@@ -73,6 +84,20 @@ public final class BoardState {
         let c = piles[index].cards
         piles[index].cards = []
         return c
+    }
+    /// Pull the BOTTOM card (Trapdoor). Never the last one — the pile always
+    /// keeps its top.
+    public func removeBottom(_ index: Int) -> LiveCard? {
+        guard piles[index].cards.count > 1 else { return nil }
+        return piles[index].cards.removeFirst()
+    }
+    /// TUTORIAL arrangement: swap the TOP cards of two piles.
+    public func swapTops(_ a: Int, _ b: Int) {
+        guard a != b, !piles[a].cards.isEmpty, !piles[b].cards.isEmpty else { return }
+        let ca = piles[a].cards.removeLast()
+        let cb = piles[b].cards.removeLast()
+        piles[a].cards.append(cb)
+        piles[b].cards.append(ca)
     }
     public func top(_ index: Int) -> LiveCard? { piles[index].cards.last }
     public func isActive(_ index: Int) -> Bool { !piles[index].dead }

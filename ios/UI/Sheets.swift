@@ -29,7 +29,7 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
         panel.layer.borderColor = CRT.ink.cgColor
         addSubview(panel)
 
-        headLabel.attributedText = CRTKit.attributed(title.uppercased(), size: 13,
+        headLabel.attributedText = CRTKit.attributed(title.uppercased(), size: 14,
                                                      color: CRT.phosphor, display: true, glow: true)
         panel.addSubview(headLabel)
 
@@ -59,15 +59,34 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
     }
 
     func dismiss() {
+        guard !dismissing else { return }
+        dismissing = true   // freezes layoutSubviews — see below
         let target = panel.frame.height
-        UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseIn]) {
+        // The MIRROR of `present`: same duration, easeOut so the travel is
+        // front-loaded and actually visible. The old easeIn put ~90% of the
+        // movement in the last third while alpha had already reached 0, so the
+        // panel never appeared to slide — it just blinked out, reading as a
+        // collapse. The scrim fades on its own, slightly behind the panel, so
+        // the slide stays legible the whole way down.
+        UIView.animate(withDuration: 0.22, delay: 0,
+                       options: [.curveEaseOut, .beginFromCurrentState]) {
             self.panel.transform = CGAffineTransform(translationX: 0, y: target)
+        }
+        UIView.animate(withDuration: 0.16, delay: 0.06,
+                       options: [.curveLinear, .beginFromCurrentState]) {
             self.alpha = 0
         } completion: { _ in
             self.removeFromSuperview()
             self.onClose?()
         }
     }
+
+    /// True from `dismiss()` until the panel is gone. Assigning `panel.frame`
+    /// while its transform is non-identity re-anchors the box to the bottom and
+    /// resizes it mid-flight — a layout pass landing inside the animation
+    /// (safe-area propagation, the host's viewDidLayoutSubviews) is exactly
+    /// what made the sheet look like it collapsed from the top.
+    private var dismissing = false
 
     /// Present over `host` with the rise-from-the-bottom slide.
     func present(in host: UIView, below topmost: UIView? = nil) {
@@ -86,6 +105,7 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        guard !dismissing else { return }
         let w = min(bounds.width, 460)
         let safeBottom = safeAreaInsets.bottom
         let panelH = min(bounds.height * 0.86, 14 + 30 + 12 + bodyH + 16 + safeBottom)
@@ -109,7 +129,7 @@ final class PauseSheetView: SheetView {
         let role: PixelButtonView.Role
         let keepOpen: Bool
         let action: () -> Void
-        init(_ label: String, icon: UIImage?, role: PixelButtonView.Role = .plain,
+        init(_ label: String, icon: UIImage? = nil, role: PixelButtonView.Role = .plain,
              keepOpen: Bool = false, action: @escaping () -> Void) {
             self.label = label; self.icon = icon; self.role = role
             self.keepOpen = keepOpen; self.action = action
@@ -145,13 +165,13 @@ final class PauseSheetView: SheetView {
             row.layer.addSublayer(dash)
             self.dash = dash
             let text = NSMutableAttributedString(
-                string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace, .kern: 1])
+                string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace, .kern: 1])
             if exhibition {
                 text.append(NSAttributedString(string: "  EXHIBITION",
-                                               attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.gold]))
+                                               attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
             }
             text.append(NSAttributedString(string: "  tap to copy",
-                                           attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted]))
+                                           attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
             seedLabel.attributedText = text
             seedLabel.textAlignment = .center
             seedLabel.isUserInteractionEnabled = false
@@ -194,11 +214,11 @@ final class PauseSheetView: SheetView {
         // The copy flash: the dashed frame solidifies, the hint turns gold.
         dash?.lineDashPattern = nil
         let text = NSMutableAttributedString(
-            string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace, .kern: 1])
+            string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace, .kern: 1])
         text.append(NSAttributedString(string: "  copied",
-                                       attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.gold]))
+                                       attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
         seedLabel.attributedText = text
-        Sound.shared.tap()
+        Sound.shared.copied()
     }
 
     override func layoutSubviews() {
@@ -274,7 +294,7 @@ final class ManualSheetView: SheetView {
         panel.addSubview(nextButton)
         panel.addSubview(dotsView)
 
-        replayButton.setAttributedTitle(CRTKit.attributed("↻ Replay tutorial", size: 13, color: CRT.cardFace), for: .normal)
+        replayButton.setAttributedTitle(CRTKit.attributed("↻ Replay tutorial", size: 16, color: CRT.cardFace), for: .normal)
         replayButton.backgroundColor = CRT.feltDeep
         replayButton.layer.borderWidth = 1
         replayButton.layer.borderColor = CRT.ink.cgColor
@@ -290,7 +310,7 @@ final class ManualSheetView: SheetView {
 
     private func styleNav(_ b: UIButton, _ title: String, ghost: Bool, primary: Bool = false) {
         let color: UIColor = primary ? CRT.ink : (ghost ? CRT.muted : CRT.cardFace)
-        b.setAttributedTitle(CRTKit.attributed(title.uppercased(), size: 12, color: color), for: .normal)
+        b.setAttributedTitle(CRTKit.attributed(title.uppercased(), size: 14, color: color), for: .normal)
         if primary {
             b.backgroundColor = CRT.phosphor
             b.layer.borderWidth = CRT.px
@@ -321,12 +341,14 @@ final class ManualSheetView: SheetView {
         artHolder.subviews.forEach { $0.removeFromSuperview() }
         let art = s.art()
         artHolder.addSubview(art)
+        // 15/16pt (v6.39): the old 12/13 was the smallest reading text in
+        // the game, on the one screen a NEW player must actually read.
         let cap = NSMutableAttributedString(
-            string: s.lead + "\n", attributes: [.font: CRT.Font.of(12, display: true),
+            string: s.lead + "\n", attributes: [.font: CRT.Font.of(16, display: true),
                                                 .foregroundColor: CRT.phosphor])
         for (text, accent) in s.body {
             cap.append(NSAttributedString(string: text, attributes: [
-                .font: CRT.Font.of(13),
+                .font: CRT.Font.of(16),
                 .foregroundColor: accent ? CRT.phosphor : CRT.cardFace,
             ]))
         }
@@ -346,7 +368,7 @@ final class ManualSheetView: SheetView {
             dotsView.addSubview(d)
         }
         let last = index == slides.count - 1
-        nextButton.setAttributedTitle(CRTKit.attributed(last ? "GOT IT" : "NEXT", size: 12, color: CRT.ink), for: .normal)
+        nextButton.setAttributedTitle(CRTKit.attributed(last ? "GOT IT" : "NEXT", size: 14, color: CRT.ink), for: .normal)
         backButton.isHidden = index == 0
         skipButton.isHidden = last
         setNeedsLayout()
@@ -393,7 +415,7 @@ final class ManualSheetView: SheetView {
     }
 
     private static func tag(_ text: String, good: Bool) -> UILabel {
-        let l = CRTKit.label(text, size: 12, color: CRT.ink)
+        let l = CRTKit.label(text, size: 14, color: CRT.ink)
         l.backgroundColor = good ? CRT.phosphor : CRT.suitRed
         l.textColor = good ? CRT.ink : CRT.cardFace
         l.textAlignment = .center
@@ -429,7 +451,7 @@ final class ManualSheetView: SheetView {
                     b.frame = CGRect(x: off, y: 30 + off, width: 50, height: 68)
                     v.addSubview(b)
                 }
-                let ct = CRTKit.label("52", size: 12, color: CRT.ink)
+                let ct = CRTKit.label("52", size: 14, color: CRT.ink)
                 ct.backgroundColor = CRT.phosphor
                 ct.textAlignment = .center
                 ct.layer.borderWidth = 1
@@ -458,7 +480,7 @@ final class ManualSheetView: SheetView {
                 v.addSubview(c)
                 let names = [("HIGHER", CRT.cardFace), ("SAME", CRT.phosphor), ("LOWER", CRT.cardFace)]
                 for (i, n) in names.enumerated() {
-                    let b = CRTKit.label(n.0, size: 12, color: n.1)
+                    let b = CRTKit.label(n.0, size: 14, color: n.1)
                     b.textAlignment = .center
                     b.backgroundColor = CRT.feltMid
                     b.layer.borderWidth = 2
@@ -471,7 +493,7 @@ final class ManualSheetView: SheetView {
                 ("Will the next card be ", false), ("Higher", true), (", ", false), ("Same", true),
                 (", or ", false), ("Lower", true), (" than that pile's ", false), ("top card", true),
                 ("? ", false), ("Swipe a pile", true),
-                (" to guess — up = Higher, down = Lower, sideways = Same — or tap it and use the buttons. ", false),
+                (" to guess (up = Higher, down = Lower, sideways = Same), or tap it and use the buttons. ", false),
                 ("Hold", true), (" a pile for card info. (Aces are high.)", false),
             ]),
             Slide(art: {
@@ -484,7 +506,7 @@ final class ManualSheetView: SheetView {
                     c.frame.origin = CGPoint(x: 20, y: 28 + CGFloat(2 - i) * 11)
                     v.addSubview(c)
                 }
-                let grow = CRTKit.label("+1", size: 13, color: CRT.phosphor)
+                let grow = CRTKit.label("+1", size: 14, color: CRT.phosphor)
                 grow.frame = CGRect(x: 74, y: 34, width: 30, height: 18)
                 v.addSubview(grow)
                 let bad = tag("Wrong", good: false)
@@ -503,7 +525,7 @@ final class ManualSheetView: SheetView {
                 (" and the card joins the pile, so it grows taller. Guess ", false), ("wrong", true),
                 (" and the whole pile ", false), ("dies", true), (". A tie counts as ", false),
                 ("Same", true), (", so a tie ", false), ("kills", true),
-                (" a Higher or Lower guess — \u{201C}close\u{201D} is never good enough.", false),
+                (" a Higher or Lower guess. \u{201C}Close\u{201D} is never good enough.", false),
             ]),
             Slide(art: {
                 let v = UIView(frame: CGRect(x: 0, y: 0, width: 250, height: 90))
@@ -512,7 +534,7 @@ final class ManualSheetView: SheetView {
                 reward.textAlignment = .center
                 reward.frame = CGRect(x: 0, y: 10, width: 110, height: 26)
                 v.addSubview(reward)
-                let rl = CRTKit.label("stage-2 coin reward", size: 12, color: CRT.muted)
+                let rl = CRTKit.label("stage-2 coin reward", size: 14, color: CRT.muted)
                 rl.textAlignment = .center
                 rl.frame = CGRect(x: -8, y: 40, width: 126, height: 15)
                 v.addSubview(rl)
@@ -523,7 +545,7 @@ final class ManualSheetView: SheetView {
                 score.textAlignment = .center
                 score.frame = CGRect(x: 136, y: 10, width: 110, height: 26)
                 v.addSubview(score)
-                let sl = CRTKit.label("score", size: 12, color: CRT.muted)
+                let sl = CRTKit.label("score", size: 14, color: CRT.muted)
                 sl.textAlignment = .center
                 sl.frame = CGRect(x: 128, y: 40, width: 126, height: 15)
                 v.addSubview(sl)
@@ -532,9 +554,9 @@ final class ManualSheetView: SheetView {
                 ("Survive the whole ", false), ("deck", true), (" to win the deal. The coin ", false),
                 ("reward", true), (" is a flat amount set by the ", false), ("stage", true),
                 (" and the deal's ", false), ("difficulty", true),
-                (" — harder deals pay more. ", false),
+                (". Harder deals pay more. ", false),
                 ("Surviving piles × the cards in your smallest pile", true), (" is your ", false),
-                ("score", true), (" — chased for personal bests, not coins.", false),
+                ("score", true), (", chased for personal bests, not coins.", false),
             ]),
             Slide(art: {
                 let v = UIView(frame: CGRect(x: 0, y: 0, width: 170, height: 150))
@@ -543,7 +565,7 @@ final class ManualSheetView: SheetView {
                                                  ("Start", CRT.muted)]
                 var y: CGFloat = 0
                 for (i, r) in rows.enumerated() {
-                    let n = CRTKit.label(r.0, size: 13, color: r.1)
+                    let n = CRTKit.label(r.0, size: 14, color: r.1)
                     n.textAlignment = .center
                     n.backgroundColor = CRT.feltMid
                     n.layer.borderWidth = 1
@@ -552,7 +574,7 @@ final class ManualSheetView: SheetView {
                     v.addSubview(n)
                     y += 22
                     if i < rows.count - 1 {
-                        let l = CRTKit.label("┆", size: 12, color: CRT.muted)
+                        let l = CRTKit.label("┆", size: 14, color: CRT.muted)
                         l.textAlignment = .center
                         l.frame = CGRect(x: 25, y: y - 2, width: 120, height: 12)
                         v.addSubview(l)
@@ -562,7 +584,7 @@ final class ManualSheetView: SheetView {
                 return v
             }, lead: "Climb the map home", body: [
                 ("A climb takes you up a ", false), ("map", true),
-                (" of nodes — deals, stores and card pickups — to ", false), ("Mama's home", true),
+                (" of nodes (deals, stores and card pickups) to ", false), ("Mama's home", true),
                 (" at the top. ", false), ("Card & pack nodes grow your deck", true),
                 (", so later deals run longer and harder. Lose a single deal and the ", false),
                 ("climb ends", true), (".", false),
@@ -576,13 +598,13 @@ final class ManualSheetView: SheetView {
                     ("Card", "a single card to swap in"),
                     ("Pack", "sealed; keep 1–2 of several"),
                     ("Same-Power", "fires on a correct Same"),
-                    ("Removal", "strips a card from your deck"),
+                    (GameData.shared.items.store.removal.label, "strips a card from your deck"),
                 ]
                 for (i, l) in lines.enumerated() {
                     let text = NSMutableAttributedString(
-                        string: l.0, attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.phosphor])
+                        string: l.0, attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.phosphor])
                     text.append(NSAttributedString(
-                        string: " — \(l.1)", attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.cardFace]))
+                        string: " · \(l.1)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.cardFace]))
                     let lab = UILabel()
                     lab.attributedText = text
                     lab.frame = CGRect(x: 0, y: CGFloat(i) * 19, width: 280, height: 17)
@@ -590,7 +612,7 @@ final class ManualSheetView: SheetView {
                 }
                 return v
             }, lead: "Spend coins in the store", body: [
-                ("Stores on the map sell upgrades in seven classes. Buy with coins, then place them — a sticker on a ", false),
+                ("Stores on the map sell upgrades in seven classes. Buy with coins, then place them: a sticker on a ", false),
                 ("card", true), (", a pillar on a ", false), ("column", true),
                 (" top, a base at its foot.", false),
             ]),
@@ -604,9 +626,9 @@ final class ManualSheetView: SheetView {
                 v.addSubview(t)
                 return v
             }, lead: "Good to know", body: [
-                ("★ Jokers", true), (" never miss — any guess on a Joker is safe. ", false),
-                ("Difficulty tiers", true), (" (Regular, Master, Legendary) raise the stakes as you win. And ", false),
-                ("Zen", true), (" mode, from the menu, is free practice — no coins, no map, no consequences.", false),
+                ("★ Jokers", true), (" never miss. Any guess on a Joker is safe. ", false),
+                ("Difficulty tiers", true), (" (Jokers, then Straight) raise the stakes as you win. And ", false),
+                ("Zen", true), (" mode, from the menu, is free practice. No coins, no map, no consequences.", false),
             ]),
         ]
     }
@@ -626,6 +648,12 @@ final class StatsSheetView: SheetView {
     private var zenDrill: String?
     private static let zenPanelTag = 6101
     var onReset: (() -> Void)?
+    /// Opens Apple's Game Center sheet (wired by the flow; button hides
+    /// when nil — the no-Game-Center path shows nothing).
+    var onLeaderboards: (() -> Void)? { didSet { build() } }
+    /// The local player's (rank, best) read back from Game Center, when
+    /// cheap to have. Set async by the flow; nil shows nothing.
+    var gcLocalEntry: (rank: Int, score: Int)? { didSet { build() } }
 
     init(campaign: CampaignState) {
         self.campaign = campaign
@@ -645,7 +673,7 @@ final class StatsSheetView: SheetView {
             string: value, attributes: [.font: CRT.Font.of(16, display: true), .foregroundColor: CRT.phosphor])
         if let pct {
             num.append(NSAttributedString(
-                string: "  \(pct)", attributes: [.font: CRT.Font.of(12), .foregroundColor: CRT.muted]))
+                string: "  \(pct)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
         }
         let nl = UILabel()
         nl.attributedText = num
@@ -656,7 +684,7 @@ final class StatsSheetView: SheetView {
         nl.layer.shadowOffset = .zero
         nl.frame = CGRect(x: 4, y: 10, width: width - 8, height: 20)
         v.addSubview(nl)
-        let ll = CRTKit.label(label.uppercased(), size: 12, color: CRT.muted)
+        let ll = CRTKit.label(label.uppercased(), size: 14, color: CRT.muted)
         ll.textAlignment = .center
         ll.frame = CGRect(x: 2, y: 34, width: width - 4, height: 15)
         v.addSubview(ll)
@@ -668,7 +696,7 @@ final class StatsSheetView: SheetView {
         let w = body.bounds.width > 0 ? body.bounds.width : 350
         var y: CGFloat = 0
 
-        let climbs = CRTKit.label("CLIMBS", size: 12, color: CRT.gold, display: true)
+        let climbs = CRTKit.label("CLIMBS", size: 14, color: CRT.gold, display: true)
         climbs.frame = CGRect(x: 2, y: y, width: 200, height: 16)
         scroll.addSubview(climbs)
         y += 24
@@ -676,15 +704,18 @@ final class StatsSheetView: SheetView {
         let s = campaign.stats.get()
         func pct(_ a: Int, _ b: Int) -> String { b > 0 ? "\(Int((Double(a) / Double(b) * 100).rounded()))%" : "0%" }
         let tiles: [(String, String?, String)] = [
+            // The one best score leads — endless continues the climb's total
+            // (v6.47), so there is exactly one record to show.
+            ("\(s.bestCampaignScore)", nil, "High score (all decks)"),
             ("\(s.gamesPlayed)", nil, "Climbs played"),
             ("\(s.campaignsWon)", pct(s.campaignsWon, s.gamesPlayed), "Climbs won"),
             ("\(s.lifetimeCardsDrawn)", nil, "Cards drawn"),
             ("\(s.lifetimeCorrectGuesses)", pct(s.lifetimeCorrectGuesses, s.lifetimeGuesses), "Correct draws"),
             ("\(s.lifetimeDopamine)", nil, "Lifetime coins"),
-            ("\(s.bestCampaignDopamine)", nil, "Most coins in a climb"),
-            ("\(s.bestCampaignScore)", nil, "Best campaign score"),
-            ("\(s.bestEndlessScore)", nil, "Best endless score"),
-            ("\(s.bestEndless)", nil, "Deepest endless stage"),
+            // bestCoinsInClimb, NOT bestCampaignDopamine: the latter only ever
+            // recorded on a WON climb, so dying with a fat purse counted for
+            // nothing and the tile looked broken.
+            ("\(s.bestCoinsInClimb)", nil, "Most coins in a climb"),
         ]
         let tw = (w - 10) / 2
         for (i, t) in tiles.enumerated() {
@@ -697,7 +728,7 @@ final class StatsSheetView: SheetView {
         // ---- ZEN panel ----
         let zen = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
         zen.tag = StatsSheetView.zenPanelTag
-        let zenHead = CRTKit.label("ZEN", size: 12, color: CRT.gold, display: true)
+        let zenHead = CRTKit.label("ZEN", size: 14, color: CRT.gold, display: true)
         zenHead.frame = CGRect(x: 10, y: 10, width: 100, height: 16)
         zen.addSubview(zenHead)
 
@@ -710,7 +741,7 @@ final class StatsSheetView: SheetView {
         for (i, sc) in scopes.enumerated() {
             let active = sc.0 == zenScope
             let chip = UIButton(type: .custom)
-            chip.setAttributedTitle(CRTKit.attributed(sc.1, size: 13, color: active ? CRT.ink : CRT.cardFace), for: .normal)
+            chip.setAttributedTitle(CRTKit.attributed(sc.1, size: 14, color: active ? CRT.ink : CRT.cardFace), for: .normal)
             chip.backgroundColor = active ? CRT.phosphor : CRT.feltDeep
             chip.layer.borderWidth = CRT.px
             chip.layer.borderColor = CRT.ink.cgColor
@@ -737,7 +768,7 @@ final class StatsSheetView: SheetView {
         func seg(_ n: Int, _ label: String, last: Bool = false) {
             sum.append(NSAttributedString(string: "\(n)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.phosphor]))
             sum.append(NSAttributedString(string: " \(label)\(last ? "" : " · ")",
-                                          attributes: [.font: CRT.Font.of(13), .foregroundColor: CRT.muted]))
+                                          attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
         }
         seg(games, "played"); seg(wins, "won"); seg(cards, "cards"); seg(correct, "correct", last: true)
         let sumLabel = UILabel()
@@ -777,7 +808,26 @@ final class StatsSheetView: SheetView {
         scroll.addSubview(zen)
         y += zenH + 14
 
-        let reset = PixelButtonView("RESET STATS", role: .danger, fontSize: 13)
+        // GAME CENTER — the CRT-styled doorway to Apple's stock sheet.
+        if onLeaderboards != nil {
+            let lb = PixelButtonView("🏆 LEADERBOARDS", role: .gold, fontSize: 14)
+            lb.onTap = { [weak self] in self?.onLeaderboards?() }
+            lb.frame = CGRect(x: 0, y: y, width: w, height: 38)
+            scroll.addSubview(lb)
+            y += 44
+            if let e = gcLocalEntry {
+                let line = CRTKit.label("Pinky · Straight: rank #\(e.rank) · best \(e.score)",
+                                        size: 14, color: CRT.muted)
+                line.textAlignment = .center
+                line.frame = CGRect(x: 0, y: y, width: w, height: 16)
+                scroll.addSubview(line)
+                y += 22
+            } else {
+                y += 6
+            }
+        }
+
+        let reset = PixelButtonView("RESET STATS", role: .danger, fontSize: 14)
         reset.onTap = { [weak self] in self?.onReset?() }
         reset.frame = CGRect(x: 0, y: y, width: w, height: 38)
         scroll.addSubview(reset)
@@ -886,25 +936,31 @@ final class StatsSheetView: SheetView {
             col.addAction(UIAction { [weak self] _ in
                 self?.setZenDrillAnimated(drill)
             }, for: .touchUpInside)
+            // The WHOLE column is the drill target. Plain UIViews default to
+            // interactive and would swallow the touch inside a scroll view
+            // (which cancels content touches for non-UIControls), leaving only
+            // the two UILabels — the count on top and the caption underneath —
+            // actually tappable. That was the "only the bottom registers" bug.
+            func decorative(_ v: UIView) -> UIView { v.isUserInteractionEnabled = false; return v }
             let innerW = colW - 24
-            let cnt = CRTKit.label("\(spec.count)", size: 13, color: spec.color)
+            let cnt = CRTKit.label("\(spec.count)", size: 14, color: spec.color)
             cnt.textAlignment = .center
             cnt.frame = CGRect(x: 0, y: 0, width: colW, height: 14)
             col.addSubview(cnt)
             let track = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16, width: 44, height: barsH))
             track.backgroundColor = CRT.feltDeep
-            col.addSubview(track)
+            col.addSubview(decorative(track))
             if spec.count > 0 {
                 let h = max(3, barsH * CGFloat(spec.count) / CGFloat(maxV))
                 let bar = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16 + barsH - h,
                                                width: 44, height: h))
                 bar.backgroundColor = spec.color
-                col.addSubview(bar)
+                col.addSubview(decorative(bar))
             }
             let rule = UIView(frame: CGRect(x: (colW - innerW) / 2, y: 16 + barsH + 2, width: innerW, height: 2))
             rule.backgroundColor = spec.color
-            col.addSubview(rule)
-            let lab = CRTKit.label(spec.label, size: 12, color: CRT.muted)
+            col.addSubview(decorative(rule))
+            let lab = CRTKit.label(spec.label, size: 14, color: CRT.muted)
             lab.textAlignment = .center
             lab.frame = CGRect(x: 0, y: 16 + barsH + 8, width: colW, height: 15)
             col.addSubview(lab)
@@ -922,7 +978,7 @@ final class StatsSheetView: SheetView {
                               winPiles: [Int: Int], lossCards: [Int: Int],
                               pilesMax: Int, deckMax: Int) -> CGFloat {
         let back = UIButton(type: .custom)
-        back.setAttributedTitle(CRTKit.attributed("‹ BACK", size: 12, color: CRT.cardFace),
+        back.setAttributedTitle(CRTKit.attributed("‹ BACK", size: 14, color: CRT.cardFace),
                                 for: .normal)
         back.backgroundColor = CRT.feltDeep
         back.layer.borderWidth = CRT.px
@@ -957,7 +1013,7 @@ final class StatsSheetView: SheetView {
         let start = x0 + (width - colW * CGFloat(cols.count)) / 2
         for (i, c) in cols.enumerated() {
             let cx = start + CGFloat(i) * colW
-            let cnt = CRTKit.label("\(c.count)", size: 12, color: c.color)
+            let cnt = CRTKit.label("\(c.count)", size: 14, color: c.color)
             cnt.textAlignment = .center
             cnt.frame = CGRect(x: cx - 7, y: top, width: colW + 14, height: 14)
             zen.addSubview(cnt)
@@ -973,7 +1029,7 @@ final class StatsSheetView: SheetView {
                 bar.backgroundColor = c.color
                 zen.addSubview(bar)
             }
-            let lab = CRTKit.label(c.label, size: 12, color: CRT.muted)
+            let lab = CRTKit.label(c.label, size: 14, color: CRT.muted)
             lab.textAlignment = .center
             lab.frame = CGRect(x: cx - 9, y: top + 16 + barsH + 4, width: colW + 18, height: 14)
             zen.addSubview(lab)
@@ -981,7 +1037,7 @@ final class StatsSheetView: SheetView {
         // The axis caption names what the drilled bars MEASURE (web .zh-axis).
         let axis = CRTKit.label(drill == "wins" ? "piles remaining at the win"
                                                 : "cards remaining at the loss",
-                                size: 12, color: CRT.muted)
+                                size: 14, color: CRT.muted)
         axis.textAlignment = .center
         axis.frame = CGRect(x: x0, y: top + 16 + barsH + 22, width: width, height: 15)
         zen.addSubview(axis)

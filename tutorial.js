@@ -30,11 +30,25 @@
                   load and the tour bows out rather than soft-locking.
                     dealBoard       the board of piles
                     dealPile        a living pile
+                    dealPileFirst   PILE 1 specifically (the guided 3 → Ace)
+                    dealRailUp      the ▲ higher button on the left rail
                     dealDeckChar    the deck character in the corner
                     sameShield      the Same-shield chip in the HUD
                     dealHistogram   the deck-composition histogram band
+                    pileCount       pile 1's card-count badge
      text         the bubble copy (markup above)
      button       the advance button's label — omit for "Next"
+     advance      HOW the step dismisses (the choreography knob):
+                    "next"    (default) the button
+                    "tapPile" the player taps pile 1
+                    "higher"  the player taps the ▲ rail button
+                    "guess"   the player resolves any guess
+                    "swipe"   the player swipe-guesses
+                  Event-gated steps show no button; taps outside the ringed
+                  anchor are swallowed while "tapPile"/"higher" wait.
+     wait         hold this bubble back until N more guesses have resolved
+                  since the previous bubble dismissed (free play between).
+     orWrong      with `wait`: the FIRST WRONG guess also releases it.
 
    THE TOUR AT A GLANCE (all choreography in index.html):
    - groups.deal fires on the guided first Zen deal, as its board appears.
@@ -63,20 +77,40 @@ const NINELIVES_TUTORIAL = {
 
   groups: {
 
-    // The guided first Zen deal, as the board appears (guessing never gated).
+    // The guided first Zen deal: a scripted opening (a 3 waits on pile 1 and
+    // an Ace sits on top of the deck), then milestone tips between stretches
+    // of free play.
     deal: [
       { anchor: "dealBoard",
-        text: "*Goal: survive.* Every pile is a life." },
-      { anchor: "dealPile",
-        text: "Pick a pile, then *swipe* to guess the next card against that pile's *top card*:\n↑ higher\n↓ lower\nsideways = *same*\nOr tap the pile and use the buttons on the left." },
+        text: "Choose a pile and guess if the next card dealt will be *higher* or *lower* than the card shown." },
+      { anchor: "dealPileFirst", advance: "tapPile",
+        text: "Tap the *3*." },
+      { anchor: "dealRailUp", advance: "higher",
+        text: "Tap the *higher* button to guess that the next card drawn will be higher than this 3." },
+      { anchor: "dealPileFirst",
+        text: "You guessed correctly. *Aces count as high* in this game and *2s are low*." },
+      { advance: "guess",
+        text: "Pick another pile and make a *new guess*." },
       { anchor: "dealDeckChar",
-        text: "Every guess draws the next card from *the deck*.\nRight → the pile grows\nWrong → the pile dies\nBeat the *whole deck* before every pile is gone." },
-      { anchor: "sameShield",
-        text: "Call *Same* when you expect an equal card. A correct Same charges this *shield*, protecting you from your next incorrect guess." },
-      { anchor: "dealHistogram",
-        text: "This strip shows *what's left in the deck*. Hold on a number to see how many cards are higher and lower than it. Tap on the deck to see all the cards." },
-      { button: "Go",
-        text: "Your turn — make a guess!" },
+        text: "Cards are drawn from *this deck*. The number on the deck is how many cards remain." },
+      { text: "Try to make *more guesses*." },
+      // The wait cadence is budgeted against EASY's whole deal: 26 cards − 7
+      // dealt = 19 draws, and the scripted opening spends 2. These waits sum
+      // to 14, so the tour lands its GO with draws to spare — at 3s across
+      // the board it overran the deck and the WIN presentation fired under
+      // the last bubble.
+      { wait: 4, orWrong: true,
+        text: "If you make a wrong guess, the *pile is killed*. Your goal is to get through the *entire deck* before all your piles are killed." },
+      { wait: 2, anchor: "dealHistogram",
+        text: "This graph tells you how many cards of each rank *remain in the deck*. You can *hold* on a rank and it will tell you how many remaining cards are higher or lower than it." },
+      { wait: 2, anchor: "sameShield",
+        text: "You can make a *Same* guess too! A correct Same guess charges this *shield*, protecting a pile from your next wrong guess." },
+      { wait: 2, advance: "swipe",
+        text: "You can also *swipe* on piles instead of tapping. It's faster!\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same" },
+      { wait: 2, anchor: "pileCount",
+        text: "This number tells you how many cards are in this pile." },
+      { wait: 1, button: "Go",
+        text: "Try to get through the *whole deck* before running out of piles. *Good luck!*" },
     ],
 
     // That first guided deal just ended: one passive line, then free play.
@@ -86,4 +120,27 @@ const NINELIVES_TUTORIAL = {
     ],
 
   },
+
+  /* --------------------------------------------------------------------
+     MAP HINTS — the scroll-past lines at the very bottom of the map.
+     Edit freely: any mix of flavor and real tips. One line shows per
+     climb, rotating with runs completed. Keep each under ~90 chars so it
+     fits the map's width without wrapping.
+  -------------------------------------------------------------------- */
+  mapHints: [
+    "Up is home.",
+    "Calling Same on a Joker always lands. It banks the Same shield AND fires your Same-Power.",
+    "Mama's waiting at the top.",
+    "A correct Same banks a shield that saves a pile from death. It never stacks, so spend it.",
+    "Nothing down here but felt.",
+    "Ties kill on Higher or Lower. Call Same, or carry a Same-Safe.",
+    "Anchor a tiny pile and it stops dragging your payout down.",
+    "Pinky believes in you.",
+    "Rerolls climb in price within a shop visit. Next store, fresh price.",
+    "Bosses always deal your whole deck. Keep it lean.",
+    "Hold the histogram and drag. It counts how many cards are higher, lower, or same.",
+    "Fan mode spreads a pile so you can see every card in it.",
+    "Hold anything (a card, a node, a shop item) and it tells you what it does.",
+    "Cards can only carry up to four stickers.",
+  ],
 };

@@ -11,7 +11,7 @@ public final class GameEngine {
     let cols: [Int]?
 
     // Live state
-    public private(set) var status = "idle"
+    public internal(set) var status = "idle"
     public private(set) var deck: Deck!
     public private(set) var board: BoardState!
     public private(set) var run: RunState!
@@ -22,6 +22,11 @@ public final class GameEngine {
     public internal(set) var sameCharge: Bool
     /// The equipped Same-Power id, snapshotted from the campaign at deal start.
     var samePowerId: String?
+    var samePowerVariant: String?
+    var pillarRankVariants: [String: Int] = [:]
+    /// Scratch: Second Wind rolled and missed for this column (consumed by
+    /// the death path's miss emit — presentation only, never rules).
+    var secondWindMissCol: Int?
 
     /// The log entry in-flight cascade lines append to.
     var currentEntry: Int?
@@ -40,6 +45,8 @@ public final class GameEngine {
         self.cols = (runConfig.cols?.isEmpty == false) ? runConfig.cols : nil
         self.sameCharge = runConfig.sameCharge
         self.samePowerId = runConfig.samePower
+        self.samePowerVariant = runConfig.samePowerVariant
+        self.pillarRankVariants = runConfig.pillarRankVariants
         self.economy = Economy(data: data)
     }
 
@@ -78,6 +85,10 @@ public final class GameEngine {
     /// column). Every read of "the Pillar on a column" goes through here.
     func resolvePillarDef(_ col: Int?) -> ItemDef? {
         guard let col, let run, let pillars = run.pillars, col >= 0, col < pillars.count else { return nil }
+        // JAMMER curse: while a jammer card tops an alive pile in this
+        // column, the column's pillar does not function — every read (fires,
+        // payout, size hooks, badges) sees no pillar at all.
+        if board != nil, columnJammed(col) { return nil }
         guard let pid = pillars[col] else { return nil }
         guard let def = pillarTypes.get(pid) else { return nil }
         if def.effect != "ditto" { return def }
@@ -287,6 +298,8 @@ public final class GameEngine {
         let pileColumns = cols.map { GameEngine.buildPileColumns($0, pileCount) }
         run = RunState(seed: seed, cols: cols, pileColumns: pileColumns,
                        pileCount: pileCount, samePower: samePowerId)
+        run.samePowerVariant = samePowerVariant
+        run.pillarRankVariants = pillarRankVariants
         currentEntry = nil
         // A shuffled COPY of the campaign deck — deterministic per seed.
         rng = RNG(seed: seed)
@@ -379,6 +392,13 @@ public final class GameEngine {
     public func guess(_ index: Int, _ g: Guess) {
         guard status == "playing", let run, run.started else { return }
         guard board.isActive(index), !deck.isEmpty else { return }
+        // MAGNET: while any magnet card is a top, only magnet piles take a
+        // guess (with several up, any of them satisfies the pull).
+        let magnets = magnetPiles()
+        if !magnets.isEmpty, !magnets.contains(index) { return }
+        // MUTE: Same cannot be called on a muted pile. The draw must not be
+        // consumed by a refused call, so both gates sit before it.
+        if g == .same, pileMuted(index) { return }
 
         guard let current = board.top(index), let drawn = deck.draw() else { return }
         // Scout: drawing this card consumes any active reveal. It may be re-armed
@@ -387,8 +407,12 @@ public final class GameEngine {
         // Tell: a flip consumes the deck's NEXT card — the very card every armed
         // Tell hint predicts. So ONE draw on ANY pile spends every active hint.
         run.tellPiles.removeAll()
-        // Spade Whispers: this draw consumes one whispered hint.
-        if run.tellDrawsLeft > 0 { run.tellDrawsLeft -= 1 }
+        // Spade Whispers: this draw consumes one whispered hint. When the
+        // window closes the whispering piles go dark with it.
+        if run.tellDrawsLeft > 0 {
+            run.tellDrawsLeft -= 1
+            if run.tellDrawsLeft == 0 { run.whisperPiles.removeAll() }
+        }
         // Kamikaze deck-reveal counts down one per draw.
         if run.kamikazeRevealLeft > 0 { run.kamikazeRevealLeft -= 1 }
         let pillar = pillarForPile(index)
@@ -404,6 +428,7 @@ public final class GameEngine {
         // Wild Aces: an Ace landing in this column counts as HIGH or LOW — pick
         // the value(s) for any Ace involved that make the guess correct.
         if let pillar, pillar.effect == "wildAces", drawn.value == 14 || current.value == 14 {
+            let plainCorrect = correct
             let dAce = drawn.value == 14, cAce = current.value == 14
             switch g {
             case .higher: correct = (dAce ? 14 : drawn.value) > (cAce ? 1 : current.value)
@@ -411,6 +436,12 @@ public final class GameEngine {
             case .same:   correct = (dAce && cAce) ? true
                                   : (dAce ? (current.value == 14 || current.value == 1)
                                           : (drawn.value == 14 || drawn.value == 1))
+            }
+            // The FLIP is shown (v6.50): an Ace playing low without a cue
+            // read as a rules glitch, the one silent save in the audit.
+            if correct, !plainCorrect, let wc = run.pileColumns?[index] {
+                emit(.wildAceFlipped(index: index, col: wc))
+                recT("pillar", pillar.id, pillar.label, ["saves": 1])
             }
         }
         // Tie-Safe: any tie involving a Tie-Safe card is safe and counts as a
@@ -420,8 +451,10 @@ public final class GameEngine {
         // JOKER: never wrong — a correct guess for ANY call, whichever SIDE it's
         // on (a rankless ★ can't be compared, so a guess against it must be safe).
         if drawn.joker || current.joker { correct = true }
-        // Telemetry: a Tie-Safe STICKER turned a directional tie into a save.
+        // A Tie-Safe STICKER turned a directional tie into a save — SAY SO
+        // (v6.50: the only save with no cue; the pillar version always had one).
         if isTie && correct && g != .same && (current.tieSafe || drawn.tieSafe) {
+            emit(.tieSafeSaved(index: index))
             recT("sticker", "tieSafe", "Tie-Safe", ["saves": 1])
         }
 
@@ -509,8 +542,33 @@ public final class GameEngine {
             run.snowballUpdates[drawn.id] = 0
         }
 
-        if correct {
+        // MALFUNCTION: guessing correctly against the cursed top rolls the
+        // card blowing the pile anyway. The guess stays correct in the
+        // tallies; the death bypasses every save (nothing malfunctions
+        // politely). Rolled BEFORE the landing branch so the branch order
+        // stays legible.
+        let malfunctioned = correct && malfunctionTriggers(current: current)
+
+        // JAMMER feedback: the landing pile's column has a pillar the curse
+        // is holding down — say so once per guess (the gate itself lives in
+        // resolvePillarDef, which returned nil for every read above).
+        if columnJammed(col), let col, run.pillars?[safe: col] ?? nil != nil {
+            emit(.pillarBlocked(col: col))
+        }
+
+        if malfunctioned {
             board.push(index, drawn)
+            curseTouch(index: index, current: current, drawn: drawn)
+            board.kill(index)
+            let t = stickerTypes.all().first { $0.behavior == "malfunction" }
+            logLine("MALFUNCTION: \(cardName(current)) blew the pile on a correct guess")
+            recT("sticker", "malfunction", t?.label ?? "Malfunction", ["kills": 1])
+            emit(.malfunction(index: index, cardLabel: cardName(current)))
+            emit(.pileKilled(index: index))
+            emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
+        } else if correct {
+            board.push(index, drawn)
+            curseTouch(index: index, current: current, drawn: drawn)
             // Scout: the placed card reveals the next deck card (display-only).
             if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
             // Tell: arm a DIRECTIONAL hint for the NEXT draw on this pile.
@@ -527,6 +585,23 @@ public final class GameEngine {
             maybeDuplicate(index, current, drawn, g)
             maybeStickerTribute(index, drawn)
             maybeStickerActions(index, drawn)
+            // Trapdoor: the landed curse opens under the pile — its BOTTOM
+            // card slips back into the deck (hidden), one per Trapdoor on the
+            // drawn card. The pile always keeps its top.
+            let doors = drawn.stickers.filter { stickerTypes.get($0.type)?.behavior == "trapdoor" }
+            if !doors.isEmpty {
+                var dropped = 0
+                for _ in doors {
+                    guard let fell = board.removeBottom(index) else { break }
+                    deck.returnCard(fell)
+                    dropped += 1
+                }
+                if dropped > 0 {
+                    let def = stickerTypes.get(doors[0].type)
+                    logLine("Trapdoor: \(dropped) card\(dropped == 1 ? "" : "s") fell out of the pile's bottom, back into the deck (hidden)")
+                    recT("sticker", doors[0].type, def?.label ?? "Trapdoor", ["cards": Double(dropped)])
+                }
+            }
             logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile survived (\(board.piles[index].cards.count) cards)")
             emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: true))
             surfaceActionOffer()
@@ -550,28 +625,38 @@ public final class GameEngine {
             emit(.guarded(index: index, guess: g, current: current, drawn: drawn))
             let gdef = stickerTypes.all().first { $0.behavior == "suitImmunity" && $0.suit == guardSave.suit }
             recT("sticker", gdef?.id ?? "suitImmunity", gdef?.label ?? "Guard", ["saves": 1])
-        } else if let pillar, pillar.effect == "secondWind", run.secondWindUsed != nil,
-                  let col, !run.secondWindUsed![col] {
-            // Second Wind: the first pile to die in this column each run revives
-            // once. Its cards AND the killing card are reshuffled back into the
-            // deck (no reveal) and one fresh card is dealt as the new top.
-            run.secondWindUsed![col] = true
+        } else if let pillar, pillar.effect == "secondWind", let col,
+                  { let saved = rng.next() < pillar.num("saveChance", 0.25)
+                    if !saved { secondWindMissCol = col }
+                    return saved }() {
+            // Second Wind: EVERY pile death in this column rolls `saveChance`
+            // to revive (no once-per-run gate). On a save its cards AND the
+            // killing card are reshuffled back into the deck (no reveal) and
+            // one fresh card is dealt as the new top. The used-flag stays
+            // recorded for the trace/debug surface only — nothing gates on it.
+            if run.secondWindUsed != nil { run.secondWindUsed![col] = true }
             reviveSecondWind(index, drawn)
             firePillar(col, "secondWind", pillar.label, 0)
             emit(.secondWind(index: index, guess: g, current: current))
             recT("pillar", pillar.id, pillar.label, ["saves": 1, "revived": 1])
         } else if sameCharge {
+            // Second Wind rolled and MISSED before this rescue — say so.
+            if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
             // SAME CHARGE — the LAST-priority backstop. Reached only after Guard,
             // Shield and Second Wind all declined to save, and spent only when it
             // actually saves. Works for BOTH death types. The would-be-killing
             // card LANDS normally and becomes the new pile card.
             sameCharge = false
             board.push(index, drawn)
+            curseTouch(index: index, current: current, drawn: drawn)
             logLine("Same Charge consumed — pile saved (\(cardName(drawn)) landed on \(cardName(current)) as the new pile card)")
             emit(.sameSaved(index: index, guess: g, current: current, drawn: drawn, sameCharge: sameCharge))
         } else {
+            // Second Wind rolled and MISSED on the way to this death — say so.
+            if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
             // Show the card that killed the pile as its (final) top, then kill it.
             board.push(index, drawn)
+            curseTouch(index: index, current: current, drawn: drawn)
             board.kill(index)
             emit(.pileKilled(index: index))
             logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
@@ -617,6 +702,35 @@ public final class GameEngine {
         // Scout: a freshly-dealt revive top is "placed" too.
         if let fresh = board.top(index), fresh.revealNext { run.revealNextActive = true }
         logLine("Second Wind: pile revived (1 fresh card); \(removed.count + 1) cards recycled into the deck (hidden)")
+    }
+
+    /// FIRST-RUN TUTORIAL: rearrange the freshly-dealt opening so pile 0's
+    /// top is a 3 and the next draw is an Ace — the scripted "tap the 3,
+    /// guess higher, an Ace lands" first exchange. Pure swaps of cards the
+    /// deal already contains: counts, composition and the histogram all stay
+    /// exactly true. Call between startRun and the first render.
+    public func arrangeTutorialOpening() {
+        // A 3 onto pile 0's top…
+        if board.top(0)?.value != 3 {
+            if let other = (1..<board.piles.count).first(where: { board.top($0)?.value == 3 }) {
+                board.swapTops(0, other)
+            } else if let three = deck.takeFirst(where: { $0.value == 3 }),
+                      let old = board.piles[0].cards.popLast() {
+                board.piles[0].cards.append(three)
+                deck.returnCard(old)
+            }
+        }
+        // …and an Ace as the next draw.
+        if let ace = deck.takeFirst(where: { $0.value == 14 }) {
+            deck.putNext(ace)
+        } else if let other = (1..<board.piles.count).first(where: { board.top($0)?.value == 14 }),
+                  let swap = deck.takeFirst(where: { $0.value != 3 }),
+                  let ace = board.piles[other].cards.popLast() {
+            // Every Ace was dealt as a pile top: trade one for a deck card.
+            board.piles[other].cards.append(swap)
+            deck.putNext(ace)
+        }
+        logLine("Tutorial opening arranged: a 3 waits on pile 1; an Ace rides the deck")
     }
 
     func evaluateEnd() {
@@ -720,6 +834,8 @@ public final class GameEngine {
     public func getSeed() -> UInt32? { run?.seed }
     /// The equipped Same-Power id for this deal (or nil).
     public func equippedSamePower() -> String? { run?.samePower ?? samePowerId }
+    /// Last Resort's seal reads this (the config is internal).
+    public var isBossDeal: Bool { runConfig.isBoss }
 
     /// Scout look-ahead: the next card to be drawn while a reveal is active, or
     /// nil. Read-only peek of the REAL next card — never changes draw order.
@@ -737,10 +853,16 @@ public final class GameEngine {
     /// read that never changes draw order/RNG.
     public func pileHint(_ index: Int) -> Guess? {
         guard let run, let board, index >= 0, index < board.size else { return nil }
-        let whispered = run.tellDrawsLeft > 0        // Spade Whispers: all piles hint
-        if !whispered && !run.tellPiles.contains(index) { return nil }
+        // A hint belongs to an ARMED pile, always. Spade Whispers arms its own
+        // pile and `tellDrawsLeft` only decides how many draws that pile keeps
+        // hinting for — it never lights the rest of the board.
+        guard run.tellPiles.contains(index)
+                || (run.tellDrawsLeft > 0 && run.whisperPiles.contains(index)) else { return nil }
         guard let deck, !deck.isEmpty, board.isActive(index) else { return nil }
         guard let top = board.top(index), let next = deck.peek(1).first else { return nil }
+        // A Joker pile can never be called wrong — its hint is always SAME
+        // (router batch), not a meaningless arrow.
+        if top.joker || next.joker { return .same }
         return next.value > top.value ? .higher : (next.value < top.value ? .lower : .same)
     }
 

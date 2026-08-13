@@ -65,8 +65,8 @@ export function run() {
     num("oneTribute", "price", "Bury 1 price");
     num("twoTribute", "price", "Bury 2 price");
     num("twoTribute", "coinCost", "Bury 2 bonus-coin cost");
-    r.eq(PillarTypes.get("allHeartsCoin").price, 8, "All Hearts price 8");
-    r.eq(PillarTypes.get("allHeartsCoin").value, 8, "All Hearts pays 8");
+    r.eq(PillarTypes.get("allHeartsCoin").price, 4, "All Hearts price 4");
+    r.eq(PillarTypes.get("allHeartsCoin").value, 4, "All Hearts pays 4");
     r.eq(PillarTypes.get("allHeartsCoin").tier, "common", "All Hearts is Common");
     // The other-suit All-* Pillars were removed in the rebalance; only ♥ remains.
     for (const id of ["allSpadesCoin", "allDiamondsCoin", "allClubsCoin"]) {
@@ -268,7 +268,7 @@ export function run() {
     b.top(0).suit = "♥";                  // col 0's only surviving pile shows ♥
     b.top(1).suit = "♠";                  // another column, ignored (column-scoped)
     r.eq(e.getRun().bonusCoins, 0, "no LIVE payout — All Hearts is end-of-run now");
-    r.eq(e.pillarPayout().bonus, 8, "All Hearts scores +8 at run end: its column's survivors are all ♥");
+    r.eq(e.pillarPayout().bonus, 4, "All Hearts scores +4 at run end: its column's survivors are all ♥");
     b.top(0).suit = "♠";                  // col 0 no longer all-♥
     r.eq(e.pillarPayout().bonus, 0, "no score when a surviving pile in the column isn't a ♥");
   }
@@ -280,7 +280,7 @@ export function run() {
     b.top(0).suit = "♥"; b.top(1).suit = "♠";   // both in column 0; pile 1 not ♥
     r.eq(e.pillarPayout().bonus, 0, "in-column non-♥ surviving top blocks the bonus");
     b.top(1).suit = "♥";                        // now all survivors in col 0 are ♥
-    r.eq(e.pillarPayout().bonus, 8, "all surviving piles in the column ♥ → +8");
+    r.eq(e.pillarPayout().bonus, 4, "all surviving piles in the column ♥ → +4");
   }
   // --- Bidirectional Suit Guard: the DRAWN guard card saves when it lands ONTO
   //     a top of the guarded suit — and the charge is never spent. -----------
@@ -369,12 +369,12 @@ export function run() {
       extraCoinUnits: board.extraCoinUnits(), pillarBonus: pp.bonus, pillarLines: pp.lines,
       eventBonus, eventLines: [],
     });
-    r.eq(pp.bonus, 7, "Column Guardian (col 3 all-alive) pays +7 at run end");
+    r.eq(pp.bonus, 4, "Column Guardian (col 3 all-alive) pays +4 at run end");
     // The HUD's folded final value is exactly (total − flat) = the summary's
     // total bonus, and equals live + Guardian + Extra Coin.
     const finalTracker = bd.total - bd.flat;
     r.eq(finalTracker, eventBonus + pp.bonus + bd.extraCoinBonus, "final tracker = live + Guardian + Extra Coin");
-    r.eq(finalTracker, 8, "final bonus reconciles to the summary: 1 live + 7 Guardian = 8");
+    r.eq(finalTracker, 5, "final bonus reconciles to the summary: 1 live + 4 Guardian = 5");
   }
 
   // --- Economy folds the live bonus into the total ----------------------

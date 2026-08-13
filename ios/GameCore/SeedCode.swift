@@ -22,11 +22,15 @@ public enum SeedCode {
         return out
     }
 
-    /// 7-char code → u32, or nil (trim/case tolerant; rejects bad chars, wrong
-    /// length, and values past 0xFFFFFFFF — the 7-char space is wider than u32).
+    /// Code → u32, or nil (trim/case tolerant; rejects bad chars, wrong
+    /// length, and values past 0xFFFFFFFF — the 7-char space is wider than
+    /// u32). Accepts the full SHARE string too ("PINKY-REGULAR-XK4T9QD"):
+    /// the deck/tier prefix is cosmetic, so decode reads the LAST dash
+    /// segment — pasting exactly what the game hands out now just works.
     public static func decode(_ str: String?) -> UInt32? {
         guard let str else { return nil }
-        let s = str.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        var s = str.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if let tail = s.split(separator: "-").last { s = String(tail) }
         guard s.count == length else { return nil }
         var v: UInt64 = 0
         for ch in s {

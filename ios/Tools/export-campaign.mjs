@@ -8,7 +8,7 @@
 
        node ios/Tools/export-campaign.mjs   # → ios/Fixtures/campaign-fixtures.json
 ============================================================================ */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGame } from "../../tests/_harness.mjs";
@@ -18,7 +18,12 @@ const OUT = join(HERE, "..", "Fixtures");
 mkdirSync(OUT, { recursive: true });
 
 const quiet = { log() {}, warn() {}, error: console.error };
-const G = loadGame({ console: quiet });
+// Native-only unlock stats swap for a web-legal placeholder (see
+// export-traces.mjs) — the fixtures never exercise unlock gates.
+const itemsSource = readFileSync(join(HERE, "..", "..", "items.js"), "utf8")
+  .replaceAll('"ambushesWon"', '"pilesLost"')
+  .replaceAll('"earlyLosses"', '"pilesLost"');
+const G = loadGame({ console: quiet, itemsSource });
 const { CampaignState, ItemData, StickerTypes, PackTypes } = G;
 
 const SEEDS = [11, 4242, 777777, 3141592];
@@ -145,6 +150,10 @@ for (const seed of SEEDS) {
     }
   }
 }
+// NOTE: the native build no longer replays these card shapes — the iOS card
+// slot rolls its own sticker table (store.card.stickerOdds) and prices by
+// sticker count, so CampaignFixtureTests uses this list as a (seed, deck)
+// corpus only. The shapes are still captured for eyeballing web drift.
 const storeCards = [];
 for (const seed of SEEDS) {
   for (const deck of ["pink", "smith", "lammy"]) {
