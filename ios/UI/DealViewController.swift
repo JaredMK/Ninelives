@@ -298,10 +298,6 @@ public final class DealViewController: UIViewController {
             guard let self else { fire(nil); return }
             self.armTargetPick(piles, prompt: prompt, fire: fire)
         }
-        controller.onBasePillarTarget = { [weak self] cols, prompt, fire in
-            guard let self else { fire(nil); return }
-            self.armTargetPick(cols, prompt: prompt, kind: .pillar, fire: fire)
-        }
         controller.onBaseNotice = { [weak self] title, help in
             guard let self else { return }
             self.promptBar.show(title, help: help, actions: [

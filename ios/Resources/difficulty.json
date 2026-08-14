@@ -4,6 +4,10 @@
     1.25,
     1.75
   ],
+  "firstDealBandV5": [
+    1.25,
+    3.4
+  ],
   "subset": {
     "threshold": 35,
     "min": 15,

@@ -62,7 +62,7 @@ verify-launch: app
 	xcrun simctl terminate $$SIMID $(BUNDLE_ID) 2>/dev/null || true; \
 	xcrun simctl uninstall $$SIMID $(BUNDLE_ID) 2>/dev/null || true; \
 	xcrun simctl install $$SIMID $(DD)/Build/Products/Debug-iphonesimulator/ShouldaSaidSame.app; \
-	xcrun simctl launch $$SIMID $(BUNDLE_ID); \
+	xcrun simctl launch $$SIMID $(BUNDLE_ID) -bootSmoke 1; \
 	sleep 4; \
 	xcrun simctl spawn $$SIMID launchctl list | grep -q $(BUNDLE_ID) \
 	  && echo "✅ still running after 4s — no crash" || (echo "❌ process gone — it crashed"; exit 1); \

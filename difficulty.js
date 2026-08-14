@@ -82,6 +82,13 @@ const NINELIVES_DIFFICULTY = {
   // opening always plays gentle, on every tier (see the header).
   firstDealBand: [1.25, 1.75],
 
+  // The genV≥5 OPENING ROW (iOS map generator v5): row-0 deals SPREAD
+  // ascending across this band — the first option stays pinned at the gentle
+  // floor, each further door steps up toward the ceiling, so the run's first
+  // decision offers a real choice of difficulty and reward. Old saves
+  // (genV<5) keep regenerating from firstDealBand above and never read this.
+  firstDealBandV5: [1.25, 3.4],
+
   // SUBSET DEALS (see the header): past `threshold` deck cards a regular
   // deal plays a random subset — a survive count in [min, max] plus the
   // pile seeds. Bosses always play the full deck.

@@ -141,8 +141,8 @@ export function run() {
       "map card grants play the Windfall sting (mapAdd), not the pack tear");
     r.ok(!open.includes("staggerDealIn"),
       "…and the CSS flip stagger replaces the button deal-in");
-    r.ok(src.includes('el.packReveal.classList.toggle("pack-show", st.mode === "show")'),
-      "show mode stamps pack-show on the overlay");
+    r.ok(src.includes('el.packReveal.classList.toggle("pack-show", st.mode === "show" || st.mode === "mystery")'),
+      "show mode (and the mystery same-power reveal) stamps pack-show on the overlay");
     r.ok(fnBody(src, "closePackReveal").includes('classList.remove("pack-show")'),
       "…and close sweeps the class off again");
     r.ok(html.includes(".confirm-overlay.pack-show .pack-panel { border-top: 4px solid var(--good); }"),

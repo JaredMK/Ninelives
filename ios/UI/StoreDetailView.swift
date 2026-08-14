@@ -45,6 +45,11 @@ final class StoreDetailView: UIView {
     private var placeCol: Int?
     private let isEquippedView: Bool
     private let card: CardSpec?
+    /// A mystery Same-Power OFFER slot (unknown until bought).
+    private let isMystery: Bool
+    /// REVEAL mode: the read-only answer to a mystery buy — no buy, no sell,
+    /// no ✕; Keep/Discard rides the host's prompt bar.
+    private let isReveal: Bool
 
     /// Offer detail.
     init(campaign: CampaignState, slot: Int, storeSlot s: StoreSlot) {
@@ -53,12 +58,15 @@ final class StoreDetailView: UIView {
         self.itemId = s.id
         self.card = s.card
         self.isEquippedView = false
+        self.isMystery = s.mystery
+        self.isReveal = false
         super.init(frame: .zero)
         price = Int(campaign.priceOfMixed(slot))
         // There is only ONE Same slot, so asking which one to use was a step
         // with a single answer. It defaults to picked; the current → new
-        // comparison shows straight away and the player just confirms.
-        if kind == "samepower" { placeCol = 0 }
+        // comparison shows straight away and the player just confirms. The
+        // MYSTERY slot has nothing to compare yet — its pick happens after.
+        if kind == "samepower" && !s.mystery { placeCol = 0 }
         common()
         refresh()
     }
@@ -70,11 +78,29 @@ final class StoreDetailView: UIView {
         self.itemId = id
         self.card = nil
         self.isEquippedView = true
+        self.isMystery = false
+        self.isReveal = false
         super.init(frame: .zero)
         common()
         refresh()
         sellButton.isHidden = false
         buyButton.isHidden = true
+    }
+
+    /// Mystery Same-Power REVEAL: the just-rolled power, read-only.
+    init(campaign: CampaignState, revealedSamePower def: ItemDef) {
+        self.campaign = campaign
+        self.kind = "samepower"
+        self.itemId = def.id
+        self.card = nil
+        self.isEquippedView = false
+        self.isMystery = false
+        self.isReveal = true
+        super.init(frame: .zero)
+        common()
+        refresh()
+        buyButton.isHidden = true
+        closeButton.isHidden = true   // the Keep/Discard bar is the only exit
     }
 
     @available(*, unavailable)
@@ -184,6 +210,16 @@ final class StoreDetailView: UIView {
             }
             descLabel.attributedText = CRTKit.attributed(desc, size: 14,
                                                          color: CRT.cardFace.withAlphaComponent(0.86))
+        case "samepower" where isMystery:
+            // The MYSTERY slot: unknown-item art, the config label as the
+            // name, the config description — no registry def exists yet.
+            let cfg = data.items.store.mysterySamePower
+            objView.image = ItemArt.mysterySamePower(width: 56, height: 58)
+            captionLabel.attributedText = nil
+            tierLabel.attributedText = nil
+            nameLabel.attributedText = CRTKit.attributed(cfg.label, size: 14, color: CRT.cardFace, display: true)
+            descLabel.attributedText = CRTKit.attributed(cfg.description, size: 14,
+                                                         color: CRT.cardFace.withAlphaComponent(0.86))
         case "removal":
             objView.image = ItemArt.removal(width: 60, height: 84)
             // No caption: the name prints once, below (v6.35 — every detail
@@ -209,10 +245,12 @@ final class StoreDetailView: UIView {
                                                          color: CRT.cardFace.withAlphaComponent(0.86))
         }
 
-        // Placement chooser (pillars / bases / Same-Power).
+        // Placement chooser (pillars / bases / Same-Power). A mystery offer
+        // and the reveal panel place NOTHING — the reveal's Keep equips.
         colButtons.forEach { $0.removeFromSuperview() }
         colButtons.removeAll()
-        let placement = !isEquippedView && (kind == "pillar" || kind == "base" || kind == "samepower")
+        let placement = !isEquippedView && !isMystery && !isReveal
+            && (kind == "pillar" || kind == "base" || kind == "samepower")
         // No header copy at all (v6.36): the pulsing slots ARE the ask — a
         // "choose a column first" line was help text for a step the highlight
         // already teaches.
@@ -264,7 +302,8 @@ final class StoreDetailView: UIView {
     /// INCOMING one over an explicit question — identical layout for filling
     /// and replacing.
     private func refreshCompare() {
-        let placement = !isEquippedView && (kind == "pillar" || kind == "base" || kind == "samepower")
+        let placement = !isEquippedView && !isMystery && !isReveal
+            && (kind == "pillar" || kind == "base" || kind == "samepower")
         let targetPicked = kind == "samepower" || placeCol != nil
         guard placement, targetPicked, let nt = def() else {
             comparePanel.isHidden = true
@@ -304,13 +343,14 @@ final class StoreDetailView: UIView {
     }
 
     private func refreshBuy() {
-        guard !isEquippedView else { return }
+        guard !isEquippedView, !isReveal else { return }
         let afford = campaign.getCoins() >= price
         let needSlot = (kind == "pillar" || kind == "base") && placeCol == nil
         buyButton.isEnabled = afford && !needSlot
         let label: String
         if !afford { label = "NEED ◉ \(price)" }
         else if needSlot { label = "PICK A COLUMN" }
+        else if isMystery { label = "BUY & REVEAL · ◉ \(price)" }
         else if replacingOldId() != nil { label = "BUY & REPLACE · ◉ \(price)" }
         else if kind == "samepower" { label = "BUY & EQUIP · ◉ \(price)" }
         else if kind == "pillar" || kind == "base" { label = "BUY & PLACE · ◉ \(price)" }

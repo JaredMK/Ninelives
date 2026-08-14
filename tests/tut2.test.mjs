@@ -82,13 +82,17 @@ export function run() {
     const onStart = tut.slice(tut.indexOf("onZenDealStart()"), tut.indexOf("onZenDealEnd()"));
     r.ok(onStart.includes("if (!shouldRun()) return;"), "onZenDealStart fires only when the tour should run");
     r.ok(onStart.includes("replayArmed = false;"), "…and consumes the replay one-shot (exactly one replay)");
-    r.ok(onStart.includes('group("deal",'), "onZenDealStart fires the deal group");
-    r.ok(onStart.includes("{ final: true }"), "the deal group's last step is final (its dismissal stamps via end())");
+    r.ok(onStart.includes('group("deal")'), "onZenDealStart fires the deal group");
+    // v6.51 interactive tour: completing ALL 13 guided-deal steps earns the
+    // deal-end beat (advance() stamps finalCompleted when the "deal" group
+    // exhausts); every completion path ends stamped via end().
+    r.ok(tut.includes('currentGroup === "deal"') && /finalCompleted = true/.test(tut),
+      "completing the deal group earns the deal-end beat (advance stamps finalCompleted)");
     const onEnd = tut.slice(tut.indexOf("onZenDealEnd()"), tut.indexOf("onGuessResolved()"));
     r.ok(onEnd.includes("if (!guidedDeal) return;"), "onZenDealEnd is a no-op outside the guided deal");
     r.ok(onEnd.includes("if (!earned || campaignUnlocked()) return;"),
       "the zenEnd beat requires a completed tour AND a still-locked campaign (a veteran's replay skips it)");
-    r.ok(onEnd.includes('group("zenEnd", [{ final: true }]'), "the zenEnd bubble tears the layer down on dismissal");
+    r.ok(onEnd.includes('group("zenEnd")'), "the zenEnd bubble tears the layer down on dismissal");
     r.ok(!/replayArmed[\s\S]{0,40}setPref/.test(tut), "arming a replay stamps nothing");
   }
 
@@ -96,8 +100,10 @@ export function run() {
   {
     r.ok(src.includes("if (zenMode) Tutorial.onZenDealStart();"),
       "the dealt handler starts the tour on Zen deals only (never the campaign)");
-    r.ok(src.includes("Tutorial.onGuessResolved();"),
-      "a resolved guess steps any lingering bubble aside");
+    r.ok(src.includes("Tutorial.onGuessResolved(payload.correct);"),
+      "resolved guesses feed the tour (milestone waits / guess-gated steps)");
+    r.ok(tut.includes('feed("guess",') && tut.includes('evt === "guess"'),
+      "…the module counts resolved guesses toward its waits (the old step-aside is retired)");
     const zenEnd = fnBody(src, "onZenEnd");
     r.ok(zenEnd.includes("Tutorial.onZenDealEnd(result);") && zenEnd.includes("maybeUnlockCampaign();"),
       "onZenEnd runs the tour's end beat and the unlock check");
@@ -168,7 +174,7 @@ export function run() {
 
   // --- tutorial.js data: shape + fail-loud validation ------------------------
   {
-    r.eq(TutorialData.stepCounts.deal, 6, "the deal group is exactly 6 steps (v5.60: Ace-high bubble cut)");
+    r.eq(TutorialData.stepCounts.deal, 13, "the deal group is exactly 13 steps (v6.51 interactive tour)");
     r.eq(TutorialData.stepCounts.zenEnd, 1, "the zenEnd group is exactly 1 step");
     r.eq(Object.keys(TutorialData.stepCounts).length, 2, "…and those are the ONLY groups");
     r.eq(TutorialData.problems.length, 0, "the live tutorial.js validates with zero problems");
@@ -209,10 +215,10 @@ export function run() {
       "Tutorial audits every tutorial.js anchor key against its registry at startup");
     r.ok(tut.includes("points at unknown anchor") && tut.includes("is missing/invalid — ending the tour"),
       "a runtime missing/invalid step or anchor is named…");
-    r.ok(/if \(!steps\) \{ end\(\); return; \}/.test(tut),
+    r.ok(/if \(!built\) \{ end\(\); return; \}/.test(tut),
       "…and group() bows the tour out via end() on bad data (never a soft-lock)");
     const anchorKeys = (tut.match(/^\s{6}(\w+):\s+\(\) =>/gm) || []).map(m => m.trim().split(":")[0]);
-    r.eq(anchorKeys.length, 5, "the anchor registry is exactly the 5 Zen anchors");
+    r.eq(anchorKeys.length, 8, "the anchor registry is exactly the 8 Zen anchors (v6.51: +dealPileFirst/dealRailUp/pileCount)");
     const used = new Set();
     Object.values(TutorialData.groups).forEach(list => list.forEach(s => s.anchor != null && used.add(s.anchor)));
     for (const k of used)

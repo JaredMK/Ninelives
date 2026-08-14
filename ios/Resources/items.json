@@ -20,6 +20,12 @@
       "uncommon": 50,
       "rare": 20
     },
+    "mysterySamePower": {
+      "label": "Mystery Same-Power",
+      "icon": "❓",
+      "price": 10,
+      "description": "An unknown Same-Power. Buy it to reveal which one it is, then keep it or discard it."
+    },
     "card": {
       "label": "Card",
       "icon": "🂠",
@@ -89,7 +95,7 @@
       "kind": "rank",
       "rankDelta": 2,
       "tier": "uncommon",
-      "price": 1,
+      "price": 2,
       "description": "+2 card rank (stops at Ace)."
     },
     {
@@ -104,7 +110,7 @@
       "kind": "rank",
       "rankDelta": -2,
       "tier": "uncommon",
-      "price": 1,
+      "price": 2,
       "description": "-2 card rank (stops at 2)"
     },
     {
@@ -207,7 +213,7 @@
         "♠"
       ],
       "tier": "uncommon",
-      "price": 3,
+      "price": 5,
       "description": "Safe if this card lands on a ♠, or a ♠ lands on this card"
     },
     {
@@ -226,7 +232,7 @@
         "♥"
       ],
       "tier": "uncommon",
-      "price": 3,
+      "price": 5,
       "description": "Safe if this card lands on a ♥, or a ♥ lands on this card"
     },
     {
@@ -245,7 +251,7 @@
         "♦"
       ],
       "tier": "uncommon",
-      "price": 2,
+      "price": 5,
       "description": "Safe if this card lands on a ♦, or a ♦ lands on this card"
     },
     {
@@ -264,7 +270,7 @@
         "♣"
       ],
       "tier": "uncommon",
-      "price": 2,
+      "price": 5,
       "description": "Safe if this card lands on a ♣, or a ♣ lands on this card"
     },
     {
@@ -280,7 +286,7 @@
       "behavior": "extraCoin",
       "value": 1,
       "tier": "uncommon",
-      "price": 1,
+      "price": 3,
       "description": "At deal end → earn coins equal to pile size if this card tops its pile",
       "suits": [
         "♥"
@@ -311,40 +317,6 @@
       "description": "At deal end → exclude this pile from the smallest-pile score if this card tops its pile",
       "suits": [
         "♦"
-      ]
-    },
-    {
-      "id": "oneTribute",
-      "label": "Bury 1",
-      "icon": "🪦",
-      "kind": "behavior",
-      "behavior": "tribute",
-      "tributeCount": 1,
-      "tier": "rare",
-      "price": 5,
-      "description": "When this card lands → bury 1 deck card under the pile",
-      "suits": [
-        "♣"
-      ]
-    },
-    {
-      "id": "twoTribute",
-      "unlock": {
-        "type": "behavior",
-        "stat": "cardsBuried",
-        "count": 80
-      },
-      "label": "Bury 2",
-      "icon": "⚰️",
-      "kind": "behavior",
-      "behavior": "tribute",
-      "tributeCount": 2,
-      "coinCost": 7,
-      "tier": "rare",
-      "price": 8,
-      "description": "When this card lands → bury 2 deck cards under the pile. Costs 7 coins",
-      "suits": [
-        "♣"
       ]
     },
     {
@@ -426,8 +398,8 @@
       "behavior": "compound",
       "step": 1,
       "tier": "rare",
-      "price": 1,
-      "description": "When this card lands → +X coins. X starts at 0, grows by 1 per correct placement",
+      "price": 6,
+      "description": "When this card lands → +X coins. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
       "suits": [
         "♥"
       ]
@@ -494,17 +466,12 @@
     },
     {
       "id": "quickBury",
-      "unlock": {
-        "type": "behavior",
-        "stat": "cardsBuried",
-        "count": 15
-      },
       "label": "Quick Bury",
       "icon": "⚡",
       "kind": "behavior",
       "behavior": "quickBury",
-      "tier": "uncommon",
-      "price": 4,
+      "tier": "rare",
+      "price": 7,
       "description": "When this card lands → bury 1 deck card under the pile",
       "suits": [
         "♣"
@@ -539,10 +506,10 @@
       "icon": "🪙",
       "kind": "behavior",
       "behavior": "looseChange",
-      "max": 2,
+      "max": 3,
       "tier": "uncommon",
       "price": 2,
-      "description": "When this card lands → +0–2 coins (random)",
+      "description": "When this card lands → +0–3 coins (random)",
       "suits": [
         "♥"
       ]
@@ -579,7 +546,7 @@
       "behavior": "deepPockets",
       "per": 10,
       "tier": "uncommon",
-      "price": 1,
+      "price": 3,
       "description": "When this card lands → +1 coin per 10 cards left in the deck",
       "suits": [
         "♥"
@@ -633,8 +600,8 @@
       "kind": "behavior",
       "behavior": "suitSnob",
       "tier": "uncommon",
-      "price": 2,
-      "description": "When a ♠ lands on this card → peek at the next deck card",
+      "price": 4,
+      "description": "When a ♠ lands on this card, or this card lands on a ♠ → peek at the next deck card",
       "suits": [
         "♠"
       ]
@@ -652,8 +619,8 @@
       "behavior": "heartSnob",
       "value": 2,
       "tier": "uncommon",
-      "price": 1,
-      "description": "When a ♥ lands on this card → +2 coins",
+      "price": 2,
+      "description": "When a ♥ lands on this card, or this card lands on a ♥ → +2 coins",
       "suits": [
         "♥"
       ]
@@ -670,8 +637,8 @@
       "kind": "behavior",
       "behavior": "diamondSnob",
       "tier": "uncommon",
-      "price": 3,
-      "description": "When a ♦ lands on this card → shuffle every pile with a ♦ top card",
+      "price": 6,
+      "description": "When a ♦ lands on this card, or this card lands on a ♦ → shuffle every alive pile",
       "suits": [
         "♦"
       ]
@@ -689,8 +656,8 @@
       "behavior": "clubSnob",
       "digCount": 1,
       "tier": "uncommon",
-      "price": 5,
-      "description": "When a ♣ lands on this card → bury 1 deck card under the pile",
+      "price": 10,
+      "description": "When a ♣ lands on this card, or this card lands on a ♣ → bury 1 deck card under the pile",
       "suits": [
         "♣"
       ]
@@ -1025,7 +992,7 @@
       "kind": "guess",
       "effect": "columnTieSafe",
       "tier": "rare",
-      "price": 6,
+      "price": 10,
       "description": "Every pile in this column survives a tie"
     },
     {
@@ -1068,7 +1035,7 @@
       "effect": "clubTribute",
       "digCount": 1,
       "tier": "rare",
-      "price": 13,
+      "price": 10,
       "description": "When a ♣ with no stickers lands correctly in this column → bury 1 deck card under that pile"
     },
     {
@@ -1140,7 +1107,7 @@
       "effect": "columnPiles",
       "value": 4,
       "tier": "rare",
-      "price": 12,
+      "price": 10,
       "description": "This column starts the deal with 1 extra pile (up to 4)"
     },
     {
@@ -1236,7 +1203,7 @@
       "effect": "revive",
       "trigger": 10,
       "tier": "rare",
-      "price": 13,
+      "price": 10,
       "description": "When a pile in this column reaches 10 cards → revive one dead pile on the board"
     },
     {
@@ -1473,7 +1440,7 @@
       "kind": "live",
       "effect": "lastRites",
       "tier": "rare",
-      "price": 13,
+      "price": 10,
       "description": "When a pile in this column dies → peek at the next card"
     },
     {
@@ -1504,7 +1471,7 @@
       "kind": "guess",
       "effect": "wildAces",
       "tier": "rare",
-      "price": 13,
+      "price": 10,
       "description": "Aces count as high or low when landing in this column"
     },
     {
@@ -1550,10 +1517,10 @@
       "icon": "💥",
       "kind": "active",
       "effect": "kamikaze",
-      "peekCount": 3,
+      "peekCount": 2,
       "tier": "rare",
       "price": 8,
-      "description": "Kill a random ♠-topped pile in this column, then peek the next 3 cards"
+      "description": "Kill a random ♠-topped pile in this column, then peek the next 2 cards"
     },
     {
       "id": "spadePeek",
@@ -1607,7 +1574,7 @@
       "kind": "active",
       "effect": "randomSticker",
       "tier": "uncommon",
-      "price": 12,
+      "price": 10,
       "description": "Apply a random sticker to a random top card in this column"
     },
     {
@@ -1632,7 +1599,7 @@
       "kind": "active",
       "effect": "setValue",
       "tier": "rare",
-      "price": 6,
+      "price": 10,
       "description": "Permanently set every top card's rank in this column to the bottom pile's rank"
     },
     {
@@ -1647,7 +1614,7 @@
       "kind": "active",
       "effect": "setSuit",
       "tier": "rare",
-      "price": 9,
+      "price": 5,
       "description": "Permanently set every top card's suit in this column to the bottom pile's suit"
     },
     {
@@ -1710,11 +1677,10 @@
       "icon": "🔨",
       "kind": "active",
       "effect": "demolish",
-      "target": "pillar",
-      "peekCount": 2,
+      "peekCount": 3,
       "tier": "uncommon",
-      "price": 13,
-      "description": "Choose a pillar → destroy it permanently, then peek the next 2 cards"
+      "price": 8,
+      "description": "Destroy this column's pillar permanently, then peek the next 3 cards"
     },
     {
       "id": "heartDemolish",
@@ -1756,7 +1722,7 @@
       "kind": "active",
       "effect": "rechargeSameShield",
       "tier": "rare",
-      "price": 13,
+      "price": 10,
       "description": "Bank a Same Charge (max 1)"
     },
     {
@@ -1801,7 +1767,7 @@
       "kind": "active",
       "effect": "emptyPurse",
       "tier": "rare",
-      "price": 7,
+      "price": 5,
       "description": "Spend ALL your coins and peek the next card"
     },
     {
@@ -1846,8 +1812,8 @@
       "kind": "active",
       "effect": "clubTell",
       "tier": "uncommon",
-      "price": 6,
-      "description": "Tells whether the next card is higher, lower or the same as a random ♣ top card in this column. Needs a ♣ on top of a pile here"
+      "price": 8,
+      "description": "Put a tell marker on each club pile in this column for the next draw."
     },
     {
       "id": "ambushOut",
@@ -1861,7 +1827,7 @@
       "kind": "active",
       "effect": "ambushWin",
       "tier": "rare",
-      "price": 11,
+      "price": 8,
       "description": "Only usable in an ambush → clear the deal instantly"
     }
   ],
@@ -2181,7 +2147,7 @@
       "tier": "uncommon",
       "size": 5,
       "keep": 2,
-      "price": 5,
+      "price": 4,
       "description": "Reveals 5 random cards. Keep 2 to swap into your deck before a deal, replacing a card of your choice."
     },
     {
@@ -2192,7 +2158,7 @@
       "tier": "common",
       "size": 3,
       "keep": 1,
-      "price": 4,
+      "price": 2,
       "description": "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice."
     },
     {
@@ -2219,7 +2185,7 @@
       "tier": "common",
       "size": 5,
       "keep": 2,
-      "price": 4,
+      "price": 6,
       "description": "Reveals 5 random stickers. Keep 2 for your inventory. The rest are discarded."
     }
   ]

@@ -182,6 +182,84 @@ export function run() {
     r.eq(e2.getBoard().piles[2].cards.length, l2 + 1, "Club Snob buries nothing when a non-♣ lands on it");
   }
 
+  // ---- SNOBS, REVERSE direction (v6.51): the DRAWN card carries the snob and
+  //      fires it when it lands (correct guess) on a pile whose top matches
+  //      the snob's suit. -------------------------------------------------
+  {
+    // Spade Snob carried by the drawn card: landing on a ♠ top peeks.
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♠"; t.wildSuit = false;
+    land(e, 1, ["suitSnob"]);
+    r.ok(e.getRun().revealNextActive, "REVERSE Spade Snob: a carried snob peeks when landing on a ♠ top");
+
+    const e1b = game();
+    const t1b = e1b.getBoard().top(1); t1b.suit = "♥"; t1b.wildSuit = false;
+    land(e1b, 1, ["suitSnob"]);
+    r.ok(!e1b.getRun().revealNextActive, "REVERSE Spade Snob stays silent on a non-♠ top");
+  }
+  {
+    // Heart Snob carried: +value coins when landing on a ♥ top.
+    const hv = StickerTypes.get("heartSnob").value ?? 4;
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♥"; t.wildSuit = false;
+    const before = e.getRun().bonusCoins;
+    land(e, 1, ["heartSnob"]);
+    r.eq(e.getRun().bonusCoins - before, hv, "REVERSE Heart Snob pays +" + hv + " landing on a ♥ top");
+
+    const e2 = game();
+    const t2 = e2.getBoard().top(2); t2.suit = "♣"; t2.wildSuit = false;
+    const b2 = e2.getRun().bonusCoins;
+    land(e2, 2, ["heartSnob"]);
+    r.eq(e2.getRun().bonusCoins - b2, 0, "REVERSE Heart Snob pays nothing on a non-♥ top");
+  }
+  {
+    // Diamond Snob carried: landing on a ♦ top shuffles all alive piles.
+    const e = game();
+    let fired = null;
+    e.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Snob") fired = x; });
+    const t = e.getBoard().top(1); t.suit = "♦"; t.wildSuit = false;
+    land(e, 1, ["diamondSnob"]);
+    r.ok(fired && fired.effect === "shuffler", "REVERSE Diamond Snob shuffles when landing on a ♦ top");
+
+    const e2 = game();
+    let fired2 = null;
+    e2.onEvent((type, x) => { if (type === "pillar-fired" && x.label === "Diamond Snob") fired2 = x; });
+    const t2 = e2.getBoard().top(2); t2.suit = "♠"; t2.wildSuit = false;
+    land(e2, 2, ["diamondSnob"]);
+    r.ok(!fired2, "REVERSE Diamond Snob stays silent on a non-♦ top");
+  }
+  {
+    // Club Snob carried: landing on a ♣ top buries digCount deck cards.
+    const dig = StickerTypes.get("clubSnob").digCount ?? 1;
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♣"; t.wildSuit = false;
+    const len0 = e.getBoard().piles[1].cards.length;
+    const deck0 = e.getDeck().remaining();
+    land(e, 1, ["clubSnob"]);
+    r.eq(e.getBoard().piles[1].cards.length, len0 + 1 + dig, "REVERSE Club Snob buries " + dig + " landing on a ♣ top");
+    r.eq(e.getDeck().remaining(), deck0 - 1 - dig, "…drawn from the deck");
+
+    const e2 = game();
+    const t2 = e2.getBoard().top(2); t2.suit = "♦"; t2.wildSuit = false;
+    const l2 = e2.getBoard().piles[2].cards.length;
+    land(e2, 2, ["clubSnob"]);
+    r.eq(e2.getBoard().piles[2].cards.length, l2 + 1, "REVERSE Club Snob buries nothing on a non-♣ top");
+  }
+  {
+    // BOTH directions fire on one placement when both cards carry the snob.
+    const hv = StickerTypes.get("heartSnob").value ?? 4;
+    const e = game();
+    const t = e.getBoard().top(1); t.suit = "♥"; t.wildSuit = false;
+    t.stickers = [{ type: "heartSnob" }];                 // FORWARD snob on the pile top…
+    const before = e.getRun().bonusCoins;
+    const up = t.value < 14;
+    const nc = e.debug.setNextCard(up ? t.value + 1 : t.value - 1);
+    nc.suit = "♥"; nc.wildSuit = false;                   // a ♥ drawn…
+    nc.stickers = [{ type: "heartSnob" }];                // …CARRYING the snob (reverse)…
+    e.guess(1, up ? "higher" : "lower");                  // …landing on the ♥ snob top (forward)
+    r.eq(e.getRun().bonusCoins - before, hv * 2, "snobs on BOTH sides fire on the same placement (2 × +" + hv + ")");
+  }
+
   // ---- suit-SYNERGY family: scale by OTHER piles topped by their suit ----
   {
     // Heart Choir: +value per other \u2665-topped pile (the landing pile never counts).

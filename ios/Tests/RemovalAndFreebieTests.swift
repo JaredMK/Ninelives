@@ -107,7 +107,7 @@ final class RemovalAndFreebieTests: XCTestCase {
             let r = c.buyMixedSlot(i)
             XCTAssertTrue(r.ok, "a free pack opens with 0 coins")
         default:
-            let r = c.buyMixedSlot(i)
+            let r = c.buyMixedSlot(i, mysteryRng: RNG(seed: 777))
             XCTAssertTrue(r.ok, "a free \(slot.kind) buys with 0 coins")
         }
         XCTAssertEqual(c.getCoins(), 0, "nothing was charged")
@@ -126,10 +126,80 @@ final class RemovalAndFreebieTests: XCTestCase {
             let before = c.getCoins()
             let ok: Bool
             if s.kind == "sticker" { ok = c.buyOfferedSticker(i) }
-            else { ok = c.buyMixedSlot(i).ok }
+            else { ok = c.buyMixedSlot(i, mysteryRng: RNG(seed: UInt32(1000 + i))).ok }
             guard ok else { continue }   // e.g. equipped-dupe guards
             XCTAssertEqual(Double(before - c.getCoins()), displayed,
                            "\(s.kind) \(s.id): charged what the shelf displayed")
         }
+    }
+
+    // MARK: - 3. Mystery Same-Power (v6.51)
+
+    func testSamePowerClassRollsOnlyMysterySlotsAtMostOnePerShelf() {
+        var totalMystery = 0
+        for seed: UInt32 in 1...60 {
+            let c = campaign()
+            _ = c.openStore(rng: RNG(seed: seed))
+            let sp = (c.storeOffer?.slots ?? []).compactMap { $0 }.filter { $0.kind == "samepower" }
+            for s in sp {
+                XCTAssertTrue(s.mystery, "samepower slots are unknown until bought (seed \(seed))")
+                XCTAssertEqual(s.id, StoreSlot.mysteryId)
+            }
+            XCTAssertLessThanOrEqual(sp.count, 1, "at most one mystery slot per shelf (seed \(seed))")
+            totalMystery += sp.count
+        }
+        XCTAssertGreaterThan(totalMystery, 0, "the class weight should roll the slot across 60 shelves")
+    }
+
+    func testMysterySlotPricesFromConfigAndChargesExactlyThat() {
+        let cfg = GameData.shared.items.store.mysterySamePower
+        let c = campaign()
+        _ = c.addCoins(500)
+        _ = c.openStore(rng: RNG(seed: 7))
+        c.storeOffer!.slots[0] = StoreSlot(kind: "samepower", id: StoreSlot.mysteryId, mystery: true)
+        let displayed = c.priceOfMixed(0)
+        XCTAssertEqual(displayed, c.shopPrice(cfg.price),
+                       "the mystery slot prices from store.mysterySamePower through shopPrice")
+
+        let before = c.getCoins()
+        let res = c.buyMixedSlot(0, mysteryRng: RNG(seed: 4242))
+        XCTAssertTrue(res.ok, "the mystery buy succeeds with the price covered")
+        guard let revealed = res.revealed else { return XCTFail("no reveal") }
+        XCTAssertNotNil(GameData.shared.samePowerTypes.get(revealed), "the reveal is a real Same-Power")
+        XCTAssertEqual(c.samePowerInventory[revealed], 1, "the revealed power lands in inventory")
+        XCTAssertEqual(Double(before - c.getCoins()), displayed, "charged exactly the displayed price")
+        XCTAssertNil(c.storeOffer?.slots[0] ?? nil, "the slot is spent")
+    }
+
+    func testMysteryRevealIsSeededAndUniformOverTheUnlockedPool() {
+        let c = campaign()
+        _ = c.addCoins(10000)
+        _ = c.openStore(rng: RNG(seed: 7))
+        // Same buy stream → same reveal, every time.
+        func reveal(_ slot: Int, _ rngSeed: UInt32) -> String? {
+            c.storeOffer!.slots[slot] = StoreSlot(kind: "samepower", id: StoreSlot.mysteryId, mystery: true)
+            return c.buyMixedSlot(slot, mysteryRng: RNG(seed: rngSeed)).revealed
+        }
+        XCTAssertEqual(reveal(0, 99), reveal(1, 99), "the same stream reveals the same power")
+        // Across streams both ungated Same-Powers appear (uniform 2-pool).
+        var seen = Set<String>()
+        for seed: UInt32 in 0..<40 { if let r = reveal(2, seed) { seen.insert(r) } }
+        let pool = GameData.shared.samePowerTypes.all().filter {
+            c.itemUnlocks.isUnlocked($0) && c.getSamePower() != $0.id
+        }
+        XCTAssertEqual(seen, Set(pool.map(\.id)), "every pool member is reachable; nothing locked leaks")
+    }
+
+    func testMysterySlotSurvivesTheSaveRoundTripAndLegacyConcreteDecodes() {
+        let c = campaign()
+        _ = c.openStore(rng: RNG(seed: 3))
+        c.storeOffer!.slots[0] = StoreSlot(kind: "samepower", id: StoreSlot.mysteryId, mystery: true)
+        c.storeOffer!.slots[1] = StoreSlot(kind: "samepower", id: "linkCoins")   // a LEGACY concrete slot
+        let c2 = CampaignState(store: MemoryStore())
+        XCTAssertTrue(c2.restore(c.serialize()))
+        XCTAssertEqual(c2.storeOffer?.slots[0]?.mystery, true, "the mystery flag persists")
+        XCTAssertEqual(c2.storeOffer?.slots[1]?.mystery, false, "a legacy concrete slot stays concrete")
+        // …and the legacy slot still prices from its def, not the mystery block.
+        XCTAssertEqual(c2.priceOfMixed(1), c2.priceOfSamePower("linkCoins"))
     }
 }

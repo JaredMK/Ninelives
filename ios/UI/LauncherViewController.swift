@@ -274,10 +274,14 @@ public final class LauncherViewController: UIViewController {
                data.items.pillars.first(where: { $0.effect == "columnAllAlive" })?.id,
                data.items.pillars.first(where: { $0.effect == "clubTribute" })?.id]
             : [nil, nil, nil]
-        let bases: [String?] = withItems
+        var bases: [String?] = withItems
             ? [data.items.bases.first(where: { $0.effect == "shuffleColumn" })?.id ?? data.baseTypes.ids.first,
                nil, nil]
             : [nil, nil, nil]
+        // `-base0 <id>` (harness): pin a SPECIFIC Base to column 0 — targeted
+        // verification of one base's gate/fire/feedback without a full climb.
+        if let pinned = UserDefaults.standard.string(forKey: "base0"),
+           data.baseTypes.get(pinned) != nil { bases[0] = pinned }
 
         let setup = DealController.Setup(
             deckId: decks[deckIndex],

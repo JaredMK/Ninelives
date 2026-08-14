@@ -267,9 +267,12 @@ public struct BaseResult {
     public var suitApplied: [(cardId: Int, suit: String)]?
     public var sourceValue: Int?
     public var sourceSuit: String?
-    /// Club Oracle: the ♣ pile it read, and the next card's direction vs it.
+    /// Same Tell: the pile it read, and the next card's direction vs it.
     public var tellPile: Int?
     public var tellDirection: Guess?
+    /// Club Oracle (v6.51): one tell per alive ♣-topped pile in the column —
+    /// (pile, the next card's direction vs that pile's top). No random pick.
+    public var tells: [(pile: Int, direction: Guess)]?
     /// Net coins this Base moved (for the UI float).
     public var coins: Double = 0
 }

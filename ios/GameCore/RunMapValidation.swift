@@ -195,8 +195,15 @@ extension RunMap {
         public var bandHiExtra: Double = 0
         /// `opts.firstDeal !== false` gates the stage-0 row-0 firstDealBand.
         public var firstDeal = true
-        public init(phaseIndex: Int? = nil, bandHiExtra: Double = 0, firstDeal: Bool = true) {
+        /// The generator version the stage was built under — genV ≥ 5 openings
+        /// spread across firstDealBandV5, so the validator must hold them to
+        /// THAT band (v6.52: validating v5 maps against the narrow legacy band
+        /// failed every attempt and the converge ladder thrashed ~120x).
+        public var genVersion = 1
+        public init(phaseIndex: Int? = nil, bandHiExtra: Double = 0, firstDeal: Bool = true,
+                    genVersion: Int = 1) {
             self.phaseIndex = phaseIndex; self.bandHiExtra = bandHiExtra; self.firstDeal = firstDeal
+            self.genVersion = genVersion
         }
     }
 
@@ -347,7 +354,9 @@ extension RunMap {
             let pBands = bandsFor(p)
             let band: [Double] = n.type == "boss"
                 ? [pBands.boss[0], pBands.boss[1] + bandHiX]
-                : (p == 0 && n.row == 0 && opts.firstDeal ? difficulty.firstDealBand : pBands.stage)
+                : (p == 0 && n.row == 0 && opts.firstDeal
+                    ? (opts.genVersion >= 5 ? difficulty.firstDealBandV5 : difficulty.firstDealBand)
+                    : pBands.stage)
             let piles = Double(n.piles ?? 1)
             let dMin = (Double(e.min) - piles) / piles
             let dMax = (Double(e.max) - piles) / piles

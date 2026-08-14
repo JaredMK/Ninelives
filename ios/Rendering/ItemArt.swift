@@ -1131,40 +1131,6 @@ public enum ItemArt {
             ".....KKKKKK.....",
             "................",
             "................"],
-        "oneTribute": [
-            "....KKKKKK......",
-            "....KCCCCK......",
-            "....KKCCKK......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            "..KKKKCCKKKK....",
-            "..KDDDCCDDDK....",
-            "..KDDDCCDDDK....",
-            "..KDDDDDDDDK....",
-            "...KDDDDDDK.....",
-            "....KDDDDK......",
-            ".....KDDK.......",
-            "......KK........",
-            "................"],
-        "twoTribute": [
-            "....KKKKKK......",
-            "....KCCCCK......",
-            "....KKCCKK......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            ".....KCCK.......",
-            "..KKKKCCKKKK....",
-            "..KDCCDDCCDK....",
-            "..KDCCDDCCDK....",
-            "..KDDDDDDDDK....",
-            "...KDDDDDDK.....",
-            "....KDDDDK......",
-            ".....KDDK.......",
-            "......KK........",
-            "................"],
         "quickBury": [
             "....KKKKKK...KK.",
             "....KCCCCK..KK..",
@@ -2255,6 +2221,19 @@ public enum ItemArt {
             "........"],
     ]
 
+    /// The mystery Same-Power's centre mark: a "?" in place of any power's own
+    /// (same 8×8 shape as samePowerMarks, inked over the phosphor diamond).
+    private static let mysterySamePowerMark: [String] = [
+        "..KKKK..",
+        ".KK..KK.",
+        ".....KK.",
+        "....KK..",
+        "...KK...",
+        "...KK...",
+        "........",
+        "...KK...",
+    ]
+
     static func iconKey(for def: ItemDef) -> String? {
         let b = (def.behavior ?? def.effect ?? "").lowercased()
         let id = def.id.lowercased()
@@ -2595,6 +2574,28 @@ public enum ItemArt {
                                    width: 8 * cell, height: 4 * cell))
                     drawMatrix(cg, rows, ox: 4 * cell, oy: 4 * cell, cell: cell)
                 }
+            }
+        }
+    }
+
+    /// The MYSTERY Same-Power slot object (v6.51): the phosphor diamond class
+    /// mark with a "?" ink mark in place of any power's own — an unknown
+    /// Same-Power until the buy reveals it. No baked name — call sites render
+    /// the config label.
+    public static func mysterySamePower(width: CGFloat = 56, height: CGFloat = 58) -> UIImage {
+        baked("sp-mystery-\(Int(width))x\(Int(height))") {
+            let k = max(4, Int((min(width, height) / 16).rounded(.up)))
+            let mark = CGFloat(16 * k)
+            return PixelTexture.image(size: CGSize(width: mark, height: mark)) { cg in
+                let cell = CGFloat(k)
+                if let art = classArt["samePower"] {
+                    drawMatrix(cg, art, ox: 0, oy: 0, cell: cell)
+                }
+                // Clear the generic "=" back to phosphor, then ink the "?".
+                cg.setFillColor(CRT.phosphor.cgColor)
+                cg.fill(CGRect(x: 4 * cell, y: 6 * cell,
+                               width: 8 * cell, height: 4 * cell))
+                drawMatrix(cg, mysterySamePowerMark, ox: 4 * cell, oy: 4 * cell, cell: cell)
             }
         }
     }

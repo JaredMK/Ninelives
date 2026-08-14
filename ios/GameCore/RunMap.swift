@@ -558,6 +558,43 @@ public final class RunMap {
             let alt = kind == "pack" ? "card" : (kind == "card" ? "pack" : "pack")
             safeFlip(pickOne(rng, row), alt)
         }
+        // genV ≥ 5: the OPENING ROW joins the variety rule with its own guard.
+        // Row 0 is all-deals by construction; when it is wide enough (3+
+        // doors) ONE non-leftmost door may flip to a MYSTERY — the first
+        // decision stops being deal-vs-deal-vs-deal while the row always
+        // keeps ≥2 deal openings (and safeFlip re-validates every route
+        // guarantee, reverting a flip that would starve one). MYSTERY
+        // deliberately, never a pickup/pack: a card add at the root of every
+        // route through it shifts the deck extremes the WHOLE stage was
+        // budgeted around, and the converge ladder thrashed ~120x when row 0
+        // grew cards (measured v6.52); a mystery adds nothing and costs
+        // nothing. Old maps (genV < 5) regenerate with the row untouched.
+        if genV >= 5, firstRowDeal {
+            let row0 = all.filter { $0.row == 0 }
+            let deals0 = row0.filter { $0.type == "deal" }
+            if row0.count >= 3, deals0.count == row0.count {
+                // Leftmost door excluded: the gentle floor opening stays a deal.
+                // A door's deal usually counts toward its routes' 3-deal floor,
+                // so the direct flip mostly reverts (measured 1-in-19). When it
+                // does, PROMOTE one later mystery into a deal first — a
+                // mystery↔deal swap moves deal counts without moving a single
+                // card, so every budget the stage converged on stays intact —
+                // then retry the door.
+                var doors = Array(deals0.dropFirst())
+                while !doors.isEmpty {
+                    let d = pickOne(rng, doors)
+                    doors.removeAll { $0 === d }
+                    if safeFlip(d, "mystery") { break }
+                    var opened = false
+                    for m in all where m.type == "mystery" && m.row > 0 && m.row < bossRow {
+                        guard safeFlip(m, "deal") else { continue }
+                        if safeFlip(d, "mystery") { opened = true; break }
+                        _ = safeFlip(m, "mystery")   // promotion alone didn't free the door — undo
+                    }
+                    if opened { break }
+                }
+            }
+        }
 
         let bossIds = bossNodes.map(\.id)
         let ph = PhaseMap(phaseIndex: phaseIndex, suit: suit, rows: R, bossRow: bossRow,
@@ -578,14 +615,30 @@ public final class RunMap {
                 defer { k += 1 }
                 let r = dealRowsAsc[k]
                 let isFirst = firstRowDeal && r == 0
-                let band = isFirst ? difficulty.firstDealBand : [sLo, sHi]
-                let capHi = isFirst ? difficulty.firstDealBand[1] : regHi
+                // genV ≥ 5: the opening row reads its own WIDER band
+                // (firstDealBandV5) and each door takes an ASCENDING target
+                // across it with DISTINCT pile counts, so the run's first
+                // choice is a real spread of difficulty and reward. genV < 5
+                // keeps the narrow band, the shared midpoint target and tied
+                // pile counts — bit-identical to the maps old saves regenerate.
+                let v5First = isFirst && genV >= 5
+                let firstBand = v5First ? difficulty.firstDealBandV5 : difficulty.firstDealBand
+                let band = isFirst ? firstBand : [sLo, sHi]
+                let capHi = isFirst ? firstBand[1] : regHi
                 let targetD = isFirst
-                    ? (difficulty.firstDealBand[0] + difficulty.firstDealBand[1]) / 2
+                    ? (firstBand[0] + firstBand[1]) / 2
                     : sLo + (regHi - sLo) * (Double(k + 1) / Double(dealRowsAsc.count + 1))   // ascending by row
                 let group = all.filter { $0.row == r && $0.type == "deal" }
                 var used = Set<Int>()
-                for n in group {
+                for (gi, n) in group.enumerated() {
+                    // v5 opening: door gi's target steps floor → ceiling across
+                    // the row; a lone door sits at the gentle floor. Other rows
+                    // (and genV < 5) keep the row-shared target.
+                    let nodeTarget = v5First
+                        ? (group.count > 1
+                            ? firstBand[0] + (firstBand[1] - firstBand[0]) * Double(gi) / Double(group.count - 1)
+                            : firstBand[0])
+                        : targetD
                     let e = ext[n.id] ?? DeckExtreme(min: entryDeck, max: entryDeck)
                     let pMin = max(Double(C.minPiles),
                                    (Double(e.max) / (band[1] + 1) - 1e-9).rounded(.up),
@@ -595,16 +648,31 @@ public final class RunMap {
                         if isFirst { return genFail(3) }              // the openings must stay deals
                         setType(n, "card"); converted = true; break   // no in-band pile count → +1 CARD
                     }
-                    let pT = max(Int(pMin), min(Int(pMax), Int((((Double(e.min) + Double(e.max)) / 2) / (targetD + 1)).rounded())))
-                    // The stage-0 opening deals are band-locked so they may tie.
-                    // Every OTHER same-row deal takes a DISTINCT in-band value.
+                    let pT = max(Int(pMin), min(Int(pMax), Int((((Double(e.min) + Double(e.max)) / 2) / (nodeTarget + 1)).rounded())))
+                    // The genV<5 stage-0 opening deals are band-locked so they
+                    // may tie; every other same-row deal (and the v5 opening)
+                    // takes a DISTINCT in-band value.
                     var p: Int? = nil
                     var d = 0
                     while d <= C.maxPiles && p == nil {
-                        for cand in [pT + d, pT - d] where Double(cand) >= pMin && Double(cand) <= pMax && (isFirst || !used.contains(cand)) {
+                        for cand in [pT + d, pT - d] where Double(cand) >= pMin && Double(cand) <= pMax
+                            && ((isFirst && genV < 5) || !used.contains(cand)) {
                             p = cand; break
                         }
                         d += 1
+                    }
+                    if p == nil, v5First {
+                        // Distinct impossible on the opening row — accept a
+                        // DUPLICATE rather than convert or fail: the openings
+                        // must stay deals, tied doors are the lesser evil.
+                        var d2 = 0
+                        while d2 <= C.maxPiles && p == nil {
+                            for cand in [pT + d2, pT - d2] where Double(cand) >= pMin && Double(cand) <= pMax {
+                                p = cand; break
+                            }
+                            d2 += 1
+                        }
+                        if p == nil { return genFail(3) }
                     }
                     if p == nil {                                    // distinct value impossible on this row
                         // Convert to a +1 CARD — unless that would starve a route
@@ -737,7 +805,8 @@ public final class RunMap {
             mergeForcedPackChains(ph, genV: opts.genVersion)   // corridors collapse BEFORE validation
             let bandX = Double(relax) * C.relaxBandStep
             let v = validateStage(ph, entryDeck: entryDeck,
-                                  opts: ValidateOptions(phaseIndex: phaseIndex, bandHiExtra: bandX))
+                                  opts: ValidateOptions(phaseIndex: phaseIndex, bandHiExtra: bandX,
+                                                        genVersion: opts.genVersion))
             ph.gen = GenReport(attempt: attempt, relax: relax, entryDeck: entryDeck,
                                warnings: v.warnings, report: v.report)
             if v.ok { out.ok = ph; return out }

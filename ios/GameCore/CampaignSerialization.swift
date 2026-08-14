@@ -118,16 +118,23 @@ extension CampaignState {
     }
 
     static func encodeOffer(_ o: StoreOffer) -> JSONValue {
-        .object([
+        var d: [String: JSONValue] = [
             "rerollCost": .number(o.rerollCost),
             "freeSlot": o.freeSlot.map { .number(Double($0)) } ?? .null,
             "slots": .array(o.slots.map { s in
                 guard let s else { return .null }
-                var d: [String: JSONValue] = ["kind": .string(s.kind), "id": .string(s.id)]
-                if let card = s.card { d["card"] = encodeCard(card) }
-                return .object(d)
+                var sd: [String: JSONValue] = ["kind": .string(s.kind), "id": .string(s.id)]
+                if s.mystery { sd["mystery"] = .bool(true) }
+                if let card = s.card { sd["card"] = encodeCard(card) }
+                return .object(sd)
             }),
-        ])
+        ]
+        // v6.52 (only when set, like slot `mystery`): the NODE this offer was
+        // rolled for — the store screen rerolls when it opens for a different
+        // node, so a leftover shelf (and the per-visit price mod scoped by
+        // openStore) can never follow the player into another shop.
+        if let n = o.offerNode { d["offerNode"] = .number(Double(n)) }
+        return .object(d)
     }
 
     static func decodeOffer(_ v: JSONValue?) -> StoreOffer? {
@@ -135,10 +142,16 @@ extension CampaignState {
         return StoreOffer(
             slots: slots.map { s in
                 guard let d = s.asObject, let kind = d["kind"]?.asString, let id = d["id"]?.asString else { return nil }
-                return StoreSlot(kind: kind, id: id, card: d["card"].flatMap(decodeCard))
+                // `mystery` is absent in pre-v6.51 saves — a legacy CONCRETE
+                // same-power slot decodes as concrete and stays buyable.
+                return StoreSlot(kind: kind, id: id, mystery: d["mystery"]?.asBool ?? false,
+                                 card: d["card"].flatMap(decodeCard))
             },
             rerollCost: o["rerollCost"]?.asNumber ?? 0,
-            freeSlot: o["freeSlot"]?.asNumber.map(Int.init))
+            freeSlot: o["freeSlot"]?.asNumber.map(Int.init),
+            // Absent in pre-v6.52 saves: an unknown owner node keeps legacy
+            // behaviour (the offer survives until openStore replaces it).
+            offerNode: o["offerNode"]?.asNumber.map(Int.init))
     }
 
     /// Restore from a `serialize()` snapshot. Returns true on success; false

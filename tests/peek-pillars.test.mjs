@@ -5,7 +5,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, PillarTypes } = loadGame();
+  const { GameEngine, DeckManager, PillarTypes, ItemData } = loadGame();
   const r = makeRunner("peek-pillars.test.mjs");
 
   // col 0 = piles 0-2, col 1 = piles 3-6, col 2 = piles 7-9 (board size 10).
@@ -25,7 +25,7 @@ export function run() {
     r.ok(!PillarTypes.get("unearth"), "Unearth was removed from the registry");
     r.ok(l && s, "Last Rites + Static registered");
     r.ok([l, s].every(t => t.tier === "rare"), "both are Rare");
-    r.eq(l.price, 13, "Last Rites costs 13");
+    r.eq(l.price, ItemData.pillars.find(x => x.id === "lastRites").price, "Last Rites = its items.js price");
     r.eq(s.price, 3, "Static costs 3");
     r.eq(l.effect, "lastRites", "Last Rites effect id");
     r.eq(s.effect, "static", "Static effect id");

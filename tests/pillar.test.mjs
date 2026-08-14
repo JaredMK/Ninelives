@@ -62,8 +62,8 @@ export function run() {
 
     // Per-type fixed prices.
     r.eq(c.priceOfPillar("heartBounty"), 5, "Heart Bonus = 5");
-    r.eq(c.priceOfPillar("columnTieSafe"), 6, "Column Tie-Safe = 6");
-    r.eq(c.priceOfPillar("clubTribute"), 13, "8 Bury (clubTribute) = 13");
+    r.eq(c.priceOfPillar("columnTieSafe"), PillarTypes.get("columnTieSafe").price, "Column Tie-Safe = its items.js price");
+    r.eq(c.priceOfPillar("clubTribute"), PillarTypes.get("clubTribute").price, "8 Bury (clubTribute) = its items.js price");
 
     const broke = CampaignState.create();   // no coins
     r.ok(!broke.buyPillar("columnGuardian", 0), "can't buy without coins");

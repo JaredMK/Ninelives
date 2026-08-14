@@ -6,7 +6,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, BaseTypes } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, BaseTypes, ItemData } = loadGame();
   const r = makeRunner("bases.test.mjs");
 
   const deck = () => DeckManager.buildStandardDeck();
@@ -35,11 +35,11 @@ export function run() {
     r.ok(!BaseTypes.get("heartDig") && !BaseTypes.get("diamondDig") && !BaseTypes.get("spadeDig"), "Heart/Diamond/Spade Dig were removed");
     r.ok(!BaseTypes.get("suitTally") && !BaseTypes.get("copyToInventory") && !BaseTypes.get("randomStickerAll"), "Suit Tally / Replica / Sticker Storm were removed");
     r.eq(BaseTypes.all().filter(b => b.suit).map(b => b.id).sort().join(","), "clubDig,tax", "exactly Club Dig + Heart Tax carry a suit");
-    r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish targets a Pillar");
+    r.ok(!BaseTypes.get("demolish").target, "Demolish has no player target (v6.51: it destroys its OWN column's Pillar)");
     r.ok(!!BaseTypes.get("spadePeek") && !!BaseTypes.get("setSuit") && !!BaseTypes.get("heartDemolish"), "new bases Spade Peeker / Suit Setter / Heart Demolish registered");
-    r.eq(BaseTypes.get("setValue").price, 6, "Cast repriced to 6");
-    r.eq(BaseTypes.get("demolish").price, 13, "Demolish repriced to 13");
-    r.eq(BaseTypes.get("randomSticker").price, 12, "Wild Sticker repriced to 12");
+    r.eq(BaseTypes.get("setValue").price, ItemData.bases.find(x => x.id === "setValue").price, "Cast = its items.js price");
+    r.eq(BaseTypes.get("demolish").price, ItemData.bases.find(x => x.id === "demolish").price, "Demolish = its items.js price");
+    r.eq(BaseTypes.get("randomSticker").price, ItemData.bases.find(x => x.id === "randomSticker").price, "Wild Sticker = its items.js price");
     r.ok(BaseTypes.all().every(b => typeof b.price === "number" && b.description), "every Base has a price + description");
   }
 
@@ -221,7 +221,7 @@ export function run() {
   }
 
   // --- effect: Kamikaze (auto-kill a RANDOM ♠-top pile IN ITS OWN COLUMN,
-  //     then peek 3; no player target) --------------------------------------
+  //     then peek peekCount; no player target) -------------------------------
   {
     const e = game(["kamikaze", null, null]);
     const b = e.getBoard();
@@ -234,7 +234,7 @@ export function run() {
     const res = e.baseActivate(0);       // no target argument — auto-picks
     r.ok(res && res.index === 1 && !b.isActive(1), "Kamikaze auto-kills the ♠ pile in its own column");
     r.ok(b.isActive(0) && b.isActive(2), "the non-♠ piles in the column are untouched");
-    r.eq((res.cards || []).length, 3, "and peeks the next 3 upcoming cards");
+    r.eq((res.cards || []).length, BaseTypes.get("kamikaze").peekCount, "and peeks the next peekCount upcoming cards");
   }
 
   // --- effect: Spade Peeker (peek X = # of ♠-top piles in the column) ---

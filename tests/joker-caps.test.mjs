@@ -11,8 +11,9 @@
 // pack), and NO other Joker source at all. Decks the data does not list keep
 // Regular's roaming guaranteed node + jokerCap (tested on Mamma below).
 // STARTJOKERS (MYST2) — difficulty.js `startJokers` additionally MINTS Jokers
-// into the deck at run start (today Pinky Regular: 1); they count as held
-// from node one. Master: cap 1, no guarantee. Legendary: no Jokers anywhere.
+// into the deck at run start; they count as held from node one. (Two-tier
+// model: Regular "Jokers" has them, Legendary "Straight" has none anywhere —
+// the Master tier is retired.)
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -35,15 +36,15 @@ export function run() {
   const r = makeRunner("joker-caps.test.mjs");
   const START_J = DifficultyData.startJokers("pink", "regular");   // Pinky Regular's starting Jokers
   const TIERS = {};   // read live from the registry via the campaign API
-  for (const tier of ["regular", "master", "legendary"]) {
+  for (const tier of ["regular", "legendary"]) {
     const c = CampaignState.create();
     c.setTier(tier);
     c.reset();
     TIERS[tier] = c.jokerBudget().cap;
   }
   r.ok(Number.isInteger(TIERS.regular) && TIERS.regular >= 0, "regular jokerCap reads live from difficulty.js (" + TIERS.regular + ")");
-  r.ok(TIERS.regular >= TIERS.master && TIERS.master >= TIERS.legendary,
-    "caps tighten with difficulty (" + TIERS.regular + " ≥ " + TIERS.master + " ≥ " + TIERS.legendary + ")");
+  r.ok(TIERS.regular >= TIERS.legendary,
+    "caps tighten with difficulty (" + TIERS.regular + " ≥ " + TIERS.legendary + ")");
 
   const jokerNodes = (c) => c.getMap().nodes.filter(n => n.type === "pickup")
     .filter(n => { const card = c.nodeCard(n); return card && card.joker; });
@@ -126,8 +127,9 @@ export function run() {
     r.eq(corridor, 0, "…and no fixed post-boss corridor nodes (Pinky-only scheme)");
   }
 
-  // --- master / legendary: no standalone Joker nodes at all ----------------
-  for (const tier of ["master", "legendary"]) {
+  // --- legendary: no standalone Joker nodes at all (the Master tier is
+  //     retired — regular keeps its guaranteed node(s)) ----------------------
+  for (const tier of ["legendary"]) {
     let nodes = 0;
     for (let s = 0; s < 8; s++) {
       const c = CampaignState.create();
@@ -173,21 +175,6 @@ export function run() {
     r.ok(!!heldJoker && c.removeDeckCard(heldJoker.id), "a held Joker can be Removed");
     r.ok(c.jokerBudget().allowed, "removing one REOPENS Joker availability");
     r.ok(c.genPackCard(seq([0.001, 0.1])).joker, "…and store packs may mint one again");
-  }
-
-  // --- master (cap 1): one held blocks everything ---------------------------
-  if (TIERS.master === 1) {
-    const c = CampaignState.create();
-    c.setTier("master");
-    c.reset();
-    r.ok(c.jokerBudget().allowed, "master: no guarantee — the single slot starts open");
-    c._setMapSpecialRoll(() => true);
-    const packNode = c.getMap().nodes.find(n => n.type === "pack");
-    c.resolvePack({ ...packNode, packCount: 1 });
-    c._setMapSpecialRoll(null);
-    r.ok(!c.jokerBudget().allowed, "master: holding 1 exhausts the cap");
-    const seq = (vals) => { let i = 0; return () => (i < vals.length ? vals[i++] : 0.5); };
-    r.ok(!c.genPackCard(seq([0.001, 0.1])).joker, "…store packs stop minting Jokers");
   }
 
   // --- legendary (cap 0): no Jokers anywhere -------------------------------

@@ -34,6 +34,15 @@ public struct StoreRemovalConfig: Sendable {
     public let priceStep: Double
 }
 
+/// MYSTERY SAME-POWER (v6.51): the samepower shelf slot's fixed-price unknown
+/// offer — the concrete Same-Power is rolled at buy time, then kept or
+/// discarded. The class weight above is unchanged, so the shelf encounter
+/// rate matches the old individual same-power rate.
+public struct StoreMysterySamePowerConfig: Sendable {
+    public let label: String, icon: String, description: String
+    public let price: Double
+}
+
 public struct StoreConfig: Sendable {
     /// Shelf slot count.
     public let slots: Int
@@ -45,6 +54,7 @@ public struct StoreConfig: Sendable {
     public let tierWeights: [String: Double]
     public let card: StoreCardConfig
     public let removal: StoreRemovalConfig
+    public let mysterySamePower: StoreMysterySamePowerConfig
     public let raw: [String: JSONValue]
 }
 
@@ -270,6 +280,7 @@ public struct ItemData: Sendable {
             card: StoreCardConfig(label: "", icon: "", description: "", price: 0, jokerPrice: 0,
                                   stickerStep: 0, stickerOdds: []),
             removal: StoreRemovalConfig(id: "", label: "", icon: "", description: "", price: 0, priceStep: 0),
+            mysterySamePower: StoreMysterySamePowerConfig(label: "", icon: "", description: "", price: 0),
             raw: [:]
         )
         if let s = root["store"]?.asObject {
@@ -291,6 +302,10 @@ public struct ItemData: Sendable {
             let rm = s["removal"]?.asObject
             if rm == nil || !((rm?["price"]?.asNumber ?? -1) >= 0) || rm?["description"]?.asString == nil {
                 problems.append("[items.js] store.removal: needs a numeric `price` and a `description`")
+            }
+            let ms = s["mysterySamePower"]?.asObject
+            if ms == nil || !((ms?["price"]?.asNumber ?? -1) >= 0) || (ms?["description"]?.asString ?? "").isEmpty {
+                problems.append("[items.js] store.mysterySamePower: needs a numeric `price` and a `description`")
             }
             let cw = s["classWeights"]?.asObject ?? [:]
             for k in ["sticker", "pillar", "base", "pack", "card", "samepower"] where !((cw[k]?.asNumber ?? -1) >= 0) {
@@ -320,6 +335,11 @@ public struct ItemData: Sendable {
                     icon: rm?["icon"]?.asString ?? "", description: rm?["description"]?.asString ?? "",
                     price: rm?["price"]?.asNumber ?? 0,
                     priceStep: rm?["priceStep"]?.asNumber ?? 0),
+                mysterySamePower: StoreMysterySamePowerConfig(
+                    label: ms?["label"]?.asString ?? "Mystery Same-Power",
+                    icon: ms?["icon"]?.asString ?? "",
+                    description: ms?["description"]?.asString ?? "",
+                    price: ms?["price"]?.asNumber ?? 0),
                 raw: s
             )
         } else {

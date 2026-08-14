@@ -28,16 +28,16 @@ const BASELINE_COMMIT = "d7d5874";   // v5.01 — the pre-mapgen1 generator
    from git, not the working tree — _harness.loadGame always reads the live
    file). Mirrors the harness's DOM stub; captures console.warn so a stage's
    "no valid map" best-effort fallback is observable. */
-function loadFromSource(html) {
+function loadFromSource(html, data = {}) {
   const blocks = html.match(/<script>([\s\S]*?)<\/script>/g) || [];
   const gameCode = blocks
     .map((b) => b.replace(/^<script>/, "").replace(/<\/script>$/, ""))
     .find((c) => c.includes("const GameEngine"));
   if (!gameCode) throw new Error("no game <script> in source");
   const code =
-    readFileSync(join(HERE, "..", "items.js"), "utf8") + "\n;" +
-    readFileSync(join(HERE, "..", "difficulty.js"), "utf8") + "\n;" +
-    readFileSync(join(HERE, "..", "tutorial.js"), "utf8") + "\n;" + gameCode;
+    (data.items || readFileSync(join(HERE, "..", "items.js"), "utf8")) + "\n;" +
+    (data.difficulty || readFileSync(join(HERE, "..", "difficulty.js"), "utf8")) + "\n;" +
+    (data.tutorial || readFileSync(join(HERE, "..", "tutorial.js"), "utf8")) + "\n;" + gameCode;
   const node = () =>
     new Proxy(function () {}, {
       get(_t, p) {
@@ -102,7 +102,7 @@ export function run() {
   const prc = RunMap.GEN_CONFIG.predictedRouteCards;
   const entries = [e0, e0 + prc, e0 + 2 * prc];   // the pregen/new-run entry ladder
   const SEEDS = Array.from({ length: 8 }, (_, s) => (12345 + s * 7919) >>> 0);
-  const TIERS = DifficultyData.tierIds;           // registry-driven (regular/master/legendary)
+  const TIERS = DifficultyData.tierIds;           // registry-driven (two-tier model: regular/legendary)
   // A fixed-Joker corridor spec for the FJ variants: the live registry value
   // when one exists (Pinky Regular today), else a representative 2-stage list.
   const FJ = DifficultyData.fixedJokerStages("pink", "regular") || [0, 1];
@@ -110,7 +110,7 @@ export function run() {
   // ---- (1) stepper equivalence: sync generateRun === drained stepper --------
   {
     let allEqual = true, stepCounts = new Set();
-    for (const tier of ["regular", "master"]) {
+    for (const tier of TIERS) {
       for (const s of SEEDS.slice(0, 6)) {
         for (const fj of [[], FJ]) {
           for (const genV of [2, 3]) {   // MYST3: the first-class mystery generator must chunk identically too
@@ -127,7 +127,7 @@ export function run() {
         }
       }
     }
-    r.ok(allEqual, "drained stepper output is hash-identical to sync generateRun (6 seeds × reg/master × FJ/– × genV 2+3)");
+    r.ok(allEqual, "drained stepper output is hash-identical to sync generateRun (6 seeds × tiers × FJ/– × genV 2+3)");
     r.ok([...stepCounts].every((n) => n === entries.length),
       "the stepper builds exactly one stage per step() (" + entries.length + " stages per run)");
   }
@@ -136,18 +136,29 @@ export function run() {
   // The whole feature is unshippable if this fails: saves regenerate their map
   // from the saved seed, so genVersion 1 must reproduce the baseline exactly —
   // including its best-effort (failed) maps.
-  let baseline = null;
+  let baseline = null, curBase = null;
   try {
-    baseline = loadFromSource(
-      execSync("git show " + BASELINE_COMMIT + ":index.html",
-        { cwd: HERE, maxBuffer: 1 << 26 }).toString());
+    const gitShow = (f) => execSync("git show " + BASELINE_COMMIT + ":" + f,
+      { cwd: HERE, maxBuffer: 1 << 26 }).toString();
+    // v6.02 retired the Master tier and flattened the bands, so the baseline
+    // generator runs against its OWN commit's data files, and the current
+    // generator is loaded with the baseline difficulty.js for the comparison
+    // (its items.js/tutorial.js stay live — the current validator needs the
+    // current shapes, and map generation doesn't read them).
+    const baseData = { items: gitShow("items.js"), difficulty: gitShow("difficulty.js"), tutorial: gitShow("tutorial.js") };
+    baseline = loadFromSource(gitShow("index.html"), baseData);
+    curBase = loadGame({ difficultySource: baseData.difficulty });
   } catch (e) {
     r.ok(false, "baseline generator unavailable (git show " + BASELINE_COMMIT + " failed: " + e.message + ")");
   }
+  // Both sides share exactly these tier ids (the baseline's "master" is retired:
+  // the current build maps it to regular, so it can't produce distinct maps).
+  const COMPAT_TIERS = ["regular", "legendary"];
   const baselineFails = [];   // { seed, tier, hash } — baseline shipped a best-effort map
   if (baseline) {
+    const BaseMap = curBase.RunMap;   // CURRENT generator + baseline data
     let v1All = true, v2Converging = true, converging = 0;
-    for (const tier of TIERS) {
+    for (const tier of COMPAT_TIERS) {
       for (const seed of SEEDS) {
         baseline.warns.length = 0;
         baseline.RunMap.setDifficultyTier(tier);
@@ -155,21 +166,21 @@ export function run() {
         const failed = baseline.warns.some((w) => w.includes("no valid map"));
         const hb = mapHash(mb);
         const h1 = quiet(() => {
-          RunMap.setDifficultyTier(tier);
-          return mapHash(RunMap.generateRun(seed, entries, { postBossJokerStages: [], genVersion: 1 }));
+          BaseMap.setDifficultyTier(tier);
+          return mapHash(BaseMap.generateRun(seed, entries, { postBossJokerStages: [], genVersion: 1 }));
         }).result;
         if (h1 !== hb) { v1All = false; r.ok(false, "genV1 mismatch vs baseline: " + tier + " seed " + seed); }
         if (failed) { baselineFails.push({ seed, tier, hash: hb }); continue; }
         converging++;
         const h2 = quiet(() => {
-          RunMap.setDifficultyTier(tier);
-          return mapHash(RunMap.generateRun(seed, entries, { postBossJokerStages: [], genVersion: 2 }));
+          BaseMap.setDifficultyTier(tier);
+          return mapHash(BaseMap.generateRun(seed, entries, { postBossJokerStages: [], genVersion: 2 }));
         }).result;
         if (h2 !== hb) { v2Converging = false; r.ok(false, "genV2 mismatch on a CONVERGING baseline seed: " + tier + " seed " + seed); }
       }
     }
     r.ok(v1All, "genVersion 1 is bit-identical to the " + BASELINE_COMMIT + " baseline for all "
-      + (SEEDS.length * TIERS.length) + " seed×tier maps (incl. best-effort failures)");
+      + (SEEDS.length * COMPAT_TIERS.length) + " seed×tier maps (incl. best-effort failures)");
     r.ok(v2Converging, "genVersion 2 is bit-identical on every CONVERGING baseline seed ("
       + converging + " maps — the ladder never fires there)");
     r.ok(converging > 0, "the sweep exercised converging seeds (" + converging + ")");
@@ -178,9 +189,9 @@ export function run() {
   // ---- (3) the seed ladder rescues baseline-failing seeds (genV2 only) ------
   if (baseline) {
     // Search programmatically: the sweep above usually finds failing seeds on
-    // master/legendary; widen it if the difficulty data ever shifts them.
+    // legendary; widen it if the difficulty data ever shifts them.
     if (!baselineFails.length) {
-      outer: for (const tier of TIERS.slice(1)) {
+      outer: for (const tier of COMPAT_TIERS.slice(1)) {
         for (let s = 8; s < 24; s++) {
           const seed = (12345 + s * 7919) >>> 0;
           baseline.warns.length = 0;
@@ -199,17 +210,18 @@ export function run() {
       r.ok(true, "no baseline-failing seed found in the search window (ladder unexercisable with live bands)");
     } else {
       const f = baselineFails[0];
+      const BaseMap = curBase.RunMap;
       const v1 = quiet(() => {
-        RunMap.setDifficultyTier(f.tier);
-        return mapHash(RunMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 1 }));
+        BaseMap.setDifficultyTier(f.tier);
+        return mapHash(BaseMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 1 }));
       });
       r.eq(v1.result === f.hash, true,
         "genV1 reproduces the baseline BEST-EFFORT map on a failing seed (" + f.tier + " " + f.seed + ")");
       r.ok(v1.warns.some((w) => w.includes("no valid map")),
         "…and still logs the legacy failure warning (same legacy behavior)");
       const v2a = quiet(() => {
-        RunMap.setDifficultyTier(f.tier);
-        return RunMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 2 });
+        BaseMap.setDifficultyTier(f.tier);
+        return BaseMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 2 });
       });
       r.ok(!v2a.warns.some((w) => w.includes("no valid map")),
         "genV2 seed-ladders the failing seed to a VALID map (no failure warning)");
@@ -222,8 +234,8 @@ export function run() {
       r.ok(v2a.result.nodes.every((n) => n.type !== "deal" && n.type !== "boss" || n.piles > 0),
         "…every deal/boss carries a pile count");
       const v2b = quiet(() => {
-        RunMap.setDifficultyTier(f.tier);
-        return mapHash(RunMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 2 }));
+        BaseMap.setDifficultyTier(f.tier);
+        return mapHash(BaseMap.generateRun(f.seed, entries, { postBossJokerStages: [], genVersion: 2 }));
       });
       r.eq(mapHash(v2a.result) === v2b.result, true, "the ladder is deterministic (genV2 twice → identical hash)");
       r.ok(mapHash(v2a.result) !== f.hash, "the ladder map differs from the baseline best-effort (it actually rescued)");
@@ -240,20 +252,20 @@ export function run() {
       out.dedupeInFlight = !c.pregenerateRun("pink", "regular");
       c._pregenDrain();                                     // Node has no idle callbacks
       out.dedupeCached = !c.pregenerateRun("pink", "regular");
-      out.secondKeyStarts = c.pregenerateRun("pink", "master");
+      out.secondKeyStarts = c.pregenerateRun("pink", "legendary");
       c._pregenDrain();
-      out.bothCached = !c.pregenerateRun("pink", "master") && !c.pregenerateRun("pink", "regular");
+      out.bothCached = !c.pregenerateRun("pink", "legendary") && !c.pregenerateRun("pink", "regular");
       c.startNewRun();                                      // consumes the regular entry
       out.consumed = c.getMap();
       out.consumedHasNodes = out.consumed && out.consumed.nodes.length > 0;
       out.regularEvicted = c.pregenerateRun("pink", "regular") === true;   // must REBUILD
       c.pregenCancel();                                     // drop that rebuild mid-flight
-      out.masterSurvives = c.pregenerateRun("pink", "master") === false;   // untouched, pristine
+      out.legendarySurvives = c.pregenerateRun("pink", "legendary") === false;   // untouched, pristine
       c.startNewRun();                                      // regular again — no cache entry now
       out.neverReused = c.getMap() !== out.consumed;        // a consumed map is never handed out twice
-      c.setTier("master"); c.startNewRun();                 // consumes the master entry
-      out.masterConsumed = c.getMap() !== out.consumed;
-      out.masterEvicted = c.pregenerateRun("pink", "master") === true;
+      c.setTier("legendary"); c.startNewRun();              // consumes the legendary entry
+      out.legendaryConsumed = c.getMap() !== out.consumed;
+      out.legendaryEvicted = c.pregenerateRun("pink", "legendary") === true;
       c.pregenCancel();
       return out;
     });
@@ -264,9 +276,9 @@ export function run() {
     r.ok(checks.bothCached, "both tier keys are cached simultaneously (no mutual eviction)");
     r.ok(checks.consumedHasNodes, "startNewRun consumed a cached map");
     r.ok(checks.regularEvicted, "consumption EVICTS the entry (the key rebuilds from scratch)");
-    r.ok(checks.masterSurvives, "the other key survives consumption untouched");
+    r.ok(checks.legendarySurvives, "the other key survives consumption untouched");
     r.ok(checks.neverReused, "a consumed (play-mutated) map object is never handed out again");
-    r.ok(checks.masterConsumed && checks.masterEvicted, "the surviving key consumes cleanly later, then evicts");
+    r.ok(checks.legendaryConsumed && checks.legendaryEvicted, "the surviving key consumes cleanly later, then evicts");
   }
 
   // ---- (5) save format: genV rides in the save; absent genV = legacy 1 ------

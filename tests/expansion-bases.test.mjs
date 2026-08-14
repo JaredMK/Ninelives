@@ -1,11 +1,11 @@
 // Expansion Bases (content pass): Club Dig (the surviving suit-gated Dig),
-// Demolish (a Pillar-target Base), Heart Tax, and the newest bases (Spade Peeker,
+// Demolish (destroys its OWN column's Pillar, v6.51), Heart Tax, and the newest bases (Spade Peeker,
 // Suit Setter, Heart Demolish). DOM-free: drive baseActivate() directly and assert
 // on board/run, plus the store suit-gating.
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, BaseTypes, Stats } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, BaseTypes, Stats, ItemData } = loadGame();
   const r = makeRunner("expansion-bases.test.mjs");
 
   const baseDeck = () => DeckManager.buildStandardDeck();
@@ -24,8 +24,8 @@ export function run() {
     r.eq(BaseTypes.get("clubDig").suit, "♣", "Club Dig is ♣-gated");
     r.eq(BaseTypes.get("clubDig").tier, "rare", "Club Dig is Rare");
     r.ok(!BaseTypes.get("buryAll"), "Landslide (buryAll) was removed from the roster");
-    r.eq(BaseTypes.get("demolish").target, "pillar", "Demolish is a Pillar-target Base");
-    r.eq(BaseTypes.get("demolish").price, 13, "Demolish costs 13");
+    r.ok(!BaseTypes.get("demolish").target, "Demolish has no player target (own column, v6.51)");
+    r.eq(BaseTypes.get("demolish").price, ItemData.bases.find(x => x.id === "demolish").price, "Demolish = its items.js price");
     r.eq(BaseTypes.get("tax").suit, "♥", "Heart Tax is ♥-gated");
     r.ok(["spadePeek", "setSuit", "heartDemolish"].every(id => { const t = BaseTypes.get(id); return t && t.description && t.icon; }),
       "the newest bases each have a description + icon");
@@ -57,24 +57,24 @@ export function run() {
     r.ok(!e.baseAvailable(0), "Club Dig is unavailable with no ♣ pile card in its column");
   }
 
-  // ---- Demolish: destroy a chosen Pillar, then PEEK the next 2 cards ----
+  // ---- Demolish (v6.51): destroy the Pillar in ITS OWN column, then PEEK ----
   {
-    const pk = BaseTypes.get("demolish").peekCount ?? 2;
-    const e = game(["demolish", null, null], [null, "columnGuardian", "insurance"]);
+    const pk = BaseTypes.get("demolish").peekCount ?? 3;
+    const e = game(["demolish", null, null], ["columnGuardian", "insurance", null]);
     const run = e.getRun();
-    r.ok(e.baseAvailable(0), "Demolish is available while a Pillar exists");
+    r.ok(e.baseAvailable(0), "Demolish is available while ITS OWN column holds a Pillar");
     const before = run.bonusCoins;
-    const res = e.baseActivate(0, 1);          // destroy the Pillar in column 1
-    r.ok(res && res.demolishedCol === 1, "Demolish reported the destroyed column");
-    r.eq(run.pillars[1], null, "the targeted Pillar is gone from the run");
-    r.eq(run.pillars[2], "insurance", "other Pillars are untouched");
+    const res = e.baseActivate(0);           // no target — own column only
+    r.ok(res && res.demolishedCol === 0, "Demolish reported its own column destroyed");
+    r.eq(run.pillars[0], null, "its own column's Pillar is gone from the run");
+    r.eq(run.pillars[1], "insurance", "other columns' Pillars are untouched");
     r.eq(run.bonusCoins - before, 0, "Demolish pays no coins any more");
-    r.eq(res.peekCount, pk, "Demolish peeks the next " + pk + " upcoming cards");
+    r.eq(res.peekCount, pk, "Demolish peeks the next peekCount (" + pk + ") upcoming cards");
     r.eq(res.cards.length, pk, "…and returned that many peeked cards");
     r.ok(run.kamikazeRevealLeft >= pk, "the shared peek window is armed");
     const e2 = game(["demolish", null, null], [null, "columnGuardian", null]);
-    r.eq(e2.baseActivate(0, 0), null, "Demolish can't target a column with no Pillar");
-    r.eq(e2.baseActivate(0, 2), null, "Demolish can't target an empty Pillar slot");
+    r.ok(!e2.baseAvailable(0), "Demolish is unavailable when only ANOTHER column holds a Pillar");
+    r.eq(e2.baseActivate(0), null, "…and activation is refused");
     const e3 = game(["demolish", null, null], [null, null, null]);
     r.ok(!e3.baseAvailable(0), "Demolish is unavailable with no Pillars on the board");
   }

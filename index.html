@@ -522,6 +522,10 @@ const NativeApp = (() => {
   body.store-selling .play-controls { z-index: 70; }
   /* Same lift for the Refresh confirm over the store (see rerollUI). */
   body.store-confirm .play-controls { z-index: 70; }
+  /* And for the Mystery Same-Power reveal's Keep/Discard bar, which rides the
+     shared prompt bar OVER the pack-reveal overlay (z 70) — 72 clears it. The
+     class is added with the reveal and removed by every close path. */
+  body.mystery-reveal .play-controls { z-index: 72; }
   /* And for the picker-modal confirms (sticker-apply + item-place ride the
      shared bar now): lift it over the deck-modals (z 80) and the hold-help
      card info (z 85) while one is pending (body.modal-prompt). */
@@ -1936,6 +1940,7 @@ const NativeApp = (() => {
     50%     { opacity: 1; }
   }
   .tut-ring.hidden, .tut-bubble.hidden { display: none; }
+  .tut-next.hidden { display: none; }   /* event-gated steps: the ringed action IS the next (v6.51) */
   .tut-bubble { position: fixed; max-width: 300px; pointer-events: auto;
     background: var(--felt-mid); border: 2px solid var(--phosphor); border-radius: 0;
     padding: 11px 13px 9px; box-shadow: 4px 4px 0 0 var(--shadow);
@@ -6989,7 +6994,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v5.77 · Pinky deals one of each rank with suits spread evenly on an unstaged map; Mamma takes over the suit-staged hearts climb";
+const APP_VERSION = "v6.51 · balance batch: Bury 1/2 retired, mystery same-powers, compound resets";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7212,8 +7217,6 @@ const GLYPHS = {
   spark: '<path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/>',
   anchor: '<circle cx="12" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.2V20M6 13a6 6 0 0 0 12 0M8.5 10.5h7" fill="none" stroke="currentColor" stroke-width="2"/>',
   buffer: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.4 2.4L16 9.5" fill="none" stroke="currentColor" stroke-width="2"/>',
-  encode: ENC,
-  encode2: ENC + '<rect x="5" y="20.5" width="14" height="2.4" rx="1.2"/>',
   encode_center: ENC + '<circle cx="20" cy="6" r="2"/>',
   encode8: ENC + T("8", 20).replace('font-size="12.5"', 'font-size="8"').replace('y="16.5"', 'y="8"'),
   encode_tie: ENC + '<path d="M16 5h6M16 8h6" stroke="currentColor" stroke-width="1.6"/>',
@@ -7346,7 +7349,7 @@ const ELEM_GLYPH = {
   randomFixedValue: "die", changeSuitRandom: "swirl", changeSuitSpade: "spade", changeSuitHeart: "heart",
   tieSafe: "tie", suitImmunity: "inh_spade", heartGuard: "inh_heart", diamondGuard: "inh_diamond", clubGuard: "inh_club",
   extraCoin: "yield", middleColumnReward: "focus", gainCoin: "spark", anchor: "anchor", extraHeart: "buffer",
-  oneTribute: "encode", twoTribute: "encode2", centerTribute: "encode_center", deathBounty: "lastspark",
+  centerTribute: "encode_center", deathBounty: "lastspark",
   heavy: "dense", massive: "dense", collector: "hub", compound: "potentiation", revealNext: "eye", duplicate: "cardstack",
   wildSuit: "wildsuit",
   changeSuitDiamond: "diamond", changeSuitClub: "club",
@@ -8442,6 +8445,25 @@ const PixelArt = (() => {
       '......KPPK......',
       '.......KK.......',
       '................'],
+    // MYSTERY SAME-POWER (v6.51): the samePower plate with its "=" cut replaced
+    // by an ink "?" — the store's unknown-power slot + reveal-back face.
+    samePowerMystery: [
+      '................',
+      '.......KK.......',
+      '......KPPK......',
+      '.....KPPPPK.....',
+      '....KPKKKPPK....',
+      '...KPKPPPKKPK...',
+      '..KPPPPPPKKPPK..',
+      '.KPPPPPPPKKPPPK.',
+      '.KPPPPPPPPPPPPK.',
+      '..KPPPPPKKPPPK..',
+      '...KPPPPPPPPK...',
+      '....KPPPPPPK....',
+      '.....KPPPPK.....',
+      '......KPPK......',
+      '.......KK.......',
+      '................'],
     packCard: [
       '................',
       '...KKKKKKKKKK...',
@@ -9096,40 +9118,6 @@ const PixelArt = (() => {
       '.....KKKKKK.....',
       '................',
       '................'],
-    oneTribute: [
-      '....KKKKKK......',
-      '....KCCCCK......',
-      '....KKCCKK......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '..KKKKCCKKKK....',
-      '..KDDDCCDDDK....',
-      '..KDDDCCDDDK....',
-      '..KDDDDDDDDK....',
-      '...KDDDDDDK.....',
-      '....KDDDDK......',
-      '.....KDDK.......',
-      '......KK........',
-      '................'],
-    twoTribute: [
-      '....KKKKKK......',
-      '....KCCCCK......',
-      '....KKCCKK......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '.....KCCK.......',
-      '..KKKKCCKKKK....',
-      '..KDCCDDCCDK....',
-      '..KDCCDDCCDK....',
-      '..KDDDDDDDDK....',
-      '...KDDDDDDK.....',
-      '....KDDDDK......',
-      '.....KDDK.......',
-      '......KK........',
-      '................'],
     quickBury: [
       '....KKKKKK...KK.',
       '....KCCCCK..KK..',
@@ -9756,6 +9744,9 @@ const ITEM_UNLOCK_STATS = [
   "heartsPlayed", "diamondsPlayed", "clubsPlayed", "spadesPlayed",
   "perfectDeals", "dealsWonRegular", "dealsWonMaster", "dealsWonLegendary",
   "pinkyTipsSeen", "bestCampaignScore", "bestCoinsInClimb",
+  // Same native-only treatment for the two newest gates (Phoenix / Escape
+  // Hatch): tracked app-side, no web reader → never unlocked on the web.
+  "earlyLosses", "ambushesWon",
 ];
 
 /* ----------------------------------------------------------------
@@ -10116,10 +10107,14 @@ const TutorialData = (() => {
   // The writer-owned groups and their EXACT step counts. The tour's
   // choreography (which group fires when, what each step rings) lives in
   // index.html — tutorial.js may reword a bubble, never add or remove one.
-  const GROUPS = { deal: 6, zenEnd: 1 };   // v5.60: the Ace-high bubble was cut (player request)
+  // v6.51: the guided deal is the 13-step INTERACTIVE tour (scripted opening,
+  // event-gated steps, milestone waits) — the same data the native port runs.
+  const GROUPS = { deal: 13, zenEnd: 1 };
   // The Zen-first tour carries no live placeholders: any {token} in the copy
   // is a writer error and fails loudly here.
   const PLACEHOLDERS = [];
+  // Event-gated dismissals the runtime understands (default "next" = the button).
+  const ADVANCES = ["next", "tapPile", "higher", "guess", "swipe"];
   function checkStep(d, label) {
     const bad = (msg) => problems.push("[tutorial.js] " + label + ": " + msg);
     if (!d || typeof d !== "object") return bad("missing step");
@@ -10129,6 +10124,12 @@ const TutorialData = (() => {
         bad("unknown placeholder " + m + " (the Zen-first tour supports none)");
     if (d.button != null && (typeof d.button !== "string" || !d.button)) bad("`button` must be a non-empty string when set");
     if (d.anchor != null && (typeof d.anchor !== "string" || !d.anchor)) bad("`anchor` must be an anchor-key string when set");
+    if (d.advance != null && ADVANCES.indexOf(d.advance) === -1)
+      bad("`advance` must be one of " + ADVANCES.join("|") + " (got " + JSON.stringify(d.advance) + ")");
+    if (d.wait != null && (typeof d.wait !== "number" || !isFinite(d.wait) || Math.floor(d.wait) !== d.wait || d.wait <= 0))
+      bad("`wait` must be a positive integer (milestone guesses) when set");
+    if (d.orWrong != null && (d.orWrong !== true || d.wait == null))
+      bad("`orWrong` is only valid as `true` together with `wait`");
   }
   if (!D.groups || typeof D.groups !== "object") problems.push("[tutorial.js] groups: missing object");
   else for (const k in GROUPS) {
@@ -10667,6 +10668,10 @@ const DeckManager = (() => {
       },
       // Inject an arbitrary card object as the next draw (QA — e.g. a Joker).
       _setNextCard(card) { cards.unshift(card); return card; },
+      // Remove and return the FIRST card matching `pred` (the guided-tutorial
+      // opening's rig — the native port's takeFirst). Not a draw: drawnCount
+      // is untouched (the card never leaves play into a guess).
+      _takeFirst(pred) { const i = cards.findIndex(pred); return i < 0 ? null : cards.splice(i, 1)[0]; },
       _trimTo(n) { if (cards.length > n) cards.length = Math.max(0, n); return cards.length; },
       _drain() { const n = cards.length; cards.length = 0; return n; },
     };
@@ -12870,10 +12875,12 @@ const GameEngine = (() => {
       let lcSum = 0;
       for (let k = 0; k < lc; k++) { const a = Math.floor(rng() * (lcMax + 1)); payCoins("Loose Change", a, true); lcSum += a; }   // random 0–max
       if (lc > 0) recT("sticker", "looseChange", "Loose Change", { coins: lcSum });
-      // --- the SNOB family: DIRECTION — the snob sticker sits on the PILE TOP
-      // (`current`) and fires when a MATCHING-SUIT card LANDS ON it (the drawn
-      // card matches the snob's suit; a Wild Suit drawn card counts as every
-      // suit). Counts read from `current.stickers`; effects apply to any card
+      // --- the SNOB family: BIDIRECTIONAL (v6.51). FORWARD (here): the snob
+      // sticker sits on the PILE TOP (`current`) and fires when a MATCHING-SUIT
+      // card LANDS ON it (the drawn card matches the snob's suit; a Wild Suit
+      // drawn card counts as every suit). REVERSE (below): the DRAWN card
+      // carries the snob and fires it on landing over a matching-suit top.
+      // Counts read from the carrying side; effects apply to any card
       // (the snobs carry no suit restriction). ---
       const cn = (type) => curStickers.filter(x => x.type === type).length;
       const landsOn = (suit) => cardMatchesSuit(drawn, suit);
@@ -12904,6 +12911,40 @@ const GameEngine = (() => {
       const csn = cn("clubSnob");
       if (csn > 0 && landsOn("♣")) {
         const nb = buryTribute(index, csn * itemNum(StickerTypes.get("clubSnob"), "digCount", 1), "Club Snob");
+        if (nb > 0) recT("sticker", "clubSnob", "Club Snob", { buried: nb });
+      }
+      // --- the SNOB family, REVERSE direction: the DRAWN card carries the snob
+      // and fires it when it LANDS on a pile whose (covered) top card matches
+      // the snob's suit (a Wild Suit top counts, as everywhere). Same effects
+      // as the forward direction; BOTH may fire on one placement. ---
+      const covers = (suit) => current && cardMatchesSuit(current, suit);
+      // Spade Snob (carried) — landing on a ♠ top peeks the next upcoming card.
+      if (n("suitSnob") > 0 && covers("♠")) {
+        run.revealNextActive = true;
+        recT("sticker", "suitSnob", "Spade Snob", { peeks: 1 });
+      }
+      // Heart Snob (carried) — +value coins per instance when landing on a ♥ top.
+      const rhsn = n("heartSnob");
+      if (rhsn > 0 && covers("♥")) {
+        const amt = rhsn * itemNum(StickerTypes.get("heartSnob"), "value", 4);
+        payCoins("Heart Snob", amt);
+        recT("sticker", "heartSnob", "Heart Snob", { coins: amt });
+      }
+      // Diamond Snob (carried) — landing on a ♦ top shuffles ALL alive piles.
+      if (n("diamondSnob") > 0 && covers("♦")) {
+        let sh = 0;
+        for (let i = 0; i < board.size; i++) if (board.isActive(i)) { board.shufflePile(i, rng); sh++; }
+        if (sh > 0) {
+          firePillar(col, "shuffler", "Diamond Snob", 0);
+          logLine("Diamond Snob: shuffled all " + sh + " piles");
+          recT("sticker", "diamondSnob", "Diamond Snob", { shuffled: sh });
+        }
+      }
+      // Club Snob (carried) — landing on a ♣ top buries digCount deck cards
+      // per instance under the pile it landed on.
+      const rcsn = n("clubSnob");
+      if (rcsn > 0 && covers("♣")) {
+        const nb = buryTribute(index, rcsn * itemNum(StickerTypes.get("clubSnob"), "digCount", 1), "Club Snob");
         if (nb > 0) recT("sticker", "clubSnob", "Club Snob", { buried: nb });
       }
       // --- the suit-SYNERGY family: fires on EVERY landing, scaled by the
@@ -13264,8 +13305,11 @@ const GameEngine = (() => {
         case "stickerHarvest":   return alive.length > 0;
         case "refreshBases":     return refreshableBaseColumns(col).length > 0;
         case "suitDig":          return !deck.isEmpty() && alive.some(i => topIsSuit(i, base.suit));
-        case "demolish":         return !!run.pillars && run.pillars.some(Boolean);
+        case "demolish":         return !!run.pillars && !!run.pillars[col];   // own column's Pillar only (v6.51)
         case "heartDemolish":    return alive.some(i => topIsSuit(i, "♥"));
+        // Club Oracle: needs a next deck card AND at least one ♣-topped alive
+        // pile in its own column to read it against.
+        case "clubTell":         return !deck.isEmpty() && alive.some(i => topIsSuit(i, "♣"));
         case "tax":              return colHearts > 0;
         // Recharge Cell: only when a charge can actually be banked (never wasted).
         case "rechargeSameShield": return !sameCharge;
@@ -13308,20 +13352,15 @@ const GameEngine = (() => {
     function baseActivate(col, targetIndex) {
       if (!baseAvailable(col)) return null;
       const base = baseForColumn(col);
-      // Validate the target for target Bases (column-scoped).
-      const needsTarget = base.target === "pile" || base.target === "pillar";
+      // Validate the target for target Bases (column-scoped). (v6.51: no Base
+      // targets a Pillar any more — Demolish now hits its OWN column's Pillar.)
+      const needsTarget = base.target === "pile";
       if (needsTarget) {
         if (targetIndex == null) return null;
-        if (base.target === "pillar") {
-          // Demolish: targetIndex is the COLUMN of the Pillar to destroy — it
-          // must currently hold a Pillar.
-          if (!run.pillars || !run.pillars[targetIndex]) return null;
-        } else {
-          // Single-pile-target Bases (Sticker Harvest) act on an alive pile in
-          // their own column.
-          if (!board.isActive(targetIndex)) return null;
-          if (run.pileColumns[targetIndex] !== col) return null;
-        }
+        // Single-pile-target Bases (Sticker Harvest) act on an alive pile in
+        // their own column.
+        if (!board.isActive(targetIndex)) return null;
+        if (run.pileColumns[targetIndex] !== col) return null;
       }
 
       const res = { col, effect: base.effect, label: base.label };
@@ -13376,6 +13415,18 @@ const GameEngine = (() => {
           res.peekCount = n;
           res.cards = deck.peek(n).map(c => ({ ...c }));       // read-only snapshot (no order change)
           logLine("peeking the next " + n + " upcoming card" + (n === 1 ? "" : "s") + " (" + n + " ♠ pile" + (n === 1 ? "" : "s") + ")");
+          break;
+        }
+        case "clubTell": {
+          // Club Oracle: read the REAL next deck card against EVERY alive
+          // ♣-topped pile in this column — each such pile gets a Tell-style
+          // directional hint (higher/lower/same), served live by pileHint().
+          // Deterministic (no roll): display-only, never touches draw order.
+          const clubs = colAlivePiles(col).filter(i => cardMatchesSuit(board.top(i), "♣"));
+          for (const i of clubs) { if (run.tellPiles) run.tellPiles.add(i); }
+          res.tells = clubs.slice();
+          res.cards = deck.peek(1).map(c => ({ ...c }));   // read-only snapshot (no order change)
+          logLine("read the next card against " + clubs.length + " ♣ top" + (clubs.length === 1 ? "" : "s") + " in this column");
           break;
         }
         case "shuffleColumn": {
@@ -13535,18 +13586,18 @@ const GameEngine = (() => {
           break;
         }
         case "demolish": {
-          // targetIndex is the column whose Pillar is destroyed (validated above).
-          // The rubble reveals the road ahead: peek the next `peekCount` cards
-          // (was a +15 coin reward).
-          const destroyedId = run.pillars[targetIndex];
-          const pk = itemNum(base, "peekCount", 2);
-          run.pillars[targetIndex] = null;             // stop its effect immediately
+          // Destroys the Pillar in the BASE's OWN column (v6.51 — no target
+          // pick; availability already guaranteed this column holds one). The
+          // rubble reveals the road ahead: peek the next `peekCount` cards.
+          const destroyedId = run.pillars[col];
+          const pk = itemNum(base, "peekCount", 3);
+          run.pillars[col] = null;                   // stop its effect immediately
           run.kamikazeRevealLeft = Math.max(run.kamikazeRevealLeft || 0, pk);   // shared multi-card peek window
-          res.demolishedCol = targetIndex;
-          res.demolishedPillar = destroyedId;          // the UI clears the campaign binding
+          res.demolishedCol = col;
+          res.demolishedPillar = destroyedId;        // the UI clears the campaign binding
           res.peekCount = pk;
           res.cards = deck.peek(pk).map(c => ({ ...c }));   // read-only snapshot (no order change)
-          logLine("destroyed the Pillar on column " + (targetIndex + 1) + ", peeking the next " + pk + " upcoming cards");
+          logLine("destroyed the Pillar on column " + (col + 1) + ", peeking the next " + pk + " upcoming cards");
           break;
         }
         case "heartDemolish": {
@@ -13600,6 +13651,7 @@ const GameEngine = (() => {
         if (base.effect === "spadePeek" && res.peekCount) imp.peeks = res.peekCount;
         if (base.effect === "reviveBase" && res.index != null) imp.revived = 1;
         if (base.effect === "demolish" && res.demolishedPillar) imp.destroyed = 1;
+        if (base.effect === "clubTell" && res.tells && res.tells.length) imp.peeks = res.tells.length;
         if (base.effect === "heartDemolish" && res.destroyedPiles && res.destroyedPiles.length) imp.destroyed = res.destroyedPiles.length;
         if (res.stickerApplied) imp.applied = 1;
         if (res.suitApplied && res.suitApplied.length) imp.recolored = res.suitApplied.length;
@@ -14221,6 +14273,14 @@ const GameEngine = (() => {
         drawn.snowball = 0;
         run.snowballUpdates[drawn.id] = 0;
       }
+      // Compound: a WRONG guess against a pile whose TOP card carries Compound
+      // resets THAT card's accumulated hits to 0 (snowball's mirror: snowball
+      // resets the carrier on its own wrong placement; compound resets the card
+      // that was guessed against). Recorded for the win write-back.
+      if (!correct && current && current.stickers && current.stickers.some(x => x.type === "compound")) {
+        current.compoundHits = 0;
+        run.compoundUpdates[current.id] = 0;
+      }
 
       let guardSave = null;
       if (correct) {
@@ -14436,6 +14496,49 @@ const GameEngine = (() => {
       },
       // Jump straight to a win (empty the deck) or a loss (kill every pile).
       winNow() { if (deck && status === "playing") { deck._drain(); evaluateEnd(); } },
+      /* Guided-tutorial rig (the Zen first-run tour's scripted opening, v6.51
+         — mirrors the native port's arrangeTutorialOpening): a 3 waits on pile
+         1's top and an Ace sits as the next draw, so "tap the 3 → guess
+         higher" always wins. Composition-preserving rearranges only (cards
+         trade places; nothing is minted, shown, or destroyed). */
+      arrangeTutorialOpening() {
+        if (!board || !deck || status !== "playing" || deck.isEmpty()) return;
+        const topOf = (i) => board.piles[i].cards[board.piles[i].cards.length - 1];
+        // …a 3 onto pile 1's top…
+        if (!topOf(0) || topOf(0).value !== 3) {
+          let donor = -1;
+          for (let i = 1; i < board.size; i++) if (board.isActive(i) && topOf(i) && topOf(i).value === 3) { donor = i; break; }
+          if (donor > 0) {   // swap the two pile tops in place
+            const a = board.piles[0].cards, b = board.piles[donor].cards;
+            const t = a[a.length - 1]; a[a.length - 1] = b[b.length - 1]; b[b.length - 1] = t;
+          } else {
+            const three = deck._takeFirst(c => c.value === 3);
+            if (three) {
+              const old = board.piles[0].cards.pop();
+              board.push(0, three);
+              if (old) deck.returnCard(old);   // random hidden position — never shown
+            }
+          }
+        }
+        // …and an Ace as the next draw.
+        const nxt = deck.peek(1)[0];
+        if (!nxt || nxt.value !== 14) {
+          const ace = deck._takeFirst(c => c.value === 14);
+          if (ace) deck._setNextCard(ace);
+          else {
+            // Every Ace was dealt as a pile top: trade one for a non-3 deck card.
+            for (let i = 1; i < board.size; i++) {
+              if (!board.isActive(i) || !topOf(i) || topOf(i).value !== 14) continue;
+              const swap = deck._takeFirst(c => c.value !== 3);
+              if (!swap) break;
+              const aceTop = board.piles[i].cards.pop();
+              board.push(i, swap);
+              deck._setNextCard(aceTop);
+              break;
+            }
+          }
+        }
+      },
       loseNow() {
         if (board && status === "playing") {
           for (let i = 0; i < board.size; i++) board.kill(i);
@@ -14513,7 +14616,7 @@ const GameEngine = (() => {
           deal, in active play, and its per-Base precondition holds). */
       baseAvailable(col) { return baseAvailable(col); },
       /** Whether the Base on column `col` needs the player to pick a target pile. */
-      baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && (b.target === "pile" || b.target === "pillar")); },
+      baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && b.target === "pile"); },
       /** Activate the Base on column `col` (with a chosen `targetIndex` for target
           Bases). Returns a result object describing what fired, or null. */
       baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
@@ -14823,8 +14926,10 @@ const CampaignState = (() => {
       rarity (per-item `weight` override, else TIER_WEIGHTS). Dupes allowed; a
       draw that would put a class past STORE_TYPE_CAP is rejected and redrawn.
       The "card" class carries an actual generated playing card (`genCard`,
-      pack-odds; see campaign.genStoreCard) instead of a registry id. Each
-      slot is { kind, id } (+ { card } for the card class). */
+      pack-odds; see campaign.genStoreCard) instead of a registry id; the
+      "samepower" class yields an id-less MYSTERY slot ({ mystery: true }) —
+      the concrete power is rolled at buy time. Every other slot is
+      { kind, id } (+ { card } for the card class). */
   function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null) {
     const CW = ItemData.store.classWeights;
     // UNLOCK1: every registry class pool is pre-filtered to UNLOCKED items
@@ -14860,6 +14965,16 @@ const CampaignState = (() => {
           const card = genCard(rng);
           if (!card) continue;
           pick = { kind: "card", id: "card", card };
+        } else if (cls.key === "samepower") {
+          // MYSTERY SAME-POWER (v6.51): the class yields ONE unknown slot — no
+          // concrete id, no per-item tier roll (the class pick above is the
+          // slot's ONLY rng draw). AT MOST ONE mystery slot per shelf: a second
+          // samepower-class roll rejects-and-redraws like the typeCap does (the
+          // iOS port dedupes via seenIds — same outcome). The concrete power is
+          // rolled, seeded, at BUY time (buyMixedSlot). Legacy concrete slots
+          // {kind, id} from old saves are still accepted everywhere downstream.
+          if ((perType.samepower || 0) >= 1) continue;
+          pick = { kind: "samepower", mystery: true };
         } else {
           const id = rollIds(cls.types, 1, rng)[0];
           if (id == null) continue;
@@ -16771,7 +16886,9 @@ const CampaignState = (() => {
         return s.kind === "sticker"   ? this.priceOf(s.id)
              : s.kind === "pillar"    ? this.priceOfPillar(s.id)
              : s.kind === "base"      ? this.priceOfBase(s.id)
-             : s.kind === "samepower" ? this.priceOfSamePower(s.id)
+             // Mystery Same-Power: fixed store.mysterySamePower price; a legacy
+             // concrete slot (old save) keeps its own power's price.
+             : s.kind === "samepower" ? (s.mystery ? shopPrice(ItemData.store.mysterySamePower.price) : this.priceOfSamePower(s.id))
              : s.kind === "removal"   ? this.removalPrice()
              // Individual-card slot: flat price from items.js store.card —
              // a Joker costs its own (much steeper) jokerPrice.
@@ -16802,6 +16919,23 @@ const CampaignState = (() => {
           storeOffer.slots[i] = null; return { ok: true, kind: "base" };
         }
         if (s.kind === "samepower") {
+          if (s.mystery) {
+            // MYSTERY SAME-POWER (v6.51): charge the fixed mystery price, then
+            // roll the concrete power UNIFORMLY over the pool of UNLOCKED and
+            // NOT-EQUIPPED powers (iOS parity) with ONE rng draw (the UI passes
+            // runRng("mysterysamepower", node, slot)). An empty pool (everything
+            // locked or the only unlocked one equipped) refunds itself by never
+            // charging.
+            const pool = SamePowerTypes.all().filter(t => ItemUnlocks.isUnlocked(t) && t.id !== equippedSamePower);
+            if (!pool.length) return { ok: false };
+            const price = shopPrice(ItemData.store.mysterySamePower.price);
+            if (coins < price) return { ok: false };
+            coins -= price;
+            storeOffer.slots[i] = null;
+            const samePowerId = pool[Math.floor((rng || Math.random)() * pool.length)].id;
+            samePowerInventory[samePowerId] = (samePowerInventory[samePowerId] || 0) + 1;
+            return { ok: true, kind: "samepower", mystery: true, samePowerId };
+          }
           if (!this.buySamePowerToInventory(s.id)) return { ok: false };
           storeOffer.slots[i] = null; return { ok: true, kind: "samepower" };
         }
@@ -19658,8 +19792,13 @@ const UIRenderer = (() => {
     let active = false;
     let fired = {};                        // step-group keys that already ran (reset per guided deal)
     let layer = null, ring = null, bubble = null, textEl = null, nextBtn = null;
-    let queue = [];                        // remaining steps of the current group
-    let anchorEl = null, isFinal = false;
+    let steps = null;                      // the current group's steps (v6.51: indexed, not a shift queue)
+    let stepIndex = 0;
+    // Milestone bookkeeping: guesses still owed before the current step may
+    // show, and whether a wrong guess releases it early (tutorial.js wait/orWrong).
+    let waiting = false, waitLeft = 0, waitBreaksOnWrong = false;
+    let anchorEl = null;
+    let currentGroup = null;               // which group is running ("deal" completion earns the zenEnd beat)
     let replayArmed = false;               // one-shot replay (see armReplay/shouldRun)
     let guidedDeal = false;                // the CURRENT Zen deal is the guided one
     let finalCompleted = false;            // …and its last bubble was dismissed (not skipped)
@@ -19673,6 +19812,11 @@ const UIRenderer = (() => {
     const ANCHORS = {
       dealBoard:       () => $(".board-grid"),
       dealPile:        () => $(".pile:not(.dead)"),
+      // v6.51 interactive tour: pile 1 SPECIFICALLY (the scripted opening's 3),
+      // the ▲ Higher rail button, and pile 1's card-count badge.
+      dealPileFirst:   () => $('.pile[data-index="0"]'),
+      dealRailUp:      () => $("#btnHigher"),
+      pileCount:       () => $('.pile[data-index="0"] .pile-count'),
       dealDeckChar:    () => $("#deckChar"),
       sameShield:      () => $("#hudSame"),
       dealHistogram:   () => $("#histBand"),
@@ -19708,6 +19852,7 @@ const UIRenderer = (() => {
         return null;
       }
       return Object.assign({ text: d.text, next: d.button,
+        advance: d.advance || "next", wait: d.wait || 0, orWrong: d.orWrong === true,
         anchor: d.anchor != null ? ANCHORS[d.anchor] : null }, extra || {});
     }
     /** Materialize a whole tutorial.js group (extras aligned by index). The
@@ -19790,9 +19935,10 @@ const UIRenderer = (() => {
     function showStep(s) {
       ensureLayer();
       anchorEl = s.anchor ? s.anchor() : null;
-      isFinal = !!s.final;
       textEl.innerHTML = renderMarkup(s.text);   // tutorial.js copy, escaped + marked up NOW
       nextBtn.textContent = s.next || "Next";
+      // Event-gated steps carry no Next button — the ringed action IS the next.
+      nextBtn.classList.toggle("hidden", (s.advance || "next") !== "next");
       bubble.classList.remove("hidden");
       place();
     }
@@ -19800,29 +19946,81 @@ const UIRenderer = (() => {
       if (!bubble) return;
       bubble.classList.add("hidden"); ring.classList.add("hidden"); anchorEl = null;
     }
+    /** Present the current step — a milestone step (wait > 0) first holds back
+        behind free play: the bubble hides and the deal stays fully playable
+        until waitLeft guesses have resolved (or a wrong one breaks an orWrong
+        wait early). */
+    function showCurrent() {
+      const s = steps && steps[stepIndex];
+      if (!s) return;
+      if (s.wait > 0) {
+        waiting = true; waitLeft = s.wait; waitBreaksOnWrong = s.orWrong;
+        hideBubble();
+      } else showStep(s);
+    }
     function advance() {
       Sound.tap();
-      if (queue.length) showStep(queue.shift());
-      else if (isFinal) { finalCompleted = true; end(); }
-      else hideBubble();
+      if (!steps) return;
+      stepIndex++;
+      if (stepIndex < steps.length) { showCurrent(); return; }
+      // The group is done. Completing the GUIDED DEAL marks it earned (the
+      // zenEnd beat gates on it); every completion path ends stamped.
+      if (currentGroup === "deal") finalCompleted = true;
+      end();
+    }
+    /** The deal screen's event feed. Event-gated steps advance on their event
+        (tap pile 1 / tap ▲ / any guess resolved / any swipe-guess); milestone
+        waits count resolved guesses. */
+    function feed(evt, detail) {
+      if (!active || !steps) return;
+      if (waiting) {
+        if (evt === "guess") {
+          waitLeft--;
+          if (waitLeft <= 0 || (waitBreaksOnWrong && detail === false)) { waiting = false; showStep(steps[stepIndex]); }
+        }
+        return;
+      }
+      if (stepIndex >= steps.length) return;
+      const adv = steps[stepIndex].advance || "next";
+      const hit =
+        (adv === "tapPile" && evt === "tapPile" && detail === 0) ||
+        (adv === "higher"  && evt === "higher") ||
+        (adv === "guess"   && evt === "guess") ||
+        (adv === "swipe"   && evt === "swipe");
+      if (hit) advance();
+    }
+    /** Input gating during the scripted walk (the native port's hitTest
+        parity): a read-only "next" step locks the board to the bubble
+        ("board"); a "tapPile" step admits only pile 1 ("pile0"); a "higher"
+        step admits only the ▲ button ("higher"). Milestone waits and
+        guess/swipe-gated steps never lock play (null). */
+    function inputGate() {
+      if (!active || waiting || !steps || stepIndex >= steps.length) return null;
+      const s = steps[stepIndex];
+      const adv = s.advance || "next";
+      if (adv === "tapPile") return "pile0";
+      if (adv === "higher") return "higher";
+      if (adv === "next" && !s.wait) return "board";
+      return null;
     }
     /** Fire tutorial.js group `key` once (fired{} bookkeeping); `extras`
         merges code-side attributes into the steps by index. Missing/invalid
         data → the tour bows out (stamped), never a soft-lock. */
     function group(key, extras) {
       if (!active || fired[key]) return;
-      const steps = dataSteps(key, extras);
-      if (!steps) { end(); return; }
+      const built = dataSteps(key, extras);
+      if (!built) { end(); return; }
       fired[key] = true;
-      queue = steps;
-      showStep(queue.shift());
+      currentGroup = key;
+      steps = built; stepIndex = 0; waiting = false;
+      showCurrent();
     }
     /** End the WHOLE tour — complete, skip, or a graceful bow-out. Stamps the
         pref (the tour appears once, ever) and tears the layer down. Zen-safe:
         no map, store or campaign state is touched. */
     function end() {
       if (!active && !layer) return;
-      active = false; queue = []; fired = {};
+      active = false; steps = null; stepIndex = 0; waiting = false; fired = {};
       if (layer) { layer.remove(); layer = ring = bubble = textEl = nextBtn = null; }
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
@@ -19831,6 +20029,9 @@ const UIRenderer = (() => {
 
     return {
       shouldRun,
+      /** Will the next Zen deal run the guided tour? (The dealt handler rigs
+          the scripted opening when so.) */
+      willGuide() { return shouldRun(); },
       /** Arm a one-shot REPLAY: the next Zen deal runs the tour even with
           tutorial2 stamped (see shouldRun). Called by the manual's
           "Replay tutorial" button just before routing to Zen. */
@@ -19842,35 +20043,44 @@ const UIRenderer = (() => {
       onZenDealStart() {
         // A fresh deal silences any leftover bubble first (e.g. Play Again
         // tapped while the zenEnd beat was still up).
-        if (active) { active = false; queue = []; hideBubble(); }
+        if (active) { active = false; steps = null; waiting = false; hideBubble(); }
         if (!shouldRun()) return;
-        active = true; fired = {}; queue = [];
+        active = true; fired = {}; steps = null;
         guidedDeal = true; finalCompleted = false;
         replayArmed = false;   // consume the one-shot: this deal IS the replay
-        group("deal", [null, null, null, null, null, null, { final: true }]);
+        group("deal");
       },
       /** ZEN DEAL END: completing the guided deal earns one passive beat
           naming the unlock (only while the campaign is still locked — a
           veteran's replay doesn't need it). */
       onZenDealEnd() {
+        // The deal ENDED under the tour (all piles dead, or the deck ran dry
+        // faster than the milestones): dismiss cleanly and UNSTAMPED, so the
+        // outcome presentation owns the screen and the tour offers itself
+        // again on the next first Zen deal.
+        if (active && currentGroup === "deal") { active = false; steps = null; waiting = false; hideBubble(); }
         if (!guidedDeal) return;
         const earned = finalCompleted;
         guidedDeal = false; finalCompleted = false;
         if (!earned || campaignUnlocked()) return;
         active = true; fired = {};
-        group("zenEnd", [{ final: true }]);   // final → its dismissal runs end() (layer teardown)
+        group("zenEnd");   // its dismissal runs end() (layer teardown)
       },
-      /** Any resolved guess mid-tour: the player is playing — stop talking. */
-      onGuessResolved() {
-        if (active) { queue = []; hideBubble(); }
-      },
+      /** The deal screen's event feed (the v6.51 interactive tour): a resolved
+          guess counts toward milestone waits and releases "guess"-gated
+          steps; a pile tap / ▲ tap / swipe-guess advance their gated steps. */
+      onGuessResolved(correct) { feed("guess", correct !== false); },
+      onPileTapped(index) { feed("tapPile", index); },
+      onHigherTapped() { feed("higher"); },
+      onSwipeGuess() { feed("swipe"); },
+      inputGate,
       /** Leaving Zen (quit/menu) silences any lingering bubble WITHOUT
           stamping — an unfinished tour re-offers itself on the next deal.
           (The layer is fixed-position; without this it would hover over the
           main menu after a mid-tour quit.) */
       suspend() {
         if (!active) return;
-        active = false; queue = []; hideBubble();
+        active = false; steps = null; waiting = false; hideBubble();
       },
     };
   })();
@@ -20645,6 +20855,10 @@ const UIRenderer = (() => {
   function submitGuess(guess) {
     Sound.tap();
     if (selected === null) return;
+    // Guided-tour scripted walk: "next"/"tapPile" steps admit no button guess;
+    // the "higher" step admits ONLY the ▲ button.
+    const g = Tutorial.inputGate();
+    if (g === "board" || g === "pile0" || (g === "higher" && guess !== "higher")) return;
     engine.guess(selected, guess);
   }
 
@@ -21938,6 +22152,11 @@ const UIRenderer = (() => {
       // SLIGHT-fan hint is different: it's non-blocking — presses arm
       // normally below, so swipes still guess while the hint is showing.)
       if (pileFanIndex != null) return;
+      // Guided-tour scripted walk (v6.51): while a "next" step is up the board
+      // is read-only; a "tapPile" step admits pile 1 only; a "higher" step
+      // admits only the ▲ button. Milestone waits never gate.
+      const tutGate = Tutorial.inputGate();
+      if (tutGate === "board" || tutGate === "higher") return;
       const cell = e.target.closest(".bp-cell");
       if (cell) {   // Pillar-indicator hold-to-peek
         // Capture the pointer so the held peek tracks the finger anywhere and
@@ -21956,6 +22175,7 @@ const UIRenderer = (() => {
       }
       const pileEl = e.target.closest(".pile");
       if (!pileEl) return;
+      if (tutGate === "pile0" && Number(pileEl.dataset.index) !== 0) return;   // tour: only pile 1 admits input
       // Drag-to-guess only during active play (never while an activation/confirm
       // prompt is up); otherwise let the click handle tap-select / sticker apply.
       if (engine && engine.isRunStarted() && engine.getStatus() === "playing" && !promptActive) {
@@ -22014,7 +22234,8 @@ const UIRenderer = (() => {
           suppressPileClick = true;   // it was a drag, not a tap
           // Commit the direction at RELEASE: Higher / Lower / Same. The player may
           // have changed direction mid-swipe; only the final one counts.
-          if (pileDrag.armed) engine.guess(pileDrag.index, pileDrag.armed);
+          // (The tour's scripted walk already gated the press at pointerdown.)
+          if (pileDrag.armed) { Tutorial.onSwipeGuess(); engine.guess(pileDrag.index, pileDrag.armed); }
           // else: released in the centre dead-zone → cancel (no guess, pile stays selected)
         } else if (fanHintOn) {
           // SLIGHT-FAN hint on + a clean TAP (never moved, no hold fired):
@@ -22062,15 +22283,9 @@ const UIRenderer = (() => {
         }
         return;
       }
-      // A Demolish Base is armed: a tap on a highlighted Pillar banner fires it.
-      if (armedBaseAct && armedBaseAct.pillarTarget) {
-        const bp = e.target.closest(".bp-cell");
-        if (bp) {
-          const tcol = Number(bp.dataset.col);
-          if (pillarTargets().indexOf(tcol) !== -1) { const col = armedBaseAct.col; disarmBaseAct(); fireBase(col, tcol); }
-        }
-        return;   // any other tap is ignored — back out via Cancel
-      }
+      // (v6.51: Demolish no longer picks a Pillar target — it destroys its OWN
+      // column's Pillar via the plain whole-column confirm, like every other
+      // non-target Base.)
       // A target Base is armed: a tap on a highlighted pile fires it.
       if (armedBaseAct && !armedBaseAct.confirm) {
         if (tPile) {
@@ -22139,7 +22354,14 @@ const UIRenderer = (() => {
         if (peekTapPile === index) { closePeekInfo(); peekTapPile = null; }
         else { openCardPeek(index); peekTapPile = index; }
       }
-      else selectPile(index);
+      else {
+        // Guided-tour scripted walk: a "next"/"higher" step swallows board taps;
+        // "tapPile" admits pile 1 only (the press was gated at pointerdown too).
+        const g = Tutorial.inputGate();
+        if (g === "board" || g === "higher" || (g === "pile0" && index !== 0)) return;
+        Tutorial.onPileTapped(index);
+        selectPile(index);
+      }
     });
 
     // Peek popup buttons: a Pillar's Sell button (remove + sell), or a
@@ -22350,6 +22572,7 @@ const UIRenderer = (() => {
       btn.addEventListener("pointercancel", release);
       btn.addEventListener("click", () => {
         if (suppressClick) { suppressClick = false; return; }   // a hold already showed info
+        if (dir === "higher") Tutorial.onHigherTapped();   // the guided tour's ▲-gated step listens
         submitGuess(dir);
       });
     });
@@ -22507,11 +22730,13 @@ const UIRenderer = (() => {
       const tile = e.target.closest(".store-tile");
       if (tile && !tile.classList.contains("empty")) openStoreDetail(Number(tile.dataset.slot));
     });
-    // Hold-for-help on the one unified shelf (any slot, any kind).
+    // Hold-for-help on the one unified shelf (any slot, any kind). A mystery
+    // same-power slot carries no id — resolve it to the "mystery" sentinel so
+    // its store-config description shows like any other item's help.
     attachStoreHoldHelp(el.storeItems, (tile) => {
       const offer = campaign && campaign.getStoreOffer();
       const s = offer && offer.slots ? offer.slots[Number(tile.dataset.slot)] : null;
-      return s ? { kind: s.kind, id: s.id } : null;
+      return s ? { kind: s.kind, id: s.mystery ? "mystery" : s.id } : null;
     });
     // Equipped-loadout reference: tap/hold an equipped chip → its read-only help
     // (the same focused detail card, no Buy) so it can be compared to an offer.
@@ -23448,6 +23673,10 @@ const UIRenderer = (() => {
         armedRevive = null; armedBaseAct = null;
         if (el.board) el.board.classList.remove("armed-revive", "armed-base");
         hideActionBar();
+        // Guided first-run tour (v6.51 interactive): rig the scripted opening
+        // (a 3 on pile 1, an Ace next) BEFORE the board renders, so the tour's
+        // "tap the 3 → guess higher" always wins.
+        if (zenMode && Tutorial.willGuide()) engine.debug.arrangeTutorialOpening();
         renderBoard(payload.board, payload.deck);
         // Deal-out cascade (presentation): hide the just-painted pile cards NOW
         // (before first paint) so the board reads blank, then fly them in from the
@@ -23767,7 +23996,7 @@ const UIRenderer = (() => {
         if (payload.correct && payload.guess === "same") DeckChar.react("happy");
         else if (payload.correct) DeckChar.react("glad");
         else DeckChar.react("sad");
-        Tutorial.onGuessResolved();   // playing now — any lingering tip steps aside
+        Tutorial.onGuessResolved(payload.correct);   // the guided tour's milestone waits / gated steps feed on resolved guesses
         // Setup trays are closed during play — rebuilding them per guess is
         // pure waste; the setup flow re-renders them when the window reopens.
         if (engine && engine.canApplyStickers()) renderSetupInv();
@@ -28778,6 +29007,14 @@ const UIRenderer = (() => {
       PixelArt.img("samePower", "sp-mark") +
       '</span><span class="sp-badge-name">' + t.label + '</span></span>';
   }
+  /* MYSTERY SAME-POWER (v6.51): the unknown-power slot's badge — the "?"
+   plate (samePowerMystery matrix) + the store.mysterySamePower label. Used on
+   the shelf tile, the buy detail, and as the reveal's pre-flip face. */
+  function mysterySamePowerBadgeHtml() {
+    return '<span class="sp-badge sp-badge-mystery"><span class="sp-badge-ico">' +
+      PixelArt.img("samePowerMystery", "sp-mark") +
+      '</span><span class="sp-badge-name">' + escHtml(ItemData.store.mysterySamePower.label) + '</span></span>';
+  }
   const KIND_LABEL = { sticker: "Sticker", pillar: "Pillar", base: "Base", pack: "Pack", card: "Card", samepower: "Same-Power", removal: "Removal" };
   /* The Removal store object: a stitched-grey ∅ card (the same palette as a
      Removal pack/map card), so the permanent slot 6 reads as "thin your deck". */
@@ -28809,6 +29046,16 @@ const UIRenderer = (() => {
       btn.dataset.slot = slot;
       const rot = DCS_ROT_SHOP[slot % DCS_ROT_SHOP.length];
       btn.innerHTML = '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj obj-removal">' + removalBadgeHtml() + '</span>' +
+        '<span class="ti-price">' + COIN_SVG + price + '</span>';
+      return btn;
+    }
+    if (kind === "samepower" && s && s.mystery) {   // MYSTERY SAME-POWER (v6.51): unknown "?" plate, fixed price
+      const price = campaign.priceOfMixed(slot);
+      const affordable = campaign.getCoins() >= price;
+      btn.className = "store-tile tile-samepower tile-mystery" + (affordable ? "" : " disabled") + (selected ? " sel" : "");
+      btn.dataset.slot = slot;
+      const rot = DCS_ROT_SHOP[slot % DCS_ROT_SHOP.length];
+      btn.innerHTML = '<span style="transform:rotate(' + rot + 'deg)" class="ti-obj obj-samepower">' + mysterySamePowerBadgeHtml() + '</span>' +
         '<span class="ti-price">' + COIN_SVG + price + '</span>';
       return btn;
     }
@@ -28877,6 +29124,9 @@ const UIRenderer = (() => {
       desc: ItemData.store.removal.description + " (next one: " + (campaign ? campaign.removalPrice() : ItemData.store.removal.price) + " coins)." };
     if (kind === "card") return { icon: ItemData.store.card.icon || "🂠", label: ItemData.store.card.label || "Card", tier: "",
       desc: ItemData.store.card.description };
+    // MYSTERY SAME-POWER: the id-less slot resolves to its store config entry.
+    if (kind === "samepower" && id === "mystery") return { icon: ItemData.store.mysterySamePower.icon || "?",
+      label: ItemData.store.mysterySamePower.label, tier: "", desc: ItemData.store.mysterySamePower.description };
     const reg = kind === "pillar" ? PillarTypes : kind === "base" ? BaseTypes : kind === "pack" ? PackTypes : kind === "samepower" ? SamePowerTypes : StickerTypes;
     const t = id ? reg.get(id) : null;
     return t ? { icon: t.icon, label: t.label, tier: t.tier, desc: itemDescription(t) } : null;
@@ -29056,6 +29306,23 @@ const UIRenderer = (() => {
       el.sdBuy.classList.remove("hidden");
       el.sdPlace.classList.add("hidden");
       sdDetailKind = "removal"; sdDetailId = "removal"; sdDetailPrice = campaign.removalPrice(); sdPlaceCol = null;
+      updateSdBuy();
+      el.storeDetail.classList.remove("hidden");
+      return;
+    }
+    if (s.kind === "samepower" && s.mystery) {   // MYSTERY SAME-POWER: unknown "?" panel, plain Buy (reveal after purchase)
+      selectedMixedSlot = slot; selectedStickerSlot = null;
+      el.sdObj.className = "sd-obj obj-samepower";
+      el.sdObj.innerHTML = mysterySamePowerBadgeHtml();
+      el.sdTier.textContent = ""; el.sdTier.dataset.tier = "";
+      el.sdName.textContent = ItemData.store.mysterySamePower.label;
+      el.sdDesc.textContent = ItemData.store.mysterySamePower.description;
+      el.sdBuy.dataset.kind = "mixed";   // → confirmBuyMixed, which opens the reveal
+      el.sdBuy.classList.remove("hidden");
+      el.sdPlace.classList.add("hidden");   // no placement chooser — the power is unknown until bought
+      if (el.sdCompare) el.sdCompare.classList.add("hidden");
+      if (el.sdReplaceQ) el.sdReplaceQ.classList.add("hidden");
+      sdDetailKind = "mysterysamepower"; sdDetailId = "mystery"; sdDetailPrice = campaign.priceOfMixed(slot); sdPlaceCol = null;
       updateSdBuy();
       el.storeDetail.classList.remove("hidden");
       return;
@@ -29475,14 +29742,26 @@ const UIRenderer = (() => {
     const s = offer && offer.slots ? offer.slots[slot] : null;
     if (!s) return;
     // SEED1: a pack buy's contents key to (store node, slot) — never call order.
-    const res = campaign.buyMixedSlot(slot, campaign.runRng("storepack", campaign.nodePos(), slot));
+    // A MYSTERY same-power's reveal roll gets its own key, same pattern.
+    const rngKey = (s.kind === "samepower" && s.mystery) ? "mysterysamepower" : "storepack";
+    const res = campaign.buyMixedSlot(slot, campaign.runRng(rngKey, campaign.nodePos(), slot));
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
     if (res.kind === "pillar" || res.kind === "base") {
       try { if (!campaign.isExhibition()) { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.scheduleFlush(); } } catch (e) {}
     }
-    if (res.kind === "samepower") {
+    if (res.kind === "samepower" && res.mystery) {
+      // MYSTERY SAME-POWER (v6.51): the concrete power was rolled at buy time
+      // (into the Same-Power inventory) — reveal it, then Keep (equip) or
+      // Discard (no refund) on the bottom action bar.
+      const t = SamePowerTypes.get(res.samePowerId);
+      if (engine) engine.logAction("Store: revealed Mystery Same-Power " + ((t && t.label) || res.samePowerId));
+      try { if (!campaign.isExhibition()) { Telem.purchase("samepower", res.samePowerId, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
+      renderStore();
+      refreshDebug();
+      openMysterySamePowerReveal(res.samePowerId);
+    } else if (res.kind === "samepower") {   // legacy concrete slot (old save)
       const t = SamePowerTypes.get(s.id);
       try { if (!campaign.isExhibition()) { Telem.purchase("samepower", s.id, t && t.label); Telem.scheduleFlush(); } } catch (e) {}
       renderStore();
@@ -29534,9 +29813,57 @@ const UIRenderer = (() => {
     Sound.pack();                  // a pack was opened / revealed
   }
   function closePackReveal() {
+    const wasMystery = !!(packRevealState && packRevealState.mode === "mystery");
     packRevealState = null; closePackItemInfo();
     el.packReveal.classList.add("hidden"); el.packReveal.classList.remove("pack-show");
     el.packItems.innerHTML = "";
+    if (wasMystery) {   // the Keep/Discard bar never outlives its reveal
+      document.body.classList.remove("mystery-reveal");
+      hideActionBar();
+    }
+  }
+
+  /* MYSTERY SAME-POWER reveal (v6.51): after a mystery slot is bought, the
+     concrete power (already rolled into the Same-Power inventory by
+     buyMixedSlot) is REVEALED in the pack-reveal overlay — one fixed-size
+     panel, one item, no hidden/revealed resize — and the Keep/Discard choice
+     rides the shared bottom action bar (lifted over the overlay via
+     body.mystery-reveal). Keep equips it (equipSamePower — a displaced power
+     returns to inventory, per the current buy flow); Discard destroys it, no
+     refund. Forced choice: no backdrop dismiss. */
+  function openMysterySamePowerReveal(id) {
+    const t = SamePowerTypes.get(id);
+    if (!t) return;
+    packRevealState = { kind: "samepower", mode: "mystery", items: [id], chosen: [], keep: 1, pending: null };
+    el.packReveal.classList.remove("hidden");
+    renderPackReveal();
+    Sound.pack();                  // reveal sting (same language as a pack tear)
+    document.body.classList.add("mystery-reveal");
+    showActionBar("Keep " + escHtml(t.label) + "?", [
+      { label: "Discard", cls: "no", onClick: () => resolveMysterySamePower(false) },
+      { label: "Keep", cls: "primary", onClick: () => resolveMysterySamePower(true) },
+    ], [], { help: (t.description || "") + "\n\nDiscard refunds nothing." });
+  }
+  function resolveMysterySamePower(keep) {
+    const st = packRevealState;
+    if (!st || st.mode !== "mystery") return;
+    const id = st.items[0];
+    const t = SamePowerTypes.get(id);
+    const label = (t && t.label) || id;
+    closePackReveal();   // also drops mystery-reveal + hides the action bar
+    if (keep) {
+      campaign.equipSamePower(id);   // a displaced power returns to inventory
+      if (engine) engine.logAction("Store: kept Same-Power " + label);
+      updateSamePowerHud();
+      el.storeMsg && (el.storeMsg.textContent = label + " equipped as your Same-Power.");
+    } else {
+      campaign.discardSamePowerFromInventory(id);   // no refund
+      if (engine) engine.logAction("Store: discarded the revealed Same-Power (" + label + ")");
+      el.storeMsg && (el.storeMsg.textContent = label + " discarded.");
+    }
+    persistCampaign("store");
+    renderStore();
+    refreshDebug();
   }
 
   /* Map PACK open: reuse the store's pack-reveal overlay in a reveal-ONLY mode
@@ -29567,8 +29894,24 @@ const UIRenderer = (() => {
   const PACK_MANY_AT = 5;
   function renderPackReveal() {
     const st = packRevealState; if (!st) return;
-    el.packReveal.classList.toggle("pack-show", st.mode === "show");
+    el.packReveal.classList.toggle("pack-show", st.mode === "show" || st.mode === "mystery");
     el.packReveal.classList.toggle("pack-many", (st.items || []).length > PACK_MANY_AT);
+    if (st.mode === "mystery") {
+      // Mystery Same-Power reveal: ONE revealed power, no pick — the
+      // Keep/Discard choice rides the bottom action bar (opened with the
+      // overlay), so every in-panel button stays hidden. Tap-for-info still
+      // works (data-info), same as the map reveal.
+      if (el.packDeckBtn) el.packDeckBtn.classList.add("hidden");
+      const t = SamePowerTypes.get(st.items[0]);
+      el.packItems.innerHTML = packItemButton(
+        '<div class="pk-sticker pk-samepower">' + (t ? samePowerBadgeHtml(t) : '<span class="pks-ic">?</span>') + "</div>",
+        "data-info", 0, false);
+      el.packTitle.textContent = "Mystery Same-Power";
+      el.packMsg.textContent = t ? ("It's " + t.label + "!") : "";
+      el.packConfirmBtn.classList.add("hidden");
+      if (el.packSkipBtn) el.packSkipBtn.classList.add("hidden");
+      return;
+    }
     if (st.mode === "show") {
       // Map pack: reveal-only (everything shown was already added to the deck).
       // Cards are tap-for-info but NOT selectable; one Confirm returns to the map.
@@ -29683,7 +30026,7 @@ const UIRenderer = (() => {
      reveal with no items kept and no refund. Not offered during the forced
      discard step. */
   function skipPackReveal() {
-    const st = packRevealState; if (!st || st.mode === "discard") return;
+    const st = packRevealState; if (!st || st.mode === "discard" || st.mode === "mystery") return;
     if (engine) engine.logAction("Skipped a pack (kept nothing)");
     closePackItemInfo();
     closePackReveal();
@@ -29702,6 +30045,10 @@ const UIRenderer = (() => {
      (name + description). All text from the registries. Driven by selecting an
      item (packSelect), mirroring how the main store shows a selection's info. */
   function packItemInfoHtml(st, i) {
+    if (st.kind === "samepower") {
+      const t = SamePowerTypes.get(st.items[i]);
+      return { title: t ? escHtml(t.label) : "Same-Power", body: t ? escHtml(t.description || "") : "" };
+    }
     if (st.kind === "card") {
       const c = st.items[i];
       if (c.joker) return { title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE — when it's drawn and placed on a pile, AND when you guess on top of it — higher, lower, or same, it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power." };
@@ -31222,16 +31569,8 @@ const UIRenderer = (() => {
   function baseTargetPrompt(base) {
     switch (base && base.effect) {
       case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
-      case "demolish":       return "Choose one of your Pillars to destroy — the rubble reveals the next 2 upcoming cards.";
       default:               return "Choose a target pile.";
     }
-  }
-  /** Columns that currently hold a Pillar (Demolish's targets). */
-  function pillarTargets() {
-    const run = engine.getRun();
-    const out = [];
-    if (run && run.pillars) for (let c = 0; c < run.pillars.length; c++) if (run.pillars[c]) out.push(c);
-    return out;
   }
   function toggleArmBase(col) {
     if (armedBaseAct && armedBaseAct.col === col) { disarmBaseAct(); return; }
@@ -31239,17 +31578,6 @@ const UIRenderer = (() => {
     const base = engine.baseForColumn(col);
     armedRevive = null;
     clearSelection();
-    if (base.target === "pillar") {
-      // Demolish: target a PILLAR banner (not a pile). Highlight the destroyable
-      // Pillars; a tap on one fires; Cancel backs out.
-      armedBaseAct = { col, pillarTarget: true };
-      if (el.board) { el.board.classList.add("armed-base-pillar"); el.board.classList.remove("armed-base", "armed-revive"); }
-      showActionBar(baseTargetPrompt(base), [
-        { label: "Cancel", cls: "no", onClick: disarmBaseAct },
-      ], [], { help: itemDescription(base) });
-      refreshActivatableIndicators();
-      return;
-    }
     if (engine.baseNeedsTarget(col)) {
       armedBaseAct = { col };
       if (el.board) { el.board.classList.add("armed-base"); el.board.classList.remove("armed-revive"); }

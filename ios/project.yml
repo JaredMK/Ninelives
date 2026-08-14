@@ -75,15 +75,22 @@ targets:
         CFBundleDisplayName: Shoulda Said Same
         CFBundleShortVersionString: "0.1"
         CFBundleVersion: "1"
-        # Storyboard-free launch screen: felt-deep and EMPTY. The system shows
-        # this before the first app frame and its order can't be changed, so
-        # the JarHead Labs credit was always landing BEFORE the title. It now
-        # lives inside the title sequence (MainMenuViewController.runIntro),
-        # under the wordmark, where it reads as a byline. The bare felt here
-        # means the launch screen is invisible against the menu it hands to.
+        # LAUNCH SCREEN (v6.52): the menu's OWN first frame — felt + tissue
+        # atmosphere baked to LaunchBackdrop by the `-splashFrame 1` harness
+        # flag — so the boot hold is visually continuous with the title splash
+        # that follows (a bare UIColor hold read as a broken green screen on a
+        # cold install). The JarHead Labs credit still lives inside the title
+        # sequence (MainMenuViewController.runIntro), under the wordmark.
+        # Dict form, NOT a storyboard: launch storyboards render BLACK on the
+        # iOS 26 simulator runtime (observed v6.52; color-only reproduced it),
+        # while this static form renders reliably. The image is centered at
+        # intrinsic point size, so LaunchBackdrop is baked OVERSIZED (the
+        # largest iPhone canvas) and center-crops on smaller devices; the
+        # color fills any iPad letterbox with the same felt.
         UILaunchScreen:
           UIColorName: LaunchBackground
-          UIImageRespectsSafeAreaInsets: true
+          UIImageName: LaunchBackdrop
+          UIImageRespectsSafeAreaInsets: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:

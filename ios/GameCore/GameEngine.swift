@@ -542,6 +542,15 @@ public final class GameEngine {
             run.snowballUpdates[drawn.id] = 0
         }
 
+        // Compound (v6.51): a WRONG guess against a pile whose TOP card carries
+        // Compound resets that card's banked total to 0 — Snowball's semantics,
+        // keyed off the pile-TOP card the guess was made AGAINST rather than
+        // the drawn one. The reset rides the same write-back (`compoundUpdates`).
+        if !correct, current.stickers.contains(where: { $0.type == "compound" }) {
+            current.compoundHits = 0
+            run.compoundUpdates[current.id] = 0
+        }
+
         // MALFUNCTION: guessing correctly against the cursed top rolls the
         // card blowing the pile anyway. The guess stays correct in the
         // tallies; the death bypasses every save (nothing malfunctions

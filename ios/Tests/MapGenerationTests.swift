@@ -403,4 +403,59 @@ final class MapGenerationTests: XCTestCase {
         XCTAssertLessThanOrEqual(m.difficultyScore(targetD: stage1Hard, phaseIndex: 2, isBoss: false), 2,
                                  "stage 1's hardest is not stage 3's hardest")
     }
+
+    // MARK: - genV5 opening row (v6.52)
+
+    /// v5 gives the run's FIRST decision a real spread: row-0 deals take
+    /// ascending targets across firstDealBandV5 with DISTINCT pile counts, and
+    /// a wide (3+) opening row flips one non-leftmost door to a pickup/pack
+    /// when the route guarantees allow it. The leftmost door stays a deal at
+    /// the gentle floor.
+    func testGenV5OpeningRowSpreadsRatingsAndAddsVariety() {
+        let m = generator()
+        var spread = 0, mixed = 0, wide = 0, total = 0
+        for seed in 1...40 {
+            guard let ph = m.generateStage(phaseIndex: 0, seed: UInt32(seed), entryDeck: 13,
+                                           opts: RunMap.GenOptions(genVersion: 5)) else { continue }
+            total += 1
+            let row0 = ph.row0.compactMap { ph.byId[$0] }
+            let deals = row0.filter { $0.type == "deal" }
+            XCTAssertGreaterThanOrEqual(deals.count, 2, "seed \(seed): the opening keeps 2+ deal doors")
+            XCTAssertEqual(row0.first?.type, "deal", "seed \(seed): the leftmost door stays a deal")
+            for n in row0 where n.type != "deal" {
+                XCTAssertEqual(n.type, "mystery",
+                               "seed \(seed): opening variety is a MYSTERY (a card add at the route root would shift every deck budget)")
+            }
+            if row0.count >= 3 {
+                wide += 1
+                if deals.count < row0.count { mixed += 1 }
+            }
+            let ratings = Set(deals.map {
+                m.difficultyScore(targetD: $0.targetD ?? 0, phaseIndex: 0, isBoss: false)
+            })
+            if deals.count >= 2, ratings.count >= 2 { spread += 1 }
+        }
+        XCTAssertGreaterThan(total, 30, "the sweep must actually generate")
+        XCTAssertGreaterThan(Double(spread) / Double(total), 0.7,
+                             "most v5 openings offer at least two different deal ratings (got \(spread)/\(total))")
+        if wide > 0 {
+            XCTAssertGreaterThan(Double(mixed) / Double(wide), 0.5,
+                                 "most wide openings carry a non-deal door (got \(mixed)/\(wide))")
+        }
+    }
+
+    /// Old saves regenerate through their stamped genV: the v4 opening row
+    /// stays all-deals, band-locked and tied — pinned so a resumed campaign
+    /// keeps the exact map it was saved with.
+    func testGenV4OpeningRowStaysUniformForOldSaves() {
+        let m = generator()
+        for seed in seeds.prefix(4) {
+            guard let ph = m.generateStage(phaseIndex: 0, seed: seed, entryDeck: 13,
+                                           opts: RunMap.GenOptions(genVersion: 4)) else { continue }
+            let row0 = ph.row0.compactMap { ph.byId[$0] }
+            XCTAssertTrue(row0.allSatisfy { $0.type == "deal" }, "seed \(seed): v4 openings are all deals")
+            XCTAssertEqual(Set(row0.map { $0.piles ?? -1 }).count, 1,
+                           "seed \(seed): v4 opening deals tie on pile count")
+        }
+    }
 }

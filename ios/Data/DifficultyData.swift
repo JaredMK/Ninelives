@@ -51,6 +51,11 @@ public struct DifficultyData: Sendable {
 
     public let endlessBandStep: Double
     public let firstDealBand: [Double]
+    /// The genV≥5 OPENING-ROW band: row-0 deals spread ascending across it
+    /// (the first option pinned at the gentle floor). Falls back to
+    /// `firstDealBand` when difficulty.js doesn't carry the knob, so older
+    /// data files stay valid; genV<5 regeneration never reads it.
+    public let firstDealBandV5: [Double]
     public let subset: SubsetConfig
     private let tiers: [String: DifficultyTier]
     private let zenById: [String: ZenConfig]
@@ -98,6 +103,18 @@ public struct DifficultyData: Sendable {
             firstDealBand = [lo, hi]
         } else {
             problems.append("[difficulty.js] firstDealBand: must be a [lo, hi] pair of numbers")
+        }
+
+        // OPTIONAL v5 opening band — absent falls back to firstDealBand; a
+        // PRESENT-but-malformed knob still fails loud like everything else.
+        var firstDealBandV5 = firstDealBand
+        if let raw = root["firstDealBandV5"] {
+            if let fb = raw.asArray, fb.count == 2,
+               let lo = fb[0].asNumber, let hi = fb[1].asNumber, lo <= hi {
+                firstDealBandV5 = [lo, hi]
+            } else {
+                problems.append("[difficulty.js] firstDealBandV5: must be a [lo, hi] pair of numbers with lo <= hi")
+            }
         }
 
         var subset = SubsetConfig(threshold: 0, min: 0, max: 0)
@@ -217,6 +234,7 @@ public struct DifficultyData: Sendable {
 
         if !problems.isEmpty { throw DataValidationError(file: "difficulty.js", problems: problems) }
         return DifficultyData(endlessBandStep: step ?? 0, firstDealBand: firstDealBand,
+                              firstDealBandV5: firstDealBandV5,
                               subset: subset, tiers: tiers, zenById: zen)
     }
 

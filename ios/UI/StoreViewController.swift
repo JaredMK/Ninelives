@@ -58,13 +58,19 @@ public final class StoreViewController: UIViewController {
         tissue.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(tissue)          // #tissue atmosphere, bottommost
 
-        // Fresh visit rolls a new offer; a resume keeps the saved one (a
-        // refresh while shopping can never hand out a free reroll). SEED1: the
-        // offer keys to the node id.
-        if campaign.getStoreOffer() == nil {
-            let keyId = offerNodeId ?? campaign.nodePos
+        // Fresh visit rolls a new offer; a resume of THIS visit keeps the
+        // saved one (a refresh while shopping can never hand out a free
+        // reroll). SEED1: the offer keys to the node id. v6.52: an offer
+        // stamped for a DIFFERENT node is the previous shop's leftover — the
+        // mystery-detour store opens with fresh=false and used to inherit
+        // both that stale shelf and its per-visit price twist — so a
+        // mismatch rerolls. A nil stamp (gift shelf, pre-v6.52 save) keeps
+        // the saved offer.
+        let keyId = offerNodeId ?? campaign.nodePos
+        if campaign.getStoreOffer() == nil || campaign.storeOfferIsStale(for: keyId) {
             if let keyId {
-                _ = campaign.openStore(rng: runRng(seed: campaign.runSeed, [.s("store"), .n(keyId)]))
+                _ = campaign.openStore(rng: runRng(seed: campaign.runSeed, [.s("store"), .n(keyId)]),
+                                       node: keyId)
             } else {
                 _ = campaign.openStore()
             }
@@ -194,12 +200,15 @@ public final class StoreViewController: UIViewController {
                 // under the art (the tile caption below), never baked in.
                 let art = s.kind == "removal"
                     ? ItemArt.removal(width: 52, height: 66)
+                    : s.mystery ? ItemArt.mysterySamePower(width: 56, height: 58)
                     : ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId)
-                // Only packs (.pf-name) and Removal (.ro-lab) carry a NAME on
-                // the web shelf — pillar/base/sticker tiles are art + price
-                // only. The label always comes from the registry.
+                // Only packs (.pf-name), Removal (.ro-lab) and the MYSTERY
+                // Same-Power carry a NAME on the web shelf — pillar/base/
+                // sticker tiles are art + price only. The label always comes
+                // from the registry (the store config for the mystery slot).
                 let caption = s.kind == "pack" ? GameData.shared.packTypes.get(s.id)?.label
-                    : s.kind == "removal" ? GameData.shared.items.store.removal.label : nil
+                    : s.kind == "removal" ? GameData.shared.items.store.removal.label
+                    : s.mystery ? GameData.shared.items.store.mysterySamePower.label : nil
                 tile.configure(art: art, kind: s.kind, caption: caption,
                                restriction: s.kind == "sticker"
                                    ? GameData.shared.stickerTypes.get(s.id)
@@ -239,6 +248,7 @@ public final class StoreViewController: UIViewController {
     }
 
     private func tierOf(_ s: StoreSlot) -> String {
+        if s.mystery { return "" }   // the mystery slot has no rarity to hint at
         let data = GameData.shared
         switch s.kind {
         case "pillar": return data.pillarTypes.get(s.id)?.tier ?? "common"
@@ -385,6 +395,13 @@ public final class StoreViewController: UIViewController {
     private func showHelp(kind: String, id: String, card: CardSpec?) {
         let data = GameData.shared
         var title = "", tier = "", desc = "", suitLine: String? = nil
+        // The MYSTERY Same-Power slot's help comes from the store config —
+        // there is no registry entry behind it until the buy reveals one.
+        if kind == "samepower" && id == StoreSlot.mysteryId {
+            let cfg = data.items.store.mysterySamePower
+            showHoldHelp(title: cfg.label, body: cfg.description)
+            return
+        }
         switch kind {
         case "card":
             title = card?.joker == true ? "★ Joker" : "Card"
@@ -512,6 +529,20 @@ public final class StoreViewController: UIViewController {
             }
             present(picker, animated: false)
 
+        case "samepower" where s.mystery:
+            // MYSTERY SAME-POWER: the concrete id rolls NOW, seeded to
+            // (node, slot) — the storepack keying — then the reveal offers
+            // Keep (equip) or Discard on the shared prompt bar.
+            let keyId = offerNodeId ?? campaign.nodePos ?? 0
+            let rng = runRng(seed: campaign.runSeed, [.s("mysterysamepower"), .n(keyId), .n(slot)])
+            let res = campaign.buyMixedSlot(slot, mysteryRng: rng)
+            guard res.ok, let revealed = res.revealed,
+                  let def = GameData.shared.samePowerTypes.get(revealed) else { return }
+            Haptics.purchase()
+            closeDetail()
+            render()
+            revealMysterySamePower(def)
+
         case "pillar", "base", "samepower":
             guard let col = placeCol else { return }
             let res = campaign.buyMixedSlot(slot)
@@ -560,6 +591,44 @@ public final class StoreViewController: UIViewController {
         default:
             break
         }
+    }
+
+    // MARK: - Mystery Same-Power reveal
+
+    /// The buy revealed a concrete Same-Power: show it (detail panel, read-only)
+    /// and ask KEEP (equip through the usual same-power purchase flow, incl.
+    /// the displaced sell-back) or DISCARD (gone, no refund) on the shared
+    /// prompt bar. MODAL — the money is spent; there is no backing out.
+    private func revealMysterySamePower(_ def: ItemDef) {
+        let d = StoreDetailView(campaign: campaign, revealedSamePower: def)
+        d.frame = view.bounds
+        view.insertSubview(d, belowSubview: crt)
+        detail = d
+        prompt.show("It's \(def.label)!", help: campaign.itemDescription(def), actions: [
+            .init("Discard", role: .danger) { [weak self] in
+                guard let self else { return }
+                self.prompt.hide()
+                _ = self.campaign.discardSamePowerFromInventory(def.id)
+                self.setMessage("\(def.label) discarded. The coins are spent either way.")
+                self.closeDetail()
+                self.render()
+            },
+            .init("Keep", role: .cta) { [weak self] in
+                guard let self else { return }
+                self.prompt.hide()
+                // The existing same-power purchase flow: equip, and a displaced
+                // power is SOLD BACK (coins in, card destroyed).
+                let prev = self.campaign.getSamePower()
+                _ = self.campaign.equipSamePower(def.id)
+                if let prev, prev != def.id {
+                    _ = self.campaign.discardSamePowerFromInventory(prev)
+                    _ = self.campaign.addCoins(self.sellValue(GameData.shared.samePowerTypes.get(prev)))
+                }
+                self.setMessage("\(def.label) equipped as your Same-Power.")
+                self.closeDetail()
+                self.render()
+            },
+        ])   // no dismiss handler: an outside tap answers nothing
     }
 
     // MARK: - Packs

@@ -91,7 +91,8 @@ final class ItemValidationTests: IVCase {
                     XCTAssertEqual(c.priceOfMixed(i), 0, "freebie: the gifted slot displays 0")
                     while c.getCoins() > 0 { _ = c.spendCoins(1) }
                     let kind = c.storeOffer!.slots[i]!.kind
-                    let ok = kind == "sticker" ? c.buyOfferedSticker(i) : c.buyMixedSlot(i).ok
+                    let ok = kind == "sticker" ? c.buyOfferedSticker(i)
+                        : c.buyMixedSlot(i, mysteryRng: RNG(seed: seed &+ 5000)).ok
                     XCTAssertTrue(ok, "freebie: a 0-coin purse completes the free buy (\(kind))")
                     XCTAssertEqual(c.getCoins(), 0, "freebie: charged nothing")
                     return

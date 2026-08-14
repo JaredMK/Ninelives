@@ -40,7 +40,12 @@ extension GameEngine {
         case "randomSticker":     return alive.contains { !wildStickerPoolFor(board.top($0)).isEmpty }
         case "evenOut":           return alive.count >= 2
         case "setValue":          return !alive.isEmpty
-        case "setSuit":           return !alive.isEmpty
+        // SUIT SETTER (v6.52): green only when it can CHANGE something —
+        // more than one alive pile AND at least two different printed suits
+        // among their tops. One pile, or an already-uniform column, is amber.
+        case "setSuit":
+            let tops = alive.compactMap { board.top($0) }.filter { !$0.joker }
+            return alive.count > 1 && Set(tops.map(\.suit)).count > 1
         case "stickerHarvest":    return !alive.isEmpty
         case "refreshBases":      return !refreshableBaseColumns(col).isEmpty
         case "suitDig":           return !deck.isEmpty && alive.contains { topIsSuit($0, base.suit ?? "") }
@@ -52,7 +57,11 @@ extension GameEngine {
         // ESCAPE HATCH: an ambush and nothing else. Outside one it is charged
         // but unusable — which is what its red light says.
         case "ambushWin":         return runConfig.isAmbush && status == "playing"
-        case "demolish":          return run.pillars?.contains { $0 != nil } ?? false
+        case "demolish":
+            // Own column ONLY (v6.51): charged but unavailable while THIS
+            // column carries no Pillar — there is no target pick anymore.
+            guard let col else { return false }
+            return (run.pillars?[safe: col] ?? nil) != nil
         case "heartDemolish":     return alive.contains { topIsSuit($0, "♥") }
         case "tax":               return colHearts > 0
         // Recharge Cell: only when a charge can actually be banked.
@@ -97,6 +106,50 @@ extension GameEngine {
         }
     }
 
+    /// WHY a charged Base can't fire right now (nil when it can, or when the
+    /// reason has no better words than the generic notice). The amber tap
+    /// notice names THIS instead of a shrug — "can't do anything right now"
+    /// made a boss-sealed Last Resort indistinguishable from a broken one
+    /// (v6.52, from a field report that couldn't be diagnosed).
+    public func baseUnavailableReason(_ col: Int?) -> String? {
+        guard let base = baseForColumn(col), !baseCanActivate(col) else { return nil }
+        let alive = colAlivePiles(col)
+        switch base.effect {
+        case "lastResort":
+            if runConfig.isBoss { return "Sealed during a boss deal." }
+            if alive.isEmpty { return "No alive pile in this column to bury under." }
+            if deck.isEmpty { return "No deck cards left to bury." }
+        case "setSuit":
+            if alive.count <= 1 { return "Needs more than one alive pile in this column." }
+            return "The pile cards here already share one suit."
+        case "setValue":
+            if alive.isEmpty { return "No alive pile in this column." }
+        case "clubTell":
+            if deck.isEmpty { return "The deck is empty." }
+            return "Needs a ♣ on top of a pile in this column."
+        case "suitDig":
+            return "Needs a \(base.suit ?? "matching") on top of a pile in this column."
+        case "spadePeek":
+            return "Fires only when EVERY pile in this column has a ♠ on top."
+        case "heartDemolish":
+            return "No ♥-topped pile in this column."
+        case "tax":
+            return "No ♥ cards in this column."
+        case "demolish":
+            return "No Pillar on this column to demolish."
+        case "reviveBase":
+            return "No dead pile in this column to revive."
+        case "rechargeSameShield":
+            return "The Same Charge is already banked."
+        case "activateSamePower":
+            if run.samePower == nil { return "No Same-Power equipped." }
+        case "lonePeek":
+            if run.samePower != nil { return "Works only while NO Same-Power is equipped." }
+        default: break
+        }
+        return nil
+    }
+
     /// Whether column `col`'s Base can be activated right now.
     public func baseAvailable(_ col: Int?) -> Bool {
         guard let col, status == "playing", let run, run.started else { return false }
@@ -115,23 +168,17 @@ extension GameEngine {
         return out
     }
 
-    /// Activate the Base on column `col`. `targetIndex` is the chosen pile (or,
-    /// for Demolish, the chosen COLUMN) for target Bases; ignored by the
-    /// whole-column Bases. Spends the charge and fires the effect.
+    /// Activate the Base on column `col`. `targetIndex` is the chosen pile for
+    /// pile-target Bases (Sticker Harvest); ignored by the whole-column Bases.
+    /// Spends the charge and fires the effect.
     @discardableResult
     public func baseActivate(col: Int, targetIndex: Int? = nil) -> BaseResult? {
         guard baseAvailable(col), let base = baseForColumn(col) else { return nil }
-        // Validate the target for target Bases (column-scoped).
-        let needsTarget = base.target == "pile" || base.target == "pillar"
-        if needsTarget {
+        // Validate the target for pile-target Bases (column-scoped). Demolish
+        // lost its target pick in v6.51 — it destroys its OWN column's Pillar.
+        if base.target == "pile" {
             guard let targetIndex else { return nil }
-            if base.target == "pillar" {
-                // Demolish: targetIndex is the COLUMN of the Pillar to destroy.
-                guard let pillars = run.pillars, targetIndex >= 0, targetIndex < pillars.count,
-                      pillars[targetIndex] != nil else { return nil }
-            } else {
-                guard board.isActive(targetIndex), run.pileColumns?[targetIndex] == col else { return nil }
-            }
+            guard board.isActive(targetIndex), run.pileColumns?[targetIndex] == col else { return nil }
         }
 
         var res = BaseResult(col: col, effect: base.effect ?? "", label: base.label)
@@ -224,17 +271,25 @@ extension GameEngine {
             }
 
         case "clubTell":
-            // The Club Oracle: read the NEXT card against a random ♣ top in
-            // this column — higher, lower or the same. Reveals a direction,
-            // never the card.
+            // The Club Oracle (v6.52): put a TELL MARKER on every alive
+            // ♣-topped pile in this column — the same armed-pile hint chip the
+            // Tell sticker uses (run.tellPiles → pileHint), live until the
+            // next draw consumes it. v6.51 computed the directions but only
+            // FLOATED them for a blink, which read as the base doing nothing;
+            // the armed chip repaints on every board refresh, so the verdict
+            // stays on screen until the player actually uses it.
             let clubs = colAlivePiles(col).filter { matchesSuit(board.top($0), "♣") }
-            guard let pileIdx = pick(clubs), let top = board.top(pileIdx),
-                  let next = deck.peek(1).first else { break }
-            let dir: Guess = next.value > top.value ? .higher
-                          : next.value < top.value ? .lower : .same
-            res.tellPile = pileIdx
-            res.tellDirection = dir
-            logLine("\(base.label): the next card runs \(dir.rawValue) than pile \(pileIdx + 1)'s \(cardName(top))")
+            guard let next = deck.peek(1).first, !clubs.isEmpty else { break }
+            var tells: [(pile: Int, direction: Guess)] = []
+            for pileIdx in clubs {
+                guard let top = board.top(pileIdx) else { continue }
+                let dir: Guess = next.value > top.value ? .higher
+                              : next.value < top.value ? .lower : .same
+                tells.append((pile: pileIdx, direction: dir))
+                run.tellPiles.insert(pileIdx)
+                logLine("\(base.label): marked pile \(pileIdx + 1) — the next card runs \(dir.rawValue) than its \(cardName(top))")
+            }
+            res.tells = tells
 
         case "shuffleColumn":
             // Shuffle every alive pile in the column — FREE. Composition only.
@@ -369,18 +424,17 @@ extension GameEngine {
             logLine("buried \(buried) cards under \(piles) \(base.suit ?? "") pile\(piles == 1 ? "" : "s")")
 
         case "demolish":
-            // targetIndex is the column whose Pillar is destroyed. The rubble
-            // reveals the road ahead: peek the next `peekCount` cards.
-            guard let tc = targetIndex else { break }
-            let destroyedId = run.pillars![tc]
+            // Own column ONLY (v6.51): no target pick. The rubble reveals the
+            // road ahead: peek the next `peekCount` cards.
             let pk = base.int("peekCount", 2)
-            run.pillars![tc] = nil                     // stop its effect immediately
+            let destroyedId = run.pillars![col]
+            run.pillars![col] = nil                     // stop its effect immediately
             run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, pk)
-            res.demolishedCol = tc
+            res.demolishedCol = col
             res.demolishedPillar = destroyedId
             res.peekCount = pk
             res.cards = deck.peek(pk)
-            logLine("destroyed the Pillar on column \(tc + 1), peeking the next \(pk) upcoming cards")
+            logLine("destroyed the Pillar on column \(col + 1), peeking the next \(pk) upcoming cards")
 
         case "heartDemolish":
             // Destroy every alive ♥-topped pile in this column; +coinPerPile each.

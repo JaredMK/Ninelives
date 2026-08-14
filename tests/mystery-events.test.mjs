@@ -60,12 +60,19 @@ export function run() {
     "…and their knobs are gone from items.js");
 
   // ── data: the cursed stickers ─────────────────────────────────────────────
+  // (13-curse overhaul: the family grew past Leech's tributeCoin toll to a
+  //  roster of distinct behaviors — the invariant is price-0 + behavior kind
+  //  + exclusion from every grant pool, not one shared behavior.)
   r.ok(CURSED_IDS.length >= 2, "at least two cursed sticker entries exist (" + CURSED_IDS.join(", ") + ")");
   r.ok(ItemData.stickers.filter(t => t.cursed).every(t =>
-      t.kind === "behavior" && t.behavior === "tributeCoin" && t.price === 0
-      && typeof t.value === "number" && t.value > 0),
-    "cursed stickers are price-0 tributeCoin behaviors with a positive value knob");
+      t.kind === "behavior" && typeof t.behavior === "string" && t.behavior && t.price === 0),
+    "cursed stickers are price-0 behavior stickers");
   r.ok(CURSED_IDS.every(id => !!StickerTypes.get(id)), "cursed stickers stay gettable by id");
+  r.ok(CURSED_IDS.every(id => !StickerTypes.grantable().some(t => t.id === id)),
+    "cursed stickers stay OUT of the grant pool (mystery events only)");
+  r.ok(StickerTypes.get("leech") && StickerTypes.get("leech").behavior === "tributeCoin"
+      && StickerTypes.get("leech").value > 0,
+    "Leech keeps the tributeCoin toll with a positive value knob");
 
   // ── validator: a malformed mystery section fails loudly on load ───────────
   {

@@ -7,7 +7,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, StickerTypes, PillarTypes } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, StickerTypes, PillarTypes, BaseTypes, ItemData } = loadGame();
   const r = makeRunner("new-items.test.mjs");
 
   const deck = () => DeckManager.buildStandardDeck();
@@ -25,7 +25,7 @@ export function run() {
     r.eq(PillarTypes.get("highestEven").label, "Highest Heart", "…and reads Highest Heart");
     r.eq(PillarTypes.get("denseBury").price, 10, "Dense Bury costs 10");
     r.eq(PillarTypes.get("denseBury").tier, "rare", "Dense Bury is Rare");
-    r.eq(PillarTypes.get("revive").price, 13, "Revive costs 13");
+    r.eq(PillarTypes.get("revive").price, ItemData.pillars.find(x => x.id === "revive").price, "Revive costs its items.js price");
     r.eq(PillarTypes.get("revive").tier, "rare", "Revive is Rare");
     r.ok(!PillarTypes.get("kamikaze"), "Kamikaze is no longer a Pillar (moved to Bases)");
     r.ok(!!StickerTypes.get("shuffle"), "Shuffle sticker registered");
@@ -297,7 +297,8 @@ export function run() {
     r.ok(!e.baseNeedsTarget(0), "Kamikaze auto-picks (not a player-target Base)");
     const nextBefore = e.getDeck().peek(1)[0].value;
     const res = e.baseActivate(0);      // no target — auto-picks the ♠ pile in col 0
-    r.ok(res && res.cards && res.cards.length === 3, "Kamikaze peeks the next 3 cards");
+    const PK = BaseTypes.get("kamikaze").peekCount;
+    r.ok(res && res.cards && res.cards.length === PK, "Kamikaze peeks the next peekCount cards (" + PK + ")");
     r.ok(res && res.index === 1 && !e.getBoard().isActive(1), "the ♠ pile in its column is auto-killed");
     r.ok(e.getRun().basesUsed[0], "the Base is spent for the deal");
     r.ok(fired && fired.effect === "kamikaze" && fired.index === 1, "base-fired event carries the kill");
@@ -305,15 +306,14 @@ export function run() {
     r.eq(res.cards[0].value, nextBefore, "the first peeked card is the true next draw");
     r.ok(!e.baseAvailable(0), "the Base is one-shot per deal");
     // The reveal lives ON THE DECK (like Scout), one at a time for 3 draws.
-    r.eq(e.getRun().kamikazeRevealLeft, 3, "reveal armed for the next 3 draws");
+    r.eq(e.getRun().kamikazeRevealLeft, PK, "reveal armed for the next peekCount draws");
     r.ok(e.revealedNextCard(), "the upcoming card shows on the deck (Scout-style)");
     r.eq(e.revealedNextCard().value, e.getDeck().peek(1)[0].value, "deck reveal = the real next card");
     winGuess(e, 0);   // draw 1
-    r.eq(e.getRun().kamikazeRevealLeft, 2, "counts down one per draw");
-    winGuess(e, 0);   // draw 2
-    winGuess(e, 0);   // draw 3
-    r.eq(e.getRun().kamikazeRevealLeft, 0, "reveal exhausted after the 3rd draw");
-    r.ok(!e.revealedNextCard(), "deck returns to hidden after the third draw");
+    r.eq(e.getRun().kamikazeRevealLeft, PK - 1, "counts down one per draw");
+    for (let k = 1; k < PK; k++) winGuess(e, 0);   // draws 2..PK
+    r.eq(e.getRun().kamikazeRevealLeft, 0, "reveal exhausted after the peekCount-th draw");
+    r.ok(!e.revealedNextCard(), "deck returns to hidden after the peek window");
   }
   {
     // Unavailable with only one pile alive on the board.

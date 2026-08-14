@@ -162,8 +162,41 @@ enum IVBases {
                     }, skipSnapshot: true),
                 IV.Scenario("mustNotFire-bossDeal", allowed: [],
                     build: { baseEngine(def, isBoss: true) },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "sealed during a boss") },
+                    fire: { e in
+                        XCTAssertNil(e.baseActivate(col: 0), "sealed during a boss")
+                        // v6.52: the amber notice must SAY it is the boss seal.
+                        XCTAssertEqual(e.baseUnavailableReason(0), "Sealed during a boss deal.")
+                    },
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+                // v6.52 gate pins, from a field report of an inexplicable
+                // amber: GREEN whenever the deal is live, it isn't a boss,
+                // this column has an alive pile and the deck has cards —
+                // ambushes and mid-deal snapshot restores included.
+                IV.Scenario("edge-greenInAnAmbush", allowed: [],
+                    build: { baseEngine(def, isAmbush: true) },
+                    fire: { e in XCTAssertTrue(e.baseAvailable(0), "an ambush does not seal it") },
+                    expect: { _, _, _ in }),
+                IV.Scenario("edge-greenAfterSnapshotRestore", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let blob = e.snapshot()
+                        let e2 = baseEngine(def)
+                        XCTAssertTrue(e2.restoreSnapshot(blob), "the mid-deal blob restores")
+                        XCTAssertTrue(e2.baseAvailable(0), "a resumed deal keeps the base green")
+                    },
+                    expect: { _, _, _ in }),
+                IV.Scenario("edge-amberOnlyWithoutAlivePileHere", allowed: [.deaths, .board],
+                    build: {
+                        let e = baseEngine(def)
+                        e.board.kill(0); e.board.kill(1)   // column 0 wiped
+                        return e
+                    },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "no alive pile here → amber")
+                        XCTAssertEqual(e.baseUnavailableReason(0),
+                                       "No alive pile in this column to bury under.")
+                    },
+                    expect: { _, _, _ in }),
             ]
 
         case "emptyPurse":
@@ -214,14 +247,31 @@ enum IVBases {
             ]
 
         case "clubTell":
+            // v6.52: EVERY alive ♣ top in the column gets a TELL MARKER — the
+            // armed-pile hint (run.tellPiles → pileHint), live until the next
+            // draw consumes it. No random pick, no rng draw.
             return [
-                IV.Scenario("trigger-readsDirection", allowed: .all,
-                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♣"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
+                IV.Scenario("trigger-marksEveryClubTop", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♣"), IV.spec(2, 10, "♣"), IV.spec(3, 6)],
                                         deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
                     fire: { e in
                         let r = e.baseActivate(col: 0)
-                        XCTAssertEqual(r?.tellPile, 0, "clubTell: read the ♣ pile")
-                        XCTAssertEqual(r?.tellDirection, .higher, "clubTell: 9 runs higher than 5")
+                        XCTAssertEqual(r?.tells?.map(\.pile), [0, 1],
+                                       "clubTell: one tell per ♣ top, in pile order")
+                        XCTAssertEqual(r?.tells?.map(\.direction), [.higher, .lower],
+                                       "clubTell: 9 runs higher than 5, lower than 10")
+                        XCTAssertNil(r?.tellPile, "clubTell: the single-pile fields belong to Same Tell")
+                        // The MARKER is the feature (v6.52): both ♣ piles are
+                        // armed and the live hint reads the real next card.
+                        XCTAssertEqual(e.run.tellPiles, [0, 1],
+                                       "clubTell: both ♣ piles carry a tell marker")
+                        XCTAssertEqual(e.pileHint(0), .higher, "clubTell: pile 1's chip reads ▲")
+                        XCTAssertEqual(e.pileHint(1), .lower, "clubTell: pile 2's chip reads ▼")
+                        XCTAssertNil(e.pileHint(2), "clubTell: the off-suit pile stays dark")
+                        // …and the next draw ANYWHERE consumes every marker.
+                        e.guess(2, .higher)
+                        XCTAssertTrue(e.run.tellPiles.isEmpty,
+                                      "clubTell: the markers last exactly one draw")
                     },
                     expect: { e, _, c in assertSpent(e, c) }),
                 IV.Scenario("edge-sameDirection", allowed: .all,
@@ -229,9 +279,19 @@ enum IVBases {
                                         deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
                     fire: { e in
                         let r = e.baseActivate(col: 0)
-                        XCTAssertEqual(r?.tellDirection, Guess.same, "clubTell: a match reads =")
+                        XCTAssertEqual(r?.tells?.count, 1, "clubTell: only the ♣ top is read")
+                        XCTAssertEqual(r?.tells?.first?.direction, Guess.same, "clubTell: a match reads =")
+                        XCTAssertEqual(e.run.tellPiles, [0], "clubTell: the ♣ pile is marked")
                     },
                     expect: { _, _, _ in }),
+                IV.Scenario("mustNotFire-clubOnlyInAnotherColumn", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")],
+                                        deckOrder: [IV.spec(50, 9)]) },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "clubTell: the ♣ must be in ITS column")
+                        XCTAssertNil(e.baseActivate(col: 0), "no ♣ top here, no read")
+                    },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
                 IV.Scenario("mustNotFire-noClubTop", allowed: [],
                     build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♦"), IV.spec(3, 6)]) },
                     fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no ♣ to read") },
@@ -409,7 +469,29 @@ enum IVBases {
                     build: { baseEngine(def) },
                     fire: { e in _ = e.baseActivate(col: 0) },
                     expect: { e, _, c in assertSpent(e, c) }),
-            ]
+            ] + (isValue ? [] : [
+                // SUIT SETTER's v6.52 gate: green only when it can CHANGE
+                // something — >1 alive pile AND at least two printed suits.
+                IV.Scenario("mustNotFire-uniformSuits", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "setSuit: a one-suit column is amber")
+                        XCTAssertNotNil(e.baseUnavailableReason(0), "setSuit: the amber notice has words")
+                        XCTAssertNil(e.baseActivate(col: 0), "setSuit: and it will not fire")
+                    },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+                IV.Scenario("mustNotFire-onePileAlive", allowed: [.deaths, .board],
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)])
+                        e.board.kill(1)   // one alive pile left in the column
+                        return e
+                    },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "setSuit: a lone pile is amber")
+                        XCTAssertNil(e.baseActivate(col: 0))
+                    },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
+            ])
 
         case "stickerHarvest":
             let per = def.int("buryPerSticker", 2)
@@ -509,11 +591,14 @@ enum IVBases {
             ]
 
         case "demolish":
+            // v6.51: OWN column only — no target pick, yellow without a
+            // pillar in THIS column.
             return [
-                IV.Scenario("trigger-destroysPillarPeeks", allowed: .all,
+                IV.Scenario("trigger-destroysOwnColumnPillarPeeks", allowed: .all,
                     build: { baseEngine(def, pillars: ["fibonacci", nil]) },
                     fire: { e in
-                        let r = e.baseActivate(col: 0, targetIndex: 0)
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.demolishedCol, 0, "demolish: its OWN column, no target pick")
                         XCTAssertEqual(r?.demolishedPillar, "fibonacci", "demolish: named the victim")
                     },
                     expect: { e, _, c in
@@ -521,15 +606,27 @@ enum IVBases {
                         XCTAssertEqual(e.run.kamikazeRevealLeft, def.int("peekCount", 2), "\(c): the peek")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-crossColumnTarget", allowed: .all,
-                    build: { baseEngine(def, pillars: [nil, "fibonacci"]) },
-                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 1) },
+                IV.Scenario("edge-otherColumnPillarStays", allowed: .all,
+                    build: { baseEngine(def, pillars: ["fibonacci", "static"]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
                     expect: { e, _, c in
-                        XCTAssertNil(e.run.pillars?[1] ?? nil, "\(c): it reaches any column")
+                        XCTAssertNil(e.run.pillars?[0] ?? nil, "\(c): own column demolished")
+                        XCTAssertEqual(e.run.pillars?[1] ?? nil, "static", "\(c): the other column is untouched")
+                    }),
+                IV.Scenario("mustNotFire-pillarOnlyElsewhere", allowed: [],
+                    build: { baseEngine(def, pillars: [nil, "fibonacci"]) },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "demolish: yellow without an own-column pillar")
+                        XCTAssertNil(e.baseActivate(col: 0), "a pillar elsewhere is no longer a target")
+                        XCTAssertNil(e.baseActivate(col: 0, targetIndex: 1), "even an explicit pick is refused")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.pillars?[1] ?? nil, "fibonacci", "\(c): the other pillar survives")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)")
                     }),
                 IV.Scenario("mustNotFire-noPillarAnywhere", allowed: [],
                     build: { baseEngine(def) },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0, targetIndex: 0), "nothing to demolish") },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to demolish") },
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
 

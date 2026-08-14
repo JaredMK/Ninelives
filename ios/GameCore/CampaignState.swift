@@ -20,7 +20,7 @@ public final class CampaignState {
 
     /// The map-generator version fresh runs stamp. Saves carry their own `genV`
     /// so a resumed v1/v2 campaign regenerates through its original path.
-    public static let runGenVersion = 4   // v4: forced-chain merges cap at packMax
+    public static let runGenVersion = 5   // v5: opening-row spread + variety (v4: pack-merge cap)
     /// The special sentinels a +1 node may lock instead of a real card. Nothing
     /// is minted into the base deck until the special is actually GRANTED.
     public static let specialJoker = -1
@@ -1479,8 +1479,10 @@ public final class CampaignState {
     }
 
     /// (Re)open the store for a new visit: a fresh offer at base reroll cost.
+    /// `node` stamps the offer's owner (defaults to the current position) so
+    /// the store screen can tell a resume of THIS visit from a different shop.
     @discardableResult
-    public func openStore(rng: RNG? = nil) -> StoreOffer {
+    public func openStore(rng: RNG? = nil, node: Int? = nil) -> StoreOffer {
         // The visit's offer keys to the NODE — the store node's id, or a mystery
         // node's id for a detour — so a store's contents depend on the seed +
         // node, never on visit order. (Two keys, matching the web's opener; the
@@ -1493,6 +1495,9 @@ public final class CampaignState {
                                           },
                                           tierWeights: effectiveTierWeights(),
                                           genCard: { [weak self] rr in self?.genStoreCard(rr) })
+        // Stamp the visit's owner node (v6.52) — the store screen rerolls on a
+        // mismatch, so this shelf and this visit's price twist end with it.
+        storeOffer!.offerNode = node ?? nodePos
         // The Queen's Restock spends itself on THIS visit's ladder: the first
         // refresh is free, used or not. And the cast's price twist arms for
         // exactly one shop — whatever was pending becomes this visit's rule.
@@ -1546,6 +1551,14 @@ public final class CampaignState {
     public var isGiftShelf: Bool { freeShopPending && storeOffer?.rerollCost == .infinity }
 
     public func getStoreOffer() -> StoreOffer? { storeOffer }
+    /// True when the saved offer belongs to a DIFFERENT node than `key` — the
+    /// store screen rerolls instead of resuming it (v6.52), which is what ends
+    /// a visit's shelf and its price twist at the door. A nil stamp (gift
+    /// shelf, pre-v6.52 save) is never stale.
+    public func storeOfferIsStale(for key: Int?) -> Bool {
+        guard let owner = storeOffer?.offerNode else { return false }
+        return owner != key
+    }
     public func storeRerollCost() -> Double { storeOffer?.rerollCost ?? .infinity }
     public func canReroll() -> Bool { storeOffer.map { Double(coins) >= $0.rerollCost } ?? false }
 
@@ -1655,7 +1668,11 @@ public final class CampaignState {
         case "sticker":   return priceOf(s.id)
         case "pillar":    return priceOfPillar(s.id)
         case "base":      return priceOfBase(s.id)
-        case "samepower": return priceOfSamePower(s.id)
+        case "samepower":
+            // The MYSTERY slot has no concrete id: it prices from its own
+            // store config block, through the same shopPrice/mod chokepoint.
+            return s.mystery ? storeModPrice(shopPrice(data.items.store.mysterySamePower.price))
+                             : priceOfSamePower(s.id)
         // The shelf tile must quote what the picker will actually charge —
         // both the climb ladder and the deck multiplier.
         case "removal":   return removalPrice()
@@ -1692,13 +1709,17 @@ public final class CampaignState {
         public var packId: String?
         public var packKind: String?
         public var keep: Int?
+        /// MYSTERY SAME-POWER: the concrete Same-Power id the buy revealed.
+        public var revealed: String?
     }
 
     /// Buy shelf slot `i`, dispatching by its kind. Pillars/Bases/Same-Powers go
     /// to inventory; Packs charge and OPEN; the card slot moves the exact shown
-    /// card into the pack tray.
+    /// card into the pack tray. A MYSTERY samepower slot reveals its concrete
+    /// Same-Power at buy time via `mysteryRng` — the UI keys that stream to
+    /// ["mysterysamepower", nodeId, slot], mirroring the storepack keying.
     @discardableResult
-    public func buyMixedSlot(_ i: Int) -> BuyResult {
+    public func buyMixedSlot(_ i: Int, mysteryRng: RNG? = nil) -> BuyResult {
         guard var offer = storeOffer, let s = offer.slots[safe: i] ?? nil else { return BuyResult(ok: false) }
         if s.kind == "sticker" { return BuyResult(ok: false) }   // stickers buy via buyOfferedSticker
         // Lammy: sticker packs still roll into the shelf but can't be bought.
@@ -1716,6 +1737,29 @@ public final class CampaignState {
         case "base":
             guard buyBaseToInventory(s.id, priceOverride: priceOfMixed(i)) else { return BuyResult(ok: false) }
         case "samepower":
+            if s.mystery {
+                // MYSTERY SAME-POWER (v6.51): charge the config price, empty
+                // the slot, then ONE uniform draw (`Int(rng()*pool.count)`)
+                // over the unlocked, un-equipped pool reveals the concrete
+                // Same-Power. An empty pool refunds and fails (unreachable in
+                // practice: the slot only rolls while the pool is non-empty).
+                let price = priceOfMixed(i)
+                guard Double(coins) >= price else { return BuyResult(ok: false) }
+                coins -= Int(price)
+                let pool = data.samePowerTypes.all().filter {
+                    itemUnlocks.isUnlocked($0) && equippedSamePower != $0.id
+                }
+                guard let rng = mysteryRng, !pool.isEmpty else {
+                    coins += Int(price)
+                    return BuyResult(ok: false)
+                }
+                let revealed = pool[rng.index(pool.count)].id
+                offer.slots[i] = nil
+                storeOffer = offer
+                samePowerInventory[revealed, default: 0] += 1
+                recordBuy(revealed)
+                return BuyResult(ok: true, kind: "samepower", revealed: revealed)
+            }
             guard buySamePowerToInventory(s.id, priceOverride: priceOfMixed(i)) else { return BuyResult(ok: false) }
         case "pack":
             guard let t = data.packTypes.get(s.id) else { return BuyResult(ok: false) }

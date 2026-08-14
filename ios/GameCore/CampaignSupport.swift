@@ -85,10 +85,16 @@ public struct StoreSlot: Sendable, Equatable {
     /// "sticker" | "pillar" | "base" | "pack" | "samepower" | "card" | "removal"
     public var kind: String
     public var id: String
+    /// MYSTERY SAME-POWER (v6.51): a "samepower" slot with NO concrete id — the
+    /// actual Same-Power is rolled (seeded) at BUY time. Legacy saves decode
+    /// with `false` and keep their concrete same-power slots.
+    public var mystery: Bool
     /// The generated playing card, for the "card" class only.
     public var card: CardSpec?
-    public init(kind: String, id: String, card: CardSpec? = nil) {
-        self.kind = kind; self.id = id; self.card = card
+    /// The shelf id a mystery Same-Power slot carries (names no registry entry).
+    public static let mysteryId = "mystery"
+    public init(kind: String, id: String, mystery: Bool = false, card: CardSpec? = nil) {
+        self.kind = kind; self.id = id; self.mystery = mystery; self.card = card
     }
 }
 
@@ -98,6 +104,13 @@ public struct StoreOffer: Sendable, Equatable {
     /// FREEBIE's gift: the one rolled slot this visit that costs 0 (nil
     /// without the pillar). Persisted with the offer.
     public var freeSlot: Int? = nil
+    /// The NODE this offer was rolled for (v6.52). The store screen rerolls
+    /// when it opens for a DIFFERENT node, so a leftover shelf — and the
+    /// per-visit price twist scoped by openStore — can never follow the
+    /// player from one shop into another (the mystery-detour store opens
+    /// with fresh=false by web parity and used to inherit both). nil for a
+    /// gift shelf and for pre-v6.52 saves (legacy lingering behaviour).
+    public var offerNode: Int? = nil
 }
 
 /// The store roll + shared item helpers. Kept beside CampaignState so both the
@@ -201,6 +214,15 @@ public enum StoreRoll {
                     if (perType["card"] ?? 0) >= cap { continue }   // cap check BEFORE minting
                     guard let card = genCard?(rng) else { continue }
                     pick = StoreSlot(kind: "card", id: "card", card: card)
+                } else if chosen.key == "samepower" {
+                    // MYSTERY SAME-POWER (v6.51): the class yields ONE unknown
+                    // slot — the concrete Same-Power is rolled (seeded) at BUY
+                    // time. The shelf roll draws ONLY the class pick, never a
+                    // per-item roll. The shared id caps it at one per shelf
+                    // through the same no-repeat rule every item obeys.
+                    if seenIds.contains("samepower.\(StoreSlot.mysteryId)") { continue }
+                    if (perType["samepower"] ?? 0) >= cap { continue }
+                    pick = StoreSlot(kind: "samepower", id: StoreSlot.mysteryId, mystery: true)
                 } else {
                     guard let id = rollIds(chosen.types, 1, rng, tierWeights: effectiveTierWeights).first
                     else { continue }

@@ -142,6 +142,21 @@ enum IVStickers {
                     expect: { e, f, c in
                         XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): a wrong guess grows nothing")
                     }),
+                // v6.51: a wrong guess AGAINST the carrier spends its bank.
+                IV.Scenario("edge-wrongGuessResetsTheBank", allowed: [.guesses, .deck, .board, .deaths],
+                    build: {
+                        let e = IV.engine(tops: [IV.spec(1, 5, "♠", ["compound"]), IV.spec(2, 6), IV.spec(3, 6)],
+                                          deckOrder: [IV.spec(50, 2), IV.spec(51, 3)])
+                        e.board.top(0)!.compoundHits = 3   // a banked streak
+                        return e
+                    },
+                    fire: { $0.guess(0, .higher) },   // 2 < 5: wrong against the carrier
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.piles[0].cards.first(where: { $0.id == 1 })?.compoundHits, 0,
+                                       "\(c): the bank resets to 0 on a wrong guess")
+                        XCTAssertEqual(e.run.compoundUpdates[1], 0,
+                                       "\(c): the reset is recorded for write-back")
+                    }),
             ]
 
         case "collector":
@@ -262,6 +277,38 @@ enum IVStickers {
                     expect: { e, f, c in
                         XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): off-suit landing, no fire")
                         XCTAssertFalse(e.run.revealNextActive, "\(c)")
+                    })]
+                // v6.51 REVERSE: the DRAWN card carries the snob; it fires when
+                // the pile it lands on is topped by the snob's suit.
+                + [IV.Scenario("trigger-reverseDrawnCarries", allowed: [.coins, .guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, suit), IV.spec(2, 6, "♦"), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        switch def.behavior {
+                        case "heartSnob":
+                            XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + def.num("value", 4),
+                                           "\(c): the drawn snob pays on a ♥ top")
+                        case "suitSnob":
+                            XCTAssertTrue(e.run.revealNextActive, "\(c): the drawn snob peeks on a ♠ top")
+                        case "clubSnob":
+                            let dug = e.deck.isEmpty && f.deckRemaining <= 1 ? 0 : def.int("digCount", 1)
+                            XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1 + dug,
+                                           "\(c): the drawn snob buries under its landing on a ♣ top")
+                        case "diamondSnob":
+                            XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): shuffle moves no coins")
+                        default: break
+                        }
+                    }),
+                   IV.Scenario("mustNotFire-reverseOffSuitTop", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, suit == "♥" ? "♠" : "♥"), IV.spec(2, 6, "♠"), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♣", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): the drawn snob finds no matching top")
+                        XCTAssertFalse(e.run.revealNextActive, "\(c)")
+                        XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
+                                       "\(c): nothing buried but the landing itself")
                     })]
 
         case "clubRoots":

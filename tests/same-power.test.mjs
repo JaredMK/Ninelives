@@ -9,7 +9,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, CampaignState, SamePowerTypes } = loadGame();
+  const { GameEngine, DeckManager, CampaignState, SamePowerTypes, ItemData } = loadGame();
   const r = makeRunner("same-power.test.mjs");
 
   const deck = () => DeckManager.buildStandardDeck();
@@ -30,15 +30,17 @@ export function run() {
 
   // --- registry ----------------------------------------------------------
   {
+    // The roster grew to nine in the 127-item overhaul (linkTell / linkSticker /
+    // linkPurge joined the original six) — read it live, pin the ORIGINALS by id.
     const ids = ["linkBury", "linkRevive", "linkCoins", "linkShuffle", "samePeek", "linkHeavy"];
-    r.eq(SamePowerTypes.all().length, 6, "six Same-Powers registered");
-    r.ok(ids.every(id => !!SamePowerTypes.get(id)), "all six by id");
+    r.eq(SamePowerTypes.all().length, ItemData.samePowers.length, "registry count == items.js samePowers");
+    r.ok(ids.every(id => !!SamePowerTypes.get(id)), "the original six by id");
     r.ok(SamePowerTypes.all().every(t => t.description && t.icon && typeof t.price === "number" && t.tier),
       "every Same-Power has a description + icon + price + tier");
     r.ok(SamePowerTypes.all().every(t => /Trigger:.*\n.*Effect:/s.test(t.description)),
       "every Same-Power uses the Trigger/Effect description format");
     r.ok(SamePowerTypes.all().every(t => t.tier === "rare"), "every Same-Power is Rare");
-    r.ok(SamePowerTypes.all().every(t => t.price === 3), "every Same-Power costs 3");
+    r.ok(SamePowerTypes.all().every(t => t.price > 0 && t.price <= 10), "every Same-Power price is in the 1–10 cap band");
   }
 
   // --- CampaignState: buy → equip → swap → unequip → persistence ---------

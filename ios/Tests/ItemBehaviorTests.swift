@@ -177,6 +177,28 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertEqual(e.run.compoundUpdates[carrier.id], 4, "the running total is recorded for write-back")
     }
 
+    func testCompoundResetsOnAWrongGuessAgainstTheCarrier() {
+        // v6.51: Snowball's reset semantics, keyed off the pile-TOP card the
+        // wrong guess was made AGAINST (snowball keys off the drawn card).
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 3 }!
+        specs[i].stickers.append(StickerRecord(type: "compound"))
+        let e = engine(specs: specs)
+        let carrier = DeckManager.toCard(specs[i], data: data)
+        for hit in 1...2 {
+            e.board.piles[0].cards = [carrier]
+            e.debug.setNextCard(14)
+            e.guess(0, .higher)                           // correct: bank grows
+            XCTAssertEqual(e.run.compoundUpdates[carrier.id], hit)
+        }
+        // A WRONG guess against the carrier spends the whole bank.
+        e.board.piles[0].cards = [carrier]                // 3♦ on top
+        e.debug.setNextCard(2)
+        e.guess(0, .higher)                               // 3 → 2 is wrong
+        XCTAssertEqual(carrier.compoundHits, 0, "a wrong guess against it resets the bank")
+        XCTAssertEqual(e.run.compoundUpdates[carrier.id], 0, "the reset rides the write-back")
+    }
+
     func testDeathBountyPaysWhenTheCarrierKillsThePile() {
         guard let t = data.items.stickers.first(where: { $0.id == "deathBounty" }) else {
             XCTFail("need deathBounty"); return
@@ -268,6 +290,93 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertFalse(e.projectStickerOntoCard(card, "tieSafe"), "no effect may sticker a card")
         XCTAssertTrue(card.stickers.isEmpty)
         XCTAssertTrue(e.wildStickerPoolFor(card).isEmpty, "Wild Sticker never has a target")
+    }
+
+    // MARK: - Snobs, both directions (v6.51)
+
+    /// A snob on the DRAWN card fires when the pile it lands on is topped by
+    /// the snob's suit — the reverse of the classic direction.
+    func testHeartSnobReversePaysWhenDrawnCardCarriesIt() {
+        let hv = data.stickerTypes.get("heartSnob")?.num("value", 4) ?? 4
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♠" && $0.currentRank == 9 }!
+        specs[i].stickers.append(StickerRecord(type: "heartSnob"))
+        let e = engine(specs: specs)
+        e.board.piles[0].cards = [LiveCard(id: 901, label: "5", value: 5, suit: "♥", red: true)]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        e.guess(0, .higher)                               // 9♠ lands on the ♥ top
+        XCTAssertEqual(e.run.bonusCoins, hv, "the drawn card's own snob fires on a ♥ top")
+    }
+
+    func testSuitSnobReversePeeksAndClubSnobReverseBuries() {
+        let dig = data.stickerTypes.get("clubSnob")?.int("digCount", 1) ?? 1
+        // suitSnob carried by the drawn card, landing on a ♠ top → peek.
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 9 }!
+        specs[i].stickers.append(StickerRecord(type: "suitSnob"))
+        let e = engine(specs: specs)
+        e.board.piles[0].cards = [LiveCard(id: 902, label: "5", value: 5, suit: "♠", red: false)]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        e.guess(0, .higher)
+        XCTAssertTrue(e.run.revealNextActive, "the drawn suitSnob peeks on a ♠ top")
+
+        // clubSnob carried by the drawn card, landing on a ♣ top → bury.
+        var specs2 = DeckManager.buildStandardDeck()
+        let j = specs2.firstIndex { $0.suit == "♦" && $0.currentRank == 9 }!
+        specs2[j].stickers.append(StickerRecord(type: "clubSnob"))
+        let e2 = engine(specs: specs2)
+        e2.board.piles[0].cards = [LiveCard(id: 903, label: "5", value: 5, suit: "♣", red: false)]
+        let before = e2.board.piles[0].cards.count
+        e2.debug.setNextCardObj(DeckManager.toCard(specs2[j], data: data))
+        e2.guess(0, .higher)
+        XCTAssertEqual(e2.board.piles[0].cards.count, before + 1 + dig,
+                       "the drawn clubSnob buries under its landing pile on a ♣ top")
+    }
+
+    func testDiamondSnobReverseShufflesWithoutMovingCards() {
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♣" && $0.currentRank == 9 }!
+        specs[i].stickers.append(StickerRecord(type: "diamondSnob"))
+        let e = engine(specs: specs)
+        e.board.piles[0].cards = [LiveCard(id: 904, label: "5", value: 5, suit: "♦", red: true)]
+        e.board.piles[1].cards = [LiveCard(id: 905, label: "6", value: 6, suit: "♦", red: true)]
+        let counts = (0..<e.board.size).map { e.board.piles[$0].cards.count }
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        e.guess(0, .higher)                               // 9♣ lands on a ♦ top
+        XCTAssertEqual(e.run.bonusCoins, 0, "a shuffle pays nothing")
+        var after = counts
+        after[0] += 1                                     // only the landing adds a card
+        XCTAssertEqual((0..<e.board.size).map { e.board.piles[$0].cards.count }, after,
+                       "the shuffle moves no cards between piles")
+    }
+
+    func testSnobBothDirectionsFireOnOnePlacement() {
+        // A ♥ carrying heartSnob lands on a ♥ top ALSO carrying heartSnob:
+        // the top's snob fires (a matching-suit card landed on it) AND the
+        // drawn card's snob fires (it landed on a matching-suit top).
+        let hv = data.stickerTypes.get("heartSnob")?.num("value", 4) ?? 4
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♥" && $0.currentRank == 9 }!
+        specs[i].stickers.append(StickerRecord(type: "heartSnob"))
+        let e = engine(specs: specs)
+        let top = LiveCard(id: 906, label: "5", value: 5, suit: "♥", red: true)
+        top.stickers = [StickerRecord(type: "heartSnob")]
+        e.board.piles[0].cards = [top]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        e.guess(0, .higher)
+        XCTAssertEqual(e.run.bonusCoins, hv * 2, "both directions pay on one placement")
+    }
+
+    func testSnobReverseIgnoresAnOffSuitTop() {
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♠" && $0.currentRank == 9 }!
+        specs[i].stickers.append(StickerRecord(type: "heartSnob"))
+        let e = engine(specs: specs)
+        e.board.piles[0].cards = [LiveCard(id: 907, label: "5", value: 5, suit: "♠", red: false)]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        e.guess(0, .higher)
+        XCTAssertEqual(e.run.bonusCoins, 0, "a ♠ top is no ♥ top — the drawn snob stays quiet")
+        XCTAssertFalse(e.run.revealNextActive)
     }
 
     // MARK: - Pillars
@@ -399,17 +508,21 @@ final class ItemBehaviorTests: XCTestCase {
     /// release because the tap path fired them with no target and
     /// `baseActivate` silently returned nil (v5.83). If a new Base gains a
     /// `target`, this test fails so its picker gets wired too.
+    /// (v6.51: Demolish lost its `target` — it now destroys its OWN column's
+    /// pillar, no picker.)
     func testOnlyTheseBasesRequireAPlayerChosenTarget() {
         let targeted = data.items.bases.filter { $0.target != nil }
             .map { "\($0.id):\($0.target ?? "")" }.sorted()
-        XCTAssertEqual(targeted, ["demolish:pillar", "stickerHarvest:pile"],
+        XCTAssertEqual(targeted, ["stickerHarvest:pile"],
                        "a Base with a target needs a picker in DealController.basePlaqueTapped")
     }
 
     /// A targeted Base fires with a target and REFUSES without one — the exact
     /// asymmetry the broken confirm path fell into.
     func testATargetedBaseRefusesToFireWithoutATarget() {
-        for b in data.items.bases where b.target != nil {
+        // Only `target == "pile"` bases still take a target — Demolish kept its
+        // data field but went own-column in v6.51 (its picker path is gone).
+        for b in data.items.bases where b.target == "pile" {
             let e = engine(pillars: ["columnGuardian", nil, nil], bases: [b.id, nil, nil], seed: 6161)
             guard e.baseAvailable(0) else { continue }
             XCTAssertNil(e.baseActivate(col: 0, targetIndex: nil),

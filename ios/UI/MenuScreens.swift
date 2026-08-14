@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.50"
-    static let note = "ios: every item on the bench, all 127 sworn in."
+    static let version = "v6.52"
+    static let note = "ios: the launch screen is the game now, the oracle leaves real marks, and the first choice is a choice."
     static let line = "build \(version) · \(note)"
 }
 
@@ -42,6 +42,30 @@ class MenuScreenBase: UIViewController {
         view.addSubview(scroll)
         scroll.addSubview(content)
         installBackEdgeSwipe()
+    }
+
+    // ── `-splashFrame 1` (harness): bake the LAUNCH IMAGE source.
+    // The static launch screen must look identical to the menu's first frame
+    // (felt + tissue atmosphere, nothing else), so the boot hold reads as the
+    // game already sitting there. This writes the same TissueView bake the
+    // menu itself displays to Documents/splash-frame.png;
+    // App/Assets.xcassets/LaunchBackdrop.imageset is regenerated from that
+    // file whenever the atmosphere changes. The canvas is the LARGEST iPhone
+    // point size: UILaunchScreen centres the image at intrinsic size, so an
+    // oversized bake centre-CROPS on smaller phones instead of letterboxing
+    // (the bake is 1x-per-point, exactly like the menu's own stretched bake).
+    private var splashFrameWritten = false
+
+    func writeSplashFrameIfAsked() {
+        guard UserDefaults.standard.bool(forKey: "splashFrame"), !splashFrameWritten,
+              view.bounds.width > 0 else { return }
+        splashFrameWritten = true
+        let canvas = CGSize(width: 440, height: 956)
+        guard let png = TissueView.bake(size: canvas).pngData(),
+              let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        else { return }
+        try? png.write(to: dir.appendingPathComponent("splash-frame.png"))
+        NSLog("[ShouldaSaidSame] splash frame written (%dx%d)", Int(canvas.width), Int(canvas.height))
     }
 
     /// Screens with a back control opt into the left-edge back swipe by
@@ -326,6 +350,7 @@ final class MainMenuViewController: MenuScreenBase {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        writeSplashFrameIfAsked()
         runIntroIfNeeded()
     }
 

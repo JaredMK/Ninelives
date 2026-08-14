@@ -279,6 +279,40 @@ extension GameEngine {
             if nb > 0 { recT("sticker", "clubSnob", "Club Snob", ["buried": Double(nb)]) }
         }
 
+        // --- REVERSE snobs (v6.51): a snob carried by the DRAWN card fires
+        // when the pile it lands on is TOPPED by the snob's suit. Both
+        // directions may fire on one placement. `current` is the pre-landing
+        // top — the card being landed ON. ---
+        func topWears(_ suit: String) -> Bool { matchesSuit(current, suit) }
+
+        if n("suitSnob") > 0 && topWears("♠") {
+            run.revealNextActive = true                        // peek the next upcoming card
+            recT("sticker", "suitSnob", "Spade Snob", ["peeks": 1])
+        }
+        let rhsn = n("heartSnob")
+        if rhsn > 0 && topWears("♥") {
+            let amt = Double(rhsn) * (stickerTypes.get("heartSnob")?.num("value", 4) ?? 4)
+            payCoins("Heart Snob", amt)
+            recT("sticker", "heartSnob", "Heart Snob", ["coins": amt])
+        }
+        if n("diamondSnob") > 0 && topWears("♦") {
+            // Same scoping as the forward direction: ♦-topped piles only.
+            var sh = 0
+            for i in 0..<board.size where board.isActive(i) && matchesSuit(board.top(i), "♦") {
+                board.shufflePile(i, rng); sh += 1
+            }
+            if sh > 0 {
+                firePillar(col, "shuffler", "Diamond Snob", 0)
+                logLine("Diamond Snob: shuffled \(sh) ♦-topped pile(s)")
+                recT("sticker", "diamondSnob", "Diamond Snob", ["shuffled": Double(sh)])
+            }
+        }
+        let rcsn = n("clubSnob")
+        if rcsn > 0 && topWears("♣") {
+            let nb = buryTribute(index, rcsn * (stickerTypes.get("clubSnob")?.int("digCount", 1) ?? 1), "Club Snob")
+            if nb > 0 { recT("sticker", "clubSnob", "Club Snob", ["buried": Double(nb)]) }
+        }
+
         // --- the suit-SYNERGY family: fires on EVERY landing, scaled by the
         // number of OTHER alive piles topped by its suit. ---
         func otherTops(_ suit: String) -> Int {

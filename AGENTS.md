@@ -290,8 +290,9 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   count}`; validators fail loud on malformed shapes. `ItemUnlocks.isUnlocked`
   derives LIVE from Stats (stats only grow, so derivation is stable); the
   persisted known-set exists ONLY to detect NEW unlocks for toasts.
-- **`oneTribute` must stay UNGATED** — it is the cardsBuried ladder's only
-  seed source (chicken-and-egg). **Every class keeps ≥2 starting items** or
+- **`quickBury` must stay UNGATED** — since Bury 1/Bury 2 were retired
+  (v6.51), it is the cardsBuried ladder's only seed source
+  (chicken-and-egg). **Every class keeps ≥2 starting items** or
   the store class roll starves.
 - **`checkNewUnlocks()` fires at run termination and Zen end ONLY.** It STAMPS
   the known-set, so calling it without a screen to show the pops on silently
@@ -302,6 +303,16 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   `rollUnifiedSlots`' per-class `w: 0` for an empty class, Lammy's preEquip
   filter. Any NEW random-item path must draw from those or locks leak.
   Deliberately ungated: the cursed-sticker bane pool and debug grants.
+- **Same-Powers sell ONLY as the Mystery Same-Power slot** (v6.51). The
+  samepower class (weight unchanged in `store.classWeights`) yields
+  `{kind:"samepower", mystery:true}` — no concrete id on the shelf, at most
+  ONE per shelf (dedupe, like a typeCap), priced from
+  `store.mysterySamePower` (never hardcode it). The concrete power is rolled
+  at BUY time — one uniform draw over unlocked-AND-unequipped powers keyed
+  `runRng("mysterysamepower", nodePos, slot)` — then the player keeps
+  (equips) or discards (no refund) from the reveal overlay. Legacy concrete
+  same-power slots in old saves stay buyable; the save serializes
+  `"mystery":true` only when set, and the parity key-set comparison pins it.
 - Every Stats increment gates on `!campaign.isExhibition()` at the call site.
 
 ### Seeds & determinism

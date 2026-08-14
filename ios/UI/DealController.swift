@@ -734,9 +734,15 @@ public final class DealController {
             }
         case "randomSticker":
             if let s = res.stickerApplied { scene.goodPulse(at: s.pileIndex) }
-        case "clubTell", "sameTell":
-            // The oracle's verdict floats at the pile it read. Same Tell with
-            // no match floats nothing — the silence IS the answer.
+        case "clubTell":
+            // The oracle ARMS tell markers engine-side (run.tellPiles); the
+            // per-pile hint chips repaint in the refreshAll below and stay up
+            // until the next draw. A one-second float was the whole show in
+            // v6.51 and it read as nothing happening — now the marked piles
+            // just pulse to say "look here".
+            for t in res.tells ?? [] { scene.goodPulse(at: t.pile) }
+        case "sameTell":
+            // Same Tell with no match floats nothing — the silence IS the answer.
             if let dir = res.tellDirection, let pile = res.tellPile {
                 let glyph = dir == .higher ? "▲ HIGHER" : dir == .lower ? "▼ LOWER" : "= SAME"
                 scene.floatCue(glyph, at: pile,
@@ -1061,8 +1067,6 @@ public final class DealController {
     public var onBasePrompt: ((String, String, @escaping () -> Void) -> Void)?
     /// Pile-targeted Base (Sticker Harvest): (legal piles, prompt, fire(pile)).
     public var onBaseTarget: (([Int], String, @escaping (Int?) -> Void) -> Void)?
-    /// Pillar-targeted Base (Demolish): (columns holding a Pillar, prompt, fire(col)).
-    public var onBasePillarTarget: (([Int], String, @escaping (Int?) -> Void) -> Void)?
     /// "That can't fire right now" — a notice, not a prompt.
     public var onBaseNotice: ((String, String) -> Void)?
 
@@ -1072,13 +1076,6 @@ public final class DealController {
     public func baseTargetPiles(col: Int) -> [Int] {
         guard let engine, let cols = engine.run.pileColumns else { return [] }
         return (0..<engine.board.size).filter { cols[safe: $0] == col && engine.board.isActive($0) }
-    }
-
-    /// Columns holding a Pillar — the legal targets for Demolish.
-    public func pillarTargetColumns() -> [Int] {
-        guard let engine else { return [] }
-        let n = engine.run.cols?.count ?? 0
-        return (0..<n).filter { pillarId(for: $0) != nil }
     }
 
     public func basePlaqueTapped(col: Int) {
@@ -1092,30 +1089,30 @@ public final class DealController {
         if def.effect == "ambushWin", !engine.baseCanActivate(col) { return }
         // AMBER (charged, criteria unmet) still says so out loud — that state
         // can change mid-deal, so silence would read as "the Base is broken".
+        // v6.52: the notice names the ACTUAL unmet condition when the engine
+        // has words for it — the generic line made a boss-sealed Last Resort
+        // indistinguishable from a broken base.
         guard engine.baseCanActivate(col) else {
-            onBaseNotice?("\(def.label) can't do anything right now.", def.description)
+            onBaseNotice?(engine.baseUnavailableReason(col)
+                            ?? "\(def.label) can't do anything right now.",
+                          def.description)
             return
         }
 
         // TARGETED Bases. `baseActivate` REQUIRES an index for these and
-        // returns nil without one — which is why Sticker Harvest and Demolish
-        // silently did nothing on native: the confirm path never passed a
-        // target (v5.83). Phoenix is NOT one of these: it carries no `target`,
-        // the engine random-picks a dead pile in its own column, so it takes
-        // the plain confirm below.
-        if def.target == "pile" || def.target == "pillar" {
-            let isPillar = def.target == "pillar"
-            let targets = isPillar ? pillarTargetColumns() : baseTargetPiles(col: col)
-            let handler = isPillar ? onBasePillarTarget : onBaseTarget
-            guard !targets.isEmpty, let handler else {
+        // returns nil without one — which is why Sticker Harvest silently did
+        // nothing on native: the confirm path never passed a target (v5.83).
+        // Phoenix is NOT one of these: it carries no `target`, the engine
+        // random-picks a dead pile in its own column, so it takes the plain
+        // confirm below. Demolish lost its pick in v6.51 (own column only).
+        if def.target == "pile" {
+            let targets = baseTargetPiles(col: col)
+            guard !targets.isEmpty, let handler = onBaseTarget else {
                 onBaseNotice?("\(def.label) has nothing to target.", def.description)
                 return
             }
             promptActive = true
-            let prompt = isPillar
-                ? "\(def.label): tap one of your Pillars to destroy it."
-                : "\(def.label): tap a pile in this column."
-            handler(targets, prompt) { [weak self] target in
+            handler(targets, "\(def.label): tap a pile in this column.") { [weak self] target in
                 guard let self else { return }
                 self.promptActive = false
                 if let target { _ = self.engine.baseActivate(col: col, targetIndex: target) }

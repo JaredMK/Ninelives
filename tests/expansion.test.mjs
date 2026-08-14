@@ -281,6 +281,40 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 0, "Compound pays nothing in a run where the card is never used correctly");
   }
   {
+    // v6.51 (#21): a WRONG guess against a pile whose TOP card carries Compound
+    // resets THAT card's hits to 0 — recorded in compoundUpdates for the win
+    // write-back (the snowball reset's mirror, keyed off the pile-top card).
+    const e = GameEngine.create(deck(), 9);
+    e.start(); e.startRun();
+    const t = e.getBoard().top(0);
+    t.stickers = [{ type: "compound" }]; t.compoundHits = 4; t.value = 9;
+    e.debug.setNextCard(2); e.guess(0, "higher");   // wrong (2 < 9) against the Compound top
+    r.eq(t.compoundHits, 0, "Compound: a wrong guess against its pile resets the top card's hits");
+    r.eq(e.getRun().compoundUpdates[t.id], 0, "…and the reset is recorded for the win write-back");
+  }
+  {
+    // The reset also fires when a guard SAVES the pile (the placement itself was
+    // wrong — the snowball rule's exact semantics). The saved pile continues
+    // under the drawn card, so the reset Compound card simply rides on at 0.
+    const e = GameEngine.create(deck(), 9, { sameCharge: true });
+    e.start(); e.startRun();
+    const t = e.getBoard().top(0);
+    t.stickers = [{ type: "compound" }]; t.compoundHits = 4;
+    t.value = 9; e.debug.setNextCard(2); e.guess(0, "higher");   // wrong — the charge saves the pile
+    r.eq(e.getBoard().isActive(0), true, "the Same Charge saved the pile");
+    r.eq(t.compoundHits, 0, "Compound reset fires even on a guarded wrong guess");
+    r.eq(e.getRun().compoundUpdates[t.id], 0, "…recorded for the write-back (the card rides on at 0)");
+  }
+  {
+    // Guard: a wrong guess against a pile with NO Compound top records nothing.
+    const e = GameEngine.create(deck(), 9);
+    e.start(); e.startRun();
+    const t = e.getBoard().top(0);
+    t.value = 9;
+    e.debug.setNextCard(2); e.guess(0, "higher");   // wrong, plain top card
+    r.eq(Object.keys(e.getRun().compoundUpdates).length, 0, "no Compound top → no compoundUpdates entry");
+  }
+  {
     // Persists across runs (save/restore) and resets on a campaign loss.
     const c = CampaignState.create();
     const card = c.getCards()[0];

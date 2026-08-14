@@ -62,9 +62,10 @@ export function run() {
     num("randomFixedValue", "price", "Random Rank price");
     num("suitImmunity", "price", "Spade Guard price");
     num("gainCoin", "value", "Lucky Coin payout");
-    num("oneTribute", "price", "Bury 1 price");
-    num("twoTribute", "price", "Bury 2 price");
-    num("twoTribute", "coinCost", "Bury 2 bonus-coin cost");
+    // v6.51: Bury 1 / Bury 2 are retired; Quick Bury (ungated, rare) is the
+    // cardsBuried ladder's only seed source.
+    r.ok(!StickerTypes.get("oneTribute") && !StickerTypes.get("twoTribute"), "Bury 1 / Bury 2 are retired");
+    num("quickBury", "price", "Quick Bury price");
     r.eq(PillarTypes.get("allHeartsCoin").price, 4, "All Hearts price 4");
     r.eq(PillarTypes.get("allHeartsCoin").value, 4, "All Hearts pays 4");
     r.eq(PillarTypes.get("allHeartsCoin").tier, "common", "All Hearts is Common");
@@ -210,51 +211,28 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 1, "Lucky Coin pays +1 when the card lands and survives");
   }
 
-  // --- Tribute I sticker (Bury 1): FREE + automatic — buries 1 on landing, no
-  //     prompt, no charge (it carries no coinCost). --------------------------
+  // --- Quick Bury sticker: FREE + automatic — buries 1 per instance on
+  //     landing, no prompt, no charge (it carries no coinCost). --------------
   {
-    const e = GameEngine.create(specsWith("oneTribute"), 10, { cols: [3, 4, 3] });
+    const e = GameEngine.create(specsWith("quickBury"), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
     const len0 = e.getBoard().piles[0].cards.length;     // 1 (deal)
     const deck0 = e.getDeck().remaining();
     landHigher(e, 0);
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "free Bury 1: pile gains the drawn card + 1 buried");
-    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the tributed card");
-    r.eq(e.getRun().bonusCoins, 0, "free Bury 1 charges nothing");
-  }
-
-  // --- Tribute II sticker (Bury 2): IMMEDIATE + automatic — on landing it
-  //     buries 2 AND deducts its items.js coinCost into the bonus tally, with
-  //     NO prompt. The cost reads LIVE from items.js so hand-tuning stays green.
-  {
-    const cost = StickerTypes.get("twoTribute").coinCost;
-    const e = GameEngine.create(specsWith("twoTribute"), 10, { cols: [3, 4, 3] });
-    e.start(); e.startRun([null, null, null]);
-    // The −cost must be VISIBLE: it fires the same "sticker-coins" cue every coin
-    // sticker uses, with a NEGATIVE amount (the UI floats "−cost" + a coin-loss
-    // sound). Read the cost live from items.js.
-    let coinEvt = null;
-    e.onEvent((t, p) => { if (t === "sticker-coins" && p.label === StickerTypes.get("twoTribute").label) coinEvt = p; });
-    const len0 = e.getBoard().piles[0].cards.length;
-    const deck0 = e.getDeck().remaining();
-    landHigher(e, 0);
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 3, "Bury 2: drawn card + 2 buried, automatically on landing");
-    r.eq(e.getDeck().remaining(), deck0 - 3, "deck loses drawn + 2 buried");
-    r.eq(e.getRun().bonusCoins, -cost, "Bury 2 deducts its items.js cost (" + cost + ") on landing");
-    r.ok(coinEvt && coinEvt.amount === -cost, "Bury 2 emits a sticker-coins event with the negative cost (visible −" + cost + " float + coin-loss sound)");
-    r.ok(coinEvt && coinEvt.index === 0, "…floating over the landing pile");
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "Quick Bury: pile gains the drawn card + 1 buried");
+    r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the buried card");
+    r.eq(e.getRun().bonusCoins, 0, "Quick Bury charges nothing");
     r.ok(!e.pendingTribute || !e.pendingTribute(), "no offer is queued — the bury is automatic");
   }
-  // Can't afford: the bury still happens; the tally simply goes negative.
+  // Two landings bury one more each time; the sticker never peels.
   {
-    const cost = StickerTypes.get("twoTribute").coinCost;
-    const e = GameEngine.create(specsWith("twoTribute"), 10, { cols: [3, 4, 3] });
+    const e = GameEngine.create(specsWith("quickBury"), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
     const len0 = e.getBoard().piles[0].cards.length;
     landHigher(e, 0);
-    landHigher(e, 0);   // a second Bury 2 landing — tally dives further negative
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 6, "two landings bury 2 each (4 total) + 2 drawn cards");
-    r.eq(e.getRun().bonusCoins, -cost * 2, "two Bury 2 landings drive the tally to " + (-cost * 2) + " (can't-afford tally goes negative)");
+    landHigher(e, 0);
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 4, "two Quick Bury landings bury 1 each (+ 2 drawn cards)");
+    r.eq(e.getRun().bonusCoins, 0, "two Quick Bury landings still charge nothing");
   }
 
   // (Double Tribute / Double Bury pillar removed — Tie Bury now buries 2.)

@@ -61,18 +61,20 @@ export function run() {
   }
 
   // ---- bandsFor follows the selected tier -----------------------------------
+  // (Two-tier model: regular "Jokers" / legendary "Straight" share EVERY band —
+  //  the only difference is Jokers. Bands read live from difficulty.js.)
   {
-    const { RunMap } = loadGame();
-    RunMap.setDifficultyTier("master");
-    r.eq(RunMap.getDifficultyTier(), "master", "tier selects");
-    r.eq(JSON.stringify(RunMap.bandsFor(0).boss), JSON.stringify([3.3, 4.0]), "Master boss 1 = 3.3–4.0");
-    r.eq(JSON.stringify(RunMap.bandsFor(2).stage), JSON.stringify([5.0, 6.5]), "Master stage 3 = 5.0–6.5");
+    const { RunMap, DifficultyData } = loadGame();
     RunMap.setDifficultyTier("legendary");
-    r.eq(JSON.stringify(RunMap.bandsFor(1).stage), JSON.stringify([4.0, 6.0]), "Legendary stage 2 = 4.0–6.0");
-    r.eq(JSON.stringify(RunMap.bandsFor(0).boss), JSON.stringify([4.3, 5.0]), "Legendary boss 1 = 4.3–5.0 (derived)");
-    r.eq(JSON.stringify(RunMap.bandsFor(2).boss), JSON.stringify([7.5, 8.0]), "Legendary boss 3 = 7.5–8.0 (derived)");
+    r.eq(RunMap.getDifficultyTier(), "legendary", "tier selects");
+    const leg = DifficultyData.tier("legendary");
+    r.eq(JSON.stringify(RunMap.bandsFor(0).boss), JSON.stringify(leg.bossBands[0]), "Legendary boss 1 = difficulty.js bossBands[0]");
+    r.eq(JSON.stringify(RunMap.bandsFor(2).stage), JSON.stringify(leg.stageBands[2]), "Legendary stage 3 = difficulty.js stageBands[2]");
+    r.eq(JSON.stringify(RunMap.bandsFor(1).stage), JSON.stringify(leg.stageBands[1]), "Legendary stage 2 = difficulty.js stageBands[1]");
     RunMap.setDifficultyTier("nonsense");
-    r.eq(RunMap.getDifficultyTier(), "regular", "an unknown tier falls back to Regular");
+    r.eq(RunMap.getDifficultyTier(), "regular", "an unknown tier falls back to Regular (the retired 'master' included)");
+    RunMap.setDifficultyTier("master");
+    r.eq(RunMap.getDifficultyTier(), "regular", "the retired Master tier id falls back to Regular");
   }
 
   // ---- endless: +step per stage FROM THE SELECTED TIER's stage-3 bands ------
@@ -84,8 +86,10 @@ export function run() {
     r.ok(Math.abs(step - 1.25) < 1e-9, "endless lift per stage = endlessBandStep (1.25) from difficulty.js");
     r.ok(Math.abs(b4.boss[1] - (b3.boss[1] + step)) < 1e-9, "boss band lifts by the same step");
     r.ok(Math.abs((b5.stage[0] - b4.stage[0]) - step) < 1e-9, "…and keeps rising per endless stage");
-    r.eq(JSON.stringify(b4.stage.map(x => +x.toFixed(2))), JSON.stringify([6.75, 8.75]),
-      "Legendary endless-1 deals band = stage-3 (5.5–7.5) + 1.25");
+    const leg3 = loadGame().DifficultyData.tier("legendary").stageBands[2];
+    r.eq(JSON.stringify(b4.stage.map(x => +x.toFixed(2))),
+      JSON.stringify(leg3.map(x => +(x + 1.25).toFixed(2))),
+      "Legendary endless-1 deals band = stage-3 + endlessBandStep (live)");
   }
 
   // ---- generation stays FEASIBLE on the hardest tier ------------------------
@@ -103,14 +107,14 @@ export function run() {
     const { CampaignState, RunMap } = loadGame();
     const camp = CampaignState.create();
     r.eq(camp.getTier(), "regular", "a fresh campaign is Regular");
-    camp.setTier("master"); camp.reset();
-    r.eq(RunMap.getDifficultyTier(), "master", "reset() generated the map on the campaign's tier");
+    camp.setTier("legendary"); camp.reset();
+    r.eq(RunMap.getDifficultyTier(), "legendary", "reset() generated the map on the campaign's tier");
     const snap = camp.serialize();
-    r.eq(snap.difficultyTier, "master", "serialize() carries the tier");
+    r.eq(snap.difficultyTier, "legendary", "serialize() carries the tier");
     const camp2 = CampaignState.create();
     r.ok(camp2.restore(snap), "the save restores");
-    r.eq(camp2.getTier(), "master", "…keeping the tier");
-    r.eq(RunMap.getDifficultyTier(), "master", "…and the generator regenerated on it");
+    r.eq(camp2.getTier(), "legendary", "…keeping the tier");
+    r.eq(RunMap.getDifficultyTier(), "legendary", "…and the generator regenerated on it");
     const legacy = camp.serialize(); delete legacy.difficultyTier;
     const camp3 = CampaignState.create();
     camp3.restore(legacy);
@@ -124,8 +128,7 @@ export function run() {
     const at = (tier) => { camp.setTier(tier); camp.reset();
       return [camp.priceOf("gainCoin"), camp.priceOfPack("cardPack"), camp.removalPrice()].join(","); };
     const reg = at("regular");
-    r.eq(at("master"), reg, "Master prices = Regular prices");
-    r.eq(at("legendary"), reg, "Legendary prices = Regular prices");
+    r.eq(at("legendary"), reg, "Legendary prices = Regular prices (bands+Jokers only differ)");
   }
 
   // ---- fixedJokers (JOKER3): the per-deck scheme override is data + accessor --
@@ -139,8 +142,6 @@ export function run() {
       "fixedJokerStages(pink, regular) reads the data's stage array live");
     r.eq(DifficultyData.fixedJokerStages("mamma", "regular"), null,
       "…a deck the data does NOT list gets null (normal jokerCap rules)");
-    r.eq(DifficultyData.fixedJokerStages("pink", "master"), null,
-      "…and so does Pinky on Master");
     r.eq(DifficultyData.fixedJokerStages("pink", "legendary"), null,
       "…and Pinky on Legendary");
     r.eq(DifficultyData.fixedJokerStages("pink", "nonsense"), null,

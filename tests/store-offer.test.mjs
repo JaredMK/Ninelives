@@ -25,7 +25,9 @@ export function run() {
   const idOk = (kind, id, s) => kind === "sticker" ? stickerIds.has(id)
     : kind === "pillar" ? pillarIds.has(id)
     : kind === "base" ? baseIds.has(id) : kind === "pack" ? packIds.has(id)
-    : kind === "samepower" ? samePowerIds.has(id)
+    // v6.51: the samepower class yields an id-less MYSTERY slot (concrete id
+    // rolled at buy time); a legacy concrete slot (old save) still validates.
+    : kind === "samepower" ? (s && s.mystery ? true : samePowerIds.has(id))
     : kind === "card" ? !!(s && s.card && !s.card.blank) : false;
   // The per-type cap distinguishes card packs from sticker packs.
   const typeKey = (s) => s.kind !== "pack" ? s.kind
@@ -213,16 +215,27 @@ export function run() {
     r.ok(!broke.buyMixedSlot(m.slot, Math.random).ok, "can't buy a Pack with no coins");
   }
 
-  // --- buyMixedSlot: a Same-Power slot banks to its inventory ----------
+  // --- buyMixedSlot: a Same-Power slot is MYSTERY (v6.51) — fixed price,
+  //     concrete power rolled at buy time into the inventory ----------------
   {
     const c = CampaignState.create();
     c.addCoins(200);
-    const { slot, id } = findSlot(c, "samepower");
-    const before = c.samePowerInventoryCount(id);
+    const { slot } = findSlot(c, "samepower");
+    const s = c.getStoreOffer().slots[slot];
+    r.ok(s.mystery === true && s.id == null, "a rolled same-power slot is the id-less mystery slot");
+    r.eq(c.priceOfMixed(slot), ItemData.store.mysterySamePower.price,
+      "priceOfMixed reports the mystery fixed price");
+    const coins0 = c.getCoins();
     const res = c.buyMixedSlot(slot, () => 0.5);
-    r.ok(res.ok && res.kind === "samepower", "buying a Same-Power slot succeeds");
-    r.eq(c.samePowerInventoryCount(id), before + 1, "the bought Same-Power lands in inventory");
+    r.ok(res.ok && res.kind === "samepower" && res.mystery === true, "buying the mystery slot succeeds");
+    r.ok(SamePowerTypes.get(res.samePowerId), "the reveal rolled a REAL Same-Power id");
+    r.eq(c.samePowerInventoryCount(res.samePowerId), 1, "the revealed Same-Power lands in inventory");
     r.eq(c.getStoreOffer().slots[slot], null, "that slot is now empty");
+    r.eq(c.getCoins(), coins0 - ItemData.store.mysterySamePower.price, "charged the mystery price");
+
+    const broke = CampaignState.create();
+    const m = findSlot(broke, "samepower");
+    r.ok(!broke.buyMixedSlot(m.slot, Math.random).ok, "can't buy the mystery slot with no coins");
   }
 
   // --- Reroll: replaces ALL rolled slots; baseCost → +step → +2·step; resets on store open ---
@@ -290,8 +303,9 @@ export function run() {
     const s2 = sample(CampaignState.create(), 2000);
     // The four Guards now gate on the NATIVE-only suit counters, which have no
     // reader here — so they can never roll in this build. Exemplars have to be
-    // stickers whose gate this build can actually satisfy.
-    r.ok(s2.has("collector") || s2.has("massive") || s2.has("quickBury") || s2.has("twoTribute"),
+    // stickers whose gate this build can actually satisfy (v6.51: Quick Bury
+    // is UNGATED — the cardsBuried ladder's seed — and Bury 1/2 are retired).
+    r.ok(s2.has("collector") || s2.has("massive"),
       "…and once the stats are met, gated stickers roll again");
     Stats.reset();
   }
