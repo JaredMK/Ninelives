@@ -255,9 +255,11 @@ extension CampaignState {
         // card it replaces); resolve only agrees to it.
         case .duplicate(let sticker):
             guard getRunDeck().contains(where: { !$0.joker && !$0.blank }) else { return nil }
+            // No detail (v6.52): the offer already said a curse is coming; the
+            // pickers carry their own single instruction each.
             return OldJoker.Result(
                 key: "duplicate", headline: "Twice over",
-                detail: "Pick the card he copies. The copy comes back marked.",
+                detail: "",
                 leechSticker: sticker)
         }
     }
@@ -363,6 +365,7 @@ extension CampaignState {
             if applyStickerDirect(card.id, curse) {
                 taken.insert(card.id)
                 hit.append((card.id, curse))
+                DebugEventLog.shared.add("curse: \(curse) landed on card #\(card.id)")
             }
         }
         return hit

@@ -489,6 +489,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             return composePackStack(n)
         default:
             if let card = campaign.nodeCard(n) ?? campaign.previewPickupCard(n) {
+                // A Blank pickup IS a Purge — draw the same torn card the
+                // store and pickers use (v6.52); the transparent ?-card here
+                // read as a different, unexplained object.
+                if card.blank { return ItemArt.removal(width: 48, height: 67) }
                 return CardArt.image(CardArt.Face(card), scale: .half)
             }
             return MapArt.packStack(deckId: campaign.deckId)
@@ -1135,6 +1139,10 @@ final class MapAvatarView: UIView {
         badge.layer.borderColor = CRT.ink.cgColor
         badge.layer.borderWidth = 2
         badge.frame = CGRect(x: 8, y: 32, width: 28, height: 16)
+        // v6.52: the walking Pinky carries NO deck count — the top-right
+        // shell Pinky already shows it, and two counts read as two numbers.
+        // The badge stays wired (collect pops still bump it) but hidden.
+        badge.isHidden = true
         addSubview(badge)
         isUserInteractionEnabled = false
         let t = Timer.scheduledTimer(withTimeInterval: 4.2, repeats: true) { [weak self] _ in
@@ -1142,6 +1150,15 @@ final class MapAvatarView: UIView {
         }
         blinkTimer = t
         t.tolerance = 1.5
+        // IDLE SWAY (v6.52): a slow compositor-only bob so the traveller
+        // draws the eye — one CABasicAnimation, zero per-frame work (§10).
+        let bob = CABasicAnimation(keyPath: "transform.translation.y")
+        bob.fromValue = 0; bob.toValue = -3
+        bob.duration = 1.4
+        bob.autoreverses = true
+        bob.repeatCount = .infinity
+        bob.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        sprite.layer.add(bob, forKey: "idleBob")
     }
 
     @available(*, unavailable)

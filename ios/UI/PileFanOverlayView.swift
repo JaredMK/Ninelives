@@ -119,41 +119,36 @@ public final class PileFanOverlayView: UIView {
 
             // The web's marker chips: a loud phosphor TOP on the first card,
             // a muted felt-deep BOTTOM under the last.
-            var chipsY = topPad + artH + 4
             if i == 0 {
                 let pill = Self.pill("TOP", bg: CRT.phosphor, fg: CRT.ink)
                 pill.frame.origin = CGPoint(x: (artW - pill.bounds.width) / 2, y: topPad - 8)
                 box.addSubview(pill)
             }
             let bottomPill = (i == cards.count - 1 && cards.count > 1)
-            if bottomPill {
-                chipsY += 10   // the BOTTOM pill hangs under the card — clear it
-            }
 
-            // Sticker chips below the card, the DeckInspect idiom (rows of 3,
-            // capped at 2 rows), so the fan shows WHAT a card carries.
+            // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
+            // leftward with the deal board's lean — ONE idiom wherever a card
+            // is shown; the below-the-card rows read as separate objects.
             let stickers = Array(c.stickers.prefix(chipsMax))
             for (s, rec) in stickers.enumerated() {
                 guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
-                let sRow = s / chipsPerRow, sCol = s % chipsPerRow
-                let inRow = min(chipsPerRow, stickers.count - sRow * chipsPerRow)
-                let lineW = CGFloat(inRow) * chipSize + CGFloat(inRow - 1) * chipGap
                 let chip = UIImageView(image: ItemArt.sticker(def, size: chipSize))
                 chip.layer.magnificationFilter = .nearest
                 chip.contentMode = .scaleAspectFit
-                chip.frame = CGRect(x: (artW - lineW) / 2 + CGFloat(sCol) * (chipSize + chipGap),
-                                    y: chipsY + CGFloat(sRow) * (chipSize + chipGap),
+                chip.frame = CGRect(x: artW + 3 - chipSize - CGFloat(s) * (chipSize * 0.62),
+                                    y: topPad - 4,
                                     width: chipSize, height: chipSize)
+                let deg = max(-15, min(15, -11 + s * 8))
+                chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
                 box.addSubview(chip)
             }
-            let chipRows = (stickers.count + chipsPerRow - 1) / chipsPerRow
-            var boxH = chipsY + CGFloat(chipRows) * (chipSize + chipGap)
+            var boxH = topPad + artH + 8
             if bottomPill {
                 let pill = Self.pill("BOTTOM", bg: CRT.feltDeep, fg: CRT.cardFace)
                 pill.frame.origin = CGPoint(x: (artW - pill.bounds.width) / 2,
                                             y: topPad + artH - 7)
                 box.addSubview(pill)
-                boxH = max(boxH, topPad + artH + 8)
+                boxH = max(boxH, topPad + artH + 12)
             }
             box.frame = CGRect(x: 0, y: 0, width: artW, height: boxH)
             // The fan tilt — rotates the whole card unit like the web's

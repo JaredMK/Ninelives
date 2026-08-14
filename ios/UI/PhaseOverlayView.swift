@@ -311,7 +311,10 @@ public final class PhaseOverlayView: UIView {
                             onContinue: @escaping () -> Void) -> PhaseOverlayView {
         let v = PhaseOverlayView(frame: .win)
         v.addTitle("DEAL CLEARED", size: 22)
-        v.addProgress(info.progress, spacingAfter: 14)
+        // No stage/deck progress line here (v6.52) — the map the player is
+        // about to return to says it better, and it read as clutter between
+        // the title and the score.
+        v.y += 14
 
         // The reveal cadence: the plaque, then each reward line ONE BY ONE,
         // each with its rising coin ping — the deal-won payoff moment.
@@ -339,12 +342,15 @@ public final class PhaseOverlayView: UIView {
             sub.frame = CGRect(x: 0, y: 44, width: 320, height: 20)
             plaque.addSubview(sub)
             // The RUNNING total sits under the deal's own score, exactly the
-            // way the purse sits under the coin total below.
+            // way the purse sits under the coin total below — and at the SAME
+            // relative weight (v6.52: 16 plain read as a footnote; 20 display
+            // mirrors Purse's 20 against Total's 22).
             let tot = UILabel()
             tot.attributedText = PhaseOverlayView.tracked("TOTAL SCORE \(info.totalScore)",
-                                                          size: 16, color: CRT.phosphor, kern: 1)
+                                                          size: 20, color: CRT.phosphor,
+                                                          display: true, kern: 0.5)
             tot.textAlignment = .center
-            tot.frame = CGRect(x: 0, y: 66, width: 320, height: 20)
+            tot.frame = CGRect(x: 0, y: 64, width: 320, height: 26)
             plaque.addSubview(tot)
             plaque.alpha = 0
             v.content.addSubview(plaque)
@@ -510,12 +516,28 @@ public final class PhaseOverlayView: UIView {
                 }
             }
         }
-        // Stickers and Pillars always show (they are the staple earners, and a
-        // zero there is information); Bases and Same-Powers only when they paid.
-        section("Sticker rewards", stickerTotal, stickerBullets, showEmpty: true)
-        section("Pillar rewards", pillarTotal, pillarBullets, showEmpty: true)
-        section("Base rewards", baseTotal, baseBullets)
-        section("Same rewards", sameTotal, sameBullets)
+        // ONE "Item rewards" block (v6.52): kind · name · amount per line —
+        // the four per-family sections hid Base and Same-Power payouts when
+        // their empty sections were skipped, and four headings for a handful
+        // of lines buried the numbers.
+        _ = section   // the per-family builder is retired; kept for diffs
+        let itemBullets: [(kind: String, label: String, amount: Int)] =
+            stickerBullets.map { ("Sticker", $0.0, $0.1) }
+            + pillarBullets.map { ("Pillar", $0.0, $0.1) }
+            + baseBullets.map { ("Base", $0.0, $0.1) }
+            + sameBullets.map { ("Same Power", $0.0, $0.1) }
+        let itemTotal = stickerTotal + pillarTotal + baseTotal + sameTotal
+        py += 12
+        rows.append(mainRow("Item rewards", itemTotal)); kinds.append(.main)
+        py += 3
+        if itemBullets.isEmpty {
+            rows.append(subRow("None", nil)); kinds.append(.sub)
+        } else {
+            for b in itemBullets {
+                rows.append(subRow("\(b.kind) · \(bulletLabel(b.label))", sign(b.amount)))
+                kinds.append(.sub)
+            }
+        }
         // THE TWO SUMMARY ROWS READ DIFFERENTLY FROM THE EARNINGS ABOVE THEM.
         // Both used the same `mainRow` as every reward line, so the row that
         // SUMS the list and the row that reports your new purse looked like
@@ -528,8 +550,10 @@ public final class PhaseOverlayView: UIView {
         // at this size. The rule above already says these sum the list.
         // GOLD, not phosphor (router batch): this number is COINS — green is
         // the score's colour and was claiming the wrong family.
+        // glow OFF (v6.52): the halo smudged the display face at this size —
+        // Purse below was crisp for exactly this reason. Size keeps the rank.
         rows.append(summaryRow("Total", info.earned,
-                               color: CRT.gold, size: 22, glow: true)); kinds.append(.total)
+                               color: CRT.gold, size: 22, glow: false)); kinds.append(.total)
         py += 6
         rows.append(summaryRow("Purse", info.balance,
                                color: CRT.gold, size: 20, glow: false)); kinds.append(.balance)
@@ -753,10 +777,10 @@ public final class PhaseOverlayView: UIView {
         // accuracy percentage already tells that story in one number.
         let pct = flips > 0 ? Int((Double(correct) / Double(flips) * 100).rounded()) : 0
         v.addTileRow([
-            StatTileView(value: tileValue("\(flips)", size: 14), name: "Cards guessed"),
+            StatTileView(value: tileValue("\(flips)", size: 14), name: "Guessed"),
             StatTileView(value: tileValue("\(pct)%", size: 14), name: "Accuracy"),
             StatTileView(value: tileValue(outcomeCount.map { "\($0)" } ?? "—", size: 14),
-                         name: won ? "Piles remaining" : "Cards left in deck"),
+                         name: won ? "Piles remaining" : "Remaining"),
         ], height: 64, gap: 6, width: 260)
         v.addGap(6)
         v.addButton("PLAY AGAIN", role: .cta) { onAgain() }

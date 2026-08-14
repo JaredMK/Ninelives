@@ -237,12 +237,15 @@ enum IVBases {
                         XCTAssertTrue(e.run.whisperPiles.isEmpty, "\(c): silence IS the answer")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("mustNotFire-jokerNeverMatches", allowed: .all,
+                IV.Scenario("edge-jokerReadsSame", allowed: .all,
                     build: { baseEngine(def, tops: [IV.spec(1, 0, "★", joker: true), IV.spec(2, 8), IV.spec(3, 6)],
                                         deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
                     fire: { _ = $0.baseActivate(col: 0) },
                     expect: { e, _, c in
-                        XCTAssertTrue(e.run.whisperPiles.isEmpty, "\(c): a ★ has no rank to match")
+                        // v6.52: a ★ IS a same (always safe) — the = mark
+                        // appears instead of silence; a joker hint never shows
+                        // an arrow.
+                        XCTAssertFalse(e.run.whisperPiles.isEmpty, "\(c): the ★ pile takes the = mark")
                     }),
             ]
 

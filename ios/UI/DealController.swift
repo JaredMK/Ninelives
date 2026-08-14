@@ -193,6 +193,7 @@ public final class DealController {
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
+        DebugEventLog.shared.resetEngineCursor()
         engine.run.rippleNeedsConsent = onRippleOffer != nil && !reduceMotion
         _ = specs
         scene.slotsVisible = true   // debug deals are campaign-shaped
@@ -234,6 +235,7 @@ public final class DealController {
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: p.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
+        DebugEventLog.shared.resetEngineCursor()
         // FIRST-RUN TUTORIAL: the guided Zen deal rearranges its opening (a 3
         // on pile 1, an Ace on the deck) BEFORE anything renders.
         if isZen { preDealArrange?(engine) }
@@ -1295,6 +1297,9 @@ public final class DealController {
 
     public func refreshAll() {
         guard engine != nil else { return }
+        // Feed the debug EVENT LOG (v6.52): any engine logbook entries the
+        // last action appended flow into the run-long record.
+        DebugEventLog.shared.drainEngine(engine.run)
         refreshBoard()
         refreshHUD()
         refreshControls()

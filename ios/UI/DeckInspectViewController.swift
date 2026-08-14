@@ -53,6 +53,10 @@ public final class DeckInspectViewController: UIViewController {
         scroll.alwaysBounceVertical = true
         view.addSubview(scroll)
         scroll.addSubview(content)
+        // Tap-away collapses a tap-opened card help (v6.52).
+        let felt = UITapGestureRecognizer(target: self, action: #selector(feltTapped(_:)))
+        felt.cancelsTouchesInView = false
+        content.addGestureRecognizer(felt)
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
         build()
@@ -107,40 +111,79 @@ public final class DeckInspectViewController: UIViewController {
         }
     }
 
-    // MARK: - Hold-for-help
+    // MARK: - Tap / hold for help
 
     @objc private func cardHeld(_ g: UILongPressGestureRecognizer) {
         switch g.state {
         case .began:
             guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
-            let name: String
-            if c.joker { name = "★ Joker" }
-            else if c.blank { name = "∅ Purge" }
-            else {
-                name = (DeckManager.ranks.first { $0.value == c.currentRank }?.label
-                        ?? "\(c.currentRank)") + c.suit
-            }
-            helpTitle.attributedText = CRTKit.attributed(name, size: 14,
-                                                         color: CRT.phosphor, display: true, glow: true)
-            var lines: [String] = []
-            for rec in c.stickers {
-                if let def = GameData.shared.stickerTypes.get(rec.type) {
-                    lines.append("\(def.label) · \(def.description)")
-                }
-            }
-            if lines.isEmpty { lines.append("No stickers on this card.") }
-            helpBody.attributedText = CRTKit.attributed(lines.joined(separator: "\n"),
-                                                        size: 14, color: CRT.cardFace)
-            helpPanel.isHidden = false
-            view.setNeedsLayout()
+            showHelp(for: c)
         case .ended, .cancelled, .failed:
             helpPanel.isHidden = true
+            helpShownCardId = nil
         default: break
         }
     }
 
-    /// Card lookup for the hold recognizers (views don't carry models).
+    /// TAP works too (v6.52): tap a card → its help stays up; tap the same
+    /// card again, another card, or empty felt → it collapses/switches. The
+    /// hold keeps its press-to-peek behaviour.
+    @objc private func cardTapped(_ g: UITapGestureRecognizer) {
+        guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
+        if helpShownCardId == c.id, !helpPanel.isHidden {
+            helpPanel.isHidden = true
+            helpShownCardId = nil
+        } else {
+            showHelp(for: c)
+        }
+    }
+
+    @objc private func feltTapped(_ g: UITapGestureRecognizer) {
+        // The content recognizer hears EVERY tap (cards included) — only a
+        // tap on empty felt collapses the open help; card taps are the card
+        // recognizer's business.
+        guard let v = g.view else { return }
+        if let hit = v.hitTest(g.location(in: v), with: nil),
+           helpCards[ObjectIdentifier(hit)] != nil { return }
+        helpPanel.isHidden = true
+        helpShownCardId = nil
+    }
+
+    private func showHelp(for c: CardSpec) {
+        let name: String
+        if c.joker { name = "★ Joker" }
+        else if c.blank { name = "∅ Purge" }
+        else {
+            name = (DeckManager.ranks.first { $0.value == c.currentRank }?.label
+                    ?? "\(c.currentRank)") + c.suit
+        }
+        helpTitle.attributedText = CRTKit.attributed(name, size: 14,
+                                                     color: CRT.phosphor, display: true, glow: true)
+        // One row per sticker (v6.52): the NAME leads in the display font —
+        // gold for an ordinary sticker, blood-red for a curse — with the
+        // registry description in cream after it.
+        let body = NSMutableAttributedString()
+        for (i, rec) in c.stickers.enumerated() {
+            guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
+            if i > 0 { body.append(NSAttributedString(string: "\n")) }
+            body.append(CRTKit.attributed(def.label, size: 14,
+                                          color: def.cursed ? CRT.suitRed : CRT.gold,
+                                          display: true))
+            body.append(CRTKit.attributed("  \(def.description)", size: 14, color: CRT.cardFace))
+        }
+        if body.length == 0 {
+            body.append(CRTKit.attributed("No stickers on this card.", size: 14, color: CRT.cardFace))
+        }
+        helpBody.attributedText = body
+        helpPanel.isHidden = false
+        helpShownCardId = c.id
+        view.setNeedsLayout()
+    }
+
+    /// Card lookup for the tap/hold recognizers (views don't carry models).
     private var helpCards: [ObjectIdentifier: CardSpec] = [:]
+    /// The card whose TAP-opened help is currently up (nil = none).
+    private var helpShownCardId: Int?
 
     private func build() {
         let deck = campaign.getRunDeck().sorted { a, b in
@@ -213,8 +256,9 @@ public final class DeckInspectViewController: UIViewController {
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
-        let stkSize: CGFloat = 15, stkGap: CGFloat = 1
-        let stkPerRow = 3, stkMax = 6
+        // 15 → 18 (v6.52): the chips are why you open this screen.
+        let stkSize: CGFloat = 18
+        let stkMax = 6
         let pitch = (ch - 7) + 8
         helpCards.removeAll()
         for (i, c) in deck.enumerated() {
@@ -227,25 +271,27 @@ public final class DeckInspectViewController: UIViewController {
             // Dealt-away cards shadow out (only with live-deal context).
             if let ids = remainingIds, !ids.contains(c.id) { iv.alpha = 0.28 }
             content.addSubview(iv)
-            // Hold-for-help on every card.
+            // Tap OR hold for help on every card (v6.52).
             iv.isUserInteractionEnabled = true
             helpCards[ObjectIdentifier(iv)] = c
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(cardHeld(_:)))
             hold.minimumPressDuration = 0.4
             iv.addGestureRecognizer(hold)
-            // Sticker chips ON the card, stacked up from its bottom edge.
+            iv.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cardTapped(_:))))
+            // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
+            // leftward with the deal board's lean — the same idiom everywhere
+            // a card is shown (they used to stack from the bottom edge here).
             let stickers = Array(c.stickers.prefix(stkMax))
             for (s, rec) in stickers.enumerated() {
                 guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
-                let sRow = s / stkPerRow, sCol = s % stkPerRow
-                let inRow = min(stkPerRow, stickers.count - sRow * stkPerRow)
-                let lineW = CGFloat(inRow) * stkSize + CGFloat(inRow - 1) * stkGap
                 let chip = UIImageView(image: ItemArt.sticker(def, size: stkSize))
                 chip.contentMode = .scaleAspectFit
                 chip.layer.magnificationFilter = .nearest
-                chip.frame = CGRect(x: iv.frame.minX + (cw - lineW) / 2 + CGFloat(sCol) * (stkSize + stkGap),
-                                    y: iv.frame.maxY - 3 - CGFloat(sRow + 1) * (stkSize + stkGap) + stkGap,
+                chip.frame = CGRect(x: iv.frame.maxX + 2 - stkSize - CGFloat(s) * (stkSize * 0.62),
+                                    y: iv.frame.minY - 2,
                                     width: stkSize, height: stkSize)
+                let deg = max(-15, min(15, -11 + s * 8))
+                chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
                 content.addSubview(chip)
             }
         }

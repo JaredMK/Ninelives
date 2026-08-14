@@ -592,6 +592,19 @@ public final class DealScene: SKScene {
         for (i, p) in piles.enumerated() { p.syncHint(i < dirs.count ? dirs[i] : nil) }
     }
 
+    /// The pile whose STICKER-BADGE corner contains the point — tap-for-help
+    /// (v6.52). nil when nothing badge-like sits there.
+    public func stickerBadgePile(at scenePoint: CGPoint) -> Int? {
+        for (i, pile) in piles.enumerated() {
+            let frame = pile.stickerBadgeFrame
+            guard !frame.isNull, !frame.isEmpty else { continue }
+            let local = pile.convert(scenePoint, from: self)
+            // A finger-friendly pad: the chips are small targets.
+            if frame.insetBy(dx: -8, dy: -8).contains(local) { return i }
+        }
+        return nil
+    }
+
     // MARK: - Histogram scrub (the deck band's drag-odds readout)
 
     /// The histogram rank under a scene point, if the point is over the deck
@@ -648,9 +661,12 @@ public final class DealScene: SKScene {
                               remaining: Int, deckId: String, mood: DeckCharacter.Mood,
                               tier: String = "regular", suitTotals: [String: Int] = [:],
                               rankTotals: [Int: Int] = [:], showJoker: Bool = true) {
+        // Zen drops the suit-remaining column entirely (v6.52) — a standard
+        // deck's tallies say nothing there and they crowded the histogram.
         deckPanel.sync(counts: counts, suitCounts: suitCounts, total: total,
                        deckRemaining: remaining, deckId: deckId, mood: mood, tier: tier,
-                       suitTotals: suitTotals, rankTotals: rankTotals, showJoker: showJoker)
+                       suitTotals: suitTotals, rankTotals: rankTotals, showJoker: showJoker,
+                       showSuits: !isZen)
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.

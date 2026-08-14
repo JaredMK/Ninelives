@@ -1316,6 +1316,7 @@ public final class CampaignState {
     /// the detail sheet and the pack tray. Exhibition banks nothing, exactly
     /// as it banks no unlock progress.
     func recordBuy(_ typeId: String) {
+        DebugEventLog.shared.add("store: bought \(typeId) · purse \(coins)")
         guard !isExhibition() else { return }
         stats.bumpItemBought(typeId)
     }
@@ -1498,6 +1499,8 @@ public final class CampaignState {
         // Stamp the visit's owner node (v6.52) — the store screen rerolls on a
         // mismatch, so this shelf and this visit's price twist end with it.
         storeOffer!.offerNode = node ?? nodePos
+        DebugEventLog.shared.add("store: opened for node \(storeOffer!.offerNode.map(String.init) ?? "?")"
+                                 + (storePriceModActive.map { " · price twist ACTIVE (\($0))" } ?? ""))
         // The Queen's Restock spends itself on THIS visit's ladder: the first
         // refresh is free, used or not. And the cast's price twist arms for
         // exactly one shop — whatever was pending becomes this visit's rule.

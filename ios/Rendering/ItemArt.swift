@@ -2416,6 +2416,20 @@ public enum ItemArt {
             let face = def.cursed ? nil : stickerFaces[def.id]
             if !def.cursed && face == nil { return legacyStickerChip(def, size: size) }
             return PixelTexture.image(size: CGSize(width: side, height: side)) { cg in
+                if def.cursed {
+                    // v6.52: every curse chip sits on an EVIL plate — a
+                    // near-black blood field with a red rim — so a curse
+                    // reads as a curse at a glance wherever the chip appears
+                    // (cards, pickers, reveals, the collection).
+                    let s = CGFloat(side), px = CGFloat(k)
+                    cg.setFillColor(UIColor(red: 0.10, green: 0.02, blue: 0.03, alpha: 1).cgColor)
+                    cg.fill(CGRect(x: 0, y: 0, width: s, height: s))
+                    cg.setFillColor(CRT.suitRed.withAlphaComponent(0.85).cgColor)
+                    cg.fill(CGRect(x: 0, y: 0, width: s, height: px))
+                    cg.fill(CGRect(x: 0, y: s - px, width: s, height: px))
+                    cg.fill(CGRect(x: 0, y: 0, width: px, height: s))
+                    cg.fill(CGRect(x: s - px, y: 0, width: px, height: s))
+                }
                 drawMatrix(cg, chip, ox: 0, oy: 0, cell: CGFloat(k))
                 if let face {
                     // The web's .dcs-ic: a centred 58% box, contain-fit.

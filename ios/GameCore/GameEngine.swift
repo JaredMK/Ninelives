@@ -657,15 +657,20 @@ public final class GameEngine {
             // card LANDS normally and becomes the new pile card.
             sameCharge = false
             board.push(index, drawn)
-            curseTouch(index: index, current: current, drawn: drawn)
+            // No curseTouch here (v6.52): the guess was WRONG — a saved pile
+            // does not make it a correct landing, and landing effects fire
+            // only on correct landings (the fatal-landing audit's rule).
             logLine("Same Charge consumed — pile saved (\(cardName(drawn)) landed on \(cardName(current)) as the new pile card)")
             emit(.sameSaved(index: index, guess: g, current: current, drawn: drawn, sameCharge: sameCharge))
         } else {
             // Second Wind rolled and MISSED on the way to this death — say so.
             if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
             // Show the card that killed the pile as its (final) top, then kill it.
+            // No curseTouch (v6.52): a FATAL landing is not a correct landing —
+            // Spoiler and friends must not fire while the pile dies (the
+            // fatal-landing audit; Death Bounty below is the one deliberate
+            // on-death payout).
             board.push(index, drawn)
-            curseTouch(index: index, current: current, drawn: drawn)
             board.kill(index)
             emit(.pileKilled(index: index))
             logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")

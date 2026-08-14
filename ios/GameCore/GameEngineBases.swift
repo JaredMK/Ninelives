@@ -259,7 +259,9 @@ extension GameEngine {
             guard let next = deck.peek(1).first else { break }
             if let match = colAlivePiles(col).first(where: {
                 guard let t = board.top($0) else { return false }
-                return !t.joker && t.value == next.value
+                // A ★ on either side IS a same (always safe) — v6.52: a joker
+                // hint never shows an arrow, only the = mark.
+                return next.joker || t.joker || t.value == next.value
             }) {
                 run.tellDrawsLeft += 1
                 run.whisperPiles.insert(match)
@@ -283,7 +285,10 @@ extension GameEngine {
             var tells: [(pile: Int, direction: Guess)] = []
             for pileIdx in clubs {
                 guard let top = board.top(pileIdx) else { continue }
-                let dir: Guess = next.value > top.value ? .higher
+                // A Joker on either side reads SAME (v6.52) — a ★ can't be
+                // compared, and any call against one is safe.
+                let dir: Guess = (next.joker || top.joker) ? .same
+                              : next.value > top.value ? .higher
                               : next.value < top.value ? .lower : .same
                 tells.append((pile: pileIdx, direction: dir))
                 run.tellPiles.insert(pileIdx)
@@ -585,11 +590,12 @@ extension GameEngine {
                 return colour == "red" ? red : !red
             }
             if !alive.isEmpty {
-                run.tellDrawsLeft += alive.count
-                // The hint rides EVERY counted pile (router batch): each of
-                // the next X landed cards shows its arrow wherever it lands,
-                // not only on the pile the Same was called on.
-                for j in alive { run.whisperPiles.insert(j) }
+                // v6.52: the fire RESETS the window instead of stacking onto
+                // it — a second correct Same used to leave the EARLIER call's
+                // piles hinting too (accumulated whisperPiles + summed draws),
+                // so hints appeared on piles from a Same made long before.
+                run.tellDrawsLeft = alive.count
+                run.whisperPiles = Set(alive)
                 recT("samePower", def.id, def.label, ["hints": Double(alive.count)])
             }
             result.targets = alive

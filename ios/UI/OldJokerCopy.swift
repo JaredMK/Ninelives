@@ -84,7 +84,9 @@ enum OldJokerCopy {
         case .blindSwap(let from, _):
             return "One of your common items for something rarer. Neither is shown until it's done. He's looking at \(c.label(from))."
         case .twoDoors:
-            return "Two doors, both face down. One is kind. One is not."
+            // No detail line (v6.52): his own opening line says everything the
+            // player is allowed to know about the doors.
+            return ""
         case .insurance(let cost):
             return "\(cost) coins and your Same shield is charged."
         case .refund:
@@ -103,16 +105,16 @@ enum OldJokerCopy {
             return "Every \(names) in your deck becomes a \(to). \(affected) card\(affected == 1 ? "" : "s") in all."
         case .thirsty(let purse):
             return purse > 0
-                ? "Give him what you like. He has a long memory for both answers."
+                ? "Give him what you like."
                 : "You have nothing to give. He'll remember being asked all the same."
         case .thirstReturn(let paid, _):
             // No price tag on a gift — let the player just enjoy the haul.
             return paid > 0
                 ? "He pays his debts in things, not coins."
                 : "He wants it out of your hide: a short, ugly deal."
-        case .duplicate(let sticker):
-            let s = GameData.shared.stickerTypes.get(sticker)?.label ?? sticker
-            return "Copy any card you own, stickers and all. The copy carries a \(s) and takes the place of another card you choose."
+        case .duplicate:
+            // WHICH curse stays hidden until the copy is placed (v6.52).
+            return "Copy any card, stickers and all, to swap into your deck. The copy will contain a curse though."
         case .jokerForPillars(let pillars):
             return "Every equipped Pillar comes down, all \(pillars.count), and a ★ Joker joins your deck."
         }
@@ -154,16 +156,18 @@ enum OldJokerCopy {
             add(cheap); add(rich)
         case .swap(let taken, let given):
             add(taken); add(kind: taken.kind, id: given)
-        case .purge(_, let curses):
-            for id in curses { add(kind: .sticker, id: id) }
+        case .purge:
+            // NOTHING (v6.52): naming the rolled curses here revealed the
+            // whole bargain up front — they show only when they land on cards.
+            break
         case .blindSwap(let from, _):
             add(from)   // the item he is LOOKING at; what he'd give stays hidden
         case .refund(let options, _):
             for h in options { add(h) }
         case .freeShop(let taken, _):
             add(taken)
-        case .duplicate(let sticker):
-            add(kind: .sticker, id: sticker)   // the mark the copy comes back with
+        case .duplicate:
+            break   // the mark stays hidden until the copy is placed (v6.52)
         case .ride, .cut, .marker, .twoDoors, .insurance, .collect,
              .purgeReset, .eights, .thirsty, .thirstReturn:
             break       // these trade in cards, coins and routes, not named items
@@ -326,7 +330,8 @@ enum OldJokerCopy {
                              detail: nil, role: paid > 0 ? .cta : .danger, choice: .accept))
             return out
         case .duplicate:
-            out.append(.init(label: "COPY A CARD", detail: "the copy comes back marked",
+            // No sub-line (v6.52): the offer text already warns about the curse.
+            out.append(.init(label: "COPY A CARD", detail: nil,
                              role: .cta, choice: .accept))
         case .jokerForPillars(let pillars):
             out.append(.init(label: "TAKE THE STAR",

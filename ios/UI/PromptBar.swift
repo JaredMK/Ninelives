@@ -86,8 +86,10 @@ public final class PromptBar: UIView {
     private func helpAttributed(_ help: String) -> NSAttributedString {
         let para = NSMutableParagraphStyle()
         para.lineSpacing = 5
+        // 14 → 16 (v6.52): the SAME copy reads at 16 in hold-for-help — the
+        // one place it shrank was the confirm that actually needed reading.
         let s = NSMutableAttributedString(
-            string: help, attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted])
+            string: help, attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.muted])
         s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: s.length))
         return s
     }

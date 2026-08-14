@@ -91,10 +91,11 @@ public enum MapArt {
         baked("chip-\(amount)") {
             let text = "◉\(amount)" as NSString
             // The approaching-deal coin counter: sized to actually be read at
-            // a glance on the map, not a decorative tick.
-            let font = CRT.Font.of(18)
+            // a glance on the map, not a decorative tick. 18 → 22 (v6.52):
+            // at map zoom the number is the WHOLE point of the chip.
+            let font = CRT.Font.of(22)
             let sz = text.size(withAttributes: [.font: font])
-            let w = ceil(sz.width) + 14, h: CGFloat = 22
+            let w = ceil(sz.width) + 14, h: CGFloat = 26
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(CGRect(x: 2, y: 2, width: w, height: h))

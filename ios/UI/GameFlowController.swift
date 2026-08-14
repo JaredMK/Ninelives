@@ -1963,15 +1963,13 @@ extension GameFlowController: MapScreenDelegate {
             let copyPicker = CardPickerViewController(
                 campaign: campaign,
                 mode: .choose(title: "Copy a card", verb: "Copy",
-                              prompt: "Pick the card he copies, stickers and all.",
+                              prompt: "",
                               allowJokers: false)) { [weak self] sourceId in
                 guard let self, let sourceId else { self?.showJokerResult(r, nodeId: nodeId, map: map); return }
                 // NAME THE COPY. The second pick decides what the duplicate
                 // replaces, and you can't weigh that against a card you can no
                 // longer see — the banner used to show only his own mark.
                 let copied = self.campaign.getRunDeck().first { $0.id == sourceId }
-                let mark = GameData.shared.items.oldJoker.string("duplicate", "sticker", "leech")
-                let markName = GameData.shared.stickerTypes.get(mark)?.label ?? mark
                 let copyName = copied.map { c -> String in
                     let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label
                         ?? "\(c.currentRank)"
@@ -1981,8 +1979,11 @@ extension GameFlowController: MapScreenDelegate {
                 } ?? "the copy"
                 let replacePicker = CardPickerViewController(
                     campaign: self.campaign,
+                    // The banner card shows the copy WITH its curse chip — the
+                    // placement moment is where the mark reveals itself
+                    // (v6.52); the prompt repeats none of it.
                     mode: .choose(title: "Replace with \(copyName)", verb: "Replace",
-                                  prompt: "The copy of \(copyName) carries a \(markName). Pick the card it takes the place of.",
+                                  prompt: "",
                                   allowJokers: true,
                                   subjectCardId: sourceId,
                                   subjectExtraSticker: sticker)) { [weak self] replaceId in
@@ -2161,15 +2162,17 @@ extension GameFlowController: MapScreenDelegate {
     }
 
     /// A Blank (∅ Removal) grant: one FREE removal picker per Blank, chained
-    /// (the web's openMapBlankRemove). Declining is allowed — the picker keeps
-    /// its ✕; the grant is simply passed up. Checkpointed per confirm by the
-    /// picker's own PersistenceHolder hook.
+    /// (the web's openMapBlankRemove). v6.52: the picker is FORCED — a picked-
+    /// up purge used to be dismissible with a tap outside, silently losing the
+    /// grant. A one-card deck keeps the escape hatch (forcing there would
+    /// demand the player delete their whole deck). Checkpointed per confirm by
+    /// the picker's own PersistenceHolder hook.
     private func openMapBlankRemovals(_ count: Int) {
         guard count > 0 else { return }
         let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] _ in
             self?.openMapBlankRemovals(count - 1)
         }
-        picker.forced = false
+        picker.forced = campaign.deckSize() > 1
         present(picker, animated: false)
     }
 
@@ -2219,6 +2222,9 @@ extension GameFlowController: MapScreenDelegate {
                 let picker = CardPickerViewController(campaign: campaign, mode: .strip) { [weak self] _ in
                     self?.completeMystery(node.id)
                 }
+                // v6.52: her Cleanse may be DECLINED mid-application — Skip
+                // walks away with the deck untouched.
+                picker.showsSkip = true
                 present(picker, animated: false)
             } else { completeMystery(node.id) }
         case "store":

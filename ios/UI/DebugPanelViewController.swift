@@ -204,8 +204,49 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         buildJokerSection()
         buildGrantsSection()
         buildMetaSection()
+        buildEventLogSection()
         content.frame = CGRect(x: 0, y: 0, width: contentWidth, height: y)
         scroll.contentSize = CGSize(width: contentWidth, height: y)
+    }
+
+    /// EVENT LOG (v6.52): the run-long DebugEventLog — every item trigger,
+    /// curse, price twist, save and RNG-driven outcome, in firing order — in
+    /// a read-only text box with COPY (whole log to the pasteboard) and
+    /// CLEAR. REFRESH repaints with anything that fired since the panel
+    /// opened.
+    private func buildEventLogSection() {
+        header("Event log · \(DebugEventLog.shared.lines.count) events")
+        let box = UITextView()
+        box.isEditable = false
+        box.backgroundColor = CRT.feltDeep
+        box.layer.borderColor = CRT.ink.cgColor
+        box.layer.borderWidth = 1
+        box.font = CRT.Font.of(14)
+        box.textColor = CRT.cardFace
+        box.text = DebugEventLog.shared.lines.isEmpty
+            ? "Nothing has fired yet."
+            : DebugEventLog.shared.lines.suffix(200).joined(separator: "\n")
+        box.frame = CGRect(x: 0, y: y, width: contentWidth, height: 220)
+        content.addSubview(box)
+        // Open scrolled to the LATEST entries — the ones being verified.
+        DispatchQueue.main.async {
+            let end = NSRange(location: max(0, (box.text as NSString).length - 1), length: 1)
+            box.scrollRangeToVisible(end)
+        }
+        y += 228
+        buttonRow([
+            Btn("COPY ALL", role: .gold) { [weak self] in
+                UIPasteboard.general.string = DebugEventLog.shared.text()
+                self?.note("\(DebugEventLog.shared.lines.count) log lines copied")
+            },
+            Btn("REFRESH") { [weak self] in self?.build() },
+            Btn("CLEAR", role: .danger) { [weak self] in
+                DebugEventLog.shared.clear()
+                self?.build()
+                self?.note("event log cleared")
+            },
+        ], height: 32)
+        y += 6
     }
 
     private func buildDealSection() {

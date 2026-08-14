@@ -70,6 +70,7 @@ extension CampaignState {
                                   desc: "+\(amount) coins", amount: amount)
         }
 
+        DebugEventLog.shared.add("mystery: \(key) at node \(nodeId) (path \(cursePath))")
         switch key {
         case "coinBonus":
             return coinBonus()
@@ -137,10 +138,13 @@ extension CampaignState {
                                   desc: "Purge a card from the deck")
 
         case "stickerStrip":
-            // With nothing to strip the outcome can't appear (v5.82) —
-            // fold to coins at apply time (deterministic, like the joker cap).
-            guard getRunDeck().contains(where: { !$0.stickers.isEmpty })
-            else { return coinBonus() }
+            // v6.52: the Queen offers a Cleanse only when a CURSE actually
+            // sits on a card — stripping ordinary stickers you paid for was
+            // her "boon" removing value. No curse in the deck → fold to coins
+            // at apply time (deterministic, like the joker cap).
+            guard getRunDeck().contains(where: { c in
+                c.stickers.contains { data.stickerTypes.get($0.type)?.cursed == true }
+            }) else { return coinBonus() }
             return MysteryOutcome(key: key, title: "Cleanse",
                                   desc: "Strip a sticker from a card")
 

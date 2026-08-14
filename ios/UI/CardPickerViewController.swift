@@ -246,13 +246,13 @@ public final class CardPickerViewController: UIViewController {
 
     private func headerText() -> String {
         switch mode {
-        case .applySticker, .buySticker:
-            // No header: the banner right below already carries the sticker's
-            // chip, name and description — naming it here said it twice.
+        case .applySticker, .buySticker, .removal, .strip:
+            // No header: the banner right below already carries the chip, the
+            // name and the description — naming it here said it twice (v6.52
+            // sweep: every pick flow states the name ONCE, the instruction
+            // ONCE).
             return ""
-        case .removal: return GameData.shared.items.store.removal.label
         case .choose(let title, _, _, _, _, _): return title
-        case .strip: return "Cleanse"
         case .swap(let trayIndex, let step):
             let tray = campaign.getPackTray()
             let name = trayIndex < tray.count ? trayCardName(tray[trayIndex]) : ""
@@ -328,11 +328,13 @@ public final class CardPickerViewController: UIViewController {
                 setBanner(name: def.label, desc: def.description)
             }
         case .removal(let price):
+            // Effect + price only — "Tap the card to purge." below is the ONE
+            // instruction (v6.52 sweep).
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "∅ Purge",
                       desc: price > 0
-                        ? "Pick a card to permanently purge (◉ \(price)). The slot stays."
-                        : "Pick a card to permanently purge from your deck.")
+                        ? "◉ \(price) · permanent. The slot stays for more."
+                        : "The purge is permanent.")
         case .choose(let title, _, let prompt, _, let subject, let extraSticker):
             // When the pick is ABOUT a specific card (the Old Joker's copy),
             // show that card in the banner — his own mark says nothing about
@@ -348,18 +350,19 @@ public final class CardPickerViewController: UIViewController {
         case .strip:
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "Cleanse",
-                      desc: "Pick a card. One random sticker is stripped from it. The stripped sticker is destroyed.")
+                      desc: "One random sticker is stripped from the card and destroyed.")
         case .swap(let trayIndex, _):
+            // The header already names the incoming card ("Swap in K ♥") and
+            // the hint below carries the ONE instruction — the banner keeps
+            // only what neither says: the consequence.
             let tray = campaign.getPackTray()
             if trayIndex < tray.count {
                 let c = tray[trayIndex]
                 bannerIcon.image = CardArt.image(CardArt.Face(c), scale: .half)
                 if c.blank {
-                    setBanner(name: "∅ Purge",
-                              desc: "Pick a card to permanently purge from your deck.")
+                    setBanner(name: "∅ Purge", desc: "The purge is permanent.")
                 } else {
-                    setBanner(name: trayCardName(c),
-                              desc: "Pick a card to replace with this one (the old card is purged; deck stays 52).")
+                    setBanner(name: "", desc: "The replaced card is purged. The deck stays the same size.")
                 }
             }
         }
@@ -380,12 +383,15 @@ public final class CardPickerViewController: UIViewController {
             }
         }
         switch mode {
-        case .applySticker(let t), .buySticker(_, let t):
-            let label = GameData.shared.stickerTypes.get(t)?.label ?? "this sticker"
-            return "Tap a card to apply \(label) to it."
+        case .applySticker, .buySticker:
+            // The banner right above already names the sticker — repeating the
+            // label here said it twice (v6.52 sweep).
+            return "Tap a card to apply it."
         case .removal: return "Tap the card to purge."
         case .choose(_, let verb, _, _, _, _): return "Tap the card to \(verb.lowercased())." 
-        case .strip: return "Tap a stickered card. You must strip one to continue."
+        case .strip: return showsSkip
+            ? "Tap a stickered card, or Skip to keep things as they are."
+            : "Tap a stickered card. You must strip one to continue."
         case .swap: return showsSkip ? "Tap the card to replace, or Skip to decline this card." : "Tap the card to replace."
         }
     }

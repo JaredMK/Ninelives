@@ -41,7 +41,10 @@ extension GameEngine {
 
     /// The one landing chokepoint: `drawn` just landed on `current` at
     /// `index`. Runs the touch curses (both directions) and the on-landing
-    /// drains. Called AFTER the push, from all three landing branches.
+    /// drains. Called AFTER the push, from the CORRECT landing branches only
+    /// (the plain correct guess and the malfunction kill, whose guess was
+    /// correct). v6.52: the fatal and Same-Charge-save branches no longer
+    /// call it — landing effects fire only when the card lands correctly.
     func curseTouch(index: Int, current: LiveCard, drawn: LiveCard) {
         // PEELER, both directions: the touched card loses ALL stickers,
         // curses included. Mutual peelers strip each other.

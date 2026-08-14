@@ -441,6 +441,24 @@ public final class DealViewController: UIViewController {
             controller.basePlaqueTapped(col: col)
             return
         }
+        // TAP-FOR-HELP (v6.52): a Pillar plaque, the Same-Power chip and a
+        // card's sticker corner answer a plain TAP with the same help a hold
+        // shows — the next tap anywhere collapses it (the isHelpVisible gate
+        // at the top of this handler).
+        if let col = scene.pillarCol(at: p), let (title, body) = controller.helpText(forPillar: col) {
+            scene.showHelp(title: title, body: body)
+            return
+        }
+        if scene.hudChip(at: p) == "samePower",
+           let (title, body) = controller.helpText(forHUDChip: "samePower") {
+            scene.showHelp(title: title, body: body)
+            return
+        }
+        if let pile = scene.stickerBadgePile(at: p),
+           let (title, body) = controller.helpText(forPile: pile) {
+            scene.showHelp(title: title, body: body)
+            return
+        }
         if let pile = scene.pileIndex(at: p) {
             // Fan hint ARMED: a pile tap opens that pile's full face-up fan
             // OVERLAY (the web's openPileFan) instead of selecting. The sliver

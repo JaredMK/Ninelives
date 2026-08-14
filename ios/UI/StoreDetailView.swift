@@ -87,7 +87,10 @@ final class StoreDetailView: UIView {
         buyButton.isHidden = true
     }
 
-    /// Mystery Same-Power REVEAL: the just-rolled power, read-only.
+    /// Mystery Same-Power REVEAL: the just-rolled power over the equipped→new
+    /// comparison, with KEEP / DISCARD living INSIDE the panel (v6.52 — the
+    /// prompt-bar version put the decision at the far end of the screen from
+    /// the thing being decided).
     init(campaign: CampaignState, revealedSamePower def: ItemDef) {
         self.campaign = campaign
         self.kind = "samepower"
@@ -100,8 +103,16 @@ final class StoreDetailView: UIView {
         common()
         refresh()
         buyButton.isHidden = true
-        closeButton.isHidden = true   // the Keep/Discard bar is the only exit
+        closeButton.isHidden = true   // Keep/Discard are the only exits
+        keepButton.isHidden = false
+        discardButton.isHidden = false
     }
+
+    /// Reveal-mode exits (wired by the store screen).
+    var onKeep: (() -> Void)?
+    var onDiscard: (() -> Void)?
+    private let keepButton = PixelButtonView("KEEP & EQUIP", role: .gold, fontSize: 14)
+    private let discardButton = PixelButtonView("DISCARD", role: .danger, fontSize: 14)
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not supported") }
@@ -147,6 +158,12 @@ final class StoreDetailView: UIView {
             self.onBuy?(self.placeCol)
         }
         panel.addSubview(buyButton)
+        keepButton.isHidden = true
+        keepButton.onTap = { [weak self] in self?.onKeep?() }
+        panel.addSubview(keepButton)
+        discardButton.isHidden = true
+        discardButton.onTap = { [weak self] in self?.onDiscard?() }
+        panel.addSubview(discardButton)
         sellButton.isHidden = true
         sellButton.onTap = { [weak self] in self?.onSell?() }
         panel.addSubview(sellButton)
@@ -241,7 +258,9 @@ final class StoreDetailView: UIView {
             tierLabel.attributedText = tierText(d.tier)
             nameLabel.attributedText = CRTKit.attributed(d.label, size: 14, color: CRT.cardFace, display: true)
             // Same-Power descriptions carry "Trigger: …\nEffect: …" — pre-line.
-            descLabel.attributedText = CRTKit.attributed(campaign.itemDescription(d), size: 14,
+            // The REVEAL reads at label size (16): it is the one moment the
+            // description IS the content, not fine print (v6.52).
+            descLabel.attributedText = CRTKit.attributed(campaign.itemDescription(d), size: isReveal ? 16 : 14,
                                                          color: CRT.cardFace.withAlphaComponent(0.86))
         }
 
@@ -302,7 +321,9 @@ final class StoreDetailView: UIView {
     /// INCOMING one over an explicit question — identical layout for filling
     /// and replacing.
     private func refreshCompare() {
-        let placement = !isEquippedView && !isMystery && !isReveal
+        // The REVEAL keeps the comparison (v6.52): equipped → revealed, same
+        // layout the pillar/base placement uses, with the question under it.
+        let placement = !isEquippedView && !isMystery
             && (kind == "pillar" || kind == "base" || kind == "samepower")
         let targetPicked = kind == "samepower" || placeCol != nil
         guard placement, targetPicked, let nt = def() else {
@@ -430,6 +451,16 @@ final class StoreDetailView: UIView {
         }
         if !buyButton.isHidden {
             buyButton.frame = CGRect(x: m, y: y, width: cw, height: 46)
+            y += 54
+        }
+        if !keepButton.isHidden {
+            // The reveal's decision row, INSIDE the panel: discard left,
+            // keep right — the destructive exit never sits under the thumb
+            // that just tapped BUY.
+            let gap: CGFloat = 8
+            let bw = (cw - gap) / 2
+            discardButton.frame = CGRect(x: m, y: y, width: bw, height: 46)
+            keepButton.frame = CGRect(x: m + bw + gap, y: y, width: bw, height: 46)
             y += 54
         }
         if !sellButton.isHidden {

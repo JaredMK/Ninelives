@@ -25,7 +25,10 @@ public enum CardArt {
             switch self { case .full: return 64; case .three: return 48; case .half: return 34 }
         }
         var suitSize: CGFloat {
-            switch self { case .full: return 26; case .three: return 20; case .half: return 14 }
+            // half 14 → 18, three 20 → 22 (v6.52): at the 12-pile scale the
+            // ♣/♠ silhouettes blurred together — the suit mark is the ONE
+            // thing a guess hangs on, so it grows before anything else does.
+            switch self { case .full: return 26; case .three: return 22; case .half: return 18 }
         }
         /// c50 halves the border AND the shadow.
         var shadow: CGFloat { self == .half ? 2 : CRT.shadowOffset }

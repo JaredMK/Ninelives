@@ -24,7 +24,7 @@
       "label": "Mystery Same-Power",
       "icon": "❓",
       "price": 10,
-      "description": "An unknown Same-Power. Buy it to reveal which one it is, then keep it or discard it."
+      "description": "Purchase to reveal"
     },
     "card": {
       "label": "Card",
@@ -301,7 +301,7 @@
       "value": 1,
       "tier": "common",
       "price": 1,
-      "description": "When this card lands → +1 coin",
+      "description": "+1 coin",
       "suits": [
         "♥"
       ]
@@ -328,7 +328,7 @@
       "value": 3,
       "tier": "common",
       "price": 2,
-      "description": "When this card lands → +3 coins if it kills a pile",
+      "description": "+3 coins if it kills a pile",
       "suits": [
         "♥"
       ]
@@ -380,7 +380,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 1,
-      "description": "When this card lands → +1 coin per other sticker on this card",
+      "description": "+1 coin per other sticker on this card",
       "suits": [
         "♥"
       ]
@@ -399,7 +399,7 @@
       "step": 1,
       "tier": "rare",
       "price": 6,
-      "description": "When this card lands → +X coins. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
+      "description": "+X coins. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
       "suits": [
         "♥"
       ]
@@ -417,7 +417,7 @@
       "behavior": "revealNext",
       "tier": "rare",
       "price": 6,
-      "description": "When this card lands → peek at the next deck card",
+      "description": "Peek at the next deck card",
       "suits": [
         "♠"
       ]
@@ -445,7 +445,7 @@
       "behavior": "shuffle",
       "tier": "uncommon",
       "price": 1,
-      "description": "When this card lands → optionally shuffle the pile",
+      "description": "Optionally shuffle the pile",
       "suits": [
         "♦"
       ]
@@ -459,7 +459,7 @@
       "count": 1,
       "tier": "common",
       "price": 1,
-      "description": "When this card lands → move 1 buried card from this pile to the smallest pile",
+      "description": "Move 1 buried card from this pile to the smallest pile",
       "suits": [
         "♦"
       ]
@@ -472,7 +472,7 @@
       "behavior": "quickBury",
       "tier": "rare",
       "price": 7,
-      "description": "When this card lands → bury 1 deck card under the pile",
+      "description": "Bury 1 deck card under the pile",
       "suits": [
         "♣"
       ]
@@ -490,7 +490,7 @@
       "behavior": "twinSpark",
       "tier": "uncommon",
       "price": 3,
-      "description": "When this card lands → peek at the next card if another pile's top card matches this rank",
+      "description": "Peek at the next card if another pile's top card matches this rank",
       "suits": [
         "♠"
       ]
@@ -509,7 +509,7 @@
       "max": 3,
       "tier": "uncommon",
       "price": 2,
-      "description": "When this card lands → +0–3 coins (random)",
+      "description": "+0–3 coins (random)",
       "suits": [
         "♥"
       ]
@@ -528,7 +528,7 @@
       "step": 1,
       "tier": "rare",
       "price": 10,
-      "description": "When this card lands → bury X cards. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
+      "description": "Bury X cards. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
       "suits": [
         "♣"
       ]
@@ -547,7 +547,7 @@
       "per": 10,
       "tier": "uncommon",
       "price": 3,
-      "description": "When this card lands → +1 coin per 10 cards left in the deck",
+      "description": "+1 coin per 10 cards left in the deck",
       "suits": [
         "♥"
       ]
@@ -565,7 +565,7 @@
       "behavior": "pillarScout",
       "tier": "uncommon",
       "price": 2,
-      "description": "When this card lands → peek at the next card if this column has no pillar",
+      "description": "Peek at the next card if this column has no pillar",
       "suits": [
         "♠"
       ]
@@ -583,7 +583,7 @@
       "behavior": "baseScout",
       "tier": "uncommon",
       "price": 2,
-      "description": "When this card lands → peek at the next card if this column has no base",
+      "description": "Peek at the next card if this column has no base",
       "suits": [
         "♠"
       ]
@@ -676,7 +676,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 3,
-      "description": "When this card lands → +1 coin per other pile with a ♥ top card",
+      "description": "+1 coin per other pile with a ♥ top card",
       "suits": [
         "♥"
       ]
@@ -694,7 +694,7 @@
       "behavior": "diamondRipple",
       "tier": "uncommon",
       "price": 2,
-      "description": "When this card lands → shuffle every other pile with a ♦ top card",
+      "description": "Shuffle every other pile with a ♦ top card",
       "suits": [
         "♦"
       ]
@@ -713,7 +713,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 8,
-      "description": "When this card lands → bury 1 deck card under each pile with a ♣ top card",
+      "description": "Bury 1 deck card under each pile with a ♣ top card",
       "suits": [
         "♣"
       ]
@@ -731,7 +731,7 @@
       "behavior": "spadeWhispers",
       "tier": "rare",
       "price": 8,
-      "description": "When this card lands → the next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card",
+      "description": "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card",
       "suits": [
         "♠"
       ]
@@ -749,7 +749,7 @@
       "behavior": "tell",
       "tier": "uncommon",
       "price": 4,
-      "description": "When this card lands → shows if the next deck card is higher, lower, or same",
+      "description": "Shows if the next deck card is higher, lower, or same",
       "suits": [
         "♠"
       ]
@@ -767,7 +767,7 @@
       "behavior": "rechargeSameShield",
       "tier": "rare",
       "price": 8,
-      "description": "When this card lands correctly → bank a Same Charge (max 1)"
+      "description": "Bank a Same Charge (max 1)"
     },
     {
       "id": "activateSamePower",
@@ -782,7 +782,7 @@
       "behavior": "activateSamePower",
       "tier": "rare",
       "price": 6,
-      "description": "When this card lands correctly → fire your equipped Same-Power"
+      "description": "Fire your equipped Same-Power"
     },
     {
       "id": "leech",
@@ -795,7 +795,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 10,
-      "description": "Cursed. When this card lands → −3 coins"
+      "description": "Cursed. −3 coins"
     },
     {
       "id": "shrink",
@@ -832,7 +832,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 8,
-      "description": "Cursed. When this card lands, the card at the BOTTOM of its pile returns to the deck"
+      "description": "Cursed. When it lands, the card at the BOTTOM of its pile returns to the deck"
     },
     {
       "id": "spoiler",
@@ -844,7 +844,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 6,
-      "description": "Cursed. When this card lands → bonus coins earned this deal reset to 0"
+      "description": "Cursed. Bonus coins earned this deal reset to 0"
     },
     {
       "id": "drainShield",
@@ -856,7 +856,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 6,
-      "description": "Cursed. When this card lands → your Same Charge drains"
+      "description": "Cursed. Your Same Charge drains"
     },
     {
       "id": "flatline",
@@ -931,7 +931,7 @@
       "curseExclude": [
         "duplicate"
       ],
-      "description": "Cursed. When this card lands → the column's Base is spent for the deal"
+      "description": "Cursed. The column's Base is spent for the deal"
     },
     {
       "id": "malfunction",
@@ -964,7 +964,7 @@
         "purge",
         "duplicate"
       ],
-      "description": "Cursed. When this card lands → 10% chance the column's Base or Pillar is destroyed"
+      "description": "Cursed. 10% chance the column's Base or Pillar is destroyed"
     }
   ],
   "pillars": [
@@ -1154,7 +1154,7 @@
       "kind": "live",
       "effect": "fibonacci",
       "value": 1,
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 4,
       "description": "When a Fibonacci-rank card (A/2/3/5/8) lands correctly into this column → +1 coin"
     },
@@ -1906,7 +1906,7 @@
       "effect": "linkTell",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: The next X cards show a higher/lower/same hint, where X is the number of alive piles with a {color} top card"
+      "description": "Trigger: You make a correct Same\nEffect: The next X cards show a tell (higher/lower/same indicator) hint, where X is the number of alive piles with a {color} top card"
     },
     {
       "id": "linkSticker",

@@ -132,17 +132,21 @@ public final class PileNode: SKNode {
         hintChip?.removeFromParent()
         hintChip = nil
         guard let dir, !isDead, cardCount > 0 else { return }
+        // v6.52: the chip sits ON the card face (mid-height) — at the seam it
+        // read as belonging to either this card or the one above — larger
+        // (18 → 22), with the peeked-card family's faint pulsing glow.
+        // SKAction only: one alpha pulse on the chip, one on its glow child.
         let glyph = dir == .higher ? "▲" : (dir == .lower ? "▼" : "＝")
         let text = glyph as NSString
-        let font = CRT.Font.of(18)
+        let font = CRT.Font.of(22)
         let tsz = text.size(withAttributes: [.font: font])
-        let w = max(22, ceil(tsz.width) + 10), h: CGFloat = 21
+        let w = max(28, ceil(tsz.width) + 12), h: CGFloat = 26
         let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
             cg.setFillColor(CRT.shadow.cgColor)
             cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
             cg.setFillColor(CRT.ink.cgColor)
             cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
-            cg.setStrokeColor(CRT.cardFace.cgColor)
+            cg.setStrokeColor(CRT.phosphor.cgColor)
             cg.setLineWidth(CRT.px)
             cg.stroke(CGRect(x: 1, y: 1, width: w - 2, height: h - 2))
             UIGraphicsPushContext(cg)
@@ -153,8 +157,18 @@ public final class PileNode: SKNode {
         let n = SKSpriteNode(texture: PixelTexture.texture(from: img))
         n.size = img.size
         n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        n.position = CGPoint(x: cardScale.size.width / 2, y: 4)
+        n.position = CGPoint(x: cardScale.size.width / 2, y: cardScale.size.height * 0.5)
         n.zPosition = Layer.card + 5
+        let glow = SKSpriteNode(texture: n.texture)
+        glow.size = CGSize(width: img.size.width * 1.3, height: img.size.height * 1.3)
+        glow.alpha = 0.28
+        glow.blendMode = .add
+        glow.zPosition = -0.5
+        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.10, duration: 0.6),
+                                           .fadeAlpha(to: 0.32, duration: 0.6)])))
+        n.addChild(glow)
+        n.run(.repeatForever(.sequence([.fadeAlpha(to: 0.8, duration: 0.6),
+                                        .fadeAlpha(to: 1.0, duration: 0.6)])))
         addChild(n)
         hintChip = n
     }
@@ -337,10 +351,10 @@ public final class PileNode: SKNode {
         guard let top, !top.stickers.isEmpty else { return }
         var counts: [String: Int] = [:]
         for s in top.stickers { counts[s.type, default: 0] += 1 }
-        // 20 → 26 (router batch): the chips are the card's whole story mid-
-        // deal and still read small on a phone. The overlap factor keeps a
-        // full row inside the card's width.
-        let chip: CGFloat = 26
+        // 20 → 26 (router batch) → 30 (v6.52): the chips are the card's whole
+        // story mid-deal and still read small on a phone. The overlap factor
+        // keeps a full row inside the card's width.
+        let chip: CGFloat = 30
         let box = cardScale.size
         var idx = 0
         for def in GameData.shared.stickerTypes.all() {
@@ -372,6 +386,12 @@ public final class PileNode: SKNode {
             // row never needs to draw more than that.
             if idx >= GameData.shared.items.maxStickersPerCard { break }
         }
+    }
+
+    /// The sticker-badge row's bounds in THIS node's coordinates — the deal
+    /// screen's tap-for-help target (v6.52). Null when the top carries none.
+    public var stickerBadgeFrame: CGRect {
+        badgeRow.children.isEmpty ? .null : badgeRow.calculateAccumulatedFrame()
     }
 
     // MARK: - Cascade visibility

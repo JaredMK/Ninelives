@@ -62,18 +62,28 @@ public final class DeckPanel: SKNode {
         peekShown = face
         peekLayer.removeAllChildren()
         guard let face else { return }
+        // v6.52: the peeked card sits DIRECTLY OVER the character (no "NEXT"
+        // tag — the placement says it) and reads bigger, with a phosphor
+        // halo behind it on top of the alpha-breathe: the old pulse alone
+        // didn't pull the eye off the board.
         let card = CardNode(face: face, scale: .half)
-        card.anchorPoint = CGPoint(x: 0, y: 1)
-        card.setScale(0.62)
-        card.position = CGPoint(x: character.position.x - 38, y: character.position.y + 2)
+        card.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        card.setScale(0.92)
+        card.position = CGPoint(x: character.position.x + 16, y: character.position.y - 12)
+        card.zPosition = 4
+        let halo = SKShapeNode(rectOf: CGSize(width: 54, height: 72), cornerRadius: 4)
+        halo.fillColor = CRT.phosphor
+        halo.strokeColor = .clear
+        halo.alpha = 0.22
+        halo.blendMode = .add
+        halo.zPosition = -0.5
+        halo.run(.repeatForever(.sequence([.fadeAlpha(to: 0.10, duration: 0.55),
+                                           .fadeAlpha(to: 0.28, duration: 0.55)])))
+        card.addChild(halo)
         peekLayer.addChild(card)
-        let tag = PixelTexture.label("NEXT", size: 14, color: CRT.phosphor, glow: true)
-        tag.anchorPoint = CGPoint(x: 0.5, y: 1)
-        tag.position = CGPoint(x: card.position.x + 15, y: card.position.y - 44)
-        peekLayer.addChild(tag)
         card.alpha = 0
         card.run(.group([.fadeIn(withDuration: 0.15),
-                         .sequence([.scale(to: 0.7, duration: 0.1), .scale(to: 0.62, duration: 0.1)])]))
+                         .sequence([.scale(to: 1.0, duration: 0.1), .scale(to: 0.92, duration: 0.1)])]))
         // The peeked card GLOWS (a slow alpha-breathe — the eye catches the
         // motion) and the character does a quick two-hop to point you at it
         // (router batch). Both transform/alpha-only.
@@ -111,7 +121,8 @@ public final class DeckPanel: SKNode {
     public func sync(counts: [Int: Int], suitCounts: [String: Int], total: Int,
                      deckRemaining: Int, deckId: String, mood: DeckCharacter.Mood,
                      tier: String = "regular", suitTotals: [String: Int] = [:],
-                     rankTotals: [Int: Int] = [:], showJoker: Bool = true) {
+                     rankTotals: [Int: Int] = [:], showJoker: Bool = true,
+                     showSuits: Bool = true) {
         histLayer.removeAllChildren()
         suitLayer.removeAllChildren()
         deckLayer.removeAllChildren()
@@ -121,22 +132,27 @@ public final class DeckPanel: SKNode {
 
         let pad: CGFloat = 8
         // ---- suit counts (left, remaining/total like the web) ----
-        var sy: CGFloat = -pad - 6
-        for s in ["♥", "♦", "♣", "♠"] {
-            let n = suitCounts[s] ?? 0
-            let t = suitTotals[s] ?? n
-            // All four tallies read CREAM (v6.36): red-on-felt was the
-            // hardest text on the board, and the glyph already carries the suit.
-            let text = "\(s) \(n)/\(t)"
-            let label = PixelTexture.label(text, size: 16, color: n == 0 && t == 0 ? CRT.muted : CRT.cardFace)
-            label.anchorPoint = CGPoint(x: 0, y: 0.5)
-            label.position = CGPoint(x: pad, y: sy)
-            suitLayer.addChild(label)
-            sy -= 15
+        // Zen passes showSuits: false (v6.52) — a fresh standard deck's suit
+        // tallies say nothing there, and the column crowded the histogram
+        // into the "11/13" overlap. The histogram reclaims the width.
+        if showSuits {
+            var sy: CGFloat = -pad - 6
+            for s in ["♥", "♦", "♣", "♠"] {
+                let n = suitCounts[s] ?? 0
+                let t = suitTotals[s] ?? n
+                // All four tallies read CREAM (v6.36): red-on-felt was the
+                // hardest text on the board, and the glyph already carries the suit.
+                let text = "\(s) \(n)/\(t)"
+                let label = PixelTexture.label(text, size: 16, color: n == 0 && t == 0 ? CRT.muted : CRT.cardFace)
+                label.anchorPoint = CGPoint(x: 0, y: 0.5)
+                label.position = CGPoint(x: pad, y: sy)
+                suitLayer.addChild(label)
+                sy -= 15
+            }
         }
 
         // ---- rank histogram (middle): one column per rank, 2..A left→right ----
-        let histX = pad + 46
+        let histX = pad + (showSuits ? 46 : 0)
         let deckW: CGFloat = 62
         let histW = size.width - histX - deckW - pad * 2
         // +1 column for ★ (jokers), which sit at rank 0 and are therefore

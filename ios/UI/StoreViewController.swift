@@ -600,35 +600,34 @@ public final class StoreViewController: UIViewController {
     /// the displaced sell-back) or DISCARD (gone, no refund) on the shared
     /// prompt bar. MODAL — the money is spent; there is no backing out.
     private func revealMysterySamePower(_ def: ItemDef) {
+        // v6.52: the decision lives INSIDE the reveal panel (Keep/Discard
+        // buttons under the equipped→new comparison) — no prompt bar, no
+        // "It's …" prefix; the panel names the power once.
         let d = StoreDetailView(campaign: campaign, revealedSamePower: def)
+        d.onDiscard = { [weak self] in
+            guard let self else { return }
+            _ = self.campaign.discardSamePowerFromInventory(def.id)
+            self.setMessage("\(def.label) discarded. The coins are spent either way.")
+            self.closeDetail()
+            self.render()
+        }
+        d.onKeep = { [weak self] in
+            guard let self else { return }
+            // The existing same-power purchase flow: equip, and a displaced
+            // power is SOLD BACK (coins in, card destroyed).
+            let prev = self.campaign.getSamePower()
+            _ = self.campaign.equipSamePower(def.id)
+            if let prev, prev != def.id {
+                _ = self.campaign.discardSamePowerFromInventory(prev)
+                _ = self.campaign.addCoins(self.sellValue(GameData.shared.samePowerTypes.get(prev)))
+            }
+            self.setMessage("\(def.label) equipped as your Same-Power.")
+            self.closeDetail()
+            self.render()
+        }
         d.frame = view.bounds
         view.insertSubview(d, belowSubview: crt)
         detail = d
-        prompt.show("It's \(def.label)!", help: campaign.itemDescription(def), actions: [
-            .init("Discard", role: .danger) { [weak self] in
-                guard let self else { return }
-                self.prompt.hide()
-                _ = self.campaign.discardSamePowerFromInventory(def.id)
-                self.setMessage("\(def.label) discarded. The coins are spent either way.")
-                self.closeDetail()
-                self.render()
-            },
-            .init("Keep", role: .cta) { [weak self] in
-                guard let self else { return }
-                self.prompt.hide()
-                // The existing same-power purchase flow: equip, and a displaced
-                // power is SOLD BACK (coins in, card destroyed).
-                let prev = self.campaign.getSamePower()
-                _ = self.campaign.equipSamePower(def.id)
-                if let prev, prev != def.id {
-                    _ = self.campaign.discardSamePowerFromInventory(prev)
-                    _ = self.campaign.addCoins(self.sellValue(GameData.shared.samePowerTypes.get(prev)))
-                }
-                self.setMessage("\(def.label) equipped as your Same-Power.")
-                self.closeDetail()
-                self.render()
-            },
-        ])   // no dismiss handler: an outside tap answers nothing
     }
 
     // MARK: - Packs
