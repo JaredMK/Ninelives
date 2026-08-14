@@ -1134,9 +1134,8 @@ public final class DealController {
             // The cost, brutally clear: the exact number about to vanish.
             confirmDesc += "\nThis spends ALL your coins: ◉ \(campaign.getCoins()). Every one."
         }
-        if def.effect == "lastResort" {
-            confirmDesc += "\nLast Resort and any base beside it are destroyed."
-        }
+        // (v6.53 batch 3: Last Resort's destruction warning now lives in its
+        // registry description — appending it here printed it twice.)
         handler(def.label, confirmDesc) { [weak self] in
             guard let self else { return }
             self.promptActive = false
@@ -1234,12 +1233,13 @@ public final class DealController {
         return ("\(def.label) · column \(col + 1)", def.description)
     }
 
-    /// The Base plaque's hold-help (the web's basePeekHtml): name + effect, the
-    /// column, and this deal's charged/spent state.
+    /// The Base plaque's hold-help (the web's basePeekHtml): name + effect and
+    /// this deal's charged/spent state. v6.53 batch 3: no column number (the
+    /// plaque IS on its column) and no "tap the plaque" coaching line.
     public func helpText(forBase col: Int) -> (String, String)? {
         guard let id = currentBaseId(col), let def = GameData.shared.baseTypes.get(id) else { return nil }
         var body = def.description
-        var title = "\(def.label) · column \(col + 1)"
+        var title = def.label
         if engine != nil {
             let spent = engine.run.basesUsed?[safe: col] ?? false
             if spent {
@@ -1248,7 +1248,6 @@ public final class DealController {
                 // The word "charged" is now the LIGHT: the same green dot the
                 // plaque blinks, riding the name (router batch).
                 title = "● " + title
-                body += "\nTap the plaque to fire it."
             } else if def.effect == "lastResort", engine.isBossDeal {
                 body += "\nSealed during a boss deal."
             }

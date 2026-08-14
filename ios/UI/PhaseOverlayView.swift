@@ -1098,110 +1098,16 @@ public final class PhaseOverlayView: UIView {
         panel.addSubview(title)
         py += 30
 
-        // The cream art well — only when there is something REAL to show in
-        // it. The flag-arming outcomes (Fire Sale, Markup, Restock, Mulligan,
-        // the shield turns) used to draw a big empty well with a lone glyph;
-        // now they simply skip it and the panel tightens up.
-        let art = UIView()
-        art.backgroundColor = CRT.cardFace
-        art.layer.borderWidth = CRT.px
-        art.layer.borderColor = CRT.ink.cgColor
-        var artH: CGFloat = 96
-        var hasArt = true
-        if outcome.key == "ambush" {
-            // The ambush, depicted: the piles you'll face, face down — never
-            // the off-palette ☠ glyph.
-            let n = max(1, min(outcome.ambushPiles ?? 4, 4))
-            let w: CGFloat = 58
-            let rowW = CGFloat(n) * (w + 8) - 8
-            artH = 100
-            let backFace = CardArt.Face(label: "", suit: "", kind: .back(deckId: deckId))
-            for i in 0..<n {
-                let iv = UIImageView(image: CardArt.image(backFace, scale: .half))
-                iv.contentMode = .scaleAspectFit
-                iv.layer.magnificationFilter = .nearest
-                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
-                                  width: w, height: 80)
-                art.addSubview(iv)
-            }
-        } else if !outcome.cards.isEmpty {
-            // The card row — plus, when the outcome TORE stickers off (the
-            // Two's Peeled), the torn chips right beside it, so what left is
-            // seen and not just named (router batch).
-            let tornDefs = outcome.stickerIds.compactMap { GameData.shared.stickerTypes.get($0) }
-            let n = min(outcome.cards.count, 4)
-            let w: CGFloat = 58
-            let chipS: CGFloat = 34
-            let chipsW = tornDefs.isEmpty ? 0 : CGFloat(min(tornDefs.count, 3)) * (chipS + 4) + 8
-            let rowW = CGFloat(n) * (w + 8) - 8 + chipsW
-            artH = 100
-            for (i, c) in outcome.cards.prefix(4).enumerated() {
-                let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
-                iv.contentMode = .scaleAspectFit
-                iv.layer.magnificationFilter = .nearest
-                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(i) * (w + 8), y: 10, width: w, height: 80)
-                art.addSubview(iv)
-            }
-            for (i, def) in tornDefs.prefix(3).enumerated() {
-                let iv = UIImageView(image: ItemArt.sticker(def, size: chipS))
-                iv.contentMode = .scaleAspectFit
-                iv.layer.magnificationFilter = .nearest
-                iv.frame = CGRect(x: (panelW - 36 - rowW) / 2 + CGFloat(n) * (w + 8) + 8
-                                     + CGFloat(i) * (chipS + 4),
-                                  y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
-                art.addSubview(iv)
-            }
-        } else if let sid = outcome.stickerId, let def = GameData.shared.stickerTypes.get(sid) {
-            let iv = UIImageView(image: ItemArt.sticker(def, size: 64))
-            iv.contentMode = .scaleAspectFit
-            iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 16, width: 64, height: 64)
-            art.addSubview(iv)
-        } else if let ik = outcome.itemKind, let iid = outcome.itemId {
-            // itemTheft: the repossessed Pillar/Base, so the loss is SEEN.
-            let iv = UIImageView(image: ItemArt.forSlot(kind: ik, id: iid, card: nil, deckId: ""))
-            iv.contentMode = .scaleAspectFit
-            iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 16, width: 64, height: 64)
-            art.addSubview(iv)
-        } else if outcome.key == "store" {
-            let iv = UIImageView(image: MapArt.shopStall())
-            iv.contentMode = .scaleAspectFit
-            iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: (panelW - 36 - 64) / 2, y: 20, width: 64, height: 56)
-            art.addSubview(iv)
-        } else if outcome.key == "freeRemoval" || outcome.key == "stickerStrip" {
-            // Purge/Cleanse: the torn-card REMOVAL art, never the generic ★.
-            let iv = UIImageView(image: ItemArt.removal(width: 56, height: 72))
-            iv.contentMode = .scaleAspectFit
-            iv.layer.magnificationFilter = .nearest
-            iv.frame = CGRect(x: (panelW - 36 - 56) / 2, y: 12, width: 56, height: 72)
-            art.addSubview(iv)
-        } else if let amount = outcome.amount {
-            let sign = outcome.good ? "+" : "−"
-            let coins = UILabel()
-            let text = NSMutableAttributedString()
-            if let coin = ArtBundle.image("pxi-coin") {
-                let att = NSTextAttachment()
-                att.image = coin
-                att.bounds = CGRect(x: 0, y: -3, width: 28, height: 28)
-                text.append(NSAttributedString(attachment: att))
-                text.append(NSAttributedString(string: " "))
-            }
-            text.append(NSAttributedString(string: "\(sign)\(abs(amount))",
-                                           attributes: [.font: CRT.Font.of(34), .foregroundColor: CRT.gold]))
-            coins.attributedText = text
-            coins.textAlignment = .center
-            coins.frame = CGRect(x: 0, y: 28, width: panelW - 36, height: 40)
-            art.addSubview(coins)
-        } else {
-            // Nothing worth a picture — no well at all.
-            hasArt = false
-        }
-        if hasArt {
-            art.frame = CGRect(x: 18, y: py, width: panelW - 36, height: artH)
+        // The cream art well — the shared RESULT CONTAINER (OutcomeWell), only
+        // when there is something REAL to show in it. The flag-arming outcomes
+        // (Fire Sale, Markup, Restock, Mulligan, the shield turns) used to
+        // draw a big empty well with a lone glyph; now they simply skip it and
+        // the panel tightens up.
+        if let well = OutcomeWell.from(outcome, deckId: deckId) {
+            let art = well.build(width: panelW - 36)
+            art.frame.origin = CGPoint(x: 18, y: py)
             panel.addSubview(art)
-            py += artH + 12
+            py += art.frame.height + 12
         }
 
         // 16pt, brighter (router batch): "Leech torn off your 7♥" was the
@@ -1273,6 +1179,144 @@ public final class PhaseOverlayView: UIView {
         default: break
         }
         return v
+    }
+}
+
+/// THE RESULT CONTAINER — the cream bordered art well every event family
+/// shares. When an effect resolves, what changed is SHOWN here as art (a card
+/// strip, an item tile, a sticker chip, a coin figure), never only named in a
+/// sentence. One component, three voices: the mystery reveal (the Queen and
+/// the Two), the Old Joker's conversation modal, and the chained reveals.
+/// `from(_:)` maps a MysteryOutcome to its content; the Old Joker's closing
+/// modals build cases directly from OldJoker.Result.
+enum OutcomeWell {
+    /// The ambush, depicted: the piles you'll face, face down.
+    case ambush(piles: Int, deckId: String)
+    /// A card strip (grants, cuts, curses) plus any torn-off sticker chips
+    /// beside it, so what left is seen and not just named.
+    case cards([CardSpec], torn: [ItemDef])
+    /// One sticker chip (granted or inflicted).
+    case sticker(ItemDef)
+    /// An equipped item's own tile art (traded / taken / sold).
+    case item(kind: String, id: String, deckId: String)
+    /// The shop stall (detours, comped shelves).
+    case shop
+    /// The torn-card removal art (a Purge/Cleanse picker still to come).
+    case removal
+    /// A signed coin figure.
+    case coins(amount: Int, positive: Bool)
+
+    /// The mystery reveal's content precedence, unchanged from when this
+    /// lived inline: ambush > cards > sticker > item > stall > removal > coins.
+    static func from(_ outcome: MysteryOutcome, deckId: String) -> OutcomeWell? {
+        if outcome.key == "ambush" {
+            return .ambush(piles: outcome.ambushPiles ?? 4, deckId: deckId)
+        }
+        if !outcome.cards.isEmpty {
+            let torn = outcome.stickerIds.compactMap { GameData.shared.stickerTypes.get($0) }
+            return .cards(outcome.cards, torn: torn)
+        }
+        if let sid = outcome.stickerId, let def = GameData.shared.stickerTypes.get(sid) {
+            return .sticker(def)
+        }
+        if let ik = outcome.itemKind, let iid = outcome.itemId {
+            // itemTheft: the repossessed Pillar/Base, so the loss is SEEN.
+            return .item(kind: ik, id: iid, deckId: "")
+        }
+        if outcome.key == "store" { return .shop }
+        // Purge/Cleanse: the torn-card REMOVAL art, never the generic ★.
+        if outcome.key == "freeRemoval" || outcome.key == "stickerStrip" { return .removal }
+        if let amount = outcome.amount {
+            return .coins(amount: abs(amount), positive: outcome.good)
+        }
+        // Nothing worth a picture — no well at all.
+        return nil
+    }
+
+    private func pixelImage(_ image: UIImage) -> UIImageView {
+        let iv = UIImageView(image: image)
+        iv.contentMode = .scaleAspectFit
+        iv.layer.magnificationFilter = .nearest
+        return iv
+    }
+
+    /// Build the well at `width`, frame sized to its content (fixed heights —
+    /// the container never grows past one row; strips cap at 4 cards/3 chips).
+    func build(width: CGFloat) -> UIView {
+        let box = UIView()
+        box.backgroundColor = CRT.cardFace
+        box.layer.borderWidth = CRT.px
+        box.layer.borderColor = CRT.ink.cgColor
+        var h: CGFloat = 96
+        switch self {
+        case .ambush(let piles, let deckId):
+            let n = max(1, min(piles, 4))
+            let w: CGFloat = 58
+            let rowW = CGFloat(n) * (w + 8) - 8
+            h = 100
+            let backFace = CardArt.Face(label: "", suit: "", kind: .back(deckId: deckId))
+            for i in 0..<n {
+                let iv = pixelImage(CardArt.image(backFace, scale: .half))
+                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
+                                  width: w, height: 80)
+                box.addSubview(iv)
+            }
+        case .cards(let cards, let torn):
+            let n = min(cards.count, 4)
+            let w: CGFloat = 58
+            let chipS: CGFloat = 34
+            let chipsW = torn.isEmpty ? 0 : CGFloat(min(torn.count, 3)) * (chipS + 4) + 8
+            let rowW = CGFloat(n) * (w + 8) - 8 + chipsW
+            h = 100
+            for (i, c) in cards.prefix(4).enumerated() {
+                let iv = pixelImage(CardArt.image(CardArt.Face(c), scale: .half))
+                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
+                                  width: w, height: 80)
+                box.addSubview(iv)
+            }
+            for (i, def) in torn.prefix(3).enumerated() {
+                let iv = pixelImage(ItemArt.sticker(def, size: chipS))
+                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(n) * (w + 8) + 8
+                                     + CGFloat(i) * (chipS + 4),
+                                  y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
+                box.addSubview(iv)
+            }
+        case .sticker(let def):
+            let iv = pixelImage(ItemArt.sticker(def, size: 64))
+            iv.frame = CGRect(x: (width - 64) / 2, y: 16, width: 64, height: 64)
+            box.addSubview(iv)
+        case .item(let kind, let id, let deckId):
+            let iv = pixelImage(ItemArt.forSlot(kind: kind, id: id, card: nil, deckId: deckId))
+            iv.frame = CGRect(x: (width - 64) / 2, y: 16, width: 64, height: 64)
+            box.addSubview(iv)
+        case .shop:
+            let iv = pixelImage(MapArt.shopStall())
+            iv.frame = CGRect(x: (width - 64) / 2, y: 20, width: 64, height: 56)
+            box.addSubview(iv)
+        case .removal:
+            let iv = pixelImage(ItemArt.removal(width: 56, height: 72))
+            iv.frame = CGRect(x: (width - 56) / 2, y: 12, width: 56, height: 72)
+            box.addSubview(iv)
+        case .coins(let amount, let positive):
+            let coins = UILabel()
+            let text = NSMutableAttributedString()
+            if let coin = ArtBundle.image("pxi-coin") {
+                let att = NSTextAttachment()
+                att.image = coin
+                att.bounds = CGRect(x: 0, y: -3, width: 28, height: 28)
+                text.append(NSAttributedString(attachment: att))
+                text.append(NSAttributedString(string: " "))
+            }
+            text.append(NSAttributedString(string: "\(positive ? "+" : "−")\(amount)",
+                                           attributes: [.font: CRT.Font.of(34),
+                                                        .foregroundColor: CRT.gold]))
+            coins.attributedText = text
+            coins.textAlignment = .center
+            coins.frame = CGRect(x: 0, y: 28, width: width, height: 40)
+            box.addSubview(coins)
+        }
+        box.frame = CGRect(x: 0, y: 0, width: width, height: h)
+        return box
     }
 }
 

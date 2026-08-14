@@ -257,6 +257,9 @@ final class MysteryCastOutcomeTests: XCTestCase {
                       "every Pillar comes down")
         XCTAssertEqual(c.getRunDeck().filter(\.joker).count, jokersBefore + 1,
                        "exactly one ★ Joker joins the deck")
+        // The closing modal's result container draws the star itself.
+        XCTAssertEqual(r?.cards.first?.joker, true, "the minted ★ rides on the Result")
+        XCTAssertEqual(r?.cards.first?.id, r?.cardId)
     }
 
     func testJokerForPillarsNeedsPillarsAndCapRoom() {

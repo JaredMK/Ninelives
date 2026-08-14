@@ -209,7 +209,7 @@ const NINELIVES_ITEMS = {
     // step = coins the payout grows per correct placement (pays 0 on the first).
     { id: "compound", unlock: { type: "milestone", stat: "bestCampaignScore", count: 120 }, label: "Compound",    icon: "📈", kind: "behavior", behavior: "compound", step: 1, tier: "rare", price: 6,
       description: "+X coins. X starts at 0, grows by 1 per correct placement, resets on a wrong guess", suits: ["♥"] },
-    { id: "revealNext", unlock: { type: "behavior", stat: "zenEasyWon", count: 2 }, label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 6,
+    { id: "revealNext", unlock: { type: "behavior", stat: "zenEasyWon", count: 2 }, label: "Scout",       icon: "👁️", kind: "behavior", behavior: "revealNext", tier: "rare", price: 10,
       description: "Peek at the next deck card", suits: ["♠"]  },
     { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "common", price: 1,
       description: "Counts as every suit" },
@@ -539,7 +539,7 @@ const NINELIVES_ITEMS = {
     // boss deal. It blows itself up AND any base beside it on use.
     { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 60 }, label: "Last Resort", icon: "🧨",
       kind: "active", effect: "lastResort", tier: "rare", price: 10,
-      description: "Bury the whole remaining deck under one pile in this column and WIN the deal instantly. Never works in a boss deal. Destroys itself and any base next to it" },
+      description: "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Last Resort and any base beside it are destroyed." },
     // EMPTY PURSE: every coin you hold, for one peek.
     { id: "emptyPurse", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 150 }, label: "Empty Purse", icon: "👛",
       kind: "active", effect: "emptyPurse", tier: "rare", price: 5,

@@ -37,6 +37,11 @@ public final class CardPickerViewController: UIViewController {
     public var forced = false
     /// Show a Skip button (pack-keep walk: decline this card).
     public var showsSkip = false
+    /// COMMITTED walks (a bought pack's placement, the Queen's gift): hide the
+    /// ✕ so the confirmed Skip is the only way out. Softer than `forced` — the
+    /// scrim still answers a tap, but it routes INTO the Skip confirmation
+    /// (see scrimTapped) instead of silently dropping the flow.
+    public var hidesClose = false
 
     // Sheet chrome.
     private let scrim = UIControl()
@@ -110,7 +115,7 @@ public final class CardPickerViewController: UIViewController {
         sheet.addSubview(headerLabel)
 
         closeButton.onTap = { [weak self] in self?.closeTapped() }
-        closeButton.isHidden = effectivelyForced
+        closeButton.isHidden = effectivelyForced || hidesClose
         sheet.addSubview(closeButton)
         skipButton.onTap = { [weak self] in self?.skipTapped() }
         skipButton.isHidden = !showsSkip
@@ -889,9 +894,15 @@ public final class CardPickerViewController: UIViewController {
         dismiss(animated: false) { done(nil) }
     }
 
-    /// Backdrop tap = cancel, exactly like ✕ (never when forced).
+    /// Backdrop tap = cancel, exactly like ✕ (never when forced) — EXCEPT when
+    /// a Skip exists: the tap off the sheet must never be a softer exit than
+    /// the buttons offer, so it routes into the same confirmed-skip path
+    /// instead of silently closing (the Queen's gift used to lose its confirm
+    /// this way). With ✕ hidden and no Skip there is no tap-out at all.
     @objc private func scrimTapped() {
         guard !effectivelyForced, !busy, !prompt.isShowing else { return }
+        if showsSkip { skipTapped(); return }
+        guard !hidesClose else { return }
         closeTapped()
     }
 
@@ -910,11 +921,22 @@ public final class CardPickerViewController: UIViewController {
 
     private func skipTapped() {
         guard !busy, !prompt.isShowing else { return }
-        // Use-or-confirmed-skip: declining a held card is destructive (no
+        // Use-or-confirmed-skip: declining a held item is destructive (no
         // refund), so it rides the shared bottom prompt bar like every other
-        // confirmation — never a one-tap dismiss.
+        // confirmation — never a one-tap dismiss. The copy NAMES what is lost:
+        // "Skip" alone read as "decide later", and the item is gone for good.
         let what: String
-        if case .applySticker = mode { what = "Discard this sticker?" } else { what = "Skip this card?" }
+        switch mode {
+        case .applySticker(let t):
+            let label = GameData.shared.stickerTypes.get(t)?.label ?? "this sticker"
+            what = "Discard \(label)? It is gone for good."
+        case .swap(let trayIndex, _):
+            let tray = campaign.getPackTray()
+            let name = trayIndex < tray.count ? trayCardName(tray[trayIndex]) : "this card"
+            what = "Discard \(name)? It is gone for good."
+        default:
+            what = "Skip this card?"
+        }
         prompt.show(what, actions: [
             .init("Back", role: .plain) { [weak self] in self?.prompt.hide() },
             .init(what.hasPrefix("Discard") ? "Discard" : "Skip", role: .danger) { [weak self] in self?.confirmSkip() },
@@ -924,10 +946,20 @@ public final class CardPickerViewController: UIViewController {
     private func confirmSkip() {
         guard !busy else { return }
         prompt.hide()
-        // Pack-keep walk decline: drop the tray card (no refund) and advance.
-        if case .swap(let trayIndex, _) = mode { _ = campaign.discardPackCard(trayIndex) }
-        dismiss(animated: false)
-        completion(nil)
+        // A confirmed skip is a real DISCARD, not a deferral: the held tray
+        // card / inventory sticker is dropped for good (no refund), so a
+        // committed walk can move on and nothing lingers to re-gate GO TO MAP.
+        var mutated = false
+        switch mode {
+        case .swap(let trayIndex, _): mutated = campaign.discardPackCard(trayIndex)
+        case .applySticker(let t): mutated = campaign.useStickerFromInventory(t)
+        default: break
+        }
+        if mutated { PersistenceHolder.shared?.checkpoint(campaign) }
+        // Report after the dismissal lands — the completion often presents the
+        // walk's NEXT picker, and UIKit drops a present() mid-dismissal.
+        let done = completion
+        dismiss(animated: false) { done(nil) }
     }
 }
 

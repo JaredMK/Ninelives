@@ -219,8 +219,9 @@ public final class StoreViewController: UIViewController {
                                tier: tierOf(s),
                                locked: locked)
                 tile.onTap = { [weak self] in self?.openDetail(slot: i) }
-                tile.onHold = { [weak self] in self?.showHelp(kind: s.kind, id: s.id, card: s.card) }
-                tile.onHoldEnded = { [weak self] in self?.hideHoldHelp() }
+                // No hold-for-help on shelf items (v6.53 batch 3): the tap
+                // already opens the detail sheet with the same registry copy —
+                // the hold was a second door to the same room.
             } else {
                 tile.configureSold()
             }
@@ -312,7 +313,8 @@ public final class StoreViewController: UIViewController {
                 b.addAction(UIAction { [weak self] _ in
                     self?.openEquippedDetail(kind: kind, id: def.id, col: col)
                 }, for: .touchUpInside)
-                addHold(to: b) { [weak self] in self?.showHelp(kind: kind, id: def.id, card: nil) }
+                // No hold-for-help here either (v6.53 batch 3): the tap opens
+                // the equipped detail with the identical copy.
                 v.addSubview(b)
             } else {
                 let e = CRTKit.label("empty", size: 14, color: CRT.disabledText)
@@ -674,8 +676,10 @@ public final class StoreViewController: UIViewController {
         present(picker, animated: false)
     }
 
-    /// Apply pickers for a pack's just-granted stickers, back to back. A cancel
-    /// (nil) ENDS the walk — the rest wait for the explicit gate.
+    /// Apply pickers for a pack's just-granted stickers, back to back. The
+    /// placement is COMMITTED: no ✕, and the scrim routes into the confirmed
+    /// Skip — each sticker is either applied or explicitly discarded (no
+    /// refund), so the walk always drains and the store never re-gates on it.
     private func walkNewStickers(_ ids: [String]) {
         guard let typeId = ids.first else { return }
         guard campaign.inventoryCount(typeId) > 0 else {
@@ -694,19 +698,23 @@ public final class StoreViewController: UIViewController {
             return
         }
         let picker = CardPickerViewController(campaign: campaign,
-                                              mode: .applySticker(typeId: typeId)) { [weak self] picked in
+                                              mode: .applySticker(typeId: typeId)) { [weak self] _ in
             guard let self else { return }
             self.render()
-            // Backing out keeps the sticker: it stays in the inventory, the
-            // shelf shows it again, and GO TO MAP still gates on it — nothing
-            // is spent until it actually lands on a card.
-            if picked != nil { self.walkNewStickers(Array(ids.dropFirst())) }
+            // Applied or confirm-discarded, the walk moves on either way —
+            // the picker has no silent exit here (hidesClose + skip routing).
+            self.walkNewStickers(Array(ids.dropFirst()))
         }
+        picker.showsSkip = true
+        picker.hidesClose = true
         present(picker, animated: false)
     }
 
     /// The PACK-KEEP walk: every held tray card gets a swap picker, back to
-    /// back (Skip declines one), until the tray drains.
+    /// back, until the tray drains. COMMITTED like the sticker walk: no ✕,
+    /// scrim routes into the confirmed Skip, and a confirmed Skip DISCARDS
+    /// that tray card (no refund) — every held card is resolved here, never
+    /// parked for a later gate.
     private func startPackKeepWalk(from index: Int) {
         guard campaign.packTrayCount() > 0 else { render(); return }
         let total = campaign.packTrayCount()
@@ -722,6 +730,7 @@ public final class StoreViewController: UIViewController {
             }
         }
         picker.showsSkip = true
+        picker.hidesClose = true
         present(picker, animated: false)
     }
 

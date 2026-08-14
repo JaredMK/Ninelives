@@ -416,7 +416,7 @@
       "kind": "behavior",
       "behavior": "revealNext",
       "tier": "rare",
-      "price": 6,
+      "price": 10,
       "description": "Peek at the next deck card",
       "suits": [
         "♠"
@@ -1753,7 +1753,7 @@
       "effect": "lastResort",
       "tier": "rare",
       "price": 10,
-      "description": "Bury the whole remaining deck under one pile in this column and WIN the deal instantly. Never works in a boss deal. Destroys itself and any base next to it"
+      "description": "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Last Resort and any base beside it are destroyed."
     },
     {
       "id": "emptyPurse",

@@ -54,17 +54,28 @@ final class OldJokerView: UIView {
     private let art = UIImageView()
     private let nameLabel = UILabel()
     private let speech = UILabel()
+    private let titleLabel = UILabel()
     private let offerLabel = UILabel()
+    /// The shared RESULT CONTAINER (the mystery reveal's cream well) — built
+    /// lazily in layout because its internal geometry needs the real width.
+    private let wellContent: OutcomeWell?
+    private var wellView: UIView?
+    private var wellBuiltWidth: CGFloat = 0
     private var buttons: [PixelButtonView] = []
     private let onChoose: (OldJoker.Choice) -> Void
 
-    init(title: String, line: String, offer: String, items: [(String, String)] = [],
-         compares: [CompareRow] = [],
+    /// `eventTitle` is the event's NAME — the standard popup structure leads
+    /// every event with one (the mystery reveals always did; the conversation
+    /// modal was the holdout). `well` is what the event changed, drawn.
+    init(title: String, line: String, eventTitle: String? = nil, offer: String,
+         items: [(String, String)] = [],
+         compares: [CompareRow] = [], well: OutcomeWell? = nil,
          options: [Option], mapPeek: Bool = true, givePurse purse: Int? = nil,
          art artImage: UIImage? = nil,
          backLabel: String = "◀ BACK TO THE JOKER",
          onChoose: @escaping (OldJoker.Choice) -> Void) {
         self.onChoose = onChoose
+        self.wellContent = well
         super.init(frame: .zero)
         // Another character can borrow his conversation modal wholesale —
         // JUST A TWO's con runs through here with its own card.
@@ -99,6 +110,15 @@ final class OldJokerView: UIView {
         speech.numberOfLines = 0
         speech.attributedText = CRTKit.attributed("\u{201C}\(line)\u{201D}", size: 16, color: CRT.cardFace)
         content.addSubview(speech)
+
+        // The event's NAME, as-authored case — the same gold display line the
+        // mystery reveal leads with, so every family reads as one system.
+        if let eventTitle {
+            titleLabel.attributedText = CRTKit.attributed(eventTitle, size: 14,
+                                                          color: CRT.gold, display: true)
+            titleLabel.textAlignment = .center
+            content.addSubview(titleLabel)
+        }
 
         offerLabel.numberOfLines = 0
         // 16pt cream (router batch 2): this line IS the event ("8♠ purged.")
@@ -344,10 +364,34 @@ final class OldJokerView: UIView {
         art.frame = CGRect(x: pad, y: y, width: artW, height: artW * 20 / 14)
         y += headerH + 12
 
+        // The event's name, centred under the header (the mystery reveal's
+        // title slot, transplanted).
+        if titleLabel.superview != nil {
+            titleLabel.frame = CGRect(x: pad, y: y, width: w - pad * 2, height: 18)
+            y += 18 + 8
+        }
+
         // What he is actually proposing.
         let offerH = ceil(offerLabel.sizeThatFits(CGSize(width: w - pad * 2, height: 400)).height)
         offerLabel.frame = CGRect(x: pad, y: y, width: w - pad * 2, height: offerH)
         y += offerH + 12
+
+        // The result container: what the settled event changed, as art. Built
+        // at the real width (rebuilt only if that width changes — rotation).
+        if let wc = wellContent {
+            let ww = w - pad * 2
+            if wellView == nil || wellBuiltWidth != ww {
+                wellView?.removeFromSuperview()
+                let v = wc.build(width: ww)
+                content.addSubview(v)
+                wellView = v
+                wellBuiltWidth = ww
+            }
+            if let wv = wellView {
+                wv.frame.origin = CGPoint(x: pad, y: y)
+                y += wv.frame.height + 12
+            }
+        }
 
         // The item key: each named item's effect, indented under its name.
         let keyW = w - pad * 2

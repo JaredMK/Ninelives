@@ -52,7 +52,7 @@ There are exactly **three characters** a ? node can become. **The character roll
 - **Accept closing:** “N stops pass you by.” → he escorts your token up the map, then the shop opens.
 
 ### 5 · Cut — 12 · deck > 1
-- **Line:** “One card leaves tonight. Only question is whose hand picks it.”
+- **Line:** “One card leaves tonight. Only question is who picks it.”
 - **Terms:** “One card purged. Free if he picks it — 4 coins to pick it yourself.”
 - **Buttons:** PLAIN **LET HIM PICK** ↳ “free” · GOLD **PICK IT YOURSELF** ↳ “4 coins” *(plain when broke)* · PLAIN **WALK AWAY**
 - **Him picking:** closing — “[Card] never existed.”
@@ -155,7 +155,7 @@ There are exactly **three characters** a ? node can become. **The character roll
 | 3 | **Purge** [8] | always | “Let one go. Kinder when it's your own choice. I would know.” | “Remove a card from the deck” | torn card | **forced** removal picker: “Pick a card to permanently remove from your deck.” (skipped silently on a 1-card deck) |
 | 4 | **Cleanse** [7] | a stickered card exists, else → Cache | “Peel it off. Whatever they stuck to you, you don't have to keep.” | “Strip a sticker from a card” | torn card | **forced** strip picker: “Cleanse — Pick a card — one random sticker is stripped from it. The stripped sticker is destroyed.” |
 | 5 | **Wild Card** [5] | joker-cap room, else → Cache | “He never took sides when it mattered. Maybe he'll take yours.” | “A ★ Joker joins your deck” | the ★ card | the card flies to your deck counter |
-| 6 | **Fire Sale** [6] | always | “I told the shopkeep what a crown is worth. Everything's a coin till they restock.” | “At the next shop every item costs 1 coin — until you refresh the shelf” | — | armed for the next shop only |
+| 6 | **Fire Sale** [6] | always | “I told the shopkeep what a crown is worth. Everything's a coin until they restock.” | “At the next shop every item costs 1 coin — until you refresh the shelf” | — | armed for the next shop only |
 | 7 | **Restock** [6] | always | “Make them set the shelf again. Tell them the Queen is paying.” | “The next shop's first REFRESH costs nothing” | — | armed; after use the ladder resumes at 6 |
 | 8 | **Mulligan** [6] | always | “Take the hand back once, on me. Everyone deserves a second dealing.” | “Your next deal's first RESHUFFLE costs nothing” | — | armed; after use the ladder resumes at 5 |
 | 9 | **Charged** [5] | shield EMPTY, else → Cache | “A shield. I'd have kept mine up, if I'd known which day to.” | “Your Same shield is charged, on her” | — | shield lit |

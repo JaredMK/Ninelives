@@ -51,7 +51,7 @@ enum MysteryCast {
         case "store":
             return "The shopkeep still owes me a kindness. Go in. I told them you'd come."
         case "priceOne":
-            return "I told the shopkeep what a crown is worth. Everything's a coin till they restock."
+            return "I told the shopkeep what a crown is worth. Everything's a coin until they restock."
         case "freeRefresh":
             return "Make them set the shelf again. Tell them the Queen is paying."
         case "freeRedeal":

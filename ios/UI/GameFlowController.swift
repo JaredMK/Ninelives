@@ -1772,6 +1772,7 @@ extension GameFlowController: MapScreenDelegate {
         let view = OldJokerView(
             title: "Just a Two",
             line: "I know Mamma. Personally. I can take you to her. For every coin you've got, or one of them stars.",
+            eventTitle: o.title,
             offer: "Pay what it asks, and Just a Two says it will bring you to Mamma. It seems very sure of itself.",
             options: options,
             art: ItemArt.justATwo(scale: 5),
@@ -1784,6 +1785,9 @@ extension GameFlowController: MapScreenDelegate {
                     self.completeMystery(node.id)
                     return
                 }
+                // Snapshot the star BEFORE the con collects — a removed card
+                // can't be looked up afterwards, and the reveal shows what left.
+                let star = self.campaign.getRunDeck().first { $0.joker }
                 let r = self.campaign.resolveMammaLie(givingCoins: i == 0)
                 self.persist(phase: "map")
                 map?.render()
@@ -1792,7 +1796,9 @@ extension GameFlowController: MapScreenDelegate {
                     : "\(r.coinsTaken) coin\(r.coinsTaken == 1 ? "" : "s")"
                 let after = MysteryOutcome(
                     key: "mammaLie", title: "The Long Walk",
-                    desc: "\(paid), gone. It walked you in one big circle and wandered off. Mamma never came.")
+                    desc: "\(paid), gone. It walked you in one big circle and wandered off. Mamma never came.",
+                    amount: r.coinsTaken > 0 ? r.coinsTaken : nil,
+                    cards: r.jokerTaken ? (star.map { [$0] } ?? []) : [])
                 self.presentOverlay(PhaseOverlayView.mystery(
                     outcome: after,
                     presenter: MysteryCast.presenter(for: after),
@@ -1827,6 +1833,7 @@ extension GameFlowController: MapScreenDelegate {
         let view = OldJokerView(
             title: "Just a Two",
             line: "I'm thinking of a card. Higher or lower than an \(pivot)? Twos always know. Let's see if you do.",
+            eventTitle: o.title,
             offer: "One call against its hidden card. Win and you get nothing. Lose and your Same shield is drained.",
             options: options,
             art: ItemArt.justATwo(scale: 5),
@@ -1878,6 +1885,7 @@ extension GameFlowController: MapScreenDelegate {
         let compares = OldJokerCopy.compareRows(for: offer, in: campaign)
         let view = OldJokerView(title: OldJokerCopy.name,
                                 line: OldJokerCopy.line(for: offer),
+                                eventTitle: OldJokerCopy.title(for: offer),
                                 offer: OldJokerCopy.offerText(for: offer, in: campaign),
                                 items: compares.isEmpty
                                     ? OldJokerCopy.itemKey(for: offer, in: campaign) : [],
@@ -1926,26 +1934,29 @@ extension GameFlowController: MapScreenDelegate {
         // PURGE / paid CUT — the player now picks the cards that leave.
         if r.removeCount > 0 {
             var left = r.removeCount
-            var lastRemoved: String?
+            var removed: [CardSpec] = []
             func pickNext() {
                 guard left > 0 else {
-                    // The paid Cut's closing modal NAMES the card that left —
+                    // The closing modal SHOWS the cards that left (the shared
+                    // result container) — and the paid Cut names its one card:
                     // "Choose the one that leaves." after the choice was made
                     // read as a stale instruction.
                     var done = r
-                    if r.key == "cut", let name = lastRemoved {
-                        done.detail = "\(name) purged."
+                    done.cards = removed
+                    if r.key == "cut", let c = removed.last {
+                        done.detail = "\(self.cardShortName(c)) purged."
                     }
                     finishJokerRemovals(done, nodeId: nodeId, map: map)
                     return
                 }
                 left -= 1
+                // Snapshot BEFORE the picker: the removal deletes the card
+                // from the universe, so an id lookup afterwards finds nothing.
+                let before = campaign.getRunDeck()
                 let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] removedId in
                     guard let self else { return }
-                    if let id = removedId, let c = self.campaign.findById(id) {
-                        let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label
-                            ?? "\(c.currentRank)"
-                        lastRemoved = c.joker ? "★ Joker" : "\(rank)\(c.suit)"
+                    if let id = removedId, let c = before.first(where: { $0.id == id }) {
+                        removed.append(c)
                     }
                     self.persist(phase: "map")
                     pickNext()
@@ -1988,14 +1999,18 @@ extension GameFlowController: MapScreenDelegate {
                                   subjectCardId: sourceId,
                                   subjectExtraSticker: sticker)) { [weak self] replaceId in
                     guard let self else { return }
+                    var done = r
                     if let replaceId, replaceId != sourceId {
-                        _ = self.campaign.applyJokerDuplicate(sourceId: sourceId,
-                                                              replaceId: replaceId,
-                                                              sticker: sticker)
+                        let newId = self.campaign.applyJokerDuplicate(sourceId: sourceId,
+                                                                      replaceId: replaceId,
+                                                                      sticker: sticker)
+                        // The placed copy, curse chip and all, in the closing
+                        // modal's result container.
+                        done.cards = newId.flatMap { self.campaign.findById($0) }.map { [$0] } ?? []
                         Sound.shared.swapCard()
                         self.persist(phase: "map")
                     }
-                    self.showJokerResult(r, nodeId: nodeId, map: map)
+                    self.showJokerResult(done, nodeId: nodeId, map: map)
                 }
                 replacePicker.forced = true    // the copy has to go somewhere
                 self.present(replacePicker, animated: false)
@@ -2032,10 +2047,20 @@ extension GameFlowController: MapScreenDelegate {
         }
         let hit = campaign.applyJokerCurses(curses, nodeId: nodeId)
         persist(phase: "map")
+        // The PURGE's closing modal speaks in the past tense: its Result was
+        // minted before the pickers ("Pick your three" / "Then he takes his
+        // due."), and now that the headline is the popup's TITLE, replaying
+        // the instruction after the fact read as a stale command.
+        let purged = r.cards.isEmpty ? r.removeCount : r.cards.count
+        var done = r
+        done.headline = "His Due"
+        done.detail = "\(purged) purged. "
+            + (hit.isEmpty ? "No curse found a card to land on."
+                           : "\(hit.count) card\(hit.count == 1 ? "" : "s") took his mark.")
         // The other half of the bargain has to be SEEN. The cards were being
         // marked silently, so the deal read as "remove three, free" — the
         // player only met the curses later, mid-deal, with no idea why.
-        guard !hit.isEmpty else { showJokerResult(r, nodeId: nodeId, map: map); return }
+        guard !hit.isEmpty else { showJokerResult(done, nodeId: nodeId, map: map); return }
         // The reveal names the curses that landed (they can differ per card
         // now); the card strip shows each afflicted card with its new chip.
         let labels = hit.map { GameData.shared.stickerTypes.get($0.curse)?.label ?? $0.curse }
@@ -2054,7 +2079,7 @@ extension GameFlowController: MapScreenDelegate {
                                                 mapPeek: true,
                                                 onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
             self?.dismissOverlay()
-            self?.showJokerResult(r, nodeId: nodeId, map: map)
+            self?.showJokerResult(done, nodeId: nodeId, map: map)
         })
         Sound.shared.sticker()
     }
@@ -2112,14 +2137,39 @@ extension GameFlowController: MapScreenDelegate {
         })
     }
 
+    /// The result container for a settled offer — what changed, drawn in the
+    /// same cream well the Queen's reveals use. Precedence: cards the result
+    /// snapshotted (cuts, Eights, the minted ★, the placed duplicate), then
+    /// the item that left (buyout / buyback / free shop), then the coin move
+    /// (marker, collection, insurance, the reset, the drink). Trades draw the
+    /// settled compare row instead — two sides need two tiles. nil when the
+    /// decline (or a flag-arm) changed nothing visible.
+    private func jokerResultWell(_ r: OldJoker.Result) -> OutcomeWell? {
+        if !r.cards.isEmpty { return .cards(r.cards, torn: []) }
+        if r.key == "blindSwap" || r.key == "swap" { return nil }
+        if let lost = r.lost {
+            return .item(kind: lost.kind.rawValue, id: lost.id, deckId: campaign.deckId)
+        }
+        if r.coins != 0 { return .coins(amount: abs(r.coins), positive: r.coins > 0) }
+        return nil
+    }
+
+    /// "K♠" / "★ Joker" — the UI's short card name (GameCore's own stays
+    /// internal to the engine).
+    private func cardShortName(_ c: CardSpec) -> String {
+        if c.joker { return "★ Joker" }
+        let rank = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "\(c.currentRank)"
+        return "\(rank)\(c.suit)"
+    }
+
     private func showJokerResult(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
         // His ONE closing statement, then the plain fact of what changed —
         // never a second quip saying the same thing in different words.
-        // A settled BLIND SWAP finally shows its two faces: both items, drawn
-        // with a two-way arrow between them (router batch) — the reveal the
-        // whole offer was building to.
+        // A settled SWAP or BLIND SWAP shows its two faces: both items, drawn
+        // with a two-way arrow between them (router batch) — for the blind
+        // one, the reveal the whole offer was building to.
         var compares: [OldJokerView.CompareRow] = []
-        if r.key == "blindSwap", let lost = r.lost, let gained = r.gained {
+        if r.key == "blindSwap" || r.key == "swap", let lost = r.lost, let gained = r.gained {
             func side(_ kind: OldJoker.Holding.Kind, _ id: String, tag: String) -> OldJokerView.CompareSide {
                 let def = campaign.holdingDef(OldJoker.Holding(kind: kind, id: id))
                 return .init(tag: tag,
@@ -2134,8 +2184,10 @@ extension GameFlowController: MapScreenDelegate {
         }
         let view = OldJokerView(title: OldJokerCopy.name,
                                 line: OldJokerCopy.closingLine(for: r),
+                                eventTitle: r.headline,
                                 offer: r.detail,
                                 compares: compares,
+                                well: compares.isEmpty ? jokerResultWell(r) : nil,
                                 options: [.init(label: "GO ON", detail: nil, role: .cta, choice: .decline)]) { [weak self] _ in
             self?.oldJokerView?.dismiss { [weak self] in
                 self?.oldJokerView = nil
@@ -2182,8 +2234,10 @@ extension GameFlowController: MapScreenDelegate {
             if let map { map.collectCards(o.cards) { [weak self] in self?.completeMystery(node.id) } }
             else { completeMystery(node.id) }
         case "giftCard":
-            // Her keepsake swaps in through the tray picker — SKIP is legal
-            // (the card waits in the tray for the next store gate).
+            // Her keepsake swaps in through the tray picker. SKIP is legal but
+            // CONFIRMED (it discards the gift, no refund) — and it is the only
+            // way out: no ✕, and a tap off the sheet routes into that same
+            // confirmation instead of silently dropping her offer.
             if let cid = o.cardId,
                let idx = campaign.getPackTray().firstIndex(where: { $0.id == cid }) {
                 let picker = CardPickerViewController(campaign: campaign,
@@ -2191,6 +2245,7 @@ extension GameFlowController: MapScreenDelegate {
                     self?.completeMystery(node.id)
                 }
                 picker.showsSkip = true
+                picker.hidesClose = true
                 present(picker, animated: false)
             } else { completeMystery(node.id) }
         case "stickerPack":

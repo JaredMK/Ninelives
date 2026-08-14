@@ -24,7 +24,7 @@ enum OldJokerCopy {
         case .ride:
             return "I'm headed that way. What's between here and there won't miss you."
         case .cut:
-            return "One card leaves tonight. Only question is whose hand picks it."
+            return "One card leaves tonight. Only question is who picks it."
         case .marker:
             return "Take it. Spend it. I'm patient, right up until I'm not."
         case .blindSwap:
@@ -53,6 +53,34 @@ enum OldJokerCopy {
             return "Anything worth having is worth having twice. There's a cost to the second one."
         case .jokerForPillars:
             return "All them flags you're flying. Give me the lot and I'll deal you a star."
+        }
+    }
+
+    /// The event's NAME — every popup family leads with a title now (the
+    /// mystery reveals always carried theirs; his offers were the holdout).
+    /// As-authored case, like the mystery titles; the closing modals title
+    /// themselves with the Result's headline instead.
+    static func title(for offer: OldJoker.Offer) -> String {
+        switch offer {
+        case .buyout: return "The Buyout"
+        case .swap: return "The Trade"
+        case .purge: return "The Purge"
+        case .ride: return "The Ride"
+        case .cut: return "The Cut"
+        case .marker: return "The Marker"
+        case .blindSwap: return "The Blind Swap"
+        case .twoDoors: return "Two Doors"
+        case .insurance: return "Insurance"
+        case .refund: return "The Buyback"
+        case .collect: return "The Collection"
+        case .freeShop: return "On the House"
+        case .purgeReset: return "The Reset"
+        case .eights: return "Eights"
+        case .thirsty: return "The Drink"
+        case .thirstReturn(let paid, _):
+            return paid > 0 ? "The Drink, Repaid" : "About That Drink"
+        case .duplicate: return "The Duplicate"
+        case .jokerForPillars: return "A Star for Your Flags"
         }
     }
 

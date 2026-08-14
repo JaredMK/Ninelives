@@ -141,6 +141,11 @@ public enum OldJoker {
         public var chainedMysteryKey: String?
         /// Cut-free: the card he took.
         public var cardId: Int?
+        /// SNAPSHOTS of the cards the result touched (cut victims, Eights'
+        /// flattened ranks, the minted ★) — captured at resolve time because
+        /// a removed card leaves the universe and can't be looked up later.
+        /// The closing modal draws these in the shared result container.
+        public var cards: [CardSpec] = []
         /// The drink returned: how much SELL value his coat is worth this visit.
         public var giftBudget: Int = 0
         public var good: Bool = true

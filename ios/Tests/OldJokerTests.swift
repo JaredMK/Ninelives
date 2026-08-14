@@ -241,6 +241,12 @@ final class OldJokerTests: XCTestCase {
         XCTAssertEqual(c.getRunDeck().count, before - 1, "one card leaves, free")
         XCTAssertNotNil(r?.cardId, "…and he says which")
         XCTAssertEqual(r?.coins, 0, "his pick costs nothing")
+        // The result container needs the CARD, not just its id: the removal
+        // deletes the spec from the universe, so it must ride on the Result.
+        XCTAssertEqual(r?.cards.count, 1, "the victim's spec is snapshotted for the reveal")
+        XCTAssertEqual(r?.cards.first?.id, r?.cardId)
+        XCTAssertNil(c.findById(r?.cardId ?? -1),
+                     "…because the card itself no longer exists to look up")
     }
 
     func testCutPaidBranchChargesAndOpensThePicker() {
@@ -572,13 +578,18 @@ final class OldJokerTests: XCTestCase {
         XCTAssertGreaterThan(before, 0, "the starting deck should hold some")
         let jokers = c.getRunDeck().filter(\.joker).count
         let size = c.deckSize()
-        _ = c.resolveOldJoker(.eights(from: c.eightsFromRanks(), to: 8, affected: before),
-                              choice: .accept, nodeId: 1)
+        let r = c.resolveOldJoker(.eights(from: c.eightsFromRanks(), to: 8, affected: before),
+                                  choice: .accept, nodeId: 1)
         XCTAssertEqual(c.getRunDeck().filter { !$0.joker && from.contains($0.currentRank) }.count, 0,
                        "every Ace and 2 is gone")
         // He pays NOTHING for it — the flatter deck is the entire offer.
         XCTAssertEqual(c.getRunDeck().filter(\.joker).count, jokers, "no Joker is handed over")
         XCTAssertEqual(c.deckSize(), size, "…and the deck does not grow")
+        // The result container shows the flattened cards — every changed spec
+        // rides on the Result, already at its new rank.
+        XCTAssertEqual(r?.cards.count, before, "one snapshot per changed card")
+        XCTAssertTrue(r?.cards.allSatisfy { $0.currentRank == 8 } ?? false,
+                      "the snapshots carry the post-change rank")
     }
 
     // MARK: - 15/16. Thirsty, and the drink returned

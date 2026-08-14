@@ -77,10 +77,12 @@ extension CampaignState {
                 let deck = getRunDeck()
                 guard let victim = deck[safe: rng.index(max(1, deck.count))] else { return nil }
                 _ = removeDeckCard(victim.id)
-                return OldJoker.Result(
+                var r = OldJoker.Result(
                     key: "cut", headline: "His pick",
                     detail: "\(cardName(victim)) never existed.",
                     cardId: victim.id, good: false)
+                r.cards = [victim]   // snapshotted — the card no longer exists to look up
+                return r
             case .payToChoose:
                 guard coins >= chooseCost else { return nil }
                 _ = spendCoins(chooseCost)
@@ -186,19 +188,21 @@ extension CampaignState {
         // for it, so taking it is a bet on a flatter deck being easier to read.
         case .eights(let from, let to, _):
             let ranks = Set(from)
-            var changed = 0
+            var changed: [CardSpec] = []
             for i in baseDeck.indices where ownedIds.contains(baseDeck[i].id) {
                 guard !baseDeck[i].joker, !baseDeck[i].blank,
                       ranks.contains(baseDeck[i].currentRank), baseDeck[i].currentRank != to
                 else { continue }
                 baseDeck[i].currentRank = to
-                changed += 1
+                changed.append(baseDeck[i])
             }
-            guard changed > 0 else { return nil }
-            return OldJoker.Result(
+            guard !changed.isEmpty else { return nil }
+            var r = OldJoker.Result(
                 key: "eights", headline: "Eights",
-                detail: "\(changed) card\(changed == 1 ? "" : "s") flattened to \(to).",
+                detail: "\(changed.count) card\(changed.count == 1 ? "" : "s") flattened to \(to).",
                 good: true)
+            r.cards = changed   // the flattened cards, shown in the result container
+            return r
 
         // ── 15. THIRSTY ──────────────────────────────────────────────────────
         // He asks for drink money. ANY amount is a legal answer, zero included,
@@ -245,10 +249,12 @@ extension CampaignState {
             guard taken > 0 else { return nil }
             let jid = mintJokerId()
             ownedIds.append(jid)
-            return OldJoker.Result(
+            var r = OldJoker.Result(
                 key: "jokerForPillars", headline: "A star for your flags",
                 detail: "\(taken) Pillar\(taken == 1 ? "" : "s") down; a ★ Joker joins your deck.",
                 cardId: jid)
+            r.cards = findById(jid).map { [$0] } ?? []   // the star, in the result container
+            return r
 
         // ── 17. THE DUPLICATE ────────────────────────────────────────────────
         // The copy is made by the UI's pickers (choose a card, then choose the
